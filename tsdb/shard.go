@@ -1945,6 +1945,7 @@ func (fs *MeasurementFieldSet) WriteToFileNoLock() error {
 }
 
 // appendToChangesFile: Write a change file for fields.idx
+// Only called in one Go proc, so does not need locking.
 func (fscm *measurementFieldSetChangeMgr) appendToChangesFile(first writeRequest) {
 	var err error = nil
 	// Put the errorChannel on which we blocked into a slice to allow more invocations
