@@ -2,16 +2,18 @@ use futures::prelude::*;
 use object_store::{DynObjectStore, ObjectMeta};
 use observability_deps::tracing::*;
 use snafu::prelude::*;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use tokio::{
     select,
     sync::{broadcast, mpsc},
+    time::sleep,
 };
 
 pub(crate) async fn perform(
     mut shutdown: broadcast::Receiver<()>,
     object_store: Arc<DynObjectStore>,
     checker: mpsc::Sender<ObjectMeta>,
+    sleep_interval_minutes: u64,
 ) -> Result<()> {
     let mut items = object_store.list(None).await.context(ListingSnafu)?;
 
@@ -28,7 +30,11 @@ pub(crate) async fn perform(
                         checker.send(item).await?;
                     }
                     None => {
-                        break;
+                        // sleep for the configured time, then list again and go around the loop
+                        // again
+                        sleep(Duration::from_secs(60 * sleep_interval_minutes)).await;
+                        items = object_store.list(None).await.context(ListingSnafu)?;
+                        continue;
                     }
                 }
             }

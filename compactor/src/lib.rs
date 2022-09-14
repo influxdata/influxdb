@@ -175,7 +175,8 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                     }
                 }
                 FilterResult::OverBudget => {
-                    if to_compact.budget_bytes() <= compactor.config.memory_budget_bytes {
+                    let needed_bytes = to_compact.budget_bytes();
+                    if needed_bytes <= compactor.config.memory_budget_bytes {
                         // Required budget is larger than the remaining budget but smaller than
                         // full budget, add this partition back to the end of the list to compact
                         // with full budget later
@@ -186,12 +187,18 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                             ?partition_id,
                             ?table_id,
                             compaction_type,
+                            ?needed_bytes,
+                            memory_budget_bytes = compactor.config.memory_budget_bytes,
                             "skipped; over memory budget"
                         );
                         let mut repos = compactor.catalog.repositories().await;
+                        let reason = format!(
+                            "over memory budget. Needed budget = {}, memory budget = {}",
+                            needed_bytes, compactor.config.memory_budget_bytes
+                        );
                         let record_skip = repos
                             .partitions()
-                            .record_skipped_compaction(partition_id, "over memory budget")
+                            .record_skipped_compaction(partition_id, &reason)
                             .await;
                         if let Err(e) = record_skip {
                             warn!(?partition_id, %e, "could not log skipped compaction");

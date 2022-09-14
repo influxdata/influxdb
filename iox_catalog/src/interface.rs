@@ -568,6 +568,10 @@ pub trait ParquetFileRepo: Send + Sync {
     /// Returns the deleted records.
     async fn delete_old(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFile>>;
 
+    /// Delete all parquet files that were marked to be deleted earlier than the specified time.
+    /// Returns the deleted IDs only.
+    async fn delete_old_ids_only(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFileId>>;
+
     /// List parquet files for a given shard with compaction level 0 and other criteria that
     /// define a file as a candidate for compaction
     async fn level_0(&mut self, shard_id: ShardId) -> Result<Vec<ParquetFile>>;
@@ -2390,6 +2394,17 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(count, 1);
+
+        // test delete_old_ids_only
+        let older_than = Timestamp::new(
+            (catalog.time_provider().now() + Duration::from_secs(100)).timestamp_nanos(),
+        );
+        let ids = repos
+            .parquet_files()
+            .delete_old_ids_only(older_than)
+            .await
+            .unwrap();
+        assert_eq!(ids.len(), 1);
     }
 
     async fn test_parquet_file_compaction_level_0(catalog: Arc<dyn Catalog>) {

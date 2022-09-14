@@ -1131,6 +1131,17 @@ impl ParquetFileRepo for MemTxn {
         Ok(delete)
     }
 
+    async fn delete_old_ids_only(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFileId>> {
+        let delete = self
+            .delete_old(older_than)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|f| f.id)
+            .collect();
+        Ok(delete)
+    }
+
     async fn level_0(&mut self, shard_id: ShardId) -> Result<Vec<ParquetFile>> {
         let stage = self.stage();
 

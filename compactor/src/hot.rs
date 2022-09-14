@@ -342,7 +342,10 @@ mod tests {
             let skipped_compactions = repos.partitions().list_skipped_compactions().await.unwrap();
             assert_eq!(skipped_compactions.len(), 1);
             assert_eq!(skipped_compactions[0].partition_id, partition4.partition.id);
-            assert_eq!(skipped_compactions[0].reason, "over memory budget");
+            assert_eq!(
+                skipped_compactions[0].reason,
+                "over memory budget. Needed budget = 15750, memory budget = 13500"
+            );
         }
     }
 

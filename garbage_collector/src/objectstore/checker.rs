@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use iox_catalog::interface::{Catalog, ParquetFileRepo};
 use object_store::ObjectMeta;
 use observability_deps::tracing::*;
@@ -28,7 +28,7 @@ pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub(crate) async fn perform(
     catalog: Arc<dyn Catalog>,
-    cutoff: DateTime<Utc>,
+    cutoff: Duration,
     mut items: mpsc::Receiver<ObjectMeta>,
     deleter: mpsc::Sender<ObjectMeta>,
 ) -> Result<()> {
@@ -36,7 +36,8 @@ pub(crate) async fn perform(
     let parquet_files = repositories.parquet_files();
 
     while let Some(item) = items.recv().await {
-        if should_delete(&item, cutoff, parquet_files).await? {
+        let older_than = chrono::offset::Utc::now() - cutoff;
+        if should_delete(&item, older_than, parquet_files).await? {
             deleter.send(item).await.context(DeleterExitedSnafu)?;
         }
     }
