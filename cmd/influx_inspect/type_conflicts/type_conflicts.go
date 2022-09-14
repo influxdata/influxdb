@@ -77,7 +77,7 @@ func (tc *TypeConflictChecker) readFields() (Schema, error) {
 		rp := dirs[len(dirs)-3]
 		fmt.Printf("Processing %s\n", path)
 
-		mfs, err := tsdb.NewMeasurementFieldSet(path)
+		mfs, err := tsdb.NewMeasurementFieldSet(path, nil)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				return nil
