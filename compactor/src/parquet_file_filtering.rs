@@ -118,7 +118,7 @@ pub(crate) fn filter_parquet_files(
     let mut total_estimated_budget = 0;
     for level_0_file in level_0 {
         // Estimate memory needed for this L0 file
-        let l0_estimated_file_bytes = partition.estimated_arrow_bytes(level_0_file.row_count());
+        let l0_estimated_file_bytes = level_0_file.estimated_arrow_bytes();
 
         // Note: even though we can stop here if the l0_estimated_file_bytes is larger than the
         // given budget,we still continue estimated the memory needed for its overlapped L1 to
@@ -132,7 +132,7 @@ pub(crate) fn filter_parquet_files(
         // Estimate memory needed for each of L1
         let current_l1_estimated_file_bytes: Vec<_> = overlaps
             .iter()
-            .map(|file| partition.estimated_arrow_bytes(file.row_count()))
+            .map(|file| file.estimated_arrow_bytes())
             .collect();
         let estimated_file_bytes =
             l0_estimated_file_bytes + current_l1_estimated_file_bytes.iter().sum::<u64>();
@@ -752,7 +752,8 @@ mod tests {
                 created_at: Timestamp::new(12),
                 column_set: ColumnSet::new(std::iter::empty()),
             };
-            f.into()
+            // Estimated arrow bytes for one file with a tag, a time and 11 rows = 1176
+            CompactorParquetFile::new(f, 1176)
         }
 
         fn build_partition_with_extra_info(self) -> PartitionCompactionCandidateWithInfo {

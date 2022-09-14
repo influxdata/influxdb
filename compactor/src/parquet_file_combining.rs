@@ -734,11 +734,7 @@ mod tests {
             .with_line_protocol(&lp)
             .with_max_seq(20) // This should be irrelevant because this is a level 1 file
             .with_compaction_level(CompactionLevel::FileNonOverlapped); // Prev compaction
-        let level_1_file = partition
-            .create_parquet_file(builder)
-            .await
-            .parquet_file
-            .into();
+        let level_1_file = partition.create_parquet_file(builder).await.into();
 
         let lp = vec![
             "table,tag1=WA field_int=1000i 8000", // will be eliminated due to duplicate
@@ -749,11 +745,7 @@ mod tests {
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp)
             .with_max_seq(1);
-        let level_0_max_seq_1 = partition
-            .create_parquet_file(builder)
-            .await
-            .parquet_file
-            .into();
+        let level_0_max_seq_1 = partition.create_parquet_file(builder).await.into();
 
         let lp = vec![
             "table,tag1=WA field_int=1500i 8000", // latest duplicate and kept
@@ -764,11 +756,7 @@ mod tests {
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp)
             .with_max_seq(2);
-        let level_0_max_seq_2 = partition
-            .create_parquet_file(builder)
-            .await
-            .parquet_file
-            .into();
+        let level_0_max_seq_2 = partition.create_parquet_file(builder).await.into();
 
         let lp = vec![
             "table,tag1=VT field_int=88i 10000", // will be deduplicated with level_0_max_seq_1
@@ -779,22 +767,16 @@ mod tests {
             .with_line_protocol(&lp)
             .with_max_seq(5) // This should be irrelevant because this is a level 1 file
             .with_compaction_level(CompactionLevel::FileNonOverlapped); // Prev compaction
-        let level_1_with_duplicates = partition
-            .create_parquet_file(builder)
-            .await
-            .parquet_file
-            .into();
+        let level_1_with_duplicates = partition.create_parquet_file(builder).await.into();
 
         let lp = vec!["table,tag2=OH,tag3=21 field_int=21i 36000"].join("\n");
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp)
             .with_min_time(0)
-            .with_max_time(36000);
-        // Will put the group size between "small" and "large"
-        let medium_file = CompactorParquetFile::with_size_override(
-            partition.create_parquet_file(builder).await.parquet_file,
-            50 * 1024 * 1024,
-        );
+            .with_max_time(36000)
+            // Will put the group size between "small" and "large"
+            .with_size_override(50 * 1024 * 1024);
+        let medium_file = partition.create_parquet_file(builder).await.into();
 
         let lp = vec![
             "table,tag1=VT field_int=10i 68000",
@@ -804,12 +786,10 @@ mod tests {
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp)
             .with_min_time(36001)
-            .with_max_time(136000);
-        // Will put the group size two multiples over "large"
-        let large_file = CompactorParquetFile::with_size_override(
-            partition.create_parquet_file(builder).await.parquet_file,
-            180 * 1024 * 1024,
-        );
+            .with_max_time(136000)
+            // Will put the group size two multiples over "large"
+            .with_size_override(180 * 1024 * 1024);
+        let large_file = partition.create_parquet_file(builder).await.into();
 
         // Order here isn't relevant; the chunk order should ensure the level 1 files are ordered
         // first, then the other files by max seq num.

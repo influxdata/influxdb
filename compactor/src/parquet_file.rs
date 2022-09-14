@@ -8,12 +8,32 @@ use data_types::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompactorParquetFile {
     inner: ParquetFile,
+    estimated_arrow_bytes: u64,
     size_override: Option<i64>,
 }
 
 impl CompactorParquetFile {
+    pub fn new(inner: ParquetFile, estimated_arrow_bytes: u64) -> Self {
+        Self {
+            inner,
+            estimated_arrow_bytes,
+            size_override: None,
+        }
+    }
+
+    pub(crate) fn new_with_size_override(
+        inner: ParquetFile,
+        estimated_arrow_bytes: u64,
+        size: i64,
+    ) -> Self {
+        let mut this = Self::new(inner, estimated_arrow_bytes);
+        this.size_override = Some(size);
+        this
+    }
+
+    #[cfg(test)]
     pub(crate) fn with_size_override(f: ParquetFile, size: i64) -> Self {
-        let mut this = Self::from(f);
+        let mut this = Self::new(f, 0);
         this.size_override = Some(size);
         this
     }
@@ -24,6 +44,10 @@ impl CompactorParquetFile {
 
     pub fn file_size_bytes(&self) -> i64 {
         self.size_override.unwrap_or(self.inner.file_size_bytes)
+    }
+
+    pub fn estimated_arrow_bytes(&self) -> u64 {
+        self.estimated_arrow_bytes
     }
 
     pub fn compaction_level(&self) -> CompactionLevel {
@@ -67,17 +91,29 @@ impl CompactorParquetFile {
     }
 }
 
-impl From<ParquetFile> for CompactorParquetFile {
-    fn from(f: ParquetFile) -> Self {
-        Self {
-            inner: f,
-            size_override: None,
-        }
-    }
-}
-
 impl From<CompactorParquetFile> for ParquetFile {
     fn from(f: CompactorParquetFile) -> Self {
         f.inner
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    use iox_tests::util::TestParquetFile;
+
+    impl From<TestParquetFile> for CompactorParquetFile {
+        fn from(tpf: TestParquetFile) -> Self {
+            let TestParquetFile {
+                parquet_file,
+                size_override,
+                ..
+            } = tpf;
+
+            match size_override {
+                Some(size) => Self::with_size_override(parquet_file, size),
+                None => Self::new(parquet_file, 0),
+            }
+        }
     }
 }

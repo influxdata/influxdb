@@ -506,7 +506,7 @@ mod tests {
         let parquet_files_for_compaction =
             parquet_file_lookup::ParquetFilesForCompaction::for_partition_with_size_overrides(
                 Arc::clone(&compactor.catalog),
-                c.id(),
+                Arc::clone(&c),
                 &size_overrides,
             )
             .await

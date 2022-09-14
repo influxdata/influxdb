@@ -647,16 +647,35 @@ fn estimate_arrow_bytes_for_file(columns: &[ColumnTypeCount], row_count: i64) ->
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
     use data_types::{
         ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, SequenceNumber, ShardIndex,
         Timestamp,
     };
-    use iox_tests::util::TestCatalog;
+    use iox_tests::util::{TestCatalog, TestPartition};
     use iox_time::SystemProvider;
     use std::time::Duration;
     use uuid::Uuid;
+
+    impl PartitionCompactionCandidateWithInfo {
+        pub(crate) async fn from_test_partition(test_partition: &TestPartition) -> Self {
+            Self {
+                table: Arc::new(test_partition.table.table.clone()),
+                table_schema: Arc::new(test_partition.table.catalog_schema().await),
+                column_type_counts: Vec::new(), // not relevant
+                namespace: Arc::new(test_partition.namespace.namespace.clone()),
+                candidate: PartitionParam {
+                    partition_id: test_partition.partition.id,
+                    shard_id: test_partition.partition.shard_id,
+                    namespace_id: test_partition.namespace.namespace.id,
+                    table_id: test_partition.partition.table_id,
+                },
+                sort_key: test_partition.partition.sort_key(),
+                partition_key: test_partition.partition.partition_key.clone(),
+            }
+        }
+    }
 
     #[test]
     fn test_estimate_arrow_bytes_for_file() {

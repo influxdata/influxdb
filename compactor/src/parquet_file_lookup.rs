@@ -7,7 +7,7 @@ use observability_deps::tracing::*;
 use snafu::{ResultExt, Snafu};
 use std::{collections::HashMap, sync::Arc};
 
-use crate::parquet_file::CompactorParquetFile;
+use crate::{parquet_file::CompactorParquetFile, PartitionCompactionCandidateWithInfo};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -42,9 +42,9 @@ impl ParquetFilesForCompaction {
     /// compaction operation.
     pub(crate) async fn for_partition(
         catalog: Arc<dyn Catalog>,
-        partition_id: PartitionId,
+        partition: Arc<PartitionCompactionCandidateWithInfo>,
     ) -> Result<Self, PartitionFilesFromPartitionError> {
-        Self::for_partition_with_size_overrides(catalog, partition_id, &Default::default()).await
+        Self::for_partition_with_size_overrides(catalog, partition, &Default::default()).await
     }
 
     /// Given a catalog and a partition ID, find the Parquet files in the catalog relevant to a
@@ -56,9 +56,10 @@ impl ParquetFilesForCompaction {
     /// file deserialization can still rely on the original value).
     pub(crate) async fn for_partition_with_size_overrides(
         catalog: Arc<dyn Catalog>,
-        partition_id: PartitionId,
+        partition: Arc<PartitionCompactionCandidateWithInfo>,
         size_overrides: &HashMap<ParquetFileId, i64>,
     ) -> Result<Self, PartitionFilesFromPartitionError> {
+        let partition_id = partition.id();
         info!(
             partition_id = partition_id.get(),
             "finding parquet files for compaction"
@@ -78,9 +79,14 @@ impl ParquetFilesForCompaction {
         let mut level_2 = Vec::with_capacity(parquet_files.len());
 
         for parquet_file in parquet_files {
+            let estimated_arrow_bytes = partition.estimated_arrow_bytes(parquet_file.row_count);
             let parquet_file = match size_overrides.get(&parquet_file.id) {
-                Some(size) => CompactorParquetFile::with_size_override(parquet_file, *size),
-                None => CompactorParquetFile::from(parquet_file),
+                Some(size) => CompactorParquetFile::new_with_size_override(
+                    parquet_file,
+                    estimated_arrow_bytes,
+                    *size,
+                ),
+                None => CompactorParquetFile::new(parquet_file, estimated_arrow_bytes),
             };
             match parquet_file.compaction_level() {
                 CompactionLevel::Initial => level_0.push(parquet_file),
@@ -188,10 +194,12 @@ mod tests {
             .with_compaction_level(CompactionLevel::FileNonOverlapped)
             .with_to_delete(true);
         partition.create_parquet_file(builder).await;
+        let partition_with_info =
+            Arc::new(PartitionCompactionCandidateWithInfo::from_test_partition(&partition).await);
 
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             Arc::clone(&catalog.catalog),
-            partition.partition.id,
+            partition_with_info,
         )
         .await
         .unwrap();
@@ -220,16 +228,19 @@ mod tests {
             .with_compaction_level(CompactionLevel::Initial);
         let parquet_file = partition.create_parquet_file(builder).await;
 
+        let partition_with_info =
+            Arc::new(PartitionCompactionCandidateWithInfo::from_test_partition(&partition).await);
+
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             Arc::clone(&catalog.catalog),
-            partition.partition.id,
+            partition_with_info,
         )
         .await
         .unwrap();
 
         assert_eq!(
             parquet_files_for_compaction.level_0,
-            vec![parquet_file.parquet_file.into()]
+            vec![CompactorParquetFile::new(parquet_file.parquet_file, 0)]
         );
 
         assert!(
@@ -252,9 +263,12 @@ mod tests {
             .with_compaction_level(CompactionLevel::FileNonOverlapped);
         let parquet_file = partition.create_parquet_file(builder).await;
 
+        let partition_with_info =
+            Arc::new(PartitionCompactionCandidateWithInfo::from_test_partition(&partition).await);
+
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             Arc::clone(&catalog.catalog),
-            partition.partition.id,
+            partition_with_info,
         )
         .await
         .unwrap();
@@ -267,7 +281,7 @@ mod tests {
 
         assert_eq!(
             parquet_files_for_compaction.level_1,
-            vec![parquet_file.parquet_file.into()]
+            vec![CompactorParquetFile::new(parquet_file.parquet_file, 0)]
         );
     }
 
@@ -284,9 +298,12 @@ mod tests {
             .with_compaction_level(CompactionLevel::Final);
         let parquet_file = partition.create_parquet_file(builder).await;
 
+        let partition_with_info =
+            Arc::new(PartitionCompactionCandidateWithInfo::from_test_partition(&partition).await);
+
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             Arc::clone(&catalog.catalog),
-            partition.partition.id,
+            partition_with_info,
         )
         .await
         .unwrap();
@@ -305,7 +322,7 @@ mod tests {
 
         assert_eq!(
             parquet_files_for_compaction.level_2,
-            vec![parquet_file.parquet_file.into()]
+            vec![CompactorParquetFile::new(parquet_file.parquet_file, 0)]
         );
     }
 
@@ -334,26 +351,29 @@ mod tests {
             .with_compaction_level(CompactionLevel::Final);
         let l2 = partition.create_parquet_file(builder).await;
 
+        let partition_with_info =
+            Arc::new(PartitionCompactionCandidateWithInfo::from_test_partition(&partition).await);
+
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             Arc::clone(&catalog.catalog),
-            partition.partition.id,
+            partition_with_info,
         )
         .await
         .unwrap();
 
         assert_eq!(
             parquet_files_for_compaction.level_0,
-            vec![l0.parquet_file.into()]
+            vec![CompactorParquetFile::new(l0.parquet_file, 0)]
         );
 
         assert_eq!(
             parquet_files_for_compaction.level_1,
-            vec![l1.parquet_file.into()]
+            vec![CompactorParquetFile::new(l1.parquet_file, 0)]
         );
 
         assert_eq!(
             parquet_files_for_compaction.level_2,
-            vec![l2.parquet_file.into()]
+            vec![CompactorParquetFile::new(l2.parquet_file, 0)]
         );
     }
 
@@ -384,9 +404,12 @@ mod tests {
             .with_compaction_level(CompactionLevel::FileNonOverlapped);
         let l1 = partition.create_parquet_file(builder).await;
 
+        let partition_with_info =
+            Arc::new(PartitionCompactionCandidateWithInfo::from_test_partition(&partition).await);
+
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             Arc::clone(&catalog.catalog),
-            partition.partition.id,
+            partition_with_info,
         )
         .await
         .unwrap();
@@ -394,14 +417,14 @@ mod tests {
         assert_eq!(
             parquet_files_for_compaction.level_0,
             vec![
-                l0_max_seq_50.parquet_file.into(),
-                l0_max_seq_100.parquet_file.into()
+                CompactorParquetFile::new(l0_max_seq_50.parquet_file, 0),
+                CompactorParquetFile::new(l0_max_seq_100.parquet_file, 0),
             ]
         );
 
         assert_eq!(
             parquet_files_for_compaction.level_1,
-            vec![l1.parquet_file.into()]
+            vec![CompactorParquetFile::new(l1.parquet_file, 0)]
         );
     }
 }
