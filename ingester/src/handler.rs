@@ -1,7 +1,7 @@
 //! Ingest handler
 
 use crate::{
-    data::{IngesterData, IngesterQueryResponse, ShardData},
+    data::{shard::ShardData, IngesterData, IngesterQueryResponse},
     lifecycle::{run_lifecycle_manager, LifecycleConfig, LifecycleManager},
     poison::PoisonCabinet,
     querier_handler::prepare_data_to_querier,
@@ -382,8 +382,9 @@ impl<T> Drop for IngestHandlerImpl<T> {
 
 #[cfg(test)]
 mod tests {
+    use crate::data::partition::SnapshotBatch;
+
     use super::*;
-    use crate::data::SnapshotBatch;
     use data_types::{Namespace, NamespaceSchema, QueryPool, Sequence, SequenceNumber};
     use dml::{DmlMeta, DmlWrite};
     use iox_catalog::{mem::MemCatalog, validate_or_insert_schema};

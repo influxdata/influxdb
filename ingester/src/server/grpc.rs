@@ -465,7 +465,7 @@ mod tests {
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use schema::selection::Selection;
 
-    use crate::data::PartitionStatus;
+    use crate::data::partition::PartitionStatus;
 
     use super::*;
 

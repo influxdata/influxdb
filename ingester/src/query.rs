@@ -1,6 +1,5 @@
 //! Module to handle query on Ingester's data
 
-use crate::data::{QueryableBatch, SnapshotBatch};
 use arrow::record_batch::RecordBatch;
 use arrow_util::util::ensure_schema;
 use data_types::{
@@ -25,6 +24,8 @@ use schema::{merge::merge_record_batch_schemas, selection::Selection, sort::Sort
 use snafu::{ResultExt, Snafu};
 use std::{any::Any, sync::Arc};
 
+use crate::data::partition::SnapshotBatch;
+
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -44,6 +45,22 @@ pub enum Error {
 
 /// A specialized `Error` for Ingester's Query errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// Queryable data used for both query and persistence
+#[derive(Debug, PartialEq, Clone)]
+pub struct QueryableBatch {
+    /// data
+    pub(crate) data: Vec<Arc<SnapshotBatch>>,
+
+    /// Delete predicates of the tombstones
+    pub(crate) delete_predicates: Vec<Arc<DeletePredicate>>,
+
+    /// This is needed to return a reference for a trait function
+    pub(crate) table_name: String,
+
+    /// Partition ID
+    pub(crate) partition_id: PartitionId,
+}
 
 impl QueryableBatch {
     /// Initilaize a QueryableBatch

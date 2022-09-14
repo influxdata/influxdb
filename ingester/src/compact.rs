@@ -1,6 +1,5 @@
 //! This module is responsible for compacting Ingester's data
 
-use crate::data::{PersistingBatch, QueryableBatch};
 use data_types::{CompactionLevel, NamespaceId, PartitionInfo};
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 use iox_query::{
@@ -13,6 +12,8 @@ use parquet_file::metadata::IoxMetadata;
 use schema::sort::{adjust_sort_key_columns, compute_sort_key, SortKey};
 use snafu::{ResultExt, Snafu};
 use std::sync::Arc;
+
+use crate::{data::partition::PersistingBatch, query::QueryableBatch};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]

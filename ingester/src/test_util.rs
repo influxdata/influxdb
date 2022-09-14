@@ -2,9 +2,15 @@
 
 #![allow(missing_docs)]
 
-use crate::data::{
-    IngesterData, NamespaceData, PartitionData, PersistingBatch, QueryableBatch, ShardData,
-    SnapshotBatch, TableData,
+use crate::{
+    data::{
+        namespace::NamespaceData,
+        partition::{PartitionData, PersistingBatch, SnapshotBatch},
+        shard::ShardData,
+        table::TableData,
+        IngesterData,
+    },
+    query::QueryableBatch,
 };
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_eq;

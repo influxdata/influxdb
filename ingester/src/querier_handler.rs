@@ -1,8 +1,11 @@
 //! Handle all requests from Querier
 
-use crate::data::{
-    IngesterData, IngesterQueryPartition, IngesterQueryResponse, QueryableBatch,
-    UnpersistedPartitionData,
+use crate::{
+    data::{
+        partition::UnpersistedPartitionData, IngesterData, IngesterQueryPartition,
+        IngesterQueryResponse,
+    },
+    query::QueryableBatch,
 };
 use arrow::error::ArrowError;
 use datafusion::{

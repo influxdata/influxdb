@@ -8,7 +8,7 @@ use iox_query::{
 use observability_deps::tracing::debug;
 use snafu::{ResultExt, Snafu};
 
-use super::QueryableBatch;
+use crate::query::QueryableBatch;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -88,12 +88,11 @@ pub async fn query(
 mod tests {
     use arrow_util::assert_batches_eq;
 
+    use super::*;
     use crate::test_util::{
         create_one_record_batch_with_influxtype_no_duplicates, create_tombstone,
         make_queryable_batch, make_queryable_batch_with_deletes,
     };
-
-    use super::*;
 
     #[tokio::test]
     async fn test_query() {
