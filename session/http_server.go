@@ -176,21 +176,22 @@ func encodeCookieSession(w http.ResponseWriter, s *influxdb.Session) {
 	// everything is 1st party and Strict's restriction work fine.
 	//
 	// SameSite=Lax would also be safe to use (modern browser's default if
-	// unset) since it only sends the cookie with GET requests when the
-	// location bar matches the domain of the cookie and we know that our
-	// APIs do not perform state-changing actions with GET. Using
-	// SameSite=Strict helps future-proof us against that changing (ie, we
-	// add a state-changing GET API).
+	// unset) since it only sends the cookie with GET (and other safe HTTP
+	// methods like HEAD and OPTIONS as defined in RFC6264) requests when
+	// the location bar matches the domain of the cookie and we know that
+	// our APIs do not perform state-changing actions with GET and other
+	// safe methods. Using SameSite=Strict helps future-proof us against
+	// that changing (ie, we add a state-changing GET API).
 	//
 	// Note: it's generally recommended that SameSite should not be relied
 	// upon (particularly Lax) because:
 	// a) SameSite doesn't work with (cookie-less) Basic Auth. We don't
 	//    share browser session BasicAuth with accesses to to /api/... so
 	//    this isn't a problem
-	// b) SameSite=lax allows GET and some services might allow
-	//    state-changing requests via GET. Our API doesn't support
-	//    state-changing GETs and SameSite=strict doesn't allow GETs from
-	//    3rd party sites at all, so this isn't a problem
+	// b) SameSite=lax allows GET (and other safe HTTP methods) and some
+	//    services might allow state-changing requests via GET. Our API
+	//    doesn't support state-changing GETs and SameSite=strict doesn't
+	//    allow GETs from 3rd party sites at all, so this isn't a problem
 	// c) similar to 'b', some frameworks will accept HTTP methods for
 	//    other handlers. Eg, the application is designed for POST but it
 	//    will accept requests converted to the GET method. Golang does not
