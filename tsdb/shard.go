@@ -1717,7 +1717,7 @@ func (fs *MeasurementFieldSet) Close() error {
 		fs.changeMgr.Close()
 		// If there is a change log file, save the in-memory version
 		if _, err := os.Stat(fs.changeMgr.changeFilePath); err == nil {
-			return fs.WriteToFileNoLock()
+			return fs.WriteToFile()
 		} else if os.IsNotExist(err) {
 			return nil
 		} else {
@@ -1884,9 +1884,9 @@ func (fscm *measurementFieldSetChangeMgr) SaveWriter() {
 	}
 }
 
-// WriteToFileNoLock: Write the new index to a temp file and rename when it's sync'd
-// This should only be called when writes are blocked.
-func (fs *MeasurementFieldSet) WriteToFileNoLock() error {
+// WriteToFile: Write the new index to a temp file and rename when it's sync'd
+// This locks the MeasurementFieldSet during the marshaling, the write, and the rename.
+func (fs *MeasurementFieldSet) WriteToFile() error {
 	path := fs.path + ".tmp"
 
 	// Open the temp file
@@ -2291,7 +2291,7 @@ func (fs *MeasurementFieldSet) ApplyChanges() error {
 			}
 		}
 	}
-	return fs.WriteToFileNoLock()
+	return fs.WriteToFile()
 }
 
 // Field represents a series field. All of the fields must be hashable.
