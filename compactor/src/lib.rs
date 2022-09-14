@@ -437,7 +437,7 @@ pub mod tests {
             .with_creation_time(hot_time_one_hour_ago);
         partition1.create_parquet_file_catalog_record(pf1_1).await;
 
-        let candidates = compactor
+        let (mut candidates, _table_columns) = compactor
             .hot_partitions_to_compact(
                 compactor.config.max_number_partitions_per_shard,
                 compactor
@@ -448,17 +448,14 @@ pub mod tests {
             .unwrap();
         assert_eq!(candidates.len(), 1);
 
-        let candidates = compactor.add_info_to_partitions(&candidates).await.unwrap();
-        let mut sorted_candidates = candidates.into_iter().collect::<Vec<_>>();
-        sorted_candidates.sort_by_key(|c| c.candidate.partition_id);
-        let sorted_candidates = sorted_candidates.into_iter().collect::<VecDeque<_>>();
+        candidates.sort_by_key(|c| c.candidate.partition_id);
         let table_columns = HashMap::new();
 
         compact_candidates_with_memory_budget(
             Arc::clone(&compactor),
             "hot",
             mock_compactor.compaction_function(),
-            sorted_candidates,
+            candidates.into(),
             table_columns,
         )
         .await;
