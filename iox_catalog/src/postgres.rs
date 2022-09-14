@@ -2,10 +2,10 @@
 
 use crate::{
     interface::{
-        self, sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnUpsertRequest, Error,
-        NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo, QueryPoolRepo,
-        RepoCollection, Result, ShardRepo, TablePersistInfo, TableRepo, TombstoneRepo,
-        TopicMetadataRepo, Transaction,
+        self, sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnTypeMismatchSnafu,
+        ColumnUpsertRequest, Error, NamespaceRepo, ParquetFileRepo, PartitionRepo,
+        ProcessedTombstoneRepo, QueryPoolRepo, RepoCollection, Result, ShardRepo, TablePersistInfo,
+        TableRepo, TombstoneRepo, TopicMetadataRepo, Transaction,
     },
     metrics::MetricDecorator,
 };
@@ -872,7 +872,6 @@ impl ColumnRepo for PostgresTxn {
         table_id: TableId,
         column_type: ColumnType,
     ) -> Result<Column> {
-        let ct = column_type as i16;
         let rec = sqlx::query_as::<_, Column>(
             r#"
 INSERT INTO column_name ( name, table_id, column_type )
@@ -890,7 +889,7 @@ RETURNING *;
         )
         .bind(&name) // $1
         .bind(&table_id) // $2
-        .bind(&ct) // $3
+        .bind(&column_type) // $3
         .fetch_one(&mut self.inner)
         .await
         .map_err(|e| match e {
@@ -906,13 +905,14 @@ RETURNING *;
             }
         }})?;
 
-        if rec.column_type != ct {
-            return Err(Error::ColumnTypeMismatch {
-                name: name.to_string(),
-                existing: rec.name,
-                new: column_type.to_string(),
-            });
-        }
+        ensure!(
+            rec.column_type == column_type,
+            ColumnTypeMismatchSnafu {
+                name,
+                existing: rec.column_type,
+                new: column_type,
+            }
+        );
 
         Ok(rec)
     }
@@ -997,15 +997,14 @@ RETURNING *;
         out.into_iter()
             .zip(v_column_type)
             .map(|(existing, want)| {
-                if existing.column_type != want {
-                    return Err(Error::ColumnTypeMismatch {
+                ensure!(
+                    existing.column_type as i16 == want,
+                    ColumnTypeMismatchSnafu {
                         name: existing.name,
-                        existing: ColumnType::try_from(existing.column_type)
-                            .unwrap()
-                            .to_string(),
-                        new: ColumnType::try_from(want).unwrap().to_string(),
-                    });
-                }
+                        existing: existing.column_type,
+                        new: ColumnType::try_from(want).unwrap(),
+                    }
+                );
                 Ok(existing)
             })
             .collect()
@@ -2776,8 +2775,8 @@ mod tests {
         want = Err(e) => {
             assert_matches!(e, Error::ColumnTypeMismatch { name, existing, new } => {
                 assert_eq!(name, "test2");
-                assert_eq!(existing, "string");
-                assert_eq!(new, "bool");
+                assert_eq!(existing, ColumnType::String);
+                assert_eq!(new, ColumnType::Bool);
             })
         }
     );

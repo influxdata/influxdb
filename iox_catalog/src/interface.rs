@@ -12,7 +12,6 @@ use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    convert::TryFrom,
     fmt::Debug,
     sync::Arc,
 };
@@ -34,8 +33,8 @@ pub enum Error {
     #[snafu(display("column {} is type {} but write has type {}", name, existing, new))]
     ColumnTypeMismatch {
         name: String,
-        existing: String,
-        new: String,
+        existing: ColumnType,
+        new: ColumnType,
     },
 
     #[snafu(display(
@@ -723,23 +722,13 @@ where
 
     for c in columns {
         let (_, t) = table_id_to_schema.get_mut(&c.table_id).unwrap();
-        match ColumnType::try_from(c.column_type) {
-            Ok(column_type) => {
-                t.columns.insert(
-                    c.name,
-                    ColumnSchema {
-                        id: c.id,
-                        column_type,
-                    },
-                );
-            }
-            _ => {
-                return Err(Error::UnknownColumnType {
-                    data_type: c.column_type,
-                    name: c.name.to_string(),
-                });
-            }
-        }
+        t.columns.insert(
+            c.name,
+            ColumnSchema {
+                id: c.id,
+                column_type: c.column_type,
+            },
+        );
     }
 
     for (_, (table_name, schema)) in table_id_to_schema {
@@ -758,23 +747,13 @@ where
     let mut schema = TableSchema::new(id);
 
     for c in columns {
-        match ColumnType::try_from(c.column_type) {
-            Ok(column_type) => {
-                schema.columns.insert(
-                    c.name,
-                    ColumnSchema {
-                        id: c.id,
-                        column_type,
-                    },
-                );
-            }
-            _ => {
-                return Err(Error::UnknownColumnType {
-                    data_type: c.column_type,
-                    name: c.name,
-                });
-            }
-        }
+        schema.columns.insert(
+            c.name,
+            ColumnSchema {
+                id: c.id,
+                column_type: c.column_type,
+            },
+        );
     }
 
     Ok(schema)
@@ -1315,11 +1294,11 @@ pub(crate) mod test_helpers {
             .unwrap();
         let mut expect = vec![
             ColumnTypeCount {
-                col_type: ColumnType::Tag as i16,
+                col_type: ColumnType::Tag,
                 count: 1,
             },
             ColumnTypeCount {
-                col_type: ColumnType::U64 as i16,
+                col_type: ColumnType::U64,
                 count: 2,
             },
         ];

@@ -500,13 +500,11 @@ impl TableSchema {
     /// # Panics
     ///
     /// This method panics if a column of the same name already exists in
-    /// `self`, or the provided [`Column`] cannot be converted into a valid
-    /// [`ColumnSchema`].
+    /// `self`.
     pub fn add_column(&mut self, col: &Column) {
-        let old = self.columns.insert(
-            col.name.clone(),
-            ColumnSchema::try_from(col).expect("column is invalid"),
-        );
+        let old = self
+            .columns
+            .insert(col.name.clone(), ColumnSchema::from(col));
         assert!(old.is_none());
     }
 
@@ -539,23 +537,23 @@ pub struct Column {
     /// the name of the column, which is unique in the table
     pub name: String,
     /// the logical type of the column
-    pub column_type: i16,
+    pub column_type: ColumnType,
 }
 
 impl Column {
     /// returns true if the column type is a tag
     pub fn is_tag(&self) -> bool {
-        self.column_type == ColumnType::Tag as i16
+        self.column_type == ColumnType::Tag
     }
 
     /// returns true if the column type matches the line protocol field value type
     pub fn matches_field_type(&self, field_value: &FieldValue) -> bool {
         match field_value {
-            FieldValue::I64(_) => self.column_type == ColumnType::I64 as i16,
-            FieldValue::U64(_) => self.column_type == ColumnType::U64 as i16,
-            FieldValue::F64(_) => self.column_type == ColumnType::F64 as i16,
-            FieldValue::String(_) => self.column_type == ColumnType::String as i16,
-            FieldValue::Boolean(_) => self.column_type == ColumnType::Bool as i16,
+            FieldValue::I64(_) => self.column_type == ColumnType::I64,
+            FieldValue::U64(_) => self.column_type == ColumnType::U64,
+            FieldValue::F64(_) => self.column_type == ColumnType::F64,
+            FieldValue::String(_) => self.column_type == ColumnType::String,
+            FieldValue::Boolean(_) => self.column_type == ColumnType::Bool,
         }
     }
 }
@@ -593,20 +591,23 @@ impl ColumnSchema {
     }
 }
 
-impl TryFrom<&Column> for ColumnSchema {
-    type Error = Box<dyn std::error::Error>;
+impl From<&Column> for ColumnSchema {
+    fn from(c: &Column) -> Self {
+        let Column {
+            id, column_type, ..
+        } = c;
 
-    fn try_from(c: &Column) -> Result<Self, Self::Error> {
-        Ok(Self {
-            id: c.id,
-            column_type: ColumnType::try_from(c.column_type)?,
-        })
+        Self {
+            id: *id,
+            column_type: *column_type,
+        }
     }
 }
 
 /// The column data type
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash, sqlx::Type)]
+#[repr(i16)]
 pub enum ColumnType {
     I64 = 1,
     U64 = 2,
@@ -910,10 +911,10 @@ impl Tombstone {
     }
 }
 /// Map of a column type to its count
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, sqlx::FromRow)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct ColumnTypeCount {
     /// column type
-    pub col_type: i16,
+    pub col_type: ColumnType,
     /// count of the column type
     pub count: i64,
 }
@@ -921,10 +922,7 @@ pub struct ColumnTypeCount {
 impl ColumnTypeCount {
     /// make a new ColumnTypeCount
     pub fn new(col_type: ColumnType, count: i64) -> Self {
-        Self {
-            col_type: col_type as i16,
-            count,
-        }
+        Self { col_type, count }
     }
 }
 

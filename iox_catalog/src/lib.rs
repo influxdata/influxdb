@@ -11,7 +11,9 @@
     clippy::clone_on_ref_ptr
 )]
 
-use crate::interface::{ColumnUpsertRequest, Error, RepoCollection, Result, Transaction};
+use crate::interface::{
+    ColumnTypeMismatchSnafu, ColumnUpsertRequest, Error, RepoCollection, Result, Transaction,
+};
 use data_types::{
     ColumnType, NamespaceSchema, QueryPool, Shard, ShardId, ShardIndex, TableSchema, TopicMetadata,
 };
@@ -154,11 +156,12 @@ where
             Some(existing) => {
                 // The column schema, and the column in the mutable batch are of
                 // different types.
-                return Err(Error::ColumnTypeMismatch {
-                    name: name.to_string(),
-                    existing: existing.column_type.to_string(),
-                    new: col.influx_type().to_string(),
-                });
+                return ColumnTypeMismatchSnafu {
+                    name,
+                    existing: existing.column_type,
+                    new: col.influx_type(),
+                }
+                .fail();
             }
             None => {
                 // The column does not exist in the cache, add it to the column

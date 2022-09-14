@@ -1,5 +1,5 @@
 use assert_matches::assert_matches;
-use data_types::{PartitionTemplate, QueryPoolId, ShardIndex, TemplatePart, TopicId};
+use data_types::{ColumnType, PartitionTemplate, QueryPoolId, ShardIndex, TemplatePart, TopicId};
 use dml::DmlOperation;
 use hashbrown::HashMap;
 use hyper::{Body, Request, StatusCode};
@@ -280,8 +280,8 @@ async fn test_schema_conflict() {
                 new,
             } => {
                 assert_eq!(name, "val");
-                assert_eq!(existing, "i64");
-                assert_eq!(new, "iox::column_type::field::float");
+                assert_eq!(*existing, ColumnType::I64);
+                assert_eq!(*new, ColumnType::F64);
             });
         }
     );

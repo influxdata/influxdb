@@ -124,7 +124,7 @@ pub(crate) enum Error {
 
     #[snafu(display("{}", source))]
     Combining {
-        source: parquet_file_combining::Error,
+        source: Box<parquet_file_combining::Error>,
     },
 
     #[snafu(display("{}", source))]
@@ -186,7 +186,9 @@ async fn full_compaction(
                 &compactor.compaction_input_file_bytes,
             )
             .await
-            .context(CombiningSnafu)?;
+            .map_err(|e| Error::Combining {
+                source: Box::new(e),
+            })?;
         }
     }
 
@@ -331,15 +333,15 @@ mod tests {
         table.create_column("time", ColumnType::Time).await;
         let table_column_types = vec![
             ColumnTypeCount {
-                col_type: ColumnType::Tag as i16,
+                col_type: ColumnType::Tag,
                 count: 3,
             },
             ColumnTypeCount {
-                col_type: ColumnType::I64 as i16,
+                col_type: ColumnType::I64,
                 count: 1,
             },
             ColumnTypeCount {
-                col_type: ColumnType::Time as i16,
+                col_type: ColumnType::Time,
                 count: 1,
             },
         ];
@@ -572,15 +574,15 @@ mod tests {
         table.create_column("time", ColumnType::Time).await;
         let table_column_types = vec![
             ColumnTypeCount {
-                col_type: ColumnType::Tag as i16,
+                col_type: ColumnType::Tag,
                 count: 3,
             },
             ColumnTypeCount {
-                col_type: ColumnType::I64 as i16,
+                col_type: ColumnType::I64,
                 count: 1,
             },
             ColumnTypeCount {
-                col_type: ColumnType::Time as i16,
+                col_type: ColumnType::Time,
                 count: 1,
             },
         ];

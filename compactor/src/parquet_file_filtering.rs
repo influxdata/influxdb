@@ -17,11 +17,7 @@ const VALUE_BYTE: i64 = 8;
 const BOOL_BYTE: i64 = 1;
 const AVERAGE_ROW_COUNT_CARDINALITY_RATIO: i64 = 2;
 
-type Error = Box<dyn std::error::Error>;
-fn estimate_arrow_bytes_for_file(
-    columns: &[ColumnTypeCount],
-    row_count: i64,
-) -> Result<u64, Error> {
+fn estimate_arrow_bytes_for_file(columns: &[ColumnTypeCount], row_count: i64) -> u64 {
     let average_cardinality = row_count / AVERAGE_ROW_COUNT_CARDINALITY_RATIO;
 
     // Bytes needed for number columns
@@ -31,7 +27,7 @@ fn estimate_arrow_bytes_for_file(
     let mut dictionary_key_bytes = 0;
     let mut dictionary_value_bytes = 0;
     for c in columns {
-        match ColumnType::try_from(c.col_type)? {
+        match c.col_type {
             ColumnType::I64 | ColumnType::U64 | ColumnType::F64 | ColumnType::Time => {
                 value_bytes += c.count * row_count * VALUE_BYTE;
             }
@@ -51,7 +47,7 @@ fn estimate_arrow_bytes_for_file(
     let estimated_arrow_bytes_for_file =
         value_bytes + string_bytes + bool_bytes + dictionary_key_bytes + dictionary_value_bytes;
 
-    Ok(estimated_arrow_bytes_for_file as u64)
+    estimated_arrow_bytes_for_file as u64
 }
 
 /// Files and the budget in bytes neeeded to compact them
@@ -165,18 +161,8 @@ pub(crate) fn filter_parquet_files(
     let mut total_estimated_budget = 0;
     for level_0_file in level_0 {
         // Estimate memory needed for this L0 file
-        let estimated_file_bytes =
+        let l0_estimated_file_bytes =
             estimate_arrow_bytes_for_file(column_types, level_0_file.row_count());
-        if let Err(e) = estimated_file_bytes {
-            // Error while estimating the memory needed, return the file and 0
-            warn!(
-                ?e,
-                ?partition_id,
-                "compaction failed estimating memory bytes"
-            );
-            return FilteredFiles::new(vec![level_0_file], 0, partition);
-        }
-        let l0_estimated_file_bytes = estimated_file_bytes.unwrap();
 
         // Note: even though we can stop here if the l0_estimated_file_bytes is larger than the
         // given budget,we still continue estimated the memory needed for its overlapped L1 to
@@ -191,16 +177,7 @@ pub(crate) fn filter_parquet_files(
         let mut current_l1_estimated_file_bytes = Vec::with_capacity(overlaps.len());
         for file in &overlaps {
             let estimated_bytes = estimate_arrow_bytes_for_file(column_types, file.row_count());
-            if let Err(e) = estimated_bytes {
-                // Error while estimating the memory needed, return the file and 0
-                warn!(
-                    ?e,
-                    ?partition_id,
-                    "compaction failed estimating memory bytes"
-                );
-                return FilteredFiles::new(vec![file.clone()], 0, partition);
-            }
-            current_l1_estimated_file_bytes.push(estimated_bytes.unwrap());
+            current_l1_estimated_file_bytes.push(estimated_bytes);
         }
         let estimated_file_bytes =
             l0_estimated_file_bytes + current_l1_estimated_file_bytes.iter().sum::<u64>();
@@ -453,22 +430,22 @@ mod tests {
             ColumnTypeCount::new(ColumnType::F64, 3),
             ColumnTypeCount::new(ColumnType::I64, 4),
         ];
-        let bytes = estimate_arrow_bytes_for_file(&columns, row_count).unwrap();
+        let bytes = estimate_arrow_bytes_for_file(&columns, row_count);
         assert_eq!(bytes, 880); // 11 * (1+2+3+4) * 8
 
         // Tag
         let columns = vec![ColumnTypeCount::new(ColumnType::Tag, 1)];
-        let bytes = estimate_arrow_bytes_for_file(&columns, row_count).unwrap();
+        let bytes = estimate_arrow_bytes_for_file(&columns, row_count);
         assert_eq!(bytes, 1088); // 5 * 200 + 11 * 8
 
         // String
         let columns = vec![ColumnTypeCount::new(ColumnType::String, 1)];
-        let bytes = estimate_arrow_bytes_for_file(&columns, row_count).unwrap();
+        let bytes = estimate_arrow_bytes_for_file(&columns, row_count);
         assert_eq!(bytes, 11000); // 11 * 1000
 
         // Bool
         let columns = vec![ColumnTypeCount::new(ColumnType::Bool, 1)];
-        let bytes = estimate_arrow_bytes_for_file(&columns, row_count).unwrap();
+        let bytes = estimate_arrow_bytes_for_file(&columns, row_count);
         assert_eq!(bytes, 11); // 11 * 1
 
         // all types
@@ -481,7 +458,7 @@ mod tests {
             ColumnTypeCount::new(ColumnType::String, 1),
             ColumnTypeCount::new(ColumnType::Bool, 1),
         ];
-        let bytes = estimate_arrow_bytes_for_file(&columns, row_count).unwrap();
+        let bytes = estimate_arrow_bytes_for_file(&columns, row_count);
         assert_eq!(bytes, 12979); // 880 + 1088 + 11000 + 11
     }
 
@@ -967,11 +944,11 @@ mod tests {
     fn one_tag_one_time_cols() -> Vec<ColumnTypeCount> {
         vec![
             ColumnTypeCount {
-                col_type: ColumnType::Tag as i16,
+                col_type: ColumnType::Tag,
                 count: 1,
             },
             ColumnTypeCount {
-                col_type: ColumnType::Time as i16,
+                col_type: ColumnType::Time,
                 count: 1,
             },
         ]
