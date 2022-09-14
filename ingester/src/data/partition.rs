@@ -113,14 +113,19 @@ impl SnapshotBatch {
 pub(crate) struct PartitionData {
     id: PartitionId,
     pub(crate) data: DataBuffer,
+
+    /// The max_persisted_sequence number for any parquet_file in this
+    /// partition.
+    max_persisted_sequence_number: Option<SequenceNumber>,
 }
 
 impl PartitionData {
     /// Initialize a new partition data buffer
-    pub fn new(id: PartitionId) -> Self {
+    pub fn new(id: PartitionId, max_persisted_sequence_number: Option<SequenceNumber>) -> Self {
         Self {
             id,
             data: Default::default(),
+            max_persisted_sequence_number,
         }
     }
 
@@ -262,6 +267,19 @@ impl PartitionData {
     pub(crate) fn id(&self) -> PartitionId {
         self.id
     }
+
+    /// Return the [`SequenceNumber`] that forms the (inclusive) persistence
+    /// watermark for this partition.
+    pub(crate) fn max_persisted_sequence_number(&self) -> Option<SequenceNumber> {
+        self.max_persisted_sequence_number
+    }
+
+    /// Mark this partition as having completed persistence up to, and
+    /// including, the specified [`SequenceNumber`].
+    pub(crate) fn mark_persisted(&mut self, sequence_number: SequenceNumber) {
+        self.max_persisted_sequence_number = Some(sequence_number);
+        self.data.mark_persisted();
+    }
 }
 
 #[cfg(test)]
@@ -277,6 +295,7 @@ mod tests {
         let mut partition_data = PartitionData {
             id: PartitionId::new(1),
             data: Default::default(),
+            max_persisted_sequence_number: None,
         };
 
         let seq_num1 = SequenceNumber::new(1);
@@ -317,7 +336,7 @@ mod tests {
         let t_id = 1;
         let p_id = 1;
         let table_name = "restaurant";
-        let mut p = PartitionData::new(PartitionId::new(p_id));
+        let mut p = PartitionData::new(PartitionId::new(p_id), None);
         let exec = Executor::new(1);
 
         // ------------------------------------------

@@ -1278,7 +1278,7 @@ mod tests {
             let table = table_data.read().await;
             let p = table.partition_data.get(&"1970-01-01".into()).unwrap();
             assert_eq!(
-                p.data.max_persisted_sequence_number,
+                p.max_persisted_sequence_number(),
                 Some(SequenceNumber::new(1))
             );
             assert!(p.data.buffer.is_none());

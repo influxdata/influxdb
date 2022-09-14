@@ -300,7 +300,7 @@ impl NamespaceData {
             let partition = t.partition_data.get_mut(partition_key);
 
             if let Some(p) = partition {
-                p.data.mark_persisted(sequence_number);
+                p.mark_persisted(sequence_number);
             }
         }
     }
