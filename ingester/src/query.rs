@@ -1,5 +1,7 @@
 //! Module to handle query on Ingester's data
 
+use std::{any::Any, sync::Arc};
+
 use arrow::record_batch::RecordBatch;
 use arrow_util::util::ensure_schema;
 use data_types::{
@@ -22,7 +24,6 @@ use predicate::{
 };
 use schema::{merge::merge_record_batch_schemas, selection::Selection, sort::SortKey, Schema};
 use snafu::{ResultExt, Snafu};
-use std::{any::Any, sync::Arc};
 
 use crate::data::partition::SnapshotBatch;
 
@@ -259,8 +260,6 @@ impl QueryChunk for QueryableBatch {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::test_util::create_tombstone;
     use arrow::{
         array::{
             ArrayRef, BooleanArray, DictionaryArray, Float64Array, Int64Array, StringArray,
@@ -269,6 +268,9 @@ mod tests {
         datatypes::{DataType, Int32Type, TimeUnit},
     };
     use data_types::{DeleteExpr, Op, Scalar, TimestampRange};
+
+    use super::*;
+    use crate::test_util::create_tombstone;
 
     #[tokio::test]
     async fn test_merge_batch_schema() {

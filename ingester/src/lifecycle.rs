@@ -5,19 +5,21 @@
 //! some absolute number and individual Parquet files that get persisted below some number. It
 //! is expected that they may be above or below the absolute thresholds.
 
-use crate::{
-    data::Persister,
-    job::{Job, JobRegistry},
-    poison::{PoisonCabinet, PoisonPill},
-};
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
+
 use data_types::{PartitionId, SequenceNumber, ShardId};
 use iox_time::{Time, TimeProvider};
 use metric::{Metric, U64Counter};
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::Mutex;
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
 use tokio_util::sync::CancellationToken;
 use tracker::TrackedFutureExt;
+
+use crate::{
+    data::Persister,
+    job::{Job, JobRegistry},
+    poison::{PoisonCabinet, PoisonPill},
+};
 
 /// API suitable for ingester tasks to query and update the [`LifecycleManager`] state.
 pub trait LifecycleHandle: Send + Sync + 'static {
@@ -566,12 +568,14 @@ pub(crate) async fn run_lifecycle_manager<P: Persister>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::collections::BTreeSet;
+
     use async_trait::async_trait;
     use iox_time::MockProvider;
     use metric::{Attributes, Registry};
-    use std::collections::BTreeSet;
     use tokio::sync::Barrier;
+
+    use super::*;
 
     #[derive(Default)]
     struct TestPersister {

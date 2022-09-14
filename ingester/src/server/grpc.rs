@@ -1,9 +1,14 @@
 //! gRPC service implementations for `ingester`.
 
-use crate::{
-    data::{FlatIngesterQueryResponse, FlatIngesterQueryResponseStream},
-    handler::IngestHandler,
+use std::{
+    pin::Pin,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+    task::Poll,
 };
+
 use arrow::error::ArrowError;
 use arrow_flight::{
     flight_service_server::{FlightService as Flight, FlightServiceServer as FlightServer},
@@ -20,17 +25,14 @@ use observability_deps::tracing::{debug, info, warn};
 use pin_project::pin_project;
 use prost::Message;
 use snafu::{ResultExt, Snafu};
-use std::{
-    pin::Pin,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc,
-    },
-    task::Poll,
-};
 use tonic::{Request, Response, Streaming};
 use trace::ctx::SpanContext;
 use write_summary::WriteSummary;
+
+use crate::{
+    data::{FlatIngesterQueryResponse, FlatIngesterQueryResponseStream},
+    handler::IngestHandler,
+};
 
 /// This type is responsible for managing all gRPC services exposed by
 /// `ingester`.
@@ -465,9 +467,8 @@ mod tests {
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use schema::selection::Selection;
 
-    use crate::data::partition::PartitionStatus;
-
     use super::*;
+    use crate::data::partition::PartitionStatus;
 
     #[tokio::test]
     async fn test_get_stream_empty() {

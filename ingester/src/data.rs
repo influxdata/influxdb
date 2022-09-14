@@ -1,17 +1,12 @@
 //! Data for the lifecycle of the Ingester
 
-use crate::{
-    compact::{compact_persisting_batch, CompactedStream},
-    lifecycle::LifecycleHandle,
-};
+use std::{collections::BTreeMap, pin::Pin, sync::Arc};
+
 use arrow::{error::ArrowError, record_batch::RecordBatch};
 use arrow_util::optimize::{optimize_record_batch, optimize_schema};
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
-use data_types::{
-    DeletePredicate, PartitionId, SequenceNumber,
-    ShardId, ShardIndex, Timestamp,
-};
+use data_types::{PartitionId, SequenceNumber, ShardId, ShardIndex};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use dml::DmlOperation;
 use futures::{Stream, StreamExt};
@@ -19,20 +14,16 @@ use iox_catalog::interface::{get_table_schema_by_id, Catalog};
 use iox_query::exec::Executor;
 use iox_time::SystemProvider;
 use metric::{Attributes, Metric, U64Histogram, U64HistogramOptions};
-
 use object_store::DynObjectStore;
 use observability_deps::tracing::{debug, warn};
-
 use parquet_file::storage::ParquetStorage;
-use schema::selection::Selection;
-use snafu::{OptionExt, ResultExt, Snafu};
-use std::{
-    collections::{BTreeMap},
-    pin::Pin,
-    sync::Arc,
-};
-use uuid::Uuid;
+use snafu::{OptionExt, Snafu};
 use write_summary::ShardProgress;
+
+use crate::{
+    compact::{compact_persisting_batch, CompactedStream},
+    lifecycle::LifecycleHandle,
+};
 
 pub mod namespace;
 pub mod partition;
@@ -553,17 +544,17 @@ pub enum FlatIngesterQueryResponse {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{
-        data::namespace::NamespaceData,
-        lifecycle::{LifecycleConfig, LifecycleManager},
+    use std::{
+        ops::DerefMut,
+        task::{Context, Poll},
+        time::Duration,
     };
+
     use arrow::datatypes::SchemaRef;
-    
     use assert_matches::assert_matches;
     use data_types::{
-        ColumnId, ColumnSet, CompactionLevel, NamespaceSchema, NonEmptyString, ParquetFileParams,
-        Sequence, TimestampRange,
+        ColumnId, ColumnSet, CompactionLevel, DeletePredicate, NamespaceSchema, NonEmptyString,
+        ParquetFileParams, Sequence, Timestamp, TimestampRange,
     };
     use datafusion::physical_plan::RecordBatchStream;
     use dml::{DmlDelete, DmlMeta, DmlWrite};
@@ -573,10 +564,13 @@ mod tests {
     use metric::{MetricObserver, Observation};
     use mutable_batch_lp::{lines_to_batches, test_helpers::lp_to_mutable_batch};
     use object_store::memory::InMemory;
-    use std::{
-        ops::DerefMut,
-        task::{Context, Poll},
-        time::Duration,
+    use schema::selection::Selection;
+    use uuid::Uuid;
+
+    use super::*;
+    use crate::{
+        data::namespace::NamespaceData,
+        lifecycle::{LifecycleConfig, LifecycleManager},
     };
 
     #[tokio::test]

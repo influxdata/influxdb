@@ -2,16 +2,8 @@
 
 #![allow(missing_docs)]
 
-use crate::{
-    data::{
-        namespace::NamespaceData,
-        partition::{PartitionData, PersistingBatch, SnapshotBatch},
-        shard::ShardData,
-        table::TableData,
-        IngesterData,
-    },
-    query::QueryableBatch,
-};
+use std::{collections::BTreeMap, sync::Arc};
+
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_eq;
 use bitflags::bitflags;
@@ -25,8 +17,18 @@ use iox_time::{SystemProvider, Time, TimeProvider};
 use object_store::memory::InMemory;
 use parquet_file::metadata::IoxMetadata;
 use schema::sort::SortKey;
-use std::{collections::BTreeMap, sync::Arc};
 use uuid::Uuid;
+
+use crate::{
+    data::{
+        namespace::NamespaceData,
+        partition::{PartitionData, PersistingBatch, SnapshotBatch},
+        shard::ShardData,
+        table::TableData,
+        IngesterData,
+    },
+    query::QueryableBatch,
+};
 
 /// Create a persisting batch, some tombstones and corresponding metadata for them after compaction
 pub async fn make_persisting_batch_with_meta() -> (Arc<PersistingBatch>, Vec<Tombstone>, IoxMetadata)

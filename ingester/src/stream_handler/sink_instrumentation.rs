@@ -1,13 +1,15 @@
 //! Instrumentation for [`DmlSink`] implementations.
 
-use super::DmlSink;
+use std::fmt::Debug;
+
 use async_trait::async_trait;
 use data_types::ShardIndex;
 use dml::DmlOperation;
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{Attributes, DurationHistogram, U64Counter, U64Gauge};
-use std::fmt::Debug;
 use trace::span::{SpanExt, SpanRecorder};
+
+use super::DmlSink;
 
 /// A [`WatermarkFetcher`] abstracts a source of the write buffer high watermark
 /// (max known offset).
@@ -100,10 +102,13 @@ where
                 "Last consumed sequence number (e.g. Kafka offset)",
             )
             .recorder(attr.clone());
-        let write_buffer_sequence_number_lag = metrics.register_metric::<U64Gauge>(
-            "ingester_write_buffer_sequence_number_lag",
-            "The difference between the the last sequence number available (e.g. Kafka offset) and (= minus) last consumed sequence number",
-        ).recorder(attr.clone());
+        let write_buffer_sequence_number_lag = metrics
+            .register_metric::<U64Gauge>(
+                "ingester_write_buffer_sequence_number_lag",
+                "The difference between the the last sequence number available (e.g. Kafka \
+                 offset) and (= minus) last consumed sequence number",
+            )
+            .recorder(attr.clone());
         let write_buffer_last_ingest_ts = metrics
             .register_metric::<U64Gauge>(
                 "ingester_write_buffer_last_ingest_ts",
@@ -240,11 +245,10 @@ mod tests {
     use once_cell::sync::Lazy;
     use trace::{ctx::SpanContext, span::SpanStatus, RingBufferTraceCollector, TraceCollector};
 
+    use super::*;
     use crate::stream_handler::{
         mock_sink::MockDmlSink, mock_watermark_fetcher::MockWatermarkFetcher,
     };
-
-    use super::*;
 
     /// The shard index the [`SinkInstrumentation`] under test is configured to
     /// be observing for.
