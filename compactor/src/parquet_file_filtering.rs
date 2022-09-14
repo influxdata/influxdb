@@ -32,18 +32,6 @@ pub(crate) enum FilterResult {
 }
 
 impl FilteredFiles {
-    pub fn new(
-        files: Vec<CompactorParquetFile>,
-        budget_bytes: u64,
-        partition: Arc<PartitionCompactionCandidateWithInfo>,
-    ) -> Self {
-        Self {
-            files,
-            budget_bytes,
-            partition,
-        }
-    }
-
     pub fn filter_result(&self) -> FilterResult {
         if self.files.is_empty() && self.budget_bytes == 0 {
             FilterResult::NothingToCompact
@@ -84,6 +72,32 @@ pub(crate) fn filter_parquet_files(
     // Histogram for the number of bytes of Parquet file candidates
     parquet_file_candidate_bytes: &Metric<U64Histogram>,
 ) -> FilteredFiles {
+    let (files, budget_bytes) = filter_parquet_files_inner(
+        parquet_files_for_compaction,
+        max_bytes,
+        parquet_file_candidate_gauge,
+        parquet_file_candidate_bytes,
+    );
+
+    FilteredFiles {
+        files,
+        budget_bytes,
+        partition,
+    }
+}
+
+fn filter_parquet_files_inner(
+    // Level 0 files sorted by max sequence number and level 1 files in arbitrary order for one
+    // partition
+    parquet_files_for_compaction: ParquetFilesForCompaction,
+    // Stop considering level 0 files when the total size of all files selected for compaction so
+    // far exceeds this value
+    max_bytes: u64,
+    // Gauge for the number of Parquet file candidates
+    parquet_file_candidate_gauge: &Metric<U64Gauge>,
+    // Histogram for the number of bytes of Parquet file candidates
+    parquet_file_candidate_bytes: &Metric<U64Histogram>,
+) -> (Vec<CompactorParquetFile>, u64) {
     let ParquetFilesForCompaction {
         level_0,
         level_1: mut remaining_level_1,
@@ -92,7 +106,7 @@ pub(crate) fn filter_parquet_files(
 
     if level_0.is_empty() {
         info!("No level 0 files to consider for compaction");
-        return FilteredFiles::new(vec![], 0, partition);
+        return (vec![], 0);
     }
 
     // Guaranteed to exist because of the empty check and early return above. Also assuming all
@@ -141,7 +155,7 @@ pub(crate) fn filter_parquet_files(
         if total_estimated_budget + estimated_file_bytes > max_bytes {
             if total_estimated_budget == 0 {
                 // Cannot compact this partition further with the given budget
-                return FilteredFiles::new(vec![], estimated_file_bytes, partition);
+                return (vec![], estimated_file_bytes);
             } else {
                 // Only compact the ones under the given budget
                 break;
@@ -203,7 +217,7 @@ pub(crate) fn filter_parquet_files(
     // Return the level 1 files first, followed by the level 0 files assuming we've maintained
     // their ordering by max sequence number.
     files_to_return.extend(level_0_to_return);
-    FilteredFiles::new(files_to_return, total_estimated_budget, partition)
+    (files_to_return, total_estimated_budget)
 }
 
 fn overlaps_in_time(a: &CompactorParquetFile, b: &CompactorParquetFile) -> bool {
@@ -285,12 +299,11 @@ fn record_byte_metrics(
 mod tests {
     use super::*;
     use data_types::{
-        ColumnSet, ColumnType, ColumnTypeCount, CompactionLevel, Namespace, NamespaceId,
-        ParquetFile, ParquetFileId, PartitionId, PartitionParam, QueryPoolId, SequenceNumber,
-        ShardId, Table, TableId, TableSchema, Timestamp, TopicId,
+        ColumnSet, CompactionLevel, NamespaceId, ParquetFile, ParquetFileId, PartitionId,
+        SequenceNumber, ShardId, TableId, Timestamp,
     };
     use metric::U64HistogramOptions;
-    use std::{collections::BTreeMap, sync::Arc};
+    use std::sync::Arc;
     use uuid::Uuid;
 
     const BUCKET_500_KB: u64 = 500 * 1024;
@@ -388,23 +401,15 @@ mod tests {
             };
             let (files_metric, bytes_metric) = metrics();
 
-            // values of these inputs do not mean much in this test case
-            let partition = Arc::new(
-                ParquetFileBuilder::level_0()
-                    .id(1)
-                    .build_partition_with_extra_info(),
-            );
-
-            let to_compact = filter_parquet_files(
-                partition,
+            let (files, budget_bytes) = filter_parquet_files_inner(
                 parquet_files_for_compaction,
                 MEMORY_BUDGET,
                 &files_metric,
                 &bytes_metric,
             );
 
-            let result = to_compact.filter_result();
-            assert_eq!(result, FilterResult::NothingToCompact);
+            assert!(files.is_empty());
+            assert_eq!(budget_bytes, 0);
         }
 
         #[test]
@@ -416,22 +421,15 @@ mod tests {
             };
             let (files_metric, bytes_metric) = metrics();
 
-            let partition = Arc::new(
-                ParquetFileBuilder::level_0()
-                    .id(1)
-                    .build_partition_with_extra_info(),
-            );
-
-            let to_compact = filter_parquet_files(
-                partition,
+            let (files, budget_bytes) = filter_parquet_files_inner(
                 parquet_files_for_compaction,
                 0,
                 &files_metric,
                 &bytes_metric,
             );
 
-            let result = to_compact.filter_result();
-            assert_eq!(result, FilterResult::OverBudget);
+            assert!(files.is_empty());
+            assert_eq!(budget_bytes, 1176);
         }
 
         #[test]
@@ -443,28 +441,15 @@ mod tests {
             };
             let (files_metric, bytes_metric) = metrics();
 
-            let partition = Arc::new(
-                ParquetFileBuilder::level_0()
-                    .id(1)
-                    .build_partition_with_extra_info(),
-            );
-            // One tag and one time, the budget will be as below for a file of 11 rows
-            // time_bytes = 1 * 11 * 8 = 88
-            // tag:
-            //   dictionary_key_bytes = 1 * floor(11/2) * 200 = 1000
-            //   dictionary_value_bytes = 1 * 11 * 8 = 88
-            // total memory for 1 file = 88 + 1100 + 88 = 1176
-
-            let to_compact = filter_parquet_files(
-                partition,
+            let (files, budget_bytes) = filter_parquet_files_inner(
                 parquet_files_for_compaction,
                 1000,
                 &files_metric,
                 &bytes_metric,
             );
 
-            let result = to_compact.filter_result();
-            assert_eq!(result, FilterResult::OverBudget);
+            assert!(files.is_empty());
+            assert_eq!(budget_bytes, 1176);
         }
 
         #[test]
@@ -499,29 +484,17 @@ mod tests {
             };
             let (files_metric, bytes_metric) = metrics();
 
-            let partition = Arc::new(
-                ParquetFileBuilder::level_0()
-                    .id(1)
-                    .build_partition_with_extra_info(),
-            );
-
-            let to_compact = filter_parquet_files(
-                partition,
+            let (files, budget_bytes) = filter_parquet_files_inner(
                 parquet_files_for_compaction,
                 MEMORY_BUDGET,
                 &files_metric,
                 &bytes_metric,
             );
 
-            let result = to_compact.filter_result();
-            assert_eq!(result, FilterResult::Proceeed);
-            // memory budget for 2 files each has a tag and a u64
-            assert_eq!(to_compact.budget_bytes(), 2 * 1176);
-
-            let files = to_compact.files;
             assert_eq!(files.len(), 2);
             assert_eq!(files[0].id().get(), 102);
             assert_eq!(files[1].id().get(), 1);
+            assert_eq!(budget_bytes, 2 * 1176);
         }
 
         #[test]
@@ -603,30 +576,19 @@ mod tests {
                 level_2: vec![],
             };
 
-            // total needed budget for one file with a tag, a time and 11 rows = 1176
             let (files_metric, bytes_metric) = metrics();
-            let partition = Arc::new(
-                ParquetFileBuilder::level_0()
-                    .id(1)
-                    .build_partition_with_extra_info(),
-            );
 
-            let to_compact = filter_parquet_files(
-                Arc::clone(&partition),
+            let (files, budget_bytes) = filter_parquet_files_inner(
                 parquet_files_for_compaction.clone(),
                 1176 * 3 + 5, // enough for 3 files
                 &files_metric,
                 &bytes_metric,
             );
 
-            let result = to_compact.filter_result();
-            assert_eq!(result, FilterResult::Proceeed);
-            // memory budget for 3 files
-            assert_eq!(to_compact.budget_bytes(), 3 * 1176);
-
-            let files = to_compact.files;
             let ids: Vec<_> = files.iter().map(|f| f.id().get()).collect();
             assert_eq!(ids, [102, 103, 1]);
+            assert_eq!(budget_bytes, 3 * 1176);
+
             assert_eq!(
                 extract_file_metrics(&files_metric),
                 ExtractedFileMetrics {
@@ -637,27 +599,21 @@ mod tests {
                 }
             );
 
-            // Increase budget to more than 6 files; 1st two level 0 files & their overlapping
-            // level 1 files get returned
             let (files_metric, bytes_metric) = metrics();
 
-            let to_compact = filter_parquet_files(
-                partition,
+            let (files, budget_bytes) = filter_parquet_files_inner(
                 parquet_files_for_compaction,
+                // Increase budget to more than 6 files; 1st two level 0 files & their overlapping
+                // level 1 files get returned
                 1176 * 6 + 5,
                 &files_metric,
                 &bytes_metric,
             );
 
-            let result = to_compact.filter_result();
-            assert_eq!(result, FilterResult::Proceeed);
-
-            // memory budget for 3 files
-            assert_eq!(to_compact.budget_bytes(), 6 * 1176);
-
-            let files = to_compact.files;
             let ids: Vec<_> = files.iter().map(|f| f.id().get()).collect();
             assert_eq!(ids, [102, 103, 104, 105, 1, 2]);
+            assert_eq!(budget_bytes, 6 * 1176);
+
             assert_eq!(
                 extract_file_metrics(&files_metric),
                 ExtractedFileMetrics {
@@ -755,42 +711,6 @@ mod tests {
             // Estimated arrow bytes for one file with a tag, a time and 11 rows = 1176
             CompactorParquetFile::new(f, 1176)
         }
-
-        fn build_partition_with_extra_info(self) -> PartitionCompactionCandidateWithInfo {
-            // build the parquet file
-            let p = self.build();
-
-            // build the partition for the parquet file
-            PartitionCompactionCandidateWithInfo {
-                candidate: PartitionParam {
-                    partition_id: p.partition_id(),
-                    shard_id: p.shard_id(),
-                    namespace_id: p.namespace_id(),
-                    table_id: p.table_id(),
-                },
-                namespace: Arc::new(Namespace {
-                    id: p.namespace_id(),
-                    name: "namespace_name".to_string(),
-                    retention_duration: Some("1 day".to_string()),
-                    topic_id: TopicId::new(1),
-                    query_pool_id: QueryPoolId::new(1),
-                    max_tables: 100,
-                    max_columns_per_table: 100,
-                }),
-                table: Arc::new(Table {
-                    id: p.table_id(),
-                    namespace_id: p.namespace_id(),
-                    name: "table_name".to_string(),
-                }),
-                table_schema: Arc::new(TableSchema {
-                    id: p.table_id(),
-                    columns: BTreeMap::new(),
-                }),
-                column_type_counts: one_tag_one_time_cols(),
-                sort_key: None,
-                partition_key: "partition_key".into(),
-            }
-        }
     }
 
     #[derive(Debug, PartialEq)]
@@ -840,18 +760,5 @@ mod tests {
             level_1_selected,
             level_1_not_selected,
         }
-    }
-
-    fn one_tag_one_time_cols() -> Vec<ColumnTypeCount> {
-        vec![
-            ColumnTypeCount {
-                col_type: ColumnType::Tag,
-                count: 1,
-            },
-            ColumnTypeCount {
-                col_type: ColumnType::Time,
-                count: 1,
-            },
-        ]
     }
 }
