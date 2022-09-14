@@ -29,10 +29,10 @@ use trace::span::Span;
 use super::ram::RamSize;
 
 /// Duration to keep existing namespaces.
-pub const TTL_EXISTING: Duration = Duration::from_secs(60);
+pub const TTL_EXISTING: Duration = Duration::from_secs(120);
 
 // When to refresh an existing namespace.
-pub const REFRESH_EXISTING: Duration = Duration::from_secs(10);
+pub const REFRESH_EXISTING: Duration = Duration::from_secs(30);
 
 /// Duration to keep non-existing namespaces.
 ///
