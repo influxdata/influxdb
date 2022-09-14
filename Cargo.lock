@@ -1554,6 +1554,7 @@ dependencies = [
  "data_types",
  "filetime",
  "futures",
+ "humantime",
  "iox_catalog",
  "metric",
  "object_store",

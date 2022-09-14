@@ -1681,6 +1681,23 @@ RETURNING *;
         .map_err(|e| Error::SqlxError { source: e })
     }
 
+    async fn delete_old_ids_only(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFileId>> {
+        let deleted = sqlx::query(
+            r#"
+DELETE FROM parquet_file
+WHERE to_delete < $1
+RETURNING id;
+             "#,
+        )
+        .bind(&older_than) // $1
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })?;
+
+        let deleted = deleted.into_iter().map(|row| row.get("id")).collect();
+        Ok(deleted)
+    }
+
     async fn level_0(&mut self, shard_id: ShardId) -> Result<Vec<ParquetFile>> {
         // this intentionally limits the returned files to 10,000 as it is used to make
         // a decision on the highest priority partitions. If compaction has never been

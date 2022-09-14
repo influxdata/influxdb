@@ -15,22 +15,24 @@
 )]
 #![allow(clippy::missing_docs_in_private_items)]
 
-use chrono::{DateTime, Utc};
-use chrono_english::{parse_date_string, Dialect};
+use crate::{
+    objectstore::{checker as os_checker, deleter as os_deleter, lister as os_lister},
+    parquetfile::deleter as pf_deleter,
+};
+
 use clap::Parser;
+use humantime::{format_duration, parse_duration};
 use iox_catalog::interface::Catalog;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use snafu::prelude::*;
-use std::{fmt::Debug, sync::Arc};
+use std::{fmt::Debug, sync::Arc, time::Duration};
 use tokio::sync::{broadcast, mpsc};
 
-/// Logic for checking if a file in object storage should be deleted or not.
-mod checker;
-/// Logic for deleting a file from object storage.
-mod deleter;
-/// Logic for listing all files in object storage.
-mod lister;
+/// Logic for listing, checking and deleting files in object storage
+mod objectstore;
+/// Logic deleting parquet files from the catalog
+mod parquetfile;
 
 const BUFFER_SIZE: usize = 1000;
 
@@ -42,9 +44,10 @@ pub async fn main(config: Config) -> Result<()> {
 /// The tasks that clean up old object store files that don't appear in the catalog.
 pub struct GarbageCollector {
     shutdown_tx: broadcast::Sender<()>,
-    lister: tokio::task::JoinHandle<Result<(), lister::Error>>,
-    checker: tokio::task::JoinHandle<Result<(), checker::Error>>,
-    deleter: tokio::task::JoinHandle<Result<(), deleter::Error>>,
+    os_lister: tokio::task::JoinHandle<Result<(), os_lister::Error>>,
+    os_checker: tokio::task::JoinHandle<Result<(), os_checker::Error>>,
+    os_deleter: tokio::task::JoinHandle<Result<(), os_deleter::Error>>,
+    pf_deleter: tokio::task::JoinHandle<Result<(), pf_deleter::Error>>,
 }
 
 impl Debug for GarbageCollector {
@@ -63,32 +66,67 @@ impl GarbageCollector {
         } = config;
 
         let dry_run = sub_config.dry_run;
-        let cutoff = sub_config.cutoff()?;
         info!(
-            cutoff_arg = %sub_config.cutoff,
-            cutoff_parsed = %cutoff,
+            objectstore_cutoff_days = %format_duration(sub_config.objectstore_cutoff).to_string(),
+            parquetfile_cutoff_days = %format_duration(sub_config.parquetfile_cutoff).to_string(),
+            objectstore_sleep_interval_minutes = %sub_config.objectstore_sleep_interval_minutes,
+            parquetfile_sleep_interval_minutes = %sub_config.parquetfile_sleep_interval_minutes,
             "GarbageCollector starting"
         );
 
-        let (shutdown_tx, shutdown_rx) = broadcast::channel(1);
+        // Shutdown handler channel to notify children
+        let (shutdown_tx, shutdown_os_rx) = broadcast::channel(1);
+        let shutdown_pf_rx = shutdown_tx.subscribe();
 
+        // Initialise the object store garbage collector, which works as three communicating threads:
+        // - lister lists objects in the object store and sends them on a channel. the lister will
+        //   run until it has enumerated all matching files, then sleep for the configured
+        //   interval.
+        // - checker receives from that channel and checks the catalog to see if they exist, if not
+        //   it sends them on another channel
+        // - deleter receives object store entries that have been checked and therefore should be
+        //   deleted.
         let (tx1, rx1) = mpsc::channel(BUFFER_SIZE);
         let (tx2, rx2) = mpsc::channel(BUFFER_SIZE);
 
-        let lister = tokio::spawn(lister::perform(shutdown_rx, Arc::clone(&object_store), tx1));
-        let checker = tokio::spawn(checker::perform(catalog, cutoff, rx1, tx2));
-        let deleter = tokio::spawn(deleter::perform(
+        let os_lister = tokio::spawn(os_lister::perform(
+            shutdown_os_rx,
+            Arc::clone(&object_store),
+            tx1,
+            sub_config.objectstore_sleep_interval_minutes,
+        ));
+        let os_checker = tokio::spawn(os_checker::perform(
+            Arc::clone(&catalog),
+            chrono::Duration::from_std(sub_config.objectstore_cutoff).map_err(|e| {
+                Error::CutoffError {
+                    message: e.to_string(),
+                }
+            })?,
+            rx1,
+            tx2,
+        ));
+        let os_deleter = tokio::spawn(os_deleter::perform(
             object_store,
             dry_run,
-            sub_config.concurrent_deletes,
+            sub_config.objectstore_concurrent_deletes,
             rx2,
+        ));
+
+        // Initialise the parquet file deleter, which is just one thread that calls delete_old()
+        // on the catalog then sleeps.
+        let pf_deleter = tokio::spawn(pf_deleter::perform(
+            shutdown_pf_rx,
+            catalog,
+            sub_config.parquetfile_cutoff,
+            sub_config.parquetfile_sleep_interval_minutes,
         ));
 
         Ok(Self {
             shutdown_tx,
-            lister,
-            checker,
-            deleter,
+            os_lister,
+            os_checker,
+            os_deleter,
+            pf_deleter,
         })
     }
 
@@ -103,17 +141,20 @@ impl GarbageCollector {
     /// Wait for the garbage collector to finish work
     pub async fn join(self) -> Result<()> {
         let Self {
-            lister,
-            checker,
-            deleter,
-            ..
+            os_lister,
+            os_checker,
+            os_deleter,
+            pf_deleter,
+            shutdown_tx: _,
         } = self;
 
-        let (lister, checker, deleter) = futures::join!(lister, checker, deleter);
+        let (os_lister, os_checker, os_deleter, pf_deleter) =
+            futures::join!(os_lister, os_checker, os_deleter, pf_deleter);
 
-        deleter.context(DeleterPanicSnafu)??;
-        checker.context(CheckerPanicSnafu)??;
-        lister.context(ListerPanicSnafu)??;
+        pf_deleter.context(ParquetFileDeleterPanicSnafu)??;
+        os_deleter.context(ObjectStoreDeleterPanicSnafu)??;
+        os_checker.context(ObjectStoreCheckerPanicSnafu)??;
+        os_lister.context(ObjectStoreListerPanicSnafu)??;
 
         Ok(())
     }
@@ -148,57 +189,86 @@ pub struct SubConfig {
     #[clap(long, env = "INFLUXDB_IOX_GC_DRY_RUN")]
     dry_run: bool,
 
-    /// Items in the object store that are older than this timestamp and also unreferenced in the
-    /// catalog will be deleted.
+    /// Items in the object store that are older than this duration.
+    /// Parsed with <https://docs.rs/humantime/latest/humantime/fn.parse_duration.html>
     ///
-    /// Can be an exact datetime like `2020-01-01T01:23:45-05:00` or a fuzzy
-    /// specification like `1 hour ago`. If not specified, defaults to 14 days ago.
+    /// If not specified, defaults to 14 days ago.
     #[clap(
         long,
-        default_value_t = String::from("14 days ago"),
-        env = "INFLUXDB_IOX_GC_CUTOFF",
+        default_value = "14d",
+        parse(try_from_str = parse_duration),
+        env = "INFLUXDB_IOX_GC_OBJECTSTORE_CUTOFF"
     )]
-    cutoff: String,
+    objectstore_cutoff: Duration,
 
     /// Number of concurrent object store deletion tasks
-    #[clap(long, default_value_t = 5, env = "INFLUXDB_IOX_GC_CONCURRENT_DELETES")]
-    concurrent_deletes: usize,
-}
+    #[clap(
+        long,
+        default_value_t = 5,
+        env = "INFLUXDB_IOX_GC_OBJECTSTORE_CONCURRENT_DELETES"
+    )]
+    objectstore_concurrent_deletes: usize,
 
-impl SubConfig {
-    fn cutoff(&self) -> Result<DateTime<Utc>> {
-        let argument = &self.cutoff;
-        parse_date_string(argument, Utc::now(), Dialect::Us)
-            .context(ParsingCutoffSnafu { argument })
-    }
+    /// Number of minutes to sleep between iterations of the objectstore deletion loop.
+    /// Defaults to 30 minutes.
+    #[clap(
+        long,
+        default_value_t = 30,
+        env = "INFLUXDB_IOX_GC_OBJECTSTORE_SLEEP_INTERVAL_MINUTES"
+    )]
+    objectstore_sleep_interval_minutes: u64,
+
+    /// Parquet file rows in the catalog flagged for deletion before this many days ago will be
+    /// deleted.
+    ///
+    /// If not specified, defaults to 14 days ago.
+    #[clap(
+        long,
+        default_value = "14d",
+        parse(try_from_str = parse_duration),
+        env = "INFLUXDB_IOX_GC_PARQUETFILE_CUTOFF"
+    )]
+    parquetfile_cutoff: Duration,
+
+    /// Number of minutes to sleep between iterations of the parquet file deletion loop.
+    /// Defaults to 30 minutes.
+    #[clap(
+        long,
+        default_value_t = 30,
+        env = "INFLUXDB_IOX_GC_PARQUETFILE_SLEEP_INTERVAL_MINUTES"
+    )]
+    parquetfile_sleep_interval_minutes: u64,
 }
 
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
 pub enum Error {
-    #[snafu(display(r#"Could not parse the cutoff "{argument}""#))]
-    ParsingCutoff {
-        source: chrono_english::DateError,
-        argument: String,
-    },
+    #[snafu(display("Error converting parsed duration: {message}"))]
+    CutoffError { message: String },
 
-    #[snafu(display("The lister task failed"))]
+    #[snafu(display("The object store lister task failed"))]
     #[snafu(context(false))]
-    Lister { source: lister::Error },
-    #[snafu(display("The lister task panicked"))]
-    ListerPanic { source: tokio::task::JoinError },
+    ObjectStoreLister { source: os_lister::Error },
+    #[snafu(display("The object store lister task panicked"))]
+    ObjectStoreListerPanic { source: tokio::task::JoinError },
 
-    #[snafu(display("The checker task failed"))]
+    #[snafu(display("The object store checker task failed"))]
     #[snafu(context(false))]
-    Checker { source: checker::Error },
-    #[snafu(display("The checker task panicked"))]
-    CheckerPanic { source: tokio::task::JoinError },
+    ObjectStoreChecker { source: os_checker::Error },
+    #[snafu(display("The object store checker task panicked"))]
+    ObjectStoreCheckerPanic { source: tokio::task::JoinError },
 
-    #[snafu(display("The deleter task failed"))]
+    #[snafu(display("The object store deleter task failed"))]
     #[snafu(context(false))]
-    Deleter { source: deleter::Error },
-    #[snafu(display("The deleter task panicked"))]
-    DeleterPanic { source: tokio::task::JoinError },
+    ObjectStoreDeleter { source: os_deleter::Error },
+    #[snafu(display("The object store deleter task panicked"))]
+    ObjectStoreDeleterPanic { source: tokio::task::JoinError },
+
+    #[snafu(display("The parquet file deleter task failed"))]
+    #[snafu(context(false))]
+    ParquetFileDeleter { source: pf_deleter::Error },
+    #[snafu(display("The parquet file deleter task panicked"))]
+    ParquetFileDeleterPanic { source: tokio::task::JoinError },
 }
 
 #[allow(missing_docs)]
@@ -213,6 +283,7 @@ mod tests {
     use filetime::FileTime;
     use std::{fs, iter, path::PathBuf};
     use tempfile::TempDir;
+    use tokio::time::sleep;
 
     use super::*;
 
@@ -221,7 +292,12 @@ mod tests {
         let setup = OldFileSetup::new();
 
         let config = build_config(setup.data_dir_arg(), []).await;
-        main(config).await.unwrap();
+        tokio::spawn(async {
+            main(config).await.unwrap();
+        });
+
+        // file-based objectstore only has one file, it can't take long
+        sleep(Duration::from_millis(500)).await;
 
         assert!(
             !setup.file_path.exists(),
@@ -236,9 +312,14 @@ mod tests {
 
         #[rustfmt::skip]
         let config = build_config(setup.data_dir_arg(), [
-            "--cutoff", "10 years ago",
+            "--objectstore-cutoff", "10y",
         ]).await;
-        main(config).await.unwrap();
+        tokio::spawn(async {
+            main(config).await.unwrap();
+        });
+
+        // file-based objectstore only has one file, it can't take long
+        sleep(Duration::from_millis(500)).await;
 
         assert!(
             setup.file_path.exists(),
