@@ -18,7 +18,7 @@ use parquet_file::storage::ParquetStorage;
 use schema::sort::SortKey;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashMap, HashSet},
     sync::Arc,
     time::Duration,
 };
@@ -276,15 +276,19 @@ impl Compactor {
         // Minimum number of the most recent writes per partition we want to count
         // to prioritize partitions
         min_recent_ingested_files: usize,
-    ) -> Result<Vec<PartitionParam>> {
+    ) -> Result<(
+        Vec<Arc<PartitionCompactionCandidateWithInfo>>,
+        HashMap<TableId, Vec<ColumnTypeCount>>,
+    )> {
+        let compaction_type = "hot";
         let mut candidates = Vec::with_capacity(self.shards.len() * max_num_partitions_per_shard);
-        let mut repos = self.catalog.repositories().await;
 
         for shard_id in &self.shards {
             let attributes = Attributes::from([
                 ("shard_id", format!("{}", *shard_id).into()),
-                ("partition_type", "hot".into()),
+                ("partition_type", compaction_type.into()),
             ]);
+            let mut repos = self.catalog.repositories().await;
 
             // Get the most recent highest ingested throughput partitions within
             // the last 4 hours. If not, increase to 24 hours
@@ -326,13 +330,41 @@ impl Compactor {
             debug!(
                 shard_id = shard_id.get(),
                 n = num_partitions,
-                "hot compaction candidates",
+                compaction_type,
+                "compaction candidates",
             );
             let number_gauge = self.compaction_candidate_gauge.recorder(attributes);
             number_gauge.set(num_partitions as u64);
         }
 
-        Ok(candidates)
+        // Get extra needed information for selected partitions
+        let start_time = self.time_provider.now();
+
+        // Column types and their counts of the tables of the partition candidates
+        debug!(
+            num_candidates=?candidates.len(),
+            compaction_type,
+            "start getting column types for the partition candidates"
+        );
+        let table_columns = self.table_columns(&candidates).await?;
+
+        // Add other compaction-needed info into selected partitions
+        debug!(
+            num_candidates=?candidates.len(),
+            compaction_type,
+            "start getting additional info for the partition candidates"
+        );
+        let candidates = self.add_info_to_partitions(&candidates).await?;
+
+        if let Some(delta) = self.time_provider.now().checked_duration_since(start_time) {
+            let attributes = Attributes::from(&[("partition_type", compaction_type)]);
+            let duration = self
+                .partitions_extra_info_reading_duration
+                .recorder(attributes);
+            duration.record(delta);
+        }
+
+        Ok((candidates, table_columns))
     }
 
     /// Return a list of partitions that:
@@ -345,20 +377,24 @@ impl Compactor {
         &self,
         // Max number of cold partitions per shard we want to compact
         max_num_partitions_per_shard: usize,
-    ) -> Result<Vec<PartitionParam>> {
+    ) -> Result<(
+        Vec<Arc<PartitionCompactionCandidateWithInfo>>,
+        HashMap<TableId, Vec<ColumnTypeCount>>,
+    )> {
+        let compaction_type = "cold";
         let mut candidates = Vec::with_capacity(self.shards.len() * max_num_partitions_per_shard);
-        let mut repos = self.catalog.repositories().await;
 
         for shard_id in &self.shards {
             let attributes = Attributes::from([
                 ("shard_id", format!("{}", *shard_id).into()),
-                ("partition_type", "cold".into()),
+                ("partition_type", compaction_type.into()),
             ]);
 
             let time_8_hours_ago = Timestamp::new(
                 (self.time_provider.now() - Duration::from_secs(60 * 60 * 8)).timestamp_nanos(),
             );
 
+            let mut repos = self.catalog.repositories().await;
             let mut partitions = repos
                 .parquet_files()
                 .most_cold_files_partitions(
@@ -378,17 +414,45 @@ impl Compactor {
             debug!(
                 shard_id = shard_id.get(),
                 n = num_partitions,
-                "cold compaction candidates",
+                compaction_type,
+                "compaction candidates",
             );
             let number_gauge = self.compaction_candidate_gauge.recorder(attributes);
             number_gauge.set(num_partitions as u64);
         }
 
-        Ok(candidates)
+        // Get extra needed information for selected partitions
+        let start_time = self.time_provider.now();
+
+        // Column types and their counts of the tables of the partition candidates
+        debug!(
+            num_candidates=?candidates.len(),
+            compaction_type,
+            "start getting column types for the partition candidates"
+        );
+        let table_columns = self.table_columns(&candidates).await?;
+
+        // Add other compaction-needed info into selected partitions
+        debug!(
+            num_candidates=?candidates.len(),
+            compaction_type,
+            "start getting additional info for the partition candidates"
+        );
+        let candidates = self.add_info_to_partitions(&candidates).await?;
+
+        if let Some(delta) = self.time_provider.now().checked_duration_since(start_time) {
+            let attributes = Attributes::from(&[("partition_type", compaction_type)]);
+            let duration = self
+                .partitions_extra_info_reading_duration
+                .recorder(attributes);
+            duration.record(delta);
+        }
+
+        Ok((candidates, table_columns))
     }
 
     /// Get column types for tables of given partitions
-    pub async fn table_columns(
+    async fn table_columns(
         &self,
         partitions: &[PartitionParam],
     ) -> Result<HashMap<TableId, Vec<ColumnTypeCount>>> {
@@ -409,10 +473,10 @@ impl Compactor {
     }
 
     /// Add namespace and table information to partition candidates.
-    pub async fn add_info_to_partitions(
+    async fn add_info_to_partitions(
         &self,
         partitions: &[PartitionParam],
-    ) -> Result<VecDeque<Arc<PartitionCompactionCandidateWithInfo>>> {
+    ) -> Result<Vec<Arc<PartitionCompactionCandidateWithInfo>>> {
         let mut repos = self.catalog.repositories().await;
 
         let table_ids: HashSet<_> = partitions.iter().map(|p| p.table_id).collect();
@@ -481,7 +545,7 @@ impl Compactor {
                     partition_key: part.partition_key.clone(),
                 })
             })
-            .collect::<VecDeque<_>>())
+            .collect())
     }
 }
 
@@ -672,7 +736,7 @@ mod tests {
         // --------------------------------------
         // Case 1: no files yet --> no partition candidates
         //
-        let candidates = compactor.hot_partitions_to_compact(1, 1).await.unwrap();
+        let (candidates, _table_columns) = compactor.hot_partitions_to_compact(1, 1).await.unwrap();
         assert!(candidates.is_empty());
 
         // --------------------------------------
@@ -696,7 +760,7 @@ mod tests {
             .unwrap();
         txn.commit().await.unwrap();
         // No non-deleted level 0 files yet --> no candidates
-        let candidates = compactor.hot_partitions_to_compact(1, 1).await.unwrap();
+        let (candidates, _table_columns) = compactor.hot_partitions_to_compact(1, 1).await.unwrap();
         assert!(candidates.is_empty());
 
         // --------------------------------------
@@ -715,7 +779,7 @@ mod tests {
         txn.commit().await.unwrap();
 
         // No hot candidates
-        let candidates = compactor.hot_partitions_to_compact(1, 1).await.unwrap();
+        let (candidates, _table_columns) = compactor.hot_partitions_to_compact(1, 1).await.unwrap();
         assert!(candidates.is_empty());
 
         // --------------------------------------
@@ -733,9 +797,9 @@ mod tests {
         txn.commit().await.unwrap();
         //
         // Has at least one partition with a recent write --> make it a candidate
-        let candidates = compactor.hot_partitions_to_compact(1, 1).await.unwrap();
+        let (candidates, _table_columns) = compactor.hot_partitions_to_compact(1, 1).await.unwrap();
         assert_eq!(candidates.len(), 1);
-        assert_eq!(candidates[0].partition_id, partition4.id);
+        assert_eq!(candidates[0].id(), partition4.id);
 
         // --------------------------------------
         // Case 5: has 2 partitions with 2 different groups of recent writes:
@@ -755,9 +819,9 @@ mod tests {
         txn.commit().await.unwrap();
         //
         // make partitions in the most recent group candidates
-        let candidates = compactor.hot_partitions_to_compact(1, 1).await.unwrap();
+        let (candidates, _table_columns) = compactor.hot_partitions_to_compact(1, 1).await.unwrap();
         assert_eq!(candidates.len(), 1);
-        assert_eq!(candidates[0].partition_id, partition3.id);
+        assert_eq!(candidates[0].id(), partition3.id);
 
         // --------------------------------------
         // Case 6: has partition candidates for 2 shards
@@ -776,36 +840,24 @@ mod tests {
         txn.commit().await.unwrap();
         //
         // Will have 2 candidates, one for each shard
-        let mut candidates = compactor.hot_partitions_to_compact(1, 1).await.unwrap();
-        candidates.sort();
+        let (mut candidates, _table_columns) =
+            compactor.hot_partitions_to_compact(1, 1).await.unwrap();
+        candidates.sort_by_key(|c| c.candidate);
         assert_eq!(candidates.len(), 2);
-        assert_eq!(candidates[0].partition_id, partition3.id);
-        assert_eq!(candidates[0].shard_id, shard.id);
-        assert_eq!(candidates[1].partition_id, another_partition.id);
-        assert_eq!(candidates[1].shard_id, another_shard.id);
 
-        // Add info to partition
-        let partitions_with_info = compactor.add_info_to_partitions(&candidates).await.unwrap();
-        assert_eq!(partitions_with_info.len(), 2);
-        //
-        assert_eq!(*partitions_with_info[0].namespace, namespace);
-        assert_eq!(*partitions_with_info[0].table, table);
-        assert_eq!(
-            partitions_with_info[0].partition_key,
-            partition3.partition_key
-        );
-        assert_eq!(partitions_with_info[0].sort_key, partition3.sort_key()); // this sort key is None
-                                                                             //
-        assert_eq!(*partitions_with_info[1].namespace, namespace);
-        assert_eq!(*partitions_with_info[1].table, another_table);
-        assert_eq!(
-            partitions_with_info[1].partition_key,
-            another_partition.partition_key
-        );
-        assert_eq!(
-            partitions_with_info[1].sort_key,
-            another_partition.sort_key()
-        ); // this sort key is Some(tag1, time)
+        assert_eq!(candidates[0].id(), partition3.id);
+        assert_eq!(candidates[0].shard_id(), shard.id);
+        assert_eq!(*candidates[0].namespace, namespace);
+        assert_eq!(*candidates[0].table, table);
+        assert_eq!(candidates[0].partition_key, partition3.partition_key);
+        assert_eq!(candidates[0].sort_key, partition3.sort_key()); // this sort key is None
+
+        assert_eq!(candidates[1].id(), another_partition.id);
+        assert_eq!(candidates[1].shard_id(), another_shard.id);
+        assert_eq!(*candidates[1].namespace, namespace);
+        assert_eq!(*candidates[1].table, another_table);
+        assert_eq!(candidates[1].partition_key, another_partition.partition_key);
+        assert_eq!(candidates[1].sort_key, another_partition.sort_key()); // this sort key is Some(tag1, time)
     }
 
     fn make_compactor_config() -> CompactorConfig {
@@ -952,7 +1004,7 @@ mod tests {
         // --------------------------------------
         // Case 1: no files yet --> no partition candidates
         //
-        let candidates = compactor.cold_partitions_to_compact(1).await.unwrap();
+        let (candidates, _table_columns) = compactor.cold_partitions_to_compact(1).await.unwrap();
         assert!(candidates.is_empty());
 
         // --------------------------------------
@@ -973,7 +1025,7 @@ mod tests {
         let _pf2 = txn.parquet_files().create(p2).await.unwrap();
         txn.commit().await.unwrap();
         // No non-deleted level 0 files yet --> no candidates
-        let candidates = compactor.cold_partitions_to_compact(1).await.unwrap();
+        let (candidates, _table_columns) = compactor.cold_partitions_to_compact(1).await.unwrap();
         assert!(candidates.is_empty());
 
         // --------------------------------------
@@ -990,9 +1042,9 @@ mod tests {
         txn.commit().await.unwrap();
         //
         // Has at least one partition with a L0 file --> make it a candidate
-        let candidates = compactor.cold_partitions_to_compact(1).await.unwrap();
+        let (candidates, _table_columns) = compactor.cold_partitions_to_compact(1).await.unwrap();
         assert_eq!(candidates.len(), 1);
-        assert_eq!(candidates[0].partition_id, partition2.id);
+        assert_eq!(candidates[0].id(), partition2.id);
 
         // --------------------------------------
         // Case 4: has two cold partitions --> return the candidate with the most L0
@@ -1013,9 +1065,9 @@ mod tests {
         let _pf5 = txn.parquet_files().create(p5).await.unwrap();
         txn.commit().await.unwrap();
         // Partition with the most l0 files is the candidate
-        let candidates = compactor.cold_partitions_to_compact(1).await.unwrap();
+        let (candidates, _table_columns) = compactor.cold_partitions_to_compact(1).await.unwrap();
         assert_eq!(candidates.len(), 1);
-        assert_eq!(candidates[0].partition_id, partition4.id);
+        assert_eq!(candidates[0].id(), partition4.id);
 
         // --------------------------------------
         // Case 5: "warm" and "hot" partitions aren't returned
@@ -1045,21 +1097,21 @@ mod tests {
         let _pf5_hot = txn.parquet_files().create(p5_hot).await.unwrap();
         txn.commit().await.unwrap();
         // Partition4 is still the only candidate
-        let candidates = compactor.cold_partitions_to_compact(1).await.unwrap();
+        let (candidates, _table_columns) = compactor.cold_partitions_to_compact(1).await.unwrap();
         assert_eq!(candidates.len(), 1);
-        assert_eq!(candidates[0].partition_id, partition4.id);
+        assert_eq!(candidates[0].id(), partition4.id);
 
         // Ask for 2 partitions per shard; get partition4 and partition2
-        let candidates = compactor.cold_partitions_to_compact(2).await.unwrap();
+        let (candidates, _table_columns) = compactor.cold_partitions_to_compact(2).await.unwrap();
         assert_eq!(candidates.len(), 2);
-        assert_eq!(candidates[0].partition_id, partition4.id);
-        assert_eq!(candidates[1].partition_id, partition2.id);
+        assert_eq!(candidates[0].id(), partition4.id);
+        assert_eq!(candidates[1].id(), partition2.id);
 
         // Ask for 3 partitions per shard; still get only partition4 and partition2
-        let candidates = compactor.cold_partitions_to_compact(3).await.unwrap();
+        let (candidates, _table_columns) = compactor.cold_partitions_to_compact(3).await.unwrap();
         assert_eq!(candidates.len(), 2);
-        assert_eq!(candidates[0].partition_id, partition4.id);
-        assert_eq!(candidates[1].partition_id, partition2.id);
+        assert_eq!(candidates[0].id(), partition4.id);
+        assert_eq!(candidates[1].id(), partition2.id);
 
         // --------------------------------------
         // Case 6: has partition candidates for 2 shards
@@ -1078,24 +1130,26 @@ mod tests {
         txn.commit().await.unwrap();
 
         // Will have 2 candidates, one for each shard
-        let mut candidates = compactor.cold_partitions_to_compact(1).await.unwrap();
-        candidates.sort();
+        let (mut candidates, _table_columns) =
+            compactor.cold_partitions_to_compact(1).await.unwrap();
+        candidates.sort_by_key(|c| c.candidate);
         assert_eq!(candidates.len(), 2);
-        assert_eq!(candidates[0].partition_id, partition4.id);
-        assert_eq!(candidates[0].shard_id, shard.id);
-        assert_eq!(candidates[1].partition_id, another_partition.id);
-        assert_eq!(candidates[1].shard_id, another_shard.id);
+        assert_eq!(candidates[0].id(), partition4.id);
+        assert_eq!(candidates[0].shard_id(), shard.id);
+        assert_eq!(candidates[1].id(), another_partition.id);
+        assert_eq!(candidates[1].shard_id(), another_shard.id);
 
         // Ask for 2 candidates per shard; get back 3: 2 from shard and 1 from
         // another_shard
-        let mut candidates = compactor.cold_partitions_to_compact(2).await.unwrap();
-        candidates.sort();
+        let (mut candidates, _table_columns) =
+            compactor.cold_partitions_to_compact(2).await.unwrap();
+        candidates.sort_by_key(|c| c.candidate);
         assert_eq!(candidates.len(), 3);
-        assert_eq!(candidates[0].partition_id, partition2.id);
-        assert_eq!(candidates[0].shard_id, shard.id);
-        assert_eq!(candidates[1].partition_id, partition4.id);
-        assert_eq!(candidates[1].shard_id, shard.id);
-        assert_eq!(candidates[2].partition_id, another_partition.id);
-        assert_eq!(candidates[2].shard_id, another_shard.id);
+        assert_eq!(candidates[0].id(), partition2.id);
+        assert_eq!(candidates[0].shard_id(), shard.id);
+        assert_eq!(candidates[1].id(), partition4.id);
+        assert_eq!(candidates[1].shard_id(), shard.id);
+        assert_eq!(candidates[2].id(), another_partition.id);
+        assert_eq!(candidates[2].shard_id(), another_shard.id);
     }
 }

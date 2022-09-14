@@ -13,7 +13,7 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
     debug!(compaction_type, "start collecting partitions to compact");
     let attributes = Attributes::from(&[("partition_type", compaction_type)]);
     let start_time = compactor.time_provider.now();
-    let candidates = Backoff::new(&compactor.backoff_config)
+    let (candidates, table_columns) = Backoff::new(&compactor.backoff_config)
         .retry_all_errors("hot_partitions_to_compact", || async {
             compactor
                 .hot_partitions_to_compact(
@@ -37,46 +37,6 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
         duration.record(delta);
     }
 
-    // Get extra needed information for selected partitions
-    let start_time = compactor.time_provider.now();
-
-    // Column types and their counts of the tables of the partition candidates
-    debug!(
-        num_candidates=?candidates.len(),
-        compaction_type,
-        "start getting column types for the partition candidates"
-    );
-    let table_columns = Backoff::new(&compactor.backoff_config)
-        .retry_all_errors("table_columns", || async {
-            compactor.table_columns(&candidates).await
-        })
-        .await
-        .expect("retry forever");
-
-    // Add other compaction-needed info into selected partitions
-    debug!(
-        num_candidates=?candidates.len(),
-        compaction_type,
-        "start getting additional info for the partition candidates"
-    );
-    let candidates = Backoff::new(&compactor.backoff_config)
-        .retry_all_errors("add_info_to_partitions", || async {
-            compactor.add_info_to_partitions(&candidates).await
-        })
-        .await
-        .expect("retry forever");
-
-    if let Some(delta) = compactor
-        .time_provider
-        .now()
-        .checked_duration_since(start_time)
-    {
-        let duration = compactor
-            .partitions_extra_info_reading_duration
-            .recorder(attributes.clone());
-        duration.record(delta);
-    }
-
     let n_candidates = candidates.len();
     if n_candidates == 0 {
         debug!(compaction_type, "no compaction candidates found");
@@ -91,7 +51,7 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
         Arc::clone(&compactor),
         compaction_type,
         compact_in_parallel,
-        candidates,
+        candidates.into(),
         table_columns,
     )
     .await;
@@ -126,11 +86,7 @@ mod tests {
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder};
     use iox_time::{SystemProvider, TimeProvider};
     use parquet_file::storage::ParquetStorage;
-    use std::{
-        collections::{HashMap, VecDeque},
-        sync::Arc,
-        time::Duration,
-    };
+    use std::{collections::HashMap, sync::Arc, time::Duration};
 
     #[tokio::test]
     async fn test_compact_hot_partition_candidates() {
@@ -277,7 +233,7 @@ mod tests {
         partition6.create_parquet_file_catalog_record(pf6_2).await;
 
         // partition candidates: partitions with L0 and overlapped L1
-        let candidates = compactor
+        let (mut candidates, table_columns) = compactor
             .hot_partitions_to_compact(
                 compactor.config.max_number_partitions_per_shard,
                 compactor
@@ -288,8 +244,6 @@ mod tests {
             .unwrap();
         assert_eq!(candidates.len(), 6);
 
-        // column types of the partitions
-        let table_columns = compactor.table_columns(&candidates).await.unwrap();
         assert_eq!(table_columns.len(), 1);
         let mut cols = table_columns.get(&table.table.id).unwrap().clone();
         assert_eq!(cols.len(), 5);
@@ -304,11 +258,7 @@ mod tests {
         expected_cols.sort_by_key(|c| c.col_type);
         assert_eq!(cols, expected_cols);
 
-        // Add other compaction-needed info into selected partitions
-        let candidates = compactor.add_info_to_partitions(&candidates).await.unwrap();
-        let mut sorted_candidates = candidates.into_iter().collect::<Vec<_>>();
-        sorted_candidates.sort_by_key(|c| c.candidate.partition_id);
-        let sorted_candidates = sorted_candidates.into_iter().collect::<VecDeque<_>>();
+        candidates.sort_by_key(|c| c.candidate.partition_id);
 
         {
             let mut repos = compactor.catalog.repositories().await;
@@ -330,7 +280,7 @@ mod tests {
             Arc::clone(&compactor),
             "hot",
             mock_compactor.compaction_function(),
-            sorted_candidates,
+            candidates.into(),
             table_columns,
         )
         .await;
@@ -568,7 +518,7 @@ mod tests {
 
         // ------------------------------------------------
         // Compact
-        let candidates = compactor
+        let (mut candidates, _table_columns) = compactor
             .hot_partitions_to_compact(
                 compactor.config.max_number_partitions_per_shard,
                 compactor
@@ -577,10 +527,9 @@ mod tests {
             )
             .await
             .unwrap();
-        let mut candidates = compactor.add_info_to_partitions(&candidates).await.unwrap();
 
         assert_eq!(candidates.len(), 1);
-        let c = candidates.pop_front().unwrap();
+        let c = candidates.pop().unwrap();
 
         let parquet_files_for_compaction =
             parquet_file_lookup::ParquetFilesForCompaction::for_partition_with_size_overrides(
