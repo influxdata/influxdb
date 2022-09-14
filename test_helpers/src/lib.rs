@@ -78,6 +78,12 @@ static LOG_SETUP: Once = Once::new();
 /// Enables debug logging regardless of the value of RUST_LOG
 /// environment variable. If RUST_LOG isn't specifies, defaults to
 /// "debug"
+///
+/// Hint: Try running your test with `--no-capture` if you don't see expected logs.
+///
+/// This is likely useful only when debugging a single tests or when running
+/// with `--test-threads=1` , otherwise outputs will be interleaved because
+/// test execution is multi-threaded.
 pub fn start_logging() {
     use tracing_log::LogTracer;
     use tracing_subscriber::{filter::EnvFilter, FmtSubscriber};
@@ -93,6 +99,12 @@ pub fn start_logging() {
 
         let subscriber = FmtSubscriber::builder()
             .with_env_filter(EnvFilter::from_default_env())
+            // Note `with_test_writer` allows libtest (used for all
+            // our tests and invoked by `cargo test`) to capture
+            // per-test logging. The captured data will only be
+            // shown for failed tests. Pass `--no-capture` to
+            // disable that feature (but only try to run a single
+            // test to prevent output interleaving).
             .with_test_writer()
             .finish();
 
