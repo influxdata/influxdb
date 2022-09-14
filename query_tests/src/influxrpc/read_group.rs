@@ -211,6 +211,8 @@ async fn test_read_group_data_field_restriction() {
 
 #[tokio::test]
 async fn test_grouped_series_set_plan_sum() {
+    test_helpers::maybe_start_logging();
+
     let predicate = Predicate::default()
         // city=Boston OR city=Cambridge (filters out LA rows)
         .with_expr(
@@ -245,6 +247,8 @@ async fn test_grouped_series_set_plan_sum() {
 
 #[tokio::test]
 async fn test_grouped_series_set_plan_count() {
+    test_helpers::maybe_start_logging();
+
     let predicate = Predicate::default()
         // city=Boston OR city=Cambridge (filters out LA rows)
         .with_expr(
@@ -279,6 +283,8 @@ async fn test_grouped_series_set_plan_count() {
 
 #[tokio::test]
 async fn test_grouped_series_set_plan_mean() {
+    test_helpers::maybe_start_logging();
+
     let predicate = Predicate::default()
         // city=Boston OR city=Cambridge (filters out LA rows)
         .with_expr(
@@ -342,6 +348,8 @@ async fn test_grouped_series_set_plan_count_measurement_pred() {
 
 #[tokio::test]
 async fn test_grouped_series_set_plan_first() {
+    test_helpers::maybe_start_logging();
+
     let predicate = Predicate::default()
         // fiter out first row (ts 1000)
         .with_range(1001, 4001);
@@ -370,6 +378,8 @@ async fn test_grouped_series_set_plan_first() {
 
 #[tokio::test]
 async fn test_grouped_series_set_plan_first_with_nulls() {
+    test_helpers::maybe_start_logging();
+
     let predicate = Predicate::default()
         // return three rows, but one series
         // "h2o,state=MA,city=Boston temp=70.4 50",

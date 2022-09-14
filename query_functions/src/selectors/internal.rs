@@ -17,7 +17,7 @@ use arrow::{
         max as array_max, max_boolean as array_max_boolean, max_string as array_max_string,
         min as array_min, min_boolean as array_min_boolean, min_string as array_min_string,
     },
-    datatypes::DataType,
+    datatypes::{DataType, Field},
 };
 use datafusion::{
     error::Result as DataFusionResult, logical_expr::AggregateState, scalar::ScalarValue,
@@ -109,6 +109,15 @@ impl ToState<String> for &str {
     }
 }
 
+fn make_scalar_struct(data_fields: Vec<ScalarValue>) -> ScalarValue {
+    let fields = vec![
+        Field::new("value", data_fields[0].get_datatype(), true),
+        Field::new("time", data_fields[1].get_datatype(), true),
+    ];
+
+    ScalarValue::Struct(Some(data_fields), Box::new(fields))
+}
+
 macro_rules! make_first_selector {
     ($STRUCTNAME:ident, $RUSTTYPE:ident, $ARROWTYPE:expr, $ARRTYPE:ident, $MINFUNC:ident, $TO_SCALARVALUE: expr) => {
         #[derive(Debug)]
@@ -142,6 +151,10 @@ macro_rules! make_first_selector {
                 match output {
                     SelectorOutput::Value => Ok($TO_SCALARVALUE(self.value.clone())),
                     SelectorOutput::Time => Ok(ScalarValue::TimestampNanosecond(self.time, None)),
+                    SelectorOutput::Struct => Ok(make_scalar_struct(vec![
+                        $TO_SCALARVALUE(self.value.clone()),
+                        ScalarValue::TimestampNanosecond(self.time, None),
+                    ])),
                 }
             }
 
@@ -249,6 +262,10 @@ macro_rules! make_last_selector {
                 match output {
                     SelectorOutput::Value => Ok($TO_SCALARVALUE(self.value.clone())),
                     SelectorOutput::Time => Ok(ScalarValue::TimestampNanosecond(self.time, None)),
+                    SelectorOutput::Struct => Ok(make_scalar_struct(vec![
+                        $TO_SCALARVALUE(self.value.clone()),
+                        ScalarValue::TimestampNanosecond(self.time, None),
+                    ])),
                 }
             }
 
@@ -380,6 +397,10 @@ macro_rules! make_min_selector {
                 match output {
                     SelectorOutput::Value => Ok($TO_SCALARVALUE(self.value.clone())),
                     SelectorOutput::Time => Ok(ScalarValue::TimestampNanosecond(self.time, None)),
+                    SelectorOutput::Struct => Ok(make_scalar_struct(vec![
+                        $TO_SCALARVALUE(self.value.clone()),
+                        ScalarValue::TimestampNanosecond(self.time, None),
+                    ])),
                 }
             }
 
@@ -492,6 +513,10 @@ macro_rules! make_max_selector {
                 match output {
                     SelectorOutput::Value => Ok($TO_SCALARVALUE(self.value.clone())),
                     SelectorOutput::Time => Ok(ScalarValue::TimestampNanosecond(self.time, None)),
+                    SelectorOutput::Struct => Ok(make_scalar_struct(vec![
+                        $TO_SCALARVALUE(self.value.clone()),
+                        ScalarValue::TimestampNanosecond(self.time, None),
+                    ])),
                 }
             }
 

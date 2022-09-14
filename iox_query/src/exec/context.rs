@@ -3,6 +3,7 @@
 
 use async_trait::async_trait;
 use executor::DedicatedExecutor;
+use query_functions::selectors::register_selector_aggregates;
 use std::{convert::TryInto, fmt, sync::Arc};
 
 use arrow::record_batch::RecordBatch;
@@ -226,6 +227,8 @@ impl IOxSessionConfig {
     pub fn build(self) -> IOxSessionContext {
         let state = SessionState::with_config_rt(self.session_config, self.runtime)
             .with_query_planner(Arc::new(IOxQueryPlanner {}));
+
+        let state = register_selector_aggregates(state);
 
         let inner = SessionContext::with_state(state);
 

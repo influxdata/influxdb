@@ -275,6 +275,30 @@ impl DbSetup for TwoMeasurementsUnsignedType {
 }
 
 #[derive(Debug)]
+pub struct AllTypes {}
+#[async_trait]
+impl DbSetup for AllTypes {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "1970-01-01T00";
+
+        // min and max times are purposely not the first or last in the input
+        let lp_lines = vec![
+            // ensure all rows have at least one null
+            "m,tag=row1 float_field=64.0 450",
+            "m,tag=row1 int_field=64 550",
+            "m,tag=row1 float_field=61.0,int_field=22,uint_field=25u,string_field=\"foo\",bool_field=t 500",
+            "m,tag=row1 float_field=62.0,int_field=21,uint_field=30u,string_field=\"ba\",bool_field=f 200",
+            "m,tag=row1 float_field=63.0,int_field=20,uint_field=35u,string_field=\"baz\",bool_field=f 300",
+            "m,tag=row1 float_field=64.0,int_field=19,uint_field=20u,string_field=\"bar\",bool_field=t 400",
+            "m,tag=row1 float_field=65.0,int_field=18,uint_field=40u,string_field=\"fruz\",bool_field=f 100",
+            "m,tag=row1 float_field=66.0,int_field=17,uint_field=10u,string_field=\"faa\",bool_field=t 600",
+        ];
+
+        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "m", partition_key).await
+    }
+}
+
+#[derive(Debug)]
 pub struct TwoMeasurementsPredicatePushDown {}
 #[async_trait]
 impl DbSetup for TwoMeasurementsPredicatePushDown {
