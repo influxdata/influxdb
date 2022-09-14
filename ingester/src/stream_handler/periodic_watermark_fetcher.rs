@@ -1,7 +1,3 @@
-use super::sink_instrumentation::WatermarkFetcher;
-use data_types::ShardIndex;
-use metric::U64Counter;
-use observability_deps::tracing::*;
 use std::{
     sync::{
         atomic::{AtomicI64, Ordering},
@@ -9,8 +5,14 @@ use std::{
     },
     time::{Duration, Instant},
 };
+
+use data_types::ShardIndex;
+use metric::U64Counter;
+use observability_deps::tracing::*;
 use tokio::task::JoinHandle;
 use write_buffer::core::WriteBufferReading;
+
+use super::sink_instrumentation::WatermarkFetcher;
 
 /// Periodically fetch and cache the maximum known write buffer offset
 /// (watermark) from the write buffer for a given shard.

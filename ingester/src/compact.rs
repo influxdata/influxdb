@@ -1,6 +1,7 @@
 //! This module is responsible for compacting Ingester's data
 
-use crate::data::{PersistingBatch, QueryableBatch};
+use std::sync::Arc;
+
 use data_types::{CompactionLevel, NamespaceId, PartitionInfo};
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 use iox_query::{
@@ -12,7 +13,8 @@ use iox_time::TimeProvider;
 use parquet_file::metadata::IoxMetadata;
 use schema::sort::{adjust_sort_key_columns, compute_sort_key, SortKey};
 use snafu::{ResultExt, Snafu};
-use std::sync::Arc;
+
+use crate::{data::partition::PersistingBatch, query::QueryableBatch};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -28,7 +30,13 @@ pub enum Error {
     #[snafu(display("Error while executing Ingester's compaction"))]
     ExecutePlan { source: DataFusionError },
 
-    #[snafu(display("Error while building delete predicate from start time, {}, stop time, {}, and serialized predicate, {}", min, max, predicate))]
+    #[snafu(display(
+        "Error while building delete predicate from start time, {}, stop time, {}, and serialized \
+         predicate, {}",
+        min,
+        max,
+        predicate
+    ))]
     DeletePredicate {
         source: predicate::delete_predicate::Error,
         min: String,
@@ -169,6 +177,13 @@ pub async fn compact(
 
 #[cfg(test)]
 mod tests {
+    use arrow_util::assert_batches_eq;
+    use data_types::{Partition, PartitionId, ShardId, TableId};
+    use iox_time::SystemProvider;
+    use mutable_batch_lp::lines_to_batches;
+    use schema::selection::Selection;
+    use uuid::Uuid;
+
     use super::*;
     use crate::test_util::{
         create_batches_with_influxtype, create_batches_with_influxtype_different_cardinality,
@@ -180,12 +195,6 @@ mod tests {
         create_one_row_record_batch_with_influxtype, create_tombstone, make_meta,
         make_persisting_batch, make_queryable_batch, make_queryable_batch_with_deletes,
     };
-    use arrow_util::assert_batches_eq;
-    use data_types::{Partition, PartitionId, ShardId, TableId};
-    use iox_time::SystemProvider;
-    use mutable_batch_lp::lines_to_batches;
-    use schema::selection::Selection;
-    use uuid::Uuid;
 
     // this test was added to guard against https://github.com/influxdata/influxdb_iox/issues/3782
     // where if sending in a single row it would compact into an output of two batches, one of

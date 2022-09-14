@@ -1,14 +1,16 @@
-use super::DmlSink;
-use crate::lifecycle::{LifecycleHandle, LifecycleHandleImpl};
+use std::{fmt::Debug, time::Duration};
+
 use data_types::{SequenceNumber, ShardIndex};
 use dml::DmlOperation;
 use futures::{pin_mut, FutureExt, StreamExt};
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{Attributes, DurationCounter, DurationGauge, U64Counter};
 use observability_deps::tracing::*;
-use std::{fmt::Debug, time::Duration};
 use tokio_util::sync::CancellationToken;
 use write_buffer::core::{WriteBufferErrorKind, WriteBufferStreamHandler};
+
+use super::DmlSink;
+use crate::lifecycle::{LifecycleHandle, LifecycleHandleImpl};
 
 /// When the [`LifecycleManager`] indicates that ingest should be paused because
 /// of memory pressure, the shard will loop, sleeping this long between
@@ -89,10 +91,13 @@ impl<I, O> SequencedStreamHandler<I, O> {
         skip_to_oldest_available: bool,
     ) -> Self {
         // TTBR
-        let time_to_be_readable = metrics.register_metric::<DurationGauge>(
-            "ingester_ttbr",
-            "duration of time between producer writing to consumer putting into queryable cache",
-        ).recorder(metric_attrs(shard_index, &topic_name, None, false));
+        let time_to_be_readable = metrics
+            .register_metric::<DurationGauge>(
+                "ingester_ttbr",
+                "duration of time between producer writing to consumer putting into queryable \
+                 cache",
+            )
+            .recorder(metric_attrs(shard_index, &topic_name, None, false));
 
         // Lifecycle-driven ingest pause duration
         let pause_duration = metrics
@@ -461,11 +466,8 @@ fn metric_attrs(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{
-        lifecycle::{LifecycleConfig, LifecycleManager},
-        stream_handler::mock_sink::MockDmlSink,
-    };
+    use std::sync::Arc;
+
     use assert_matches::assert_matches;
     use async_trait::async_trait;
     use data_types::{DeletePredicate, Sequence, TimestampRange};
@@ -475,11 +477,16 @@ mod tests {
     use metric::Metric;
     use mutable_batch_lp::lines_to_batches;
     use once_cell::sync::Lazy;
-    use std::sync::Arc;
     use test_helpers::timeout::FutureTimeout;
     use tokio::sync::{mpsc, oneshot};
     use tokio_stream::wrappers::ReceiverStream;
     use write_buffer::core::WriteBufferError;
+
+    use super::*;
+    use crate::{
+        lifecycle::{LifecycleConfig, LifecycleManager},
+        stream_handler::mock_sink::MockDmlSink,
+    };
 
     static TEST_TIME: Lazy<Time> = Lazy::new(|| SystemProvider::default().now());
     static TEST_SHARD_INDEX: ShardIndex = ShardIndex::new(42);
@@ -967,8 +974,8 @@ mod tests {
     // An abnormal end to the steam causes a panic, rather than a silent stream reader exit.
     #[tokio::test]
     #[should_panic(
-        expected = "shard index ShardIndex(42) stream for topic topic_name ended without \
-                    graceful shutdown"
+        expected = "shard index ShardIndex(42) stream for topic topic_name ended without graceful \
+                    shutdown"
     )]
     async fn test_early_stream_end_panic() {
         let metrics = Arc::new(metric::Registry::default());

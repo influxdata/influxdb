@@ -1,9 +1,7 @@
 //! Handle all requests from Querier
 
-use crate::data::{
-    IngesterData, IngesterQueryPartition, IngesterQueryResponse, QueryableBatch,
-    UnpersistedPartitionData,
-};
+use std::sync::Arc;
+
 use arrow::error::ArrowError;
 use datafusion::{
     error::DataFusionError, logical_plan::LogicalPlanBuilder,
@@ -19,7 +17,14 @@ use observability_deps::tracing::debug;
 use predicate::Predicate;
 use schema::selection::Selection;
 use snafu::{ensure, ResultExt, Snafu};
-use std::sync::Arc;
+
+use crate::{
+    data::{
+        partition::UnpersistedPartitionData, IngesterData, IngesterQueryPartition,
+        IngesterQueryResponse,
+    },
+    query::QueryableBatch,
+};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -282,6 +287,13 @@ pub(crate) async fn query(
 
 #[cfg(test)]
 mod tests {
+    use arrow::record_batch::RecordBatch;
+    use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
+    use assert_matches::assert_matches;
+    use datafusion::logical_plan::{col, lit};
+    use futures::TryStreamExt;
+    use predicate::Predicate;
+
     use super::*;
     use crate::{
         data::FlatIngesterQueryResponse,
@@ -291,12 +303,6 @@ mod tests {
             make_queryable_batch_with_deletes, DataLocation, TEST_NAMESPACE, TEST_TABLE,
         },
     };
-    use arrow::record_batch::RecordBatch;
-    use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
-    use assert_matches::assert_matches;
-    use datafusion::logical_plan::{col, lit};
-    use futures::TryStreamExt;
-    use predicate::Predicate;
 
     #[tokio::test]
     async fn test_query() {

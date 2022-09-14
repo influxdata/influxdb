@@ -1,11 +1,13 @@
 //! Compatibility layer providing a [`DmlSink`] impl for [`IngesterData`].
 
-use super::DmlSink;
-use crate::{data::IngesterData, lifecycle::LifecycleHandleImpl};
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use data_types::ShardId;
 use dml::DmlOperation;
-use std::sync::Arc;
+
+use super::DmlSink;
+use crate::{data::IngesterData, lifecycle::LifecycleHandleImpl};
 
 /// Provides a [`DmlSink`] implementation for a [`IngesterData`] instance.
 #[derive(Debug)]

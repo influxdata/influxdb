@@ -1,15 +1,7 @@
 //! Ingest handler
 
-use crate::{
-    data::{IngesterData, IngesterQueryResponse, ShardData},
-    lifecycle::{run_lifecycle_manager, LifecycleConfig, LifecycleManager},
-    poison::PoisonCabinet,
-    querier_handler::prepare_data_to_querier,
-    stream_handler::{
-        sink_adaptor::IngestSinkAdaptor, sink_instrumentation::SinkInstrumentation,
-        PeriodicWatermarkFetcher, SequencedStreamHandler,
-    },
-};
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
+
 use async_trait::async_trait;
 use backoff::BackoffConfig;
 use data_types::{Shard, ShardIndex, TopicMetadata};
@@ -26,7 +18,6 @@ use metric::{DurationHistogram, Metric, U64Counter};
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use snafu::{ResultExt, Snafu};
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
 use tokio::{
     sync::{Semaphore, TryAcquireError},
     task::{JoinError, JoinHandle},
@@ -34,6 +25,17 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 use write_buffer::core::WriteBufferReading;
 use write_summary::ShardProgress;
+
+use crate::{
+    data::{shard::ShardData, IngesterData, IngesterQueryResponse},
+    lifecycle::{run_lifecycle_manager, LifecycleConfig, LifecycleManager},
+    poison::PoisonCabinet,
+    querier_handler::prepare_data_to_querier,
+    stream_handler::{
+        sink_adaptor::IngestSinkAdaptor, sink_instrumentation::SinkInstrumentation,
+        PeriodicWatermarkFetcher, SequencedStreamHandler,
+    },
+};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -382,8 +384,8 @@ impl<T> Drop for IngestHandlerImpl<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::data::SnapshotBatch;
+    use std::{num::NonZeroU32, ops::DerefMut};
+
     use data_types::{Namespace, NamespaceSchema, QueryPool, Sequence, SequenceNumber};
     use dml::{DmlMeta, DmlWrite};
     use iox_catalog::{mem::MemCatalog, validate_or_insert_schema};
@@ -391,9 +393,11 @@ mod tests {
     use metric::{Attributes, Metric, U64Counter, U64Gauge};
     use mutable_batch_lp::lines_to_batches;
     use object_store::memory::InMemory;
-    use std::{num::NonZeroU32, ops::DerefMut};
     use test_helpers::maybe_start_logging;
     use write_buffer::mock::{MockBufferForReading, MockBufferSharedState};
+
+    use super::*;
+    use crate::data::partition::SnapshotBatch;
 
     #[tokio::test]
     async fn read_from_write_buffer_write_to_mutable_buffer() {
@@ -764,8 +768,7 @@ mod tests {
         verify_ingester_buffer_has_data(ingester, shard, namespace, |first_batch| {
             if first_batch.min_sequence_number == SequenceNumber::new(1) {
                 panic!(
-                    "initialization did a seek to the beginning rather than \
-                    the min_unpersisted"
+                    "initialization did a seek to the beginning rather than the min_unpersisted"
                 );
             }
         })

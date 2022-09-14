@@ -1,9 +1,11 @@
 //! HTTP service implementations for `ingester`.
 
-use crate::handler::IngestHandler;
-use hyper::{Body, Request, Response, StatusCode};
 use std::sync::Arc;
+
+use hyper::{Body, Request, Response, StatusCode};
 use thiserror::Error;
+
+use crate::handler::IngestHandler;
 
 /// Errors returned by the `router` HTTP request handler.
 #[derive(Debug, Error, Copy, Clone)]

@@ -14,7 +14,9 @@ use generated_types::{
 };
 use influxdb_iox_client::flight::{low_level::LowLevelMessage, Error as FlightError};
 use ingester::{
-    data::{FlatIngesterQueryResponse, IngesterData, IngesterQueryResponse, Persister, ShardData},
+    data::{
+        shard::ShardData, FlatIngesterQueryResponse, IngesterData, IngesterQueryResponse, Persister,
+    },
     lifecycle::LifecycleHandle,
     querier_handler::prepare_data_to_querier,
 };

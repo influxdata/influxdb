@@ -1,10 +1,9 @@
 //! Ingester server entrypoint.
 
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
 
 use self::{grpc::GrpcDelegate, http::HttpDelegate};
 use crate::handler::IngestHandler;
-use std::fmt::Debug;
 
 pub mod grpc;
 pub mod http;
