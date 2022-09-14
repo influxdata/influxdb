@@ -118,9 +118,7 @@ where
 
     while let Some(maybe_batch) = stream.next().await {
         let batch = maybe_batch?;
-        if batch.num_rows() != 0 {
-            writer.write(&batch)?;
-        }
+        writer.write(&batch)?;
     }
 
     let meta = writer.close().map_err(CodecError::from)?;

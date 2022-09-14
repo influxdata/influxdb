@@ -30,8 +30,8 @@ echo "Postgres is up. Running migrations..."
 export INFLUXDB_IOX_CATALOG_DSN="postgresql://postgres@localhost:5432/postgres"
 export DATABASE_URL="${INFLUXDB_IOX_CATALOG_DSN}"
 cargo sqlx database create
-cargo run -q -- catalog setup &> /dev/null
-cargo run -q -- catalog topic update iox-shared &> /dev/null
+cargo run -q -- catalog setup
+cargo run -q -- catalog topic update iox-shared
 
 echo "Enjoy your database! Point IOx to it by running the following:"
 echo "\$ export INFLUXDB_IOX_CATALOG_DSN=\"${DATABASE_URL}\""

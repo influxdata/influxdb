@@ -3,7 +3,6 @@
 use crate::{
     compact::{compact_persisting_batch, CompactedStream},
     lifecycle::LifecycleHandle,
-    querier_handler::query,
 };
 use arrow::{error::ArrowError, record_batch::RecordBatch};
 use arrow_util::optimize::{optimize_record_batch, optimize_schema};
@@ -25,7 +24,6 @@ use object_store::DynObjectStore;
 use observability_deps::tracing::{debug, warn};
 use parking_lot::RwLock;
 use parquet_file::storage::ParquetStorage;
-use predicate::Predicate;
 use schema::selection::Selection;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
@@ -38,6 +36,9 @@ use write_summary::ShardProgress;
 
 mod triggers;
 use self::triggers::TestTriggers;
+
+mod query_dedup;
+use query_dedup::query;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -1156,14 +1157,7 @@ impl PartitionData {
         assert!(min_sequence_number <= max_sequence_number);
 
         // Run query on the QueryableBatch to apply the tombstone.
-        let stream = match query(
-            executor,
-            Arc::new(query_batch),
-            Predicate::default(),
-            Selection::All,
-        )
-        .await
-        {
+        let stream = match query(executor, Arc::new(query_batch)).await {
             Err(e) => {
                 // this should never error out. if it does, we need to crash hard so
                 // someone can take a look.
