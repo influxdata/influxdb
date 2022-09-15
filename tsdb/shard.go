@@ -2383,8 +2383,8 @@ func marshalFieldChanges(changeSet ...FieldChanges) ([]byte, error) {
 			for _, f := range fc {
 				fields = append(fields, fmt.Sprintf("%q.%q", f.Measurement, f.Field.Name))
 			}
-			return nil, fmt.Errorf("failed marshaling new fields - %s: %w", strings.Join(fields, ", "), err)
 		}
+		return nil, fmt.Errorf("failed marshaling new fields - %s: %w", strings.Join(fields, ", "), err)
 	}
 	return b, nil
 }
