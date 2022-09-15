@@ -39,7 +39,7 @@ async fn run_read_group_test_case<D>(
 
         let plans = planner
             .read_group(
-                db.as_query_database(),
+                db.as_query_database_arc(),
                 predicate.clone(),
                 agg,
                 &group_columns,

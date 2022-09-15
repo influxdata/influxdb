@@ -398,4 +398,11 @@ mod tests {
 
         Arc::new(schema)
     }
+
+    #[allow(dead_code)]
+    const fn assert_send<T: Send>() {}
+
+    // `InfluxRpcPredicate` shall be `Send`, otherwise we will have problems constructing plans for InfluxRPC
+    // concurrently.
+    const _: () = assert_send::<InfluxRpcPredicate>();
 }

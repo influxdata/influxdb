@@ -148,7 +148,7 @@ impl Planner {
         self.ctx
             .run(async move {
                 planner
-                    .read_filter(database.as_ref(), predicate)
+                    .read_filter(database, predicate)
                     .await
                     .map_err(|e| Error::Plan(format!("read_filter error: {}", e)))
             })
@@ -172,7 +172,7 @@ impl Planner {
         self.ctx
             .run(async move {
                 planner
-                    .read_group(database.as_ref(), predicate, agg, &group_columns)
+                    .read_group(database, predicate, agg, &group_columns)
                     .await
                     .map_err(|e| Error::Plan(format!("read_group error: {}", e)))
             })
@@ -197,7 +197,7 @@ impl Planner {
         self.ctx
             .run(async move {
                 planner
-                    .read_window_aggregate(database.as_ref(), predicate, agg, every, offset)
+                    .read_window_aggregate(database, predicate, agg, every, offset)
                     .await
                     .map_err(|e| Error::Plan(format!("read_window_aggregate error: {}", e)))
             })
