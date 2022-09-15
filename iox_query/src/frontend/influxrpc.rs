@@ -219,7 +219,7 @@ impl InfluxRpcPlanner {
     ///       . chunks without deleted data but cannot be decided from meta data
     pub async fn table_names(
         &self,
-        database: &dyn QueryDatabase,
+        database: Arc<dyn QueryDatabase>,
         rpc_predicate: InfluxRpcPredicate,
     ) -> Result<StringSetPlan> {
         let ctx = self.ctx.child_ctx("table_names planning");
@@ -228,86 +228,73 @@ impl InfluxRpcPlanner {
         // Special case predicates that span the entire valid timestamp range
         let rpc_predicate = rpc_predicate.clear_timestamp_if_max_range();
 
-        let mut builder = StringSetPlanBuilder::new();
-
-        // Mapping between table and chunks that need full plan
-        let mut full_plan_table_chunks = BTreeMap::new();
-
         let table_predicates = rpc_predicate
             .table_predicates(database.as_meta())
             .context(CreatingPredicatesSnafu)?;
-        for (table_name, predicate) in &table_predicates {
-            // Identify which chunks can answer from its metadata and then record its table,
-            // and which chunks needs full plan and group them into their table
-            let chunks = database
-                .chunks(table_name, predicate, ctx.child_ctx("table chunks"))
-                .await
-                .context(GettingChunksSnafu { table_name })?;
-            for chunk in cheap_chunk_first(chunks) {
-                trace!(chunk_id=%chunk.id(), %table_name, "Considering table");
+        let tables: Vec<_> = table_chunk_stream(Arc::clone(&database), &table_predicates, &ctx)
+            .try_filter_map(|(table_name, predicate, chunks)| async move {
+                // Identify which chunks can answer from its metadata and then record its table,
+                // and which chunks needs full plan and group them into their table
+                let mut chunks_full = vec![];
+                for chunk in cheap_chunk_first(chunks) {
+                    trace!(chunk_id=%chunk.id(), %table_name, "Considering table");
 
-                // Table is already in the returned table list, no longer needs to discover it from other chunks
-                if builder.contains(table_name) {
-                    trace!("already seen");
-                    continue;
-                }
+                    // If the chunk has delete predicates, we need to scan (do full plan) the data to eliminate
+                    // deleted data before we can determine if its table participates in the requested predicate.
+                    if chunk.has_delete_predicates() {
+                        chunks_full.push(chunk);
+                    } else {
+                        // Try and apply the predicate using only metadata
+                        let pred_result = chunk.apply_predicate_to_metadata(predicate).context(
+                            CheckingChunkPredicateSnafu {
+                                chunk_id: chunk.id(),
+                            },
+                        )?;
 
-                // If the chunk has delete predicates, we need to scan (do full plan) the data to eliminate
-                // deleted data before we can determine if its table participates in the requested predicate.
-                if chunk.has_delete_predicates() {
-                    full_plan_table_chunks
-                        .entry(table_name)
-                        .or_insert_with(Vec::new)
-                        .push(Arc::clone(&chunk));
-                } else {
-                    // Try and apply the predicate using only metadata
-                    let pred_result = chunk.apply_predicate_to_metadata(predicate).context(
-                        CheckingChunkPredicateSnafu {
-                            chunk_id: chunk.id(),
-                        },
-                    )?;
-
-                    match pred_result {
-                        PredicateMatch::AtLeastOneNonNullField => {
-                            trace!("Metadata predicate: table matches");
-                            // Meta data of the table covers predicates of the request
-                            builder.append_string(table_name);
+                        match pred_result {
+                            PredicateMatch::AtLeastOneNonNullField => {
+                                trace!("Metadata predicate: table matches");
+                                // Meta data of the table covers predicates of the request
+                                return Ok(Some((table_name, None)));
+                            }
+                            PredicateMatch::Unknown => {
+                                trace!("Metadata predicate: unknown match");
+                                // We cannot match the predicate to get answer from meta data, let do full plan
+                                chunks_full.push(chunk);
+                            }
+                            PredicateMatch::Zero => {
+                                trace!("Metadata predicate: zero rows match");
+                            } // this chunk's table does not participate in the request
                         }
-                        PredicateMatch::Unknown => {
-                            trace!("Metadata predicate: unknown match");
-                            // We cannot match the predicate to get answer from meta data, let do full plan
-                            full_plan_table_chunks
-                                .entry(table_name)
-                                .or_insert_with(Vec::new)
-                                .push(Arc::clone(&chunk));
-                        }
-                        PredicateMatch::Zero => {
-                            trace!("Metadata predicate: zero rows match");
-                        } // this chunk's table does not participate in the request
                     }
                 }
-            }
-        }
 
-        // remove items from full_plan_table_chunks whose tables are
-        // already in the returned list
-        for table in builder.known_strings_iter() {
-            trace!(%table, "Table is known to have matches, skipping plan");
-            full_plan_table_chunks.remove(table);
-            if full_plan_table_chunks.is_empty() {
-                break;
-            }
-        }
+                Ok((!chunks_full.is_empty()).then(|| (table_name, Some((predicate, chunks_full)))))
+            })
+            .try_collect()
+            .await?;
 
-        // Now build plans for full-plan tables
-        for (table_name, predicate) in &table_predicates {
-            if let Some(chunks) = full_plan_table_chunks.remove(table_name) {
-                let schema = database
-                    .table_schema(table_name)
-                    .context(TableRemovedSnafu { table_name })?;
+        // Feed builder
+        let mut builder = StringSetPlanBuilder::new();
+        for (table_name, maybe_full_plan) in tables {
+            match maybe_full_plan {
+                None => {
+                    builder.append_string(table_name);
+                }
+                Some((predicate, chunks)) => {
+                    let schema = database
+                        .table_schema(table_name)
+                        .context(TableRemovedSnafu { table_name })?;
 
-                let plan = self.table_name_plan(table_name, schema, predicate, chunks)?;
-                builder = builder.append_other(plan.into());
+                    let plan = Self::table_name_plan(
+                        ctx.child_ctx("table name plan"),
+                        table_name,
+                        schema,
+                        predicate,
+                        chunks,
+                    )?;
+                    builder = builder.append_other(plan.into());
+                }
             }
         }
 
@@ -989,7 +976,7 @@ impl InfluxRpcPlanner {
     ///        Scan
     /// ```
     fn table_name_plan(
-        &self,
+        ctx: IOxSessionContext,
         table_name: &str,
         schema: Arc<Schema>,
         predicate: &Predicate,
@@ -997,7 +984,7 @@ impl InfluxRpcPlanner {
     ) -> Result<LogicalPlan> {
         debug!(%table_name, "Creating table_name full plan");
         let scan_and_filter =
-            ScanPlanBuilder::new(schema, self.ctx.child_ctx("scan_and_filter planning"))
+            ScanPlanBuilder::new(schema, ctx.child_ctx("scan_and_filter planning"))
                 .with_predicate(predicate)
                 .with_chunks(chunks)
                 .build()?;
@@ -1764,7 +1751,7 @@ mod tests {
         run_test(|test_db, rpc_predicate| {
             async move {
                 InfluxRpcPlanner::new(IOxSessionContext::with_testing())
-                    .table_names(test_db.as_ref(), rpc_predicate)
+                    .table_names(test_db, rpc_predicate)
                     .await
                     .expect("creating plan");
             }
