@@ -356,6 +356,10 @@ impl Persister for IngesterData {
                 );
             }
 
+            // Add the parquet file to the catalog.
+            //
+            // This has the effect of allowing the queriers to "discover" the
+            // parquet file by polling / querying the catalog.
             Backoff::new(&self.backoff_config)
                 .retry_all_errors("add parquet file to catalog", || async {
                     let mut repos = self.catalog.repositories().await;
@@ -369,6 +373,41 @@ impl Persister for IngesterData {
                     );
                     // compiler insisted on getting told the type of the error :shrug:
                     Ok(()) as Result<(), iox_catalog::interface::Error>
+                })
+                .await
+                .expect("retry forever");
+
+            // Update the per-partition persistence watermark, so that new
+            // ingester instances skip the just-persisted ops during replay.
+            //
+            // This could be transactional with the above parquet insert to
+            // maintain catalog consistency, though in practice it is an
+            // unnecessary overhead - the system can tolerate replaying the ops
+            // that lead to this parquet file being generated, and tolerate
+            // creating a parquet file containing duplicate data (remedied by
+            // compaction).
+            //
+            // This means it is possible to observe a parquet file with a
+            // max_persisted_sequence_number >
+            // partition.persisted_sequence_number, either in-between these
+            // catalog updates, or for however long it takes a crashed ingester
+            // to restart and replay the ops, and re-persist a file containing
+            // the same (or subset of) data.
+            //
+            // The above is also true of the per-shard persist marker that
+            // governs the ingester's replay start point, which is
+            // non-transactionally updated after all partitions have persisted.
+            Backoff::new(&self.backoff_config)
+                .retry_all_errors("set partition persist marker", || async {
+                    self.catalog
+                        .repositories()
+                        .await
+                        .partitions()
+                        .update_persist_watermark(
+                            parquet_file.partition_id,
+                            parquet_file.max_sequence_number,
+                        )
+                        .await
                 })
                 .await
                 .expect("retry forever");
@@ -952,6 +991,17 @@ mod tests {
         assert_eq!(pf.max_sequence_number, SequenceNumber::new(2));
         assert_eq!(pf.shard_id, shard1.id);
         assert!(pf.to_delete.is_none());
+
+        // Verify the per-partition persist mark was updated to a value
+        // inclusive of the persisted data, forming the exclusive lower-bound
+        // from which a partition should start applying ops to ingest new data.
+        let partition = repos
+            .partitions()
+            .get_by_id(partition_id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(partition.persisted_sequence_number, SequenceNumber::new(2));
 
         // This value should be recorded in the metrics asserted next;
         // it is less than 500 KB
