@@ -334,6 +334,29 @@ pub mod tests {
         sync::{Arc, Mutex},
     };
 
+    // In tests that are verifying successful compaction not affected by the memory budget, this
+    // converts a `parquet_file_filtering::FilteredFiles` that has a `filter_result` of
+    // `parquet_file_filtering::FilterResult::Proceed` into a `ReadyToCompact` and panics if it
+    // gets any other variant.
+    impl From<parquet_file_filtering::FilteredFiles> for ReadyToCompact {
+        fn from(filtered_files: parquet_file_filtering::FilteredFiles) -> Self {
+            let parquet_file_filtering::FilteredFiles {
+                filter_result,
+                partition,
+            } = filtered_files;
+
+            let files = if let parquet_file_filtering::FilterResult::Proceed { files, .. } =
+                filter_result
+            {
+                files
+            } else {
+                panic!("Expected to get FilterResult::Proceed, got {filter_result:?}");
+            };
+
+            Self { files, partition }
+        }
+    }
+
     #[tokio::test]
     async fn empty_candidates_compacts_nothing() {
         test_helpers::maybe_start_logging();

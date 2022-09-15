@@ -186,9 +186,7 @@ fn group_by_size(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        compact_one_partition, handler::CompactorConfig, parquet_file_filtering, ReadyToCompact,
-    };
+    use crate::{compact_one_partition, handler::CompactorConfig, parquet_file_filtering};
     use ::parquet_file::storage::ParquetStorage;
     use arrow_util::assert_batches_sorted_eq;
     use backoff::BackoffConfig;
@@ -408,19 +406,7 @@ mod tests {
             &compactor.parquet_file_candidate_bytes,
         );
 
-        let parquet_file_filtering::FilteredFiles {
-            filter_result,
-            partition,
-        } = to_compact;
-
-        let files =
-            if let parquet_file_filtering::FilterResult::Proceed { files, .. } = filter_result {
-                files
-            } else {
-                panic!("Expected to get FilterResult::Proceed, got {filter_result:?}");
-            };
-
-        let to_compact = ReadyToCompact { files, partition };
+        let to_compact = to_compact.into();
 
         compact_one_partition(&compactor, to_compact, "cold")
             .await
@@ -603,19 +589,7 @@ mod tests {
             &compactor.parquet_file_candidate_bytes,
         );
 
-        let parquet_file_filtering::FilteredFiles {
-            filter_result,
-            partition,
-        } = to_compact;
-
-        let files =
-            if let parquet_file_filtering::FilterResult::Proceed { files, .. } = filter_result {
-                files
-            } else {
-                panic!("Expected to get FilterResult::Proceed, got {filter_result:?}");
-            };
-
-        let to_compact = ReadyToCompact { files, partition };
+        let to_compact = to_compact.into();
 
         compact_one_partition(&compactor, to_compact, "cold")
             .await
