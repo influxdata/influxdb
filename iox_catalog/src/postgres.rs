@@ -1327,7 +1327,7 @@ SELECT * FROM skipped_compactions
         .context(interface::CouldNotListSkippedCompactionsSnafu)
     }
 
-    async fn update_persist_watermark(
+    async fn update_persisted_sequence_number(
         &mut self,
         partition_id: PartitionId,
         sequence_number: SequenceNumber,

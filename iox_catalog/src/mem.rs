@@ -880,7 +880,7 @@ impl PartitionRepo for MemTxn {
         Ok(stage.skipped_compactions.clone())
     }
 
-    async fn update_persist_watermark(
+    async fn update_persisted_sequence_number(
         &mut self,
         partition_id: PartitionId,
         sequence_number: SequenceNumber,

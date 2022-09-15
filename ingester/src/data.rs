@@ -403,7 +403,7 @@ impl Persister for IngesterData {
                         .repositories()
                         .await
                         .partitions()
-                        .update_persist_watermark(
+                        .update_persisted_sequence_number(
                             parquet_file.partition_id,
                             parquet_file.max_sequence_number,
                         )
