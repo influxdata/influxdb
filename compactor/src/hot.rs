@@ -2,6 +2,7 @@
 
 use crate::{compact::Compactor, compact_candidates_with_memory_budget, compact_in_parallel};
 use backoff::Backoff;
+use data_types::CompactionLevel;
 use metric::Attributes;
 use observability_deps::tracing::*;
 use std::sync::Arc;
@@ -50,7 +51,9 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
     compact_candidates_with_memory_budget(
         Arc::clone(&compactor),
         compaction_type,
+        CompactionLevel::Initial,
         compact_in_parallel,
+        true, // split
         candidates.into(),
     )
     .await;
@@ -263,7 +266,9 @@ mod tests {
         compact_candidates_with_memory_budget(
             Arc::clone(&compactor),
             "hot",
+            CompactionLevel::Initial,
             mock_compactor.compaction_function(),
+            true,
             candidates.into(),
         )
         .await;
@@ -525,7 +530,7 @@ mod tests {
 
         let to_compact = to_compact.into();
 
-        compact_one_partition(&compactor, to_compact, "hot")
+        compact_one_partition(&compactor, to_compact, "hot", true)
             .await
             .unwrap();
 

@@ -2,18 +2,15 @@
 //! fully compacted.
 
 use crate::{
-    compact::{Compactor, PartitionCompactionCandidateWithInfo},
-    compact_candidates_with_memory_budget, compact_in_parallel,
-    parquet_file::CompactorParquetFile,
-    parquet_file_combining,
-    parquet_file_lookup::{self, ParquetFilesForCompaction},
+    compact::Compactor, compact_candidates_with_memory_budget, compact_in_parallel,
+    parquet_file_combining, parquet_file_lookup,
 };
 use backoff::Backoff;
-use data_types::{CompactionLevel, ParquetFileId};
+use data_types::CompactionLevel;
 use metric::Attributes;
 use observability_deps::tracing::*;
-use snafu::{ResultExt, Snafu};
-use std::{collections::HashMap, sync::Arc};
+use snafu::Snafu;
+use std::sync::Arc;
 
 /// Cold compaction. Returns the number of compacted partitions.
 pub async fn compact(compactor: Arc<Compactor>) -> usize {
@@ -55,7 +52,20 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
     compact_candidates_with_memory_budget(
         Arc::clone(&compactor),
         compaction_type,
+        CompactionLevel::Initial,
         compact_in_parallel,
+        true, // split
+        candidates.clone().into(),
+    )
+    .await;
+
+    // Compact level 1 files in parallel ("full compaction")
+    compact_candidates_with_memory_budget(
+        Arc::clone(&compactor),
+        compaction_type,
+        CompactionLevel::FileNonOverlapped,
+        compact_in_parallel,
+        false, // don't split
         candidates.into(),
     )
     .await;
@@ -92,149 +102,21 @@ pub(crate) enum Error {
     },
 }
 
-/// Given a partition that needs to have full compaction run,
-///
-/// - Select all level 1 and level 2 files in the partition.
-///   - This method assumes the level 1 files don't overlap with each other but might overlap with
-///     existing level 2 files.
-///   - Any level 0 files will be ignored.
-/// - Sort the level 1 files by max_sequence_number.
-/// - Take level 1 files with any overlapping level 2 files in the list until the current group
-///   size exceeds the memory budget or the max_desired_file_size_bytes
-/// - Compact each group into a new level 2 file, no splitting
-///
-/// Uses a hashmap of size overrides to allow mocking of file sizes.
-#[allow(dead_code)]
-async fn full_compaction(
-    compactor: &Compactor,
-    partition: Arc<PartitionCompactionCandidateWithInfo>,
-    size_overrides: &HashMap<ParquetFileId, i64>,
-) -> Result<(), Error> {
-    // select all files in this partition
-    let parquet_files_for_compaction =
-        parquet_file_lookup::ParquetFilesForCompaction::for_partition_with_size_overrides(
-            Arc::clone(&compactor.catalog),
-            Arc::clone(&partition),
-            size_overrides,
-        )
-        .await
-        .context(LookupSnafu)?;
-
-    let ParquetFilesForCompaction {
-        level_1,
-        .. // Ignore other levels
-    } = parquet_files_for_compaction;
-
-    let groups = group_by_size(level_1, compactor.config.max_desired_file_size_bytes);
-
-    for group in groups {
-        if group.len() == 1 {
-            // upgrade the one file to l2, don't run compaction
-            let mut repos = compactor.catalog.repositories().await;
-
-            repos
-                .parquet_files()
-                .update_compaction_level(&[group[0].id()], CompactionLevel::Final)
-                .await
-                .context(UpgradingSnafu)?;
-        } else {
-            parquet_file_combining::compact_final_no_splits(
-                group,
-                Arc::clone(&partition),
-                Arc::clone(&compactor.catalog),
-                compactor.store.clone(),
-                Arc::clone(&compactor.exec),
-                Arc::clone(&compactor.time_provider),
-                &compactor.compaction_input_file_bytes,
-            )
-            .await
-            .map_err(|e| Error::Combining {
-                source: Box::new(e),
-            })?;
-        }
-    }
-
-    Ok(())
-}
-
-/// Given a list of parquet files and a size limit, iterate through the list in order. Create
-/// groups based on when the size of files in the group exceeds the size limit.
-fn group_by_size(
-    files: Vec<CompactorParquetFile>,
-    max_file_size_bytes: u64,
-) -> Vec<Vec<CompactorParquetFile>> {
-    let num_files = files.len();
-    let mut group_file_size_bytes = 0;
-
-    let mut group = Vec::with_capacity(num_files);
-    let mut groups = Vec::with_capacity(num_files);
-
-    for file in files {
-        group_file_size_bytes += file.file_size_bytes() as u64;
-        group.push(file);
-
-        if group_file_size_bytes >= max_file_size_bytes {
-            groups.push(group);
-            group = Vec::with_capacity(num_files);
-            group_file_size_bytes = 0;
-        }
-    }
-    if !group.is_empty() {
-        groups.push(group);
-    }
-
-    groups
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{compact_one_partition, handler::CompactorConfig, parquet_file_filtering};
+    use crate::{
+        compact_one_partition, handler::CompactorConfig, parquet_file_filtering,
+        ParquetFilesForCompaction,
+    };
     use ::parquet_file::storage::ParquetStorage;
     use arrow_util::assert_batches_sorted_eq;
     use backoff::BackoffConfig;
-    use data_types::{ColumnType, CompactionLevel};
+    use data_types::{ColumnType, CompactionLevel, ParquetFileId};
     use iox_query::exec::Executor;
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder};
     use iox_time::{SystemProvider, TimeProvider};
-    use std::time::Duration;
-
-    #[tokio::test]
-    async fn test_group_by_size() {
-        // Setup - create a bunch of files
-        let catalog = TestCatalog::new();
-        let ns = catalog.create_namespace("ns").await;
-        let shard = ns.create_shard(1).await;
-        let table = ns.create_table("table").await;
-        table.create_column("field_int", ColumnType::I64).await;
-        table.create_column("time", ColumnType::Time).await;
-        let partition = table.with_shard(&shard).create_partition("part").await;
-        let arbitrary_lp = "table, field_int=9000i 1010101";
-
-        let builder = TestParquetFileBuilder::default().with_line_protocol(arbitrary_lp);
-        let big = partition.create_parquet_file(builder).await.parquet_file;
-        let big = CompactorParquetFile::with_size_override(big, 1_000);
-
-        let builder = TestParquetFileBuilder::default().with_line_protocol(arbitrary_lp);
-        let little = partition.create_parquet_file(builder).await.parquet_file;
-        let little = CompactorParquetFile::with_size_override(little, 2);
-
-        // Empty in, empty out
-        let groups = group_by_size(vec![], 0);
-        assert!(groups.is_empty(), "Expected empty, got: {:?}", groups);
-
-        // One file in, one group out, even if the file limit is 0
-        let groups = group_by_size(vec![big.clone()], 0);
-        assert_eq!(groups, &[&[big.clone()]]);
-
-        // If the first file is already over the limit, return 2 groups
-        let groups = group_by_size(vec![big.clone(), little.clone()], 100);
-        assert_eq!(groups, &[&[big.clone()], &[little.clone()]]);
-
-        // If the first file does not go over the limit, add another file to the group
-        let groups = group_by_size(vec![little.clone(), big.clone()], 100);
-        assert_eq!(groups, &[&[little, big]]);
-    }
+    use std::{collections::HashMap, time::Duration};
 
     #[tokio::test]
     async fn test_compact_remaining_level_0_files_many_files() {
@@ -418,7 +300,7 @@ mod tests {
 
         let to_compact = to_compact.into();
 
-        compact_one_partition(&compactor, to_compact, "cold")
+        compact_one_partition(&compactor, to_compact, "cold", true)
             .await
             .unwrap();
 
@@ -608,7 +490,7 @@ mod tests {
 
         let to_compact = to_compact.into();
 
-        compact_one_partition(&compactor, to_compact, "cold")
+        compact_one_partition(&compactor, to_compact, "cold", true)
             .await
             .unwrap();
 
@@ -670,7 +552,33 @@ mod tests {
         );
 
         // Full compaction will now combine the two level 1 files into one level 2 file
-        full_compaction(&compactor, partition, &size_overrides)
+        let parquet_files_for_compaction =
+            parquet_file_lookup::ParquetFilesForCompaction::for_partition_with_size_overrides(
+                Arc::clone(&compactor.catalog),
+                Arc::clone(&partition),
+                &size_overrides,
+            )
+            .await
+            .unwrap();
+
+        let ParquetFilesForCompaction {
+            level_1,
+            level_2,
+            .. // Ignore other levels
+        } = parquet_files_for_compaction;
+
+        let to_compact = parquet_file_filtering::filter_parquet_files(
+            Arc::clone(&partition),
+            level_1,
+            level_2,
+            compactor.config.memory_budget_bytes,
+            &compactor.parquet_file_candidate_gauge,
+            &compactor.parquet_file_candidate_bytes,
+        );
+
+        let to_compact = to_compact.into();
+
+        compact_one_partition(&compactor, to_compact, "cold", false)
             .await
             .unwrap();
 
@@ -748,15 +656,12 @@ mod tests {
 
         // Should have 1 non-soft-deleted files:
         //
-        // - the newly created file that was upgraded to level 1. Final compaction to level 2 is
-        //   currently disabled.
+        // - the newly created file that was upgraded to level 1 then to level 2
         let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
         assert_eq!(files.len(), 1);
         let file = files.pop().unwrap();
         assert_eq!(file.id.get(), 1); // ID doesn't change because the file doesn't get rewritten
-
-        // Final compaction is currently disabled.
-        assert_eq!(file.compaction_level, CompactionLevel::FileNonOverlapped);
+        assert_eq!(file.compaction_level, CompactionLevel::Final);
 
         // ------------------------------------------------
         // Verify the parquet file content
@@ -953,23 +858,44 @@ mod tests {
 
         compact(compactor).await;
 
-        // Full cold compaction to level 2 is currently disabled.
-        let files = catalog.list_by_table_not_to_delete(table.table.id).await;
-        assert_eq!(files.len(), 3);
+        // Should have 1 non-soft-deleted file:
+        //
+        // - the level 2 file created after combining all 3 level 1 files created by the first step
+        //   of compaction to compact remaining level 0 files
+        let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
+        assert_eq!(files.len(), 1, "{files:?}");
         let files_and_levels: Vec<_> = files
             .iter()
             .map(|f| (f.id.get(), f.compaction_level))
             .collect();
-        assert_eq!(
-            files_and_levels,
-            vec![
-                (
-                    pf6.parquet_file.id.get(),
-                    CompactionLevel::FileNonOverlapped
-                ),
-                (7, CompactionLevel::FileNonOverlapped),
-                (8, CompactionLevel::FileNonOverlapped),
-            ]
+
+        assert_eq!(files_and_levels, vec![(9, CompactionLevel::Final)]);
+
+        // ------------------------------------------------
+        // Verify the parquet file content
+        let file = files.pop().unwrap();
+        let batches = table.read_parquet_file(file).await;
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+------+------+--------------------------------+",
+                "| field_int | tag1 | tag2 | tag3 | time                           |",
+                "+-----------+------+------+------+--------------------------------+",
+                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000000020Z |",
+                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000006Z    |",
+                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000010Z    |",
+                "| 1000      | WA   |      |      | 1970-01-01T00:00:00.000000010Z |",
+                "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z    |",
+                "| 1600      |      | WA   | 10   | 1970-01-01T00:00:00.000028Z    |",
+                "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000000009Z |",
+                "| 20        |      | VT   | 20   | 1970-01-01T00:00:00.000026Z    |",
+                "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000000025Z |",
+                "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z    |",
+                "| 421       |      | OH   | 21   | 1970-01-01T00:00:00.000091Z    |",
+                "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z    |",
+                "| 81601     |      | PA   | 15   | 1970-01-01T00:00:00.000090Z    |",
+                "+-----------+------+------+------+--------------------------------+",
+            ],
+            &batches
         );
     }
 }

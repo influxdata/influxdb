@@ -50,10 +50,12 @@ use std::{collections::VecDeque, sync::Arc};
 async fn compact_candidates_with_memory_budget<C, Fut>(
     compactor: Arc<Compactor>,
     compaction_type: &'static str,
+    initial_level: CompactionLevel,
     compact_function: C,
+    split: bool,
     mut candidates: VecDeque<Arc<PartitionCompactionCandidateWithInfo>>,
 ) where
-    C: Fn(Arc<Compactor>, Vec<ReadyToCompact>, &'static str) -> Fut + Send + Sync + 'static,
+    C: Fn(Arc<Compactor>, Vec<ReadyToCompact>, &'static str, bool) -> Fut + Send + Sync + 'static,
     Fut: futures::Future<Output = ()> + Send,
 {
     let mut remaining_budget_bytes = compactor.config.memory_budget_bytes;
@@ -111,13 +113,22 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                 let ParquetFilesForCompaction {
                     level_0,
                     level_1,
-                    .. // Ignore other levels
+                    level_2,
                 } = parquet_files_for_compaction;
+
+                let (level_n, level_n_plus_1) = match initial_level {
+                    CompactionLevel::Initial => (level_0, level_1),
+                    CompactionLevel::FileNonOverlapped => (level_1, level_2),
+                    _ => {
+                        // Focusing on compacting any other level is a bug
+                        panic!("Unsupported initial compaction level: {initial_level:?}");
+                    }
+                };
 
                 let to_compact = parquet_file_filtering::filter_parquet_files(
                     Arc::clone(&partition),
-                    level_0,
-                    level_1,
+                    level_n,
+                    level_n_plus_1,
                     remaining_budget_bytes,
                     &compactor.parquet_file_candidate_gauge,
                     &compactor.parquet_file_candidate_bytes,
@@ -200,6 +211,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                 Arc::clone(&compactor),
                 parallel_compacting_candidates,
                 compaction_type,
+                split,
             )
             .await;
 
@@ -227,6 +239,7 @@ async fn compact_in_parallel(
     compactor: Arc<Compactor>,
     groups: Vec<ReadyToCompact>,
     compaction_type: &'static str,
+    split: bool,
 ) {
     let mut handles = Vec::with_capacity(groups.len());
     for group in groups {
@@ -234,7 +247,8 @@ async fn compact_in_parallel(
         let handle = tokio::task::spawn(async move {
             let partition_id = group.partition.id();
             debug!(?partition_id, compaction_type, "compaction starting");
-            let compaction_result = compact_one_partition(&comp, group, compaction_type).await;
+            let compaction_result =
+                compact_one_partition(&comp, group, compaction_type, split).await;
             match compaction_result {
                 Err(e) => {
                     warn!(?e, ?partition_id, compaction_type, "compaction failed");
@@ -275,6 +289,7 @@ pub(crate) async fn compact_one_partition(
     compactor: &Compactor,
     to_compact: ReadyToCompact,
     compaction_type: &'static str,
+    split: bool,
 ) -> Result<(), CompactOnePartitionError> {
     let start_time = compactor.time_provider.now();
 
@@ -282,16 +297,17 @@ pub(crate) async fn compact_one_partition(
 
     let shard_id = partition.shard_id();
 
-    if files.len() == 1 && files[0].compaction_level() == CompactionLevel::Initial {
-        // upgrade the one l0 file to l1, don't run compaction
+    if files.len() == 1 {
+        // upgrade the one file, don't run compaction
         let mut repos = compactor.catalog.repositories().await;
+        let upgraded_level = files[0].compaction_level().next();
 
         repos
             .parquet_files()
-            .update_compaction_level(&[files[0].id()], CompactionLevel::FileNonOverlapped)
+            .update_compaction_level(&[files[0].id()], upgraded_level)
             .await
             .context(UpgradingSnafu)?;
-    } else {
+    } else if split {
         parquet_file_combining::compact_parquet_files(
             files,
             partition,
@@ -303,6 +319,20 @@ pub(crate) async fn compact_one_partition(
             compactor.config.max_desired_file_size_bytes,
             compactor.config.percentage_max_file_size,
             compactor.config.split_percentage,
+        )
+        .await
+        .map_err(|e| CompactOnePartitionError::Combining {
+            source: Box::new(e),
+        })?;
+    } else {
+        parquet_file_combining::compact_final_no_splits(
+            files,
+            partition,
+            Arc::clone(&compactor.catalog),
+            compactor.store.clone(),
+            Arc::clone(&compactor.exec),
+            Arc::clone(&compactor.time_provider),
+            &compactor.compaction_input_file_bytes,
         )
         .await
         .map_err(|e| CompactOnePartitionError::Combining {
@@ -380,7 +410,9 @@ pub mod tests {
         compact_candidates_with_memory_budget(
             Arc::clone(&compactor),
             "hot",
+            CompactionLevel::Initial,
             mock_compactor.compaction_function(),
+            true,
             sorted_candidates,
         )
         .await;
@@ -399,6 +431,7 @@ pub mod tests {
                 Arc<Compactor>,
                 Vec<ReadyToCompact>,
                 &'static str,
+                bool,
             ) -> Pin<Box<dyn futures::Future<Output = ()> + Send>>
             + Send
             + Sync
@@ -411,7 +444,8 @@ pub mod tests {
             Box::new(
                 move |_compactor: Arc<Compactor>,
                       parallel_compacting_candidates: Vec<ReadyToCompact>,
-                      _compaction_type: &'static str| {
+                      _compaction_type: &'static str,
+                      _split: bool| {
                     let compaction_groups_for_async = Arc::clone(&compaction_groups_for_closure);
                     Box::pin(async move {
                         compaction_groups_for_async
