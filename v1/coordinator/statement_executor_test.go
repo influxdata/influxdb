@@ -12,7 +12,6 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/golang/mock/gomock"
-	"github.com/influxdata/influx-cli/v2/api"
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/dbrp/mocks"
@@ -46,7 +45,7 @@ func TestQueryExecutor_ExecuteQuery_SelectStatement(t *testing.T) {
 	dbrp := mocks.NewMockDBRPMappingService(ctrl)
 	orgID := platform.ID(0xff00)
 	empty := ""
-	filt := influxdb.DBRPMappingFilter{OrgID: &orgID, Database: &empty, RetentionPolicy: &empty, Virtual: api.PtrBool(false)}
+	filt := influxdb.DBRPMappingFilter{OrgID: &orgID, Database: &empty, RetentionPolicy: &empty, Virtual: nil}
 	res := []*influxdb.DBRPMapping{{}}
 	dbrp.EXPECT().
 		FindMany(gomock.Any(), filt).
@@ -112,7 +111,7 @@ func TestQueryExecutor_ExecuteQuery_MaxSelectBucketsN(t *testing.T) {
 	dbrp := mocks.NewMockDBRPMappingService(ctrl)
 	orgID := platform.ID(0xff00)
 	empty := ""
-	filt := influxdb.DBRPMappingFilter{OrgID: &orgID, Database: &empty, RetentionPolicy: &empty, Virtual: api.PtrBool(false)}
+	filt := influxdb.DBRPMappingFilter{OrgID: &orgID, Database: &empty, RetentionPolicy: &empty, Virtual: nil}
 	res := []*influxdb.DBRPMapping{{}}
 	dbrp.EXPECT().
 		FindMany(gomock.Any(), filt).

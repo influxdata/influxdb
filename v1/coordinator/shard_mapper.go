@@ -3,10 +3,10 @@ package coordinator
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influx-cli/v2/api"
 	"io"
 	"time"
 
-	"github.com/influxdata/influx-cli/v2/api"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/kit/platform"
@@ -74,7 +74,17 @@ func (e *LocalShardMapper) mapShards(ctx context.Context, a *LocalShardMapping, 
 				} else if len(mappings) == 0 {
 					return fmt.Errorf("retention policy not found: %s", s.RetentionPolicy)
 				} else if len(mappings) != 1 {
-					return fmt.Errorf("finding DBRP mappings: expected 1, found %d", len(mappings))
+					// Since there are virtual mappings for physical DBRPS, we may get 2 results
+					// Here we check that if we have 2 results, they have the same name.
+					// If so, its okay to take the first result and continue on.
+					if len(mappings) == 2 {
+						if mappings[0].Database != mappings[1].Database {
+							str := "finding DBRP mappings: found mismatched virtual and physical %s - %s"
+							return fmt.Errorf(str, mappings[0].Database, mappings[1].Database)
+						}
+					} else {
+						return fmt.Errorf("finding DBRP mappings: expected 1, found %d", len(mappings))
+					}
 				}
 
 				mapping := mappings[0]
