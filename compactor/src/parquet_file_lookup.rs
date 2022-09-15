@@ -30,7 +30,8 @@ pub(crate) struct ParquetFilesForCompaction {
     /// sequence number.
     pub(crate) level_0: Vec<CompactorParquetFile>,
 
-    /// Parquet files for a partition with `CompactionLevel::FileNonOverlapped`. Arbitrary order.
+    /// Parquet files for a partition with `CompactionLevel::FileNonOverlapped`. Ordered by
+    /// ascending max sequence number.
     pub(crate) level_1: Vec<CompactorParquetFile>,
 
     /// Parquet files for a partition with `CompactionLevel::Final`. Arbitrary order.
@@ -96,6 +97,7 @@ impl ParquetFilesForCompaction {
         }
 
         level_0.sort_by_key(|pf| pf.max_sequence_number());
+        level_1.sort_by_key(|pf| pf.max_sequence_number());
 
         Ok(Self {
             level_0,
