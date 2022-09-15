@@ -1271,6 +1271,11 @@ mod tests {
             .create_or_get("1970-01-01".into(), shard.id, table.id)
             .await
             .unwrap();
+        repos
+            .partitions()
+            .update_persisted_sequence_number(partition.id, SequenceNumber::new(1))
+            .await
+            .unwrap();
         let partition2 = repos
             .partitions()
             .create_or_get("1970-01-02".into(), shard.id, table.id)
@@ -1330,7 +1335,9 @@ mod tests {
 
         let data = NamespaceData::new(namespace.id, &*metrics);
 
-        // w1 should be ignored so it shouldn't be present in the buffer
+        // w1 should be ignored because the per-partition replay offset is set
+        // to 1 already, so it shouldn't be buffered and the buffer should
+        // remain empty.
         let should_pause = data
             .buffer_operation(
                 DmlOperation::Write(w1),
