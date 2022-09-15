@@ -58,7 +58,7 @@ impl Planner {
         self.ctx
             .run(async move {
                 planner
-                    .table_names(database.as_ref(), predicate)
+                    .table_names(database, predicate)
                     .await
                     .map_err(|e| Error::Plan(format!("table_names error: {}", e)))
             })
