@@ -337,6 +337,25 @@ impl Persister for IngesterData {
             let parquet_file = iox_metadata.to_parquet_file(partition_id, file_size, &md, |name| {
                 table_schema.columns.get(name).expect("Unknown column").id
             });
+
+            // Assert partitions are persisted in-order.
+            //
+            // It is an invariant that partitions are persisted in order so that
+            // both the per-shard, and per-partition watermarks are correctly
+            // advanced and accurate.
+            //
+            // Skips the check for the first persist for a partition that
+            // contains a single write (where parquet file max=0).
+            if parquet_file.max_sequence_number.get() != 0 {
+                assert!(
+                    parquet_file.max_sequence_number
+                        > partition_info.partition.persisted_sequence_number,
+                    "out of order partition persistence, persisting {}, previously persisted {}",
+                    parquet_file.max_sequence_number.get(),
+                    partition_info.partition.persisted_sequence_number.get(),
+                );
+            }
+
             Backoff::new(&self.backoff_config)
                 .retry_all_errors("add parquet file to catalog", || async {
                     let mut repos = self.catalog.repositories().await;
