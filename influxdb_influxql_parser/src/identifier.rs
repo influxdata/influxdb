@@ -16,7 +16,7 @@
 use crate::internal::ParseResult;
 use crate::keywords::sql_keyword;
 use crate::string::double_quoted_string;
-use crate::write_escaped;
+use crate::write_quoted_string;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{alpha1, alphanumeric1};
@@ -27,42 +27,35 @@ use std::fmt;
 use std::fmt::{Display, Formatter, Write};
 
 /// Parse an unquoted InfluxQL identifier.
-pub fn unquoted_identifier(i: &str) -> ParseResult<&str, String> {
-    map(
-        preceded(
-            not(sql_keyword),
-            recognize(pair(
-                alt((alpha1, tag("_"))),
-                many0_count(alt((alphanumeric1, tag("_")))),
-            )),
-        ),
-        str::to_string,
+pub fn unquoted_identifier(i: &str) -> ParseResult<&str, &str> {
+    preceded(
+        not(sql_keyword),
+        recognize(pair(
+            alt((alpha1, tag("_"))),
+            many0_count(alt((alphanumeric1, tag("_")))),
+        )),
     )(i)
 }
 
-/// `Identifier` is a type that represents either a quoted ([`Identifier::Quoted`]) or unquoted ([`Identifier::Unquoted`])
-/// InfluxQL identifier.
+/// A type that represents an InfluxQL identifier.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub enum Identifier {
-    /// Contains an unquoted identifier
-    Unquoted(String),
+pub struct Identifier(pub String);
 
-    /// Contains an unescaped quoted identifier
-    Quoted(String),
+impl From<String> for Identifier {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+impl From<&str> for Identifier {
+    fn from(s: &str) -> Self {
+        Self(s.to_string())
+    }
 }
 
 impl Display for Identifier {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Unquoted(s) => write!(f, "{}", s)?,
-            Self::Quoted(s) => {
-                f.write_char('"')?;
-                // escape characters per https://github.com/influxdata/influxql/blob/df51a45762be9c1b578f01718fa92d286a843fe9/scanner.go#L576-L583
-                write_escaped!(f, s, '\n' => "\\n", '\\' => "\\\\", '"' => "\\\"");
-                f.write_char('"')?;
-            }
-        };
-
+        write_quoted_string!(f, '"', self.0.as_str(), unquoted_identifier, '\n' => "\\n", '\\' => "\\\\", '"' => "\\\"");
         Ok(())
     }
 }
@@ -71,8 +64,8 @@ impl Display for Identifier {
 pub fn identifier(i: &str) -> ParseResult<&str, Identifier> {
     // See: https://github.com/influxdata/influxql/blob/df51a45762be9c1b578f01718fa92d286a843fe9/scanner.go#L358-L362
     alt((
-        map(unquoted_identifier, Identifier::Unquoted),
-        map(double_quoted_string, Identifier::Quoted),
+        map(unquoted_identifier, Into::into),
+        map(double_quoted_string, Into::into),
     ))(i)
 }
 
@@ -109,24 +102,21 @@ mod test {
     fn test_identifier() {
         // quoted
         let (_, got) = identifier("\"quick draw\"").unwrap();
-        assert!(matches!(got, Identifier::Quoted(s) if s == "quick draw"));
+        assert_eq!(got, "quick draw".into());
 
         // unquoted
         let (_, got) = identifier("quick_draw").unwrap();
-        assert!(matches!(got, Identifier::Unquoted(s) if s == "quick_draw"));
+        assert_eq!(got, "quick_draw".into());
     }
 
     #[test]
     fn test_identifier_display() {
-        // test quoted identifier properly escapes specific characters
-        let got = format!(
-            "{}",
-            Identifier::Quoted("quick\n\t\\\"'draw \u{1f47d}".to_string())
-        );
+        // Identifier properly escapes specific characters and quotes output
+        let got = format!("{}", Identifier("quick\n\t\\\"'draw \u{1f47d}".into()));
         assert_eq!(got, r#""quick\n	\\\"'draw 👽""#);
 
-        // test unquoted identifier
-        let got = format!("{}", Identifier::Unquoted("quick_draw".to_string()));
+        // Identifier displays unquoted output
+        let got = format!("{}", Identifier("quick_draw".into()));
         assert_eq!(got, "quick_draw");
     }
 }

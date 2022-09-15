@@ -200,7 +200,7 @@ fn parens(i: &str) -> ParseResult<&str, Expr> {
 fn call(i: &str) -> ParseResult<&str, Expr> {
     map(
         separated_pair(
-            unquoted_identifier,
+            map(unquoted_identifier, &str::to_string),
             multispace0,
             delimited(
                 char('('),
@@ -364,7 +364,7 @@ mod test {
     /// Constructs an [Expr::Identifier] expression.
     macro_rules! ident {
         ($EXPR: expr) => {
-            Expr::Identifier(crate::identifier::Identifier::Unquoted($EXPR.into()))
+            Expr::Identifier($EXPR.into())
         };
     }
 
@@ -378,7 +378,7 @@ mod test {
     /// Constructs a [Expr::BindParameter] expression.
     macro_rules! param {
         ($EXPR: expr) => {
-            Expr::BindParameter(crate::parameter::BindParameter::Unquoted($EXPR.into()).into())
+            Expr::BindParameter(crate::parameter::BindParameter($EXPR.into()).into())
         };
     }
 
@@ -603,7 +603,7 @@ mod test {
         // quoted identifier
         let (_, e) = conditional_expression(r#""foo" + 'bar'"#).unwrap();
         let got = format!("{}", e);
-        assert_eq!(got, r#""foo" + 'bar'"#);
+        assert_eq!(got, r#"foo + 'bar'"#);
 
         // Duration
         let (_, e) = conditional_expression("- 6h30m").unwrap();

@@ -209,7 +209,7 @@ mod test {
         assert_eq!(
             got,
             ShowMeasurementsStatement {
-                on_expression: Some(OnExpression::Database(Identifier::Unquoted("foo".into()))),
+                on_expression: Some(OnExpression::Database("foo".into())),
                 ..Default::default()
             },
         );
@@ -221,12 +221,12 @@ mod test {
         assert_eq!(
             got,
             ShowMeasurementsStatement {
-                on_expression: Some(OnExpression::Database(Identifier::Unquoted("foo".into()))),
+                on_expression: Some(OnExpression::Database("foo".into())),
                 measurement_expression: Some(MeasurementExpression::Equals(
                     MeasurementNameExpression {
                         database: None,
                         retention_policy: None,
-                        name: Identifier::Unquoted("bar".into()),
+                        name: "bar".into(),
                     }
                 )),
                 condition: Some(Expr::Literal(true.into())),
@@ -245,7 +245,7 @@ mod test {
         assert_eq!(
             got,
             ShowMeasurementsStatement {
-                on_expression: Some(OnExpression::Database(Identifier::Unquoted("foo".into()))),
+                on_expression: Some(OnExpression::Database("foo".into())),
                 measurement_expression: Some(MeasurementExpression::Regex(Regex("bar".into()))),
                 condition: Some(Expr::Literal(true.into())),
                 limit: None,
@@ -272,7 +272,7 @@ mod test {
         let got = format!(
             "{}",
             ShowMeasurementsStatement {
-                on_expression: Some(OnExpression::Database(Identifier::Unquoted("foo".into()))),
+                on_expression: Some(OnExpression::Database("foo".into())),
                 ..Default::default()
             }
         );
@@ -282,8 +282,8 @@ mod test {
             "{}",
             ShowMeasurementsStatement {
                 on_expression: Some(OnExpression::DatabaseRetentionPolicy(
-                    Identifier::Unquoted("foo".into()),
-                    Identifier::Unquoted("bar".into())
+                    "foo".into(),
+                    "bar".into()
                 )),
                 ..Default::default()
             }
@@ -312,11 +312,12 @@ mod test {
     #[test]
     fn test_on_expression() {
         let (_, got) = on_expression("ON cpu").unwrap();
-        assert!(matches!(got, OnExpression::Database(Identifier::Unquoted(db)) if db == "cpu"));
+        assert_eq!(got, OnExpression::Database("cpu".into()));
 
         let (_, got) = on_expression("ON cpu.autogen").unwrap();
-        assert!(
-            matches!(got, OnExpression::DatabaseRetentionPolicy(Identifier::Unquoted(db), Identifier::Unquoted(rp)) if db == "cpu" && rp == "autogen")
+        assert_eq!(
+            got,
+            OnExpression::DatabaseRetentionPolicy("cpu".into(), "autogen".into())
         );
 
         let (_, got) = on_expression("ON *").unwrap();
@@ -342,7 +343,7 @@ mod test {
             MeasurementExpression::Equals(MeasurementNameExpression {
                 database: None,
                 retention_policy: None,
-                name: Identifier::Unquoted("foo".into())
+                name: "foo".into()
             })
         );
 

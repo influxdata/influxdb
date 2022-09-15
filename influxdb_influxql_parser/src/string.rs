@@ -17,17 +17,39 @@ use nom::sequence::{delimited, preceded};
 use nom::Parser;
 use std::fmt::{Display, Formatter, Write};
 
-/// Writes `s` to `f`, mapping any characters from => to their escaped equivalents.
+/// Writes `S` to `F`, mapping any characters `FROM` => `TO` their escaped equivalents.
 #[macro_export]
 macro_rules! write_escaped {
-    ($f: expr, $s: expr $(, $from:expr => $to:expr)+) => {
-        for c in $s.chars() {
+    ($F: expr, $STRING: expr $(, $FROM:expr => $TO:expr)+) => {
+        for c in $STRING.chars() {
             match c {
                 $(
-                $from => $f.write_str($to)?,
+                $FROM => $F.write_str($TO)?,
                 )+
-                _ => $f.write_char(c)?,
+                _ => $F.write_char(c)?,
             }
+        }
+    };
+}
+/// Writes `S` to `F`, optionally surrounding in `QUOTE`s, if FN(S) fails,
+/// and mapping any characters `FROM` => `TO` their escaped equivalents.
+#[macro_export]
+macro_rules! write_quoted_string {
+    ($F: expr, $QUOTE: literal, $STRING: expr, $FN: expr $(, $FROM:expr => $TO:expr)+) => {
+        if nom::sequence::terminated($FN, nom::combinator::eof)($STRING).is_ok() {
+            $F.write_str($STRING)?;
+        } else {
+            // must be escaped
+            $F.write_char($QUOTE)?;
+            for c in $STRING.chars() {
+                match c {
+                    $(
+                    $FROM => $F.write_str($TO)?,
+                    )+
+                    _ => $F.write_char(c)?,
+                }
+            }
+            $F.write_char($QUOTE)?;
         }
     };
 }

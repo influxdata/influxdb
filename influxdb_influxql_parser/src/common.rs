@@ -198,7 +198,7 @@ mod tests {
             MeasurementNameExpression {
                 database: None,
                 retention_policy: None,
-                name: Identifier::Unquoted("diskio".into()),
+                name: "diskio".into(),
             }
         );
 
@@ -206,9 +206,9 @@ mod tests {
         assert_eq!(
             got,
             MeasurementNameExpression {
-                database: Some(Identifier::Unquoted("telegraf".into())),
-                retention_policy: Some(Identifier::Unquoted("autogen".into())),
-                name: Identifier::Unquoted("diskio".into()),
+                database: Some("telegraf".into()),
+                retention_policy: Some("autogen".into()),
+                name: "diskio".into(),
             }
         );
 
@@ -216,9 +216,9 @@ mod tests {
         assert_eq!(
             got,
             MeasurementNameExpression {
-                database: Some(Identifier::Unquoted("telegraf".into())),
+                database: Some("telegraf".into()),
                 retention_policy: None,
-                name: Identifier::Unquoted("diskio".into()),
+                name: "diskio".into(),
             }
         );
     }
