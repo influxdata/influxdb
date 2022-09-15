@@ -269,8 +269,8 @@ pub(crate) async fn compact_parquet_files(
 }
 
 /// Compact all files given, no matter their size, into one level 2 file. When this is called by
-/// `full_compaction`, it should only receive a group of level 1 files that has already been
-/// selected to be an appropriate size.
+/// `full_compaction`, it should only receive a group of level 1 and level 2 files that has already
+/// been selected to be an appropriate size.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn compact_final_no_splits(
     files: Vec<CompactorParquetFile>,

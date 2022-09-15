@@ -94,10 +94,13 @@ pub(crate) enum Error {
 
 /// Given a partition that needs to have full compaction run,
 ///
-/// - Select all files in the partition, which this method assumes will only be level 1
-///   without overlaps (any level 0 and level 2 files passed into this function will be ignored)
-/// - Split the files into groups based on size: take files in the list until the current group size
-///   is greater than max_desired_file_size_bytes
+/// - Select all level 1 and level 2 files in the partition.
+///   - This method assumes the level 1 files don't overlap with each other but might overlap with
+///     existing level 2 files.
+///   - Any level 0 files will be ignored.
+/// - Sort the level 1 files by max_sequence_number.
+/// - Take level 1 files with any overlapping level 2 files in the list until the current group
+///   size exceeds the memory budget or the max_desired_file_size_bytes
 /// - Compact each group into a new level 2 file, no splitting
 ///
 /// Uses a hashmap of size overrides to allow mocking of file sizes.
