@@ -9,16 +9,11 @@ use metric::{Attributes, Metric, U64Gauge, U64Histogram};
 use observability_deps::tracing::*;
 use std::sync::Arc;
 
-/// Files and the budget in bytes neeeded to compact them
+/// Groups of files, their partition, and the estimated budget for compacting this group
 #[derive(Debug)]
 pub(crate) struct FilteredFiles {
-    /// Files with computed budget and will be compacted
-    pub files: Vec<CompactorParquetFile>,
-    /// Bugdet needed to compact the files
-    /// If this value is 0 and the files are empty, nothing to compact.
-    /// If the value is 0 and the files are not empty, there is error during estimating the budget.
-    /// If the value is not 0 but the files are empty, the budget is greater than the allowed one.
-    budget_bytes: u64,
+    /// Files and the budget in bytes neeeded to compact them
+    pub filter_result: FilterResult,
     /// Partition of the files
     pub partition: Arc<PartitionCompactionCandidateWithInfo>,
 }
@@ -26,27 +21,13 @@ pub(crate) struct FilteredFiles {
 #[derive(Debug, PartialEq)]
 pub(crate) enum FilterResult {
     NothingToCompact,
-    ErrorEstimatingBudget,
-    OverBudget,
-    Proceeed,
-}
-
-impl FilteredFiles {
-    pub fn filter_result(&self) -> FilterResult {
-        if self.files.is_empty() && self.budget_bytes == 0 {
-            FilterResult::NothingToCompact
-        } else if !self.files.is_empty() && self.budget_bytes == 0 {
-            FilterResult::ErrorEstimatingBudget
-        } else if self.files.is_empty() && self.budget_bytes != 0 {
-            FilterResult::OverBudget
-        } else {
-            FilterResult::Proceeed
-        }
-    }
-
-    pub fn budget_bytes(&self) -> u64 {
-        self.budget_bytes
-    }
+    OverBudget {
+        budget_bytes: u64,
+    },
+    Proceed {
+        files: Vec<CompactorParquetFile>,
+        budget_bytes: u64,
+    },
 }
 
 /// Given a list of level 0 files sorted by max sequence number and a list of level 1 files for
@@ -72,7 +53,7 @@ pub(crate) fn filter_parquet_files(
     // Histogram for the number of bytes of Parquet file candidates
     parquet_file_candidate_bytes: &Metric<U64Histogram>,
 ) -> FilteredFiles {
-    let (files, budget_bytes) = filter_parquet_files_inner(
+    let filter_result = filter_parquet_files_inner(
         parquet_files_for_compaction,
         max_bytes,
         parquet_file_candidate_gauge,
@@ -80,8 +61,7 @@ pub(crate) fn filter_parquet_files(
     );
 
     FilteredFiles {
-        files,
-        budget_bytes,
+        filter_result,
         partition,
     }
 }
@@ -97,7 +77,7 @@ fn filter_parquet_files_inner(
     parquet_file_candidate_gauge: &Metric<U64Gauge>,
     // Histogram for the number of bytes of Parquet file candidates
     parquet_file_candidate_bytes: &Metric<U64Histogram>,
-) -> (Vec<CompactorParquetFile>, u64) {
+) -> FilterResult {
     let ParquetFilesForCompaction {
         level_0,
         level_1: mut remaining_level_1,
@@ -106,7 +86,7 @@ fn filter_parquet_files_inner(
 
     if level_0.is_empty() {
         info!("No level 0 files to consider for compaction");
-        return (vec![], 0);
+        return FilterResult::NothingToCompact;
     }
 
     // Guaranteed to exist because of the empty check and early return above. Also assuming all
@@ -155,7 +135,9 @@ fn filter_parquet_files_inner(
         if total_estimated_budget + estimated_file_bytes > max_bytes {
             if total_estimated_budget == 0 {
                 // Cannot compact this partition further with the given budget
-                return (vec![], estimated_file_bytes);
+                return FilterResult::OverBudget {
+                    budget_bytes: estimated_file_bytes,
+                };
             } else {
                 // Only compact the ones under the given budget
                 break;
@@ -217,7 +199,11 @@ fn filter_parquet_files_inner(
     // Return the level 1 files first, followed by the level 0 files assuming we've maintained
     // their ordering by max sequence number.
     files_to_return.extend(level_0_to_return);
-    (files_to_return, total_estimated_budget)
+
+    FilterResult::Proceed {
+        files: files_to_return,
+        budget_bytes: total_estimated_budget,
+    }
 }
 
 fn overlaps_in_time(a: &CompactorParquetFile, b: &CompactorParquetFile) -> bool {
@@ -401,15 +387,14 @@ mod tests {
             };
             let (files_metric, bytes_metric) = metrics();
 
-            let (files, budget_bytes) = filter_parquet_files_inner(
+            let filter_result = filter_parquet_files_inner(
                 parquet_files_for_compaction,
                 MEMORY_BUDGET,
                 &files_metric,
                 &bytes_metric,
             );
 
-            assert!(files.is_empty());
-            assert_eq!(budget_bytes, 0);
+            assert_eq!(filter_result, FilterResult::NothingToCompact);
         }
 
         #[test]
@@ -421,15 +406,17 @@ mod tests {
             };
             let (files_metric, bytes_metric) = metrics();
 
-            let (files, budget_bytes) = filter_parquet_files_inner(
+            let filter_result = filter_parquet_files_inner(
                 parquet_files_for_compaction,
                 0,
                 &files_metric,
                 &bytes_metric,
             );
 
-            assert!(files.is_empty());
-            assert_eq!(budget_bytes, 1176);
+            assert_eq!(
+                filter_result,
+                FilterResult::OverBudget { budget_bytes: 1176 }
+            );
         }
 
         #[test]
@@ -441,15 +428,17 @@ mod tests {
             };
             let (files_metric, bytes_metric) = metrics();
 
-            let (files, budget_bytes) = filter_parquet_files_inner(
+            let filter_result = filter_parquet_files_inner(
                 parquet_files_for_compaction,
                 1000,
                 &files_metric,
                 &bytes_metric,
             );
 
-            assert!(files.is_empty());
-            assert_eq!(budget_bytes, 1176);
+            assert_eq!(
+                filter_result,
+                FilterResult::OverBudget { budget_bytes: 1176 }
+            );
         }
 
         #[test]
@@ -484,17 +473,23 @@ mod tests {
             };
             let (files_metric, bytes_metric) = metrics();
 
-            let (files, budget_bytes) = filter_parquet_files_inner(
+            let filter_result = filter_parquet_files_inner(
                 parquet_files_for_compaction,
                 MEMORY_BUDGET,
                 &files_metric,
                 &bytes_metric,
             );
 
-            assert_eq!(files.len(), 2);
-            assert_eq!(files[0].id().get(), 102);
-            assert_eq!(files[1].id().get(), 1);
-            assert_eq!(budget_bytes, 2 * 1176);
+            assert!(
+                matches!(
+                    &filter_result,
+                    FilterResult::Proceed { files, budget_bytes }
+                        if files.len() == 2
+                            && files.iter().map(|f| f.id().get()).collect::<Vec<_>>() == [102, 1]
+                            && *budget_bytes == 2 * 1176
+                ),
+                "Match failed, got: {filter_result:?}"
+            );
         }
 
         #[test]
@@ -578,16 +573,26 @@ mod tests {
 
             let (files_metric, bytes_metric) = metrics();
 
-            let (files, budget_bytes) = filter_parquet_files_inner(
+            let filter_result = filter_parquet_files_inner(
                 parquet_files_for_compaction.clone(),
                 1176 * 3 + 5, // enough for 3 files
                 &files_metric,
                 &bytes_metric,
             );
 
-            let ids: Vec<_> = files.iter().map(|f| f.id().get()).collect();
-            assert_eq!(ids, [102, 103, 1]);
-            assert_eq!(budget_bytes, 3 * 1176);
+            assert!(
+                matches!(
+                    &filter_result,
+                    FilterResult::Proceed { files, budget_bytes }
+                        if files.len() == 3
+                            && files
+                                    .iter()
+                                    .map(|f| f.id().get())
+                                    .collect::<Vec<_>>() == [102, 103, 1]
+                            && *budget_bytes == 3 * 1176
+                ),
+                "Match failed, got: {filter_result:?}"
+            );
 
             assert_eq!(
                 extract_file_metrics(&files_metric),
@@ -601,7 +606,7 @@ mod tests {
 
             let (files_metric, bytes_metric) = metrics();
 
-            let (files, budget_bytes) = filter_parquet_files_inner(
+            let filter_result = filter_parquet_files_inner(
                 parquet_files_for_compaction,
                 // Increase budget to more than 6 files; 1st two level 0 files & their overlapping
                 // level 1 files get returned
@@ -610,9 +615,19 @@ mod tests {
                 &bytes_metric,
             );
 
-            let ids: Vec<_> = files.iter().map(|f| f.id().get()).collect();
-            assert_eq!(ids, [102, 103, 104, 105, 1, 2]);
-            assert_eq!(budget_bytes, 6 * 1176);
+            assert!(
+                matches!(
+                    &filter_result,
+                    FilterResult::Proceed { files, budget_bytes }
+                        if files.len() == 6
+                            && files
+                                    .iter()
+                                    .map(|f| f.id().get())
+                                    .collect::<Vec<_>>() == [102, 103, 104, 105, 1, 2]
+                            && *budget_bytes == 6 * 1176
+                ),
+                "Match failed, got: {filter_result:?}"
+            );
 
             assert_eq!(
                 extract_file_metrics(&files_metric),

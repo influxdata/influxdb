@@ -77,6 +77,7 @@ mod tests {
         handler::CompactorConfig,
         parquet_file_filtering, parquet_file_lookup,
         tests::{test_setup, TestSetup},
+        ReadyToCompact,
     };
     use arrow_util::assert_batches_sorted_eq;
     use backoff::BackoffConfig;
@@ -277,21 +278,18 @@ mod tests {
         assert_eq!(group1.len(), 3);
 
         let g1_candidate1 = &group1[0];
-        assert_eq!(g1_candidate1.budget_bytes(), 4500);
         assert_eq!(g1_candidate1.partition.id(), partition1.partition.id);
         let g1_candidate1_pf_ids: Vec<_> =
             g1_candidate1.files.iter().map(|pf| pf.id().get()).collect();
         assert_eq!(g1_candidate1_pf_ids, vec![2, 1]);
 
         let g1_candidate2 = &group1[1];
-        assert_eq!(g1_candidate2.budget_bytes(), 4500);
         assert_eq!(g1_candidate2.partition.id(), partition2.partition.id);
         let g1_candidate2_pf_ids: Vec<_> =
             g1_candidate2.files.iter().map(|pf| pf.id().get()).collect();
         assert_eq!(g1_candidate2_pf_ids, vec![4, 3]);
 
         let g1_candidate3 = &group1[2];
-        assert_eq!(g1_candidate3.budget_bytes(), 4500);
         assert_eq!(g1_candidate3.partition.id(), partition5.partition.id);
         let g1_candidate3_pf_ids: Vec<_> =
             g1_candidate3.files.iter().map(|pf| pf.id().get()).collect();
@@ -302,7 +300,6 @@ mod tests {
         assert_eq!(group2.len(), 1);
 
         let g2_candidate1 = &group2[0];
-        assert_eq!(g2_candidate1.budget_bytes(), 4500);
         assert_eq!(g2_candidate1.partition.id(), partition6.partition.id);
         let g2_candidate1_pf_ids: Vec<_> =
             g2_candidate1.files.iter().map(|pf| pf.id().get()).collect();
@@ -313,7 +310,6 @@ mod tests {
         assert_eq!(group3.len(), 1);
 
         let g3_candidate1 = &group3[0];
-        assert_eq!(g3_candidate1.budget_bytes(), 11250);
         assert_eq!(g3_candidate1.partition.id(), partition3.partition.id);
         let g3_candidate1_pf_ids: Vec<_> =
             g3_candidate1.files.iter().map(|pf| pf.id().get()).collect();
@@ -519,6 +515,20 @@ mod tests {
             &compactor.parquet_file_candidate_gauge,
             &compactor.parquet_file_candidate_bytes,
         );
+
+        let parquet_file_filtering::FilteredFiles {
+            filter_result,
+            partition,
+        } = to_compact;
+
+        let files =
+            if let parquet_file_filtering::FilterResult::Proceed { files, .. } = filter_result {
+                files
+            } else {
+                panic!("Expected to get FilterResult::Proceed, got {filter_result:?}");
+            };
+
+        let to_compact = ReadyToCompact { files, partition };
 
         compact_one_partition(&compactor, to_compact, "hot")
             .await

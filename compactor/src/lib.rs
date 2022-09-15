@@ -25,6 +25,7 @@ pub mod utils;
 
 use crate::{
     compact::{Compactor, PartitionCompactionCandidateWithInfo},
+    parquet_file::CompactorParquetFile,
     parquet_file_filtering::{FilterResult, FilteredFiles},
 };
 use data_types::CompactionLevel;
@@ -51,7 +52,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
     compact_function: C,
     mut candidates: VecDeque<Arc<PartitionCompactionCandidateWithInfo>>,
 ) where
-    C: Fn(Arc<Compactor>, Vec<FilteredFiles>, &'static str) -> Fut + Send + Sync + 'static,
+    C: Fn(Arc<Compactor>, Vec<ReadyToCompact>, &'static str) -> Fut + Send + Sync + 'static,
     Fut: futures::Future<Output = ()> + Send,
 {
     let mut remaining_budget_bytes = compactor.config.memory_budget_bytes;
@@ -120,32 +121,18 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
         // --------------------------------------------------------------------
         // 3. Check the compactable status and perform the action
         if let Some(to_compact) = to_compact {
-            match to_compact.filter_result() {
+            let FilteredFiles {
+                filter_result,
+                partition,
+            } = to_compact;
+
+            match filter_result {
                 FilterResult::NothingToCompact => {
                     debug!(?partition_id, compaction_type, "nothing to compact");
                 }
-                FilterResult::ErrorEstimatingBudget => {
-                    warn!(
-                        ?partition_id,
-                        ?table_id,
-                        compaction_type,
-                        "skipped; error in estimating compacting memory"
-                    );
-
-                    let mut repos = compactor.catalog.repositories().await;
-                    let record_skip = repos
-                        .partitions()
-                        .record_skipped_compaction(
-                            partition_id,
-                            "error in estimating compacting memory",
-                        )
-                        .await;
-                    if let Err(e) = record_skip {
-                        warn!(?partition_id, %e, "could not log skipped compaction");
-                    }
-                }
-                FilterResult::OverBudget => {
-                    let needed_bytes = to_compact.budget_bytes();
+                FilterResult::OverBudget {
+                    budget_bytes: needed_bytes,
+                } => {
                     if needed_bytes <= compactor.config.memory_budget_bytes {
                         // Required budget is larger than the remaining budget but smaller than
                         // full budget, add this partition back to the end of the list to compact
@@ -175,9 +162,12 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                         }
                     }
                 }
-                FilterResult::Proceeed => {
-                    remaining_budget_bytes -= to_compact.budget_bytes();
-                    parallel_compacting_candidates.push(to_compact);
+                FilterResult::Proceed {
+                    files,
+                    budget_bytes,
+                } => {
+                    remaining_budget_bytes -= budget_bytes;
+                    parallel_compacting_candidates.push(ReadyToCompact { files, partition });
                 }
             }
         }
@@ -214,22 +204,29 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
     }
 }
 
-// Compact given partitions in parallel.
+/// After filtering based on the memory budget, this is a group of files that should be compacted.
+#[derive(Debug)]
+pub(crate) struct ReadyToCompact {
+    pub(crate) files: Vec<CompactorParquetFile>,
+    pub(crate) partition: Arc<PartitionCompactionCandidateWithInfo>,
+}
+
+// Compact given groups of files in parallel.
 //
-// This function assumes its caller knows there are enough resources to run all partitions
+// This function assumes its caller knows there are enough resources to compact all groups
 // concurrently
 async fn compact_in_parallel(
     compactor: Arc<Compactor>,
-    partitions: Vec<FilteredFiles>,
+    groups: Vec<ReadyToCompact>,
     compaction_type: &'static str,
 ) {
-    let mut handles = Vec::with_capacity(partitions.len());
-    for p in partitions {
+    let mut handles = Vec::with_capacity(groups.len());
+    for group in groups {
         let comp = Arc::clone(&compactor);
         let handle = tokio::task::spawn(async move {
-            let partition_id = p.partition.candidate.partition_id;
+            let partition_id = group.partition.id();
             debug!(?partition_id, compaction_type, "compaction starting");
-            let compaction_result = compact_one_partition(&comp, p, compaction_type).await;
+            let compaction_result = compact_one_partition(&comp, group, compaction_type).await;
             match compaction_result {
                 Err(e) => {
                     warn!(?e, ?partition_id, compaction_type, "compaction failed");
@@ -265,41 +262,30 @@ pub(crate) enum CompactOnePartitionError {
     },
 }
 
-/// One compaction operation of one partition.
-///
-/// Takes a hash-map `size_overrides` that mocks the size of the detected
-/// [`CompactorParquetFile`]s. This will influence the size calculation of the compactor (i.e.
-/// when/how to compact files), but leave the actual physical size of the file as it is (i.e. file
-/// deserialization can still rely on the original value).
-///
-/// [`CompactorParquetFile`]: crate::parquet_file::CompactorParquetFile
+/// One compaction operation of one group of files.
 pub(crate) async fn compact_one_partition(
     compactor: &Compactor,
-    to_compact: FilteredFiles,
+    to_compact: ReadyToCompact,
     compaction_type: &'static str,
 ) -> Result<(), CompactOnePartitionError> {
     let start_time = compactor.time_provider.now();
 
-    let partition = to_compact.partition;
+    let ReadyToCompact { files, partition } = to_compact;
+
     let shard_id = partition.shard_id();
 
-    if to_compact.files.len() == 1
-        && to_compact.files[0].compaction_level() == CompactionLevel::Initial
-    {
+    if files.len() == 1 && files[0].compaction_level() == CompactionLevel::Initial {
         // upgrade the one l0 file to l1, don't run compaction
         let mut repos = compactor.catalog.repositories().await;
 
         repos
             .parquet_files()
-            .update_compaction_level(
-                &[to_compact.files[0].id()],
-                CompactionLevel::FileNonOverlapped,
-            )
+            .update_compaction_level(&[files[0].id()], CompactionLevel::FileNonOverlapped)
             .await
             .context(UpgradingSnafu)?;
     } else {
         parquet_file_combining::compact_parquet_files(
-            to_compact.files,
+            files,
             partition,
             Arc::clone(&compactor.catalog),
             compactor.store.clone(),
@@ -374,13 +360,13 @@ pub mod tests {
 
     #[derive(Default)]
     pub(crate) struct MockCompactor {
-        compaction_groups: Arc<Mutex<Vec<Vec<FilteredFiles>>>>,
+        compaction_groups: Arc<Mutex<Vec<Vec<ReadyToCompact>>>>,
     }
 
     type CompactorFunctionFactory = Box<
         dyn Fn(
                 Arc<Compactor>,
-                Vec<FilteredFiles>,
+                Vec<ReadyToCompact>,
                 &'static str,
             ) -> Pin<Box<dyn futures::Future<Output = ()> + Send>>
             + Send
@@ -393,7 +379,7 @@ pub mod tests {
             let compaction_groups_for_closure = Arc::clone(&self.compaction_groups);
             Box::new(
                 move |_compactor: Arc<Compactor>,
-                      parallel_compacting_candidates: Vec<FilteredFiles>,
+                      parallel_compacting_candidates: Vec<ReadyToCompact>,
                       _compaction_type: &'static str| {
                     let compaction_groups_for_async = Arc::clone(&compaction_groups_for_closure);
                     Box::pin(async move {
@@ -406,7 +392,7 @@ pub mod tests {
             )
         }
 
-        pub(crate) fn results(self) -> Vec<Vec<FilteredFiles>> {
+        pub(crate) fn results(self) -> Vec<Vec<ReadyToCompact>> {
             let Self { compaction_groups } = self;
             Arc::try_unwrap(compaction_groups)
                 .unwrap()
