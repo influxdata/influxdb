@@ -384,26 +384,33 @@ mod tests {
 
         // ------------------------------------------------
         // Compact
-        let mut candidates = compactor
+        let mut partition_candidates = compactor
             .cold_partitions_to_compact(compactor.config.max_number_partitions_per_shard)
             .await
             .unwrap();
 
-        assert_eq!(candidates.len(), 1);
-        let c = candidates.pop().unwrap();
+        assert_eq!(partition_candidates.len(), 1);
+        let partition = partition_candidates.pop().unwrap();
 
         let parquet_files_for_compaction =
             parquet_file_lookup::ParquetFilesForCompaction::for_partition_with_size_overrides(
                 Arc::clone(&compactor.catalog),
-                Arc::clone(&c),
+                Arc::clone(&partition),
                 &size_overrides,
             )
             .await
             .unwrap();
 
+        let ParquetFilesForCompaction {
+            level_0,
+            level_1,
+            .. // Ignore other levels
+        } = parquet_files_for_compaction;
+
         let to_compact = parquet_file_filtering::filter_parquet_files(
-            c,
-            parquet_files_for_compaction,
+            partition,
+            level_0,
+            level_1,
             compactor.config.memory_budget_bytes,
             &compactor.parquet_file_candidate_gauge,
             &compactor.parquet_file_candidate_bytes,
@@ -567,26 +574,33 @@ mod tests {
 
         // ------------------------------------------------
         // Compact
-        let mut candidates = compactor
+        let mut partition_candidates = compactor
             .cold_partitions_to_compact(compactor.config.max_number_partitions_per_shard)
             .await
             .unwrap();
 
-        assert_eq!(candidates.len(), 1);
-        let c = candidates.pop().unwrap();
+        assert_eq!(partition_candidates.len(), 1);
+        let partition = partition_candidates.pop().unwrap();
 
         let parquet_files_for_compaction =
             parquet_file_lookup::ParquetFilesForCompaction::for_partition_with_size_overrides(
                 Arc::clone(&compactor.catalog),
-                Arc::clone(&c),
+                Arc::clone(&partition),
                 &size_overrides,
             )
             .await
             .unwrap();
 
+        let ParquetFilesForCompaction {
+            level_0,
+            level_1,
+            .. // Ignore other levels
+        } = parquet_files_for_compaction;
+
         let to_compact = parquet_file_filtering::filter_parquet_files(
-            Arc::clone(&c),
-            parquet_files_for_compaction,
+            Arc::clone(&partition),
+            level_0,
+            level_1,
             compactor.config.memory_budget_bytes,
             &compactor.parquet_file_candidate_gauge,
             &compactor.parquet_file_candidate_bytes,
@@ -656,7 +670,7 @@ mod tests {
         );
 
         // Full compaction will now combine the two level 1 files into one level 2 file
-        full_compaction(&compactor, c, &size_overrides)
+        full_compaction(&compactor, partition, &size_overrides)
             .await
             .unwrap();
 

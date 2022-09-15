@@ -27,6 +27,7 @@ use crate::{
     compact::{Compactor, PartitionCompactionCandidateWithInfo},
     parquet_file::CompactorParquetFile,
     parquet_file_filtering::{FilterResult, FilteredFiles},
+    parquet_file_lookup::ParquetFilesForCompaction,
 };
 use data_types::CompactionLevel;
 use metric::Attributes;
@@ -107,9 +108,16 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
             Ok(parquet_files_for_compaction) => {
                 // Return only files under the `remaining_budget_bytes` that should be
                 // compacted
+                let ParquetFilesForCompaction {
+                    level_0,
+                    level_1,
+                    .. // Ignore other levels
+                } = parquet_files_for_compaction;
+
                 let to_compact = parquet_file_filtering::filter_parquet_files(
                     Arc::clone(&partition),
-                    parquet_files_for_compaction,
+                    level_0,
+                    level_1,
                     remaining_budget_bytes,
                     &compactor.parquet_file_candidate_gauge,
                     &compactor.parquet_file_candidate_bytes,

@@ -53,7 +53,20 @@ impl TryFrom<i32> for CompactionLevel {
         match value {
             x if x == Self::Initial as i32 => Ok(Self::Initial),
             x if x == Self::FileNonOverlapped as i32 => Ok(Self::FileNonOverlapped),
+            x if x == Self::Final as i32 => Ok(Self::Final),
             _ => Err("invalid compaction level value".into()),
+        }
+    }
+}
+
+impl CompactionLevel {
+    /// When compacting files of this level, provide the level that the resulting file should be.
+    /// Does not exceed the maximum available level.
+    pub fn next(&self) -> Self {
+        match self {
+            Self::Initial => Self::FileNonOverlapped,
+            Self::FileNonOverlapped => Self::Final,
+            _ => Self::Final,
         }
     }
 }
