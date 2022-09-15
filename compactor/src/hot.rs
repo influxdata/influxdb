@@ -1,7 +1,9 @@
 //! Collect highest hot candidates and compact them
 
-use crate::{compact::Compactor, compact_candidates_with_memory_budget, compact_in_parallel};
-use backoff::Backoff;
+use crate::{
+    compact::Compactor, compact_candidates_with_memory_budget, compact_in_parallel,
+    utils::get_candidates_with_retry,
+};
 use data_types::CompactionLevel;
 use metric::Attributes;
 use observability_deps::tracing::*;
@@ -10,33 +12,22 @@ use std::sync::Arc;
 /// Hot compaction. Returns the number of compacted partitions.
 pub async fn compact(compactor: Arc<Compactor>) -> usize {
     let compaction_type = "hot";
-    // Select hot partition candidates
-    debug!(compaction_type, "start collecting partitions to compact");
-    let attributes = Attributes::from(&[("partition_type", compaction_type)]);
-    let start_time = compactor.time_provider.now();
-    let candidates = Backoff::new(&compactor.backoff_config)
-        .retry_all_errors("hot_partitions_to_compact", || async {
-            compactor
+
+    let candidates = get_candidates_with_retry(
+        Arc::clone(&compactor),
+        compaction_type,
+        |compactor_for_retry| async move {
+            compactor_for_retry
                 .hot_partitions_to_compact(
-                    compactor.config.max_number_partitions_per_shard,
-                    compactor
+                    compactor_for_retry.config.max_number_partitions_per_shard,
+                    compactor_for_retry
                         .config
                         .min_number_recent_ingested_files_per_partition,
                 )
                 .await
-        })
-        .await
-        .expect("retry forever");
-    if let Some(delta) = compactor
-        .time_provider
-        .now()
-        .checked_duration_since(start_time)
-    {
-        let duration = compactor
-            .candidate_selection_duration
-            .recorder(attributes.clone());
-        duration.record(delta);
-    }
+        },
+    )
+    .await;
 
     let n_candidates = candidates.len();
     if n_candidates == 0 {
@@ -64,6 +55,7 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
         .now()
         .checked_duration_since(start_time)
     {
+        let attributes = Attributes::from(&[("partition_type", compaction_type)]);
         let duration = compactor.compaction_cycle_duration.recorder(attributes);
         duration.record(delta);
     }

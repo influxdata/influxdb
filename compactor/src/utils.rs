@@ -1,10 +1,12 @@
 //! Helpers of the Compactor
 
-use crate::query::QueryableParquetChunk;
+use crate::{compact, query::QueryableParquetChunk, PartitionCompactionCandidateWithInfo};
+use backoff::Backoff;
 use data_types::{
     CompactionLevel, ParquetFile, ParquetFileId, TableSchema, Timestamp, TimestampMinMax,
     Tombstone, TombstoneId,
 };
+use metric::Attributes;
 use observability_deps::tracing::*;
 use parquet_file::{chunk::ParquetChunk, storage::ParquetStorage};
 use schema::{sort::SortKey, Schema};
@@ -12,6 +14,46 @@ use std::{
     collections::{BTreeMap, HashSet},
     sync::Arc,
 };
+
+/// Given a compactor, a string describing the compaction type for logging and metrics, and a
+/// fallible function that returns compaction candidates, retry with backoff and return the
+/// candidates. Record metrics on the compactor about how long it took to get the candidates.
+pub(crate) async fn get_candidates_with_retry<Q, Fut>(
+    compactor: Arc<compact::Compactor>,
+    compaction_type: &'static str,
+    query_function: Q,
+) -> Vec<Arc<PartitionCompactionCandidateWithInfo>>
+where
+    Q: Fn(Arc<compact::Compactor>) -> Fut + Send + Sync + 'static,
+    Fut: futures::Future<
+            Output = Result<Vec<Arc<PartitionCompactionCandidateWithInfo>>, compact::Error>,
+        > + Send,
+{
+    let backoff_task_name = format!("{compaction_type}_partitions_to_compact");
+    debug!(compaction_type, "start collecting partitions to compact");
+    let attributes = Attributes::from(&[("partition_type", compaction_type)]);
+
+    let start_time = compactor.time_provider.now();
+
+    let candidates = Backoff::new(&compactor.backoff_config)
+        .retry_all_errors(&backoff_task_name, || {
+            let compactor = Arc::clone(&compactor);
+            async { query_function(compactor).await }
+        })
+        .await
+        .expect("retry forever");
+
+    if let Some(delta) = compactor
+        .time_provider
+        .now()
+        .checked_duration_since(start_time)
+    {
+        let duration = compactor.candidate_selection_duration.recorder(attributes);
+        duration.record(delta);
+    }
+
+    candidates
+}
 
 /// Wrapper of group of parquet files with their min time and total size
 #[derive(Debug, Clone, PartialEq, Eq)]
