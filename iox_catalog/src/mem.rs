@@ -735,7 +735,7 @@ impl PartitionRepo for MemTxn {
                         table_id,
                         partition_key: key,
                         sort_key: vec![],
-                        persisted_sequence_number: SequenceNumber::new(0),
+                        persisted_sequence_number: None,
                     };
                     stage.partitions.push(p);
                     stage.partitions.last().unwrap()
@@ -888,7 +888,7 @@ impl PartitionRepo for MemTxn {
         let stage = self.stage();
         match stage.partitions.iter_mut().find(|p| p.id == partition_id) {
             Some(p) => {
-                p.persisted_sequence_number = sequence_number;
+                p.persisted_sequence_number = Some(sequence_number);
                 Ok(())
             }
             None => Err(Error::PartitionNotFound { id: partition_id }),

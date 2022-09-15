@@ -853,7 +853,9 @@ pub struct Partition {
     /// It is a system invariant that this value monotonically increases over
     /// time - wrote another way, it is an invariant that partitions are
     /// persisted (or at least made visible) in sequence order.
-    pub persisted_sequence_number: SequenceNumber,
+    ///
+    /// If [`None`] no data has been persisted for this partition.
+    pub persisted_sequence_number: Option<SequenceNumber>,
 }
 
 impl Partition {
