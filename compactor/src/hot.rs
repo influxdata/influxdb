@@ -13,7 +13,7 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
     debug!(compaction_type, "start collecting partitions to compact");
     let attributes = Attributes::from(&[("partition_type", compaction_type)]);
     let start_time = compactor.time_provider.now();
-    let (candidates, table_columns) = Backoff::new(&compactor.backoff_config)
+    let candidates = Backoff::new(&compactor.backoff_config)
         .retry_all_errors("hot_partitions_to_compact", || async {
             compactor
                 .hot_partitions_to_compact(
@@ -52,7 +52,6 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
         compaction_type,
         compact_in_parallel,
         candidates.into(),
-        table_columns,
     )
     .await;
 
@@ -81,7 +80,7 @@ mod tests {
     };
     use arrow_util::assert_batches_sorted_eq;
     use backoff::BackoffConfig;
-    use data_types::{ColumnType, ColumnTypeCount, CompactionLevel, ParquetFileId};
+    use data_types::{ColumnType, CompactionLevel, ParquetFileId};
     use iox_query::exec::Executor;
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder};
     use iox_time::{SystemProvider, TimeProvider};
@@ -233,7 +232,7 @@ mod tests {
         partition6.create_parquet_file_catalog_record(pf6_2).await;
 
         // partition candidates: partitions with L0 and overlapped L1
-        let (mut candidates, table_columns) = compactor
+        let mut candidates = compactor
             .hot_partitions_to_compact(
                 compactor.config.max_number_partitions_per_shard,
                 compactor
@@ -243,23 +242,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(candidates.len(), 6);
-
-        assert_eq!(table_columns.len(), 1);
-        let mut cols = table_columns.get(&table.table.id).unwrap().clone();
-        assert_eq!(cols.len(), 5);
-        cols.sort_by_key(|c| c.col_type);
-        let mut expected_cols = vec![
-            ColumnTypeCount::new(ColumnType::Time, 1),
-            ColumnTypeCount::new(ColumnType::I64, 1),
-            ColumnTypeCount::new(ColumnType::Tag, 1),
-            ColumnTypeCount::new(ColumnType::String, 1),
-            ColumnTypeCount::new(ColumnType::Bool, 1),
-        ];
-        expected_cols.sort_by_key(|c| c.col_type);
-        assert_eq!(cols, expected_cols);
-
         candidates.sort_by_key(|c| c.candidate.partition_id);
-
         {
             let mut repos = compactor.catalog.repositories().await;
             let skipped_compactions = repos.partitions().list_skipped_compactions().await.unwrap();
@@ -281,7 +264,6 @@ mod tests {
             "hot",
             mock_compactor.compaction_function(),
             candidates.into(),
-            table_columns,
         )
         .await;
 
@@ -295,21 +277,18 @@ mod tests {
         assert_eq!(group1.len(), 3);
 
         let g1_candidate1 = &group1[0];
-        assert_eq!(g1_candidate1.budget_bytes(), 4500);
         assert_eq!(g1_candidate1.partition.id(), partition1.partition.id);
         let g1_candidate1_pf_ids: Vec<_> =
             g1_candidate1.files.iter().map(|pf| pf.id().get()).collect();
         assert_eq!(g1_candidate1_pf_ids, vec![2, 1]);
 
         let g1_candidate2 = &group1[1];
-        assert_eq!(g1_candidate2.budget_bytes(), 4500);
         assert_eq!(g1_candidate2.partition.id(), partition2.partition.id);
         let g1_candidate2_pf_ids: Vec<_> =
             g1_candidate2.files.iter().map(|pf| pf.id().get()).collect();
         assert_eq!(g1_candidate2_pf_ids, vec![4, 3]);
 
         let g1_candidate3 = &group1[2];
-        assert_eq!(g1_candidate3.budget_bytes(), 4500);
         assert_eq!(g1_candidate3.partition.id(), partition5.partition.id);
         let g1_candidate3_pf_ids: Vec<_> =
             g1_candidate3.files.iter().map(|pf| pf.id().get()).collect();
@@ -320,7 +299,6 @@ mod tests {
         assert_eq!(group2.len(), 1);
 
         let g2_candidate1 = &group2[0];
-        assert_eq!(g2_candidate1.budget_bytes(), 4500);
         assert_eq!(g2_candidate1.partition.id(), partition6.partition.id);
         let g2_candidate1_pf_ids: Vec<_> =
             g2_candidate1.files.iter().map(|pf| pf.id().get()).collect();
@@ -331,7 +309,6 @@ mod tests {
         assert_eq!(group3.len(), 1);
 
         let g3_candidate1 = &group3[0];
-        assert_eq!(g3_candidate1.budget_bytes(), 11250);
         assert_eq!(g3_candidate1.partition.id(), partition3.partition.id);
         let g3_candidate1_pf_ids: Vec<_> =
             g3_candidate1.files.iter().map(|pf| pf.id().get()).collect();
@@ -409,20 +386,7 @@ mod tests {
         table.create_column("tag2", ColumnType::Tag).await;
         table.create_column("tag3", ColumnType::Tag).await;
         table.create_column("time", ColumnType::Time).await;
-        let table_column_types = vec![
-            ColumnTypeCount {
-                col_type: ColumnType::Tag,
-                count: 3,
-            },
-            ColumnTypeCount {
-                col_type: ColumnType::I64,
-                count: 1,
-            },
-            ColumnTypeCount {
-                col_type: ColumnType::Time,
-                count: 1,
-            },
-        ];
+
         let partition = table.with_shard(&shard).create_partition("part").await;
         let time = Arc::new(SystemProvider::new());
         let config = CompactorConfig {
@@ -521,7 +485,7 @@ mod tests {
 
         // ------------------------------------------------
         // Compact
-        let (mut candidates, _table_columns) = compactor
+        let mut candidates = compactor
             .hot_partitions_to_compact(
                 compactor.config.max_number_partitions_per_shard,
                 compactor
@@ -537,7 +501,7 @@ mod tests {
         let parquet_files_for_compaction =
             parquet_file_lookup::ParquetFilesForCompaction::for_partition_with_size_overrides(
                 Arc::clone(&compactor.catalog),
-                c.id(),
+                Arc::clone(&c),
                 &size_overrides,
             )
             .await
@@ -547,10 +511,11 @@ mod tests {
             c,
             parquet_files_for_compaction,
             compactor.config.memory_budget_bytes,
-            &table_column_types,
             &compactor.parquet_file_candidate_gauge,
             &compactor.parquet_file_candidate_bytes,
         );
+
+        let to_compact = to_compact.into();
 
         compact_one_partition(&compactor, to_compact, "hot")
             .await

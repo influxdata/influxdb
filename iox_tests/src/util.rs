@@ -508,6 +508,7 @@ impl TestPartition {
             min_time,
             max_time,
             file_size_bytes,
+            size_override,
             creation_time,
             compaction_level,
             to_delete,
@@ -563,6 +564,7 @@ impl TestPartition {
             min_time,
             max_time,
             file_size_bytes: Some(file_size_bytes.unwrap_or(real_file_size_bytes as u64)),
+            size_override,
             creation_time,
             compaction_level,
             to_delete,
@@ -588,6 +590,7 @@ impl TestPartition {
             min_time,
             max_time,
             file_size_bytes,
+            size_override,
             creation_time,
             compaction_level,
             to_delete,
@@ -657,6 +660,7 @@ impl TestPartition {
             shard: Arc::clone(&self.shard),
             partition: Arc::clone(self),
             parquet_file,
+            size_override,
         }
     }
 }
@@ -671,6 +675,7 @@ pub struct TestParquetFileBuilder {
     min_time: i64,
     max_time: i64,
     file_size_bytes: Option<u64>,
+    size_override: Option<i64>,
     creation_time: i64,
     compaction_level: CompactionLevel,
     to_delete: bool,
@@ -688,6 +693,7 @@ impl Default for TestParquetFileBuilder {
             min_time: now().timestamp_nanos(),
             max_time: now().timestamp_nanos(),
             file_size_bytes: None,
+            size_override: None,
             creation_time: 1,
             compaction_level: CompactionLevel::Initial,
             to_delete: false,
@@ -767,6 +773,12 @@ impl TestParquetFileBuilder {
         self.row_count = Some(row_count);
         self
     }
+
+    /// Specify the size override to use for a CompactorParquetFile
+    pub fn with_size_override(mut self, size_override: i64) -> Self {
+        self.size_override = Some(size_override);
+        self
+    }
 }
 
 async fn update_catalog_sort_key_if_needed(
@@ -834,6 +846,7 @@ pub struct TestParquetFile {
     pub shard: Arc<TestShard>,
     pub partition: Arc<TestPartition>,
     pub parquet_file: ParquetFile,
+    pub size_override: Option<i64>,
 }
 
 impl TestParquetFile {
