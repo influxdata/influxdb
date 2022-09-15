@@ -32,3 +32,18 @@ message Field {
 message MeasurementFieldSet {
 	repeated MeasurementFields Measurements = 1;
 }
+
+enum ChangeType {
+  AddMeasurementField = 0;
+  DeleteMeasurement = 1;
+}
+
+message MeasurementFieldChange {
+  bytes Measurement = 1;
+  Field Field = 2;
+  ChangeType Change = 3;
+}
+
+message FieldChangeSet {
+  repeated MeasurementFieldChange Changes = 1;
+}
