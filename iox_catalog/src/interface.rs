@@ -1614,7 +1614,7 @@ pub(crate) mod test_helpers {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(partition.persisted_sequence_number, SequenceNumber::new(0));
+        assert_eq!(partition.persisted_sequence_number, None);
         // Set
         repos
             .partitions()
@@ -1628,7 +1628,10 @@ pub(crate) mod test_helpers {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(partition.persisted_sequence_number, SequenceNumber::new(42));
+        assert_eq!(
+            partition.persisted_sequence_number,
+            Some(SequenceNumber::new(42))
+        );
     }
 
     async fn test_tombstone(catalog: Arc<dyn Catalog>) {
