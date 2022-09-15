@@ -696,7 +696,6 @@ pub async fn make_ingester_data(two_partitions: bool, loc: DataLocation) -> Inge
     // Make data for one shard and two tables
     let shard_index = ShardIndex::new(1);
     let shard_id = populate_catalog(&*catalog).await;
-
     let mut shards = BTreeMap::new();
     shards.insert(
         shard_id,

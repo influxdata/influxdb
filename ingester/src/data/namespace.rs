@@ -16,12 +16,15 @@ use write_summary::ShardProgress;
 
 #[cfg(test)]
 use super::triggers::TestTriggers;
-use super::{partition::PersistingBatch, table::TableData};
+use super::{
+    partition::{resolver::CatalogPartitionResolver, PersistingBatch},
+    table::TableData,
+};
 use crate::lifecycle::LifecycleHandle;
 
 /// Data of a Namespace that belongs to a given Shard
 #[derive(Debug)]
-pub struct NamespaceData {
+pub(crate) struct NamespaceData {
     namespace_id: NamespaceId,
 
     /// The catalog ID of the shard this namespace is being populated from.
@@ -103,7 +106,7 @@ impl NamespaceData {
     pub(super) async fn buffer_operation(
         &self,
         dml_operation: DmlOperation,
-        catalog: &dyn Catalog,
+        catalog: &Arc<dyn Catalog>,
         lifecycle_handle: &dyn LifecycleHandle,
         executor: &Executor,
     ) -> Result<bool, super::Error> {
@@ -144,7 +147,6 @@ impl NamespaceData {
                                 sequence_number,
                                 b,
                                 partition_key.clone(),
-                                catalog,
                                 lifecycle_handle,
                             )
                             .await?;
@@ -166,7 +168,7 @@ impl NamespaceData {
                 let mut table_data = table_data.write().await;
 
                 table_data
-                    .buffer_delete(delete.predicate(), sequence_number, catalog, executor)
+                    .buffer_delete(delete.predicate(), sequence_number, &**catalog, executor)
                     .await?;
 
                 // don't pause writes since deletes don't count towards memory limits
@@ -233,7 +235,7 @@ impl NamespaceData {
     async fn insert_table(
         &self,
         table_name: &str,
-        catalog: &dyn Catalog,
+        catalog: &Arc<dyn Catalog>,
     ) -> Result<Arc<tokio::sync::RwLock<TableData>>, super::Error> {
         let mut repos = catalog.repositories().await;
         let info = repos
@@ -245,6 +247,9 @@ impl NamespaceData {
 
         let mut t = self.tables.write();
 
+        // TODO: share this server-wide
+        let partition_provider = Arc::new(CatalogPartitionResolver::new(Arc::clone(catalog)));
+
         let data = match t.entry(table_name.to_string()) {
             Entry::Vacant(v) => {
                 let v = v.insert(Arc::new(tokio::sync::RwLock::new(TableData::new(
@@ -252,6 +257,7 @@ impl NamespaceData {
                     table_name,
                     self.shard_id,
                     info.tombstone_max_sequence_number,
+                    partition_provider,
                 ))));
                 self.table_count.inc(1);
                 Arc::clone(v)

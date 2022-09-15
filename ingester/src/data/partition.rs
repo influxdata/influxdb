@@ -15,6 +15,7 @@ use self::buffer::{BufferBatch, DataBuffer};
 use crate::{data::query_dedup::query, query::QueryableBatch};
 
 mod buffer;
+pub mod resolver;
 
 /// Read only copy of the unpersisted data for a partition in the ingester for a specific partition.
 #[derive(Debug)]
@@ -284,6 +285,13 @@ impl PartitionData {
     pub(super) fn mark_persisted(&mut self, sequence_number: SequenceNumber) {
         self.max_persisted_sequence_number = Some(sequence_number);
         self.data.mark_persisted();
+    }
+
+    /// Return the name of the table this [`PartitionData`] is buffering writes
+    /// for.
+    #[cfg(test)]
+    pub(crate) fn table_name(&self) -> &str {
+        self.table_name.as_ref()
     }
 }
 
