@@ -13,6 +13,7 @@
 
 #![allow(dead_code)]
 
+use crate::internal::ParseResult;
 use crate::keywords::sql_keyword;
 use crate::string::double_quoted_string;
 use crate::write_escaped;
@@ -22,12 +23,11 @@ use nom::character::complete::{alpha1, alphanumeric1};
 use nom::combinator::{map, not, recognize};
 use nom::multi::many0_count;
 use nom::sequence::{pair, preceded};
-use nom::IResult;
 use std::fmt;
 use std::fmt::{Display, Formatter, Write};
 
 /// Parse an unquoted InfluxQL identifier.
-pub(crate) fn unquoted_identifier(i: &str) -> IResult<&str, String> {
+pub fn unquoted_identifier(i: &str) -> ParseResult<&str, String> {
     map(
         preceded(
             not(sql_keyword),
@@ -68,7 +68,7 @@ impl Display for Identifier {
 }
 
 /// Parses an InfluxQL [Identifier].
-pub fn identifier(i: &str) -> IResult<&str, Identifier> {
+pub fn identifier(i: &str) -> ParseResult<&str, Identifier> {
     // See: https://github.com/influxdata/influxql/blob/df51a45762be9c1b578f01718fa92d286a843fe9/scanner.go#L358-L362
     alt((
         map(unquoted_identifier, Identifier::Unquoted),

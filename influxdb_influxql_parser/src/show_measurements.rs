@@ -4,17 +4,18 @@
 
 #![allow(dead_code)]
 
+use crate::internal::{expect, ParseResult};
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case};
 use nom::character::complete::{char, multispace1};
 use nom::combinator::{map, opt, value};
+use nom::sequence::tuple;
 use nom::sequence::{pair, preceded, terminated};
-use nom::{sequence::tuple, IResult};
 use std::fmt;
 use std::fmt::Formatter;
 
 use crate::common::{
-    limit_clause, measurement_name_expression, offset_clause, statement_terminator, where_clause,
+    limit_clause, measurement_name_expression, offset_clause, where_clause,
     MeasurementNameExpression,
 };
 use crate::expression::Expr;
@@ -43,20 +44,23 @@ impl fmt::Display for OnExpression {
 }
 
 /// Parse the `ON` expression of the `SHOW MEASUREMENTS` statement.
-fn on_expression(i: &str) -> IResult<&str, OnExpression> {
+fn on_expression(i: &str) -> ParseResult<&str, OnExpression> {
     preceded(
         pair(tag_no_case("ON"), multispace1),
-        alt((
-            value(OnExpression::AllDatabasesAndRetentionPolicies, tag("*.*")),
-            value(OnExpression::AllDatabases, tag("*")),
-            map(
-                pair(opt(terminated(identifier, tag("."))), identifier),
-                |tup| match tup {
-                    (None, db) => OnExpression::Database(db),
-                    (Some(db), rp) => OnExpression::DatabaseRetentionPolicy(db, rp),
-                },
-            ),
-        )),
+        expect(
+            "invalid ON clause, expected wildcard or identifier",
+            alt((
+                value(OnExpression::AllDatabasesAndRetentionPolicies, tag("*.*")),
+                value(OnExpression::AllDatabases, tag("*")),
+                map(
+                    pair(opt(terminated(identifier, tag("."))), identifier),
+                    |tup| match tup {
+                        (None, db) => OnExpression::Database(db),
+                        (Some(db), rp) => OnExpression::DatabaseRetentionPolicy(db, rp),
+                    },
+                ),
+            )),
+        ),
     )(i)
 }
 
@@ -114,50 +118,63 @@ impl fmt::Display for MeasurementExpression {
     }
 }
 
-fn with_measurement_expression(i: &str) -> IResult<&str, MeasurementExpression> {
+fn with_measurement_expression(i: &str) -> ParseResult<&str, MeasurementExpression> {
     preceded(
         tuple((
-            tag_no_case("with"),
+            tag_no_case("WITH"),
             multispace1,
-            tag_no_case("measurement"),
-            multispace1,
-        )),
-        alt((
-            map(
-                tuple((char('='), multispace1, measurement_name_expression)),
-                |(_, _, name)| MeasurementExpression::Equals(name),
+            expect(
+                "invalid WITH clause, expected MEASUREMENT",
+                tag_no_case("measurement"),
             ),
-            map(tuple((tag("=~"), multispace1, regex)), |(_, _, regex)| {
-                MeasurementExpression::Regex(regex)
-            }),
+            multispace1,
         )),
+        expect(
+            "expected = or =~",
+            alt((
+                map(
+                    tuple((
+                        char('='),
+                        multispace1,
+                        expect(
+                            "expected measurement name or wildcard",
+                            measurement_name_expression,
+                        ),
+                    )),
+                    |(_, _, name)| MeasurementExpression::Equals(name),
+                ),
+                map(
+                    tuple((
+                        tag("=~"),
+                        multispace1,
+                        expect("expected regex literal", regex),
+                    )),
+                    |(_, _, regex)| MeasurementExpression::Regex(regex),
+                ),
+            )),
+        ),
     )(i)
 }
 
-pub fn show_measurements(i: &str) -> IResult<&str, ShowMeasurementsStatement> {
+/// Parse a `SHOW MEASUREMENTS` statement after `SHOW` and any whitespace has been consumed.
+pub fn show_measurements(i: &str) -> ParseResult<&str, ShowMeasurementsStatement> {
     let (
         remaining_input,
         (
-            _, // "SHOW"
-            _, // <ws>
             _, // "MEASUREMENTS"
             on_expression,
             measurement_expression,
             condition,
             limit,
             offset,
-            _, // ";"
         ),
     ) = tuple((
-        tag_no_case("show"),
-        multispace1,
-        tag_no_case("measurements"),
+        tag_no_case("MEASUREMENTS"),
         opt(preceded(multispace1, on_expression)),
         opt(preceded(multispace1, with_measurement_expression)),
         opt(preceded(multispace1, where_clause)),
         opt(preceded(multispace1, limit_clause)),
         opt(preceded(multispace1, offset_clause)),
-        statement_terminator,
     ))(i)?;
 
     Ok((
@@ -175,10 +192,11 @@ pub fn show_measurements(i: &str) -> IResult<&str, ShowMeasurementsStatement> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::assert_expect_error;
 
     #[test]
     fn test_show_measurements() {
-        let (_, got) = show_measurements("SHOW measurements;").unwrap();
+        let (_, got) = show_measurements("measurements").unwrap();
         assert_eq!(
             got,
             ShowMeasurementsStatement {
@@ -187,7 +205,7 @@ mod test {
             },
         );
 
-        let (_, got) = show_measurements("SHOW measurements ON foo;").unwrap();
+        let (_, got) = show_measurements("measurements ON foo").unwrap();
         assert_eq!(
             got,
             ShowMeasurementsStatement {
@@ -197,7 +215,7 @@ mod test {
         );
 
         let (_, got) = show_measurements(
-            "SHOW\nMEASUREMENTS\tON  foo  WITH  MEASUREMENT\n=  bar WHERE\ntrue LIMIT 10 OFFSET 20;",
+            "MEASUREMENTS\tON  foo  WITH  MEASUREMENT\n=  bar WHERE\ntrue LIMIT 10 OFFSET 20",
         )
         .unwrap();
         assert_eq!(
@@ -221,10 +239,9 @@ mod test {
             "SHOW MEASUREMENTS ON foo WITH MEASUREMENT = bar WHERE true LIMIT 10 OFFSET 20"
         );
 
-        let (_, got) = show_measurements(
-            "SHOW\nMEASUREMENTS\tON  foo  WITH  MEASUREMENT\n=~ /bar/ WHERE\ntrue;",
-        )
-        .unwrap();
+        let (_, got) =
+            show_measurements("MEASUREMENTS\tON  foo  WITH  MEASUREMENT\n=~ /bar/ WHERE\ntrue")
+                .unwrap();
         assert_eq!(
             got,
             ShowMeasurementsStatement {
@@ -310,6 +327,11 @@ mod test {
             got,
             OnExpression::AllDatabasesAndRetentionPolicies
         ));
+
+        assert_expect_error!(
+            on_expression("ON WHERE cpu = 'test'"),
+            "invalid ON clause, expected wildcard or identifier"
+        )
     }
 
     #[test]
@@ -329,16 +351,34 @@ mod test {
 
         // Fallible cases
 
+        // Missing MEASUREMENT token
+        assert_expect_error!(
+            with_measurement_expression("WITH =~ foo"),
+            "invalid WITH clause, expected MEASUREMENT"
+        );
+
         // Must have a regex for equal regex operator
-        with_measurement_expression("WITH measurement =~ foo").unwrap_err();
+        assert_expect_error!(
+            with_measurement_expression("WITH measurement =~ foo"),
+            "expected regex literal"
+        );
 
         // Unsupported regex not equal operator
-        with_measurement_expression("WITH measurement !~ foo").unwrap_err();
+        assert_expect_error!(
+            with_measurement_expression("WITH measurement !~ foo"),
+            "expected = or =~"
+        );
 
         // Must have an identifier for equal operator
-        with_measurement_expression("WITH measurement = /foo/").unwrap_err();
+        assert_expect_error!(
+            with_measurement_expression("WITH measurement = /foo/"),
+            "expected measurement name or wildcard"
+        );
 
         // Must have an identifier
-        with_measurement_expression("WITH measurement = 1").unwrap_err();
+        assert_expect_error!(
+            with_measurement_expression("WITH measurement = 1"),
+            "expected measurement name or wildcard"
+        );
     }
 }

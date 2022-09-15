@@ -4,14 +4,14 @@
 
 #![allow(dead_code)]
 
+use crate::internal::ParseResult;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case};
 use nom::combinator::{eof, peek};
 use nom::sequence::terminated;
-use nom::IResult;
 
 /// Peeks at the input for acceptable characters following a keyword.
-fn keyword_follow_char(i: &str) -> IResult<&str, &str> {
+fn keyword_follow_char(i: &str) -> ParseResult<&str, &str> {
     peek(alt((
         tag(" "),
         tag("\n"),
@@ -26,7 +26,7 @@ fn keyword_follow_char(i: &str) -> IResult<&str, &str> {
 }
 
 /// Parses the input for matching InfluxQL keywords from ALL to DROP.
-fn keyword_all_to_drop(i: &str) -> IResult<&str, &str> {
+fn keyword_all_to_drop(i: &str) -> ParseResult<&str, &str> {
     alt((
         terminated(tag_no_case("ALL"), keyword_follow_char),
         terminated(tag_no_case("ALTER"), keyword_follow_char),
@@ -53,7 +53,7 @@ fn keyword_all_to_drop(i: &str) -> IResult<&str, &str> {
 }
 
 /// Parses the input for matching InfluxQL keywords from DURATION to LIMIT.
-fn keyword_duration_to_limit(i: &str) -> IResult<&str, &str> {
+fn keyword_duration_to_limit(i: &str) -> ParseResult<&str, &str> {
     alt((
         terminated(tag_no_case("DURATION"), keyword_follow_char),
         terminated(tag_no_case("END"), keyword_follow_char),
@@ -79,7 +79,7 @@ fn keyword_duration_to_limit(i: &str) -> IResult<&str, &str> {
 }
 
 /// Parses the input for matching InfluxQL keywords from MEASUREMENT to SET.
-fn keyword_measurement_to_set(i: &str) -> IResult<&str, &str> {
+fn keyword_measurement_to_set(i: &str) -> ParseResult<&str, &str> {
     alt((
         terminated(tag_no_case("MEASUREMENT"), keyword_follow_char),
         terminated(tag_no_case("MEASUREMENTS"), keyword_follow_char),
@@ -106,7 +106,7 @@ fn keyword_measurement_to_set(i: &str) -> IResult<&str, &str> {
 }
 
 /// Parses the input for matching InfluxQL keywords from SHOW to WRITE.
-fn keyword_show_to_write(i: &str) -> IResult<&str, &str> {
+fn keyword_show_to_write(i: &str) -> ParseResult<&str, &str> {
     alt((
         terminated(tag_no_case("SHOW"), keyword_follow_char),
         terminated(tag_no_case("SHARD"), keyword_follow_char),
@@ -127,8 +127,8 @@ fn keyword_show_to_write(i: &str) -> IResult<&str, &str> {
     ))(i)
 }
 
-// Matches any InfluxQL reserved keyword.
-pub fn sql_keyword(i: &str) -> IResult<&str, &str> {
+/// Matches any InfluxQL reserved keyword.
+pub fn sql_keyword(i: &str) -> ParseResult<&str, &str> {
     // NOTE that the alt function takes a tuple with a maximum arity of 21, hence
     // the reason these are broken into groups
     alt((

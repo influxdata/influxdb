@@ -2,13 +2,13 @@
 
 use crate::expression::{conditional_expression, Expr};
 use crate::identifier::{identifier, Identifier};
+use crate::internal::{expect, map_fail, ParseResult};
 use core::fmt;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case};
-use nom::character::complete::{digit1, line_ending, multispace0, multispace1};
-use nom::combinator::{cut, eof, map, map_res, opt, value};
-use nom::sequence::{delimited, pair, preceded, terminated};
-use nom::IResult;
+use nom::character::complete::{char, digit1, multispace1};
+use nom::combinator::{map, opt, value};
+use nom::sequence::{pair, preceded, terminated};
 use std::fmt::Formatter;
 
 /// Represents a fully-qualified measurement name.
@@ -48,7 +48,7 @@ impl fmt::Display for MeasurementNameExpression {
 }
 
 /// Match a 3-part measurement name expression.
-pub fn measurement_name_expression(i: &str) -> IResult<&str, MeasurementNameExpression> {
+pub fn measurement_name_expression(i: &str) -> ParseResult<&str, MeasurementNameExpression> {
     let (remaining_input, (opt_db_rp, name)) = pair(
         opt(alt((
             // database "." retention_policy "."
@@ -84,30 +84,39 @@ pub fn measurement_name_expression(i: &str) -> IResult<&str, MeasurementNameExpr
 }
 
 /// Parse an unsigned integer.
-fn unsigned_number(i: &str) -> IResult<&str, u64> {
-    map_res(digit1, |s: &str| s.parse())(i)
+fn unsigned_number(i: &str) -> ParseResult<&str, u64> {
+    map_fail("unable to parse unsigned integer", digit1, &str::parse)(i)
 }
 
 /// Parse a LIMIT <n> clause.
-pub fn limit_clause(i: &str) -> IResult<&str, u64> {
-    preceded(pair(tag_no_case("LIMIT"), multispace1), unsigned_number)(i)
+pub fn limit_clause(i: &str) -> ParseResult<&str, u64> {
+    preceded(
+        pair(tag_no_case("LIMIT"), multispace1),
+        expect(
+            "invalid LIMIT clause, expected unsigned integer",
+            unsigned_number,
+        ),
+    )(i)
 }
 
 /// Parse an OFFSET <n> clause.
-pub fn offset_clause(i: &str) -> IResult<&str, u64> {
-    preceded(pair(tag_no_case("OFFSET"), multispace1), unsigned_number)(i)
+pub fn offset_clause(i: &str) -> ParseResult<&str, u64> {
+    preceded(
+        pair(tag_no_case("OFFSET"), multispace1),
+        expect(
+            "invalid OFFSET clause, expected unsigned integer",
+            unsigned_number,
+        ),
+    )(i)
 }
 
 /// Parse a terminator that ends a SQL statement.
-pub fn statement_terminator(i: &str) -> IResult<&str, ()> {
-    let (remaining_input, _) =
-        delimited(multispace0, alt((tag(";"), line_ending, eof)), multispace0)(i)?;
-
-    Ok((remaining_input, ()))
+pub fn statement_terminator(i: &str) -> ParseResult<&str, ()> {
+    value((), char(';'))(i)
 }
 
 /// Parse a `WHERE` clause.
-pub(crate) fn where_clause(i: &str) -> IResult<&str, Expr> {
+pub fn where_clause(i: &str) -> ParseResult<&str, Expr> {
     preceded(
         pair(tag_no_case("WHERE"), multispace1),
         conditional_expression,
@@ -144,7 +153,7 @@ pub enum OrderByClause {
 /// ```
 ///
 /// [EBNF]: https://www.w3.org/TR/2010/REC-xquery-20101214/#EBNFNotation
-pub(crate) fn order_by_clause(i: &str) -> IResult<&str, OrderByClause> {
+pub fn order_by_clause(i: &str) -> ParseResult<&str, OrderByClause> {
     let order = || {
         preceded(
             multispace1,
@@ -161,23 +170,25 @@ pub(crate) fn order_by_clause(i: &str) -> IResult<&str, OrderByClause> {
             tag_no_case("ORDER"),
             preceded(multispace1, tag_no_case("BY")),
         ),
-        // cut to force failure, as `ORDER BY` must be followed by one of the following
-        cut(alt((
-            // "ASC" | "DESC"
-            order(),
-            // "TIME" ( "ASC" | "DESC" )?
-            map(
-                preceded(preceded(multispace1, tag_no_case("TIME")), opt(order())),
-                Option::<_>::unwrap_or_default,
-            ),
-        ))),
+        expect(
+            "invalid ORDER BY, expected ASC, DESC or TIME",
+            alt((
+                // "ASC" | "DESC"
+                order(),
+                // "TIME" ( "ASC" | "DESC" )?
+                map(
+                    preceded(preceded(multispace1, tag_no_case("TIME")), opt(order())),
+                    Option::<_>::unwrap_or_default,
+                ),
+            )),
+        ),
     )(i)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assert_failure;
+    use crate::assert_expect_error;
 
     #[test]
     fn test_measurement_name_expression() {
@@ -226,10 +237,22 @@ mod tests {
         assert_eq!(got, 123);
 
         // not digits
-        limit_clause("LIMIT sdf").unwrap_err();
+        assert_expect_error!(
+            limit_clause("LIMIT from"),
+            "invalid LIMIT clause, expected unsigned integer"
+        );
+
+        // incomplete input
+        assert_expect_error!(
+            limit_clause("LIMIT "),
+            "invalid LIMIT clause, expected unsigned integer"
+        );
 
         // overflow
-        limit_clause("LIMIT 34593745733489743985734857394").unwrap_err();
+        assert_expect_error!(
+            limit_clause("LIMIT 34593745733489743985734857394"),
+            "unable to parse unsigned integer"
+        );
     }
 
     #[test]
@@ -246,10 +269,22 @@ mod tests {
         assert_eq!(got, 123);
 
         // not digits
-        offset_clause("OFFSET sdf").unwrap_err();
+        assert_expect_error!(
+            offset_clause("OFFSET from"),
+            "invalid OFFSET clause, expected unsigned integer"
+        );
+
+        // incomplete input
+        assert_expect_error!(
+            offset_clause("OFFSET "),
+            "invalid OFFSET clause, expected unsigned integer"
+        );
 
         // overflow
-        offset_clause("OFFSET 34593745733489743985734857394").unwrap_err();
+        assert_expect_error!(
+            offset_clause("OFFSET 34593745733489743985734857394"),
+            "unable to parse unsigned integer"
+        );
     }
 
     #[test]
@@ -280,7 +315,10 @@ mod tests {
         // Fallible cases
 
         // Must be "time" identifier
-        assert_failure!(order_by_clause("ORDER by foo"));
+        assert_expect_error!(
+            order_by_clause("ORDER by foo"),
+            "invalid ORDER BY, expected ASC, DESC or TIME"
+        );
     }
 
     #[test]
@@ -295,5 +333,17 @@ mod tests {
         // Fallible cases
         where_clause("WHERE foo = LIMIT 10").unwrap_err();
         where_clause("WHERE").unwrap_err();
+    }
+
+    #[test]
+    fn test_statement_terminator() {
+        let (i, _) = statement_terminator(";foo").unwrap();
+        assert_eq!(i, "foo");
+
+        let (i, _) = statement_terminator("; foo").unwrap();
+        assert_eq!(i, " foo");
+
+        // Fallible cases
+        statement_terminator("foo").unwrap_err();
     }
 }

@@ -9,6 +9,7 @@
 
 #![allow(dead_code)]
 
+use crate::internal::ParseResult;
 use crate::string::double_quoted_string;
 use crate::write_escaped;
 use nom::branch::alt;
@@ -17,12 +18,11 @@ use nom::character::complete::{alphanumeric1, char};
 use nom::combinator::{map, recognize};
 use nom::multi::many1_count;
 use nom::sequence::preceded;
-use nom::IResult;
 use std::fmt;
 use std::fmt::{Display, Formatter, Write};
 
 /// Parse an unquoted InfluxQL bind parameter.
-fn unquoted_parameter(i: &str) -> IResult<&str, String> {
+fn unquoted_parameter(i: &str) -> ParseResult<&str, String> {
     map(
         recognize(many1_count(alt((alphanumeric1, tag("_"))))),
         str::to_string,
@@ -57,7 +57,7 @@ impl Display for BindParameter {
 }
 
 /// Parses an InfluxQL [BindParameter].
-pub fn parameter(i: &str) -> IResult<&str, BindParameter> {
+pub fn parameter(i: &str) -> ParseResult<&str, BindParameter> {
     // See: https://github.com/influxdata/influxql/blob/df51a45762be9c1b578f01718fa92d286a843fe9/scanner.go#L358-L362
     preceded(
         char('$'),
@@ -99,8 +99,7 @@ mod test {
         // └─────────────────────────────┘
 
         // missing `$` prefix
-        let res = parameter("cpu");
-        assert!(res.is_err());
+        parameter("cpu").unwrap_err();
     }
 
     #[test]
