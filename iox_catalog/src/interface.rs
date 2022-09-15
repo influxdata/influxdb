@@ -480,6 +480,16 @@ pub trait PartitionRepo: Send + Sync {
 
     /// List the records of compacting a partition being skipped. This is mostly useful for testing.
     async fn list_skipped_compactions(&mut self) -> Result<Vec<SkippedCompaction>>;
+
+    /// Update the per-partition persistence watermark.
+    ///
+    /// The given `sequence_number` is the inclusive maximum [`SequenceNumber`]
+    /// of the most recently persisted data for this partition.
+    async fn update_persisted_sequence_number(
+        &mut self,
+        partition_id: PartitionId,
+        sequence_number: SequenceNumber,
+    ) -> Result<()>;
 }
 
 /// Functions for working with tombstones in the catalog
@@ -1596,6 +1606,29 @@ pub(crate) mod test_helpers {
         assert_eq!(skipped_compactions.len(), 1);
         assert_eq!(skipped_compactions[0].partition_id, other_partition.id);
         assert_eq!(skipped_compactions[0].reason, "I'm on fire");
+
+        // Test setting and reading the per-partition persistence numbers
+        let partition = repos
+            .partitions()
+            .get_by_id(other_partition.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(partition.persisted_sequence_number, SequenceNumber::new(0));
+        // Set
+        repos
+            .partitions()
+            .update_persisted_sequence_number(other_partition.id, SequenceNumber::new(42))
+            .await
+            .unwrap();
+        // Read
+        let partition = repos
+            .partitions()
+            .get_by_id(other_partition.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(partition.persisted_sequence_number, SequenceNumber::new(42));
     }
 
     async fn test_tombstone(catalog: Arc<dyn Catalog>) {

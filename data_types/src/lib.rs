@@ -839,6 +839,21 @@ pub struct Partition {
     /// is legal. However, updating to `A,C,D,B` is not because the
     /// relative order of B and C have been reversed.
     pub sort_key: Vec<String>,
+
+    /// The inclusive maximum [`SequenceNumber`] of the most recently persisted
+    /// data for this partition.
+    ///
+    /// All writes with a [`SequenceNumber`] less than and equal to this
+    /// [`SequenceNumber`] have been persisted to the object store. The inverse
+    /// is not guaranteed to be true due to update ordering; some files for this
+    /// partition may exist in the `parquet_files` table that have a greater
+    /// [`SequenceNumber`] than is specified here - the system will converge so
+    /// long as the ingester progresses.
+    ///
+    /// It is a system invariant that this value monotonically increases over
+    /// time - wrote another way, it is an invariant that partitions are
+    /// persisted (or at least made visible) in sequence order.
+    pub persisted_sequence_number: SequenceNumber,
 }
 
 impl Partition {

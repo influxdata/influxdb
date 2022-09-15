@@ -406,7 +406,7 @@ mod tests {
     use crate::{AggregateTSMField, AggregateTSMTag};
     use assert_matches::assert_matches;
     use client_util::connection::Builder;
-    use data_types::{PartitionId, TableId};
+    use data_types::{PartitionId, SequenceNumber, TableId};
     use iox_catalog::mem::MemCatalog;
     use parking_lot::RwLock;
     use std::{collections::HashSet, net::SocketAddr};
@@ -1313,9 +1313,8 @@ mod tests {
             id: PartitionId::new(1),
             shard_id: ShardId::new(1),
             table_id: TableId::new(1),
+            persisted_sequence_number: SequenceNumber::new(0),
             partition_key: PartitionKey::from("2022-06-21"),
-            // N.B. empty sort key at this point; will return as None from the getter and will be
-            // computed
             sort_key: Vec::new(),
         };
         let sort_key = get_sort_key(&partition, &m).1.unwrap();
@@ -1361,6 +1360,7 @@ mod tests {
             id: PartitionId::new(1),
             shard_id: ShardId::new(1),
             table_id: TableId::new(1),
+            persisted_sequence_number: SequenceNumber::new(0),
             partition_key: PartitionKey::from("2022-06-21"),
             // N.B. sort key is already what it will computed to; here we're testing the `adjust_sort_key_columns` code path
             sort_key: vec!["host".to_string(), "arch".to_string(), "time".to_string()],
@@ -1407,6 +1407,7 @@ mod tests {
             id: PartitionId::new(1),
             shard_id: ShardId::new(1),
             table_id: TableId::new(1),
+            persisted_sequence_number: SequenceNumber::new(0),
             partition_key: PartitionKey::from("2022-06-21"),
             // N.B. is missing host so will need updating
             sort_key: vec!["arch".to_string(), "time".to_string()],
@@ -1455,6 +1456,7 @@ mod tests {
             id: PartitionId::new(1),
             shard_id: ShardId::new(1),
             table_id: TableId::new(1),
+            persisted_sequence_number: SequenceNumber::new(0),
             partition_key: PartitionKey::from("2022-06-21"),
             // N.B. is missing arch so will need updating
             sort_key: vec!["host".to_string(), "time".to_string()],
