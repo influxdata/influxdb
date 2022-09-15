@@ -252,6 +252,13 @@ mod tests {
             .await;
 
         let builder = TestParquetFileBuilder::default()
+            .with_line_protocol("cpu,host=z load=0 0")
+            .with_max_seq(2)
+            .with_min_time(22)
+            .with_max_time(22);
+        partition_cpu_a_1.create_parquet_file(builder).await;
+
+        let builder = TestParquetFileBuilder::default()
             .with_line_protocol("cpu,host=a load=3 33")
             .with_max_seq(3)
             .with_min_time(33)
@@ -318,7 +325,7 @@ mod tests {
 
         assert_query_with_span_ctx(
             &querier_namespace,
-            "SELECT * FROM cpu ORDER BY host,time",
+            "SELECT * FROM cpu WHERE host != 'z' ORDER BY host,time",
             &[
                 "+-----+------+------+--------------------------------+",
                 "| foo | host | load | time                           |",
@@ -348,7 +355,7 @@ mod tests {
             reporter
                 .metric("query_pruner_chunks")
                 .unwrap()
-                .observation(&[("result", "pruned")])
+                .observation(&[("result", "pruned_early")])
                 .unwrap(),
             &Observation::U64Counter(0),
         );
@@ -356,7 +363,7 @@ mod tests {
             reporter
                 .metric("query_pruner_rows")
                 .unwrap()
-                .observation(&[("result", "pruned")])
+                .observation(&[("result", "pruned_early")])
                 .unwrap(),
             &Observation::U64Counter(0),
         );
@@ -364,7 +371,31 @@ mod tests {
             reporter
                 .metric("query_pruner_bytes")
                 .unwrap()
-                .observation(&[("result", "pruned")])
+                .observation(&[("result", "pruned_early")])
+                .unwrap(),
+            &Observation::U64Counter(0),
+        );
+        assert_eq!(
+            reporter
+                .metric("query_pruner_chunks")
+                .unwrap()
+                .observation(&[("result", "pruned_late")])
+                .unwrap(),
+            &Observation::U64Counter(0),
+        );
+        assert_eq!(
+            reporter
+                .metric("query_pruner_rows")
+                .unwrap()
+                .observation(&[("result", "pruned_late")])
+                .unwrap(),
+            &Observation::U64Counter(0),
+        );
+        assert_eq!(
+            reporter
+                .metric("query_pruner_bytes")
+                .unwrap()
+                .observation(&[("result", "pruned_late")])
                 .unwrap(),
             &Observation::U64Counter(0),
         );
@@ -374,7 +405,7 @@ mod tests {
                 .unwrap()
                 .observation(&[("result", "not_pruned")])
                 .unwrap(),
-            &Observation::U64Counter(0),
+            &Observation::U64Counter(5),
         );
         assert_eq!(
             reporter
@@ -382,51 +413,51 @@ mod tests {
                 .unwrap()
                 .observation(&[("result", "not_pruned")])
                 .unwrap(),
-            &Observation::U64Counter(0),
-        );
-        assert_eq!(
-            reporter
-                .metric("query_pruner_bytes")
-                .unwrap()
-                .observation(&[("result", "not_pruned")])
-                .unwrap(),
-            &Observation::U64Counter(0),
-        );
-        assert_eq!(
-            reporter
-                .metric("query_pruner_chunks")
-                .unwrap()
-                .observation(&[
-                    ("result", "could_not_prune"),
-                    ("reason", "No expression on predicate")
-                ])
-                .unwrap(),
-            &Observation::U64Counter(4),
-        );
-        assert_eq!(
-            reporter
-                .metric("query_pruner_rows")
-                .unwrap()
-                .observation(&[
-                    ("result", "could_not_prune"),
-                    ("reason", "No expression on predicate")
-                ])
-                .unwrap(),
-            &Observation::U64Counter(4),
+            &Observation::U64Counter(5),
         );
         if let Observation::U64Counter(bytes) = reporter
             .metric("query_pruner_bytes")
             .unwrap()
-            .observation(&[
-                ("result", "could_not_prune"),
-                ("reason", "No expression on predicate"),
-            ])
+            .observation(&[("result", "not_pruned")])
             .unwrap()
         {
             assert!(*bytes > 6000, "bytes ({bytes}) must be > 6000");
         } else {
             panic!("Wrong metrics type");
         }
+        assert_eq!(
+            reporter
+                .metric("query_pruner_chunks")
+                .unwrap()
+                .observation(&[
+                    ("result", "could_not_prune"),
+                    ("reason", "No expression on predicate")
+                ])
+                .unwrap(),
+            &Observation::U64Counter(0),
+        );
+        assert_eq!(
+            reporter
+                .metric("query_pruner_rows")
+                .unwrap()
+                .observation(&[
+                    ("result", "could_not_prune"),
+                    ("reason", "No expression on predicate")
+                ])
+                .unwrap(),
+            &Observation::U64Counter(0),
+        );
+        assert_eq!(
+            reporter
+                .metric("query_pruner_bytes")
+                .unwrap()
+                .observation(&[
+                    ("result", "could_not_prune"),
+                    ("reason", "No expression on predicate")
+                ])
+                .unwrap(),
+            &Observation::U64Counter(0),
+        );
 
         assert_query(
             &querier_namespace,
@@ -458,7 +489,7 @@ mod tests {
                 "| logical_plan  | Projection: #cpu.foo, #cpu.host, #cpu.load, #cpu.time                               |",
                 "|               |   TableScan: cpu projection=[foo, host, load, time]                                 |",
                 "| physical_plan | ProjectionExec: expr=[foo@0 as foo, host@1 as host, load@2 as load, time@3 as time] |",
-                "|               |   IOxReadFilterNode: table_name=cpu, chunks=4 predicate=Predicate                   |",
+                "|               |   IOxReadFilterNode: table_name=cpu, chunks=5 predicate=Predicate                   |",
                 "|               |                                                                                     |",
                 "+---------------+-------------------------------------------------------------------------------------+",
             ],
@@ -519,6 +550,7 @@ mod tests {
                 "|     | a    | 3    | 1970-01-01T00:00:00.000000033Z |",
                 "|     | a    | 14   | 1970-01-01T00:00:00.000010001Z |", // load has most recent value 14
                 "|     | b    | 5    | 1970-01-01T00:00:00.000000011Z |",
+                "|     | z    | 0    | 1970-01-01T00:00:00Z           |",
                 "+-----+------+------+--------------------------------+",
             ],
         )
@@ -543,7 +575,7 @@ mod tests {
                 "|               |         UnionExec                                                                   |",
                 "|               |           IOxReadFilterNode: table_name=cpu, chunks=1 predicate=Predicate           |",
                 "|               |           IOxReadFilterNode: table_name=cpu, chunks=1 predicate=Predicate           |",
-                "|               |     IOxReadFilterNode: table_name=cpu, chunks=3 predicate=Predicate                 |",
+                "|               |     IOxReadFilterNode: table_name=cpu, chunks=4 predicate=Predicate                 |",
                 "|               |                                                                                     |",
                 "+---------------+-------------------------------------------------------------------------------------+",
             ],

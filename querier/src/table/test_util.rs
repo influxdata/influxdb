@@ -1,4 +1,4 @@
-use super::{query_access::PruneMetrics, QuerierTable, QuerierTableArgs};
+use super::{PruneMetrics, QuerierTable, QuerierTableArgs};
 use crate::{
     cache::CatalogCache, chunk::ChunkAdapter, create_ingester_connection_for_testing,
     IngesterPartition, QuerierChunkLoadSetting,

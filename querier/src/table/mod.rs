@@ -23,7 +23,7 @@ use std::{
 };
 use trace::span::{Span, SpanRecorder};
 
-pub use self::query_access::PruneMetrics;
+pub use self::query_access::metrics::PruneMetrics;
 
 mod query_access;
 mod state_reconciler;
