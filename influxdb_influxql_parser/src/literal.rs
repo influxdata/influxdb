@@ -1,14 +1,14 @@
 #![allow(dead_code)]
 
+use crate::internal::{map_fail, ParseResult};
 use crate::string::{regex, single_quoted_string, Regex};
 use crate::write_escaped;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case};
 use nom::character::complete::digit1;
-use nom::combinator::{map, map_res, recognize, value};
+use nom::combinator::{map, recognize, value};
 use nom::multi::fold_many1;
 use nom::sequence::{pair, separated_pair};
-use nom::IResult;
 use std::fmt::{Display, Formatter, Write};
 
 /// Number of nanoseconds in a microsecond.
@@ -110,8 +110,8 @@ impl Display for Literal {
 /// ```text
 /// INTEGER ::= [0-9]+
 /// ```
-fn integer(i: &str) -> IResult<&str, i64> {
-    map_res(digit1, |s: &str| s.parse())(i)
+fn integer(i: &str) -> ParseResult<&str, i64> {
+    map_fail("unable to parse integer", digit1, &str::parse)(i)
 }
 
 /// Parse an unsigned InfluxQL integer.
@@ -121,8 +121,8 @@ fn integer(i: &str) -> IResult<&str, i64> {
 /// ```text
 /// INTEGER ::= [0-9]+
 /// ```
-fn unsigned_integer(i: &str) -> IResult<&str, u64> {
-    map_res(digit1, |s: &str| s.parse())(i)
+fn unsigned_integer(i: &str) -> ParseResult<&str, u64> {
+    map_fail("unable to parse unsigned integer", digit1, &str::parse)(i)
 }
 
 /// Parse an unsigned InfluxQL floating point number.
@@ -133,15 +133,16 @@ fn unsigned_integer(i: &str) -> IResult<&str, u64> {
 /// float   ::= INTEGER "." INTEGER
 /// INTEGER ::= [0-9]+
 /// ```
-fn float(i: &str) -> IResult<&str, f64> {
-    map_res(
+fn float(i: &str) -> ParseResult<&str, f64> {
+    map_fail(
+        "unable to parse float",
         recognize(separated_pair(digit1, tag("."), digit1)),
-        |s: &str| s.parse(),
+        &str::parse,
     )(i)
 }
 
 /// Parse the input for an InfluxQL boolean, which must be the value `true` or `false`.
-fn boolean(i: &str) -> IResult<&str, bool> {
+fn boolean(i: &str) -> ParseResult<&str, bool> {
     alt((
         value(true, tag_no_case("true")),
         value(false, tag_no_case("false")),
@@ -202,7 +203,7 @@ impl Display for Duration {
 }
 
 /// Parse the input for a InfluxQL duration fragment and returns the value in nanoseconds.
-fn single_duration(i: &str) -> IResult<&str, i64> {
+fn single_duration(i: &str) -> ParseResult<&str, i64> {
     use DurationUnit::*;
 
     map(
@@ -234,7 +235,7 @@ fn single_duration(i: &str) -> IResult<&str, i64> {
 }
 
 /// Parse the input for an InfluxQL duration and returns the value in nanoseconds.
-fn duration(i: &str) -> IResult<&str, Duration> {
+fn duration(i: &str) -> ParseResult<&str, Duration> {
     map(
         fold_many1(single_duration, || 0, |acc, fragment| acc + fragment),
         Duration,
@@ -244,7 +245,7 @@ fn duration(i: &str) -> IResult<&str, Duration> {
 /// Parse an InfluxQL literal, except a [`Regex`].
 ///
 /// See [`literal_regex`] for parsing literal regular expressions.
-pub fn literal(i: &str) -> IResult<&str, Literal> {
+pub fn literal(i: &str) -> ParseResult<&str, Literal> {
     alt((
         // NOTE: order is important, as floats should be tested before durations and integers.
         map(float, Literal::Float),
@@ -256,7 +257,7 @@ pub fn literal(i: &str) -> IResult<&str, Literal> {
 }
 
 /// Parse an InfluxQL literal regular expression.
-pub fn literal_regex(i: &str) -> IResult<&str, Literal> {
+pub fn literal_regex(i: &str) -> ParseResult<&str, Literal> {
     map(regex, Literal::Regex)(i)
 }
 

@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use crate::identifier::unquoted_identifier;
+use crate::internal::ParseResult;
 use crate::literal::literal_regex;
 use crate::{
     identifier::{identifier, Identifier},
@@ -13,7 +14,6 @@ use nom::character::complete::{char, multispace0};
 use nom::combinator::{cut, map, value};
 use nom::multi::{many0, separated_list0};
 use nom::sequence::{delimited, preceded, separated_pair, tuple};
-use nom::IResult;
 use std::fmt::{Display, Formatter, Write};
 
 /// An InfluxQL expression of any type.
@@ -173,7 +173,7 @@ impl Display for BinaryOperator {
 }
 
 /// Parse a unary expression.
-fn unary(i: &str) -> IResult<&str, Expr> {
+fn unary(i: &str) -> ParseResult<&str, Expr> {
     let (i, op) = preceded(
         multispace0,
         alt((
@@ -188,7 +188,7 @@ fn unary(i: &str) -> IResult<&str, Expr> {
 }
 
 /// Parse a parenthesis expression.
-fn parens(i: &str) -> IResult<&str, Expr> {
+fn parens(i: &str) -> ParseResult<&str, Expr> {
     delimited(
         preceded(multispace0, char('(')),
         map(conditional_expression, |e| Expr::Nested(e.into())),
@@ -197,10 +197,10 @@ fn parens(i: &str) -> IResult<&str, Expr> {
 }
 
 /// Parse a function call expression
-fn call(i: &str) -> IResult<&str, Expr> {
+fn call(i: &str) -> ParseResult<&str, Expr> {
     map(
         separated_pair(
-            unquoted_identifier,
+            map(unquoted_identifier, &str::to_string),
             multispace0,
             delimited(
                 char('('),
@@ -224,7 +224,7 @@ fn call(i: &str) -> IResult<&str, Expr> {
 }
 
 /// Parse an operand expression, such as a literal, identifier or bind parameter.
-fn operand(i: &str) -> IResult<&str, Expr> {
+fn operand(i: &str) -> ParseResult<&str, Expr> {
     preceded(
         multispace0,
         alt((
@@ -238,14 +238,14 @@ fn operand(i: &str) -> IResult<&str, Expr> {
 /// Parse precedence priority 1 operators.
 ///
 /// These are the highest precedence operators, and include parenthesis and the unary operators.
-fn factor(i: &str) -> IResult<&str, Expr> {
+fn factor(i: &str) -> ParseResult<&str, Expr> {
     alt((unary, parens, operand))(i)
 }
 
 /// Parse arithmetic, precedence priority 2 operators.
 ///
 /// This includes the multiplication, division, bitwise and, and modulus operators.
-fn term(i: &str) -> IResult<&str, Expr> {
+fn term(i: &str) -> ParseResult<&str, Expr> {
     let (input, left) = factor(i)?;
     let (input, remaining) = many0(tuple((
         preceded(
@@ -265,7 +265,7 @@ fn term(i: &str) -> IResult<&str, Expr> {
 /// Parse arithmetic, precedence priority 3 operators.
 ///
 /// This includes the addition, subtraction, bitwise or, and bitwise xor operators.
-fn arithmetic(i: &str) -> IResult<&str, Expr> {
+fn arithmetic(i: &str) -> ParseResult<&str, Expr> {
     let (input, left) = term(i)?;
     let (input, remaining) = many0(tuple((
         preceded(
@@ -283,7 +283,7 @@ fn arithmetic(i: &str) -> IResult<&str, Expr> {
 }
 
 /// Parse the conditional regular expression operators `=~` and `!~`.
-fn conditional_regex(i: &str) -> IResult<&str, Expr> {
+fn conditional_regex(i: &str) -> ParseResult<&str, Expr> {
     let (input, f1) = arithmetic(i)?;
     let (input, exprs) = many0(tuple((
         preceded(
@@ -299,7 +299,7 @@ fn conditional_regex(i: &str) -> IResult<&str, Expr> {
 }
 
 /// Parse conditional operators.
-fn conditional(i: &str) -> IResult<&str, Expr> {
+fn conditional(i: &str) -> ParseResult<&str, Expr> {
     let (input, f1) = conditional_regex(i)?;
     let (input, exprs) = many0(tuple((
         preceded(
@@ -320,7 +320,7 @@ fn conditional(i: &str) -> IResult<&str, Expr> {
 }
 
 /// Parse conjunction operators, such as `AND`.
-fn conjunction(i: &str) -> IResult<&str, Expr> {
+fn conjunction(i: &str) -> ParseResult<&str, Expr> {
     let (input, f1) = conditional(i)?;
     let (input, exprs) = many0(tuple((
         value(
@@ -333,7 +333,7 @@ fn conjunction(i: &str) -> IResult<&str, Expr> {
 }
 
 /// Parse disjunction operator, such as `OR`.
-fn disjunction(i: &str) -> IResult<&str, Expr> {
+fn disjunction(i: &str) -> ParseResult<&str, Expr> {
     let (input, f1) = conjunction(i)?;
     let (input, exprs) = many0(tuple((
         value(BinaryOperator::Or, preceded(multispace0, tag_no_case("or"))),
@@ -343,7 +343,7 @@ fn disjunction(i: &str) -> IResult<&str, Expr> {
 }
 
 /// Parse an InfluxQL conditional expression.
-pub fn conditional_expression(i: &str) -> IResult<&str, Expr> {
+pub fn conditional_expression(i: &str) -> ParseResult<&str, Expr> {
     disjunction(i)
 }
 
@@ -364,7 +364,7 @@ mod test {
     /// Constructs an [Expr::Identifier] expression.
     macro_rules! ident {
         ($EXPR: expr) => {
-            Expr::Identifier(crate::identifier::Identifier::Unquoted($EXPR.into()))
+            Expr::Identifier($EXPR.into())
         };
     }
 
@@ -378,7 +378,7 @@ mod test {
     /// Constructs a [Expr::BindParameter] expression.
     macro_rules! param {
         ($EXPR: expr) => {
-            Expr::BindParameter(crate::parameter::BindParameter::Unquoted($EXPR.into()).into())
+            Expr::BindParameter(crate::parameter::BindParameter($EXPR.into()).into())
         };
     }
 
@@ -603,7 +603,7 @@ mod test {
         // quoted identifier
         let (_, e) = conditional_expression(r#""foo" + 'bar'"#).unwrap();
         let got = format!("{}", e);
-        assert_eq!(got, r#""foo" + 'bar'"#);
+        assert_eq!(got, r#"foo + 'bar'"#);
 
         // Duration
         let (_, e) = conditional_expression("- 6h30m").unwrap();

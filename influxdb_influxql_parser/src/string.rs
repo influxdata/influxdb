@@ -6,6 +6,7 @@
 // Taken liberally from https://github.com/Geal/nom/blob/main/examples/string.rs and
 // amended for InfluxQL.
 
+use crate::internal::{expect, ParseError, ParseResult};
 use nom::branch::alt;
 use nom::bytes::complete::{is_not, tag};
 use nom::character::complete::char;
@@ -13,20 +14,42 @@ use nom::combinator::{map, value, verify};
 use nom::error::Error;
 use nom::multi::fold_many0;
 use nom::sequence::{delimited, preceded};
-use nom::{IResult, Parser};
+use nom::Parser;
 use std::fmt::{Display, Formatter, Write};
 
-/// Writes `s` to `f`, mapping any characters from => to their escaped equivalents.
+/// Writes `S` to `F`, mapping any characters `FROM` => `TO` their escaped equivalents.
 #[macro_export]
 macro_rules! write_escaped {
-    ($f: expr, $s: expr $(, $from:expr => $to:expr)+) => {
-        for c in $s.chars() {
+    ($F: expr, $STRING: expr $(, $FROM:expr => $TO:expr)+) => {
+        for c in $STRING.chars() {
             match c {
                 $(
-                $from => $f.write_str($to)?,
+                $FROM => $F.write_str($TO)?,
                 )+
-                _ => $f.write_char(c)?,
+                _ => $F.write_char(c)?,
             }
+        }
+    };
+}
+/// Writes `S` to `F`, optionally surrounding in `QUOTE`s, if FN(S) fails,
+/// and mapping any characters `FROM` => `TO` their escaped equivalents.
+#[macro_export]
+macro_rules! write_quoted_string {
+    ($F: expr, $QUOTE: literal, $STRING: expr, $FN: expr $(, $FROM:expr => $TO:expr)+) => {
+        if nom::sequence::terminated($FN, nom::combinator::eof)($STRING).is_ok() {
+            $F.write_str($STRING)?;
+        } else {
+            // must be escaped
+            $F.write_char($QUOTE)?;
+            for c in $STRING.chars() {
+                match c {
+                    $(
+                    $FROM => $F.write_str($TO)?,
+                    )+
+                    _ => $F.write_char(c)?,
+                }
+            }
+            $F.write_char($QUOTE)?;
         }
     };
 }
@@ -40,41 +63,51 @@ enum StringFragment<'a> {
 }
 
 /// Parse a single-quoted literal string.
-pub fn single_quoted_string(i: &str) -> IResult<&str, String> {
+pub fn single_quoted_string(i: &str) -> ParseResult<&str, String> {
     let escaped = preceded(
         char('\\'),
-        alt((char('\\'), char('\''), value('\n', char('n')))),
+        expect(
+            r#"invalid escape sequence, expected \\, \' or \n"#,
+            alt((char('\\'), char('\''), value('\n', char('n')))),
+        ),
     );
 
     string(
         '\'',
+        "unterminated string literal",
         verify(is_not("'\\\n"), |s: &str| !s.is_empty()),
         escaped,
     )(i)
 }
 
 /// Parse a double-quoted identifier string.
-pub fn double_quoted_string(i: &str) -> IResult<&str, String> {
+pub fn double_quoted_string(i: &str) -> ParseResult<&str, String> {
     let escaped = preceded(
         char('\\'),
-        alt((char('\\'), char('"'), value('\n', char('n')))),
+        expect(
+            r#"invalid escape sequence, expected \\, \" or \n"#,
+            alt((char('\\'), char('"'), value('\n', char('n')))),
+        ),
     );
 
     string(
         '"',
+        "unterminated string literal",
         verify(is_not("\"\\\n"), |s: &str| !s.is_empty()),
         escaped,
     )(i)
 }
 
-fn string<'a, T, U>(
+fn string<'a, T, U, E>(
     delimiter: char,
+    unterminated_message: &'static str,
     literal: T,
     escaped: U,
-) -> impl FnMut(&'a str) -> IResult<&'a str, String>
+) -> impl FnMut(&'a str) -> ParseResult<&'a str, String, E>
 where
-    T: Parser<&'a str, &'a str, Error<&'a str>>,
-    U: Parser<&'a str, char, Error<&'a str>>,
+    T: Parser<&'a str, &'a str, E>,
+    U: Parser<&'a str, char, E>,
+    E: ParseError<'a>,
 {
     let fragment = alt((
         map(literal, StringFragment::Literal),
@@ -89,13 +122,17 @@ where
         string
     });
 
-    delimited(char(delimiter), build_string, char(delimiter))
+    delimited(
+        char(delimiter),
+        build_string,
+        expect(unterminated_message, char(delimiter)),
+    )
 }
 
 /// Parse regular expression literal characters.
 ///
 /// Consumes i until reaching and escaped delimiter ("\/"), newline or eof.
-fn regex_literal(i: &str) -> IResult<&str, &str> {
+fn regex_literal(i: &str) -> ParseResult<&str, &str> {
     let mut remaining = &i[..i.len()];
     let mut consumed = &i[..0];
 
@@ -123,7 +160,7 @@ fn regex_literal(i: &str) -> IResult<&str, &str> {
 
 /// An unescaped regular expression.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Regex(pub(crate) String);
+pub struct Regex(pub String);
 
 impl Display for Regex {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -147,13 +184,22 @@ impl From<&str> for Regex {
 }
 
 /// Parse a regular expression, delimited by `/`.
-pub fn regex(i: &str) -> IResult<&str, Regex> {
-    map(string('/', regex_literal, map(tag("\\/"), |_| '/')), Regex)(i)
+pub fn regex(i: &str) -> ParseResult<&str, Regex> {
+    map(
+        string(
+            '/',
+            "unterminated regex literal",
+            regex_literal,
+            map(tag("\\/"), |_| '/'),
+        ),
+        Regex,
+    )(i)
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::assert_expect_error;
 
     #[test]
     fn test_double_quoted_string() {
@@ -180,18 +226,32 @@ mod test {
         let (_, got) = double_quoted_string("\"quick\rdraw\"").unwrap();
         assert_eq!(got, "quick\rdraw");
 
+        // Empty string
+        let (i, got) = double_quoted_string("\"\"").unwrap();
+        assert_eq!(i, "");
+        assert_eq!(got, "");
+
         // ┌─────────────────────────────┐
         // │       Fallible tests        │
         // └─────────────────────────────┘
 
         // Not terminated
-        double_quoted_string(r#""quick draw"#).unwrap_err();
+        assert_expect_error!(
+            double_quoted_string(r#""quick draw"#),
+            "unterminated string literal"
+        );
 
         // Literal newline
-        double_quoted_string("\"quick\ndraw\"").unwrap_err();
+        assert_expect_error!(
+            double_quoted_string("\"quick\ndraw\""),
+            "unterminated string literal"
+        );
 
         // Invalid escape
-        double_quoted_string(r#""quick\idraw""#).unwrap_err();
+        assert_expect_error!(
+            double_quoted_string(r#""quick\idraw""#),
+            r#"invalid escape sequence, expected \\, \" or \n"#
+        );
     }
 
     #[test]
@@ -219,15 +279,25 @@ mod test {
         let (_, got) = single_quoted_string("'quick\rdraw'").unwrap();
         assert_eq!(got, "quick\rdraw");
 
+        // Empty string
+        let (i, got) = single_quoted_string("''").unwrap();
+        assert_eq!(i, "");
+        assert_eq!(got, "");
+
         // ┌─────────────────────────────┐
         // │       Fallible tests        │
         // └─────────────────────────────┘
-
         // Not terminated
-        single_quoted_string(r#"'quick draw"#).unwrap_err();
+        assert_expect_error!(
+            single_quoted_string(r#"'quick draw"#),
+            "unterminated string literal"
+        );
 
         // Invalid escape
-        single_quoted_string(r#"'quick\idraw'"#).unwrap_err();
+        assert_expect_error!(
+            single_quoted_string(r#"'quick\idraw'"#),
+            r#"invalid escape sequence, expected \\, \' or \n"#
+        );
     }
 
     #[test]
@@ -244,19 +314,20 @@ mod test {
         assert_eq!(got, "hello\\n".into());
 
         // Empty regex
-        let (_, got) = regex("//").unwrap();
+        let (i, got) = regex("//").unwrap();
+        assert_eq!(i, "");
         assert_eq!(got, "".into());
 
         // Fallible cases
 
         // Missing trailing delimiter
-        regex(r#"/hello"#).unwrap_err();
+        assert_expect_error!(regex(r#"/hello"#), "unterminated regex literal");
 
         // Embedded newline
-        regex("/hello\nworld").unwrap_err();
+        assert_expect_error!(regex("/hello\nworld/"), "unterminated regex literal");
 
         // Single backslash fails, which matches Go implementation
         // See: https://go.dev/play/p/_8J1v5-382G
-        regex(r#"/\/"#).unwrap_err();
+        assert_expect_error!(regex(r#"/\/"#), "unterminated regex literal");
     }
 }

@@ -189,7 +189,7 @@ pub(crate) async fn compact_parquet_files(
         .sort_key
         .as_ref()
         .expect("no partition sort key in catalog")
-        .filter_to(&merged_schema.primary_key());
+        .filter_to(&merged_schema.primary_key(), partition_id.get());
 
     let (small_cutoff_bytes, large_cutoff_bytes) =
         cutoff_bytes(max_desired_file_size_bytes, percentage_max_file_size);
@@ -355,7 +355,7 @@ pub(crate) async fn compact_final_no_splits(
         .sort_key
         .as_ref()
         .expect("no partition sort key in catalog")
-        .filter_to(&merged_schema.primary_key());
+        .filter_to(&merged_schema.primary_key(), partition_id.get());
 
     let ctx = exec.new_context(ExecutorType::Reorg);
     // Compact everything into one file
@@ -538,7 +538,9 @@ fn to_queryable_parquet_chunk(
         .select_by_names(&selection)
         .expect("schema in-sync");
     let pk = schema.primary_key();
-    let sort_key = partition_sort_key.as_ref().map(|sk| sk.filter_to(&pk));
+    let sort_key = partition_sort_key
+        .as_ref()
+        .map(|sk| sk.filter_to(&pk, file.partition_id().get()));
     let file = Arc::new(ParquetFile::from(file));
 
     let parquet_chunk = ParquetChunk::new(Arc::clone(&file), Arc::new(schema), store);

@@ -504,7 +504,7 @@ impl ChunkAdapter {
 
         // calculate sort key
         let pk_cols = schema.primary_key();
-        let sort_key = partition_sort_key_ref.filter_to(&pk_cols);
+        let sort_key = partition_sort_key_ref.filter_to(&pk_cols, parquet_file.partition_id.get());
         assert!(
             !sort_key.is_empty(),
             "Sort key can never be empty because there should at least be a time column",

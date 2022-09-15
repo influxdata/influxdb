@@ -22,7 +22,7 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
     debug!(compaction_type, "start collecting partitions to compact");
     let attributes = Attributes::from(&[("partition_type", compaction_type)]);
     let start_time = compactor.time_provider.now();
-    let candidates = Backoff::new(&compactor.backoff_config)
+    let (candidates, table_columns) = Backoff::new(&compactor.backoff_config)
         .retry_all_errors("cold_partitions_to_compact", || async {
             compactor
                 .cold_partitions_to_compact(compactor.config.max_number_partitions_per_shard)
@@ -37,46 +37,6 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
     {
         let duration = compactor
             .candidate_selection_duration
-            .recorder(attributes.clone());
-        duration.record(delta);
-    }
-
-    // Get extra needed information for selected partitions
-    let start_time = compactor.time_provider.now();
-
-    // Column types and their counts of the tables of the partition candidates
-    debug!(
-        num_candidates=?candidates.len(),
-        compaction_type,
-        "start getting column types for the partition candidates"
-    );
-    let table_columns = Backoff::new(&compactor.backoff_config)
-        .retry_all_errors("table_columns", || async {
-            compactor.table_columns(&candidates).await
-        })
-        .await
-        .expect("retry forever");
-
-    // Add other compaction-needed info into selected partitions
-    debug!(
-        num_candidates=?candidates.len(),
-        compaction_type,
-        "start getting additional info for the partition candidates"
-    );
-    let candidates = Backoff::new(&compactor.backoff_config)
-        .retry_all_errors("add_info_to_partitions", || async {
-            compactor.add_info_to_partitions(&candidates).await
-        })
-        .await
-        .expect("retry forever");
-
-    if let Some(delta) = compactor
-        .time_provider
-        .now()
-        .checked_duration_since(start_time)
-    {
-        let duration = compactor
-            .partitions_extra_info_reading_duration
             .recorder(attributes.clone());
         duration.record(delta);
     }
@@ -96,7 +56,7 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
         Arc::clone(&compactor),
         compaction_type,
         compact_in_parallel,
-        candidates.clone(),
+        candidates.into(),
         table_columns,
     )
     .await;
@@ -436,14 +396,13 @@ mod tests {
 
         // ------------------------------------------------
         // Compact
-        let candidates = compactor
+        let (mut candidates, _table_columns) = compactor
             .cold_partitions_to_compact(compactor.config.max_number_partitions_per_shard)
             .await
             .unwrap();
-        let mut candidates = compactor.add_info_to_partitions(&candidates).await.unwrap();
 
         assert_eq!(candidates.len(), 1);
-        let c = candidates.pop_front().unwrap();
+        let c = candidates.pop().unwrap();
 
         let parquet_files_for_compaction =
             parquet_file_lookup::ParquetFilesForCompaction::for_partition_with_size_overrides(
@@ -633,14 +592,13 @@ mod tests {
 
         // ------------------------------------------------
         // Compact
-        let candidates = compactor
+        let (mut candidates, _table_columns) = compactor
             .cold_partitions_to_compact(compactor.config.max_number_partitions_per_shard)
             .await
             .unwrap();
-        let mut candidates = compactor.add_info_to_partitions(&candidates).await.unwrap();
 
         assert_eq!(candidates.len(), 1);
-        let c = candidates.pop_front().unwrap();
+        let c = candidates.pop().unwrap();
 
         let parquet_files_for_compaction =
             parquet_file_lookup::ParquetFilesForCompaction::for_partition_with_size_overrides(

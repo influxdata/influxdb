@@ -9,61 +9,55 @@
 
 #![allow(dead_code)]
 
+use crate::internal::ParseResult;
 use crate::string::double_quoted_string;
-use crate::write_escaped;
+use crate::write_quoted_string;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{alphanumeric1, char};
 use nom::combinator::{map, recognize};
 use nom::multi::many1_count;
 use nom::sequence::preceded;
-use nom::IResult;
 use std::fmt;
 use std::fmt::{Display, Formatter, Write};
 
 /// Parse an unquoted InfluxQL bind parameter.
-fn unquoted_parameter(i: &str) -> IResult<&str, String> {
-    map(
-        recognize(many1_count(alt((alphanumeric1, tag("_"))))),
-        str::to_string,
-    )(i)
+fn unquoted_parameter(i: &str) -> ParseResult<&str, &str> {
+    recognize(many1_count(alt((alphanumeric1, tag("_")))))(i)
 }
 
-/// `BindParameter` is a type that represents either a quoted ([`BindParameter::Quoted`]) or unquoted ([`BindParameter::Unquoted`])
-/// InfluxQL bind parameter.
+/// A type that represents an InfluxQL bind parameter.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub enum BindParameter {
-    /// Contains an unquoted bind parameter
-    Unquoted(String),
+pub struct BindParameter(pub String);
 
-    /// Contains an unescaped quoted identifier
-    Quoted(String),
+impl From<String> for BindParameter {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+impl From<&str> for BindParameter {
+    fn from(s: &str) -> Self {
+        Self(s.to_string())
+    }
 }
 
 impl Display for BindParameter {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Unquoted(s) => write!(f, "${}", s)?,
-            Self::Quoted(s) => {
-                f.write_str("$\"")?;
-                // escape characters per https://github.com/influxdata/influxql/blob/df51a45762be9c1b578f01718fa92d286a843fe9/scanner.go#L576-L583
-                write_escaped!(f, s, '\n' => "\\n", '\\' => "\\\\", '"' => "\\\"");
-                f.write_char('"')?;
-            }
-        };
-
+        f.write_char('$')?;
+        write_quoted_string!(f, '"', self.0.as_str(), unquoted_parameter, '\n' => "\\n", '\\' => "\\\\", '"' => "\\\"");
         Ok(())
     }
 }
 
 /// Parses an InfluxQL [BindParameter].
-pub fn parameter(i: &str) -> IResult<&str, BindParameter> {
+pub fn parameter(i: &str) -> ParseResult<&str, BindParameter> {
     // See: https://github.com/influxdata/influxql/blob/df51a45762be9c1b578f01718fa92d286a843fe9/scanner.go#L358-L362
     preceded(
         char('$'),
         alt((
-            map(unquoted_parameter, BindParameter::Unquoted),
-            map(double_quoted_string, BindParameter::Quoted),
+            map(unquoted_parameter, Into::into),
+            map(double_quoted_string, Into::into),
         )),
     )(i)
 }
@@ -76,41 +70,44 @@ mod test {
     fn test_parameter() {
         // all ascii
         let (_, got) = parameter("$cpu").unwrap();
-        assert_eq!(got, BindParameter::Unquoted("cpu".into()));
+        assert_eq!(got, "cpu".into());
 
         // digits
         let (_, got) = parameter("$01").unwrap();
-        assert_eq!(got, BindParameter::Unquoted("01".into()));
+        assert_eq!(got, "01".into());
 
         // all valid chars
         let (_, got) = parameter("$cpu_0").unwrap();
-        assert_eq!(got, BindParameter::Unquoted("cpu_0".into()));
+        assert_eq!(got, "cpu_0".into());
 
         // keyword
         let (_, got) = parameter("$from").unwrap();
-        assert_eq!(got, BindParameter::Unquoted("from".into()));
+        assert_eq!(got, "from".into());
 
         // quoted
         let (_, got) = parameter("$\"quick draw\"").unwrap();
-        assert!(matches!(got, BindParameter::Quoted(s) if s == "quick draw"));
+        assert_eq!(got, "quick draw".into());
 
         // ┌─────────────────────────────┐
         // │       Fallible tests        │
         // └─────────────────────────────┘
 
         // missing `$` prefix
-        let res = parameter("cpu");
-        assert!(res.is_err());
+        parameter("cpu").unwrap_err();
     }
 
     #[test]
     fn test_bind_parameter_display() {
-        // test quoted identifier properly escapes specific characters
-        let got = format!("{}", BindParameter::Quoted("from".to_string()));
-        assert_eq!(got, r#"$"from""#);
+        // BindParameter displays quoted output
+        let got = format!("{}", BindParameter("from foo".into()));
+        assert_eq!(got, r#"$"from foo""#);
 
-        // test unquoted identifier
-        let got = format!("{}", BindParameter::Unquoted("quick_draw".to_string()));
+        // BindParameter displays quoted and escaped output
+        let got = format!("{}", BindParameter("from\nfoo".into()));
+        assert_eq!(got, r#"$"from\nfoo""#);
+
+        // BindParameter displays unquoted output
+        let got = format!("{}", BindParameter("quick_draw".into()));
         assert_eq!(got, "$quick_draw");
     }
 }
