@@ -839,6 +839,10 @@ pub struct Partition {
     /// is legal. However, updating to `A,C,D,B` is not because the
     /// relative order of B and C have been reversed.
     pub sort_key: Vec<String>,
+
+    /// The inclusive maximum [`SequenceNumber`] of the most recently persisted
+    /// data for this partition.
+    pub persisted_sequence_number: SequenceNumber,
 }
 
 impl Partition {

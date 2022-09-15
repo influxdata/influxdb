@@ -1247,6 +1247,7 @@ WHERE partition.id = $1;
             table_id: info.get("table_id"),
             partition_key: info.get("partition_key"),
             sort_key: info.get("sort_key"),
+            persisted_sequence_number: info.get("persisted_sequence_number"),
         };
 
         Ok(Some(PartitionInfo {
@@ -1324,6 +1325,27 @@ SELECT * FROM skipped_compactions
         .fetch_all(&mut self.inner)
         .await
         .context(interface::CouldNotListSkippedCompactionsSnafu)
+    }
+
+    async fn update_persist_watermark(
+        &mut self,
+        partition_id: PartitionId,
+        sequence_number: SequenceNumber,
+    ) -> Result<()> {
+        let _ = sqlx::query(
+            r#"
+UPDATE partition
+SET persisted_sequence_number = $1
+WHERE id = $2;
+                "#,
+        )
+        .bind(&sequence_number.get()) // $1
+        .bind(&partition_id) // $2
+        .execute(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(())
     }
 }
 

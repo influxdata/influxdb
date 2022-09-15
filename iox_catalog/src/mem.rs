@@ -735,6 +735,7 @@ impl PartitionRepo for MemTxn {
                         table_id,
                         partition_key: key,
                         sort_key: vec![],
+                        persisted_sequence_number: SequenceNumber::new(0),
                     };
                     stage.partitions.push(p);
                     stage.partitions.last().unwrap()
@@ -877,6 +878,21 @@ impl PartitionRepo for MemTxn {
     async fn list_skipped_compactions(&mut self) -> Result<Vec<SkippedCompaction>> {
         let stage = self.stage();
         Ok(stage.skipped_compactions.clone())
+    }
+
+    async fn update_persist_watermark(
+        &mut self,
+        partition_id: PartitionId,
+        sequence_number: SequenceNumber,
+    ) -> Result<()> {
+        let stage = self.stage();
+        match stage.partitions.iter_mut().find(|p| p.id == partition_id) {
+            Some(p) => {
+                p.persisted_sequence_number = sequence_number;
+                Ok(())
+            }
+            None => Err(Error::PartitionNotFound { id: partition_id }),
+        }
     }
 }
 
