@@ -38,9 +38,6 @@ pub(crate) struct DataBuffer {
     /// Buffer of incoming writes
     pub(crate) buffer: Option<BufferBatch>,
 
-    /// The max_persisted_sequence number for any parquet_file in this partition
-    pub(crate) max_persisted_sequence_number: Option<SequenceNumber>,
-
     /// Buffer of tombstones whose time range may overlap with this partition.
     /// All tombstones were already applied to corresponding snapshots. This list
     /// only keep the ones that come during persisting. The reason
@@ -239,14 +236,9 @@ impl DataBuffer {
         self.snapshots.as_ref()
     }
 
-    pub(crate) fn mark_persisted(&mut self, up_to: SequenceNumber) {
-        self.max_persisted_sequence_number = Some(up_to);
+    pub(crate) fn mark_persisted(&mut self) {
         self.persisting = None;
         self.deletes_during_persisting.clear()
-    }
-
-    pub(crate) fn max_persisted_sequence_number(&self) -> Option<SequenceNumber> {
-        self.max_persisted_sequence_number
     }
 
     #[cfg(test)]

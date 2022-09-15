@@ -50,7 +50,7 @@ impl TableData {
     pub fn parquet_max_sequence_number(&self) -> Option<SequenceNumber> {
         self.partition_data
             .values()
-            .map(|p| p.data.max_persisted_sequence_number())
+            .map(|p| p.max_persisted_sequence_number())
             .max()
             .flatten()
     }
@@ -82,7 +82,7 @@ impl TableData {
         };
 
         // skip the write if it has already been persisted
-        if let Some(max) = partition_data.data.max_persisted_sequence_number() {
+        if let Some(max) = partition_data.max_persisted_sequence_number() {
             if max >= sequence_number {
                 return Ok(false);
             }
@@ -148,7 +148,7 @@ impl TableData {
                     .expect("get_non_persisting should always work"),
                 persisting: p.get_persisting_data(),
                 partition_status: PartitionStatus {
-                    parquet_max_sequence_number: p.data.max_persisted_sequence_number(),
+                    parquet_max_sequence_number: p.max_persisted_sequence_number(),
                     tombstone_max_sequence_number: self.tombstone_max_sequence_number,
                 },
             })
@@ -178,10 +178,10 @@ impl TableData {
         // for now we just need the max persisted
         let max_persisted_sequence_number = files.iter().map(|p| p.max_sequence_number).max();
 
-        let mut data = PartitionData::new(partition.id);
-        data.data.max_persisted_sequence_number = max_persisted_sequence_number;
-
-        self.partition_data.insert(partition.partition_key, data);
+        self.partition_data.insert(
+            partition.partition_key,
+            PartitionData::new(partition.id, max_persisted_sequence_number),
+        );
 
         Ok(())
     }
