@@ -129,7 +129,9 @@ impl ParquetFileWithTombstone {
             .select_by_names(&selection)
             .expect("schema in-sync");
         let pk = schema.primary_key();
-        let sort_key = partition_sort_key.as_ref().map(|sk| sk.filter_to(&pk));
+        let sort_key = partition_sort_key
+            .as_ref()
+            .map(|sk| sk.filter_to(&pk, self.partition_id.get()));
 
         let parquet_chunk = ParquetChunk::new(Arc::clone(&self.data), Arc::new(schema), store);
 
