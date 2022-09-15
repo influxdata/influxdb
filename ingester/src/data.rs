@@ -343,16 +343,12 @@ impl Persister for IngesterData {
             // It is an invariant that partitions are persisted in order so that
             // both the per-shard, and per-partition watermarks are correctly
             // advanced and accurate.
-            //
-            // Skips the check for the first persist for a partition that
-            // contains a single write (where parquet file max=0).
-            if parquet_file.max_sequence_number.get() != 0 {
+            if let Some(last_persist) = partition_info.partition.persisted_sequence_number {
                 assert!(
-                    parquet_file.max_sequence_number
-                        > partition_info.partition.persisted_sequence_number,
+                    parquet_file.max_sequence_number > last_persist,
                     "out of order partition persistence, persisting {}, previously persisted {}",
                     parquet_file.max_sequence_number.get(),
-                    partition_info.partition.persisted_sequence_number.get(),
+                    last_persist.get(),
                 );
             }
 
@@ -1001,7 +997,10 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(partition.persisted_sequence_number, SequenceNumber::new(2));
+        assert_eq!(
+            partition.persisted_sequence_number,
+            Some(SequenceNumber::new(2))
+        );
 
         // This value should be recorded in the metrics asserted next;
         // it is less than 500 KB

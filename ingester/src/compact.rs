@@ -247,7 +247,7 @@ mod tests {
                 table_id: TableId::new(table_id),
                 partition_key: partition_key.into(),
                 sort_key: vec![],
-                persisted_sequence_number: SequenceNumber::new(42),
+                persisted_sequence_number: Some(SequenceNumber::new(42)),
             },
         };
 
@@ -318,7 +318,7 @@ mod tests {
                 table_id: TableId::new(table_id),
                 partition_key: partition_key.into(),
                 sort_key: vec![],
-                persisted_sequence_number: SequenceNumber::new(42),
+                persisted_sequence_number: Some(SequenceNumber::new(42)),
             },
         };
 
@@ -416,7 +416,7 @@ mod tests {
                 partition_key: partition_key.into(),
                 // NO SORT KEY from the catalog here, first persisting batch
                 sort_key: vec![],
-                persisted_sequence_number: SequenceNumber::new(42),
+                persisted_sequence_number: Some(SequenceNumber::new(42)),
             },
         };
 
@@ -517,7 +517,7 @@ mod tests {
                 // SPECIFY A SORT KEY HERE to simulate a sort key being stored in the catalog
                 // this is NOT what the computed sort key would be based on this data's cardinality
                 sort_key: vec!["tag3".to_string(), "tag1".to_string(), "time".to_string()],
-                persisted_sequence_number: SequenceNumber::new(42),
+                persisted_sequence_number: Some(SequenceNumber::new(42)),
             },
         };
 
@@ -619,7 +619,7 @@ mod tests {
                 // this is NOT what the computed sort key would be based on this data's cardinality
                 // The new column, tag1, should get added just before the time column
                 sort_key: vec!["tag3".to_string(), "time".to_string()],
-                persisted_sequence_number: SequenceNumber::new(42),
+                persisted_sequence_number: Some(SequenceNumber::new(42)),
             },
         };
 
@@ -729,7 +729,7 @@ mod tests {
                     "tag4".to_string(),
                     "time".to_string(),
                 ],
-                persisted_sequence_number: SequenceNumber::new(42),
+                persisted_sequence_number: Some(SequenceNumber::new(42)),
             },
         };
 
