@@ -2,7 +2,8 @@
 
 use crate::query::QueryableParquetChunk;
 use data_types::{
-    ParquetFile, ParquetFileId, TableSchema, Timestamp, TimestampMinMax, Tombstone, TombstoneId,
+    CompactionLevel, ParquetFile, ParquetFileId, TableSchema, Timestamp, TimestampMinMax,
+    Tombstone, TombstoneId,
 };
 use observability_deps::tracing::*;
 use parquet_file::{chunk::ParquetChunk, storage::ParquetStorage};
@@ -114,6 +115,7 @@ impl ParquetFileWithTombstone {
         table_name: String,
         table_schema: &TableSchema,
         partition_sort_key: Option<SortKey>,
+        target_level: CompactionLevel,
     ) -> QueryableParquetChunk {
         let column_id_lookup = table_schema.column_id_map();
         let selection: Vec<_> = self
@@ -156,6 +158,7 @@ impl ParquetFileWithTombstone {
             sort_key,
             partition_sort_key,
             self.data.compaction_level,
+            target_level,
         )
     }
 }

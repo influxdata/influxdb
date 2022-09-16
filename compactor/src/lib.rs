@@ -186,7 +186,11 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                     budget_bytes,
                 } => {
                     remaining_budget_bytes -= budget_bytes;
-                    parallel_compacting_candidates.push(ReadyToCompact { files, partition });
+                    parallel_compacting_candidates.push(ReadyToCompact {
+                        files,
+                        partition,
+                        target_level: initial_level.next(),
+                    });
                 }
             }
         }
@@ -224,11 +228,13 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
     }
 }
 
-/// After filtering based on the memory budget, this is a group of files that should be compacted.
+/// After filtering based on the memory budget, this is a group of files that should be compacted
+/// into the target level specified.
 #[derive(Debug)]
 pub(crate) struct ReadyToCompact {
     pub(crate) files: Vec<CompactorParquetFile>,
     pub(crate) partition: Arc<PartitionCompactionCandidateWithInfo>,
+    pub(crate) target_level: CompactionLevel,
 }
 
 // Compact given groups of files in parallel.
@@ -293,18 +299,21 @@ pub(crate) async fn compact_one_partition(
 ) -> Result<(), CompactOnePartitionError> {
     let start_time = compactor.time_provider.now();
 
-    let ReadyToCompact { files, partition } = to_compact;
+    let ReadyToCompact {
+        files,
+        partition,
+        target_level,
+    } = to_compact;
 
     let shard_id = partition.shard_id();
 
     if files.len() == 1 {
         // upgrade the one file, don't run compaction
         let mut repos = compactor.catalog.repositories().await;
-        let upgraded_level = files[0].compaction_level().next();
 
         repos
             .parquet_files()
-            .update_compaction_level(&[files[0].id()], upgraded_level)
+            .update_compaction_level(&[files[0].id()], target_level)
             .await
             .context(UpgradingSnafu)?;
     } else if split {
@@ -319,6 +328,7 @@ pub(crate) async fn compact_one_partition(
             compactor.config.max_desired_file_size_bytes,
             compactor.config.percentage_max_file_size,
             compactor.config.split_percentage,
+            target_level,
         )
         .await
         .map_err(|e| CompactOnePartitionError::Combining {
@@ -333,6 +343,7 @@ pub(crate) async fn compact_one_partition(
             Arc::clone(&compactor.exec),
             Arc::clone(&compactor.time_provider),
             &compactor.compaction_input_file_bytes,
+            target_level,
         )
         .await
         .map_err(|e| CompactOnePartitionError::Combining {
@@ -341,8 +352,9 @@ pub(crate) async fn compact_one_partition(
     }
 
     let attributes = Attributes::from([
-        ("shard_id", format!("{}", shard_id).into()),
+        ("shard_id", format!("{shard_id}").into()),
         ("partition_type", compaction_type.into()),
+        ("target_level", format!("{}", target_level as i16).into()),
     ]);
     if let Some(delta) = compactor
         .time_provider
@@ -391,7 +403,13 @@ pub mod tests {
                 panic!("Expected to get FilterResult::Proceed, got {filter_result:?}");
             };
 
-            Self { files, partition }
+            let target_level = files.last().unwrap().compaction_level().next();
+
+            Self {
+                files,
+                partition,
+                target_level,
+            }
         }
     }
 
