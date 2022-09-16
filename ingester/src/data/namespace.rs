@@ -236,7 +236,6 @@ impl NamespaceData {
                     partition_data.snapshot_to_persisting_batch(
                         partition_info.partition.shard_id,
                         partition_info.partition.table_id,
-                        partition_info.partition.id,
                         &partition_info.table_name,
                     )
                 });

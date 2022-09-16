@@ -952,7 +952,7 @@ fn make_first_partition_data(
 
     if loc.contains(DataLocation::PERSISTING) {
         // Move group 1 data to persisting
-        p1.snapshot_to_persisting_batch(shard_id, table_id, partition_id, table_name);
+        p1.snapshot_to_persisting_batch(shard_id, table_id, table_name);
     } else if loc.contains(DataLocation::SNAPSHOT) {
         // move group 1 data to snapshot
         p1.snapshot().unwrap();

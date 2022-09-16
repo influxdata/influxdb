@@ -134,11 +134,10 @@ impl PartitionData {
         &mut self,
         shard_id: ShardId,
         table_id: TableId,
-        partition_id: PartitionId,
         table_name: &str,
     ) -> Option<Arc<PersistingBatch>> {
         self.data
-            .snapshot_to_persisting(shard_id, table_id, partition_id, table_name)
+            .snapshot_to_persisting(shard_id, table_id, self.id, table_name)
     }
 
     /// Snapshot whatever is in the buffer and return a new vec of the
@@ -463,12 +462,7 @@ mod tests {
         // ------------------------------------------
         // Persisting
         let p_batch = p
-            .snapshot_to_persisting_batch(
-                ShardId::new(s_id),
-                TableId::new(t_id),
-                PartitionId::new(p_id),
-                table_name,
-            )
+            .snapshot_to_persisting_batch(ShardId::new(s_id), TableId::new(t_id), table_name)
             .unwrap();
 
         // verify data
