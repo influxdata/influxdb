@@ -83,6 +83,16 @@ func TestBucket(t *testing.T) {
 		}
 	}
 
+	over20Setup := func(t *testing.T, store *tenant.Store, tx kv.Tx) {
+		store.BucketIDGen = mock.NewIncrementingIDGenerator(1)
+		for _, bucket := range testBuckets(24) {
+			err := store.CreateBucket(context.Background(), tx, bucket)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
 	st := []struct {
 		name    string
 		setup   func(*testing.T, *tenant.Store, kv.Tx)
@@ -181,6 +191,15 @@ func TestBucket(t *testing.T) {
 				if !reflect.DeepEqual(buckets, expected[3:]) {
 					t.Fatalf("expected identical buckets with limit: \n%+v\n%+v", buckets, expected[3:])
 				}
+			},
+		},
+		{
+			name:  "listOver20",
+			setup: over20Setup,
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
+				buckets, err := store.ListBuckets(context.Background(), tx, tenant.BucketFilter{})
+				require.NoError(t, err)
+				assert.Len(t, buckets, 24)
 			},
 		},
 		{

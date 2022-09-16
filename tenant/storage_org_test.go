@@ -65,6 +65,13 @@ func TestOrg(t *testing.T) {
 				require.NoError(t, store.CreateOrg(context.Background(), tx, org))
 			}
 		}
+
+		over20Setup = func(t *testing.T, store *tenant.Store, tx kv.Tx) {
+			store.OrgIDGen = mock.NewIncrementingIDGenerator(1)
+			for _, org := range testOrgs(25) {
+				require.NoError(t, store.CreateOrg(context.Background(), tx, org))
+			}
+		}
 	)
 
 	st := []struct {
@@ -146,6 +153,18 @@ func TestOrg(t *testing.T) {
 				require.NoError(t, err)
 				assert.Len(t, orgs, 7)
 				assert.Equal(t, expected[3:], orgs)
+			},
+		},
+		{
+			name:  "listOver20",
+			setup: over20Setup,
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
+				orgs, err := store.ListOrgs(context.Background(), tx)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				require.Len(t, orgs, 25)
 			},
 		},
 		{
