@@ -170,15 +170,12 @@ impl Compactor {
 
         let file_size_buckets = U64HistogramOptions::new([
             50 * 1024,         // 50KB
-            100 * 1024,        // 100KB
-            300 * 1024,        // 300KB
             500 * 1024,        // 500 KB
             1024 * 1024,       // 1 MB
             3 * 1024 * 1024,   // 3 MB
             10 * 1024 * 1024,  // 10 MB
             30 * 1024 * 1024,  // 30 MB
             100 * 1024 * 1024, // 100 MB
-            300 * 1024 * 1024, // 300 MB
             500 * 1024 * 1024, // 500 MB
             u64::MAX,          // Inf
         ]);
@@ -196,17 +193,14 @@ impl Compactor {
         );
 
         let duration_histogram_options = DurationHistogramOptions::new([
-            Duration::from_millis(100),
             Duration::from_millis(500),
-            Duration::from_micros(2_000),
+            Duration::from_millis(1_000), // 1 second
             Duration::from_millis(5_000),
             Duration::from_millis(15_000),
             Duration::from_millis(30_000),
             Duration::from_millis(60_000), // 1 minute
             Duration::from_millis(5 * 60_000),
-            Duration::from_millis(10 * 60_000),
-            Duration::from_millis(20 * 60_000),
-            Duration::from_millis(40 * 60_000),
+            Duration::from_millis(15 * 60_000),
             Duration::from_millis(60 * 60_000),
             DURATION_MAX,
         ]);
