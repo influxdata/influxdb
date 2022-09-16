@@ -6,7 +6,8 @@ use crate::{
     utils::get_candidates_with_retry,
     PartitionCompactionCandidateWithInfo,
 };
-use data_types::{CompactionLevel, Timestamp};
+use data_types::{CompactionLevel, PartitionParam, ShardId, Timestamp};
+use iox_catalog::interface::Catalog;
 use metric::Attributes;
 use observability_deps::tracing::*;
 use std::sync::Arc;
@@ -104,51 +105,32 @@ async fn hot_partitions_to_compact(
         })
         .collect();
 
-    for shard_id in &compactor.shards {
-        let attributes = Attributes::from([
-            ("shard_id", format!("{}", *shard_id).into()),
-            ("partition_type", compaction_type.into()),
-        ]);
-        let mut repos = compactor.catalog.repositories().await;
-
-        let mut num_partitions = 0;
-        for &(hours_ago, hours_ago_in_ns) in &query_times {
-            let mut partitions = repos
-                .parquet_files()
-                .recent_highest_throughput_partitions(
-                    *shard_id,
-                    hours_ago_in_ns,
-                    min_recent_ingested_files,
-                    max_num_partitions_per_shard,
-                )
-                .await
-                .map_err(|e| compact::Error::HighestThroughputPartitions {
-                    shard_id: *shard_id,
-                    source: e,
-                })?;
-
-            if !partitions.is_empty() {
-                debug!(
-                    shard_id = shard_id.get(),
-                    hours_ago,
-                    n = partitions.len(),
-                    "found high-throughput partitions"
-                );
-                num_partitions = partitions.len();
-                candidates.append(&mut partitions);
-                break;
-            }
-        }
+    for &shard_id in &compactor.shards {
+        let mut partitions = hot_partitions_for_shard(
+            Arc::clone(&compactor.catalog),
+            shard_id,
+            &query_times,
+            min_recent_ingested_files,
+            max_num_partitions_per_shard,
+        )
+        .await?;
 
         // Record metric for candidates per shard
+        let num_partitions = partitions.len();
         debug!(
             shard_id = shard_id.get(),
             n = num_partitions,
             compaction_type,
             "compaction candidates",
         );
+        let attributes = Attributes::from([
+            ("shard_id", format!("{}", shard_id).into()),
+            ("partition_type", compaction_type.into()),
+        ]);
         let number_gauge = compactor.compaction_candidate_gauge.recorder(attributes);
         number_gauge.set(num_partitions as u64);
+
+        candidates.append(&mut partitions);
     }
 
     // Get extra needed information for selected partitions
@@ -185,6 +167,43 @@ async fn hot_partitions_to_compact(
     }
 
     Ok(candidates)
+}
+
+async fn hot_partitions_for_shard(
+    catalog: Arc<dyn Catalog>,
+    shard_id: ShardId,
+    query_times: &[(u64, Timestamp)],
+    min_recent_ingested_files: usize,
+    max_num_partitions_per_shard: usize,
+) -> Result<Vec<PartitionParam>, compact::Error> {
+    let mut repos = catalog.repositories().await;
+
+    for &(hours_ago, hours_ago_in_ns) in query_times {
+        let partitions = repos
+            .parquet_files()
+            .recent_highest_throughput_partitions(
+                shard_id,
+                hours_ago_in_ns,
+                min_recent_ingested_files,
+                max_num_partitions_per_shard,
+            )
+            .await
+            .map_err(|e| compact::Error::HighestThroughputPartitions {
+                shard_id,
+                source: e,
+            })?;
+        if !partitions.is_empty() {
+            debug!(
+                shard_id = shard_id.get(),
+                hours_ago,
+                n = partitions.len(),
+                "found high-throughput partitions"
+            );
+            return Ok(partitions);
+        }
+    }
+
+    Ok(Vec::new())
 }
 
 #[cfg(test)]
