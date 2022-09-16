@@ -205,7 +205,7 @@ pub fn make_queryable_batch_with_deletes(
     }
 
     Arc::new(QueryableBatch::new(
-        table_name,
+        table_name.into(),
         PartitionId::new(partition_id),
         snapshots,
         tombstones,
@@ -685,16 +685,18 @@ pub fn make_ingester_data(two_partitions: bool, loc: DataLocation) -> IngesterDa
     let data_table_id = TableId::new(2);
 
     // Make partitions per requested
-    let partitions = make_partitions(two_partitions, loc, shard_id, data_table_id, TEST_TABLE);
+    let partitions = make_partitions(two_partitions, loc, shard_id, data_table_id);
 
     // Two tables: one empty and one with data of one or two partitions
     let mut tables = BTreeMap::new();
     let empty_tbl = Arc::new(tokio::sync::RwLock::new(TableData::new(
         empty_table_id,
+        "test_table",
         None,
     )));
     let data_tbl = Arc::new(tokio::sync::RwLock::new(TableData::new_for_test(
         data_table_id,
+        "test_table",
         None,
         partitions,
     )));
@@ -737,12 +739,11 @@ pub async fn make_ingester_data_with_tombstones(loc: DataLocation) -> IngesterDa
     let data_table_id = TableId::new(2);
 
     // Make partitions per requested
-    let partitions =
-        make_one_partition_with_tombstones(&exec, loc, shard_id, data_table_id, TEST_TABLE).await;
+    let partitions = make_one_partition_with_tombstones(&exec, loc, shard_id, data_table_id).await;
 
     // Two tables: one empty and one with data of one or two partitions
     let mut tables = BTreeMap::new();
-    let data_tbl = TableData::new_for_test(data_table_id, None, partitions);
+    let data_tbl = TableData::new_for_test(data_table_id, TEST_TABLE, None, partitions);
     tables.insert(
         TEST_TABLE.to_string(),
         Arc::new(tokio::sync::RwLock::new(data_tbl)),
@@ -776,7 +777,6 @@ pub(crate) fn make_partitions(
     loc: DataLocation,
     shard_id: ShardId,
     table_id: TableId,
-    table_name: &str,
 ) -> BTreeMap<PartitionKey, PartitionData> {
     // In-memory data includes these rows but split between 4 groups go into
     // different batches of parittion 1 or partittion 2  as requeted
@@ -800,8 +800,7 @@ pub(crate) fn make_partitions(
     // ------------------------------------------
     // Build the first partition
     let partition_id = PartitionId::new(1);
-    let (mut p1, seq_num) =
-        make_first_partition_data(partition_id, loc, shard_id, table_id, table_name);
+    let (mut p1, seq_num) = make_first_partition_data(partition_id, loc, shard_id, table_id);
 
     // ------------------------------------------
     // Build the second partition if asked
@@ -809,7 +808,7 @@ pub(crate) fn make_partitions(
     let mut seq_num = seq_num.get();
     if two_partitions {
         let partition_id = PartitionId::new(2);
-        let mut p2 = PartitionData::new(partition_id, shard_id, table_id, None);
+        let mut p2 = PartitionData::new(partition_id, shard_id, table_id, TEST_TABLE.into(), None);
         // Group 4: in buffer of p2
         // Fill `buffer`
         seq_num += 1;
@@ -849,7 +848,6 @@ pub(crate) async fn make_one_partition_with_tombstones(
     loc: DataLocation,
     shard_id: ShardId,
     table_id: TableId,
-    table_name: &str,
 ) -> BTreeMap<PartitionKey, PartitionData> {
     // In-memory data includes these rows but split between 4 groups go into
     // different batches of parittion 1 or partittion 2  as requeted
@@ -869,8 +867,7 @@ pub(crate) async fn make_one_partition_with_tombstones(
     //     ];
 
     let partition_id = PartitionId::new(1);
-    let (mut p1, seq_num) =
-        make_first_partition_data(partition_id, loc, shard_id, table_id, table_name);
+    let (mut p1, seq_num) = make_first_partition_data(partition_id, loc, shard_id, table_id);
 
     // Add tombstones
     // Depending on where the existing data is, they (buffer & snapshot) will be either moved to a new snapshot after
@@ -888,7 +885,7 @@ pub(crate) async fn make_one_partition_with_tombstones(
         50,             // max time of data to get deleted
         "city=Boston",  // delete predicate
     );
-    p1.buffer_tombstone(exec, table_name, ts).await;
+    p1.buffer_tombstone(exec, ts).await;
 
     // Group 4: in buffer of p1 after the tombstone
     // Fill `buffer`
@@ -914,7 +911,6 @@ fn make_first_partition_data(
     loc: DataLocation,
     shard_id: ShardId,
     table_id: TableId,
-    table_name: &str,
 ) -> (PartitionData, SequenceNumber) {
     // In-memory data includes these rows but split between 3 groups go into
     // different batches of parittion p1
@@ -933,7 +929,7 @@ fn make_first_partition_data(
 
     // ------------------------------------------
     // Build the first partition
-    let mut p1 = PartitionData::new(partition_id, shard_id, table_id, None);
+    let mut p1 = PartitionData::new(partition_id, shard_id, table_id, TEST_TABLE.into(), None);
     let mut seq_num = 0;
 
     // --------------------
@@ -952,7 +948,7 @@ fn make_first_partition_data(
 
     if loc.contains(DataLocation::PERSISTING) {
         // Move group 1 data to persisting
-        p1.snapshot_to_persisting_batch(table_name);
+        p1.snapshot_to_persisting_batch();
     } else if loc.contains(DataLocation::SNAPSHOT) {
         // move group 1 data to snapshot
         p1.snapshot().unwrap();

@@ -5,7 +5,7 @@ use std::{
     sync::Arc,
 };
 
-use data_types::{NamespaceId, PartitionInfo, PartitionKey, SequenceNumber, ShardId};
+use data_types::{NamespaceId, PartitionKey, SequenceNumber, ShardId};
 use dml::DmlOperation;
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
@@ -183,7 +183,6 @@ impl NamespaceData {
 
                 table_data
                     .buffer_delete(
-                        table_name,
                         delete.predicate(),
                         shard_id,
                         sequence_number,
@@ -224,17 +223,16 @@ impl NamespaceData {
     /// or persist, None will be returned.
     pub async fn snapshot_to_persisting(
         &self,
-        partition_info: &PartitionInfo,
+        table_name: &str,
+        partition_key: &PartitionKey,
     ) -> Option<Arc<PersistingBatch>> {
-        if let Some(table_data) = self.table_data(&partition_info.table_name) {
+        if let Some(table_data) = self.table_data(table_name) {
             let mut table_data = table_data.write().await;
 
             return table_data
                 .partition_data
-                .get_mut(&partition_info.partition.partition_key)
-                .and_then(|partition_data| {
-                    partition_data.snapshot_to_persisting_batch(&partition_info.table_name)
-                });
+                .get_mut(partition_key)
+                .and_then(|partition_data| partition_data.snapshot_to_persisting_batch());
         }
 
         None
@@ -270,6 +268,7 @@ impl NamespaceData {
             Entry::Vacant(v) => {
                 let v = v.insert(Arc::new(tokio::sync::RwLock::new(TableData::new(
                     info.table_id,
+                    table_name,
                     info.tombstone_max_sequence_number,
                 ))));
                 self.table_count.inc(1);

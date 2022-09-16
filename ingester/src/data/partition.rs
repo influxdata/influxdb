@@ -116,6 +116,8 @@ pub(crate) struct PartitionData {
     /// The shard and table IDs for this partition.
     shard_id: ShardId,
     table_id: TableId,
+    /// The name of the table this partition is part of.
+    table_name: Arc<str>,
 
     pub(crate) data: DataBuffer,
 
@@ -130,24 +132,23 @@ impl PartitionData {
         id: PartitionId,
         shard_id: ShardId,
         table_id: TableId,
+        table_name: Arc<str>,
         max_persisted_sequence_number: Option<SequenceNumber>,
     ) -> Self {
         Self {
             id,
             shard_id,
             table_id,
+            table_name,
             data: Default::default(),
             max_persisted_sequence_number,
         }
     }
 
     /// Snapshot anything in the buffer and move all snapshot data into a persisting batch
-    pub fn snapshot_to_persisting_batch(
-        &mut self,
-        table_name: &str,
-    ) -> Option<Arc<PersistingBatch>> {
+    pub fn snapshot_to_persisting_batch(&mut self) -> Option<Arc<PersistingBatch>> {
         self.data
-            .snapshot_to_persisting(self.shard_id, self.table_id, self.id, table_name)
+            .snapshot_to_persisting(self.shard_id, self.table_id, self.id, &self.table_name)
     }
 
     /// Snapshot whatever is in the buffer and return a new vec of the
@@ -198,12 +199,7 @@ impl PartitionData {
     ///     tombstone-applied snapshot
     ///   . The tombstone is only added in the `deletes_during_persisting` if the `persisting`
     ///     exists
-    pub(crate) async fn buffer_tombstone(
-        &mut self,
-        executor: &Executor,
-        table_name: &str,
-        tombstone: Tombstone,
-    ) {
+    pub(crate) async fn buffer_tombstone(&mut self, executor: &Executor, tombstone: Tombstone) {
         self.data.add_tombstone(tombstone.clone());
 
         // ----------------------------------------------------------
@@ -211,7 +207,7 @@ impl PartitionData {
         // Make a QueryableBatch for all buffer + snapshots + the given tombstone
         let max_sequence_number = tombstone.sequence_number;
         let query_batch = match self.data.snapshot_to_queryable_batch(
-            table_name,
+            &self.table_name,
             self.id,
             Some(tombstone.clone()),
         ) {
@@ -301,8 +297,13 @@ mod tests {
 
     #[test]
     fn snapshot_buffer_different_but_compatible_schemas() {
-        let mut partition_data =
-            PartitionData::new(PartitionId::new(1), ShardId::new(1), TableId::new(1), None);
+        let mut partition_data = PartitionData::new(
+            PartitionId::new(1),
+            ShardId::new(1),
+            TableId::new(1),
+            "foo".into(),
+            None,
+        );
 
         let seq_num1 = SequenceNumber::new(1);
         // Missing tag `t1`
@@ -341,11 +342,11 @@ mod tests {
         let s_id = 1;
         let t_id = 1;
         let p_id = 1;
-        let table_name = "restaurant";
         let mut p = PartitionData::new(
             PartitionId::new(p_id),
             ShardId::new(s_id),
             TableId::new(t_id),
+            "restaurant".into(),
             None,
         );
         let exec = Executor::new(1);
@@ -387,7 +388,7 @@ mod tests {
             "day=thu", // delete predicate
         );
         // one row will get deleted, the other is moved to snapshot
-        p.buffer_tombstone(&exec, "restaurant", ts).await;
+        p.buffer_tombstone(&exec, ts).await;
 
         // verify data
         assert!(p.data.buffer.is_none()); // always empty after delete
@@ -450,7 +451,7 @@ mod tests {
         );
         // two rows will get deleted, one from existing snapshot, one from the buffer being moved
         // to snpashot
-        p.buffer_tombstone(&exec, "restaurant", ts).await;
+        p.buffer_tombstone(&exec, ts).await;
 
         // verify data
         assert!(p.data.buffer.is_none()); // always empty after delete
@@ -473,7 +474,7 @@ mod tests {
 
         // ------------------------------------------
         // Persisting
-        let p_batch = p.snapshot_to_persisting_batch(table_name).unwrap();
+        let p_batch = p.snapshot_to_persisting_batch().unwrap();
 
         // verify data
         assert!(p.data.buffer.is_none()); // always empty after issuing persit
@@ -495,7 +496,7 @@ mod tests {
         );
         // if a query come while persisting, the row with temp=55 will be deleted before
         // data is sent back to Querier
-        p.buffer_tombstone(&exec, "restaurant", ts).await;
+        p.buffer_tombstone(&exec, ts).await;
 
         // verify data
         assert!(p.data.buffer.is_none()); // always empty after delete
@@ -563,7 +564,7 @@ mod tests {
             "temp=60", // delete predicate
         );
         // the row with temp=60 will be removed from the sanphot
-        p.buffer_tombstone(&exec, "restaurant", ts).await;
+        p.buffer_tombstone(&exec, ts).await;
 
         // verify data
         assert!(p.data.buffer.is_none()); // always empty after delete

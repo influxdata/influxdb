@@ -57,7 +57,7 @@ pub struct QueryableBatch {
     pub(crate) delete_predicates: Vec<Arc<DeletePredicate>>,
 
     /// This is needed to return a reference for a trait function
-    pub(crate) table_name: String,
+    pub(crate) table_name: Arc<str>,
 
     /// Partition ID
     pub(crate) partition_id: PartitionId,
@@ -66,7 +66,7 @@ pub struct QueryableBatch {
 impl QueryableBatch {
     /// Initilaize a QueryableBatch
     pub fn new(
-        table_name: &str,
+        table_name: Arc<str>,
         partition_id: PartitionId,
         data: Vec<Arc<SnapshotBatch>>,
         deletes: Vec<Tombstone>,
@@ -75,7 +75,7 @@ impl QueryableBatch {
         Self {
             data,
             delete_predicates,
-            table_name: table_name.to_string(),
+            table_name,
             partition_id,
         }
     }
@@ -318,7 +318,7 @@ mod tests {
 
         // This new queryable batch will convert tombstone to delete predicates
         let query_batch =
-            QueryableBatch::new("test_table", PartitionId::new(0), vec![], tombstones);
+            QueryableBatch::new("test_table".into(), PartitionId::new(0), vec![], tombstones);
         let predicates = query_batch.delete_predicates();
         let expected = vec![
             Arc::new(DeletePredicate {

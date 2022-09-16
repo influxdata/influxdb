@@ -1,6 +1,6 @@
 //! Table level data buffer structures.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 use data_types::{DeletePredicate, PartitionKey, SequenceNumber, ShardId, TableId, Timestamp};
 use iox_catalog::interface::Catalog;
@@ -16,6 +16,7 @@ use crate::lifecycle::LifecycleHandle;
 #[derive(Debug)]
 pub(crate) struct TableData {
     table_id: TableId,
+    table_name: Arc<str>,
     // the max sequence number for a tombstone associated with this table
     tombstone_max_sequence_number: Option<SequenceNumber>,
     // Map pf partition key to its data
@@ -24,9 +25,14 @@ pub(crate) struct TableData {
 
 impl TableData {
     /// Initialize new table buffer
-    pub fn new(table_id: TableId, tombstone_max_sequence_number: Option<SequenceNumber>) -> Self {
+    pub fn new(
+        table_id: TableId,
+        table_name: &str,
+        tombstone_max_sequence_number: Option<SequenceNumber>,
+    ) -> Self {
         Self {
             table_id,
+            table_name: table_name.into(),
             tombstone_max_sequence_number,
             partition_data: Default::default(),
         }
@@ -36,11 +42,13 @@ impl TableData {
     #[cfg(test)]
     pub fn new_for_test(
         table_id: TableId,
+        table_name: &str,
         tombstone_max_sequence_number: Option<SequenceNumber>,
         partitions: BTreeMap<PartitionKey, PartitionData>,
     ) -> Self {
         Self {
             table_id,
+            table_name: table_name.into(),
             tombstone_max_sequence_number,
             partition_data: partitions,
         }
@@ -102,7 +110,6 @@ impl TableData {
 
     pub(super) async fn buffer_delete(
         &mut self,
-        table_name: &str,
         predicate: &DeletePredicate,
         shard_id: ShardId,
         sequence_number: SequenceNumber,
@@ -131,8 +138,7 @@ impl TableData {
 
         // modify one partition at a time
         for data in self.partition_data.values_mut() {
-            data.buffer_tombstone(executor, table_name, tombstone.clone())
-                .await;
+            data.buffer_tombstone(executor, tombstone.clone()).await;
         }
 
         Ok(())
@@ -175,6 +181,7 @@ impl TableData {
                 partition.id,
                 shard_id,
                 self.table_id,
+                Arc::clone(&self.table_name),
                 partition.persisted_sequence_number,
             ),
         );

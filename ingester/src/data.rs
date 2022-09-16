@@ -267,7 +267,12 @@ impl Persister for IngesterData {
             .await
             .expect("retry forever");
 
-        let persisting_batch = namespace.snapshot_to_persisting(&partition_info).await;
+        let persisting_batch = namespace
+            .snapshot_to_persisting(
+                &partition_info.table_name,
+                &partition_info.partition.partition_key,
+            )
+            .await;
 
         if let Some(persisting_batch) = persisting_batch {
             // do the CPU intensive work of compaction, de-duplication and sorting
