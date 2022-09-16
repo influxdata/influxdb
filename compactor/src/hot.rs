@@ -252,6 +252,49 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn no_partitions_no_candidates() {
+        let TestSetup {
+            catalog, shard1, ..
+        } = test_setup().await;
+
+        let candidates = hot_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            shard1.shard.id,
+            &query_times(catalog.time_provider()),
+            1,
+            1,
+        )
+        .await
+        .unwrap();
+
+        assert!(candidates.is_empty());
+    }
+
+    #[tokio::test]
+    async fn no_files_no_candidates() {
+        let TestSetup {
+            catalog,
+            shard1,
+            table1,
+            ..
+        } = test_setup().await;
+
+        table1.with_shard(&shard1).create_partition("one").await;
+
+        let candidates = hot_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            shard1.shard.id,
+            &query_times(catalog.time_provider()),
+            1,
+            1,
+        )
+        .await
+        .unwrap();
+
+        assert!(candidates.is_empty());
+    }
+
+    #[tokio::test]
     async fn test_hot_partitions_to_compact() {
         let TestSetup {
             catalog,
@@ -298,14 +341,6 @@ mod tests {
         // but all the writes, deletes and updates in Cases 1 and 2 are a must for testing Case 3.
         // In order words, the last Case needs all content of previous tests.
         // This shows the priority of selecting compaction candidates
-
-        // --------------------------------------
-        // Case 1: no files yet --> no partition candidates
-        //
-        let candidates = hot_partitions_to_compact(Arc::clone(&compactor))
-            .await
-            .unwrap();
-        assert!(candidates.is_empty());
 
         // --------------------------------------
         // Case 2: no non-deleleted L0 files -->  no partition candidates
