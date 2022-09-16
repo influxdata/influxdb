@@ -694,7 +694,11 @@ impl MockIngester {
 
         let shards = BTreeMap::from([(
             shard.shard.id,
-            ShardData::new(shard.shard.shard_index, catalog.metric_registry()),
+            ShardData::new(
+                shard.shard.shard_index,
+                shard.shard.id,
+                catalog.metric_registry(),
+            ),
         )]);
         let ingester_data = Arc::new(IngesterData::new(
             catalog.object_store(),

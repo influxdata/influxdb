@@ -26,8 +26,11 @@ use crate::lifecycle::LifecycleHandle;
 #[derive(Debug)]
 pub struct NamespaceData {
     namespace_id: NamespaceId,
-    tables: RwLock<BTreeMap<String, Arc<tokio::sync::RwLock<TableData>>>>,
 
+    /// The catalog ID of the shard this namespace is being populated from.
+    shard_id: ShardId,
+
+    tables: RwLock<BTreeMap<String, Arc<tokio::sync::RwLock<TableData>>>>,
     table_count: U64Counter,
 
     /// The sequence number being actively written, if any.
@@ -78,7 +81,7 @@ pub struct NamespaceData {
 
 impl NamespaceData {
     /// Initialize new tables with default partition template of daily
-    pub fn new(namespace_id: NamespaceId, metrics: &metric::Registry) -> Self {
+    pub fn new(namespace_id: NamespaceId, shard_id: ShardId, metrics: &metric::Registry) -> Self {
         let table_count = metrics
             .register_metric::<U64Counter>(
                 "ingester_tables_total",
@@ -88,6 +91,7 @@ impl NamespaceData {
 
         Self {
             namespace_id,
+            shard_id,
             tables: Default::default(),
             table_count,
             buffering_sequence_number: RwLock::new(None),
@@ -100,10 +104,12 @@ impl NamespaceData {
     #[cfg(test)]
     pub(crate) fn new_for_test(
         namespace_id: NamespaceId,
+        shard_id: ShardId,
         tables: BTreeMap<String, Arc<tokio::sync::RwLock<TableData>>>,
     ) -> Self {
         Self {
             namespace_id,
+            shard_id,
             tables: RwLock::new(tables),
             table_count: Default::default(),
             buffering_sequence_number: RwLock::new(None),
@@ -117,7 +123,6 @@ impl NamespaceData {
     pub async fn buffer_operation(
         &self,
         dml_operation: DmlOperation,
-        shard_id: ShardId,
         catalog: &dyn Catalog,
         lifecycle_handle: &dyn LifecycleHandle,
         executor: &Executor,
@@ -148,7 +153,7 @@ impl NamespaceData {
                 for (t, b) in write.into_tables() {
                     let table_data = match self.table_data(&t) {
                         Some(t) => t,
-                        None => self.insert_table(shard_id, &t, catalog).await?,
+                        None => self.insert_table(&t, catalog).await?,
                     };
 
                     {
@@ -159,7 +164,6 @@ impl NamespaceData {
                                 sequence_number,
                                 b,
                                 partition_key.clone(),
-                                shard_id,
                                 catalog,
                                 lifecycle_handle,
                             )
@@ -176,19 +180,13 @@ impl NamespaceData {
                 let table_name = delete.table_name().context(super::TableNotPresentSnafu)?;
                 let table_data = match self.table_data(table_name) {
                     Some(t) => t,
-                    None => self.insert_table(shard_id, table_name, catalog).await?,
+                    None => self.insert_table(table_name, catalog).await?,
                 };
 
                 let mut table_data = table_data.write().await;
 
                 table_data
-                    .buffer_delete(
-                        delete.predicate(),
-                        shard_id,
-                        sequence_number,
-                        catalog,
-                        executor,
-                    )
+                    .buffer_delete(delete.predicate(), sequence_number, catalog, executor)
                     .await?;
 
                 // don't pause writes since deletes don't count towards memory limits
@@ -250,14 +248,13 @@ impl NamespaceData {
     /// Inserts the table or returns it if it happens to be inserted by some other thread
     async fn insert_table(
         &self,
-        shard_id: ShardId,
         table_name: &str,
         catalog: &dyn Catalog,
     ) -> Result<Arc<tokio::sync::RwLock<TableData>>, super::Error> {
         let mut repos = catalog.repositories().await;
         let info = repos
             .tables()
-            .get_table_persist_info(shard_id, self.namespace_id, table_name)
+            .get_table_persist_info(self.shard_id, self.namespace_id, table_name)
             .await
             .context(super::CatalogSnafu)?
             .context(super::TableNotFoundSnafu { table_name })?;
@@ -269,6 +266,7 @@ impl NamespaceData {
                 let v = v.insert(Arc::new(tokio::sync::RwLock::new(TableData::new(
                     info.table_id,
                     table_name,
+                    self.shard_id,
                     info.tombstone_max_sequence_number,
                 ))));
                 self.table_count.inc(1);

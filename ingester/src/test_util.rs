@@ -692,11 +692,13 @@ pub fn make_ingester_data(two_partitions: bool, loc: DataLocation) -> IngesterDa
     let empty_tbl = Arc::new(tokio::sync::RwLock::new(TableData::new(
         empty_table_id,
         "test_table",
+        shard_id,
         None,
     )));
     let data_tbl = Arc::new(tokio::sync::RwLock::new(TableData::new_for_test(
         data_table_id,
         "test_table",
+        shard_id,
         None,
         partitions,
     )));
@@ -705,14 +707,18 @@ pub fn make_ingester_data(two_partitions: bool, loc: DataLocation) -> IngesterDa
 
     // Two namespaces: one empty and one with data of 2 tables
     let mut namespaces = BTreeMap::new();
-    let empty_ns = Arc::new(NamespaceData::new(NamespaceId::new(1), &*metrics));
-    let data_ns = Arc::new(NamespaceData::new_for_test(NamespaceId::new(2), tables));
+    let empty_ns = Arc::new(NamespaceData::new(NamespaceId::new(1), shard_id, &*metrics));
+    let data_ns = Arc::new(NamespaceData::new_for_test(
+        NamespaceId::new(2),
+        shard_id,
+        tables,
+    ));
     namespaces.insert(TEST_NAMESPACE_EMPTY.to_string(), empty_ns);
     namespaces.insert(TEST_NAMESPACE.to_string(), data_ns);
 
     // One shard that contains 2 namespaces
     let shard_index = ShardIndex::new(0);
-    let shard_data = ShardData::new_for_test(shard_index, namespaces);
+    let shard_data = ShardData::new_for_test(shard_index, shard_id, namespaces);
     let mut shards = BTreeMap::new();
     shards.insert(shard_id, shard_data);
 
@@ -743,7 +749,7 @@ pub async fn make_ingester_data_with_tombstones(loc: DataLocation) -> IngesterDa
 
     // Two tables: one empty and one with data of one or two partitions
     let mut tables = BTreeMap::new();
-    let data_tbl = TableData::new_for_test(data_table_id, TEST_TABLE, None, partitions);
+    let data_tbl = TableData::new_for_test(data_table_id, TEST_TABLE, shard_id, None, partitions);
     tables.insert(
         TEST_TABLE.to_string(),
         Arc::new(tokio::sync::RwLock::new(data_tbl)),
@@ -751,12 +757,16 @@ pub async fn make_ingester_data_with_tombstones(loc: DataLocation) -> IngesterDa
 
     // Two namespaces: one empty and one with data of 2 tables
     let mut namespaces = BTreeMap::new();
-    let data_ns = Arc::new(NamespaceData::new_for_test(NamespaceId::new(2), tables));
+    let data_ns = Arc::new(NamespaceData::new_for_test(
+        NamespaceId::new(2),
+        shard_id,
+        tables,
+    ));
     namespaces.insert(TEST_NAMESPACE.to_string(), data_ns);
 
     // One shard that contains 1 namespace
     let shard_index = ShardIndex::new(0);
-    let shard_data = ShardData::new_for_test(shard_index, namespaces);
+    let shard_data = ShardData::new_for_test(shard_index, shard_id, namespaces);
     let mut shards = BTreeMap::new();
     shards.insert(shard_id, shard_data);
 
