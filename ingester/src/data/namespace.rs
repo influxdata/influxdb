@@ -233,11 +233,7 @@ impl NamespaceData {
                 .partition_data
                 .get_mut(&partition_info.partition.partition_key)
                 .and_then(|partition_data| {
-                    partition_data.snapshot_to_persisting_batch(
-                        partition_info.partition.shard_id,
-                        partition_info.partition.table_id,
-                        &partition_info.table_name,
-                    )
+                    partition_data.snapshot_to_persisting_batch(&partition_info.table_name)
                 });
         }
 

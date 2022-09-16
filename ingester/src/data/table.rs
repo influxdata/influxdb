@@ -171,7 +171,12 @@ impl TableData {
 
         self.partition_data.insert(
             partition.partition_key,
-            PartitionData::new(partition.id, partition.persisted_sequence_number),
+            PartitionData::new(
+                partition.id,
+                shard_id,
+                self.table_id,
+                partition.persisted_sequence_number,
+            ),
         );
 
         Ok(())

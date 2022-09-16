@@ -809,7 +809,7 @@ pub(crate) fn make_partitions(
     let mut seq_num = seq_num.get();
     if two_partitions {
         let partition_id = PartitionId::new(2);
-        let mut p2 = PartitionData::new(partition_id, None);
+        let mut p2 = PartitionData::new(partition_id, shard_id, table_id, None);
         // Group 4: in buffer of p2
         // Fill `buffer`
         seq_num += 1;
@@ -933,7 +933,7 @@ fn make_first_partition_data(
 
     // ------------------------------------------
     // Build the first partition
-    let mut p1 = PartitionData::new(partition_id, None);
+    let mut p1 = PartitionData::new(partition_id, shard_id, table_id, None);
     let mut seq_num = 0;
 
     // --------------------
@@ -952,7 +952,7 @@ fn make_first_partition_data(
 
     if loc.contains(DataLocation::PERSISTING) {
         // Move group 1 data to persisting
-        p1.snapshot_to_persisting_batch(shard_id, table_id, table_name);
+        p1.snapshot_to_persisting_batch(table_name);
     } else if loc.contains(DataLocation::SNAPSHOT) {
         // move group 1 data to snapshot
         p1.snapshot().unwrap();

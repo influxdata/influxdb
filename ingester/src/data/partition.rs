@@ -111,7 +111,12 @@ impl SnapshotBatch {
 /// Data of an IOx Partition of a given Table of a Namesapce that belongs to a given Shard
 #[derive(Debug)]
 pub(crate) struct PartitionData {
+    /// The catalog ID of the partition this buffer is for.
     id: PartitionId,
+    /// The shard and table IDs for this partition.
+    shard_id: ShardId,
+    table_id: TableId,
+
     pub(crate) data: DataBuffer,
 
     /// The max_persisted_sequence number for any parquet_file in this
@@ -121,9 +126,16 @@ pub(crate) struct PartitionData {
 
 impl PartitionData {
     /// Initialize a new partition data buffer
-    pub fn new(id: PartitionId, max_persisted_sequence_number: Option<SequenceNumber>) -> Self {
+    pub fn new(
+        id: PartitionId,
+        shard_id: ShardId,
+        table_id: TableId,
+        max_persisted_sequence_number: Option<SequenceNumber>,
+    ) -> Self {
         Self {
             id,
+            shard_id,
+            table_id,
             data: Default::default(),
             max_persisted_sequence_number,
         }
@@ -132,12 +144,10 @@ impl PartitionData {
     /// Snapshot anything in the buffer and move all snapshot data into a persisting batch
     pub fn snapshot_to_persisting_batch(
         &mut self,
-        shard_id: ShardId,
-        table_id: TableId,
         table_name: &str,
     ) -> Option<Arc<PersistingBatch>> {
         self.data
-            .snapshot_to_persisting(shard_id, table_id, self.id, table_name)
+            .snapshot_to_persisting(self.shard_id, self.table_id, self.id, table_name)
     }
 
     /// Snapshot whatever is in the buffer and return a new vec of the
@@ -291,11 +301,8 @@ mod tests {
 
     #[test]
     fn snapshot_buffer_different_but_compatible_schemas() {
-        let mut partition_data = PartitionData {
-            id: PartitionId::new(1),
-            data: Default::default(),
-            max_persisted_sequence_number: None,
-        };
+        let mut partition_data =
+            PartitionData::new(PartitionId::new(1), ShardId::new(1), TableId::new(1), None);
 
         let seq_num1 = SequenceNumber::new(1);
         // Missing tag `t1`
@@ -335,7 +342,12 @@ mod tests {
         let t_id = 1;
         let p_id = 1;
         let table_name = "restaurant";
-        let mut p = PartitionData::new(PartitionId::new(p_id), None);
+        let mut p = PartitionData::new(
+            PartitionId::new(p_id),
+            ShardId::new(s_id),
+            TableId::new(t_id),
+            None,
+        );
         let exec = Executor::new(1);
 
         // ------------------------------------------
@@ -461,9 +473,7 @@ mod tests {
 
         // ------------------------------------------
         // Persisting
-        let p_batch = p
-            .snapshot_to_persisting_batch(ShardId::new(s_id), TableId::new(t_id), table_name)
-            .unwrap();
+        let p_batch = p.snapshot_to_persisting_batch(table_name).unwrap();
 
         // verify data
         assert!(p.data.buffer.is_none()); // always empty after issuing persit
