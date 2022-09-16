@@ -869,6 +869,9 @@ mod tests {
             .map(|f| (f.id.get(), f.compaction_level))
             .collect();
 
+        // The initial files are: L0 1-4, L1 5-6. The first step of cold compaction took files 1-5
+        // and compacted them and split them into files 7 and 8. The second step of cold compaction
+        // took 6, 7, and 8 and combined them all into file 9.
         assert_eq!(files_and_levels, vec![(9, CompactionLevel::Final)]);
 
         // ------------------------------------------------
