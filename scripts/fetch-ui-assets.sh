@@ -18,13 +18,15 @@ declare -r SCRIPT_DIR=$(cd $(dirname ${0}) >/dev/null 2>&1 && pwd)
 declare -r ROOT_DIR=$(dirname ${SCRIPT_DIR})
 declare -r STATIC_DIR="$ROOT_DIR/static"
 
+UI_RELEASE="OSS-2022-09-16"
+
 # Download the SHA256 checksum attached to the release. To verify the integrity
 # of the download, this checksum will be used to check the download tar file
 # containing the built UI assets.
-curl -Ls https://github.com/influxdata/ui/releases/download/OSS-2022-09-01/sha256.txt --output sha256.txt
+curl -Ls https://github.com/influxdata/ui/releases/download/$UI_RELEASE/sha256.txt --output sha256.txt
 
 # Download the tar file containing the built UI assets.
-curl -L https://github.com/influxdata/ui/releases/download/OSS-2022-09-01/build.tar.gz --output build.tar.gz
+curl -L https://github.com/influxdata/ui/releases/download/$UI_RELEASE/build.tar.gz --output build.tar.gz
 
 # Verify the checksums match; exit if they don't.
 case "$(uname -s)" in
