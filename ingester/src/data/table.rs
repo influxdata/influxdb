@@ -1,6 +1,6 @@
 //! Table level data buffer structures.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 use data_types::{DeletePredicate, PartitionKey, SequenceNumber, ShardId, TableId, Timestamp};
 use iox_catalog::interface::Catalog;
@@ -16,6 +16,11 @@ use crate::lifecycle::LifecycleHandle;
 #[derive(Debug)]
 pub(crate) struct TableData {
     table_id: TableId,
+    table_name: Arc<str>,
+
+    /// The catalog ID of the shard this table is being populated from.
+    shard_id: ShardId,
+
     // the max sequence number for a tombstone associated with this table
     tombstone_max_sequence_number: Option<SequenceNumber>,
     // Map pf partition key to its data
@@ -24,9 +29,16 @@ pub(crate) struct TableData {
 
 impl TableData {
     /// Initialize new table buffer
-    pub fn new(table_id: TableId, tombstone_max_sequence_number: Option<SequenceNumber>) -> Self {
+    pub fn new(
+        table_id: TableId,
+        table_name: &str,
+        shard_id: ShardId,
+        tombstone_max_sequence_number: Option<SequenceNumber>,
+    ) -> Self {
         Self {
             table_id,
+            table_name: table_name.into(),
+            shard_id,
             tombstone_max_sequence_number,
             partition_data: Default::default(),
         }
@@ -36,11 +48,15 @@ impl TableData {
     #[cfg(test)]
     pub fn new_for_test(
         table_id: TableId,
+        table_name: &str,
+        shard_id: ShardId,
         tombstone_max_sequence_number: Option<SequenceNumber>,
         partitions: BTreeMap<PartitionKey, PartitionData>,
     ) -> Self {
         Self {
             table_id,
+            table_name: table_name.into(),
+            shard_id,
             tombstone_max_sequence_number,
             partition_data: partitions,
         }
@@ -68,14 +84,13 @@ impl TableData {
         sequence_number: SequenceNumber,
         batch: MutableBatch,
         partition_key: PartitionKey,
-        shard_id: ShardId,
         catalog: &dyn Catalog,
         lifecycle_handle: &dyn LifecycleHandle,
     ) -> Result<bool, super::Error> {
         let partition_data = match self.partition_data.get_mut(&partition_key) {
             Some(p) => p,
             None => {
-                self.insert_partition(partition_key.clone(), shard_id, catalog)
+                self.insert_partition(partition_key.clone(), self.shard_id, catalog)
                     .await?;
                 self.partition_data.get_mut(&partition_key).unwrap()
             }
@@ -90,7 +105,7 @@ impl TableData {
 
         let should_pause = lifecycle_handle.log_write(
             partition_data.id(),
-            shard_id,
+            self.shard_id,
             sequence_number,
             batch.size(),
             batch.rows(),
@@ -102,9 +117,7 @@ impl TableData {
 
     pub(super) async fn buffer_delete(
         &mut self,
-        table_name: &str,
         predicate: &DeletePredicate,
-        shard_id: ShardId,
         sequence_number: SequenceNumber,
         catalog: &dyn Catalog,
         executor: &Executor,
@@ -117,7 +130,7 @@ impl TableData {
             .tombstones()
             .create_or_get(
                 self.table_id,
-                shard_id,
+                self.shard_id,
                 sequence_number,
                 min_time,
                 max_time,
@@ -131,8 +144,7 @@ impl TableData {
 
         // modify one partition at a time
         for data in self.partition_data.values_mut() {
-            data.buffer_tombstone(executor, table_name, tombstone.clone())
-                .await;
+            data.buffer_tombstone(executor, tombstone.clone()).await;
         }
 
         Ok(())
@@ -171,7 +183,13 @@ impl TableData {
 
         self.partition_data.insert(
             partition.partition_key,
-            PartitionData::new(partition.id, partition.persisted_sequence_number),
+            PartitionData::new(
+                partition.id,
+                shard_id,
+                self.table_id,
+                Arc::clone(&self.table_name),
+                partition.persisted_sequence_number,
+            ),
         );
 
         Ok(())

@@ -140,7 +140,7 @@ impl IngestHandlerImpl {
         for s in shard_states.values() {
             shards.insert(
                 s.id,
-                ShardData::new(s.shard_index, Arc::clone(&metric_registry)),
+                ShardData::new(s.shard_index, s.id, Arc::clone(&metric_registry)),
             );
         }
         let data = Arc::new(IngesterData::new(

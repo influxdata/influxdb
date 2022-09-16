@@ -166,7 +166,6 @@ impl IngesterData {
         shard_data
             .buffer_operation(
                 dml_operation,
-                shard_id,
                 self.catalog.as_ref(),
                 lifecycle_handle,
                 &self.exec,
@@ -267,7 +266,12 @@ impl Persister for IngesterData {
             .await
             .expect("retry forever");
 
-        let persisting_batch = namespace.snapshot_to_persisting(&partition_info).await;
+        let persisting_batch = namespace
+            .snapshot_to_persisting(
+                &partition_info.table_name,
+                &partition_info.partition.partition_key,
+            )
+            .await;
 
         if let Some(persisting_batch) = persisting_batch {
             // do the CPU intensive work of compaction, de-duplication and sorting
@@ -648,7 +652,10 @@ mod tests {
 
         let mut shards = BTreeMap::new();
         let shard_index = ShardIndex::new(0);
-        shards.insert(shard1.id, ShardData::new(shard_index, Arc::clone(&metrics)));
+        shards.insert(
+            shard1.id,
+            ShardData::new(shard_index, shard1.id, Arc::clone(&metrics)),
+        );
 
         let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
 
@@ -733,7 +740,7 @@ mod tests {
         let mut shards = BTreeMap::new();
         shards.insert(
             shard1.id,
-            ShardData::new(shard1.shard_index, Arc::clone(&metrics)),
+            ShardData::new(shard1.shard_index, shard1.id, Arc::clone(&metrics)),
         );
 
         let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
@@ -838,11 +845,11 @@ mod tests {
         let mut shards = BTreeMap::new();
         shards.insert(
             shard1.id,
-            ShardData::new(shard1.shard_index, Arc::clone(&metrics)),
+            ShardData::new(shard1.shard_index, shard1.id, Arc::clone(&metrics)),
         );
         shards.insert(
             shard2.id,
-            ShardData::new(shard2.shard_index, Arc::clone(&metrics)),
+            ShardData::new(shard2.shard_index, shard2.id, Arc::clone(&metrics)),
         );
 
         let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
@@ -1094,11 +1101,11 @@ mod tests {
         let mut shards = BTreeMap::new();
         shards.insert(
             shard1.id,
-            ShardData::new(shard1.shard_index, Arc::clone(&metrics)),
+            ShardData::new(shard1.shard_index, shard1.id, Arc::clone(&metrics)),
         );
         shards.insert(
             shard2.id,
-            ShardData::new(shard2.shard_index, Arc::clone(&metrics)),
+            ShardData::new(shard2.shard_index, shard2.id, Arc::clone(&metrics)),
         );
 
         let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
@@ -1333,7 +1340,7 @@ mod tests {
         );
         let exec = Executor::new(1);
 
-        let data = NamespaceData::new(namespace.id, &*metrics);
+        let data = NamespaceData::new(namespace.id, shard.id, &*metrics);
 
         // w1 should be ignored because the per-partition replay offset is set
         // to 1 already, so it shouldn't be buffered and the buffer should
@@ -1341,7 +1348,6 @@ mod tests {
         let should_pause = data
             .buffer_operation(
                 DmlOperation::Write(w1),
-                shard.id,
                 catalog.as_ref(),
                 &manager.handle(),
                 &exec,
@@ -1363,7 +1369,6 @@ mod tests {
         // w2 should be in the buffer
         data.buffer_operation(
             DmlOperation::Write(w2),
-            shard.id,
             catalog.as_ref(),
             &manager.handle(),
             &exec,
@@ -1405,7 +1410,10 @@ mod tests {
 
         let mut shards = BTreeMap::new();
         let shard_index = ShardIndex::new(0);
-        shards.insert(shard1.id, ShardData::new(shard_index, Arc::clone(&metrics)));
+        shards.insert(
+            shard1.id,
+            ShardData::new(shard_index, shard1.id, Arc::clone(&metrics)),
+        );
 
         let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
 

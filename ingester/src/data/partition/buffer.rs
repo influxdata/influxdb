@@ -109,7 +109,7 @@ impl DataBuffer {
     /// Both buffer and snapshots will be empty after this
     pub(super) fn snapshot_to_queryable_batch(
         &mut self,
-        table_name: &str,
+        table_name: &Arc<str>,
         partition_id: PartitionId,
         tombstone: Option<Tombstone>,
     ) -> Option<QueryableBatch> {
@@ -129,7 +129,7 @@ impl DataBuffer {
             None
         } else {
             Some(QueryableBatch::new(
-                table_name,
+                Arc::clone(table_name),
                 partition_id,
                 data,
                 tombstones,
@@ -164,7 +164,7 @@ impl DataBuffer {
         shard_id: ShardId,
         table_id: TableId,
         partition_id: PartitionId,
-        table_name: &str,
+        table_name: &Arc<str>,
     ) -> Option<Arc<PersistingBatch>> {
         if self.persisting.is_some() {
             panic!("Unable to snapshot while persisting. This is an unexpected state.")
