@@ -643,12 +643,20 @@ mod tests {
             .with_creation_time(hot_time_one_hour_ago);
         partition6.create_parquet_file_catalog_record(pf6_2).await;
 
+        let query_times = query_times(compactor.catalog.time_provider());
+
         // partition candidates: partitions with L0 and overlapped L1
-        let mut candidates = hot_partitions_to_compact(Arc::clone(&compactor))
-            .await
-            .unwrap();
+        let mut candidates = hot_partitions_for_shard(
+            Arc::clone(&compactor.catalog),
+            shard.shard.id,
+            &query_times,
+            1,
+            100,
+        )
+        .await
+        .unwrap();
         assert_eq!(candidates.len(), 6);
-        candidates.sort_by_key(|c| c.candidate.partition_id);
+        candidates.sort_by_key(|c| c.partition_id);
         {
             let mut repos = compactor.catalog.repositories().await;
             let skipped_compactions = repos.partitions().list_skipped_compactions().await.unwrap();
@@ -657,6 +665,12 @@ mod tests {
                 "Expected no skipped compactions, got: {skipped_compactions:?}"
             );
         }
+
+        let table_columns = compactor.table_columns(&candidates).await.unwrap();
+        let candidates = compactor
+            .add_info_to_partitions(&candidates, &table_columns)
+            .await
+            .unwrap();
 
         // There are 3 rounds of parallel compaction:
         //
@@ -891,13 +905,30 @@ mod tests {
         let count = catalog.count_level_0_files(shard.shard.id).await;
         assert_eq!(count, 4);
 
+        let query_times = query_times(compactor.catalog.time_provider());
+
         // ------------------------------------------------
         // Compact
-        let mut partition_candidates = hot_partitions_to_compact(Arc::clone(&compactor))
-            .await
-            .unwrap();
+        let partition_candidates = hot_partitions_for_shard(
+            Arc::clone(&compactor.catalog),
+            shard.shard.id,
+            &query_times,
+            1,
+            1,
+        )
+        .await
+        .unwrap();
 
         assert_eq!(partition_candidates.len(), 1);
+
+        let table_columns = compactor
+            .table_columns(&partition_candidates)
+            .await
+            .unwrap();
+        let mut partition_candidates = compactor
+            .add_info_to_partitions(&partition_candidates, &table_columns)
+            .await
+            .unwrap();
         let partition = partition_candidates.pop().unwrap();
 
         let parquet_files_for_compaction =
