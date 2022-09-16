@@ -901,4 +901,237 @@ mod tests {
             &batches
         );
     }
+
+    #[tokio::test]
+    async fn full_cold_compaction_new_level_1_overlapping_with_level_2() {
+        test_helpers::maybe_start_logging();
+        let catalog = TestCatalog::new();
+
+        // lp1 will be level 1 with min time 10, overlaps with lp5 (L2)
+        let lp1 = vec![
+            "table,tag1=WA field_int=1000i 10",
+            "table,tag1=VT field_int=10i 20",
+        ]
+        .join("\n");
+
+        // lp2 will be level 2 with min time 8000, overlaps with lp3 (L1)
+        let lp2 = vec![
+            "table,tag1=WA field_int=1000i 8000", // will be eliminated due to duplicate with l1
+            "table,tag1=VT field_int=10i 10000",
+            "table,tag1=UT field_int=70i 20000",
+        ]
+        .join("\n");
+
+        // lp3 will be level 1 with min time 6000, overlaps with lp2 (L2)
+        let lp3 = vec![
+            "table,tag1=WA field_int=1500i 8000", // latest duplicate and kept
+            "table,tag1=VT field_int=10i 6000",
+            "table,tag1=UT field_int=270i 25000",
+        ]
+        .join("\n");
+
+        // lp4 will be level 1 with min time 26000, no overlaps
+        let lp4 = vec![
+            "table,tag2=WA,tag3=10 field_int=1600i 28000",
+            "table,tag2=VT,tag3=20 field_int=20i 26000",
+        ]
+        .join("\n");
+
+        // lp5 will be level 2 with min time 21, overlaps with lp1 (L1)
+        let lp5 = vec![
+            "table,tag2=PA,tag3=15 field_int=1601i 9",
+            "table,tag2=OH,tag3=21 field_int=21i 25",
+        ]
+        .join("\n");
+
+        // lp6 will be level 2, no overlaps
+        let lp6 = vec![
+            "table,tag2=PA,tag3=15 field_int=81601i 90000",
+            "table,tag2=OH,tag3=21 field_int=421i 91000",
+        ]
+        .join("\n");
+
+        let ns = catalog.create_namespace("ns").await;
+        let shard = ns.create_shard(1).await;
+        let table = ns.create_table("table").await;
+        table.create_column("field_int", ColumnType::I64).await;
+        table.create_column("tag1", ColumnType::Tag).await;
+        table.create_column("tag2", ColumnType::Tag).await;
+        table.create_column("tag3", ColumnType::Tag).await;
+        table.create_column("time", ColumnType::Time).await;
+
+        let partition = table.with_shard(&shard).create_partition("part").await;
+        let time = Arc::new(SystemProvider::new());
+        let time_38_hour_ago = (time.now() - Duration::from_secs(60 * 60 * 38)).timestamp_nanos();
+        let mut config = make_compactor_config();
+
+        // Set the memory budget such that only some of the files will be compacted in a group
+        config.memory_budget_bytes = 1050;
+
+        let metrics = Arc::new(metric::Registry::new());
+        let compactor = Arc::new(Compactor::new(
+            vec![shard.shard.id],
+            Arc::clone(&catalog.catalog),
+            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            Arc::new(Executor::new(1)),
+            Arc::new(SystemProvider::new()),
+            BackoffConfig::default(),
+            config,
+            Arc::clone(&metrics),
+        ));
+
+        // parquet files that are all in the same partition
+        let mut size_overrides = HashMap::<ParquetFileId, i64>::default();
+
+        // pf1, L1, overlaps with lp5 (L2)
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp1)
+            .with_max_seq(2)
+            .with_min_time(10)
+            .with_max_time(20)
+            .with_creation_time(time_38_hour_ago)
+            .with_compaction_level(CompactionLevel::FileNonOverlapped);
+        let pf1 = partition.create_parquet_file(builder).await;
+        size_overrides.insert(
+            pf1.parquet_file.id,
+            compactor.config.max_desired_file_size_bytes as i64 + 10,
+        );
+
+        // pf2, L2, overlaps with lp3 (L1)
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp2)
+            .with_max_seq(5)
+            .with_min_time(8_000)
+            .with_max_time(20_000)
+            .with_creation_time(time_38_hour_ago)
+            .with_compaction_level(CompactionLevel::Final);
+        let pf2 = partition.create_parquet_file(builder).await;
+        size_overrides.insert(
+            pf2.parquet_file.id,
+            100, // small file
+        );
+
+        // pf3, L1, overlaps with lp2 (L2)
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp3)
+            .with_max_seq(3)
+            .with_min_time(6_000)
+            .with_max_time(25_000)
+            .with_creation_time(time_38_hour_ago)
+            .with_compaction_level(CompactionLevel::FileNonOverlapped);
+        let pf3 = partition.create_parquet_file(builder).await;
+        size_overrides.insert(
+            pf3.parquet_file.id,
+            100, // small file
+        );
+
+        // pf4, L1, does not overlap with any, won't fit in budget with 1, 2, 3, 5
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp4)
+            .with_max_seq(1)
+            .with_min_time(26_000)
+            .with_max_time(28_000)
+            .with_creation_time(time_38_hour_ago)
+            .with_compaction_level(CompactionLevel::FileNonOverlapped);
+        let pf4 = partition.create_parquet_file(builder).await;
+        size_overrides.insert(
+            pf4.parquet_file.id,
+            100, // small file
+        );
+
+        // pf5, L2, overlaps with lp1 (L1)
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp5)
+            .with_max_seq(1)
+            .with_min_time(9)
+            .with_max_time(25)
+            .with_creation_time(time_38_hour_ago)
+            .with_compaction_level(CompactionLevel::Final);
+        let pf5 = partition.create_parquet_file(builder).await;
+        size_overrides.insert(
+            pf5.parquet_file.id,
+            100, // small file
+        );
+
+        // pf6, L2, does not overlap with any
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp6)
+            .with_max_seq(20)
+            .with_min_time(90000)
+            .with_max_time(91000)
+            .with_creation_time(time_38_hour_ago)
+            .with_compaction_level(CompactionLevel::Final);
+        let pf6 = partition.create_parquet_file(builder).await;
+        size_overrides.insert(
+            pf6.parquet_file.id,
+            100, // small file
+        );
+
+        // ------------------------------------------------
+        // Compact
+
+        compact(compactor).await;
+
+        // Should have 3 non-soft-deleted files:
+        //
+        // - pf4, the level 1 file untouched because it didn't fit in the memory budget
+        // - pf6, the level 2 file untouched because it doesn't overlap anything
+        // - the level 2 file created after combining all 3 level 1 files created by the first step
+        //   of compaction to compact remaining level 0 files
+        let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
+        assert_eq!(files.len(), 3, "{files:?}");
+        let files_and_levels: Vec<_> = files
+            .iter()
+            .map(|f| (f.id.get(), f.compaction_level))
+            .collect();
+
+        // File 4 was L1 but didn't fit in the memory budget, so was untouched.
+        // File 6 was already L2 and did not overlap with anything, so was untouched.
+        // Cold compaction took files 1, 2, 3, 5 and compacted them into file 7.
+        assert_eq!(
+            files_and_levels,
+            vec![
+                (4, CompactionLevel::FileNonOverlapped),
+                (6, CompactionLevel::Final),
+                (7, CompactionLevel::Final),
+            ]
+        );
+
+        // ------------------------------------------------
+        // Verify the parquet file content
+        let file1 = files.pop().unwrap();
+        let batches = table.read_parquet_file(file1).await;
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+------+------+--------------------------------+",
+                "| field_int | tag1 | tag2 | tag3 | time                           |",
+                "+-----------+------+------+------+--------------------------------+",
+                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000000020Z |",
+                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000006Z    |",
+                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000010Z    |",
+                "| 1000      | WA   |      |      | 1970-01-01T00:00:00.000000010Z |",
+                "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z    |",
+                "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000000009Z |",
+                "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000000025Z |",
+                "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z    |",
+                "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z    |",
+                "+-----------+------+------+------+--------------------------------+",
+            ],
+            &batches
+        );
+
+        let file0 = files.pop().unwrap();
+        let batches = table.read_parquet_file(file0).await;
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+------+-----------------------------+",
+                "| field_int | tag2 | tag3 | time                        |",
+                "+-----------+------+------+-----------------------------+",
+                "| 421       | OH   | 21   | 1970-01-01T00:00:00.000091Z |",
+                "| 81601     | PA   | 15   | 1970-01-01T00:00:00.000090Z |",
+                "+-----------+------+------+-----------------------------+",
+            ],
+            &batches
+        );
+    }
 }
