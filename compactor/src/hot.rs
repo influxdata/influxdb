@@ -20,19 +20,7 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
     let candidates = get_candidates_with_retry(
         Arc::clone(&compactor),
         compaction_type,
-        |compactor_for_retry| async move {
-            let max_number_partitions_per_shard =
-                compactor_for_retry.config.max_number_partitions_per_shard;
-            let min_number_recent_ingested_files_per_partition = compactor_for_retry
-                .config
-                .min_number_recent_ingested_files_per_partition;
-            hot_partitions_to_compact(
-                compactor_for_retry,
-                max_number_partitions_per_shard,
-                min_number_recent_ingested_files_per_partition,
-            )
-            .await
-        },
+        |compactor_for_retry| async move { hot_partitions_to_compact(compactor_for_retry).await },
     )
     .await;
 
@@ -84,15 +72,16 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
 ///   is the number of shards this compactor handles.
 async fn hot_partitions_to_compact(
     compactor: Arc<Compactor>,
-    // Max number of the most recent highest ingested throughput partitions
-    // per shard we want to read
-    max_num_partitions_per_shard: usize,
-    // Minimum number of the most recent writes per partition we want to count
-    // to prioritize partitions
-    min_recent_ingested_files: usize,
 ) -> Result<Vec<Arc<PartitionCompactionCandidateWithInfo>>, compact::Error> {
     let compaction_type = "hot";
-    let mut candidates = Vec::with_capacity(compactor.shards.len() * max_num_partitions_per_shard);
+
+    let min_number_recent_ingested_files_per_partition = compactor
+        .config
+        .min_number_recent_ingested_files_per_partition;
+    let max_number_partitions_per_shard = compactor.config.max_number_partitions_per_shard;
+
+    let mut candidates =
+        Vec::with_capacity(compactor.shards.len() * max_number_partitions_per_shard);
 
     // Get the most recent highest ingested throughput partitions within the last 4 hours. If not,
     // increase to 24 hours.
@@ -103,8 +92,8 @@ async fn hot_partitions_to_compact(
             Arc::clone(&compactor.catalog),
             shard_id,
             &query_times,
-            min_recent_ingested_files,
-            max_num_partitions_per_shard,
+            min_number_recent_ingested_files_per_partition,
+            max_number_partitions_per_shard,
         )
         .await?;
 
@@ -166,8 +155,12 @@ async fn hot_partitions_for_shard(
     catalog: Arc<dyn Catalog>,
     shard_id: ShardId,
     query_times: &[(u64, Timestamp)],
-    min_recent_ingested_files: usize,
-    max_num_partitions_per_shard: usize,
+    // Minimum number of the most recent writes per partition we want to count
+    // to prioritize partitions
+    min_number_recent_ingested_files_per_partition: usize,
+    // Max number of the most recent highest ingested throughput partitions
+    // per shard we want to read
+    max_number_partitions_per_shard: usize,
 ) -> Result<Vec<PartitionParam>, compact::Error> {
     let mut repos = catalog.repositories().await;
 
@@ -177,8 +170,8 @@ async fn hot_partitions_for_shard(
             .recent_highest_throughput_partitions(
                 shard_id,
                 hours_ago_in_ns,
-                min_recent_ingested_files,
-                max_num_partitions_per_shard,
+                min_number_recent_ingested_files_per_partition,
+                max_number_partitions_per_shard,
             )
             .await
             .map_err(|e| compact::Error::HighestThroughputPartitions {
@@ -372,7 +365,7 @@ mod tests {
         // --------------------------------------
         // Case 1: no files yet --> no partition candidates
         //
-        let candidates = hot_partitions_to_compact(Arc::clone(&compactor), 1, 1)
+        let candidates = hot_partitions_to_compact(Arc::clone(&compactor))
             .await
             .unwrap();
         assert!(candidates.is_empty());
@@ -398,7 +391,7 @@ mod tests {
             .unwrap();
         txn.commit().await.unwrap();
         // No non-deleted level 0 files yet --> no candidates
-        let candidates = hot_partitions_to_compact(Arc::clone(&compactor), 1, 1)
+        let candidates = hot_partitions_to_compact(Arc::clone(&compactor))
             .await
             .unwrap();
         assert!(candidates.is_empty());
@@ -419,7 +412,7 @@ mod tests {
         txn.commit().await.unwrap();
 
         // No hot candidates
-        let candidates = hot_partitions_to_compact(Arc::clone(&compactor), 1, 1)
+        let candidates = hot_partitions_to_compact(Arc::clone(&compactor))
             .await
             .unwrap();
         assert!(candidates.is_empty());
@@ -439,7 +432,7 @@ mod tests {
         txn.commit().await.unwrap();
         //
         // Has at least one partition with a recent write --> make it a candidate
-        let candidates = hot_partitions_to_compact(Arc::clone(&compactor), 1, 1)
+        let candidates = hot_partitions_to_compact(Arc::clone(&compactor))
             .await
             .unwrap();
         assert_eq!(candidates.len(), 1);
@@ -463,7 +456,7 @@ mod tests {
         txn.commit().await.unwrap();
         //
         // make partitions in the most recent group candidates
-        let candidates = hot_partitions_to_compact(Arc::clone(&compactor), 1, 1)
+        let candidates = hot_partitions_to_compact(Arc::clone(&compactor))
             .await
             .unwrap();
         assert_eq!(candidates.len(), 1);
@@ -486,7 +479,7 @@ mod tests {
         txn.commit().await.unwrap();
         //
         // Will have 2 candidates, one for each shard
-        let mut candidates = hot_partitions_to_compact(Arc::clone(&compactor), 1, 1)
+        let mut candidates = hot_partitions_to_compact(Arc::clone(&compactor))
             .await
             .unwrap();
         candidates.sort_by_key(|c| c.candidate);
@@ -651,7 +644,7 @@ mod tests {
         partition6.create_parquet_file_catalog_record(pf6_2).await;
 
         // partition candidates: partitions with L0 and overlapped L1
-        let mut candidates = hot_partitions_to_compact(Arc::clone(&compactor), 100, 1)
+        let mut candidates = hot_partitions_to_compact(Arc::clone(&compactor))
             .await
             .unwrap();
         assert_eq!(candidates.len(), 6);
@@ -900,7 +893,7 @@ mod tests {
 
         // ------------------------------------------------
         // Compact
-        let mut partition_candidates = hot_partitions_to_compact(Arc::clone(&compactor), 1, 1)
+        let mut partition_candidates = hot_partitions_to_compact(Arc::clone(&compactor))
             .await
             .unwrap();
 
