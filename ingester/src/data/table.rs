@@ -161,26 +161,17 @@ impl TableData {
         shard_id: ShardId,
         catalog: &dyn Catalog,
     ) -> Result<(), super::Error> {
-        let mut repos = catalog.repositories().await;
-        let partition = repos
+        let partition = catalog
+            .repositories()
+            .await
             .partitions()
             .create_or_get(partition_key, shard_id, self.table_id)
             .await
             .context(super::CatalogSnafu)?;
 
-        // get info on the persisted parquet files to use later for replay or for snapshot
-        // information on query.
-        let files = repos
-            .parquet_files()
-            .list_by_partition_not_to_delete(partition.id)
-            .await
-            .context(super::CatalogSnafu)?;
-        // for now we just need the max persisted
-        let max_persisted_sequence_number = files.iter().map(|p| p.max_sequence_number).max();
-
         self.partition_data.insert(
             partition.partition_key,
-            PartitionData::new(partition.id, max_persisted_sequence_number),
+            PartitionData::new(partition.id, partition.persisted_sequence_number),
         );
 
         Ok(())
