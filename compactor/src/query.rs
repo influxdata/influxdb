@@ -257,9 +257,9 @@ impl QueryChunk for QueryableParquetChunk {
             (Final, Final) => ChunkOrder::new(0),
 
             // Files that haven't yet been compacted to the target level were created later and
-            // should be sorted based on the appropriate order for their level.
+            // should be sorted based on their max sequence number.
             (FileNonOverlapped, Initial) => ChunkOrder::new(self.max_sequence_number.get()),
-            (Final, FileNonOverlapped) => ChunkOrder::new(self.min_time()),
+            (Final, FileNonOverlapped) => ChunkOrder::new(self.max_sequence_number.get()),
 
             // These combinations of target compaction level and file compaction level are
             // invalid in this context given the current compaction algorithm.
@@ -289,7 +289,6 @@ mod tests {
         compaction_level: CompactionLevel,
         target_level: CompactionLevel,
         max_sequence_number: i64,
-        min_time: i64,
     ) -> QueryableParquetChunk {
         let catalog = TestCatalog::new();
         let ns = catalog.create_namespace("ns").await;
@@ -308,8 +307,7 @@ mod tests {
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp)
             .with_compaction_level(compaction_level)
-            .with_max_seq(max_sequence_number)
-            .with_min_time(min_time);
+            .with_max_seq(max_sequence_number);
         let file = partition.create_parquet_file(builder).await;
         let parquet_file = Arc::new(file.parquet_file);
 
@@ -340,7 +338,6 @@ mod tests {
             CompactionLevel::Initial,
             CompactionLevel::FileNonOverlapped,
             2,
-            1_000_000,
         )
         .await;
 
@@ -353,7 +350,6 @@ mod tests {
             CompactionLevel::FileNonOverlapped,
             CompactionLevel::FileNonOverlapped,
             2,
-            1_000_000,
         )
         .await;
 
@@ -366,16 +362,15 @@ mod tests {
             CompactionLevel::FileNonOverlapped,
             CompactionLevel::Final,
             2,
-            1_000_000,
         )
         .await;
 
-        assert_eq!(chunk.order(), ChunkOrder::new(1_000_000,));
+        assert_eq!(chunk.order(), ChunkOrder::new(2));
     }
 
     #[tokio::test]
     async fn chunk_order_is_0_when_compaction_level_2_and_target_level_2() {
-        let chunk = test_setup(CompactionLevel::Final, CompactionLevel::Final, 2, 1_000_000).await;
+        let chunk = test_setup(CompactionLevel::Final, CompactionLevel::Final, 2).await;
 
         assert_eq!(chunk.order(), ChunkOrder::new(0));
     }
