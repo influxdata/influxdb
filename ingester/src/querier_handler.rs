@@ -191,7 +191,7 @@ async fn prepare_data_to_querier_for_partition(
         .persisting
         .unwrap_or_else(|| {
             QueryableBatch::new(
-                &request.table,
+                request.table.clone().into(),
                 unpersisted_partition_data.partition_id,
                 vec![],
                 vec![],

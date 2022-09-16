@@ -22,6 +22,8 @@ use crate::lifecycle::LifecycleHandle;
 pub struct ShardData {
     /// The shard index for this shard
     shard_index: ShardIndex,
+    /// The catalog ID for this shard.
+    shard_id: ShardId,
 
     // New namespaces can come in at any time so we need to be able to add new ones
     namespaces: RwLock<BTreeMap<String, Arc<NamespaceData>>>,
@@ -32,7 +34,7 @@ pub struct ShardData {
 
 impl ShardData {
     /// Initialise a new [`ShardData`] that emits metrics to `metrics`.
-    pub fn new(shard_index: ShardIndex, metrics: Arc<metric::Registry>) -> Self {
+    pub fn new(shard_index: ShardIndex, shard_id: ShardId, metrics: Arc<metric::Registry>) -> Self {
         let namespace_count = metrics
             .register_metric::<U64Counter>(
                 "ingester_namespaces_total",
@@ -42,6 +44,7 @@ impl ShardData {
 
         Self {
             shard_index,
+            shard_id,
             namespaces: Default::default(),
             metrics,
             namespace_count,
@@ -52,10 +55,12 @@ impl ShardData {
     #[cfg(test)]
     pub fn new_for_test(
         shard_index: ShardIndex,
+        shard_id: ShardId,
         namespaces: BTreeMap<String, Arc<NamespaceData>>,
     ) -> Self {
         Self {
             shard_index,
+            shard_id,
             namespaces: RwLock::new(namespaces),
             metrics: Default::default(),
             namespace_count: Default::default(),
@@ -69,7 +74,6 @@ impl ShardData {
     pub async fn buffer_operation(
         &self,
         dml_operation: DmlOperation,
-        shard_id: ShardId,
         catalog: &dyn Catalog,
         lifecycle_handle: &dyn LifecycleHandle,
         executor: &Executor,
@@ -83,7 +87,7 @@ impl ShardData {
         };
 
         namespace_data
-            .buffer_operation(dml_operation, shard_id, catalog, lifecycle_handle, executor)
+            .buffer_operation(dml_operation, catalog, lifecycle_handle, executor)
             .await
     }
 
@@ -112,7 +116,11 @@ impl ShardData {
 
         let data = match n.entry(namespace.name) {
             Entry::Vacant(v) => {
-                let v = v.insert(Arc::new(NamespaceData::new(namespace.id, &*self.metrics)));
+                let v = v.insert(Arc::new(NamespaceData::new(
+                    namespace.id,
+                    self.shard_id,
+                    &*self.metrics,
+                )));
                 self.namespace_count.inc(1);
                 Arc::clone(v)
             }
