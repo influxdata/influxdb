@@ -376,7 +376,7 @@ pub mod tests {
     use backoff::BackoffConfig;
     use data_types::ColumnType;
     use iox_query::exec::Executor;
-    use iox_tests::util::{TestCatalog, TestShard, TestTable};
+    use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestShard, TestTable};
     use iox_time::SystemProvider;
     use std::{
         collections::VecDeque,
@@ -545,6 +545,240 @@ pub mod tests {
             mock_compactor,
             shard,
             table,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_hot_compact_candidates_with_memory_budget() {
+        test_helpers::maybe_start_logging();
+
+        let TestSetup {
+            compactor,
+            mock_compactor,
+            shard,
+            table,
+            ..
+        } = test_setup().await;
+
+        // Some times in the past to set to created_at of the files
+        let hot_time_one_hour_ago = compactor.time_provider.hours_ago(1);
+
+        // P1:
+        //   L0 2 rows. bytes: 1125 * 2 = 2,250
+        //   L1 2 rows. bytes: 1125 * 2 = 2,250
+        // total = 2,250 + 2,250 = 4,500
+        let partition1 = table.with_shard(&shard).create_partition("one").await;
+
+        let pf1_1 = TestParquetFileBuilder::default()
+            .with_min_time(1)
+            .with_max_time(5)
+            .with_row_count(2)
+            .with_compaction_level(CompactionLevel::Initial)
+            .with_creation_time(hot_time_one_hour_ago);
+        partition1.create_parquet_file_catalog_record(pf1_1).await;
+
+        let pf1_2 = TestParquetFileBuilder::default()
+            .with_min_time(4) // overlapped with pf1_1
+            .with_max_time(6)
+            .with_row_count(2)
+            .with_compaction_level(CompactionLevel::FileNonOverlapped)
+            .with_creation_time(hot_time_one_hour_ago);
+        partition1.create_parquet_file_catalog_record(pf1_2).await;
+
+        // P2:
+        //   L0 2 rows. bytes: 1125 * 2 = 2,250
+        //   L1 2 rows. bytes: 1125 * 2 = 2,250
+        // total = 2,250 + 2,250 = 4,500
+        let partition2 = table.with_shard(&shard).create_partition("two").await;
+
+        let pf2_1 = TestParquetFileBuilder::default()
+            .with_min_time(1)
+            .with_max_time(5)
+            .with_row_count(2)
+            .with_compaction_level(CompactionLevel::Initial)
+            .with_creation_time(hot_time_one_hour_ago);
+        partition2.create_parquet_file_catalog_record(pf2_1).await;
+
+        let pf2_2 = TestParquetFileBuilder::default()
+            .with_min_time(4) // overlapped with pf2_1
+            .with_max_time(6)
+            .with_row_count(2)
+            .with_compaction_level(CompactionLevel::FileNonOverlapped)
+            .with_creation_time(hot_time_one_hour_ago);
+        partition2.create_parquet_file_catalog_record(pf2_2).await;
+
+        // P3: bytes >= 90% of full budget = 90% * 13,500 = 12,150
+        //   L0 6 rows. bytes: 1125 * 6 = 6,750
+        //   L1 4 rows. bytes: 1125 * 4 = 4,500
+        // total = 6,700 + 4,500 = 12,150
+        let partition3 = table.with_shard(&shard).create_partition("three").await;
+        let pf3_1 = TestParquetFileBuilder::default()
+            .with_min_time(1)
+            .with_max_time(5)
+            .with_row_count(6)
+            .with_compaction_level(CompactionLevel::Initial)
+            .with_creation_time(hot_time_one_hour_ago);
+        partition3.create_parquet_file_catalog_record(pf3_1).await;
+
+        let pf3_2 = TestParquetFileBuilder::default()
+            .with_min_time(4) // overlapped with pf3_1
+            .with_max_time(6)
+            .with_row_count(4)
+            .with_compaction_level(CompactionLevel::FileNonOverlapped)
+            .with_creation_time(hot_time_one_hour_ago);
+        partition3.create_parquet_file_catalog_record(pf3_2).await;
+
+        // P4: Over the full budget
+        // L0 with 8 rows.bytes =  1125 * 8 = 9,000
+        // L1 with 6 rows.bytes =  1125 * 6 = 6,750
+        // total = 15,750
+        let partition4 = table.with_shard(&shard).create_partition("four").await;
+        let pf4_1 = TestParquetFileBuilder::default()
+            .with_min_time(1)
+            .with_max_time(5)
+            .with_row_count(8)
+            .with_compaction_level(CompactionLevel::Initial)
+            .with_creation_time(hot_time_one_hour_ago);
+        partition4.create_parquet_file_catalog_record(pf4_1).await;
+
+        let pf4_2 = TestParquetFileBuilder::default()
+            .with_min_time(4) // overlapped with pf4_1
+            .with_max_time(6)
+            .with_row_count(6)
+            .with_compaction_level(CompactionLevel::FileNonOverlapped)
+            .with_creation_time(hot_time_one_hour_ago);
+        partition4.create_parquet_file_catalog_record(pf4_2).await;
+
+        // P5:
+        // L0 with 2 rows.bytes =  1125 * 2 = 2,250
+        // L1 with 2 rows.bytes =  1125 * 2 = 2,250
+        // total = 4,500
+        let partition5 = table.with_shard(&shard).create_partition("five").await;
+        let pf5_1 = TestParquetFileBuilder::default()
+            .with_min_time(1)
+            .with_max_time(5)
+            .with_row_count(2)
+            .with_compaction_level(CompactionLevel::Initial)
+            .with_creation_time(hot_time_one_hour_ago);
+        partition5.create_parquet_file_catalog_record(pf5_1).await;
+
+        let pf5_2 = TestParquetFileBuilder::default()
+            .with_min_time(4) // overlapped with pf5_1
+            .with_max_time(6)
+            .with_row_count(2)
+            .with_compaction_level(CompactionLevel::FileNonOverlapped)
+            .with_creation_time(hot_time_one_hour_ago);
+        partition5.create_parquet_file_catalog_record(pf5_2).await;
+
+        // P6:
+        // L0 with 2 rows.bytes =  1125 * 2 = 2,250
+        // L1 with 2 rows.bytes =  1125 * 2 = 2,250
+        // total = 4,500
+        let partition6 = table.with_shard(&shard).create_partition("six").await;
+        let pf6_1 = TestParquetFileBuilder::default()
+            .with_min_time(1)
+            .with_max_time(5)
+            .with_row_count(2)
+            .with_compaction_level(CompactionLevel::Initial)
+            .with_creation_time(hot_time_one_hour_ago);
+        partition6.create_parquet_file_catalog_record(pf6_1).await;
+
+        let pf6_2 = TestParquetFileBuilder::default()
+            .with_min_time(4) // overlapped with pf6_1
+            .with_max_time(6)
+            .with_row_count(2)
+            .with_compaction_level(CompactionLevel::FileNonOverlapped)
+            .with_creation_time(hot_time_one_hour_ago);
+        partition6.create_parquet_file_catalog_record(pf6_2).await;
+
+        // partition candidates: partitions with L0 and overlapped L1
+        let mut candidates = hot::hot_partitions_to_compact(Arc::clone(&compactor))
+            .await
+            .unwrap();
+        assert_eq!(candidates.len(), 6);
+        candidates.sort_by_key(|c| c.candidate.partition_id);
+        {
+            let mut repos = compactor.catalog.repositories().await;
+            let skipped_compactions = repos.partitions().list_skipped_compactions().await.unwrap();
+            assert!(
+                skipped_compactions.is_empty(),
+                "Expected no skipped compactions, got: {skipped_compactions:?}"
+            );
+        }
+
+        // There are 3 rounds of parallel compaction:
+        //
+        // * Round 1: 3 candidates [P1, P2, P5] and total needed budget 13,500
+        // * Round 2: 1 candidate [P6] and total needed budget 4,500
+        // * Round 3: 1 candidate [P3] and total needed budget 11,250
+        //
+        // P4 is not compacted due to overbudget.
+        compact_candidates_with_memory_budget(
+            Arc::clone(&compactor),
+            "hot",
+            CompactionLevel::Initial,
+            mock_compactor.compaction_function(),
+            true,
+            candidates.into(),
+        )
+        .await;
+
+        let compaction_groups = mock_compactor.results();
+
+        // 3 rounds of parallel compaction
+        assert_eq!(compaction_groups.len(), 3);
+
+        // Round 1
+        let group1 = &compaction_groups[0];
+        assert_eq!(group1.len(), 3);
+
+        let g1_candidate1 = &group1[0];
+        assert_eq!(g1_candidate1.partition.id(), partition1.partition.id);
+        let g1_candidate1_pf_ids: Vec<_> =
+            g1_candidate1.files.iter().map(|pf| pf.id().get()).collect();
+        assert_eq!(g1_candidate1_pf_ids, vec![2, 1]);
+
+        let g1_candidate2 = &group1[1];
+        assert_eq!(g1_candidate2.partition.id(), partition2.partition.id);
+        let g1_candidate2_pf_ids: Vec<_> =
+            g1_candidate2.files.iter().map(|pf| pf.id().get()).collect();
+        assert_eq!(g1_candidate2_pf_ids, vec![4, 3]);
+
+        let g1_candidate3 = &group1[2];
+        assert_eq!(g1_candidate3.partition.id(), partition5.partition.id);
+        let g1_candidate3_pf_ids: Vec<_> =
+            g1_candidate3.files.iter().map(|pf| pf.id().get()).collect();
+        assert_eq!(g1_candidate3_pf_ids, vec![10, 9]);
+
+        // Round 2
+        let group2 = &compaction_groups[1];
+        assert_eq!(group2.len(), 1);
+
+        let g2_candidate1 = &group2[0];
+        assert_eq!(g2_candidate1.partition.id(), partition6.partition.id);
+        let g2_candidate1_pf_ids: Vec<_> =
+            g2_candidate1.files.iter().map(|pf| pf.id().get()).collect();
+        assert_eq!(g2_candidate1_pf_ids, vec![12, 11]);
+
+        // Round 3
+        let group3 = &compaction_groups[2];
+        assert_eq!(group3.len(), 1);
+
+        let g3_candidate1 = &group3[0];
+        assert_eq!(g3_candidate1.partition.id(), partition3.partition.id);
+        let g3_candidate1_pf_ids: Vec<_> =
+            g3_candidate1.files.iter().map(|pf| pf.id().get()).collect();
+        assert_eq!(g3_candidate1_pf_ids, vec![6, 5]);
+
+        {
+            let mut repos = compactor.catalog.repositories().await;
+            let skipped_compactions = repos.partitions().list_skipped_compactions().await.unwrap();
+            assert_eq!(skipped_compactions.len(), 1);
+            assert_eq!(skipped_compactions[0].partition_id, partition4.partition.id);
+            assert_eq!(
+                skipped_compactions[0].reason,
+                "over memory budget. Needed budget = 15750, memory budget = 13500"
+            );
         }
     }
 }
