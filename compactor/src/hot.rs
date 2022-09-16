@@ -8,6 +8,7 @@ use crate::{
 };
 use data_types::{CompactionLevel, PartitionParam, ShardId, Timestamp};
 use iox_catalog::interface::Catalog;
+use iox_time::TimeProvider;
 use metric::Attributes;
 use observability_deps::tracing::*;
 use std::sync::Arc;
@@ -94,16 +95,8 @@ async fn hot_partitions_to_compact(
     let mut candidates = Vec::with_capacity(compactor.shards.len() * max_num_partitions_per_shard);
 
     // Get the most recent highest ingested throughput partitions within the last 4 hours. If not,
-    // increase to 24 hours. Query using `now() - num_hours` in nanoseconds.
-    let query_times: Vec<_> = [4, 24]
-        .iter()
-        .map(|&num_hours| {
-            (
-                num_hours,
-                Timestamp::from(compactor.time_provider.hours_ago(num_hours)),
-            )
-        })
-        .collect();
+    // increase to 24 hours.
+    let query_times = query_times(compactor.time_provider());
 
     for &shard_id in &compactor.shards {
         let mut partitions = hot_partitions_for_shard(
@@ -204,6 +197,18 @@ async fn hot_partitions_for_shard(
     }
 
     Ok(Vec::new())
+}
+
+fn query_times(time_provider: Arc<dyn TimeProvider>) -> Vec<(u64, Timestamp)> {
+    [4, 24]
+        .iter()
+        .map(|&num_hours| {
+            (
+                num_hours,
+                Timestamp::from(time_provider.hours_ago(num_hours)),
+            )
+        })
+        .collect()
 }
 
 #[cfg(test)]

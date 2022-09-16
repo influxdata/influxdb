@@ -250,6 +250,11 @@ impl Compactor {
         }
     }
 
+    /// Access to the TimeProvider
+    pub fn time_provider(&self) -> Arc<dyn TimeProvider> {
+        Arc::clone(&self.time_provider) as _
+    }
+
     /// Return a list of partitions that:
     ///
     /// - Have not received any writes in 8 hours (determined by all level 0 and level 1 parquet
