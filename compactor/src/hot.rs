@@ -208,15 +208,11 @@ mod tests {
     use super::*;
     use crate::{compact::Compactor, handler::CompactorConfig};
     use backoff::BackoffConfig;
-    use data_types::{
-        ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, SequenceNumber, ShardIndex,
-    };
+    use data_types::CompactionLevel;
     use iox_query::exec::Executor;
-    use iox_tests::util::TestCatalog;
-    use iox_time::SystemProvider;
+    use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestShard, TestTable};
     use parquet_file::storage::ParquetStorage;
     use std::sync::Arc;
-    use uuid::Uuid;
 
     fn make_compactor_config() -> CompactorConfig {
         CompactorConfig {
@@ -230,89 +226,58 @@ mod tests {
         }
     }
 
+    struct TestSetup {
+        catalog: Arc<TestCatalog>,
+        shard1: Arc<TestShard>,
+        table1: Arc<TestTable>,
+        shard2: Arc<TestShard>,
+        table2: Arc<TestTable>,
+    }
+
+    async fn test_setup() -> TestSetup {
+        let catalog = TestCatalog::new();
+        let namespace = catalog.create_namespace("namespace_hot_compaction").await;
+        let shard1 = namespace.create_shard(1).await;
+        let table1 = namespace.create_table("test_table1").await;
+        let shard2 = namespace.create_shard(2).await;
+        let table2 = namespace.create_table("test_table2").await;
+
+        TestSetup {
+            catalog,
+            shard1,
+            table1,
+            shard2,
+            table2,
+        }
+    }
+
     #[tokio::test]
     async fn test_hot_partitions_to_compact() {
-        let catalog = TestCatalog::new();
+        let TestSetup {
+            catalog,
+            shard1,
+            table1,
+            shard2,
+            table2,
+        } = test_setup().await;
 
-        // Create a db with 2 shards, one with 4 empty partitions and the other one with one
-        // empty partition
-        let mut txn = catalog.catalog.start_transaction().await.unwrap();
+        // Shard 1: 4 empty partitions
+        let partition1 = table1.with_shard(&shard1).create_partition("one").await;
+        let partition2 = table1.with_shard(&shard1).create_partition("two").await;
+        let partition3 = table1.with_shard(&shard1).create_partition("three").await;
+        let partition4 = table1.with_shard(&shard1).create_partition("four").await;
 
-        let topic = txn.topics().create_or_get("foo").await.unwrap();
-        let pool = txn.query_pools().create_or_get("foo").await.unwrap();
-        let namespace = txn
-            .namespaces()
-            .create(
-                "namespace_hot_partitions_to_compact",
-                "inf",
-                topic.id,
-                pool.id,
-            )
-            .await
-            .unwrap();
-        let table = txn
-            .tables()
-            .create_or_get("test_table", namespace.id)
-            .await
-            .unwrap();
-        let shard = txn
-            .shards()
-            .create_or_get(&topic, ShardIndex::new(1))
-            .await
-            .unwrap();
-        let partition1 = txn
-            .partitions()
-            .create_or_get("one".into(), shard.id, table.id)
-            .await
-            .unwrap();
-        let partition2 = txn
-            .partitions()
-            .create_or_get("two".into(), shard.id, table.id)
-            .await
-            .unwrap();
-        let partition3 = txn
-            .partitions()
-            .create_or_get("three".into(), shard.id, table.id)
-            .await
-            .unwrap();
-        let partition4 = txn
-            .partitions()
-            .create_or_get("four".into(), shard.id, table.id)
-            .await
-            .unwrap();
-        // other shard
-        let another_table = txn
-            .tables()
-            .create_or_get("another_test_table", namespace.id)
-            .await
-            .unwrap();
-        let another_shard = txn
-            .shards()
-            .create_or_get(&topic, ShardIndex::new(2))
-            .await
-            .unwrap();
-        let another_partition = txn
-            .partitions()
-            .create_or_get(
-                "another_partition".into(),
-                another_shard.id,
-                another_table.id,
-            )
-            .await
-            .unwrap();
-        // update sort key for this another_partition
-        let another_partition = txn
-            .partitions()
-            .update_sort_key(another_partition.id, &["tag1", "time"])
-            .await
-            .unwrap();
-        txn.commit().await.unwrap();
+        // Shard 2: 1 empty partition, with a sort key
+        let another_partition = table2
+            .with_shard(&shard2)
+            .create_partition_with_sort_key("another", &["tag1", "time"])
+            .await;
 
         // Create a compactor
-        let time_provider = Arc::new(SystemProvider::new());
+        let time_provider = Arc::clone(&catalog.time_provider);
         let config = make_compactor_config();
         let compactor = Arc::new(Compactor::new(
-            vec![shard.id, another_shard.id],
+            vec![shard1.shard.id, shard2.shard.id],
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::new(Executor::new(1)),
@@ -323,27 +288,9 @@ mod tests {
         ));
 
         // Some times in the past to set to created_at of the files
-        let time_now = Timestamp::from(compactor.time_provider.now());
-        let time_three_minutes_ago = Timestamp::from(compactor.time_provider.minutes_ago(3));
-        let time_five_hour_ago = Timestamp::from(compactor.time_provider.hours_ago(5));
-        let time_38_hour_ago = Timestamp::from(compactor.time_provider.hours_ago(38));
-
-        // Basic parquet info
-        let p1 = ParquetFileParams {
-            shard_id: shard.id,
-            namespace_id: namespace.id,
-            table_id: table.id,
-            partition_id: partition1.id,
-            object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(100),
-            min_time: Timestamp::new(1),
-            max_time: Timestamp::new(5),
-            file_size_bytes: 1337,
-            row_count: 0,
-            compaction_level: CompactionLevel::Initial, // level of file of new writes
-            created_at: time_now,
-            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
-        };
+        let time_three_minutes_ago = compactor.time_provider.minutes_ago(3);
+        let time_five_hour_ago = compactor.time_provider.hours_ago(5);
+        let time_38_hour_ago = compactor.time_provider.hours_ago(38);
 
         // Note: The order of the test cases below is important and should not be changed
         // because they depend on the order of the writes and their content. For example,
@@ -364,22 +311,14 @@ mod tests {
         // Case 2: no non-deleleted L0 files -->  no partition candidates
         //
         // partition1 has a deleted L0
-        let mut txn = catalog.catalog.start_transaction().await.unwrap();
-        let pf1 = txn.parquet_files().create(p1.clone()).await.unwrap();
-        txn.parquet_files().flag_for_delete(pf1.id).await.unwrap();
-        //
+        let builder = TestParquetFileBuilder::default().with_to_delete(true);
+        let _pf1 = partition1.create_parquet_file_catalog_record(builder).await;
+
         // partition2 has a non-L0 file
-        let p2 = ParquetFileParams {
-            object_store_id: Uuid::new_v4(),
-            partition_id: partition2.id,
-            ..p1.clone()
-        };
-        let pf2 = txn.parquet_files().create(p2).await.unwrap();
-        txn.parquet_files()
-            .update_compaction_level(&[pf2.id], CompactionLevel::FileNonOverlapped)
-            .await
-            .unwrap();
-        txn.commit().await.unwrap();
+        let builder = TestParquetFileBuilder::default()
+            .with_compaction_level(CompactionLevel::FileNonOverlapped);
+        let _pf2 = partition2.create_parquet_file_catalog_record(builder).await;
+
         // No non-deleted level 0 files yet --> no candidates
         let candidates = hot_partitions_to_compact(Arc::clone(&compactor))
             .await
@@ -391,15 +330,8 @@ mod tests {
         // (the cold case will pick them up)
         //
         // partition2 has an old (more than 8 hours ago) non-deleted level 0 file
-        let mut txn = catalog.catalog.start_transaction().await.unwrap();
-        let p3 = ParquetFileParams {
-            object_store_id: Uuid::new_v4(),
-            partition_id: partition2.id,
-            created_at: time_38_hour_ago,
-            ..p1.clone()
-        };
-        let _pf3 = txn.parquet_files().create(p3).await.unwrap();
-        txn.commit().await.unwrap();
+        let builder = TestParquetFileBuilder::default().with_creation_time(time_38_hour_ago);
+        let _pf3 = partition2.create_parquet_file_catalog_record(builder).await;
 
         // No hot candidates
         let candidates = hot_partitions_to_compact(Arc::clone(&compactor))
@@ -411,22 +343,15 @@ mod tests {
         // Case 4: has one partition with recent writes (5 hours ago) --> return that partition
         //
         // partition4 has a new write 5 hours ago
-        let mut txn = catalog.catalog.start_transaction().await.unwrap();
-        let p4 = ParquetFileParams {
-            object_store_id: Uuid::new_v4(),
-            partition_id: partition4.id,
-            created_at: time_five_hour_ago,
-            ..p1.clone()
-        };
-        let _pf4 = txn.parquet_files().create(p4).await.unwrap();
-        txn.commit().await.unwrap();
-        //
+        let builder = TestParquetFileBuilder::default().with_creation_time(time_five_hour_ago);
+        let _pf4 = partition4.create_parquet_file_catalog_record(builder).await;
+
         // Has at least one partition with a recent write --> make it a candidate
         let candidates = hot_partitions_to_compact(Arc::clone(&compactor))
             .await
             .unwrap();
         assert_eq!(candidates.len(), 1);
-        assert_eq!(candidates[0].id(), partition4.id);
+        assert_eq!(candidates[0].id(), partition4.partition.id);
 
         // --------------------------------------
         // Case 5: has 2 partitions with 2 different groups of recent writes:
@@ -434,40 +359,26 @@ mod tests {
         //  2. Within the last 24 hours but older than 4 hours ago
         // When we have group 1, we will ignore partitions in group 2
         //
-        // partition3 has a new write 3 hours ago
-        let mut txn = catalog.catalog.start_transaction().await.unwrap();
-        let p5 = ParquetFileParams {
-            object_store_id: Uuid::new_v4(),
-            partition_id: partition3.id,
-            created_at: time_three_minutes_ago,
-            ..p1.clone()
-        };
-        let _pf5 = txn.parquet_files().create(p5).await.unwrap();
-        txn.commit().await.unwrap();
-        //
+        // partition3 has a new write 3 minutes ago
+        let builder = TestParquetFileBuilder::default().with_creation_time(time_three_minutes_ago);
+        let _pf5 = partition3.create_parquet_file_catalog_record(builder).await;
+
         // make partitions in the most recent group candidates
         let candidates = hot_partitions_to_compact(Arc::clone(&compactor))
             .await
             .unwrap();
         assert_eq!(candidates.len(), 1);
-        assert_eq!(candidates[0].id(), partition3.id);
+        assert_eq!(candidates[0].id(), partition3.partition.id);
 
         // --------------------------------------
         // Case 6: has partition candidates for 2 shards
         //
         // The another_shard now has non-deleted level-0 file ingested 5 hours ago
-        let mut txn = catalog.catalog.start_transaction().await.unwrap();
-        let p6 = ParquetFileParams {
-            object_store_id: Uuid::new_v4(),
-            shard_id: another_shard.id,
-            table_id: another_table.id,
-            partition_id: another_partition.id,
-            created_at: time_five_hour_ago,
-            ..p1.clone()
-        };
-        let _pf6 = txn.parquet_files().create(p6).await.unwrap();
-        txn.commit().await.unwrap();
-        //
+        let builder = TestParquetFileBuilder::default().with_creation_time(time_five_hour_ago);
+        let _pf6 = another_partition
+            .create_parquet_file_catalog_record(builder)
+            .await;
+
         // Will have 2 candidates, one for each shard
         let mut candidates = hot_partitions_to_compact(Arc::clone(&compactor))
             .await
@@ -475,18 +386,15 @@ mod tests {
         candidates.sort_by_key(|c| c.candidate);
         assert_eq!(candidates.len(), 2);
 
-        assert_eq!(candidates[0].id(), partition3.id);
-        assert_eq!(candidates[0].shard_id(), shard.id);
-        assert_eq!(*candidates[0].namespace, namespace);
-        assert_eq!(*candidates[0].table, table);
-        assert_eq!(candidates[0].partition_key, partition3.partition_key);
-        assert_eq!(candidates[0].sort_key, partition3.sort_key()); // this sort key is None
+        assert_eq!(candidates[0].id(), partition3.partition.id);
+        // this sort key is None
+        assert_eq!(candidates[0].sort_key, partition3.partition.sort_key());
 
-        assert_eq!(candidates[1].id(), another_partition.id);
-        assert_eq!(candidates[1].shard_id(), another_shard.id);
-        assert_eq!(*candidates[1].namespace, namespace);
-        assert_eq!(*candidates[1].table, another_table);
-        assert_eq!(candidates[1].partition_key, another_partition.partition_key);
-        assert_eq!(candidates[1].sort_key, another_partition.sort_key()); // this sort key is Some(tag1, time)
+        assert_eq!(candidates[1].id(), another_partition.partition.id);
+        // this sort key is Some(tag1, time)
+        assert_eq!(
+            candidates[1].sort_key,
+            another_partition.partition.sort_key()
+        );
     }
 }
