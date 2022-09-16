@@ -50,6 +50,17 @@ pub struct QueryableParquetChunk {
     sort_key: Option<SortKey>,
     partition_sort_key: Option<SortKey>,
     compaction_level: CompactionLevel,
+    /// The compaction level that this operation will be when finished. Chunks from files that have
+    /// the same level as this should get chunk order 0 so that files at a lower compaction level
+    /// (and thus created later) should have priority in deduplication.
+    ///
+    /// That is:
+    ///
+    /// * When compacting L0 + L1, the target level is L1. L0 files should have priority, so all L1
+    ///   files should have chunk order 0 to be sorted first.
+    /// * When compacting L1 + L2, the target level is L2. L1 files should have priority, so all L2
+    ///   files should have chunk order 0 to be sorted first.
+    target_level: CompactionLevel,
 }
 
 impl QueryableParquetChunk {
@@ -66,6 +77,7 @@ impl QueryableParquetChunk {
         sort_key: Option<SortKey>,
         partition_sort_key: Option<SortKey>,
         compaction_level: CompactionLevel,
+        target_level: CompactionLevel,
     ) -> Self {
         let delete_predicates = tombstones_to_delete_predicates(deletes);
         Self {
@@ -79,6 +91,7 @@ impl QueryableParquetChunk {
             sort_key,
             partition_sort_key,
             compaction_level,
+            target_level,
         }
     }
 
@@ -233,11 +246,30 @@ impl QueryChunk for QueryableParquetChunk {
         "QueryableParquetChunk"
     }
 
-    // Order of the chunk so they can be deduplicate correctly
+    // Order of the chunk so they can be deduplicated correctly
     fn order(&self) -> ChunkOrder {
-        match self.compaction_level {
-            CompactionLevel::Initial => ChunkOrder::new(self.max_sequence_number.get()),
-            CompactionLevel::FileNonOverlapped | CompactionLevel::Final => ChunkOrder::new(0),
+        use CompactionLevel::*;
+        match (self.target_level, self.compaction_level) {
+            // Files of the same level as what they're being compacting into were created earlier,
+            // so they should be sorted first so that files created later that haven't yet been
+            // compacted to this level will have priority when resolving duplicates.
+            (FileNonOverlapped, FileNonOverlapped) => ChunkOrder::new(0),
+            (Final, Final) => ChunkOrder::new(0),
+
+            // Files that haven't yet been compacted to the target level were created later and
+            // should be sorted based on their max sequence number.
+            (FileNonOverlapped, Initial) => ChunkOrder::new(self.max_sequence_number.get()),
+            (Final, FileNonOverlapped) => ChunkOrder::new(self.max_sequence_number.get()),
+
+            // These combinations of target compaction level and file compaction level are
+            // invalid in this context given the current compaction algorithm.
+            (Initial, _) => panic!("Can't compact into CompactionLevel::Initial"),
+            (FileNonOverlapped, Final) => panic!(
+                "Can't compact CompactionLevel::Final into CompactionLevel::FileNonOverlapped"
+            ),
+            (Final, Initial) => {
+                panic!("Can't compact CompactionLevel::Initial into CompactionLevel::Final")
+            }
         }
     }
 
@@ -255,6 +287,7 @@ mod tests {
 
     async fn test_setup(
         compaction_level: CompactionLevel,
+        target_level: CompactionLevel,
         max_sequence_number: i64,
     ) -> QueryableParquetChunk {
         let catalog = TestCatalog::new();
@@ -295,19 +328,49 @@ mod tests {
             None,
             None,
             parquet_file.compaction_level,
+            target_level,
         )
     }
 
     #[tokio::test]
-    async fn chunk_order_is_max_seq_when_compaction_level_0() {
-        let chunk = test_setup(CompactionLevel::Initial, 2).await;
+    async fn chunk_order_is_max_seq_when_compaction_level_0_and_target_level_1() {
+        let chunk = test_setup(
+            CompactionLevel::Initial,
+            CompactionLevel::FileNonOverlapped,
+            2,
+        )
+        .await;
 
         assert_eq!(chunk.order(), ChunkOrder::new(2));
     }
 
     #[tokio::test]
-    async fn chunk_order_is_0_when_compaction_level_1() {
-        let chunk = test_setup(CompactionLevel::FileNonOverlapped, 2).await;
+    async fn chunk_order_is_0_when_compaction_level_1_and_target_level_1() {
+        let chunk = test_setup(
+            CompactionLevel::FileNonOverlapped,
+            CompactionLevel::FileNonOverlapped,
+            2,
+        )
+        .await;
+
+        assert_eq!(chunk.order(), ChunkOrder::new(0));
+    }
+
+    #[tokio::test]
+    async fn chunk_order_is_max_seq_when_compaction_level_1_and_target_level_2() {
+        let chunk = test_setup(
+            CompactionLevel::FileNonOverlapped,
+            CompactionLevel::Final,
+            2,
+        )
+        .await;
+
+        assert_eq!(chunk.order(), ChunkOrder::new(2));
+    }
+
+    #[tokio::test]
+    async fn chunk_order_is_0_when_compaction_level_2_and_target_level_2() {
+        let chunk = test_setup(CompactionLevel::Final, CompactionLevel::Final, 2).await;
 
         assert_eq!(chunk.order(), ChunkOrder::new(0));
     }

@@ -30,7 +30,8 @@ pub(crate) struct ParquetFilesForCompaction {
     /// sequence number.
     pub(crate) level_0: Vec<CompactorParquetFile>,
 
-    /// Parquet files for a partition with `CompactionLevel::FileNonOverlapped`. Arbitrary order.
+    /// Parquet files for a partition with `CompactionLevel::FileNonOverlapped`. Ordered by
+    /// ascending max sequence number.
     pub(crate) level_1: Vec<CompactorParquetFile>,
 
     /// Parquet files for a partition with `CompactionLevel::Final`. Arbitrary order.
@@ -96,6 +97,7 @@ impl ParquetFilesForCompaction {
         }
 
         level_0.sort_by_key(|pf| pf.max_sequence_number());
+        level_1.sort_by_key(|pf| pf.min_time());
 
         Ok(Self {
             level_0,
@@ -425,6 +427,79 @@ mod tests {
         assert_eq!(
             parquet_files_for_compaction.level_1,
             vec![CompactorParquetFile::new(l1.parquet_file, 0)]
+        );
+    }
+
+    #[tokio::test]
+    async fn level_1_files_are_sorted_on_min_time() {
+        test_helpers::maybe_start_logging();
+        let TestSetup {
+            catalog, partition, ..
+        } = test_setup().await;
+
+        // Create a level 1 file, max seq = 100, min time = 8888
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(ARBITRARY_LINE_PROTOCOL)
+            .with_compaction_level(CompactionLevel::FileNonOverlapped)
+            .with_max_seq(100)
+            .with_min_time(8888);
+        let l1_min_time_8888 = partition.create_parquet_file(builder).await;
+
+        // Create a level 1 file, max seq = 50, min time = 7777
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(ARBITRARY_LINE_PROTOCOL)
+            .with_compaction_level(CompactionLevel::FileNonOverlapped)
+            .with_max_seq(50)
+            .with_min_time(7777);
+        let l1_min_time_7777 = partition.create_parquet_file(builder).await;
+
+        // Create a level 1 file, max seq = 150, min time = 6666
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(ARBITRARY_LINE_PROTOCOL)
+            .with_compaction_level(CompactionLevel::FileNonOverlapped)
+            .with_max_seq(150)
+            .with_min_time(6666);
+        let l1_min_time_6666 = partition.create_parquet_file(builder).await;
+
+        // Create a level 0 file
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(ARBITRARY_LINE_PROTOCOL)
+            .with_compaction_level(CompactionLevel::Initial);
+        let l0 = partition.create_parquet_file(builder).await;
+
+        // Create a level 2 file
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(ARBITRARY_LINE_PROTOCOL)
+            .with_compaction_level(CompactionLevel::Final);
+        let l2 = partition.create_parquet_file(builder).await;
+
+        let partition_with_info =
+            Arc::new(PartitionCompactionCandidateWithInfo::from_test_partition(&partition).await);
+
+        let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
+            Arc::clone(&catalog.catalog),
+            partition_with_info,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            parquet_files_for_compaction.level_0,
+            vec![CompactorParquetFile::new(l0.parquet_file, 0)]
+        );
+
+        assert_eq!(
+            parquet_files_for_compaction.level_1,
+            vec![
+                CompactorParquetFile::new(l1_min_time_6666.parquet_file, 0),
+                CompactorParquetFile::new(l1_min_time_7777.parquet_file, 0),
+                CompactorParquetFile::new(l1_min_time_8888.parquet_file, 0),
+            ]
+        );
+
+        assert_eq!(
+            parquet_files_for_compaction.level_2,
+            vec![CompactorParquetFile::new(l2.parquet_file, 0)]
         );
     }
 }

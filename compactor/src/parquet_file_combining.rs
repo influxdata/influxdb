@@ -97,6 +97,8 @@ pub(crate) async fn compact_parquet_files(
     // When data is between a "small" and "large" amount, split the compacted files at roughly this
     // percentage in the earlier compacted file, and the remainder in the later compacted file.
     split_percentage: u16,
+    // Compaction level the newly created file will have.
+    target_level: CompactionLevel,
 ) -> Result<(), Error> {
     let partition_id = partition.id();
 
@@ -127,9 +129,12 @@ pub(crate) async fn compact_parquet_files(
     let num_level_1 = num_files_by_level
         .get(&CompactionLevel::FileNonOverlapped)
         .unwrap_or(&0);
+    let num_level_2 = num_files_by_level
+        .get(&CompactionLevel::Final)
+        .unwrap_or(&0);
     debug!(
         ?partition_id,
-        num_files, num_level_0, num_level_1, "compact files to stream"
+        num_files, num_level_0, num_level_1, num_level_2, "compact files to stream"
     );
 
     // Collect all the parquet file IDs, to be able to set their catalog records to be
@@ -146,6 +151,7 @@ pub(crate) async fn compact_parquet_files(
                 partition.table.name.clone(),
                 &partition.table_schema,
                 partition.sort_key.clone(),
+                target_level,
             )
         })
         .collect();
@@ -244,7 +250,7 @@ pub(crate) async fn compact_parquet_files(
         Arc::clone(&partition),
         partition_id,
         max_sequence_number,
-        CompactionLevel::FileNonOverlapped,
+        target_level,
     )
     .await?;
 
@@ -268,9 +274,7 @@ pub(crate) async fn compact_parquet_files(
     Ok(())
 }
 
-/// Compact all files given, no matter their size, into one level 2 file. When this is called by
-/// `full_compaction`, it should only receive a group of level 1 files that has already been
-/// selected to be an appropriate size.
+/// Compact all files given, no matter their size, into one file.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn compact_final_no_splits(
     files: Vec<CompactorParquetFile>,
@@ -284,6 +288,8 @@ pub(crate) async fn compact_final_no_splits(
     time_provider: Arc<dyn TimeProvider>,
     // Histogram for the sizes of the files compacted
     compaction_input_file_bytes: &Metric<U64Histogram>,
+    // Compaction level the newly created file will have.
+    target_level: CompactionLevel,
 ) -> Result<(), Error> {
     let partition_id = partition.id();
 
@@ -299,10 +305,7 @@ pub(crate) async fn compact_final_no_splits(
     // Save all file sizes for recording metrics if this compaction succeeds.
     let file_sizes: Vec<_> = files.iter().map(|f| f.file_size_bytes()).collect();
 
-    debug!(
-        ?partition_id,
-        num_files, "final compaction of files to level 2"
-    );
+    debug!(?partition_id, num_files, "compact_final_no_splits");
 
     // Collect all the parquet file IDs, to be able to set their catalog records to be
     // deleted. These should already be unique, no need to dedupe.
@@ -318,6 +321,7 @@ pub(crate) async fn compact_final_no_splits(
                 partition.table.name.clone(),
                 &partition.table_schema,
                 partition.sort_key.clone(),
+                target_level,
             )
         })
         .collect();
@@ -372,7 +376,7 @@ pub(crate) async fn compact_final_no_splits(
         Arc::clone(&partition),
         partition_id,
         max_sequence_number,
-        CompactionLevel::Final,
+        target_level,
     )
     .await?;
 
@@ -406,7 +410,7 @@ async fn compact_with_plan(
     partition: Arc<PartitionCompactionCandidateWithInfo>,
     partition_id: PartitionId,
     max_sequence_number: SequenceNumber,
-    compaction_level: CompactionLevel,
+    target_level: CompactionLevel,
 ) -> Result<Vec<ParquetFileParams>, Error> {
     let ctx = exec.new_context(ExecutorType::Reorg);
     let physical_plan = ctx
@@ -456,7 +460,7 @@ async fn compact_with_plan(
                     partition_id,
                     partition_key: partition.partition_key.clone(),
                     max_sequence_number,
-                    compaction_level,
+                    compaction_level: target_level,
                     sort_key: Some(sort_key.clone()),
                 };
 
@@ -523,6 +527,7 @@ fn to_queryable_parquet_chunk(
     table_name: String,
     table_schema: &TableSchema,
     partition_sort_key: Option<SortKey>,
+    target_level: CompactionLevel,
 ) -> QueryableParquetChunk {
     let column_id_lookup = table_schema.column_id_map();
     let selection: Vec<_> = file
@@ -578,6 +583,7 @@ fn to_queryable_parquet_chunk(
         sort_key,
         partition_sort_key,
         file.compaction_level,
+        target_level,
     )
 }
 
@@ -853,6 +859,7 @@ mod tests {
             DEFAULT_MAX_DESIRED_FILE_SIZE_BYTES,
             DEFAULT_PERCENTAGE_MAX_FILE_SIZE,
             DEFAULT_SPLIT_PERCENTAGE,
+            CompactionLevel::FileNonOverlapped,
         )
         .await;
         assert_error!(result, Error::NotEnoughParquetFiles { num_files: 0, .. });
@@ -893,6 +900,7 @@ mod tests {
             DEFAULT_MAX_DESIRED_FILE_SIZE_BYTES,
             DEFAULT_PERCENTAGE_MAX_FILE_SIZE,
             DEFAULT_SPLIT_PERCENTAGE,
+            CompactionLevel::FileNonOverlapped,
         )
         .await
         .unwrap();
@@ -954,6 +962,7 @@ mod tests {
             DEFAULT_MAX_DESIRED_FILE_SIZE_BYTES,
             DEFAULT_PERCENTAGE_MAX_FILE_SIZE,
             DEFAULT_SPLIT_PERCENTAGE,
+            CompactionLevel::FileNonOverlapped,
         )
         .await
         .unwrap();
@@ -1038,6 +1047,7 @@ mod tests {
             DEFAULT_MAX_DESIRED_FILE_SIZE_BYTES,
             DEFAULT_PERCENTAGE_MAX_FILE_SIZE,
             DEFAULT_SPLIT_PERCENTAGE,
+            CompactionLevel::FileNonOverlapped,
         )
         .await
         .unwrap();
@@ -1140,6 +1150,7 @@ mod tests {
             DEFAULT_MAX_DESIRED_FILE_SIZE_BYTES,
             DEFAULT_PERCENTAGE_MAX_FILE_SIZE,
             split_percentage,
+            CompactionLevel::FileNonOverlapped,
         )
         .await
         .unwrap();
@@ -1223,6 +1234,7 @@ mod tests {
             DEFAULT_MAX_DESIRED_FILE_SIZE_BYTES,
             DEFAULT_PERCENTAGE_MAX_FILE_SIZE,
             DEFAULT_SPLIT_PERCENTAGE,
+            CompactionLevel::FileNonOverlapped,
         )
         .await
         .unwrap();
@@ -1321,34 +1333,51 @@ mod tests {
         let compaction_input_file_bytes = metrics();
         let shard_id = candidate_partition.shard_id();
 
-        // Even though in the real cold compaction code, we'll usually pass a list of level 1 files
-        // selected by size, nothing in this function checks any of that -- it will compact all
-        // files it's given together into one level 2 file.
+        let level_1_files = parquet_files
+            .into_iter()
+            .filter(|f| f.compaction_level() == CompactionLevel::FileNonOverlapped)
+            .collect();
+
+        // Compact all files given together into one level 2 file.
         compact_final_no_splits(
-            parquet_files,
+            level_1_files,
             candidate_partition,
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::clone(&catalog.exec),
             Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
             &compaction_input_file_bytes,
+            CompactionLevel::Final,
         )
         .await
         .unwrap();
 
-        // Should have 1 level 2 file, not split at all
+        // Should have 1 level 2 file, not split at all, and 4 level 0 files.
         let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
-        assert_eq!(files.len(), 1);
+        assert_eq!(files.len(), 5);
+        let files_and_levels: Vec<_> = files
+            .iter()
+            .map(|f| (f.id.get(), f.compaction_level))
+            .collect();
+        assert_eq!(
+            files_and_levels,
+            vec![
+                (2, CompactionLevel::Initial),
+                (3, CompactionLevel::Initial),
+                (5, CompactionLevel::Initial),
+                (6, CompactionLevel::Initial),
+                (7, CompactionLevel::Final),
+            ]
+        );
+
         let file = files.pop().unwrap();
-        assert_eq!(file.id.get(), 7);
-        assert_eq!(file.compaction_level, CompactionLevel::Final);
 
         // Verify the metrics
         assert_eq!(
             extract_byte_metrics(&compaction_input_file_bytes, shard_id),
             ExtractedByteMetrics {
-                sample_count: 6,
-                buckets_with_counts: vec![(BUCKET_500_KB, 4), (u64::MAX, 2)],
+                sample_count: 2,
+                buckets_with_counts: vec![(BUCKET_500_KB, 2)],
             }
         );
 
@@ -1361,15 +1390,9 @@ mod tests {
                 "+-----------+------+------+------+-----------------------------+",
                 "| field_int | tag1 | tag2 | tag3 | time                        |",
                 "+-----------+------+------+------+-----------------------------+",
-                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000006Z |",
-                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000010Z |",
-                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000068Z |",
-                "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z |",
                 "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000030Z |",
                 "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000036Z |",
-                "| 210       |      | OH   | 21   | 1970-01-01T00:00:00.000136Z |",
-                "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
-                "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z |",
+                "| 88        | VT   |      |      | 1970-01-01T00:00:00.000010Z |",
                 "| 99        | OR   |      |      | 1970-01-01T00:00:00.000012Z |",
                 "+-----------+------+------+------+-----------------------------+",
             ],

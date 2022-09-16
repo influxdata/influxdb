@@ -2,6 +2,7 @@
 
 use crate::{compact::Compactor, compact_candidates_with_memory_budget, compact_in_parallel};
 use backoff::Backoff;
+use data_types::CompactionLevel;
 use metric::Attributes;
 use observability_deps::tracing::*;
 use std::sync::Arc;
@@ -50,7 +51,9 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
     compact_candidates_with_memory_budget(
         Arc::clone(&compactor),
         compaction_type,
+        CompactionLevel::Initial,
         compact_in_parallel,
+        true, // split
         candidates.into(),
     )
     .await;
@@ -77,6 +80,7 @@ mod tests {
         handler::CompactorConfig,
         parquet_file_filtering, parquet_file_lookup,
         tests::{test_setup, TestSetup},
+        ParquetFilesForCompaction,
     };
     use arrow_util::assert_batches_sorted_eq;
     use backoff::BackoffConfig;
@@ -262,7 +266,9 @@ mod tests {
         compact_candidates_with_memory_budget(
             Arc::clone(&compactor),
             "hot",
+            CompactionLevel::Initial,
             mock_compactor.compaction_function(),
+            true,
             candidates.into(),
         )
         .await;
@@ -485,7 +491,7 @@ mod tests {
 
         // ------------------------------------------------
         // Compact
-        let mut candidates = compactor
+        let mut partition_candidates = compactor
             .hot_partitions_to_compact(
                 compactor.config.max_number_partitions_per_shard,
                 compactor
@@ -495,21 +501,28 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(candidates.len(), 1);
-        let c = candidates.pop().unwrap();
+        assert_eq!(partition_candidates.len(), 1);
+        let partition = partition_candidates.pop().unwrap();
 
         let parquet_files_for_compaction =
             parquet_file_lookup::ParquetFilesForCompaction::for_partition_with_size_overrides(
                 Arc::clone(&compactor.catalog),
-                Arc::clone(&c),
+                Arc::clone(&partition),
                 &size_overrides,
             )
             .await
             .unwrap();
 
+        let ParquetFilesForCompaction {
+            level_0,
+            level_1,
+            .. // Ignore other levels
+        } = parquet_files_for_compaction;
+
         let to_compact = parquet_file_filtering::filter_parquet_files(
-            c,
-            parquet_files_for_compaction,
+            partition,
+            level_0,
+            level_1,
             compactor.config.memory_budget_bytes,
             &compactor.parquet_file_candidate_gauge,
             &compactor.parquet_file_candidate_bytes,
@@ -517,7 +530,7 @@ mod tests {
 
         let to_compact = to_compact.into();
 
-        compact_one_partition(&compactor, to_compact, "hot")
+        compact_one_partition(&compactor, to_compact, "hot", true)
             .await
             .unwrap();
 
