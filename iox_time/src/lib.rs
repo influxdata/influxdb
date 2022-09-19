@@ -190,6 +190,18 @@ pub trait TimeProvider: std::fmt::Debug + Send + Sync + 'static {
 
     /// Sleep until given time.
     fn sleep_until(&self, t: Time) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>;
+
+    /// Given a number of minutes, return the number of nanoseconds the specified number of minutes
+    /// in the past relative to this provider's `now`.
+    fn minutes_ago_in_ns(&self, minutes_ago: u64) -> i64 {
+        (self.now() - Duration::from_secs(60 * minutes_ago)).timestamp_nanos()
+    }
+
+    /// Given a number of hours, return the number of nanoseconds the specified number of hours in
+    /// the past relative to this provider's `now`.
+    fn hours_ago_in_ns(&self, hours_ago: u64) -> i64 {
+        (self.now() - Duration::from_secs(60 * 60 * hours_ago)).timestamp_nanos()
+    }
 }
 
 /// A [`TimeProvider`] that uses [`Utc::now`] as a clock source
@@ -579,5 +591,29 @@ mod test {
         assert!(Time::from_timestamp_nanos(505)
             .checked_duration_since(Time::from_timestamp_nanos(506))
             .is_none());
+    }
+
+    #[test]
+    fn test_minutes_ago() {
+        let now = "2022-07-07T00:00:00+00:00";
+        let ago = "2022-07-06T22:38:00+00:00";
+
+        let provider = MockProvider::new(Time::from_rfc3339(now).unwrap());
+
+        let min_ago_ns = provider.minutes_ago_in_ns(82);
+        assert_eq!(min_ago_ns, 1657147080000000000);
+        assert_eq!(Time::from_timestamp_nanos(min_ago_ns).to_rfc3339(), ago);
+    }
+
+    #[test]
+    fn test_hours_ago() {
+        let now = "2022-07-07T00:00:00+00:00";
+        let ago = "2022-07-03T14:00:00+00:00";
+
+        let provider = MockProvider::new(Time::from_rfc3339(now).unwrap());
+
+        let hrs_ago_ns = provider.hours_ago_in_ns(82);
+        assert_eq!(hrs_ago_ns, 1656856800000000000);
+        assert_eq!(Time::from_timestamp_nanos(hrs_ago_ns).to_rfc3339(), ago);
     }
 }

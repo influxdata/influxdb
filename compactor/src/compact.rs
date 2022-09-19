@@ -380,9 +380,7 @@ impl Compactor {
                 ("partition_type", compaction_type.into()),
             ]);
 
-            let time_8_hours_ago = Timestamp::new(
-                (self.time_provider.now() - Duration::from_secs(60 * 60 * 8)).timestamp_nanos(),
-            );
+            let time_8_hours_ago = Timestamp::new(self.time_provider.hours_ago_in_ns(8));
 
             let mut repos = self.catalog.repositories().await;
             let mut partitions = repos
@@ -649,7 +647,6 @@ pub mod tests {
     };
     use iox_tests::util::{TestCatalog, TestPartition};
     use iox_time::SystemProvider;
-    use std::time::Duration;
     use uuid::Uuid;
 
     impl PartitionCompactionCandidateWithInfo {
@@ -1078,12 +1075,8 @@ pub mod tests {
         );
 
         // Some times in the past to set to created_at of the files
-        let time_5_hour_ago = Timestamp::new(
-            (compactor.time_provider.now() - Duration::from_secs(60 * 60 * 5)).timestamp_nanos(),
-        );
-        let time_9_hour_ago = Timestamp::new(
-            (compactor.time_provider.now() - Duration::from_secs(60 * 60 * 9)).timestamp_nanos(),
-        );
+        let time_5_hour_ago = Timestamp::new(compactor.time_provider.hours_ago_in_ns(5));
+        let time_9_hour_ago = Timestamp::new(compactor.time_provider.hours_ago_in_ns(9));
 
         // Basic parquet info
         let p1 = ParquetFileParams {
