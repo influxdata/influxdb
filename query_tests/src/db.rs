@@ -16,11 +16,6 @@ pub trait AbstractDb: CatalogProvider + ExecutionContextProvider + QueryDatabase
     /// Upcast to [`QueryDatabase`].
     ///
     /// This is required due to <https://github.com/rust-lang/rust/issues/65991>.
-    fn as_query_database(&self) -> &dyn QueryDatabase;
-
-    /// Upcast to [`QueryDatabase`].
-    ///
-    /// This is required due to <https://github.com/rust-lang/rust/issues/65991>.
     fn as_query_database_arc(self: Arc<Self>) -> Arc<dyn QueryDatabase>;
 }
 
@@ -31,10 +26,6 @@ impl AbstractDb for QuerierNamespace {
 
     fn as_catalog_provider_arc(self: Arc<Self>) -> Arc<dyn CatalogProvider> {
         self as _
-    }
-
-    fn as_query_database(&self) -> &dyn QueryDatabase {
-        self
     }
 
     fn as_query_database_arc(self: Arc<Self>) -> Arc<dyn QueryDatabase> {

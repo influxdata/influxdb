@@ -30,7 +30,7 @@ async fn run_tag_values_test_case<D>(
         let planner = InfluxRpcPlanner::new(ctx.child_ctx("planner"));
 
         let plan = planner
-            .tag_values(db.as_query_database(), tag_name, predicate.clone())
+            .tag_values(db.as_query_database_arc(), tag_name, predicate.clone())
             .await
             .expect("built plan successfully");
         let names = ctx
@@ -318,7 +318,7 @@ async fn list_tag_values_field_col_on_tag() {
         let tag_name = "temp";
         let plan_result = planner
             .tag_values(
-                db.as_query_database(),
+                db.as_query_database_arc(),
                 tag_name,
                 InfluxRpcPredicate::default(),
             )

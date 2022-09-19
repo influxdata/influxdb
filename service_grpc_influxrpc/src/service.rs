@@ -2120,7 +2120,9 @@ mod tests {
 
         let db_info = org_and_bucket();
 
-        let chunk = TestChunk::new("my_table").with_error("Sugar we are going down");
+        let chunk = TestChunk::new("my_table")
+            .with_tag_column("the_tag_key")
+            .with_error("Sugar we are going down");
 
         fixture
             .test_storage
@@ -2488,7 +2490,9 @@ mod tests {
 
         let db_info = org_and_bucket();
 
-        let chunk = TestChunk::new("m5").with_error("Sugar we are going down");
+        let chunk = TestChunk::new("m5")
+            .with_tag_column("the_tag_key")
+            .with_error("Sugar we are going down");
 
         fixture
             .test_storage
