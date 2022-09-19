@@ -1,9 +1,8 @@
 //! Log and trace initialization and setup
 
-use observability_deps::tracing::subscriber;
 use std::cmp::max;
 pub use trogging::config::*;
-pub use trogging::TroggingGuard;
+pub use trogging::{self, TroggingGuard};
 use trogging::{
     cli::LoggingConfigBuilderExt,
     tracing_subscriber::{prelude::*, Registry},
@@ -45,7 +44,5 @@ pub fn init_logs_and_tracing(
     };
 
     let subscriber = Registry::default().with(layers);
-    subscriber::set_global_default(subscriber)?;
-
-    Ok(TroggingGuard)
+    trogging::install_global(subscriber)
 }

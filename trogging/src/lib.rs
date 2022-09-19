@@ -246,10 +246,23 @@ where
     pub fn install_global(self) -> Result<TroggingGuard> {
         let layer = self.build()?;
         let subscriber = tracing_subscriber::Registry::default().with(layer);
-        tracing::subscriber::set_global_default(subscriber)?;
-        tracing_log::LogTracer::init()?;
-        Ok(TroggingGuard)
+        install_global(subscriber)
     }
+}
+
+/// Install a global tracing/logging subscriber.
+///
+/// Call this function when installing a subscriber instead of calling
+/// `tracing::subscriber::set_global_default` directly.
+///
+/// This function also sets up the `log::Log` -> `tracing` bridge.
+pub fn install_global<S>(subscriber: S) -> Result<TroggingGuard>
+where
+    S: Subscriber + Send + Sync + 'static,
+{
+    tracing::subscriber::set_global_default(subscriber)?;
+    tracing_log::LogTracer::init()?;
+    Ok(TroggingGuard)
 }
 
 /// A RAII guard. On Drop, ensures all events are flushed

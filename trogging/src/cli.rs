@@ -1,5 +1,5 @@
 ///! Common CLI flags for logging and tracing
-use crate::{config::*, Builder, Result, TroggingGuard};
+use crate::{config::*, Builder};
 use tracing_subscriber::fmt::{writer::BoxMakeWriter, MakeWriter};
 
 /// CLI config for the logging related subset of options.
@@ -119,10 +119,6 @@ impl LoggingConfig {
             .with_log_verbose_count(self.log_verbose_count)
             .with_log_destination(self.log_destination)
             .with_log_format(self.log_format)
-    }
-
-    pub fn install_global_subscriber(&self) -> Result<TroggingGuard> {
-        self.to_builder().install_global()
     }
 }
 
