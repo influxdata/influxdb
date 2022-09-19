@@ -462,7 +462,7 @@ impl IoxMetadata {
             file_size_bytes: file_size_bytes as i64,
             compaction_level: self.compaction_level,
             row_count: row_count.try_into().expect("row count overflows i64"),
-            created_at: Timestamp::new(self.creation_timestamp.timestamp_nanos()),
+            created_at: Timestamp::from(self.creation_timestamp),
             column_set: ColumnSet::new(columns),
         }
     }

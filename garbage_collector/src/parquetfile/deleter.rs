@@ -12,7 +12,7 @@ pub(crate) async fn perform(
     sleep_interval_minutes: u64,
 ) -> Result<()> {
     loop {
-        let older_than = Timestamp::new((catalog.time_provider().now() - cutoff).timestamp_nanos());
+        let older_than = Timestamp::from(catalog.time_provider().now() - cutoff);
         // do the delete, returning the deleted files
         let deleted = catalog
             .repositories()

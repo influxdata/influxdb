@@ -854,7 +854,7 @@ impl PartitionRepo for MemTxn {
         reason: &str,
     ) -> Result<()> {
         let reason = reason.to_string();
-        let skipped_at = Timestamp::new(self.time_provider.now().timestamp_nanos());
+        let skipped_at = Timestamp::from(self.time_provider.now());
 
         let stage = self.stage();
         match stage
@@ -1076,7 +1076,7 @@ impl ParquetFileRepo for MemTxn {
     }
 
     async fn flag_for_delete(&mut self, id: ParquetFileId) -> Result<()> {
-        let marked_at = Timestamp::new(self.time_provider.now().timestamp_nanos());
+        let marked_at = Timestamp::from(self.time_provider.now());
         let stage = self.stage();
 
         match stage.parquet_files.iter_mut().find(|p| p.id == id) {

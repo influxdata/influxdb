@@ -89,7 +89,7 @@ mod tests {
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder};
     use iox_time::{SystemProvider, TimeProvider};
     use parquet_file::storage::ParquetStorage;
-    use std::{collections::HashMap, sync::Arc, time::Duration};
+    use std::{collections::HashMap, sync::Arc};
 
     #[tokio::test]
     async fn test_compact_hot_partition_candidates() {
@@ -104,8 +104,7 @@ mod tests {
         } = test_setup().await;
 
         // Some times in the past to set to created_at of the files
-        let hot_time_one_hour_ago =
-            (compactor.time_provider.now() - Duration::from_secs(60 * 60)).timestamp_nanos();
+        let hot_time_one_hour_ago = compactor.time_provider.hours_ago(1);
 
         // P1:
         //   L0 2 rows. bytes: 1125 * 2 = 2,250
@@ -426,7 +425,7 @@ mod tests {
             .with_max_seq(3)
             .with_min_time(10)
             .with_max_time(20)
-            .with_creation_time(20);
+            .with_creation_time(time.now());
         let f = partition.create_parquet_file(builder).await;
         size_overrides.insert(
             f.parquet_file.id,
@@ -439,7 +438,7 @@ mod tests {
             .with_max_seq(5)
             .with_min_time(8_000)
             .with_max_time(20_000)
-            .with_creation_time(time.now().timestamp_nanos());
+            .with_creation_time(time.now());
         let f = partition.create_parquet_file(builder).await;
         size_overrides.insert(f.parquet_file.id, 100); // small file
 
@@ -449,7 +448,7 @@ mod tests {
             .with_max_seq(10)
             .with_min_time(6_000)
             .with_max_time(25_000)
-            .with_creation_time(time.now().timestamp_nanos());
+            .with_creation_time(time.now());
         let f = partition.create_parquet_file(builder).await;
         size_overrides.insert(f.parquet_file.id, 100); // small file
 
@@ -459,7 +458,7 @@ mod tests {
             .with_max_seq(18)
             .with_min_time(26_000)
             .with_max_time(28_000)
-            .with_creation_time(time.now().timestamp_nanos());
+            .with_creation_time(time.now());
         let f = partition.create_parquet_file(builder).await;
         size_overrides.insert(f.parquet_file.id, 100); // small file
 
@@ -469,7 +468,7 @@ mod tests {
             .with_max_seq(1)
             .with_min_time(9)
             .with_max_time(25)
-            .with_creation_time(time.now().timestamp_nanos())
+            .with_creation_time(time.now())
             .with_compaction_level(CompactionLevel::FileNonOverlapped);
         let f = partition.create_parquet_file(builder).await;
         size_overrides.insert(f.parquet_file.id, 100); // small file
@@ -480,7 +479,7 @@ mod tests {
             .with_max_seq(20)
             .with_min_time(90000)
             .with_max_time(91000)
-            .with_creation_time(time.now().timestamp_nanos())
+            .with_creation_time(time.now())
             .with_compaction_level(CompactionLevel::FileNonOverlapped);
         let f = partition.create_parquet_file(builder).await;
         size_overrides.insert(f.parquet_file.id, 100); // small file

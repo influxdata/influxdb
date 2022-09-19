@@ -130,8 +130,7 @@ mod tests {
             Arc::clone(&catalog.catalog),
             Arc::clone(&catalog.object_store),
         );
-        let older_than =
-            Timestamp::new((gc.time_provider.now() + Duration::from_secs(100)).timestamp_nanos());
+        let older_than = Timestamp::from(gc.time_provider.now() + Duration::from_secs(100));
 
         gc.cleanup(older_than).await.unwrap();
     }
@@ -143,8 +142,7 @@ mod tests {
             Arc::clone(&catalog.catalog),
             Arc::clone(&catalog.object_store),
         );
-        let older_than =
-            Timestamp::new((gc.time_provider.now() + Duration::from_secs(100)).timestamp_nanos());
+        let older_than = Timestamp::from(gc.time_provider.now() + Duration::from_secs(100));
 
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
         let topic = txn.topics().create_or_get("foo").await.unwrap();
@@ -224,8 +222,7 @@ mod tests {
             Arc::clone(&catalog.catalog),
             Arc::clone(&catalog.object_store),
         );
-        let older_than =
-            Timestamp::new((gc.time_provider.now() - Duration::from_secs(100)).timestamp_nanos());
+        let older_than = Timestamp::from(gc.time_provider.now() - Duration::from_secs(100));
 
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
         let topic = txn.topics().create_or_get("foo").await.unwrap();
@@ -309,8 +306,7 @@ mod tests {
             Arc::clone(&catalog.catalog),
             Arc::clone(&catalog.object_store),
         );
-        let older_than =
-            Timestamp::new((gc.time_provider.now() + Duration::from_secs(100)).timestamp_nanos());
+        let older_than = Timestamp::from(gc.time_provider.now() + Duration::from_secs(100));
 
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
         let topic = txn.topics().create_or_get("foo").await.unwrap();
