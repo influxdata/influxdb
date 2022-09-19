@@ -80,7 +80,7 @@ impl Planner {
         self.ctx
             .run(async move {
                 planner
-                    .tag_keys(database.as_ref(), predicate)
+                    .tag_keys(database, predicate)
                     .await
                     .map_err(|e| Error::Plan(format!("tag_keys error: {}", e)))
             })
