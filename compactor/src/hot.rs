@@ -435,6 +435,45 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn hot_prefers_within_4_hrs() {
+        let TestSetup {
+            catalog,
+            shard1,
+            table1,
+            ..
+        } = test_setup().await;
+
+        let partition_5_hours = table1.with_shard(&shard1).create_partition("one").await;
+        let builder = TestParquetFileBuilder::default()
+            .with_creation_time(catalog.time_provider().hours_ago(5));
+        partition_5_hours
+            .create_parquet_file_catalog_record(builder)
+            .await;
+
+        let partition_3_min = table1.with_shard(&shard1).create_partition("two").await;
+        let builder = TestParquetFileBuilder::default()
+            .with_creation_time(catalog.time_provider().minutes_ago(3));
+        partition_3_min
+            .create_parquet_file_catalog_record(builder)
+            .await;
+
+        let candidates = hot_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            shard1.shard.id,
+            &query_times(catalog.time_provider()),
+            1,
+            // Even if we ask for 2 partitions per shard, we'll only get the one partition with
+            // writes within 4 hours
+            2,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].partition_id, partition_3_min.partition.id);
+    }
+
+    #[tokio::test]
     async fn test_hot_partitions_to_compact() {
         let TestSetup {
             catalog,
@@ -495,22 +534,9 @@ mod tests {
         let builder = TestParquetFileBuilder::default().with_creation_time(time_five_hour_ago);
         let _pf4 = partition4.create_parquet_file_catalog_record(builder).await;
 
-        // --------------------------------------
-        // Case 5: has 2 partitions with 2 different groups of recent writes:
-        //  1. Within the last 4 hours
-        //  2. Within the last 24 hours but older than 4 hours ago
-        // When we have group 1, we will ignore partitions in group 2
-        //
         // partition3 has a new write 3 minutes ago
         let builder = TestParquetFileBuilder::default().with_creation_time(time_three_minutes_ago);
         let _pf5 = partition3.create_parquet_file_catalog_record(builder).await;
-
-        // make partitions in the most recent group candidates
-        let candidates = hot_partitions_to_compact(Arc::clone(&compactor))
-            .await
-            .unwrap();
-        assert_eq!(candidates.len(), 1);
-        assert_eq!(candidates[0].id(), partition3.partition.id);
 
         // --------------------------------------
         // Case 6: has partition candidates for 2 shards
