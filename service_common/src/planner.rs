@@ -126,7 +126,7 @@ impl Planner {
         self.ctx
             .run(async move {
                 planner
-                    .field_columns(database.as_ref(), predicate)
+                    .field_columns(database, predicate)
                     .await
                     .map_err(|e| Error::Plan(format!("field_columns error: {}", e)))
             })

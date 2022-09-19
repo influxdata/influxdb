@@ -637,7 +637,7 @@ impl InfluxRpcPlanner {
     /// specified by `predicate`.
     pub async fn field_columns(
         &self,
-        database: &dyn QueryDatabase,
+        database: Arc<dyn QueryDatabase>,
         rpc_predicate: InfluxRpcPredicate,
     ) -> Result<FieldListPlan> {
         let ctx = self.ctx.child_ctx("field_columns planning");
@@ -655,14 +655,15 @@ impl InfluxRpcPlanner {
         let table_predicates = rpc_predicate
             .table_predicates(database.as_meta())
             .context(CreatingPredicatesSnafu)?;
-        let mut field_list_plan = FieldListPlan::new();
 
-        for (table_name, predicate) in &table_predicates {
+        // optimization: just get the field columns from metadata.
+        // note this both ignores field keys, and sets the timestamp data 'incorrectly'.
+        let mut field_list_plan = FieldListPlan::new();
+        let mut table_predicates_need_chunks = Vec::with_capacity(table_predicates.len());
+        for (table_name, predicate) in table_predicates {
             if predicate.is_empty() {
-                // optimization: just get the field columns from metadata.
-                // note this both ignores field keys, and sets the timestamp data 'incorrectly'.
                 let schema = database
-                    .table_schema(table_name)
+                    .table_schema(&table_name)
                     .context(TableRemovedSnafu { table_name })?;
                 let fields = schema.fields_iter().map(|f| Field {
                     name: f.name().clone(),
@@ -672,29 +673,27 @@ impl InfluxRpcPlanner {
                 for field in fields {
                     field_list_plan.append_field(field);
                 }
-                continue;
+            } else {
+                table_predicates_need_chunks.push((table_name, predicate));
             }
-            let chunks = database
-                .chunks(table_name, predicate, ctx.child_ctx("table chunks"))
-                .await
-                .context(GettingChunksSnafu { table_name })?;
-            let chunks = prune_chunks_metadata(chunks, predicate)?;
+        }
 
-            if chunks.is_empty() {
-                continue;
-            }
-
-            let schema = database
-                .table_schema(table_name)
-                .context(TableRemovedSnafu { table_name })?;
-
-            let plan = self.field_columns_plan(
-                ctx.child_ctx("field_columns plan"),
-                schema,
-                predicate,
-                chunks,
-            )?;
-
+        // full scans
+        let plans = create_plans(
+            database,
+            &table_predicates_need_chunks,
+            ctx,
+            |ctx, _table_name, predicate, chunks, schema| {
+                Self::field_columns_plan(
+                    ctx.child_ctx("field_columns plan"),
+                    schema,
+                    predicate,
+                    chunks,
+                )
+            },
+        )
+        .await?;
+        for plan in plans {
             field_list_plan = field_list_plan.append_other(plan.into());
         }
 
@@ -727,9 +726,13 @@ impl InfluxRpcPlanner {
         let ctx = self.ctx.child_ctx("planning_read_filter");
         debug!(?rpc_predicate, "planning read_filter");
 
-        create_series_set_plans(
+        let table_predicates = rpc_predicate
+            .table_predicates(database.as_meta())
+            .context(CreatingPredicatesSnafu)?;
+
+        let plans = create_plans(
             database,
-            rpc_predicate,
+            &table_predicates,
             ctx,
             |ctx, table_name, predicate, chunks, schema| {
                 Self::read_filter_plan(
@@ -741,7 +744,9 @@ impl InfluxRpcPlanner {
                 )
             },
         )
-        .await
+        .await?;
+
+        Ok(SeriesSetPlans::new(plans))
     }
 
     /// Creates one or more GroupedSeriesSet plans that produces an
@@ -774,9 +779,13 @@ impl InfluxRpcPlanner {
         let ctx = self.ctx.child_ctx("read_group planning");
         debug!(?rpc_predicate, ?agg, "planning read_group");
 
-        let plan = create_series_set_plans(
+        let table_predicates = rpc_predicate
+            .table_predicates(database.as_meta())
+            .context(CreatingPredicatesSnafu)?;
+
+        let plans = create_plans(
             database,
-            rpc_predicate,
+            &table_predicates,
             ctx,
             |ctx, table_name, predicate, chunks, schema| match agg {
                 Aggregate::None => Self::read_filter_plan(
@@ -805,7 +814,7 @@ impl InfluxRpcPlanner {
             .map(|s| Arc::from(s.as_ref()))
             .collect();
 
-        Ok(plan.grouped_by(group_columns))
+        Ok(SeriesSetPlans::new(plans).grouped_by(group_columns))
     }
 
     /// Creates a GroupedSeriesSet plan that produces an output table with rows
@@ -827,9 +836,13 @@ impl InfluxRpcPlanner {
             "planning read_window_aggregate"
         );
 
-        create_series_set_plans(
+        let table_predicates = rpc_predicate
+            .table_predicates(database.as_meta())
+            .context(CreatingPredicatesSnafu)?;
+
+        let plans = create_plans(
             database,
-            rpc_predicate,
+            &table_predicates,
             ctx,
             |ctx, table_name, predicate, chunks, schema| {
                 Self::read_window_aggregate_plan(
@@ -844,7 +857,9 @@ impl InfluxRpcPlanner {
                 )
             },
         )
-        .await
+        .await?;
+
+        Ok(SeriesSetPlans::new(plans))
     }
 
     /// Creates a DataFusion LogicalPlan that returns column *names* as a
@@ -922,7 +937,6 @@ impl InfluxRpcPlanner {
     ///        Scan
     /// ```
     fn field_columns_plan(
-        &self,
         ctx: IOxSessionContext,
         schema: Arc<Schema>,
         predicate: &Predicate,
@@ -1313,16 +1327,21 @@ fn table_chunk_stream<'a>(
         .buffered(CONCURRENT_TABLE_JOBS)
 }
 
-/// Create series set plans that fetch the data specified in rpc_predicate.
+/// Create plans that fetch the data specified in table_predicates.
+///
+/// table_predicates contains `(table_name, predicate_specialized_for_that_table)`
+///
+/// The plans are created in parallel as different `async` Tasks to reduce
+/// query latency due to planning
 ///
 /// `f(ctx, table_name, table_predicate, chunks, table_schema)` is
-///  invoked on the chunks for each table to produce the final `SeriesSetPlan`
-async fn create_series_set_plans<F>(
+///  invoked on the chunks for each table to produce a plan for each
+async fn create_plans<F, P>(
     database: Arc<dyn QueryDatabase>,
-    rpc_predicate: InfluxRpcPredicate,
+    table_predicates: &[(String, Predicate)],
     ctx: IOxSessionContext,
     f: F,
-) -> Result<SeriesSetPlans>
+) -> Result<Vec<P>>
 where
     F: for<'a> Fn(
             &'a IOxSessionContext,
@@ -1330,16 +1349,13 @@ where
             &'a Predicate,
             Vec<Arc<dyn QueryChunk>>,
             Arc<Schema>,
-        ) -> Result<SeriesSetPlan>
+        ) -> Result<P>
         + Clone
         + Send
         + Sync,
+    P: Send,
 {
-    let table_predicates = rpc_predicate
-        .table_predicates(database.as_meta())
-        .context(CreatingPredicatesSnafu)?;
-
-    let ss_plans: Vec<_> = table_chunk_stream(Arc::clone(&database), &table_predicates, &ctx)
+    table_chunk_stream(Arc::clone(&database), table_predicates, &ctx)
         .and_then(|(table_name, predicate, chunks)| async move {
             let chunks = prune_chunks_metadata(chunks, predicate)?;
             Ok((table_name, predicate, chunks))
@@ -1364,9 +1380,7 @@ where
             }
         })
         .try_collect()
-        .await?;
-
-    Ok(SeriesSetPlans::new(ss_plans))
+        .await
 }
 
 /// Prunes the provided list of chunks using [`QueryChunk::apply_predicate_to_metadata`]
@@ -1793,7 +1807,7 @@ mod tests {
         run_test(|test_db, rpc_predicate| {
             async move {
                 InfluxRpcPlanner::new(IOxSessionContext::with_testing())
-                    .field_columns(test_db.as_ref(), rpc_predicate)
+                    .field_columns(test_db, rpc_predicate)
                     .await
                     .expect("creating plan");
             }
