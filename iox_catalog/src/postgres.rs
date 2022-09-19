@@ -21,9 +21,13 @@ use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, info, warn};
 use snafu::prelude::*;
 use sqlx::{
-    migrate::Migrator, postgres::PgPoolOptions, types::Uuid, Acquire, Executor, Postgres, Row,
+    migrate::Migrator,
+    postgres::{PgConnectOptions, PgPoolOptions},
+    types::Uuid,
+    Acquire, ConnectOptions, Executor, Postgres, Row,
 };
 use sqlx_hotswap_pool::HotSwapPool;
+use std::str::FromStr;
 use std::{sync::Arc, time::Duration};
 
 static MIGRATOR: Migrator = sqlx::migrate!();
@@ -330,6 +334,11 @@ async fn new_raw_pool(
     options: &PostgresConnectionOptions,
     parsed_dsn: &str,
 ) -> Result<sqlx::Pool<Postgres>, sqlx::Error> {
+    // sqlx exposes some options as pool options, while other options are available as connection options.
+    let mut connect_options = PgConnectOptions::from_str(parsed_dsn)?;
+    // the default is INFO, which is frankly surprising.
+    connect_options.log_statements(log::LevelFilter::Trace);
+
     let app_name = options.app_name.clone();
     let app_name2 = options.app_name.clone(); // just to log below
     let schema_name = options.schema_name.clone();
@@ -363,7 +372,7 @@ async fn new_raw_pool(
                 Ok(())
             })
         })
-        .connect(parsed_dsn)
+        .connect_with(connect_options)
         .await?;
 
     // Log a connection was successfully established and include the application

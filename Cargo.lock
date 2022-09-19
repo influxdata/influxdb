@@ -2244,6 +2244,7 @@ dependencies = [
  "dotenvy",
  "futures",
  "iox_time",
+ "log",
  "metric",
  "mutable_batch",
  "mutable_batch_lp",
