@@ -295,6 +295,89 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn deleted_l0_not_returned() {
+        let TestSetup {
+            catalog,
+            shard1,
+            table1,
+            ..
+        } = test_setup().await;
+
+        let partition1 = table1.with_shard(&shard1).create_partition("one").await;
+
+        let builder = TestParquetFileBuilder::default().with_to_delete(true);
+        partition1.create_parquet_file_catalog_record(builder).await;
+
+        let candidates = hot_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            shard1.shard.id,
+            &query_times(catalog.time_provider()),
+            1,
+            1,
+        )
+        .await
+        .unwrap();
+
+        assert!(candidates.is_empty());
+    }
+
+    #[tokio::test]
+    async fn l1_not_returned() {
+        let TestSetup {
+            catalog,
+            shard1,
+            table1,
+            ..
+        } = test_setup().await;
+
+        let partition1 = table1.with_shard(&shard1).create_partition("one").await;
+
+        let builder = TestParquetFileBuilder::default()
+            .with_compaction_level(CompactionLevel::FileNonOverlapped);
+        partition1.create_parquet_file_catalog_record(builder).await;
+
+        let candidates = hot_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            shard1.shard.id,
+            &query_times(catalog.time_provider()),
+            1,
+            1,
+        )
+        .await
+        .unwrap();
+
+        assert!(candidates.is_empty());
+    }
+
+    #[tokio::test]
+    async fn l2_not_returned() {
+        let TestSetup {
+            catalog,
+            shard1,
+            table1,
+            ..
+        } = test_setup().await;
+
+        let partition1 = table1.with_shard(&shard1).create_partition("one").await;
+
+        let builder =
+            TestParquetFileBuilder::default().with_compaction_level(CompactionLevel::Final);
+        partition1.create_parquet_file_catalog_record(builder).await;
+
+        let candidates = hot_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            shard1.shard.id,
+            &query_times(catalog.time_provider()),
+            1,
+            1,
+        )
+        .await
+        .unwrap();
+
+        assert!(candidates.is_empty());
+    }
+
+    #[tokio::test]
     async fn test_hot_partitions_to_compact() {
         let TestSetup {
             catalog,
@@ -335,16 +418,9 @@ mod tests {
         let time_five_hour_ago = compactor.time_provider.hours_ago(5);
         let time_38_hour_ago = compactor.time_provider.hours_ago(38);
 
-        // Note: The order of the test cases below is important and should not be changed
-        // because they depend on the order of the writes and their content. For example,
-        // in order to test `Case 3`, we do not need to add asserts for `Case 1` and `Case 2`,
-        // but all the writes, deletes and updates in Cases 1 and 2 are a must for testing Case 3.
-        // In order words, the last Case needs all content of previous tests.
-        // This shows the priority of selecting compaction candidates
+        // This test is an integration test that covers the priority of the candidate selection
+        // algorithm when there are many files of different kinds across many partitions.
 
-        // --------------------------------------
-        // Case 2: no non-deleleted L0 files -->  no partition candidates
-        //
         // partition1 has a deleted L0
         let builder = TestParquetFileBuilder::default().with_to_delete(true);
         let _pf1 = partition1.create_parquet_file_catalog_record(builder).await;
@@ -353,12 +429,6 @@ mod tests {
         let builder = TestParquetFileBuilder::default()
             .with_compaction_level(CompactionLevel::FileNonOverlapped);
         let _pf2 = partition2.create_parquet_file_catalog_record(builder).await;
-
-        // No non-deleted level 0 files yet --> no candidates
-        let candidates = hot_partitions_to_compact(Arc::clone(&compactor))
-            .await
-            .unwrap();
-        assert!(candidates.is_empty());
 
         // --------------------------------------
         // Case 3: no new recent writes (within the last 24 hours) --> no partition candidates
