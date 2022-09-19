@@ -7,7 +7,7 @@
 use crate::internal::{expect, ParseResult};
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case};
-use nom::character::complete::{char, multispace1};
+use nom::character::complete::{char, multispace0, multispace1};
 use nom::combinator::{map, opt, value};
 use nom::sequence::tuple;
 use nom::sequence::{pair, preceded, terminated};
@@ -43,8 +43,8 @@ impl fmt::Display for OnExpression {
     }
 }
 
-/// Parse the `ON` expression of the `SHOW MEASUREMENTS` statement.
-fn on_expression(i: &str) -> ParseResult<&str, OnExpression> {
+/// Parse the `ON` clause of the `SHOW MEASUREMENTS` statement.
+fn on_clause(i: &str) -> ParseResult<&str, OnExpression> {
     preceded(
         pair(tag_no_case("ON"), multispace1),
         expect(
@@ -118,38 +118,38 @@ impl fmt::Display for MeasurementExpression {
     }
 }
 
-fn with_measurement_expression(i: &str) -> ParseResult<&str, MeasurementExpression> {
+fn with_measurement_clause(i: &str) -> ParseResult<&str, MeasurementExpression> {
     preceded(
         tuple((
             tag_no_case("WITH"),
             multispace1,
             expect(
                 "invalid WITH clause, expected MEASUREMENT",
-                tag_no_case("measurement"),
+                tag_no_case("MEASUREMENT"),
             ),
-            multispace1,
+            multispace0,
         )),
         expect(
             "expected = or =~",
             alt((
                 map(
                     tuple((
+                        tag("=~"),
+                        multispace0,
+                        expect("expected regex literal", regex),
+                    )),
+                    |(_, _, regex)| MeasurementExpression::Regex(regex),
+                ),
+                map(
+                    tuple((
                         char('='),
-                        multispace1,
+                        multispace0,
                         expect(
                             "expected measurement name or wildcard",
                             measurement_name_expression,
                         ),
                     )),
                     |(_, _, name)| MeasurementExpression::Equals(name),
-                ),
-                map(
-                    tuple((
-                        tag("=~"),
-                        multispace1,
-                        expect("expected regex literal", regex),
-                    )),
-                    |(_, _, regex)| MeasurementExpression::Regex(regex),
                 ),
             )),
         ),
@@ -170,8 +170,8 @@ pub fn show_measurements(i: &str) -> ParseResult<&str, ShowMeasurementsStatement
         ),
     ) = tuple((
         tag_no_case("MEASUREMENTS"),
-        opt(preceded(multispace1, on_expression)),
-        opt(preceded(multispace1, with_measurement_expression)),
+        opt(preceded(multispace1, on_clause)),
+        opt(preceded(multispace1, with_measurement_clause)),
         opt(preceded(multispace1, where_clause)),
         opt(preceded(multispace1, limit_clause)),
         opt(preceded(multispace1, offset_clause)),
@@ -310,34 +310,34 @@ mod test {
     }
 
     #[test]
-    fn test_on_expression() {
-        let (_, got) = on_expression("ON cpu").unwrap();
+    fn test_on_clause() {
+        let (_, got) = on_clause("ON cpu").unwrap();
         assert_eq!(got, OnExpression::Database("cpu".into()));
 
-        let (_, got) = on_expression("ON cpu.autogen").unwrap();
+        let (_, got) = on_clause("ON cpu.autogen").unwrap();
         assert_eq!(
             got,
             OnExpression::DatabaseRetentionPolicy("cpu".into(), "autogen".into())
         );
 
-        let (_, got) = on_expression("ON *").unwrap();
+        let (_, got) = on_clause("ON *").unwrap();
         assert!(matches!(got, OnExpression::AllDatabases));
 
-        let (_, got) = on_expression("ON *.*").unwrap();
+        let (_, got) = on_clause("ON *.*").unwrap();
         assert!(matches!(
             got,
             OnExpression::AllDatabasesAndRetentionPolicies
         ));
 
         assert_expect_error!(
-            on_expression("ON WHERE cpu = 'test'"),
+            on_clause("ON WHERE cpu = 'test'"),
             "invalid ON clause, expected wildcard or identifier"
         )
     }
 
     #[test]
-    fn test_with_measurement() {
-        let (_, got) = with_measurement_expression("WITH measurement = foo").unwrap();
+    fn test_with_measurement_clause() {
+        let (_, got) = with_measurement_clause("WITH measurement = foo").unwrap();
         assert_eq!(
             got,
             MeasurementExpression::Equals(MeasurementNameExpression {
@@ -347,38 +347,53 @@ mod test {
             })
         );
 
-        let (_, got) = with_measurement_expression("WITH measurement =~ /foo/").unwrap();
+        let (_, got) = with_measurement_clause("WITH measurement =~ /foo/").unwrap();
+        assert_eq!(got, MeasurementExpression::Regex(Regex("foo".into())));
+
+        // Expressions are still valid when whitespace is omitted
+
+        let (_, got) = with_measurement_clause("WITH measurement=foo..bar").unwrap();
+        assert_eq!(
+            got,
+            MeasurementExpression::Equals(MeasurementNameExpression {
+                database: Some("foo".into()),
+                retention_policy: None,
+                name: "bar".into()
+            })
+        );
+
+        let (_, got) = with_measurement_clause("WITH measurement=~/foo/").unwrap();
         assert_eq!(got, MeasurementExpression::Regex(Regex("foo".into())));
 
         // Fallible cases
 
         // Missing MEASUREMENT token
         assert_expect_error!(
-            with_measurement_expression("WITH =~ foo"),
+            with_measurement_clause("WITH =~ foo"),
             "invalid WITH clause, expected MEASUREMENT"
         );
 
         // Must have a regex for equal regex operator
         assert_expect_error!(
-            with_measurement_expression("WITH measurement =~ foo"),
+            with_measurement_clause("WITH measurement =~ foo"),
             "expected regex literal"
         );
 
         // Unsupported regex not equal operator
         assert_expect_error!(
-            with_measurement_expression("WITH measurement !~ foo"),
+            with_measurement_clause("WITH measurement !~ foo"),
             "expected = or =~"
         );
 
         // Must have an identifier for equal operator
         assert_expect_error!(
-            with_measurement_expression("WITH measurement = /foo/"),
+            with_measurement_clause("WITH measurement = /foo/"),
             "expected measurement name or wildcard"
         );
 
         // Must have an identifier
         assert_expect_error!(
-            with_measurement_expression("WITH measurement = 1"),
+            with_measurement_clause("WITH measurement = 1"),
             "expected measurement name or wildcard"
         );
     }

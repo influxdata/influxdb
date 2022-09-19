@@ -21,6 +21,9 @@ use nom::combinator::eof;
 use nom::Offset;
 use std::fmt::{Debug, Display, Formatter};
 
+#[cfg(test)]
+mod test_util;
+
 mod common;
 mod expression;
 mod identifier;
@@ -29,12 +32,13 @@ mod keywords;
 mod literal;
 mod parameter;
 mod show;
+mod show_field_keys;
 mod show_measurements;
+mod show_retention_policies;
+mod show_tag_keys;
+mod show_tag_values;
 mod statement;
 mod string;
-
-#[cfg(test)]
-mod test_util;
 
 /// A error returned when parsing an InfluxQL query using
 /// [`parse_statements`] fails.
@@ -126,15 +130,13 @@ mod test {
 
         // Parse multiple statements with a terminator in quotes, ensuring it is not interpreted as
         // a terminator
-        let got = parse_statements(
-            "SHOW MEASUREMENTS WITH MEASUREMENT = \";\";SHOW MEASUREMENTS LIMIT 1",
-        )
-        .unwrap();
+        let got =
+            parse_statements("SHOW MEASUREMENTS WITH MEASUREMENT = \";\";SHOW DATABASES").unwrap();
         assert_eq!(
             format!("{}", got[0]),
             "SHOW MEASUREMENTS WITH MEASUREMENT = \";\""
         );
-        assert_eq!(format!("{}", got[1]), "SHOW MEASUREMENTS LIMIT 1");
+        assert_eq!(format!("{}", got[1]), "SHOW DATABASES");
 
         // Returns error for invalid statement
         let got = parse_statements("BAD SQL").unwrap_err();
