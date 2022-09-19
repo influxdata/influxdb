@@ -380,7 +380,7 @@ impl Compactor {
                 ("partition_type", compaction_type.into()),
             ]);
 
-            let time_8_hours_ago = Timestamp::new(self.time_provider.hours_ago_in_ns(8));
+            let time_8_hours_ago = Timestamp::from(self.time_provider.hours_ago(8));
 
             let mut repos = self.catalog.repositories().await;
             let mut partitions = repos
@@ -1075,8 +1075,8 @@ pub mod tests {
         );
 
         // Some times in the past to set to created_at of the files
-        let time_5_hour_ago = Timestamp::new(compactor.time_provider.hours_ago_in_ns(5));
-        let time_9_hour_ago = Timestamp::new(compactor.time_provider.hours_ago_in_ns(9));
+        let time_5_hour_ago = Timestamp::from(compactor.time_provider.hours_ago(5));
+        let time_9_hour_ago = Timestamp::from(compactor.time_provider.hours_ago(9));
 
         // Basic parquet info
         let p1 = ParquetFileParams {

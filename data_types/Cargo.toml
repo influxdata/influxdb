@@ -6,6 +6,7 @@ description = "Shared data types"
 
 [dependencies]
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
+iox_time = { path = "../iox_time" }
 observability_deps = { path = "../observability_deps" }
 ordered-float = "3"
 percent-encoding = "2.2.0"

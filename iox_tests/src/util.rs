@@ -750,8 +750,8 @@ impl TestParquetFileBuilder {
     }
 
     /// Specify the creation time for the parquet file metadata.
-    pub fn with_creation_time(mut self, creation_time: i64) -> Self {
-        self.creation_time = creation_time;
+    pub fn with_creation_time(mut self, creation_time: iox_time::Time) -> Self {
+        self.creation_time = creation_time.timestamp_nanos();
         self
     }
 

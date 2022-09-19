@@ -2809,9 +2809,9 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
 
-        let time_five_hour_ago = Timestamp::new(catalog.time_provider().hours_ago_in_ns(5));
-        let time_8_hours_ago = Timestamp::new(catalog.time_provider().hours_ago_in_ns(8));
-        let time_38_hour_ago = Timestamp::new(catalog.time_provider().hours_ago_in_ns(38));
+        let time_five_hour_ago = Timestamp::from(catalog.time_provider().hours_ago(5));
+        let time_8_hours_ago = Timestamp::from(catalog.time_provider().hours_ago(8));
+        let time_38_hour_ago = Timestamp::from(catalog.time_provider().hours_ago(38));
 
         let num_partitions = 2;
 
@@ -3115,7 +3115,7 @@ pub(crate) mod test_helpers {
         let num_partitions = 2;
 
         let time_at_num_minutes_ago =
-            Timestamp::new(catalog.time_provider().minutes_ago_in_ns(num_minutes));
+            Timestamp::from(catalog.time_provider().minutes_ago(num_minutes));
 
         // Case 1
         // Db has no partition
@@ -3151,12 +3151,12 @@ pub(crate) mod test_helpers {
         assert!(partitions.is_empty());
 
         // Time for testing
-        let time_now = Timestamp::new(catalog.time_provider().now().timestamp_nanos());
-        let time_one_hour_ago = Timestamp::new(catalog.time_provider().hours_ago_in_ns(1));
-        let time_two_hour_ago = Timestamp::new(catalog.time_provider().hours_ago_in_ns(2));
-        let time_three_hour_ago = Timestamp::new(catalog.time_provider().hours_ago_in_ns(3));
-        let time_five_hour_ago = Timestamp::new(catalog.time_provider().hours_ago_in_ns(5));
-        let time_ten_hour_ago = Timestamp::new(catalog.time_provider().hours_ago_in_ns(10));
+        let time_now = Timestamp::from(catalog.time_provider().now());
+        let time_one_hour_ago = Timestamp::from(catalog.time_provider().hours_ago(1));
+        let time_two_hour_ago = Timestamp::from(catalog.time_provider().hours_ago(2));
+        let time_three_hour_ago = Timestamp::from(catalog.time_provider().hours_ago(3));
+        let time_five_hour_ago = Timestamp::from(catalog.time_provider().hours_ago(5));
+        let time_ten_hour_ago = Timestamp::from(catalog.time_provider().hours_ago(10));
 
         // Case 3
         // The partition has one deleted file

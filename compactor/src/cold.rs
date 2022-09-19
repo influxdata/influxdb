@@ -178,7 +178,7 @@ mod tests {
 
         let partition = table.with_shard(&shard).create_partition("part").await;
         let time = Arc::new(SystemProvider::new());
-        let time_38_hour_ago = time.hours_ago_in_ns(38);
+        let time_38_hour_ago = time.hours_ago(38);
         let config = make_compactor_config();
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Compactor::new(
@@ -412,7 +412,7 @@ mod tests {
 
         let partition = table.with_shard(&shard).create_partition("part").await;
         let time = Arc::new(SystemProvider::new());
-        let time_38_hour_ago = time.hours_ago_in_ns(38);
+        let time_38_hour_ago = time.hours_ago(38);
         let config = make_compactor_config();
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Compactor::new(
@@ -627,7 +627,7 @@ mod tests {
         table.create_column("time", ColumnType::Time).await;
         let partition = table.with_shard(&shard).create_partition("part").await;
         let time = Arc::new(SystemProvider::new());
-        let time_38_hour_ago = time.hours_ago_in_ns(38);
+        let time_38_hour_ago = time.hours_ago(38);
         let config = make_compactor_config();
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Arc::new(Compactor::new(
@@ -752,7 +752,7 @@ mod tests {
 
         let partition = table.with_shard(&shard).create_partition("part").await;
         let time = Arc::new(SystemProvider::new());
-        let time_38_hour_ago = time.hours_ago_in_ns(38);
+        let time_38_hour_ago = time.hours_ago(38);
         let config = make_compactor_config();
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Arc::new(Compactor::new(
@@ -962,7 +962,7 @@ mod tests {
 
         let partition = table.with_shard(&shard).create_partition("part").await;
         let time = Arc::new(SystemProvider::new());
-        let time_38_hour_ago = time.hours_ago_in_ns(38);
+        let time_38_hour_ago = time.hours_ago(38);
         let mut config = make_compactor_config();
 
         // Set the memory budget such that only some of the files will be compacted in a group

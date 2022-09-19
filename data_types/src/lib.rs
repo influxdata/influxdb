@@ -344,8 +344,15 @@ impl Timestamp {
     pub fn new(v: i64) -> Self {
         Self(v)
     }
+
     pub fn get(&self) -> i64 {
         self.0
+    }
+}
+
+impl From<iox_time::Time> for Timestamp {
+    fn from(time: iox_time::Time) -> Self {
+        Self::new(time.timestamp_nanos())
     }
 }
 
