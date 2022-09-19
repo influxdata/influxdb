@@ -214,18 +214,6 @@ mod tests {
     use parquet_file::storage::ParquetStorage;
     use std::sync::Arc;
 
-    fn make_compactor_config() -> CompactorConfig {
-        CompactorConfig {
-            max_desired_file_size_bytes: 10_000,
-            percentage_max_file_size: 30,
-            split_percentage: 80,
-            max_number_partitions_per_shard: 1,
-            min_number_recent_ingested_files_per_partition: 1,
-            hot_multiple: 4,
-            memory_budget_bytes: 10 * 1024 * 1024,
-        }
-    }
-
     struct TestSetup {
         catalog: Arc<TestCatalog>,
         shard1: Arc<TestShard>,
@@ -497,7 +485,15 @@ mod tests {
 
         // Create a compactor
         let time_provider = Arc::clone(&catalog.time_provider);
-        let config = make_compactor_config();
+        let config = CompactorConfig {
+            max_desired_file_size_bytes: 10_000,
+            percentage_max_file_size: 30,
+            split_percentage: 80,
+            max_number_partitions_per_shard: 1,
+            min_number_recent_ingested_files_per_partition: 1,
+            hot_multiple: 4,
+            memory_budget_bytes: 10 * 1024 * 1024,
+        };
         let compactor = Arc::new(Compactor::new(
             vec![shard1.shard.id, shard2.shard.id],
             Arc::clone(&catalog.catalog),
