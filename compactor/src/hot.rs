@@ -517,31 +517,28 @@ mod tests {
         // This test is an integration test that covers the priority of the candidate selection
         // algorithm when there are many files of different kinds across many partitions.
 
-        // partition1 has a deleted L0
+        // partition1 has a deleted L0, isn't returned
         let builder = TestParquetFileBuilder::default().with_to_delete(true);
         let _pf1 = partition1.create_parquet_file_catalog_record(builder).await;
 
-        // partition2 has a non-L0 file
+        // partition2 has a non-L0 file, isn't returned
         let builder = TestParquetFileBuilder::default()
             .with_compaction_level(CompactionLevel::FileNonOverlapped);
         let _pf2 = partition2.create_parquet_file_catalog_record(builder).await;
 
-        // partition2 has an old (more than 8 hours ago) non-deleted level 0 file
+        // partition2 has an old (more than 8 hours ago) non-deleted level 0 file, isn't returned
         let builder = TestParquetFileBuilder::default().with_creation_time(time_38_hour_ago);
         let _pf3 = partition2.create_parquet_file_catalog_record(builder).await;
 
-        // partition4 has a new write 5 hours ago
+        // partition4 has a new write 5 hours ago, isn't returned
         let builder = TestParquetFileBuilder::default().with_creation_time(time_five_hour_ago);
         let _pf4 = partition4.create_parquet_file_catalog_record(builder).await;
 
-        // partition3 has a new write 3 minutes ago
+        // partition3 has a new write 3 minutes ago, is returned
         let builder = TestParquetFileBuilder::default().with_creation_time(time_three_minutes_ago);
         let _pf5 = partition3.create_parquet_file_catalog_record(builder).await;
 
-        // --------------------------------------
-        // Case 6: has partition candidates for 2 shards
-        //
-        // The another_shard now has non-deleted level-0 file ingested 5 hours ago
+        // The another_shard now has non-deleted level-0 file ingested 5 hours ago, is returned
         let builder = TestParquetFileBuilder::default().with_creation_time(time_five_hour_ago);
         let _pf6 = another_partition
             .create_parquet_file_catalog_record(builder)
