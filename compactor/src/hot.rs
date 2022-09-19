@@ -378,6 +378,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cold_not_returned() {
+        let TestSetup {
+            catalog,
+            shard1,
+            table1,
+            ..
+        } = test_setup().await;
+
+        let partition1 = table1.with_shard(&shard1).create_partition("one").await;
+
+        let builder = TestParquetFileBuilder::default()
+            .with_creation_time(catalog.time_provider().hours_ago(38));
+        partition1.create_parquet_file_catalog_record(builder).await;
+
+        let candidates = hot_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            shard1.shard.id,
+            &query_times(catalog.time_provider()),
+            1,
+            1,
+        )
+        .await
+        .unwrap();
+
+        assert!(candidates.is_empty());
+    }
+
+    #[tokio::test]
     async fn test_hot_partitions_to_compact() {
         let TestSetup {
             catalog,
@@ -430,19 +458,9 @@ mod tests {
             .with_compaction_level(CompactionLevel::FileNonOverlapped);
         let _pf2 = partition2.create_parquet_file_catalog_record(builder).await;
 
-        // --------------------------------------
-        // Case 3: no new recent writes (within the last 24 hours) --> no partition candidates
-        // (the cold case will pick them up)
-        //
         // partition2 has an old (more than 8 hours ago) non-deleted level 0 file
         let builder = TestParquetFileBuilder::default().with_creation_time(time_38_hour_ago);
         let _pf3 = partition2.create_parquet_file_catalog_record(builder).await;
-
-        // No hot candidates
-        let candidates = hot_partitions_to_compact(Arc::clone(&compactor))
-            .await
-            .unwrap();
-        assert!(candidates.is_empty());
 
         // --------------------------------------
         // Case 4: has one partition with recent writes (5 hours ago) --> return that partition
