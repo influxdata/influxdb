@@ -406,6 +406,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn hot_returned() {
+        let TestSetup {
+            catalog,
+            shard1,
+            table1,
+            ..
+        } = test_setup().await;
+
+        let partition1 = table1.with_shard(&shard1).create_partition("one").await;
+
+        let builder = TestParquetFileBuilder::default()
+            .with_creation_time(catalog.time_provider().hours_ago(5));
+        partition1.create_parquet_file_catalog_record(builder).await;
+
+        let candidates = hot_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            shard1.shard.id,
+            &query_times(catalog.time_provider()),
+            1,
+            1,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].partition_id, partition1.partition.id);
+    }
+
+    #[tokio::test]
     async fn test_hot_partitions_to_compact() {
         let TestSetup {
             catalog,
@@ -462,19 +491,9 @@ mod tests {
         let builder = TestParquetFileBuilder::default().with_creation_time(time_38_hour_ago);
         let _pf3 = partition2.create_parquet_file_catalog_record(builder).await;
 
-        // --------------------------------------
-        // Case 4: has one partition with recent writes (5 hours ago) --> return that partition
-        //
         // partition4 has a new write 5 hours ago
         let builder = TestParquetFileBuilder::default().with_creation_time(time_five_hour_ago);
         let _pf4 = partition4.create_parquet_file_catalog_record(builder).await;
-
-        // Has at least one partition with a recent write --> make it a candidate
-        let candidates = hot_partitions_to_compact(Arc::clone(&compactor))
-            .await
-            .unwrap();
-        assert_eq!(candidates.len(), 1);
-        assert_eq!(candidates[0].id(), partition4.partition.id);
 
         // --------------------------------------
         // Case 5: has 2 partitions with 2 different groups of recent writes:
