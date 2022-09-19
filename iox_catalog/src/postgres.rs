@@ -431,7 +431,14 @@ async fn new_pool(
                         Ok(None)
                     } else {
                         let new_pool = new_raw_pool(options, &new_dsn).await?;
-                        pool.replace(new_pool);
+                        let old_pool = pool.replace(new_pool);
+                        info!("replaced hotswap pool");
+                        info!(?old_pool, "closing old DB connection pool");
+                        // The pool is not closed on drop. We need to call `close`.
+                        // It will close all idle connections, and wait until acquired connections
+                        // are returned to the pool or closed.
+                        old_pool.close().await;
+                        info!(?old_pool, "closed old DB connection pool");
                         Ok(Some(new_dsn))
                     }
                 }
@@ -439,7 +446,6 @@ async fn new_pool(
                 match try_update(&options, &current_dsn, &dsn_file, &pool).await {
                     Ok(None) => {}
                     Ok(Some(new_dsn)) => {
-                        info!("replaced hotswap pool");
                         current_dsn = new_dsn;
                     }
                     Err(e) => {
