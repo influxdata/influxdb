@@ -1609,7 +1609,7 @@ RETURNING *;
     }
 
     async fn flag_for_delete(&mut self, id: ParquetFileId) -> Result<()> {
-        let marked_at = Timestamp::new(self.time_provider.now().timestamp_nanos());
+        let marked_at = Timestamp::from(self.time_provider.now());
 
         let _ = sqlx::query(r#"UPDATE parquet_file SET to_delete = $1 WHERE id = $2;"#)
             .bind(&marked_at) // $1
@@ -2892,7 +2892,7 @@ mod tests {
         // parquet file to create- all we care about here is the size, the rest is to satisfy DB
         // constraints
         let time_provider = Arc::new(SystemProvider::new());
-        let time_now = Timestamp::new(time_provider.now().timestamp_nanos());
+        let time_now = Timestamp::from(time_provider.now());
         let mut p1 = ParquetFileParams {
             shard_id,
             namespace_id,
@@ -2951,7 +2951,7 @@ mod tests {
         assert_eq!(total_file_size_bytes, 1337 * 2);
 
         // actually deleting shouldn't change the total
-        let now = Timestamp::new((time_provider.now()).timestamp_nanos());
+        let now = Timestamp::from(time_provider.now());
         postgres
             .repositories()
             .await
