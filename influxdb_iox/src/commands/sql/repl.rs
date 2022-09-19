@@ -122,7 +122,7 @@ impl rustyline::highlight::Highlighter for RustylineHelper {
         }
         #[cfg(not(windows))]
         {
-            use ansi_term::Style;
+            use nu_ansi_term::Style;
             Cow::Owned(Style::new().dimmed().paint(hint).to_string())
         }
     }

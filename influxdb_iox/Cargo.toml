@@ -38,7 +38,7 @@ trace_exporters = { path = "../trace_exporters" }
 trogging = { path = "../trogging", default-features = false, features = ["clap"] }
 
 # Crates.io dependencies, in alphabetical order
-ansi_term = "0.12"
+nu-ansi-term = "0.46.0"
 arrow = { version = "22.0.0", features = ["prettyprint"] }
 backtrace = "0.3"
 bytes = "1.2"
