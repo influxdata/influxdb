@@ -3,7 +3,6 @@ package coordinator
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influx-cli/v2/api"
 	"io"
 	"time"
 
@@ -67,7 +66,7 @@ func (e *LocalShardMapper) mapShards(ctx context.Context, a *LocalShardMapping, 
 					OrgID:           &orgID,
 					Database:        &s.Database,
 					RetentionPolicy: &s.RetentionPolicy,
-					Virtual:         api.PtrBool(false),
+					Virtual:         nil,
 				})
 				if err != nil {
 					return fmt.Errorf("finding DBRP mappings: %v", err)
