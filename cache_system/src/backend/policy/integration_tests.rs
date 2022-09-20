@@ -96,6 +96,51 @@ async fn test_refresh_sets_new_expiration_after_it_finishes() {
 }
 
 #[tokio::test]
+async fn test_refresh_does_not_update_lru_time() {
+    let TestStateLruAndRefresh {
+        mut backend,
+        refresh_duration_provider,
+        size_estimator,
+        time_provider,
+        loader,
+        notify_idle,
+        ..
+    } = TestStateLruAndRefresh::new();
+
+    size_estimator.mock_size(1, String::from("a"), TestSize(4));
+    size_estimator.mock_size(1, String::from("foo"), TestSize(4));
+    size_estimator.mock_size(2, String::from("b"), TestSize(4));
+    size_estimator.mock_size(3, String::from("c"), TestSize(4));
+
+    refresh_duration_provider.set_refresh_in(1, String::from("a"), Some(Duration::from_secs(1)));
+    refresh_duration_provider.set_refresh_in(1, String::from("foo"), None);
+    refresh_duration_provider.set_refresh_in(2, String::from("b"), None);
+    refresh_duration_provider.set_refresh_in(3, String::from("c"), None);
+
+    let barrier = loader.block_next(1, String::from("foo"));
+    backend.set(1, String::from("a"));
+
+    // trigger refresh
+    time_provider.inc(Duration::from_secs(1));
+    assert_eq!(backend.get(&1), Some(String::from("a")));
+
+    time_provider.inc(Duration::from_secs(1));
+    backend.set(2, String::from("b"));
+
+    time_provider.inc(Duration::from_secs(1));
+
+    notify_idle.notified_with_timeout().await;
+    barrier.wait().await;
+    notify_idle.notified_with_timeout().await;
+
+    // add a third item to the cache, forcing LRU to evict one of the items
+    backend.set(3, String::from("c"));
+
+    // Should evict `1` even though it was refreshed after `2` was added
+    assert_eq!(backend.get(&1), None);
+}
+
+#[tokio::test]
 async fn test_if_refresh_to_slow_then_expire() {
     let TestStateTtlAndRefresh {
         mut backend,
@@ -428,6 +473,60 @@ impl TestStateLruAndRemoveIf {
             time_provider,
             size_estimator,
             remove_if_handle,
+        }
+    }
+}
+
+/// Test setup that integrates the LRU policy with a refresh.
+struct TestStateLruAndRefresh {
+    backend: PolicyBackend<u8, String>,
+    size_estimator: Arc<TestSizeEstimator>,
+    refresh_duration_provider: Arc<TestRefreshDurationProvider>,
+    time_provider: Arc<MockProvider>,
+    loader: Arc<TestLoader>,
+    notify_idle: Arc<Notify>,
+}
+
+impl TestStateLruAndRefresh {
+    fn new() -> Self {
+        let refresh_duration_provider = Arc::new(TestRefreshDurationProvider::new());
+        let size_estimator = Arc::new(TestSizeEstimator::default());
+        let time_provider = Arc::new(MockProvider::new(Time::MIN));
+        let metric_registry = Arc::new(metric::Registry::new());
+        let loader = Arc::new(TestLoader::default());
+        let notify_idle = Arc::new(Notify::new());
+
+        let mut backend = PolicyBackend::new(
+            Box::new(HashMap::<u8, String>::new()),
+            Arc::clone(&time_provider) as _,
+        );
+        backend.add_policy(RefreshPolicy::new_inner(
+            Arc::clone(&refresh_duration_provider) as _,
+            Arc::clone(&loader) as _,
+            "my_cache",
+            &metric_registry,
+            Arc::clone(&notify_idle),
+            &Handle::current(),
+        ));
+
+        let pool = Arc::new(ResourcePool::new(
+            "my_pool",
+            TestSize(10),
+            Arc::clone(&metric_registry),
+        ));
+        backend.add_policy(LruPolicy::new(
+            Arc::clone(&pool),
+            "my_cache",
+            Arc::clone(&size_estimator) as _,
+        ));
+
+        Self {
+            backend,
+            refresh_duration_provider,
+            size_estimator,
+            time_provider,
+            loader,
+            notify_idle,
         }
     }
 }

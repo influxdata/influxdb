@@ -642,6 +642,10 @@ where
         // determine all attributes before getting any locks
         let consumption = self.resource_estimator.consumption(&k, &v);
 
+        // "last used" time for new entry
+        // Note: this might be updated if the entry already exists
+        let mut last_used = now;
+
         // get locks
         let mut pool = self.pool.inner.lock();
 
@@ -653,10 +657,11 @@ where
         // maybe clean from pool
         {
             let mut inner = self.inner.lock();
-            if let Some((consumption, _last_used)) = inner.last_used.remove(&k) {
+            if let Some((consumption, last_used_previously)) = inner.last_used.remove(&k) {
                 pool.remove(consumption);
                 inner.metric_count.dec(1);
                 inner.metric_usage.dec(consumption.into());
+                last_used = last_used_previously;
             }
         }
 
@@ -667,7 +672,7 @@ where
 
         // add new entry to inner backend AFTER adding it to the pool, so we are never overcommitting resources.
         let mut inner = self.inner.lock();
-        inner.last_used.insert(k, consumption, now);
+        inner.last_used.insert(k, consumption, last_used);
         inner.metric_count.inc(1);
         inner.metric_usage.inc(consumption.into());
 
@@ -938,6 +943,39 @@ mod tests {
         ));
 
         assert_eq!(pool.current().0, 0);
+    }
+
+    #[test]
+    fn test_double_set() {
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let pool = Arc::new(ResourcePool::new(
+            "pool",
+            TestSize(2),
+            Arc::new(metric::Registry::new()),
+        ));
+        let resource_estimator = Arc::new(TestResourceEstimator {});
+
+        let mut backend =
+            PolicyBackend::new(Box::new(HashMap::new()), Arc::clone(&time_provider) as _);
+        backend.add_policy(LruPolicy::new(
+            Arc::clone(&pool),
+            "id1",
+            Arc::clone(&resource_estimator) as _,
+        ));
+
+        backend.set(String::from("a"), 1usize);
+        time_provider.inc(Duration::from_millis(1));
+
+        backend.set(String::from("b"), 1usize);
+        time_provider.inc(Duration::from_millis(1));
+
+        // does NOT count as "used"
+        backend.set(String::from("a"), 1usize);
+        time_provider.inc(Duration::from_millis(1));
+
+        backend.set(String::from("c"), 1usize);
+
+        assert_eq!(backend.get(&String::from("a")), None);
     }
 
     #[test]
