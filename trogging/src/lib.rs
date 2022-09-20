@@ -52,7 +52,7 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Builder for tracing and logging.
+/// Builder to configure tracing and logging.
 #[derive(Debug)]
 pub struct Builder<W = fn() -> io::Stdout> {
     log_format: LogFormat,
@@ -72,7 +72,8 @@ impl Default for Builder {
             default_log_filter: EnvFilter::try_new(Self::DEFAULT_LOG_FILTER).unwrap(),
             make_writer: io::stdout,
             with_target: true,
-            with_ansi: true,
+            // use ansi control codes for color if connected to a TTY
+            with_ansi: atty::is(atty::Stream::Stdout),
         }
     }
 }
@@ -185,7 +186,8 @@ where
 
     /// Enable/disable ANSI encoding for formatted events (i.e. colors).
     ///
-    /// Defaults to true. See [tracing_subscriber::fmt::Layer::with_ansi]
+    /// Defaults to true if connected to a TTY, false otherwise. See
+    /// [tracing_subscriber::fmt::Layer::with_ansi]
     pub fn with_ansi(self, with_ansi: bool) -> Self {
         Self { with_ansi, ..self }
     }

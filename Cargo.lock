@@ -5484,6 +5484,7 @@ dependencies = [
 name = "trogging"
 version = "0.1.0"
 dependencies = [
+ "atty",
  "clap",
  "logfmt",
  "observability_deps",
