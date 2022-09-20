@@ -1,6 +1,6 @@
 //! Compactor handler
 
-use crate::{cold, compact::Compactor, hot};
+use crate::{compact::Compactor, hot};
 use async_trait::async_trait;
 use futures::{
     future::{BoxFuture, Shared},
@@ -162,9 +162,12 @@ pub async fn run_compactor_once(compactor: Arc<Compactor>) {
             break;
         }
     }
-    debug!("start cold cycle");
-    compacted_partitions +=
-        cold::compact(Arc::clone(&compactor), false /* not do full compact */).await;
+
+    // Temorarily disable cold compaction again. This time we know the first step like hot comapction hits OOM
+    // See https://github.com/influxdata/conductor/issues/1167#issuecomment-1252832794
+    // debug!("start cold cycle");
+    // compacted_partitions +=
+    //     cold::compact(Arc::clone(&compactor), false /* not do full compact */).await;
 
     if compacted_partitions == 0 {
         // sleep for a second to avoid a busy loop when the catalog is polled

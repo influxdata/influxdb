@@ -13,6 +13,7 @@ use snafu::Snafu;
 use std::sync::Arc;
 
 /// Cold compaction. Returns the number of compacted partitions.
+#[allow(dead_code)]
 pub async fn compact(compactor: Arc<Compactor>, do_full_compact: bool) -> usize {
     let compaction_type = "cold";
     // Select cold partition candidates
