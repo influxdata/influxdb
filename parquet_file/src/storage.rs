@@ -28,7 +28,11 @@ use object_store::{DynObjectStore, ObjectMeta};
 use observability_deps::tracing::*;
 use predicate::Predicate;
 use schema::selection::{select_schema, Selection};
-use std::{num::TryFromIntError, sync::Arc, time::Duration};
+use std::{
+    num::TryFromIntError,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use thiserror::Error;
 
 /// Parquet row group read size
@@ -127,6 +131,8 @@ impl ParquetStorage {
     where
         S: Stream<Item = Result<RecordBatch, ArrowError>> + Send,
     {
+        let start = Instant::now();
+
         // Stream the record batches into a parquet file.
         //
         // It would be nice to stream the encoded parquet to disk for this and
@@ -140,7 +146,7 @@ impl ParquetStorage {
         // Read the IOx-specific parquet metadata from the file metadata
         let parquet_meta =
             IoxParquetMetaData::try_from(parquet_file_meta).map_err(UploadError::Metadata)?;
-        debug!(
+        trace!(
             ?meta.partition_id,
             ?parquet_meta,
             "IoxParquetMetaData coverted from Row Group Metadata (aka FileMetaData)"
@@ -151,6 +157,15 @@ impl ParquetStorage {
 
         let file_size = data.len();
         let data = Bytes::from(data);
+
+        debug!(
+            file_size,
+            object_store_id=?meta.object_store_id,
+            partition_id=?meta.partition_id,
+            // includes the time to run the datafusion plan (that is the batches)
+            total_time_to_create_parquet_bytes=?(Instant::now() - start),
+            "Uploading parquet to object store"
+        );
 
         // Retry uploading the file endlessly.
         //

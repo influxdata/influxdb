@@ -4,7 +4,7 @@ use std::{io::Write, sync::Arc};
 
 use arrow::{error::ArrowError, record_batch::RecordBatch};
 use futures::{pin_mut, Stream, StreamExt};
-use observability_deps::tracing::{debug, warn};
+use observability_deps::tracing::{debug, trace, warn};
 use parquet::{
     arrow::ArrowWriter,
     basic::Compression,
@@ -111,24 +111,36 @@ where
 
     // Serialize the IoxMetadata to the protobuf bytes.
     let props = writer_props(meta)?;
+    let write_batch_size = props.write_batch_size();
+    let max_row_group_size = props.max_row_group_size();
 
     // Construct the arrow serializer with the metadata as part of the parquet
     // file properties.
     let mut writer = ArrowWriter::try_new(sink, Arc::clone(&schema), Some(props))?;
 
+    let mut num_batches = 0;
     while let Some(maybe_batch) = stream.next().await {
         let batch = maybe_batch?;
         writer.write(&batch)?;
+        num_batches += 1;
     }
 
-    let meta = writer.close().map_err(CodecError::from)?;
-    if meta.num_rows == 0 {
+    let writer_meta = writer.close().map_err(CodecError::from)?;
+    if writer_meta.num_rows == 0 {
         // throw warning if all input batches are empty
         warn!("parquet serialisation encoded 0 rows");
         return Err(CodecError::NoRows);
     }
 
-    Ok(meta)
+    debug!(num_batches,
+           num_rows=writer_meta.num_rows,
+           object_store_id=?meta.object_store_id,
+           partition_id=?meta.partition_id,
+           write_batch_size,
+           max_row_group_size,
+           "Created parquet file");
+
+    Ok(writer_meta)
 }
 
 /// A helper function that calls [`to_parquet()`], serialising the parquet file
@@ -153,7 +165,7 @@ where
     let meta = to_parquet(batches, meta, &mut bytes).await?;
     bytes.shrink_to_fit();
 
-    debug!(?partition_id, ?meta, "generated parquet file metadata");
+    trace!(?partition_id, ?meta, "generated parquet file metadata");
 
     Ok((bytes, meta))
 }
