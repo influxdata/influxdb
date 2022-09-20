@@ -1021,7 +1021,7 @@ dependencies = [
  "influxdb_line_protocol",
  "iox_time",
  "observability_deps",
- "ordered-float 3.0.0",
+ "ordered-float 3.1.0",
  "percent-encoding",
  "schema",
  "serde",
@@ -1065,7 +1065,7 @@ dependencies = [
  "log",
  "num_cpus",
  "object_store",
- "ordered-float 3.0.0",
+ "ordered-float 3.1.0",
  "parking_lot 0.12.1",
  "parquet",
  "paste",
@@ -1087,7 +1087,7 @@ source = "git+https://github.com/apache/arrow-datafusion.git?rev=97b3a4b37f54aaa
 dependencies = [
  "arrow",
  "object_store",
- "ordered-float 3.0.0",
+ "ordered-float 3.1.0",
  "parquet",
  "serde_json",
  "sqlparser",
@@ -1135,7 +1135,7 @@ dependencies = [
  "hashbrown",
  "lazy_static",
  "md-5",
- "ordered-float 3.0.0",
+ "ordered-float 3.1.0",
  "paste",
  "rand",
  "regex",
@@ -3177,9 +3177,9 @@ dependencies = [
 
 [[package]]
 name = "ordered-float"
-version = "3.0.0"
+version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96bcbab4bfea7a59c2c0fe47211a1ac4e3e96bea6eb446d704f310bc5c732ae2"
+checksum = "98ffdb14730ed2ef599c65810c15b000896e21e8776b512de0db0c3d7335cc2a"
 dependencies = [
  "num-traits",
 ]
