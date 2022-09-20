@@ -32,6 +32,9 @@ use std::{sync::Arc, time::Duration};
 
 static MIGRATOR: Migrator = sqlx::migrate!();
 
+/// Maximum number of files deleted by [`ParquetFileRepo::delete_old_ids_only].
+const MAX_PARQUET_FILES_DELETED_ONCE: i64 = 1_000;
+
 /// Postgres connection options.
 #[derive(Debug, Clone)]
 pub struct PostgresConnectionOptions {
@@ -1719,14 +1722,22 @@ RETURNING *;
     }
 
     async fn delete_old_ids_only(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFileId>> {
+        // see https://www.crunchydata.com/blog/simulating-update-or-delete-with-limit-in-postgres-ctes-to-the-rescue
         let deleted = sqlx::query(
             r#"
+WITH parquet_file_ids as (
+    SELECT id
+    FROM parquet_file
+    WHERE to_delete < $1
+    LIMIT $2
+)
 DELETE FROM parquet_file
-WHERE to_delete < $1
+WHERE id IN (SELECT id FROM parquet_file_ids)
 RETURNING id;
              "#,
         )
         .bind(&older_than) // $1
+        .bind(&MAX_PARQUET_FILES_DELETED_ONCE) // $2
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })?;

@@ -27,7 +27,8 @@ use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use snafu::prelude::*;
 use std::{fmt::Debug, sync::Arc, time::Duration};
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 /// Logic for listing, checking and deleting files in object storage
 mod objectstore;
@@ -43,7 +44,7 @@ pub async fn main(config: Config) -> Result<()> {
 
 /// The tasks that clean up old object store files that don't appear in the catalog.
 pub struct GarbageCollector {
-    shutdown_tx: broadcast::Sender<()>,
+    shutdown: CancellationToken,
     os_lister: tokio::task::JoinHandle<Result<(), os_lister::Error>>,
     os_checker: tokio::task::JoinHandle<Result<(), os_checker::Error>>,
     os_deleter: tokio::task::JoinHandle<Result<(), os_deleter::Error>>,
@@ -75,8 +76,7 @@ impl GarbageCollector {
         );
 
         // Shutdown handler channel to notify children
-        let (shutdown_tx, shutdown_os_rx) = broadcast::channel(1);
-        let shutdown_pf_rx = shutdown_tx.subscribe();
+        let shutdown = CancellationToken::new();
 
         // Initialise the object store garbage collector, which works as three communicating threads:
         // - lister lists objects in the object store and sends them on a channel. the lister will
@@ -90,7 +90,7 @@ impl GarbageCollector {
         let (tx2, rx2) = mpsc::channel(BUFFER_SIZE);
 
         let os_lister = tokio::spawn(os_lister::perform(
-            shutdown_os_rx,
+            shutdown.clone(),
             Arc::clone(&object_store),
             tx1,
             sub_config.objectstore_sleep_interval_minutes,
@@ -115,14 +115,14 @@ impl GarbageCollector {
         // Initialise the parquet file deleter, which is just one thread that calls delete_old()
         // on the catalog then sleeps.
         let pf_deleter = tokio::spawn(pf_deleter::perform(
-            shutdown_pf_rx,
+            shutdown.clone(),
             catalog,
             sub_config.parquetfile_cutoff,
             sub_config.parquetfile_sleep_interval_minutes,
         ));
 
         Ok(Self {
-            shutdown_tx,
+            shutdown,
             os_lister,
             os_checker,
             os_deleter,
@@ -132,9 +132,9 @@ impl GarbageCollector {
 
     /// A handle to gracefully shutdown the garbage collector when invoked
     pub fn shutdown_handle(&self) -> impl Fn() {
-        let shutdown_tx = self.shutdown_tx.clone();
+        let shutdown = self.shutdown.clone();
         move || {
-            shutdown_tx.send(()).ok();
+            shutdown.cancel();
         }
     }
 
@@ -145,7 +145,7 @@ impl GarbageCollector {
             os_checker,
             os_deleter,
             pf_deleter,
-            shutdown_tx: _,
+            shutdown: _,
         } = self;
 
         let (os_lister, os_checker, os_deleter, pf_deleter) =

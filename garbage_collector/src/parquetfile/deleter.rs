@@ -3,10 +3,11 @@ use iox_catalog::interface::Catalog;
 use observability_deps::tracing::*;
 use snafu::prelude::*;
 use std::{sync::Arc, time::Duration};
-use tokio::{select, sync::broadcast, time::sleep};
+use tokio::{select, time::sleep};
+use tokio_util::sync::CancellationToken;
 
 pub(crate) async fn perform(
-    mut shutdown: broadcast::Receiver<()>,
+    shutdown: CancellationToken,
     catalog: Arc<dyn Catalog>,
     cutoff: Duration,
     sleep_interval_minutes: u64,
@@ -23,11 +24,15 @@ pub(crate) async fn perform(
             .context(DeletingSnafu)?;
         info!(delete_count = %deleted.len(), "iox_catalog::delete_old()");
 
-        select! {
-            _ = shutdown.recv() => {
-                break
-            },
-            _ = sleep(Duration::from_secs(60 * sleep_interval_minutes)) => (),
+        if deleted.is_empty() {
+            select! {
+                _ = shutdown.cancelled() => {
+                    break
+                },
+                _ = sleep(Duration::from_secs(60 * sleep_interval_minutes)) => (),
+            }
+        } else if shutdown.is_cancelled() {
+            break;
         }
     }
     Ok(())

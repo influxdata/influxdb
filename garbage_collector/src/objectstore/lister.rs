@@ -3,14 +3,11 @@ use object_store::{DynObjectStore, ObjectMeta};
 use observability_deps::tracing::*;
 use snafu::prelude::*;
 use std::{sync::Arc, time::Duration};
-use tokio::{
-    select,
-    sync::{broadcast, mpsc},
-    time::sleep,
-};
+use tokio::{select, sync::mpsc, time::sleep};
+use tokio_util::sync::CancellationToken;
 
 pub(crate) async fn perform(
-    mut shutdown: broadcast::Receiver<()>,
+    shutdown: CancellationToken,
     object_store: Arc<DynObjectStore>,
     checker: mpsc::Sender<ObjectMeta>,
     sleep_interval_minutes: u64,
@@ -19,7 +16,7 @@ pub(crate) async fn perform(
 
     loop {
         select! {
-            _ = shutdown.recv() => {
+            _ = shutdown.cancelled() => {
                 break
             },
             item = items.next() => {

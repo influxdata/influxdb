@@ -578,8 +578,12 @@ pub trait ParquetFileRepo: Send + Sync {
     /// Returns the deleted records.
     async fn delete_old(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFile>>;
 
-    /// Delete all parquet files that were marked to be deleted earlier than the specified time.
+    /// Delete parquet files that were marked to be deleted earlier than the specified time.
+    ///
     /// Returns the deleted IDs only.
+    ///
+    /// This deletion is limited to a certain (backend-specific) number of files to avoid overlarge changes. The caller
+    /// MAY call this method again if the result was NOT empty.
     async fn delete_old_ids_only(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFileId>>;
 
     /// List parquet files for a given shard with compaction level 0 and other criteria that
