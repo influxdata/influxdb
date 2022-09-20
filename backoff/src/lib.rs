@@ -48,13 +48,16 @@ impl Default for BackoffConfig {
 /// Error after giving up retrying.
 #[derive(Debug, Snafu, PartialEq, Eq)]
 #[allow(missing_copy_implementations, missing_docs)]
-pub enum BackoffError {
-    #[snafu(display("Deadline exceeded: {deadline:?}"))]
-    DeadlineExceeded { deadline: Duration },
+pub enum BackoffError<E>
+where
+    E: std::error::Error + 'static,
+{
+    #[snafu(display("Retry did not exceed within {deadline:?}: {source}"))]
+    DeadlineExceeded { deadline: Duration, source: E },
 }
 
 /// Backoff result.
-pub type BackoffResult<T> = Result<T, BackoffError>;
+pub type BackoffResult<T, E> = Result<T, BackoffError<E>>;
 
 /// [`Backoff`] can be created from a [`BackoffConfig`]
 ///
@@ -108,8 +111,8 @@ impl Backoff {
         }
     }
 
-    /// Returns the next backoff duration to wait for
-    fn next(&mut self) -> BackoffResult<Duration> {
+    /// Returns the next backoff duration to wait for, if any
+    fn next(&mut self) -> Option<Duration> {
         let range = self.init_backoff..(self.next_backoff_secs * self.base);
 
         let rand_backoff = match self.rng.as_mut() {
@@ -121,29 +124,25 @@ impl Backoff {
         self.total += next_backoff;
         if let Some(deadline) = self.deadline {
             if self.total >= deadline {
-                return Err(BackoffError::DeadlineExceeded {
-                    deadline: Duration::from_secs_f64(deadline),
-                });
+                return None;
             }
         }
-        Ok(Duration::from_secs_f64(std::mem::replace(
+        Some(Duration::from_secs_f64(std::mem::replace(
             &mut self.next_backoff_secs,
             next_backoff,
         )))
     }
 
     /// Perform an async operation that retries with a backoff
-    // TODO: Currently, this can't fail, but there should be a global maximum timeout that
-    // causes an error if the total time retrying exceeds that amount.
     pub async fn retry_with_backoff<F, F1, B, E>(
         &mut self,
         task_name: &str,
         mut do_stuff: F,
-    ) -> BackoffResult<B>
+    ) -> BackoffResult<B, E>
     where
         F: (FnMut() -> F1) + Send,
         F1: std::future::Future<Output = ControlFlow<B, E>> + Send,
-        E: std::error::Error + Send,
+        E: std::error::Error + Send + 'static,
     {
         loop {
             // first execute `F` and then use it, so we can avoid `F: Sync`.
@@ -154,7 +153,16 @@ impl Backoff {
                 ControlFlow::Continue(e) => e,
             };
 
-            let backoff = self.next()?;
+            let backoff = match self.next() {
+                Some(backoff) => backoff,
+                None => {
+                    return Err(BackoffError::DeadlineExceeded {
+                        deadline: Duration::from_secs_f64(self.deadline.expect("deadline")),
+                        source: e,
+                    });
+                }
+            };
+
             info!(
                 e=%e,
                 task_name,
@@ -170,11 +178,11 @@ impl Backoff {
         &mut self,
         task_name: &str,
         mut do_stuff: F,
-    ) -> BackoffResult<B>
+    ) -> BackoffResult<B, E>
     where
         F: (FnMut() -> F1) + Send,
         F1: std::future::Future<Output = Result<B, E>> + Send,
-        E: std::error::Error + Send,
+        E: std::error::Error + Send + 'static,
     {
         self.retry_with_backoff(task_name, move || {
             // first execute `F` and then use it, so we can avoid `F: Sync`.
@@ -249,7 +257,6 @@ mod tests {
             },
             Some(rng),
         );
-        let err = backoff.next().unwrap_err();
-        assert_eq!(err, BackoffError::DeadlineExceeded { deadline });
+        assert_eq!(backoff.next(), None);
     }
 }

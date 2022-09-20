@@ -39,6 +39,7 @@ use std::{
     fmt::Display,
     fmt::Write,
     sync::Arc,
+    time::Duration,
 };
 use tokio::runtime::Handle;
 
@@ -944,6 +945,12 @@ impl MockIngester {
             shard_to_ingesters,
             Arc::new(self),
             Arc::clone(&catalog_cache),
+            BackoffConfig {
+                init_backoff: Duration::from_secs(1),
+                max_backoff: Duration::from_secs(2),
+                base: 1.1,
+                deadline: Some(Duration::from_millis(500)),
+            },
         );
         let ingester_connection = Arc::new(ingester_connection);
         let sharder = Arc::new(JumpHash::new((0..1).map(ShardIndex::new).map(Arc::new)));
