@@ -13,8 +13,7 @@ use snafu::Snafu;
 use std::sync::Arc;
 
 /// Cold compaction. Returns the number of compacted partitions.
-#[allow(dead_code)]
-pub async fn compact(compactor: Arc<Compactor>) -> usize {
+pub async fn compact(compactor: Arc<Compactor>, do_full_compact: bool) -> usize {
     let compaction_type = "cold";
     // Select cold partition candidates
     debug!(compaction_type, "start collecting partitions to compact");
@@ -60,16 +59,18 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
     )
     .await;
 
-    // Compact level 1 files in parallel ("full compaction")
-    compact_candidates_with_memory_budget(
-        Arc::clone(&compactor),
-        compaction_type,
-        CompactionLevel::FileNonOverlapped,
-        compact_in_parallel,
-        false, // don't split
-        candidates.into(),
-    )
-    .await;
+    if do_full_compact {
+        //Compact level 1 files in parallel ("full compaction")
+        compact_candidates_with_memory_budget(
+            Arc::clone(&compactor),
+            compaction_type,
+            CompactionLevel::FileNonOverlapped,
+            compact_in_parallel,
+            false, // don't split
+            candidates.into(),
+        )
+        .await;
+    }
 
     // Done compacting all candidates in the cycle, record its time
     if let Some(delta) = compactor
@@ -653,7 +654,7 @@ mod tests {
 
         // ------------------------------------------------
         // Compact
-        compact(compactor).await;
+        compact(compactor, true).await;
 
         // Should have 1 non-soft-deleted files:
         //
@@ -857,7 +858,7 @@ mod tests {
         // ------------------------------------------------
         // Compact
 
-        compact(compactor).await;
+        compact(compactor, true).await;
 
         // Should have 1 non-soft-deleted file:
         //
@@ -1071,7 +1072,7 @@ mod tests {
         // ------------------------------------------------
         // Compact
 
-        compact(compactor).await;
+        compact(compactor, true).await;
 
         // Should have 3 non-soft-deleted files:
         //
