@@ -9,6 +9,8 @@ description = "Re-exports datafusion at a specific version"
 
 # Rename to workaround doctest bug
 # Turn off optional datafusion features (e.g. don't get support for crypto functions or avro)
-upstream = { git = "https://github.com/apache/arrow-datafusion.git", rev="97b3a4b37f54aaa52f8705db3e57b15ee98c24a7", default-features = false, package = "datafusion" }
-datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="97b3a4b37f54aaa52f8705db3e57b15ee98c24a7" }
+upstream = { git = "https://github.com/apache/arrow-datafusion.git", rev="a6fbf24ddb81e34258a940a48e371b1efe5f6e49", default-features = false, package = "datafusion" }
+datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="a6fbf24ddb81e34258a940a48e371b1efe5f6e49" }
+
+
 workspace-hack = { path = "../workspace-hack"}
