@@ -5,6 +5,7 @@ use self::{
 use crate::{cache::CatalogCache, chunk::util::create_basic_summary};
 use arrow::{datatypes::DataType, error::ArrowError, record_batch::RecordBatch};
 use async_trait::async_trait;
+use backoff::{Backoff, BackoffConfig, BackoffError};
 use client_util::connection;
 use data_types::{
     ChunkId, ChunkOrder, IngesterMapping, PartitionId, SequenceNumber, ShardId, ShardIndex,
@@ -307,6 +308,7 @@ pub struct IngesterConnectionImpl {
     flight_client: Arc<dyn FlightClient>,
     catalog_cache: Arc<CatalogCache>,
     metrics: Arc<IngesterConnectionMetrics>,
+    backoff_config: BackoffConfig,
 }
 
 impl IngesterConnectionImpl {
@@ -333,6 +335,7 @@ impl IngesterConnectionImpl {
             shard_to_ingesters,
             Arc::new(FlightClientImpl::new()),
             catalog_cache,
+            BackoffConfig::default(),
         )
     }
 
@@ -344,6 +347,7 @@ impl IngesterConnectionImpl {
         shard_to_ingesters: HashMap<ShardIndex, IngesterMapping>,
         flight_client: Arc<dyn FlightClient>,
         catalog_cache: Arc<CatalogCache>,
+        backoff_config: BackoffConfig,
     ) -> Self {
         let unique_ingester_addresses: HashSet<_> = shard_to_ingesters
             .values()
@@ -363,6 +367,7 @@ impl IngesterConnectionImpl {
             flight_client,
             catalog_cache,
             metrics,
+            backoff_config,
         }
     }
 }
@@ -698,25 +703,38 @@ impl IngesterConnection for IngesterConnectionImpl {
 
         let metrics = Arc::clone(&self.metrics);
 
-        let measured_ingester_request = |ingester_address| {
+        let measured_ingester_request = |ingester_address: Arc<str>| {
+            let metrics = Arc::clone(&metrics);
             let request = GetPartitionForIngester {
                 flight_client: Arc::clone(&self.flight_client),
                 catalog_cache: Arc::clone(&self.catalog_cache),
-                ingester_address,
+                ingester_address: Arc::clone(&ingester_address),
                 namespace_name: Arc::clone(&namespace_name),
                 table_name: Arc::clone(&table_name),
                 columns: columns.clone(),
                 predicate,
                 expected_schema: Arc::clone(&expected_schema),
             };
-            let metrics = Arc::clone(&metrics);
+
+            let backoff_config = self.backoff_config.clone();
 
             // wrap `execute` into an additional future so that we can measure the request time
             // INFO: create the measurement structure outside of the async block so cancellation is
             // always measured
             let measure_me = ObserveIngesterRequest::new(request.clone(), metrics, &span_recorder);
             async move {
-                let res = execute(request.clone(), measure_me.span_recorder()).await;
+                let span_recorder = measure_me
+                    .span_recorder()
+                    .child("ingester request (retry block)");
+
+                let res = Backoff::new(&backoff_config)
+                    .retry_all_errors("ingester request", move || {
+                        let request = request.clone();
+                        let span_recorder = span_recorder.child("ingester request (single try)");
+
+                        async move { execute(request, &span_recorder).await }
+                    })
+                    .await;
 
                 match &res {
                     Ok(partitions) => {
@@ -774,7 +792,9 @@ impl IngesterConnection for IngesterConnectionImpl {
             .await
             .map_err(|e| {
                 span_recorder.error("failed");
-                e
+                match e {
+                    BackoffError::DeadlineExceeded { source, .. } => source,
+                }
             })?
             // We have a Vec<Vec<..>> flatten to Vec<_>
             .into_iter()
@@ -1194,7 +1214,10 @@ mod tests {
     use metric::Attributes;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use schema::{builder::SchemaBuilder, InfluxFieldType};
-    use std::collections::{BTreeSet, HashMap};
+    use std::{
+        collections::{BTreeSet, HashMap},
+        time::Duration,
+    };
     use test_helpers::assert_error;
     use tokio::{runtime::Handle, sync::Mutex};
     use trace::{span::SpanStatus, RingBufferTraceCollector};
@@ -1243,7 +1266,8 @@ mod tests {
             )])
             .await,
         );
-        let ingester_conn = mock_flight_client.ingester_conn().await;
+        let mut ingester_conn = mock_flight_client.ingester_conn().await;
+        ingester_conn.backoff_config = BackoffConfig::default();
         let partitions = get_partitions(&ingester_conn, &[1]).await.unwrap();
         assert!(partitions.is_empty());
     }
@@ -1872,6 +1896,12 @@ mod tests {
                     self.catalog.object_store(),
                     &Handle::current(),
                 )),
+                BackoffConfig {
+                    init_backoff: Duration::from_secs(1),
+                    max_backoff: Duration::from_secs(2),
+                    base: 1.1,
+                    deadline: Some(Duration::from_millis(500)),
+                },
             )
         }
     }
