@@ -51,22 +51,6 @@ impl ShardData {
         }
     }
 
-    /// Initialize new ShardData with namespace for testing purpose only
-    #[cfg(test)]
-    pub fn new_for_test(
-        shard_index: ShardIndex,
-        shard_id: ShardId,
-        namespaces: BTreeMap<String, Arc<NamespaceData>>,
-    ) -> Self {
-        Self {
-            shard_index,
-            shard_id,
-            namespaces: RwLock::new(namespaces),
-            metrics: Default::default(),
-            namespace_count: Default::default(),
-        }
-    }
-
     /// Store the write or delete in the shard. Deletes will
     /// be written into the catalog before getting stored in the buffer.
     /// Any writes that create new IOx partitions will have those records

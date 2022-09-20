@@ -44,24 +44,6 @@ impl TableData {
         }
     }
 
-    /// Initialize new table buffer for testing purpose only
-    #[cfg(test)]
-    pub fn new_for_test(
-        table_id: TableId,
-        table_name: &str,
-        shard_id: ShardId,
-        tombstone_max_sequence_number: Option<SequenceNumber>,
-        partitions: BTreeMap<PartitionKey, PartitionData>,
-    ) -> Self {
-        Self {
-            table_id,
-            table_name: table_name.into(),
-            shard_id,
-            tombstone_max_sequence_number,
-            partition_data: partitions,
-        }
-    }
-
     /// Return parquet_max_sequence_number
     pub fn parquet_max_sequence_number(&self) -> Option<SequenceNumber> {
         self.partition_data

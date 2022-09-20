@@ -100,23 +100,6 @@ impl NamespaceData {
         }
     }
 
-    /// Initialize new tables with data for testing purpose only
-    #[cfg(test)]
-    pub(crate) fn new_for_test(
-        namespace_id: NamespaceId,
-        shard_id: ShardId,
-        tables: BTreeMap<String, Arc<tokio::sync::RwLock<TableData>>>,
-    ) -> Self {
-        Self {
-            namespace_id,
-            shard_id,
-            tables: RwLock::new(tables),
-            table_count: Default::default(),
-            buffering_sequence_number: RwLock::new(None),
-            test_triggers: TestTriggers::new(),
-        }
-    }
-
     /// Buffer the operation in the cache, adding any new partitions or delete tombstones to the
     /// catalog. Returns true if ingest should be paused due to memory limits set in the passed
     /// lifecycle manager.

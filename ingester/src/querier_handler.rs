@@ -423,7 +423,7 @@ mod tests {
                 DataLocation::SNAPSHOT_PERSISTING,
                 DataLocation::PERSISTING,
             ] {
-                let scenario = Arc::new(make_ingester_data(two_partitions, loc));
+                let scenario = Arc::new(make_ingester_data(two_partitions, loc).await);
                 scenarios.push((loc, scenario));
             }
         }
