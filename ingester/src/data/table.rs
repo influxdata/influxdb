@@ -45,7 +45,7 @@ impl TableData {
     }
 
     /// Return parquet_max_sequence_number
-    pub fn parquet_max_sequence_number(&self) -> Option<SequenceNumber> {
+    pub(super) fn parquet_max_sequence_number(&self) -> Option<SequenceNumber> {
         self.partition_data
             .values()
             .map(|p| p.max_persisted_sequence_number())
@@ -55,7 +55,7 @@ impl TableData {
 
     /// Return tombstone_max_sequence_number
     #[allow(dead_code)] // Used in tests
-    pub fn tombstone_max_sequence_number(&self) -> Option<SequenceNumber> {
+    pub(super) fn tombstone_max_sequence_number(&self) -> Option<SequenceNumber> {
         self.tombstone_max_sequence_number
     }
 
@@ -132,7 +132,7 @@ impl TableData {
         Ok(())
     }
 
-    pub fn unpersisted_partition_data(&self) -> Vec<UnpersistedPartitionData> {
+    pub(crate) fn unpersisted_partition_data(&self) -> Vec<UnpersistedPartitionData> {
         self.partition_data
             .values()
             .map(|p| UnpersistedPartitionData {

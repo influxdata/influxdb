@@ -232,6 +232,7 @@ impl DataBuffer {
         }
     }
 
+    #[cfg(test)]
     pub(super) fn get_snapshots(&self) -> &[Arc<SnapshotBatch>] {
         self.snapshots.as_ref()
     }

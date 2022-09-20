@@ -55,7 +55,7 @@ impl ShardData {
     /// be written into the catalog before getting stored in the buffer.
     /// Any writes that create new IOx partitions will have those records
     /// created in the catalog before putting into the buffer.
-    pub async fn buffer_operation(
+    pub(super) async fn buffer_operation(
         &self,
         dml_operation: DmlOperation,
         catalog: &dyn Catalog,
@@ -76,7 +76,7 @@ impl ShardData {
     }
 
     /// Gets the namespace data out of the map
-    pub fn namespace(&self, namespace: &str) -> Option<Arc<NamespaceData>> {
+    pub(crate) fn namespace(&self, namespace: &str) -> Option<Arc<NamespaceData>> {
         let n = self.namespaces.read();
         n.get(namespace).cloned()
     }
@@ -127,7 +127,7 @@ impl ShardData {
     }
 
     /// Return the [`ShardIndex`] this [`ShardData`] is buffering for.
-    pub fn shard_index(&self) -> ShardIndex {
+    pub(super) fn shard_index(&self) -> ShardIndex {
         self.shard_index
     }
 }
