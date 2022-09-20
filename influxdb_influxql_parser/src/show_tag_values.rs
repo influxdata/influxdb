@@ -2,7 +2,8 @@ use crate::common::{limit_clause, offset_clause, where_clause};
 use crate::expression::Expr;
 use crate::identifier::{identifier, Identifier};
 use crate::internal::{expect, ParseResult};
-use crate::show::{from_clause, on_clause, FromMeasurementClause};
+use crate::show::on_clause;
+use crate::simple_from_clause::{show_from_clause, ShowFromClause};
 use crate::string::{regex, Regex};
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case};
@@ -22,7 +23,7 @@ pub struct ShowTagValuesStatement {
 
     /// The measurement or measurements to restrict which tag keys
     /// are retrieved.
-    pub from: Option<FromMeasurementClause>,
+    pub from: Option<ShowFromClause>,
 
     /// `WITH KEY` expression, to limit the values retrieved to
     /// the matching tag keys.
@@ -84,7 +85,7 @@ pub fn show_tag_values(i: &str) -> ParseResult<&str, ShowTagValuesStatement> {
     ) = tuple((
         tag_no_case("VALUES"),
         opt(preceded(multispace1, on_clause)),
-        opt(preceded(multispace1, from_clause)),
+        opt(preceded(multispace1, show_from_clause)),
         expect(
             "invalid SHOW TAG VALUES statement, expect WITH KEY clause",
             preceded(multispace1, with_key_clause),

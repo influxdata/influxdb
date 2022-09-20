@@ -468,16 +468,25 @@ mod test {
         let (_, got) = conditional_expression("5+$foo").unwrap();
         assert_eq!(got, *binary_op!(5, Add, param!("foo")));
 
-        let (_, got) = conditional_expression("5--(3|2)").unwrap();
+        let (_, got) = conditional_expression("5- -(3|2)").unwrap();
         assert_eq!(
             got,
             *binary_op!(5, Sub, unary!(-nested!(binary_op!(3, BitwiseOr, 2))))
+        );
+
+        // whitespace is not significant between unary operators
+        let (_, got) = conditional_expression("5+-(3|2)").unwrap();
+        assert_eq!(
+            got,
+            *binary_op!(5, Add, unary!(-nested!(binary_op!(3, BitwiseOr, 2))))
         );
 
         // Fallible cases
 
         // invalid operator / incomplete expression
         assert_failure!(conditional_expression("5 || 3"));
+        // TODO: skip until https://github.com/influxdata/influxdb_iox/issues/5663 is implemented
+        // assert_failure!(conditional_expression("5+--(3|2)"));
     }
 
     #[test]

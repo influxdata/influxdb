@@ -1,11 +1,27 @@
 use crate::identifier::{identifier, Identifier};
 use crate::internal::{expect, ParseResult};
-use crate::Statement;
-use crate::Statement::ShowRetentionPolicies;
 use nom::bytes::complete::tag_no_case;
 use nom::character::complete::multispace1;
 use nom::combinator::opt;
 use nom::sequence::{pair, preceded, tuple};
+use std::fmt::{Display, Formatter};
+
+/// Represents a `SHOW RETENTION POLICIES` statement.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShowRetentionPoliciesStatement {
+    /// Name of the database to list the retention policies, or all if this is `None`.
+    database: Option<Identifier>,
+}
+
+impl Display for ShowRetentionPoliciesStatement {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SHOW RETENTION POLICIES")?;
+        if let Some(ref database) = self.database {
+            write!(f, " ON {}", database)?;
+        }
+        Ok(())
+    }
+}
 
 fn on_clause(i: &str) -> ParseResult<&str, Identifier> {
     preceded(
@@ -14,7 +30,7 @@ fn on_clause(i: &str) -> ParseResult<&str, Identifier> {
     )(i)
 }
 
-pub fn show_retention_policies(i: &str) -> ParseResult<&str, Statement> {
+pub fn show_retention_policies(i: &str) -> ParseResult<&str, ShowRetentionPoliciesStatement> {
     let (remaining, (_, _, _, database)) = tuple((
         tag_no_case("RETENTION"),
         multispace1,
@@ -25,7 +41,7 @@ pub fn show_retention_policies(i: &str) -> ParseResult<&str, Statement> {
         opt(preceded(multispace1, on_clause)),
     ))(i)?;
 
-    Ok((remaining, ShowRetentionPolicies { database }))
+    Ok((remaining, ShowRetentionPoliciesStatement { database }))
 }
 
 #[cfg(test)]

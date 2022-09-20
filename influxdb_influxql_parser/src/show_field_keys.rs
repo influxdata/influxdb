@@ -1,7 +1,8 @@
 use crate::common::{limit_clause, offset_clause};
 use crate::identifier::Identifier;
 use crate::internal::{expect, ParseResult};
-use crate::show::{from_clause, on_clause, FromMeasurementClause};
+use crate::show::on_clause;
+use crate::simple_from_clause::{show_from_clause, ShowFromClause};
 use nom::bytes::complete::tag_no_case;
 use nom::character::complete::multispace1;
 use nom::combinator::opt;
@@ -18,7 +19,7 @@ pub struct ShowFieldKeysStatement {
 
     /// The measurement or measurements to restrict which field keys
     /// are retrieved.
-    pub from: Option<FromMeasurementClause>,
+    pub from: Option<ShowFromClause>,
 
     /// A value to restrict the number of field keys returned.
     pub limit: Option<u64>,
@@ -72,7 +73,7 @@ pub fn show_field_keys(i: &str) -> ParseResult<&str, ShowFieldKeysStatement> {
             tag_no_case("KEYS"),
         ),
         opt(preceded(multispace1, on_clause)),
-        opt(preceded(multispace1, from_clause)),
+        opt(preceded(multispace1, show_from_clause)),
         opt(preceded(multispace1, limit_clause)),
         opt(preceded(multispace1, offset_clause)),
     ))(i)?;
