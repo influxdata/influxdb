@@ -1,6 +1,6 @@
 //! Compactor handler
 
-use crate::{cold, compact::Compactor, hot};
+use crate::{compact::Compactor, hot};
 use async_trait::async_trait;
 use futures::{
     future::{BoxFuture, Shared},
@@ -162,8 +162,10 @@ pub async fn run_compactor_once(compactor: Arc<Compactor>) {
             break;
         }
     }
-    debug!("start cold cycle");
-    compacted_partitions += cold::compact(Arc::clone(&compactor)).await;
+    // temporarily turn off cold compactor to see if the OOM in compactor 0 goes away
+    // See https://github.com/influxdata/conductor/issues/1167#issuecomment-1252391315 for the investigation steps
+    // debug!("start cold cycle");
+    // compacted_partitions += cold::compact(Arc::clone(&compactor)).await;
 
     if compacted_partitions == 0 {
         // sleep for a second to avoid a busy loop when the catalog is polled
