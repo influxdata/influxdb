@@ -16,7 +16,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::loader::Loader;
 
-use super::{CallbackHandle, ChangeRequest, Subscriber};
+use super::{CacheBackend, CallbackHandle, ChangeRequest, Subscriber};
 
 /// Interface to provide refresh duration for a key-value pair.
 pub trait RefreshDurationProvider: std::fmt::Debug + Send + Sync + 'static {

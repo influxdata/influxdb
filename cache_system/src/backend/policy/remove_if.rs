@@ -3,7 +3,7 @@ use metric::U64Counter;
 use parking_lot::Mutex;
 use std::{fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc};
 
-use super::{CallbackHandle, ChangeRequest, Subscriber};
+use super::{CacheBackend, CallbackHandle, ChangeRequest, Subscriber};
 
 /// Allows explicitly removing entries from the cache.
 #[derive(Debug, Clone)]
@@ -109,7 +109,7 @@ where
         let removed_captured = &mut removed;
         let k = k.clone();
         handle.execute_requests(vec![ChangeRequest::from_fn(move |backend| {
-            if let Some(v) = backend.get(&k) {
+            if let Some(v) = backend.get_untracked(&k) {
                 if predicate(v) {
                     metric_removed_by_predicate.inc(1);
                     backend.remove(&k);
