@@ -119,7 +119,7 @@ pub(crate) struct PartitionData {
     /// The name of the table this partition is part of.
     table_name: Arc<str>,
 
-    pub(crate) data: DataBuffer,
+    pub(super) data: DataBuffer,
 
     /// The max_persisted_sequence number for any parquet_file in this
     /// partition.
@@ -146,15 +146,15 @@ impl PartitionData {
     }
 
     /// Snapshot anything in the buffer and move all snapshot data into a persisting batch
-    pub fn snapshot_to_persisting_batch(&mut self) -> Option<Arc<PersistingBatch>> {
+    pub(super) fn snapshot_to_persisting_batch(&mut self) -> Option<Arc<PersistingBatch>> {
         self.data
             .snapshot_to_persisting(self.shard_id, self.table_id, self.id, &self.table_name)
     }
 
     /// Snapshot whatever is in the buffer and return a new vec of the
     /// arc cloned snapshots
-    #[allow(dead_code)] // Used in tests
-    pub fn snapshot(&mut self) -> Result<Vec<Arc<SnapshotBatch>>, super::Error> {
+    #[cfg(test)]
+    fn snapshot(&mut self) -> Result<Vec<Arc<SnapshotBatch>>, super::Error> {
         self.data
             .generate_snapshot()
             .context(super::SnapshotSnafu)?;
@@ -162,17 +162,17 @@ impl PartitionData {
     }
 
     /// Return non persisting data
-    pub fn get_non_persisting_data(&self) -> Result<Vec<Arc<SnapshotBatch>>, super::Error> {
+    pub(super) fn get_non_persisting_data(&self) -> Result<Vec<Arc<SnapshotBatch>>, super::Error> {
         self.data.buffer_and_snapshots()
     }
 
     /// Return persisting data
-    pub fn get_persisting_data(&self) -> Option<QueryableBatch> {
+    pub(super) fn get_persisting_data(&self) -> Option<QueryableBatch> {
         self.data.get_persisting_data()
     }
 
     /// Write the given mb in the buffer
-    pub(crate) fn buffer_write(
+    pub(super) fn buffer_write(
         &mut self,
         sequence_number: SequenceNumber,
         mb: MutableBatch,
@@ -199,7 +199,7 @@ impl PartitionData {
     ///     tombstone-applied snapshot
     ///   . The tombstone is only added in the `deletes_during_persisting` if the `persisting`
     ///     exists
-    pub(crate) async fn buffer_tombstone(&mut self, executor: &Executor, tombstone: Tombstone) {
+    pub(super) async fn buffer_tombstone(&mut self, executor: &Executor, tombstone: Tombstone) {
         self.data.add_tombstone(tombstone.clone());
 
         // ----------------------------------------------------------
@@ -265,23 +265,23 @@ impl PartitionData {
     }
 
     /// Return the progress from this Partition
-    pub(crate) fn progress(&self) -> ShardProgress {
+    pub(super) fn progress(&self) -> ShardProgress {
         self.data.progress()
     }
 
-    pub(crate) fn id(&self) -> PartitionId {
+    pub(super) fn id(&self) -> PartitionId {
         self.id
     }
 
     /// Return the [`SequenceNumber`] that forms the (inclusive) persistence
     /// watermark for this partition.
-    pub(crate) fn max_persisted_sequence_number(&self) -> Option<SequenceNumber> {
+    pub(super) fn max_persisted_sequence_number(&self) -> Option<SequenceNumber> {
         self.max_persisted_sequence_number
     }
 
     /// Mark this partition as having completed persistence up to, and
     /// including, the specified [`SequenceNumber`].
-    pub(crate) fn mark_persisted(&mut self, sequence_number: SequenceNumber) {
+    pub(super) fn mark_persisted(&mut self, sequence_number: SequenceNumber) {
         self.max_persisted_sequence_number = Some(sequence_number);
         self.data.mark_persisted();
     }

@@ -16,10 +16,7 @@ use write_summary::ShardProgress;
 
 #[cfg(test)]
 use super::triggers::TestTriggers;
-use super::{
-    partition::{PersistingBatch, SnapshotBatch},
-    table::TableData,
-};
+use super::{partition::PersistingBatch, table::TableData};
 use crate::lifecycle::LifecycleHandle;
 
 /// Data of a Namespace that belongs to a given Shard
@@ -100,27 +97,10 @@ impl NamespaceData {
         }
     }
 
-    /// Initialize new tables with data for testing purpose only
-    #[cfg(test)]
-    pub(crate) fn new_for_test(
-        namespace_id: NamespaceId,
-        shard_id: ShardId,
-        tables: BTreeMap<String, Arc<tokio::sync::RwLock<TableData>>>,
-    ) -> Self {
-        Self {
-            namespace_id,
-            shard_id,
-            tables: RwLock::new(tables),
-            table_count: Default::default(),
-            buffering_sequence_number: RwLock::new(None),
-            test_triggers: TestTriggers::new(),
-        }
-    }
-
     /// Buffer the operation in the cache, adding any new partitions or delete tombstones to the
     /// catalog. Returns true if ingest should be paused due to memory limits set in the passed
     /// lifecycle manager.
-    pub async fn buffer_operation(
+    pub(super) async fn buffer_operation(
         &self,
         dml_operation: DmlOperation,
         catalog: &dyn Catalog,
@@ -197,11 +177,15 @@ impl NamespaceData {
 
     /// Snapshots the mutable buffer for the partition, which clears it out and moves it over to
     /// snapshots. Then return a vec of the snapshots and the optional persisting batch.
-    pub async fn snapshot(
+    #[cfg(test)] // Only used in tests
+    pub(crate) async fn snapshot(
         &self,
         table_name: &str,
         partition_key: &PartitionKey,
-    ) -> Option<(Vec<Arc<SnapshotBatch>>, Option<Arc<PersistingBatch>>)> {
+    ) -> Option<(
+        Vec<Arc<super::partition::SnapshotBatch>>,
+        Option<Arc<PersistingBatch>>,
+    )> {
         if let Some(t) = self.table_data(table_name) {
             let mut t = t.write().await;
 
@@ -219,7 +203,7 @@ impl NamespaceData {
     /// Snapshots the mutable buffer for the partition, which clears it out and then moves all
     /// snapshots over to a persisting batch, which is returned. If there is no data to snapshot
     /// or persist, None will be returned.
-    pub async fn snapshot_to_persisting(
+    pub(crate) async fn snapshot_to_persisting(
         &self,
         table_name: &str,
         partition_key: &PartitionKey,
@@ -315,12 +299,12 @@ impl NamespaceData {
     }
 
     /// Return the [`NamespaceId`] this [`NamespaceData`] belongs to.
-    pub fn namespace_id(&self) -> NamespaceId {
+    pub(super) fn namespace_id(&self) -> NamespaceId {
         self.namespace_id
     }
 
     #[cfg(test)]
-    pub fn table_count(&self) -> &U64Counter {
+    pub(super) fn table_count(&self) -> &U64Counter {
         &self.table_count
     }
 }
