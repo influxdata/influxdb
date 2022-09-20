@@ -167,25 +167,30 @@ impl NamespaceCache {
         should_cover: &[(&str, &HashSet<ColumnId>)],
         span: Option<Span>,
     ) -> Option<Arc<CachedNamespace>> {
-        self.remove_if_handle.remove_if(&name, |cached_namespace| {
-            if let Some(namespace) = cached_namespace.as_ref() {
-                should_cover.iter().any(|(table_name, columns)| {
-                    if let Some(table) = namespace.tables.get(*table_name) {
-                        columns
-                            .iter()
-                            .any(|col| !table.column_id_map.contains_key(col))
+        self.remove_if_handle
+            .remove_if_and_get(
+                &self.cache,
+                name,
+                |cached_namespace| {
+                    if let Some(namespace) = cached_namespace.as_ref() {
+                        should_cover.iter().any(|(table_name, columns)| {
+                            if let Some(table) = namespace.tables.get(*table_name) {
+                                columns
+                                    .iter()
+                                    .any(|col| !table.column_id_map.contains_key(col))
+                            } else {
+                                // table unknown => need to update
+                                true
+                            }
+                        })
                     } else {
-                        // table unknown => need to update
-                        true
+                        // namespace unknown => need to update if should cover anything
+                        !should_cover.is_empty()
                     }
-                })
-            } else {
-                // namespace unknown => need to update if should cover anything
-                !should_cover.is_empty()
-            }
-        });
-
-        self.cache.get(name, ((), span)).await
+                },
+                ((), span),
+            )
+            .await
     }
 }
 

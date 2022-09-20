@@ -210,10 +210,12 @@ impl QuerierTable {
             self.ingester_partitions(predicate, span_recorder.child_span("ingester partitions")),
             catalog_cache.parquet_file().get(
                 self.id(),
+                None,
                 span_recorder.child_span("cache GET parquet_file (pre-warm")
             ),
             catalog_cache.tombstone().get(
                 self.id(),
+                None,
                 span_recorder.child_span("cache GET tombstone (pre-warm)")
             ),
         );
@@ -221,9 +223,15 @@ impl QuerierTable {
         // handle errors / cache refresh
         let partitions = partitions?;
 
-        // figure out if the ingester has created new parquet files or
-        // tombstones the querier doens't yet know about
-        self.validate_caches(&partitions);
+        // determine max parquet sequence number for cache invalidation
+        let max_parquet_sequence_number = partitions
+            .iter()
+            .flat_map(|p| p.parquet_max_sequence_number())
+            .max();
+        let max_tombstone_sequence_number = partitions
+            .iter()
+            .flat_map(|p| p.tombstone_max_sequence_number())
+            .max();
 
         debug!(
             namespace=%self.namespace_name,
@@ -233,14 +241,19 @@ impl QuerierTable {
         );
 
         // Now fetch the actual contents of the catalog we need
+        // NB: Pass max parquet/tombstone sequence numbers to `get`
+        //     to ensure cache is refreshed if we learned about new files/tombstones.
         let (parquet_files, tombstones) = join!(
             catalog_cache.parquet_file().get(
                 self.id(),
+                max_parquet_sequence_number,
                 span_recorder.child_span("cache GET parquet_file")
             ),
-            catalog_cache
-                .tombstone()
-                .get(self.id(), span_recorder.child_span("cache GET tombstone"))
+            catalog_cache.tombstone().get(
+                self.id(),
+                max_tombstone_sequence_number,
+                span_recorder.child_span("cache GET tombstone")
+            )
         );
 
         let columns: HashSet<ColumnId> = parquet_files
@@ -458,43 +471,6 @@ impl QuerierTable {
         }
 
         Ok(partitions)
-    }
-
-    /// Handles invalidating parquet and tombstone caches if the
-    /// responses from the ingesters refer to newer parquet data or
-    /// tombstone data than is in the cache.
-    fn validate_caches(&self, partitions: &[IngesterPartition]) {
-        // figure out if the ingester has created new parquet files or
-        // tombstones the querier doens't yet know about
-        let catalog_cache = self.chunk_adapter.catalog_cache();
-
-        let max_parquet_sequence_number = partitions
-            .iter()
-            .flat_map(|p| p.parquet_max_sequence_number())
-            .max();
-
-        let parquet_cache_outdated = catalog_cache
-            .parquet_file()
-            .expire_on_newly_persisted_files(self.id, max_parquet_sequence_number);
-
-        let max_tombstone_sequence_number = partitions
-            .iter()
-            .flat_map(|p| p.tombstone_max_sequence_number())
-            .max();
-
-        let tombstone_cache_outdated = catalog_cache
-            .tombstone()
-            .expire_on_newly_persisted_files(self.id, max_tombstone_sequence_number);
-
-        debug!(
-            namespace=%self.namespace_name,
-            table_name=%self.table_name(),
-            parquet_cache_outdated,
-            tombstone_cache_outdated,
-            ?max_parquet_sequence_number,
-            ?max_tombstone_sequence_number,
-            "caches validated"
-        );
     }
 
     /// clear the parquet file cache

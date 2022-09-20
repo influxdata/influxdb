@@ -121,16 +121,21 @@ impl PartitionCache {
         span: Option<Span>,
     ) -> Arc<Option<SortKey>> {
         self.remove_if_handle
-            .remove_if(&partition_id, |cached_partition| {
-                if let Some(sort_key) = cached_partition.sort_key.as_ref().as_ref() {
-                    should_cover.iter().any(|col| !sort_key.contains(col))
-                } else {
-                    // no sort key at all => need to update if there is anything to cover
-                    !should_cover.is_empty()
-                }
-            });
-
-        self.cache.get(partition_id, ((), span)).await.sort_key
+            .remove_if_and_get(
+                &self.cache,
+                partition_id,
+                |cached_partition| {
+                    if let Some(sort_key) = cached_partition.sort_key.as_ref().as_ref() {
+                        should_cover.iter().any(|col| !sort_key.contains(col))
+                    } else {
+                        // no sort key at all => need to update if there is anything to cover
+                        !should_cover.is_empty()
+                    }
+                },
+                ((), span),
+            )
+            .await
+            .sort_key
     }
 }
 

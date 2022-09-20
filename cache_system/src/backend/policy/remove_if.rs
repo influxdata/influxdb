@@ -3,7 +3,10 @@ use metric::U64Counter;
 use parking_lot::Mutex;
 use std::{fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc};
 
-use super::{CacheBackend, CallbackHandle, ChangeRequest, Subscriber};
+use crate::{
+    backend::policy::{CacheBackend, CallbackHandle, ChangeRequest, Subscriber},
+    cache::{Cache, CacheGetStatus},
+};
 
 /// Allows explicitly removing entries from the cache.
 #[derive(Debug, Clone)]
@@ -96,7 +99,7 @@ where
     /// held (and thus the inner backend can't be concurrently accessed
     pub fn remove_if<P>(&self, k: &K, predicate: P) -> bool
     where
-        P: Fn(V) -> bool + Send,
+        P: FnOnce(V) -> bool,
     {
         let mut guard = self.callback_handle.lock();
         let handle = match guard.as_mut() {
@@ -119,6 +122,65 @@ where
         })]);
 
         removed
+    }
+
+    /// Performs [`remove_if`](Self::remove_if) and [`GET`](Cache::get) in one go.
+    ///
+    /// Ensures that these two actions interact correctly.
+    ///
+    /// # Forward process
+    /// This function only works if cache values evolve in one direction. This is that the predicate can only flip from
+    /// `true` to `false` over time (i.e. it detects an outdated value and then an up-to-date value), NOT the other way
+    /// around (i.e. data cannot get outdated under the same predicate).
+    pub async fn remove_if_and_get<P, C, GetExtra>(
+        &self,
+        cache: &C,
+        k: K,
+        predicate: P,
+        extra: GetExtra,
+    ) -> V
+    where
+        P: Fn(V) -> bool + Send,
+        C: Cache<K = K, V = V, GetExtra = GetExtra>,
+        GetExtra: Clone + Send,
+    {
+        let mut removed = self.remove_if(&k, &predicate);
+
+        loop {
+            // avoid some `Sync` bounds
+            let k_for_get = k.clone();
+            let extra_for_get = extra.clone();
+            let (v, status) = cache.get_with_status(k_for_get, extra_for_get).await;
+
+            match status {
+                CacheGetStatus::Hit => {
+                    // key existed and no other process loaded it => safe to use
+                    return v;
+                }
+                CacheGetStatus::Miss => {
+                    // key didn't exist and we loaded it => safe to use
+                    return v;
+                }
+                CacheGetStatus::MissAlreadyLoading => {
+                    if removed {
+                        // key was outdated but there was some loading in process, this may have overlapped with our check
+                        // so our check might have been incomplete => need to re-check
+                        removed = self.remove_if(&k, &predicate);
+                        if removed {
+                            // removed again, so cannot use our result
+                            continue;
+                        } else {
+                            // didn't remove => safe to use
+                            return v;
+                        }
+                    } else {
+                        // there was a load action in process but the key was already up-to-date, so it's OK to use the new
+                        // data as well (forward process)
+                        return v;
+                    }
+                }
+            }
+        }
     }
 }
 
