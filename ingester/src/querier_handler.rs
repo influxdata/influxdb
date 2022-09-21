@@ -29,12 +29,16 @@ use crate::{
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {
-    #[snafu(display("Error creating plan for querying Ingester data to send to Querier"))]
+    #[snafu(display(
+        "Error creating plan for querying Ingester data to send to Querier: {source}"
+    ))]
     FrontendError {
         source: iox_query::frontend::common::Error,
     },
 
-    #[snafu(display("Error building logical plan for querying Ingester data to send to Querier"))]
+    #[snafu(display(
+        "Error building logical plan for querying Ingester data to send to Querier: {source}"
+    ))]
     LogicalPlan { source: DataFusionError },
 
     #[snafu(display(

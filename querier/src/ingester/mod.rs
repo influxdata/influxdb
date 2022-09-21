@@ -36,6 +36,7 @@ use std::{
     any::Any,
     collections::{HashMap, HashSet},
     sync::Arc,
+    time::Duration,
 };
 use trace::span::{Span, SpanRecorder};
 
@@ -144,6 +145,12 @@ pub fn create_ingester_connections_by_shard(
     Arc::new(IngesterConnectionImpl::by_shard(
         shard_to_ingesters,
         catalog_cache,
+        BackoffConfig {
+            init_backoff: Duration::from_millis(100),
+            max_backoff: Duration::from_secs(1),
+            base: 3.0,
+            deadline: Some(Duration::from_secs(10)),
+        },
     ))
 }
 
@@ -330,12 +337,13 @@ impl IngesterConnectionImpl {
     pub fn by_shard(
         shard_to_ingesters: HashMap<ShardIndex, IngesterMapping>,
         catalog_cache: Arc<CatalogCache>,
+        backoff_config: BackoffConfig,
     ) -> Self {
         Self::by_shard_with_flight_client(
             shard_to_ingesters,
             Arc::new(FlightClientImpl::new()),
             catalog_cache,
-            BackoffConfig::default(),
+            backoff_config,
         )
     }
 
