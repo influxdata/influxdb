@@ -10,7 +10,7 @@ bytes = "1.2"
 data_types = { path = "../data_types", optional = true }
 datafusion = { path = "../datafusion", optional = true }
 observability_deps = { path = "../observability_deps" }
-pbjson = "0.4"
+pbjson = "0.5"
 pbjson-types = "0.4"
 predicate = { path = "../predicate", optional = true }
 prost = "0.11"
