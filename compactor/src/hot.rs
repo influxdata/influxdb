@@ -1,8 +1,14 @@
 //! Collect highest hot candidates and compact them
 
-use crate::{compact::Compactor, compact_candidates_with_memory_budget, compact_in_parallel};
-use backoff::Backoff;
-use data_types::CompactionLevel;
+use crate::{
+    compact::{self, Compactor},
+    compact_candidates_with_memory_budget, compact_in_parallel,
+    utils::get_candidates_with_retry,
+    PartitionCompactionCandidateWithInfo,
+};
+use data_types::{CompactionLevel, PartitionParam, ShardId, Timestamp};
+use iox_catalog::interface::Catalog;
+use iox_time::TimeProvider;
 use metric::Attributes;
 use observability_deps::tracing::*;
 use std::sync::Arc;
@@ -10,33 +16,13 @@ use std::sync::Arc;
 /// Hot compaction. Returns the number of compacted partitions.
 pub async fn compact(compactor: Arc<Compactor>) -> usize {
     let compaction_type = "hot";
-    // Select hot partition candidates
-    debug!(compaction_type, "start collecting partitions to compact");
-    let attributes = Attributes::from(&[("partition_type", compaction_type)]);
-    let start_time = compactor.time_provider.now();
-    let candidates = Backoff::new(&compactor.backoff_config)
-        .retry_all_errors("hot_partitions_to_compact", || async {
-            compactor
-                .hot_partitions_to_compact(
-                    compactor.config.max_number_partitions_per_shard,
-                    compactor
-                        .config
-                        .min_number_recent_ingested_files_per_partition,
-                )
-                .await
-        })
-        .await
-        .expect("retry forever");
-    if let Some(delta) = compactor
-        .time_provider
-        .now()
-        .checked_duration_since(start_time)
-    {
-        let duration = compactor
-            .candidate_selection_duration
-            .recorder(attributes.clone());
-        duration.record(delta);
-    }
+
+    let candidates = get_candidates_with_retry(
+        Arc::clone(&compactor),
+        compaction_type,
+        |compactor_for_retry| async move { hot_partitions_to_compact(compactor_for_retry).await },
+    )
+    .await;
 
     let n_candidates = candidates.len();
     if n_candidates == 0 {
@@ -64,6 +50,7 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
         .now()
         .checked_duration_since(start_time)
     {
+        let attributes = Attributes::from(&[("partition_type", compaction_type)]);
         let duration = compactor.compaction_cycle_duration.recorder(attributes);
         duration.record(delta);
     }
@@ -71,329 +58,433 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
     n_candidates
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        compact::Compactor,
-        compact_one_partition,
-        handler::CompactorConfig,
-        parquet_file_filtering, parquet_file_lookup,
-        tests::{test_setup, TestSetup},
-        ParquetFilesForCompaction,
-    };
-    use arrow_util::assert_batches_sorted_eq;
-    use backoff::BackoffConfig;
-    use data_types::{ColumnType, CompactionLevel, ParquetFileId};
-    use iox_query::exec::Executor;
-    use iox_tests::util::{TestCatalog, TestParquetFileBuilder};
-    use iox_time::{SystemProvider, TimeProvider};
-    use parquet_file::storage::ParquetStorage;
-    use std::{collections::HashMap, sync::Arc};
+/// Return a list of the most recent highest ingested throughput partitions.
+/// The highest throughput partitions are prioritized as follows:
+///  1. If there are partitions with new ingested files within the last 4 hours, pick them.
+///  2. If no new ingested files in the last 4 hours, will look for partitions with new writes
+///     within the last 24 hours.
+///  3. If there are no ingested files within the last 24 hours, will look for partitions
+///     with any new ingested files in the past.
+///
+/// * New ingested files means non-deleted L0 files
+/// * In all cases above, for each shard, N partitions with the most new ingested files
+///   will be selected and the return list will include at most, P = N * S, partitions where S
+///   is the number of shards this compactor handles.
+pub(crate) async fn hot_partitions_to_compact(
+    compactor: Arc<Compactor>,
+) -> Result<Vec<Arc<PartitionCompactionCandidateWithInfo>>, compact::Error> {
+    let compaction_type = "hot";
 
-    #[tokio::test]
-    async fn test_compact_hot_partition_candidates() {
-        test_helpers::maybe_start_logging();
+    let min_number_recent_ingested_files_per_partition = compactor
+        .config
+        .min_number_recent_ingested_files_per_partition;
+    let max_number_partitions_per_shard = compactor.config.max_number_partitions_per_shard;
+    let mut candidates =
+        Vec::with_capacity(compactor.shards.len() * max_number_partitions_per_shard);
 
-        let TestSetup {
-            compactor,
-            mock_compactor,
-            shard,
-            table,
-            ..
-        } = test_setup().await;
+    // Get the most recent highest ingested throughput partitions within the last 4 hours. If not,
+    // increase to 24 hours.
+    let query_times = query_times(compactor.time_provider());
 
-        // Some times in the past to set to created_at of the files
-        let hot_time_one_hour_ago = compactor.time_provider.hours_ago(1);
+    for &shard_id in &compactor.shards {
+        let mut partitions = hot_partitions_for_shard(
+            Arc::clone(&compactor.catalog),
+            shard_id,
+            &query_times,
+            min_number_recent_ingested_files_per_partition,
+            max_number_partitions_per_shard,
+        )
+        .await?;
 
-        // P1:
-        //   L0 2 rows. bytes: 1125 * 2 = 2,250
-        //   L1 2 rows. bytes: 1125 * 2 = 2,250
-        // total = 2,250 + 2,250 = 4,500
-        let partition1 = table.with_shard(&shard).create_partition("one").await;
+        // Record metric for candidates per shard
+        let num_partitions = partitions.len();
+        debug!(
+            shard_id = shard_id.get(),
+            n = num_partitions,
+            compaction_type,
+            "compaction candidates",
+        );
+        let attributes = Attributes::from([
+            ("shard_id", format!("{}", shard_id).into()),
+            ("partition_type", compaction_type.into()),
+        ]);
+        let number_gauge = compactor.compaction_candidate_gauge.recorder(attributes);
+        number_gauge.set(num_partitions as u64);
 
-        let pf1_1 = TestParquetFileBuilder::default()
-            .with_min_time(1)
-            .with_max_time(5)
-            .with_row_count(2)
-            .with_compaction_level(CompactionLevel::Initial)
-            .with_creation_time(hot_time_one_hour_ago);
-        partition1.create_parquet_file_catalog_record(pf1_1).await;
+        candidates.append(&mut partitions);
+    }
 
-        let pf1_2 = TestParquetFileBuilder::default()
-            .with_min_time(4) // overlapped with pf1_1
-            .with_max_time(6)
-            .with_row_count(2)
-            .with_compaction_level(CompactionLevel::FileNonOverlapped)
-            .with_creation_time(hot_time_one_hour_ago);
-        partition1.create_parquet_file_catalog_record(pf1_2).await;
+    // Get extra needed information for selected partitions
+    let start_time = compactor.time_provider.now();
 
-        // P2:
-        //   L0 2 rows. bytes: 1125 * 2 = 2,250
-        //   L1 2 rows. bytes: 1125 * 2 = 2,250
-        // total = 2,250 + 2,250 = 4,500
-        let partition2 = table.with_shard(&shard).create_partition("two").await;
+    // Column types and their counts of the tables of the partition candidates
+    debug!(
+        num_candidates=?candidates.len(),
+        compaction_type,
+        "start getting column types for the partition candidates"
+    );
+    let table_columns = compactor.table_columns(&candidates).await?;
 
-        let pf2_1 = TestParquetFileBuilder::default()
-            .with_min_time(1)
-            .with_max_time(5)
-            .with_row_count(2)
-            .with_compaction_level(CompactionLevel::Initial)
-            .with_creation_time(hot_time_one_hour_ago);
-        partition2.create_parquet_file_catalog_record(pf2_1).await;
+    // Add other compaction-needed info into selected partitions
+    debug!(
+        num_candidates=?candidates.len(),
+        compaction_type,
+        "start getting additional info for the partition candidates"
+    );
+    let candidates = compactor
+        .add_info_to_partitions(&candidates, &table_columns)
+        .await?;
 
-        let pf2_2 = TestParquetFileBuilder::default()
-            .with_min_time(4) // overlapped with pf2_1
-            .with_max_time(6)
-            .with_row_count(2)
-            .with_compaction_level(CompactionLevel::FileNonOverlapped)
-            .with_creation_time(hot_time_one_hour_ago);
-        partition2.create_parquet_file_catalog_record(pf2_2).await;
+    if let Some(delta) = compactor
+        .time_provider
+        .now()
+        .checked_duration_since(start_time)
+    {
+        let attributes = Attributes::from(&[("partition_type", compaction_type)]);
+        let duration = compactor
+            .partitions_extra_info_reading_duration
+            .recorder(attributes);
+        duration.record(delta);
+    }
 
-        // P3: bytes >= 90% of full budget = 90% * 13,500 = 12,150
-        //   L0 6 rows. bytes: 1125 * 6 = 6,750
-        //   L1 4 rows. bytes: 1125 * 4 = 4,500
-        // total = 6,700 + 4,500 = 12,150
-        let partition3 = table.with_shard(&shard).create_partition("three").await;
-        let pf3_1 = TestParquetFileBuilder::default()
-            .with_min_time(1)
-            .with_max_time(5)
-            .with_row_count(6)
-            .with_compaction_level(CompactionLevel::Initial)
-            .with_creation_time(hot_time_one_hour_ago);
-        partition3.create_parquet_file_catalog_record(pf3_1).await;
+    Ok(candidates)
+}
 
-        let pf3_2 = TestParquetFileBuilder::default()
-            .with_min_time(4) // overlapped with pf3_1
-            .with_max_time(6)
-            .with_row_count(4)
-            .with_compaction_level(CompactionLevel::FileNonOverlapped)
-            .with_creation_time(hot_time_one_hour_ago);
-        partition3.create_parquet_file_catalog_record(pf3_2).await;
+async fn hot_partitions_for_shard(
+    catalog: Arc<dyn Catalog>,
+    shard_id: ShardId,
+    query_times: &[(u64, Timestamp)],
+    // Minimum number of the most recent writes per partition we want to count
+    // to prioritize partitions
+    min_number_recent_ingested_files_per_partition: usize,
+    // Max number of the most recent highest ingested throughput partitions
+    // per shard we want to read
+    max_number_partitions_per_shard: usize,
+) -> Result<Vec<PartitionParam>, compact::Error> {
+    let mut repos = catalog.repositories().await;
 
-        // P4: Over the full budget
-        // L0 with 8 rows.bytes =  1125 * 8 = 9,000
-        // L1 with 6 rows.bytes =  1125 * 6 = 6,750
-        // total = 15,750
-        let partition4 = table.with_shard(&shard).create_partition("four").await;
-        let pf4_1 = TestParquetFileBuilder::default()
-            .with_min_time(1)
-            .with_max_time(5)
-            .with_row_count(8)
-            .with_compaction_level(CompactionLevel::Initial)
-            .with_creation_time(hot_time_one_hour_ago);
-        partition4.create_parquet_file_catalog_record(pf4_1).await;
-
-        let pf4_2 = TestParquetFileBuilder::default()
-            .with_min_time(4) // overlapped with pf4_1
-            .with_max_time(6)
-            .with_row_count(6)
-            .with_compaction_level(CompactionLevel::FileNonOverlapped)
-            .with_creation_time(hot_time_one_hour_ago);
-        partition4.create_parquet_file_catalog_record(pf4_2).await;
-
-        // P5:
-        // L0 with 2 rows.bytes =  1125 * 2 = 2,250
-        // L1 with 2 rows.bytes =  1125 * 2 = 2,250
-        // total = 4,500
-        let partition5 = table.with_shard(&shard).create_partition("five").await;
-        let pf5_1 = TestParquetFileBuilder::default()
-            .with_min_time(1)
-            .with_max_time(5)
-            .with_row_count(2)
-            .with_compaction_level(CompactionLevel::Initial)
-            .with_creation_time(hot_time_one_hour_ago);
-        partition5.create_parquet_file_catalog_record(pf5_1).await;
-
-        let pf5_2 = TestParquetFileBuilder::default()
-            .with_min_time(4) // overlapped with pf5_1
-            .with_max_time(6)
-            .with_row_count(2)
-            .with_compaction_level(CompactionLevel::FileNonOverlapped)
-            .with_creation_time(hot_time_one_hour_ago);
-        partition5.create_parquet_file_catalog_record(pf5_2).await;
-
-        // P6:
-        // L0 with 2 rows.bytes =  1125 * 2 = 2,250
-        // L1 with 2 rows.bytes =  1125 * 2 = 2,250
-        // total = 4,500
-        let partition6 = table.with_shard(&shard).create_partition("six").await;
-        let pf6_1 = TestParquetFileBuilder::default()
-            .with_min_time(1)
-            .with_max_time(5)
-            .with_row_count(2)
-            .with_compaction_level(CompactionLevel::Initial)
-            .with_creation_time(hot_time_one_hour_ago);
-        partition6.create_parquet_file_catalog_record(pf6_1).await;
-
-        let pf6_2 = TestParquetFileBuilder::default()
-            .with_min_time(4) // overlapped with pf6_1
-            .with_max_time(6)
-            .with_row_count(2)
-            .with_compaction_level(CompactionLevel::FileNonOverlapped)
-            .with_creation_time(hot_time_one_hour_ago);
-        partition6.create_parquet_file_catalog_record(pf6_2).await;
-
-        // partition candidates: partitions with L0 and overlapped L1
-        let mut candidates = compactor
-            .hot_partitions_to_compact(
-                compactor.config.max_number_partitions_per_shard,
-                compactor
-                    .config
-                    .min_number_recent_ingested_files_per_partition,
+    for &(hours_ago, hours_ago_in_ns) in query_times {
+        let partitions = repos
+            .parquet_files()
+            .recent_highest_throughput_partitions(
+                shard_id,
+                hours_ago_in_ns,
+                min_number_recent_ingested_files_per_partition,
+                max_number_partitions_per_shard,
             )
             .await
-            .unwrap();
-        assert_eq!(candidates.len(), 6);
-        candidates.sort_by_key(|c| c.candidate.partition_id);
-        {
-            let mut repos = compactor.catalog.repositories().await;
-            let skipped_compactions = repos.partitions().list_skipped_compactions().await.unwrap();
-            assert!(
-                skipped_compactions.is_empty(),
-                "Expected no skipped compactions, got: {skipped_compactions:?}"
+            .map_err(|e| compact::Error::HighestThroughputPartitions {
+                shard_id,
+                source: e,
+            })?;
+        if !partitions.is_empty() {
+            debug!(
+                shard_id = shard_id.get(),
+                hours_ago,
+                n = partitions.len(),
+                "found high-throughput partitions"
             );
-        }
-
-        // There are 3 rounds of parallel compaction:
-        //
-        // * Round 1: 3 candidates [P1, P2, P5] and total needed budget 13,500
-        // * Round 2: 1 candidate [P6] and total needed budget 4,500
-        // * Round 3: 1 candidate [P3] and total needed budget 11,250
-        //
-        // P4 is not compacted due to overbudget.
-        compact_candidates_with_memory_budget(
-            Arc::clone(&compactor),
-            "hot",
-            CompactionLevel::Initial,
-            mock_compactor.compaction_function(),
-            true,
-            candidates.into(),
-        )
-        .await;
-
-        let compaction_groups = mock_compactor.results();
-
-        // 3 rounds of parallel compaction
-        assert_eq!(compaction_groups.len(), 3);
-
-        // Round 1
-        let group1 = &compaction_groups[0];
-        assert_eq!(group1.len(), 3);
-
-        let g1_candidate1 = &group1[0];
-        assert_eq!(g1_candidate1.partition.id(), partition1.partition.id);
-        let g1_candidate1_pf_ids: Vec<_> =
-            g1_candidate1.files.iter().map(|pf| pf.id().get()).collect();
-        assert_eq!(g1_candidate1_pf_ids, vec![2, 1]);
-
-        let g1_candidate2 = &group1[1];
-        assert_eq!(g1_candidate2.partition.id(), partition2.partition.id);
-        let g1_candidate2_pf_ids: Vec<_> =
-            g1_candidate2.files.iter().map(|pf| pf.id().get()).collect();
-        assert_eq!(g1_candidate2_pf_ids, vec![4, 3]);
-
-        let g1_candidate3 = &group1[2];
-        assert_eq!(g1_candidate3.partition.id(), partition5.partition.id);
-        let g1_candidate3_pf_ids: Vec<_> =
-            g1_candidate3.files.iter().map(|pf| pf.id().get()).collect();
-        assert_eq!(g1_candidate3_pf_ids, vec![10, 9]);
-
-        // Round 2
-        let group2 = &compaction_groups[1];
-        assert_eq!(group2.len(), 1);
-
-        let g2_candidate1 = &group2[0];
-        assert_eq!(g2_candidate1.partition.id(), partition6.partition.id);
-        let g2_candidate1_pf_ids: Vec<_> =
-            g2_candidate1.files.iter().map(|pf| pf.id().get()).collect();
-        assert_eq!(g2_candidate1_pf_ids, vec![12, 11]);
-
-        // Round 3
-        let group3 = &compaction_groups[2];
-        assert_eq!(group3.len(), 1);
-
-        let g3_candidate1 = &group3[0];
-        assert_eq!(g3_candidate1.partition.id(), partition3.partition.id);
-        let g3_candidate1_pf_ids: Vec<_> =
-            g3_candidate1.files.iter().map(|pf| pf.id().get()).collect();
-        assert_eq!(g3_candidate1_pf_ids, vec![6, 5]);
-
-        {
-            let mut repos = compactor.catalog.repositories().await;
-            let skipped_compactions = repos.partitions().list_skipped_compactions().await.unwrap();
-            assert_eq!(skipped_compactions.len(), 1);
-            assert_eq!(skipped_compactions[0].partition_id, partition4.partition.id);
-            assert_eq!(
-                skipped_compactions[0].reason,
-                "over memory budget. Needed budget = 15750, memory budget = 13500"
-            );
+            return Ok(partitions);
         }
     }
 
-    // A quite sophisticated integration test
-    // Beside lp data, every value min/max sequence numbers and min/max time are important
-    // to have a combination of needed tests in this test function
-    #[tokio::test]
-    async fn test_compact_hot_partition_many_files() {
-        test_helpers::maybe_start_logging();
+    Ok(Vec::new())
+}
+
+fn query_times(time_provider: Arc<dyn TimeProvider>) -> Vec<(u64, Timestamp)> {
+    [4, 24]
+        .iter()
+        .map(|&num_hours| {
+            (
+                num_hours,
+                Timestamp::from(time_provider.hours_ago(num_hours)),
+            )
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{compact::Compactor, handler::CompactorConfig};
+    use backoff::BackoffConfig;
+    use data_types::CompactionLevel;
+    use iox_query::exec::Executor;
+    use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestShard, TestTable};
+    use parquet_file::storage::ParquetStorage;
+    use std::sync::Arc;
+
+    struct TestSetup {
+        catalog: Arc<TestCatalog>,
+        shard1: Arc<TestShard>,
+        table1: Arc<TestTable>,
+        shard2: Arc<TestShard>,
+        table2: Arc<TestTable>,
+    }
+
+    async fn test_setup() -> TestSetup {
         let catalog = TestCatalog::new();
+        let namespace = catalog.create_namespace("namespace_hot_compaction").await;
+        let shard1 = namespace.create_shard(1).await;
+        let table1 = namespace.create_table("test_table1").await;
+        let shard2 = namespace.create_shard(2).await;
+        let table2 = namespace.create_table("test_table2").await;
 
-        // lp1 does not overlap with any other level 0
-        let lp1 = vec![
-            "table,tag1=WA field_int=1000i 10",
-            "table,tag1=VT field_int=10i 20",
-        ]
-        .join("\n");
+        TestSetup {
+            catalog,
+            shard1,
+            table1,
+            shard2,
+            table2,
+        }
+    }
 
-        // lp2 overlaps with lp3
-        let lp2 = vec![
-            "table,tag1=WA field_int=1000i 8000", // will be eliminated due to duplicate
-            "table,tag1=VT field_int=10i 10000",
-            "table,tag1=UT field_int=70i 20000",
-        ]
-        .join("\n");
+    #[tokio::test]
+    async fn no_partitions_no_candidates() {
+        let TestSetup {
+            catalog, shard1, ..
+        } = test_setup().await;
 
-        // lp3 overlaps with lp2
-        let lp3 = vec![
-            "table,tag1=WA field_int=1500i 8000", // latest duplicate and kept
-            "table,tag1=VT field_int=10i 6000",
-            "table,tag1=UT field_int=270i 25000",
-        ]
-        .join("\n");
+        let candidates = hot_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            shard1.shard.id,
+            &query_times(catalog.time_provider()),
+            1,
+            1,
+        )
+        .await
+        .unwrap();
 
-        // lp4 does not overlap with any
-        let lp4 = vec![
-            "table,tag2=WA,tag3=10 field_int=1600i 28000",
-            "table,tag2=VT,tag3=20 field_int=20i 26000",
-        ]
-        .join("\n");
+        assert!(candidates.is_empty());
+    }
 
-        // lp5 overlaps with lp1
-        let lp5 = vec![
-            "table,tag2=PA,tag3=15 field_int=1601i 9",
-            "table,tag2=OH,tag3=21 field_int=21i 25",
-        ]
-        .join("\n");
+    #[tokio::test]
+    async fn no_files_no_candidates() {
+        let TestSetup {
+            catalog,
+            shard1,
+            table1,
+            ..
+        } = test_setup().await;
 
-        // lp6 does not overlap with any
-        let lp6 = vec![
-            "table,tag2=PA,tag3=15 field_int=81601i 90000",
-            "table,tag2=OH,tag3=21 field_int=421i 91000",
-        ]
-        .join("\n");
+        table1.with_shard(&shard1).create_partition("one").await;
 
-        let ns = catalog.create_namespace("ns").await;
-        let shard = ns.create_shard(1).await;
-        let table = ns.create_table("table").await;
-        table.create_column("field_int", ColumnType::I64).await;
-        table.create_column("tag1", ColumnType::Tag).await;
-        table.create_column("tag2", ColumnType::Tag).await;
-        table.create_column("tag3", ColumnType::Tag).await;
-        table.create_column("time", ColumnType::Time).await;
+        let candidates = hot_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            shard1.shard.id,
+            &query_times(catalog.time_provider()),
+            1,
+            1,
+        )
+        .await
+        .unwrap();
 
-        let partition = table.with_shard(&shard).create_partition("part").await;
-        let time = Arc::new(SystemProvider::new());
+        assert!(candidates.is_empty());
+    }
+
+    #[tokio::test]
+    async fn deleted_l0_not_returned() {
+        let TestSetup {
+            catalog,
+            shard1,
+            table1,
+            ..
+        } = test_setup().await;
+
+        let partition1 = table1.with_shard(&shard1).create_partition("one").await;
+
+        let builder = TestParquetFileBuilder::default().with_to_delete(true);
+        partition1.create_parquet_file_catalog_record(builder).await;
+
+        let candidates = hot_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            shard1.shard.id,
+            &query_times(catalog.time_provider()),
+            1,
+            1,
+        )
+        .await
+        .unwrap();
+
+        assert!(candidates.is_empty());
+    }
+
+    #[tokio::test]
+    async fn l1_not_returned() {
+        let TestSetup {
+            catalog,
+            shard1,
+            table1,
+            ..
+        } = test_setup().await;
+
+        let partition1 = table1.with_shard(&shard1).create_partition("one").await;
+
+        let builder = TestParquetFileBuilder::default()
+            .with_compaction_level(CompactionLevel::FileNonOverlapped);
+        partition1.create_parquet_file_catalog_record(builder).await;
+
+        let candidates = hot_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            shard1.shard.id,
+            &query_times(catalog.time_provider()),
+            1,
+            1,
+        )
+        .await
+        .unwrap();
+
+        assert!(candidates.is_empty());
+    }
+
+    #[tokio::test]
+    async fn l2_not_returned() {
+        let TestSetup {
+            catalog,
+            shard1,
+            table1,
+            ..
+        } = test_setup().await;
+
+        let partition1 = table1.with_shard(&shard1).create_partition("one").await;
+
+        let builder =
+            TestParquetFileBuilder::default().with_compaction_level(CompactionLevel::Final);
+        partition1.create_parquet_file_catalog_record(builder).await;
+
+        let candidates = hot_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            shard1.shard.id,
+            &query_times(catalog.time_provider()),
+            1,
+            1,
+        )
+        .await
+        .unwrap();
+
+        assert!(candidates.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cold_not_returned() {
+        let TestSetup {
+            catalog,
+            shard1,
+            table1,
+            ..
+        } = test_setup().await;
+
+        let partition1 = table1.with_shard(&shard1).create_partition("one").await;
+
+        let builder = TestParquetFileBuilder::default()
+            .with_creation_time(catalog.time_provider().hours_ago(38));
+        partition1.create_parquet_file_catalog_record(builder).await;
+
+        let candidates = hot_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            shard1.shard.id,
+            &query_times(catalog.time_provider()),
+            1,
+            1,
+        )
+        .await
+        .unwrap();
+
+        assert!(candidates.is_empty());
+    }
+
+    #[tokio::test]
+    async fn hot_returned() {
+        let TestSetup {
+            catalog,
+            shard1,
+            table1,
+            ..
+        } = test_setup().await;
+
+        let partition1 = table1.with_shard(&shard1).create_partition("one").await;
+
+        let builder = TestParquetFileBuilder::default()
+            .with_creation_time(catalog.time_provider().hours_ago(5));
+        partition1.create_parquet_file_catalog_record(builder).await;
+
+        let candidates = hot_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            shard1.shard.id,
+            &query_times(catalog.time_provider()),
+            1,
+            1,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].partition_id, partition1.partition.id);
+    }
+
+    #[tokio::test]
+    async fn hot_prefers_within_4_hrs() {
+        let TestSetup {
+            catalog,
+            shard1,
+            table1,
+            ..
+        } = test_setup().await;
+
+        let partition_5_hours = table1.with_shard(&shard1).create_partition("one").await;
+        let builder = TestParquetFileBuilder::default()
+            .with_creation_time(catalog.time_provider().hours_ago(5));
+        partition_5_hours
+            .create_parquet_file_catalog_record(builder)
+            .await;
+
+        let partition_3_min = table1.with_shard(&shard1).create_partition("two").await;
+        let builder = TestParquetFileBuilder::default()
+            .with_creation_time(catalog.time_provider().minutes_ago(3));
+        partition_3_min
+            .create_parquet_file_catalog_record(builder)
+            .await;
+
+        let candidates = hot_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            shard1.shard.id,
+            &query_times(catalog.time_provider()),
+            1,
+            // Even if we ask for 2 partitions per shard, we'll only get the one partition with
+            // writes within 4 hours
+            2,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].partition_id, partition_3_min.partition.id);
+    }
+
+    #[tokio::test]
+    async fn test_hot_partitions_to_compact() {
+        let TestSetup {
+            catalog,
+            shard1,
+            table1,
+            shard2,
+            table2,
+        } = test_setup().await;
+
+        // Shard 1: 4 empty partitions
+        let partition1 = table1.with_shard(&shard1).create_partition("one").await;
+        let partition2 = table1.with_shard(&shard1).create_partition("two").await;
+        let partition3 = table1.with_shard(&shard1).create_partition("three").await;
+        let partition4 = table1.with_shard(&shard1).create_partition("four").await;
+
+        // Shard 2: 1 empty partition, with a sort key
+        let another_partition = table2
+            .with_shard(&shard2)
+            .create_partition_with_sort_key("another", &["tag1", "time"])
+            .await;
+
+        // Create a compactor
+        let time_provider = Arc::clone(&catalog.time_provider);
         let config = CompactorConfig {
             max_desired_file_size_bytes: 10_000,
             percentage_max_file_size: 30,
@@ -401,195 +492,70 @@ mod tests {
             max_number_partitions_per_shard: 1,
             min_number_recent_ingested_files_per_partition: 1,
             hot_multiple: 4,
-            memory_budget_bytes: 100_000_000,
+            memory_budget_bytes: 10 * 1024 * 1024,
         };
-
-        let metrics = Arc::new(metric::Registry::new());
-        let compactor = Compactor::new(
-            vec![shard.shard.id],
+        let compactor = Arc::new(Compactor::new(
+            vec![shard1.shard.id, shard2.shard.id],
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::new(Executor::new(1)),
-            Arc::new(SystemProvider::new()),
+            time_provider,
             BackoffConfig::default(),
             config,
-            Arc::clone(&metrics),
-        );
+            Arc::new(metric::Registry::new()),
+        ));
 
-        // parquet files that are all in the same partition
-        let mut size_overrides = HashMap::<ParquetFileId, i64>::default();
+        // Some times in the past to set to created_at of the files
+        let time_three_minutes_ago = compactor.time_provider.minutes_ago(3);
+        let time_five_hour_ago = compactor.time_provider.hours_ago(5);
+        let time_38_hour_ago = compactor.time_provider.hours_ago(38);
 
-        // pf1 does not overlap with any other level 0
+        // This test is an integration test that covers the priority of the candidate selection
+        // algorithm when there are many files of different kinds across many partitions.
+
+        // partition1 has a deleted L0, isn't returned
+        let builder = TestParquetFileBuilder::default().with_to_delete(true);
+        let _pf1 = partition1.create_parquet_file_catalog_record(builder).await;
+
+        // partition2 has a non-L0 file, isn't returned
         let builder = TestParquetFileBuilder::default()
-            .with_line_protocol(&lp1)
-            .with_max_seq(3)
-            .with_min_time(10)
-            .with_max_time(20)
-            .with_creation_time(time.now());
-        let f = partition.create_parquet_file(builder).await;
-        size_overrides.insert(
-            f.parquet_file.id,
-            compactor.config.max_desired_file_size_bytes as i64 + 10,
-        );
-
-        // pf2 overlaps with pf3
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol(&lp2)
-            .with_max_seq(5)
-            .with_min_time(8_000)
-            .with_max_time(20_000)
-            .with_creation_time(time.now());
-        let f = partition.create_parquet_file(builder).await;
-        size_overrides.insert(f.parquet_file.id, 100); // small file
-
-        // pf3 overlaps with pf2
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol(&lp3)
-            .with_max_seq(10)
-            .with_min_time(6_000)
-            .with_max_time(25_000)
-            .with_creation_time(time.now());
-        let f = partition.create_parquet_file(builder).await;
-        size_overrides.insert(f.parquet_file.id, 100); // small file
-
-        // pf4 does not overlap with any but is small
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol(&lp4)
-            .with_max_seq(18)
-            .with_min_time(26_000)
-            .with_max_time(28_000)
-            .with_creation_time(time.now());
-        let f = partition.create_parquet_file(builder).await;
-        size_overrides.insert(f.parquet_file.id, 100); // small file
-
-        // pf5 was created in a previous compaction cycle; overlaps with pf1
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol(&lp5)
-            .with_max_seq(1)
-            .with_min_time(9)
-            .with_max_time(25)
-            .with_creation_time(time.now())
             .with_compaction_level(CompactionLevel::FileNonOverlapped);
-        let f = partition.create_parquet_file(builder).await;
-        size_overrides.insert(f.parquet_file.id, 100); // small file
+        let _pf2 = partition2.create_parquet_file_catalog_record(builder).await;
 
-        // pf6 was created in a previous compaction cycle; does not overlap with any
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol(&lp6)
-            .with_max_seq(20)
-            .with_min_time(90000)
-            .with_max_time(91000)
-            .with_creation_time(time.now())
-            .with_compaction_level(CompactionLevel::FileNonOverlapped);
-        let f = partition.create_parquet_file(builder).await;
-        size_overrides.insert(f.parquet_file.id, 100); // small file
+        // partition2 has an old (more than 8 hours ago) non-deleted level 0 file, isn't returned
+        let builder = TestParquetFileBuilder::default().with_creation_time(time_38_hour_ago);
+        let _pf3 = partition2.create_parquet_file_catalog_record(builder).await;
 
-        // should have 4 level-0 files before compacting
-        let count = catalog.count_level_0_files(shard.shard.id).await;
-        assert_eq!(count, 4);
+        // partition4 has a new write 5 hours ago, isn't returned
+        let builder = TestParquetFileBuilder::default().with_creation_time(time_five_hour_ago);
+        let _pf4 = partition4.create_parquet_file_catalog_record(builder).await;
 
-        // ------------------------------------------------
-        // Compact
-        let mut partition_candidates = compactor
-            .hot_partitions_to_compact(
-                compactor.config.max_number_partitions_per_shard,
-                compactor
-                    .config
-                    .min_number_recent_ingested_files_per_partition,
-            )
+        // partition3 has a new write 3 minutes ago, is returned
+        let builder = TestParquetFileBuilder::default().with_creation_time(time_three_minutes_ago);
+        let _pf5 = partition3.create_parquet_file_catalog_record(builder).await;
+
+        // The another_shard now has non-deleted level-0 file ingested 5 hours ago, is returned
+        let builder = TestParquetFileBuilder::default().with_creation_time(time_five_hour_ago);
+        let _pf6 = another_partition
+            .create_parquet_file_catalog_record(builder)
+            .await;
+
+        // Will have 2 candidates, one for each shard
+        let mut candidates = hot_partitions_to_compact(Arc::clone(&compactor))
             .await
             .unwrap();
+        candidates.sort_by_key(|c| c.candidate);
+        assert_eq!(candidates.len(), 2);
 
-        assert_eq!(partition_candidates.len(), 1);
-        let partition = partition_candidates.pop().unwrap();
+        assert_eq!(candidates[0].id(), partition3.partition.id);
+        // this sort key is None
+        assert_eq!(candidates[0].sort_key, partition3.partition.sort_key());
 
-        let parquet_files_for_compaction =
-            parquet_file_lookup::ParquetFilesForCompaction::for_partition_with_size_overrides(
-                Arc::clone(&compactor.catalog),
-                Arc::clone(&partition),
-                &size_overrides,
-            )
-            .await
-            .unwrap();
-
-        let ParquetFilesForCompaction {
-            level_0,
-            level_1,
-            .. // Ignore other levels
-        } = parquet_files_for_compaction;
-
-        let to_compact = parquet_file_filtering::filter_parquet_files(
-            partition,
-            level_0,
-            level_1,
-            compactor.config.memory_budget_bytes,
-            &compactor.parquet_file_candidate_gauge,
-            &compactor.parquet_file_candidate_bytes,
-        );
-
-        let to_compact = to_compact.into();
-
-        compact_one_partition(&compactor, to_compact, "hot", true)
-            .await
-            .unwrap();
-
-        // Should have 3 non-soft-deleted files:
-        //
-        // - the level 1 file that didn't overlap with anything
-        // - the two newly created after compacting and splitting pf1, pf2, pf3, pf4, pf5
-        let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
-        assert_eq!(files.len(), 3);
-        let files_and_levels: Vec<_> = files
-            .iter()
-            .map(|f| (f.id.get(), f.compaction_level))
-            .collect();
+        assert_eq!(candidates[1].id(), another_partition.partition.id);
+        // this sort key is Some(tag1, time)
         assert_eq!(
-            files_and_levels,
-            vec![
-                (6, CompactionLevel::FileNonOverlapped),
-                (7, CompactionLevel::FileNonOverlapped),
-                (8, CompactionLevel::FileNonOverlapped),
-            ]
-        );
-
-        // ------------------------------------------------
-        // Verify the parquet file content
-
-        // Later compacted file
-        let file1 = files.pop().unwrap();
-        let batches = table.read_parquet_file(file1).await;
-        assert_batches_sorted_eq!(
-            &[
-                "+-----------+------+------+------+-----------------------------+",
-                "| field_int | tag1 | tag2 | tag3 | time                        |",
-                "+-----------+------+------+------+-----------------------------+",
-                "| 1600      |      | WA   | 10   | 1970-01-01T00:00:00.000028Z |",
-                "| 20        |      | VT   | 20   | 1970-01-01T00:00:00.000026Z |",
-                "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
-                "+-----------+------+------+------+-----------------------------+",
-            ],
-            &batches
-        );
-
-        // Earlier compacted file
-        let file0 = files.pop().unwrap();
-        let batches = table.read_parquet_file(file0).await;
-        assert_batches_sorted_eq!(
-            &[
-                "+-----------+------+------+------+--------------------------------+",
-                "| field_int | tag1 | tag2 | tag3 | time                           |",
-                "+-----------+------+------+------+--------------------------------+",
-                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000000020Z |",
-                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000006Z    |",
-                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000010Z    |",
-                "| 1000      | WA   |      |      | 1970-01-01T00:00:00.000000010Z |",
-                "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z    |",
-                "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000000009Z |",
-                "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000000025Z |",
-                "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z    |",
-                "+-----------+------+------+------+--------------------------------+",
-            ],
-            &batches
+            candidates[1].sort_key,
+            another_partition.partition.sort_key()
         );
     }
 }
