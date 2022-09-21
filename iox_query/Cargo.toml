@@ -25,7 +25,7 @@ datafusion_util = { path = "../datafusion_util" }
 executor = { path = "../executor"}
 futures = "0.3"
 hashbrown = "0.12"
-itertools = "0.10.4"
+itertools = "0.10.5"
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.12"
 query_functions = { path = "../query_functions"}

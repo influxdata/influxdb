@@ -18,7 +18,7 @@ data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
 either = "1.7.0"
 hashbrown = "0.12"
-itertools = "0.10.4"
+itertools = "0.10.5"
 metric = { path = "../metric" }
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.12"

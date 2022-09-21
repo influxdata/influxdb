@@ -9,7 +9,7 @@ description = "IOx Schema definition"
 arrow = { version = "22.0.0", features = ["prettyprint"] }
 hashbrown = "0.12"
 indexmap = { version = "1.9", features = ["std"] }
-itertools = "0.10.4"
+itertools = "0.10.5"
 observability_deps = { path = "../observability_deps" }
 snafu = "0.7"
 workspace-hack = { path = "../workspace-hack"}

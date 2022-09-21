@@ -13,7 +13,7 @@ futures = "0.3"
 handlebars = "4.3.4"
 humantime = "2.1.0"
 influxdb2_client = { path = "../influxdb2_client" }
-itertools = "0.10.4"
+itertools = "0.10.5"
 rand = { version = "0.8.3", features = ["small_rng"] }
 regex = "1.6"
 serde = { version = "1.0", features = ["derive"] }
