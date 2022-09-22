@@ -6,13 +6,32 @@ Before you report an issue, please search existing issues to check whether it's
 already been reported, or perhaps even fixed.
 If you choose to report an issue, please include the following in your report:
 
-- Full details of your operating system (or distribution) e.g. `64bit Ubuntu 18.04`.
-- The version of InfluxDB you are running
-- Whether you installed InfluxDB using a pre-built package, or built it from source.
-- Clear steps to reproduce the issue described.
+- Full details of your operating system (or distribution)--for example, `64bit Ubuntu 18.04`.
+  To get your operating system details, run the following command in your terminal
+  and copy-paste the output into your report:
+
+  ```sh
+  uname -srm
+  ```
+- How you installed InfluxDB. Did you use a pre-built package or did you build from source?
+- The version of InfluxDB you're running.
+  If you installed InfluxDB using a pre-built package, run the following command in your terminal and then copy-paste the output into your report:
+
+  ```sh
+  influxd version
+  ```
+
+  If you built and ran `influxd` from source, run the following command from your *influxdb* directory and then copy-paste the output into your report:
+
+  ```sh
+  bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influxd version
+  ```
+- [Clear steps to reproduce the issue](#how-to-provide-steps-to-reproduce-an-issue)
+
+### How to provide steps for reproducing an issue
 
 The easier we can reproduce the problem, the easier we can fix it.
-To learn how to write an effective bug report, we recommend reading [Simon Tatham's essay "How to Report Bugs Effectively."](http://www.chiark.greenend.org.uk/~sgtatham/bugs.html).
+To learn how to write an effective bug report, we recommend reading [Simon Tatham's essay, "How to Report Bugs Effectively."](http://www.chiark.greenend.org.uk/~sgtatham/bugs.html).
 
 When describing how to reproduce the issue,
 please provide test cases in the form of `curl` commands--for example:
@@ -50,23 +69,23 @@ influx query -o YOUR_ORG -t YOURAUTHTOKEN 'from(bucket:"example-bucket")
   |> sum()'
 ```
 
-If you don't provide clear test cases like the examples above,
-then investigating your issue will be very difficult for us.
-If you have trouble including data in the report, please zip up your data directory and include a link to it in your bug report.
+If you don't provide clear test cases like the examples above, then investigating your issue will be very difficult for us.
+If you have trouble including data in your report, please zip up your data directory and include a link to it in your bug report.
 
 Note that issues are _not the place to file general support requests_ such as "How do I use `collectd` with InfluxDB?"
-Please submit requests for help to the [InfluxData Community](https://community.influxdata.com/) - don't file them as issues.
+Please submit requests for help to the [InfluxData Community](https://community.influxdata.com/) - don't report them as issues in the repo.
 
 ## How to request a feature
 
 We encourage you to submit feature requests as they help us prioritize our work.
-In your request, please include the following:
+
+In your feature request, please include the following:
 - Clear requirements and goals.
 - What you would like to see added to InfluxDB.
 - Examples.
 - Why the feature is important to you.
 
-If you find your feature request already exists in a Github issue,
+If you find your request already exists in a Github issue,
 please indicate your support for the existing issue by using the "thumbs up" reaction.
 
 ## Submitting a pull request
