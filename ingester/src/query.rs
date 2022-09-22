@@ -277,7 +277,7 @@ mod tests {
         // Merge schema of the batches
         // The fields in the schema are sorted by column name
         let batches = create_batches();
-        let merged_schema = (&*merge_record_batch_schemas(&batches)).clone();
+        let merged_schema = (*merge_record_batch_schemas(&batches)).clone();
 
         // Expected Arrow schema
         let arrow_schema = Arc::new(arrow::datatypes::Schema::new(vec![

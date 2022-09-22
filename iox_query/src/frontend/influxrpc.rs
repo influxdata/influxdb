@@ -265,7 +265,8 @@ impl InfluxRpcPlanner {
                     }
                 }
 
-                Ok((!chunks_full.is_empty()).then(|| (table_name, Some((predicate, chunks_full)))))
+                Ok((!chunks_full.is_empty())
+                    .then_some((table_name, Some((predicate, chunks_full)))))
             })
             .try_collect()
             .await?;
@@ -1371,7 +1372,7 @@ where
         // rustc seems to heavily confused about the filter step here, esp. it dislikes `.try_filter` and even
         // `.try_filter_map` requires some additional type annotations
         .try_filter_map(|(table_name, predicate, chunks)| async move {
-            Ok((!chunks.is_empty()).then(move || (table_name, predicate, chunks)))
+            Ok((!chunks.is_empty()).then_some((table_name, predicate, chunks)))
                 as Result<Option<(&str, &Predicate, Vec<_>)>>
         })
         .and_then(|(table_name, predicate, chunks)| {

@@ -381,7 +381,7 @@ where
             + self
                 .run_lengths
                 .iter()
-                .filter_map(|(rl, v)| v.is_some().then(|| *rl as usize * size_of::<Option<L>>()))
+                .filter_map(|(rl, v)| v.is_some().then_some(*rl as usize * size_of::<Option<L>>()))
                 .sum::<usize>()
     }
 

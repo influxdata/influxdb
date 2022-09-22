@@ -160,13 +160,7 @@ impl DataSpec {
 
     /// Get the agent spec by its name
     pub fn agent_by_name(&self, name: &str) -> Option<&AgentSpec> {
-        for a in &self.agents {
-            if a.name == name {
-                return Some(a);
-            }
-        }
-
-        None
+        self.agents.iter().find(|&a| a.name == name)
     }
 }
 

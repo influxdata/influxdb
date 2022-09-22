@@ -89,7 +89,7 @@ impl<K: AsPrimitive<usize> + FromPrimitive + Zero> PackedStringArray<K> {
             .push_str(&other.storage[first_offset..end_offset]);
 
         self.offsets.extend(
-            (&other.offsets[(range.start + 1)..(range.end + 1)])
+            other.offsets[(range.start + 1)..(range.end + 1)]
                 .iter()
                 .map(|x| {
                     K::from_usize(x.as_() - first_offset + insert_offset)

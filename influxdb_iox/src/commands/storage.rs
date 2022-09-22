@@ -255,7 +255,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
     let mut client = influxdb_storage_client::Client::new(connection);
 
     // convert predicate with no root node into None.
-    let predicate = config.predicate.root.is_some().then(|| config.predicate);
+    let predicate = config.predicate.root.is_some().then_some(config.predicate);
 
     let source = Client::read_source(&config.db_name, 0);
     let now = std::time::Instant::now();

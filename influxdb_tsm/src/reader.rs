@@ -239,7 +239,7 @@ where
     T: BlockDecoder,
 {
     fn decode(&mut self, block: &Block) -> Result<BlockData, TsmError> {
-        (&mut **self).decode(block)
+        (**self).decode(block)
     }
 }
 

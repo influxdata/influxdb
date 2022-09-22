@@ -43,10 +43,7 @@ impl IoxSystemTable for QueriesTable {
 
         let mut entries = self.query_log.entries();
         if let Some(namespace_id) = self.namespace_id_filter {
-            entries = entries
-                .into_iter()
-                .filter(|entry| entry.namespace_id == namespace_id)
-                .collect();
+            entries.retain(|entry| entry.namespace_id == namespace_id);
         }
 
         let mut offset = 0;

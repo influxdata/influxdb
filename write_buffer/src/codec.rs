@@ -99,7 +99,7 @@ impl IoxHeaders {
 
                         span_context = match parser.parse(trace_collector, &headers) {
                             Ok(None) => None,
-                            Ok(Some(ctx)) => ctx.sampled.then(|| ctx),
+                            Ok(Some(ctx)) => ctx.sampled.then_some(ctx),
                             Err(e) => {
                                 return Err(WriteBufferError::invalid_data(format!(
                                     "Error decoding trace context: {}",

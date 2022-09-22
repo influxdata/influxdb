@@ -773,7 +773,7 @@ impl PartitionRepo for MemTxn {
         let table_ids: HashSet<_> = stage
             .tables
             .iter()
-            .filter_map(|table| (table.namespace_id == namespace_id).then(|| table.id))
+            .filter_map(|table| (table.namespace_id == namespace_id).then_some(table.id))
             .collect();
         let partitions: Vec<_> = stage
             .partitions
@@ -937,7 +937,7 @@ impl TombstoneRepo for MemTxn {
         let table_ids: HashSet<_> = stage
             .tables
             .iter()
-            .filter_map(|table| (table.namespace_id == namespace_id).then(|| table.id))
+            .filter_map(|table| (table.namespace_id == namespace_id).then_some(table.id))
             .collect();
         let tombstones: Vec<_> = stage
             .tombstones
@@ -1112,7 +1112,7 @@ impl ParquetFileRepo for MemTxn {
         let table_ids: HashSet<_> = stage
             .tables
             .iter()
-            .filter_map(|table| (table.namespace_id == namespace_id).then(|| table.id))
+            .filter_map(|table| (table.namespace_id == namespace_id).then_some(table.id))
             .collect();
         let parquet_files: Vec<_> = stage
             .parquet_files
