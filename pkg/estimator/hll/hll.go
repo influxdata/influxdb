@@ -4,10 +4,10 @@
 //
 // The differences are that the implementation in this package:
 //
-//   * uses an AMD64 optimised xxhash algorithm instead of murmur;
-//   * uses some AMD64 optimisations for things like clz;
-//   * works with []byte rather than a Hash64 interface, to reduce allocations;
-//   * implements encoding.BinaryMarshaler and encoding.BinaryUnmarshaler
+//   - uses an AMD64 optimised xxhash algorithm instead of murmur;
+//   - uses some AMD64 optimisations for things like clz;
+//   - works with []byte rather than a Hash64 interface, to reduce allocations;
+//   - implements encoding.BinaryMarshaler and encoding.BinaryUnmarshaler
 //
 // Based on some rough benchmarking, this implementation of HyperLogLog++ is
 // around twice as fast as the github.com/clarkduvall/hyperloglog implementation.

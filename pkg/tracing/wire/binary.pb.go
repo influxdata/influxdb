@@ -276,6 +276,7 @@ type Field struct {
 	Key       string    `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
 	FieldType FieldType `protobuf:"varint,2,opt,name=FieldType,proto3,enum=wire.FieldType" json:"FieldType,omitempty"`
 	// Types that are assignable to Value:
+	//
 	//	*Field_NumericVal
 	//	*Field_StringVal
 	Value isField_Value `protobuf_oneof:"value"`

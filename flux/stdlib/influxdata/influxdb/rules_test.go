@@ -1170,9 +1170,7 @@ func meanProcedureSpec() *universe.MeanProcedureSpec {
 	}
 }
 
-//
 // Window Aggregate Testing
-//
 func TestPushDownWindowAggregateRule(t *testing.T) {
 	createRangeSpec := func() *influxdb.ReadRangePhysSpec {
 		return &influxdb.ReadRangePhysSpec{

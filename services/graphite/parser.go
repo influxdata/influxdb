@@ -396,16 +396,18 @@ type nodes []*node
 // less than a non-wildcard value.
 //
 // For example, the filters:
-//             "*.*"
-//             "servers.*"
-//             "servers.localhost"
-//             "*.localhost"
+//
+//	"*.*"
+//	"servers.*"
+//	"servers.localhost"
+//	"*.localhost"
 //
 // Would be sorted as:
-//             "servers.localhost"
-//             "servers.*"
-//             "*.localhost"
-//             "*.*"
+//
+//	"servers.localhost"
+//	"servers.*"
+//	"*.localhost"
+//	"*.*"
 func (n *nodes) Less(j, k int) bool {
 	if (*n)[j].value == "*" && (*n)[k].value != "*" {
 		return false

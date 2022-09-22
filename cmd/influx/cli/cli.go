@@ -1461,7 +1461,6 @@ func (f *formatter) valueBuf(i, j int, typ flux.ColType, cr flux.ColReader) []by
 // * common tags sorted by label
 // * other tags sorted by label
 // * value
-//
 type orderedCols struct {
 	indexMap []int
 	cols     []flux.ColMeta

@@ -4,7 +4,6 @@ import "testing"
 
 // test of how we extract the database and retention policy from the bucket in
 // our v2 api enpoint.
-//
 func TestV2DatabaseRetentionPolicyMapper(t *testing.T) {
 	tests := map[string]struct {
 		input     string

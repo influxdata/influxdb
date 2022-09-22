@@ -1212,8 +1212,8 @@ func (r *UnsignedCumulativeSumReducer) Emit() []UnsignedPoint {
 
 // FloatHoltWintersReducer forecasts a series into the future.
 // This is done using the Holt-Winters damped method.
-//    1. Using the series the initial values are calculated using a SSE.
-//    2. The series is forecasted into the future using the iterative relations.
+//  1. Using the series the initial values are calculated using a SSE.
+//  2. The series is forecasted into the future using the iterative relations.
 type FloatHoltWintersReducer struct {
 	// Season period
 	m        int

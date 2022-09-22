@@ -50,7 +50,7 @@ func Bool(key string, val bool) Field {
 	}
 }
 
-/// Int64 adds an int64-valued key:value pair to a Span.LogFields() record
+// / Int64 adds an int64-valued key:value pair to a Span.LogFields() record
 func Int64(key string, val int64) Field {
 	return Field{
 		key:        key,

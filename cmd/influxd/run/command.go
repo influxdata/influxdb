@@ -280,11 +280,11 @@ type Options struct {
 
 // GetConfigPath returns the config path from the options.
 // It will return a path by searching in this order:
-//   1. The CLI option in ConfigPath
-//   2. The environment variable INFLUXDB_CONFIG_PATH
-//   3. The first influxdb.conf file on the path:
-//        - ~/.influxdb
-//        - /etc/influxdb
+//  1. The CLI option in ConfigPath
+//  2. The environment variable INFLUXDB_CONFIG_PATH
+//  3. The first influxdb.conf file on the path:
+//     - ~/.influxdb
+//     - /etc/influxdb
 func (opt *Options) GetConfigPath() string {
 	if opt.ConfigPath != "" {
 		if opt.ConfigPath == os.DevNull {

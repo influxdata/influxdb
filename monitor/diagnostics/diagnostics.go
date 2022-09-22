@@ -23,9 +23,9 @@ func (f ClientFunc) Diagnostics() (*Diagnostics, error) {
 // the values for each column, by row. This information is never written to an InfluxDB
 // system and is display-only. An example showing, say, connections follows:
 //
-//     source_ip    source_port       dest_ip     dest_port
-//     182.1.0.2    2890              127.0.0.1   38901
-//     174.33.1.2   2924              127.0.0.1   38902
+//	source_ip    source_port       dest_ip     dest_port
+//	182.1.0.2    2890              127.0.0.1   38901
+//	174.33.1.2   2924              127.0.0.1   38902
 type Diagnostics struct {
 	Columns []string
 	Rows    [][]interface{}

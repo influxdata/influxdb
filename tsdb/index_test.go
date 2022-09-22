@@ -643,7 +643,7 @@ func BenchmarkIndexSet_TagSets(b *testing.B) {
 // This benchmark concurrently writes series to the index and fetches cached bitsets.
 // The idea is to emphasize the performance difference when bitset caching is on and off.
 //
-// Typical results for an i7 laptop
+// # Typical results for an i7 laptop
 //
 // BenchmarkIndex_ConcurrentWriteQuery/inmem/queries_100000/cache-8   	  1	5963346204 ns/op	2499655768 B/op	 23964183 allocs/op
 // BenchmarkIndex_ConcurrentWriteQuery/inmem/queries_100000/no_cache-8    1	5314841090 ns/op	2499495280 B/op	 23963322 allocs/op
