@@ -127,6 +127,17 @@ pub struct CompactorConfig {
     /// The number of candidates compacted concurrently is also decided using this estimation and
     /// budget.
     pub memory_budget_bytes: u64,
+
+    /// Minimum number of rows allocated for each record batch fed into DataFusion plan
+    ///
+    /// We will use max(parquet_file's row_count, min_num_rows_allocated_per_record_batch_to_datafusion_plan)
+    /// to estimate number of rows allocated for each record batch fed into DataFusion plan.
+    pub min_num_rows_allocated_per_record_batch_to_datafusion_plan: u64,
+
+    /// Max number of files to compact per partition
+    ///
+    /// Due to limit in fan-in of datafusion plan, we need to limit the number of files to compact per partition.
+    pub max_num_compacting_files: usize,
 }
 
 /// How long to pause before checking for more work again if there was

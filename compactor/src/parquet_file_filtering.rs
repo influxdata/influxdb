@@ -19,6 +19,9 @@ pub(crate) struct FilteredFiles {
 #[derive(Debug, PartialEq)]
 pub(crate) enum FilterResult {
     NothingToCompact,
+    OverLimitFileNum {
+        file_num: usize,
+    },
     OverBudget {
         budget_bytes: u64,
     },
@@ -47,6 +50,9 @@ pub(crate) fn filter_parquet_files(
     // Stop considering level N files when the total estimated arrow size of all files selected for
     // compaction so far exceeds this value
     max_bytes: u64,
+    // stop considering level N files when the total files selected for compaction so far exceeds
+    // this value
+    max_num_files: usize,
     // Gauge for the number of Parquet file candidates
     parquet_file_candidate_gauge: &Metric<U64Gauge>,
     // Histogram for the number of bytes of Parquet file candidates
@@ -56,6 +62,7 @@ pub(crate) fn filter_parquet_files(
         level_n,
         level_n_plus_1,
         max_bytes,
+        max_num_files,
         parquet_file_candidate_gauge,
         parquet_file_candidate_bytes,
     );
@@ -74,6 +81,9 @@ fn filter_parquet_files_inner(
     // Stop considering level N files when the total estimated arrow size of all files selected for
     // compaction so far exceeds this value
     max_bytes: u64,
+    // stop considering level N files when the total files selected for compaction so far exceeds
+    // this value
+    max_num_files: usize,
     // Gauge for the number of Parquet file candidates
     parquet_file_candidate_gauge: &Metric<U64Gauge>,
     // Histogram for the number of bytes of Parquet file candidates
@@ -129,8 +139,20 @@ fn filter_parquet_files_inner(
         let estimated_file_bytes =
             ln_estimated_file_bytes + current_ln_plus_1_estimated_file_bytes.iter().sum::<u64>();
 
-        // Over budget
-        if total_estimated_budget + estimated_file_bytes > max_bytes {
+        // Over limit of num files
+        if files_to_return.len() + 1 /* LN file */ + overlaps.len() > max_num_files {
+            if files_to_return.is_empty() {
+                // Cannot compact this partition because its first set of overlapped files
+                // exceed the file limit
+                return FilterResult::OverLimitFileNum {
+                    file_num: 1 + overlaps.len(),
+                };
+            } else {
+                // Only compact files that are under limit number of files
+                break;
+            }
+        } else if total_estimated_budget + estimated_file_bytes > max_bytes {
+            // Over budget
             if total_estimated_budget == 0 {
                 // Cannot compact this partition further with the given budget
                 return FilterResult::OverBudget {
@@ -141,7 +163,7 @@ fn filter_parquet_files_inner(
                 break;
             }
         } else {
-            // still under budget
+            // still under budget and under limit of number of files
             total_estimated_budget += estimated_file_bytes;
             ln_estimated_budget.push(ln_estimated_file_bytes);
             ln_plus_1_estimated_budget.extend(current_ln_plus_1_estimated_file_bytes);
@@ -393,6 +415,7 @@ mod tests {
     }
 
     const MEMORY_BUDGET: u64 = 1024 * 1024 * 10;
+    const FILE_NUM_LIMIT: usize = 20;
 
     #[test]
     fn empty_in_empty_out() {
@@ -404,6 +427,7 @@ mod tests {
             level_0,
             level_1,
             MEMORY_BUDGET,
+            FILE_NUM_LIMIT,
             &files_metric,
             &bytes_metric,
         );
@@ -417,8 +441,14 @@ mod tests {
         let level_1 = vec![];
         let (files_metric, bytes_metric) = metrics();
 
-        let filter_result =
-            filter_parquet_files_inner(level_0, level_1, 0, &files_metric, &bytes_metric);
+        let filter_result = filter_parquet_files_inner(
+            level_0,
+            level_1,
+            0,
+            FILE_NUM_LIMIT,
+            &files_metric,
+            &bytes_metric,
+        );
 
         assert_eq!(
             filter_result,
@@ -432,12 +462,195 @@ mod tests {
         let level_1 = vec![];
         let (files_metric, bytes_metric) = metrics();
 
-        let filter_result =
-            filter_parquet_files_inner(level_0, level_1, 1000, &files_metric, &bytes_metric);
+        let filter_result = filter_parquet_files_inner(
+            level_0,
+            level_1,
+            1000,
+            FILE_NUM_LIMIT,
+            &files_metric,
+            &bytes_metric,
+        );
 
         assert_eq!(
             filter_result,
             FilterResult::OverBudget { budget_bytes: 1176 }
+        );
+    }
+
+    #[test]
+    fn file_num_0_returns_over_file_limit() {
+        let level_0 = vec![ParquetFileBuilder::level_0().id(1).build()];
+        let level_1 = vec![];
+        let (files_metric, bytes_metric) = metrics();
+
+        let filter_result = filter_parquet_files_inner(
+            level_0,
+            level_1,
+            MEMORY_BUDGET,
+            0,
+            &files_metric,
+            &bytes_metric,
+        );
+
+        assert_eq!(
+            filter_result,
+            FilterResult::OverLimitFileNum { file_num: 1 }
+        );
+    }
+
+    #[test]
+    fn file_num_limit_1_return_over_file_limit() {
+        let level_0 = vec![ParquetFileBuilder::level_0()
+            .id(1)
+            .min_time(200)
+            .max_time(300)
+            .build()];
+        let level_1 = vec![
+            // Completely contains the level 0 times
+            ParquetFileBuilder::level_1()
+                .id(102)
+                .min_time(150)
+                .max_time(350)
+                .build(),
+        ];
+        let (files_metric, bytes_metric) = metrics();
+
+        let filter_result = filter_parquet_files_inner(
+            level_0,
+            level_1,
+            MEMORY_BUDGET,
+            1,
+            &files_metric,
+            &bytes_metric,
+        );
+
+        assert_eq!(
+            filter_result,
+            FilterResult::OverLimitFileNum { file_num: 2 }
+        );
+    }
+
+    #[test]
+    fn file_num_limit_2_return_2_files() {
+        let level_0 = vec![
+            // Level 0 files that overlap in time slightly.
+            ParquetFileBuilder::level_0()
+                .id(1)
+                .min_time(200)
+                .max_time(300)
+                .file_size_bytes(10)
+                .build(),
+            ParquetFileBuilder::level_0()
+                .id(2)
+                .min_time(280)
+                .max_time(310)
+                .file_size_bytes(10)
+                .build(),
+            ParquetFileBuilder::level_0()
+                .id(3)
+                .min_time(309)
+                .max_time(350)
+                .file_size_bytes(10)
+                .build(),
+        ];
+
+        let level_1 = vec![
+            // overlaps in time with second and third L0s
+            ParquetFileBuilder::level_1()
+                .id(101)
+                .min_time(301)
+                .max_time(500)
+                .build(),
+            // overlaps in time with first and second L0s
+            ParquetFileBuilder::level_1()
+                .id(102)
+                .min_time(150)
+                .max_time(250)
+                .build(),
+        ];
+        let (files_metric, bytes_metric) = metrics();
+
+        let filter_result = filter_parquet_files_inner(
+            level_0,
+            level_1,
+            MEMORY_BUDGET,
+            2,
+            &files_metric,
+            &bytes_metric,
+        );
+
+        // should include 2 files: first L0 (id=1) and second L1 (id=102)
+        assert!(
+            matches!(
+                &filter_result,
+                FilterResult::Proceed { files, budget_bytes }
+                    if files.len() == 2
+                        && files.iter().map(|f| f.id().get()).collect::<Vec<_>>() == [102, 1]
+                        && *budget_bytes == 2 * 1176
+            ),
+            "Match failed, got: {filter_result:?}"
+        );
+    }
+
+    #[test]
+    fn file_num_limit_10_return_all_5_files() {
+        let level_0 = vec![
+            // Level 0 files that overlap in time slightly.
+            ParquetFileBuilder::level_0()
+                .id(1)
+                .min_time(200)
+                .max_time(300)
+                .file_size_bytes(10)
+                .build(),
+            ParquetFileBuilder::level_0()
+                .id(2)
+                .min_time(280)
+                .max_time(310)
+                .file_size_bytes(10)
+                .build(),
+            ParquetFileBuilder::level_0()
+                .id(3)
+                .min_time(309)
+                .max_time(350)
+                .file_size_bytes(10)
+                .build(),
+        ];
+
+        let level_1 = vec![
+            // overlaps in time with second and third L0s
+            ParquetFileBuilder::level_1()
+                .id(101)
+                .min_time(301)
+                .max_time(500)
+                .build(),
+            // overlaps in time with first and second L0s
+            ParquetFileBuilder::level_1()
+                .id(102)
+                .min_time(150)
+                .max_time(250)
+                .build(),
+        ];
+        let (files_metric, bytes_metric) = metrics();
+
+        let filter_result = filter_parquet_files_inner(
+            level_0,
+            level_1,
+            MEMORY_BUDGET,
+            10,
+            &files_metric,
+            &bytes_metric,
+        );
+
+        // should include 2 files: first L0 (id=1) and second L1 (id=102)
+        assert!(
+            matches!(
+                &filter_result,
+                FilterResult::Proceed { files, budget_bytes }
+                    if files.len() == 5
+                        && files.iter().map(|f| f.id().get()).collect::<Vec<_>>() == [102, 101, 1, 2, 3]
+                        && *budget_bytes == 5 * 1176
+            ),
+            "Match failed, got: {filter_result:?}"
         );
     }
 
@@ -474,6 +687,7 @@ mod tests {
             level_0,
             level_1,
             MEMORY_BUDGET,
+            FILE_NUM_LIMIT,
             &files_metric,
             &bytes_metric,
         );
@@ -573,6 +787,7 @@ mod tests {
             level_0.clone(),
             level_1.clone(),
             1176 * 3 + 5, // enough for 3 files
+            FILE_NUM_LIMIT,
             &files_metric,
             &bytes_metric,
         );
@@ -613,6 +828,7 @@ mod tests {
             // Increase budget to more than 6 files; 1st two level 0 files & their overlapping
             // level 1 files get returned
             1176 * 6 + 5,
+            FILE_NUM_LIMIT,
             &files_metric,
             &bytes_metric,
         );
@@ -729,6 +945,7 @@ mod tests {
             level_1.clone(),
             level_2.clone(),
             1176 * 3 + 5, // enough for 3 files
+            FILE_NUM_LIMIT,
             &files_metric,
             &bytes_metric,
         );
@@ -769,6 +986,7 @@ mod tests {
             // Increase budget to more than 6 files; 1st two level 1 files & their overlapping
             // level 2 files get returned
             1176 * 6 + 5,
+            FILE_NUM_LIMIT,
             &files_metric,
             &bytes_metric,
         );

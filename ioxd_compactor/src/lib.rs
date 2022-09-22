@@ -203,6 +203,8 @@ pub async fn build_compactor_from_config(
         min_number_recent_ingested_files_per_partition,
         hot_multiple,
         memory_budget_bytes,
+        min_num_rows_allocated_per_record_batch_to_datafusion_plan,
+        max_num_compacting_files,
         ..
     } = compactor_config;
 
@@ -214,6 +216,8 @@ pub async fn build_compactor_from_config(
         min_number_recent_ingested_files_per_partition,
         hot_multiple,
         memory_budget_bytes,
+        min_num_rows_allocated_per_record_batch_to_datafusion_plan,
+        max_num_compacting_files,
     };
 
     Ok(compactor::compact::Compactor::new(

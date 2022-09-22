@@ -29,7 +29,7 @@ use crate::{
     parquet_file_filtering::{FilterResult, FilteredFiles},
     parquet_file_lookup::ParquetFilesForCompaction,
 };
-use data_types::CompactionLevel;
+use data_types::{CompactionLevel, PartitionId};
 use metric::Attributes;
 use observability_deps::tracing::*;
 use snafu::{ResultExt, Snafu};
@@ -92,6 +92,9 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
         let parquet_files_for_compaction =
             parquet_file_lookup::ParquetFilesForCompaction::for_partition(
                 Arc::clone(&compactor.catalog),
+                compactor
+                    .config
+                    .min_num_rows_allocated_per_record_batch_to_datafusion_plan,
                 Arc::clone(&partition),
             )
             .await;
@@ -130,6 +133,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                     level_n,
                     level_n_plus_1,
                     remaining_budget_bytes,
+                    compactor.config.max_num_compacting_files,
                     &compactor.parquet_file_candidate_gauge,
                     &compactor.parquet_file_candidate_bytes,
                 );
@@ -149,6 +153,23 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                 FilterResult::NothingToCompact => {
                     debug!(?partition_id, compaction_type, "nothing to compact");
                 }
+                FilterResult::OverLimitFileNum { file_num } => {
+                    // We cannot compact this partition because its first set of overlapped files
+                    // are over the limit of file num
+                    warn!(
+                        ?partition_id,
+                        ?table_id,
+                        compaction_type,
+                        file_num,
+                        file_num_limit = compactor.config.max_num_compacting_files,
+                        "skipped; over limit of number of files"
+                    );
+                    let reason = format!(
+                        "over limit of number of files. Needed number of files = {}, limit of number of files = {}",
+                        file_num, compactor.config.max_num_compacting_files
+                    );
+                    record_skipped_compaction(partition_id, Arc::clone(&compactor), &reason).await;
+                }
                 FilterResult::OverBudget {
                     budget_bytes: needed_bytes,
                 } => {
@@ -167,18 +188,12 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                             memory_budget_bytes = compactor.config.memory_budget_bytes,
                             "skipped; over memory budget"
                         );
-                        let mut repos = compactor.catalog.repositories().await;
                         let reason = format!(
                             "over memory budget. Needed budget = {}, memory budget = {}",
                             needed_bytes, compactor.config.memory_budget_bytes
                         );
-                        let record_skip = repos
-                            .partitions()
-                            .record_skipped_compaction(partition_id, &reason)
+                        record_skipped_compaction(partition_id, Arc::clone(&compactor), &reason)
                             .await;
-                        if let Err(e) = record_skip {
-                            warn!(?partition_id, %e, "could not log skipped compaction");
-                        }
                     }
                 }
                 FilterResult::Proceed {
@@ -225,6 +240,21 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
             num_remaining_candidates = candidates.len();
             count = 0;
         }
+    }
+}
+
+async fn record_skipped_compaction(
+    partition_id: PartitionId,
+    compactor: Arc<Compactor>,
+    reason: &str,
+) {
+    let mut repos = compactor.catalog.repositories().await;
+    let record_skip = repos
+        .partitions()
+        .record_skipped_compaction(partition_id, reason)
+        .await;
+    if let Err(e) = record_skip {
+        warn!(?partition_id, %e, "could not log skipped compaction");
     }
 }
 
@@ -497,6 +527,8 @@ pub mod tests {
             min_number_recent_ingested_files_per_partition: 1,
             hot_multiple: 4,
             memory_budget_bytes: 12 * 1125, // 13,500 bytes
+            min_num_rows_allocated_per_record_batch_to_datafusion_plan: 1,
+            max_num_compacting_files: 20,
         }
     }
 
@@ -857,6 +889,8 @@ pub mod tests {
             min_number_recent_ingested_files_per_partition: 1,
             hot_multiple: 4,
             memory_budget_bytes: 100_000_000,
+            min_num_rows_allocated_per_record_batch_to_datafusion_plan: 100,
+            max_num_compacting_files: 20,
         };
 
         let metrics = Arc::new(metric::Registry::new());
@@ -956,6 +990,9 @@ pub mod tests {
         let parquet_files_for_compaction =
             parquet_file_lookup::ParquetFilesForCompaction::for_partition_with_size_overrides(
                 Arc::clone(&compactor.catalog),
+                compactor
+                    .config
+                    .min_num_rows_allocated_per_record_batch_to_datafusion_plan,
                 Arc::clone(&partition),
                 &size_overrides,
             )
@@ -973,6 +1010,7 @@ pub mod tests {
             level_0,
             level_1,
             compactor.config.memory_budget_bytes,
+            compactor.config.max_num_compacting_files,
             &compactor.parquet_file_candidate_gauge,
             &compactor.parquet_file_candidate_bytes,
         );

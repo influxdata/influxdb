@@ -422,6 +422,8 @@ impl Config {
             min_number_recent_ingested_files_per_partition: 1,
             hot_multiple: 4,
             memory_budget_bytes: 300_000,
+            min_num_rows_allocated_per_record_batch_to_datafusion_plan: 100,
+            max_num_compacting_files: 20,
         };
 
         let querier_config = QuerierConfig {

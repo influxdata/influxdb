@@ -140,6 +140,32 @@ macro_rules! gen_compactor_config {
                 action
             )]
             pub memory_budget_bytes: u64,
+
+            /// Minimum number of rows allocated for each record batch fed into DataFusion plan
+            /// 
+            /// We will use max(parquet_file's row_count, min_num_rows_allocated_per_record_batch_to_datafusion_plan)
+            /// to estimate number of rows allocated for each record batch fed into DataFusion plan.
+            /// 
+            #[clap(
+                long = "--compaction-min-rows-allocated-per-record-batch-to-plan",
+                env = "INFLUXDB_IOX_COMPACTION_MIN_ROWS_PER_RECORD_BATCH_TO_PLAN",
+                default_value = "8192",
+                action
+            )]
+            pub min_num_rows_allocated_per_record_batch_to_datafusion_plan: u64,
+
+            /// Max number of files to compact per partition
+            /// 
+            /// Due to limitations of the implementation of the compaction plans
+            /// there is a hard maximum on the number of files that can be compacted
+            /// at once. This avoids a wide fan-in multi-way merge in the DataFusion plan
+            #[clap(
+                long = "--compaction-max-num-compacting-files",
+                env = "INFLUXDB_IOX_COMPACTION_MAX_COMPACTING_FILES",
+                default_value = "20",
+                action
+            )]
+            pub max_num_compacting_files: usize,
         }
     };
 }
@@ -164,6 +190,9 @@ impl CompactorOnceConfig {
                 .min_number_recent_ingested_files_per_partition,
             hot_multiple: self.hot_multiple,
             memory_budget_bytes: self.memory_budget_bytes,
+            min_num_rows_allocated_per_record_batch_to_datafusion_plan: self
+                .min_num_rows_allocated_per_record_batch_to_datafusion_plan,
+            max_num_compacting_files: self.max_num_compacting_files,
         }
     }
 }

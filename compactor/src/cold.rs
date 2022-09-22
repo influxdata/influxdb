@@ -271,6 +271,9 @@ mod tests {
         let parquet_files_for_compaction =
             parquet_file_lookup::ParquetFilesForCompaction::for_partition_with_size_overrides(
                 Arc::clone(&compactor.catalog),
+                compactor
+                    .config
+                    .min_num_rows_allocated_per_record_batch_to_datafusion_plan,
                 Arc::clone(&partition),
                 &size_overrides,
             )
@@ -288,6 +291,7 @@ mod tests {
             level_0,
             level_1,
             compactor.config.memory_budget_bytes,
+            compactor.config.max_num_compacting_files,
             &compactor.parquet_file_candidate_gauge,
             &compactor.parquet_file_candidate_bytes,
         );
@@ -461,6 +465,9 @@ mod tests {
         let parquet_files_for_compaction =
             parquet_file_lookup::ParquetFilesForCompaction::for_partition_with_size_overrides(
                 Arc::clone(&compactor.catalog),
+                compactor
+                    .config
+                    .min_num_rows_allocated_per_record_batch_to_datafusion_plan,
                 Arc::clone(&partition),
                 &size_overrides,
             )
@@ -478,6 +485,7 @@ mod tests {
             level_0,
             level_1,
             compactor.config.memory_budget_bytes,
+            compactor.config.max_num_compacting_files,
             &compactor.parquet_file_candidate_gauge,
             &compactor.parquet_file_candidate_bytes,
         );
@@ -549,6 +557,9 @@ mod tests {
         let parquet_files_for_compaction =
             parquet_file_lookup::ParquetFilesForCompaction::for_partition_with_size_overrides(
                 Arc::clone(&compactor.catalog),
+                compactor
+                    .config
+                    .min_num_rows_allocated_per_record_batch_to_datafusion_plan,
                 Arc::clone(&partition),
                 &size_overrides,
             )
@@ -566,6 +577,7 @@ mod tests {
             level_1,
             level_2,
             compactor.config.memory_budget_bytes,
+            compactor.config.max_num_compacting_files,
             &compactor.parquet_file_candidate_gauge,
             &compactor.parquet_file_candidate_bytes,
         );
@@ -683,6 +695,8 @@ mod tests {
             min_number_recent_ingested_files_per_partition: 1,
             hot_multiple: 4,
             memory_budget_bytes: 100_000_000,
+            min_num_rows_allocated_per_record_batch_to_datafusion_plan: 1,
+            max_num_compacting_files: 20,
         }
     }
 

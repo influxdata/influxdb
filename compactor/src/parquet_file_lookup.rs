@@ -43,9 +43,16 @@ impl ParquetFilesForCompaction {
     /// compaction operation.
     pub(crate) async fn for_partition(
         catalog: Arc<dyn Catalog>,
+        min_num_rows_allocated_per_record_batch_to_datafusion_plan: u64,
         partition: Arc<PartitionCompactionCandidateWithInfo>,
     ) -> Result<Self, PartitionFilesFromPartitionError> {
-        Self::for_partition_with_size_overrides(catalog, partition, &Default::default()).await
+        Self::for_partition_with_size_overrides(
+            catalog,
+            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
+            partition,
+            &Default::default(),
+        )
+        .await
     }
 
     /// Given a catalog and a partition ID, find the Parquet files in the catalog relevant to a
@@ -57,6 +64,7 @@ impl ParquetFilesForCompaction {
     /// file deserialization can still rely on the original value).
     pub(crate) async fn for_partition_with_size_overrides(
         catalog: Arc<dyn Catalog>,
+        min_num_rows_allocated_per_record_batch_to_datafusion_plan: u64,
         partition: Arc<PartitionCompactionCandidateWithInfo>,
         size_overrides: &HashMap<ParquetFileId, i64>,
     ) -> Result<Self, PartitionFilesFromPartitionError> {
@@ -80,7 +88,10 @@ impl ParquetFilesForCompaction {
         let mut level_2 = Vec::with_capacity(parquet_files.len());
 
         for parquet_file in parquet_files {
-            let estimated_arrow_bytes = partition.estimated_arrow_bytes(parquet_file.row_count);
+            let estimated_arrow_bytes = partition.estimated_arrow_bytes(
+                min_num_rows_allocated_per_record_batch_to_datafusion_plan,
+                parquet_file.row_count,
+            );
             let parquet_file = match size_overrides.get(&parquet_file.id) {
                 Some(size) => CompactorParquetFile::new_with_size_override(
                     parquet_file,
@@ -124,6 +135,7 @@ mod tests {
         partition: Arc<TestPartition>,
         partition_on_another_shard: Arc<TestPartition>,
         older_partition: Arc<TestPartition>,
+        min_num_rows_allocated_per_record_batch_to_datafusion_plan: u64,
     }
 
     async fn test_setup() -> TestSetup {
@@ -158,6 +170,7 @@ mod tests {
             partition,
             partition_on_another_shard,
             older_partition,
+            min_num_rows_allocated_per_record_batch_to_datafusion_plan: 100,
         }
     }
 
@@ -169,6 +182,7 @@ mod tests {
             partition,
             partition_on_another_shard,
             older_partition,
+            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
         } = test_setup().await;
 
         // Create some files that shouldn't be returned:
@@ -201,6 +215,7 @@ mod tests {
 
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             Arc::clone(&catalog.catalog),
+            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
             partition_with_info,
         )
         .await
@@ -221,7 +236,10 @@ mod tests {
     async fn one_level_0_file_gets_returned() {
         test_helpers::maybe_start_logging();
         let TestSetup {
-            catalog, partition, ..
+            catalog,
+            partition,
+            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
+            ..
         } = test_setup().await;
 
         // Create a level 0 file
@@ -235,6 +253,7 @@ mod tests {
 
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             Arc::clone(&catalog.catalog),
+            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
             partition_with_info,
         )
         .await
@@ -256,7 +275,10 @@ mod tests {
     async fn one_level_1_file_gets_returned() {
         test_helpers::maybe_start_logging();
         let TestSetup {
-            catalog, partition, ..
+            catalog,
+            partition,
+            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
+            ..
         } = test_setup().await;
 
         // Create a level 1 file
@@ -270,6 +292,7 @@ mod tests {
 
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             Arc::clone(&catalog.catalog),
+            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
             partition_with_info,
         )
         .await
@@ -291,7 +314,10 @@ mod tests {
     async fn one_level_2_file_gets_returned() {
         test_helpers::maybe_start_logging();
         let TestSetup {
-            catalog, partition, ..
+            catalog,
+            partition,
+            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
+            ..
         } = test_setup().await;
 
         // Create a level 2 file
@@ -305,6 +331,7 @@ mod tests {
 
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             Arc::clone(&catalog.catalog),
+            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
             partition_with_info,
         )
         .await
@@ -332,7 +359,10 @@ mod tests {
     async fn one_file_of_each_level_gets_returned() {
         test_helpers::maybe_start_logging();
         let TestSetup {
-            catalog, partition, ..
+            catalog,
+            partition,
+            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
+            ..
         } = test_setup().await;
 
         // Create a level 0 file
@@ -358,6 +388,7 @@ mod tests {
 
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             Arc::clone(&catalog.catalog),
+            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
             partition_with_info,
         )
         .await
@@ -383,7 +414,10 @@ mod tests {
     async fn level_0_files_are_sorted_on_max_seq_num() {
         test_helpers::maybe_start_logging();
         let TestSetup {
-            catalog, partition, ..
+            catalog,
+            partition,
+            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
+            ..
         } = test_setup().await;
 
         // Create a level 0 file, max seq = 100
@@ -411,6 +445,7 @@ mod tests {
 
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             Arc::clone(&catalog.catalog),
+            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
             partition_with_info,
         )
         .await
@@ -434,7 +469,10 @@ mod tests {
     async fn level_1_files_are_sorted_on_min_time() {
         test_helpers::maybe_start_logging();
         let TestSetup {
-            catalog, partition, ..
+            catalog,
+            partition,
+            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
+            ..
         } = test_setup().await;
 
         // Create a level 1 file, max seq = 100, min time = 8888
@@ -478,6 +516,7 @@ mod tests {
 
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             Arc::clone(&catalog.catalog),
+            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
             partition_with_info,
         )
         .await
