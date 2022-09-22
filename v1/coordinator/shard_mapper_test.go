@@ -37,16 +37,6 @@ func TestLocalShardMapper(t *testing.T) {
 			filt:    influxdb.DBRPMappingFilter{OrgID: &orgID, Database: api.PtrString("db0"), RetentionPolicy: api.PtrString("rp0"), Virtual: nil},
 			mapping: []*influxdb.DBRPMapping{{Database: "db0", RetentionPolicy: "rp0", OrganizationID: orgID, BucketID: bucketID}},
 		},
-		{
-			name: "Virtual DBRP Mapping",
-			db:   "db1",
-			rp:   "autogen",
-			filt: influxdb.DBRPMappingFilter{OrgID: &orgID, Database: api.PtrString("db1"), RetentionPolicy: api.PtrString("autogen"), Virtual: nil},
-			mapping: []*influxdb.DBRPMapping{
-				{Database: "db1", RetentionPolicy: "autogen", OrganizationID: orgID, BucketID: bucketID, Default: true, Virtual: false},
-				{Database: "db1", RetentionPolicy: "autogen", OrganizationID: orgID, BucketID: bucketID, Default: false, Virtual: true},
-			},
-		},
 	}
 
 	for _, tc := range tests {

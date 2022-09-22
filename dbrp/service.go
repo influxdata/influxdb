@@ -366,6 +366,7 @@ func (s *Service) FindMany(ctx context.Context, filter influxdb.DBRPMappingFilte
 		// we were unable to find any virtual mappings, so return what physical mappings we have
 		return ms, len(ms), nil
 	}
+OUTER:
 	for _, bucket := range buckets {
 		if bucket == nil {
 			continue
@@ -373,9 +374,12 @@ func (s *Service) FindMany(ctx context.Context, filter influxdb.DBRPMappingFilte
 		newMapping := bucketToMapping(bucket)
 		// if any bucket already exists that is default for this database,
 		// this virtual mapping should not be the default
-		if newMapping.Default {
-			for _, m := range ms {
-				if m.Database == newMapping.Database && m.Default {
+		for _, m := range ms {
+			if m.Database == newMapping.Database {
+				if newMapping.Virtual && m.RetentionPolicy == newMapping.RetentionPolicy {
+					continue OUTER
+				}
+				if m.Default && newMapping.Default {
 					newMapping.Default = false
 					break
 				}
