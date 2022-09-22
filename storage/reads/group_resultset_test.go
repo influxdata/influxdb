@@ -151,13 +151,13 @@ group:
 group:
   tag key      : _m,tag0,tag1
   partition key: val11
-    series: _m=cpu,tag0=val01,tag1=val11
     series: _m=cpu,tag0=val00,tag1=val11
+    series: _m=cpu,tag0=val01,tag1=val11
 group:
   tag key      : _m,tag0,tag1
   partition key: val12
-    series: _m=cpu,tag0=val01,tag1=val12
     series: _m=cpu,tag0=val00,tag1=val12
+    series: _m=cpu,tag0=val01,tag1=val12
 group:
   tag key      : _m,tag0
   partition key: <nil>
@@ -347,8 +347,8 @@ group:
 			exp: `group:
   tag key      : _m,tag1,tag2
   partition key: <nil>,val20
-    series: _m=mem,tag1=val11,tag2=val20
     series: _m=mem,tag1=val10,tag2=val20
+    series: _m=mem,tag1=val11,tag2=val20
 group:
   tag key      : _m,tag1,tag2
   partition key: <nil>,val21
@@ -356,10 +356,10 @@ group:
 group:
   tag key      : _m,tag0,tag1
   partition key: val00,<nil>
+    series: _m=aaa,tag0=val00
     series: _m=cpu,tag0=val00,tag1=val10
     series: _m=cpu,tag0=val00,tag1=val11
     series: _m=cpu,tag0=val00,tag1=val12
-    series: _m=aaa,tag0=val00
 group:
   tag key      : _m,tag0
   partition key: val01,<nil>
