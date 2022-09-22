@@ -4,11 +4,11 @@ use bytes::Bytes;
 use clap::ValueEnum;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig,
-    object_store::{make_object_store, ObjectStoreConfig},
+    object_store::{make_object_store, ObjectStoreConfig, ObjectStoreType},
 };
-use object_store::{path::Path, DynObjectStore};
+use object_store::DynObjectStore;
 use snafu::prelude::*;
-use std::{fmt::Write, num::NonZeroUsize, sync::Arc};
+use std::{ffi::OsStr, fmt::Write, num::NonZeroUsize, path::PathBuf, process::Command, sync::Arc};
 
 #[derive(Debug, clap::Parser)]
 pub struct Config {
@@ -78,9 +78,29 @@ pub enum CompactionType {
 }
 
 pub async fn run(config: Config) -> Result<()> {
+    if !matches!(
+        &config.object_store_config.object_store,
+        Some(ObjectStoreType::File)
+    ) {
+        panic!("Sorry, this tool only works with 'file' object stores.");
+    }
+
     let object_store = make_object_store(&config.object_store_config)?;
 
-    write_data_generation_spec(object_store, &config).await?;
+    let root_dir: PathBuf = config
+        .object_store_config
+        .database_directory
+        .as_ref()
+        .expect("--data-dir is required and has already been checked")
+        .into();
+    let subdir = "compactor_data/line_protocol";
+    let lp_dir = root_dir.join(subdir);
+
+    let spec_location = format!("{subdir}/spec.toml");
+    let spec_in_root = root_dir.join(&spec_location);
+
+    write_data_generation_spec(object_store, &config, &spec_location).await?;
+    generate_data(&spec_in_root, &lp_dir)?;
 
     Ok(())
 }
@@ -98,6 +118,9 @@ pub enum Error {
 
     #[snafu(display("Could not parse object store path"))]
     ObjectStorePathParsing { source: object_store::path::Error },
+
+    #[snafu(display("Subcommand failed: {status}"))]
+    Subcommand { status: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -105,17 +128,41 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 async fn write_data_generation_spec(
     object_store: Arc<DynObjectStore>,
     config: &Config,
+    spec_location: &str,
 ) -> Result<()> {
-    let path = Path::parse("compactor_data/line_protocol/spec.toml")
-        .context(ObjectStorePathParsingSnafu)?;
+    let object_store_spec_path =
+        object_store::path::Path::parse(spec_location).context(ObjectStorePathParsingSnafu)?;
 
     let contents = data_generation_spec_contents(1, 1, config.num_columns.get());
     let data = Bytes::from(contents);
 
     object_store
-        .put(&path, data)
+        .put(&object_store_spec_path, data)
         .await
         .context(ObjectStoreWritingSnafu)?;
+
+    Ok(())
+}
+
+fn generate_data(spec_in_root: impl AsRef<OsStr>, lp_dir: impl AsRef<OsStr>) -> Result<()> {
+    let status = Command::new("cargo")
+        .arg("run")
+        .arg("-p")
+        .arg("iox_data_generator")
+        .arg("--")
+        .arg("--specification")
+        .arg(&spec_in_root)
+        .arg("-o")
+        .arg(&lp_dir)
+        .status()
+        .expect("Running the data generator should have worked");
+
+    ensure!(
+        status.success(),
+        SubcommandSnafu {
+            status: status.to_string()
+        }
+    );
 
     Ok(())
 }

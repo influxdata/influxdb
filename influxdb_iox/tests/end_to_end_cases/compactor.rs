@@ -5,6 +5,9 @@ use test_helpers_end_to_end::maybe_skip_integration;
 #[tokio::test]
 async fn compactor_generate_has_defaults() {
     let database_url = maybe_skip_integration!();
+    let dir = tempfile::tempdir()
+        .expect("could not get temporary directory")
+        .into_path();
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -12,13 +15,20 @@ async fn compactor_generate_has_defaults() {
         .arg("generate")
         .arg("--catalog-dsn")
         .arg(database_url)
+        .arg("--object-store")
+        .arg("file")
+        .arg("--data-dir")
+        .arg(&dir)
         .assert()
         .success();
+    let data_generation_spec = dir.join("compactor_data/line_protocol/spec.toml");
+    assert!(data_generation_spec.exists());
 }
 
 #[tokio::test]
 async fn compactor_generate_zeroes_are_invalid() {
     let database_url = maybe_skip_integration!();
+    let dir = tempfile::tempdir().expect("could not get temporary directory");
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -26,6 +36,10 @@ async fn compactor_generate_zeroes_are_invalid() {
         .arg("generate")
         .arg("--catalog-dsn")
         .arg(database_url)
+        .arg("--object-store")
+        .arg("file")
+        .arg("--data-dir")
+        .arg(&dir.path())
         .arg("--num-partitions")
         .arg("0")
         .arg("--num-files")
