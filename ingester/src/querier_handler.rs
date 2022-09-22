@@ -2,14 +2,13 @@
 
 use std::sync::Arc;
 
-use arrow::error::ArrowError;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::MemoryStream;
 use futures::StreamExt;
 use generated_types::ingester::IngesterQueryRequest;
 use observability_deps::tracing::debug;
 use schema::selection::Selection;
-use snafu::{ensure, ResultExt, Snafu};
+use snafu::{ensure, Snafu};
 
 use crate::{
     data::{
@@ -18,6 +17,9 @@ use crate::{
     },
     query::QueryableBatch,
 };
+
+/// Number of table data read locks that shall be acquired in parallel
+const CONCURRENT_TABLE_DATA_LOCKS: usize = 10;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -40,9 +42,6 @@ pub enum Error {
 
     #[snafu(display("Concurrent query request limit exceeded"))]
     RequestLimit,
-
-    #[snafu(display("Cannot query data: {}", source))]
-    Query { source: ArrowError },
 }
 
 /// A specialized `Error` for Ingester's Query errors
@@ -54,7 +53,7 @@ pub async fn prepare_data_to_querier(
     request: &Arc<IngesterQueryRequest>,
 ) -> Result<IngesterQueryResponse> {
     debug!(?request, "prepare_data_to_querier");
-    let mut unpersisted_partitions = vec![];
+    let mut tables_data = vec![];
     let mut found_namespace = false;
     for (shard_id, shard_data) in ingest_data.shards() {
         debug!(shard_id=%shard_id.get());
@@ -79,12 +78,7 @@ pub async fn prepare_data_to_querier(
             }
         };
 
-        let mut unpersisted_partition_data = {
-            let table_data = table_data.read().await;
-            table_data.unpersisted_partition_data()
-        };
-
-        unpersisted_partitions.append(&mut unpersisted_partition_data);
+        tables_data.push(table_data);
     }
 
     ensure!(
@@ -93,6 +87,18 @@ pub async fn prepare_data_to_querier(
             namespace_name: &request.namespace,
         },
     );
+
+    // acquire locks in parallel
+    let unpersisted_partitions: Vec<_> = futures::stream::iter(tables_data)
+        .map(|table_data| async move {
+            let table_data = table_data.read().await;
+            table_data.unpersisted_partition_data()
+        })
+        // Note: the order doesn't matter
+        .buffer_unordered(CONCURRENT_TABLE_DATA_LOCKS)
+        .concat()
+        .await;
+
     ensure!(
         !unpersisted_partitions.is_empty(),
         TableNotFoundSnafu {
@@ -102,16 +108,12 @@ pub async fn prepare_data_to_querier(
     );
 
     let request = Arc::clone(request);
-    let partitions = futures::stream::iter(unpersisted_partitions).then(move |partition| {
-        let request = Arc::clone(&request);
-
-        async move {
+    let partitions =
+        futures::stream::iter(unpersisted_partitions.into_iter().map(move |partition| {
             // extract payload
             let partition_id = partition.partition_id;
             let status = partition.partition_status.clone();
             let snapshots: Vec<_> = prepare_data_to_querier_for_partition(partition, &request)
-                .await
-                .map_err(|e| ArrowError::ExternalError(Box::new(e)))?
                 .into_iter()
                 .map(Ok)
                 .collect();
@@ -123,16 +125,15 @@ pub async fn prepare_data_to_querier(
                 partition_id,
                 status,
             ))
-        }
-    });
+        }));
 
     Ok(IngesterQueryResponse::new(Box::pin(partitions)))
 }
 
-async fn prepare_data_to_querier_for_partition(
+fn prepare_data_to_querier_for_partition(
     unpersisted_partition_data: UnpersistedPartitionData,
     request: &IngesterQueryRequest,
-) -> Result<Vec<SendableRecordBatchStream>> {
+) -> Vec<SendableRecordBatchStream> {
     // ------------------------------------------------
     // Accumulate data
 
@@ -157,7 +158,7 @@ async fn prepare_data_to_querier_for_partition(
         })
         .with_data(unpersisted_partition_data.non_persisted);
 
-    let streams = queryable_batch
+    queryable_batch
         .data
         .iter()
         .map(|snapshot_batch| {
@@ -175,17 +176,14 @@ async fn prepare_data_to_querier_for_partition(
                             schema.index_of(column_name).ok()
                         })
                         .collect::<Vec<_>>();
-                    batch.project(&projection)?
+                    batch.project(&projection).expect("bug in projection")
                 }
             };
 
             // create stream
-            Ok(Box::pin(MemoryStream::new(vec![batch])) as SendableRecordBatchStream)
+            Box::pin(MemoryStream::new(vec![batch])) as SendableRecordBatchStream
         })
-        .collect::<std::result::Result<Vec<_>, ArrowError>>()
-        .context(QuerySnafu)?;
-
-    Ok(streams)
+        .collect()
 }
 
 #[cfg(test)]
