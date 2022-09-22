@@ -99,8 +99,11 @@ pub async fn run(config: Config) -> Result<()> {
     let spec_location = format!("{subdir}/spec.toml");
     let spec_in_root = root_dir.join(&spec_location);
 
-    write_data_generation_spec(object_store, &config, &spec_location).await?;
-    generate_data(&spec_in_root, &lp_dir)?;
+    for file_id in 0..config.num_files.get() {
+        write_data_generation_spec(file_id, Arc::clone(&object_store), &config, &spec_location)
+            .await?;
+        generate_data(&spec_in_root, &lp_dir)?;
+    }
 
     Ok(())
 }
@@ -126,6 +129,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 async fn write_data_generation_spec(
+    file_id: usize,
     object_store: Arc<DynObjectStore>,
     config: &Config,
     spec_location: &str,
@@ -133,7 +137,7 @@ async fn write_data_generation_spec(
     let object_store_spec_path =
         object_store::path::Path::parse(spec_location).context(ObjectStorePathParsingSnafu)?;
 
-    let contents = data_generation_spec_contents(1, 1, config.num_columns.get());
+    let contents = data_generation_spec_contents(file_id, 1, config.num_columns.get());
     let data = Bytes::from(contents);
 
     object_store
