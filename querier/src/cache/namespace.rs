@@ -239,13 +239,13 @@ impl From<&TableSchema> for CachedTable {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CachedNamespace {
     pub id: NamespaceId,
-    pub tables: HashMap<Arc<str>, CachedTable>,
+    pub tables: HashMap<Arc<str>, Arc<CachedTable>>,
 }
 
 impl CachedNamespace {
     /// RAM-bytes EXCLUDING `self`.
     fn size(&self) -> usize {
-        self.tables.capacity() * size_of::<(Arc<str>, Arc<Schema>)>()
+        self.tables.capacity() * size_of::<(Arc<str>, Arc<CachedTable>)>()
             + self
                 .tables
                 .iter()
@@ -256,10 +256,13 @@ impl CachedNamespace {
 
 impl From<&NamespaceSchema> for CachedNamespace {
     fn from(ns: &NamespaceSchema) -> Self {
-        let mut tables: HashMap<Arc<str>, CachedTable> = ns
+        let mut tables: HashMap<Arc<str>, Arc<CachedTable>> = ns
             .tables
             .iter()
-            .map(|(name, table)| (Arc::from(name.clone()), table.into()))
+            .map(|(name, table)| {
+                let table: CachedTable = table.into();
+                (Arc::from(name.clone()), Arc::new(table))
+            })
             .collect();
         tables.shrink_to_fit();
 
@@ -315,7 +318,7 @@ mod tests {
             tables: HashMap::from([
                 (
                     Arc::from("table1"),
-                    CachedTable {
+                    Arc::new(CachedTable {
                         id: table11.table.id,
                         schema: Arc::new(
                             SchemaBuilder::new()
@@ -330,11 +333,11 @@ mod tests {
                             (col112.column.id, Arc::from(col112.column.name.clone())),
                             (col113.column.id, Arc::from(col113.column.name.clone())),
                         ]),
-                    },
+                    }),
                 ),
                 (
                     Arc::from("table2"),
-                    CachedTable {
+                    Arc::new(CachedTable {
                         id: table12.table.id,
                         schema: Arc::new(
                             SchemaBuilder::new()
@@ -347,7 +350,7 @@ mod tests {
                             (col121.column.id, Arc::from(col121.column.name.clone())),
                             (col122.column.id, Arc::from(col122.column.name.clone())),
                         ]),
-                    },
+                    }),
                 ),
             ]),
         };
@@ -362,14 +365,14 @@ mod tests {
             id: ns2.namespace.id,
             tables: HashMap::from([(
                 Arc::from("table1"),
-                CachedTable {
+                Arc::new(CachedTable {
                     id: table21.table.id,
                     schema: Arc::new(SchemaBuilder::new().timestamp().build().unwrap()),
                     column_id_map: HashMap::from([(
                         col211.column.id,
                         Arc::from(col211.column.name.clone()),
                     )]),
-                },
+                }),
             )]),
         };
         assert_eq!(actual_ns_2.as_ref(), &expected_ns_2);

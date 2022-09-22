@@ -329,7 +329,7 @@ impl QuerierTable {
                         let span = span_recorder.child_span("new_chunk");
                         self.chunk_adapter
                             .new_chunk(
-                                cached_table,
+                                Arc::clone(cached_table),
                                 Arc::clone(self.table_name()),
                                 cached_parquet_file,
                                 span,
