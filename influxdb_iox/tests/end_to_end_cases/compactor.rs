@@ -1,6 +1,5 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
-use std::{fs, io};
 use test_helpers_end_to_end::maybe_skip_integration;
 
 #[tokio::test]
@@ -56,14 +55,10 @@ async fn compactor_generate_creates_files_and_catalog_entries() {
         .arg("--object-store")
         .arg("file")
         .arg("--data-dir")
-        .arg(dir.path().to_str().unwrap())
+        .arg(&dir.path())
         .assert()
         .success();
 
-    let files = fs::read_dir(dir)
-        .unwrap()
-        .collect::<Result<Vec<_>, io::Error>>()
-        .unwrap();
-
-    assert!(!files.is_empty());
+    let data_generation_spec = dir.path().join("compactor_data/line_protocol/spec.toml");
+    assert!(data_generation_spec.exists());
 }

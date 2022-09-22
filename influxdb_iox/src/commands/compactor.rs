@@ -89,7 +89,7 @@ pub async fn command(config: Config) -> Result<()> {
             compactor::handler::run_compactor_once(compactor).await;
         }
         Command::Generate(config) => {
-            generate::run(config)?;
+            generate::run(config).await?;
         }
     }
 

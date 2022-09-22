@@ -1,9 +1,14 @@
 //! Implements the `compactor generate` command.
 
+use bytes::Bytes;
 use clap::ValueEnum;
-use clap_blocks::{catalog_dsn::CatalogDsnConfig, object_store::ObjectStoreConfig};
+use clap_blocks::{
+    catalog_dsn::CatalogDsnConfig,
+    object_store::{make_object_store, ObjectStoreConfig},
+};
+use object_store::{path::Path, DynObjectStore};
 use snafu::prelude::*;
-use std::num::NonZeroUsize;
+use std::{num::NonZeroUsize, sync::Arc};
 
 #[derive(Debug, clap::Parser)]
 pub struct Config {
@@ -72,13 +77,46 @@ pub enum CompactionType {
     Cold,
 }
 
-pub fn run(_config: Config) -> Result<()> {
+pub async fn run(config: Config) -> Result<()> {
+    let object_store = make_object_store(&config.object_store_config)?;
+
+    write_data_generation_spec(object_store, &config).await?;
+
     Ok(())
 }
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    Unknown,
+    #[snafu(display("Could not parse the object store configuration"))]
+    #[snafu(context(false))]
+    ObjectStoreConfigParsing {
+        source: clap_blocks::object_store::ParseError,
+    },
+
+    #[snafu(display("Could not write file to object storage"))]
+    ObjectStoreWriting { source: object_store::Error },
+
+    #[snafu(display("Could not parse object store path"))]
+    ObjectStorePathParsing { source: object_store::path::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+async fn write_data_generation_spec(
+    object_store: Arc<DynObjectStore>,
+    config: &Config,
+) -> Result<()> {
+    let spec = String::new();
+
+    let path = Path::parse("compactor_data/line_protocol/spec.toml")
+        .context(ObjectStorePathParsingSnafu)?;
+
+    let data = Bytes::from(spec);
+
+    object_store
+        .put(&path, data)
+        .await
+        .context(ObjectStoreWritingSnafu)?;
+
+    Ok(())
+}
