@@ -558,84 +558,135 @@ impl DbSetup for OneMeasurementTwoChunksDifferentTagSet {
     }
 }
 
-#[derive(Debug)]
+fn one_measurement_four_chunks_with_duplicates() -> Vec<ChunkData<'static, 'static>> {
+    let partition_key = "1970-01-01T00";
+
+    // Chunk 1:
+    //  . time range: 50-250
+    //  . no duplicates in its own chunk
+    let lp_lines1 = vec![
+        "h2o,state=MA,city=Boston min_temp=70.4 50",
+        "h2o,state=MA,city=Bedford min_temp=71.59 150",
+        "h2o,state=MA,city=Boston max_temp=75.4 250",
+        "h2o,state=MA,city=Andover max_temp=69.2, 250",
+    ];
+
+    // Chunk 2: overlaps with chunk 1
+    //  . time range: 150 - 300
+    //  . no duplicates in its own chunk
+    let lp_lines2 = vec![
+        // new field (area) and update available NULL (max_temp)
+        "h2o,state=MA,city=Bedford max_temp=78.75,area=742u 150",
+        "h2o,state=MA,city=Boston min_temp=65.4 250", // update min_temp from NULL
+        "h2o,state=MA,city=Reading min_temp=53.4, 250",
+        "h2o,state=CA,city=SF min_temp=79.0,max_temp=87.2,area=500u 300",
+        "h2o,state=CA,city=SJ min_temp=78.5,max_temp=88.0 300",
+        "h2o,state=CA,city=SJ min_temp=75.5,max_temp=84.08 350",
+    ];
+
+    // Chunk 3: no overlap
+    //  . time range: 400 - 500
+    //  . duplicates in its own chunk
+    let lp_lines3 = vec![
+        "h2o,state=MA,city=Bedford max_temp=80.75,area=742u 400",
+        "h2o,state=MA,city=Boston min_temp=68.4 400",
+        "h2o,state=MA,city=Bedford min_temp=65.22,area=750u 400", // duplicate
+        "h2o,state=MA,city=Boston min_temp=65.40,max_temp=82.67 400", // duplicate
+        "h2o,state=CA,city=SJ min_temp=77.0,max_temp=90.7 450",
+        "h2o,state=CA,city=SJ min_temp=69.5,max_temp=88.2 500",
+    ];
+
+    // Chunk 4: no overlap
+    //  . time range: 600 - 700
+    //  . no duplicates
+    let lp_lines4 = vec![
+        "h2o,state=MA,city=Bedford max_temp=88.75,area=742u 600",
+        "h2o,state=MA,city=Boston min_temp=67.4 600",
+        "h2o,state=MA,city=Reading min_temp=60.4, 600",
+        "h2o,state=CA,city=SF min_temp=68.4,max_temp=85.7,area=500u 650",
+        "h2o,state=CA,city=SJ min_temp=69.5,max_temp=89.2 650",
+        "h2o,state=CA,city=SJ min_temp=75.5,max_temp=84.08 700",
+    ];
+
+    vec![
+        ChunkData {
+            lp_lines: lp_lines1,
+            partition_key,
+            ..Default::default()
+        },
+        ChunkData {
+            lp_lines: lp_lines2,
+            partition_key,
+            ..Default::default()
+        },
+        ChunkData {
+            lp_lines: lp_lines3,
+            partition_key,
+            ..Default::default()
+        },
+        ChunkData {
+            lp_lines: lp_lines4,
+            partition_key,
+            ..Default::default()
+        },
+    ]
+}
+
 /// Setup for four chunks with duplicates for deduplicate tests
+#[derive(Debug)]
 pub struct OneMeasurementFourChunksWithDuplicates {}
 #[async_trait]
 impl DbSetup for OneMeasurementFourChunksWithDuplicates {
     async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
+        make_n_chunks_scenario(&one_measurement_four_chunks_with_duplicates()).await
+    }
+}
 
-        // Chunk 1:
-        //  . time range: 50-250
-        //  . no duplicates in its own chunk
-        let lp_lines1 = vec![
-            "h2o,state=MA,city=Boston min_temp=70.4 50",
-            "h2o,state=MA,city=Bedford min_temp=71.59 150",
-            "h2o,state=MA,city=Boston max_temp=75.4 250",
-            "h2o,state=MA,city=Andover max_temp=69.2, 250",
-        ];
+/// Setup for four chunks with duplicates for deduplicate tests.
+///
+/// This is identical to [`OneMeasurementFourChunksWithDuplicates`] but only uses parquet files so it can be used for
+/// `EXPLAIN` plans.
+#[derive(Debug)]
+pub struct OneMeasurementFourChunksWithDuplicatesParquetOnly {}
+#[async_trait]
+impl DbSetup for OneMeasurementFourChunksWithDuplicatesParquetOnly {
+    async fn make(&self) -> Vec<DbScenario> {
+        let chunk_data: Vec<_> = one_measurement_four_chunks_with_duplicates()
+            .into_iter()
+            .map(|cd| ChunkData {
+                chunk_stage: Some(ChunkStage::Parquet),
+                ..cd
+            })
+            .collect();
+        make_n_chunks_scenario(&chunk_data).await
+    }
+}
 
-        // Chunk 2: overlaps with chunk 1
-        //  . time range: 150 - 300
-        //  . no duplicates in its own chunk
-        let lp_lines2 = vec![
-            // new field (area) and update available NULL (max_temp)
-            "h2o,state=MA,city=Bedford max_temp=78.75,area=742u 150",
-            "h2o,state=MA,city=Boston min_temp=65.4 250", // update min_temp from NULL
-            "h2o,state=MA,city=Reading min_temp=53.4, 250",
-            "h2o,state=CA,city=SF min_temp=79.0,max_temp=87.2,area=500u 300",
-            "h2o,state=CA,city=SJ min_temp=78.5,max_temp=88.0 300",
-            "h2o,state=CA,city=SJ min_temp=75.5,max_temp=84.08 350",
-        ];
+/// Setup for four chunks with duplicates for deduplicate tests.
+///
+/// This is identical to [`OneMeasurementFourChunksWithDuplicates`] but uses ingester data as well so it can be used for
+/// `EXPLAIN` plans.
+#[derive(Debug)]
+pub struct OneMeasurementFourChunksWithDuplicatesWithIngester {}
+#[async_trait]
+impl DbSetup for OneMeasurementFourChunksWithDuplicatesWithIngester {
+    async fn make(&self) -> Vec<DbScenario> {
+        let chunks = one_measurement_four_chunks_with_duplicates();
+        let n = chunks.len();
 
-        // Chunk 3: no overlap
-        //  . time range: 400 - 500
-        //  . duplicates in its own chunk
-        let lp_lines3 = vec![
-            "h2o,state=MA,city=Bedford max_temp=80.75,area=742u 400",
-            "h2o,state=MA,city=Boston min_temp=68.4 400",
-            "h2o,state=MA,city=Bedford min_temp=65.22,area=750u 400", // duplicate
-            "h2o,state=MA,city=Boston min_temp=65.40,max_temp=82.67 400", // duplicate
-            "h2o,state=CA,city=SJ min_temp=77.0,max_temp=90.7 450",
-            "h2o,state=CA,city=SJ min_temp=69.5,max_temp=88.2 500",
-        ];
-
-        // Chunk 4: no overlap
-        //  . time range: 600 - 700
-        //  . no duplicates
-        let lp_lines4 = vec![
-            "h2o,state=MA,city=Bedford max_temp=88.75,area=742u 600",
-            "h2o,state=MA,city=Boston min_temp=67.4 600",
-            "h2o,state=MA,city=Reading min_temp=60.4, 600",
-            "h2o,state=CA,city=SF min_temp=68.4,max_temp=85.7,area=500u 650",
-            "h2o,state=CA,city=SJ min_temp=69.5,max_temp=89.2 650",
-            "h2o,state=CA,city=SJ min_temp=75.5,max_temp=84.08 700",
-        ];
-
-        make_n_chunks_scenario(&[
-            ChunkData {
-                lp_lines: lp_lines1,
-                partition_key,
-                ..Default::default()
-            },
-            ChunkData {
-                lp_lines: lp_lines2,
-                partition_key,
-                ..Default::default()
-            },
-            ChunkData {
-                lp_lines: lp_lines3,
-                partition_key,
-                ..Default::default()
-            },
-            ChunkData {
-                lp_lines: lp_lines4,
-                partition_key,
-                ..Default::default()
-            },
-        ])
-        .await
+        let chunk_data: Vec<_> = chunks
+            .into_iter()
+            .enumerate()
+            .map(|(i, cd)| ChunkData {
+                chunk_stage: Some(if i == (n - 1) {
+                    ChunkStage::Ingester
+                } else {
+                    ChunkStage::Parquet
+                }),
+                ..cd
+            })
+            .collect();
+        make_n_chunks_scenario(&chunk_data).await
     }
 }
 

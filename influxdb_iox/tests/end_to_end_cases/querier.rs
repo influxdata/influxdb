@@ -306,13 +306,11 @@ async fn ingester_panic() {
                         .arg(log_data["predicate_binary"].as_str().unwrap())
                         .assert();
 
-                    // The debug query should work and should only return data for `tag2=B` (not for
-                    // `tag2=C`).
+                    // The debug query should work.
                     assert.success().stdout(
                         predicate::str::contains(
                             "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
                         )
-                        .and(predicate::str::contains("C").not()),
                     );
                 }
                 .boxed()

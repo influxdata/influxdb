@@ -26,7 +26,10 @@
 |               |           IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                           |
 |               |           IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                           |
 |               |           IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                           |
-|               |     IOxReadFilterNode: table_name=h2o, chunks=2 predicate=Predicate                                                 |
+|               |     DeduplicateExec: [city@0 ASC,state@2 ASC,time@4 ASC]                                                            |
+|               |       SortExec: [city@0 ASC,state@2 ASC,time@4 ASC]                                                                 |
+|               |         IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                             |
+|               |     IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                 |
 |               |                                                                                                                     |
 +---------------+---------------------------------------------------------------------------------------------------------------------+
 -- SQL: select temp, other_temp, time from h2o;
@@ -58,7 +61,12 @@
 |               |               IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate         |
 |               |               IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate         |
 |               |               IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate         |
-|               |     IOxReadFilterNode: table_name=h2o, chunks=2 predicate=Predicate                   |
+|               |     ProjectionExec: expr=[other_temp@1 as other_temp, temp@3 as temp, time@4 as time] |
+|               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                |
+|               |         DeduplicateExec: [city@0 ASC,state@2 ASC,time@4 ASC]                          |
+|               |           SortExec: [city@0 ASC,state@2 ASC,time@4 ASC]                               |
+|               |             IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate           |
+|               |     IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                   |
 |               |                                                                                       |
 +---------------+---------------------------------------------------------------------------------------+
 -- SQL: EXPLAIN SELECT * from h2o where time >= to_timestamp('1970-01-01T00:00:00.000000250+00:00');
@@ -78,6 +86,9 @@
 |               |               UnionExec                                                                                                            |
 |               |                 IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate exprs: [#time >= TimestampNanosecond(250, None)]   |
 |               |                 IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate exprs: [#time >= TimestampNanosecond(250, None)]   |
-|               |           IOxReadFilterNode: table_name=h2o, chunks=2 predicate=Predicate exprs: [#time >= TimestampNanosecond(250, None)]         |
+|               |           DeduplicateExec: [city@0 ASC,state@2 ASC,time@4 ASC]                                                                     |
+|               |             SortExec: [city@0 ASC,state@2 ASC,time@4 ASC]                                                                          |
+|               |               IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate exprs: [#time >= TimestampNanosecond(250, None)]     |
+|               |           IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate exprs: [#time >= TimestampNanosecond(250, None)]         |
 |               |                                                                                                                                    |
 +---------------+------------------------------------------------------------------------------------------------------------------------------------+

@@ -1088,9 +1088,8 @@ impl QueryChunk for IngesterChunk {
     }
 
     fn may_contain_pk_duplicates(&self) -> bool {
-        // ingester runs dedup before creating the record batches so
-        // when the querier gets them they have no duplicates
-        false
+        // ingester just dumps data, may contain duplicates!
+        true
     }
 
     fn column_names(
