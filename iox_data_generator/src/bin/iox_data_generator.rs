@@ -146,7 +146,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut points_writer_builder = if let Some(line_protocol_filename) = config.output {
         PointsWriterBuilder::new_file(line_protocol_filename)?
-    } else if let Some(host) = config.host {
+    } else if let Some(ref host) = config.host {
         let token = config.token.expect("--token must be specified");
 
         PointsWriterBuilder::new_api(host, token, config.jaeger_debug_header.as_deref()).await?
@@ -158,19 +158,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         panic!("One of --print or --output or --host must be provided.");
     };
 
-    let buckets = match (config.org, config.bucket, config.database_list) {
-        (Some(org), Some(bucket), None) => {
-            vec![format!("{}_{}", org, bucket)]
-        }
-        (None, None, Some(bucket_list)) => {
-            let f = File::open(bucket_list).expect("unable to open database_list file");
+    let buckets = if config.host.is_some() {
+        // Buckets are only relevant if we're writing to the API
+        match (config.org, config.bucket, config.database_list) {
+            (Some(org), Some(bucket), None) => {
+                vec![format!("{}_{}", org, bucket)]
+            }
+            (None, None, Some(bucket_list)) => {
+                let f = File::open(bucket_list).expect("unable to open database_list file");
 
-            io::BufReader::new(f)
-                .lines()
-                .map(|l| l.expect("unable to read database from database_list file"))
-                .collect::<Vec<_>>()
+                io::BufReader::new(f)
+                    .lines()
+                    .map(|l| l.expect("unable to read database from database_list file"))
+                    .collect::<Vec<_>>()
+            }
+            _ => panic!("must specify either --org AND --bucket OR --database_list"),
         }
-        _ => panic!("must specify either --org AND --bucket OR --database_list"),
+    } else {
+        // But we need at least one database or nothing will be written anywhere
+        vec![String::from("org_bucket")]
     };
 
     let result = iox_data_generator::generate(
