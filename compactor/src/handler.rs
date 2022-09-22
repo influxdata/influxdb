@@ -175,8 +175,7 @@ pub async fn run_compactor_once(compactor: Arc<Compactor>) {
     }
 
     debug!("start cold cycle");
-    compacted_partitions +=
-        cold::compact(Arc::clone(&compactor), false /* not do full compact */).await;
+    compacted_partitions += cold::compact(Arc::clone(&compactor), true).await;
 
     if compacted_partitions == 0 {
         // sleep for a second to avoid a busy loop when the catalog is polled
