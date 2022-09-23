@@ -635,12 +635,12 @@ where
 
     fn set(
         &mut self,
-        k: Self::K,
-        v: Self::V,
+        k: &Self::K,
+        v: &Self::V,
         now: Time,
     ) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
         // determine all attributes before getting any locks
-        let consumption = self.resource_estimator.consumption(&k, &v);
+        let consumption = self.resource_estimator.consumption(k, v);
 
         // "last used" time for new entry
         // Note: this might be updated if the entry already exists
@@ -651,13 +651,13 @@ where
 
         // check for oversized entries
         if consumption > pool.limit.v {
-            return vec![ChangeRequest::remove(k)];
+            return vec![ChangeRequest::remove(k.clone())];
         }
 
         // maybe clean from pool
         {
             let mut inner = self.inner.lock();
-            if let Some((consumption, last_used_previously)) = inner.last_used.remove(&k) {
+            if let Some((consumption, last_used_previously)) = inner.last_used.remove(k) {
                 pool.remove(consumption);
                 inner.metric_count.dec(1);
                 inner.metric_usage.dec(consumption.into());
@@ -672,7 +672,7 @@ where
 
         // add new entry to inner backend AFTER adding it to the pool, so we are never overcommitting resources.
         let mut inner = self.inner.lock();
-        inner.last_used.insert(k, consumption, last_used);
+        inner.last_used.insert(k.clone(), consumption, last_used);
         inner.metric_count.inc(1);
         inner.metric_usage.inc(consumption.into());
 
