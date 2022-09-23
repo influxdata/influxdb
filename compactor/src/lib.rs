@@ -153,7 +153,10 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                 FilterResult::NothingToCompact => {
                     debug!(?partition_id, compaction_type, "nothing to compact");
                 }
-                FilterResult::OverLimitFileNum { file_num } => {
+                FilterResult::OverLimitFileNum {
+                    file_num,
+                    budget_bytes,
+                } => {
                     // We cannot compact this partition because its first set of overlapped files
                     // are over the limit of file num
                     warn!(
@@ -161,7 +164,9 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                         ?table_id,
                         compaction_type,
                         file_num,
+                        budget_bytes,
                         file_num_limit = compactor.config.max_num_compacting_files,
+                        memory_budget_bytes = compactor.config.memory_budget_bytes,
                         "skipped; over limit of number of files"
                     );
                     let reason = format!(

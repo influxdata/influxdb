@@ -21,6 +21,7 @@ pub(crate) enum FilterResult {
     NothingToCompact,
     OverLimitFileNum {
         file_num: usize,
+        budget_bytes: u64,
     },
     OverBudget {
         budget_bytes: u64,
@@ -146,6 +147,7 @@ fn filter_parquet_files_inner(
                 // exceed the file limit
                 return FilterResult::OverLimitFileNum {
                     file_num: 1 + overlaps.len(),
+                    budget_bytes: estimated_file_bytes,
                 };
             } else {
                 // Only compact files that are under limit number of files
@@ -494,7 +496,10 @@ mod tests {
 
         assert_eq!(
             filter_result,
-            FilterResult::OverLimitFileNum { file_num: 1 }
+            FilterResult::OverLimitFileNum {
+                file_num: 1,
+                budget_bytes: 1176
+            }
         );
     }
 
@@ -526,7 +531,10 @@ mod tests {
 
         assert_eq!(
             filter_result,
-            FilterResult::OverLimitFileNum { file_num: 2 }
+            FilterResult::OverLimitFileNum {
+                file_num: 2,
+                budget_bytes: 2 * 1176
+            }
         );
     }
 
