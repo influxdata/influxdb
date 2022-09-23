@@ -21,8 +21,10 @@ pub struct Config {
     catalog_dsn: CatalogDsnConfig,
 
     /// The type of compaction to be done on the files. If `hot` is specified, the generated
-    /// files will have compaction level 0. If `cold` is specified, the generated files will
-    /// have compaction level 1 and will be marked that they were created at least 8 hours ago.
+    /// files will have compaction level 0, will overlap with each other slightly, and will be
+    /// marked that they were created within the last (approximately) 30 minutes. If `cold` is
+    /// specified, the generated files will have compaction level 1 and will be marked that they
+    /// were created at least 8 hours ago.
     #[clap(
         arg_enum,
         value_parser,
@@ -108,15 +110,35 @@ pub async fn run(config: Config) -> Result<()> {
     let spec_location = format!("{subdir}/spec.toml");
     let spec_in_root = root_dir.join(&spec_location);
 
-    for file_id in 0..config.num_files.get() {
+    let Config {
+        compaction_type,
+        num_rows,
+        num_files,
+        ..
+    } = config;
+
+    let TimeValues {
+        sampling_interval_ns,
+        start_end_args,
+    } = TimeValues::new(compaction_type, num_rows.get(), num_files.get());
+
+    for (file_id, &start_end) in start_end_args
+        .iter()
+        .enumerate()
+        .take(config.num_files.get())
+    {
         write_data_generation_spec(
             file_id,
             Arc::clone(&object_store),
             config.num_columns.get(),
+            sampling_interval_ns,
             &spec_location,
         )
         .await?;
-        generate_data(&spec_in_root, &lp_dir)?;
+
+        let StartEndMinutesAgo { start, end } = start_end;
+
+        generate_data(&spec_in_root, &lp_dir, num_rows.get(), start, end)?;
     }
 
     Ok(())
@@ -158,12 +180,13 @@ async fn write_data_generation_spec(
     file_id: usize,
     object_store: Arc<DynObjectStore>,
     num_columns: usize,
+    sampling_interval_ns: usize,
     spec_location: &str,
 ) -> Result<()> {
     let object_store_spec_path =
         object_store::path::Path::parse(spec_location).context(ObjectStorePathParsingSnafu)?;
 
-    let contents = data_generation_spec_contents(file_id, 1, num_columns);
+    let contents = data_generation_spec_contents(file_id, sampling_interval_ns, num_columns);
     let data = Bytes::from(contents);
 
     object_store
@@ -174,7 +197,13 @@ async fn write_data_generation_spec(
     Ok(())
 }
 
-fn generate_data(spec_in_root: impl AsRef<OsStr>, lp_dir: impl AsRef<OsStr>) -> Result<()> {
+fn generate_data(
+    spec_in_root: impl AsRef<OsStr>,
+    lp_dir: impl AsRef<OsStr>,
+    num_rows: usize,
+    start: usize,
+    end: usize,
+) -> Result<()> {
     let status = Command::new("cargo")
         .arg("run")
         .arg("-p")
@@ -184,6 +213,12 @@ fn generate_data(spec_in_root: impl AsRef<OsStr>, lp_dir: impl AsRef<OsStr>) -> 
         .arg(&spec_in_root)
         .arg("-o")
         .arg(&lp_dir)
+        .arg("--start")
+        .arg(&format!("{start} minutes ago"))
+        .arg("--end")
+        .arg(&format!("{end} minutes ago"))
+        .arg("--batch-size")
+        .arg(num_rows.to_string())
         .status()
         .expect("Running the data generator should have worked");
 
@@ -199,7 +234,7 @@ fn generate_data(spec_in_root: impl AsRef<OsStr>, lp_dir: impl AsRef<OsStr>) -> 
 
 fn data_generation_spec_contents(
     file_id: usize,
-    sampling_interval_seconds: usize,
+    sampling_interval_ns: usize,
     num_columns: usize,
 ) -> String {
     let mut spec = format!(
@@ -208,7 +243,7 @@ name = "for_compaction"
 
 [[database_writers]]
 database_ratio = 1.0
-agents = [{{name = "data_{file_id}", sampling_interval = "{sampling_interval_seconds}s"}}]
+agents = [{{name = "data_{file_id}", sampling_interval = "{sampling_interval_ns}ns"}}]
 
 [[agents]]
 name = "data_{file_id}"
@@ -278,9 +313,138 @@ bool = true"#
     }
 }
 
+#[derive(Debug, PartialEq, Clone)]
+struct TimeValues {
+    sampling_interval_ns: usize,
+    start_end_args: Vec<StartEndMinutesAgo>,
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+struct StartEndMinutesAgo {
+    start: usize,
+    end: usize,
+}
+
+impl TimeValues {
+    fn new(compaction_type: CompactionType, num_rows: usize, num_files: usize) -> Self {
+        // Make the range approximately 30 min ago to now.
+        let full_range_start_minutes = 30;
+        let full_range_end_minutes = 0;
+        let full_range_length_minutes = full_range_start_minutes - full_range_end_minutes;
+
+        // Overlap each file by this many minutes on the start and end with other files to create
+        // realistic level 0 files for hot compaction.
+        let overlap_minutes = 1;
+
+        // Divide the full range evenly across all files, plus the overlap on each end.
+        let minutes_per_file = full_range_length_minutes / num_files + overlap_minutes * 2;
+
+        // Tell the generator to create one point every this many nanoseconds to create the
+        // specified number of rows in each file.
+        let fencepost_num_rows = if num_rows != 1 {
+            num_rows - 1
+        } else {
+            num_rows
+        };
+        let sampling_interval_ns = (minutes_per_file * 60 * 1_000_000_000) / fencepost_num_rows;
+
+        let start_end_args = (0..num_files)
+            .rev()
+            .map(|file_id| {
+                let offset = overlap_minutes * file_id - full_range_end_minutes;
+                StartEndMinutesAgo {
+                    start: minutes_per_file * (file_id + 1) - offset,
+                    end: minutes_per_file * file_id - offset,
+                }
+            })
+            .collect();
+
+        Self {
+            sampling_interval_ns,
+            start_end_args,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hot_1_row_1_file() {
+        let compaction_type = CompactionType::Hot;
+        let num_rows = 1;
+        let num_files = 1;
+        let TimeValues {
+            sampling_interval_ns,
+            start_end_args,
+        } = TimeValues::new(compaction_type, num_rows, num_files);
+
+        assert_eq!(sampling_interval_ns, 1_920_000_000_000);
+        assert_eq!(
+            start_end_args,
+            vec![StartEndMinutesAgo { start: 32, end: 0 }]
+        );
+    }
+
+    #[test]
+    fn hot_1000_rows_1_file() {
+        let compaction_type = CompactionType::Hot;
+        let num_rows = 1_000;
+        let num_files = 1;
+        let TimeValues {
+            sampling_interval_ns,
+            start_end_args,
+        } = TimeValues::new(compaction_type, num_rows, num_files);
+
+        assert_eq!(sampling_interval_ns, 1_921_921_921);
+        assert_eq!(
+            start_end_args,
+            vec![StartEndMinutesAgo { start: 32, end: 0 }]
+        );
+    }
+
+    #[test]
+    fn hot_1_row_3_files() {
+        let compaction_type = CompactionType::Hot;
+        let num_rows = 1;
+        let num_files = 3;
+        let TimeValues {
+            sampling_interval_ns,
+            start_end_args,
+        } = TimeValues::new(compaction_type, num_rows, num_files);
+
+        assert_eq!(sampling_interval_ns, 720_000_000_000);
+        assert_eq!(
+            start_end_args,
+            vec![
+                StartEndMinutesAgo { start: 34, end: 22 },
+                StartEndMinutesAgo { start: 23, end: 11 },
+                StartEndMinutesAgo { start: 12, end: 0 },
+            ]
+        );
+    }
+
+    #[test]
+    fn hot_1000_rows_3_files() {
+        let compaction_type = CompactionType::Hot;
+        let num_rows = 1_000;
+        let num_files = 3;
+        let TimeValues {
+            sampling_interval_ns,
+            start_end_args,
+        } = TimeValues::new(compaction_type, num_rows, num_files);
+
+        assert_eq!(sampling_interval_ns, 720_720_720);
+        assert_eq!(
+            start_end_args,
+            vec![
+                StartEndMinutesAgo { start: 34, end: 22 },
+                StartEndMinutesAgo { start: 23, end: 11 },
+                StartEndMinutesAgo { start: 12, end: 0 },
+            ]
+        );
+    }
 
     #[test]
     fn minimal_spec_contents() {
@@ -293,7 +457,7 @@ name = "for_compaction"
 
 [[database_writers]]
 database_ratio = 1.0
-agents = [{name = "data_1", sampling_interval = "1s"}]
+agents = [{name = "data_1", sampling_interval = "1ns"}]
 
 [[agents]]
 name = "data_1"
@@ -319,7 +483,7 @@ name = "for_compaction"
 
 [[database_writers]]
 database_ratio = 1.0
-agents = [{name = "data_3", sampling_interval = "100s"}]
+agents = [{name = "data_3", sampling_interval = "100ns"}]
 
 [[agents]]
 name = "data_3"
