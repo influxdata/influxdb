@@ -18,7 +18,6 @@ use parquet_file::storage::ParquetStorage;
 use schema::sort::SortKey;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
-    cmp::max,
     collections::{HashMap, HashSet},
     sync::Arc,
     time::Duration,
@@ -516,11 +515,9 @@ fn estimate_arrow_bytes_for_file(
 
     let average_cardinality = row_count / AVERAGE_ROW_COUNT_CARDINALITY_RATIO;
 
-    // Since there is a minimum number of rows per batch, we will use that minimum number of rows if the row_count is smaller
-    let row_count = max(
-        row_count,
-        min_num_rows_allocated_per_record_batch_to_datafusion_plan as i64,
-    );
+    // Since DataFusion streams files and allocates a fixed (configurable) number of rows per batch,
+    // we always use that number to estimate the memory usage per batch.
+    let row_count_per_batch = min_num_rows_allocated_per_record_batch_to_datafusion_plan as i64;
 
     // Bytes needed for number columns
     let mut value_bytes = 0;
@@ -531,17 +528,17 @@ fn estimate_arrow_bytes_for_file(
     for c in columns {
         match c.col_type {
             ColumnType::I64 | ColumnType::U64 | ColumnType::F64 | ColumnType::Time => {
-                value_bytes += c.count * row_count * VALUE_BYTE;
+                value_bytes += c.count * row_count_per_batch * VALUE_BYTE;
             }
             ColumnType::String => {
-                string_bytes += row_count * STRING_LENGTH;
+                string_bytes += row_count_per_batch * STRING_LENGTH;
             }
             ColumnType::Bool => {
-                bool_bytes += row_count * BOOL_BYTE;
+                bool_bytes += row_count_per_batch * BOOL_BYTE;
             }
             ColumnType::Tag => {
                 dictionary_key_bytes += average_cardinality * AVERAGE_TAG_VALUE_LENGTH;
-                dictionary_value_bytes = row_count * DICTIONARY_BYTE;
+                dictionary_value_bytes = row_count_per_batch * DICTIONARY_BYTE;
             }
         }
     }
@@ -585,7 +582,9 @@ pub mod tests {
     #[test]
     fn test_estimate_arrow_bytes_for_file_small_row_count() {
         let row_count = 11;
-        let min_num_rows_allocated_per_record_batch = 20; // > row_count and will be used
+        // Always use this config param to estimate memory usage for each batch
+        // no matter it is larger or smaller than row_count
+        let min_num_rows_allocated_per_record_batch = 20;
 
         // Time, U64, I64, F64
         let columns = vec![
@@ -649,7 +648,9 @@ pub mod tests {
     #[test]
     fn test_estimate_arrow_bytes_for_file_large_row_count() {
         let row_count = 11;
-        let min_num_rows_allocated_per_record_batch = 10; // < row_count and won't be used
+        // Always use this config param to estimate memory usage for each batch
+        // even if it is smaller than row_count
+        let min_num_rows_allocated_per_record_batch = 10;
 
         // Time, U64, I64, F64
         let columns = vec![
@@ -663,7 +664,7 @@ pub mod tests {
             min_num_rows_allocated_per_record_batch,
             row_count,
         );
-        assert_eq!(bytes, 880); // 11 * (1+2+3+4) * 8
+        assert_eq!(bytes, 800); // 10 * (1+2+3+4) * 8
 
         // Tag
         let columns = vec![ColumnTypeCount::new(ColumnType::Tag, 1)];
@@ -672,7 +673,7 @@ pub mod tests {
             min_num_rows_allocated_per_record_batch,
             row_count,
         );
-        assert_eq!(bytes, 1088); // 5 * 200 + 11 * 8
+        assert_eq!(bytes, 1080); // 5 * 200 + 10 * 8
 
         // String
         let columns = vec![ColumnTypeCount::new(ColumnType::String, 1)];
@@ -681,7 +682,7 @@ pub mod tests {
             min_num_rows_allocated_per_record_batch,
             row_count,
         );
-        assert_eq!(bytes, 11000); // 11 * 1000
+        assert_eq!(bytes, 10000); // 10 * 1000
 
         // Bool
         let columns = vec![ColumnTypeCount::new(ColumnType::Bool, 1)];
@@ -690,7 +691,7 @@ pub mod tests {
             min_num_rows_allocated_per_record_batch,
             row_count,
         );
-        assert_eq!(bytes, 11); // 11 * 1
+        assert_eq!(bytes, 10); // 10 * 1
 
         // all types
         let columns = vec![
@@ -707,7 +708,7 @@ pub mod tests {
             min_num_rows_allocated_per_record_batch,
             row_count,
         );
-        assert_eq!(bytes, 12979); // 880 + 1088 + 11000 + 11
+        assert_eq!(bytes, 11890); // 800 + 1080 + 10000 + 10
     }
 
     fn make_compactor_config() -> CompactorConfig {
