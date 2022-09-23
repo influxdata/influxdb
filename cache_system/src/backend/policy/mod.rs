@@ -139,7 +139,7 @@ macro_rules! lock_inner {
 ///     type K = &'static str;
 ///     type V = u64;
 ///
-///     fn set(&mut self, k: &'static str, v: u64, _now: Time) -> Vec<CR> {
+///     fn set(&mut self, k: &&'static str, v: &u64, _now: Time) -> Vec<CR> {
 ///       // When new key `k` is set to value `v` if `v` is odd,
 ///       // request a change to set `k` to `v+1`
 ///         if v % 2 == 1 {
@@ -422,7 +422,7 @@ fn perform_changes<K, V>(
             for subscriber in &mut inner.subscribers {
                 let requests = match &record {
                     Record::Get { k } => subscriber.get(k, now),
-                    Record::Set { k, v } => subscriber.set(k.clone(), v.clone(), now),
+                    Record::Set { k, v } => subscriber.set(k, v, now),
                     Record::Remove { k } => subscriber.remove(k, now),
                 };
 
@@ -459,8 +459,8 @@ pub trait Subscriber: Debug + Send + 'static {
     /// more consistent and performant.
     fn set(
         &mut self,
-        _k: Self::K,
-        _v: Self::V,
+        _k: &Self::K,
+        _v: &Self::V,
         _now: Time,
     ) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
         // do nothing by default
@@ -1852,13 +1852,16 @@ mod tests {
 
         fn set(
             &mut self,
-            k: Self::K,
-            v: Self::V,
+            k: &Self::K,
+            v: &Self::V,
             _now: Time,
         ) -> Vec<ChangeRequest<'static, String, usize>> {
             let step = self.steps.pop_front().expect("step left for set operation");
 
-            let expected_condition = TestBackendInteraction::Set { k, v };
+            let expected_condition = TestBackendInteraction::Set {
+                k: k.clone(),
+                v: *v,
+            };
             assert_eq!(
                 step.condition, expected_condition,
                 "Condition mismatch\n\nActual:\n{:#?}\n\nExpected:\n{:#?}",

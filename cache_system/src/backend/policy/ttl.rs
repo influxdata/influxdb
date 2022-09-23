@@ -184,13 +184,13 @@ where
 
     fn set(
         &mut self,
-        k: Self::K,
-        v: Self::V,
+        k: &Self::K,
+        v: &Self::V,
         now: Time,
     ) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
         let mut requests = self.evict_expired(now);
 
-        if let Some(ttl) = self.ttl_provider.expires_in(&k, &v) {
+        if let Some(ttl) = self.ttl_provider.expires_in(k, v) {
             if ttl.is_zero() {
                 requests.push(ChangeRequest::remove(k.clone()));
             }
@@ -201,12 +201,12 @@ where
                 }
                 None => {
                     // Still need to ensure that any current expiration is disabled
-                    self.expiration.remove(&k);
+                    self.expiration.remove(k);
                 }
             }
         } else {
             // Still need to ensure that any current expiration is disabled
-            self.expiration.remove(&k);
+            self.expiration.remove(k);
         };
 
         requests

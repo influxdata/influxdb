@@ -330,11 +330,11 @@ where
 
     fn set(
         &mut self,
-        k: Self::K,
-        v: Self::V,
+        k: &Self::K,
+        v: &Self::V,
         now: Time,
     ) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
-        let d = self.refresh_duration_provider.refresh_in(&k, &v);
+        let d = self.refresh_duration_provider.refresh_in(k, v);
 
         let mut timings = self.timings.lock();
 
@@ -345,10 +345,10 @@ where
                 running_refresh: None,
             };
 
-            timings.insert(k, state);
+            timings.insert(k.clone(), state);
         } else {
             // need to remove potentially existing entry that had some refresh set
-            timings.remove(&k);
+            timings.remove(k);
 
             // the removal drops the RefreshState which triggers a cancelation for any potentially running
             // refresh operation
