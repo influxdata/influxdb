@@ -170,8 +170,8 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                         "skipped; over limit of number of files"
                     );
                     let reason = format!(
-                        "over limit of number of files. Needed number of files = {}, limit of number of files = {}",
-                        file_num, compactor.config.max_num_compacting_files
+                        "over limit of num_files. Needed num_files = {}, limit of num_iles = {}. Needed budget = {}, memory budget = {}",
+                        file_num, compactor.config.max_num_compacting_files, budget_bytes, compactor.config.memory_budget_bytes
                     );
                     record_skipped_compaction(partition_id, Arc::clone(&compactor), &reason).await;
                 }
