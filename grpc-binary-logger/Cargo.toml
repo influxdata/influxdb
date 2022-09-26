@@ -1,8 +1,9 @@
 [package]
 name = "grpc-binary-logger"
-version = "0.1.0"
-authors = ["Marko Mikulicic <mmikulicic@gmail.com>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 base64 = "0.13"

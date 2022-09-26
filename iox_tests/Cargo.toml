@@ -1,9 +1,10 @@
 [package]
 name = "iox_tests"
-version = "0.1.0"
-authors = ["Nga Tran <nga-tran@live.com>"]
-edition = "2021"
 description = "IOx test utils and tests"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 arrow = "25.0.0"

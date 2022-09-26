@@ -1,11 +1,10 @@
 [package]
 name = "trogging"
-version = "0.1.0"
-authors = ["Marko Mikulicic <mkm@influxdata.com>"]
-edition = "2021"
 description = "IOx logging pipeline built upon tokio-tracing"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 atty = "0.2.14"

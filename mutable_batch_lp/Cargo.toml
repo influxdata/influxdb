@@ -1,8 +1,10 @@
 [package]
 name = "mutable_batch_lp"
-version = "0.1.0"
-edition = "2021"
 description = "Conversion logic for line protocol -> MutableBatch"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 hashbrown = "0.12"

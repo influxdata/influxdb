@@ -1,8 +1,9 @@
 [package]
 name = "grpc-binary-logger-test-proto"
-version = "0.1.0"
-authors = ["Marko Mikulicic <mmikulicic@gmail.com>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 prost = "0.11"

@@ -1,9 +1,10 @@
 [package]
 name = "schema"
-version = "0.1.0"
-authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
-edition = "2021"
 description = "IOx Schema definition"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 arrow = { version = "25.0.0", features = ["prettyprint"] }

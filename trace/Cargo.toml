@@ -1,9 +1,10 @@
 [package]
 name = "trace"
-version = "0.1.0"
-authors = ["Raphael Taylor-Davies <r.taylordavies@googlemail.com>"]
-edition = "2021"
 description = "Distributed tracing support within IOx"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 chrono = { version = "0.4", default-features = false }

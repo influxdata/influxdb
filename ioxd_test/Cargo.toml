@@ -1,16 +1,15 @@
 [package]
 name = "ioxd_test"
-version = "0.1.0"
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 # Workspace dependencies, in alphabetical order
 ioxd_common = { path = "../ioxd_common" }
 metric = { path = "../metric" }
 trace = { path = "../trace" }
-
 
 # Crates.io dependencies, in alphabetical order
 async-trait = "0.1"

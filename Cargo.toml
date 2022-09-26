@@ -102,6 +102,12 @@ exclude = [
     "tools/",
 ]
 
+[workspace.package]
+version = "0.1.0"
+authors = ["IOx Project Developers"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
 # This profile optimizes for runtime performance and small binary size at the expense of longer
 # build times. It's most suitable for final release builds.
 [profile.release]
