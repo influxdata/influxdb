@@ -8,7 +8,9 @@ use clap_blocks::{
 };
 use object_store::DynObjectStore;
 use snafu::prelude::*;
-use std::{ffi::OsStr, fmt::Write, num::NonZeroUsize, path::PathBuf, process::Command, sync::Arc};
+use std::{
+    ffi::OsStr, fmt::Write, fs, num::NonZeroUsize, path::PathBuf, process::Command, sync::Arc,
+};
 
 #[derive(Debug, clap::Parser)]
 pub struct Config {
@@ -96,6 +98,13 @@ pub async fn run(config: Config) -> Result<()> {
     let subdir = "compactor_data/line_protocol";
     let lp_dir = root_dir.join(subdir);
 
+    if lp_dir
+        .try_exists()
+        .context(FileExistenceSnafu { path: &lp_dir })?
+    {
+        fs::remove_dir_all(&lp_dir).context(RemoveSnafu { path: &lp_dir })?;
+    }
+
     let spec_location = format!("{subdir}/spec.toml");
     let spec_in_root = root_dir.join(&spec_location);
 
@@ -124,6 +133,18 @@ pub enum Error {
 
     #[snafu(display("Subcommand failed: {status}"))]
     Subcommand { status: String },
+
+    #[snafu(display("Could not check for existence of path {}", path.display()))]
+    FileExistence {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+
+    #[snafu(display("Could not remove directory {}", path.display()))]
+    Remove {
+        path: PathBuf,
+        source: std::io::Error,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

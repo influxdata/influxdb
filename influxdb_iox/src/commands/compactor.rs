@@ -44,6 +44,17 @@ pub enum Command {
 
     /// Generate Parquet files and catalog entries with different characteristics for the purposes
     /// of investigating how the compactor handles them.
+    ///
+    /// Only works with `--object-store file` because this is for generating local development
+    /// data.
+    ///
+    /// Within the directory specified by `--data-dir`, will generate a
+    /// `compactor_data/line_protocol` subdirectory to avoid interfering with other existing IOx
+    /// files that may be in the `--data-dir`.
+    ///
+    /// WARNING: On every run of this tool, the `compactor_data/line_protocol` subdirectory will be
+    /// removed. If you want to keep any previously generated files, move or copy them before
+    /// running this tool again.
     Generate(generate::Config),
 }
 
