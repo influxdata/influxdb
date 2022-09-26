@@ -23,8 +23,8 @@ pub struct Config {
     /// The type of compaction to be done on the files. If `hot` is specified, the generated
     /// files will have compaction level 0, will overlap with each other slightly, and will be
     /// marked that they were created within the last (approximately) 30 minutes. If `cold` is
-    /// specified, the generated files will have compaction level 1 and will be marked that they
-    /// were created at least 8 hours ago.
+    /// specified, the generated files will have compaction level 1, won't overlap with each other,
+    /// and will be marked that they were created between 8 and 24 hours ago.
     #[clap(
         arg_enum,
         value_parser,
@@ -327,16 +327,52 @@ struct StartEndMinutesAgo {
 
 impl TimeValues {
     fn new(compaction_type: CompactionType, num_rows: usize, num_files: usize) -> Self {
-        // Make the range approximately 30 min ago to now.
-        let full_range_start_minutes = 30;
-        let full_range_end_minutes = 0;
-        let full_range_length_minutes = full_range_start_minutes - full_range_end_minutes;
+        match compaction_type {
+            CompactionType::Hot => {
+                // Make the range approximately 30 min ago to now.
+                let full_range_start_minutes = 30;
+                let full_range_end_minutes = 0;
 
-        // Overlap each file by this many minutes on the start and end with other files to create
-        // realistic level 0 files for hot compaction.
-        let overlap_minutes = 1;
+                // Overlap each file by this many minutes on the start and end with other files to
+                // create realistic level 0 files for hot compaction.
+                let overlap_minutes = 1;
 
+                Self::inner(
+                    full_range_start_minutes,
+                    full_range_end_minutes,
+                    overlap_minutes,
+                    num_rows,
+                    num_files,
+                )
+            }
+            CompactionType::Cold => {
+                // Make the range approximately 24 hours ago to 8 hours ago.
+                let full_range_start_minutes = 24 * 60;
+                let full_range_end_minutes = 8 * 60;
+
+                // Don't overlap level 1 files
+                let overlap_minutes = 0;
+
+                Self::inner(
+                    full_range_start_minutes,
+                    full_range_end_minutes,
+                    overlap_minutes,
+                    num_rows,
+                    num_files,
+                )
+            }
+        }
+    }
+
+    fn inner(
+        full_range_start_minutes: usize,
+        full_range_end_minutes: usize,
+        overlap_minutes: usize,
+        num_rows: usize,
+        num_files: usize,
+    ) -> Self {
         // Divide the full range evenly across all files, plus the overlap on each end.
+        let full_range_length_minutes = full_range_start_minutes - full_range_end_minutes;
         let minutes_per_file = full_range_length_minutes / num_files + overlap_minutes * 2;
 
         // Tell the generator to create one point every this many nanoseconds to create the
@@ -350,12 +386,11 @@ impl TimeValues {
 
         let start_end_args = (0..num_files)
             .rev()
-            .map(|file_id| {
-                let offset = overlap_minutes * file_id - full_range_end_minutes;
-                StartEndMinutesAgo {
-                    start: minutes_per_file * (file_id + 1) - offset,
-                    end: minutes_per_file * file_id - offset,
-                }
+            .map(|file_id| StartEndMinutesAgo {
+                start: minutes_per_file * (file_id + 1) - overlap_minutes * file_id
+                    + full_range_end_minutes,
+                end: minutes_per_file * file_id - overlap_minutes * file_id
+                    + full_range_end_minutes,
             })
             .collect();
 
@@ -370,80 +405,184 @@ impl TimeValues {
 mod tests {
     use super::*;
 
-    #[test]
-    fn hot_1_row_1_file() {
-        let compaction_type = CompactionType::Hot;
-        let num_rows = 1;
-        let num_files = 1;
-        let TimeValues {
-            sampling_interval_ns,
-            start_end_args,
-        } = TimeValues::new(compaction_type, num_rows, num_files);
+    mod hot {
+        use super::*;
 
-        assert_eq!(sampling_interval_ns, 1_920_000_000_000);
-        assert_eq!(
-            start_end_args,
-            vec![StartEndMinutesAgo { start: 32, end: 0 }]
-        );
+        const COMPACTION_TYPE: CompactionType = CompactionType::Hot;
+
+        #[test]
+        fn one_row_one_file() {
+            let num_rows = 1;
+            let num_files = 1;
+            let TimeValues {
+                sampling_interval_ns,
+                start_end_args,
+            } = TimeValues::new(COMPACTION_TYPE, num_rows, num_files);
+
+            assert_eq!(sampling_interval_ns, 1_920_000_000_000);
+            assert_eq!(
+                start_end_args,
+                vec![StartEndMinutesAgo { start: 32, end: 0 }]
+            );
+        }
+
+        #[test]
+        fn one_thousand_rows_one_file() {
+            let num_rows = 1_000;
+            let num_files = 1;
+            let TimeValues {
+                sampling_interval_ns,
+                start_end_args,
+            } = TimeValues::new(COMPACTION_TYPE, num_rows, num_files);
+
+            assert_eq!(sampling_interval_ns, 1_921_921_921);
+            assert_eq!(
+                start_end_args,
+                vec![StartEndMinutesAgo { start: 32, end: 0 }]
+            );
+        }
+
+        #[test]
+        fn one_row_three_files() {
+            let num_rows = 1;
+            let num_files = 3;
+            let TimeValues {
+                sampling_interval_ns,
+                start_end_args,
+            } = TimeValues::new(COMPACTION_TYPE, num_rows, num_files);
+
+            assert_eq!(sampling_interval_ns, 720_000_000_000);
+            assert_eq!(
+                start_end_args,
+                vec![
+                    StartEndMinutesAgo { start: 34, end: 22 },
+                    StartEndMinutesAgo { start: 23, end: 11 },
+                    StartEndMinutesAgo { start: 12, end: 0 },
+                ]
+            );
+        }
+
+        #[test]
+        fn one_thousand_rows_three_files() {
+            let num_rows = 1_000;
+            let num_files = 3;
+            let TimeValues {
+                sampling_interval_ns,
+                start_end_args,
+            } = TimeValues::new(COMPACTION_TYPE, num_rows, num_files);
+
+            assert_eq!(sampling_interval_ns, 720_720_720);
+            assert_eq!(
+                start_end_args,
+                vec![
+                    StartEndMinutesAgo { start: 34, end: 22 },
+                    StartEndMinutesAgo { start: 23, end: 11 },
+                    StartEndMinutesAgo { start: 12, end: 0 },
+                ]
+            );
+        }
     }
 
-    #[test]
-    fn hot_1000_rows_1_file() {
-        let compaction_type = CompactionType::Hot;
-        let num_rows = 1_000;
-        let num_files = 1;
-        let TimeValues {
-            sampling_interval_ns,
-            start_end_args,
-        } = TimeValues::new(compaction_type, num_rows, num_files);
+    mod cold {
+        use super::*;
 
-        assert_eq!(sampling_interval_ns, 1_921_921_921);
-        assert_eq!(
-            start_end_args,
-            vec![StartEndMinutesAgo { start: 32, end: 0 }]
-        );
-    }
+        const COMPACTION_TYPE: CompactionType = CompactionType::Cold;
 
-    #[test]
-    fn hot_1_row_3_files() {
-        let compaction_type = CompactionType::Hot;
-        let num_rows = 1;
-        let num_files = 3;
-        let TimeValues {
-            sampling_interval_ns,
-            start_end_args,
-        } = TimeValues::new(compaction_type, num_rows, num_files);
+        #[test]
+        fn one_row_one_file() {
+            let num_rows = 1;
+            let num_files = 1;
+            let TimeValues {
+                sampling_interval_ns,
+                start_end_args,
+            } = TimeValues::new(COMPACTION_TYPE, num_rows, num_files);
 
-        assert_eq!(sampling_interval_ns, 720_000_000_000);
-        assert_eq!(
-            start_end_args,
-            vec![
-                StartEndMinutesAgo { start: 34, end: 22 },
-                StartEndMinutesAgo { start: 23, end: 11 },
-                StartEndMinutesAgo { start: 12, end: 0 },
-            ]
-        );
-    }
+            assert_eq!(sampling_interval_ns, 57_600_000_000_000);
+            assert_eq!(
+                start_end_args,
+                vec![StartEndMinutesAgo {
+                    start: 24 * 60,
+                    end: 8 * 60,
+                }]
+            );
+        }
 
-    #[test]
-    fn hot_1000_rows_3_files() {
-        let compaction_type = CompactionType::Hot;
-        let num_rows = 1_000;
-        let num_files = 3;
-        let TimeValues {
-            sampling_interval_ns,
-            start_end_args,
-        } = TimeValues::new(compaction_type, num_rows, num_files);
+        #[test]
+        fn one_thousand_rows_one_file() {
+            let num_rows = 1_000;
+            let num_files = 1;
+            let TimeValues {
+                sampling_interval_ns,
+                start_end_args,
+            } = TimeValues::new(COMPACTION_TYPE, num_rows, num_files);
 
-        assert_eq!(sampling_interval_ns, 720_720_720);
-        assert_eq!(
-            start_end_args,
-            vec![
-                StartEndMinutesAgo { start: 34, end: 22 },
-                StartEndMinutesAgo { start: 23, end: 11 },
-                StartEndMinutesAgo { start: 12, end: 0 },
-            ]
-        );
+            assert_eq!(sampling_interval_ns, 57_657_657_657);
+            assert_eq!(
+                start_end_args,
+                vec![StartEndMinutesAgo {
+                    start: 24 * 60,
+                    end: 8 * 60,
+                }]
+            );
+        }
+
+        #[test]
+        fn one_row_three_files() {
+            let num_rows = 1;
+            let num_files = 3;
+            let TimeValues {
+                sampling_interval_ns,
+                start_end_args,
+            } = TimeValues::new(COMPACTION_TYPE, num_rows, num_files);
+
+            assert_eq!(sampling_interval_ns, 19_200_000_000_000);
+            assert_eq!(
+                start_end_args,
+                vec![
+                    StartEndMinutesAgo {
+                        start: 1440,
+                        end: 1120
+                    },
+                    StartEndMinutesAgo {
+                        start: 1120,
+                        end: 800
+                    },
+                    StartEndMinutesAgo {
+                        start: 800,
+                        end: 480
+                    },
+                ]
+            );
+        }
+
+        #[test]
+        fn one_thousand_rows_three_files() {
+            let num_rows = 1_000;
+            let num_files = 3;
+            let TimeValues {
+                sampling_interval_ns,
+                start_end_args,
+            } = TimeValues::new(COMPACTION_TYPE, num_rows, num_files);
+
+            assert_eq!(sampling_interval_ns, 19_219_219_219);
+            assert_eq!(
+                start_end_args,
+                vec![
+                    StartEndMinutesAgo {
+                        start: 1440,
+                        end: 1120
+                    },
+                    StartEndMinutesAgo {
+                        start: 1120,
+                        end: 800
+                    },
+                    StartEndMinutesAgo {
+                        start: 800,
+                        end: 480
+                    },
+                ]
+            );
+        }
     }
 
     #[test]
