@@ -57,6 +57,7 @@ impl QueryDatabase for QuerierNamespace {
             .chunks(
                 predicate,
                 ctx.span().map(|span| span.child("querier table chunks")),
+                &None, // todo: pushdown projection to chunks
             )
             .await?;
 

@@ -59,8 +59,13 @@ impl TableProvider for QuerierTable {
             .iter()
             .cloned()
             .fold(Predicate::default(), Predicate::with_expr);
+
         let chunks = self
-            .chunks(&pruning_predicate, ctx.child_span("querier table chunks"))
+            .chunks(
+                &pruning_predicate,
+                ctx.child_span("querier table chunks"),
+                projection,
+            )
             .await
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
 

@@ -294,24 +294,24 @@ async fn ingester_panic() {
 
                     // query ingester using debug information
                     let assert = Command::cargo_bin("influxdb_iox")
-                        .unwrap()
-                        .arg("-h")
-                        .arg(log_data["ingester_address"].as_str().unwrap())
-                        .arg("query-ingester")
-                        .arg(log_data["namespace"].as_str().unwrap())
-                        .arg(log_data["table"].as_str().unwrap())
-                        .arg("--columns")
-                        .arg(log_data["columns"].as_str().unwrap())
-                        .arg("--predicate-base64")
-                        .arg(log_data["predicate_binary"].as_str().unwrap())
-                        .assert();
+                         .unwrap()
+                         .arg("-h")
+                         .arg(log_data["ingester_address"].as_str().unwrap())
+                         .arg("query-ingester")
+                         .arg(log_data["namespace"].as_str().unwrap())
+                         .arg(log_data["table"].as_str().unwrap())
+                         .arg("--columns")
+                         .arg(log_data["columns"].as_str().unwrap())
+                         .arg("--predicate-base64")
+                         .arg(log_data["predicate_binary"].as_str().unwrap())
+                         .assert();
 
-                    // The debug query should work.
-                    assert.success().stdout(
-                        predicate::str::contains(
-                            "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
-                        )
-                    );
+                     // The debug query should work.
+                     assert.success().stdout(
+                         predicate::str::contains(
+                             "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
+                         )
+                     );
                 }
                 .boxed()
             })),

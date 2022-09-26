@@ -314,6 +314,32 @@ impl Schema {
         })
     }
 
+    /// Return names of the columns of given indexes with all PK columns (tags and time)
+    /// If the columns are not provided, return all columns
+    pub fn select_given_and_pk_columns(&self, cols: &Option<Vec<usize>>) -> Vec<String> {
+        match cols {
+            Some(cols) => {
+                let mut columns = cols
+                    .iter()
+                    .map(|i| self.field(*i).1.name().to_string())
+                    .collect::<HashSet<_>>();
+
+                // Add missing PK columnns (tags and time) as they are needed for deduplication
+                let pk = self.primary_key();
+                for col in pk {
+                    columns.insert(col.to_string());
+                }
+                let mut columns = columns.into_iter().collect::<Vec<String>>();
+                columns.sort();
+                columns
+            }
+            None => {
+                // Use all table columns
+                self.iter().map(|(_, f)| f.name().to_string()).collect()
+            }
+        }
+    }
+
     /// Returns a DataFusion style "projection" when the selection is
     /// applied to this schema.
     ///
