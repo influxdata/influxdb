@@ -297,6 +297,20 @@ pub struct IoxMetadata {
 }
 
 impl IoxMetadata {
+    /// Convert to base64 encoded protobuf format
+    pub fn to_base64(&self) -> std::result::Result<String, prost::EncodeError> {
+        Ok(base64::encode(&self.to_protobuf()?))
+    }
+
+    /// Read from base64 encoded protobuf format
+    pub fn from_base64(proto_base64: &[u8]) -> Result<Self> {
+        let proto_bytes = base64::decode(proto_base64)
+            .map_err(|err| Box::new(err) as _)
+            .context(IoxMetadataBrokenSnafu)?;
+
+        Self::from_protobuf(&proto_bytes)
+    }
+
     /// Convert to protobuf v3 message.
     pub(crate) fn to_protobuf(&self) -> std::result::Result<Vec<u8>, prost::EncodeError> {
         let sort_key = self.sort_key.as_ref().map(|key| proto::SortKey {
@@ -718,12 +732,8 @@ impl DecodedIoxParquetMetaData {
 
         // extract protobuf message from key-value entry
         let proto_base64 = kv.value.as_ref().context(IoxMetadataMissingSnafu)?;
-        let proto_bytes = base64::decode(proto_base64)
-            .map_err(|err| Box::new(err) as _)
-            .context(IoxMetadataBrokenSnafu)?;
-
-        // convert to Rust object
-        IoxMetadata::from_protobuf(proto_bytes.as_slice())
+        // read to rust object
+        IoxMetadata::from_base64(proto_base64.as_bytes())
     }
 
     /// Read IOx schema from parquet metadata.

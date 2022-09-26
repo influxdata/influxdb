@@ -2060,6 +2060,7 @@ dependencies = [
  "once_cell",
  "panic_logging",
  "parquet_file",
+ "parquet_to_line_protocol",
  "predicate",
  "predicates",
  "rustyline",
@@ -3341,6 +3342,24 @@ dependencies = [
  "uuid",
  "workspace-hack",
  "zstd",
+]
+
+[[package]]
+name = "parquet_to_line_protocol"
+version = "0.1.0"
+dependencies = [
+ "datafusion 0.1.0",
+ "futures",
+ "influxdb_line_protocol",
+ "mutable_batch",
+ "mutable_batch_lp",
+ "num_cpus",
+ "object_store",
+ "parquet_file",
+ "schema",
+ "snafu",
+ "tokio",
+ "workspace-hack",
 ]
 
 [[package]]
