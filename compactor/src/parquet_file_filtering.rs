@@ -20,11 +20,12 @@ pub(crate) struct FilteredFiles {
 pub(crate) enum FilterResult {
     NothingToCompact,
     OverLimitFileNum {
-        file_num: usize,
+        num_files: usize,
         budget_bytes: u64,
     },
     OverBudget {
         budget_bytes: u64,
+        num_files: usize,
     },
     Proceed {
         files: Vec<CompactorParquetFile>,
@@ -150,7 +151,7 @@ fn filter_parquet_files_inner(
                 // Cannot compact this partition because its first set of overlapped files
                 // exceed the file limit
                 return FilterResult::OverLimitFileNum {
-                    file_num: 1 + overlaps.len(),
+                    num_files: 1 + overlaps.len(),
                     budget_bytes: estimated_file_bytes,
                 };
             } else {
@@ -163,6 +164,7 @@ fn filter_parquet_files_inner(
                 // Cannot compact this partition further with the given budget
                 return FilterResult::OverBudget {
                     budget_bytes: estimated_file_bytes,
+                    num_files: 1 + overlaps.len(),
                 };
             } else {
                 // Only compact the ones under the given budget
@@ -458,7 +460,10 @@ mod tests {
 
         assert_eq!(
             filter_result,
-            FilterResult::OverBudget { budget_bytes: 1176 }
+            FilterResult::OverBudget {
+                budget_bytes: 1176,
+                num_files: 1
+            }
         );
     }
 
@@ -479,7 +484,10 @@ mod tests {
 
         assert_eq!(
             filter_result,
-            FilterResult::OverBudget { budget_bytes: 1176 }
+            FilterResult::OverBudget {
+                budget_bytes: 1176,
+                num_files: 1
+            }
         );
     }
 
@@ -501,7 +509,7 @@ mod tests {
         assert_eq!(
             filter_result,
             FilterResult::OverLimitFileNum {
-                file_num: 1,
+                num_files: 1,
                 budget_bytes: 1176
             }
         );
@@ -536,7 +544,7 @@ mod tests {
         assert_eq!(
             filter_result,
             FilterResult::OverLimitFileNum {
-                file_num: 2,
+                num_files: 2,
                 budget_bytes: 2 * 1176
             }
         );

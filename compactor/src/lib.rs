@@ -154,7 +154,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                     debug!(?partition_id, compaction_type, "nothing to compact");
                 }
                 FilterResult::OverLimitFileNum {
-                    file_num,
+                    num_files,
                     budget_bytes,
                 } => {
                     // We cannot compact this partition because its first set of overlapped files
@@ -163,20 +163,26 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                         ?partition_id,
                         ?table_id,
                         compaction_type,
-                        file_num,
+                        num_files,
                         budget_bytes,
                         file_num_limit = compactor.config.max_num_compacting_files,
                         memory_budget_bytes = compactor.config.memory_budget_bytes,
                         "skipped; over limit of number of files"
                     );
-                    let reason = format!(
-                        "over limit of num_files. Needed num_files = {}, limit of num_iles = {}. Needed budget = {}, memory budget = {}",
-                        file_num, compactor.config.max_num_compacting_files, budget_bytes, compactor.config.memory_budget_bytes
-                    );
-                    record_skipped_compaction(partition_id, Arc::clone(&compactor), &reason).await;
+                    record_skipped_compaction(
+                        partition_id,
+                        Arc::clone(&compactor),
+                        "over limit of num_files",
+                        num_files,
+                        compactor.config.max_num_compacting_files,
+                        budget_bytes,
+                        compactor.config.memory_budget_bytes,
+                    )
+                    .await;
                 }
                 FilterResult::OverBudget {
                     budget_bytes: needed_bytes,
+                    num_files,
                 } => {
                     if needed_bytes <= compactor.config.memory_budget_bytes {
                         // Required budget is larger than the remaining budget but smaller than
@@ -191,14 +197,20 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                             compaction_type,
                             ?needed_bytes,
                             memory_budget_bytes = compactor.config.memory_budget_bytes,
+                            ?num_files,
+                            limit_num_files = compactor.config.max_num_compacting_files,
                             "skipped; over memory budget"
                         );
-                        let reason = format!(
-                            "over memory budget. Needed budget = {}, memory budget = {}",
-                            needed_bytes, compactor.config.memory_budget_bytes
-                        );
-                        record_skipped_compaction(partition_id, Arc::clone(&compactor), &reason)
-                            .await;
+                        record_skipped_compaction(
+                            partition_id,
+                            Arc::clone(&compactor),
+                            "over memory budget",
+                            num_files,
+                            compactor.config.max_num_compacting_files,
+                            needed_bytes,
+                            compactor.config.memory_budget_bytes,
+                        )
+                        .await;
                     }
                 }
                 FilterResult::Proceed {
@@ -252,11 +264,22 @@ async fn record_skipped_compaction(
     partition_id: PartitionId,
     compactor: Arc<Compactor>,
     reason: &str,
+    num_files: usize,
+    limit_num_files: usize,
+    estimated_bytes: u64,
+    limit_bytes: u64,
 ) {
     let mut repos = compactor.catalog.repositories().await;
     let record_skip = repos
         .partitions()
-        .record_skipped_compaction(partition_id, reason)
+        .record_skipped_compaction(
+            partition_id,
+            reason,
+            num_files,
+            limit_num_files,
+            estimated_bytes,
+            limit_bytes,
+        )
         .await;
     if let Err(e) = record_skip {
         warn!(?partition_id, %e, "could not log skipped compaction");
@@ -818,10 +841,7 @@ pub mod tests {
             let skipped_compactions = repos.partitions().list_skipped_compactions().await.unwrap();
             assert_eq!(skipped_compactions.len(), 1);
             assert_eq!(skipped_compactions[0].partition_id, partition4.partition.id);
-            assert_eq!(
-                skipped_compactions[0].reason,
-                "over memory budget. Needed budget = 15100, memory budget = 14350"
-            );
+            assert_eq!(skipped_compactions[0].reason, "over memory budget");
         }
     }
 

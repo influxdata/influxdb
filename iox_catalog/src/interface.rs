@@ -476,6 +476,10 @@ pub trait PartitionRepo: Send + Sync {
         &mut self,
         partition_id: PartitionId,
         reason: &str,
+        num_files: usize,
+        limit_num_files: usize,
+        estimated_bytes: u64,
+        limit_bytes: u64,
     ) -> Result<()>;
 
     /// List the records of compacting a partition being skipped. This is mostly useful for testing.
@@ -1590,26 +1594,34 @@ pub(crate) mod test_helpers {
         );
         repos
             .partitions()
-            .record_skipped_compaction(other_partition.id, "I am le tired")
+            .record_skipped_compaction(other_partition.id, "I am le tired", 1, 2, 10, 20)
             .await
             .unwrap();
         let skipped_compactions = repos.partitions().list_skipped_compactions().await.unwrap();
         assert_eq!(skipped_compactions.len(), 1);
         assert_eq!(skipped_compactions[0].partition_id, other_partition.id);
         assert_eq!(skipped_compactions[0].reason, "I am le tired");
+        assert_eq!(skipped_compactions[0].num_files, 1);
+        assert_eq!(skipped_compactions[0].limit_num_files, 2);
+        assert_eq!(skipped_compactions[0].estimated_bytes, 10);
+        assert_eq!(skipped_compactions[0].limit_bytes, 20);
 
         // Only save the last reason that any particular partition was skipped (really if the
         // partition appears in the skipped compactions, it shouldn't become a compaction candidate
         // again, but race conditions and all that)
         repos
             .partitions()
-            .record_skipped_compaction(other_partition.id, "I'm on fire")
+            .record_skipped_compaction(other_partition.id, "I'm on fire", 11, 12, 110, 120)
             .await
             .unwrap();
         let skipped_compactions = repos.partitions().list_skipped_compactions().await.unwrap();
         assert_eq!(skipped_compactions.len(), 1);
         assert_eq!(skipped_compactions[0].partition_id, other_partition.id);
         assert_eq!(skipped_compactions[0].reason, "I'm on fire");
+        assert_eq!(skipped_compactions[0].num_files, 11);
+        assert_eq!(skipped_compactions[0].limit_num_files, 12);
+        assert_eq!(skipped_compactions[0].estimated_bytes, 110);
+        assert_eq!(skipped_compactions[0].limit_bytes, 120);
 
         // Test setting and reading the per-partition persistence numbers
         let partition = repos
@@ -3030,7 +3042,14 @@ pub(crate) mod test_helpers {
         // The compactor skipped compacting another_partition
         repos
             .partitions()
-            .record_skipped_compaction(another_partition.id, "Not feeling up to it today")
+            .record_skipped_compaction(
+                another_partition.id,
+                "Not feeling up to it today",
+                1,
+                2,
+                10,
+                20,
+            )
             .await
             .unwrap();
 
@@ -3360,7 +3379,7 @@ pub(crate) mod test_helpers {
         // The compactor skipped compacting another_partition
         repos
             .partitions()
-            .record_skipped_compaction(another_partition.id, "Secret reasons")
+            .record_skipped_compaction(another_partition.id, "Secret reasons", 1, 2, 10, 20)
             .await
             .unwrap();
 
