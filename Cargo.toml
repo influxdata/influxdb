@@ -51,6 +51,7 @@ members = [
     "packers",
     "panic_logging",
     "parquet_file",
+    "parquet_to_line_protocol",
     "predicate",
     "querier",
     "query_functions",

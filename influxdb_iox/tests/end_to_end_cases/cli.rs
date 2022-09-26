@@ -113,14 +113,7 @@ async fn remote_partition_and_get_from_store_and_pull() {
                         .stdout
                         .clone();
 
-                    let v: Value = serde_json::from_slice(&out).unwrap();
-                    let id = v.as_array().unwrap()[0]
-                        .as_object()
-                        .unwrap()
-                        .get("objectStoreId")
-                        .unwrap()
-                        .as_str()
-                        .unwrap();
+                    let object_store_id = get_object_store_id(&out);
 
                     let dir = tempdir().unwrap();
                     let f = dir.path().join("tmp.parquet");
@@ -133,7 +126,7 @@ async fn remote_partition_and_get_from_store_and_pull() {
                         .arg("remote")
                         .arg("store")
                         .arg("get")
-                        .arg(id)
+                        .arg(&object_store_id)
                         .arg(filename)
                         .assert()
                         .success()
@@ -185,8 +178,134 @@ async fn remote_partition_and_get_from_store_and_pull() {
                         .success()
                         .stdout(
                             predicate::str::contains("wrote file")
-                                .and(predicate::str::contains(id)),
+                                .and(predicate::str::contains(&object_store_id)),
                         );
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
+async fn parquet_to_lp() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    // The test below assumes a specific partition id, so use a
+    // non-shared one here so concurrent tests don't interfere with
+    // each other
+    let mut cluster = MiniCluster::create_non_shared_standard(database_url).await;
+
+    let line_protocol = "my_awesome_table,tag1=A,tag2=B val=42i 123456";
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(String::from(line_protocol)),
+            // wait for partitions to be persisted
+            Step::WaitForPersisted,
+            // Run the 'remote partition' command
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let router_addr = state.cluster().router().router_grpc_base().to_string();
+
+                    // Validate the output of the remote partition CLI command
+                    //
+                    // Looks like:
+                    // {
+                    //     "id": "1",
+                    //     "shardId": 1,
+                    //     "namespaceId": 1,
+                    //     "tableId": 1,
+                    //     "partitionId": "1",
+                    //     "objectStoreId": "fa6cdcd1-cbc2-4fb7-8b51-4773079124dd",
+                    //     "minTime": "123456",
+                    //     "maxTime": "123456",
+                    //     "fileSizeBytes": "2029",
+                    //     "rowCount": "1",
+                    //     "compactionLevel": "1",
+                    //     "createdAt": "1650019674289347000"
+                    // }
+
+                    let out = Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&router_addr)
+                        .arg("remote")
+                        .arg("partition")
+                        .arg("show")
+                        .arg("1")
+                        .assert()
+                        .success()
+                        .get_output()
+                        .stdout
+                        .clone();
+
+                    let object_store_id = get_object_store_id(&out);
+                    let dir = tempdir().unwrap();
+                    let f = dir.path().join("tmp.parquet");
+                    let filename = f.as_os_str().to_str().unwrap();
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&router_addr)
+                        .arg("remote")
+                        .arg("store")
+                        .arg("get")
+                        .arg(&object_store_id)
+                        .arg(filename)
+                        .assert()
+                        .success()
+                        .stdout(
+                            predicate::str::contains("wrote")
+                                .and(predicate::str::contains(filename)),
+                        );
+
+                    // convert to line protocol (stdout)
+                    let output = Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("debug")
+                        .arg("parquet-to-lp")
+                        .arg(filename)
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains(line_protocol))
+                        .get_output()
+                        .stdout
+                        .clone();
+
+                    println!("Got output  {:?}", output);
+
+                    // test writing to output file as well
+                    // Ensure files are actually wrote to the filesystem
+                    let output_file =
+                        tempfile::NamedTempFile::new().expect("Error making temp file");
+                    println!("Writing to  {:?}", output_file);
+
+                    // convert to line protocol (to a file)
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("debug")
+                        .arg("parquet-to-lp")
+                        .arg(filename)
+                        .arg("--output")
+                        .arg(output_file.path())
+                        .assert()
+                        .success();
+
+                    let file_contents =
+                        std::fs::read(output_file.path()).expect("can not read data from tempfile");
+                    let file_contents = String::from_utf8_lossy(&file_contents);
+                    assert!(
+                        predicate::str::contains(line_protocol).eval(&file_contents),
+                        "Could not file {} in {}",
+                        line_protocol,
+                        file_contents
+                    );
                 }
                 .boxed()
             })),
@@ -261,15 +380,7 @@ async fn compact_and_get_remote_partition() {
                         .stdout
                         .clone();
 
-                    let v: Value = serde_json::from_slice(&out).unwrap();
-                    let id = v.as_array().unwrap()[0]
-                        .as_object()
-                        .unwrap()
-                        .get("objectStoreId")
-                        .unwrap()
-                        .as_str()
-                        .unwrap();
-
+                    let object_store_id = get_object_store_id(&out);
                     let dir = tempdir().unwrap();
                     let f = dir.path().join("tmp.parquet");
                     let filename = f.as_os_str().to_str().unwrap();
@@ -281,7 +392,7 @@ async fn compact_and_get_remote_partition() {
                         .arg("remote")
                         .arg("store")
                         .arg("get")
-                        .arg(id)
+                        .arg(&object_store_id)
                         .arg(filename)
                         .assert()
                         .success()
@@ -333,7 +444,7 @@ async fn compact_and_get_remote_partition() {
                         .success()
                         .stdout(
                             predicate::str::contains("wrote file")
-                                .and(predicate::str::contains(id)),
+                                .and(predicate::str::contains(object_store_id)),
                         );
                 }
                 .boxed()
@@ -539,4 +650,29 @@ async fn query_ingester() {
     )
     .run()
     .await
+}
+
+/// extracts the parquet filename from JSON that looks like
+/// ```text
+/// {
+///    "id": "1",
+///    ...
+//     "objectStoreId": "fa6cdcd1-cbc2-4fb7-8b51-4773079124dd",
+///    ...
+/// }
+/// ```
+fn get_object_store_id(output: &[u8]) -> String {
+    let v: Value = serde_json::from_slice(output).unwrap();
+    // We only process the first value, so panic if it isn't there
+    let arr = v.as_array().unwrap();
+    assert_eq!(arr.len(), 1);
+    let id = arr[0]
+        .as_object()
+        .unwrap()
+        .get("objectStoreId")
+        .unwrap()
+        .as_str()
+        .unwrap();
+
+    id.to_string()
 }

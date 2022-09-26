@@ -141,8 +141,12 @@ fn filter_parquet_files_inner(
             ln_estimated_file_bytes + current_ln_plus_1_estimated_file_bytes.iter().sum::<u64>();
 
         // Over limit of num files
-        if files_to_return.len() + 1 /* LN file */ + overlaps.len() > max_num_files {
-            if files_to_return.is_empty() {
+        // At this stage files_to_return only includes LN+1 files. To get both returning LN+1 and LN files,
+        // we need to consider both files_to_return and level_n_to_return
+        if files_to_return.len() + level_n_to_return.len() + 1 /* LN file */ + overlaps.len()
+            > max_num_files
+        {
+            if files_to_return.is_empty() && level_n_to_return.is_empty() {
                 // Cannot compact this partition because its first set of overlapped files
                 // exceed the file limit
                 return FilterResult::OverLimitFileNum {
@@ -657,6 +661,75 @@ mod tests {
                     if files.len() == 5
                         && files.iter().map(|f| f.id().get()).collect::<Vec<_>>() == [102, 101, 1, 2, 3]
                         && *budget_bytes == 5 * 1176
+            ),
+            "Match failed, got: {filter_result:?}"
+        );
+    }
+
+    // bug: https://github.com/influxdata/conductor/issues/1178
+    #[test]
+    fn file_num_limit_3_five_l0_one_l1_files() {
+        let level_0 = vec![
+            // Level 0 files that overlap in time slightly.
+            ParquetFileBuilder::level_0()
+                .id(1)
+                .min_time(200)
+                .max_time(300)
+                .file_size_bytes(10)
+                .build(),
+            ParquetFileBuilder::level_0()
+                .id(2)
+                .min_time(280)
+                .max_time(310)
+                .file_size_bytes(10)
+                .build(),
+            ParquetFileBuilder::level_0()
+                .id(3)
+                .min_time(309)
+                .max_time(350)
+                .file_size_bytes(10)
+                .build(),
+            ParquetFileBuilder::level_0()
+                .id(4)
+                .min_time(309)
+                .max_time(350)
+                .file_size_bytes(10)
+                .build(),
+            ParquetFileBuilder::level_0()
+                .id(5)
+                .min_time(309)
+                .max_time(350)
+                .file_size_bytes(10)
+                .build(),
+        ];
+
+        let level_1 = vec![
+            // overlaps in time with first and second L0s
+            ParquetFileBuilder::level_1()
+                .id(101)
+                .min_time(150)
+                .max_time(250)
+                .build(),
+        ];
+        let (files_metric, bytes_metric) = metrics();
+
+        let filter_result = filter_parquet_files_inner(
+            level_0,
+            level_1,
+            MEMORY_BUDGET,
+            3,
+            &files_metric,
+            &bytes_metric,
+        );
+
+        // should include 3 files: first 2 L0s (id=1 and id=2) and sthe L1 (id=101)
+        assert!(
+            matches!(
+                &filter_result,
+                FilterResult::Proceed { files, budget_bytes }
+                    if files.len() == 3
+                        && files.iter().map(|f| f.id().get()).collect::<Vec<_>>() == [101, 1, 2]
+                        && *budget_bytes == 3 * 1176
             ),
             "Match failed, got: {filter_result:?}"
         );

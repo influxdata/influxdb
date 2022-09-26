@@ -30,6 +30,7 @@ object_store_metrics = { path = "../object_store_metrics" }
 observability_deps = { path = "../observability_deps" }
 panic_logging = { path = "../panic_logging" }
 parquet_file = { path = "../parquet_file" }
+parquet_to_line_protocol = { path = "../parquet_to_line_protocol" }
 iox_query = { path = "../iox_query" }
 schema = { path = "../schema" }
 sharder = { path = "../sharder" }
@@ -56,7 +57,7 @@ once_cell = { version = "1.15.0", features = ["parking_lot"] }
 rustyline = { version = "10.0", default-features = false }
 serde_json = "1.0.83"
 snafu = "0.7"
-thiserror = "1.0.35"
+thiserror = "1.0.36"
 tikv-jemalloc-ctl = { version = "0.5.0", optional = true }
 tokio = { version = "1.21", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-stream = { version = "0.1", features = ["net"] }
