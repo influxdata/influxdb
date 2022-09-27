@@ -23,27 +23,19 @@ impl MockPartitionProvider {
     pub(crate) fn with_partition(
         mut self,
         partition_key: PartitionKey,
-        shard_id: ShardId,
-        table_id: TableId,
         data: PartitionData,
     ) -> Self {
-        self.insert(partition_key, shard_id, table_id, data);
+        self.insert(partition_key, data);
         self
     }
 
     /// Add `data` to the mock state, returning it when asked for the specified
     /// `(key, shard, table)` triplet.
-    pub(crate) fn insert(
-        &mut self,
-        partition_key: PartitionKey,
-        shard_id: ShardId,
-        table_id: TableId,
-        data: PartitionData,
-    ) {
+    pub(crate) fn insert(&mut self, partition_key: PartitionKey, data: PartitionData) {
         assert!(
             self.partitions
                 .lock()
-                .insert((partition_key, shard_id, table_id), data)
+                .insert((partition_key, data.shard_id(), data.table_id()), data)
                 .is_none(),
             "overwriting an existing mock PartitionData"
         );

@@ -55,12 +55,7 @@ mod tests {
         let partition = PartitionId::new(4242);
         let data = PartitionData::new(partition, shard_id, table_id, Arc::clone(&table_name), None);
 
-        let mock = Arc::new(MockPartitionProvider::default().with_partition(
-            key.clone(),
-            shard_id,
-            table_id,
-            data,
-        ));
+        let mock = Arc::new(MockPartitionProvider::default().with_partition(key.clone(), data));
 
         let got = mock
             .get_partition(key, shard_id, table_id, Arc::clone(&table_name))

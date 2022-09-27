@@ -315,6 +315,18 @@ impl PartitionData {
     pub(crate) fn table_name(&self) -> &str {
         self.table_name.as_ref()
     }
+
+    /// Return the shard ID for this partition.
+    #[cfg(test)]
+    pub(crate) fn shard_id(&self) -> ShardId {
+        self.shard_id
+    }
+
+    /// Return the table ID for this partition.
+    #[cfg(test)]
+    pub(crate) fn table_id(&self) -> TableId {
+        self.table_id
+    }
 }
 
 #[cfg(test)]
