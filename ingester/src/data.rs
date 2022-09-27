@@ -31,7 +31,13 @@ mod query_dedup;
 pub mod shard;
 pub mod table;
 
-use self::{partition::PartitionStatus, shard::ShardData};
+use self::{
+    partition::{
+        resolver::{CatalogPartitionResolver, PartitionProvider},
+        PartitionStatus,
+    },
+    shard::ShardData,
+};
 
 #[cfg(test)]
 mod triggers;
@@ -124,9 +130,23 @@ impl IngesterData {
             },
         );
 
+        // Build the partition provider.
+        let partition_provider: Arc<dyn PartitionProvider> =
+            Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog)));
+
         let shards = shards
             .into_iter()
-            .map(|(id, index)| (id, ShardData::new(index, id, Arc::clone(&metrics))))
+            .map(|(id, index)| {
+                (
+                    id,
+                    ShardData::new(
+                        index,
+                        id,
+                        Arc::clone(&partition_provider),
+                        Arc::clone(&metrics),
+                    ),
+                )
+            })
             .collect();
 
         Self {
@@ -607,6 +627,7 @@ pub enum FlatIngesterQueryResponse {
 mod tests {
     use std::{
         ops::DerefMut,
+        sync::Arc,
         task::{Context, Poll},
         time::Duration,
     };
@@ -630,7 +651,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        data::namespace::NamespaceData,
+        data::{namespace::NamespaceData, partition::resolver::CatalogPartitionResolver},
         lifecycle::{LifecycleConfig, LifecycleManager},
     };
 
@@ -1319,7 +1340,9 @@ mod tests {
         );
         let exec = Executor::new(1);
 
-        let data = NamespaceData::new(namespace.id, shard.id, &*metrics);
+        let partition_provider = Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog)));
+
+        let data = NamespaceData::new(namespace.id, shard.id, partition_provider, &*metrics);
 
         // w1 should be ignored because the per-partition replay offset is set
         // to 1 already, so it shouldn't be buffered and the buffer should
