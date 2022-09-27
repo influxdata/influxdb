@@ -27,7 +27,7 @@ use write_buffer::core::WriteBufferReading;
 use write_summary::ShardProgress;
 
 use crate::{
-    data::{shard::ShardData, IngesterData, IngesterQueryResponse},
+    data::{IngesterData, IngesterQueryResponse},
     lifecycle::{run_lifecycle_manager, LifecycleConfig, LifecycleManager},
     poison::PoisonCabinet,
     querier_handler::prepare_data_to_querier,
@@ -135,18 +135,10 @@ impl IngestHandlerImpl {
         skip_to_oldest_available: bool,
         max_requests: usize,
     ) -> Result<Self> {
-        // build the initial ingester data state
-        let mut shards = BTreeMap::new();
-        for s in shard_states.values() {
-            shards.insert(
-                s.id,
-                ShardData::new(s.shard_index, s.id, Arc::clone(&metric_registry)),
-            );
-        }
         let data = Arc::new(IngesterData::new(
             object_store,
             catalog,
-            shards,
+            shard_states.clone().into_iter().map(|(idx, s)| (s.id, idx)),
             exec,
             BackoffConfig::default(),
             Arc::clone(&metric_registry),

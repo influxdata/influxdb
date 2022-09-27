@@ -2,7 +2,7 @@
 
 #![allow(missing_docs)]
 
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_eq;
@@ -25,7 +25,6 @@ use uuid::Uuid;
 use crate::{
     data::{
         partition::{PersistingBatch, SnapshotBatch},
-        shard::ShardData,
         IngesterData,
     },
     lifecycle::{LifecycleConfig, LifecycleHandle, LifecycleManager},
@@ -696,16 +695,11 @@ pub async fn make_ingester_data(two_partitions: bool, loc: DataLocation) -> Inge
     // Make data for one shard and two tables
     let shard_index = ShardIndex::new(1);
     let shard_id = populate_catalog(&*catalog).await;
-    let mut shards = BTreeMap::new();
-    shards.insert(
-        shard_id,
-        ShardData::new(shard_index, shard_id, Arc::clone(&metrics)),
-    );
 
     let ingester = IngesterData::new(
         object_store,
         catalog,
-        shards,
+        [(shard_id, shard_index)],
         exec,
         backoff::BackoffConfig::default(),
         metrics,
@@ -768,16 +762,10 @@ pub async fn make_ingester_data_with_tombstones(loc: DataLocation) -> IngesterDa
     let shard_index = ShardIndex::new(0);
     let shard_id = populate_catalog(&*catalog).await;
 
-    let mut shards = BTreeMap::new();
-    shards.insert(
-        shard_id,
-        ShardData::new(shard_index, shard_id, Arc::clone(&metrics)),
-    );
-
     let ingester = IngesterData::new(
         object_store,
         catalog,
-        shards,
+        [(shard_id, shard_index)],
         exec,
         backoff::BackoffConfig::default(),
         metrics,
