@@ -40,6 +40,11 @@ impl MockPartitionProvider {
             "overwriting an existing mock PartitionData"
         );
     }
+
+    /// Returns true if all mock values have been consumed.
+    pub fn is_empty(&self) -> bool {
+        self.partitions.lock().is_empty()
+    }
 }
 
 #[async_trait]

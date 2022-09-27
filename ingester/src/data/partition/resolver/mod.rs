@@ -2,6 +2,9 @@
 //!
 //! [`PartitionData`]: crate::data::partition::PartitionData
 
+mod cache;
+pub(crate) use cache::*;
+
 mod r#trait;
 pub(crate) use r#trait::*;
 
