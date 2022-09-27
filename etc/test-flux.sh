@@ -76,55 +76,6 @@ remove_sort_selector
 remove_sort_filter_range
 remove_sort_aggregate_window
 remove_sort_join
-# vectorization-related tests
-logical_typed_null_vectorized_const
-logical_untyped_null_vectorized_const
-
-vec_conditional_bool
-vec_conditional_bool_repeat
-vec_conditional_time
-vec_conditional_time_repeat
-vec_conditional_int
-vec_conditional_int_repeat
-vec_conditional_float
-vec_conditional_float_repeat
-vec_conditional_uint
-vec_conditional_string
-vec_conditional_string_repeat
-vec_conditional_null_test
-vec_conditional_null_consequent
-vec_conditional_null_alternate
-vec_conditional_null_consequent_alternate
-vec_conditional_null_test_consequent_alternate
-vec_const_bools
-vec_const_with_const
-vec_const_with_const_add_const
-vec_const_add_member_const
-vec_const_with_const_add_const_add_member
-vec_const_with_const_add_member_add_const
-vec_const_with_member_add_const_add_const
-vec_const_kitchen_sink_column_types
-vec_equality_time
-vec_equality_time_repeat
-vec_equality_int
-vec_equality_int_repeat
-vec_equality_float
-vec_equality_float_repeat
-vec_equality_uint
-vec_equality_string
-vec_equality_string_repeat
-vec_equality_bool
-vec_equality_casts
-vec_nested_logical_conditional_repro
-vec_nested_logical_conditional_repro2
-vec_with_float
-vec_with_float_const
-vec_with_unary_add
-vec_with_unary_sub
-vec_with_unary_not
-vec_with_unary_exists
-vectorize_div_by_zero_int_const
-vectorize_div_by_zero_int_const_const
 
 vec_with_float_typed_null
 vec_with_float_untyped_null
@@ -159,9 +110,6 @@ window_null
 # Needs feature flag labelPolymorphism
 label_to_string
 
-# Bug https://github.com/influxdata/flux/issues/5232
-#   Or, needs feature flag strictNullLogicalOps
-logical_typed_null_interp
 
 ENDSKIPS
 )
