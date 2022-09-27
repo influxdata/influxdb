@@ -25,7 +25,7 @@ use uuid::Uuid;
 
 use crate::{
     data::{
-        partition::{PersistingBatch, SnapshotBatch},
+        partition::{resolver::CatalogPartitionResolver, PersistingBatch, SnapshotBatch},
         IngesterData,
     },
     lifecycle::{LifecycleConfig, LifecycleHandle, LifecycleManager},
@@ -630,9 +630,10 @@ pub(crate) async fn make_ingester_data(two_partitions: bool, loc: DataLocation) 
 
     let ingester = IngesterData::new(
         object_store,
-        catalog,
+        Arc::clone(&catalog),
         [(shard_id, shard_index)],
         exec,
+        Arc::new(CatalogPartitionResolver::new(catalog)),
         backoff::BackoffConfig::default(),
         metrics,
     );
@@ -696,9 +697,10 @@ pub(crate) async fn make_ingester_data_with_tombstones(loc: DataLocation) -> Ing
 
     let ingester = IngesterData::new(
         object_store,
-        catalog,
+        Arc::clone(&catalog),
         [(shard_id, shard_index)],
         exec,
+        Arc::new(CatalogPartitionResolver::new(catalog)),
         backoff::BackoffConfig::default(),
         metrics,
     );

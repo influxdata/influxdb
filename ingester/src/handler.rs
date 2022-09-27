@@ -28,7 +28,7 @@ use write_summary::ShardProgress;
 
 use crate::{
     data::{
-        partition::resolver::{CatalogPartitionResolver, PartitionProvider},
+        partition::resolver::{CatalogPartitionResolver, PartitionCache, PartitionProvider},
         shard::ShardData,
         IngesterData, IngesterQueryResponse,
     },
@@ -47,6 +47,10 @@ pub enum Error {
     #[snafu(display("Write buffer error: {}", source))]
     WriteBuffer {
         source: write_buffer::core::WriteBufferError,
+    },
+    #[snafu(display("error populating partition cache from catalog: {}", source))]
+    PartitionCache {
+        source: iox_catalog::interface::Error,
     },
 }
 
@@ -139,9 +143,25 @@ impl IngestHandlerImpl {
         skip_to_oldest_available: bool,
         max_requests: usize,
     ) -> Result<Self> {
+        // Read the most recently created partitions for the shards this
+        // ingester instance will be consuming from.
+        //
+        // By caching these hot partitions overall catalog load after an
+        // ingester starts up is reduced, and the associated query latency is
+        // removed from the (blocking) ingest hot path.
+        let shard_ids = shard_states.iter().map(|(_, s)| s.id).collect::<Vec<_>>();
+        let recent_partitions = catalog
+            .repositories()
+            .await
+            .partitions()
+            .most_recent_n(10_000, &shard_ids)
+            .await
+            .context(PartitionCacheSnafu)?;
+
         // Build the partition provider.
-        let partition_provider: Arc<dyn PartitionProvider> =
-            Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog)));
+        let partition_provider = CatalogPartitionResolver::new(Arc::clone(&catalog));
+        let partition_provider = PartitionCache::new(partition_provider, recent_partitions);
+        let partition_provider: Arc<dyn PartitionProvider> = Arc::new(partition_provider);
 
         // build the initial ingester data state
         let mut shards = BTreeMap::new();
@@ -156,11 +176,13 @@ impl IngestHandlerImpl {
                 ),
             );
         }
+
         let data = Arc::new(IngesterData::new(
             object_store,
             catalog,
             shard_states.clone().into_iter().map(|(idx, s)| (s.id, idx)),
             exec,
+            partition_provider,
             BackoffConfig::default(),
             Arc::clone(&metric_registry),
         ));

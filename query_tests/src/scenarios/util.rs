@@ -14,7 +14,10 @@ use generated_types::{
 };
 use influxdb_iox_client::flight::{low_level::LowLevelMessage, Error as FlightError};
 use ingester::{
-    data::{FlatIngesterQueryResponse, IngesterData, IngesterQueryResponse, Persister},
+    data::{
+        partition::resolver::CatalogPartitionResolver, FlatIngesterQueryResponse, IngesterData,
+        IngesterQueryResponse, Persister,
+    },
     lifecycle::LifecycleHandle,
     querier_handler::prepare_data_to_querier,
 };
@@ -696,6 +699,7 @@ impl MockIngester {
             catalog.catalog(),
             [(shard.shard.id, shard.shard.shard_index)],
             catalog.exec(),
+            Arc::new(CatalogPartitionResolver::new(catalog.catalog())),
             BackoffConfig::default(),
             catalog.metric_registry(),
         ));

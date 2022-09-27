@@ -32,10 +32,7 @@ pub mod shard;
 pub mod table;
 
 use self::{
-    partition::{
-        resolver::{CatalogPartitionResolver, PartitionProvider},
-        PartitionStatus,
-    },
+    partition::{resolver::PartitionProvider, PartitionStatus},
     shard::ShardData,
 };
 
@@ -109,6 +106,7 @@ impl IngesterData {
         catalog: Arc<dyn Catalog>,
         shards: T,
         exec: Arc<Executor>,
+        partition_provider: Arc<dyn PartitionProvider>,
         backoff_config: BackoffConfig,
         metrics: Arc<metric::Registry>,
     ) -> Self
@@ -129,10 +127,6 @@ impl IngesterData {
                 ])
             },
         );
-
-        // Build the partition provider.
-        let partition_provider: Arc<dyn PartitionProvider> =
-            Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog)));
 
         let shards = shards
             .into_iter()
@@ -681,6 +675,7 @@ mod tests {
             Arc::clone(&catalog),
             [(shard1.id, shard_index)],
             Arc::new(Executor::new(1)),
+            Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog))),
             BackoffConfig::default(),
             Arc::clone(&metrics),
         ));
@@ -762,6 +757,7 @@ mod tests {
             Arc::clone(&catalog),
             [(shard1.id, shard1.shard_index)],
             Arc::new(Executor::new(1)),
+            Arc::new(CatalogPartitionResolver::new(catalog)),
             BackoffConfig::default(),
             Arc::clone(&metrics),
         ));
@@ -865,6 +861,7 @@ mod tests {
                 (shard2.id, shard2.shard_index),
             ],
             Arc::new(Executor::new(1)),
+            Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog))),
             BackoffConfig::default(),
             Arc::clone(&metrics),
         ));
@@ -1115,6 +1112,7 @@ mod tests {
                 (shard2.id, shard2.shard_index),
             ],
             Arc::new(Executor::new(1)),
+            Arc::new(CatalogPartitionResolver::new(catalog)),
             BackoffConfig::default(),
             Arc::clone(&metrics),
         ));
@@ -1408,6 +1406,7 @@ mod tests {
             Arc::clone(&catalog),
             [(shard1.id, shard_index)],
             Arc::new(Executor::new(1)),
+            Arc::new(CatalogPartitionResolver::new(catalog)),
             BackoffConfig::default(),
             Arc::clone(&metrics),
         ));

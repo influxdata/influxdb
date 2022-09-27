@@ -6,10 +6,10 @@ mod cache;
 pub(crate) use cache::*;
 
 mod r#trait;
-pub(crate) use r#trait::*;
+pub use r#trait::*;
 
 mod catalog;
-pub(crate) use catalog::*;
+pub use catalog::*;
 
 #[cfg(test)]
 mod mock;

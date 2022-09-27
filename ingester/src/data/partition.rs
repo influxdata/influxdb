@@ -132,7 +132,7 @@ impl SnapshotBatch {
 
 /// Data of an IOx Partition of a given Table of a Namesapce that belongs to a given Shard
 #[derive(Debug)]
-pub(crate) struct PartitionData {
+pub struct PartitionData {
     /// The catalog ID of the partition this buffer is for.
     id: PartitionId,
     /// The shard and table IDs for this partition.
