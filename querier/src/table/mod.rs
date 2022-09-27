@@ -176,9 +176,13 @@ impl QuerierTable {
         &self,
         predicate: &Predicate,
         span: Option<Span>,
+        projection: &Option<Vec<usize>>,
     ) -> Result<Vec<Arc<dyn QueryChunk>>> {
         let mut span_recorder = SpanRecorder::new(span);
-        match self.chunks_inner(predicate, &span_recorder).await {
+        match self
+            .chunks_inner(predicate, &span_recorder, projection)
+            .await
+        {
             Ok(chunks) => {
                 span_recorder.ok("got chunks");
                 Ok(chunks)
@@ -194,6 +198,7 @@ impl QuerierTable {
         &self,
         predicate: &Predicate,
         span_recorder: &SpanRecorder,
+        projection: &Option<Vec<usize>>,
     ) -> Result<Vec<Arc<dyn QueryChunk>>> {
         debug!(
             ?predicate,
@@ -207,7 +212,11 @@ impl QuerierTable {
         // ask ingesters for data, also optimistically fetching catalog
         // contents at the same time to pre-warm cache
         let (partitions, _parquet_files, _tombstones) = join!(
-            self.ingester_partitions(predicate, span_recorder.child_span("ingester partitions")),
+            self.ingester_partitions(
+                predicate,
+                span_recorder.child_span("ingester partitions"),
+                projection
+            ),
             catalog_cache.parquet_file().get(
                 self.id(),
                 None,
@@ -383,6 +392,7 @@ impl QuerierTable {
         &self,
         predicate: &Predicate,
         span: Option<Span>,
+        projection: &Option<Vec<usize>>,
     ) -> Result<Vec<IngesterPartition>> {
         let mut span_recorder = SpanRecorder::new(span);
 
@@ -392,6 +402,7 @@ impl QuerierTable {
                     Arc::clone(ingester_connection),
                     predicate,
                     &span_recorder,
+                    projection,
                 )
                 .await
             {
@@ -416,18 +427,11 @@ impl QuerierTable {
         ingester_connection: Arc<dyn IngesterConnection>,
         predicate: &Predicate,
         span_recorder: &SpanRecorder,
+        projection: &Option<Vec<usize>>,
     ) -> Result<Vec<IngesterPartition>> {
-        // For now, ask for *all* columns in the table from the ingester (need
-        // at least all pk (time, tag) columns for
-        // deduplication.
-        //
-        // As a future optimization, might be able to fetch only
-        // fields that are needed in query
-        let columns: Vec<String> = self
-            .schema
-            .iter()
-            .map(|(_, f)| f.name().to_string())
-            .collect();
+        // If the projection is provided, use it. Otherwise, use all columns of the table
+        // The provided projection should include all columns needed by the query
+        let columns = self.schema.select_given_and_pk_columns(projection);
 
         // Get the shard indexes responsible for this table's data from the sharder to
         // determine which ingester(s) to query.
@@ -500,11 +504,13 @@ mod tests {
         table::test_util::{querier_table, IngesterPartitionBuilder},
         QuerierChunkLoadSetting,
     };
+    use arrow_util::assert_batches_eq;
     use assert_matches::assert_matches;
     use data_types::{ChunkId, ColumnType, CompactionLevel, ParquetFileId, SequenceNumber};
+    use iox_query::exec::IOxSessionContext;
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
     use predicate::Predicate;
-    use schema::{builder::SchemaBuilder, InfluxFieldType};
+    use schema::{builder::SchemaBuilder, selection::Selection, InfluxFieldType};
     use std::sync::Arc;
     use test_helpers::maybe_start_logging;
     use trace::{span::SpanStatus, RingBufferTraceCollector};
@@ -665,6 +671,83 @@ mod tests {
         assert_eq!(chunks[4].delete_predicates().len(), 0);
         // file122: wrong shard
         assert_eq!(chunks[5].delete_predicates().len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_parquet_with_projection_pushdown_to_ingester() {
+        maybe_start_logging();
+        let catalog = TestCatalog::new();
+        let ns = catalog.create_namespace("ns").await;
+        let table = ns.create_table("table").await;
+        let shard = ns.create_shard(1).await;
+        let partition = table.with_shard(&shard).create_partition("k").await;
+        let schema = make_schema_two_fields_two_tags(&table).await;
+
+        // let add a partion from the ingester
+        let builder = IngesterPartitionBuilder::new(&table, &schema, &shard, &partition)
+            .with_lp(["table,tag1=val1,tag2=val2 foo=3,bar=4 11"]);
+
+        let ingester_partition =
+            builder.build_with_max_parquet_sequence_number(Some(SequenceNumber::new(1)));
+
+        let querier_table = TestQuerierTable::new(&catalog, &table)
+            .await
+            .with_ingester_partition(ingester_partition);
+
+        // Expect one chunk from the ingester
+        let pred = Predicate::new().with_range(0, 100);
+        let chunks = querier_table
+            .chunks_with_predicate_and_projection(&pred, &Some(vec![1])) // only select `foo` column
+            .await
+            .unwrap();
+        assert_eq!(chunks.len(), 1);
+
+        let chunk = &chunks[0];
+
+        // verify chunk schema
+        let schema = chunk.schema();
+        let fields = schema
+            .fields_iter()
+            .map(|i| i.name().to_string())
+            .collect::<Vec<_>>();
+        // only foo column. No bar
+        assert_eq!(fields, vec!["foo"]);
+        // all tags should be present
+        let tags = schema
+            .tags_iter()
+            .map(|i| i.name().to_string())
+            .collect::<Vec<_>>();
+        assert_eq!(tags.len(), 2);
+        assert!(tags.contains(&"tag1".to_string()));
+        assert!(tags.contains(&"tag2".to_string()));
+        //
+        let times = schema
+            .time_iter()
+            .map(|i| i.name().to_string())
+            .collect::<Vec<_>>();
+        assert_eq!(times, vec!["time"]);
+
+        // verify chunk data
+        let batches = chunk
+            .read_filter(
+                IOxSessionContext::with_testing(),
+                &Default::default(),
+                Selection::All,
+            )
+            .unwrap()
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .map(Result::unwrap)
+            .collect::<Vec<_>>();
+        let expected = vec![
+            "+-----+------+------+--------------------------------+",
+            "| foo | tag1 | tag2 | time                           |",
+            "+-----+------+------+--------------------------------+",
+            "| 3   | val1 | val2 | 1970-01-01T00:00:00.000000011Z |",
+            "+-----+------+------+--------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &batches);
     }
 
     #[tokio::test]
@@ -1055,6 +1138,26 @@ mod tests {
         )
     }
 
+    async fn make_schema_two_fields_two_tags(table: &Arc<TestTable>) -> Arc<Schema> {
+        table.create_column("time", ColumnType::Time).await;
+        table.create_column("foo", ColumnType::F64).await;
+        table.create_column("bar", ColumnType::F64).await;
+        table.create_column("tag1", ColumnType::Tag).await;
+        table.create_column("tag2", ColumnType::Tag).await;
+
+        // create corresponding schema
+        Arc::new(
+            SchemaBuilder::new()
+                .influx_field("foo", InfluxFieldType::Float)
+                .influx_field("bar", InfluxFieldType::Float)
+                .tag("tag1")
+                .tag("tag2")
+                .timestamp()
+                .build()
+                .unwrap(),
+        )
+    }
+
     /// A `QuerierTable` and some number of `IngesterPartitions` that
     /// are fed to the ingester connection on the next call to
     /// `chunks()`
@@ -1118,6 +1221,15 @@ mod tests {
             &self,
             pred: &Predicate,
         ) -> Result<Vec<Arc<dyn QueryChunk>>> {
+            self.chunks_with_predicate_and_projection(pred, &None).await
+        }
+
+        /// Invokes querier_table.chunks modeling the ingester sending the partitions in this table
+        async fn chunks_with_predicate_and_projection(
+            &self,
+            pred: &Predicate,
+            projection: &Option<Vec<usize>>,
+        ) -> Result<Vec<Arc<dyn QueryChunk>>> {
             self.querier_table
                 .ingester_connection
                 .as_ref()
@@ -1128,7 +1240,7 @@ mod tests {
                 .next_response(Ok(self.ingester_partitions.clone()));
 
             let span = Some(Span::root("root", Arc::clone(&self.traces) as _));
-            self.querier_table.chunks(pred, span).await
+            self.querier_table.chunks(pred, span, projection).await
         }
     }
 

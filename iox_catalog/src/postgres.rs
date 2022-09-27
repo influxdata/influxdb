@@ -1312,22 +1312,34 @@ RETURNING *;
         &mut self,
         partition_id: PartitionId,
         reason: &str,
+        num_files: usize,
+        limit_num_files: usize,
+        estimated_bytes: u64,
+        limit_bytes: u64,
     ) -> Result<()> {
         sqlx::query(
             r#"
 INSERT INTO skipped_compactions
-    ( partition_id, reason, skipped_at )
+    ( partition_id, reason, num_files, limit_num_files, estimated_bytes, limit_bytes, skipped_at )
 VALUES
-    ( $1, $2, extract(epoch from NOW()) )
+    ( $1, $2, $3, $4, $5, $6, extract(epoch from NOW()) )
 ON CONFLICT ( partition_id )
 DO UPDATE
 SET
 reason = EXCLUDED.reason,
+num_files = EXCLUDED.num_files,
+limit_num_files = EXCLUDED.limit_num_files,
+estimated_bytes = EXCLUDED.estimated_bytes,
+limit_bytes = EXCLUDED.limit_bytes,
 skipped_at = EXCLUDED.skipped_at;
         "#,
         )
-        .bind(partition_id)
+        .bind(partition_id) // $1
         .bind(reason)
+        .bind(num_files as i64)
+        .bind(limit_num_files as i64)
+        .bind(estimated_bytes as i64)
+        .bind(limit_bytes as i64)
         .execute(&mut self.inner)
         .await
         .context(interface::CouldNotRecordSkippedCompactionSnafu { partition_id })?;

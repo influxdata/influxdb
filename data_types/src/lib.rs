@@ -920,6 +920,14 @@ pub struct SkippedCompaction {
     pub reason: String,
     /// when compaction was skipped
     pub skipped_at: Timestamp,
+    /// estimated memory budget
+    pub estimated_bytes: i64,
+    /// limit on memory budget
+    pub limit_bytes: i64,
+    /// num files selected to compact
+    pub num_files: i64,
+    /// limit on num files
+    pub limit_num_files: i64,
 }
 
 /// Data object for a tombstone.

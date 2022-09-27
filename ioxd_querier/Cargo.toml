@@ -25,7 +25,7 @@ trace = { path = "../trace" }
 arrow-flight = "22.0.0"
 async-trait = "0.1"
 hyper = "0.14"
-thiserror = "1.0.35"
+thiserror = "1.0.36"
 tokio = { version = "1.21", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tonic = "0.8"
 workspace-hack = { path = "../workspace-hack"}

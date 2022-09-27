@@ -852,6 +852,10 @@ impl PartitionRepo for MemTxn {
         &mut self,
         partition_id: PartitionId,
         reason: &str,
+        num_files: usize,
+        limit_num_files: usize,
+        estimated_bytes: u64,
+        limit_bytes: u64,
     ) -> Result<()> {
         let reason = reason.to_string();
         let skipped_at = Timestamp::from(self.time_provider.now());
@@ -865,11 +869,19 @@ impl PartitionRepo for MemTxn {
             Some(s) => {
                 s.reason = reason;
                 s.skipped_at = skipped_at;
+                s.num_files = num_files as i64;
+                s.limit_num_files = limit_num_files as i64;
+                s.estimated_bytes = estimated_bytes as i64;
+                s.limit_bytes = limit_bytes as i64;
             }
             None => stage.skipped_compactions.push(SkippedCompaction {
                 partition_id,
                 reason,
                 skipped_at,
+                num_files: num_files as i64,
+                limit_num_files: limit_num_files as i64,
+                estimated_bytes: estimated_bytes as i64,
+                limit_bytes: limit_bytes as i64,
             }),
         }
         Ok(())

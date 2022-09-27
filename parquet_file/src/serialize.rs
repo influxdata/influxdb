@@ -174,12 +174,10 @@ where
 /// serialising the given [`IoxMetadata`] and embedding it as a key=value
 /// property keyed by [`METADATA_KEY`].
 fn writer_props(meta: &IoxMetadata) -> Result<WriterProperties, prost::EncodeError> {
-    let bytes = meta.to_protobuf()?;
-
     let builder = WriterProperties::builder()
         .set_key_value_metadata(Some(vec![KeyValue {
             key: METADATA_KEY.to_string(),
-            value: Some(base64::encode(&bytes)),
+            value: Some(meta.to_base64()?),
         }]))
         .set_compression(Compression::ZSTD)
         .set_max_row_group_size(ROW_GROUP_WRITE_SIZE);

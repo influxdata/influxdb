@@ -329,7 +329,7 @@ impl FieldValue for u64 {
 
 #[cfg(test)]
 mod tests {
-    use crate::{parse_lines, ParsedLine};
+    use crate::{parse_lines, FieldSet, ParsedLine};
 
     use super::*;
 
@@ -506,5 +506,32 @@ mod tests {
         let get_timestamp = |n: usize| parsed_lines[n].timestamp;
         assert_eq!(get_timestamp(11), None);
         assert_eq!(get_timestamp(12), Some(1234));
+    }
+
+    #[test]
+    fn test_float_formatting() {
+        // ensure that my_float is printed in a way that it is parsed
+        // as a float (not an int)
+        let builder = LineProtocolBuilder::new()
+            .measurement("tag_keys")
+            .tag("foo", "bar")
+            .field("my_float", 3.0)
+            .close_line();
+
+        let lp = String::from_utf8(builder.build()).unwrap();
+        println!("-----\n{lp}-----");
+
+        let parsed_lines = parse_lines(&lp)
+            .collect::<Result<Vec<ParsedLine<'_>>, _>>()
+            .unwrap();
+
+        assert_eq!(parsed_lines.len(), 1);
+        let parsed_line = &parsed_lines[0];
+
+        let expected_fields = vec![("my_float".into(), crate::FieldValue::F64(3.0))]
+            .into_iter()
+            .collect::<FieldSet<'_>>();
+
+        assert_eq!(parsed_line.field_set, expected_fields)
     }
 }
