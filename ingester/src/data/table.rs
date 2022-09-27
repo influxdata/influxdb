@@ -9,7 +9,9 @@ use mutable_batch::MutableBatch;
 use snafu::ResultExt;
 use write_summary::ShardProgress;
 
-use super::partition::{PartitionData, PartitionStatus, UnpersistedPartitionData};
+use super::partition::{
+    resolver::PartitionProvider, PartitionData, PartitionStatus, UnpersistedPartitionData,
+};
 use crate::lifecycle::LifecycleHandle;
 
 /// Data of a Table in a given Namesapce that belongs to a given Shard
@@ -23,17 +25,32 @@ pub(crate) struct TableData {
 
     // the max sequence number for a tombstone associated with this table
     tombstone_max_sequence_number: Option<SequenceNumber>,
+
+    /// An abstract constructor of [`PartitionData`] instances for a given
+    /// `(key, shard, table)` triplet.
+    partition_provider: Arc<dyn PartitionProvider>,
+
     // Map pf partition key to its data
     pub(super) partition_data: BTreeMap<PartitionKey, PartitionData>,
 }
 
 impl TableData {
-    /// Initialize new table buffer
+    /// Initialize new table buffer identified by [`TableId`] in the catalog.
+    ///
+    /// Optionally the given tombstone max [`SequenceNumber`] identifies the
+    /// inclusive upper bound of tombstones associated with this table. Any data
+    /// greater than this value is guaranteed to not (yet) have a delete
+    /// tombstone that must be resolved.
+    ///
+    /// The partition provider is used to instantiate a [`PartitionData`]
+    /// instance when this [`TableData`] instance observes an op for a partition
+    /// for the first time.
     pub fn new(
         table_id: TableId,
         table_name: &str,
         shard_id: ShardId,
         tombstone_max_sequence_number: Option<SequenceNumber>,
+        partition_provider: Arc<dyn PartitionProvider>,
     ) -> Self {
         Self {
             table_id,
@@ -41,6 +58,7 @@ impl TableData {
             shard_id,
             tombstone_max_sequence_number,
             partition_data: Default::default(),
+            partition_provider,
         }
     }
 
@@ -66,14 +84,25 @@ impl TableData {
         sequence_number: SequenceNumber,
         batch: MutableBatch,
         partition_key: PartitionKey,
-        catalog: &dyn Catalog,
         lifecycle_handle: &dyn LifecycleHandle,
     ) -> Result<bool, super::Error> {
         let partition_data = match self.partition_data.get_mut(&partition_key) {
             Some(p) => p,
             None => {
-                self.insert_partition(partition_key.clone(), self.shard_id, catalog)
-                    .await?;
+                let p = self
+                    .partition_provider
+                    .get_partition(
+                        partition_key.clone(),
+                        self.shard_id,
+                        self.table_id,
+                        Arc::clone(&self.table_name),
+                    )
+                    .await;
+                // Add the partition to the map.
+                assert!(self
+                    .partition_data
+                    .insert(partition_key.clone(), p)
+                    .is_none());
                 self.partition_data.get_mut(&partition_key).unwrap()
             }
         };
@@ -147,34 +176,6 @@ impl TableData {
                 },
             })
             .collect()
-    }
-
-    async fn insert_partition(
-        &mut self,
-        partition_key: PartitionKey,
-        shard_id: ShardId,
-        catalog: &dyn Catalog,
-    ) -> Result<(), super::Error> {
-        let partition = catalog
-            .repositories()
-            .await
-            .partitions()
-            .create_or_get(partition_key, shard_id, self.table_id)
-            .await
-            .context(super::CatalogSnafu)?;
-
-        self.partition_data.insert(
-            partition.partition_key,
-            PartitionData::new(
-                partition.id,
-                shard_id,
-                self.table_id,
-                Arc::clone(&self.table_name),
-                partition.persisted_sequence_number,
-            ),
-        );
-
-        Ok(())
     }
 
     /// Return progress from this Table

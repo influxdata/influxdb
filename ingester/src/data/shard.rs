@@ -58,14 +58,14 @@ impl ShardData {
     pub(super) async fn buffer_operation(
         &self,
         dml_operation: DmlOperation,
-        catalog: &dyn Catalog,
+        catalog: &Arc<dyn Catalog>,
         lifecycle_handle: &dyn LifecycleHandle,
         executor: &Executor,
     ) -> Result<bool, super::Error> {
         let namespace_data = match self.namespace(dml_operation.namespace()) {
             Some(d) => d,
             None => {
-                self.insert_namespace(dml_operation.namespace(), catalog)
+                self.insert_namespace(dml_operation.namespace(), &**catalog)
                     .await?
             }
         };

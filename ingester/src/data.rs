@@ -164,12 +164,7 @@ impl IngesterData {
             .get(&shard_id)
             .context(ShardNotFoundSnafu { shard_id })?;
         shard_data
-            .buffer_operation(
-                dml_operation,
-                self.catalog.as_ref(),
-                lifecycle_handle,
-                &self.exec,
-            )
+            .buffer_operation(dml_operation, &self.catalog, lifecycle_handle, &self.exec)
             .await
     }
 
@@ -1346,12 +1341,7 @@ mod tests {
         // to 1 already, so it shouldn't be buffered and the buffer should
         // remain empty.
         let should_pause = data
-            .buffer_operation(
-                DmlOperation::Write(w1),
-                catalog.as_ref(),
-                &manager.handle(),
-                &exec,
-            )
+            .buffer_operation(DmlOperation::Write(w1), &catalog, &manager.handle(), &exec)
             .await
             .unwrap();
         {
@@ -1367,14 +1357,9 @@ mod tests {
         assert!(!should_pause);
 
         // w2 should be in the buffer
-        data.buffer_operation(
-            DmlOperation::Write(w2),
-            catalog.as_ref(),
-            &manager.handle(),
-            &exec,
-        )
-        .await
-        .unwrap();
+        data.buffer_operation(DmlOperation::Write(w2), &catalog, &manager.handle(), &exec)
+            .await
+            .unwrap();
 
         let table_data = data.table_data("mem").unwrap();
         let table = table_data.read().await;
