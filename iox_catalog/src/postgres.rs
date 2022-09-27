@@ -1377,6 +1377,17 @@ WHERE id = $2;
 
         Ok(())
     }
+
+    async fn most_recent_n(&mut self, n: usize, shards: &[ShardId]) -> Result<Vec<Partition>> {
+        sqlx::query_as(
+            r#"SELECT * FROM partition WHERE shard_id IN (SELECT UNNEST($1)) ORDER BY id DESC LIMIT $2;"#,
+        )
+        .bind(shards.iter().map(|v| v.get()).collect::<Vec<_>>())
+        .bind(n as i64)
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
+    }
 }
 
 #[async_trait]

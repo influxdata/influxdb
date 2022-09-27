@@ -494,6 +494,9 @@ pub trait PartitionRepo: Send + Sync {
         partition_id: PartitionId,
         sequence_number: SequenceNumber,
     ) -> Result<()>;
+
+    /// Return the N most recently created partitions for the specified shards.
+    async fn most_recent_n(&mut self, n: usize, shards: &[ShardId]) -> Result<Vec<Partition>>;
 }
 
 /// Functions for working with tombstones in the catalog
@@ -1648,6 +1651,27 @@ pub(crate) mod test_helpers {
             partition.persisted_sequence_number,
             Some(SequenceNumber::new(42))
         );
+
+        let recent = repos
+            .partitions()
+            .most_recent_n(10, &[shard.id, other_shard.id])
+            .await
+            .expect("should list most recent");
+        assert_eq!(recent.len(), 4);
+
+        let recent = repos
+            .partitions()
+            .most_recent_n(10, &[shard.id])
+            .await
+            .expect("should list most recent");
+        assert_eq!(recent.len(), 3);
+
+        let recent2 = repos
+            .partitions()
+            .most_recent_n(10, &[shard.id, ShardId::new(42)])
+            .await
+            .expect("should list most recent");
+        assert_eq!(recent, recent2);
     }
 
     async fn test_tombstone(catalog: Arc<dyn Catalog>) {
