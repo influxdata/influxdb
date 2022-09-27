@@ -76,6 +76,10 @@ remove_sort_selector
 remove_sort_filter_range
 remove_sort_aggregate_window
 remove_sort_join
+# vectorization-related tests
+logical_typed_null_vectorized_const
+logical_untyped_null_vectorized_const
+
 vec_conditional_bool
 vec_conditional_bool_repeat
 vec_conditional_time
@@ -111,12 +115,16 @@ vec_equality_string
 vec_equality_string_repeat
 vec_equality_bool
 vec_equality_casts
+vec_nested_logical_conditional_repro
+vec_nested_logical_conditional_repro2
 vec_with_float
 vec_with_float_const
 vec_with_unary_add
 vec_with_unary_sub
 vec_with_unary_not
 vec_with_unary_exists
+vectorize_div_by_zero_int_const
+vectorize_div_by_zero_int_const_const
 
 # Other skipped tests
 align_time
@@ -147,6 +155,22 @@ shapeData
 shift_negative_duration
 unique
 window_null
+
+# Needs feature flag labelPolymorphism
+label_to_string
+
+# Bug https://github.com/influxdata/flux/issues/5232
+#   Or, needs feature flag strictNullLogicalOps
+logical_typed_null_interp
+
+# https://github.com/influxdata/influxdb/issues/23757
+# Flux acceptance tests for group |> first (and last)
+push_down_group_one_tag_first
+push_down_group_all_filter_field_first
+push_down_group_one_tag_filter_field_first
+push_down_group_one_tag_last
+push_down_group_all_filter_field_last
+push_down_group_one_tag_filter_field_last
 
 group_one_tag_last              # broken (fixed in flux@3d6f47ded)
 group_all_filter_field_last     # broken (fixed in flux@3d6f47ded)
