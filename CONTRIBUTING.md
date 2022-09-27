@@ -2,7 +2,7 @@
 
 ## How to report a bug
 
-Before you report an issue, please search existing issues to check whether it's
+Before you report an issue, please [search existing issues](https://github.com/influxdata/influxdb/issues) to check whether it's
 already been reported, or perhaps even fixed.
 If you choose to report an issue, please include the following in your report:
 
@@ -88,31 +88,11 @@ In your feature request, please include the following:
 If you find your request already exists in a Github issue,
 please indicate your support for the existing issue by using the "thumbs up" reaction.
 
-## Submitting a pull request
-
 ## How to submit a pull request
 
-To assist in review for the PR, please add the following to your pull request comment:
-
-1. If you haven't already, please [sign the CLA](#sign-the-cla).
-2. Fork the `influxdata/influxdb` repository.
-3. Checkout a feature branch in your fork.
-4. In your feature branch, make your change and run the test suite (given you won't be able to merge if tests fail).
-5. Commit your change.
-6. Generate a pull request (PR) from your branch against the **master** branch of `influxdata/influxdb`.
-7. Include the following in your PR description:
-
-   ```md
-   <!-- Provide details of your change--the why *and* the how--as well as the testing you performed. -->
-
-   <!-- Complete the following steps and mark each with an 'X' when completed -->
-   - [ ] CHANGELOG.md updated
-   - [ ] Rebased/mergable
-   - [ ] Tests pass
-   - [ ] Sign [CLA](https://influxdata.com/community/cla/) (if not already signed)
-   ```
-8. Expect some deliberation as we review and finalize the change.
-9. Once approved, your PR may be merged.
+When [creating a pull request](https://github.com/influxdata/influxdb/compare) for your change, please follow the instructions in the pull request template and provide the requested information to help us review your PR.
+After you complete the template steps and submit the PR, expect some deliberation as we review and finalize the change.
+Once your PR is approved, you can merge it.
 
 ## How to report security vulnerabilities
 
