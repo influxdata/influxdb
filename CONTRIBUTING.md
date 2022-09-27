@@ -88,9 +88,9 @@ In your feature request, please include the following:
 If you find your request already exists in a Github issue,
 please indicate your support for the existing issue by using the "thumbs up" reaction.
 
-## How to submit a pull request
+## How to submit a pull (change) request
 
-When [creating a pull request](https://github.com/influxdata/influxdb/compare) for your change, please follow the instructions in the pull request template and provide the requested information to help us review your PR.
+To submit a change for code or documentation in this repository, please [create a pull request](https://github.com/influxdata/influxdb/compare) and follow the instructions in the pull request template to help us review your PR.
 After you complete the template steps and submit the PR, expect some deliberation as we review and finalize the change.
 Once your PR is approved, you can merge it.
 
