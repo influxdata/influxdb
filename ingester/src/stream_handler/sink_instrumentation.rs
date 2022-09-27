@@ -17,7 +17,7 @@ use super::DmlSink;
 /// # Caching
 ///
 /// Implementations may cache the watermark and return inaccurate values.
-pub trait WatermarkFetcher: Debug + Send + Sync {
+pub(crate) trait WatermarkFetcher: Debug + Send + Sync {
     /// Return a watermark if available.
     fn watermark(&self) -> Option<i64>;
 }
@@ -37,7 +37,7 @@ pub trait WatermarkFetcher: Debug + Send + Sync {
 /// instance is running on, and the routers. If either of these clocks are
 /// incorrect/skewed/drifting the metrics emitted may be incorrect.
 #[derive(Debug)]
-pub struct SinkInstrumentation<F, T, P = SystemProvider> {
+pub(crate) struct SinkInstrumentation<F, T, P = SystemProvider> {
     /// The [`DmlSink`] impl this layer decorates.
     ///
     /// All ops this impl is called with are passed into `inner` for processing.
@@ -78,7 +78,7 @@ where
     /// The current high watermark is read from `watermark_fetcher` and used to
     /// derive some metric values (such as lag). This impl is tolerant of
     /// cached/stale watermark values being returned by `watermark_fetcher`.
-    pub fn new(
+    pub(crate) fn new(
         inner: T,
         watermark_fetcher: F,
         topic_name: String,

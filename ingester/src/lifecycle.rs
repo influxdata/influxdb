@@ -21,7 +21,7 @@ use crate::{
     poison::{PoisonCabinet, PoisonPill},
 };
 
-/// API suitable for ingester tasks to query and update the [`LifecycleManager`] state.
+/// API suitable for ingester tasks to query and update the server lifecycle state.
 pub trait LifecycleHandle: Send + Sync + 'static {
     /// Logs bytes written into a partition so that it can be tracked for the manager to
     /// trigger persistence. Returns true if the ingester should pause consuming from the
@@ -46,7 +46,7 @@ pub trait LifecycleHandle: Send + Sync + 'static {
 /// This handle presents an API suitable for ingester tasks to query and update
 /// the [`LifecycleManager`] state.
 #[derive(Debug, Clone)]
-pub struct LifecycleHandleImpl {
+pub(crate) struct LifecycleHandleImpl {
     time_provider: Arc<dyn TimeProvider>,
 
     config: Arc<LifecycleConfig>,
@@ -113,7 +113,7 @@ impl LifecycleHandle for LifecycleHandleImpl {
 /// A [`LifecycleManager`] MUST be driven by an external actor periodically
 /// calling [`LifecycleManager::maybe_persist()`].
 #[derive(Debug)]
-pub struct LifecycleManager {
+pub(crate) struct LifecycleManager {
     config: Arc<LifecycleConfig>,
     time_provider: Arc<dyn TimeProvider>,
     job_registry: Arc<JobRegistry>,
@@ -280,7 +280,7 @@ impl LifecycleManager {
     }
 
     /// Acquire a shareable [`LifecycleHandle`] for this manager instance.
-    pub fn handle(&self) -> LifecycleHandleImpl {
+    pub(super) fn handle(&self) -> LifecycleHandleImpl {
         LifecycleHandleImpl {
             time_provider: Arc::clone(&self.time_provider),
             config: Arc::clone(&self.config),

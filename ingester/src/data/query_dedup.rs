@@ -39,7 +39,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Query a given Queryable Batch, applying selection and filters as appropriate
 /// Return stream of record batches
-pub async fn query(
+pub(crate) async fn query(
     executor: &Executor,
     data: Arc<QueryableBatch>,
 ) -> Result<SendableRecordBatchStream> {

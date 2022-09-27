@@ -11,7 +11,7 @@ use crate::{data::IngesterData, lifecycle::LifecycleHandleImpl};
 
 /// Provides a [`DmlSink`] implementation for a [`IngesterData`] instance.
 #[derive(Debug)]
-pub struct IngestSinkAdaptor {
+pub(crate) struct IngestSinkAdaptor {
     ingest_data: Arc<IngesterData>,
     lifecycle_handle: LifecycleHandleImpl,
     shard_id: ShardId,
@@ -20,7 +20,7 @@ pub struct IngestSinkAdaptor {
 impl IngestSinkAdaptor {
     /// Wrap an [`IngesterData`] in an adaptor layer to provide a [`DmlSink`]
     /// implementation.
-    pub fn new(
+    pub(crate) fn new(
         ingest_data: Arc<IngesterData>,
         lifecycle_handle: LifecycleHandleImpl,
         shard_id: ShardId,

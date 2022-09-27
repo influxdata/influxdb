@@ -98,14 +98,17 @@ pub struct IngesterData {
 
 impl IngesterData {
     /// Create new instance.
-    pub fn new(
+    pub fn new<T>(
         object_store: Arc<DynObjectStore>,
         catalog: Arc<dyn Catalog>,
-        shards: BTreeMap<ShardId, ShardData>,
+        shards: T,
         exec: Arc<Executor>,
         backoff_config: BackoffConfig,
         metrics: Arc<metric::Registry>,
-    ) -> Self {
+    ) -> Self
+    where
+        T: IntoIterator<Item = (ShardId, ShardIndex)>,
+    {
         let persisted_file_size_bytes = metrics.register_metric_with_options(
             "ingester_persisted_file_size_bytes",
             "Size of files persisted by the ingester",
@@ -120,6 +123,11 @@ impl IngesterData {
                 ])
             },
         );
+
+        let shards = shards
+            .into_iter()
+            .map(|(id, index)| (id, ShardData::new(index, id, Arc::clone(&metrics))))
+            .collect();
 
         Self {
             store: ParquetStorage::new(object_store),
@@ -137,7 +145,7 @@ impl IngesterData {
     }
 
     /// Get shard data for specific shard.
-    #[allow(dead_code)] // Used in tests
+    #[cfg(test)]
     pub(crate) fn shard(&self, shard_id: ShardId) -> Option<&ShardData> {
         self.shards.get(&shard_id)
     }
@@ -170,7 +178,7 @@ impl IngesterData {
 
     /// Return the ingestion progress for the specified shards
     /// Returns an empty `ShardProgress` for any shards that this ingester doesn't know about.
-    pub(crate) async fn progresses(
+    pub(super) async fn progresses(
         &self,
         shard_indexes: Vec<ShardIndex>,
     ) -> BTreeMap<ShardIndex, ShardProgress> {
@@ -563,7 +571,7 @@ impl IngesterQueryResponse {
 }
 
 /// Flattened version of [`IngesterQueryResponse`].
-pub type FlatIngesterQueryResponseStream =
+pub(crate) type FlatIngesterQueryResponseStream =
     Pin<Box<dyn Stream<Item = Result<FlatIngesterQueryResponse, ArrowError>> + Send>>;
 
 /// Element within the flat wire protocol.
@@ -645,19 +653,12 @@ mod tests {
             .await
             .unwrap();
 
-        let mut shards = BTreeMap::new();
-        let shard_index = ShardIndex::new(0);
-        shards.insert(
-            shard1.id,
-            ShardData::new(shard_index, shard1.id, Arc::clone(&metrics)),
-        );
-
         let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
 
         let data = Arc::new(IngesterData::new(
             Arc::clone(&object_store),
             Arc::clone(&catalog),
-            shards,
+            [(shard1.id, shard_index)],
             Arc::new(Executor::new(1)),
             BackoffConfig::default(),
             Arc::clone(&metrics),
@@ -732,18 +733,13 @@ mod tests {
             .create_or_get(&topic, shard_index)
             .await
             .unwrap();
-        let mut shards = BTreeMap::new();
-        shards.insert(
-            shard1.id,
-            ShardData::new(shard1.shard_index, shard1.id, Arc::clone(&metrics)),
-        );
 
         let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
 
         let data = Arc::new(IngesterData::new(
             Arc::clone(&object_store),
             Arc::clone(&catalog),
-            shards,
+            [(shard1.id, shard1.shard_index)],
             Arc::new(Executor::new(1)),
             BackoffConfig::default(),
             Arc::clone(&metrics),
@@ -837,22 +833,16 @@ mod tests {
             .create_or_get(&topic, shard_index)
             .await
             .unwrap();
-        let mut shards = BTreeMap::new();
-        shards.insert(
-            shard1.id,
-            ShardData::new(shard1.shard_index, shard1.id, Arc::clone(&metrics)),
-        );
-        shards.insert(
-            shard2.id,
-            ShardData::new(shard2.shard_index, shard2.id, Arc::clone(&metrics)),
-        );
 
         let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
 
         let data = Arc::new(IngesterData::new(
             Arc::clone(&object_store),
             Arc::clone(&catalog),
-            shards,
+            [
+                (shard1.id, shard1.shard_index),
+                (shard2.id, shard2.shard_index),
+            ],
             Arc::new(Executor::new(1)),
             BackoffConfig::default(),
             Arc::clone(&metrics),
@@ -1093,22 +1083,16 @@ mod tests {
             .create_or_get(&topic, shard_index)
             .await
             .unwrap();
-        let mut shards = BTreeMap::new();
-        shards.insert(
-            shard1.id,
-            ShardData::new(shard1.shard_index, shard1.id, Arc::clone(&metrics)),
-        );
-        shards.insert(
-            shard2.id,
-            ShardData::new(shard2.shard_index, shard2.id, Arc::clone(&metrics)),
-        );
 
         let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
 
         let data = Arc::new(IngesterData::new(
             Arc::clone(&object_store),
             Arc::clone(&catalog),
-            shards,
+            [
+                (shard1.id, shard1.shard_index),
+                (shard2.id, shard2.shard_index),
+            ],
             Arc::new(Executor::new(1)),
             BackoffConfig::default(),
             Arc::clone(&metrics),
@@ -1392,20 +1376,14 @@ mod tests {
             .create_or_get(&topic, shard_index)
             .await
             .unwrap();
-
-        let mut shards = BTreeMap::new();
         let shard_index = ShardIndex::new(0);
-        shards.insert(
-            shard1.id,
-            ShardData::new(shard_index, shard1.id, Arc::clone(&metrics)),
-        );
 
         let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
 
         let data = Arc::new(IngesterData::new(
             Arc::clone(&object_store),
             Arc::clone(&catalog),
-            shards,
+            [(shard1.id, shard_index)],
             Arc::new(Executor::new(1)),
             BackoffConfig::default(),
             Arc::clone(&metrics),

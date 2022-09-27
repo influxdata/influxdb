@@ -14,9 +14,7 @@ use generated_types::{
 };
 use influxdb_iox_client::flight::{low_level::LowLevelMessage, Error as FlightError};
 use ingester::{
-    data::{
-        shard::ShardData, FlatIngesterQueryResponse, IngesterData, IngesterQueryResponse, Persister,
-    },
+    data::{FlatIngesterQueryResponse, IngesterData, IngesterQueryResponse, Persister},
     lifecycle::LifecycleHandle,
     querier_handler::prepare_data_to_querier,
 };
@@ -35,7 +33,7 @@ use schema::selection::Selection;
 use sharder::JumpHash;
 use std::{
     cmp::Ordering,
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{HashMap, HashSet},
     fmt::Display,
     fmt::Write,
     sync::Arc,
@@ -693,18 +691,10 @@ impl MockIngester {
         let ns = catalog.create_namespace("test_db").await;
         let shard = ns.create_shard(1).await;
 
-        let shards = BTreeMap::from([(
-            shard.shard.id,
-            ShardData::new(
-                shard.shard.shard_index,
-                shard.shard.id,
-                catalog.metric_registry(),
-            ),
-        )]);
         let ingester_data = Arc::new(IngesterData::new(
             catalog.object_store(),
             catalog.catalog(),
-            shards,
+            [(shard.shard.id, shard.shard.shard_index)],
             catalog.exec(),
             BackoffConfig::default(),
             catalog.metric_registry(),

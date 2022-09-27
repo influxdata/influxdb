@@ -1,3 +1,5 @@
+//! A handler of streamed ops from a write buffer.
+
 use std::{fmt::Debug, time::Duration};
 
 use data_types::{SequenceNumber, ShardIndex};
@@ -32,7 +34,7 @@ const INGEST_POLL_INTERVAL: Duration = Duration::from_millis(100);
 /// [`LifecycleManager`]: crate::lifecycle::LifecycleManager
 /// [`LifecycleHandle::can_resume_ingest()`]: crate::lifecycle::LifecycleHandle::can_resume_ingest()
 #[derive(Debug)]
-pub struct SequencedStreamHandler<I, O, T = SystemProvider> {
+pub(crate) struct SequencedStreamHandler<I, O, T = SystemProvider> {
     /// Creator/manager of the stream of DML ops
     write_buffer_stream_handler: I,
 
@@ -80,7 +82,7 @@ impl<I, O> SequencedStreamHandler<I, O> {
     /// `stream` once [`SequencedStreamHandler::run()`] is called, and
     /// gracefully stops when `shutdown` is cancelled.
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub(crate) fn new(
         write_buffer_stream_handler: I,
         current_sequence_number: SequenceNumber,
         sink: O,

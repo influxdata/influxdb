@@ -13,16 +13,16 @@
     clippy::clone_on_ref_ptr
 )]
 
-pub mod compact;
+pub(crate) mod compact;
 pub mod data;
 pub mod handler;
 mod job;
 pub mod lifecycle;
 mod poison;
 pub mod querier_handler;
-pub mod query;
+pub(crate) mod query;
 pub mod server;
-pub mod stream_handler;
+pub(crate) mod stream_handler;
 
 #[cfg(test)]
-pub mod test_util;
+pub(crate) mod test_util;

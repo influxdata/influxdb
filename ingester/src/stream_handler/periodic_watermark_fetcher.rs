@@ -32,7 +32,7 @@ pub struct PeriodicWatermarkFetcher {
 impl PeriodicWatermarkFetcher {
     /// Instantiate a new [`PeriodicWatermarkFetcher`] that polls `write_buffer`
     /// every `interval` period for the maximum offset for `shard_index`.
-    pub fn new(
+    pub(crate) fn new(
         write_buffer: Arc<dyn WriteBufferReading>,
         shard_index: ShardIndex,
         interval: Duration,
@@ -61,7 +61,7 @@ impl PeriodicWatermarkFetcher {
     ///
     /// If the watermark value has yet to be observed (i.e. due to continuous
     /// fetch errors) `None` is returned.
-    pub fn cached_watermark(&self) -> Option<i64> {
+    pub(crate) fn cached_watermark(&self) -> Option<i64> {
         match self.last_watermark.load(Ordering::Relaxed) {
             // A value of 0 means "never observed a watermark".
             0 => None,
