@@ -346,8 +346,7 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 			werr = err
 			addedSize -= uint64(Values(v).Size())
 			c.decreaseSize(uint64(Values(v).Size()))
-		}
-		if newKey {
+		} else if newKey {
 			addedSize += uint64(len(k))
 			c.increaseSize(uint64(len(k)))
 		}
