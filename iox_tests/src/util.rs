@@ -961,5 +961,5 @@ fn dedup_batch(record_batch: RecordBatch, sort_key: &SortKey) -> RecordBatch {
         batches.push(batch);
     }
 
-    RecordBatch::concat(&schema, &batches).unwrap()
+    arrow::compute::concat_batches(&schema, &batches).unwrap()
 }

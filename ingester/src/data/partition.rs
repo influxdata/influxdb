@@ -243,10 +243,11 @@ impl PartitionData {
         // Merge all result record batches into one record batch
         // and make a snapshot for it
         let snapshot = if !record_batches.is_empty() {
-            let record_batch = RecordBatch::concat(&record_batches[0].schema(), &record_batches)
-                .unwrap_or_else(|e| {
-                    panic!("unable to concat record batches: {:?}", e);
-                });
+            let record_batch =
+                arrow::compute::concat_batches(&record_batches[0].schema(), &record_batches)
+                    .unwrap_or_else(|e| {
+                        panic!("unable to concat record batches: {:?}", e);
+                    });
             let snapshot = SnapshotBatch {
                 min_sequence_number,
                 max_sequence_number,

@@ -100,7 +100,8 @@ impl SeriesSetConverter {
         let batches = collect(it).await.context(ReadingSnafu)?;
 
         let batch = if !batches.is_empty() {
-            RecordBatch::concat(&batches[0].schema(), &batches).context(ConcatenatingSnafu)?
+            arrow::compute::concat_batches(&batches[0].schema(), &batches)
+                .context(ConcatenatingSnafu)?
         } else {
             return Ok(vec![]);
         };
