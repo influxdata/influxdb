@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use arrow::{
     array::{new_null_array, ArrayRef, StringArray},
+    compute::concat_batches,
     datatypes::SchemaRef,
     error::ArrowError,
     record_batch::RecordBatch,
@@ -73,5 +74,5 @@ pub fn merge_record_batches(
         return Ok(None);
     }
 
-    Ok(Some(RecordBatch::concat(output_schema, &batches)?))
+    Ok(Some(concat_batches(output_schema, &batches)?))
 }

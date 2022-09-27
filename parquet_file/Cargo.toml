@@ -5,7 +5,7 @@ authors = ["Nga Tran <nga-tran@live.com>"]
 edition = "2021"
 
 [dependencies] # In alphabetical order
-arrow = { version = "22.0.0", features = ["prettyprint"] }
+arrow = { version = "23.0.0", features = ["prettyprint"] }
 base64 = "0.13"
 bytes = "1.2"
 data_types = { path = "../data_types" }
@@ -17,14 +17,13 @@ iox_time = { path = "../iox_time" }
 object_store = "0.5.0"
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.12"
-parquet = {version = "22.0.0", features = ["experimental"]}
-parquet-format = "4.0"
+parquet = {version = "23.0.0", features = ["experimental"]}
 pbjson-types = "0.5"
 predicate = { path = "../predicate" }
 prost = "0.11"
 schema = { path = "../schema" }
 snafu = "0.7"
-thrift = "0.13"
+thrift = "0.16"
 tokio = { version = "1.21", features = ["macros", "parking_lot", "rt", "rt-multi-thread", "sync"] }
 uuid = { version = "1", features = ["v4"] }
 zstd = "0.11"

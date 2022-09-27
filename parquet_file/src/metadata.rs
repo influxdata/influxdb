@@ -604,7 +604,7 @@ impl IoxParquetMetaData {
             .map(|rg| rg.to_thrift())
             .collect();
 
-        let thrift_file_metadata = parquet_format::FileMetaData {
+        let thrift_file_metadata = parquet::format::FileMetaData {
             version: file_metadata.version(),
             schema: thrift_schema,
 
@@ -635,7 +635,7 @@ impl IoxParquetMetaData {
         // step 2: load thrift data from byte stream
         let thrift_file_metadata = {
             let mut protocol = TCompactInputProtocol::new(&data[..]);
-            parquet_format::FileMetaData::read_from_in_protocol(&mut protocol)
+            parquet::format::FileMetaData::read_from_in_protocol(&mut protocol)
                 .context(ThriftReadFailureSnafu {})?
         };
 
@@ -674,10 +674,10 @@ impl IoxParquetMetaData {
     }
 }
 
-impl TryFrom<parquet_format::FileMetaData> for IoxParquetMetaData {
+impl TryFrom<parquet::format::FileMetaData> for IoxParquetMetaData {
     type Error = Error;
 
-    fn try_from(v: parquet_format::FileMetaData) -> Result<Self, Self::Error> {
+    fn try_from(v: parquet::format::FileMetaData) -> Result<Self, Self::Error> {
         let mut buffer = Vec::new();
         {
             let mut protocol = TCompactOutputProtocol::new(&mut buffer);

@@ -81,13 +81,13 @@ pub enum CodecError {
 /// data was serialised.
 ///
 /// [`proto::IoxMetadata`]: generated_types::influxdata::iox::ingester::v1
-/// [`FileMetaData`]: parquet_format::FileMetaData
+/// [`FileMetaData`]: parquet::format::FileMetaData
 /// [`IoxParquetMetaData`]: crate::metadata::IoxParquetMetaData
 pub async fn to_parquet<S, W>(
     batches: S,
     meta: &IoxMetadata,
     sink: W,
-) -> Result<parquet_format::FileMetaData, CodecError>
+) -> Result<parquet::format::FileMetaData, CodecError>
 where
     S: Stream<Item = Result<RecordBatch, ArrowError>> + Send,
     W: Write + Send,
@@ -148,7 +148,7 @@ where
 pub async fn to_parquet_bytes<S>(
     batches: S,
     meta: &IoxMetadata,
-) -> Result<(Vec<u8>, parquet_format::FileMetaData), CodecError>
+) -> Result<(Vec<u8>, parquet::format::FileMetaData), CodecError>
 where
     S: Stream<Item = Result<RecordBatch, ArrowError>> + Send,
 {

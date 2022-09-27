@@ -285,7 +285,8 @@ impl<W: Write> Runner<W> {
             // compare against sorted results, if requested
             if query.sorted_compare() && !results.is_empty() {
                 let schema = results[0].schema();
-                let batch = RecordBatch::concat(&schema, &results).expect("concatenating batches");
+                let batch = arrow::compute::concat_batches(&schema, &results)
+                    .expect("concatenating batches");
                 results = vec![sort_record_batch(batch)];
             }
 

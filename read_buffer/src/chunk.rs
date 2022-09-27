@@ -407,8 +407,7 @@ impl ChunkBuilder {
         // contiguous block of memory. To reduce memory overhead we can avoid
         // the concatenation and teach the `RowGroup` to build itself from a
         // vec of record batches.
-        let concat_batch =
-            arrow::record_batch::RecordBatch::concat(&self.schema, &self.record_batches)?;
+        let concat_batch = arrow::compute::concat_batches(&self.schema, &self.record_batches)?;
 
         self.row_groups
             .push(record_batch_to_row_group(concat_batch));
