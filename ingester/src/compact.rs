@@ -52,20 +52,20 @@ pub enum Error {
 }
 
 /// A specialized `Error` for Ingester's Compact errors
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Result of calling [`compact_persisting_batch`]
-pub struct CompactedStream {
+pub(crate) struct CompactedStream {
     /// A stream of compacted, deduplicated
     /// [`RecordBatch`](arrow::record_batch::RecordBatch)es
-    pub stream: SendableRecordBatchStream,
+    pub(crate) stream: SendableRecordBatchStream,
     /// Metadata for `stream`
-    pub iox_metadata: IoxMetadata,
+    pub(crate) iox_metadata: IoxMetadata,
     /// An updated [`SortKey`], if any.  If returned, the compaction
     /// required extending the partition's [`SortKey`] (typically
     /// because new columns were in this parquet file that were not in
     /// previous files).
-    pub sort_key_update: Option<SortKey>,
+    pub(crate) sort_key_update: Option<SortKey>,
 }
 
 impl std::fmt::Debug for CompactedStream {
@@ -80,7 +80,7 @@ impl std::fmt::Debug for CompactedStream {
 
 /// Compact a given persisting batch into a [`CompactedStream`] or
 /// `None` if there is no data to compact.
-pub async fn compact_persisting_batch(
+pub(crate) async fn compact_persisting_batch(
     time_provider: Arc<dyn TimeProvider>,
     executor: &Executor,
     namespace_id: i64,
@@ -127,14 +127,14 @@ pub async fn compact_persisting_batch(
     let (_min_seq, max_seq) = batch.data.min_max_sequence_numbers();
 
     let iox_metadata = IoxMetadata {
-        object_store_id: batch.object_store_id,
+        object_store_id: batch.object_store_id(),
         creation_timestamp: time_provider.now(),
-        shard_id: batch.shard_id,
+        shard_id: batch.shard_id(),
         namespace_id: NamespaceId::new(namespace_id),
         namespace_name: Arc::from(namespace_name.as_str()),
-        table_id: batch.table_id,
+        table_id: batch.table_id(),
         table_name: Arc::from(table_name.as_str()),
-        partition_id: batch.partition_id,
+        partition_id: batch.partition_id(),
         partition_key: partition_key.clone(),
         max_sequence_number: max_seq,
         compaction_level: CompactionLevel::Initial,
@@ -149,7 +149,7 @@ pub async fn compact_persisting_batch(
 }
 
 /// Compact a given Queryable Batch
-pub async fn compact(
+pub(crate) async fn compact(
     executor: &Executor,
     data: Arc<QueryableBatch>,
     sort_key: SortKey,

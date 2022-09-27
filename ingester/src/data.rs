@@ -145,7 +145,7 @@ impl IngesterData {
     }
 
     /// Get shard data for specific shard.
-    #[allow(dead_code)] // Used in tests
+    #[cfg(test)]
     pub(crate) fn shard(&self, shard_id: ShardId) -> Option<&ShardData> {
         self.shards.get(&shard_id)
     }
@@ -178,7 +178,7 @@ impl IngesterData {
 
     /// Return the ingestion progress for the specified shards
     /// Returns an empty `ShardProgress` for any shards that this ingester doesn't know about.
-    pub(crate) async fn progresses(
+    pub(super) async fn progresses(
         &self,
         shard_indexes: Vec<ShardIndex>,
     ) -> BTreeMap<ShardIndex, ShardProgress> {
@@ -571,7 +571,7 @@ impl IngesterQueryResponse {
 }
 
 /// Flattened version of [`IngesterQueryResponse`].
-pub type FlatIngesterQueryResponseStream =
+pub(crate) type FlatIngesterQueryResponseStream =
     Pin<Box<dyn Stream<Item = Result<FlatIngesterQueryResponse, ArrowError>> + Send>>;
 
 /// Element within the flat wire protocol.

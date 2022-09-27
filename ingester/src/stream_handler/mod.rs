@@ -11,12 +11,13 @@
 //! limited by the [`LifecycleManager`] it is initialised by, pausing until
 //! [`LifecycleHandle::can_resume_ingest()`] returns true.
 //!
+//! [`SequencedStreamHandler`]: handler::SequencedStreamHandler
 //! [`DmlOperation`]: dml::DmlOperation
 //! [`WriteBufferReading`]: write_buffer::core::WriteBufferReading
 //! [`LifecycleManager`]: crate::lifecycle::LifecycleManager
 //! [`LifecycleHandle::can_resume_ingest()`]: crate::lifecycle::LifecycleHandle::can_resume_ingest()
 
-mod handler;
+pub mod handler;
 mod periodic_watermark_fetcher;
 mod sink;
 
@@ -27,6 +28,5 @@ pub mod mock_watermark_fetcher;
 pub mod sink_adaptor;
 pub mod sink_instrumentation;
 
-pub use handler::*;
 pub use periodic_watermark_fetcher::*;
 pub use sink::*;

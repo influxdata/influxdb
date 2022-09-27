@@ -32,8 +32,8 @@ use crate::{
     poison::PoisonCabinet,
     querier_handler::prepare_data_to_querier,
     stream_handler::{
-        sink_adaptor::IngestSinkAdaptor, sink_instrumentation::SinkInstrumentation,
-        PeriodicWatermarkFetcher, SequencedStreamHandler,
+        handler::SequencedStreamHandler, sink_adaptor::IngestSinkAdaptor,
+        sink_instrumentation::SinkInstrumentation, PeriodicWatermarkFetcher,
     },
 };
 

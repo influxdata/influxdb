@@ -49,7 +49,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Queryable data used for both query and persistence
 #[derive(Debug, PartialEq, Clone)]
-pub struct QueryableBatch {
+pub(crate) struct QueryableBatch {
     /// data
     pub(crate) data: Vec<Arc<SnapshotBatch>>,
 
@@ -65,7 +65,7 @@ pub struct QueryableBatch {
 
 impl QueryableBatch {
     /// Initilaize a QueryableBatch
-    pub fn new(
+    pub(crate) fn new(
         table_name: Arc<str>,
         partition_id: PartitionId,
         data: Vec<Arc<SnapshotBatch>>,
@@ -81,19 +81,19 @@ impl QueryableBatch {
     }
 
     /// Add snapshots to this batch
-    pub fn with_data(mut self, mut data: Vec<Arc<SnapshotBatch>>) -> Self {
+    pub(crate) fn with_data(mut self, mut data: Vec<Arc<SnapshotBatch>>) -> Self {
         self.data.append(&mut data);
         self
     }
 
     /// Add more tombstones
-    pub fn add_tombstones(&mut self, deletes: &[Tombstone]) {
+    pub(crate) fn add_tombstones(&mut self, deletes: &[Tombstone]) {
         let delete_predicates = tombstones_to_delete_predicates_iter(deletes);
         self.delete_predicates.extend(delete_predicates);
     }
 
     /// return min and max of all the snapshots
-    pub fn min_max_sequence_numbers(&self) -> (SequenceNumber, SequenceNumber) {
+    pub(crate) fn min_max_sequence_numbers(&self) -> (SequenceNumber, SequenceNumber) {
         let min = self
             .data
             .first()
@@ -112,7 +112,7 @@ impl QueryableBatch {
     }
 
     /// return true if it has no data
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.data.is_empty()
     }
 }

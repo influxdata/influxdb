@@ -251,13 +251,13 @@ impl DataBuffer {
 /// BufferBatch is a MutableBatch with its ingesting order, sequence_number, that helps the
 /// ingester keep the batches of data in their ingesting order
 #[derive(Debug)]
-pub struct BufferBatch {
+pub(crate) struct BufferBatch {
     /// Sequence number of the first write in this batch
     pub(crate) min_sequence_number: SequenceNumber,
     /// Sequence number of the last write in this batch
-    pub(crate) max_sequence_number: SequenceNumber,
+    pub(super) max_sequence_number: SequenceNumber,
     /// Ingesting data
-    pub(crate) data: MutableBatch,
+    pub(super) data: MutableBatch,
 }
 
 impl BufferBatch {

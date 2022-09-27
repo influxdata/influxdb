@@ -20,10 +20,10 @@ pub mod resolver;
 /// Read only copy of the unpersisted data for a partition in the ingester for a specific partition.
 #[derive(Debug)]
 pub(crate) struct UnpersistedPartitionData {
-    pub partition_id: PartitionId,
-    pub non_persisted: Vec<Arc<SnapshotBatch>>,
-    pub persisting: Option<QueryableBatch>,
-    pub partition_status: PartitionStatus,
+    pub(crate) partition_id: PartitionId,
+    pub(crate) non_persisted: Vec<Arc<SnapshotBatch>>,
+    pub(crate) persisting: Option<QueryableBatch>,
+    pub(crate) partition_status: PartitionStatus,
 }
 
 /// Status of a partition that has unpersisted data.
@@ -43,7 +43,7 @@ pub struct PartitionStatus {
 /// PersistingBatch contains all needed info and data for creating
 /// a parquet file for given set of SnapshotBatches
 #[derive(Debug, PartialEq, Clone)]
-pub struct PersistingBatch {
+pub(crate) struct PersistingBatch {
     /// Shard id of the data
     pub(crate) shard_id: ShardId,
 
@@ -60,9 +60,27 @@ pub struct PersistingBatch {
     pub(crate) data: Arc<QueryableBatch>,
 }
 
+impl PersistingBatch {
+    pub(crate) fn object_store_id(&self) -> Uuid {
+        self.object_store_id
+    }
+
+    pub(crate) fn shard_id(&self) -> ShardId {
+        self.shard_id
+    }
+
+    pub(crate) fn table_id(&self) -> TableId {
+        self.table_id
+    }
+
+    pub(crate) fn partition_id(&self) -> PartitionId {
+        self.partition_id
+    }
+}
+
 /// SnapshotBatch contains data of many contiguous BufferBatches
 #[derive(Debug, PartialEq)]
-pub struct SnapshotBatch {
+pub(crate) struct SnapshotBatch {
     /// Min sequence number of its combined BufferBatches
     pub(crate) min_sequence_number: SequenceNumber,
     /// Max sequence number of its combined BufferBatches
@@ -73,7 +91,10 @@ pub struct SnapshotBatch {
 
 impl SnapshotBatch {
     /// Return only data of the given columns
-    pub fn scan(&self, selection: Selection<'_>) -> Result<Option<Arc<RecordBatch>>, super::Error> {
+    pub(crate) fn scan(
+        &self,
+        selection: Selection<'_>,
+    ) -> Result<Option<Arc<RecordBatch>>, super::Error> {
         Ok(match selection {
             Selection::All => Some(Arc::clone(&self.data)),
             Selection::Some(columns) => {
@@ -129,7 +150,7 @@ pub(crate) struct PartitionData {
 
 impl PartitionData {
     /// Initialize a new partition data buffer
-    pub fn new(
+    pub(crate) fn new(
         id: PartitionId,
         shard_id: ShardId,
         table_id: TableId,

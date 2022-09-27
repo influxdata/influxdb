@@ -45,7 +45,7 @@ impl TableData {
     /// The partition provider is used to instantiate a [`PartitionData`]
     /// instance when this [`TableData`] instance observes an op for a partition
     /// for the first time.
-    pub fn new(
+    pub(super) fn new(
         table_id: TableId,
         table_name: &str,
         shard_id: ShardId,
@@ -179,7 +179,7 @@ impl TableData {
     }
 
     /// Return progress from this Table
-    pub(crate) fn progress(&self) -> ShardProgress {
+    pub(super) fn progress(&self) -> ShardProgress {
         let progress = ShardProgress::new();
         let progress = match self.parquet_max_sequence_number() {
             Some(n) => progress.with_persisted(n),
@@ -194,7 +194,7 @@ impl TableData {
     }
 
     #[cfg(test)]
-    pub(crate) fn table_id(&self) -> TableId {
+    pub(super) fn table_id(&self) -> TableId {
         self.table_id
     }
 }

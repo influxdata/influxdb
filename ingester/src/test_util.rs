@@ -1,6 +1,7 @@
 //! Test setups and data for ingester crate
 
 #![allow(missing_docs)]
+#![cfg(test)]
 
 use std::{sync::Arc, time::Duration};
 
@@ -14,7 +15,7 @@ use data_types::{
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use iox_query::test::{raw_data, TestChunk};
-use iox_time::{SystemProvider, Time, TimeProvider};
+use iox_time::{SystemProvider, Time};
 use mutable_batch_lp::lines_to_batches;
 use object_store::memory::InMemory;
 use parquet_file::metadata::IoxMetadata;
@@ -31,77 +32,8 @@ use crate::{
     query::QueryableBatch,
 };
 
-/// Create a persisting batch, some tombstones and corresponding metadata for them after compaction
-pub async fn make_persisting_batch_with_meta() -> (Arc<PersistingBatch>, Vec<Tombstone>, IoxMetadata)
-{
-    // record batches of input data
-    let batches = create_batches_with_influxtype_different_columns_different_order().await;
-
-    // tombstones
-    let tombstones = vec![
-        create_tombstone(
-            1,
-            1,
-            1,
-            100,                          // delete's seq_number
-            0,                            // min time of data to get deleted
-            200000,                       // max time of data to get deleted
-            "tag2=CT and field_int=1000", // delete predicate
-        ),
-        create_tombstone(
-            1, 1, 1, 101,        // delete's seq_number
-            0,          // min time of data to get deleted
-            200000,     // max time of data to get deleted
-            "tag1!=MT", // delete predicate
-        ),
-    ];
-
-    // IDs set to the persisting batch and its compacted metadata
-    let uuid = Uuid::new_v4();
-    let namespace_name = "test_namespace";
-    let partition_key = "test_partition_key";
-    let table_name = "test_table";
-    let shard_id = 1;
-    let seq_num_start: i64 = 1;
-    let seq_num_end: i64 = seq_num_start + 1; // 2 batches
-    let namespace_id = 1;
-    let table_id = 1;
-    let partition_id = 1;
-
-    // make the persisting batch
-    let persisting_batch = make_persisting_batch(
-        shard_id,
-        seq_num_start,
-        table_id,
-        table_name,
-        partition_id,
-        uuid,
-        batches,
-        tombstones.clone(),
-    );
-
-    // make metadata
-    let time_provider = Arc::new(SystemProvider::new());
-    let meta = make_meta(
-        uuid,
-        time_provider.now(),
-        shard_id,
-        namespace_id,
-        namespace_name,
-        table_id,
-        table_name,
-        partition_id,
-        partition_key,
-        seq_num_end,
-        CompactionLevel::Initial,
-        Some(SortKey::from_columns(vec!["tag1", "tag2", "time"])),
-    );
-
-    (persisting_batch, tombstones, meta)
-}
-
 /// Create tombstone for testing
-pub fn create_tombstone(
+pub(crate) fn create_tombstone(
     id: i64,
     table_id: i64,
     shard_id: i64,
@@ -122,7 +54,7 @@ pub fn create_tombstone(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn make_meta(
+pub(crate) fn make_meta(
     object_store_id: Uuid,
     creation_timestamp: Time,
     shard_id: i64,
@@ -153,7 +85,7 @@ pub fn make_meta(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn make_persisting_batch(
+pub(crate) fn make_persisting_batch(
     shard_id: i64,
     seq_num_start: i64,
     table_id: i64,
@@ -170,7 +102,6 @@ pub fn make_persisting_batch(
         batches,
         tombstones,
     );
-
     Arc::new(PersistingBatch {
         shard_id: ShardId::new(shard_id),
         table_id: TableId::new(table_id),
@@ -180,7 +111,7 @@ pub fn make_persisting_batch(
     })
 }
 
-pub fn make_queryable_batch(
+pub(crate) fn make_queryable_batch(
     table_name: &str,
     partition_id: i64,
     seq_num_start: i64,
@@ -189,7 +120,7 @@ pub fn make_queryable_batch(
     make_queryable_batch_with_deletes(table_name, partition_id, seq_num_start, batches, vec![])
 }
 
-pub fn make_queryable_batch_with_deletes(
+pub(crate) fn make_queryable_batch_with_deletes(
     table_name: &str,
     partition_id: i64,
     seq_num_start: i64,
@@ -213,7 +144,7 @@ pub fn make_queryable_batch_with_deletes(
     ))
 }
 
-pub fn make_snapshot_batch(
+pub(crate) fn make_snapshot_batch(
     batch: Arc<RecordBatch>,
     min: SequenceNumber,
     max: SequenceNumber,
@@ -225,7 +156,7 @@ pub fn make_snapshot_batch(
     }
 }
 
-pub async fn create_one_row_record_batch_with_influxtype() -> Vec<Arc<RecordBatch>> {
+pub(crate) async fn create_one_row_record_batch_with_influxtype() -> Vec<Arc<RecordBatch>> {
     let chunk1 = Arc::new(
         TestChunk::new("t")
             .with_id(1)
@@ -253,7 +184,8 @@ pub async fn create_one_row_record_batch_with_influxtype() -> Vec<Arc<RecordBatc
     batches
 }
 
-pub async fn create_one_record_batch_with_influxtype_no_duplicates() -> Vec<Arc<RecordBatch>> {
+pub(crate) async fn create_one_record_batch_with_influxtype_no_duplicates() -> Vec<Arc<RecordBatch>>
+{
     let chunk1 = Arc::new(
         TestChunk::new("t")
             .with_id(1)
@@ -283,7 +215,7 @@ pub async fn create_one_record_batch_with_influxtype_no_duplicates() -> Vec<Arc<
     batches
 }
 
-pub async fn create_one_record_batch_with_influxtype_duplicates() -> Vec<Arc<RecordBatch>> {
+pub(crate) async fn create_one_record_batch_with_influxtype_duplicates() -> Vec<Arc<RecordBatch>> {
     let chunk1 = Arc::new(
         TestChunk::new("t")
             .with_id(1)
@@ -321,7 +253,7 @@ pub async fn create_one_record_batch_with_influxtype_duplicates() -> Vec<Arc<Rec
 }
 
 /// RecordBatches with knowledge of influx metadata
-pub async fn create_batches_with_influxtype() -> Vec<Arc<RecordBatch>> {
+pub(crate) async fn create_batches_with_influxtype() -> Vec<Arc<RecordBatch>> {
     // Use the available TestChunk to create chunks and then convert them to raw RecordBatches
     let mut batches = vec![];
 
@@ -407,7 +339,7 @@ pub async fn create_batches_with_influxtype() -> Vec<Arc<RecordBatch>> {
 }
 
 /// RecordBatches with knowledge of influx metadata
-pub async fn create_batches_with_influxtype_different_columns() -> Vec<Arc<RecordBatch>> {
+pub(crate) async fn create_batches_with_influxtype_different_columns() -> Vec<Arc<RecordBatch>> {
     // Use the available TestChunk to create chunks and then convert them to raw RecordBatches
     let mut batches = vec![];
 
@@ -471,7 +403,7 @@ pub async fn create_batches_with_influxtype_different_columns() -> Vec<Arc<Recor
 }
 
 /// RecordBatches with knowledge of influx metadata
-pub async fn create_batches_with_influxtype_different_columns_different_order(
+pub(crate) async fn create_batches_with_influxtype_different_columns_different_order(
 ) -> Vec<Arc<RecordBatch>> {
     // Use the available TestChunk to create chunks and then convert them to raw RecordBatches
     let mut batches = vec![];
@@ -535,7 +467,8 @@ pub async fn create_batches_with_influxtype_different_columns_different_order(
 }
 
 /// Has 2 tag columns; tag1 has a lower cardinality (3) than tag3 (4)
-pub async fn create_batches_with_influxtype_different_cardinality() -> Vec<Arc<RecordBatch>> {
+pub(crate) async fn create_batches_with_influxtype_different_cardinality() -> Vec<Arc<RecordBatch>>
+{
     // Use the available TestChunk to create chunks and then convert them to raw RecordBatches
     let mut batches = vec![];
 
@@ -589,7 +522,8 @@ pub async fn create_batches_with_influxtype_different_cardinality() -> Vec<Arc<R
 }
 
 /// RecordBatches with knowledge of influx metadata
-pub async fn create_batches_with_influxtype_same_columns_different_type() -> Vec<Arc<RecordBatch>> {
+pub(crate) async fn create_batches_with_influxtype_same_columns_different_type(
+) -> Vec<Arc<RecordBatch>> {
     // Use the available TestChunk to create chunks and then convert them to raw RecordBatches
     let mut batches = vec![];
 
@@ -641,12 +575,10 @@ pub async fn create_batches_with_influxtype_same_columns_different_type() -> Vec
     batches
 }
 
-pub const TEST_NAMESPACE: &str = "test_namespace";
-pub const TEST_NAMESPACE_EMPTY: &str = "test_namespace_empty";
-pub const TEST_TABLE: &str = "test_table";
-pub const TEST_TABLE_EMPTY: &str = "test_table_empty";
-pub const TEST_PARTITION_1: &str = "test+partition_1";
-pub const TEST_PARTITION_2: &str = "test+partition_2";
+pub(crate) const TEST_NAMESPACE: &str = "test_namespace";
+pub(crate) const TEST_TABLE: &str = "test_table";
+pub(crate) const TEST_PARTITION_1: &str = "test+partition_1";
+pub(crate) const TEST_PARTITION_2: &str = "test+partition_2";
 
 bitflags! {
     /// Make the same in-memory data but data are split between:
@@ -660,7 +592,7 @@ bitflags! {
     ///       . snapshot + persisting
     ///       . buffer + snapshot + persisting
     ///    . If the second partittion exists, it only has data in its buffer
-    pub struct DataLocation: u8 {
+    pub(crate) struct DataLocation: u8 {
         const BUFFER = 0b001;
         const SNAPSHOT = 0b010;
         const PERSISTING = 0b100;
@@ -673,7 +605,7 @@ bitflags! {
 
 /// This function produces one scenario but with the parameter combination (2*7),
 /// you will be able to produce 14 scenarios by calling it in 2 loops
-pub async fn make_ingester_data(two_partitions: bool, loc: DataLocation) -> IngesterData {
+pub(crate) async fn make_ingester_data(two_partitions: bool, loc: DataLocation) -> IngesterData {
     // Whatever data because they won't be used in the tests
     let metrics: Arc<metric::Registry> = Default::default();
     let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
@@ -739,7 +671,7 @@ pub async fn make_ingester_data(two_partitions: bool, loc: DataLocation) -> Inge
     ingester
 }
 
-pub async fn make_ingester_data_with_tombstones(loc: DataLocation) -> IngesterData {
+pub(crate) async fn make_ingester_data_with_tombstones(loc: DataLocation) -> IngesterData {
     // Whatever data because they won't be used in the tests
     let metrics: Arc<metric::Registry> = Default::default();
     let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));

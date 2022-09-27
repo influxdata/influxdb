@@ -81,7 +81,11 @@ pub(crate) struct NamespaceData {
 
 impl NamespaceData {
     /// Initialize new tables with default partition template of daily
-    pub fn new(namespace_id: NamespaceId, shard_id: ShardId, metrics: &metric::Registry) -> Self {
+    pub(super) fn new(
+        namespace_id: NamespaceId,
+        shard_id: ShardId,
+        metrics: &metric::Registry,
+    ) -> Self {
         let table_count = metrics
             .register_metric::<U64Counter>(
                 "ingester_tables_total",
@@ -271,7 +275,7 @@ impl NamespaceData {
     /// Walks down the table and partition and clears the persisting batch. The sequence number is
     /// the max_sequence_number for the persisted parquet file, which should be kept in the table
     /// data buffer.
-    pub(crate) async fn mark_persisted(
+    pub(super) async fn mark_persisted(
         &self,
         table_name: &str,
         partition_key: &PartitionKey,
@@ -288,7 +292,7 @@ impl NamespaceData {
     }
 
     /// Return progress from this Namespace
-    pub(crate) async fn progress(&self) -> ShardProgress {
+    pub(super) async fn progress(&self) -> ShardProgress {
         let tables: Vec<_> = self.tables.read().values().map(Arc::clone).collect();
 
         // Consolidate progtress across partitions.

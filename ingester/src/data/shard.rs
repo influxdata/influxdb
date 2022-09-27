@@ -19,7 +19,7 @@ use crate::lifecycle::LifecycleHandle;
 
 /// Data of a Shard
 #[derive(Debug)]
-pub struct ShardData {
+pub(crate) struct ShardData {
     /// The shard index for this shard
     shard_index: ShardIndex,
     /// The catalog ID for this shard.
@@ -34,7 +34,11 @@ pub struct ShardData {
 
 impl ShardData {
     /// Initialise a new [`ShardData`] that emits metrics to `metrics`.
-    pub fn new(shard_index: ShardIndex, shard_id: ShardId, metrics: Arc<metric::Registry>) -> Self {
+    pub(super) fn new(
+        shard_index: ShardIndex,
+        shard_id: ShardId,
+        metrics: Arc<metric::Registry>,
+    ) -> Self {
         let namespace_count = metrics
             .register_metric::<U64Counter>(
                 "ingester_namespaces_total",
@@ -115,7 +119,7 @@ impl ShardData {
     }
 
     /// Return the progress of this shard
-    pub(crate) async fn progress(&self) -> ShardProgress {
+    pub(super) async fn progress(&self) -> ShardProgress {
         let namespaces: Vec<_> = self.namespaces.read().values().map(Arc::clone).collect();
 
         let mut progress = ShardProgress::new();
