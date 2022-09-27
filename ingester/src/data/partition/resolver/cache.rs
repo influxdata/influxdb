@@ -3,6 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use data_types::{Partition, PartitionId, PartitionKey, SequenceNumber, ShardId, TableId};
 use observability_deps::tracing::debug;
+use parking_lot::Mutex;
 
 use crate::data::partition::PartitionData;
 
@@ -36,6 +37,10 @@ struct Entry {
 ///
 /// For a total of 74 bytes per entry - approx 1,690 entries can be held in 1Mb
 /// of memory.
+///
+/// Each cache hit _removes_ the entry from the cache - this eliminates the
+/// memory overhead for items that were hit. This is the expected (only valid!)
+/// usage pattern.
 #[derive(Debug)]
 pub(crate) struct PartitionCache<T> {
     // The inner delegate called for a cache miss.
@@ -51,7 +56,7 @@ pub(crate) struct PartitionCache<T> {
     /// It's also likely a smaller N (more tables than partition keys) making it
     /// a faster search for cache misses.
     #[allow(clippy::type_complexity)]
-    entries: HashMap<String, HashMap<ShardId, HashMap<TableId, Entry>>>,
+    entries: Mutex<HashMap<String, HashMap<ShardId, HashMap<TableId, Entry>>>>,
 }
 
 impl<T> PartitionCache<T> {
@@ -87,7 +92,10 @@ impl<T> PartitionCache<T> {
         }
         entries.shrink_to_fit();
 
-        Self { entries, inner }
+        Self {
+            entries: Mutex::new(entries),
+            inner,
+        }
     }
 
     /// Search for an cached entry matching the `(partition_key, shard_id, table_id)`
@@ -97,11 +105,31 @@ impl<T> PartitionCache<T> {
         shard_id: ShardId,
         table_id: TableId,
         partition_key: &PartitionKey,
-    ) -> Option<&Entry> {
-        self.entries
-            .get(&partition_key.to_string())?
-            .get(&shard_id)?
-            .get(&table_id)
+    ) -> Option<Entry> {
+        let mut entries = self.entries.lock();
+
+        let partition = entries.get_mut(&partition_key.to_string())?;
+        let shard = partition.get_mut(&shard_id)?;
+
+        let e = shard.remove(&table_id)?;
+
+        // As an item was just removed from the shard map, check if it is now
+        // empty.
+        if shard.is_empty() {
+            // Remove the shard from the partition map to reclaim the memory it
+            // was using.
+            partition.remove(&shard_id);
+
+            // As a shard was removed, likewise the partition may now be empty!
+            if partition.is_empty() {
+                entries.remove(&partition_key.to_string());
+                entries.shrink_to_fit();
+            } else {
+                partition.shrink_to_fit();
+            }
+        }
+
+        Some(e)
     }
 }
 
@@ -191,6 +219,9 @@ mod tests {
         assert_eq!(got.shard_id(), SHARD_ID);
         assert_eq!(got.table_id(), TABLE_ID);
         assert_eq!(got.table_name(), TABLE_NAME);
+
+        // The cache should have been cleaned up as it was consumed.
+        assert!(cache.entries.lock().is_empty());
     }
 
     #[tokio::test]
