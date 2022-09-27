@@ -906,6 +906,18 @@ impl PartitionRepo for MemTxn {
             None => Err(Error::PartitionNotFound { id: partition_id }),
         }
     }
+
+    async fn most_recent_n(&mut self, n: usize, shards: &[ShardId]) -> Result<Vec<Partition>> {
+        let stage = self.stage();
+        Ok(stage
+            .partitions
+            .iter()
+            .rev()
+            .filter(|p| shards.contains(&p.shard_id))
+            .take(n)
+            .cloned()
+            .collect())
+    }
 }
 
 #[async_trait]
