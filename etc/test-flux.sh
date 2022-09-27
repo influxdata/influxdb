@@ -141,8 +141,6 @@ fill_time
 fill_int
 fill_uint
 fill_string
-group
-group_nulls
 histogram_normalize
 histogram_quantile_minvalue
 histogram_quantile
@@ -162,14 +160,6 @@ label_to_string
 #   Or, needs feature flag strictNullLogicalOps
 logical_typed_null_interp
 
-# https://github.com/influxdata/influxdb/issues/23757
-# Flux acceptance tests for group |> first (and last)
-push_down_group_one_tag_first
-push_down_group_all_filter_field_first
-push_down_group_one_tag_filter_field_first
-push_down_group_one_tag_last
-push_down_group_all_filter_field_last
-push_down_group_one_tag_filter_field_last
 ENDSKIPS
 )
   echo "$doc" | sed '/^[[:space:]]*$/d' | sed 's/[[:space:]]*#.*$//' | tr '\n' ',' | sed 's/,$//'
