@@ -792,10 +792,15 @@ pub mod test_utils {
         // seek to far end and then add data
         // The affected stream should error and then stop. The other streams should still be
         // pending.
-        handler_1_1_a
+        let err = handler_1_1_a
             .seek(SequenceNumber::new(1_000_000))
             .await
-            .unwrap();
+            .expect_err("seeking into the future should be impossible");
+        assert_eq!(
+            err.kind(),
+            WriteBufferErrorKind::SequenceNumberAfterWatermark
+        );
+
         let w_east_3 = write(
             "namespace",
             &writer,
@@ -805,19 +810,6 @@ pub mod test_utils {
             None,
         )
         .await;
-
-        let err = handler_1_1_a
-            .stream()
-            .await
-            .next()
-            .await
-            .expect("stream not ended")
-            .unwrap_err();
-        assert_eq!(
-            err.kind(),
-            WriteBufferErrorKind::SequenceNumberAfterWatermark
-        );
-        assert!(handler_1_1_a.stream().await.next().await.is_none());
 
         assert_stream_pending(&mut handler_1_2_a.stream().await).await;
         assert_reader_content(&mut handler_1_1_b, &[&w_east_3]).await;

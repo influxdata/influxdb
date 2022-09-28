@@ -4,8 +4,9 @@ use assert_cmd::Command;
 use futures::FutureExt;
 use predicates::prelude::*;
 use serde_json::Value;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tempfile::tempdir;
+use test_helpers::make_temp_file;
 use test_helpers_end_to_end::{
     maybe_skip_integration, AddAddrEnv, BindAddresses, MiniCluster, ServerType, Step, StepTest,
     StepTestState,
@@ -503,6 +504,86 @@ async fn schema_cli() {
                                     .and(predicate::str::contains("val")),
                             );
                     }
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
+/// Test write CLI command and query CLI command
+#[tokio::test]
+async fn write_and_query() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let mut cluster = MiniCluster::create_shared(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    // write line protocol to a temp file
+                    let lp_file = make_temp_file("m,tag=1 v=2 12345");
+                    let lp_file_path = lp_file.path().to_string_lossy().to_string();
+                    let router_addr = state.cluster().router().router_http_base().to_string();
+
+                    let namespace = state.cluster().namespace();
+                    println!("Writing into {namespace}");
+
+                    // Validate the output of the schema CLI command
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&router_addr)
+                        .arg("write")
+                        .arg(&namespace)
+                        .arg(&lp_file_path)
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains("17 Bytes OK"));
+                }
+                .boxed()
+            })),
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let querier_addr = state.cluster().querier().querier_grpc_base().to_string();
+                    let namespace = state.cluster().namespace();
+
+                    let max_wait_time = Duration::from_secs(10);
+                    let expected = "| 1   | 1970-01-01T00:00:00.000012345Z | 2 |";
+                    println!("Waiting for {expected}");
+
+                    // Validate the output of running the query CLI command appears after at most max_wait_time
+                    let end = Instant::now() + max_wait_time;
+                    while Instant::now() < end {
+                        let maybe_result = Command::cargo_bin("influxdb_iox")
+                            .unwrap()
+                            .arg("-h")
+                            .arg(&querier_addr)
+                            .arg("query")
+                            .arg(&namespace)
+                            .arg("SELECT * from m")
+                            .assert()
+                            .success()
+                            .try_stdout(predicate::str::contains(expected));
+
+                        match maybe_result {
+                            Err(e) => {
+                                println!("Got err: {}, retrying", e);
+                            }
+                            Ok(r) => {
+                                println!("Success: {:?}", r);
+                                return;
+                            }
+                        }
+                        // sleep and try again
+                        tokio::time::sleep(Duration::from_millis(500)).await
+                    }
+                    panic!("Did not find expected output in allotted time");
                 }
                 .boxed()
             })),

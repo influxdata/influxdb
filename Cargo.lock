@@ -2045,6 +2045,7 @@ dependencies = [
  "http",
  "humantime",
  "import",
+ "influxdb2_client",
  "influxdb_iox_client",
  "influxdb_storage_client",
  "influxrpc_parser",
