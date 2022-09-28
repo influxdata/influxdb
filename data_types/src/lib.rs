@@ -772,6 +772,14 @@ pub struct Shard {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PartitionKey(Arc<str>);
 
+impl PartitionKey {
+    /// Returns true if this instance of [`PartitionKey`] is backed by the same
+    /// string storage as other.
+    pub fn ptr_eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
 impl Display for PartitionKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.0)

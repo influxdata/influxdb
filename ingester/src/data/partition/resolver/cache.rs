@@ -56,7 +56,7 @@ pub(crate) struct PartitionCache<T> {
     /// It's also likely a smaller N (more tables than partition keys) making it
     /// a faster search for cache misses.
     #[allow(clippy::type_complexity)]
-    entries: Mutex<HashMap<String, HashMap<ShardId, HashMap<TableId, Entry>>>>,
+    entries: Mutex<HashMap<PartitionKey, HashMap<ShardId, HashMap<TableId, Entry>>>>,
 }
 
 impl<T> PartitionCache<T> {
@@ -67,10 +67,10 @@ impl<T> PartitionCache<T> {
     where
         P: IntoIterator<Item = Partition>,
     {
-        let mut entries = HashMap::<String, HashMap<ShardId, HashMap<TableId, Entry>>>::new();
+        let mut entries = HashMap::<PartitionKey, HashMap<ShardId, HashMap<TableId, Entry>>>::new();
         for p in partitions.into_iter() {
             entries
-                .entry(p.partition_key.to_string())
+                .entry(p.partition_key)
                 .or_default()
                 .entry(p.shard_id)
                 .or_default()
@@ -105,10 +105,18 @@ impl<T> PartitionCache<T> {
         shard_id: ShardId,
         table_id: TableId,
         partition_key: &PartitionKey,
-    ) -> Option<Entry> {
+    ) -> Option<(PartitionKey, Entry)> {
         let mut entries = self.entries.lock();
 
-        let partition = entries.get_mut(&partition_key.to_string())?;
+        // Look up the partition key provided by the caller.
+        //
+        // If the partition key is a hit, clone the key from the map and return
+        // it instead of using the caller-provided partition key - this allows
+        // effective reuse of the same partition key str across all hits for it
+        // and is more memory efficient than using the caller-provided partition
+        // key in the PartitionData.
+        let key = entries.get_key_value(partition_key)?.0.clone();
+        let partition = entries.get_mut(partition_key).unwrap();
         let shard = partition.get_mut(&shard_id)?;
 
         let e = shard.remove(&table_id)?;
@@ -122,14 +130,14 @@ impl<T> PartitionCache<T> {
 
             // As a shard was removed, likewise the partition may now be empty!
             if partition.is_empty() {
-                entries.remove(&partition_key.to_string());
+                entries.remove(partition_key);
                 entries.shrink_to_fit();
             } else {
                 partition.shrink_to_fit();
             }
         }
 
-        Some(e)
+        Some((key, e))
     }
 }
 
@@ -148,10 +156,14 @@ where
         // Use the cached PartitionKey instead of the caller's partition_key,
         // instead preferring to reuse the already-shared Arc<str> in the cache.
 
-        if let Some(cached) = self.find(shard_id, table_id, &partition_key) {
+        if let Some((key, cached)) = self.find(shard_id, table_id, &partition_key) {
             debug!(%table_id, %partition_key, "partition cache hit");
+            // Use the returned partition key instead of the callers - this
+            // allows the backing str memory to be reused across all partitions
+            // using the same key!
             return PartitionData::new(
                 cached.partition_id,
+                key,
                 shard_id,
                 table_id,
                 table_name,
@@ -182,7 +194,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_miss() {
-        let data = PartitionData::new(PARTITION_ID, SHARD_ID, TABLE_ID, TABLE_NAME.into(), None);
+        let data = PartitionData::new(
+            PARTITION_ID,
+            PARTITION_KEY.into(),
+            SHARD_ID,
+            TABLE_ID,
+            TABLE_NAME.into(),
+            None,
+        );
         let inner = MockPartitionProvider::default().with_partition(PARTITION_KEY.into(), data);
 
         let cache = PartitionCache::new(inner, []);
@@ -201,27 +220,44 @@ mod tests {
     async fn test_hit() {
         let inner = MockPartitionProvider::default();
 
+        let stored_partition_key = PartitionKey::from(PARTITION_KEY);
         let partition = Partition {
             id: PARTITION_ID,
             shard_id: SHARD_ID,
             table_id: TABLE_ID,
-            partition_key: PARTITION_KEY.into(),
+            partition_key: stored_partition_key.clone(),
             sort_key: Default::default(),
             persisted_sequence_number: Default::default(),
         };
 
         let cache = PartitionCache::new(inner, [partition]);
+
+        let callers_partition_key = PartitionKey::from(PARTITION_KEY);
         let got = cache
-            .get_partition(PARTITION_KEY.into(), SHARD_ID, TABLE_ID, TABLE_NAME.into())
+            .get_partition(
+                callers_partition_key.clone(),
+                SHARD_ID,
+                TABLE_ID,
+                TABLE_NAME.into(),
+            )
             .await;
 
         assert_eq!(got.id(), PARTITION_ID);
         assert_eq!(got.shard_id(), SHARD_ID);
         assert_eq!(got.table_id(), TABLE_ID);
         assert_eq!(got.table_name(), TABLE_NAME);
+        assert_eq!(*got.partition_key(), PartitionKey::from(PARTITION_KEY));
 
         // The cache should have been cleaned up as it was consumed.
         assert!(cache.entries.lock().is_empty());
+
+        // Assert the partition key from the cache was used for the lifetime of
+        // the partition, so that it is shared with the cache + other partitions
+        // that share the same partition key across all tables.
+        assert!(got.partition_key().ptr_eq(&stored_partition_key));
+        // It does not use the short-lived caller's partition key (derived from
+        // the DML op it is processing).
+        assert!(!got.partition_key().ptr_eq(&callers_partition_key));
     }
 
     #[tokio::test]
@@ -230,7 +266,14 @@ mod tests {
         let other_key_id = PartitionId::new(99);
         let inner = MockPartitionProvider::default().with_partition(
             other_key.clone(),
-            PartitionData::new(other_key_id, SHARD_ID, TABLE_ID, TABLE_NAME.into(), None),
+            PartitionData::new(
+                other_key_id,
+                PARTITION_KEY.into(),
+                SHARD_ID,
+                TABLE_ID,
+                TABLE_NAME.into(),
+                None,
+            ),
         );
 
         let partition = Partition {
@@ -258,7 +301,14 @@ mod tests {
         let other_table = TableId::new(1234);
         let inner = MockPartitionProvider::default().with_partition(
             PARTITION_KEY.into(),
-            PartitionData::new(PARTITION_ID, SHARD_ID, other_table, TABLE_NAME.into(), None),
+            PartitionData::new(
+                PARTITION_ID,
+                PARTITION_KEY.into(),
+                SHARD_ID,
+                other_table,
+                TABLE_NAME.into(),
+                None,
+            ),
         );
 
         let partition = Partition {
@@ -291,7 +341,14 @@ mod tests {
         let other_shard = ShardId::new(1234);
         let inner = MockPartitionProvider::default().with_partition(
             PARTITION_KEY.into(),
-            PartitionData::new(PARTITION_ID, other_shard, TABLE_ID, TABLE_NAME.into(), None),
+            PartitionData::new(
+                PARTITION_ID,
+                PARTITION_KEY.into(),
+                other_shard,
+                TABLE_ID,
+                TABLE_NAME.into(),
+                None,
+            ),
         );
 
         let partition = Partition {
