@@ -133,6 +133,23 @@ func (s HTTP) MarshalJSON() ([]byte, error) {
 		})
 }
 
+func (s *HTTP) UnmarshalJSON(b []byte) error {
+	type Alias HTTP
+	var a Alias
+
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+
+	if u, err := url.Parse(a.URL); err != nil || u.Scheme == "" || u.Host == "" {
+		return fmt.Errorf("the provided url should match the standard url schema")
+	}
+
+	*s = HTTP(a)
+
+	return nil
+}
+
 // Type returns the type.
 func (s HTTP) Type() string {
 	return HTTPType

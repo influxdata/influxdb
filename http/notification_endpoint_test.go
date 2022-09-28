@@ -450,7 +450,7 @@ func TestService_handlePostNotificationEndpoint(t *testing.T) {
 					"orgID":           "6f626f7274697320",
 					"description":     "desc1",
 					"status":          "active",
-					"url":             "example.com",
+					"url":             "http://example.com",
 					"username":        "user1",
 					"password":        "password1",
 					"authMethod":      "basic",
@@ -469,7 +469,7 @@ func TestService_handlePostNotificationEndpoint(t *testing.T) {
     "members": "/api/v2/notificationEndpoints/020f755c3c082000/members",
     "owners": "/api/v2/notificationEndpoints/020f755c3c082000/owners"
   },
-  "url": "example.com",
+  "url": "http://example.com",
   "status": "active",
   "username": "secret: 020f755c3c082000-username",
   "password": "secret: 020f755c3c082000-password",
@@ -487,6 +487,44 @@ func TestService_handlePostNotificationEndpoint(t *testing.T) {
   "labels": []
 }
 `,
+			},
+		},
+		{
+			name: "create a new notification endpoint with bad URL",
+			fields: fields{
+				Secrets: map[string]string{},
+				NotificationEndpointService: &mock.NotificationEndpointService{
+					CreateNotificationEndpointF: func(ctx context.Context, edp influxdb.NotificationEndpoint, userID platform.ID) error {
+						edp.SetID(influxTesting.MustIDBase16("020f755c3c082000"))
+						edp.BackfillSecretKeys()
+						return nil
+					},
+				},
+				OrganizationService: &mock.OrganizationService{
+					FindOrganizationF: func(ctx context.Context, f influxdb.OrganizationFilter) (*influxdb.Organization, error) {
+						return &influxdb.Organization{ID: influxTesting.MustIDBase16("6f626f7274697320")}, nil
+					},
+				},
+			},
+			args: args{
+				endpoint: map[string]interface{}{
+					"name":            "hello",
+					"type":            "http",
+					"orgID":           "6f626f7274697320",
+					"description":     "desc1",
+					"status":          "active",
+					"url":             "example.com",
+					"username":        "user1",
+					"password":        "password1",
+					"authMethod":      "basic",
+					"method":          "POST",
+					"contentTemplate": "template",
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusBadRequest,
+				contentType: "application/json; charset=utf-8",
+				body:        `{"code":"invalid","message":"the provided url should match the standard url schema"}`,
 			},
 		},
 	}
