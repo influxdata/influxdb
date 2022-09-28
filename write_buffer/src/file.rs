@@ -299,6 +299,21 @@ impl WriteBufferStreamHandler for FileBufferStreamHandler {
     }
 
     async fn seek(&mut self, sequence_number: SequenceNumber) -> Result<(), WriteBufferError> {
+        let offset = sequence_number.get();
+
+        // Find the current high watermark
+        let committed = self.path.join("committed");
+        let existing_files = scan_dir::<i64>(&committed, FileType::File).await?;
+        let current = existing_files.keys().max().cloned().unwrap_or_default();
+
+        if offset > current {
+            return Err(WriteBufferError::sequence_number_after_watermark(format!(
+                "attempted to seek to offset {offset}, but current high \
+                watermark for partition {p} is {current}",
+                p = self.shard_index
+            )));
+        }
+
         self.next_sequence_number
             .store(sequence_number.get(), Ordering::SeqCst);
         self.terminated.store(false, Ordering::SeqCst);

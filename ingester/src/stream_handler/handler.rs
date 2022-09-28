@@ -794,6 +794,7 @@ mod tests {
             assert_eq!(op.namespace(), "bananas");
         }
     );
+
     test_stream_handler!(
         non_fatal_stream_offset_error,
         skip_to_oldest_available = false,
@@ -815,6 +816,7 @@ mod tests {
             assert_eq!(op.namespace(), "bananas");
         }
     );
+
     test_stream_handler!(
         skip_to_oldest_on_unknown_sequence_number,
         skip_to_oldest_available = true,
@@ -843,6 +845,7 @@ mod tests {
             assert_eq!(op.namespace(), "bananas");
         }
     );
+
     test_stream_handler!(
         non_fatal_stream_invalid_data,
         skip_to_oldest_available = false,
@@ -864,6 +867,7 @@ mod tests {
             assert_eq!(op.namespace(), "bananas");
         }
     );
+
     test_stream_handler!(
         non_fatal_stream_unknown_error,
         skip_to_oldest_available = false,
