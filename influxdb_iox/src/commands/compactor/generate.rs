@@ -390,7 +390,9 @@ impl TimeValues {
                 start: minutes_per_file * (file_id + 1) - overlap_minutes * file_id
                     + full_range_end_minutes,
                 end: minutes_per_file * file_id - overlap_minutes * file_id
-                    + full_range_end_minutes,
+                    + full_range_end_minutes
+                    // When the overlap is 0, subtract 1 because the data generator is inclusive
+                    - (if overlap_minutes == 0 { 1 } else { 0 }),
             })
             .collect();
 
@@ -502,7 +504,7 @@ mod tests {
                 start_end_args,
                 vec![StartEndMinutesAgo {
                     start: 24 * 60,
-                    end: 8 * 60,
+                    end: 8 * 60 - 1,
                 }]
             );
         }
@@ -521,7 +523,7 @@ mod tests {
                 start_end_args,
                 vec![StartEndMinutesAgo {
                     start: 24 * 60,
-                    end: 8 * 60,
+                    end: 8 * 60 - 1,
                 }]
             );
         }
@@ -541,15 +543,15 @@ mod tests {
                 vec![
                     StartEndMinutesAgo {
                         start: 1440,
-                        end: 1120
+                        end: 1119,
                     },
                     StartEndMinutesAgo {
                         start: 1120,
-                        end: 800
+                        end: 799,
                     },
                     StartEndMinutesAgo {
                         start: 800,
-                        end: 480
+                        end: 479,
                     },
                 ]
             );
@@ -570,15 +572,15 @@ mod tests {
                 vec![
                     StartEndMinutesAgo {
                         start: 1440,
-                        end: 1120
+                        end: 1119,
                     },
                     StartEndMinutesAgo {
                         start: 1120,
-                        end: 800
+                        end: 799,
                     },
                     StartEndMinutesAgo {
                         start: 800,
-                        end: 480
+                        end: 479,
                     },
                 ]
             );
