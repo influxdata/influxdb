@@ -209,6 +209,7 @@ fn main() -> Result<(), std::io::Error> {
         let log_verbose_count = config.all_in_one_config.logging_config.log_verbose_count;
         let rpc_timeout = config.rpc_timeout;
 
+        let host_captured = host.clone();
         let connection = || async move {
             let mut builder = headers.into_iter().fold(Builder::default(), |builder, kv| {
                 builder.header(kv.key, kv.value)
@@ -229,10 +230,10 @@ fn main() -> Result<(), std::io::Error> {
                 println!("Trace ID set to {}", trace_id);
             }
 
-            match builder.build(&host).await {
+            match builder.build(&host_captured).await {
                 Ok(connection) => connection,
                 Err(e) => {
-                    eprintln!("Error connecting to {}: {}", host, e);
+                    eprintln!("Error connecting to {}: {}", host_captured, e);
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
@@ -311,8 +312,7 @@ fn main() -> Result<(), std::io::Error> {
             }
             Some(Command::Write(config)) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                let connection = connection().await;
-                if let Err(e) = commands::write::command(connection, config).await {
+                if let Err(e) = commands::write::command(host, config).await {
                     eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }
