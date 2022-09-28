@@ -280,6 +280,14 @@ impl WriteBufferStreamHandler for RSKafkaStreamHandler {
                     let kind = match e {
                         RSKafkaError::ServerError {
                             protocol_error: ProtocolError::OffsetOutOfRange,
+                            response:
+                                Some(ServerErrorResponse::PartitionFetchState {
+                                    high_watermark, ..
+                                }),
+                            ..
+                        } if high_watermark < 0 => WriteBufferErrorKind::Unknown,
+                        RSKafkaError::ServerError {
+                            protocol_error: ProtocolError::OffsetOutOfRange,
                             request: RequestContext::Fetch { offset, .. },
                             response:
                                 Some(ServerErrorResponse::PartitionFetchState {
