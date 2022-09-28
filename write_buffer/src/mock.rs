@@ -88,6 +88,10 @@ impl MockBufferSharedState {
         }
     }
 
+    pub fn high_watermark(&self, shard: ShardIndex) -> Option<i64> {
+        self.writes.lock().as_ref()?.get(&shard)?.max_seqno
+    }
+
     /// Initialize shared state w/ N shards.
     ///
     /// # Panics
@@ -512,7 +516,20 @@ impl WriteBufferStreamHandler for MockBufferStreamHandler {
     }
 
     async fn seek(&mut self, sequence_number: SequenceNumber) -> Result<(), WriteBufferError> {
-        self.offset = Some(sequence_number.get());
+        let offset = sequence_number.get();
+        let current = self
+            .shared_state
+            .high_watermark(self.shard_index)
+            .unwrap_or_default();
+        if offset > current {
+            return Err(WriteBufferError::sequence_number_after_watermark(format!(
+                "attempted to seek to offset {offset}, but current high \
+                watermark for partition {p} is {current}",
+                p = self.shard_index
+            )));
+        }
+
+        self.offset = Some(offset);
 
         // reset position to start since seeking might go backwards
         self.vector_index.store(0, SeqCst);

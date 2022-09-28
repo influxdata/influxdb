@@ -348,6 +348,15 @@ impl WriteBufferStreamHandler for RSKafkaStreamHandler {
 
     async fn seek(&mut self, sequence_number: SequenceNumber) -> Result<(), WriteBufferError> {
         let offset = sequence_number.get();
+        let current = self.partition_client.get_offset(OffsetAt::Latest).await?;
+        if offset > current {
+            return Err(WriteBufferError::sequence_number_after_watermark(format!(
+                "attempted to seek to offset {offset}, but current high \
+                watermark for partition {p} is {current}",
+                p = self.shard_index
+            )));
+        }
+
         *self.next_offset.lock() = Some(offset);
         self.terminated.store(false, Ordering::SeqCst);
         Ok(())

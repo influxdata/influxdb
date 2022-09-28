@@ -792,7 +792,9 @@ mod tests {
     }
 
     #[tokio::test]
-    #[should_panic(expected = "JoinError::Panic")]
+    #[should_panic(
+        expected = "attempted to seek to offset 10, but current high watermark for partition 0 is 2"
+    )]
     async fn sequence_number_after_watermark() {
         maybe_start_logging();
 
@@ -816,7 +818,9 @@ mod tests {
     }
 
     #[tokio::test]
-    #[should_panic(expected = "JoinError::Panic")]
+    #[should_panic(
+        expected = "attempted to seek to offset 10, but current high watermark for partition 0 is 2"
+    )]
     async fn sequence_number_after_watermark_skip_to_oldest_available() {
         maybe_start_logging();
 
