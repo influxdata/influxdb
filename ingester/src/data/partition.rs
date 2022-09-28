@@ -132,7 +132,7 @@ impl SnapshotBatch {
 
 /// Data of an IOx Partition of a given Table of a Namesapce that belongs to a given Shard
 #[derive(Debug)]
-pub(crate) struct PartitionData {
+pub struct PartitionData {
     /// The catalog ID of the partition this buffer is for.
     id: PartitionId,
     /// The shard and table IDs for this partition.
@@ -314,6 +314,18 @@ impl PartitionData {
     #[cfg(test)]
     pub(crate) fn table_name(&self) -> &str {
         self.table_name.as_ref()
+    }
+
+    /// Return the shard ID for this partition.
+    #[cfg(test)]
+    pub(crate) fn shard_id(&self) -> ShardId {
+        self.shard_id
+    }
+
+    /// Return the table ID for this partition.
+    #[cfg(test)]
+    pub(crate) fn table_id(&self) -> TableId {
+        self.table_id
     }
 }
 

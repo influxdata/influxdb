@@ -17,7 +17,7 @@ use super::r#trait::PartitionProvider;
 /// the partition id and persist offset, returning an initialised
 /// [`PartitionData`].
 #[derive(Debug)]
-pub(crate) struct CatalogPartitionResolver {
+pub struct CatalogPartitionResolver {
     catalog: Arc<dyn Catalog>,
     backoff_config: BackoffConfig,
 }
@@ -25,7 +25,7 @@ pub(crate) struct CatalogPartitionResolver {
 impl CatalogPartitionResolver {
     /// Construct a [`CatalogPartitionResolver`] that looks up partitions in
     /// `catalog`.
-    pub(crate) fn new(catalog: Arc<dyn Catalog>) -> Self {
+    pub fn new(catalog: Arc<dyn Catalog>) -> Self {
         Self {
             catalog,
             backoff_config: Default::default(),

@@ -17,7 +17,7 @@ use write_summary::ShardProgress;
 #[cfg(test)]
 use super::triggers::TestTriggers;
 use super::{
-    partition::{resolver::CatalogPartitionResolver, PersistingBatch},
+    partition::{resolver::PartitionProvider, PersistingBatch},
     table::TableData,
 };
 use crate::lifecycle::LifecycleHandle;
@@ -32,6 +32,12 @@ pub(crate) struct NamespaceData {
 
     tables: RwLock<BTreeMap<String, Arc<tokio::sync::RwLock<TableData>>>>,
     table_count: U64Counter,
+
+    /// The resolver of `(shard_id, table_id, partition_key)` to
+    /// [`PartitionData`].
+    ///
+    /// [`PartitionData`]: super::partition::PartitionData
+    partition_provider: Arc<dyn PartitionProvider>,
 
     /// The sequence number being actively written, if any.
     ///
@@ -81,9 +87,10 @@ pub(crate) struct NamespaceData {
 
 impl NamespaceData {
     /// Initialize new tables with default partition template of daily
-    pub(super) fn new(
+    pub fn new(
         namespace_id: NamespaceId,
         shard_id: ShardId,
+        partition_provider: Arc<dyn PartitionProvider>,
         metrics: &metric::Registry,
     ) -> Self {
         let table_count = metrics
@@ -99,6 +106,7 @@ impl NamespaceData {
             tables: Default::default(),
             table_count,
             buffering_sequence_number: RwLock::new(None),
+            partition_provider,
             #[cfg(test)]
             test_triggers: TestTriggers::new(),
         }
@@ -251,9 +259,6 @@ impl NamespaceData {
 
         let mut t = self.tables.write();
 
-        // TODO: share this server-wide
-        let partition_provider = Arc::new(CatalogPartitionResolver::new(Arc::clone(catalog)));
-
         let data = match t.entry(table_name.to_string()) {
             Entry::Vacant(v) => {
                 let v = v.insert(Arc::new(tokio::sync::RwLock::new(TableData::new(
@@ -261,7 +266,7 @@ impl NamespaceData {
                     table_name,
                     self.shard_id,
                     info.tombstone_max_sequence_number,
-                    partition_provider,
+                    Arc::clone(&self.partition_provider),
                 ))));
                 self.table_count.inc(1);
                 Arc::clone(v)

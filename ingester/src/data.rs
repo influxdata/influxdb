@@ -31,7 +31,10 @@ mod query_dedup;
 pub mod shard;
 pub mod table;
 
-use self::{partition::PartitionStatus, shard::ShardData};
+use self::{
+    partition::{resolver::PartitionProvider, PartitionStatus},
+    shard::ShardData,
+};
 
 #[cfg(test)]
 mod triggers;
@@ -103,6 +106,7 @@ impl IngesterData {
         catalog: Arc<dyn Catalog>,
         shards: T,
         exec: Arc<Executor>,
+        partition_provider: Arc<dyn PartitionProvider>,
         backoff_config: BackoffConfig,
         metrics: Arc<metric::Registry>,
     ) -> Self
@@ -126,7 +130,17 @@ impl IngesterData {
 
         let shards = shards
             .into_iter()
-            .map(|(id, index)| (id, ShardData::new(index, id, Arc::clone(&metrics))))
+            .map(|(id, index)| {
+                (
+                    id,
+                    ShardData::new(
+                        index,
+                        id,
+                        Arc::clone(&partition_provider),
+                        Arc::clone(&metrics),
+                    ),
+                )
+            })
             .collect();
 
         Self {
@@ -607,6 +621,7 @@ pub enum FlatIngesterQueryResponse {
 mod tests {
     use std::{
         ops::DerefMut,
+        sync::Arc,
         task::{Context, Poll},
         time::Duration,
     };
@@ -630,7 +645,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        data::namespace::NamespaceData,
+        data::{namespace::NamespaceData, partition::resolver::CatalogPartitionResolver},
         lifecycle::{LifecycleConfig, LifecycleManager},
     };
 
@@ -660,6 +675,7 @@ mod tests {
             Arc::clone(&catalog),
             [(shard1.id, shard_index)],
             Arc::new(Executor::new(1)),
+            Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog))),
             BackoffConfig::default(),
             Arc::clone(&metrics),
         ));
@@ -741,6 +757,7 @@ mod tests {
             Arc::clone(&catalog),
             [(shard1.id, shard1.shard_index)],
             Arc::new(Executor::new(1)),
+            Arc::new(CatalogPartitionResolver::new(catalog)),
             BackoffConfig::default(),
             Arc::clone(&metrics),
         ));
@@ -844,6 +861,7 @@ mod tests {
                 (shard2.id, shard2.shard_index),
             ],
             Arc::new(Executor::new(1)),
+            Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog))),
             BackoffConfig::default(),
             Arc::clone(&metrics),
         ));
@@ -1094,6 +1112,7 @@ mod tests {
                 (shard2.id, shard2.shard_index),
             ],
             Arc::new(Executor::new(1)),
+            Arc::new(CatalogPartitionResolver::new(catalog)),
             BackoffConfig::default(),
             Arc::clone(&metrics),
         ));
@@ -1319,7 +1338,9 @@ mod tests {
         );
         let exec = Executor::new(1);
 
-        let data = NamespaceData::new(namespace.id, shard.id, &*metrics);
+        let partition_provider = Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog)));
+
+        let data = NamespaceData::new(namespace.id, shard.id, partition_provider, &*metrics);
 
         // w1 should be ignored because the per-partition replay offset is set
         // to 1 already, so it shouldn't be buffered and the buffer should
@@ -1385,6 +1406,7 @@ mod tests {
             Arc::clone(&catalog),
             [(shard1.id, shard_index)],
             Arc::new(Executor::new(1)),
+            Arc::new(CatalogPartitionResolver::new(catalog)),
             BackoffConfig::default(),
             Arc::clone(&metrics),
         ));

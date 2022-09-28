@@ -14,7 +14,7 @@ use parking_lot::RwLock;
 use snafu::{OptionExt, ResultExt};
 use write_summary::ShardProgress;
 
-use super::namespace::NamespaceData;
+use super::{namespace::NamespaceData, partition::resolver::PartitionProvider};
 use crate::lifecycle::LifecycleHandle;
 
 /// Data of a Shard
@@ -25,6 +25,12 @@ pub(crate) struct ShardData {
     /// The catalog ID for this shard.
     shard_id: ShardId,
 
+    /// The resolver of `(shard_id, table_id, partition_key)` to
+    /// [`PartitionData`].
+    ///
+    /// [`PartitionData`]: super::partition::PartitionData
+    partition_provider: Arc<dyn PartitionProvider>,
+
     // New namespaces can come in at any time so we need to be able to add new ones
     namespaces: RwLock<BTreeMap<String, Arc<NamespaceData>>>,
 
@@ -34,9 +40,10 @@ pub(crate) struct ShardData {
 
 impl ShardData {
     /// Initialise a new [`ShardData`] that emits metrics to `metrics`.
-    pub(super) fn new(
+    pub(crate) fn new(
         shard_index: ShardIndex,
         shard_id: ShardId,
+        partition_provider: Arc<dyn PartitionProvider>,
         metrics: Arc<metric::Registry>,
     ) -> Self {
         let namespace_count = metrics
@@ -51,6 +58,7 @@ impl ShardData {
             shard_id,
             namespaces: Default::default(),
             metrics,
+            partition_provider,
             namespace_count,
         }
     }
@@ -107,6 +115,7 @@ impl ShardData {
                 let v = v.insert(Arc::new(NamespaceData::new(
                     namespace.id,
                     self.shard_id,
+                    Arc::clone(&self.partition_provider),
                     &*self.metrics,
                 )));
                 self.namespace_count.inc(1);
