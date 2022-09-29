@@ -1,5 +1,6 @@
 use self::generated_types::{schema_service_client::SchemaServiceClient, *};
 use ::generated_types::google::OptionalField;
+use client_util::connection::GrpcConnection;
 
 use crate::connection::Connection;
 use crate::error::Error;
@@ -12,14 +13,14 @@ pub mod generated_types {
 /// A basic client for fetching the Schema for a Namespace.
 #[derive(Debug, Clone)]
 pub struct Client {
-    inner: SchemaServiceClient<Connection>,
+    inner: SchemaServiceClient<GrpcConnection>,
 }
 
 impl Client {
     /// Creates a new client with the provided connection
-    pub fn new(channel: Connection) -> Self {
+    pub fn new(connection: Connection) -> Self {
         Self {
-            inner: SchemaServiceClient::new(channel),
+            inner: SchemaServiceClient::new(connection.into_grpc_connection()),
         }
     }
 

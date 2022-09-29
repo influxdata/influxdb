@@ -2,7 +2,7 @@ use super::{run_data_test, run_no_data_test};
 use futures::{prelude::*, FutureExt};
 use generated_types::{
     google::protobuf::Empty, measurement_fields_response::FieldType,
-    offsets_response::PartitionOffsetResponse, storage_client::StorageClient, OffsetsResponse,
+    offsets_response::PartitionOffsetResponse, OffsetsResponse,
 };
 use influxdb_storage_client::tag_key_bytes_to_strings;
 use std::sync::Arc;
@@ -13,8 +13,7 @@ use test_helpers_end_to_end::{DataGenerator, GrpcRequestBuilder, StepTestState};
 async fn capabilities() {
     run_no_data_test(Box::new(|state: &mut StepTestState| {
         async move {
-            let mut storage_client =
-                StorageClient::new(state.cluster().querier().querier_grpc_connection());
+            let mut storage_client = state.cluster().querier_storage_client();
             let capabilities_response = storage_client
                 .capabilities(Empty {})
                 .await
@@ -37,8 +36,7 @@ async fn capabilities() {
 async fn offsets() {
     run_no_data_test(Box::new(|state: &mut StepTestState| {
         async move {
-            let mut storage_client =
-                StorageClient::new(state.cluster().querier().querier_grpc_connection());
+            let mut storage_client = state.cluster().querier_storage_client();
             let offsets_response = storage_client.offsets(Empty {}).await.unwrap().into_inner();
             let expected = OffsetsResponse {
                 partitions: vec![PartitionOffsetResponse { id: 0, offset: 1 }],
@@ -57,8 +55,7 @@ async fn tag_keys() {
         Arc::clone(&generator),
         Box::new(move |state: &mut StepTestState| {
             async move {
-                let mut storage_client =
-                    StorageClient::new(state.cluster().querier().querier_grpc_connection());
+                let mut storage_client = state.cluster().querier_storage_client();
 
                 let tag_keys_request = GrpcRequestBuilder::new()
                     .source(state.cluster())
@@ -90,8 +87,7 @@ async fn tag_values() {
         Arc::clone(&generator),
         Box::new(move |state: &mut StepTestState| {
             async move {
-                let mut storage_client =
-                    StorageClient::new(state.cluster().querier().querier_grpc_connection());
+                let mut storage_client = state.cluster().querier_storage_client();
 
                 let tag_values_request = GrpcRequestBuilder::new()
                     .source(state.cluster())
@@ -128,8 +124,7 @@ async fn measurement_names() {
         Arc::clone(&generator),
         Box::new(move |state: &mut StepTestState| {
             async move {
-                let mut storage_client =
-                    StorageClient::new(state.cluster().querier().querier_grpc_connection());
+                let mut storage_client = state.cluster().querier_storage_client();
 
                 let measurement_names_request = GrpcRequestBuilder::new()
                     .source(state.cluster())
@@ -170,8 +165,7 @@ async fn measurement_tag_keys() {
         Arc::clone(&generator),
         Box::new(move |state: &mut StepTestState| {
             async move {
-                let mut storage_client =
-                    StorageClient::new(state.cluster().querier().querier_grpc_connection());
+                let mut storage_client = state.cluster().querier_storage_client();
 
                 let measurement_tag_keys_request = GrpcRequestBuilder::new()
                     .source(state.cluster())
@@ -210,8 +204,7 @@ async fn measurement_tag_values() {
         Arc::clone(&generator),
         Box::new(move |state: &mut StepTestState| {
             async move {
-                let mut storage_client =
-                    StorageClient::new(state.cluster().querier().querier_grpc_connection());
+                let mut storage_client = state.cluster().querier_storage_client();
 
                 let measurement_tag_values_request = GrpcRequestBuilder::new()
                     .source(state.cluster())
@@ -250,8 +243,7 @@ async fn measurement_fields() {
         Arc::clone(&generator),
         Box::new(move |state: &mut StepTestState| {
             async move {
-                let mut storage_client =
-                    StorageClient::new(state.cluster().querier().querier_grpc_connection());
+                let mut storage_client = state.cluster().querier_storage_client();
 
                 let measurement_fields_request = GrpcRequestBuilder::new()
                     .source(state.cluster())

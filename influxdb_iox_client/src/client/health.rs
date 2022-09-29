@@ -2,7 +2,7 @@ use generated_types::google::FieldViolation;
 
 use generated_types::grpc::health::v1::*;
 
-use crate::connection::Connection;
+use crate::connection::{Connection, GrpcConnection};
 use crate::error::Error;
 
 /// A client for the gRPC health checking API
@@ -10,14 +10,14 @@ use crate::error::Error;
 /// Allows checking the status of a given service
 #[derive(Debug)]
 pub struct Client {
-    inner: health_client::HealthClient<Connection>,
+    inner: health_client::HealthClient<GrpcConnection>,
 }
 
 impl Client {
     /// Creates a new client with the provided connection
     pub fn new(channel: Connection) -> Self {
         Self {
-            inner: health_client::HealthClient::new(channel),
+            inner: health_client::HealthClient::new(channel.into_grpc_connection()),
         }
     }
 

@@ -20,6 +20,7 @@ pub use generated_types::{google, protobuf_type_url, protobuf_type_url_eq};
 pub use client::*;
 
 pub use client_util::connection;
+pub use client_util::namespace_translation;
 
 #[cfg(feature = "format")]
 /// Output formatting utilities

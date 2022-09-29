@@ -19,3 +19,6 @@
 pub mod connection;
 
 mod tower;
+
+/// Namespace <--> org/bucket utilities
+pub mod namespace_translation;

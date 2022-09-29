@@ -13,8 +13,7 @@ data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
 generated_types = { path = "../generated_types" }
 import = { path = "../import" }
-influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format", "write_lp"] }
-influxdb2_client = { path = "../influxdb2_client" }
+influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format"] }
 influxdb_storage_client = { path = "../influxdb_storage_client" }
 influxrpc_parser = { path = "../influxrpc_parser"}
 iox_catalog = { path = "../iox_catalog" }

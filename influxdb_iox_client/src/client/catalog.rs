@@ -1,3 +1,5 @@
+use client_util::connection::GrpcConnection;
+
 use self::generated_types::{catalog_service_client::CatalogServiceClient, *};
 
 use crate::connection::Connection;
@@ -11,14 +13,14 @@ pub mod generated_types {
 /// A basic client for interacting the a remote catalog.
 #[derive(Debug, Clone)]
 pub struct Client {
-    inner: CatalogServiceClient<Connection>,
+    inner: CatalogServiceClient<GrpcConnection>,
 }
 
 impl Client {
     /// Creates a new client with the provided connection
-    pub fn new(channel: Connection) -> Self {
+    pub fn new(connection: Connection) -> Self {
         Self {
-            inner: CatalogServiceClient::new(channel),
+            inner: CatalogServiceClient::new(connection.into_grpc_connection()),
         }
     }
 

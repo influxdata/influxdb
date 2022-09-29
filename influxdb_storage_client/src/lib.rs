@@ -15,6 +15,7 @@
 )]
 #![allow(clippy::missing_docs_in_private_items)]
 
+use client_util::connection::GrpcConnection;
 use futures_util::TryStreamExt;
 use prost::Message;
 use std::collections::HashMap;
@@ -73,14 +74,14 @@ impl OrgAndBucket {
 /// A client for the InfluxDB gRPC storage API
 #[derive(Debug)]
 pub struct Client {
-    inner: storage_client::StorageClient<Connection>,
+    inner: storage_client::StorageClient<GrpcConnection>,
 }
 
 impl Client {
     /// Creates a new client with the provided connection
-    pub fn new(channel: Connection) -> Self {
+    pub fn new(connection: Connection) -> Self {
         Self {
-            inner: storage_client::StorageClient::new(channel),
+            inner: storage_client::StorageClient::new(connection.into_grpc_connection()),
         }
     }
 

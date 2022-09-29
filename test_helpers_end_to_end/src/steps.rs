@@ -1,12 +1,11 @@
 use crate::{
-    get_write_token, get_write_token_from_grpc, run_query, token_is_persisted, wait_for_persisted,
-    wait_for_readable, MiniCluster,
+    get_write_token, run_query, token_is_persisted, wait_for_persisted, wait_for_readable,
+    MiniCluster,
 };
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_sorted_eq;
 use futures::future::BoxFuture;
 use http::StatusCode;
-use influxdb_iox_client::write::generated_types::TableBatch;
 use observability_deps::tracing::info;
 
 /// Test harness for end to end tests that are comprised of several steps
@@ -74,9 +73,6 @@ pub enum Step {
     /// Writes the specified line protocol to the `/api/v2/write`
     /// endpoint, assert the data was written successfully
     WriteLineProtocol(String),
-
-    /// Writes the specified `TableBatch`es to the gRPC write API
-    WriteTableBatches(Vec<TableBatch>),
 
     /// Wait for all previously written data to be readable
     WaitForReadable,
@@ -153,13 +149,6 @@ impl<'a> StepTest<'a> {
                     assert_eq!(response.status(), StatusCode::NO_CONTENT);
                     let write_token = get_write_token(&response);
                     info!("====Done writing line protocol, got token {}", write_token);
-                    state.write_tokens.push(write_token);
-                }
-                Step::WriteTableBatches(table_batches) => {
-                    info!("====Begin writing TableBatches to gRPC API");
-                    let response = state.cluster.write_to_router_grpc(table_batches).await;
-                    let write_token = get_write_token_from_grpc(&response);
-                    info!("====Done writing TableBatches, got token {}", write_token);
                     state.write_tokens.push(write_token);
                 }
                 Step::WaitForReadable => {
