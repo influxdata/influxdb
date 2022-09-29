@@ -607,19 +607,19 @@ where
     }
 
     fn count(&self, _row_ids: &[u32]) -> u32 {
-        todo!()
+        unimplemented!()
     }
 
     fn sum(&self, _row_ids: &[u32]) -> Option<L> {
-        todo!()
+        unimplemented!()
     }
 
     fn min(&self, _row_ids: &[u32]) -> Option<L> {
-        todo!()
+        unimplemented!()
     }
 
     fn max(&self, _row_ids: &[u32]) -> Option<L> {
-        todo!()
+        unimplemented!()
     }
 }
 
