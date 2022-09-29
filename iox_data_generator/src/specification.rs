@@ -12,8 +12,13 @@ use tracing::warn;
 #[allow(missing_docs)]
 pub enum Error {
     /// File-related error that may happen while reading a specification
-    #[snafu(display(r#"Error reading data spec from TOML file: {}"#, source))]
+    #[snafu(display(
+        r#"Error reading data spec from TOML file at {}: {}"#,
+        file_name,
+        source
+    ))]
     ReadFile {
+        file_name: String,
         /// Underlying I/O error that caused this problem
         source: std::io::Error,
     },
@@ -76,7 +81,7 @@ pub struct DataSpec {
 impl DataSpec {
     /// Given a filename, read the file and parse the specification.
     pub fn from_file(file_name: &str) -> Result<Self> {
-        let spec_toml = fs::read_to_string(file_name).context(ReadFileSnafu)?;
+        let spec_toml = fs::read_to_string(file_name).context(ReadFileSnafu { file_name })?;
         Self::from_str(&spec_toml)
     }
 
