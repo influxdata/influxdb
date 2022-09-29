@@ -20,6 +20,7 @@
     missing_docs,
     clippy::todo,
     clippy::dbg_macro,
+    clippy::explicit_iter_loop,
     clippy::clone_on_ref_ptr,
     clippy::future_not_send
 )]

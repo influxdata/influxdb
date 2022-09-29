@@ -7,7 +7,9 @@
     clippy::use_self,
     clippy::clone_on_ref_ptr,
     clippy::str_to_string,
-    clippy::string_to_string
+    clippy::string_to_string,
+    clippy::todo,
+    clippy::dbg_macro
 )]
 
 pub mod predicate;

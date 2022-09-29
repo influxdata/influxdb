@@ -8,7 +8,9 @@
     clippy::explicit_iter_loop,
     clippy::future_not_send,
     clippy::use_self,
-    clippy::clone_on_ref_ptr
+    clippy::clone_on_ref_ptr,
+    clippy::todo,
+    clippy::dbg_macro
 )]
 
 use parking_lot::Mutex;
@@ -621,7 +623,7 @@ mod tests {
     async fn wait_for_tasks(exec: &DedicatedExecutor, num: usize) {
         tokio::time::timeout(Duration::from_secs(1), async {
             loop {
-                if dbg!(exec.tasks()) == num {
+                if exec.tasks() == num {
                     return;
                 }
                 tokio::time::sleep(Duration::from_millis(1)).await;

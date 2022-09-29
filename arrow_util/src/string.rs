@@ -175,6 +175,7 @@ impl PackedStringArray<i32> {
     }
 }
 
+#[derive(Debug)]
 pub struct PackedStringIterator<'a, K> {
     array: &'a PackedStringArray<K>,
     index: usize,

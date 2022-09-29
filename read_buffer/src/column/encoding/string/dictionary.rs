@@ -631,20 +631,20 @@ impl Dictionary {
     /// ids. NULL values are not considered the minimum value if any non-null
     /// value exists at any of the provided row ids.
     pub fn min<'a>(&'a self, _row_ids: &[u32]) -> Option<&'a String> {
-        todo!()
+        unimplemented!()
     }
 
     /// Returns the lexicographical maximum value for the provided set of row
     /// ids. NULL values are not considered the maximum value if any non-null
     /// value exists at any of the provided row ids.
     pub fn max<'a>(&'a self, _row_ids: &[u32]) -> Option<&'a String> {
-        todo!()
+        unimplemented!()
     }
 
     /// Returns the total number of non-null values found at the provided set of
     /// row ids.
     pub fn count(&self, _row_ids: &[u32]) -> u32 {
-        todo!()
+        unimplemented!()
     }
 
     /// Returns references to the logical (decoded) values for all the rows in
@@ -788,7 +788,7 @@ impl Dictionary {
     // Returns true if there exists an encoded non-null value at any of the row
     // ids.
     fn find_non_null_value(&self, _row_ids: &[u32]) -> bool {
-        todo!()
+        unimplemented!()
     }
 }
 

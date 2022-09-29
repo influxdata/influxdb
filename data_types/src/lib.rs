@@ -8,7 +8,9 @@
     missing_docs,
     clippy::explicit_iter_loop,
     clippy::future_not_send,
-    clippy::clone_on_ref_ptr
+    clippy::clone_on_ref_ptr,
+    clippy::todo,
+    clippy::dbg_macro
 )]
 
 use influxdb_line_protocol::FieldValue;
