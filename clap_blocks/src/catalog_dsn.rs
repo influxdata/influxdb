@@ -48,7 +48,7 @@ fn default_hotswap_poll_interval_timeout() -> &'static str {
 pub struct CatalogDsnConfig {
     /// The type of catalog to use. "memory" is only useful for testing purposes.
     #[clap(
-        arg_enum,
+        value_enum,
         long = "--catalog",
         env = "INFLUXDB_IOX_CATALOG_TYPE",
         default_value = "postgres",
@@ -110,7 +110,7 @@ pub struct CatalogDsnConfig {
 }
 
 /// Catalog type.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, clap::ArgEnum)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum)]
 pub enum CatalogType {
     /// PostgreSQL.
     Postgres,

@@ -70,7 +70,7 @@ pub struct ObjectStoreConfig {
     /// * azure: Microsoft Azure blob storage. Must also set `--bucket`, `--azure-storage-account`,
     ///    and `--azure-storage-access-key`.
     #[clap(
-        arg_enum,
+        value_enum,
         long = "--object-store",
         env = "INFLUXDB_IOX_OBJECT_STORE",
         ignore_case = true,
@@ -242,7 +242,7 @@ impl ObjectStoreConfig {
 }
 
 /// Object-store type.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, clap::ArgEnum)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, clap::ValueEnum)]
 pub enum ObjectStoreType {
     /// In-memory.
     Memory,

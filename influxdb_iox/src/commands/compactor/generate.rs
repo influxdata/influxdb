@@ -26,7 +26,7 @@ pub struct Config {
     /// specified, the generated files will have compaction level 1, won't overlap with each other,
     /// and will be marked that they were created between 8 and 24 hours ago.
     #[clap(
-        arg_enum,
+        value_enum,
         value_parser,
         long = "--compaction-type",
         env = "INFLUXDB_IOX_COMPACTOR_GENERATE_TYPE",
