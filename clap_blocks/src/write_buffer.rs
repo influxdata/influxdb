@@ -173,9 +173,8 @@ impl WriteBufferConfig {
 
 #[cfg(test)]
 mod tests {
-    use clap::StructOpt;
-
     use super::*;
+    use clap::Parser;
 
     #[test]
     fn test_connection_config() {

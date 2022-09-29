@@ -394,7 +394,7 @@ pub struct ShardConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use clap::StructOpt;
+    use clap::Parser;
     use test_helpers::assert_error;
 
     #[test]

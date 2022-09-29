@@ -144,10 +144,9 @@ impl From<LoggingConfig> for Builder<BoxMakeWriter> {
 
 #[cfg(test)]
 mod tests {
-    use clap::StructOpt;
-
     use super::*;
     use crate::test_util::simple_test;
+    use clap::Parser;
 
     #[ignore] // REVERT THIS WHEN REVERTING CIRCLECI LOGGING CONFIG
     #[test]

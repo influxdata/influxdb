@@ -438,11 +438,10 @@ pub async fn check_object_store(object_store: &DynObjectStore) -> Result<(), Che
 
 #[cfg(test)]
 mod tests {
-    use clap::StructOpt;
+    use super::*;
+    use clap::Parser;
     use std::env;
     use tempfile::TempDir;
-
-    use super::*;
 
     #[test]
     fn default_object_store_is_memory() {
