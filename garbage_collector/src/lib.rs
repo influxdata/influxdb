@@ -198,7 +198,7 @@ pub struct SubConfig {
     #[clap(
         long,
         default_value = "14d",
-        parse(try_from_str = parse_duration),
+        value_parser = parse_duration,
         env = "INFLUXDB_IOX_GC_OBJECTSTORE_CUTOFF"
     )]
     objectstore_cutoff: Duration,
@@ -227,7 +227,7 @@ pub struct SubConfig {
     #[clap(
         long,
         default_value = "14d",
-        parse(try_from_str = parse_duration),
+        value_parser = parse_duration,
         env = "INFLUXDB_IOX_GC_PARQUETFILE_CUTOFF"
     )]
     parquetfile_cutoff: Duration,
