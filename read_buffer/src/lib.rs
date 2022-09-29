@@ -3,7 +3,9 @@
     clippy::clone_on_ref_ptr,
     clippy::use_self,
     clippy::str_to_string,
-    clippy::string_to_string
+    clippy::string_to_string,
+    clippy::todo,
+    clippy::dbg_macro
 )]
 #![allow(dead_code, clippy::too_many_arguments)]
 mod chunk;

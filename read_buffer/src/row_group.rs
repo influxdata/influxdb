@@ -1031,7 +1031,7 @@ impl RowGroup {
         _group_column: ColumnName<'_>,
         _aggregates: &[(ColumnName<'_>, AggregateType)],
     ) {
-        todo!()
+        unimplemented!()
     }
 
     // Applies aggregates on multiple columns with an optional predicate.

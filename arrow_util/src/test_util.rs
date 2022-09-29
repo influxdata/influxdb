@@ -80,7 +80,7 @@ pub fn sort_record_batch(batch: RecordBatch) -> RecordBatch {
         .columns()
         .iter()
         .map(|col| SortColumn {
-            values: col.clone(),
+            values: Arc::clone(col),
             options: Some(SortOptions {
                 descending: false,
                 nulls_first: false,

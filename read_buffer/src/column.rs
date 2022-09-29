@@ -188,7 +188,7 @@ impl Column {
                 Some((min, max)) => (OwnedValue::Boolean(min), OwnedValue::Boolean(max)),
                 None => (OwnedValue::new_null(), OwnedValue::new_null()),
             },
-            Self::ByteArray(_, _) => todo!(),
+            Self::ByteArray(_, _) => unimplemented!(),
         }
     }
 
@@ -216,11 +216,11 @@ impl Column {
     }
 
     pub fn column_min(&self) -> Value<'_> {
-        todo!()
+        unimplemented!()
     }
 
     pub fn column_max(&self) -> Value<'_> {
-        todo!()
+        unimplemented!()
     }
 
     //
@@ -242,7 +242,7 @@ impl Column {
             Self::Integer(_, data) => data.value(row_id),
             Self::Unsigned(_, data) => data.value(row_id),
             Self::Bool(_, data) => data.value(row_id),
-            Self::ByteArray(_, _) => todo!(),
+            Self::ByteArray(_, _) => unimplemented!(),
         }
     }
 
@@ -261,7 +261,7 @@ impl Column {
             Self::Integer(_, data) => data.values(row_ids),
             Self::Unsigned(_, data) => data.values(row_ids),
             Self::Bool(_, data) => data.values(row_ids),
-            Self::ByteArray(_, _) => todo!(),
+            Self::ByteArray(_, _) => unimplemented!(),
         }
     }
 
@@ -293,7 +293,7 @@ impl Column {
             Self::Integer(_, data) => data.all_values(),
             Self::Unsigned(_, data) => data.all_values(),
             Self::Bool(_, data) => data.all_values(),
-            Self::ByteArray(_, _) => todo!(),
+            Self::ByteArray(_, _) => unimplemented!(),
         }
     }
 
@@ -313,7 +313,7 @@ impl Column {
     pub fn decode_id(&self, encoded_id: u32) -> Value<'_> {
         match &self {
             Self::String(_, data) => data.decode_id(encoded_id),
-            Self::ByteArray(_, _) => todo!(),
+            Self::ByteArray(_, _) => unimplemented!(),
             _ => panic!("unsupported operation"),
         }
     }
@@ -412,7 +412,7 @@ impl Column {
             Self::Integer(_, data) => data.row_ids_filter(op, value.scalar(), dst),
             Self::Unsigned(_, data) => data.row_ids_filter(op, value.scalar(), dst),
             Self::Bool(_, data) => data.row_ids_filter(op, value.bool(), dst),
-            Self::ByteArray(_, _) => todo!(),
+            Self::ByteArray(_, _) => unimplemented!(),
         };
 
         if row_ids.is_empty() {
@@ -471,7 +471,7 @@ impl Column {
                 data.row_ids_filter_range((&low.0, low.1.scalar()), (&high.0, high.1.scalar()), dst)
             }
             Self::Bool(_, _) => unimplemented!("filter_range not supported on boolean column"),
-            Self::ByteArray(_, _) => todo!(),
+            Self::ByteArray(_, _) => unimplemented!(),
         };
 
         if row_ids.is_empty() {
@@ -555,7 +555,7 @@ impl Column {
                 Value::Boolean(b) => meta.might_contain_value(*b),
                 v => panic!("cannot compare boolean to {:?}", v),
             },
-            Self::ByteArray(_, _) => todo!(),
+            Self::ByteArray(_, _) => unimplemented!(),
         }
     }
 
@@ -624,7 +624,7 @@ impl Column {
                     v => panic!("cannot compare on boolean column using {:?}", v),
                 }
             }
-            Self::ByteArray(_, _) => todo!(),
+            Self::ByteArray(_, _) => unimplemented!(),
         }
     }
 
@@ -648,7 +648,7 @@ impl Column {
             Self::Integer(meta, _) => meta.match_no_values(op, value.scalar().as_i64()),
             Self::Unsigned(meta, _) => meta.match_no_values(op, value.scalar().as_u64()),
             Self::Bool(meta, _) => meta.match_no_values(op, value.bool()),
-            Self::ByteArray(_, _) => todo!(),
+            Self::ByteArray(_, _) => unimplemented!(),
         }
     }
 
@@ -666,7 +666,7 @@ impl Column {
             Self::Integer(_, data) => data.min(row_ids),
             Self::Unsigned(_, data) => data.min(row_ids),
             Self::Bool(_, data) => data.min(row_ids),
-            Self::ByteArray(_, _) => todo!(),
+            Self::ByteArray(_, _) => unimplemented!(),
         }
     }
 
@@ -680,7 +680,7 @@ impl Column {
             Self::Integer(_, data) => data.max(row_ids),
             Self::Unsigned(_, data) => data.max(row_ids),
             Self::Bool(_, data) => data.max(row_ids),
-            Self::ByteArray(_, _) => todo!(),
+            Self::ByteArray(_, _) => unimplemented!(),
         }
     }
 
@@ -710,7 +710,7 @@ impl Column {
             Self::Integer(_, data) => data.count(row_ids),
             Self::Unsigned(_, data) => data.count(row_ids),
             Self::Bool(_, data) => data.count(row_ids),
-            Self::ByteArray(_, _) => todo!(),
+            Self::ByteArray(_, _) => unimplemented!(),
         }
     }
 
@@ -726,7 +726,7 @@ impl Column {
             Self::Integer(_, data) => data.contains_null(),
             Self::Unsigned(_, data) => data.contains_null(),
             Self::Bool(_, data) => data.contains_null(),
-            Self::ByteArray(_, _) => todo!(),
+            Self::ByteArray(_, _) => unimplemented!(),
         }
     }
 
@@ -739,7 +739,7 @@ impl Column {
             Self::Integer(_, data) => data.has_non_null_value(row_ids),
             Self::Unsigned(_, data) => data.has_non_null_value(row_ids),
             Self::Bool(_, data) => data.has_non_null_value(row_ids),
-            Self::ByteArray(_, _) => todo!(),
+            Self::ByteArray(_, _) => unimplemented!(),
         }
     }
 
@@ -751,7 +751,7 @@ impl Column {
             Self::Integer(_, data) => data.has_any_non_null_value(),
             Self::Unsigned(_, data) => data.has_any_non_null_value(),
             Self::Bool(_, data) => data.has_any_non_null_value(),
-            Self::ByteArray(_, _) => todo!(),
+            Self::ByteArray(_, _) => unimplemented!(),
         }
     }
 

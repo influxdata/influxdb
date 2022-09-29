@@ -412,7 +412,7 @@ impl Table {
         // identify segments where time range and predicates match could match
         // using segment meta data, and then execute against those segments and
         // merge results.
-        todo!()
+        unimplemented!()
     }
 
     //
@@ -442,7 +442,7 @@ impl Table {
         //
         // Tied values (multiple equivalent min timestamps) results in an
         // arbitrary value from the result set being returned.
-        todo!();
+        unimplemented!();
     }
 
     /// The inverse of `first`. Of note here is that the returned value must
@@ -458,7 +458,7 @@ impl Table {
         //
         // Tied values (multiple equivalent min timestamps) results in an
         // arbitrary value from the result set being returned.
-        todo!();
+        unimplemented!();
     }
 
     //
