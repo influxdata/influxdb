@@ -1,6 +1,11 @@
+use arrow::record_batch::RecordBatch;
 use assert_cmd::Command;
+use datafusion::datasource::object_store::ObjectStoreUrl;
+use futures::TryStreamExt;
+use object_store::{local::LocalFileSystem, path::Path as ObjectStorePath, ObjectStore};
+use parquet_to_line_protocol::ParquetFileReader;
 use predicates::prelude::*;
-use std::fs;
+use std::sync::Arc;
 use test_helpers_end_to_end::maybe_skip_integration;
 
 #[tokio::test]
@@ -22,7 +27,7 @@ async fn compactor_generate_has_defaults() {
         .arg(&dir)
         .assert()
         .success();
-    let data_generation_spec = dir.join("compactor_data/line_protocol/spec.toml");
+    let data_generation_spec = dir.join("compactor_data/spec.toml");
     assert!(data_generation_spec.exists());
 }
 
@@ -74,7 +79,7 @@ async fn compactor_generate_creates_files_and_catalog_entries() {
         .assert()
         .success();
 
-    let data_generation_spec = dir.path().join("compactor_data/line_protocol/spec.toml");
+    let data_generation_spec = dir.path().join("compactor_data/spec.toml");
     assert!(data_generation_spec.exists());
 }
 
@@ -96,9 +101,14 @@ async fn running_compactor_generate_twice_overwrites_existing_files() {
         .assert()
         .success();
 
-    let first_run_data =
-        fs::read_to_string(dir.path().join("compactor_data/line_protocol/data_0.txt")).unwrap();
-    let first_run_num_lines = first_run_data.lines().count();
+    let first_run_data_path = dir
+        .path()
+        .join("compactor_data/parquet/data_0_measure.parquet");
+    let first_run_record_batches = read_record_batches(&first_run_data_path).await;
+    assert_eq!(first_run_record_batches.len(), 1);
+
+    let first_run_record_batch = &first_run_record_batches[0];
+    let first_run_num_lines = first_run_record_batch.num_rows();
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -113,13 +123,31 @@ async fn running_compactor_generate_twice_overwrites_existing_files() {
         .assert()
         .success();
 
-    let second_run_data =
-        fs::read_to_string(dir.path().join("compactor_data/line_protocol/data_0.txt")).unwrap();
-    let second_run_num_lines = second_run_data.lines().count();
+    let second_run_data_path = dir
+        .path()
+        .join("compactor_data/parquet/data_0_measure.parquet");
+    let second_run_record_batches = read_record_batches(&second_run_data_path).await;
+    assert_eq!(second_run_record_batches.len(), 1);
+
+    let second_run_record_batch = &second_run_record_batches[0];
+    let second_run_num_lines = second_run_record_batch.num_rows();
 
     // If generation is appending instead of overwriting, this will fail.
     assert_eq!(first_run_num_lines, second_run_num_lines);
 
     // If generation isn't creating different data every time it's invoked, this will fail.
-    assert_ne!(first_run_data, second_run_data);
+    assert_ne!(first_run_record_batch, second_run_record_batch);
+}
+
+async fn read_record_batches(path: impl AsRef<std::path::Path>) -> Vec<RecordBatch> {
+    let object_store_path = ObjectStorePath::from_filesystem_path(path).unwrap();
+    let object_store = Arc::new(LocalFileSystem::new()) as Arc<dyn ObjectStore>;
+    let object_store_url = ObjectStoreUrl::local_filesystem();
+    let object_meta = object_store.head(&object_store_path).await.unwrap();
+
+    let reader = ParquetFileReader::try_new(object_store, object_store_url, object_meta)
+        .await
+        .unwrap();
+
+    reader.read().await.unwrap().try_collect().await.unwrap()
 }

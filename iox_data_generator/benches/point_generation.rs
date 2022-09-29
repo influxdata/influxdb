@@ -1,14 +1,17 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use iox_data_generator::agent::Agent;
-use iox_data_generator::specification::{AgentAssignmentSpec, DatabaseWriterSpec};
 use iox_data_generator::{
-    specification::{AgentSpec, DataSpec, FieldSpec, FieldValueSpec, MeasurementSpec},
+    agent::Agent,
+    specification::{
+        AgentAssignmentSpec, AgentSpec, DataSpec, DatabaseWriterSpec, FieldSpec, FieldValueSpec,
+        MeasurementSpec,
+    },
     tag_set::GeneratedTagSets,
     write::PointsWriterBuilder,
 };
-use std::sync::atomic::AtomicU64;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{
+    sync::{atomic::AtomicU64, Arc},
+    time::Duration,
+};
 
 pub fn single_agent(c: &mut Criterion) {
     let spec = DataSpec {
@@ -74,19 +77,22 @@ pub fn single_agent(c: &mut Criterion) {
 }
 
 pub fn agent_pre_generated(c: &mut Criterion) {
-    let spec: DataSpec = toml::from_str(r#"
+    let spec: DataSpec = toml::from_str(
+        r#"
 name = "storage_cardinality_example"
 
-# Values are automatically generated before the agents are initialized. They generate tag key/value pairs
-# with the name of the value as the tag key and the evaluated template as the value. These pairs
-# are Arc wrapped so they can be shared across tagsets and used in the agents as pre-generated data.
+# Values are automatically generated before the agents are initialized. They generate tag key/value
+# pairs with the name of the value as the tag key and the evaluated template as the value. These
+# pairs are Arc wrapped so they can be shared across tagsets and used in the agents as
+# pre-generated data.
 [[values]]
 # the name must not have a . in it, which is used to access children later. Otherwise it's open.
 name = "role"
-# the template can use a number of helpers to get an id, a random string and the name, see below for examples
+# the template can use a number of helpers to get an id, a random string and the name, see below
+# for examples
 template = "storage"
-# this number of tag pairs will be generated. If this is > 1, the id or a random character string should be
-# used in the template to ensure that the tag key/value pairs are unique.
+# this number of tag pairs will be generated. If this is > 1, the id or a random character string
+# should be used in the template to ensure that the tag key/value pairs are unique.
 cardinality = 1
 
 [[values]]
@@ -108,10 +114,11 @@ cardinality = 10
 
 [[values]]
 name = "bucket_id"
-# a bucket belongs to an org. With this, you would be able to access the org.id or org.value in the template
+# a bucket belongs to an org. With this, you would be able to access the org.id or org.value in the
+# template
 belongs_to = "org_id"
-# each bucket will have a unique id, which is used here to guarantee uniqueness even across orgs. We also
-# have a random 15 character alphanumeric sequence to pad out the value length.
+# each bucket will have a unique id, which is used here to guarantee uniqueness even across orgs.
+# We also have a random 15 character alphanumeric sequence to pad out the value length.
 template = "{{id}}_{{random 15}}"
 # For each org, 3 buckets will be generated
 cardinality = 3
@@ -121,9 +128,10 @@ name = "partition_id"
 template = "{{id}}"
 cardinality = 10
 
-# makes a tagset so every bucket appears in every partition. The other tags are descriptive and don't
-# increase the cardinality beyond count(bucket) * count(partition). Later this example will use the
-# agent and measurement generation to take this base tagset and increase cardinality on a per-agent basis.
+# makes a tagset so every bucket appears in every partition. The other tags are descriptive and
+# don't increase the cardinality beyond count(bucket) * count(partition). Later this example will
+# use the agent and measurement generation to take this base tagset and increase cardinality on a
+# per-agent basis.
 [[tag_sets]]
 name = "bucket_set"
 for_each = [
@@ -140,7 +148,8 @@ name = "foo"
 
 [[agents.measurements]]
 name = "storage_usage_bucket_cardinality"
-# each sampling will have all the tag sets from this collection in addition to the tags and tag_pairs specified
+# each sampling will have all the tag sets from this collection in addition to the tags and
+# tag_pairs specified
 tag_set = "bucket_set"
 # for each agent, this specific measurement will be decorated with these additional tags.
 tag_pairs = [
@@ -155,7 +164,9 @@ i64_range = [1, 8147240]
 
 [[database_writers]]
 agents = [{name = "foo", sampling_interval = "1s", count = 3}]
-"#).unwrap();
+"#,
+    )
+    .unwrap();
 
     let generated_tag_sets = GeneratedTagSets::from_spec(&spec).unwrap();
 

@@ -394,6 +394,27 @@ impl IoxMetadata {
         })
     }
 
+    /// Generate metadata for a file generated from some process other than IOx ingesting.
+    ///
+    /// This metadata will not have valid catalog values; inserting files with this metadata into
+    /// the catalog should get valid values out-of-band.
+    pub fn external(creation_timestamp_ns: i64, table_name: impl Into<Arc<str>>) -> Self {
+        Self {
+            object_store_id: Default::default(),
+            creation_timestamp: Time::from_timestamp_nanos(creation_timestamp_ns),
+            namespace_id: NamespaceId::new(1),
+            namespace_name: "external".into(),
+            shard_id: ShardId::new(1),
+            table_id: TableId::new(1),
+            table_name: table_name.into(),
+            partition_id: PartitionId::new(1),
+            partition_key: "unknown".into(),
+            max_sequence_number: SequenceNumber::new(1),
+            compaction_level: CompactionLevel::Initial,
+            sort_key: None,
+        }
+    }
+
     /// verify uuid
     pub fn match_object_store_id(&self, uuid: Uuid) -> bool {
         uuid == self.object_store_id

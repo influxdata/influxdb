@@ -2272,6 +2272,7 @@ dependencies = [
 name = "iox_data_generator"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "chrono",
  "chrono-english",
  "clap",
@@ -2281,8 +2282,12 @@ dependencies = [
  "humantime",
  "influxdb2_client",
  "itertools",
+ "mutable_batch",
+ "mutable_batch_lp",
+ "parquet_file",
  "rand",
  "regex",
+ "schema",
  "serde",
  "serde_json",
  "snafu",

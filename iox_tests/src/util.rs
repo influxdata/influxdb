@@ -606,7 +606,7 @@ impl TestPartition {
                 table_catalog_schema
                     .columns
                     .get(f.name())
-                    .expect("Column registered")
+                    .unwrap_or_else(|| panic!("Column {} is not registered", f.name()))
                     .id
             }));
 
