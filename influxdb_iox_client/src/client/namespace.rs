@@ -1,3 +1,5 @@
+use client_util::connection::GrpcConnection;
+
 use self::generated_types::{namespace_service_client::NamespaceServiceClient, *};
 use crate::connection::Connection;
 use crate::error::Error;
@@ -10,14 +12,14 @@ pub mod generated_types {
 /// A basic client for fetching the Schema for a Namespace.
 #[derive(Debug, Clone)]
 pub struct Client {
-    inner: NamespaceServiceClient<Connection>,
+    inner: NamespaceServiceClient<GrpcConnection>,
 }
 
 impl Client {
     /// Creates a new client with the provided connection
-    pub fn new(channel: Connection) -> Self {
+    pub fn new(connection: Connection) -> Self {
         Self {
-            inner: NamespaceServiceClient::new(channel),
+            inner: NamespaceServiceClient::new(connection.into_grpc_connection()),
         }
     }
 

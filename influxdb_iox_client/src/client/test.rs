@@ -1,3 +1,4 @@
+use client_util::connection::GrpcConnection;
 /// Re-export generated_types
 use generated_types::{i_ox_testing_client::IOxTestingClient, TestErrorRequest};
 
@@ -30,14 +31,14 @@ use crate::error::Error;
 /// ```
 #[derive(Debug, Clone)]
 pub struct Client {
-    inner: IOxTestingClient<Connection>,
+    inner: IOxTestingClient<GrpcConnection>,
 }
 
 impl Client {
     /// Creates a new client with the provided connection
-    pub fn new(channel: Connection) -> Self {
+    pub fn new(connection: Connection) -> Self {
         Self {
-            inner: IOxTestingClient::new(channel),
+            inner: IOxTestingClient::new(connection.into_grpc_connection()),
         }
     }
 

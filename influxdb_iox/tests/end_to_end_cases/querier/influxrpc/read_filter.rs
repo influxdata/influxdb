@@ -3,7 +3,7 @@ use futures::{prelude::*, FutureExt};
 use generated_types::{
     read_response::frame::Data, storage_client::StorageClient, ReadFilterRequest,
 };
-use influxdb_iox_client::connection::Connection;
+use influxdb_iox_client::connection::GrpcConnection;
 use std::sync::Arc;
 use test_helpers_end_to_end::{
     maybe_skip_integration, DataGenerator, GrpcRequestBuilder, MiniCluster, Step, StepTest,
@@ -15,8 +15,7 @@ async fn read_filter() {
     let generator = Arc::new(DataGenerator::new());
     run_data_test(Arc::clone(&generator), Box::new(move |state: &mut StepTestState| {
         async move {
-            let mut storage_client =
-                StorageClient::new(state.cluster().querier().querier_grpc_connection());
+            let mut storage_client = state.cluster().querier_storage_client();
 
             let read_filter_request = GrpcRequestBuilder::new()
                 .source(state.cluster())
@@ -155,8 +154,7 @@ async fn do_read_filter_test(
             Step::WaitForReadable,
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 async move {
-                    let mut storage_client =
-                        StorageClient::new(state.cluster().querier().querier_grpc_connection());
+                    let mut storage_client = state.cluster().querier_storage_client();
 
                     println!("Sending read_filter request with {:#?}", request_builder);
 
@@ -178,7 +176,7 @@ async fn do_read_filter_test(
 
 /// Make a read_group request and returns the results in a comparable format
 async fn do_read_filter_request(
-    storage_client: &mut StorageClient<Connection>,
+    storage_client: &mut StorageClient<GrpcConnection>,
     request: tonic::Request<ReadFilterRequest>,
 ) -> Vec<String> {
     let read_filter_response = storage_client

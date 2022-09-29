@@ -1,5 +1,6 @@
 use crate::tower::{SetRequestHeadersLayer, SetRequestHeadersService};
 use http::header::HeaderName;
+use http::HeaderMap;
 use http::{uri::InvalidUri, HeaderValue, Uri};
 use std::convert::TryInto;
 use std::time::Duration;
@@ -7,8 +8,63 @@ use thiserror::Error;
 use tonic::transport::{Channel, Endpoint};
 use tower::make::MakeConnection;
 
-/// The connection type used for clients
-pub type Connection = SetRequestHeadersService<tonic::transport::Channel>;
+/// The connection type used for clients. Use [`Builder`] to create
+/// instances of [`Connection`] objects
+#[derive(Debug, Clone)]
+pub struct Connection {
+    grpc_connection: GrpcConnection,
+    http_connection: HttpConnection,
+}
+
+impl Connection {
+    /// Create a new Connection
+    fn new(grpc_connection: GrpcConnection, http_connection: HttpConnection) -> Self {
+        Self {
+            grpc_connection,
+            http_connection,
+        }
+    }
+
+    /// Consume `self` and return a [`GrpcConnection`] (suitable for use in
+    /// tonic clients)
+    pub fn into_grpc_connection(self) -> GrpcConnection {
+        self.grpc_connection
+    }
+
+    /// Consume `self` and return a [`HttpConnection`] (suitable for making
+    /// calls to /api/v2 endpoints)
+    pub fn into_http_connection(self) -> HttpConnection {
+        self.http_connection
+    }
+}
+
+/// The type used to make tonic (gRPC) requests
+pub type GrpcConnection = SetRequestHeadersService<tonic::transport::Channel>;
+
+/// The type used to make raw http request
+#[derive(Debug, Clone)]
+pub struct HttpConnection {
+    /// The base uri of the IOx http API endpoint
+    uri: Uri,
+    /// http client connection
+    http_client: reqwest::Client,
+}
+
+impl HttpConnection {
+    fn new(uri: Uri, http_client: reqwest::Client) -> Self {
+        Self { uri, http_client }
+    }
+
+    /// Return a reference to the underyling http client
+    pub fn client(&self) -> &reqwest::Client {
+        &self.http_client
+    }
+
+    /// Return a reference to the base uri of the IOx http API endpoint
+    pub fn uri(&self) -> &Uri {
+        &self.uri
+    }
+}
 
 /// The default User-Agent header sent by the HTTP client.
 pub const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
@@ -100,7 +156,7 @@ impl Builder {
     {
         let endpoint = self.create_endpoint(dst)?;
         let channel = endpoint.connect().await?;
-        Ok(self.compose_middleware(channel))
+        Ok(self.compose_middleware(channel, endpoint))
     }
 
     /// Construct the [`Connection`] instance using the specified base URL and custom connector.
@@ -114,7 +170,7 @@ impl Builder {
     {
         let endpoint = self.create_endpoint(dst)?;
         let channel = endpoint.connect_with_connector(connector).await?;
-        Ok(self.compose_middleware(channel))
+        Ok(self.compose_middleware(channel, endpoint))
     }
 
     fn create_endpoint<D>(&self, dst: D) -> Result<Endpoint>
@@ -128,11 +184,23 @@ impl Builder {
         Ok(endpoint)
     }
 
-    fn compose_middleware(self, channel: Channel) -> Connection {
+    fn compose_middleware(self, channel: Channel, endpoint: Endpoint) -> Connection {
+        let headers_map: HeaderMap = self.headers.iter().cloned().collect();
+
         // Compose channel with new tower middleware stack
-        tower::ServiceBuilder::new()
+        let grpc_connection = tower::ServiceBuilder::new()
             .layer(SetRequestHeadersLayer::new(self.headers))
-            .service(channel)
+            .service(channel);
+
+        let http_client = reqwest::Client::builder()
+            .connection_verbose(true)
+            .default_headers(headers_map)
+            .build()
+            .expect("reqwest::Client should have built");
+
+        let http_connection = HttpConnection::new(endpoint.uri().clone(), http_client);
+
+        Connection::new(grpc_connection, http_connection)
     }
 
     /// Set the `User-Agent` header sent by this client.
@@ -180,11 +248,45 @@ impl Builder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use reqwest::Method;
 
     #[test]
     fn test_builder_cloneable() {
         // Clone is used by Conductor.
         fn assert_clone<T: Clone>(_t: T) {}
         assert_clone(Builder::default())
+    }
+
+    #[tokio::test]
+    async fn headers_are_set() {
+        let url = mockito::server_url();
+
+        let http_connection = Builder::new()
+            .header(
+                HeaderName::from_static("foo"),
+                HeaderValue::from_static("bar"),
+            )
+            .build(&url)
+            .await
+            .unwrap()
+            .into_http_connection();
+
+        let url = format!("{}/the_api", url);
+        println!("Sending to {url}");
+
+        let m = mockito::mock("POST", "/the_api")
+            .with_status(201)
+            .with_body("world")
+            .match_header("FOO", "bar")
+            .create();
+
+        http_connection
+            .client()
+            .request(Method::POST, &url)
+            .send()
+            .await
+            .expect("Error making http request");
+
+        m.assert();
     }
 }

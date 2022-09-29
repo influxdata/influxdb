@@ -139,3 +139,68 @@ impl From<tonic::Status> for Error {
         }
     }
 }
+
+impl Error {
+    /// Return a `Error::Unknown` variant with the specified message
+    pub(crate) fn unknown(message: impl Into<String>) -> Self {
+        Self::Unknown(ServerError {
+            message: message.into(),
+            details: None,
+        })
+    }
+
+    /// Return a `Error::Internal` variant with the specified message
+    pub(crate) fn internal(message: impl Into<String>) -> Self {
+        Self::Internal(ServerError {
+            message: message.into(),
+            details: None,
+        })
+    }
+
+    /// Return a `Error::Client` variant with the specified message
+    pub(crate) fn client<E: std::error::Error + Send + Sync + 'static>(e: E) -> Self {
+        Self::Client(Box::new(e))
+    }
+
+    /// Return `Error::InvalidArgument` specifing an error in `field_name`
+    pub(crate) fn invalid_argument(
+        field_name: impl Into<String>,
+        description: impl Into<String>,
+    ) -> Self {
+        let field_name = field_name.into();
+        let description = description.into();
+
+        Self::InvalidArgument(ServerError {
+            message: format!("Invalid argument for '{}': {}", field_name, description),
+            details: Some(FieldViolation {
+                field: field_name,
+                description,
+            }),
+        })
+    }
+}
+
+/// Translates a reqwest response to an Error
+pub(crate) async fn translate_response(response: reqwest::Response) -> Result<(), Error> {
+    let status = response.status();
+
+    if status.is_success() {
+        Ok(())
+    } else if status.is_server_error() {
+        Err(Error::internal(response_description(response).await))
+    } else {
+        // todo would be nice to check for 404, etc and return more specific errors
+        Err(Error::unknown(response_description(response).await))
+    }
+}
+
+/// Makes as detailed error message as possible
+async fn response_description(response: reqwest::Response) -> String {
+    let status = response.status();
+
+    // see if the response has any text we can include
+    match response.text().await {
+        Ok(text) => format!("(status {status}): {text}"),
+        Err(_) => format!("status: {status}"),
+    }
+}

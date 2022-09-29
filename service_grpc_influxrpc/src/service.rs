@@ -1614,7 +1614,7 @@ mod tests {
     use futures::Future;
     use generated_types::{i_ox_testing_client::IOxTestingClient, tag_key_predicate::Value};
     use influxdb_storage_client::{
-        connection::{Builder as ConnectionBuilder, Connection},
+        connection::{Builder as ConnectionBuilder, GrpcConnection},
         generated_types::*,
         Client as StorageClient, OrgAndBucket,
     };
@@ -3482,7 +3482,7 @@ mod tests {
 
     // Wrapper around raw clients and test database
     struct Fixture {
-        iox_client: IOxTestingClient<Connection>,
+        iox_client: IOxTestingClient<GrpcConnection>,
         storage_client: StorageClient,
         test_storage: Arc<TestDatabaseStore>,
         join_handle: JoinHandle<()>,
@@ -3542,7 +3542,7 @@ mod tests {
                 .await
                 .unwrap();
 
-            let iox_client = IOxTestingClient::new(conn.clone());
+            let iox_client = IOxTestingClient::new(conn.clone().into_grpc_connection());
 
             let storage_client = StorageClient::new(conn);
 

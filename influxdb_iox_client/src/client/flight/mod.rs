@@ -118,9 +118,9 @@ pub struct Client {
 
 impl Client {
     /// Creates a new client with the provided connection
-    pub fn new(channel: Connection) -> Self {
+    pub fn new(connection: Connection) -> Self {
         Self {
-            inner: LowLevelClient::new(channel),
+            inner: LowLevelClient::new(connection),
         }
     }
 

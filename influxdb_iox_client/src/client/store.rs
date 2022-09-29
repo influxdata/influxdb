@@ -3,6 +3,7 @@ use self::generated_types::{object_store_service_client::ObjectStoreServiceClien
 use crate::connection::Connection;
 use crate::error::Error;
 
+use client_util::connection::GrpcConnection;
 use futures_util::stream::BoxStream;
 use tonic::Status;
 
@@ -14,14 +15,14 @@ pub mod generated_types {
 /// A basic client for interacting the a remote catalog.
 #[derive(Debug, Clone)]
 pub struct Client {
-    inner: ObjectStoreServiceClient<Connection>,
+    inner: ObjectStoreServiceClient<GrpcConnection>,
 }
 
 impl Client {
     /// Creates a new client with the provided connection
-    pub fn new(channel: Connection) -> Self {
+    pub fn new(connection: Connection) -> Self {
         Self {
-            inner: ObjectStoreServiceClient::new(channel),
+            inner: ObjectStoreServiceClient::new(connection.into_grpc_connection()),
         }
     }
 

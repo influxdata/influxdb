@@ -1,7 +1,7 @@
 use super::{dump::dump_data_frames, read_group_data};
 use futures::{prelude::*, FutureExt};
 use generated_types::storage_client::StorageClient;
-use influxdb_iox_client::connection::Connection;
+use influxdb_iox_client::connection::GrpcConnection;
 use test_helpers_end_to_end::{
     maybe_skip_integration, GrpcRequestBuilder, MiniCluster, Step, StepTest, StepTestState,
 };
@@ -202,8 +202,12 @@ async fn do_read_group_test(
             Step::WaitForReadable,
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 async move {
-                    let mut storage_client =
-                        StorageClient::new(state.cluster().querier().querier_grpc_connection());
+                    let grpc_connection = state
+                        .cluster()
+                        .querier()
+                        .querier_grpc_connection()
+                        .into_grpc_connection();
+                    let mut storage_client = StorageClient::new(grpc_connection);
 
                     println!("Sending read_group request with {:#?}", request_builder);
 
@@ -225,7 +229,7 @@ async fn do_read_group_test(
 
 /// Make a read_group request and returns the results in a comparable format
 async fn do_read_group_request(
-    storage_client: &mut StorageClient<Connection>,
+    storage_client: &mut StorageClient<GrpcConnection>,
     request: tonic::Request<ReadGroupRequest>,
 ) -> Vec<String> {
     let read_group_response = storage_client

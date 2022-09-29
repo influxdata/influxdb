@@ -1,3 +1,5 @@
+use client_util::connection::GrpcConnection;
+
 use self::generated_types::{delete_service_client::DeleteServiceClient, *};
 
 use crate::connection::Connection;
@@ -60,14 +62,14 @@ pub mod generated_types {
 /// ```
 #[derive(Debug, Clone)]
 pub struct Client {
-    inner: DeleteServiceClient<Connection>,
+    inner: DeleteServiceClient<GrpcConnection>,
 }
 
 impl Client {
     /// Creates a new client with the provided connection
-    pub fn new(channel: Connection) -> Self {
+    pub fn new(connection: Connection) -> Self {
         Self {
-            inner: DeleteServiceClient::new(channel),
+            inner: DeleteServiceClient::new(connection.into_grpc_connection()),
         }
     }
 

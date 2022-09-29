@@ -21,6 +21,7 @@ use ::generated_types::influxdata::iox::{
     ingester::v1::{IngesterQueryRequest, IngesterQueryResponseMetadata},
     querier::v1::{AppMetadata, ReadInfo},
 };
+use client_util::connection::{Connection, GrpcConnection};
 use futures_util::stream;
 use futures_util::stream::StreamExt;
 use prost::Message;
@@ -39,7 +40,6 @@ use arrow_flight::{
 };
 
 use super::Error;
-use crate::connection::Connection;
 use rand::Rng;
 
 /// Metadata that can be send during flight requests.
@@ -67,7 +67,7 @@ pub struct Client<T>
 where
     T: ClientMetadata,
 {
-    inner: FlightServiceClient<Connection>,
+    inner: FlightServiceClient<GrpcConnection>,
     _phantom: PhantomData<T>,
 }
 
@@ -76,9 +76,9 @@ where
     T: ClientMetadata,
 {
     /// Creates a new client with the provided connection
-    pub fn new(channel: Connection) -> Self {
+    pub fn new(connection: Connection) -> Self {
         Self {
-            inner: FlightServiceClient::new(channel),
+            inner: FlightServiceClient::new(connection.into_grpc_connection()),
             _phantom: PhantomData::default(),
         }
     }

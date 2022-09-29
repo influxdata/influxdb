@@ -1,12 +1,12 @@
 use crate::{
-    dump_log_to_stdout, log_command, rand_id, write_to_router, write_to_router_grpc, ServerFixture,
-    TestConfig, TestServer,
+    dump_log_to_stdout, log_command, rand_id, write_to_router, ServerFixture, TestConfig,
+    TestServer,
 };
 use assert_cmd::prelude::*;
 use futures::{stream::FuturesOrdered, StreamExt};
 use http::Response;
 use hyper::Body;
-use influxdb_iox_client::write::generated_types::{TableBatch, WriteResponse};
+use influxdb_iox_client::connection::GrpcConnection;
 use observability_deps::tracing::{debug, info};
 use once_cell::sync::Lazy;
 use std::{
@@ -248,19 +248,6 @@ impl MiniCluster {
         .await
     }
 
-    /// Writes the table batch to the gRPC write API on the router into the org/bucket
-    pub async fn write_to_router_grpc(
-        &self,
-        table_batches: Vec<TableBatch>,
-    ) -> tonic::Response<WriteResponse> {
-        write_to_router_grpc(
-            table_batches,
-            &self.namespace,
-            self.router().router_grpc_connection(),
-        )
-        .await
-    }
-
     /// Get a reference to the mini cluster's other servers.
     pub fn other_servers(&self) -> &[ServerFixture] {
         self.other_servers.as_ref()
@@ -310,6 +297,18 @@ impl MiniCluster {
 
         command.ok().unwrap();
         dump_log_to_stdout("compactor run-once", &log_path);
+    }
+
+    /// Create a storage client connected to the querier member of the cluster
+    pub fn querier_storage_client(
+        &self,
+    ) -> generated_types::storage_client::StorageClient<GrpcConnection> {
+        let grpc_connection = self
+            .querier()
+            .querier_grpc_connection()
+            .into_grpc_connection();
+
+        generated_types::storage_client::StorageClient::new(grpc_connection)
     }
 }
 

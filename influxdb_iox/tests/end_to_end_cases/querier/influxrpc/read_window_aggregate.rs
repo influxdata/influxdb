@@ -1,6 +1,6 @@
 use super::dump::dump_data_frames;
 use futures::{prelude::*, FutureExt};
-use generated_types::{aggregate::AggregateType, storage_client::StorageClient};
+use generated_types::aggregate::AggregateType;
 use test_helpers_end_to_end::{
     maybe_skip_integration, GrpcRequestBuilder, MiniCluster, Step, StepTest, StepTestState,
 };
@@ -40,8 +40,7 @@ pub async fn read_window_aggregate_test() {
             Step::WaitForReadable,
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 async move {
-                    let mut storage_client =
-                        StorageClient::new(state.cluster().querier().querier_grpc_connection());
+                    let mut storage_client = state.cluster().querier_storage_client();
 
 
                     let request = GrpcRequestBuilder::new()

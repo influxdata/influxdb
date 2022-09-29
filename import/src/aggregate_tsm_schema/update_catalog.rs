@@ -5,7 +5,7 @@ use data_types::{
     org_and_bucket_to_database, ColumnType, Namespace, NamespaceSchema, OrgBucketMappingError,
     Partition, PartitionKey, QueryPoolId, ShardId, TableSchema, TopicId,
 };
-use influxdb_iox_client::connection::Connection;
+use influxdb_iox_client::connection::{Connection, GrpcConnection};
 use iox_catalog::interface::{get_schema_by_name, Catalog, ColumnUpsertRequest, RepoCollection};
 use schema::{
     sort::{adjust_sort_key_columns, SortKey, SortKeyBuilder},
@@ -98,7 +98,7 @@ pub async fn update_iox_catalog<'a>(
     // initialise a client of the shard service in the router. we will use it to find out which
     // shard a table/namespace combo would shard to, without exposing the implementation
     // details of the sharding
-    let mut shard_client = ShardServiceClient::new(connection);
+    let mut shard_client = ShardServiceClient::new(connection.into_grpc_connection());
     update_catalog_schema_with_merged(
         namespace_name.as_str(),
         iox_schema,
@@ -176,7 +176,7 @@ async fn update_catalog_schema_with_merged<R>(
     iox_schema: NamespaceSchema,
     merged_tsm_schema: &AggregateTSMSchema,
     repos: &mut R,
-    shard_client: &mut ShardServiceClient<Connection>,
+    shard_client: &mut ShardServiceClient<GrpcConnection>,
 ) -> Result<(), UpdateCatalogError>
 where
     R: RepoCollection + ?Sized,
