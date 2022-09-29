@@ -41,7 +41,6 @@ pub struct Config {
     /// The columns to request
     #[clap(
         long = "--columns",
-        multiple_values = true,
         use_value_delimiter = true,
         action
     )]
