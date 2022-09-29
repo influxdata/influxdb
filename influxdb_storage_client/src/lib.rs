@@ -11,7 +11,9 @@
     clippy::todo,
     clippy::dbg_macro,
     clippy::clone_on_ref_ptr,
-    clippy::future_not_send
+    clippy::future_not_send,
+    clippy::todo,
+    clippy::dbg_macro
 )]
 #![allow(clippy::missing_docs_in_private_items)]
 

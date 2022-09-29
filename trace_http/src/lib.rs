@@ -4,7 +4,9 @@
     clippy::explicit_iter_loop,
     clippy::use_self,
     clippy::clone_on_ref_ptr,
-    clippy::future_not_send
+    clippy::future_not_send,
+    clippy::todo,
+    clippy::dbg_macro
 )]
 
 mod classify;
