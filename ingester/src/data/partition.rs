@@ -3,7 +3,9 @@
 use std::sync::Arc;
 
 use arrow::record_batch::RecordBatch;
-use data_types::{PartitionId, PartitionKey, SequenceNumber, ShardId, TableId, Tombstone};
+use data_types::{
+    NamespaceId, PartitionId, PartitionKey, SequenceNumber, ShardId, TableId, Tombstone,
+};
 use iox_query::exec::Executor;
 use mutable_batch::MutableBatch;
 use schema::selection::Selection;
@@ -138,8 +140,9 @@ pub struct PartitionData {
     /// The string partition key for this partition.
     partition_key: PartitionKey,
 
-    /// The shard and table IDs for this partition.
+    /// The shard, namespace & table IDs for this partition.
     shard_id: ShardId,
+    namespace_id: NamespaceId,
     table_id: TableId,
     /// The name of the table this partition is part of.
     table_name: Arc<str>,
@@ -157,6 +160,7 @@ impl PartitionData {
         id: PartitionId,
         partition_key: PartitionKey,
         shard_id: ShardId,
+        namespace_id: NamespaceId,
         table_id: TableId,
         table_name: Arc<str>,
         max_persisted_sequence_number: Option<SequenceNumber>,
@@ -165,6 +169,7 @@ impl PartitionData {
             id,
             partition_key,
             shard_id,
+            namespace_id,
             table_id,
             table_name,
             data: Default::default(),
@@ -337,6 +342,11 @@ impl PartitionData {
     pub fn partition_key(&self) -> &PartitionKey {
         &self.partition_key
     }
+
+    /// Return the [`NamespaceId`] this partition is a part of.
+    pub fn namespace_id(&self) -> NamespaceId {
+        self.namespace_id
+    }
 }
 
 #[cfg(test)]
@@ -353,6 +363,7 @@ mod tests {
             PartitionId::new(1),
             "bananas".into(),
             ShardId::new(1),
+            NamespaceId::new(42),
             TableId::new(1),
             "foo".into(),
             None,
@@ -399,6 +410,7 @@ mod tests {
             PartitionId::new(p_id),
             "bananas".into(),
             ShardId::new(s_id),
+            NamespaceId::new(42),
             TableId::new(t_id),
             "restaurant".into(),
             None,

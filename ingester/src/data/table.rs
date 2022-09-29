@@ -2,7 +2,9 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use data_types::{DeletePredicate, PartitionKey, SequenceNumber, ShardId, TableId, Timestamp};
+use data_types::{
+    DeletePredicate, NamespaceId, PartitionKey, SequenceNumber, ShardId, TableId, Timestamp,
+};
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
 use mutable_batch::MutableBatch;
@@ -20,8 +22,10 @@ pub(crate) struct TableData {
     table_id: TableId,
     table_name: Arc<str>,
 
-    /// The catalog ID of the shard this table is being populated from.
+    /// The catalog ID of the shard & namespace this table is being populated
+    /// from.
     shard_id: ShardId,
+    namespace_id: NamespaceId,
 
     // the max sequence number for a tombstone associated with this table
     tombstone_max_sequence_number: Option<SequenceNumber>,
@@ -49,6 +53,7 @@ impl TableData {
         table_id: TableId,
         table_name: &str,
         shard_id: ShardId,
+        namespace_id: NamespaceId,
         tombstone_max_sequence_number: Option<SequenceNumber>,
         partition_provider: Arc<dyn PartitionProvider>,
     ) -> Self {
@@ -56,6 +61,7 @@ impl TableData {
             table_id,
             table_name: table_name.into(),
             shard_id,
+            namespace_id,
             tombstone_max_sequence_number,
             partition_data: Default::default(),
             partition_provider,
@@ -94,6 +100,7 @@ impl TableData {
                     .get_partition(
                         partition_key.clone(),
                         self.shard_id,
+                        self.namespace_id,
                         self.table_id,
                         Arc::clone(&self.table_name),
                     )

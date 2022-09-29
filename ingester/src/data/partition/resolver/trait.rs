@@ -1,7 +1,7 @@
 use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{PartitionKey, ShardId, TableId};
+use data_types::{NamespaceId, PartitionKey, ShardId, TableId};
 
 use crate::data::partition::PartitionData;
 
@@ -18,6 +18,7 @@ pub trait PartitionProvider: Send + Sync + Debug {
         &self,
         partition_key: PartitionKey,
         shard_id: ShardId,
+        namespace_id: NamespaceId,
         table_id: TableId,
         table_name: Arc<str>,
     ) -> PartitionData;
@@ -32,11 +33,12 @@ where
         &self,
         partition_key: PartitionKey,
         shard_id: ShardId,
+        namespace_id: NamespaceId,
         table_id: TableId,
         table_name: Arc<str>,
     ) -> PartitionData {
         (**self)
-            .get_partition(partition_key, shard_id, table_id, table_name)
+            .get_partition(partition_key, shard_id, namespace_id, table_id, table_name)
             .await
     }
 }
@@ -55,6 +57,7 @@ mod tests {
     async fn test_arc_impl() {
         let key = PartitionKey::from("bananas");
         let shard_id = ShardId::new(42);
+        let namespace_id = NamespaceId::new(1234);
         let table_id = TableId::new(24);
         let table_name = "platanos".into();
         let partition = PartitionId::new(4242);
@@ -62,6 +65,7 @@ mod tests {
             partition,
             "bananas".into(),
             shard_id,
+            namespace_id,
             table_id,
             Arc::clone(&table_name),
             None,
@@ -70,9 +74,16 @@ mod tests {
         let mock = Arc::new(MockPartitionProvider::default().with_partition(key.clone(), data));
 
         let got = mock
-            .get_partition(key, shard_id, table_id, Arc::clone(&table_name))
+            .get_partition(
+                key,
+                shard_id,
+                namespace_id,
+                table_id,
+                Arc::clone(&table_name),
+            )
             .await;
         assert_eq!(got.id(), partition);
+        assert_eq!(got.namespace_id(), namespace_id);
         assert_eq!(*got.table_name(), *table_name);
     }
 }

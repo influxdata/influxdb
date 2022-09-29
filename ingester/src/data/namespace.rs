@@ -265,6 +265,7 @@ impl NamespaceData {
                     info.table_id,
                     table_name,
                     self.shard_id,
+                    self.namespace_id,
                     info.tombstone_max_sequence_number,
                     Arc::clone(&self.partition_provider),
                 ))));
