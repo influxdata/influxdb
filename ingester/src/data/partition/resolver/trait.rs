@@ -58,7 +58,14 @@ mod tests {
         let table_id = TableId::new(24);
         let table_name = "platanos".into();
         let partition = PartitionId::new(4242);
-        let data = PartitionData::new(partition, shard_id, table_id, Arc::clone(&table_name), None);
+        let data = PartitionData::new(
+            partition,
+            "bananas".into(),
+            shard_id,
+            table_id,
+            Arc::clone(&table_name),
+            None,
+        );
 
         let mock = Arc::new(MockPartitionProvider::default().with_partition(key.clone(), data));
 

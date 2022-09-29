@@ -69,6 +69,10 @@ impl PartitionProvider for CatalogPartitionResolver {
 
         PartitionData::new(
             p.id,
+            // Use the caller's partition key instance, as it MAY be shared with
+            // other instance, but the instance returned from the catalog
+            // definitely has no other refs.
+            partition_key,
             shard_id,
             table_id,
             table_name,
@@ -124,11 +128,12 @@ mod tests {
             (shard.id, table.id)
         };
 
+        let callers_partition_key = PartitionKey::from(PARTITION_KEY);
         let table_name = TABLE_NAME.into();
         let resolver = CatalogPartitionResolver::new(Arc::clone(&catalog));
         let got = resolver
             .get_partition(
-                PartitionKey::from(PARTITION_KEY),
+                callers_partition_key.clone(),
                 shard_id,
                 table_id,
                 Arc::clone(&table_name),
@@ -136,6 +141,7 @@ mod tests {
             .await;
         assert_eq!(*got.table_name(), *table_name);
         assert_eq!(got.max_persisted_sequence_number(), None);
+        assert!(got.partition_key.ptr_eq(&callers_partition_key));
 
         let got = catalog
             .repositories()

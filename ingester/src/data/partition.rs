@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use arrow::record_batch::RecordBatch;
-use data_types::{PartitionId, SequenceNumber, ShardId, TableId, Tombstone};
+use data_types::{PartitionId, PartitionKey, SequenceNumber, ShardId, TableId, Tombstone};
 use iox_query::exec::Executor;
 use mutable_batch::MutableBatch;
 use schema::selection::Selection;
@@ -135,6 +135,9 @@ impl SnapshotBatch {
 pub struct PartitionData {
     /// The catalog ID of the partition this buffer is for.
     id: PartitionId,
+    /// The string partition key for this partition.
+    partition_key: PartitionKey,
+
     /// The shard and table IDs for this partition.
     shard_id: ShardId,
     table_id: TableId,
@@ -152,6 +155,7 @@ impl PartitionData {
     /// Initialize a new partition data buffer
     pub(crate) fn new(
         id: PartitionId,
+        partition_key: PartitionKey,
         shard_id: ShardId,
         table_id: TableId,
         table_name: Arc<str>,
@@ -159,6 +163,7 @@ impl PartitionData {
     ) -> Self {
         Self {
             id,
+            partition_key,
             shard_id,
             table_id,
             table_name,
@@ -327,6 +332,11 @@ impl PartitionData {
     pub(crate) fn table_id(&self) -> TableId {
         self.table_id
     }
+
+    /// Return the partition key for this partition.
+    pub fn partition_key(&self) -> &PartitionKey {
+        &self.partition_key
+    }
 }
 
 #[cfg(test)]
@@ -341,6 +351,7 @@ mod tests {
     fn snapshot_buffer_different_but_compatible_schemas() {
         let mut partition_data = PartitionData::new(
             PartitionId::new(1),
+            "bananas".into(),
             ShardId::new(1),
             TableId::new(1),
             "foo".into(),
@@ -386,6 +397,7 @@ mod tests {
         let p_id = 1;
         let mut p = PartitionData::new(
             PartitionId::new(p_id),
+            "bananas".into(),
             ShardId::new(s_id),
             TableId::new(t_id),
             "restaurant".into(),
