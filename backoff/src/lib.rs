@@ -11,7 +11,7 @@
     clippy::todo,
     clippy::dbg_macro
 )]
-use observability_deps::tracing::info;
+use observability_deps::tracing::warn;
 use rand::prelude::*;
 use snafu::Snafu;
 use std::ops::ControlFlow;
@@ -165,8 +165,8 @@ impl Backoff {
                 }
             };
 
-            info!(
-                e=%e,
+            warn!(
+                error=%e,
                 task_name,
                 backoff_secs = backoff.as_secs(),
                 "request encountered non-fatal error - backing off",
