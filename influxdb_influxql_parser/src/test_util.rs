@@ -4,7 +4,7 @@
 #[macro_export]
 macro_rules! assert_failure {
     ($RESULT:expr) => {
-        assert!(matches!($RESULT.unwrap_err(), nom::Err::Failure(_)));
+        assert_matches::assert_matches!($RESULT.unwrap_err(), nom::Err::Failure(_));
     };
 }
 

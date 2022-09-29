@@ -1,6 +1,7 @@
 use crate::delete::{delete_statement, DeleteStatement};
 use crate::drop::{drop_statement, DropMeasurementStatement};
 use crate::internal::ParseResult;
+use crate::select::{select_statement, SelectStatement};
 use crate::show::{show_statement, ShowDatabasesStatement};
 use crate::show_field_keys::ShowFieldKeysStatement;
 use crate::show_measurements::ShowMeasurementsStatement;
@@ -18,6 +19,8 @@ pub enum Statement {
     Delete(Box<DeleteStatement>),
     /// Represents a `DROP MEASUREMENT` statement.
     DropMeasurement(Box<DropMeasurementStatement>),
+    /// Represents a `SELECT` statement.
+    Select(Box<SelectStatement>),
     /// Represents a `SHOW DATABASES` statement.
     ShowDatabases(Box<ShowDatabasesStatement>),
     /// Represents a `SHOW MEASUREMENTS` statement.
@@ -35,17 +38,16 @@ pub enum Statement {
 impl Display for Statement {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Delete(s) => Display::fmt(s, f)?,
-            Self::DropMeasurement(s) => Display::fmt(s, f)?,
-            Self::ShowDatabases(s) => Display::fmt(s, f)?,
-            Self::ShowMeasurements(s) => Display::fmt(s, f)?,
-            Self::ShowRetentionPolicies(s) => Display::fmt(s, f)?,
-            Self::ShowTagKeys(s) => Display::fmt(s, f)?,
-            Self::ShowTagValues(s) => Display::fmt(s, f)?,
-            Self::ShowFieldKeys(s) => Display::fmt(s, f)?,
-        };
-
-        Ok(())
+            Self::Delete(s) => Display::fmt(s, f),
+            Self::DropMeasurement(s) => Display::fmt(s, f),
+            Self::Select(s) => Display::fmt(s, f),
+            Self::ShowDatabases(s) => Display::fmt(s, f),
+            Self::ShowMeasurements(s) => Display::fmt(s, f),
+            Self::ShowRetentionPolicies(s) => Display::fmt(s, f),
+            Self::ShowTagKeys(s) => Display::fmt(s, f),
+            Self::ShowTagValues(s) => Display::fmt(s, f),
+            Self::ShowFieldKeys(s) => Display::fmt(s, f),
+        }
     }
 }
 
@@ -54,6 +56,7 @@ pub fn statement(i: &str) -> ParseResult<&str, Statement> {
     alt((
         map(delete_statement, |s| Statement::Delete(Box::new(s))),
         map(drop_statement, |s| Statement::DropMeasurement(Box::new(s))),
+        map(select_statement, |s| Statement::Select(Box::new(s))),
         show_statement,
     ))(i)
 }
@@ -64,15 +67,21 @@ mod test {
 
     #[test]
     fn test_statement() {
-        // validate one of each statement parser is accepted
+        // Validate one of each statement parser is accepted and that all input is consumed
 
         // delete_statement combinator
-        statement("DELETE FROM foo").unwrap();
+        let (got, _) = statement("DELETE FROM foo").unwrap();
+        assert_eq!(got, "");
 
         // drop_statement combinator
-        statement("DROP MEASUREMENT foo").unwrap();
+        let (got, _) = statement("DROP MEASUREMENT foo").unwrap();
+        assert_eq!(got, "");
+
+        let (got, _) = statement("SELECT * FROM foo WHERE time > now() - 5m AND host = 'bar' GROUP BY TIME(5m) FILL(previous) ORDER BY time DESC").unwrap();
+        assert_eq!(got, "");
 
         // show_statement combinator
-        statement("SHOW TAG KEYS").unwrap();
+        let (got, _) = statement("SHOW TAG KEYS").unwrap();
+        assert_eq!(got, "");
     }
 }

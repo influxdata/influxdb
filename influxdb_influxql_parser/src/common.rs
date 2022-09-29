@@ -1,15 +1,15 @@
-#![allow(dead_code)]
-
-use crate::expression::{conditional_expression, Expr};
+use crate::expression::conditional::{conditional_expression, ConditionalExpression};
 use crate::identifier::{identifier, Identifier};
-use crate::internal::{expect, map_fail, ParseResult};
+use crate::internal::{expect, ParseResult};
+use crate::literal::unsigned_integer;
 use core::fmt;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case};
-use nom::character::complete::{char, digit1, multispace1};
+use nom::character::complete::{char, multispace0, multispace1};
 use nom::combinator::{map, opt, value};
+use nom::multi::separated_list1;
 use nom::sequence::{pair, preceded, terminated};
-use std::fmt::Formatter;
+use std::fmt::{Display, Formatter};
 
 /// Represents a fully-qualified measurement name.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -17,6 +17,35 @@ pub struct MeasurementNameExpression {
     pub database: Option<Identifier>,
     pub retention_policy: Option<Identifier>,
     pub name: Identifier,
+}
+
+impl MeasurementNameExpression {
+    /// Constructs a new `MeasurementNameExpression` with the specified `name`.
+    pub fn new(name: Identifier) -> Self {
+        Self {
+            database: None,
+            retention_policy: None,
+            name,
+        }
+    }
+
+    /// Constructs a new `MeasurementNameExpression` with the specified `name` and `database`.
+    pub fn new_db(name: Identifier, database: Identifier) -> Self {
+        Self {
+            database: Some(database),
+            retention_policy: None,
+            name,
+        }
+    }
+
+    /// Constructs a new `MeasurementNameExpression` with the specified `name`, `database` and `retention_policy`.
+    pub fn new_db_rp(name: Identifier, database: Identifier, retention_policy: Identifier) -> Self {
+        Self {
+            database: Some(database),
+            retention_policy: Some(retention_policy),
+            name,
+        }
+    }
 }
 
 impl fmt::Display for MeasurementNameExpression {
@@ -83,29 +112,24 @@ pub fn measurement_name_expression(i: &str) -> ParseResult<&str, MeasurementName
     ))
 }
 
-/// Parse an unsigned integer.
-fn unsigned_number(i: &str) -> ParseResult<&str, u64> {
-    map_fail("unable to parse unsigned integer", digit1, &str::parse)(i)
-}
-
-/// Parse a LIMIT <n> clause.
+/// Parse a `LIMIT <n>` clause.
 pub fn limit_clause(i: &str) -> ParseResult<&str, u64> {
     preceded(
         pair(tag_no_case("LIMIT"), multispace1),
         expect(
             "invalid LIMIT clause, expected unsigned integer",
-            unsigned_number,
+            unsigned_integer,
         ),
     )(i)
 }
 
-/// Parse an OFFSET <n> clause.
+/// Parse an `OFFSET <n>` clause.
 pub fn offset_clause(i: &str) -> ParseResult<&str, u64> {
     preceded(
         pair(tag_no_case("OFFSET"), multispace1),
         expect(
             "invalid OFFSET clause, expected unsigned integer",
-            unsigned_number,
+            unsigned_integer,
         ),
     )(i)
 }
@@ -116,7 +140,7 @@ pub fn statement_terminator(i: &str) -> ParseResult<&str, ()> {
 }
 
 /// Parse a `WHERE` clause.
-pub fn where_clause(i: &str) -> ParseResult<&str, Expr> {
+pub fn where_clause(i: &str) -> ParseResult<&str, ConditionalExpression> {
     preceded(
         pair(tag_no_case("WHERE"), multispace1),
         conditional_expression,
@@ -124,7 +148,7 @@ pub fn where_clause(i: &str) -> ParseResult<&str, Expr> {
 }
 
 /// Represents an InfluxQL `ORDER BY` clause.
-#[derive(Default, Debug, Clone, Eq, PartialEq)]
+#[derive(Default, Debug, Clone, Copy, Eq, PartialEq)]
 pub enum OrderByClause {
     #[default]
     Ascending,
@@ -185,10 +209,86 @@ pub fn order_by_clause(i: &str) -> ParseResult<&str, OrderByClause> {
     )(i)
 }
 
+/// Parser is a trait that allows a type to parse itself.
+pub trait Parser: Sized {
+    fn parse(i: &str) -> ParseResult<&str, Self>;
+}
+
+/// `OneOrMore` is a container for representing a minimum of one `T`.
+///
+/// `OneOrMore` provides a default implementation of [`fmt::Display`],
+/// which displays the contents separated by commas.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OneOrMore<T: Display + Parser> {
+    contents: Vec<T>,
+}
+
+impl<T: Display + Parser> Display for OneOrMore<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(self.first(), f)?;
+        for arg in self.rest() {
+            write!(f, ", {}", arg)?;
+        }
+        Ok(())
+    }
+}
+
+impl<T: Display + Parser> OneOrMore<T> {
+    /// Construct a new `OneOrMore<T>` with `contents`.
+    ///
+    /// **NOTE:** that `new` panics if contents is empty.
+    pub fn new(contents: Vec<T>) -> Self {
+        if contents.is_empty() {
+            panic!("OneOrMore requires elements");
+        }
+
+        Self { contents }
+    }
+
+    /// Returns the first element.
+    pub fn first(&self) -> &T {
+        self.contents.first().unwrap()
+    }
+
+    /// Returns any remaining elements.
+    pub fn rest(&self) -> &[T] {
+        &self.contents[1..]
+    }
+
+    /// Returns the total number of elements.
+    /// Note that `len` ≥ 1.
+    pub fn len(&self) -> usize {
+        self.contents.len()
+    }
+}
+
+impl<T: Display + Parser> OneOrMore<T> {
+    /// Parse a list of one or more `T`, separated by commas.
+    ///
+    /// Returns an error using `msg` if `separated_list1` fails to parse any elements.
+    pub fn separated_list1<'a>(
+        msg: &'static str,
+    ) -> impl FnMut(&'a str) -> ParseResult<&'a str, Self> {
+        move |i: &str| {
+            map(
+                expect(
+                    msg,
+                    separated_list1(
+                        preceded(multispace0, char(',')),
+                        preceded(multispace0, T::parse),
+                    ),
+                ),
+                Self::new,
+            )(i)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::assert_expect_error;
+    use nom::character::complete::alphanumeric1;
 
     #[test]
     fn test_measurement_name_expression() {
@@ -345,5 +445,39 @@ mod tests {
 
         // Fallible cases
         statement_terminator("foo").unwrap_err();
+    }
+
+    impl Parser for String {
+        fn parse(i: &str) -> ParseResult<&str, Self> {
+            map(alphanumeric1, &str::to_string)(i)
+        }
+    }
+
+    type OneOrMoreString = OneOrMore<String>;
+
+    #[test]
+    #[should_panic(expected = "OneOrMore requires elements")]
+    fn test_one_or_more() {
+        let (_, got) = OneOrMoreString::separated_list1("Expects one or more")("foo").unwrap();
+        assert_eq!(got.len(), 1);
+        assert_eq!(got.first(), "foo");
+        assert_eq!(format!("{}", got), "foo");
+
+        let (_, got) =
+            OneOrMoreString::separated_list1("Expects one or more")("foo ,  bar,foobar").unwrap();
+        assert_eq!(got.len(), 3);
+        assert_eq!(got.first(), "foo");
+        assert_eq!(got.rest(), vec!["bar", "foobar"]);
+        assert_eq!(format!("{}", got), "foo, bar, foobar");
+
+        // Fallible cases
+
+        assert_expect_error!(
+            OneOrMoreString::separated_list1("Expects one or more")("+"),
+            "Expects one or more"
+        );
+
+        // should panic
+        OneOrMoreString::new(vec![]);
     }
 }

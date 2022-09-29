@@ -1,5 +1,5 @@
 use crate::common::{limit_clause, offset_clause, where_clause};
-use crate::expression::Expr;
+use crate::expression::conditional::ConditionalExpression;
 use crate::identifier::Identifier;
 use crate::internal::ParseResult;
 use crate::show::on_clause;
@@ -23,7 +23,7 @@ pub struct ShowTagKeysStatement {
     pub from: Option<ShowFromClause>,
 
     /// A conditional expression to filter the tag keys.
-    pub condition: Option<Expr>,
+    pub condition: Option<ConditionalExpression>,
 
     /// A value to restrict the number of tag keys returned.
     pub limit: Option<u64>,

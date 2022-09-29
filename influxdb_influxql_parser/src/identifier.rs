@@ -11,8 +11,6 @@
 //! [identifier]: https://docs.influxdata.com/influxdb/v1.8/query_language/spec/#identifiers
 //! [keywords]: https://docs.influxdata.com/influxdb/v1.8/query_language/spec/#keywords
 
-#![allow(dead_code)]
-
 use crate::internal::ParseResult;
 use crate::keywords::sql_keyword;
 use crate::string::double_quoted_string;

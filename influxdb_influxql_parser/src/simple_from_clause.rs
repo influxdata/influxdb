@@ -1,25 +1,29 @@
-use crate::common::{measurement_name_expression, MeasurementNameExpression};
+use crate::common::{measurement_name_expression, MeasurementNameExpression, OneOrMore, Parser};
 use crate::identifier::{identifier, Identifier};
-use crate::internal::{expect, ParseResult};
+use crate::internal::ParseResult;
 use crate::string::{regex, Regex};
 use nom::branch::alt;
 use nom::bytes::complete::tag_no_case;
-use nom::character::complete::{char, multispace0, multispace1};
-use nom::combinator::{map, opt};
-use nom::multi::separated_list1;
-use nom::sequence::{pair, preceded, tuple};
+use nom::character::complete::multispace1;
+use nom::combinator::map;
+use nom::sequence::{pair, preceded};
 use std::fmt;
 use std::fmt::Formatter;
-
-pub trait Parser: Sized {
-    fn parse(i: &str) -> ParseResult<&str, Self>;
-}
 
 /// Represents a single measurement selection found in a `FROM` measurement clause.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MeasurementSelection<T: Parser> {
     Name(T),
     Regex(Regex),
+}
+
+impl<T: Parser> Parser for MeasurementSelection<T> {
+    fn parse(i: &str) -> ParseResult<&str, Self> {
+        alt((
+            map(T::parse, MeasurementSelection::Name),
+            map(regex, MeasurementSelection::Regex),
+        ))(i)
+    }
 }
 
 impl<T: fmt::Display + Parser> fmt::Display for MeasurementSelection<T> {
@@ -39,56 +43,14 @@ impl<T: fmt::Display + Parser> fmt::Display for MeasurementSelection<T> {
 /// for measurements names.
 ///
 /// A `FROM` clause for a number of `SHOW` statements can accept a 3-part measurement name or
-/// regular expression.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct FromMeasurementClause<T: Parser> {
-    pub first: MeasurementSelection<T>,
-    pub rest: Option<Vec<MeasurementSelection<T>>>,
-}
+pub type FromMeasurementClause<U> = OneOrMore<MeasurementSelection<U>>;
 
-impl<T: fmt::Display + Parser> fmt::Display for FromMeasurementClause<T> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(&self.first, f)?;
-        if let Some(ref rest) = self.rest {
-            for arg in rest {
-                write!(f, ", {}", arg)?;
-            }
-        }
-
-        Ok(())
-    }
-}
-
-fn measurement_selection<T: Parser>(i: &str) -> ParseResult<&str, MeasurementSelection<T>> {
-    alt((
-        map(T::parse, MeasurementSelection::Name),
-        map(regex, MeasurementSelection::Regex),
-    ))(i)
-}
-
-fn from_clause<T: Parser>(i: &str) -> ParseResult<&str, FromMeasurementClause<T>> {
-    // NOTE: This combinator is optimised to parse
-    map(
-        preceded(
-            pair(tag_no_case("FROM"), multispace1),
-            expect(
-                "invalid FROM clause, expected one or more identifiers or regexes",
-                tuple((
-                    measurement_selection,
-                    opt(preceded(
-                        pair(multispace0, char(',')),
-                        expect(
-                            "invalid FROM clause, expected identifier after ,",
-                            separated_list1(
-                                preceded(multispace0, char(',')),
-                                preceded(multispace0, measurement_selection),
-                            ),
-                        ),
-                    )),
-                )),
-            ),
+fn from_clause<T: Parser + fmt::Display>(i: &str) -> ParseResult<&str, FromMeasurementClause<T>> {
+    preceded(
+        pair(tag_no_case("FROM"), multispace1),
+        FromMeasurementClause::<T>::separated_list1(
+            "invalid FROM clause, expected identifier or regular expression",
         ),
-        |(first, rest)| FromMeasurementClause { first, rest },
     )(i)
 }
 
@@ -162,62 +124,38 @@ mod test {
         let (_, from) = show_from_clause("FROM c").unwrap();
         assert_eq!(
             from,
-            ShowFromClause {
-                first: Name(MeasurementNameExpression {
-                    database: None,
-                    retention_policy: None,
-                    name: "c".into()
-                }),
-                rest: None
-            }
+            ShowFromClause::new(vec![Name(MeasurementNameExpression::new("c".into()))])
         );
 
         let (_, from) = show_from_clause("FROM a..c").unwrap();
         assert_eq!(
             from,
-            ShowFromClause {
-                first: Name(MeasurementNameExpression {
-                    database: Some("a".into()),
-                    retention_policy: None,
-                    name: "c".into()
-                }),
-                rest: None
-            }
+            ShowFromClause::new(vec![Name(MeasurementNameExpression::new_db(
+                "c".into(),
+                "a".into()
+            ))])
         );
 
         let (_, from) = show_from_clause("FROM a.b.c").unwrap();
         assert_eq!(
             from,
-            ShowFromClause {
-                first: Name(MeasurementNameExpression {
-                    database: Some("a".into()),
-                    retention_policy: Some("b".into()),
-                    name: "c".into()
-                }),
-                rest: None
-            }
+            ShowFromClause::new(vec![Name(MeasurementNameExpression::new_db_rp(
+                "c".into(),
+                "a".into(),
+                "b".into()
+            ))])
         );
 
         let (_, from) = show_from_clause("FROM /reg/").unwrap();
-        assert_eq!(
-            from,
-            ShowFromClause {
-                first: Regex("reg".into()),
-                rest: None
-            }
-        );
+        assert_eq!(from, ShowFromClause::new(vec![Regex("reg".into())]));
 
         let (_, from) = show_from_clause("FROM c, /reg/").unwrap();
         assert_eq!(
             from,
-            ShowFromClause {
-                first: Name(MeasurementNameExpression {
-                    database: None,
-                    retention_policy: None,
-                    name: "c".into()
-                }),
-                rest: Some(vec![Regex("reg".into())]),
-            }
+            ShowFromClause::new(vec![
+                Name(MeasurementNameExpression::new("c".into())),
+                Regex("reg".into())
+            ])
         );
     }
 
@@ -226,41 +164,20 @@ mod test {
         use crate::simple_from_clause::MeasurementSelection::*;
 
         let (_, from) = delete_from_clause("FROM c").unwrap();
-        assert_eq!(
-            from,
-            DeleteFromClause {
-                first: Name("c".into()),
-                rest: None
-            }
-        );
+        assert_eq!(from, DeleteFromClause::new(vec![Name("c".into())]));
 
         let (_, from) = delete_from_clause("FROM /reg/").unwrap();
-        assert_eq!(
-            from,
-            DeleteFromClause {
-                first: Regex("reg".into()),
-                rest: None
-            }
-        );
+        assert_eq!(from, DeleteFromClause::new(vec![Regex("reg".into())]));
 
         let (_, from) = delete_from_clause("FROM c, /reg/").unwrap();
         assert_eq!(
             from,
-            DeleteFromClause {
-                first: Name("c".into()),
-                rest: Some(vec![Regex("reg".into())]),
-            }
+            DeleteFromClause::new(vec![Name("c".into()), Regex("reg".into())])
         );
 
         // Demonstrate that the 3-part name is not parsed
         let (i, from) = delete_from_clause("FROM a.b.c").unwrap();
-        assert_eq!(
-            from,
-            DeleteFromClause {
-                first: Name("a".into()),
-                rest: None,
-            }
-        );
+        assert_eq!(from, DeleteFromClause::new(vec![Name("a".into())]));
         // The remaining input will fail in a later parser
         assert_eq!(i, ".b.c");
     }

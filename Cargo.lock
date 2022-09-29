@@ -2020,6 +2020,7 @@ dependencies = [
 name = "influxdb_influxql_parser"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "nom",
  "test_helpers",
  "workspace-hack",

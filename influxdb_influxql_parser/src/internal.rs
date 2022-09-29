@@ -2,6 +2,7 @@
 //!
 use nom::error::{ErrorKind as NomErrorKind, ParseError as NomParseError};
 use nom::Parser;
+use std::borrow::Borrow;
 use std::fmt::{Display, Formatter};
 
 /// This trait must be implemented in order to use the [`map_fail`] and
@@ -71,6 +72,30 @@ where
         Err(nom::Err::Incomplete(i)) => Err(nom::Err::Incomplete(i)),
         Err(nom::Err::Error(_)) => Err(nom::Err::Failure(E::from_message(i, message))),
         Err(nom::Err::Failure(e)) => Err(nom::Err::Failure(e)),
+    }
+}
+
+/// Returns the result of `f` if it satisfies `is_valid`; otherwise,
+/// returns an error using the specified `message`.
+pub fn verify<'a, O1, O2, E: ParseError<'a>, F, G>(
+    message: &'static str,
+    mut f: F,
+    is_valid: G,
+) -> impl FnMut(&'a str) -> ParseResult<&'a str, O1, E>
+where
+    F: Parser<&'a str, O1, E>,
+    G: Fn(&O2) -> bool,
+    O1: Borrow<O2>,
+    O2: ?Sized,
+{
+    move |i: &str| {
+        let (remain, o) = f.parse(i)?;
+
+        if is_valid(o.borrow()) {
+            Ok((remain, o))
+        } else {
+            Err(nom::Err::Failure(E::from_message(i, message)))
+        }
     }
 }
 

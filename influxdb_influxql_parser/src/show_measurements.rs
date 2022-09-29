@@ -2,8 +2,6 @@
 //!
 //! [sql]: https://docs.influxdata.com/influxdb/v1.8/query_language/explore-schema/#show-measurements
 
-#![allow(dead_code)]
-
 use crate::internal::{expect, ParseResult};
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case};
@@ -18,7 +16,7 @@ use crate::common::{
     limit_clause, measurement_name_expression, offset_clause, where_clause,
     MeasurementNameExpression,
 };
-use crate::expression::Expr;
+use crate::expression::conditional::ConditionalExpression;
 use crate::identifier::{identifier, Identifier};
 use crate::string::{regex, Regex};
 
@@ -66,10 +64,19 @@ fn on_clause(i: &str) -> ParseResult<&str, OnExpression> {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ShowMeasurementsStatement {
+    /// Limit the search to databases matching the expression.
     pub on_expression: Option<OnExpression>,
+
+    /// Limit the search to measurements matching the expression.
     pub measurement_expression: Option<MeasurementExpression>,
-    pub condition: Option<Expr>,
+
+    /// A conditional expression to filter the measurement list.
+    pub condition: Option<ConditionalExpression>,
+
+    /// A value to restrict the number of tag keys returned.
     pub limit: Option<u64>,
+
+    /// A value to specify an offset to start retrieving tag keys.
     pub offset: Option<u64>,
 }
 
@@ -136,7 +143,7 @@ fn with_measurement_clause(i: &str) -> ParseResult<&str, MeasurementExpression> 
                     tuple((
                         tag("=~"),
                         multispace0,
-                        expect("expected regex literal", regex),
+                        expect("expected regular expression literal", regex),
                     )),
                     |(_, _, regex)| MeasurementExpression::Regex(regex),
                 ),
@@ -193,6 +200,8 @@ pub fn show_measurements(i: &str) -> ParseResult<&str, ShowMeasurementsStatement
 mod test {
     use super::*;
     use crate::assert_expect_error;
+    use crate::expression::arithmetic::Expr;
+    use assert_matches::assert_matches;
 
     #[test]
     fn test_show_measurements() {
@@ -229,7 +238,7 @@ mod test {
                         name: "bar".into(),
                     }
                 )),
-                condition: Some(Expr::Literal(true.into())),
+                condition: Some(Expr::Literal(true.into()).into()),
                 limit: Some(10),
                 offset: Some(20)
             },
@@ -247,7 +256,7 @@ mod test {
             ShowMeasurementsStatement {
                 on_expression: Some(OnExpression::Database("foo".into())),
                 measurement_expression: Some(MeasurementExpression::Regex(Regex("bar".into()))),
-                condition: Some(Expr::Literal(true.into())),
+                condition: Some(Expr::Literal(true.into()).into()),
                 limit: None,
                 offset: None
             },
@@ -321,13 +330,10 @@ mod test {
         );
 
         let (_, got) = on_clause("ON *").unwrap();
-        assert!(matches!(got, OnExpression::AllDatabases));
+        assert_matches!(got, OnExpression::AllDatabases);
 
         let (_, got) = on_clause("ON *.*").unwrap();
-        assert!(matches!(
-            got,
-            OnExpression::AllDatabasesAndRetentionPolicies
-        ));
+        assert_matches!(got, OnExpression::AllDatabasesAndRetentionPolicies);
 
         assert_expect_error!(
             on_clause("ON WHERE cpu = 'test'"),
@@ -376,7 +382,7 @@ mod test {
         // Must have a regex for equal regex operator
         assert_expect_error!(
             with_measurement_clause("WITH measurement =~ foo"),
-            "expected regex literal"
+            "expected regular expression literal"
         );
 
         // Unsupported regex not equal operator

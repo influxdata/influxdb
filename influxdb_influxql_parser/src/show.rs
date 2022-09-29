@@ -45,8 +45,7 @@ pub struct ShowDatabasesStatement;
 
 impl Display for ShowDatabasesStatement {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str("SHOW DATABASES")?;
-        Ok(())
+        f.write_str("SHOW DATABASES")
     }
 }
 
@@ -69,7 +68,7 @@ fn show_tag(i: &str) -> ParseResult<&str, Statement> {
     preceded(
         pair(tag_no_case("TAG"), multispace1),
         expect(
-            "invalid SHOW TAG statement, expected KEYS or VALUES following TAG",
+            "invalid SHOW TAG statement, expected KEYS or VALUES",
             alt((
                 map(show_tag_keys, |s| Statement::ShowTagKeys(Box::new(s))),
                 map(show_tag_values, |s| Statement::ShowTagValues(Box::new(s))),
@@ -109,7 +108,7 @@ mod test {
 
         assert_expect_error!(
             show_statement("SHOW TAG FOO WITH KEY = some_key"),
-            "invalid SHOW TAG statement, expected KEYS or VALUES following TAG"
+            "invalid SHOW TAG statement, expected KEYS or VALUES"
         );
 
         // Unsupported SHOW

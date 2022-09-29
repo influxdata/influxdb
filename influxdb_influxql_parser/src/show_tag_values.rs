@@ -1,5 +1,5 @@
-use crate::common::{limit_clause, offset_clause, where_clause};
-use crate::expression::Expr;
+use crate::common::{limit_clause, offset_clause, where_clause, OneOrMore};
+use crate::expression::conditional::ConditionalExpression;
 use crate::identifier::{identifier, Identifier};
 use crate::internal::{expect, ParseResult};
 use crate::show::on_clause;
@@ -9,10 +9,9 @@ use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case};
 use nom::character::complete::{char, multispace0, multispace1};
 use nom::combinator::{map, opt};
-use nom::multi::separated_list1;
-use nom::sequence::{delimited, pair, preceded, tuple};
+use nom::sequence::{delimited, preceded, tuple};
 use std::fmt;
-use std::fmt::{Display, Formatter, Write};
+use std::fmt::{Display, Formatter};
 
 /// Represents a `SHOW TAG VALUES` InfluxQL statement.
 #[derive(Clone, Debug, PartialEq)]
@@ -30,7 +29,7 @@ pub struct ShowTagValuesStatement {
     pub with_key: WithKeyExpression,
 
     /// A conditional expression to filter the tag keys.
-    pub condition: Option<Expr>,
+    pub condition: Option<ConditionalExpression>,
 
     /// A value to restrict the number of tag keys returned.
     pub limit: Option<u64>,
@@ -39,7 +38,7 @@ pub struct ShowTagValuesStatement {
     pub offset: Option<u64>,
 }
 
-impl fmt::Display for ShowTagValuesStatement {
+impl Display for ShowTagValuesStatement {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "SHOW TAG VALUES")?;
 
@@ -87,7 +86,7 @@ pub fn show_tag_values(i: &str) -> ParseResult<&str, ShowTagValuesStatement> {
         opt(preceded(multispace1, on_clause)),
         opt(preceded(multispace1, show_from_clause)),
         expect(
-            "invalid SHOW TAG VALUES statement, expect WITH KEY clause",
+            "invalid SHOW TAG VALUES statement, expected WITH KEY clause",
             preceded(multispace1, with_key_clause),
         ),
         opt(preceded(multispace1, where_clause)),
@@ -108,6 +107,8 @@ pub fn show_tag_values(i: &str) -> ParseResult<&str, ShowTagValuesStatement> {
     ))
 }
 
+pub type InList = OneOrMore<Identifier>;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WithKeyExpression {
     Eq(Identifier),
@@ -115,10 +116,7 @@ pub enum WithKeyExpression {
     EqRegex(Regex),
     NotEqRegex(Regex),
     /// IN expression
-    In {
-        first: Identifier,
-        rest: Option<Vec<Identifier>>,
-    },
+    In(InList),
 }
 
 impl Display for WithKeyExpression {
@@ -126,41 +124,22 @@ impl Display for WithKeyExpression {
         f.write_str("WITH KEY ")?;
 
         match self {
-            Self::Eq(v) => write!(f, "= {}", v)?,
-            Self::NotEq(v) => write!(f, "!= {}", v)?,
-            Self::EqRegex(v) => write!(f, "=~ {}", v)?,
-            Self::NotEqRegex(v) => write!(f, "=! {}", v)?,
-            Self::In { first, rest } => {
-                write!(f, "IN ({}", first)?;
-                if let Some(rest) = rest {
-                    for ident in rest {
-                        write!(f, ", {}", ident)?;
-                    }
-                }
-                f.write_char(')')?;
-            }
-        };
-
-        Ok(())
+            Self::Eq(v) => write!(f, "= {}", v),
+            Self::NotEq(v) => write!(f, "!= {}", v),
+            Self::EqRegex(v) => write!(f, "=~ {}", v),
+            Self::NotEqRegex(v) => write!(f, "=! {}", v),
+            Self::In(list) => write!(f, "IN ({})", list),
+        }
     }
 }
 
 /// Parse an identifier list, as expected by the `WITH KEY IN` clause.
-fn identifier_list(i: &str) -> ParseResult<&str, (Identifier, Option<Vec<Identifier>>)> {
+fn identifier_list(i: &str) -> ParseResult<&str, InList> {
     delimited(
         preceded(multispace0, char('(')),
-        tuple((
-            preceded(multispace0, identifier),
-            opt(preceded(
-                pair(multispace0, char(',')),
-                separated_list1(
-                    preceded(multispace0, char(',')),
-                    preceded(multispace0, identifier),
-                ),
-            )),
-        )),
+        InList::separated_list1("invalid IN clause, expected identifier"),
         expect(
-            "invalid identifier list, missing ')'",
+            "invalid identifier list, expected ')'",
             preceded(multispace0, char(')')),
         ),
     )(i)
@@ -171,25 +150,28 @@ fn with_key_clause(i: &str) -> ParseResult<&str, WithKeyExpression> {
         tuple((
             tag_no_case("WITH"),
             multispace1,
-            expect(
-                "invalid WITH KEY clause, expect KEY following WITH",
-                tag_no_case("KEY"),
-            ),
+            expect("invalid WITH KEY clause, expected KEY", tag_no_case("KEY")),
         )),
         expect(
-            "invalid WITH KEY clause, expect condition",
+            "invalid WITH KEY clause, expected condition",
             alt((
                 map(
                     preceded(
                         delimited(multispace0, tag("=~"), multispace0),
-                        expect("invalid WITH KEY clause, expect regex following =~", regex),
+                        expect(
+                            "invalid WITH KEY clause, expected regular expression following =~",
+                            regex,
+                        ),
                     ),
                     WithKeyExpression::EqRegex,
                 ),
                 map(
                     preceded(
                         delimited(multispace0, tag("!~"), multispace0),
-                        expect("invalid WITH KEY clause, expect regex following =!", regex),
+                        expect(
+                            "invalid WITH KEY clause, expected regular expression following =!",
+                            regex,
+                        ),
                     ),
                     WithKeyExpression::NotEqRegex,
                 ),
@@ -197,7 +179,7 @@ fn with_key_clause(i: &str) -> ParseResult<&str, WithKeyExpression> {
                     preceded(
                         delimited(multispace0, char('='), multispace0),
                         expect(
-                            "invalid WITH KEY clause, expect identifier following =",
+                            "invalid WITH KEY clause, expected identifier following =",
                             identifier,
                         ),
                     ),
@@ -207,7 +189,7 @@ fn with_key_clause(i: &str) -> ParseResult<&str, WithKeyExpression> {
                     preceded(
                         delimited(multispace0, tag("!="), multispace0),
                         expect(
-                            "invalid WITH KEY clause, expect identifier following !=",
+                            "invalid WITH KEY clause, expected identifier following !=",
                             identifier,
                         ),
                     ),
@@ -217,11 +199,11 @@ fn with_key_clause(i: &str) -> ParseResult<&str, WithKeyExpression> {
                     preceded(
                         preceded(multispace1, tag("IN")),
                         expect(
-                            "invalid WITH KEY clause, expect identifier list following IN",
+                            "invalid WITH KEY clause, expected identifier list following IN",
                             identifier_list,
                         ),
                     ),
-                    |(first, rest)| WithKeyExpression::In { first, rest },
+                    WithKeyExpression::In,
                 ),
             )),
         ),
@@ -316,21 +298,16 @@ mod test {
         assert_eq!(got, WithKeyExpression::NotEqRegex("foo".into()));
 
         let (_, got) = with_key_clause("WITH KEY IN (foo)").unwrap();
-        assert_eq!(
-            got,
-            WithKeyExpression::In {
-                first: "foo".into(),
-                rest: None
-            }
-        );
+        assert_eq!(got, WithKeyExpression::In(InList::new(vec!["foo".into()])));
 
         let (_, got) = with_key_clause("WITH KEY IN (foo, bar, \"foo bar\")").unwrap();
         assert_eq!(
             got,
-            WithKeyExpression::In {
-                first: "foo".into(),
-                rest: Some(vec!["bar".into(), "foo bar".into()])
-            }
+            WithKeyExpression::In(InList::new(vec![
+                "foo".into(),
+                "bar".into(),
+                "foo bar".into()
+            ]))
         );
 
         // Expressions are still valid when whitespace is omitted
@@ -341,52 +318,52 @@ mod test {
 
         assert_expect_error!(
             with_key_clause("WITH = foo"),
-            "invalid WITH KEY clause, expect KEY following WITH"
+            "invalid WITH KEY clause, expected KEY"
         );
 
         assert_expect_error!(
             with_key_clause("WITH KEY"),
-            "invalid WITH KEY clause, expect condition"
+            "invalid WITH KEY clause, expected condition"
         );
 
         assert_expect_error!(
             with_key_clause("WITH KEY foo"),
-            "invalid WITH KEY clause, expect condition"
+            "invalid WITH KEY clause, expected condition"
         );
 
         assert_expect_error!(
             with_key_clause("WITH KEY = /foo/"),
-            "invalid WITH KEY clause, expect identifier following ="
+            "invalid WITH KEY clause, expected identifier following ="
         );
 
         assert_expect_error!(
             with_key_clause("WITH KEY IN = foo"),
-            "invalid WITH KEY clause, expect identifier list following IN"
+            "invalid WITH KEY clause, expected identifier list following IN"
         );
     }
 
     #[test]
     fn test_identifier_list() {
         let (_, got) = identifier_list("(foo)").unwrap();
-        assert_eq!(got, ("foo".into(), None));
+        assert_eq!(got, InList::new(vec!["foo".into()]));
 
         // Test first and rest as well as removing unnecessary whitespace
         let (_, got) = identifier_list("( foo, bar,\"foo bar\" )").unwrap();
         assert_eq!(
             got,
-            ("foo".into(), Some(vec!["bar".into(), "foo bar".into()]))
+            InList::new(vec!["foo".into(), "bar".into(), "foo bar".into()])
         );
 
         // Fallible cases
 
         assert_expect_error!(
             identifier_list("(foo"),
-            "invalid identifier list, missing ')'"
+            "invalid identifier list, expected ')'"
         );
 
         assert_expect_error!(
             identifier_list("(foo bar)"),
-            "invalid identifier list, missing ')'"
+            "invalid identifier list, expected ')'"
         );
     }
 }

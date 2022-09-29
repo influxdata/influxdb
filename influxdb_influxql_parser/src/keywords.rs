@@ -2,8 +2,6 @@
 //!
 //! [keywords]: https://docs.influxdata.com/influxdb/v1.8/query_language/spec/#keywords
 
-#![allow(dead_code)]
-
 use crate::internal::ParseResult;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case};

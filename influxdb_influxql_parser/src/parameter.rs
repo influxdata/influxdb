@@ -7,8 +7,6 @@
 //! [bind parameter]: https://docs.influxdata.com/influxdb/v1.8/tools/api/#bind-parameters
 //! [implementation]: https://github.com/influxdata/influxql/blob/df51a45762be9c1b578f01718fa92d286a843fe9/scanner.go#L57-L62
 
-#![allow(dead_code)]
-
 use crate::internal::ParseResult;
 use crate::string::double_quoted_string;
 use crate::write_quoted_string;
