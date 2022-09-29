@@ -44,7 +44,7 @@ pub struct Config {
     /// Test action
     #[clap(
         value_enum,
-        long = "--test-action",
+        long = "test-action",
         env = "IOX_TEST_ACTION",
         default_value = "None",
         ignore_case = true,

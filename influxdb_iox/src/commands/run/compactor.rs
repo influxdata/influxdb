@@ -66,7 +66,7 @@ pub struct Config {
 
     /// Number of threads to use for the compactor query execution, compaction and persistence.
     #[clap(
-        long = "--query-exec-thread-count",
+        long = "query-exec-thread-count",
         env = "INFLUXDB_IOX_QUERY_EXEC_THREAD_COUNT",
         default_value = "4",
         action

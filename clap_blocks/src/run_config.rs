@@ -23,7 +23,7 @@ pub struct RunConfig {
 
     /// The address on which IOx will serve HTTP API requests.
     #[clap(
-        long = "--api-bind",
+        long = "api-bind",
         env = "INFLUXDB_IOX_BIND_ADDR",
         default_value = DEFAULT_API_BIND_ADDR,
         action,
@@ -32,7 +32,7 @@ pub struct RunConfig {
 
     /// The address on which IOx will serve Storage gRPC API requests.
     #[clap(
-        long = "--grpc-bind",
+        long = "grpc-bind",
         env = "INFLUXDB_IOX_GRPC_BIND_ADDR",
         default_value = DEFAULT_GRPC_BIND_ADDR,
         action,
@@ -41,7 +41,7 @@ pub struct RunConfig {
 
     /// Maximum size of HTTP requests.
     #[clap(
-        long = "--max-http-request-size",
+        long = "max-http-request-size",
         env = "INFLUXDB_IOX_MAX_HTTP_REQUEST_SIZE",
         default_value = "10485760", // 10 MiB
         action,

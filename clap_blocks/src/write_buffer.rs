@@ -15,16 +15,12 @@ pub struct WriteBufferConfig {
     /// The type of write buffer to use.
     ///
     /// Valid options are: file, kafka
-    #[clap(
-        long = "--write-buffer",
-        env = "INFLUXDB_IOX_WRITE_BUFFER_TYPE",
-        action
-    )]
+    #[clap(long = "write-buffer", env = "INFLUXDB_IOX_WRITE_BUFFER_TYPE", action)]
     pub(crate) type_: String,
 
     /// The address to the write buffer.
     #[clap(
-        long = "--write-buffer-addr",
+        long = "write-buffer-addr",
         env = "INFLUXDB_IOX_WRITE_BUFFER_ADDR",
         action
     )]
@@ -32,7 +28,7 @@ pub struct WriteBufferConfig {
 
     /// Write buffer topic/database that should be used.
     #[clap(
-        long = "--write-buffer-topic",
+        long = "write-buffer-topic",
         env = "INFLUXDB_IOX_WRITE_BUFFER_TOPIC",
         default_value = "iox-shared",
         action
@@ -49,7 +45,7 @@ pub struct WriteBufferConfig {
     ///
     /// Environment variables are passed as `key1=value1,key2=value2,...`.
     #[clap(
-        long = "--write-buffer-connection-config",
+        long = "write-buffer-connection-config",
         env = "INFLUXDB_IOX_WRITE_BUFFER_CONNECTION_CONFIG",
         default_value = "",
         use_value_delimiter = true
@@ -58,7 +54,7 @@ pub struct WriteBufferConfig {
 
     /// The number of topics to create automatically, if any. Default is to not create any topics.
     #[clap(
-        long = "--write-buffer-auto-create-topics",
+        long = "write-buffer-auto-create-topics",
         env = "INFLUXDB_IOX_WRITE_BUFFER_AUTO_CREATE_TOPICS"
     )]
     pub(crate) auto_create_topics: Option<NonZeroU32>,

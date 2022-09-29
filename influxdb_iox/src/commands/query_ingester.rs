@@ -39,16 +39,12 @@ pub struct Config {
     table: String,
 
     /// The columns to request
-    #[clap(
-        long = "--columns",
-        use_value_delimiter = true,
-        action
-    )]
+    #[clap(long = "columns", use_value_delimiter = true, action)]
     columns: Vec<String>,
 
     /// Predicate in base64 protobuf encoded form.
     /// (logged on error)
-    #[clap(long = "--predicate-base64", action)]
+    #[clap(long = "predicate-base64", action)]
     predicate_base64: Option<String>,
 
     /// Optional format ('pretty', 'json', or 'csv')

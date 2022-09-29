@@ -28,7 +28,7 @@ pub struct Config {
     #[clap(
         value_enum,
         value_parser,
-        long = "--compaction-type",
+        long = "compaction-type",
         env = "INFLUXDB_IOX_COMPACTOR_GENERATE_TYPE",
         default_value = "hot",
         action
@@ -38,7 +38,7 @@ pub struct Config {
     /// The number of IOx partitions to generate files for. Each partition will have the number
     /// of files specified by `--num-files` generated.
     #[clap(
-        long = "--num-partitions",
+        long = "num-partitions",
         env = "INFLUXDB_IOX_COMPACTOR_GENERATE_NUM_PARTITIONS",
         default_value = "1",
         action
@@ -47,7 +47,7 @@ pub struct Config {
 
     /// The number of parquet files to generate per partition.
     #[clap(
-        long = "--num-files",
+        long = "num-files",
         env = "INFLUXDB_IOX_COMPACTOR_GENERATE_NUM_FILES",
         default_value = "1",
         action
@@ -58,7 +58,7 @@ pub struct Config {
     /// timestamp. Additional columns will be given a type in I64, F64, String, Bool, and
     /// Tag in equal proportion.
     #[clap(
-        long = "--num-cols",
+        long = "num-cols",
         env = "INFLUXDB_IOX_COMPACTOR_GENERATE_NUM_COLS",
         default_value = "6",
         action
@@ -67,7 +67,7 @@ pub struct Config {
 
     /// The number of rows to generate in each file.
     #[clap(
-        long = "--num-rows",
+        long = "num-rows",
         env = "INFLUXDB_IOX_COMPACTOR_GENERATE_NUM_ROWS",
         default_value = "1",
         action

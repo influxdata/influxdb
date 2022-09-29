@@ -47,7 +47,7 @@ pub struct TracingConfig {
     ///
     /// Can be one of: none, jaeger
     #[clap(
-        long = "--traces-exporter",
+        long = "traces-exporter",
         env = "TRACES_EXPORTER",
         default_value = "none",
         action
@@ -60,7 +60,7 @@ pub struct TracingConfig {
     ///
     /// Only used if `--traces-exporter` is "jaeger".
     #[clap(
-        long = "--traces-exporter-jaeger-agent-host",
+        long = "traces-exporter-jaeger-agent-host",
         env = "TRACES_EXPORTER_JAEGER_AGENT_HOST",
         default_value = "0.0.0.0",
         action
@@ -73,7 +73,7 @@ pub struct TracingConfig {
     ///
     /// Only used if `--traces-exporter` is "jaeger".
     #[clap(
-        long = "--traces-exporter-jaeger-agent-port",
+        long = "traces-exporter-jaeger-agent-port",
         env = "TRACES_EXPORTER_JAEGER_AGENT_PORT",
         default_value = "6831",
         action
@@ -84,7 +84,7 @@ pub struct TracingConfig {
     ///
     /// Only used if `--traces-exporter` is "jaeger".
     #[clap(
-        long = "--traces-exporter-jaeger-service-name",
+        long = "traces-exporter-jaeger-service-name",
         env = "TRACES_EXPORTER_JAEGER_SERVICE_NAME",
         default_value = "iox-conductor",
         action
@@ -95,7 +95,7 @@ pub struct TracingConfig {
     ///
     /// Only used if `--traces-exporter` is "jaeger".
     #[clap(
-        long = "--traces-exporter-jaeger-trace-context-header-name",
+        long = "traces-exporter-jaeger-trace-context-header-name",
         env = "TRACES_EXPORTER_JAEGER_TRACE_CONTEXT_HEADER_NAME",
         default_value = DEFAULT_JAEGER_TRACE_CONTEXT_HEADER_NAME,
         action,
@@ -106,7 +106,7 @@ pub struct TracingConfig {
     ///
     /// Only used if `--traces-exporter` is "jaeger".
     #[clap(
-        long = "--traces-jaeger-debug-name",
+        long = "traces-jaeger-debug-name",
         env = "TRACES_EXPORTER_JAEGER_DEBUG_NAME",
         default_value = "jaeger-debug-id",
         action
@@ -119,7 +119,7 @@ pub struct TracingConfig {
     ///
     /// Only used if `--traces-exporter` is "jaeger".
     #[clap(
-        long = "--traces-jaeger-tags",
+        long = "traces-jaeger-tags",
         env = "TRACES_EXPORTER_JAEGER_TAGS",
         value_delimiter = ',',
         action
