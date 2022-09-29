@@ -39,7 +39,6 @@ pub struct LoggingConfig {
     #[clap(
         short = 'v',
         long = "--verbose",
-        takes_value = false,
         action = clap::ArgAction::Count,
     )]
     pub log_verbose_count: u8,
