@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
-use data_types::{Partition, PartitionKey, ShardId, TableId};
+use data_types::{NamespaceId, Partition, PartitionKey, ShardId, TableId};
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::debug;
 
@@ -53,6 +53,7 @@ impl PartitionProvider for CatalogPartitionResolver {
         &self,
         partition_key: PartitionKey,
         shard_id: ShardId,
+        namespace_id: NamespaceId,
         table_id: TableId,
         table_name: Arc<str>,
     ) -> PartitionData {
@@ -74,6 +75,7 @@ impl PartitionProvider for CatalogPartitionResolver {
             // definitely has no other refs.
             partition_key,
             shard_id,
+            namespace_id,
             table_id,
             table_name,
             p.persisted_sequence_number,
@@ -98,7 +100,7 @@ mod tests {
         let catalog: Arc<dyn Catalog> =
             Arc::new(iox_catalog::mem::MemCatalog::new(Arc::clone(&metrics)));
 
-        let (shard_id, table_id) = {
+        let (shard_id, namespace_id, table_id) = {
             let mut repos = catalog.repositories().await;
             let t = repos.topics().create_or_get("platanos").await.unwrap();
             let q = repos.query_pools().create_or_get("platanos").await.unwrap();
@@ -125,7 +127,7 @@ mod tests {
                 .await
                 .unwrap();
 
-            (shard.id, table.id)
+            (shard.id, ns.id, table.id)
         };
 
         let callers_partition_key = PartitionKey::from(PARTITION_KEY);
@@ -135,10 +137,12 @@ mod tests {
             .get_partition(
                 callers_partition_key.clone(),
                 shard_id,
+                namespace_id,
                 table_id,
                 Arc::clone(&table_name),
             )
             .await;
+        assert_eq!(got.namespace_id(), namespace_id);
         assert_eq!(*got.table_name(), *table_name);
         assert_eq!(got.max_persisted_sequence_number(), None);
         assert!(got.partition_key.ptr_eq(&callers_partition_key));

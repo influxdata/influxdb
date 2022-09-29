@@ -3,7 +3,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{PartitionKey, ShardId, TableId};
+use data_types::{NamespaceId, PartitionKey, ShardId, TableId};
 use parking_lot::Mutex;
 
 use crate::data::partition::PartitionData;
@@ -53,6 +53,7 @@ impl PartitionProvider for MockPartitionProvider {
         &self,
         partition_key: PartitionKey,
         shard_id: ShardId,
+        namespace_id: NamespaceId,
         table_id: TableId,
         table_name: Arc<str>,
     ) -> PartitionData {
@@ -64,6 +65,7 @@ impl PartitionProvider for MockPartitionProvider {
                 panic!("no partition data for mock ({partition_key:?}, {shard_id:?}, {table_id:?})")
             });
 
+        assert_eq!(p.namespace_id(), namespace_id);
         assert_eq!(*p.table_name(), *table_name);
         p
     }

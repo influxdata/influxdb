@@ -1,7 +1,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{Partition, PartitionId, PartitionKey, SequenceNumber, ShardId, TableId};
+use data_types::{
+    NamespaceId, Partition, PartitionId, PartitionKey, SequenceNumber, ShardId, TableId,
+};
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 
@@ -150,6 +152,7 @@ where
         &self,
         partition_key: PartitionKey,
         shard_id: ShardId,
+        namespace_id: NamespaceId,
         table_id: TableId,
         table_name: Arc<str>,
     ) -> PartitionData {
@@ -165,6 +168,7 @@ where
                 cached.partition_id,
                 key,
                 shard_id,
+                namespace_id,
                 table_id,
                 table_name,
                 cached.max_sequence_number,
@@ -175,7 +179,7 @@ where
 
         // Otherwise delegate to the catalog / inner impl.
         self.inner
-            .get_partition(partition_key, shard_id, table_id, table_name)
+            .get_partition(partition_key, shard_id, namespace_id, table_id, table_name)
             .await
     }
 }
@@ -189,7 +193,8 @@ mod tests {
     const PARTITION_KEY: &str = "bananas";
     const PARTITION_ID: PartitionId = PartitionId::new(42);
     const SHARD_ID: ShardId = ShardId::new(1);
-    const TABLE_ID: TableId = TableId::new(2);
+    const NAMESPACE_ID: NamespaceId = NamespaceId::new(2);
+    const TABLE_ID: TableId = TableId::new(3);
     const TABLE_NAME: &str = "platanos";
 
     #[tokio::test]
@@ -198,6 +203,7 @@ mod tests {
             PARTITION_ID,
             PARTITION_KEY.into(),
             SHARD_ID,
+            NAMESPACE_ID,
             TABLE_ID,
             TABLE_NAME.into(),
             None,
@@ -206,7 +212,13 @@ mod tests {
 
         let cache = PartitionCache::new(inner, []);
         let got = cache
-            .get_partition(PARTITION_KEY.into(), SHARD_ID, TABLE_ID, TABLE_NAME.into())
+            .get_partition(
+                PARTITION_KEY.into(),
+                SHARD_ID,
+                NAMESPACE_ID,
+                TABLE_ID,
+                TABLE_NAME.into(),
+            )
             .await;
 
         assert_eq!(got.id(), PARTITION_ID);
@@ -237,6 +249,7 @@ mod tests {
             .get_partition(
                 callers_partition_key.clone(),
                 SHARD_ID,
+                NAMESPACE_ID,
                 TABLE_ID,
                 TABLE_NAME.into(),
             )
@@ -270,6 +283,7 @@ mod tests {
                 other_key_id,
                 PARTITION_KEY.into(),
                 SHARD_ID,
+                NAMESPACE_ID,
                 TABLE_ID,
                 TABLE_NAME.into(),
                 None,
@@ -287,7 +301,13 @@ mod tests {
 
         let cache = PartitionCache::new(inner, [partition]);
         let got = cache
-            .get_partition(other_key.clone(), SHARD_ID, TABLE_ID, TABLE_NAME.into())
+            .get_partition(
+                other_key.clone(),
+                SHARD_ID,
+                NAMESPACE_ID,
+                TABLE_ID,
+                TABLE_NAME.into(),
+            )
             .await;
 
         assert_eq!(got.id(), other_key_id);
@@ -305,6 +325,7 @@ mod tests {
                 PARTITION_ID,
                 PARTITION_KEY.into(),
                 SHARD_ID,
+                NAMESPACE_ID,
                 other_table,
                 TABLE_NAME.into(),
                 None,
@@ -325,6 +346,7 @@ mod tests {
             .get_partition(
                 PARTITION_KEY.into(),
                 SHARD_ID,
+                NAMESPACE_ID,
                 other_table,
                 TABLE_NAME.into(),
             )
@@ -345,6 +367,7 @@ mod tests {
                 PARTITION_ID,
                 PARTITION_KEY.into(),
                 other_shard,
+                NAMESPACE_ID,
                 TABLE_ID,
                 TABLE_NAME.into(),
                 None,
@@ -365,6 +388,7 @@ mod tests {
             .get_partition(
                 PARTITION_KEY.into(),
                 other_shard,
+                NAMESPACE_ID,
                 TABLE_ID,
                 TABLE_NAME.into(),
             )
