@@ -43,7 +43,7 @@ nu-ansi-term = "0.46.0"
 arrow = { version = "23.0.0", features = ["prettyprint"] }
 backtrace = "0.3"
 bytes = "1.2"
-clap = { version = "3", features = ["derive", "env"] }
+clap = { version = "4", features = ["derive", "env"] }
 console-subscriber = { version = "0.1.8", optional = true, features = ["parking_lot"] }
 dotenvy = "0.15.5"
 futures = "0.3"

@@ -9,7 +9,7 @@ default-run = "iox_data_generator"
 bytes = "1.2"
 chrono = { version = "0.4", default-features = false }
 chrono-english = "0.1.4"
-clap = { version = "3", features = ["derive", "env", "cargo"] }
+clap = { version = "4", features = ["derive", "env", "cargo"] }
 futures = "0.3"
 handlebars = "4.3.4"
 humantime = "2.1.0"
