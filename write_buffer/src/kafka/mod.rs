@@ -326,7 +326,7 @@ impl WriteBufferStreamHandler for RSKafkaStreamHandler {
     async fn seek(&mut self, sequence_number: SequenceNumber) -> Result<(), WriteBufferError> {
         let offset = sequence_number.get();
         let current = self.partition_client.get_offset(OffsetAt::Latest).await?;
-        if dbg!(offset) > dbg!(current) {
+        if offset > current {
             return Err(WriteBufferError::sequence_number_after_watermark(format!(
                 "attempted to seek to offset {offset}, but current high \
                 watermark for partition {p} is {current}",
