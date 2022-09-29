@@ -124,6 +124,8 @@ impl TableData {
         let should_pause = lifecycle_handle.log_write(
             partition_data.id(),
             self.shard_id,
+            self.namespace_id,
+            self.table_id,
             sequence_number,
             batch.size(),
             batch.rows(),
