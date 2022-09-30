@@ -75,7 +75,7 @@ func TestService_handleGetNotificationEndpoints(t *testing.T) {
 									OrgID:  influxTesting.MustIDBase16Ptr("50f7ba1150f7ba11"),
 									Status: influxdb.Active,
 								},
-								URL: "http://example.com",
+								URL: "http://slack.com",
 							},
 							&endpoint.HTTP{
 								Base: endpoint.Base{
@@ -84,7 +84,7 @@ func TestService_handleGetNotificationEndpoints(t *testing.T) {
 									OrgID:  influxTesting.MustIDBase16Ptr("7e55e118dbabb1ed"),
 									Status: influxdb.Inactive,
 								},
-								URL:             "example.com",
+								URL:             "http://example.com",
 								Username:        influxdb.SecretField{Key: "http-user-key"},
 								Password:        influxdb.SecretField{Key: "http-password-key"},
 								AuthMethod:      "basic",
@@ -152,11 +152,11 @@ func TestService_handleGetNotificationEndpoints(t *testing.T) {
 			 "type": "slack",
 			 "token": "",
 		     "updatedAt": "0001-01-01T00:00:00Z",
-		     "url": "http://example.com"
+		     "url": "http://slack.com"
 		   },
 		   {
 		     "createdAt": "0001-01-01T00:00:00Z",
-		     "url": "example.com",
+		     "url": "http://example.com",
 		     "id": "c0175f0077a77005",
 		     "labels": [
 		       {
@@ -293,7 +293,7 @@ func TestService_handleGetNotificationEndpoint(t *testing.T) {
 									Name:   "hello",
 									Status: influxdb.Active,
 								},
-								URL:             "example.com",
+								URL:             "http://example.com",
 								Username:        influxdb.SecretField{Key: "http-user-key"},
 								Password:        influxdb.SecretField{Key: "http-password-key"},
 								AuthMethod:      "basic",
@@ -326,7 +326,7 @@ func TestService_handleGetNotificationEndpoint(t *testing.T) {
 		  "createdAt": "0001-01-01T00:00:00Z",
 		  "updatedAt": "0001-01-01T00:00:00Z",
 		  "id": "020f755c3c082000",
-		  "url": "example.com",
+		  "url": "http://example.com",
 		  "username": "secret: http-user-key",
 		  "password": "secret: http-password-key",
 		  "token":"",
@@ -834,7 +834,7 @@ func TestService_handleUpdateNotificationEndpoint(t *testing.T) {
 					"orgID":  "020f755c3c082001",
 					"type":   "slack",
 					"token":  "",
-					"url":    "example.com",
+					"url":    "https://slack.com",
 				},
 			},
 			wants: wants{
@@ -853,7 +853,7 @@ func TestService_handleUpdateNotificationEndpoint(t *testing.T) {
 		  "id": "020f755c3c082000",
 		  "orgID": "020f755c3c082001",
 		  "name": "example",
-		  "url": "example.com",
+		  "url": "https://slack.com",
           "type": "slack",
 		  "status": "active",
 		  "token": "",

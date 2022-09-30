@@ -77,6 +77,25 @@ func (s Slack) MarshalJSON() ([]byte, error) {
 		})
 }
 
+func (s *Slack) UnmarshalJSON(b []byte) error {
+	type Alias Slack
+	var a Alias
+
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+
+	if a.URL != "" {
+		if u, err := url.Parse(a.URL); err != nil || u.Scheme == "" || u.Host == "" {
+			return fmt.Errorf("the provided url should match the standard url schema")
+		}
+	}
+
+	*s = Slack(a)
+
+	return nil
+}
+
 // Type returns the type.
 func (s Slack) Type() string {
 	return SlackType

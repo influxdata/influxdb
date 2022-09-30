@@ -141,8 +141,10 @@ func (s *HTTP) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	if u, err := url.Parse(a.URL); err != nil || u.Scheme == "" || u.Host == "" {
-		return fmt.Errorf("the provided url should match the standard url schema")
+	if a.URL != "" {
+		if u, err := url.Parse(a.URL); err != nil || u.Scheme == "" || u.Host == "" {
+			return fmt.Errorf("the provided url should match the standard url schema")
+		}
 	}
 
 	*s = HTTP(a)
