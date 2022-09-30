@@ -210,9 +210,14 @@ impl TableData {
             })
     }
 
-    #[cfg(test)]
+    /// Returns the table ID for this partition.
     pub(super) fn table_id(&self) -> TableId {
         self.table_id
+    }
+
+    /// Returns the name of this table.
+    pub(crate) fn table_name(&self) -> &Arc<str> {
+        &self.table_name
     }
 }
 
