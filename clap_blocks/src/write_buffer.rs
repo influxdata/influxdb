@@ -40,7 +40,6 @@ pub struct WriteBufferConfig {
     /// The concrete options depend on the write buffer type.
     ///
     /// Command line arguments are passed as
-    /// `--write-buffer-connection-config key1=value1 key2=value2` or
     /// `--write-buffer-connection-config key1=value1,key2=value2`.
     ///
     /// Environment variables are passed as `key1=value1,key2=value2,...`.
@@ -48,7 +47,8 @@ pub struct WriteBufferConfig {
         long = "write-buffer-connection-config",
         env = "INFLUXDB_IOX_WRITE_BUFFER_CONNECTION_CONFIG",
         default_value = "",
-        use_value_delimiter = true
+        use_value_delimiter = true,
+        action = clap::ArgAction::Append
     )]
     pub(crate) connection_config: Vec<String>,
 
@@ -181,10 +181,15 @@ mod tests {
             "localhost:1234",
             "--write-buffer-connection-config",
             "foo=bar",
+            "--write-buffer-connection-config",
             "",
+            "--write-buffer-connection-config",
             "x=",
+            "--write-buffer-connection-config",
             "y",
+            "--write-buffer-connection-config",
             "foo=baz",
+            "--write-buffer-connection-config",
             "so=many=args",
         ])
         .unwrap();
