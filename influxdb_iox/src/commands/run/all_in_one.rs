@@ -148,6 +148,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
     name = "all-in-one",
     about = "Runs in IOx All in One mode, containing router, ingester, compactor and querier."
 )]
+#[group(skip)]
 pub struct Config {
     /// logging options
     #[clap(flatten)]
