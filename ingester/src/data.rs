@@ -811,7 +811,7 @@ mod tests {
             assert!(n.table_data("mem").is_some());
             let mem_table = mem_table.write().await;
             let p = mem_table.partition_data.get(&"1970-01-01".into()).unwrap();
-            p.id()
+            p.partition_id()
         };
 
         data.persist(partition_id).await;
@@ -955,7 +955,7 @@ mod tests {
             let p = mem_table.partition_data.get(&"1970-01-01".into()).unwrap();
 
             table_id = mem_table.table_id();
-            partition_id = p.id();
+            partition_id = p.partition_id();
         }
         {
             // verify the partition doesn't have a sort key before any data has been persisted

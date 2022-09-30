@@ -82,7 +82,7 @@ mod tests {
                 Arc::clone(&table_name),
             )
             .await;
-        assert_eq!(got.id(), partition);
+        assert_eq!(got.partition_id(), partition);
         assert_eq!(got.namespace_id(), namespace_id);
         assert_eq!(*got.table_name(), *table_name);
     }

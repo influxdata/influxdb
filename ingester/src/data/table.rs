@@ -131,7 +131,7 @@ impl TableData {
         // op may fail which would lead to a write being recorded, but not
         // applied.
         let should_pause = lifecycle_handle.log_write(
-            partition_data.id(),
+            partition_data.partition_id(),
             self.shard_id,
             self.namespace_id,
             self.table_id,
@@ -182,7 +182,7 @@ impl TableData {
         self.partition_data
             .values()
             .map(|p| UnpersistedPartitionData {
-                partition_id: p.id(),
+                partition_id: p.partition_id(),
                 non_persisted: p
                     .get_non_persisting_data()
                     .expect("get_non_persisting should always work"),

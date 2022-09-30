@@ -221,7 +221,7 @@ mod tests {
             )
             .await;
 
-        assert_eq!(got.id(), PARTITION_ID);
+        assert_eq!(got.partition_id(), PARTITION_ID);
         assert_eq!(got.shard_id(), SHARD_ID);
         assert_eq!(got.table_id(), TABLE_ID);
         assert_eq!(got.table_name(), TABLE_NAME);
@@ -255,7 +255,7 @@ mod tests {
             )
             .await;
 
-        assert_eq!(got.id(), PARTITION_ID);
+        assert_eq!(got.partition_id(), PARTITION_ID);
         assert_eq!(got.shard_id(), SHARD_ID);
         assert_eq!(got.table_id(), TABLE_ID);
         assert_eq!(got.table_name(), TABLE_NAME);
@@ -307,7 +307,7 @@ mod tests {
             )
             .await;
 
-        assert_eq!(got.id(), other_key_id);
+        assert_eq!(got.partition_id(), other_key_id);
         assert_eq!(got.shard_id(), SHARD_ID);
         assert_eq!(got.table_id(), TABLE_ID);
         assert_eq!(got.table_name(), TABLE_NAME);
@@ -346,7 +346,7 @@ mod tests {
             )
             .await;
 
-        assert_eq!(got.id(), PARTITION_ID);
+        assert_eq!(got.partition_id(), PARTITION_ID);
         assert_eq!(got.shard_id(), SHARD_ID);
         assert_eq!(got.table_id(), other_table);
         assert_eq!(got.table_name(), TABLE_NAME);
@@ -385,7 +385,7 @@ mod tests {
             )
             .await;
 
-        assert_eq!(got.id(), PARTITION_ID);
+        assert_eq!(got.partition_id(), PARTITION_ID);
         assert_eq!(got.shard_id(), other_shard);
         assert_eq!(got.table_id(), TABLE_ID);
         assert_eq!(got.table_name(), TABLE_NAME);

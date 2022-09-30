@@ -37,6 +37,7 @@ impl DoubleRef {
         self.by_name.get(name).map(Arc::clone)
     }
 
+    #[cfg(test)]
     fn by_id(&self, id: NamespaceId) -> Option<Arc<NamespaceData>> {
         self.by_id.get(&id).map(Arc::clone)
     }
@@ -119,6 +120,7 @@ impl ShardData {
     }
 
     /// Gets the namespace data out of the map
+    #[cfg(test)]
     pub(crate) fn namespace_by_id(&self, namespace_id: NamespaceId) -> Option<Arc<NamespaceData>> {
         // TODO: this should be the default once IDs are pushed over the wire.
         //
