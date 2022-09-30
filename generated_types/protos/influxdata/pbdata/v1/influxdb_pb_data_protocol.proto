@@ -118,9 +118,14 @@ message Column {
     bytes null_mask = 4;
 }
 
-service WriteService {
-    rpc Write (WriteRequest) returns (WriteResponse);
-}
+// Note there used to be a service that would load this internal protobuf format.
+// See https://github.com/influxdata/influxdb_iox/pull/5750 and 
+// https://github.com/influxdata/influxdb_iox/issues/4866
+// for rationale of why it was removed
+
+// service WriteService {
+//     rpc Write (WriteRequest) returns (WriteResponse);
+// }
 
 message WriteRequest {
     DatabaseBatch database_batch = 1;

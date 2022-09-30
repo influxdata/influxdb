@@ -124,7 +124,6 @@ where
     /// [`GrpcDelegate`]: router::server::grpc::GrpcDelegate
     async fn server_grpc(self: Arc<Self>, builder_input: RpcBuilderInput) -> Result<(), RpcError> {
         let builder = setup_builder!(builder_input, self);
-        add_service!(builder, self.server.grpc().write_service());
         add_service!(builder, self.server.grpc().schema_service());
         add_service!(builder, self.server.grpc().catalog_service());
         add_service!(builder, self.server.grpc().object_store_service());
@@ -284,7 +283,7 @@ pub async fn create_router_server_type(
     // Initialise the shard-mapping gRPC service.
     let shard_service = init_shard_service(sharder, write_buffer_config, catalog).await?;
 
-    // Initialise the API delegates, sharing the handler stack between them.
+    // Initialise the API delegates
     let handler_stack = Arc::new(handler_stack);
     let http = HttpDelegate::new(
         common_state.run_config().max_http_request_size,
@@ -292,13 +291,7 @@ pub async fn create_router_server_type(
         Arc::clone(&handler_stack),
         &metrics,
     );
-    let grpc = GrpcDelegate::new(
-        handler_stack,
-        schema_catalog,
-        object_store,
-        Arc::clone(&metrics),
-        shard_service,
-    );
+    let grpc = GrpcDelegate::new(schema_catalog, object_store, shard_service);
 
     let router_server = RouterServer::new(http, grpc, metrics, common_state.trace_collector());
     let server_type = Arc::new(RouterServerType::new(router_server, common_state));
