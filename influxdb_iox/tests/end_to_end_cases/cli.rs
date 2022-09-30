@@ -6,7 +6,6 @@ use predicates::prelude::*;
 use serde_json::Value;
 use std::time::{Duration, Instant};
 use tempfile::tempdir;
-use test_helpers::make_temp_file;
 use test_helpers_end_to_end::{
     maybe_skip_integration, AddAddrEnv, BindAddresses, MiniCluster, ServerType, Step, StepTest,
     StepTestState,
@@ -526,9 +525,6 @@ async fn write_and_query() {
         vec![
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    // write line protocol to a temp file
-                    let lp_file = make_temp_file("m,tag=1 v=2 12345");
-                    let lp_file_path = lp_file.path().to_string_lossy().to_string();
                     let router_addr = state.cluster().router().router_http_base().to_string();
 
                     let namespace = state.cluster().namespace();
@@ -537,53 +533,48 @@ async fn write_and_query() {
                     // Validate the output of the schema CLI command
                     Command::cargo_bin("influxdb_iox")
                         .unwrap()
+                        .arg("-v")
                         .arg("-h")
                         .arg(&router_addr)
                         .arg("write")
                         .arg(&namespace)
-                        .arg(&lp_file_path)
+                        // raw line protocol ('h2o_temperature' measurement)
+                        .arg("../test_fixtures/lineproto/air_and_water.lp")
+                        // gzipped line protocol ('m0')
+                        .arg("../test_fixtures/lineproto/read_filter.lp.gz")
+                         // iox formatted parquet ('cpu' measurement)
+                        .arg("../test_fixtures/cpu.parquet")
                         .assert()
                         .success()
-                        .stdout(predicate::str::contains("17 Bytes OK"));
+                        // this number is the total size of
+                        // uncompressed line protocol stored in all
+                        // three files
+                        .stdout(predicate::str::contains("1137058 Bytes OK"));
                 }
                 .boxed()
             })),
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    let querier_addr = state.cluster().querier().querier_grpc_base().to_string();
-                    let namespace = state.cluster().namespace();
+                    // data from 'air_and_water.lp'
+                    wait_for_query_result(
+                        state,
+                        "SELECT * from h2o_temperature order by time desc limit 10",
+                        "| 51.3           | coyote_creek | CA    | 55.1            | 1970-01-01T00:00:01.568756160Z |"
+                    ).await;
 
-                    let max_wait_time = Duration::from_secs(10);
-                    let expected = "| 1   | 1970-01-01T00:00:00.000012345Z | 2 |";
-                    println!("Waiting for {expected}");
+                    // data from 'read_filter.lp.gz'
+                    wait_for_query_result(
+                        state,
+                        "SELECT * from m0 order by time desc limit 10;",
+                        "| value1 | value9 | value9 | value49 | value0 | 2021-04-26T13:47:39.727574Z | 1  |"
+                    ).await;
 
-                    // Validate the output of running the query CLI command appears after at most max_wait_time
-                    let end = Instant::now() + max_wait_time;
-                    while Instant::now() < end {
-                        let maybe_result = Command::cargo_bin("influxdb_iox")
-                            .unwrap()
-                            .arg("-h")
-                            .arg(&querier_addr)
-                            .arg("query")
-                            .arg(&namespace)
-                            .arg("SELECT * from m")
-                            .assert()
-                            .success()
-                            .try_stdout(predicate::str::contains(expected));
-
-                        match maybe_result {
-                            Err(e) => {
-                                println!("Got err: {}, retrying", e);
-                            }
-                            Ok(r) => {
-                                println!("Success: {:?}", r);
-                                return;
-                            }
-                        }
-                        // sleep and try again
-                        tokio::time::sleep(Duration::from_millis(500)).await
-                    }
-                    panic!("Did not find expected output in allotted time");
+                    // data from 'cpu.parquet'
+                    wait_for_query_result(
+                        state,
+                        "SELECT * from cpu where cpu = 'cpu2' order by time desc limit 10",
+                        "cpu2 | MacBook-Pro-8.hsd1.ma.comcast.net | 2022-09-30T12:55:00Z"
+                    ).await;
                 }
                 .boxed()
             })),
@@ -591,6 +582,53 @@ async fn write_and_query() {
     )
     .run()
     .await
+}
+
+/// Runs the specified query in a loop for up to 10 seconds, waiting
+/// for the specified output to appear
+async fn wait_for_query_result(state: &mut StepTestState<'_>, query_sql: &str, expected: &str) {
+    let querier_addr = state.cluster().querier().querier_grpc_base().to_string();
+    let namespace = state.cluster().namespace();
+
+    let max_wait_time = Duration::from_secs(10);
+    println!("Waiting for {expected}");
+
+    // Validate the output of running the query CLI command appears after at most max_wait_time
+    let end = Instant::now() + max_wait_time;
+    while Instant::now() < end {
+        let assert = Command::cargo_bin("influxdb_iox")
+            .unwrap()
+            .arg("-h")
+            .arg(&querier_addr)
+            .arg("query")
+            .arg(&namespace)
+            .arg(query_sql)
+            .assert();
+
+        let assert = match assert.try_success() {
+            Err(e) => {
+                println!("Got err running command: {}, retrying", e);
+                continue;
+            }
+            Ok(a) => a,
+        };
+
+        match assert.try_stdout(predicate::str::contains(expected)) {
+            Err(e) => {
+                println!("No match: {}, retrying", e);
+            }
+            Ok(r) => {
+                println!("Success: {:?}", r);
+                return;
+            }
+        }
+        // sleep and try again
+        tokio::time::sleep(Duration::from_secs(1)).await
+    }
+    panic!(
+        "Did not find expected output {} within {:?}",
+        expected, max_wait_time
+    );
 }
 
 /// Test the schema cli command

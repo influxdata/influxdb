@@ -1,12 +1,12 @@
 //! Client helpers for writing end to end ng tests
 use arrow::record_batch::RecordBatch;
 use futures::{stream::FuturesUnordered, StreamExt};
+use generated_types::influxdata::pbdata::v1::WriteResponse;
 use http::Response;
 use hyper::{Body, Client, Request};
 use influxdb_iox_client::{
     connection::Connection,
     flight::generated_types::ReadInfo,
-    write::generated_types::WriteResponse,
     write_info::generated_types::{merge_responses, GetWriteInfoResponse, ShardStatus},
 };
 use observability_deps::tracing::info;

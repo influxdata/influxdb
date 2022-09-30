@@ -47,6 +47,8 @@ clap = { version = "3", features = ["derive", "env"] }
 console-subscriber = { version = "0.1.8", optional = true, features = ["parking_lot"] }
 dotenvy = "0.15.5"
 futures = "0.3"
+futures-util = { version = "0.3" }
+flate2 = "1.0"
 hashbrown = "0.12"
 http = "0.2.8"
 humantime = "2.1.0"
