@@ -752,7 +752,32 @@ impl MockIngester {
                 .map(|f| f.id)
                 .collect();
 
-            self.ingester_data.persist(*partition_id).await;
+            let p = self
+                .catalog
+                .catalog
+                .repositories()
+                .await
+                .partitions()
+                .get_by_id(*partition_id)
+                .await
+                .unwrap()
+                .expect("partition not found");
+
+            let namespace_id = self
+                .catalog
+                .catalog
+                .repositories()
+                .await
+                .tables()
+                .get_by_id(p.table_id)
+                .await
+                .unwrap()
+                .expect("table does not exist")
+                .namespace_id;
+
+            self.ingester_data
+                .persist(p.shard_id, namespace_id, p.table_id, *partition_id)
+                .await;
 
             result.extend(
                 self.catalog

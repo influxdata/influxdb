@@ -39,7 +39,6 @@ impl DoubleRef {
         self.by_name.get(name).map(Arc::clone)
     }
 
-    #[cfg(test)]
     fn by_id(&self, id: TableId) -> Option<Arc<tokio::sync::RwLock<TableData>>> {
         self.by_id.get(&id).map(Arc::clone)
     }
@@ -240,6 +239,7 @@ impl NamespaceData {
     /// Snapshots the mutable buffer for the partition, which clears it out and then moves all
     /// snapshots over to a persisting batch, which is returned. If there is no data to snapshot
     /// or persist, None will be returned.
+    #[cfg(test)] // Only used in tests
     pub(crate) async fn snapshot_to_persisting(
         &self,
         table_name: &str,
@@ -266,7 +266,6 @@ impl NamespaceData {
     }
 
     /// Return the table data by ID.
-    #[cfg(test)]
     pub(crate) fn table_id(
         &self,
         table_id: TableId,

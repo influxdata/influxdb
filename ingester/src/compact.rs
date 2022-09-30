@@ -86,11 +86,8 @@ pub(crate) async fn compact_persisting_batch(
     namespace_id: i64,
     partition_info: &PartitionInfo,
     batch: Arc<PersistingBatch>,
-) -> Result<Option<CompactedStream>> {
-    // Nothing to compact
-    if batch.data.data.is_empty() {
-        return Ok(None);
-    }
+) -> Result<CompactedStream> {
+    assert!(!batch.data.data.is_empty());
 
     let namespace_name = &partition_info.namespace_name;
     let table_name = &partition_info.table_name;
@@ -141,11 +138,11 @@ pub(crate) async fn compact_persisting_batch(
         sort_key: Some(metadata_sort_key),
     };
 
-    Ok(Some(CompactedStream {
+    Ok(CompactedStream {
         stream,
         iox_metadata,
         sort_key_update,
-    }))
+    })
 }
 
 /// Compact a given Queryable Batch
@@ -254,7 +251,6 @@ mod tests {
         let CompactedStream { stream, .. } =
             compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
                 .await
-                .unwrap()
                 .unwrap();
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
@@ -328,7 +324,6 @@ mod tests {
             sort_key_update,
         } = compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
             .await
-            .unwrap()
             .unwrap();
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
@@ -426,7 +421,6 @@ mod tests {
             sort_key_update,
         } = compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
             .await
-            .unwrap()
             .unwrap();
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
@@ -527,7 +521,6 @@ mod tests {
             sort_key_update,
         } = compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
             .await
-            .unwrap()
             .unwrap();
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
@@ -629,7 +622,6 @@ mod tests {
             sort_key_update,
         } = compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
             .await
-            .unwrap()
             .unwrap();
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
@@ -739,7 +731,6 @@ mod tests {
             sort_key_update,
         } = compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
             .await
-            .unwrap()
             .unwrap();
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
