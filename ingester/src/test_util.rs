@@ -745,6 +745,7 @@ pub(crate) fn make_partitions(two_partitions: bool, shard_index: ShardIndex) -> 
         ops.push(DmlOperation::Write(make_write_op(
             &PartitionKey::from(TEST_PARTITION_2),
             shard_index,
+            TEST_NAMESPACE,
             seq_num,
             r#"test_table,city=Medford day="sun",temp=55 22"#,
         )));
@@ -753,6 +754,7 @@ pub(crate) fn make_partitions(two_partitions: bool, shard_index: ShardIndex) -> 
         ops.push(DmlOperation::Write(make_write_op(
             &PartitionKey::from(TEST_PARTITION_2),
             shard_index,
+            TEST_NAMESPACE,
             seq_num,
             r#"test_table,city=Reading day="mon",temp=58 40"#,
         )));
@@ -761,6 +763,7 @@ pub(crate) fn make_partitions(two_partitions: bool, shard_index: ShardIndex) -> 
         ops.push(DmlOperation::Write(make_write_op(
             &PartitionKey::from(TEST_PARTITION_1),
             shard_index,
+            TEST_NAMESPACE,
             seq_num,
             r#"test_table,city=Medford day="sun",temp=55 22"#,
         )));
@@ -769,6 +772,7 @@ pub(crate) fn make_partitions(two_partitions: bool, shard_index: ShardIndex) -> 
         ops.push(DmlOperation::Write(make_write_op(
             &PartitionKey::from(TEST_PARTITION_1),
             shard_index,
+            TEST_NAMESPACE,
             seq_num,
             r#"test_table,city=Reading day="mon",temp=58 40"#,
         )));
@@ -878,6 +882,7 @@ async fn make_one_partition_with_tombstones(
             DmlOperation::Write(make_write_op(
                 &PartitionKey::from(TEST_PARTITION_1),
                 shard_index,
+                TEST_NAMESPACE,
                 seq_num,
                 r#"test_table,city=Medford day="sun",temp=55 22"#,
             )),
@@ -893,6 +898,7 @@ async fn make_one_partition_with_tombstones(
             DmlOperation::Write(make_write_op(
                 &PartitionKey::from(TEST_PARTITION_1),
                 shard_index,
+                TEST_NAMESPACE,
                 seq_num,
                 r#"test_table,city=Reading day="mon",temp=58 40"#,
             )),
@@ -902,14 +908,15 @@ async fn make_one_partition_with_tombstones(
         .unwrap();
 }
 
-fn make_write_op(
+pub(crate) fn make_write_op(
     partition_key: &PartitionKey,
     shard_index: ShardIndex,
+    namespace: &str,
     sequence_number: i64,
     lines: &str,
 ) -> DmlWrite {
     DmlWrite::new(
-        TEST_NAMESPACE.to_string(),
+        namespace.to_string(),
         lines_to_batches(lines, 0).unwrap(),
         Some(partition_key.clone()),
         DmlMeta::sequenced(
@@ -954,6 +961,7 @@ fn make_first_partition_data(
     out.push(DmlOperation::Write(make_write_op(
         partition_key,
         shard_index,
+        TEST_NAMESPACE,
         seq_num,
         r#"test_table,city=Boston day="sun",temp=60 36"#,
     )));
@@ -962,6 +970,7 @@ fn make_first_partition_data(
     out.push(DmlOperation::Write(make_write_op(
         partition_key,
         shard_index,
+        TEST_NAMESPACE,
         seq_num,
         r#"test_table,city=Andover day="tue",temp=56 30"#,
     )));
@@ -972,6 +981,7 @@ fn make_first_partition_data(
     out.push(DmlOperation::Write(make_write_op(
         partition_key,
         shard_index,
+        TEST_NAMESPACE,
         seq_num,
         r#"test_table,city=Andover day="mon" 46"#,
     )));
@@ -980,6 +990,7 @@ fn make_first_partition_data(
     out.push(DmlOperation::Write(make_write_op(
         partition_key,
         shard_index,
+        TEST_NAMESPACE,
         seq_num,
         r#"test_table,city=Medford day="wed" 26"#,
     )));
@@ -991,6 +1002,7 @@ fn make_first_partition_data(
     out.push(DmlOperation::Write(make_write_op(
         partition_key,
         shard_index,
+        TEST_NAMESPACE,
         seq_num,
         r#"test_table,city=Boston day="mon" 38"#,
     )));
@@ -999,6 +1011,7 @@ fn make_first_partition_data(
     out.push(DmlOperation::Write(make_write_op(
         partition_key,
         shard_index,
+        TEST_NAMESPACE,
         seq_num,
         r#"test_table,city=Wilmington day="mon" 35"#,
     )));
