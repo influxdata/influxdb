@@ -1,5 +1,5 @@
 use crate::common::where_clause;
-use crate::expression::Expr;
+use crate::expression::conditional::ConditionalExpression;
 use crate::internal::{expect, ParseResult};
 use crate::simple_from_clause::{delete_from_clause, DeleteFromClause};
 use nom::branch::alt;
@@ -15,11 +15,11 @@ pub enum DeleteStatement {
     /// to restrict which series are deleted.
     FromWhere {
         from: DeleteFromClause,
-        condition: Option<Expr>,
+        condition: Option<ConditionalExpression>,
     },
 
     /// A `DELETE` with a conditional expression to restrict which series are deleted.
-    Where(Expr),
+    Where(ConditionalExpression),
 }
 
 impl Display for DeleteStatement {
@@ -46,7 +46,7 @@ pub fn delete_statement(i: &str) -> ParseResult<&str, DeleteStatement> {
     preceded(
         tag_no_case("DELETE"),
         expect(
-            "invalid DELETE statement, must be followed by FROM or WHERE",
+            "invalid DELETE statement, expected FROM or WHERE",
             preceded(
                 multispace1,
                 alt((
@@ -85,12 +85,12 @@ mod test {
         // Fallible cases
         assert_expect_error!(
             delete_statement("DELETE"),
-            "invalid DELETE statement, must be followed by FROM or WHERE"
+            "invalid DELETE statement, expected FROM or WHERE"
         );
 
         assert_expect_error!(
             delete_statement("DELETE FOO"),
-            "invalid DELETE statement, must be followed by FROM or WHERE"
+            "invalid DELETE statement, expected FROM or WHERE"
         );
     }
 }

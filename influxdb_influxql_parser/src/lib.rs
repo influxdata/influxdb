@@ -35,6 +35,7 @@ mod internal;
 mod keywords;
 mod literal;
 mod parameter;
+mod select;
 mod show;
 mod show_field_keys;
 mod show_measurements;
@@ -55,8 +56,7 @@ pub struct ParseError {
 
 impl Display for ParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} at pos {}", self.message, self.pos)?;
-        Ok(())
+        write!(f, "{} at pos {}", self.message, self.pos)
     }
 }
 

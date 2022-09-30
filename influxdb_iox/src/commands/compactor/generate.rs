@@ -97,18 +97,23 @@ pub async fn run(config: Config) -> Result<()> {
         .as_ref()
         .expect("--data-dir is required and has already been checked")
         .into();
-    let subdir = "compactor_data/line_protocol";
-    let lp_dir = root_dir.join(subdir);
 
-    if lp_dir
+    let compactor_data_dir = root_dir.join("compactor_data");
+    let parquet_dir = compactor_data_dir.join("parquet");
+
+    if compactor_data_dir
         .try_exists()
-        .context(FileExistenceSnafu { path: &lp_dir })?
+        .context(FileExistenceSnafu {
+            path: &compactor_data_dir,
+        })?
     {
-        fs::remove_dir_all(&lp_dir).context(RemoveSnafu { path: &lp_dir })?;
+        fs::remove_dir_all(&compactor_data_dir).context(RemoveSnafu {
+            path: &compactor_data_dir,
+        })?;
     }
 
-    let spec_location = format!("{subdir}/spec.toml");
-    let spec_in_root = root_dir.join(&spec_location);
+    let spec_location = "compactor_data/spec.toml";
+    let spec_in_root = compactor_data_dir.join("spec.toml");
 
     let Config {
         compaction_type,
@@ -132,13 +137,13 @@ pub async fn run(config: Config) -> Result<()> {
             Arc::clone(&object_store),
             config.num_columns.get(),
             sampling_interval_ns,
-            &spec_location,
+            spec_location,
         )
         .await?;
 
         let StartEndMinutesAgo { start, end } = start_end;
 
-        generate_data(&spec_in_root, &lp_dir, num_rows.get(), start, end)?;
+        generate_data(&spec_in_root, &parquet_dir, num_rows.get(), start, end)?;
     }
 
     Ok(())
@@ -199,7 +204,7 @@ async fn write_data_generation_spec(
 
 fn generate_data(
     spec_in_root: impl AsRef<OsStr>,
-    lp_dir: impl AsRef<OsStr>,
+    parquet_dir: impl AsRef<OsStr>,
     num_rows: usize,
     start: usize,
     end: usize,
@@ -211,8 +216,8 @@ fn generate_data(
         .arg("--")
         .arg("--specification")
         .arg(&spec_in_root)
-        .arg("-o")
-        .arg(&lp_dir)
+        .arg("--parquet")
+        .arg(&parquet_dir)
         .arg("--start")
         .arg(&format!("{start} minutes ago"))
         .arg("--end")

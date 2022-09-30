@@ -15,8 +15,7 @@ pub struct DropMeasurementStatement {
 
 impl Display for DropMeasurementStatement {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "DROP MEASUREMENT {}", self.name)?;
-        Ok(())
+        write!(f, "DROP MEASUREMENT {}", self.name)
     }
 }
 
@@ -24,7 +23,7 @@ pub fn drop_statement(i: &str) -> ParseResult<&str, DropMeasurementStatement> {
     preceded(
         pair(tag_no_case("DROP"), multispace1),
         expect(
-            "invalid DROP statement, must be followed by MEASUREMENT",
+            "invalid DROP statement, expected MEASUREMENT",
             drop_measurement,
         ),
     )(i)
@@ -55,7 +54,7 @@ mod test {
         // Fallible cases
         assert_expect_error!(
             drop_statement("DROP foo"),
-            "invalid DROP statement, must be followed by MEASUREMENT"
+            "invalid DROP statement, expected MEASUREMENT"
         );
     }
 

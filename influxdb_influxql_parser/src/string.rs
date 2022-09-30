@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 //! Parse delimited string inputs.
 //!
 
@@ -166,8 +164,7 @@ impl Display for Regex {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_char('/')?;
         write_escaped!(f, self.0, '/' => "\\/");
-        f.write_char('/')?;
-        Ok(())
+        f.write_char('/')
     }
 }
 

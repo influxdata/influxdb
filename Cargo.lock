@@ -2020,6 +2020,7 @@ dependencies = [
 name = "influxdb_influxql_parser"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "nom",
  "test_helpers",
  "workspace-hack",
@@ -2272,6 +2273,7 @@ dependencies = [
 name = "iox_data_generator"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "chrono",
  "chrono-english",
  "clap",
@@ -2281,8 +2283,12 @@ dependencies = [
  "humantime",
  "influxdb2_client",
  "itertools",
+ "mutable_batch",
+ "mutable_batch_lp",
+ "parquet_file",
  "rand",
  "regex",
+ "schema",
  "serde",
  "serde_json",
  "snafu",
@@ -2656,9 +2662,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.133"
+version = "0.2.134"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0f80d65747a3e43d1596c7c5492d95d5edddaabd45a7fcdb02b95f644164966"
+checksum = "329c933548736bc49fd575ee68c89e8be4d260064184389a5b77517cddd99ffb"
 
 [[package]]
 name = "libloading"
@@ -5093,9 +5099,9 @@ dependencies = [
 
 [[package]]
 name = "tikv-jemalloc-sys"
-version = "0.5.1+5.3.0-patched"
+version = "0.5.2+5.3.0-patched"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "931e876f91fed0827f863a2d153897790da0b24d882c721a79cb3beb0b903261"
+checksum = "ec45c14da997d0925c7835883e4d5c181f196fa142f8c19d7643d1e9af2592c3"
 dependencies = [
  "cc",
  "fs_extra",

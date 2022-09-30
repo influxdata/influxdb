@@ -492,8 +492,11 @@ impl TestServer {
                     );
                 }
                 ServerType::Router => {
-                    if check_write_service_health(server_type, connections.router_grpc_connection())
-                        .await
+                    if check_catalog_service_health(
+                        server_type,
+                        connections.router_grpc_connection(),
+                    )
+                    .await
                     {
                         return;
                     }
@@ -521,8 +524,11 @@ impl TestServer {
                 ServerType::AllInOne => {
                     // ensure we can write and query
                     // TODO also check ingester
-                    if check_write_service_health(server_type, connections.router_grpc_connection())
-                        .await
+                    if check_catalog_service_health(
+                        server_type,
+                        connections.router_grpc_connection(),
+                    )
+                    .await
                         && check_arrow_service_health(
                             server_type,
                             connections.ingester_grpc_connection(),
@@ -543,21 +549,25 @@ impl TestServer {
     }
 }
 
-/// checks write service health, returning false if the service should be checked again
-async fn check_write_service_health(server_type: ServerType, connection: Connection) -> bool {
+/// checks catalog service health, as a proxy for all gRPC
+/// services. Returns false if the service should be checked again
+async fn check_catalog_service_health(server_type: ServerType, connection: Connection) -> bool {
     let mut health = influxdb_iox_client::health::Client::new(connection);
 
-    match health.check("influxdata.pbdata.v1.WriteService").await {
+    match health
+        .check("influxdata.iox.catalog.v1.CatalogService")
+        .await
+    {
         Ok(true) => {
-            info!("Write service {:?} is running", server_type);
+            info!("CatalogService service {:?} is running", server_type);
             true
         }
         Ok(false) => {
-            info!("Write service {:?} is not running", server_type);
+            info!("CatalogService {:?} is not running", server_type);
             true
         }
         Err(e) => {
-            info!("Write service {:?} not yet healthy: {:?}", server_type, e);
+            info!("CatalogService {:?} not yet healthy: {:?}", server_type, e);
             false
         }
     }

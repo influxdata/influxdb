@@ -1,12 +1,5 @@
 //! Code that can convert between parquet files and line protocol
 
-use std::{
-    io::Write,
-    path::{Path, PathBuf},
-    result::Result,
-    sync::Arc,
-};
-
 use datafusion::{
     arrow::datatypes::SchemaRef as ArrowSchemaRef,
     datasource::{
@@ -28,11 +21,15 @@ use object_store::{
 };
 use parquet_file::metadata::{IoxMetadata, METADATA_KEY};
 use schema::Schema;
-
 use snafu::{OptionExt, ResultExt, Snafu};
+use std::{
+    io::Write,
+    path::{Path, PathBuf},
+    result::Result,
+    sync::Arc,
+};
 
 mod batch;
-
 use batch::convert_to_lines;
 
 #[derive(Debug, Snafu)]
@@ -155,7 +152,7 @@ where
 
 /// Handles the details of interacting with parquet libraries /
 /// readers. Tries not to have any IOx specific logic
-struct ParquetFileReader {
+pub struct ParquetFileReader {
     object_store: Arc<dyn ObjectStore>,
     object_store_url: ObjectStoreUrl,
     /// Name / path information of the object to read
@@ -171,7 +168,7 @@ struct ParquetFileReader {
 
 impl ParquetFileReader {
     /// Find and open the specified parquet file, and read its metadata / schema
-    async fn try_new(
+    pub async fn try_new(
         object_store: Arc<dyn ObjectStore>,
         object_store_url: ObjectStoreUrl,
         object_meta: ObjectMeta,
@@ -196,12 +193,12 @@ impl ParquetFileReader {
     }
 
     // retrieves the Arrow schema for this file
-    fn schema(&self) -> ArrowSchemaRef {
+    pub fn schema(&self) -> ArrowSchemaRef {
         Arc::clone(&self.schema)
     }
 
     /// read the parquet file as a stream
-    async fn read(&self) -> Result<SendableRecordBatchStream, Error> {
+    pub async fn read(&self) -> Result<SendableRecordBatchStream, Error> {
         let base_config = FileScanConfig {
             object_store_url: self.object_store_url.clone(),
             file_schema: self.schema(),

@@ -18,7 +18,7 @@ pub struct RouterServer<D, S> {
     trace_collector: Option<Arc<dyn TraceCollector>>,
 
     http: HttpDelegate<D>,
-    grpc: GrpcDelegate<D, S>,
+    grpc: GrpcDelegate<S>,
 }
 
 impl<D, S> RouterServer<D, S> {
@@ -26,7 +26,7 @@ impl<D, S> RouterServer<D, S> {
     /// handlers.
     pub fn new(
         http: HttpDelegate<D>,
-        grpc: GrpcDelegate<D, S>,
+        grpc: GrpcDelegate<S>,
         metrics: Arc<metric::Registry>,
         trace_collector: Option<Arc<dyn TraceCollector>>,
     ) -> Self {
@@ -59,7 +59,7 @@ where
     }
 
     /// Get a reference to the router grpc delegate.
-    pub fn grpc(&self) -> &GrpcDelegate<D, S> {
+    pub fn grpc(&self) -> &GrpcDelegate<S> {
         &self.grpc
     }
 }

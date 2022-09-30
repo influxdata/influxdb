@@ -148,16 +148,21 @@ impl Agent {
 
             let mut streams = Vec::with_capacity(batch_size);
             for _ in 0..batch_size {
-                let mut s = self.generate().await?;
-                if s.is_empty() {
+                if self.finished {
                     break;
+                } else {
+                    let mut s = self.generate().await?;
+                    streams.append(&mut s);
                 }
-                streams.append(&mut s);
             }
 
             for s in &streams {
                 points_this_batch += s.line_count();
                 total_points += s.line_count();
+            }
+
+            if points_this_batch == 0 && self.finished {
+                break;
             }
 
             points_writer
@@ -187,7 +192,7 @@ impl Agent {
     /// Generate data points from the configuration in this agent.
     pub async fn generate(&mut self) -> Result<Vec<MeasurementLineIterator>> {
         debug!(
-            "[agent {}]  generate more? {} current: {}, end: {}",
+            "[agent {}] finished? {} current: {}, end: {}",
             self.id, self.finished, self.current_datetime, self.end_datetime
         );
 

@@ -69,7 +69,7 @@ pub fn show_field_keys(i: &str) -> ParseResult<&str, ShowFieldKeysStatement> {
         tag_no_case("FIELD"),
         multispace1,
         expect(
-            "invalid SHOW FIELD KEYS statement, expect KEYS following FIELD",
+            "invalid SHOW FIELD KEYS statement, expected KEYS",
             tag_no_case("KEYS"),
         ),
         opt(preceded(multispace1, on_clause)),
@@ -134,7 +134,7 @@ mod test {
         // Fallible cases
         assert_expect_error!(
             show_field_keys("FIELD ON db"),
-            "invalid SHOW FIELD KEYS statement, expect KEYS following FIELD"
+            "invalid SHOW FIELD KEYS statement, expected KEYS"
         );
     }
 }
