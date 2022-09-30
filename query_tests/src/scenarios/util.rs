@@ -3,8 +3,8 @@ use super::DbScenario;
 use async_trait::async_trait;
 use backoff::BackoffConfig;
 use data_types::{
-    DeletePredicate, IngesterMapping, NonEmptyString, ParquetFileId, PartitionId, PartitionKey,
-    Sequence, SequenceNumber, ShardId, ShardIndex, TombstoneId,
+    DeletePredicate, IngesterMapping, NamespaceId, NonEmptyString, ParquetFileId, PartitionId,
+    PartitionKey, Sequence, SequenceNumber, ShardId, ShardIndex, TableId, TombstoneId,
 };
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use futures::StreamExt;
@@ -974,6 +974,8 @@ impl LifecycleHandle for NoopLifecycleHandle {
         &self,
         _partition_id: PartitionId,
         _shard_id: ShardId,
+        _namespace_id: NamespaceId,
+        _table_id: TableId,
         _sequence_number: SequenceNumber,
         _bytes_written: usize,
         _rows_written: usize,
