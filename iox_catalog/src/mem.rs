@@ -1298,7 +1298,6 @@ impl ParquetFileRepo for MemTxn {
                 f.shard_id == shard_id
                     && (f.compaction_level == CompactionLevel::Initial
                         || f.compaction_level == CompactionLevel::FileNonOverlapped)
-                    && f.to_delete.is_none()
             })
             .collect::<Vec<_>>();
 
@@ -1313,11 +1312,29 @@ impl ParquetFileRepo for MemTxn {
                 namespace_id: pf.namespace_id,
                 table_id: pf.table_id,
             };
-            let count = partition_duplicate_count.entry(key).or_insert(0);
-            *count += 1;
-            let max_created_at = partition_max_created_at.entry(key).or_insert(pf.created_at);
-            if pf.created_at > *max_created_at {
-                *max_created_at = pf.created_at;
+
+            if pf.to_delete.is_none() {
+                let count = partition_duplicate_count.entry(key).or_insert(0);
+                *count += 1;
+            }
+
+            let created_at = if pf.compaction_level == CompactionLevel::Initial {
+                // the file is level-0, use its created_at time even if it is deleted
+                Some(pf.created_at)
+            } else if pf.to_delete.is_none() {
+                // non deleted level-1,  make it `time_in_the_past - 1` to have this partition always the cold one
+                Some(time_in_the_past - 1)
+            } else {
+                // This is the case of deleted level-1
+                None
+            };
+
+            if let Some(created_at) = created_at {
+                let max_created_at = partition_max_created_at.entry(key).or_insert(created_at);
+                *max_created_at = std::cmp::max(*max_created_at, created_at);
+                if created_at > *max_created_at {
+                    *max_created_at = created_at;
+                }
             }
         }
 

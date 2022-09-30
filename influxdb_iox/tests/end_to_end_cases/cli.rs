@@ -357,7 +357,7 @@ async fn compact_and_get_remote_partition() {
                     //     "maxTime": "123456",
                     //     "fileSizeBytes": "2029",
                     //     "rowCount": "1",
-                    //     "compactionLevel": "1",
+                    //     "compactionLevel": "2",
                     //     "createdAt": "1650019674289347000"
                     // }
 
@@ -375,7 +375,7 @@ async fn compact_and_get_remote_partition() {
                             predicate::str::contains(r#""id": "1""#)
                                 .and(predicate::str::contains(r#""shardId": "1","#))
                                 .and(predicate::str::contains(r#""partitionId": "1","#))
-                                .and(predicate::str::contains(r#""compactionLevel": 1"#)),
+                                .and(predicate::str::contains(r#""compactionLevel": 2"#)),
                         )
                         .get_output()
                         .stdout

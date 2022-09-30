@@ -1873,21 +1873,24 @@ LIMIT $4;
     ) -> Result<Vec<PartitionParam>> {
         let num_partitions = num_partitions as i32;
 
-        // The preliminary performance test says this query runs around 50ms
-        // We have index on (shard_id, comapction_level, to_delete)
+        // This query returns partitions with most L0+L1 files and all L0 files (both deleted and non deleted) are either created
+        // before the given time ($2) or not available (removed by garbage collector)
         sqlx::query_as::<_, PartitionParam>(
             r#"
 SELECT parquet_file.partition_id, parquet_file.shard_id, parquet_file.namespace_id,
-       parquet_file.table_id, count(parquet_file.id), max(parquet_file.created_at)
+       parquet_file.table_id, 
+       count(case when to_delete is null then 1 end) total_count,
+       max(case when compaction_level= $4 then parquet_file.created_at end)
 FROM   parquet_file
 LEFT OUTER JOIN skipped_compactions ON parquet_file.partition_id = skipped_compactions.partition_id
 WHERE  (compaction_level = $4 OR compaction_level = $5)
-AND    to_delete IS NULL
 AND    shard_id = $1
 AND    skipped_compactions.partition_id IS NULL
 GROUP BY 1, 2, 3, 4
-HAVING max(created_at) < $2
-ORDER BY 5 DESC
+HAVING count(case when to_delete is null then 1 end) > 0
+       AND ( max(case when compaction_level= $4 then parquet_file.created_at end) < $2  OR
+             max(case when compaction_level= $4 then parquet_file.created_at end) is null)
+ORDER BY total_count DESC
 LIMIT $3;
             "#,
         )
