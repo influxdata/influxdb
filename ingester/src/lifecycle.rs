@@ -5,6 +5,8 @@
 //! some absolute number and individual Parquet files that get persisted below some number. It
 //! is expected that they may be above or below the absolute thresholds.
 
+pub mod mock_handle;
+
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use data_types::{NamespaceId, PartitionId, SequenceNumber, ShardId, TableId};
