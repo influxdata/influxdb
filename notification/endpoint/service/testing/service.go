@@ -228,7 +228,7 @@ func FindNotificationEndpointByID(
 								UpdatedAt: timeGen2.Now(),
 							},
 						},
-						URL: "example-slack.com",
+						URL: "https://example-slack.com",
 						Token: influxdb.SecretField{
 							Key: fmt.Sprintf("%s-token", oneID),
 						},
@@ -276,7 +276,7 @@ func FindNotificationEndpointByID(
 								UpdatedAt: timeGen2.Now(),
 							},
 						},
-						URL:   "example-slack.com",
+						URL:   "https://example-slack.com",
 						Token: influxdb.SecretField{Key: fmt.Sprintf("%s-token", oneID)},
 					},
 					&endpoint.PagerDuty{
@@ -320,7 +320,7 @@ func FindNotificationEndpointByID(
 								UpdatedAt: timeGen2.Now(),
 							},
 						},
-						URL:   "example-slack.com",
+						URL:   "https://example-slack.com",
 						Token: influxdb.SecretField{Key: fmt.Sprintf("%s-token", oneID)},
 					},
 					&endpoint.PagerDuty{
@@ -422,7 +422,7 @@ func FindNotificationEndpoints(
 								UpdatedAt: timeGen2.Now(),
 							},
 						},
-						URL:   "example-slack.com",
+						URL:   "https://example-slack.com",
 						Token: influxdb.SecretField{Key: fmt.Sprintf("%s-token", oneID)},
 					},
 					&endpoint.PagerDuty{
@@ -454,7 +454,7 @@ func FindNotificationEndpoints(
 								UpdatedAt: timeGen2.Now(),
 							},
 						},
-						URL:   "example-slack.com",
+						URL:   "https://example-slack.com",
 						Token: influxdb.SecretField{Key: fmt.Sprintf("%s-token", oneID)},
 					},
 					&endpoint.PagerDuty{
@@ -495,7 +495,7 @@ func FindNotificationEndpoints(
 							Status: influxdb.Active,
 							Name:   "edp1",
 						},
-						URL:   "example-slack.com",
+						URL:   "https://example-slack.com",
 						Token: influxdb.SecretField{Key: fmt.Sprintf("%s-token", oneID)},
 					},
 					&endpoint.PagerDuty{
@@ -1019,7 +1019,7 @@ func UpdateNotificationEndpoint(
 								UpdatedAt: timeGen2.Now(),
 							},
 						},
-						URL:   "example-slack.com",
+						URL:   "https://example-slack.com",
 						Token: influxdb.SecretField{Key: fmt.Sprintf("%s-token", oneID)},
 					},
 					&endpoint.PagerDuty{
@@ -1075,7 +1075,7 @@ func UpdateNotificationEndpoint(
 								UpdatedAt: timeGen2.Now(),
 							},
 						},
-						URL:   "example-slack.com",
+						URL:   "https://example-slack.com",
 						Token: influxdb.SecretField{Key: fmt.Sprintf("%s-token", oneID)},
 					},
 					&endpoint.PagerDuty{
@@ -1257,7 +1257,7 @@ func PatchNotificationEndpoint(
 								UpdatedAt: timeGen2.Now(),
 							},
 						},
-						URL:   "example-slack.com",
+						URL:   "https://example-slack.com",
 						Token: influxdb.SecretField{Key: fmt.Sprintf("%s-token", oneID)},
 					},
 					&endpoint.PagerDuty{
@@ -1306,7 +1306,7 @@ func PatchNotificationEndpoint(
 								UpdatedAt: timeGen2.Now(),
 							},
 						},
-						URL:   "example-slack.com",
+						URL:   "https://example-slack.com",
 						Token: influxdb.SecretField{Key: fmt.Sprintf("%s-token", oneID)},
 					},
 					&endpoint.PagerDuty{
@@ -1411,7 +1411,7 @@ func DeleteNotificationEndpoint(
 								UpdatedAt: timeGen2.Now(),
 							},
 						},
-						URL:   "example-slack.com",
+						URL:   "https://example-slack.com",
 						Token: influxdb.SecretField{Key: fmt.Sprintf("%s-token", oneID)},
 					},
 					&endpoint.PagerDuty{
@@ -1452,7 +1452,7 @@ func DeleteNotificationEndpoint(
 								UpdatedAt: timeGen2.Now(),
 							},
 						},
-						URL:   "example-slack.com",
+						URL:   "https://example-slack.com",
 						Token: influxdb.SecretField{Key: fmt.Sprintf("%s-token", oneID)},
 					},
 					&endpoint.PagerDuty{
@@ -1486,7 +1486,7 @@ func DeleteNotificationEndpoint(
 								UpdatedAt: timeGen2.Now(),
 							},
 						},
-						URL:   "example-slack.com",
+						URL:   "https://example-slack.com",
 						Token: influxdb.SecretField{Key: fmt.Sprintf("%s-token", oneID)},
 					},
 					&endpoint.PagerDuty{
@@ -1526,7 +1526,7 @@ func DeleteNotificationEndpoint(
 								UpdatedAt: timeGen2.Now(),
 							},
 						},
-						URL:   "example-slack.com",
+						URL:   "https://example-slack.com",
 						Token: influxdb.SecretField{Key: fmt.Sprintf("%s-token", oneID)},
 					},
 					&endpoint.PagerDuty{
@@ -1561,7 +1561,7 @@ func DeleteNotificationEndpoint(
 								UpdatedAt: timeGen2.Now(),
 							},
 						},
-						URL:   "example-slack.com",
+						URL:   "https://example-slack.com",
 						Token: influxdb.SecretField{Key: fmt.Sprintf("%s-token", oneID)},
 					},
 					&endpoint.PagerDuty{
@@ -1602,7 +1602,7 @@ func DeleteNotificationEndpoint(
 								UpdatedAt: timeGen2.Now(),
 							},
 						},
-						URL:   "example-slack.com",
+						URL:   "https://example-slack.com",
 						Token: influxdb.SecretField{Key: fmt.Sprintf("%s-token", oneID)},
 					},
 				},
