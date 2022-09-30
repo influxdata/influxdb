@@ -80,6 +80,14 @@ compile_error!("heappy and jemalloc_replacing_malloc features are mutually exclu
 #[clap(
     name = "influxdb_iox",
     version = &VERSION_STRING[..],
+    disable_help_flag = true,
+    arg(
+        clap::Arg::new("help")
+            .long("help")
+            .help("Print help information")
+            .action(clap::ArgAction::Help)
+            .global(true)
+    ),
     about = "InfluxDB IOx server and command line tools",
     long_about = r#"InfluxDB IOx server and command line tools
 
