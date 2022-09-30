@@ -20,22 +20,25 @@ pub(crate) struct MockPartitionProvider {
 impl MockPartitionProvider {
     /// A builder helper for [`Self::insert()`].
     #[must_use]
-    pub(crate) fn with_partition(
-        mut self,
-        partition_key: PartitionKey,
-        data: PartitionData,
-    ) -> Self {
-        self.insert(partition_key, data);
+    pub(crate) fn with_partition(mut self, data: PartitionData) -> Self {
+        self.insert(data);
         self
     }
 
     /// Add `data` to the mock state, returning it when asked for the specified
     /// `(key, shard, table)` triplet.
-    pub(crate) fn insert(&mut self, partition_key: PartitionKey, data: PartitionData) {
+    pub(crate) fn insert(&mut self, data: PartitionData) {
         assert!(
             self.partitions
                 .lock()
-                .insert((partition_key, data.shard_id(), data.table_id()), data)
+                .insert(
+                    (
+                        data.partition_key().clone(),
+                        data.shard_id(),
+                        data.table_id()
+                    ),
+                    data
+                )
                 .is_none(),
             "overwriting an existing mock PartitionData"
         );

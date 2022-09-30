@@ -626,7 +626,8 @@ pub(crate) async fn make_ingester_data(two_partitions: bool, loc: DataLocation) 
 
     // Make data for one shard and two tables
     let shard_index = ShardIndex::new(1);
-    let shard_id = populate_catalog(&*catalog).await;
+    let (shard_id, _, _) =
+        populate_catalog(&*catalog, shard_index, TEST_NAMESPACE, TEST_TABLE).await;
 
     let ingester = IngesterData::new(
         object_store,
@@ -693,7 +694,8 @@ pub(crate) async fn make_ingester_data_with_tombstones(loc: DataLocation) -> Ing
 
     // Make data for one shard and two tables
     let shard_index = ShardIndex::new(0);
-    let shard_id = populate_catalog(&*catalog).await;
+    let (shard_id, _, _) =
+        populate_catalog(&*catalog, shard_index, TEST_NAMESPACE, TEST_TABLE).await;
 
     let ingester = IngesterData::new(
         object_store,
@@ -745,6 +747,7 @@ pub(crate) fn make_partitions(two_partitions: bool, shard_index: ShardIndex) -> 
         ops.push(DmlOperation::Write(make_write_op(
             &PartitionKey::from(TEST_PARTITION_2),
             shard_index,
+            TEST_NAMESPACE,
             seq_num,
             r#"test_table,city=Medford day="sun",temp=55 22"#,
         )));
@@ -753,6 +756,7 @@ pub(crate) fn make_partitions(two_partitions: bool, shard_index: ShardIndex) -> 
         ops.push(DmlOperation::Write(make_write_op(
             &PartitionKey::from(TEST_PARTITION_2),
             shard_index,
+            TEST_NAMESPACE,
             seq_num,
             r#"test_table,city=Reading day="mon",temp=58 40"#,
         )));
@@ -761,6 +765,7 @@ pub(crate) fn make_partitions(two_partitions: bool, shard_index: ShardIndex) -> 
         ops.push(DmlOperation::Write(make_write_op(
             &PartitionKey::from(TEST_PARTITION_1),
             shard_index,
+            TEST_NAMESPACE,
             seq_num,
             r#"test_table,city=Medford day="sun",temp=55 22"#,
         )));
@@ -769,6 +774,7 @@ pub(crate) fn make_partitions(two_partitions: bool, shard_index: ShardIndex) -> 
         ops.push(DmlOperation::Write(make_write_op(
             &PartitionKey::from(TEST_PARTITION_1),
             shard_index,
+            TEST_NAMESPACE,
             seq_num,
             r#"test_table,city=Reading day="mon",temp=58 40"#,
         )));
@@ -878,6 +884,7 @@ async fn make_one_partition_with_tombstones(
             DmlOperation::Write(make_write_op(
                 &PartitionKey::from(TEST_PARTITION_1),
                 shard_index,
+                TEST_NAMESPACE,
                 seq_num,
                 r#"test_table,city=Medford day="sun",temp=55 22"#,
             )),
@@ -893,6 +900,7 @@ async fn make_one_partition_with_tombstones(
             DmlOperation::Write(make_write_op(
                 &PartitionKey::from(TEST_PARTITION_1),
                 shard_index,
+                TEST_NAMESPACE,
                 seq_num,
                 r#"test_table,city=Reading day="mon",temp=58 40"#,
             )),
@@ -902,14 +910,15 @@ async fn make_one_partition_with_tombstones(
         .unwrap();
 }
 
-fn make_write_op(
+pub(crate) fn make_write_op(
     partition_key: &PartitionKey,
     shard_index: ShardIndex,
+    namespace: &str,
     sequence_number: i64,
     lines: &str,
 ) -> DmlWrite {
     DmlWrite::new(
-        TEST_NAMESPACE.to_string(),
+        namespace.to_string(),
         lines_to_batches(lines, 0).unwrap(),
         Some(partition_key.clone()),
         DmlMeta::sequenced(
@@ -954,6 +963,7 @@ fn make_first_partition_data(
     out.push(DmlOperation::Write(make_write_op(
         partition_key,
         shard_index,
+        TEST_NAMESPACE,
         seq_num,
         r#"test_table,city=Boston day="sun",temp=60 36"#,
     )));
@@ -962,6 +972,7 @@ fn make_first_partition_data(
     out.push(DmlOperation::Write(make_write_op(
         partition_key,
         shard_index,
+        TEST_NAMESPACE,
         seq_num,
         r#"test_table,city=Andover day="tue",temp=56 30"#,
     )));
@@ -972,6 +983,7 @@ fn make_first_partition_data(
     out.push(DmlOperation::Write(make_write_op(
         partition_key,
         shard_index,
+        TEST_NAMESPACE,
         seq_num,
         r#"test_table,city=Andover day="mon" 46"#,
     )));
@@ -980,6 +992,7 @@ fn make_first_partition_data(
     out.push(DmlOperation::Write(make_write_op(
         partition_key,
         shard_index,
+        TEST_NAMESPACE,
         seq_num,
         r#"test_table,city=Medford day="wed" 26"#,
     )));
@@ -991,6 +1004,7 @@ fn make_first_partition_data(
     out.push(DmlOperation::Write(make_write_op(
         partition_key,
         shard_index,
+        TEST_NAMESPACE,
         seq_num,
         r#"test_table,city=Boston day="mon" 38"#,
     )));
@@ -999,6 +1013,7 @@ fn make_first_partition_data(
     out.push(DmlOperation::Write(make_write_op(
         partition_key,
         shard_index,
+        TEST_NAMESPACE,
         seq_num,
         r#"test_table,city=Wilmington day="mon" 35"#,
     )));
@@ -1007,15 +1022,19 @@ fn make_first_partition_data(
     (out, SequenceNumber::new(seq_num))
 }
 
-async fn populate_catalog(catalog: &dyn Catalog) -> ShardId {
+pub(crate) async fn populate_catalog(
+    catalog: &dyn Catalog,
+    shard_index: ShardIndex,
+    namespace: &str,
+    table: &str,
+) -> (ShardId, NamespaceId, TableId) {
     let mut c = catalog.repositories().await;
-    let topic = c.topics().create_or_get("whatevs").await.unwrap();
-    let query_pool = c.query_pools().create_or_get("whatevs").await.unwrap();
-    let shard_index = ShardIndex::new(0);
+    let topic = c.topics().create_or_get("kafka-topic").await.unwrap();
+    let query_pool = c.query_pools().create_or_get("query-pool").await.unwrap();
     let ns_id = c
         .namespaces()
         .create(
-            TEST_NAMESPACE,
+            namespace,
             iox_catalog::INFINITE_RETENTION_POLICY,
             topic.id,
             query_pool.id,
@@ -1023,10 +1042,12 @@ async fn populate_catalog(catalog: &dyn Catalog) -> ShardId {
         .await
         .unwrap()
         .id;
-    c.tables().create_or_get(TEST_TABLE, ns_id).await.unwrap();
-    c.shards()
+    let table_id = c.tables().create_or_get(table, ns_id).await.unwrap().id;
+    let shard_id = c
+        .shards()
         .create_or_get(&topic, shard_index)
         .await
         .unwrap()
-        .id
+        .id;
+    (shard_id, ns_id, table_id)
 }

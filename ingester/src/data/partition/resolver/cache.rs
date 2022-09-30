@@ -208,7 +208,7 @@ mod tests {
             TABLE_NAME.into(),
             None,
         );
-        let inner = MockPartitionProvider::default().with_partition(PARTITION_KEY.into(), data);
+        let inner = MockPartitionProvider::default().with_partition(data);
 
         let cache = PartitionCache::new(inner, []);
         let got = cache
@@ -277,18 +277,15 @@ mod tests {
     async fn test_miss_partition_jey() {
         let other_key = PartitionKey::from("test");
         let other_key_id = PartitionId::new(99);
-        let inner = MockPartitionProvider::default().with_partition(
+        let inner = MockPartitionProvider::default().with_partition(PartitionData::new(
+            other_key_id,
             other_key.clone(),
-            PartitionData::new(
-                other_key_id,
-                PARTITION_KEY.into(),
-                SHARD_ID,
-                NAMESPACE_ID,
-                TABLE_ID,
-                TABLE_NAME.into(),
-                None,
-            ),
-        );
+            SHARD_ID,
+            NAMESPACE_ID,
+            TABLE_ID,
+            TABLE_NAME.into(),
+            None,
+        ));
 
         let partition = Partition {
             id: PARTITION_ID,
@@ -319,18 +316,15 @@ mod tests {
     #[tokio::test]
     async fn test_miss_table_id() {
         let other_table = TableId::new(1234);
-        let inner = MockPartitionProvider::default().with_partition(
+        let inner = MockPartitionProvider::default().with_partition(PartitionData::new(
+            PARTITION_ID,
             PARTITION_KEY.into(),
-            PartitionData::new(
-                PARTITION_ID,
-                PARTITION_KEY.into(),
-                SHARD_ID,
-                NAMESPACE_ID,
-                other_table,
-                TABLE_NAME.into(),
-                None,
-            ),
-        );
+            SHARD_ID,
+            NAMESPACE_ID,
+            other_table,
+            TABLE_NAME.into(),
+            None,
+        ));
 
         let partition = Partition {
             id: PARTITION_ID,
@@ -361,18 +355,15 @@ mod tests {
     #[tokio::test]
     async fn test_miss_shard_id() {
         let other_shard = ShardId::new(1234);
-        let inner = MockPartitionProvider::default().with_partition(
+        let inner = MockPartitionProvider::default().with_partition(PartitionData::new(
+            PARTITION_ID,
             PARTITION_KEY.into(),
-            PartitionData::new(
-                PARTITION_ID,
-                PARTITION_KEY.into(),
-                other_shard,
-                NAMESPACE_ID,
-                TABLE_ID,
-                TABLE_NAME.into(),
-                None,
-            ),
-        );
+            other_shard,
+            NAMESPACE_ID,
+            TABLE_ID,
+            TABLE_NAME.into(),
+            None,
+        ));
 
         let partition = Partition {
             id: PARTITION_ID,

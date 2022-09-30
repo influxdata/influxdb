@@ -71,7 +71,7 @@ mod tests {
             None,
         );
 
-        let mock = Arc::new(MockPartitionProvider::default().with_partition(key.clone(), data));
+        let mock = Arc::new(MockPartitionProvider::default().with_partition(data));
 
         let got = mock
             .get_partition(

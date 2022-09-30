@@ -3,8 +3,8 @@ use super::DbScenario;
 use async_trait::async_trait;
 use backoff::BackoffConfig;
 use data_types::{
-    DeletePredicate, IngesterMapping, NamespaceId, NonEmptyString, ParquetFileId, PartitionId,
-    PartitionKey, Sequence, SequenceNumber, ShardId, ShardIndex, TableId, TombstoneId,
+    DeletePredicate, IngesterMapping, NonEmptyString, ParquetFileId, PartitionId, PartitionKey,
+    Sequence, SequenceNumber, ShardIndex, TombstoneId,
 };
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use futures::StreamExt;
@@ -18,7 +18,7 @@ use ingester::{
         partition::resolver::CatalogPartitionResolver, FlatIngesterQueryResponse, IngesterData,
         IngesterQueryResponse, Persister,
     },
-    lifecycle::LifecycleHandle,
+    lifecycle::mock_handle::NoopLifecycleHandle,
     querier_handler::prepare_data_to_querier,
 };
 use iox_catalog::interface::get_schema_by_name;
@@ -961,31 +961,6 @@ impl MockIngester {
             load_settings,
             usize::MAX,
         ))
-    }
-}
-
-/// Special [`LifecycleHandle`] that never persists and always accepts more data.
-///
-/// This is useful to control persists manually.
-struct NoopLifecycleHandle {}
-
-impl LifecycleHandle for NoopLifecycleHandle {
-    fn log_write(
-        &self,
-        _partition_id: PartitionId,
-        _shard_id: ShardId,
-        _namespace_id: NamespaceId,
-        _table_id: TableId,
-        _sequence_number: SequenceNumber,
-        _bytes_written: usize,
-        _rows_written: usize,
-    ) -> bool {
-        // do NOT pause ingest
-        false
-    }
-
-    fn can_resume_ingest(&self) -> bool {
-        true
     }
 }
 
