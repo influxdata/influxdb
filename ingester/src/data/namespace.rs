@@ -226,7 +226,7 @@ impl NamespaceData {
         if let Some(t) = self.table_data(table_name) {
             let mut t = t.write().await;
 
-            return t.partition_data.get_mut(partition_key).map(|p| {
+            return t.get_partition_by_key_mut(partition_key).map(|p| {
                 p.data
                     .generate_snapshot()
                     .expect("snapshot on mutable batch should never fail");
@@ -249,8 +249,7 @@ impl NamespaceData {
             let mut table_data = table_data.write().await;
 
             return table_data
-                .partition_data
-                .get_mut(partition_key)
+                .get_partition_by_key_mut(partition_key)
                 .and_then(|partition_data| partition_data.snapshot_to_persisting_batch());
         }
 
@@ -321,7 +320,7 @@ impl NamespaceData {
     ) {
         if let Some(t) = self.table_data(table_name) {
             let mut t = t.write().await;
-            let partition = t.partition_data.get_mut(partition_key);
+            let partition = t.get_partition_by_key_mut(partition_key);
 
             if let Some(p) = partition {
                 p.mark_persisted(sequence_number);

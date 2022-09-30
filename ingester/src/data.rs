@@ -810,7 +810,9 @@ mod tests {
             let mem_table = n.table_data("mem").unwrap();
             assert!(n.table_data("mem").is_some());
             let mem_table = mem_table.write().await;
-            let p = mem_table.partition_data.get(&"1970-01-01".into()).unwrap();
+            let p = mem_table
+                .get_partition_by_key(&"1970-01-01".into())
+                .unwrap();
             p.partition_id()
         };
 
@@ -952,7 +954,9 @@ mod tests {
             let mem_table = n.table_data("mem").unwrap();
             assert!(n.table_data("cpu").is_some());
             let mem_table = mem_table.write().await;
-            let p = mem_table.partition_data.get(&"1970-01-01".into()).unwrap();
+            let p = mem_table
+                .get_partition_by_key(&"1970-01-01".into())
+                .unwrap();
 
             table_id = mem_table.table_id();
             partition_id = p.partition_id();
@@ -1352,7 +1356,7 @@ mod tests {
         {
             let table_data = data.table_data("mem").unwrap();
             let table = table_data.read().await;
-            let p = table.partition_data.get(&"1970-01-01".into()).unwrap();
+            let p = table.get_partition_by_key(&"1970-01-01".into()).unwrap();
             assert_eq!(
                 p.max_persisted_sequence_number(),
                 Some(SequenceNumber::new(1))
@@ -1368,7 +1372,7 @@ mod tests {
 
         let table_data = data.table_data("mem").unwrap();
         let table = table_data.read().await;
-        let partition = table.partition_data.get(&"1970-01-01".into()).unwrap();
+        let partition = table.get_partition_by_key(&"1970-01-01".into()).unwrap();
         assert_eq!(
             partition.data.buffer.as_ref().unwrap().min_sequence_number,
             SequenceNumber::new(2)
