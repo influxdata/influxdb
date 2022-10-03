@@ -125,6 +125,11 @@ impl TableData {
         let rows = batch.rows();
         partition_data.buffer_write(sequence_number, batch)?;
 
+        // Record the write as having been buffered.
+        //
+        // This should happen AFTER the write is applied, because buffering the
+        // op may fail which would lead to a write being recorded, but not
+        // applied.
         let should_pause = lifecycle_handle.log_write(
             partition_data.id(),
             self.shard_id,
