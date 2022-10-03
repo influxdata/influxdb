@@ -18,7 +18,7 @@ use ingester::{
         partition::resolver::CatalogPartitionResolver, FlatIngesterQueryResponse, IngesterData,
         IngesterQueryResponse, Persister,
     },
-    lifecycle::mock_handle::NoopLifecycleHandle,
+    lifecycle::mock_handle::MockLifecycleHandle,
     querier_handler::prepare_data_to_querier,
 };
 use iox_catalog::interface::get_schema_by_name;
@@ -722,7 +722,7 @@ impl MockIngester {
     /// Takes `&self mut` because our partioning implementation does not work with concurrent
     /// access.
     async fn buffer_operation(&mut self, dml_operation: DmlOperation) {
-        let lifecycle_handle = NoopLifecycleHandle {};
+        let lifecycle_handle = MockLifecycleHandle::default();
 
         let should_pause = self
             .ingester_data

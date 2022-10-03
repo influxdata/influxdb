@@ -121,16 +121,24 @@ impl TableData {
             }
         }
 
+        let size = batch.size();
+        let rows = batch.rows();
+        partition_data.buffer_write(sequence_number, batch)?;
+
+        // Record the write as having been buffered.
+        //
+        // This should happen AFTER the write is applied, because buffering the
+        // op may fail which would lead to a write being recorded, but not
+        // applied.
         let should_pause = lifecycle_handle.log_write(
             partition_data.id(),
             self.shard_id,
             self.namespace_id,
             self.table_id,
             sequence_number,
-            batch.size(),
-            batch.rows(),
+            size,
+            rows,
         );
-        partition_data.buffer_write(sequence_number, batch)?;
 
         Ok(should_pause)
     }
@@ -205,5 +213,148 @@ impl TableData {
     #[cfg(test)]
     pub(super) fn table_id(&self) -> TableId {
         self.table_id
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use assert_matches::assert_matches;
+    use data_types::{PartitionId, ShardIndex};
+    use mutable_batch::writer;
+    use mutable_batch_lp::lines_to_batches;
+    use schema::{InfluxColumnType, InfluxFieldType};
+
+    use crate::{
+        data::{
+            partition::{resolver::MockPartitionProvider, PartitionData},
+            Error,
+        },
+        lifecycle::mock_handle::{MockLifecycleCall, MockLifecycleHandle},
+        test_util::populate_catalog,
+    };
+
+    use super::*;
+
+    const SHARD_INDEX: ShardIndex = ShardIndex::new(24);
+    const TABLE_NAME: &str = "bananas";
+    const NAMESPACE_NAME: &str = "platanos";
+    const PARTITION_KEY: &str = "platanos";
+    const PARTITION_ID: PartitionId = PartitionId::new(0);
+
+    #[tokio::test]
+    async fn test_bad_write_memory_counting() {
+        let metrics = Arc::new(metric::Registry::default());
+        let catalog: Arc<dyn Catalog> =
+            Arc::new(iox_catalog::mem::MemCatalog::new(Arc::clone(&metrics)));
+
+        // Populate the catalog with the shard / namespace / table
+        let (shard_id, ns_id, table_id) =
+            populate_catalog(&*catalog, SHARD_INDEX, NAMESPACE_NAME, TABLE_NAME).await;
+
+        // Configure the mock partition provider to return a partition for this
+        // table ID.
+        let partition_provider = Arc::new(MockPartitionProvider::default().with_partition(
+            PartitionData::new(
+                PARTITION_ID,
+                PARTITION_KEY.into(),
+                shard_id,
+                ns_id,
+                table_id,
+                TABLE_NAME.into(),
+                None,
+            ),
+        ));
+
+        let mut table = TableData::new(
+            table_id,
+            TABLE_NAME,
+            shard_id,
+            ns_id,
+            None,
+            partition_provider,
+        );
+
+        let batch = lines_to_batches(r#"bananas,bat=man value=24 42"#, 0)
+            .unwrap()
+            .remove(TABLE_NAME)
+            .unwrap();
+
+        // Initialise the mock lifecycle handle and use it to inspect the calls
+        // made to the lifecycle manager during buffering.
+        let handle = MockLifecycleHandle::default();
+
+        // Assert the table does not contain the test partition
+        assert!(table.partition_data.get(&PARTITION_KEY.into()).is_none());
+
+        // Write some test data
+        let pause = table
+            .buffer_table_write(
+                SequenceNumber::new(42),
+                batch,
+                PARTITION_KEY.into(),
+                &handle,
+            )
+            .await
+            .expect("buffer op should succeed");
+        assert!(!pause);
+
+        // Referencing the partition should succeed
+        assert!(table.partition_data.get(&PARTITION_KEY.into()).is_some());
+
+        // And the lifecycle handle was called with the expected values
+        assert_eq!(
+            handle.get_log_calls(),
+            &[MockLifecycleCall {
+                partition_id: PARTITION_ID,
+                shard_id,
+                namespace_id: ns_id,
+                table_id,
+                sequence_number: SequenceNumber::new(42),
+                bytes_written: 1131,
+                rows_written: 1,
+            }]
+        );
+
+        // Attempt to buffer the second op that contains a type conflict - this
+        // should return an error, and not make a call to the lifecycle handle
+        // (as no data was buffered)
+        //
+        // Note the type of value was numeric previously, and here it is a string.
+        let batch = lines_to_batches(r#"bananas,bat=man value="platanos" 42"#, 0)
+            .unwrap()
+            .remove(TABLE_NAME)
+            .unwrap();
+
+        let err = table
+            .buffer_table_write(
+                SequenceNumber::new(42),
+                batch,
+                PARTITION_KEY.into(),
+                &handle,
+            )
+            .await
+            .expect_err("type conflict should error");
+
+        // The buffer op should return a column type error
+        assert_matches!(
+            err,
+            Error::BufferWrite {
+                source: mutable_batch::Error::WriterError {
+                    source: writer::Error::TypeMismatch {
+                        existing: InfluxColumnType::Field(InfluxFieldType::Float),
+                        inserted: InfluxColumnType::Field(InfluxFieldType::String),
+                        column: col_name,
+                    }
+                },
+            } => { assert_eq!(col_name, "value") }
+        );
+
+        // And the lifecycle handle should not be called.
+        //
+        // It still contains the first call, so the desired length is 1
+        // indicating no second call was made.
+        assert_eq!(handle.get_log_calls().len(), 1);
     }
 }
