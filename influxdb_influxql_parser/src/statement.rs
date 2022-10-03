@@ -1,5 +1,6 @@
 use crate::delete::{delete_statement, DeleteStatement};
 use crate::drop::{drop_statement, DropMeasurementStatement};
+use crate::explain::{explain_statement, ExplainStatement};
 use crate::internal::ParseResult;
 use crate::select::{select_statement, SelectStatement};
 use crate::show::{show_statement, ShowDatabasesStatement};
@@ -19,6 +20,8 @@ pub enum Statement {
     Delete(Box<DeleteStatement>),
     /// Represents a `DROP MEASUREMENT` statement.
     DropMeasurement(Box<DropMeasurementStatement>),
+    /// Represents an `EXPLAIN` statement.
+    Explain(Box<ExplainStatement>),
     /// Represents a `SELECT` statement.
     Select(Box<SelectStatement>),
     /// Represents a `SHOW DATABASES` statement.
@@ -40,6 +43,7 @@ impl Display for Statement {
         match self {
             Self::Delete(s) => Display::fmt(s, f),
             Self::DropMeasurement(s) => Display::fmt(s, f),
+            Self::Explain(s) => Display::fmt(s, f),
             Self::Select(s) => Display::fmt(s, f),
             Self::ShowDatabases(s) => Display::fmt(s, f),
             Self::ShowMeasurements(s) => Display::fmt(s, f),
@@ -56,6 +60,7 @@ pub fn statement(i: &str) -> ParseResult<&str, Statement> {
     alt((
         map(delete_statement, |s| Statement::Delete(Box::new(s))),
         map(drop_statement, |s| Statement::DropMeasurement(Box::new(s))),
+        map(explain_statement, |s| Statement::Explain(Box::new(s))),
         map(select_statement, |s| Statement::Select(Box::new(s))),
         show_statement,
     ))(i)
@@ -75,6 +80,10 @@ mod test {
 
         // drop_statement combinator
         let (got, _) = statement("DROP MEASUREMENT foo").unwrap();
+        assert_eq!(got, "");
+
+        // explain_statement combinator
+        let (got, _) = statement("EXPLAIN SELECT * FROM cpu").unwrap();
         assert_eq!(got, "");
 
         let (got, _) = statement("SELECT * FROM foo WHERE time > now() - 5m AND host = 'bar' GROUP BY TIME(5m) FILL(previous) ORDER BY time DESC").unwrap();

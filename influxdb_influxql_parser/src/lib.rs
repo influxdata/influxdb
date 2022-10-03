@@ -29,6 +29,7 @@ mod test_util;
 mod common;
 mod delete;
 mod drop;
+mod explain;
 mod expression;
 mod identifier;
 mod internal;
