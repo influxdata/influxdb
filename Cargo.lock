@@ -2206,6 +2206,7 @@ dependencies = [
  "pin-project",
  "predicate",
  "prost 0.11.0",
+ "rand",
  "schema",
  "snafu",
  "test_helpers",
