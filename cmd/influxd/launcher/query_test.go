@@ -276,7 +276,7 @@ func queryPoints(ctx context.Context, t *testing.T, l *launcher.TestLauncher, op
 	if d.verbose {
 		t.Logf("query:\n%s", qs)
 	}
-	pkg, err := runtime.ParseToJSON(qs)
+	pkg, err := runtime.ParseToJSON(context.Background(), qs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -291,10 +291,10 @@ func queryPoints(ctx context.Context, t *testing.T, l *launcher.TestLauncher, op
 }
 
 // This test:
-//  - initializes a default launcher and sets memory limits;
-//  - writes some data;
-//  - queries the data;
-//  - verifies that the query fails (or not) and that the memory was de-allocated.
+//   - initializes a default launcher and sets memory limits;
+//   - writes some data;
+//   - queries the data;
+//   - verifies that the query fails (or not) and that the memory was de-allocated.
 func TestLauncher_QueryMemoryLimits(t *testing.T) {
 	tcs := []struct {
 		name           string
@@ -385,12 +385,12 @@ func TestLauncher_QueryMemoryLimits(t *testing.T) {
 }
 
 // This test:
-//  - initializes a default launcher and sets memory limits;
-//  - writes some data;
-//  - launches a query that does not error;
-//  - launches a query that gets canceled while executing;
-//  - launches a query that does not error;
-//  - verifies after each query run the used memory.
+//   - initializes a default launcher and sets memory limits;
+//   - writes some data;
+//   - launches a query that does not error;
+//   - launches a query that gets canceled while executing;
+//   - launches a query that does not error;
+//   - verifies after each query run the used memory.
 func TestLauncher_QueryMemoryManager_ExceedMemory(t *testing.T) {
 	t.Skip("this test is flaky, occasionally get error: \"memory allocation limit reached\" on OK query")
 
@@ -429,12 +429,12 @@ func TestLauncher_QueryMemoryManager_ExceedMemory(t *testing.T) {
 }
 
 // This test:
-//  - initializes a default launcher and sets memory limits;
-//  - writes some data;
-//  - launches a query that does not error;
-//  - launches a query and cancels its context;
-//  - launches a query that does not error;
-//  - verifies after each query run the used memory.
+//   - initializes a default launcher and sets memory limits;
+//   - writes some data;
+//   - launches a query that does not error;
+//   - launches a query and cancels its context;
+//   - launches a query that does not error;
+//   - verifies after each query run the used memory.
 func TestLauncher_QueryMemoryManager_ContextCanceled(t *testing.T) {
 	t.Skip("this test is flaky, occasionally get error: \"memory allocation limit reached\"")
 
@@ -467,13 +467,14 @@ func TestLauncher_QueryMemoryManager_ContextCanceled(t *testing.T) {
 }
 
 // This test:
-//  - initializes a default launcher and sets memory limits;
-//  - writes some data;
-//  - launches (concurrently) a mixture of
-//    - OK queries;
-//    - queries that exceed the memory limit;
-//    - queries that get canceled;
-//  - verifies the used memory.
+//   - initializes a default launcher and sets memory limits;
+//   - writes some data;
+//   - launches (concurrently) a mixture of
+//   - OK queries;
+//   - queries that exceed the memory limit;
+//   - queries that get canceled;
+//   - verifies the used memory.
+//
 // Concurrency limit is set to 1, so only 1 query runs at a time and the others are queued.
 // OK queries do not overcome the soft limit, so that they can run concurrently with the ones that exceed limits.
 // The aim of this test is to verify that memory tracking works properly in the controller,

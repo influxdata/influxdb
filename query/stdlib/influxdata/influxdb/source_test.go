@@ -180,6 +180,7 @@ func TestReadWindowAggregateSource(t *testing.T) {
 
 	orgID, bucketID := platform2.ID(1), platform2.ID(2)
 	executetest.RunSourceHelper(t,
+		context.Background(),
 		[]*executetest.Table{
 			{
 				ColMeta: []flux.ColMeta{

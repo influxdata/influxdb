@@ -633,7 +633,7 @@ func exhaustResultIterators(res flux.Result) error {
 
 // NewASTCompiler parses a Flux query string into an AST representation.
 func NewASTCompiler(ctx context.Context, query string, ts CompilerBuilderTimestamps) (flux.Compiler, error) {
-	pkg, err := runtime.ParseToJSON(query)
+	pkg, err := runtime.ParseToJSON(ctx, query)
 	if err != nil {
 		return nil, err
 	}
