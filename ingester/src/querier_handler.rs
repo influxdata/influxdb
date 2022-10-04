@@ -12,8 +12,8 @@ use snafu::{ensure, Snafu};
 
 use crate::{
     data::{
-        partition::UnpersistedPartitionData, IngesterData, IngesterQueryPartition,
-        IngesterQueryResponse,
+        namespace::NamespaceName, partition::UnpersistedPartitionData, IngesterData,
+        IngesterQueryPartition, IngesterQueryResponse,
     },
     query::QueryableBatch,
 };
@@ -57,7 +57,8 @@ pub async fn prepare_data_to_querier(
     let mut found_namespace = false;
     for (shard_id, shard_data) in ingest_data.shards() {
         debug!(shard_id=%shard_id.get());
-        let namespace_data = match shard_data.namespace(&request.namespace) {
+        let namespace_name = NamespaceName::from(&request.namespace);
+        let namespace_data = match shard_data.namespace(&namespace_name) {
             Some(namespace_data) => {
                 debug!(namespace=%request.namespace, "found namespace");
                 found_namespace = true;

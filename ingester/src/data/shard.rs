@@ -11,7 +11,10 @@ use parking_lot::RwLock;
 use snafu::{OptionExt, ResultExt};
 use write_summary::ShardProgress;
 
-use super::{namespace::NamespaceData, partition::resolver::PartitionProvider};
+use super::{
+    namespace::{NamespaceData, NamespaceName},
+    partition::resolver::PartitionProvider,
+};
 use crate::lifecycle::LifecycleHandle;
 
 /// A double-referenced map where [`NamespaceData`] can be looked up by name, or
@@ -19,12 +22,12 @@ use crate::lifecycle::LifecycleHandle;
 #[derive(Debug, Default)]
 struct DoubleRef {
     // TODO(4880): this can be removed when IDs are sent over the wire.
-    by_name: HashMap<String, Arc<NamespaceData>>,
+    by_name: HashMap<NamespaceName, Arc<NamespaceData>>,
     by_id: HashMap<NamespaceId, Arc<NamespaceData>>,
 }
 
 impl DoubleRef {
-    fn insert(&mut self, name: String, ns: NamespaceData) -> Arc<NamespaceData> {
+    fn insert(&mut self, name: NamespaceName, ns: NamespaceData) -> Arc<NamespaceData> {
         let id = ns.namespace_id();
 
         let ns = Arc::new(ns);
@@ -33,7 +36,7 @@ impl DoubleRef {
         ns
     }
 
-    fn by_name(&self, name: &str) -> Option<Arc<NamespaceData>> {
+    fn by_name(&self, name: &NamespaceName) -> Option<Arc<NamespaceData>> {
         self.by_name.get(name).map(Arc::clone)
     }
 
@@ -99,7 +102,7 @@ impl ShardData {
         lifecycle_handle: &dyn LifecycleHandle,
         executor: &Executor,
     ) -> Result<bool, super::Error> {
-        let namespace_data = match self.namespace(dml_operation.namespace()) {
+        let namespace_data = match self.namespace(&NamespaceName::from(dml_operation.namespace())) {
             Some(d) => d,
             None => {
                 self.insert_namespace(dml_operation.namespace(), &**catalog)
@@ -113,7 +116,7 @@ impl ShardData {
     }
 
     /// Gets the namespace data out of the map
-    pub(crate) fn namespace(&self, namespace: &str) -> Option<Arc<NamespaceData>> {
+    pub(crate) fn namespace(&self, namespace: &NamespaceName) -> Option<Arc<NamespaceData>> {
         let n = self.namespaces.read();
         n.by_name(namespace)
     }
@@ -136,6 +139,8 @@ impl ShardData {
         catalog: &dyn Catalog,
     ) -> Result<Arc<NamespaceData>, super::Error> {
         let mut repos = catalog.repositories().await;
+
+        let ns_name = NamespaceName::from(namespace);
         let namespace = repos
             .namespaces()
             .get_by_name(namespace)
@@ -145,16 +150,17 @@ impl ShardData {
 
         let mut n = self.namespaces.write();
 
-        Ok(match n.by_name(&namespace.name) {
+        Ok(match n.by_name(&ns_name) {
             Some(v) => v,
             None => {
                 self.namespace_count.inc(1);
 
                 // Insert the table and then return a ref to it.
                 n.insert(
-                    namespace.name,
+                    ns_name.clone(),
                     NamespaceData::new(
                         namespace.id,
+                        ns_name,
                         self.shard_id,
                         Arc::clone(&self.partition_provider),
                         &*self.metrics,
@@ -240,7 +246,7 @@ mod tests {
         );
 
         // Assert the namespace does not contain the test data
-        assert!(shard.namespace(NAMESPACE_NAME).is_none());
+        assert!(shard.namespace(&NAMESPACE_NAME.into()).is_none());
         assert!(shard.namespace_by_id(ns_id).is_none());
 
         // Write some test data
@@ -261,7 +267,7 @@ mod tests {
             .expect("buffer op should succeed");
 
         // Both forms of referencing the table should succeed
-        assert!(shard.namespace(NAMESPACE_NAME).is_some());
+        assert!(shard.namespace(&NAMESPACE_NAME.into()).is_some());
         assert!(shard.namespace_by_id(ns_id).is_some());
 
         // And the table counter metric should increase
