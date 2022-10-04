@@ -9,7 +9,10 @@ use data_types::{NamespaceId, Partition, PartitionKey, ShardId, TableId};
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::debug;
 
-use crate::data::partition::{PartitionData, SortKeyState};
+use crate::data::{
+    partition::{PartitionData, SortKeyState},
+    table::TableName,
+};
 
 use super::r#trait::PartitionProvider;
 
@@ -55,7 +58,7 @@ impl PartitionProvider for CatalogPartitionResolver {
         shard_id: ShardId,
         namespace_id: NamespaceId,
         table_id: TableId,
-        table_name: Arc<str>,
+        table_name: TableName,
     ) -> PartitionData {
         debug!(
             %partition_key,
@@ -132,7 +135,7 @@ mod tests {
         };
 
         let callers_partition_key = PartitionKey::from(PARTITION_KEY);
-        let table_name = TABLE_NAME.into();
+        let table_name = TableName::from(TABLE_NAME);
         let resolver = CatalogPartitionResolver::new(Arc::clone(&catalog));
         let got = resolver
             .get_partition(
@@ -140,7 +143,7 @@ mod tests {
                 shard_id,
                 namespace_id,
                 table_id,
-                Arc::clone(&table_name),
+                table_name.clone(),
             )
             .await;
         assert_eq!(got.namespace_id(), namespace_id);

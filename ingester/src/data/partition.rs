@@ -19,6 +19,8 @@ use self::{
 };
 use crate::{data::query_dedup::query, query::QueryableBatch};
 
+use super::table::TableName;
+
 mod buffer;
 pub mod resolver;
 
@@ -180,7 +182,7 @@ pub struct PartitionData {
     namespace_id: NamespaceId,
     table_id: TableId,
     /// The name of the table this partition is part of.
-    table_name: Arc<str>,
+    table_name: TableName,
 
     pub(super) data: DataBuffer,
 
@@ -198,7 +200,7 @@ impl PartitionData {
         shard_id: ShardId,
         namespace_id: NamespaceId,
         table_id: TableId,
-        table_name: Arc<str>,
+        table_name: TableName,
         sort_key: SortKeyState,
         max_persisted_sequence_number: Option<SequenceNumber>,
     ) -> Self {

@@ -50,11 +50,40 @@ impl DoubleRef {
     }
 }
 
+/// The string name / identifier of a Table.
+///
+/// A reference-counted, cheap clone-able string.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TableName(Arc<str>);
+
+impl<T> From<T> for TableName
+where
+    T: AsRef<str>,
+{
+    fn from(v: T) -> Self {
+        Self(Arc::from(v.as_ref()))
+    }
+}
+
+impl std::fmt::Display for TableName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl std::ops::Deref for TableName {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 /// Data of a Table in a given Namesapce that belongs to a given Shard
 #[derive(Debug)]
 pub(crate) struct TableData {
     table_id: TableId,
-    table_name: Arc<str>,
+    table_name: TableName,
 
     /// The catalog ID of the shard & namespace this table is being populated
     /// from.
@@ -85,7 +114,7 @@ impl TableData {
     /// for the first time.
     pub(super) fn new(
         table_id: TableId,
-        table_name: &str,
+        table_name: TableName,
         shard_id: ShardId,
         namespace_id: NamespaceId,
         tombstone_max_sequence_number: Option<SequenceNumber>,
@@ -93,7 +122,7 @@ impl TableData {
     ) -> Self {
         Self {
             table_id,
-            table_name: table_name.into(),
+            table_name,
             shard_id,
             namespace_id,
             tombstone_max_sequence_number,
@@ -137,7 +166,7 @@ impl TableData {
                         self.shard_id,
                         self.namespace_id,
                         self.table_id,
-                        Arc::clone(&self.table_name),
+                        self.table_name.clone(),
                     )
                     .await;
                 // Add the double-referenced partition to the map.
@@ -276,7 +305,7 @@ impl TableData {
     }
 
     /// Returns the name of this table.
-    pub(crate) fn table_name(&self) -> &Arc<str> {
+    pub(crate) fn table_name(&self) -> &TableName {
         &self.table_name
     }
 }
@@ -335,7 +364,7 @@ mod tests {
 
         let mut table = TableData::new(
             table_id,
-            TABLE_NAME,
+            TABLE_NAME.into(),
             shard_id,
             ns_id,
             None,
@@ -395,7 +424,7 @@ mod tests {
 
         let mut table = TableData::new(
             table_id,
-            TABLE_NAME,
+            TABLE_NAME.into(),
             shard_id,
             ns_id,
             None,

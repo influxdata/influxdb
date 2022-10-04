@@ -13,20 +13,23 @@ use write_summary::ShardProgress;
 
 #[cfg(test)]
 use super::triggers::TestTriggers;
-use super::{partition::resolver::PartitionProvider, table::TableData};
+use super::{
+    partition::resolver::PartitionProvider,
+    table::{TableData, TableName},
+};
 use crate::lifecycle::LifecycleHandle;
 
 /// A double-referenced map where [`TableData`] can be looked up by name, or ID.
 #[derive(Debug, Default)]
 struct DoubleRef {
     // TODO(4880): this can be removed when IDs are sent over the wire.
-    by_name: HashMap<Arc<str>, Arc<tokio::sync::RwLock<TableData>>>,
+    by_name: HashMap<TableName, Arc<tokio::sync::RwLock<TableData>>>,
     by_id: HashMap<TableId, Arc<tokio::sync::RwLock<TableData>>>,
 }
 
 impl DoubleRef {
     fn insert(&mut self, t: TableData) -> Arc<tokio::sync::RwLock<TableData>> {
-        let name = Arc::clone(t.table_name());
+        let name = t.table_name().clone();
         let id = t.table_id();
 
         let t = Arc::new(tokio::sync::RwLock::new(t));
@@ -35,7 +38,7 @@ impl DoubleRef {
         t
     }
 
-    fn by_name(&self, name: &str) -> Option<Arc<tokio::sync::RwLock<TableData>>> {
+    fn by_name(&self, name: &TableName) -> Option<Arc<tokio::sync::RwLock<TableData>>> {
         self.by_name.get(name).map(Arc::clone)
     }
 
@@ -196,6 +199,7 @@ impl NamespaceData {
                     .clone();
 
                 for (t, b) in write.into_tables() {
+                    let t = TableName::from(t);
                     let table_data = match self.table_data(&t) {
                         Some(t) => t,
                         None => self.insert_table(&t, catalog).await?,
@@ -221,10 +225,13 @@ impl NamespaceData {
                 Ok(pause_writes)
             }
             DmlOperation::Delete(delete) => {
-                let table_name = delete.table_name().context(super::TableNotPresentSnafu)?;
-                let table_data = match self.table_data(table_name) {
+                let table_name = delete
+                    .table_name()
+                    .context(super::TableNotPresentSnafu)?
+                    .into();
+                let table_data = match self.table_data(&table_name) {
                     Some(t) => t,
-                    None => self.insert_table(table_name, catalog).await?,
+                    None => self.insert_table(&table_name, catalog).await?,
                 };
 
                 let mut table_data = table_data.write().await;
@@ -244,7 +251,7 @@ impl NamespaceData {
     #[cfg(test)] // Only used in tests
     pub(crate) async fn snapshot(
         &self,
-        table_name: &str,
+        table_name: &TableName,
         partition_key: &PartitionKey,
     ) -> Option<(
         Vec<Arc<super::partition::SnapshotBatch>>,
@@ -270,7 +277,7 @@ impl NamespaceData {
     #[cfg(test)] // Only used in tests
     pub(crate) async fn snapshot_to_persisting(
         &self,
-        table_name: &str,
+        table_name: &TableName,
         partition_key: &PartitionKey,
     ) -> Option<Arc<super::partition::PersistingBatch>> {
         if let Some(table_data) = self.table_data(table_name) {
@@ -287,7 +294,7 @@ impl NamespaceData {
     /// Gets the buffered table data
     pub(crate) fn table_data(
         &self,
-        table_name: &str,
+        table_name: &TableName,
     ) -> Option<Arc<tokio::sync::RwLock<TableData>>> {
         let t = self.tables.read();
         t.by_name(table_name)
@@ -305,7 +312,7 @@ impl NamespaceData {
     /// Inserts the table or returns it if it happens to be inserted by some other thread
     async fn insert_table(
         &self,
-        table_name: &str,
+        table_name: &TableName,
         catalog: &Arc<dyn Catalog>,
     ) -> Result<Arc<tokio::sync::RwLock<TableData>>, super::Error> {
         let mut repos = catalog.repositories().await;
@@ -314,7 +321,9 @@ impl NamespaceData {
             .get_table_persist_info(self.shard_id, self.namespace_id, table_name)
             .await
             .context(super::CatalogSnafu)?
-            .context(super::TableNotFoundSnafu { table_name })?;
+            .ok_or_else(|| super::Error::TableNotFound {
+                table_name: table_name.to_string(),
+            })?;
 
         let mut t = self.tables.write();
 
@@ -326,7 +335,7 @@ impl NamespaceData {
                 // Insert the table and then return a ref to it.
                 t.insert(TableData::new(
                     info.table_id,
-                    table_name,
+                    table_name.clone(),
                     self.shard_id,
                     self.namespace_id,
                     info.tombstone_max_sequence_number,
@@ -341,7 +350,7 @@ impl NamespaceData {
     /// data buffer.
     pub(super) async fn mark_persisted(
         &self,
-        table_name: &str,
+        table_name: &TableName,
         partition_key: &PartitionKey,
         sequence_number: SequenceNumber,
     ) {
@@ -479,7 +488,7 @@ mod tests {
         assert_eq!(&**ns.namespace_name(), NAMESPACE_NAME);
 
         // Assert the namespace does not contain the test data
-        assert!(ns.table_data(TABLE_NAME).is_none());
+        assert!(ns.table_data(&TABLE_NAME.into()).is_none());
         assert!(ns.table_id(table_id).is_none());
 
         // Write some test data
@@ -499,7 +508,7 @@ mod tests {
         .expect("buffer op should succeed");
 
         // Both forms of referencing the table should succeed
-        assert!(ns.table_data(TABLE_NAME).is_some());
+        assert!(ns.table_data(&TABLE_NAME.into()).is_some());
         assert!(ns.table_id(table_id).is_some());
 
         // And the table counter metric should increase
