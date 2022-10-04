@@ -202,7 +202,7 @@ mod tests {
     use metric::{Attributes, Metric};
 
     use crate::{
-        data::partition::{resolver::MockPartitionProvider, PartitionData},
+        data::partition::{resolver::MockPartitionProvider, PartitionData, SortKeyState},
         lifecycle::mock_handle::MockLifecycleHandle,
         test_util::{make_write_op, populate_catalog},
     };
@@ -234,6 +234,7 @@ mod tests {
                 ns_id,
                 table_id,
                 TABLE_NAME.into(),
+                SortKeyState::Provided(None),
                 None,
             ),
         ));

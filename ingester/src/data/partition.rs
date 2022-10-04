@@ -8,12 +8,15 @@ use data_types::{
 };
 use iox_query::exec::Executor;
 use mutable_batch::MutableBatch;
-use schema::selection::Selection;
+use schema::{selection::Selection, sort::SortKey};
 use snafu::ResultExt;
 use uuid::Uuid;
 use write_summary::ShardProgress;
 
-use self::buffer::{BufferBatch, DataBuffer};
+use self::{
+    buffer::{BufferBatch, DataBuffer},
+    resolver::DeferredSortKey,
+};
 use crate::{data::query_dedup::query, query::QueryableBatch};
 
 mod buffer;
@@ -132,13 +135,45 @@ impl SnapshotBatch {
     }
 }
 
-/// Data of an IOx Partition of a given Table of a Namesapce that belongs to a given Shard
+/// The load state of the [`SortKey`] for a given partition.
+#[derive(Debug)]
+pub(crate) enum SortKeyState {
+    /// The [`SortKey`] has not yet been fetched from the catalog, and will be
+    /// lazy loaded (or loaded in the background) by a call to
+    /// [`DeferredSortKey::get()`].
+    Deferred(DeferredSortKey),
+    /// The sort key is known and specified.
+    Provided(Option<SortKey>),
+}
+
+impl SortKeyState {
+    async fn get(&self) -> Option<SortKey> {
+        match self {
+            Self::Deferred(v) => v.get().await,
+            Self::Provided(v) => v.clone(),
+        }
+    }
+}
+
+/// Data of an IOx Partition of a given Table of a Namespace that belongs to a
+/// given Shard
 #[derive(Debug)]
 pub struct PartitionData {
     /// The catalog ID of the partition this buffer is for.
     id: PartitionId,
     /// The string partition key for this partition.
     partition_key: PartitionKey,
+
+    /// The sort key of this partition.
+    ///
+    /// This can known, in which case this field will contain a
+    /// [`SortKeyState::Provided`] with the [`SortKey`], or unknown with a value
+    /// of [`SortKeyState::Deferred`] causing it to be loaded from the catalog
+    /// (potentially) in the background or at read time.
+    ///
+    /// Callers should use [`Self::sort_key()`] to be abstracted away from these
+    /// fetch details.
+    sort_key: SortKeyState,
 
     /// The shard, namespace & table IDs for this partition.
     shard_id: ShardId,
@@ -156,6 +191,7 @@ pub struct PartitionData {
 
 impl PartitionData {
     /// Initialize a new partition data buffer
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         id: PartitionId,
         partition_key: PartitionKey,
@@ -163,11 +199,13 @@ impl PartitionData {
         namespace_id: NamespaceId,
         table_id: TableId,
         table_name: Arc<str>,
+        sort_key: SortKeyState,
         max_persisted_sequence_number: Option<SequenceNumber>,
     ) -> Self {
         Self {
             id,
             partition_key,
+            sort_key,
             shard_id,
             namespace_id,
             table_id,
@@ -347,6 +385,13 @@ impl PartitionData {
     pub fn namespace_id(&self) -> NamespaceId {
         self.namespace_id
     }
+
+    /// Return the [`SortKey`] for this partition.
+    ///
+    /// NOTE: this MAY involve querying the catalog with unbounded retries.
+    pub async fn sort_key(&self) -> Option<SortKey> {
+        self.sort_key.get().await
+    }
 }
 
 #[cfg(test)]
@@ -366,6 +411,7 @@ mod tests {
             NamespaceId::new(42),
             TableId::new(1),
             "foo".into(),
+            SortKeyState::Provided(None),
             None,
         );
 
@@ -413,6 +459,7 @@ mod tests {
             NamespaceId::new(42),
             TableId::new(t_id),
             "restaurant".into(),
+            SortKeyState::Provided(None),
             None,
         );
         let exec = Executor::new(1);

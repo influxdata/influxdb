@@ -41,6 +41,13 @@ use crate::{
     },
 };
 
+/// The maximum duration of time between creating a [`PartitionData`] and its
+/// [`SortKey`] being fetched from the catalog.
+///
+/// [`PartitionData`]: crate::data::partition::PartitionData
+/// [`SortKey`]: schema::sort::SortKey
+const SORT_KEY_PRE_FETCH: Duration = Duration::from_secs(30);
+
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {
@@ -160,7 +167,13 @@ impl IngestHandlerImpl {
 
         // Build the partition provider.
         let partition_provider = CatalogPartitionResolver::new(Arc::clone(&catalog));
-        let partition_provider = PartitionCache::new(partition_provider, recent_partitions);
+        let partition_provider = PartitionCache::new(
+            partition_provider,
+            recent_partitions,
+            SORT_KEY_PRE_FETCH,
+            Arc::clone(&catalog),
+            BackoffConfig::default(),
+        );
         let partition_provider: Arc<dyn PartitionProvider> = Arc::new(partition_provider);
 
         // build the initial ingester data state
