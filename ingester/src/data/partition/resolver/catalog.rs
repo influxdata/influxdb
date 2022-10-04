@@ -148,7 +148,7 @@ mod tests {
             )
             .await;
         assert_eq!(got.namespace_id(), namespace_id);
-        assert_eq!(*got.table_name(), *table_name);
+        assert_eq!(got.table_name().to_string(), table_name.to_string());
         assert_matches!(got.sort_key(), SortKeyState::Provided(None));
         assert_eq!(got.max_persisted_sequence_number(), None);
         assert!(got.partition_key.ptr_eq(&callers_partition_key));

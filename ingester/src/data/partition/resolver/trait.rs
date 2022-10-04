@@ -79,6 +79,6 @@ mod tests {
             .await;
         assert_eq!(got.partition_id(), partition);
         assert_eq!(got.namespace_id(), namespace_id);
-        assert_eq!(*got.table_name(), *table_name);
+        assert_eq!(got.table_name().to_string(), table_name.to_string());
     }
 }

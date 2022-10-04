@@ -9,8 +9,7 @@ use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_eq;
 use bitflags::bitflags;
 use data_types::{
-    CompactionLevel, NamespaceId, PartitionId, PartitionKey, Sequence, SequenceNumber, ShardId,
-    ShardIndex, TableId,
+    NamespaceId, PartitionId, PartitionKey, Sequence, SequenceNumber, ShardId, ShardIndex, TableId,
 };
 use dml::{DmlMeta, DmlOperation, DmlWrite};
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
@@ -18,8 +17,6 @@ use iox_query::test::{raw_data, TestChunk};
 use iox_time::{SystemProvider, Time};
 use mutable_batch_lp::lines_to_batches;
 use object_store::memory::InMemory;
-use parquet_file::metadata::IoxMetadata;
-use schema::sort::SortKey;
 use uuid::Uuid;
 
 use crate::{
@@ -30,37 +27,6 @@ use crate::{
     lifecycle::{LifecycleConfig, LifecycleManager},
     query::QueryableBatch,
 };
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn make_meta(
-    object_store_id: Uuid,
-    creation_timestamp: Time,
-    shard_id: i64,
-    namespace_id: i64,
-    namespace_name: &str,
-    table_id: i64,
-    table_name: &str,
-    partition_id: i64,
-    partition_key: &str,
-    max_sequence_number: i64,
-    compaction_level: CompactionLevel,
-    sort_key: Option<SortKey>,
-) -> IoxMetadata {
-    IoxMetadata {
-        object_store_id,
-        creation_timestamp,
-        shard_id: ShardId::new(shard_id),
-        namespace_id: NamespaceId::new(namespace_id),
-        namespace_name: Arc::from(namespace_name),
-        table_id: TableId::new(table_id),
-        table_name: Arc::from(table_name),
-        partition_id: PartitionId::new(partition_id),
-        partition_key: PartitionKey::from(partition_key),
-        max_sequence_number: SequenceNumber::new(max_sequence_number),
-        compaction_level,
-        sort_key,
-    }
-}
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn make_persisting_batch(

@@ -63,7 +63,7 @@ where
 }
 
 impl std::ops::Deref for NamespaceName {
-    type Target = str;
+    type Target = Arc<str>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -391,7 +391,6 @@ impl NamespaceData {
     }
 
     /// Returns the [`NamespaceName`] for this namespace.
-    #[cfg(test)]
     pub(crate) fn namespace_name(&self) -> &NamespaceName {
         &self.namespace_name
     }
@@ -483,7 +482,7 @@ mod tests {
         );
 
         // Assert the namespace name was stored
-        assert_eq!(&**ns.namespace_name(), NAMESPACE_NAME);
+        assert_eq!(ns.namespace_name().to_string(), NAMESPACE_NAME);
 
         // Assert the namespace does not contain the test data
         assert!(ns.table_data(&TABLE_NAME.into()).is_none());

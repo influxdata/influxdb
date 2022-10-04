@@ -268,7 +268,7 @@ impl PartitionData {
 
     /// Return the [`SequenceNumber`] that forms the (inclusive) persistence
     /// watermark for this partition.
-    pub(super) fn max_persisted_sequence_number(&self) -> Option<SequenceNumber> {
+    pub(crate) fn max_persisted_sequence_number(&self) -> Option<SequenceNumber> {
         self.max_persisted_sequence_number
     }
 
