@@ -33,17 +33,6 @@ build_test_harness() {
 
 skipped_tests() {
   doc=$(cat <<ENDSKIPS
-# Tests skipped because a feature flag must be enabled
-# the flag is: removeRedundantSortNodes
-remove_sort
-remove_sort_more_columns
-remove_sort_aggregate
-remove_sort_selector
-remove_sort_filter_range
-remove_sort_aggregate_window
-remove_sort_join
-
-# Other skipped tests
 align_time
 buckets
 covariance
