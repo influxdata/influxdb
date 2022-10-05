@@ -126,6 +126,9 @@ vec_with_unary_exists
 vectorize_div_by_zero_int_const
 vectorize_div_by_zero_int_const_const
 
+vec_with_float_typed_null
+vec_with_float_untyped_null
+
 # Other skipped tests
 align_time
 buckets
