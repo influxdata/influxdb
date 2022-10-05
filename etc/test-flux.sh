@@ -33,103 +33,6 @@ build_test_harness() {
 
 skipped_tests() {
   doc=$(cat <<ENDSKIPS
-# Integration write tests
-integration_mqtt_pub
-integration_sqlite_write_to
-integration_vertica_write_to
-integration_mssql_write_to
-integration_mysql_write_to
-integration_mariadb_write_to
-integration_pg_write_to
-integration_hdb_write_to
-
-# Integration read tests
-integration_sqlite_read_from_seed
-integration_sqlite_read_from_nonseed
-integration_vertica_read_from_seed
-integration_vertica_read_from_nonseed
-integration_mssql_read_from_seed
-integration_mssql_read_from_nonseed
-integration_mariadb_read_from_seed
-integration_mariadb_read_from_nonseed
-integration_mysql_read_from_seed
-integration_mysql_read_from_nonseed
-integration_pg_read_from_seed
-integration_pg_read_from_nonseed
-integration_hdb_read_from_seed
-integration_hdb_read_from_nonseed
-
-# Integration injection tests
-integration_sqlite_injection
-integration_hdb_injection
-integration_pg_injection
-integration_mysql_injection
-integration_mariadb_injection
-integration_mssql_injection
-
-# Tests skipped because a feature flag must be enabled
-# the flag is: removeRedundantSortNodes
-remove_sort
-remove_sort_more_columns
-remove_sort_aggregate
-remove_sort_selector
-remove_sort_filter_range
-remove_sort_aggregate_window
-remove_sort_join
-# vectorization-related tests
-logical_typed_null_vectorized_const
-logical_untyped_null_vectorized_const
-
-vec_conditional_bool
-vec_conditional_bool_repeat
-vec_conditional_time
-vec_conditional_time_repeat
-vec_conditional_int
-vec_conditional_int_repeat
-vec_conditional_float
-vec_conditional_float_repeat
-vec_conditional_uint
-vec_conditional_string
-vec_conditional_string_repeat
-vec_conditional_null_test
-vec_conditional_null_consequent
-vec_conditional_null_alternate
-vec_conditional_null_consequent_alternate
-vec_conditional_null_test_consequent_alternate
-vec_const_bools
-vec_const_with_const
-vec_const_with_const_add_const
-vec_const_add_member_const
-vec_const_with_const_add_const_add_member
-vec_const_with_const_add_member_add_const
-vec_const_with_member_add_const_add_const
-vec_const_kitchen_sink_column_types
-vec_equality_time
-vec_equality_time_repeat
-vec_equality_int
-vec_equality_int_repeat
-vec_equality_float
-vec_equality_float_repeat
-vec_equality_uint
-vec_equality_string
-vec_equality_string_repeat
-vec_equality_bool
-vec_equality_casts
-vec_nested_logical_conditional_repro
-vec_nested_logical_conditional_repro2
-vec_with_float
-vec_with_float_const
-vec_with_unary_add
-vec_with_unary_sub
-vec_with_unary_not
-vec_with_unary_exists
-vectorize_div_by_zero_int_const
-vectorize_div_by_zero_int_const_const
-
-vec_with_float_typed_null
-vec_with_float_untyped_null
-
-# Other skipped tests
 align_time
 buckets
 covariance
@@ -156,12 +59,6 @@ shapeData
 shift_negative_duration
 unique
 window_null
-# Needs feature flag labelPolymorphism
-label_to_string
-
-# Bug https://github.com/influxdata/flux/issues/5232
-#   Or, needs feature flag strictNullLogicalOps
-logical_typed_null_interp
 
 ENDSKIPS
 )

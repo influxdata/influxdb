@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/dependencies/testing"
 	"github.com/influxdata/flux/dependencies/url"
+	"github.com/influxdata/flux/execute/executetest"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/annotations"
 	annotationTransport "github.com/influxdata/influxdb/v2/annotations/transport"
@@ -413,6 +414,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 
 	dependencyList := []flux.Dependency{deps}
 	if opts.Testing {
+		dependencyList = append(dependencyList, executetest.NewDefaultTestFlagger())
 		dependencyList = append(dependencyList, testing.FrameworkConfig{})
 	}
 
