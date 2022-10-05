@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/influxdata/flux"
-	fluxfeature "github.com/influxdata/flux/dependencies/feature"
 	"github.com/influxdata/flux/dependencies/testing"
 	"github.com/influxdata/flux/dependencies/url"
 	"github.com/influxdata/flux/execute/executetest"
@@ -415,28 +414,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 
 	dependencyList := []flux.Dependency{deps}
 	if opts.Testing {
-		var testFlags = map[string]interface{}{
-			// "aggregateTransformationTransport": true,
-			// "groupTransformationGroup":         true,
-			// "optimizeUnionTransformation": true,
-			"labelPolymorphism":         true,
-			"vectorizedMap":             true,
-			"vectorizedConst":           true,
-			"vectorizedConditionals":    true,
-			"vectorizedFloat":           true,
-			"vectorizeLogicalOperators": true,
-			"vectorizedEqualityOps":     true,
-			"vectorizedUnaryOps":        true,
-			"optimizeAggregateWindow":   true,
-			"optimizeStateTracking":     true,
-			"optimizeSetTransformation": true,
-			"removeRedundantSortNodes":  true,
-			"strictNullLogicalOps":      true,
-		}
-		fluxFlagger := fluxfeature.Dependency{
-			Flagger: executetest.TestFlagger(testFlags),
-		}
-		dependencyList = append(dependencyList, fluxFlagger)
+		dependencyList = append(dependencyList, executetest.NewDefaultTestFlagger())
 		dependencyList = append(dependencyList, testing.FrameworkConfig{})
 	}
 
