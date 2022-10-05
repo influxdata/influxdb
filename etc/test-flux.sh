@@ -33,40 +33,6 @@ build_test_harness() {
 
 skipped_tests() {
   doc=$(cat <<ENDSKIPS
-# Integration write tests
-integration_mqtt_pub
-integration_sqlite_write_to
-integration_vertica_write_to
-integration_mssql_write_to
-integration_mysql_write_to
-integration_mariadb_write_to
-integration_pg_write_to
-integration_hdb_write_to
-
-# Integration read tests
-integration_sqlite_read_from_seed
-integration_sqlite_read_from_nonseed
-integration_vertica_read_from_seed
-integration_vertica_read_from_nonseed
-integration_mssql_read_from_seed
-integration_mssql_read_from_nonseed
-integration_mariadb_read_from_seed
-integration_mariadb_read_from_nonseed
-integration_mysql_read_from_seed
-integration_mysql_read_from_nonseed
-integration_pg_read_from_seed
-integration_pg_read_from_nonseed
-integration_hdb_read_from_seed
-integration_hdb_read_from_nonseed
-
-# Integration injection tests
-integration_sqlite_injection
-integration_hdb_injection
-integration_pg_injection
-integration_mysql_injection
-integration_mariadb_injection
-integration_mssql_injection
-
 # Tests skipped because a feature flag must be enabled
 # the flag is: removeRedundantSortNodes
 remove_sort
