@@ -302,7 +302,7 @@ impl PartitionData {
         self.data.progress()
     }
 
-    pub(super) fn id(&self) -> PartitionId {
+    pub(super) fn partition_id(&self) -> PartitionId {
         self.id
     }
 

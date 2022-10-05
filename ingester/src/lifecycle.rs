@@ -234,7 +234,7 @@ struct LifecycleStats {
 }
 
 /// The stats for a partition
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct PartitionLifecycleStats {
     /// The shard this partition is under
     shard_id: ShardId,
@@ -469,6 +469,18 @@ impl LifecycleManager {
         let persist_tasks: Vec<_> = to_persist
             .into_iter()
             .map(|s| {
+                // BUG: TOCTOU: memory usage released may be incorrect.
+                //
+                // Here the amount of memory to be reduced is acquired, but this
+                // code does not prevent continued writes adding more data to
+                // the partition in another thread.
+                //
+                // This may lead to more actual data being persisted than the
+                // call below returns to the server pool - this would slowly
+                // starve the ingester of memory it thinks it has.
+                //
+                // See https://github.com/influxdata/influxdb_iox/issues/5777
+
                 // Mark this partition as being persisted, and remember the
                 // memory allocation it had accumulated.
                 let partition_memory_usage = self
@@ -483,7 +495,9 @@ impl LifecycleManager {
 
                 let state = Arc::clone(&self.state);
                 tokio::task::spawn(async move {
-                    persister.persist(s.partition_id).await;
+                    persister
+                        .persist(s.shard_id, s.namespace_id, s.table_id, s.partition_id)
+                        .await;
                     // Now the data has been uploaded and the memory it was
                     // using has been freed, released the memory capacity back
                     // the ingester.
@@ -602,7 +616,13 @@ mod tests {
 
     #[async_trait]
     impl Persister for TestPersister {
-        async fn persist(&self, partition_id: PartitionId) {
+        async fn persist(
+            &self,
+            _shard_id: ShardId,
+            _namespace_id: NamespaceId,
+            _table_id: TableId,
+            partition_id: PartitionId,
+        ) {
             let mut p = self.persist_called.lock();
             p.insert(partition_id);
         }
@@ -662,8 +682,16 @@ mod tests {
 
     #[async_trait]
     impl Persister for PausablePersister {
-        async fn persist(&self, partition_id: PartitionId) {
-            self.inner.persist(partition_id).await;
+        async fn persist(
+            &self,
+            shard_id: ShardId,
+            namespace_id: NamespaceId,
+            table_id: TableId,
+            partition_id: PartitionId,
+        ) {
+            self.inner
+                .persist(shard_id, namespace_id, table_id, partition_id)
+                .await;
             if let Some(event) = self.event(partition_id) {
                 event.before.wait().await;
                 event.after.wait().await;
