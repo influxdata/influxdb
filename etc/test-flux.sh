@@ -77,9 +77,6 @@ remove_sort_filter_range
 remove_sort_aggregate_window
 remove_sort_join
 
-vec_with_float_typed_null
-vec_with_float_untyped_null
-
 # Other skipped tests
 align_time
 buckets
