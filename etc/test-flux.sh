@@ -59,9 +59,6 @@ shapeData
 shift_negative_duration
 unique
 window_null
-# Needs feature flag labelPolymorphism
-label_to_string
-
 
 ENDSKIPS
 )
