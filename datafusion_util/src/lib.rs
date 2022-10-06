@@ -15,7 +15,7 @@ use datafusion::execution::context::TaskContext;
 use datafusion::physical_expr::PhysicalExpr;
 use datafusion::physical_plan::common::SizedRecordBatchStream;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MemTrackingMetrics};
-use datafusion::physical_plan::{collect, ExecutionPlan};
+use datafusion::physical_plan::{collect, EmptyRecordBatchStream, ExecutionPlan};
 use datafusion::prelude::SessionContext;
 use datafusion::{
     arrow::{
@@ -236,12 +236,19 @@ where
 }
 
 /// Create a SendableRecordBatchStream a RecordBatch
-pub fn stream_from_batch(batch: RecordBatch) -> SendableRecordBatchStream {
-    stream_from_batches(vec![Arc::new(batch)])
+pub fn stream_from_batch(schema: Arc<Schema>, batch: RecordBatch) -> SendableRecordBatchStream {
+    stream_from_batches(schema, vec![Arc::new(batch)])
 }
 
 /// Create a SendableRecordBatchStream from Vec of RecordBatches with the same schema
-pub fn stream_from_batches(batches: Vec<Arc<RecordBatch>>) -> SendableRecordBatchStream {
+pub fn stream_from_batches(
+    schema: Arc<Schema>,
+    batches: Vec<Arc<RecordBatch>>,
+) -> SendableRecordBatchStream {
+    if batches.is_empty() {
+        return Box::pin(EmptyRecordBatchStream::new(schema));
+    }
+
     let dummy_metrics = ExecutionPlanMetricsSet::new();
     let mem_metrics = MemTrackingMetrics::new(&dummy_metrics, 0);
     let stream = SizedRecordBatchStream::new(batches[0].schema(), batches, mem_metrics);

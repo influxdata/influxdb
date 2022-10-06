@@ -762,7 +762,7 @@ mod tests {
         .unwrap();
 
         // Input has one row that has no value (NULL value) for tag_b, which is its own series
-        let input = stream_from_batch(batch);
+        let input = stream_from_batch(batch.schema(), batch);
 
         let table_name = "foo";
         let tag_columns = ["tag_a", "tag_b"];
@@ -873,7 +873,8 @@ mod tests {
                     .collect();
 
                 // stream from those batches
-                stream_from_batches(batches)
+                assert!(!batches.is_empty());
+                stream_from_batches(batches[0].schema(), batches)
             })
             .collect()
     }

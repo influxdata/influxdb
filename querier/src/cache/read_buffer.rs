@@ -470,9 +470,9 @@ mod tests {
             .into_iter()
             .map(lp_to_record_batch)
             .map(Arc::new)
-            .collect();
+            .collect::<Vec<_>>();
 
-        let stream = stream_from_batches(batches);
+        let stream = stream_from_batches(batches[0].schema(), batches);
 
         let metric_registry = metric::Registry::new();
 
