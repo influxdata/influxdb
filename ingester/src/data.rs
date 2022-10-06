@@ -815,7 +815,7 @@ mod tests {
 
         let (table_id, partition_id) = {
             let sd = data.shards.get(&shard1.id).unwrap();
-            let n = sd.namespace("foo").unwrap();
+            let n = sd.namespace(&"foo".into()).unwrap();
             let mem_table = n.table_data("mem").unwrap();
             assert!(n.table_data("mem").is_some());
             let mem_table = mem_table.write().await;
@@ -957,7 +957,7 @@ mod tests {
         assert_progress(&data, shard_index, expected_progress).await;
 
         let sd = data.shards.get(&shard1.id).unwrap();
-        let n = sd.namespace("foo").unwrap();
+        let n = sd.namespace(&"foo".into()).unwrap();
         let partition_id;
         let table_id;
         {
@@ -1193,7 +1193,7 @@ mod tests {
 
         // Get the namespace
         let sd = data.shards.get(&shard1.id).unwrap();
-        let n = sd.namespace("foo").unwrap();
+        let n = sd.namespace(&"foo".into()).unwrap();
 
         let expected_progress = ShardProgress::new().with_buffered(SequenceNumber::new(1));
         assert_progress(&data, shard_index, expected_progress).await;
@@ -1356,7 +1356,13 @@ mod tests {
 
         let partition_provider = Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog)));
 
-        let data = NamespaceData::new(namespace.id, shard.id, partition_provider, &*metrics);
+        let data = NamespaceData::new(
+            namespace.id,
+            "foo".into(),
+            shard.id,
+            partition_provider,
+            &*metrics,
+        );
 
         // w1 should be ignored because the per-partition replay offset is set
         // to 1 already, so it shouldn't be buffered and the buffer should
@@ -1473,7 +1479,7 @@ mod tests {
         assert_eq!(
             data.shard(shard1.id)
                 .unwrap()
-                .namespace(&namespace.name)
+                .namespace(&namespace.name.clone().into())
                 .unwrap()
                 .table_data("mem")
                 .unwrap()
@@ -1505,7 +1511,7 @@ mod tests {
         assert_eq!(
             data.shard(shard1.id)
                 .unwrap()
-                .namespace(&namespace.name)
+                .namespace(&namespace.name.into())
                 .unwrap()
                 .table_data("mem")
                 .unwrap()

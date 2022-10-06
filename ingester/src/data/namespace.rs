@@ -44,10 +44,36 @@ impl DoubleRef {
     }
 }
 
+/// The string name / identifier of a Namespace.
+///
+/// A reference-counted, cheap clone-able string.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) struct NamespaceName(Arc<str>);
+
+impl<T> From<T> for NamespaceName
+where
+    T: AsRef<str>,
+{
+    fn from(v: T) -> Self {
+        Self(Arc::from(v.as_ref()))
+    }
+}
+
+impl std::ops::Deref for NamespaceName {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 /// Data of a Namespace that belongs to a given Shard
 #[derive(Debug)]
 pub(crate) struct NamespaceData {
     namespace_id: NamespaceId,
+
+    #[allow(dead_code)]
+    namespace_name: NamespaceName,
 
     /// The catalog ID of the shard this namespace is being populated from.
     shard_id: ShardId,
@@ -111,6 +137,7 @@ impl NamespaceData {
     /// Initialize new tables with default partition template of daily
     pub fn new(
         namespace_id: NamespaceId,
+        namespace_name: NamespaceName,
         shard_id: ShardId,
         partition_provider: Arc<dyn PartitionProvider>,
         metrics: &metric::Registry,
@@ -124,6 +151,7 @@ impl NamespaceData {
 
         Self {
             namespace_id,
+            namespace_name,
             shard_id,
             tables: Default::default(),
             table_count,
@@ -353,6 +381,12 @@ impl NamespaceData {
     pub(super) fn table_count(&self) -> &U64Counter {
         &self.table_count
     }
+
+    /// Returns the [`NamespaceName`] for this namespace.
+    #[cfg(test)]
+    pub(crate) fn namespace_name(&self) -> &NamespaceName {
+        &self.namespace_name
+    }
 }
 
 /// RAAI struct that sets buffering sequence number on creation and clears it on free
@@ -432,7 +466,16 @@ mod tests {
             ),
         ));
 
-        let ns = NamespaceData::new(ns_id, shard_id, partition_provider, &*metrics);
+        let ns = NamespaceData::new(
+            ns_id,
+            NAMESPACE_NAME.into(),
+            shard_id,
+            partition_provider,
+            &*metrics,
+        );
+
+        // Assert the namespace name was stored
+        assert_eq!(&**ns.namespace_name(), NAMESPACE_NAME);
 
         // Assert the namespace does not contain the test data
         assert!(ns.table_data(TABLE_NAME).is_none());

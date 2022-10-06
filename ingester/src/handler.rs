@@ -499,11 +499,12 @@ mod tests {
         // give the writes some time to go through the buffer. Exit once we've verified there's
         // data in there from both writes.
         tokio::time::timeout(Duration::from_secs(2), async {
+            let ns_name = ingester.namespace.name.into();
             loop {
                 let mut has_measurement = false;
 
                 if let Some(data) = ingester.ingester.data.shard(ingester.shard.id) {
-                    if let Some(data) = data.namespace(&ingester.namespace.name) {
+                    if let Some(data) = data.namespace(&ns_name) {
                         // verify there's data in the buffer
                         if let Some((b, _)) = data.snapshot("a", &"1970-01-01".into()).await {
                             if let Some(b) = b.first() {
@@ -740,11 +741,12 @@ mod tests {
         // give the writes some time to go through the buffer. Exit once we've verified there's
         // data in there
         tokio::time::timeout(Duration::from_secs(1), async move {
+            let ns_name = namespace.name.into();
             loop {
                 let mut has_measurement = false;
 
                 if let Some(data) = ingester.data.shard(shard.id) {
-                    if let Some(data) = data.namespace(&namespace.name) {
+                    if let Some(data) = data.namespace(&ns_name) {
                         // verify there's data in the buffer
                         if let Some((b, _)) = data.snapshot("cpu", &"1970-01-01".into()).await {
                             if let Some(b) = b.first() {

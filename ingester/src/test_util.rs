@@ -655,7 +655,7 @@ pub(crate) async fn make_ingester_data(two_partitions: bool, loc: DataLocation) 
         let _ignored = ingester
             .shard(shard_id)
             .unwrap()
-            .namespace(TEST_NAMESPACE)
+            .namespace(&TEST_NAMESPACE.into())
             .unwrap()
             .snapshot_to_persisting(TEST_TABLE, &PartitionKey::from(TEST_PARTITION_1))
             .await;
@@ -664,7 +664,7 @@ pub(crate) async fn make_ingester_data(two_partitions: bool, loc: DataLocation) 
         let _ignored = ingester
             .shard(shard_id)
             .unwrap()
-            .namespace(TEST_NAMESPACE)
+            .namespace(&TEST_NAMESPACE.into())
             .unwrap()
             .snapshot(TEST_TABLE, &PartitionKey::from(TEST_PARTITION_1))
             .await;
@@ -824,7 +824,7 @@ async fn make_one_partition_with_tombstones(
         let _ignored = ingester
             .shard(shard_id)
             .unwrap()
-            .namespace(TEST_NAMESPACE)
+            .namespace(&TEST_NAMESPACE.into())
             .unwrap()
             .snapshot_to_persisting(TEST_TABLE, &PartitionKey::from(TEST_PARTITION_1))
             .await;
@@ -833,7 +833,7 @@ async fn make_one_partition_with_tombstones(
         let _ignored = ingester
             .shard(shard_id)
             .unwrap()
-            .namespace(TEST_NAMESPACE)
+            .namespace(&TEST_NAMESPACE.into())
             .unwrap()
             .snapshot(TEST_TABLE, &PartitionKey::from(TEST_PARTITION_1))
             .await;
