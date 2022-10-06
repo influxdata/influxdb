@@ -11,10 +11,11 @@ use data_types::NamespaceId;
 use datafusion::{
     catalog::{catalog::CatalogProvider, schema::SchemaProvider},
     datasource::TableProvider,
+    error::DataFusionError,
 };
 use iox_query::{
     exec::{ExecutionContextProvider, ExecutorType, IOxSessionContext},
-    QueryChunk, QueryCompletedToken, QueryDatabase, QueryDatabaseError, QueryText, DEFAULT_SCHEMA,
+    QueryChunk, QueryCompletedToken, QueryDatabase, QueryText, DEFAULT_SCHEMA,
 };
 use observability_deps::tracing::{debug, trace};
 use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
@@ -41,7 +42,7 @@ impl QueryDatabase for QuerierNamespace {
         table_name: &str,
         predicate: &Predicate,
         ctx: IOxSessionContext,
-    ) -> Result<Vec<Arc<dyn QueryChunk>>, QueryDatabaseError> {
+    ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         debug!(%table_name, %predicate, "Finding chunks for table");
         // get table metadata
         let table = match self.tables.get(table_name).map(Arc::clone) {
@@ -627,7 +628,7 @@ mod tests {
             .unwrap_err();
         assert_eq!(
             err.to_string(),
-            format!("Cannot build plan: External error: Chunk pruning failed: Query would scan at least {total_size} bytes, more than configured maximum {limit} bytes. Try adjusting your compactor settings or increasing the per query memory limit."),
+            format!("Cannot build plan: Resources exhausted: Query would scan at least {total_size} bytes, more than configured maximum {limit} bytes. Try adjusting your compactor settings or increasing the per query memory limit."),
         );
     }
 

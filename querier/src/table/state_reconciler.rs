@@ -23,6 +23,7 @@ use crate::{
 use self::interface::{IngesterPartitionInfo, ParquetFileInfo, TombstoneInfo};
 
 #[derive(Snafu, Debug)]
+#[allow(missing_copy_implementations)]
 pub enum ReconcileError {
     #[snafu(display("Compactor processed file that the querier would need to split apart which is not yet implemented"))]
     CompactorConflict,
