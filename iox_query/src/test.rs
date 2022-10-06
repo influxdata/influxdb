@@ -8,8 +8,8 @@ use crate::{
         stringset::{StringSet, StringSetRef},
         ExecutionContextProvider, Executor, ExecutorType, IOxSessionContext,
     },
-    Predicate, PredicateMatch, QueryChunk, QueryChunkError, QueryChunkMeta, QueryCompletedToken,
-    QueryDatabase, QueryDatabaseError, QueryText,
+    Predicate, PredicateMatch, QueryChunk, QueryChunkMeta, QueryCompletedToken, QueryDatabase,
+    QueryText,
 };
 use arrow::{
     array::{
@@ -24,7 +24,7 @@ use data_types::{
     ChunkId, ChunkOrder, ColumnSummary, DeletePredicate, InfluxDbType, PartitionId, StatValues,
     Statistics, TableSummary, TimestampMinMax,
 };
-use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 use datafusion_util::stream_from_batches;
 use futures::StreamExt;
 use hashbrown::HashSet;
@@ -109,7 +109,7 @@ impl QueryDatabase for TestDatabase {
         table_name: &str,
         predicate: &Predicate,
         _ctx: IOxSessionContext,
-    ) -> Result<Vec<Arc<dyn QueryChunk>>, QueryDatabaseError> {
+    ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         // save last predicate
         *self.chunks_predicate.lock() = predicate.clone();
 
@@ -327,9 +327,9 @@ impl TestChunk {
     }
 
     /// Checks the saved error, and returns it if any, otherwise returns OK
-    fn check_error(&self) -> Result<(), QueryChunkError> {
+    fn check_error(&self) -> Result<(), DataFusionError> {
         if let Some(message) = self.saved_error.as_ref() {
-            Err(message.clone().into())
+            Err(DataFusionError::External(message.clone().into()))
         } else {
             Ok(())
         }
@@ -921,13 +921,17 @@ impl QueryChunk for TestChunk {
         _ctx: IOxSessionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
-    ) -> Result<SendableRecordBatchStream, QueryChunkError> {
+    ) -> Result<SendableRecordBatchStream, DataFusionError> {
         self.check_error()?;
 
         // save the predicate
         self.predicates.lock().push(predicate.clone());
 
-        let batches = match self.schema.df_projection(selection)? {
+        let batches = match self
+            .schema
+            .df_projection(selection)
+            .map_err(|e| DataFusionError::External(Box::new(e)))?
+        {
             None => self.table_data.clone(),
             Some(projection) => self
                 .table_data
@@ -948,7 +952,7 @@ impl QueryChunk for TestChunk {
     fn apply_predicate_to_metadata(
         &self,
         predicate: &Predicate,
-    ) -> Result<PredicateMatch, QueryChunkError> {
+    ) -> Result<PredicateMatch, DataFusionError> {
         self.check_error()?;
 
         // save the predicate
@@ -967,7 +971,7 @@ impl QueryChunk for TestChunk {
         _ctx: IOxSessionContext,
         _column_name: &str,
         _predicate: &Predicate,
-    ) -> Result<Option<StringSet>, QueryChunkError> {
+    ) -> Result<Option<StringSet>, DataFusionError> {
         // Model not being able to get column values from metadata
         Ok(None)
     }
@@ -977,7 +981,7 @@ impl QueryChunk for TestChunk {
         _ctx: IOxSessionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
-    ) -> Result<Option<StringSet>, QueryChunkError> {
+    ) -> Result<Option<StringSet>, DataFusionError> {
         self.check_error()?;
 
         // save the predicate

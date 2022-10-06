@@ -8,6 +8,7 @@ use crate::{
     IngesterConnection,
 };
 use data_types::{ColumnId, PartitionId, ShardIndex, TableId, TimestampMinMax};
+use datafusion::error::DataFusionError;
 use futures::{join, StreamExt};
 use iox_query::pruning::prune_summaries;
 use iox_query::{exec::Executor, provider, provider::ChunkPruner, QueryChunk};
@@ -64,6 +65,17 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+impl From<Error> for DataFusionError {
+    fn from(err: Error) -> Self {
+        match err {
+            Error::ChunkPruning {
+                source: err @ provider::Error::TooMuchData { .. },
+            } => Self::ResourcesExhausted(err.to_string()),
+            _ => Self::External(Box::new(err) as _),
+        }
+    }
+}
 
 /// Args to create a [`QuerierTable`].
 pub struct QuerierTableArgs {

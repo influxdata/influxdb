@@ -7,7 +7,8 @@ use futures::FutureExt;
 use predicates::prelude::*;
 use test_helpers::assert_contains;
 use test_helpers_end_to_end::{
-    maybe_skip_integration, run_query, MiniCluster, Step, StepTest, StepTestState, TestConfig,
+    maybe_skip_integration, run_query, try_run_query, GrpcRequestBuilder, MiniCluster, Step,
+    StepTest, StepTestState, TestConfig,
 };
 
 #[tokio::test]
@@ -448,6 +449,87 @@ async fn issue_4631_b() {
                     "+-----+-----+",
                 ],
             },
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
+async fn oom_protection() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let router_config = TestConfig::new_router(&database_url);
+    let ingester_config = TestConfig::new_ingester(&router_config);
+    let querier_config =
+        TestConfig::new_querier(&ingester_config).with_querier_max_table_query_bytes(1);
+    let mut cluster = MiniCluster::new()
+        .with_router(router_config)
+        .await
+        .with_ingester(ingester_config)
+        .await
+        .with_querier(querier_config)
+        .await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!("{},tag1=A,tag2=B val=42i 123457", table_name)),
+            Step::WaitForReadable,
+            Step::AssertNotPersisted,
+            // SQL query
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let sql = format!("select * from {}", table_name);
+                    let err = try_run_query(
+                        sql,
+                        state.cluster().namespace(),
+                        state.cluster().querier().querier_grpc_connection(),
+                    )
+                    .await
+                    .unwrap_err();
+
+                    if let influxdb_iox_client::flight::Error::GrpcError(status) = err {
+                        assert_eq!(
+                            status.code(),
+                            tonic::Code::ResourceExhausted,
+                            "Wrong status code: {}\n\nStatus:\n{}",
+                            status.code(),
+                            status,
+                        );
+                    } else {
+                        panic!("Not a gRPC error: {err}");
+                    }
+                }
+                .boxed()
+            })),
+            // InfluxRPC/storage query
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut storage_client = state.cluster().querier_storage_client();
+
+                    let read_filter_request = GrpcRequestBuilder::new()
+                        .source(state.cluster())
+                        .build_read_filter();
+
+                    let status = storage_client
+                        .read_filter(read_filter_request)
+                        .await
+                        .unwrap_err();
+                    assert_eq!(
+                        status.code(),
+                        tonic::Code::ResourceExhausted,
+                        "Wrong status code: {}\n\nStatus:\n{}",
+                        status.code(),
+                        status,
+                    );
+                }
+                .boxed()
+            })),
         ],
     )
     .run()

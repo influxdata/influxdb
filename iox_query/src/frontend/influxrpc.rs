@@ -37,33 +37,11 @@ const CONCURRENT_TABLE_JOBS: usize = 10;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("gRPC planner got error making table_name plan for chunk: {}", source))]
-    TableNamePlan {
-        source: Box<dyn std::error::Error + Send + Sync>,
-    },
-
-    #[snafu(display("gRPC planner got error listing partition keys: {}", source))]
-    ListingPartitions {
-        source: Box<dyn std::error::Error + Send + Sync>,
-    },
-
     #[snafu(display("gRPC planner got error finding column names: {}", source))]
-    FindingColumnNames {
-        source: Box<dyn std::error::Error + Send + Sync>,
-    },
+    FindingColumnNames { source: DataFusionError },
 
     #[snafu(display("gRPC planner got error finding column values: {}", source))]
-    FindingColumnValues {
-        source: Box<dyn std::error::Error + Send + Sync>,
-    },
-
-    #[snafu(display(
-        "gRPC planner got internal error making table_name with default predicate: {}",
-        source
-    ))]
-    InternalTableNamePlanForDefault {
-        source: Box<dyn std::error::Error + Send + Sync>,
-    },
+    FindingColumnValues { source: DataFusionError },
 
     #[snafu(display(
         "gRPC planner got error fetching chunks for table '{}': {}",
@@ -72,7 +50,7 @@ pub enum Error {
     ))]
     GettingChunks {
         table_name: String,
-        source: Box<dyn std::error::Error + Send + Sync>,
+        source: DataFusionError,
     },
 
     #[snafu(display(
@@ -82,21 +60,17 @@ pub enum Error {
     ))]
     CheckingChunkPredicate {
         chunk_id: ChunkId,
-        source: Box<dyn std::error::Error + Send + Sync>,
+        source: DataFusionError,
     },
 
     #[snafu(display("gRPC planner got error creating string set plan: {}", source))]
     CreatingStringSet { source: StringSetError },
 
     #[snafu(display("gRPC planner got error creating predicates: {}", source))]
-    CreatingPredicates {
-        source: datafusion::error::DataFusionError,
-    },
+    CreatingPredicates { source: DataFusionError },
 
     #[snafu(display("gRPC planner got error building plan: {}", source))]
-    BuildingPlan {
-        source: datafusion::error::DataFusionError,
-    },
+    BuildingPlan { source: DataFusionError },
 
     #[snafu(display(
         "gRPC planner error: column '{}' is not a tag, it is {:?}",
@@ -148,7 +122,7 @@ pub enum Error {
     CastingAggregates {
         agg: Aggregate,
         field_name: String,
-        source: datafusion::error::DataFusionError,
+        source: DataFusionError,
     },
 
     #[snafu(display("Internal error: unexpected aggregate request for None aggregate",))]
@@ -162,6 +136,34 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+impl Error {
+    pub fn to_df_error(self, method: &'static str) -> DataFusionError {
+        let msg = self.to_string();
+
+        match self {
+            Self::GettingChunks { source, .. }
+            | Self::CreatingPredicates { source, .. }
+            | Self::BuildingPlan { source, .. }
+            | Self::CheckingChunkPredicate { source, .. }
+            | Self::FindingColumnNames { source, .. }
+            | Self::FindingColumnValues { source, .. }
+            | Self::CastingAggregates { source, .. } => {
+                DataFusionError::Context(format!("{method}: {msg}"), Box::new(source))
+            }
+            e @ (Self::CreatingStringSet { .. }
+            | Self::TableRemoved { .. }
+            | Self::InvalidTagColumn { .. }
+            | Self::InternalInvalidTagType { .. }
+            | Self::DuplicateGroupColumn { .. }
+            | Self::GroupColumnNotFound { .. }
+            | Self::CreatingAggregates { .. }
+            | Self::CreatingScan { .. }
+            | Self::InternalUnexpectedNoneAggregate {}
+            | Self::InternalAggregateNotSelector { .. }) => DataFusionError::External(Box::new(e)),
+        }
+    }
+}
 
 impl From<super::common::Error> for Error {
     fn from(source: super::common::Error) -> Self {

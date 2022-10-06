@@ -7,13 +7,16 @@ use arrow::{
 use data_types::{
     ChunkId, ChunkOrder, DeletePredicate, PartitionId, TableSummary, TimestampMinMax,
 };
-use datafusion::physical_plan::{
-    stream::RecordBatchStreamAdapter, RecordBatchStream, SendableRecordBatchStream,
+use datafusion::{
+    error::DataFusionError,
+    physical_plan::{
+        stream::RecordBatchStreamAdapter, RecordBatchStream, SendableRecordBatchStream,
+    },
 };
 use futures::{Stream, TryStreamExt};
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
-    QueryChunk, QueryChunkError, QueryChunkMeta,
+    QueryChunk, QueryChunkMeta,
 };
 use observability_deps::tracing::debug;
 use predicate::Predicate;
@@ -114,7 +117,7 @@ impl QueryChunk for QuerierChunk {
         mut ctx: IOxSessionContext,
         predicate: &Predicate,
         columns: Selection<'_>,
-    ) -> Result<Option<StringSet>, QueryChunkError> {
+    ) -> Result<Option<StringSet>, DataFusionError> {
         ctx.set_metadata("projection", format!("{}", columns));
         ctx.set_metadata("predicate", format!("{}", &predicate));
 
@@ -161,10 +164,10 @@ impl QueryChunk for QuerierChunk {
                         None
                     }
                     Err(other) => {
-                        return Err(Box::new(Error::RBChunk {
+                        return Err(DataFusionError::External(Box::new(Error::RBChunk {
                             source: other,
                             chunk_id: self.id(),
-                        }))
+                        })))
                     }
                 };
 
@@ -178,7 +181,7 @@ impl QueryChunk for QuerierChunk {
         mut ctx: IOxSessionContext,
         column_name: &str,
         predicate: &Predicate,
-    ) -> Result<Option<StringSet>, QueryChunkError> {
+    ) -> Result<Option<StringSet>, DataFusionError> {
         ctx.set_metadata("column_name", column_name.to_string());
         ctx.set_metadata("predicate", format!("{}", &predicate));
 
@@ -205,11 +208,13 @@ impl QueryChunk for QuerierChunk {
                 };
                 ctx.set_metadata("rb_predicate", format!("{}", &rb_predicate));
 
-                let mut values = rb_chunk.column_values(
-                    rb_predicate,
-                    Selection::Some(&[column_name]),
-                    BTreeMap::new(),
-                )?;
+                let mut values = rb_chunk
+                    .column_values(
+                        rb_predicate,
+                        Selection::Some(&[column_name]),
+                        BTreeMap::new(),
+                    )
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
                 // The InfluxRPC frontend only supports getting column values
                 // for one column at a time (this is a restriction on the Influx
@@ -221,7 +226,8 @@ impl QueryChunk for QuerierChunk {
                     .context(ColumnNameNotFoundSnafu {
                         chunk_id: self.id(),
                         column_name,
-                    })?;
+                    })
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
                 ctx.set_metadata("output_values", values.len() as i64);
 
                 Ok(Some(values))
@@ -234,7 +240,7 @@ impl QueryChunk for QuerierChunk {
         mut ctx: IOxSessionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
-    ) -> Result<SendableRecordBatchStream, QueryChunkError> {
+    ) -> Result<SendableRecordBatchStream, DataFusionError> {
         let span_recorder = SpanRecorder::new(
             ctx.span()
                 .map(|span| span.child("QuerierChunk::read_filter")),

@@ -11,6 +11,7 @@ use data_types::{
     ChunkId, ChunkOrder, IngesterMapping, PartitionId, SequenceNumber, ShardId, ShardIndex,
     TableSummary, TimestampMinMax,
 };
+use datafusion::error::DataFusionError;
 use datafusion_util::MemoryStream;
 use futures::{stream::FuturesUnordered, TryStreamExt};
 use generated_types::{
@@ -24,7 +25,7 @@ use influxdb_iox_client::flight::{
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
     util::compute_timenanosecond_min_max,
-    QueryChunk, QueryChunkError, QueryChunkMeta,
+    QueryChunk, QueryChunkMeta,
 };
 use iox_time::{Time, TimeProvider};
 use metric::{DurationHistogram, Metric};
@@ -1097,7 +1098,7 @@ impl QueryChunk for IngesterChunk {
         _ctx: IOxSessionContext,
         _predicate: &Predicate,
         _columns: Selection<'_>,
-    ) -> Result<Option<StringSet>, QueryChunkError> {
+    ) -> Result<Option<StringSet>, DataFusionError> {
         // TODO maybe some special handling?
         Ok(None)
     }
@@ -1107,7 +1108,7 @@ impl QueryChunk for IngesterChunk {
         _ctx: IOxSessionContext,
         _column_name: &str,
         _predicate: &Predicate,
-    ) -> Result<Option<StringSet>, QueryChunkError> {
+    ) -> Result<Option<StringSet>, DataFusionError> {
         // TODO maybe some special handling?
         Ok(None)
     }
@@ -1117,11 +1118,15 @@ impl QueryChunk for IngesterChunk {
         _ctx: IOxSessionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
-    ) -> Result<datafusion::physical_plan::SendableRecordBatchStream, QueryChunkError> {
+    ) -> Result<datafusion::physical_plan::SendableRecordBatchStream, DataFusionError> {
         trace!(?predicate, ?selection, input_batches=?self.batches, "Reading data");
 
         // Apply selection to in-memory batch
-        let batches = match self.schema.df_projection(selection)? {
+        let batches = match self
+            .schema
+            .df_projection(selection)
+            .map_err(|e| DataFusionError::External(Box::new(e)))?
+        {
             None => self.batches.clone(),
             Some(projection) => self
                 .batches

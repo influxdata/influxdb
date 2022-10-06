@@ -14,7 +14,7 @@ use async_trait::async_trait;
 use data_types::{
     ChunkId, ChunkOrder, DeletePredicate, InfluxDbType, PartitionId, TableSummary, TimestampMinMax,
 };
-use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 use exec::{stringset::StringSet, IOxSessionContext};
 use hashbrown::HashMap;
 use observability_deps::tracing::{debug, trace};
@@ -141,9 +141,6 @@ impl Drop for QueryCompletedToken {
 /// This avoids storing potentially large strings
 pub type QueryText = Box<dyn std::fmt::Display + Send + Sync>;
 
-/// Error type for [`QueryDatabase`] operations.
-pub type QueryDatabaseError = Box<dyn std::error::Error + Send + Sync + 'static>;
-
 /// A `Database` is the main trait implemented by the IOx subsystems
 /// that store actual data.
 ///
@@ -159,7 +156,7 @@ pub trait QueryDatabase: QueryDatabaseMeta + Debug + Send + Sync {
         table_name: &str,
         predicate: &Predicate,
         ctx: IOxSessionContext,
-    ) -> Result<Vec<Arc<dyn QueryChunk>>, QueryDatabaseError>;
+    ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError>;
 
     /// Record that particular type of query was run / planned
     fn record_query(
@@ -174,9 +171,6 @@ pub trait QueryDatabase: QueryDatabaseMeta + Debug + Send + Sync {
     /// This is required until <https://github.com/rust-lang/rust/issues/65991> is fixed.
     fn as_meta(&self) -> &dyn QueryDatabaseMeta;
 }
-
-/// Error type for [`QueryChunk`] operations.
-pub type QueryChunkError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 /// Collection of data that shares the same partition key
 pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
@@ -200,7 +194,7 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
     fn apply_predicate_to_metadata(
         &self,
         predicate: &Predicate,
-    ) -> Result<PredicateMatch, QueryChunkError> {
+    ) -> Result<PredicateMatch, DataFusionError> {
         Ok(self
             .summary()
             .map(|summary| predicate.apply_to_table_summary(&summary, self.schema().as_arrow()))
@@ -216,7 +210,7 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
         ctx: IOxSessionContext,
         predicate: &Predicate,
         columns: Selection<'_>,
-    ) -> Result<Option<StringSet>, QueryChunkError>;
+    ) -> Result<Option<StringSet>, DataFusionError>;
 
     /// Return a set of Strings containing the distinct values in the
     /// specified columns. If the predicate can be evaluated entirely
@@ -228,7 +222,7 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
         ctx: IOxSessionContext,
         column_name: &str,
         predicate: &Predicate,
-    ) -> Result<Option<StringSet>, QueryChunkError>;
+    ) -> Result<Option<StringSet>, DataFusionError>;
 
     /// Provides access to raw `QueryChunk` data as an
     /// asynchronous stream of `RecordBatch`es filtered by a *required*
@@ -248,7 +242,7 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
         ctx: IOxSessionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
-    ) -> Result<SendableRecordBatchStream, QueryChunkError>;
+    ) -> Result<SendableRecordBatchStream, DataFusionError>;
 
     /// Returns chunk type. Useful in tests and debug logs.
     fn chunk_type(&self) -> &str;

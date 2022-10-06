@@ -8,14 +8,17 @@ use data_types::{
     ChunkId, ChunkOrder, DeletePredicate, PartitionId, SequenceNumber, TableSummary,
     TimestampMinMax, Tombstone,
 };
-use datafusion::physical_plan::{
-    common::SizedRecordBatchStream,
-    metrics::{ExecutionPlanMetricsSet, MemTrackingMetrics},
-    SendableRecordBatchStream,
+use datafusion::{
+    error::DataFusionError,
+    physical_plan::{
+        common::SizedRecordBatchStream,
+        metrics::{ExecutionPlanMetricsSet, MemTrackingMetrics},
+        SendableRecordBatchStream,
+    },
 };
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
-    QueryChunk, QueryChunkError, QueryChunkMeta,
+    QueryChunk, QueryChunkMeta,
 };
 use observability_deps::tracing::trace;
 use predicate::{
@@ -185,7 +188,7 @@ impl QueryChunk for QueryableBatch {
         _ctx: IOxSessionContext,
         _predicate: &Predicate,
         _columns: Selection<'_>,
-    ) -> Result<Option<StringSet>, QueryChunkError> {
+    ) -> Result<Option<StringSet>, DataFusionError> {
         Ok(None)
     }
 
@@ -199,7 +202,7 @@ impl QueryChunk for QueryableBatch {
         _ctx: IOxSessionContext,
         _column_name: &str,
         _predicate: &Predicate,
-    ) -> Result<Option<StringSet>, QueryChunkError> {
+    ) -> Result<Option<StringSet>, DataFusionError> {
         Ok(None)
     }
 
@@ -210,12 +213,16 @@ impl QueryChunk for QueryableBatch {
         mut ctx: IOxSessionContext,
         _predicate: &Predicate,
         selection: Selection<'_>,
-    ) -> Result<SendableRecordBatchStream, QueryChunkError> {
+    ) -> Result<SendableRecordBatchStream, DataFusionError> {
         ctx.set_metadata("storage", "ingester");
         ctx.set_metadata("projection", format!("{}", selection));
         trace!(?selection, "selection");
 
-        let schema = self.schema().select(selection).context(SchemaSnafu)?;
+        let schema = self
+            .schema()
+            .select(selection)
+            .context(SchemaSnafu)
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
         // Get all record batches from their snapshots
         let batches = self
@@ -234,7 +241,8 @@ impl QueryChunk for QueryableBatch {
                     .map(Arc::new);
                 Some(batch)
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
         // Return stream of data
         let dummy_metrics = ExecutionPlanMetricsSet::new();

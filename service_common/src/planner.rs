@@ -60,7 +60,7 @@ impl Planner {
                 planner
                     .table_names(database, predicate)
                     .await
-                    .map_err(|e| Error::Plan(format!("table_names error: {}", e)))
+                    .map_err(|e| e.to_df_error("table_names"))
             })
             .await
     }
@@ -82,7 +82,7 @@ impl Planner {
                 planner
                     .tag_keys(database, predicate)
                     .await
-                    .map_err(|e| Error::Plan(format!("tag_keys error: {}", e)))
+                    .map_err(|e| e.to_df_error("tag_keys"))
             })
             .await
     }
@@ -106,7 +106,7 @@ impl Planner {
                 planner
                     .tag_values(database, &tag_name, predicate)
                     .await
-                    .map_err(|e| Error::Plan(format!("tag_values error: {}", e)))
+                    .map_err(|e| e.to_df_error("tag_values"))
             })
             .await
     }
@@ -128,7 +128,7 @@ impl Planner {
                 planner
                     .field_columns(database, predicate)
                     .await
-                    .map_err(|e| Error::Plan(format!("field_columns error: {}", e)))
+                    .map_err(|e| e.to_df_error("field_columns"))
             })
             .await
     }
@@ -150,7 +150,7 @@ impl Planner {
                 planner
                     .read_filter(database, predicate)
                     .await
-                    .map_err(|e| Error::Plan(format!("read_filter error: {}", e)))
+                    .map_err(|e| e.to_df_error("read_filter"))
             })
             .await
     }
@@ -174,7 +174,7 @@ impl Planner {
                 planner
                     .read_group(database, predicate, agg, &group_columns)
                     .await
-                    .map_err(|e| Error::Plan(format!("read_group error: {}", e)))
+                    .map_err(|e| e.to_df_error("read_group"))
             })
             .await
     }
@@ -199,7 +199,7 @@ impl Planner {
                 planner
                     .read_window_aggregate(database, predicate, agg, every, offset)
                     .await
-                    .map_err(|e| Error::Plan(format!("read_window_aggregate error: {}", e)))
+                    .map_err(|e| e.to_df_error("read_window_aggregate"))
             })
             .await
     }
