@@ -3,6 +3,8 @@ package influxdb
 import (
 	"context"
 
+	"github.com/influxdata/influxql"
+
 	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
@@ -15,5 +17,5 @@ type Predicate interface {
 
 // DeleteService will delete a bucket from the range and predict.
 type DeleteService interface {
-	DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID platform.ID, min, max int64, pred Predicate) error
+	DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID platform.ID, min, max int64, pred Predicate, measurement influxql.Expr) error
 }

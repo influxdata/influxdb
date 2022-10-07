@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxql"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/kit/platform"
@@ -119,8 +121,8 @@ func (t *TemporaryEngine) SeriesCardinality(ctx context.Context, bucketID platfo
 }
 
 // DeleteBucketRangePredicate will delete a bucket from the range and predicate.
-func (t *TemporaryEngine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID platform.ID, min, max int64, pred influxdb.Predicate) error {
-	return t.engine.DeleteBucketRangePredicate(ctx, orgID, bucketID, min, max, pred)
+func (t *TemporaryEngine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID platform.ID, min, max int64, pred influxdb.Predicate, measurement influxql.Expr) error {
+	return t.engine.DeleteBucketRangePredicate(ctx, orgID, bucketID, min, max, pred, measurement)
 }
 
 func (t *TemporaryEngine) CreateBucket(ctx context.Context, b *influxdb.Bucket) error {
