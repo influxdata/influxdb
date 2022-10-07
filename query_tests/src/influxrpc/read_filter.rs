@@ -205,12 +205,12 @@ async fn test_read_filter_invalid_predicate_case() {
 #[tokio::test]
 async fn test_read_filter_unknown_column_in_predicate() {
     let predicate = Predicate::new()
-        // mystery_region is not a real column, so this predicate is
+        // mystery_region and bar are not real columns, so this predicate is
         // invalid but IOx should be able to handle it (and produce no results)
         .with_expr(
-            col("baz")
-                .eq(lit(4i32))
-                .or(col("bar").and(col("mystery_region").gt(lit(5i32)))),
+            col("baz").eq(lit(4i32)).or(col("bar")
+                .eq(lit("baz"))
+                .and(col("mystery_region").gt(lit(5i32)))),
         );
 
     let predicate = InfluxRpcPredicate::new(None, predicate);
