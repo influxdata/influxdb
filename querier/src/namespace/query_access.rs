@@ -41,6 +41,7 @@ impl QueryDatabase for QuerierNamespace {
         &self,
         table_name: &str,
         predicate: &Predicate,
+        projection: &Option<Vec<usize>>,
         ctx: IOxSessionContext,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         debug!(%table_name, %predicate, "Finding chunks for table");
@@ -58,7 +59,7 @@ impl QueryDatabase for QuerierNamespace {
             .chunks(
                 predicate,
                 ctx.span().map(|span| span.child("querier table chunks")),
-                &None, // todo: pushdown projection to chunks
+                projection,
             )
             .await?;
 

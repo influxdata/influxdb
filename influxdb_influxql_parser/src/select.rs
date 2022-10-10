@@ -1,6 +1,6 @@
 use crate::common::{
-    limit_clause, measurement_name_expression, offset_clause, order_by_clause, where_clause,
-    MeasurementNameExpression, OneOrMore, OrderByClause, Parser,
+    limit_clause, offset_clause, order_by_clause, qualified_measurement_name, where_clause,
+    OneOrMore, OrderByClause, Parser, QualifiedMeasurementName,
 };
 use crate::expression::arithmetic::Expr::Wildcard;
 use crate::expression::arithmetic::{
@@ -164,8 +164,7 @@ pub fn select_statement(i: &str) -> ParseResult<&str, SelectStatement> {
 /// Represents a single measurement selection found in a `FROM` clause.
 #[derive(Clone, Debug, PartialEq)]
 pub enum MeasurementSelection {
-    Name(MeasurementNameExpression),
-    Regex(Regex),
+    Name(QualifiedMeasurementName),
     Subquery(Box<SelectStatement>),
 }
 
@@ -173,7 +172,6 @@ impl Display for MeasurementSelection {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::Name(ref name) => fmt::Display::fmt(name, f),
-            Self::Regex(ref re) => fmt::Display::fmt(re, f),
             Self::Subquery(ref subquery) => write!(f, "({})", subquery),
         }
     }
@@ -182,8 +180,7 @@ impl Display for MeasurementSelection {
 impl Parser for MeasurementSelection {
     fn parse(i: &str) -> ParseResult<&str, Self> {
         alt((
-            map(measurement_name_expression, MeasurementSelection::Name),
-            map(regex, MeasurementSelection::Regex),
+            map(qualified_measurement_name, MeasurementSelection::Name),
             map(
                 delimited(
                     preceded(multispace0, char('(')),
@@ -812,7 +809,7 @@ mod test {
         assert_matches!(got, MeasurementSelection::Name(_));
 
         let (_, got) = MeasurementSelection::parse("/regex/").unwrap();
-        assert_matches!(got, MeasurementSelection::Regex(_));
+        assert_matches!(got, MeasurementSelection::Name(_));
 
         let (_, got) = MeasurementSelection::parse("(SELECT foo FROM bar)").unwrap();
         assert_matches!(got, MeasurementSelection::Subquery(_));

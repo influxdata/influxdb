@@ -12,7 +12,6 @@
 
 pub mod delete_expr;
 pub mod delete_predicate;
-pub mod rewrite;
 pub mod rpc_predicate;
 
 use arrow::{

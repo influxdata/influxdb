@@ -55,8 +55,8 @@ impl FieldProjectionRewriter {
         }
     }
 
-    // Rewrites the predicate. See the description on
-    // [`FieldProjectionRewriter`] for more details.
+    /// Rewrites the predicate. See the description on
+    /// [`FieldProjectionRewriter`] for more details.
     pub(crate) fn rewrite_field_exprs(&mut self, expr: Expr) -> DataFusionResult<Expr> {
         // for predicates like `A AND B AND C`
         // rewrite `A`, `B` and `C` separately and put them back together

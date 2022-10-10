@@ -906,6 +906,7 @@ mod tests {
                     let schema = SchemaBuilder::new()
                         .tag("t1")
                         .tag("t2")
+                        .tag("host")
                         .field("foo", DataType::Int64)
                         .field("bar", DataType::Int64)
                         .build()

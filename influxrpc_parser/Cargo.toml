@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 sqlparser = "0.25.0"
-snafu = "0.7.1"
+snafu = "0.7.2"
 
 generated_types = { path = "../generated_types" }
 workspace-hack = { path = "../workspace-hack"}

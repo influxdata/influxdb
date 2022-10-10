@@ -2,23 +2,20 @@
 //!
 //! [sql]: https://docs.influxdata.com/influxdb/v1.8/query_language/explore-schema/#show-measurements
 
+use crate::common::{
+    limit_clause, offset_clause, qualified_measurement_name, where_clause, QualifiedMeasurementName,
+};
+use crate::expression::conditional::ConditionalExpression;
+use crate::identifier::{identifier, Identifier};
 use crate::internal::{expect, ParseResult};
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case};
-use nom::character::complete::{char, multispace0, multispace1};
+use nom::character::complete::{multispace0, multispace1};
 use nom::combinator::{map, opt, value};
 use nom::sequence::tuple;
 use nom::sequence::{pair, preceded, terminated};
 use std::fmt;
 use std::fmt::Formatter;
-
-use crate::common::{
-    limit_clause, measurement_name_expression, offset_clause, where_clause,
-    MeasurementNameExpression,
-};
-use crate::expression::conditional::ConditionalExpression;
-use crate::identifier::{identifier, Identifier};
-use crate::string::{regex, Regex};
 
 /// OnExpression represents an InfluxQL database or retention policy name
 /// or a wildcard.
@@ -110,18 +107,16 @@ impl fmt::Display for ShowMeasurementsStatement {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MeasurementExpression {
-    Equals(MeasurementNameExpression),
-    Regex(Regex),
+    Equals(QualifiedMeasurementName),
+    Regex(QualifiedMeasurementName),
 }
 
 impl fmt::Display for MeasurementExpression {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Equals(ref name) => write!(f, "= {}", name)?,
-            Self::Regex(ref re) => write!(f, "=~ {}", re)?,
-        };
-
-        Ok(())
+            Self::Equals(ref name) => write!(f, "= {}", name),
+            Self::Regex(ref re) => write!(f, "=~ {}", re),
+        }
     }
 }
 
@@ -140,23 +135,15 @@ fn with_measurement_clause(i: &str) -> ParseResult<&str, MeasurementExpression> 
             "expected = or =~",
             alt((
                 map(
-                    tuple((
-                        tag("=~"),
-                        multispace0,
-                        expect("expected regular expression literal", regex),
-                    )),
-                    |(_, _, regex)| MeasurementExpression::Regex(regex),
+                    preceded(pair(tag("=~"), multispace0), qualified_measurement_name),
+                    MeasurementExpression::Regex,
                 ),
                 map(
-                    tuple((
-                        char('='),
-                        multispace0,
-                        expect(
-                            "expected measurement name or wildcard",
-                            measurement_name_expression,
-                        ),
-                    )),
-                    |(_, _, name)| MeasurementExpression::Equals(name),
+                    preceded(
+                        pair(tag("="), multispace0),
+                        expect("expected measurement name", qualified_measurement_name),
+                    ),
+                    MeasurementExpression::Equals,
                 ),
             )),
         ),
@@ -200,6 +187,7 @@ pub fn show_measurements(i: &str) -> ParseResult<&str, ShowMeasurementsStatement
 mod test {
     use super::*;
     use crate::assert_expect_error;
+    use crate::common::MeasurementName;
     use crate::expression::arithmetic::Expr;
     use assert_matches::assert_matches;
 
@@ -232,7 +220,7 @@ mod test {
             ShowMeasurementsStatement {
                 on_expression: Some(OnExpression::Database("foo".into())),
                 measurement_expression: Some(MeasurementExpression::Equals(
-                    MeasurementNameExpression {
+                    QualifiedMeasurementName {
                         database: None,
                         retention_policy: None,
                         name: "bar".into(),
@@ -255,7 +243,9 @@ mod test {
             got,
             ShowMeasurementsStatement {
                 on_expression: Some(OnExpression::Database("foo".into())),
-                measurement_expression: Some(MeasurementExpression::Regex(Regex("bar".into()))),
+                measurement_expression: Some(MeasurementExpression::Regex(
+                    QualifiedMeasurementName::new(MeasurementName::Regex("bar".into()))
+                )),
                 condition: Some(Expr::Literal(true.into()).into()),
                 limit: None,
                 offset: None
@@ -343,33 +333,50 @@ mod test {
 
     #[test]
     fn test_with_measurement_clause() {
+        use crate::common::MeasurementName::*;
+
         let (_, got) = with_measurement_clause("WITH measurement = foo").unwrap();
         assert_eq!(
             got,
-            MeasurementExpression::Equals(MeasurementNameExpression {
-                database: None,
-                retention_policy: None,
-                name: "foo".into()
-            })
+            MeasurementExpression::Equals(QualifiedMeasurementName::new(Name("foo".into())))
         );
 
         let (_, got) = with_measurement_clause("WITH measurement =~ /foo/").unwrap();
-        assert_eq!(got, MeasurementExpression::Regex(Regex("foo".into())));
+        assert_eq!(
+            got,
+            MeasurementExpression::Regex(QualifiedMeasurementName::new(Regex("foo".into())))
+        );
 
         // Expressions are still valid when whitespace is omitted
 
         let (_, got) = with_measurement_clause("WITH measurement=foo..bar").unwrap();
         assert_eq!(
             got,
-            MeasurementExpression::Equals(MeasurementNameExpression {
-                database: Some("foo".into()),
-                retention_policy: None,
-                name: "bar".into()
-            })
+            MeasurementExpression::Equals(QualifiedMeasurementName::new_db(
+                Name("bar".into()),
+                "foo".into()
+            ))
         );
 
         let (_, got) = with_measurement_clause("WITH measurement=~/foo/").unwrap();
-        assert_eq!(got, MeasurementExpression::Regex(Regex("foo".into())));
+        assert_eq!(
+            got,
+            MeasurementExpression::Regex(QualifiedMeasurementName::new(Regex("foo".into())))
+        );
+
+        // Quirks of InfluxQL per https://github.com/influxdata/influxdb_iox/issues/5662
+
+        let (_, got) = with_measurement_clause("WITH measurement =~ foo").unwrap();
+        assert_eq!(
+            got,
+            MeasurementExpression::Regex(QualifiedMeasurementName::new(Name("foo".into())))
+        );
+
+        let (_, got) = with_measurement_clause("WITH measurement = /foo/").unwrap();
+        assert_eq!(
+            got,
+            MeasurementExpression::Equals(QualifiedMeasurementName::new(Regex("foo".into())))
+        );
 
         // Fallible cases
 
@@ -379,28 +386,16 @@ mod test {
             "invalid WITH clause, expected MEASUREMENT"
         );
 
-        // Must have a regex for equal regex operator
-        assert_expect_error!(
-            with_measurement_clause("WITH measurement =~ foo"),
-            "expected regular expression literal"
-        );
-
         // Unsupported regex not equal operator
         assert_expect_error!(
             with_measurement_clause("WITH measurement !~ foo"),
             "expected = or =~"
         );
 
-        // Must have an identifier for equal operator
-        assert_expect_error!(
-            with_measurement_clause("WITH measurement = /foo/"),
-            "expected measurement name or wildcard"
-        );
-
         // Must have an identifier
         assert_expect_error!(
             with_measurement_clause("WITH measurement = 1"),
-            "expected measurement name or wildcard"
+            "expected measurement name"
         );
     }
 }

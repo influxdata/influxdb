@@ -151,10 +151,13 @@ pub trait QueryDatabase: QueryDatabaseMeta + Debug + Send + Sync {
     /// Returns a set of chunks within the partition with data that may match
     /// the provided predicate. If possible, chunks which have no rows that can
     /// possibly match the predicate may be omitted.
+    /// If projection is None, returned chunks will include all columns of its original data. Otherwise,
+    /// returned chunks will includs PK columns (tags and time) and columns specified in the projection.
     async fn chunks(
         &self,
         table_name: &str,
         predicate: &Predicate,
+        projection: &Option<Vec<usize>>,
         ctx: IOxSessionContext,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError>;
 

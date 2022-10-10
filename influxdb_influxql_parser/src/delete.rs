@@ -73,8 +73,13 @@ mod test {
         // Validate via the Display trait, as we don't need to validate the contents of the
         // FROM and / or WHERE clauses, given they are tested in their on modules.
 
+        // Measurement name expressed as an identifier
         let (_, got) = delete_statement("DELETE FROM foo").unwrap();
         assert_eq!(format!("{}", got), "DELETE FROM foo");
+
+        // Measurement name expressed as a regular expression
+        let (_, got) = delete_statement("DELETE FROM /foo/").unwrap();
+        assert_eq!(format!("{}", got), "DELETE FROM /foo/");
 
         let (_, got) = delete_statement("DELETE FROM foo WHERE time > 10").unwrap();
         assert_eq!(format!("{}", got), "DELETE FROM foo WHERE time > 10");

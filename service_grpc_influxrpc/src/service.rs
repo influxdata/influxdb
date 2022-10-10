@@ -1802,11 +1802,13 @@ mod tests {
         // Note multiple tables / measureemnts:
         let chunk0 = TestChunk::new("m1")
             .with_id(0)
+            .with_tag_column("state")
             .with_tag_column("k1")
             .with_tag_column("k2");
 
         let chunk1 = TestChunk::new("m2")
             .with_id(1)
+            .with_tag_column("state")
             .with_tag_column("k3")
             .with_tag_column("k4");
 
@@ -1826,7 +1828,7 @@ mod tests {
         };
 
         let actual_tag_keys = fixture.storage_client.tag_keys(request).await.unwrap();
-        let expected_tag_keys = vec!["_f(0xff)", "_m(0x00)", "k1", "k2", "k3", "k4"];
+        let expected_tag_keys = vec!["_f(0xff)", "_m(0x00)", "k1", "k2", "k3", "k4", "state"];
 
         assert_eq!(actual_tag_keys, expected_tag_keys,);
 
@@ -1898,6 +1900,7 @@ mod tests {
             .with_tag_column("k0");
 
         let chunk1 = TestChunk::new("m4")
+            .with_tag_column("state")
             .with_tag_column("k1")
             .with_tag_column("k2")
             .with_tag_column("k3")
@@ -1927,7 +1930,7 @@ mod tests {
             .measurement_tag_keys(request)
             .await
             .unwrap();
-        let expected_tag_keys = vec!["_f(0xff)", "_m(0x00)", "k1", "k2", "k3", "k4"];
+        let expected_tag_keys = vec!["_f(0xff)", "_m(0x00)", "k1", "k2", "k3", "k4", "state"];
 
         assert_eq!(
             actual_tag_keys, expected_tag_keys,
