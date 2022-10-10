@@ -82,8 +82,9 @@ message PartitionStatus {
   // Max sequence number persisted
   optional int64 parquet_max_sequence_number = 1;
 
-  // Max sequence number for a tombstone associated
-  optional int64 tombstone_max_sequence_number = 2;
+  // Deprecated tombstone support in ingester (#5825).
+  reserved "tombstone_max_sequence_number";
+  reserved 2;
 }
 
 // Serialization of `predicate::predicate::Predicate` that contains DataFusion `Expr`s

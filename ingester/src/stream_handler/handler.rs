@@ -945,7 +945,7 @@ mod tests {
             Ok(DmlOperation::Write(make_write("good_op", 2)))
         ]],
         sink_rets = [
-            Err(crate::data::Error::TableNotPresent),
+            Err(crate::data::Error::NamespaceNotFound{namespace: "bananas".to_string() }),
             Ok(true),
         ],
         want_ttbr = 2,

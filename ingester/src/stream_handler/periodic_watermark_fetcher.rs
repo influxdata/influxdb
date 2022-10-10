@@ -24,7 +24,7 @@ use super::sink_instrumentation::WatermarkFetcher;
 /// Emits an error metric named `write_buffer_watermark_fetch_errors` that
 /// increments once per fetch error.
 #[derive(Debug)]
-pub struct PeriodicWatermarkFetcher {
+pub(crate) struct PeriodicWatermarkFetcher {
     last_watermark: Arc<AtomicI64>,
     poll_handle: JoinHandle<()>,
 }

@@ -25,11 +25,10 @@ use crate::{
     lifecycle::LifecycleHandle,
 };
 
-pub mod namespace;
+pub(crate) mod namespace;
 pub mod partition;
-mod query_dedup;
-pub mod shard;
-pub mod table;
+pub(crate) mod shard;
+pub(crate) mod table;
 
 use self::{
     partition::{resolver::PartitionProvider, PartitionStatus},
@@ -51,9 +50,6 @@ pub enum Error {
 
     #[snafu(display("Table {} not found in buffer", table_name))]
     TableNotFound { table_name: String },
-
-    #[snafu(display("Table must be specified in delete"))]
-    TableNotPresent,
 
     #[snafu(display("Error accessing catalog: {}", source))]
     Catalog {
@@ -187,7 +183,7 @@ impl IngesterData {
             .get(&shard_id)
             .context(ShardNotFoundSnafu { shard_id })?;
         shard_data
-            .buffer_operation(dml_operation, &self.catalog, lifecycle_handle, &self.exec)
+            .buffer_operation(dml_operation, &self.catalog, lifecycle_handle)
             .await
     }
 
@@ -1354,7 +1350,6 @@ mod tests {
             Arc::clone(&metrics),
             Arc::new(SystemProvider::new()),
         );
-        let exec = Executor::new(1);
 
         let partition_provider = Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog)));
 
@@ -1370,7 +1365,7 @@ mod tests {
         // to 1 already, so it shouldn't be buffered and the buffer should
         // remain empty.
         let should_pause = data
-            .buffer_operation(DmlOperation::Write(w1), &catalog, &manager.handle(), &exec)
+            .buffer_operation(DmlOperation::Write(w1), &catalog, &manager.handle())
             .await
             .unwrap();
         {
@@ -1386,7 +1381,7 @@ mod tests {
         assert!(!should_pause);
 
         // w2 should be in the buffer
-        data.buffer_operation(DmlOperation::Write(w2), &catalog, &manager.handle(), &exec)
+        data.buffer_operation(DmlOperation::Write(w2), &catalog, &manager.handle())
             .await
             .unwrap();
 
@@ -1478,19 +1473,6 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(
-            data.shard(shard1.id)
-                .unwrap()
-                .namespace(&namespace.name.clone().into())
-                .unwrap()
-                .table_data(&"mem".into())
-                .unwrap()
-                .read()
-                .await
-                .tombstone_max_sequence_number(),
-            None,
-        );
-
         let predicate = DeletePredicate {
             range: TimestampRange::new(1, 2),
             exprs: vec![],
@@ -1509,19 +1491,6 @@ mod tests {
         data.buffer_operation(shard1.id, DmlOperation::Delete(d1), &manager.handle())
             .await
             .unwrap();
-
-        assert_eq!(
-            data.shard(shard1.id)
-                .unwrap()
-                .namespace(&namespace.name.into())
-                .unwrap()
-                .table_data(&"mem".into())
-                .unwrap()
-                .read()
-                .await
-                .tombstone_max_sequence_number(),
-            Some(SequenceNumber::new(2)),
-        );
     }
 
     /// Verifies that the progress in data is the same as expected_progress
@@ -1570,7 +1539,6 @@ mod tests {
                 PartitionId::new(2),
                 PartitionStatus {
                     parquet_max_sequence_number: None,
-                    tombstone_max_sequence_number: Some(SequenceNumber::new(1)),
                 },
             )),
             Err(ArrowError::IoError("some io error".into())),
@@ -1579,7 +1547,6 @@ mod tests {
                 PartitionId::new(1),
                 PartitionStatus {
                     parquet_max_sequence_number: None,
-                    tombstone_max_sequence_number: None,
                 },
             )),
         ])));
@@ -1590,7 +1557,6 @@ mod tests {
                 partition_id: PartitionId::new(2),
                 status: PartitionStatus {
                     parquet_max_sequence_number: None,
-                    tombstone_max_sequence_number: Some(SequenceNumber::new(1)),
                 },
             }),
             Ok(FlatIngesterQueryResponse::StartSnapshot { schema: schema_1 }),
@@ -1606,7 +1572,6 @@ mod tests {
                 partition_id: PartitionId::new(1),
                 status: PartitionStatus {
                     parquet_max_sequence_number: None,
-                    tombstone_max_sequence_number: None,
                 },
             }),
         ];

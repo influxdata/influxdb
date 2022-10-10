@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use data_types::{PartitionId, SequenceNumber, ShardId, TableId, Tombstone};
+use data_types::{PartitionId, SequenceNumber, ShardId, TableId};
 use mutable_batch::MutableBatch;
 use schema::selection::Selection;
 use snafu::ResultExt;
@@ -40,14 +40,6 @@ pub(crate) struct DataBuffer {
     /// Buffer of incoming writes
     pub(crate) buffer: Option<BufferBatch>,
 
-    /// Buffer of tombstones whose time range may overlap with this partition.
-    /// All tombstones were already applied to corresponding snapshots. This list
-    /// only keep the ones that come during persisting. The reason
-    /// we keep them becasue if a query comes, we need to apply these tombstones
-    /// on the persiting data before sending it to the Querier
-    /// When the `persiting` is done and removed, this list will get empty, too
-    deletes_during_persisting: Vec<Tombstone>,
-
     /// Data in `buffer` will be moved to a `snapshot` when one of these happens:
     ///  . A background persist is called
     ///  . A read request from Querier
@@ -72,14 +64,6 @@ pub(crate) struct DataBuffer {
 }
 
 impl DataBuffer {
-    /// Add a new tombstones into the [`DataBuffer`].
-    pub(super) fn add_tombstone(&mut self, tombstone: Tombstone) {
-        // Only keep this tombstone if some data is being persisted
-        if self.persisting.is_some() {
-            self.deletes_during_persisting.push(tombstone);
-        }
-    }
-
     /// If a [`BufferBatch`] exists, convert it to a [`SnapshotBatch`] and add
     /// it to the list of snapshots.
     ///
@@ -113,7 +97,6 @@ impl DataBuffer {
         &mut self,
         table_name: &TableName,
         partition_id: PartitionId,
-        tombstone: Option<Tombstone>,
     ) -> Option<QueryableBatch> {
         self.generate_snapshot()
             .expect("This mutable batch snapshot error should be impossible.");
@@ -121,21 +104,11 @@ impl DataBuffer {
         let mut data = vec![];
         std::mem::swap(&mut data, &mut self.snapshots);
 
-        let mut tombstones = vec![];
-        if let Some(tombstone) = tombstone {
-            tombstones.push(tombstone);
-        }
-
         // only produce batch if there is any data
         if data.is_empty() {
             None
         } else {
-            Some(QueryableBatch::new(
-                table_name.clone(),
-                partition_id,
-                data,
-                tombstones,
-            ))
+            Some(QueryableBatch::new(table_name.clone(), partition_id, data))
         }
     }
 
@@ -172,9 +145,7 @@ impl DataBuffer {
             panic!("Unable to snapshot while persisting. This is an unexpected state.")
         }
 
-        if let Some(queryable_batch) =
-            self.snapshot_to_queryable_batch(table_name, partition_id, None)
-        {
+        if let Some(queryable_batch) = self.snapshot_to_queryable_batch(table_name, partition_id) {
             let persisting_batch = Arc::new(PersistingBatch {
                 shard_id,
                 table_id,
@@ -199,12 +170,7 @@ impl DataBuffer {
         };
 
         // persisting data
-        let mut queryable_batch = (*persisting.data).clone();
-
-        // Add new tombstones if any
-        queryable_batch.add_tombstones(&self.deletes_during_persisting);
-
-        Some(queryable_batch)
+        Some((*persisting.data).clone())
     }
 
     /// Return the progress in this DataBuffer
@@ -241,12 +207,6 @@ impl DataBuffer {
 
     pub(crate) fn mark_persisted(&mut self) {
         self.persisting = None;
-        self.deletes_during_persisting.clear()
-    }
-
-    #[cfg(test)]
-    pub(super) fn deletes_during_persisting(&self) -> &[Tombstone] {
-        self.deletes_during_persisting.as_ref()
     }
 }
 

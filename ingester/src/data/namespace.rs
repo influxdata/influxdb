@@ -5,10 +5,10 @@ use std::{collections::HashMap, sync::Arc};
 use data_types::{NamespaceId, PartitionKey, SequenceNumber, ShardId, TableId};
 use dml::DmlOperation;
 use iox_catalog::interface::Catalog;
-use iox_query::exec::Executor;
 use metric::U64Counter;
+use observability_deps::tracing::warn;
 use parking_lot::RwLock;
-use snafu::{OptionExt, ResultExt};
+use snafu::ResultExt;
 use write_summary::ShardProgress;
 
 #[cfg(test)]
@@ -70,12 +70,16 @@ impl std::ops::Deref for NamespaceName {
     }
 }
 
+impl std::fmt::Display for NamespaceName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 /// Data of a Namespace that belongs to a given Shard
 #[derive(Debug)]
 pub(crate) struct NamespaceData {
     namespace_id: NamespaceId,
-
-    #[allow(dead_code)]
     namespace_name: NamespaceName,
 
     /// The catalog ID of the shard this namespace is being populated from.
@@ -138,7 +142,7 @@ pub(crate) struct NamespaceData {
 
 impl NamespaceData {
     /// Initialize new tables with default partition template of daily
-    pub fn new(
+    pub(super) fn new(
         namespace_id: NamespaceId,
         namespace_name: NamespaceName,
         shard_id: ShardId,
@@ -173,7 +177,6 @@ impl NamespaceData {
         dml_operation: DmlOperation,
         catalog: &Arc<dyn Catalog>,
         lifecycle_handle: &dyn LifecycleHandle,
-        executor: &Executor,
     ) -> Result<bool, super::Error> {
         let sequence_number = dml_operation
             .meta()
@@ -225,22 +228,17 @@ impl NamespaceData {
                 Ok(pause_writes)
             }
             DmlOperation::Delete(delete) => {
-                let table_name = delete
-                    .table_name()
-                    .context(super::TableNotPresentSnafu)?
-                    .into();
-                let table_data = match self.table_data(&table_name) {
-                    Some(t) => t,
-                    None => self.insert_table(&table_name, catalog).await?,
-                };
+                // Deprecated delete support:
+                // https://github.com/influxdata/influxdb_iox/issues/5825
+                warn!(
+                    shard_id=%self.shard_id,
+                    namespace_name=%self.namespace_name,
+                    namespace_id=%self.namespace_id,
+                    table_name=?delete.table_name(),
+                    sequence_number=?delete.meta().sequence(),
+                    "discarding unsupported delete op"
+                );
 
-                let mut table_data = table_data.write().await;
-
-                table_data
-                    .buffer_delete(delete.predicate(), sequence_number, &**catalog, executor)
-                    .await?;
-
-                // don't pause writes since deletes don't count towards memory limits
                 Ok(false)
             }
         }
@@ -316,6 +314,7 @@ impl NamespaceData {
         catalog: &Arc<dyn Catalog>,
     ) -> Result<Arc<tokio::sync::RwLock<TableData>>, super::Error> {
         let mut repos = catalog.repositories().await;
+
         let info = repos
             .tables()
             .get_table_persist_info(self.shard_id, self.namespace_id, table_name)
@@ -338,7 +337,6 @@ impl NamespaceData {
                     table_name.clone(),
                     self.shard_id,
                     self.namespace_id,
-                    info.tombstone_max_sequence_number,
                     Arc::clone(&self.partition_provider),
                 ))
             }
@@ -455,7 +453,6 @@ mod tests {
         let metrics = Arc::new(metric::Registry::default());
         let catalog: Arc<dyn Catalog> =
             Arc::new(iox_catalog::mem::MemCatalog::new(Arc::clone(&metrics)));
-        let exec = Executor::new(1);
 
         // Populate the catalog with the shard / namespace / table
         let (shard_id, ns_id, table_id) =
@@ -502,7 +499,6 @@ mod tests {
             )),
             &catalog,
             &MockLifecycleHandle::default(),
-            &exec,
         )
         .await
         .expect("buffer op should succeed");

@@ -410,9 +410,6 @@ impl Stream for GetStream {
                             parquet_max_sequence_number: status
                                 .parquet_max_sequence_number
                                 .map(|x| x.get()),
-                            tombstone_max_sequence_number: status
-                                .tombstone_max_sequence_number
-                                .map(|x| x.get()),
                         }),
                     };
                     prost::Message::encode(&app_metadata, &mut bytes)
@@ -489,7 +486,6 @@ mod tests {
                     partition_id: PartitionId::new(1),
                     status: PartitionStatus {
                         parquet_max_sequence_number: None,
-                        tombstone_max_sequence_number: None,
                     },
                 }),
                 Ok(FlatIngesterQueryResponse::StartSnapshot { schema }),
@@ -502,7 +498,6 @@ mod tests {
                         partition_id: 1,
                         status: Some(proto::PartitionStatus {
                             parquet_max_sequence_number: None,
-                            tombstone_max_sequence_number: None,
                         }),
                     },
                 }),
@@ -527,7 +522,6 @@ mod tests {
                     partition_id: PartitionId::new(1),
                     status: PartitionStatus {
                         parquet_max_sequence_number: None,
-                        tombstone_max_sequence_number: None,
                     },
                 }),
                 Err(ArrowError::IoError("foo".into())),
@@ -535,7 +529,6 @@ mod tests {
                     partition_id: PartitionId::new(1),
                     status: PartitionStatus {
                         parquet_max_sequence_number: None,
-                        tombstone_max_sequence_number: None,
                     },
                 }),
             ],
@@ -546,7 +539,6 @@ mod tests {
                         partition_id: 1,
                         status: Some(proto::PartitionStatus {
                             parquet_max_sequence_number: None,
-                            tombstone_max_sequence_number: None,
                         }),
                     },
                 }),

@@ -5,7 +5,6 @@ use crate::{
         AnotherMeasurementForAggs, DbScenario, DbSetup, MeasurementForDefect2691,
         MeasurementForGroupByField, MeasurementForGroupKeys, MeasurementForMax, MeasurementForMin,
         MeasurementForSelectors, OneMeasurementForAggs, OneMeasurementNoTags2,
-        OneMeasurementNoTagsWithDelete, OneMeasurementNoTagsWithDeleteAllWithAndWithoutChunk,
         TwoMeasurementForAggs, TwoMeasurementsManyFields, TwoMeasurementsManyFieldsOneChunk,
     },
 };
@@ -85,75 +84,6 @@ async fn test_read_group_data_no_tag_columns() {
 
     run_read_group_test_case(
         OneMeasurementNoTags2 {},
-        InfluxRpcPredicate::default(),
-        agg,
-        group_columns,
-        expected_results,
-    )
-    .await;
-}
-
-#[tokio::test]
-async fn test_read_group_data_no_tag_columns_count_with_delete() {
-    let agg = Aggregate::Count;
-    let group_columns = vec![];
-    let expected_results = vec![
-        "Group tag_keys: _field, _measurement partition_key_vals: ",
-        "Series tags={_field=foo, _measurement=m0}\n  IntegerPoints timestamps: [2], values: [1]",
-    ];
-    run_read_group_test_case(
-        OneMeasurementNoTagsWithDelete {},
-        InfluxRpcPredicate::default(),
-        agg,
-        group_columns.clone(),
-        expected_results,
-    )
-    .await;
-}
-
-#[tokio::test]
-async fn test_read_group_data_no_tag_columns_min_with_delete() {
-    let agg = Aggregate::Min;
-    let group_columns = vec![];
-    let expected_results = vec![
-        "Group tag_keys: _field, _measurement partition_key_vals: ",
-        "Series tags={_field=foo, _measurement=m0}\n  FloatPoints timestamps: [2], values: [2.0]",
-    ];
-
-    run_read_group_test_case(
-        OneMeasurementNoTagsWithDelete {},
-        InfluxRpcPredicate::default(),
-        agg,
-        group_columns.clone(),
-        expected_results,
-    )
-    .await;
-}
-
-#[tokio::test]
-async fn test_read_group_data_no_tag_columns_count_with_delete_all() {
-    let agg = Aggregate::Count;
-    let group_columns = vec![];
-    let expected_results = vec![];
-
-    run_read_group_test_case(
-        OneMeasurementNoTagsWithDeleteAllWithAndWithoutChunk {},
-        InfluxRpcPredicate::default(),
-        agg,
-        group_columns.clone(),
-        expected_results,
-    )
-    .await;
-}
-
-#[tokio::test]
-async fn test_read_group_data_no_tag_columns_min_with_delete_all() {
-    let agg = Aggregate::Min;
-    let group_columns = vec![];
-    let expected_results = vec![];
-
-    run_read_group_test_case(
-        OneMeasurementNoTagsWithDeleteAllWithAndWithoutChunk {},
         InfluxRpcPredicate::default(),
         agg,
         group_columns,
