@@ -79,7 +79,8 @@ impl DeferredSortKey {
                 tokio::time::sleep(wait_for).await;
                 // Fetch the sort key from the catalog
                 let v = fetch(partition_id, &*catalog, &backoff_config).await;
-                // And attempt to
+                // And attempt to update the value container, if it hasn't
+                // already resolved
                 let mut state = value.lock();
                 *state = match *state {
                     State::Unresolved => State::Resolved(v),
@@ -102,6 +103,17 @@ impl DeferredSortKey {
     /// If the [`SortKey`] was pre-fetched in the background, it is returned
     /// immediately. If the [`SortKey`] has not yet been resolved, this call
     /// blocks while it is read from the [`Catalog`].
+    ///
+    /// # Concurrency
+    ///
+    /// If this method requires resolving the [`SortKey`], N concurrent callers
+    /// will cause N queries against the catalog.
+    ///
+    /// # Await Safety
+    ///
+    /// Cancelling the future returned by calling [`Self::get()`] before
+    /// completion will leave [`Self`] without a background task. The next call
+    /// to [`Self::get()`] will incur a catalog query (see concurrency above).
     pub(crate) async fn get(&self) -> Option<SortKey> {
         {
             let state = self.value.lock();
@@ -114,11 +126,11 @@ impl DeferredSortKey {
 
         // Otherwise resolve the value immediately, aborting the background
         // task.
+        self.handle.abort();
         let sort_key = fetch(self.partition_id, &*self.catalog, &self.backoff_config).await;
 
         {
             let mut state = self.value.lock();
-            self.handle.abort();
             *state = State::Resolved(sort_key.clone());
         }
 
