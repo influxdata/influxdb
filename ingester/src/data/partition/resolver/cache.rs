@@ -1,13 +1,15 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
+use backoff::BackoffConfig;
 use data_types::{
     NamespaceId, Partition, PartitionId, PartitionKey, SequenceNumber, ShardId, TableId,
 };
+use iox_catalog::interface::Catalog;
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 
-use crate::data::partition::PartitionData;
+use crate::data::partition::{resolver::DeferredSortKey, PartitionData, SortKeyState};
 
 use super::r#trait::PartitionProvider;
 
@@ -43,6 +45,18 @@ struct Entry {
 /// Each cache hit _removes_ the entry from the cache - this eliminates the
 /// memory overhead for items that were hit. This is the expected (only valid!)
 /// usage pattern.
+///
+/// # Deferred Sort Key Loading
+///
+/// This cache does NOT cache the [`SortKey`] for each [`PartitionData`], as the
+/// sort key can be large and is likely unique per table, and thus not
+/// share-able across instances / prohibitively expensive to cache.
+///
+/// Instead cached instances are returned with a deferred sort key resolver
+/// which attempts to fetch the sort key in the background some time after
+/// construction.
+///
+/// [`SortKey`]: schema::sort::SortKey
 #[derive(Debug)]
 pub(crate) struct PartitionCache<T> {
     // The inner delegate called for a cache miss.
@@ -59,13 +73,31 @@ pub(crate) struct PartitionCache<T> {
     /// a faster search for cache misses.
     #[allow(clippy::type_complexity)]
     entries: Mutex<HashMap<PartitionKey, HashMap<ShardId, HashMap<TableId, Entry>>>>,
+
+    /// Data needed to construct the [`DeferredSortKey`] for cached entries.
+    catalog: Arc<dyn Catalog>,
+    backoff_config: BackoffConfig,
+    /// The maximum amount of time a [`DeferredSortKey`] may wait until
+    /// pre-fetching the sort key in the background.
+    max_smear: Duration,
 }
 
 impl<T> PartitionCache<T> {
     /// Initialise a [`PartitionCache`] containing the specified partitions.
     ///
     /// Any cache miss is passed through to `inner`.
-    pub(crate) fn new<P>(inner: T, partitions: P) -> Self
+    ///
+    /// Any cache hit returns a [`PartitionData`] configured with a
+    /// [`SortKeyState::Deferred`] for deferred key loading in the background.
+    /// The [`DeferredSortKey`] is initialised with the given `catalog`,
+    /// `backoff_config`, and `max_smear` maximal load wait duration.
+    pub(crate) fn new<P>(
+        inner: T,
+        partitions: P,
+        max_smear: Duration,
+        catalog: Arc<dyn Catalog>,
+        backoff_config: BackoffConfig,
+    ) -> Self
     where
         P: IntoIterator<Item = Partition>,
     {
@@ -97,6 +129,9 @@ impl<T> PartitionCache<T> {
         Self {
             entries: Mutex::new(entries),
             inner,
+            catalog,
+            backoff_config,
+            max_smear,
         }
     }
 
@@ -171,6 +206,12 @@ where
                 namespace_id,
                 table_id,
                 table_name,
+                SortKeyState::Deferred(DeferredSortKey::new(
+                    cached.partition_id,
+                    self.max_smear,
+                    Arc::clone(&__self.catalog),
+                    self.backoff_config.clone(),
+                )),
                 cached.max_sequence_number,
             );
         }
@@ -186,6 +227,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use iox_catalog::mem::MemCatalog;
+
     use crate::data::partition::resolver::MockPartitionProvider;
 
     use super::*;
@@ -197,6 +240,22 @@ mod tests {
     const TABLE_ID: TableId = TableId::new(3);
     const TABLE_NAME: &str = "platanos";
 
+    fn new_cache<P>(
+        inner: MockPartitionProvider,
+        partitions: P,
+    ) -> PartitionCache<MockPartitionProvider>
+    where
+        P: IntoIterator<Item = Partition>,
+    {
+        PartitionCache::new(
+            inner,
+            partitions,
+            Duration::from_secs(10_000_000),
+            Arc::new(MemCatalog::new(Arc::new(metric::Registry::default()))),
+            BackoffConfig::default(),
+        )
+    }
+
     #[tokio::test]
     async fn test_miss() {
         let data = PartitionData::new(
@@ -206,11 +265,12 @@ mod tests {
             NAMESPACE_ID,
             TABLE_ID,
             TABLE_NAME.into(),
+            SortKeyState::Provided(None),
             None,
         );
         let inner = MockPartitionProvider::default().with_partition(data);
 
-        let cache = PartitionCache::new(inner, []);
+        let cache = new_cache(inner, []);
         let got = cache
             .get_partition(
                 PARTITION_KEY.into(),
@@ -238,11 +298,11 @@ mod tests {
             shard_id: SHARD_ID,
             table_id: TABLE_ID,
             partition_key: stored_partition_key.clone(),
-            sort_key: Default::default(),
+            sort_key: vec!["dos".to_string(), "bananas".to_string()],
             persisted_sequence_number: Default::default(),
         };
 
-        let cache = PartitionCache::new(inner, [partition]);
+        let cache = new_cache(inner, [partition]);
 
         let callers_partition_key = PartitionKey::from(PARTITION_KEY);
         let got = cache
@@ -274,7 +334,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_miss_partition_jey() {
+    async fn test_miss_partition_key() {
         let other_key = PartitionKey::from("test");
         let other_key_id = PartitionId::new(99);
         let inner = MockPartitionProvider::default().with_partition(PartitionData::new(
@@ -284,6 +344,7 @@ mod tests {
             NAMESPACE_ID,
             TABLE_ID,
             TABLE_NAME.into(),
+            SortKeyState::Provided(None),
             None,
         ));
 
@@ -296,7 +357,7 @@ mod tests {
             persisted_sequence_number: Default::default(),
         };
 
-        let cache = PartitionCache::new(inner, [partition]);
+        let cache = new_cache(inner, [partition]);
         let got = cache
             .get_partition(
                 other_key.clone(),
@@ -323,6 +384,7 @@ mod tests {
             NAMESPACE_ID,
             other_table,
             TABLE_NAME.into(),
+            SortKeyState::Provided(None),
             None,
         ));
 
@@ -335,7 +397,7 @@ mod tests {
             persisted_sequence_number: Default::default(),
         };
 
-        let cache = PartitionCache::new(inner, [partition]);
+        let cache = new_cache(inner, [partition]);
         let got = cache
             .get_partition(
                 PARTITION_KEY.into(),
@@ -362,6 +424,7 @@ mod tests {
             NAMESPACE_ID,
             TABLE_ID,
             TABLE_NAME.into(),
+            SortKeyState::Provided(None),
             None,
         ));
 
@@ -374,7 +437,7 @@ mod tests {
             persisted_sequence_number: Default::default(),
         };
 
-        let cache = PartitionCache::new(inner, [partition]);
+        let cache = new_cache(inner, [partition]);
         let got = cache
             .get_partition(
                 PARTITION_KEY.into(),

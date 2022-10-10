@@ -293,7 +293,7 @@ mod tests {
 
     use crate::{
         data::{
-            partition::{resolver::MockPartitionProvider, PartitionData},
+            partition::{resolver::MockPartitionProvider, PartitionData, SortKeyState},
             Error,
         },
         lifecycle::mock_handle::{MockLifecycleCall, MockLifecycleHandle},
@@ -328,6 +328,7 @@ mod tests {
                 ns_id,
                 table_id,
                 TABLE_NAME.into(),
+                SortKeyState::Provided(None),
                 None,
             ),
         ));
@@ -387,6 +388,7 @@ mod tests {
                 ns_id,
                 table_id,
                 TABLE_NAME.into(),
+                SortKeyState::Provided(None),
                 None,
             ),
         ));

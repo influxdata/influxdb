@@ -49,7 +49,7 @@ mod tests {
 
     use data_types::PartitionId;
 
-    use crate::data::partition::resolver::MockPartitionProvider;
+    use crate::data::partition::{resolver::MockPartitionProvider, SortKeyState};
 
     use super::*;
 
@@ -68,6 +68,7 @@ mod tests {
             namespace_id,
             table_id,
             Arc::clone(&table_name),
+            SortKeyState::Provided(None),
             None,
         );
 

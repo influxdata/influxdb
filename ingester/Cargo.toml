@@ -45,6 +45,7 @@ write_buffer = { path = "../write_buffer" }
 write_summary = { path = "../write_summary" }
 tokio-util = { version = "0.7.4" }
 trace = { path = "../trace" }
+rand = "0.8.5"
 
 [dev-dependencies]
 assert_matches = "1.5.0"

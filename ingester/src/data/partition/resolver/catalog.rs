@@ -9,7 +9,7 @@ use data_types::{NamespaceId, Partition, PartitionKey, ShardId, TableId};
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::debug;
 
-use crate::data::partition::PartitionData;
+use crate::data::partition::{PartitionData, SortKeyState};
 
 use super::r#trait::PartitionProvider;
 
@@ -78,6 +78,7 @@ impl PartitionProvider for CatalogPartitionResolver {
             namespace_id,
             table_id,
             table_name,
+            SortKeyState::Provided(p.sort_key()),
             p.persisted_sequence_number,
         )
     }
@@ -144,6 +145,7 @@ mod tests {
             .await;
         assert_eq!(got.namespace_id(), namespace_id);
         assert_eq!(*got.table_name(), *table_name);
+        assert_eq!(got.sort_key().await, None);
         assert_eq!(got.max_persisted_sequence_number(), None);
         assert!(got.partition_key.ptr_eq(&callers_partition_key));
 
