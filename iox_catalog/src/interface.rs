@@ -329,25 +329,6 @@ pub trait TableRepo: Send + Sync {
 
     /// List all tables.
     async fn list(&mut self) -> Result<Vec<Table>>;
-
-    /// Gets the table persistence info for the given shard
-    async fn get_table_persist_info(
-        &mut self,
-        shard_id: ShardId,
-        namespace_id: NamespaceId,
-        table_name: &str,
-    ) -> Result<Option<TablePersistInfo>>;
-}
-
-/// Information for a table's persistence information for a specific shard from the catalog
-#[derive(Debug, Copy, Clone, Eq, PartialEq, sqlx::FromRow)]
-pub struct TablePersistInfo {
-    /// shard the sequence numbers are associated with
-    pub shard_id: ShardId,
-    /// the global identifier for the table
-    pub table_id: TableId,
-    /// max sequence number from this table's tombstones for this shard
-    pub tombstone_max_sequence_number: Option<SequenceNumber>,
 }
 
 /// Parameters necessary to perform a batch insert of
@@ -1147,55 +1128,6 @@ pub(crate) mod test_helpers {
         // All tables should be returned by list(), regardless of namespace
         let list = repos.tables().list().await.unwrap();
         assert_eq!(list.as_slice(), [tt, test_table, foo_table]);
-
-        // test we can get table persistence info with no persistence so far
-        let shard = repos
-            .shards()
-            .create_or_get(&topic, ShardIndex::new(555))
-            .await
-            .unwrap();
-        let ti = repos
-            .tables()
-            .get_table_persist_info(shard.id, t.namespace_id, &t.name)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(
-            ti,
-            TablePersistInfo {
-                shard_id: shard.id,
-                table_id: t.id,
-                tombstone_max_sequence_number: None
-            }
-        );
-
-        // and now with a tombstone persisted
-        let tombstone = repos
-            .tombstones()
-            .create_or_get(
-                t.id,
-                shard.id,
-                SequenceNumber::new(2001),
-                Timestamp::new(1),
-                Timestamp::new(10),
-                "wahtevs",
-            )
-            .await
-            .unwrap();
-        let ti = repos
-            .tables()
-            .get_table_persist_info(shard.id, t.namespace_id, &t.name)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(
-            ti,
-            TablePersistInfo {
-                shard_id: shard.id,
-                table_id: t.id,
-                tombstone_max_sequence_number: Some(tombstone.sequence_number),
-            }
-        );
 
         // test per-namespace table limits
         let latest = repos

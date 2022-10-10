@@ -3,7 +3,7 @@
 use crate::interface::{
     sealed::TransactionFinalize, ColumnRepo, ColumnUpsertRequest, NamespaceRepo, ParquetFileRepo,
     PartitionRepo, ProcessedTombstoneRepo, QueryPoolRepo, RepoCollection, Result, ShardRepo,
-    TablePersistInfo, TableRepo, TombstoneRepo, TopicMetadataRepo,
+    TableRepo, TombstoneRepo, TopicMetadataRepo,
 };
 use async_trait::async_trait;
 use data_types::{
@@ -209,7 +209,6 @@ decorate!(
         "table_get_by_id" = get_by_id(&mut self, table_id: TableId) -> Result<Option<Table>>;
         "table_get_by_namespace_and_name" = get_by_namespace_and_name(&mut self, namespace_id: NamespaceId, name: &str) -> Result<Option<Table>>;
         "table_list_by_namespace_id" = list_by_namespace_id(&mut self, namespace_id: NamespaceId) -> Result<Vec<Table>>;
-        "get_table_persist_info" = get_table_persist_info(&mut self, shard_id: ShardId, namespace_id: NamespaceId, table_name: &str) -> Result<Option<TablePersistInfo>>;
         "table_list" = list(&mut self) -> Result<Vec<Table>>;
     ]
 );
