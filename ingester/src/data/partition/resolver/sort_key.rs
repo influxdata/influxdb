@@ -189,13 +189,15 @@ mod tests {
     // A test that (most likely) exercises the "read on demand" code path.
     //
     // The background task is configured to run some time between now, and
-    // 10,000 hours in the future - it most likely doesn't get to complete
+    // 10,000,000 seconds in the future - it most likely doesn't get to complete
     // before the get() call is issued.
     //
     // If this test flakes, it is POSSIBLE but UNLIKELY that the background task
     // has completed and the get() call reads a pre-fetched value.
     #[tokio::test]
     async fn test_read_demand() {
+        const LONG_LONG_TIME: Duration = Duration::from_secs(10_000_000);
+
         let metrics = Arc::new(metric::Registry::default());
         let backoff_config = BackoffConfig::default();
         let catalog: Arc<dyn Catalog> =
@@ -237,7 +239,7 @@ mod tests {
         // Read the updated sort key
         let fetched = DeferredSortKey::new(
             partition_id,
-            Duration::from_secs(10_000),
+            LONG_LONG_TIME,
             Arc::clone(&catalog),
             backoff_config,
         )
