@@ -657,7 +657,7 @@ pub(crate) async fn make_ingester_data(two_partitions: bool, loc: DataLocation) 
             .unwrap()
             .namespace(&TEST_NAMESPACE.into())
             .unwrap()
-            .snapshot_to_persisting(TEST_TABLE, &PartitionKey::from(TEST_PARTITION_1))
+            .snapshot_to_persisting(&TEST_TABLE.into(), &PartitionKey::from(TEST_PARTITION_1))
             .await;
     } else if loc.contains(DataLocation::SNAPSHOT) {
         // move partition 1 data to snapshot
@@ -666,7 +666,7 @@ pub(crate) async fn make_ingester_data(two_partitions: bool, loc: DataLocation) 
             .unwrap()
             .namespace(&TEST_NAMESPACE.into())
             .unwrap()
-            .snapshot(TEST_TABLE, &PartitionKey::from(TEST_PARTITION_1))
+            .snapshot(&TEST_TABLE.into(), &PartitionKey::from(TEST_PARTITION_1))
             .await;
     }
 
@@ -826,7 +826,7 @@ async fn make_one_partition_with_tombstones(
             .unwrap()
             .namespace(&TEST_NAMESPACE.into())
             .unwrap()
-            .snapshot_to_persisting(TEST_TABLE, &PartitionKey::from(TEST_PARTITION_1))
+            .snapshot_to_persisting(&TEST_TABLE.into(), &PartitionKey::from(TEST_PARTITION_1))
             .await;
     } else if loc.contains(DataLocation::SNAPSHOT) {
         // move partition 1 data to snapshot
@@ -835,7 +835,7 @@ async fn make_one_partition_with_tombstones(
             .unwrap()
             .namespace(&TEST_NAMESPACE.into())
             .unwrap()
-            .snapshot(TEST_TABLE, &PartitionKey::from(TEST_PARTITION_1))
+            .snapshot(&TEST_TABLE.into(), &PartitionKey::from(TEST_PARTITION_1))
             .await;
     }
 

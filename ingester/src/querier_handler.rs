@@ -12,8 +12,8 @@ use snafu::{ensure, Snafu};
 
 use crate::{
     data::{
-        namespace::NamespaceName, partition::UnpersistedPartitionData, IngesterData,
-        IngesterQueryPartition, IngesterQueryResponse,
+        namespace::NamespaceName, partition::UnpersistedPartitionData, table::TableName,
+        IngesterData, IngesterQueryPartition, IngesterQueryResponse,
     },
     query::QueryableBatch,
 };
@@ -69,7 +69,8 @@ pub async fn prepare_data_to_querier(
             }
         };
 
-        let table_data = match namespace_data.table_data(&request.table) {
+        let table_name = TableName::from(&request.table);
+        let table_data = match namespace_data.table_data(&table_name) {
             Some(table_data) => {
                 debug!(table_name=%request.table, "found table");
                 table_data
