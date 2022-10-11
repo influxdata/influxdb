@@ -14,7 +14,7 @@ datafusion_util = { path = "../datafusion_util" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }
 iox_time = { path = "../iox_time" }
-object_store = "0.5.0"
+object_store = "0.5.1"
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.12"
 parquet = {version = "23.0.0", features = ["experimental"]}
