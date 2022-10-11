@@ -1,24 +1,17 @@
-use self::{
-    config::{ClientConfig, ConsumerConfig, ProducerConfig, TopicCreationConfig},
-    instrumentation::KafkaProducerMetrics,
-    record_aggregator::RecordAggregator,
-};
+use self::config::{ClientConfig, ConsumerConfig, TopicCreationConfig};
 use crate::{
     codec::IoxHeaders,
     config::WriteBufferCreationConfig,
-    core::{
-        WriteBufferError, WriteBufferErrorKind, WriteBufferReading, WriteBufferStreamHandler,
-        WriteBufferWriting,
-    },
+    core::{WriteBufferError, WriteBufferErrorKind, WriteBufferReading, WriteBufferStreamHandler},
 };
 use async_trait::async_trait;
 use data_types::{Sequence, SequenceNumber, ShardIndex};
-use dml::{DmlMeta, DmlOperation};
+use dml::DmlOperation;
 use futures::{
     stream::{self, BoxStream},
     StreamExt, TryStreamExt,
 };
-use iox_time::{Time, TimeProvider};
+use iox_time::Time;
 use observability_deps::tracing::warn;
 use parking_lot::Mutex;
 use rskafka::{
@@ -26,7 +19,6 @@ use rskafka::{
         consumer::{StartOffset, StreamConsumerBuilder},
         error::{Error as RSKafkaError, ProtocolError},
         partition::{OffsetAt, PartitionClient, UnknownTopicHandling},
-        producer::{BatchProducer, BatchProducerBuilder},
         ClientBuilder,
     },
     record::RecordAndOffset,
@@ -43,111 +35,12 @@ use trace::TraceCollector;
 
 mod config;
 mod instrumentation;
-mod record_aggregator;
+pub(crate) mod rdkafka;
 
 /// Maximum number of jobs buffered and decoded concurrently.
 const CONCURRENT_DECODE_JOBS: usize = 10;
 
 type Result<T, E = WriteBufferError> = std::result::Result<T, E>;
-
-#[derive(Debug)]
-pub struct RSKafkaProducer {
-    producers: BTreeMap<ShardIndex, BatchProducer<RecordAggregator>>,
-}
-
-impl RSKafkaProducer {
-    #[allow(clippy::too_many_arguments)]
-    pub async fn new<'a>(
-        conn: String,
-        topic_name: String,
-        connection_config: &'a BTreeMap<String, String>,
-        time_provider: Arc<dyn TimeProvider>,
-        creation_config: Option<&'a WriteBufferCreationConfig>,
-        partitions: Option<Range<i32>>,
-        _trace_collector: Option<Arc<dyn TraceCollector>>,
-        metric_registry: &'a metric::Registry,
-    ) -> Result<Self> {
-        let partition_clients = setup_topic(
-            conn,
-            topic_name.clone(),
-            connection_config,
-            creation_config,
-            partitions,
-        )
-        .await?;
-
-        let producer_config = ProducerConfig::try_from(connection_config)?;
-
-        let producers = partition_clients
-            .into_iter()
-            .map(|(shard_index, partition_client)| {
-                // Instrument this kafka partition client.
-                let partition_client = KafkaProducerMetrics::new(
-                    Box::new(partition_client),
-                    topic_name.clone(),
-                    shard_index,
-                    metric_registry,
-                );
-
-                let mut producer_builder =
-                    BatchProducerBuilder::new_with_client(Arc::new(partition_client));
-                if let Some(linger) = producer_config.linger {
-                    producer_builder = producer_builder.with_linger(linger);
-                }
-                let producer = producer_builder.build(RecordAggregator::new(
-                    shard_index,
-                    producer_config.max_batch_size,
-                    Arc::clone(&time_provider),
-                ));
-
-                (shard_index, producer)
-            })
-            .collect();
-
-        Ok(Self { producers })
-    }
-}
-
-#[async_trait]
-impl WriteBufferWriting for RSKafkaProducer {
-    fn shard_indexes(&self) -> BTreeSet<ShardIndex> {
-        self.producers.keys().copied().collect()
-    }
-
-    async fn store_operation(
-        &self,
-        shard_index: ShardIndex,
-        operation: DmlOperation,
-    ) -> Result<DmlMeta, WriteBufferError> {
-        // Sanity check to ensure only partitioned writes are pushed into Kafka.
-        if let DmlOperation::Write(w) = &operation {
-            assert!(
-                w.partition_key().is_some(),
-                "enqueuing unpartitioned write into kafka"
-            )
-        }
-
-        let producer = self
-            .producers
-            .get(&shard_index)
-            .ok_or_else::<WriteBufferError, _>(|| {
-                format!("Unknown shard index: {}", shard_index).into()
-            })?;
-
-        Ok(producer.produce(operation).await?)
-    }
-
-    async fn flush(&self) -> Result<(), WriteBufferError> {
-        for producer in self.producers.values() {
-            producer.flush().await?;
-        }
-        Ok(())
-    }
-
-    fn type_name(&self) -> &'static str {
-        "kafka"
-    }
-}
 
 #[derive(Debug)]
 pub struct RSKafkaStreamHandler {
@@ -525,14 +418,17 @@ async fn setup_topic(
 mod tests {
     use super::*;
     use crate::{
-        core::test_utils::{
-            assert_span_context_eq_or_linked, perform_generic_tests, random_topic_name,
-            set_pop_first, TestAdapter, TestContext,
+        core::{
+            test_utils::{
+                assert_span_context_eq_or_linked, perform_generic_tests, random_topic_name,
+                set_pop_first, TestAdapter, TestContext,
+            },
+            WriteBufferWriting,
         },
         maybe_skip_kafka_integration,
     };
     use data_types::{DeletePredicate, PartitionKey, TimestampRange};
-    use dml::{test_util::assert_write_op_eq, DmlDelete, DmlWrite};
+    use dml::{test_util::assert_write_op_eq, DmlDelete, DmlMeta, DmlWrite};
     use futures::{stream::FuturesUnordered, TryStreamExt};
     use iox_time::TimeProvider;
     use rskafka::{client::partition::Compression, record::Record};
@@ -595,19 +491,17 @@ mod tests {
 
     #[async_trait]
     impl TestContext for RSKafkaTestContext {
-        type Writing = RSKafkaProducer;
+        type Writing = rdkafka::KafkaBufferProducer;
 
         type Reading = RSKafkaConsumer;
 
         async fn writing(&self, creation_config: bool) -> Result<Self::Writing, WriteBufferError> {
-            RSKafkaProducer::new(
+            rdkafka::KafkaBufferProducer::new(
                 self.conn.clone(),
                 self.topic_name.clone(),
                 &BTreeMap::default(),
-                Arc::clone(&self.time_provider),
                 self.creation_config(creation_config).as_ref(),
-                None,
-                Some(self.trace_collector() as Arc<_>),
+                Arc::clone(&self.time_provider),
                 &self.metrics,
             )
             .await
@@ -850,9 +744,9 @@ mod tests {
             .unwrap();
     }
 
-    async fn write(
+    async fn write<T: WriteBufferWriting>(
         namespace: &str,
-        producer: &RSKafkaProducer,
+        producer: &T,
         trace_collector: &Arc<RingBufferTraceCollector>,
         shard_index: ShardIndex,
         partition_key: impl Into<PartitionKey> + Send,
@@ -869,9 +763,9 @@ mod tests {
         producer.store_operation(shard_index, op).await.unwrap()
     }
 
-    async fn delete(
+    async fn delete<T: WriteBufferWriting>(
         namespace: &str,
-        producer: &RSKafkaProducer,
+        producer: &T,
         trace_collector: &Arc<RingBufferTraceCollector>,
         shard_index: ShardIndex,
     ) -> DmlMeta {
