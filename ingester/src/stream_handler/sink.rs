@@ -5,7 +5,7 @@ use dml::DmlOperation;
 
 /// A [`DmlSink`] handles [`DmlOperation`] instances read from a shard.
 #[async_trait]
-pub trait DmlSink: Debug + Send + Sync {
+pub(crate) trait DmlSink: Debug + Send + Sync {
     /// Apply `op` read from a shard, returning `Ok(true)` if ingest should
     /// be paused.
     async fn apply(&self, op: DmlOperation) -> Result<bool, crate::data::Error>;

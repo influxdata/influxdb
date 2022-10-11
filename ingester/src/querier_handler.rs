@@ -155,7 +155,6 @@ fn prepare_data_to_querier_for_partition(
                 request.table.clone().into(),
                 unpersisted_partition_data.partition_id,
                 vec![],
-                vec![],
             )
         })
         .with_data(unpersisted_partition_data.non_persisted);
@@ -201,10 +200,7 @@ mod tests {
     use super::*;
     use crate::{
         data::FlatIngesterQueryResponse,
-        test_util::{
-            make_ingester_data, make_ingester_data_with_tombstones, DataLocation, TEST_NAMESPACE,
-            TEST_TABLE,
-        },
+        test_util::{make_ingester_data, DataLocation, TEST_NAMESPACE, TEST_TABLE},
     };
 
     #[tokio::test]
@@ -359,182 +355,6 @@ mod tests {
                 .await
                 .unwrap_err();
             assert_matches!(err, Error::NamespaceNotFound { .. });
-        }
-    }
-
-    #[tokio::test]
-    async fn test_prepare_data_to_querier_with_tombstones() {
-        test_helpers::maybe_start_logging();
-
-        // make 7 scenarios for ingester data with tombstones
-        let mut scenarios = vec![];
-        for loc in &[
-            DataLocation::BUFFER,
-            DataLocation::BUFFER_SNAPSHOT,
-            DataLocation::BUFFER_PERSISTING,
-            DataLocation::BUFFER_SNAPSHOT_PERSISTING,
-            DataLocation::SNAPSHOT,
-            DataLocation::SNAPSHOT_PERSISTING,
-            DataLocation::PERSISTING,
-        ] {
-            let scenario = Arc::new(make_ingester_data_with_tombstones(*loc).await);
-            scenarios.push((loc, scenario));
-        }
-
-        // read data from all scenarios without any filters
-        let request = Arc::new(IngesterQueryRequest::new(
-            TEST_NAMESPACE.to_string(),
-            TEST_TABLE.to_string(),
-            vec![],
-            None,
-        ));
-        let expected_not_persisting = vec![
-            "+------------+-----+------+--------------------------------+",
-            "| city       | day | temp | time                           |",
-            "+------------+-----+------+--------------------------------+",
-            "| Andover    | mon |      | 1970-01-01T00:00:00.000000046Z |",
-            "| Andover    | tue | 56   | 1970-01-01T00:00:00.000000030Z |",
-            "| Medford    | sun | 55   | 1970-01-01T00:00:00.000000022Z |",
-            "| Medford    | wed |      | 1970-01-01T00:00:00.000000026Z |",
-            "| Reading    | mon | 58   | 1970-01-01T00:00:00.000000040Z |",
-            "| Wilmington | mon |      | 1970-01-01T00:00:00.000000035Z |",
-            "+------------+-----+------+--------------------------------+",
-        ];
-        // For "persisting" data locations the tombstones were NOT applied because they arrived AFTER the data
-        // transitioned into the "persisting" state. In this case, the ingester will apply the tombstones.
-        let expected_persisting = vec![
-            "+------------+-----+------+--------------------------------+",
-            "| city       | day | temp | time                           |",
-            "+------------+-----+------+--------------------------------+",
-            "| Andover    | mon |      | 1970-01-01T00:00:00.000000046Z |",
-            "| Andover    | tue | 56   | 1970-01-01T00:00:00.000000030Z |",
-            "| Boston     | mon |      | 1970-01-01T00:00:00.000000038Z |",
-            "| Boston     | sun | 60   | 1970-01-01T00:00:00.000000036Z |",
-            "| Medford    | sun | 55   | 1970-01-01T00:00:00.000000022Z |",
-            "| Medford    | wed |      | 1970-01-01T00:00:00.000000026Z |",
-            "| Reading    | mon | 58   | 1970-01-01T00:00:00.000000040Z |",
-            "| Wilmington | mon |      | 1970-01-01T00:00:00.000000035Z |",
-            "+------------+-----+------+--------------------------------+",
-        ];
-        for (loc, scenario) in &scenarios {
-            println!("Location: {loc:?}");
-            let expected = if loc.intersects(DataLocation::PERSISTING) {
-                &expected_persisting
-            } else {
-                &expected_not_persisting
-            };
-
-            let stream = prepare_data_to_querier(scenario, &request).await.unwrap();
-            let result = ingester_response_to_record_batches(stream).await;
-            assert_batches_sorted_eq!(expected, &result);
-        }
-
-        // read data from all scenarios and filter out column day
-        let request = Arc::new(IngesterQueryRequest::new(
-            TEST_NAMESPACE.to_string(),
-            TEST_TABLE.to_string(),
-            vec!["city".to_string(), "temp".to_string(), "time".to_string()],
-            None,
-        ));
-        let expected_not_persisting = vec![
-            "+------------+------+--------------------------------+",
-            "| city       | temp | time                           |",
-            "+------------+------+--------------------------------+",
-            "| Andover    |      | 1970-01-01T00:00:00.000000046Z |",
-            "| Andover    | 56   | 1970-01-01T00:00:00.000000030Z |",
-            "| Medford    |      | 1970-01-01T00:00:00.000000026Z |",
-            "| Medford    | 55   | 1970-01-01T00:00:00.000000022Z |",
-            "| Reading    | 58   | 1970-01-01T00:00:00.000000040Z |",
-            "| Wilmington |      | 1970-01-01T00:00:00.000000035Z |",
-            "+------------+------+--------------------------------+",
-        ];
-        // For "persisting" data locations the tombstones were NOT applied because they arrived AFTER the data
-        // transitioned into the "persisting" state. In this case, the ingester will apply the tombstones.
-        let expected_persisting = vec![
-            "+------------+------+--------------------------------+",
-            "| city       | temp | time                           |",
-            "+------------+------+--------------------------------+",
-            "| Andover    |      | 1970-01-01T00:00:00.000000046Z |",
-            "| Andover    | 56   | 1970-01-01T00:00:00.000000030Z |",
-            "| Boston     |      | 1970-01-01T00:00:00.000000038Z |",
-            "| Boston     | 60   | 1970-01-01T00:00:00.000000036Z |",
-            "| Medford    |      | 1970-01-01T00:00:00.000000026Z |",
-            "| Medford    | 55   | 1970-01-01T00:00:00.000000022Z |",
-            "| Reading    | 58   | 1970-01-01T00:00:00.000000040Z |",
-            "| Wilmington |      | 1970-01-01T00:00:00.000000035Z |",
-            "+------------+------+--------------------------------+",
-        ];
-        for (loc, scenario) in &scenarios {
-            println!("Location: {loc:?}");
-            let expected = if loc.intersects(DataLocation::PERSISTING) {
-                &expected_persisting
-            } else {
-                &expected_not_persisting
-            };
-
-            let stream = prepare_data_to_querier(scenario, &request).await.unwrap();
-            let result = ingester_response_to_record_batches(stream).await;
-            assert_batches_sorted_eq!(expected, &result);
-        }
-
-        // read data from all scenarios, filter out column day, city Medford, time outside range [0, 42)
-        let expr = col("city").not_eq(lit("Medford"));
-        let pred = Predicate::default().with_expr(expr).with_range(0, 42);
-        let request = Arc::new(IngesterQueryRequest::new(
-            TEST_NAMESPACE.to_string(),
-            TEST_TABLE.to_string(),
-            vec!["city".to_string(), "temp".to_string(), "time".to_string()],
-            Some(pred),
-        ));
-        // predicates and de-dup are NOT applied!, otherwise this would look like this:
-        // let expected = vec![
-        //     "+------------+------+--------------------------------+",
-        //     "| city       | temp | time                           |",
-        //     "+------------+------+--------------------------------+",
-        //     "| Andover    | 56   | 1970-01-01T00:00:00.000000030Z |",
-        //     "| Reading    | 58   | 1970-01-01T00:00:00.000000040Z |",
-        //     "| Wilmington |      | 1970-01-01T00:00:00.000000035Z |",
-        //     "+------------+------+--------------------------------+",
-        // ];
-        let expected_not_persisting = vec![
-            "+------------+------+--------------------------------+",
-            "| city       | temp | time                           |",
-            "+------------+------+--------------------------------+",
-            "| Andover    |      | 1970-01-01T00:00:00.000000046Z |",
-            "| Andover    | 56   | 1970-01-01T00:00:00.000000030Z |",
-            "| Medford    |      | 1970-01-01T00:00:00.000000026Z |",
-            "| Medford    | 55   | 1970-01-01T00:00:00.000000022Z |",
-            "| Reading    | 58   | 1970-01-01T00:00:00.000000040Z |",
-            "| Wilmington |      | 1970-01-01T00:00:00.000000035Z |",
-            "+------------+------+--------------------------------+",
-        ];
-        // For "persisting" data locations the tombstones were NOT applied because they arrived AFTER the data
-        // transitioned into the "persisting" state. In this case, the ingester will apply the tombstones.
-        let expected_persisting = vec![
-            "+------------+------+--------------------------------+",
-            "| city       | temp | time                           |",
-            "+------------+------+--------------------------------+",
-            "| Andover    |      | 1970-01-01T00:00:00.000000046Z |",
-            "| Andover    | 56   | 1970-01-01T00:00:00.000000030Z |",
-            "| Boston     |      | 1970-01-01T00:00:00.000000038Z |",
-            "| Boston     | 60   | 1970-01-01T00:00:00.000000036Z |",
-            "| Medford    |      | 1970-01-01T00:00:00.000000026Z |",
-            "| Medford    | 55   | 1970-01-01T00:00:00.000000022Z |",
-            "| Reading    | 58   | 1970-01-01T00:00:00.000000040Z |",
-            "| Wilmington |      | 1970-01-01T00:00:00.000000035Z |",
-            "+------------+------+--------------------------------+",
-        ];
-        for (loc, scenario) in &scenarios {
-            println!("Location: {loc:?}");
-            let expected = if loc.intersects(DataLocation::PERSISTING) {
-                &expected_persisting
-            } else {
-                &expected_not_persisting
-            };
-
-            let stream = prepare_data_to_querier(scenario, &request).await.unwrap();
-            let result = ingester_response_to_record_batches(stream).await;
-            assert_batches_sorted_eq!(expected, &result);
         }
     }
 

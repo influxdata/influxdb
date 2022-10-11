@@ -6,7 +6,7 @@ use arrow::record_batch::RecordBatch;
 use arrow_util::util::ensure_schema;
 use data_types::{
     ChunkId, ChunkOrder, DeletePredicate, PartitionId, SequenceNumber, TableSummary,
-    TimestampMinMax, Tombstone,
+    TimestampMinMax,
 };
 use datafusion::{
     error::DataFusionError,
@@ -21,10 +21,7 @@ use iox_query::{
     QueryChunk, QueryChunkMeta,
 };
 use observability_deps::tracing::trace;
-use predicate::{
-    delete_predicate::{tombstones_to_delete_predicates, tombstones_to_delete_predicates_iter},
-    Predicate,
-};
+use predicate::Predicate;
 use schema::{merge::merge_record_batch_schemas, selection::Selection, sort::SortKey, Schema};
 use snafu::{ResultExt, Snafu};
 
@@ -56,9 +53,6 @@ pub(crate) struct QueryableBatch {
     /// data
     pub(crate) data: Vec<Arc<SnapshotBatch>>,
 
-    /// Delete predicates of the tombstones
-    pub(crate) delete_predicates: Vec<Arc<DeletePredicate>>,
-
     /// This is needed to return a reference for a trait function
     pub(crate) table_name: TableName,
 
@@ -72,12 +66,9 @@ impl QueryableBatch {
         table_name: TableName,
         partition_id: PartitionId,
         data: Vec<Arc<SnapshotBatch>>,
-        deletes: Vec<Tombstone>,
     ) -> Self {
-        let delete_predicates = tombstones_to_delete_predicates(&deletes);
         Self {
             data,
-            delete_predicates,
             table_name,
             partition_id,
         }
@@ -87,12 +78,6 @@ impl QueryableBatch {
     pub(crate) fn with_data(mut self, mut data: Vec<Arc<SnapshotBatch>>) -> Self {
         self.data.append(&mut data);
         self
-    }
-
-    /// Add more tombstones
-    pub(crate) fn add_tombstones(&mut self, deletes: &[Tombstone]) {
-        let delete_predicates = tombstones_to_delete_predicates_iter(deletes);
-        self.delete_predicates.extend(delete_predicates);
     }
 
     /// return min and max of all the snapshots
@@ -112,11 +97,6 @@ impl QueryableBatch {
         assert!(min <= max);
 
         (min, max)
-    }
-
-    /// return true if it has no data
-    pub(crate) fn is_empty(&self) -> bool {
-        self.data.is_empty()
     }
 }
 
@@ -147,15 +127,15 @@ impl QueryChunkMeta for QueryableBatch {
         None // Ingester data is not sorted
     }
 
-    fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
-        self.delete_predicates.as_ref()
-    }
-
     fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
         // Note: we need to consider which option we want to go with
         //  . Return None here and avoid taking time to compute time's min max of RecordBacthes (current choice)
         //  . Compute time's min max here and avoid compacting non-overlapped QueryableBatches in the Ingester
         None
+    }
+
+    fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
+        &[]
     }
 }
 
@@ -263,167 +243,5 @@ impl QueryChunk for QueryableBatch {
 
     fn as_any(&self) -> &dyn Any {
         self
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use arrow::{
-        array::{
-            ArrayRef, BooleanArray, DictionaryArray, Float64Array, Int64Array, StringArray,
-            TimestampNanosecondArray, UInt64Array,
-        },
-        datatypes::{DataType, Int32Type, TimeUnit},
-    };
-    use data_types::{DeleteExpr, Op, Scalar, TimestampRange};
-
-    use super::*;
-    use crate::test_util::create_tombstone;
-
-    #[tokio::test]
-    async fn test_merge_batch_schema() {
-        // Merge schema of the batches
-        // The fields in the schema are sorted by column name
-        let batches = create_batches();
-        let merged_schema = (*merge_record_batch_schemas(&batches)).clone();
-
-        // Expected Arrow schema
-        let arrow_schema = Arc::new(arrow::datatypes::Schema::new(vec![
-            arrow::datatypes::Field::new(
-                "dict",
-                DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8)),
-                true,
-            ),
-            arrow::datatypes::Field::new("int64", DataType::Int64, true),
-            arrow::datatypes::Field::new("string", DataType::Utf8, true),
-            arrow::datatypes::Field::new("bool", DataType::Boolean, true),
-            arrow::datatypes::Field::new(
-                "time",
-                DataType::Timestamp(TimeUnit::Nanosecond, None),
-                false,
-            ),
-            arrow::datatypes::Field::new("uint64", DataType::UInt64, false),
-            arrow::datatypes::Field::new("float64", DataType::Float64, true),
-        ]));
-        let expected_schema = Schema::try_from(arrow_schema)
-            .unwrap()
-            .sort_fields_by_name();
-
-        assert_eq!(
-            expected_schema, merged_schema,
-            "\nExpected:\n{:#?}\nActual:\n{:#?}",
-            expected_schema, merged_schema
-        );
-    }
-
-    #[tokio::test]
-    async fn test_tombstones_to_delete_predicates() {
-        // create tombstones
-        let tombstones = vec![
-            create_tombstone(1, 1, 1, 1, 100, 200, "temp=10"),
-            create_tombstone(1, 1, 1, 2, 100, 350, "temp!=10 and city=Boston"),
-        ];
-
-        // This new queryable batch will convert tombstone to delete predicates
-        let query_batch =
-            QueryableBatch::new("test_table".into(), PartitionId::new(0), vec![], tombstones);
-        let predicates = query_batch.delete_predicates();
-        let expected = vec![
-            Arc::new(DeletePredicate {
-                range: TimestampRange::new(100, 200),
-                exprs: vec![DeleteExpr {
-                    column: String::from("temp"),
-                    op: Op::Eq,
-                    scalar: Scalar::I64(10),
-                }],
-            }),
-            Arc::new(DeletePredicate {
-                range: TimestampRange::new(100, 350),
-                exprs: vec![
-                    DeleteExpr {
-                        column: String::from("temp"),
-                        op: Op::Ne,
-                        scalar: Scalar::I64(10),
-                    },
-                    DeleteExpr {
-                        column: String::from("city"),
-                        op: Op::Eq,
-                        scalar: Scalar::String(String::from(r#"Boston"#)),
-                    },
-                ],
-            }),
-        ];
-
-        assert_eq!(expected, predicates);
-    }
-
-    // ----------------------------------------------------------------------------------------------
-    // Data for testing
-
-    // Create pure RecordBatches without knowledge of Influx datatype
-    fn create_batches() -> Vec<Arc<RecordBatch>> {
-        // Batch 1: <dict, i64, str, bool, time>  & 3 rows
-        let dict_array: ArrayRef = Arc::new(
-            vec![Some("a"), None, Some("b")]
-                .into_iter()
-                .collect::<DictionaryArray<Int32Type>>(),
-        );
-        let int64_array: ArrayRef =
-            Arc::new([Some(-1), None, Some(2)].iter().collect::<Int64Array>());
-        let string_array: ArrayRef = Arc::new(
-            vec![Some("foo"), Some("and"), Some("bar")]
-                .into_iter()
-                .collect::<StringArray>(),
-        );
-        let bool_array: ArrayRef = Arc::new(
-            [Some(true), None, Some(false)]
-                .iter()
-                .collect::<BooleanArray>(),
-        );
-        let ts_array: ArrayRef = Arc::new(
-            [Some(150), Some(200), Some(1526823730000000000)]
-                .iter()
-                .collect::<TimestampNanosecondArray>(),
-        );
-        let batch1 = RecordBatch::try_from_iter_with_nullable(vec![
-            ("dict", dict_array, true),
-            ("int64", int64_array, true),
-            ("string", string_array, true),
-            ("bool", bool_array, true),
-            ("time", ts_array, false), // not null
-        ])
-        .unwrap();
-
-        // Batch 2: <dict, u64, f64, str, bool, time> & 2 rows
-        let dict_array: ArrayRef = Arc::new(
-            vec![None, Some("d")]
-                .into_iter()
-                .collect::<DictionaryArray<Int32Type>>(),
-        );
-        let uint64_array: ArrayRef = Arc::new([Some(1), Some(2)].iter().collect::<UInt64Array>()); // not null
-        let float64_array: ArrayRef =
-            Arc::new([Some(1.0), Some(2.0)].iter().collect::<Float64Array>());
-        let string_array: ArrayRef = Arc::new(
-            vec![Some("foo"), Some("bar")]
-                .into_iter()
-                .collect::<StringArray>(),
-        );
-        let bool_array: ArrayRef = Arc::new([Some(true), None].iter().collect::<BooleanArray>());
-        let ts_array: ArrayRef = Arc::new(
-            [Some(100), Some(1626823730000000000)] // not null
-                .iter()
-                .collect::<TimestampNanosecondArray>(),
-        );
-        let batch2 = RecordBatch::try_from_iter_with_nullable(vec![
-            ("dict", dict_array, true),
-            ("uint64", uint64_array, false), // not null
-            ("float64", float64_array, true),
-            ("string", string_array, true),
-            ("bool", bool_array, true),
-            ("time", ts_array, false), // not null
-        ])
-        .unwrap();
-
-        vec![Arc::new(batch1), Arc::new(batch2)]
     }
 }

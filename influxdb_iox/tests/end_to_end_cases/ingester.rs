@@ -52,7 +52,6 @@ async fn ingester_flight_api() {
             partition_id,
             status: Some(PartitionStatus {
                 parquet_max_sequence_number: None,
-                tombstone_max_sequence_number: None
             })
         },
     );

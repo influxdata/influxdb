@@ -2,14 +2,8 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use data_types::{
-    DeletePredicate, NamespaceId, PartitionId, PartitionKey, SequenceNumber, ShardId, TableId,
-    Timestamp,
-};
-use iox_catalog::interface::Catalog;
-use iox_query::exec::Executor;
+use data_types::{NamespaceId, PartitionId, PartitionKey, SequenceNumber, ShardId, TableId};
 use mutable_batch::MutableBatch;
-use snafu::ResultExt;
 use write_summary::ShardProgress;
 
 use super::partition::{
@@ -90,9 +84,6 @@ pub(crate) struct TableData {
     shard_id: ShardId,
     namespace_id: NamespaceId,
 
-    // the max sequence number for a tombstone associated with this table
-    tombstone_max_sequence_number: Option<SequenceNumber>,
-
     /// An abstract constructor of [`PartitionData`] instances for a given
     /// `(key, shard, table)` triplet.
     partition_provider: Arc<dyn PartitionProvider>,
@@ -117,7 +108,6 @@ impl TableData {
         table_name: TableName,
         shard_id: ShardId,
         namespace_id: NamespaceId,
-        tombstone_max_sequence_number: Option<SequenceNumber>,
         partition_provider: Arc<dyn PartitionProvider>,
     ) -> Self {
         Self {
@@ -125,7 +115,6 @@ impl TableData {
             table_name,
             shard_id,
             namespace_id,
-            tombstone_max_sequence_number,
             partition_data: Default::default(),
             partition_provider,
         }
@@ -139,12 +128,6 @@ impl TableData {
             .map(|p| p.max_persisted_sequence_number())
             .max()
             .flatten()
-    }
-
-    /// Return tombstone_max_sequence_number
-    #[allow(dead_code)] // Used in tests
-    pub(super) fn tombstone_max_sequence_number(&self) -> Option<SequenceNumber> {
-        self.tombstone_max_sequence_number
     }
 
     // buffers the table write and returns true if the lifecycle manager indicates that
@@ -204,41 +187,6 @@ impl TableData {
         Ok(should_pause)
     }
 
-    pub(super) async fn buffer_delete(
-        &mut self,
-        predicate: &DeletePredicate,
-        sequence_number: SequenceNumber,
-        catalog: &dyn Catalog,
-        executor: &Executor,
-    ) -> Result<(), super::Error> {
-        let min_time = Timestamp::new(predicate.range.start());
-        let max_time = Timestamp::new(predicate.range.end());
-
-        let mut repos = catalog.repositories().await;
-        let tombstone = repos
-            .tombstones()
-            .create_or_get(
-                self.table_id,
-                self.shard_id,
-                sequence_number,
-                min_time,
-                max_time,
-                &predicate.expr_sql_string(),
-            )
-            .await
-            .context(super::CatalogSnafu)?;
-
-        // remember "persisted" state
-        self.tombstone_max_sequence_number = Some(sequence_number);
-
-        // modify one partition at a time
-        for data in self.partition_data.by_key.values_mut() {
-            data.buffer_tombstone(executor, tombstone.clone()).await;
-        }
-
-        Ok(())
-    }
-
     /// Return the [`PartitionData`] for the specified ID.
     #[allow(unused)]
     pub(crate) fn get_partition(
@@ -277,7 +225,6 @@ impl TableData {
                 persisting: p.get_persisting_data(),
                 partition_status: PartitionStatus {
                     parquet_max_sequence_number: p.max_persisted_sequence_number(),
-                    tombstone_max_sequence_number: self.tombstone_max_sequence_number,
                 },
             })
             .collect()
@@ -316,6 +263,7 @@ mod tests {
 
     use assert_matches::assert_matches;
     use data_types::{PartitionId, ShardIndex};
+    use iox_catalog::interface::Catalog;
     use mutable_batch::writer;
     use mutable_batch_lp::lines_to_batches;
     use schema::{InfluxColumnType, InfluxFieldType};
@@ -367,7 +315,6 @@ mod tests {
             TABLE_NAME.into(),
             shard_id,
             ns_id,
-            None,
             partition_provider,
         );
 
@@ -427,7 +374,6 @@ mod tests {
             TABLE_NAME.into(),
             shard_id,
             ns_id,
-            None,
             partition_provider,
         );
 

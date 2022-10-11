@@ -6,7 +6,6 @@ use super::{
 };
 use crate::scenarios::util::{make_n_chunks_scenario, ChunkData};
 use async_trait::async_trait;
-use data_types::{DeleteExpr, DeletePredicate, Op, Scalar, TimestampRange};
 use iox_query::frontend::sql::SqlQueryPlanner;
 
 #[derive(Debug)]
@@ -83,82 +82,6 @@ impl DbSetup for OneMeasurementManyNullTags {
     }
 }
 
-#[derive(Debug)]
-pub struct OneMeasurementManyNullTagsWithDelete {}
-#[async_trait]
-impl DbSetup for OneMeasurementManyNullTagsWithDelete {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-
-        let lp_lines = vec![
-            "h2o,state=CA,city=LA,county=LA temp=70.4 100",
-            "h2o,state=MA,city=Boston,county=Suffolk temp=72.4 250",
-            "h2o,state=MA,city=Boston temp=50.4 200",
-            "h2o,state=CA temp=79.0 300",
-            "h2o,state=NY temp=60.8 400",
-            "h2o,state=NY,city=NYC temp=61.0 500",
-            "h2o,state=NY,city=NYC,borough=Brooklyn temp=61.0 600",
-        ];
-
-        // pred: delete from h2o where 400 <= time <= 602 and state=NY
-        // 3 rows of h2o & NY state will be deleted
-        let delete_table_name = "h2o";
-        let pred = DeletePredicate {
-            range: TimestampRange::new(400, 602),
-            exprs: vec![DeleteExpr::new(
-                "state".to_string(),
-                Op::Eq,
-                Scalar::String(("NY").to_string()),
-            )],
-        };
-
-        all_scenarios_for_one_chunk(
-            vec![&pred],
-            vec![],
-            lp_lines,
-            delete_table_name,
-            partition_key,
-        )
-        .await
-    }
-}
-
-#[derive(Debug)]
-pub struct OneMeasurementManyNullTagsWithDeleteAll {}
-#[async_trait]
-impl DbSetup for OneMeasurementManyNullTagsWithDeleteAll {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-
-        let lp_lines = vec![
-            "h2o,state=CA,city=LA,county=LA temp=70.4 100",
-            "h2o,state=MA,city=Boston,county=Suffolk temp=72.4 250",
-            "h2o,state=MA,city=Boston temp=50.4 200",
-            "h2o,state=CA temp=79.0 300",
-            "h2o,state=NY temp=60.8 400",
-            "h2o,state=NY,city=NYC temp=61.0 500",
-            "h2o,state=NY,city=NYC,borough=Brooklyn temp=61.0 600",
-        ];
-
-        // pred: delete from h2o where 100 <= time <= 602
-        // all rows of h2o  will be deleted
-        let delete_table_name = "h2o";
-        let pred = DeletePredicate {
-            range: TimestampRange::new(100, 602),
-            exprs: vec![],
-        };
-
-        all_scenarios_for_one_chunk(
-            vec![&pred],
-            vec![],
-            lp_lines,
-            delete_table_name,
-            partition_key,
-        )
-        .await
-    }
-}
-
 /// Two measurements data in different chunk scenarios
 #[derive(Debug)]
 pub struct TwoMeasurements {}
@@ -174,85 +97,6 @@ impl DbSetup for TwoMeasurements {
         ];
 
         all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "cpu", partition_key).await
-    }
-}
-
-/// Two measurements data in different chunk scenarios
-/// with one delete applied at different stages of the chunk
-#[derive(Debug)]
-pub struct TwoMeasurementsWithDelete {}
-#[async_trait]
-impl DbSetup for TwoMeasurementsWithDelete {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-
-        let lp_lines = vec![
-            "cpu,region=west user=23.2 100",
-            "cpu,region=west user=21.0 150",
-            "disk,region=east bytes=99i 200",
-        ];
-
-        // pred: delete from cpu where 120 <= time <= 160 and region="west"
-        // delete 1 row from cpu with timestamp 150
-        let table_name = "cpu";
-        let pred = DeletePredicate {
-            range: TimestampRange::new(120, 160),
-            exprs: vec![DeleteExpr::new(
-                "region".to_string(),
-                Op::Eq,
-                Scalar::String("west".to_string()),
-            )],
-        };
-
-        // return all possible combination scenarios of a chunk stage and when the delete
-        // predicates are applied
-        all_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key).await
-    }
-}
-
-/// Two measurements data in different chunk scenarios
-/// with 2 deletes that remove all data from one table
-#[derive(Debug)]
-pub struct TwoMeasurementsWithDeleteAll {}
-#[async_trait]
-impl DbSetup for TwoMeasurementsWithDeleteAll {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-
-        let lp_lines = vec![
-            "cpu,region=west user=23.2 100",
-            "cpu,region=west user=21.0 150",
-            "disk,region=east bytes=99i 200",
-        ];
-
-        // pred: delete from cpu where 120 <= time <= 160 and region="west"
-        // which will delete second row of the cpu
-        let table_name = "cpu";
-        let pred1 = DeletePredicate {
-            range: TimestampRange::new(120, 160),
-            exprs: vec![DeleteExpr::new(
-                "region".to_string(),
-                Op::Eq,
-                Scalar::String("west".to_string()),
-            )],
-        };
-
-        // delete the first row of the cpu
-        let pred2 = DeletePredicate {
-            range: TimestampRange::new(0, 110),
-            exprs: vec![],
-        };
-
-        // return all possible combination scenarios of a chunk stage and when the delete
-        // predicates are applied
-        all_scenarios_for_one_chunk(
-            vec![&pred1],
-            vec![&pred2],
-            lp_lines,
-            table_name,
-            partition_key,
-        )
-        .await
     }
 }
 
@@ -710,44 +554,6 @@ impl DbSetup for OneMeasurementManyFields {
         all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "h2o", partition_key).await
     }
 }
-
-#[derive(Debug)]
-pub struct OneMeasurementManyFieldsWithDelete {}
-#[async_trait]
-impl DbSetup for OneMeasurementManyFieldsWithDelete {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-
-        // Order this so field3 comes before field2
-        // (and thus the columns need to get reordered)
-        let lp_lines = vec![
-            "h2o,tag1=foo,tag2=bar field1=70.6,field3=2 100",
-            "h2o,tag1=foo,tag2=bar field1=70.4,field2=\"ss\" 100",
-            "h2o,tag1=foo,tag2=bar field1=70.5,field2=\"ss\" 100",
-            "h2o,tag1=foo,tag2=bar field1=70.6,field4=true 1000",
-            "h2o,tag1=foo,tag2=bar field1=70.3,field5=false 3000",
-        ];
-
-        // pred: delete from h2o where 1000 <= time <= 1100
-        // 1 rows of h2o with timestamp 1000 will be deleted which means
-        // field4 no longer available
-        let delete_table_name = "h2o";
-        let pred = DeletePredicate {
-            range: TimestampRange::new(1000, 1100),
-            exprs: vec![],
-        };
-
-        all_scenarios_for_one_chunk(
-            vec![&pred],
-            vec![],
-            lp_lines,
-            delete_table_name,
-            partition_key,
-        )
-        .await
-    }
-}
-
 /// This data (from end to end test)
 #[derive(Debug)]
 pub struct EndToEndTest {}
@@ -773,48 +579,6 @@ impl DbSetup for EndToEndTest {
 }
 
 #[derive(Debug)]
-pub struct EndToEndTestWithDelete {}
-#[async_trait]
-impl DbSetup for EndToEndTestWithDelete {
-    async fn make(&self) -> Vec<DbScenario> {
-        let lp_lines = vec![
-            "cpu_load_short,host=server01,region=us-west value=0.64 0000",
-            "cpu_load_short,host=server01 value=27.99 1000",
-            "cpu_load_short,host=server02,region=us-west value=3.89 2000",
-            "cpu_load_short,host=server01,region=us-east value=1234567.891011 3000",
-            "cpu_load_short,host=server01,region=us-west value=0.000003 4000",
-            "system,host=server03 uptime=1303385 5000",
-            "swap,host=server01,name=disk0 in=3,out=4 6000",
-            "status active=t 7000",
-            "attributes color=\"blue\" 8000",
-        ];
-
-        let partition_key = "1970-01-01T00";
-
-        // pred: delete from swap where 6000 <= time <= 6000 and name=disk0
-        // 1 rows of swap with name=disk0 will be deleted
-        let delete_table_name = "swap";
-        let pred = DeletePredicate {
-            range: TimestampRange::new(6000, 6000),
-            exprs: vec![DeleteExpr::new(
-                "name".to_string(),
-                Op::Eq,
-                Scalar::String(("disk0").to_string()),
-            )],
-        };
-
-        all_scenarios_for_one_chunk(
-            vec![&pred],
-            vec![],
-            lp_lines,
-            delete_table_name,
-            partition_key,
-        )
-        .await
-    }
-}
-
-#[derive(Debug)]
 pub struct TwoMeasurementsMultiSeries {}
 #[async_trait]
 impl DbSetup for TwoMeasurementsMultiSeries {
@@ -835,84 +599,6 @@ impl DbSetup for TwoMeasurementsMultiSeries {
         lp_lines.swap(4, 5);
 
         all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "h2o", partition_key).await
-    }
-}
-
-#[derive(Debug)]
-pub struct TwoMeasurementsMultiSeriesWithDelete {}
-#[async_trait]
-impl DbSetup for TwoMeasurementsMultiSeriesWithDelete {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-
-        let mut lp_lines = vec![
-            "h2o,state=MA,city=Boston temp=70.4 100", // to row 2
-            "h2o,state=MA,city=Boston temp=72.4 250", // to row 1
-            "h2o,state=CA,city=LA temp=90.0 200",     // to row 0
-            "h2o,state=CA,city=LA temp=90.0 350",     // to row 3
-            "o2,state=MA,city=Boston temp=50.4,reading=50 100", // to row 5
-            "o2,state=MA,city=Boston temp=53.4,reading=51 250", // to row 4
-        ];
-
-        // Swap around data is not inserted in series order
-        lp_lines.swap(0, 2);
-        lp_lines.swap(4, 5);
-
-        // pred: delete from h2o where 120 <= time <= 250
-        // 2 rows of h2o with timestamp 200 and 350 will be deleted
-        let delete_table_name = "h2o";
-        let pred = DeletePredicate {
-            range: TimestampRange::new(120, 250),
-            exprs: vec![],
-        };
-
-        all_scenarios_for_one_chunk(
-            vec![&pred],
-            vec![],
-            lp_lines,
-            delete_table_name,
-            partition_key,
-        )
-        .await
-    }
-}
-
-#[derive(Debug)]
-pub struct TwoMeasurementsMultiSeriesWithDeleteAll {}
-#[async_trait]
-impl DbSetup for TwoMeasurementsMultiSeriesWithDeleteAll {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-
-        let mut lp_lines = vec![
-            "h2o,state=MA,city=Boston temp=70.4 100", // to row 2
-            "h2o,state=MA,city=Boston temp=72.4 250", // to row 1
-            "h2o,state=CA,city=LA temp=90.0 200",     // to row 0
-            "h2o,state=CA,city=LA temp=90.0 350",     // to row 3
-            "o2,state=MA,city=Boston temp=50.4,reading=50 100", // to row 5
-            "o2,state=MA,city=Boston temp=53.4,reading=51 250", // to row 4
-        ];
-
-        // Swap around data is not inserted in series order
-        lp_lines.swap(0, 2);
-        lp_lines.swap(4, 5);
-
-        // Delete all data form h2o
-        // pred: delete from h20 where 100 <= time <= 360
-        let delete_table_name = "h2o";
-        let pred = DeletePredicate {
-            range: TimestampRange::new(100, 360),
-            exprs: vec![],
-        };
-
-        all_scenarios_for_one_chunk(
-            vec![&pred],
-            vec![],
-            lp_lines,
-            delete_table_name,
-            partition_key,
-        )
-        .await
     }
 }
 
@@ -950,44 +636,6 @@ impl DbSetup for MeasurementsSortableTags {
     }
 }
 
-#[derive(Debug)]
-pub struct MeasurementsSortableTagsWithDelete {}
-#[async_trait]
-impl DbSetup for MeasurementsSortableTagsWithDelete {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-
-        let lp_lines = vec![
-            "h2o,zz_tag=A,state=MA,city=Kingston temp=70.1 800",
-            "h2o,state=MA,city=Kingston,zz_tag=B temp=70.2 100",
-            "h2o,state=CA,city=Boston temp=70.3 250", // soft deleted
-            "h2o,state=MA,city=Boston,zz_tag=A temp=70.4 1000",
-            "h2o,state=MA,city=Boston temp=70.5,other=5.0 250",
-        ];
-
-        // pred: delete from h2o where 120 <= time <= 350 and state=CA
-        // 1 rows of h2o with timestamp 250 will be deleted
-        let delete_table_name = "h2o";
-        let pred = DeletePredicate {
-            range: TimestampRange::new(120, 350),
-            exprs: vec![DeleteExpr::new(
-                "state".to_string(),
-                Op::Eq,
-                Scalar::String(("CA").to_string()),
-            )],
-        };
-
-        all_scenarios_for_one_chunk(
-            vec![&pred],
-            vec![],
-            lp_lines,
-            delete_table_name,
-            partition_key,
-        )
-        .await
-    }
-}
-
 // See issue: https://github.com/influxdata/influxdb_iox/issues/2845
 #[derive(Debug)]
 pub struct MeasurementsForDefect2845 {}
@@ -1016,65 +664,6 @@ impl DbSetup for OneMeasurementNoTags2 {
         let partition_key = "1970-01-01T00";
         let lp_lines = vec!["m0 foo=1.0 1", "m0 foo=2.0 2"];
         all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "m0", partition_key).await
-    }
-}
-
-pub struct OneMeasurementNoTagsWithDelete {}
-#[async_trait]
-impl DbSetup for OneMeasurementNoTagsWithDelete {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-        let lp_lines = vec!["m0 foo=1.0 1", "m0 foo=2.0 2"];
-
-        // pred: delete from m0 where 1 <= time <= 1 and foo=1.0
-        // 1 row of m0 with timestamp 1
-        let delete_table_name = "m0";
-        let pred = DeletePredicate {
-            range: TimestampRange::new(1, 1),
-            exprs: vec![DeleteExpr::new(
-                "foo".to_string(),
-                Op::Eq,
-                Scalar::F64((1.0).into()),
-            )],
-        };
-
-        all_scenarios_for_one_chunk(
-            vec![&pred],
-            vec![],
-            lp_lines,
-            delete_table_name,
-            partition_key,
-        )
-        .await
-    }
-}
-
-/// This will create many scenarios: some have a chunk with soft deleted data, some have no chunks
-/// because there is no point to create compacted chunks with all deleted data.
-pub struct OneMeasurementNoTagsWithDeleteAllWithAndWithoutChunk {}
-#[async_trait]
-impl DbSetup for OneMeasurementNoTagsWithDeleteAllWithAndWithoutChunk {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-        let lp_lines = vec!["m0 foo=1.0 1", "m0 foo=2.0 2"];
-
-        // pred: delete from m0 where 1 <= time <= 2
-        let delete_table_name = "m0";
-        let pred = DeletePredicate {
-            range: TimestampRange::new(1, 2),
-            exprs: vec![],
-        };
-
-        // Apply predicate before the chunk is moved if any. There will be scenarios without chunks
-        // as a consequence of not-compacting-deleted-data
-        all_scenarios_for_one_chunk(
-            vec![&pred],
-            vec![],
-            lp_lines,
-            delete_table_name,
-            partition_key,
-        )
-        .await
     }
 }
 
@@ -1307,65 +896,6 @@ impl DbSetup for MeasurementForDefect2697 {
         ];
 
         all_scenarios_for_one_chunk(vec![], vec![], lp, "mm", partition_key).await
-    }
-}
-
-pub struct MeasurementForDefect2697WithDelete {}
-#[async_trait]
-impl DbSetup for MeasurementForDefect2697WithDelete {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "2021-01-01T00";
-
-        let lp = vec![
-            "mm,section=1a bar=5.0 1609459201000000011",
-            "mm,section=1a bar=0.28 1609459201000000031",
-            "mm,section=2b bar=4.0 1609459201000000009",
-            "mm,section=2b bar=6.0 1609459201000000015",
-            "mm,section=2b bar=1.2 1609459201000000022",
-            "mm,section=1a foo=1.0 1609459201000000001",
-            "mm,section=1a foo=3.0 1609459201000000005",
-            "mm,section=1a foo=11.24 1609459201000000024",
-            "mm,section=2b foo=2.0 1609459201000000002",
-        ];
-
-        // pred: delete from mm where 1609459201000000022 <= time <= 1609459201000000022
-        // 1 row of m0 with timestamp 1609459201000000022 (section=2b bar=1.2)
-        let delete_table_name = "mm";
-        let pred = DeletePredicate {
-            range: TimestampRange::new(1609459201000000022, 1609459201000000022),
-            exprs: vec![],
-        };
-
-        all_scenarios_for_one_chunk(vec![&pred], vec![], lp, delete_table_name, partition_key).await
-    }
-}
-
-pub struct MeasurementForDefect2697WithDeleteAll {}
-#[async_trait]
-impl DbSetup for MeasurementForDefect2697WithDeleteAll {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "2021-01-01T00";
-
-        let lp = vec![
-            "mm,section=1a bar=5.0 1609459201000000011",
-            "mm,section=1a bar=0.28 1609459201000000031",
-            "mm,section=2b bar=4.0 1609459201000000009",
-            "mm,section=2b bar=6.0 1609459201000000015",
-            "mm,section=2b bar=1.2 1609459201000000022",
-            "mm,section=1a foo=1.0 1609459201000000001",
-            "mm,section=1a foo=3.0 1609459201000000005",
-            "mm,section=1a foo=11.24 1609459201000000024",
-            "mm,section=2b foo=2.0 1609459201000000002",
-        ];
-
-        // pred: delete from mm where 1 <= time <= 1609459201000000031
-        let delete_table_name = "mm";
-        let pred = DeletePredicate {
-            range: TimestampRange::new(1, 1609459201000000031),
-            exprs: vec![],
-        };
-
-        all_scenarios_for_one_chunk(vec![&pred], vec![], lp, delete_table_name, partition_key).await
     }
 }
 

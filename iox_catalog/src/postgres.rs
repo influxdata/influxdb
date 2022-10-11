@@ -1878,7 +1878,7 @@ LIMIT $4;
         sqlx::query_as::<_, PartitionParam>(
             r#"
 SELECT parquet_file.partition_id, parquet_file.shard_id, parquet_file.namespace_id,
-       parquet_file.table_id, 
+       parquet_file.table_id,
        count(case when to_delete is null then 1 end) total_count,
        max(case when compaction_level= $4 then parquet_file.created_at end)
 FROM   parquet_file

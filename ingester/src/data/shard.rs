@@ -5,7 +5,6 @@ use std::{collections::HashMap, sync::Arc};
 use data_types::{NamespaceId, ShardId, ShardIndex};
 use dml::DmlOperation;
 use iox_catalog::interface::Catalog;
-use iox_query::exec::Executor;
 use metric::U64Counter;
 use parking_lot::RwLock;
 use snafu::{OptionExt, ResultExt};
@@ -100,7 +99,6 @@ impl ShardData {
         dml_operation: DmlOperation,
         catalog: &Arc<dyn Catalog>,
         lifecycle_handle: &dyn LifecycleHandle,
-        executor: &Executor,
     ) -> Result<bool, super::Error> {
         let namespace_data = match self.namespace(&NamespaceName::from(dml_operation.namespace())) {
             Some(d) => d,
@@ -111,7 +109,7 @@ impl ShardData {
         };
 
         namespace_data
-            .buffer_operation(dml_operation, catalog, lifecycle_handle, executor)
+            .buffer_operation(dml_operation, catalog, lifecycle_handle)
             .await
     }
 
@@ -218,7 +216,6 @@ mod tests {
         let metrics = Arc::new(metric::Registry::default());
         let catalog: Arc<dyn Catalog> =
             Arc::new(iox_catalog::mem::MemCatalog::new(Arc::clone(&metrics)));
-        let exec = Executor::new(1);
 
         // Populate the catalog with the shard / namespace / table
         let (shard_id, ns_id, table_id) =
@@ -262,7 +259,6 @@ mod tests {
                 )),
                 &catalog,
                 &MockLifecycleHandle::default(),
-                &exec,
             )
             .await
             .expect("buffer op should succeed");

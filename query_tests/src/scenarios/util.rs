@@ -1048,9 +1048,6 @@ impl QueryDataAdapter {
                                     parquet_max_sequence_number: status
                                         .parquet_max_sequence_number
                                         .map(|x| x.get()),
-                                    tombstone_max_sequence_number: status
-                                        .tombstone_max_sequence_number
-                                        .map(|x| x.get()),
                                 }),
                             },
                         ),

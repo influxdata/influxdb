@@ -613,9 +613,7 @@ impl IngesterStreamDecoder {
                     partition_id,
                     shard_id,
                     status.parquet_max_sequence_number.map(SequenceNumber::new),
-                    status
-                        .tombstone_max_sequence_number
-                        .map(SequenceNumber::new),
+                    None,
                     partition_sort_key,
                 );
                 self.current_partition = Some(partition);
@@ -1338,7 +1336,6 @@ mod tests {
                             partition_id: 1,
                             status: Some(PartitionStatus {
                                 parquet_max_sequence_number: None,
-                                tombstone_max_sequence_number: None,
                             }),
                         },
                     ))],
@@ -1394,7 +1391,6 @@ mod tests {
                                 partition_id: 1,
                                 status: Some(PartitionStatus {
                                     parquet_max_sequence_number: None,
-                                    tombstone_max_sequence_number: None,
                                 }),
                             },
                         )),
@@ -1404,7 +1400,6 @@ mod tests {
                                 partition_id: 2,
                                 status: Some(PartitionStatus {
                                     parquet_max_sequence_number: None,
-                                    tombstone_max_sequence_number: None,
                                 }),
                             },
                         )),
@@ -1414,7 +1409,6 @@ mod tests {
                                 partition_id: 1,
                                 status: Some(PartitionStatus {
                                     parquet_max_sequence_number: None,
-                                    tombstone_max_sequence_number: None,
                                 }),
                             },
                         )),
@@ -1494,7 +1488,6 @@ mod tests {
                                     partition_id: 1,
                                     status: Some(PartitionStatus {
                                         parquet_max_sequence_number: Some(11),
-                                        tombstone_max_sequence_number: Some(12),
                                     }),
                                 },
                             )),
@@ -1524,7 +1517,6 @@ mod tests {
                                     partition_id: 2,
                                     status: Some(PartitionStatus {
                                         parquet_max_sequence_number: Some(21),
-                                        tombstone_max_sequence_number: Some(22),
                                     }),
                                 },
                             )),
@@ -1549,7 +1541,6 @@ mod tests {
                                     partition_id: 3,
                                     status: Some(PartitionStatus {
                                         parquet_max_sequence_number: Some(31),
-                                        tombstone_max_sequence_number: Some(32),
                                     }),
                                 },
                             )),
@@ -1579,10 +1570,7 @@ mod tests {
             p1.parquet_max_sequence_number,
             Some(SequenceNumber::new(11))
         );
-        assert_eq!(
-            p1.tombstone_max_sequence_number,
-            Some(SequenceNumber::new(12))
-        );
+        assert_eq!(p1.tombstone_max_sequence_number, None);
         assert_eq!(p1.chunks.len(), 2);
         assert_eq!(p1.chunks[0].schema().as_arrow(), schema_1_1);
         assert_eq!(p1.chunks[0].batches.len(), 2);
@@ -1599,10 +1587,7 @@ mod tests {
             p2.parquet_max_sequence_number,
             Some(SequenceNumber::new(21))
         );
-        assert_eq!(
-            p2.tombstone_max_sequence_number,
-            Some(SequenceNumber::new(22))
-        );
+        assert_eq!(p2.tombstone_max_sequence_number, None);
         assert_eq!(p2.chunks.len(), 1);
         assert_eq!(p2.chunks[0].schema().as_arrow(), schema_2_1);
         assert_eq!(p2.chunks[0].batches.len(), 1);
@@ -1615,10 +1600,7 @@ mod tests {
             p3.parquet_max_sequence_number,
             Some(SequenceNumber::new(31))
         );
-        assert_eq!(
-            p3.tombstone_max_sequence_number,
-            Some(SequenceNumber::new(32))
-        );
+        assert_eq!(p3.tombstone_max_sequence_number, None);
         assert_eq!(p3.chunks.len(), 1);
         assert_eq!(p3.chunks[0].schema().as_arrow(), schema_3_1);
         assert_eq!(p3.chunks[0].batches.len(), 1);
@@ -1738,7 +1720,6 @@ mod tests {
                                     partition_id: 1,
                                     status: Some(PartitionStatus {
                                         parquet_max_sequence_number: Some(11),
-                                        tombstone_max_sequence_number: Some(12),
                                     }),
                                 },
                             )),
@@ -1778,10 +1759,7 @@ mod tests {
             p1.parquet_max_sequence_number,
             Some(SequenceNumber::new(11))
         );
-        assert_eq!(
-            p1.tombstone_max_sequence_number,
-            Some(SequenceNumber::new(12))
-        );
+        assert_eq!(p1.tombstone_max_sequence_number, None);
         assert_eq!(p1.chunks.len(), 1);
     }
 
