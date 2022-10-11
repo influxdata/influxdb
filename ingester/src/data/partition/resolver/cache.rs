@@ -9,7 +9,10 @@ use iox_catalog::interface::Catalog;
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 
-use crate::data::partition::{resolver::DeferredSortKey, PartitionData, SortKeyState};
+use crate::data::{
+    partition::{resolver::DeferredSortKey, PartitionData, SortKeyState},
+    table::TableName,
+};
 
 use super::r#trait::PartitionProvider;
 
@@ -189,7 +192,7 @@ where
         shard_id: ShardId,
         namespace_id: NamespaceId,
         table_id: TableId,
-        table_name: Arc<str>,
+        table_name: TableName,
     ) -> PartitionData {
         // Use the cached PartitionKey instead of the caller's partition_key,
         // instead preferring to reuse the already-shared Arc<str> in the cache.

@@ -9,6 +9,8 @@ use snafu::ResultExt;
 use uuid::Uuid;
 use write_summary::ShardProgress;
 
+use crate::data::table::TableName;
+
 use super::{PersistingBatch, QueryableBatch, SnapshotBatch};
 
 /// Data of an IOx partition split into batches
@@ -109,7 +111,7 @@ impl DataBuffer {
     /// Both buffer and snapshots will be empty after this
     pub(super) fn snapshot_to_queryable_batch(
         &mut self,
-        table_name: &Arc<str>,
+        table_name: &TableName,
         partition_id: PartitionId,
         tombstone: Option<Tombstone>,
     ) -> Option<QueryableBatch> {
@@ -129,7 +131,7 @@ impl DataBuffer {
             None
         } else {
             Some(QueryableBatch::new(
-                Arc::clone(table_name),
+                table_name.clone(),
                 partition_id,
                 data,
                 tombstones,
@@ -164,7 +166,7 @@ impl DataBuffer {
         shard_id: ShardId,
         table_id: TableId,
         partition_id: PartitionId,
-        table_name: &Arc<str>,
+        table_name: &TableName,
     ) -> Option<Arc<PersistingBatch>> {
         if self.persisting.is_some() {
             panic!("Unable to snapshot while persisting. This is an unexpected state.")

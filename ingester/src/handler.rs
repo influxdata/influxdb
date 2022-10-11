@@ -445,7 +445,7 @@ mod tests {
     use write_buffer::mock::{MockBufferForReading, MockBufferSharedState};
 
     use super::*;
-    use crate::data::partition::SnapshotBatch;
+    use crate::data::{partition::SnapshotBatch, table::TableName};
 
     #[tokio::test]
     async fn read_from_write_buffer_write_to_mutable_buffer() {
@@ -513,13 +513,15 @@ mod tests {
         // data in there from both writes.
         tokio::time::timeout(Duration::from_secs(2), async {
             let ns_name = ingester.namespace.name.into();
+            let table_name = TableName::from("a");
             loop {
                 let mut has_measurement = false;
 
                 if let Some(data) = ingester.ingester.data.shard(ingester.shard.id) {
                     if let Some(data) = data.namespace(&ns_name) {
                         // verify there's data in the buffer
-                        if let Some((b, _)) = data.snapshot("a", &"1970-01-01".into()).await {
+                        if let Some((b, _)) = data.snapshot(&table_name, &"1970-01-01".into()).await
+                        {
                             if let Some(b) = b.first() {
                                 if b.data.num_rows() > 0 {
                                     has_measurement = true;
@@ -755,13 +757,15 @@ mod tests {
         // data in there
         tokio::time::timeout(Duration::from_secs(1), async move {
             let ns_name = namespace.name.into();
+            let table_name = TableName::from("cpu");
             loop {
                 let mut has_measurement = false;
 
                 if let Some(data) = ingester.data.shard(shard.id) {
                     if let Some(data) = data.namespace(&ns_name) {
                         // verify there's data in the buffer
-                        if let Some((b, _)) = data.snapshot("cpu", &"1970-01-01".into()).await {
+                        if let Some((b, _)) = data.snapshot(&table_name, &"1970-01-01".into()).await
+                        {
                             if let Some(b) = b.first() {
                                 custom_batch_verification(b);
 

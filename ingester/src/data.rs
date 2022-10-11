@@ -34,6 +34,7 @@ pub mod table;
 use self::{
     partition::{resolver::PartitionProvider, PartitionStatus},
     shard::ShardData,
+    table::TableName,
 };
 
 #[cfg(test)]
@@ -449,16 +450,17 @@ impl Persister for IngesterData {
             .record(file_size as u64);
 
         // and remove the persisted data from memory
+        let table_name = TableName::from(&partition_info.table_name);
         namespace
             .mark_persisted(
-                &partition_info.table_name,
+                &table_name,
                 &partition_info.partition.partition_key,
                 iox_metadata.max_sequence_number,
             )
             .await;
         debug!(
             ?partition_id,
-            table_name=%partition_info.table_name,
+            %table_name,
             partition_key=%partition_info.partition.partition_key,
             max_sequence_number=%iox_metadata.max_sequence_number.get(),
             "marked partition as persisted"
@@ -816,8 +818,8 @@ mod tests {
         let (table_id, partition_id) = {
             let sd = data.shards.get(&shard1.id).unwrap();
             let n = sd.namespace(&"foo".into()).unwrap();
-            let mem_table = n.table_data("mem").unwrap();
-            assert!(n.table_data("mem").is_some());
+            let mem_table = n.table_data(&"mem".into()).unwrap();
+            assert!(n.table_data(&"mem".into()).is_some());
             let mem_table = mem_table.write().await;
             let p = mem_table
                 .get_partition_by_key(&"1970-01-01".into())
@@ -961,8 +963,8 @@ mod tests {
         let partition_id;
         let table_id;
         {
-            let mem_table = n.table_data("mem").unwrap();
-            assert!(n.table_data("cpu").is_some());
+            let mem_table = n.table_data(&"mem".into()).unwrap();
+            assert!(n.table_data(&"cpu".into()).is_some());
 
             let mem_table = mem_table.write().await;
             table_id = mem_table.table_id();
@@ -1077,7 +1079,7 @@ mod tests {
             .unwrap();
         assert_eq!(partition_info.partition.sort_key, vec!["time"]);
 
-        let mem_table = n.table_data("mem").unwrap();
+        let mem_table = n.table_data(&"mem".into()).unwrap();
         let mem_table = mem_table.read().await;
 
         // verify that the parquet_max_sequence_number got updated
@@ -1372,7 +1374,7 @@ mod tests {
             .await
             .unwrap();
         {
-            let table_data = data.table_data("mem").unwrap();
+            let table_data = data.table_data(&"mem".into()).unwrap();
             let table = table_data.read().await;
             let p = table.get_partition_by_key(&"1970-01-01".into()).unwrap();
             assert_eq!(
@@ -1388,7 +1390,7 @@ mod tests {
             .await
             .unwrap();
 
-        let table_data = data.table_data("mem").unwrap();
+        let table_data = data.table_data(&"mem".into()).unwrap();
         let table = table_data.read().await;
         let partition = table.get_partition_by_key(&"1970-01-01".into()).unwrap();
         assert_eq!(
@@ -1481,7 +1483,7 @@ mod tests {
                 .unwrap()
                 .namespace(&namespace.name.clone().into())
                 .unwrap()
-                .table_data("mem")
+                .table_data(&"mem".into())
                 .unwrap()
                 .read()
                 .await
@@ -1513,7 +1515,7 @@ mod tests {
                 .unwrap()
                 .namespace(&namespace.name.into())
                 .unwrap()
-                .table_data("mem")
+                .table_data(&"mem".into())
                 .unwrap()
                 .read()
                 .await

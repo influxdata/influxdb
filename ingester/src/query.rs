@@ -28,7 +28,7 @@ use predicate::{
 use schema::{merge::merge_record_batch_schemas, selection::Selection, sort::SortKey, Schema};
 use snafu::{ResultExt, Snafu};
 
-use crate::data::partition::SnapshotBatch;
+use crate::data::{partition::SnapshotBatch, table::TableName};
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
@@ -60,7 +60,7 @@ pub(crate) struct QueryableBatch {
     pub(crate) delete_predicates: Vec<Arc<DeletePredicate>>,
 
     /// This is needed to return a reference for a trait function
-    pub(crate) table_name: Arc<str>,
+    pub(crate) table_name: TableName,
 
     /// Partition ID
     pub(crate) partition_id: PartitionId,
@@ -69,7 +69,7 @@ pub(crate) struct QueryableBatch {
 impl QueryableBatch {
     /// Initilaize a QueryableBatch
     pub(crate) fn new(
-        table_name: Arc<str>,
+        table_name: TableName,
         partition_id: PartitionId,
         data: Vec<Arc<SnapshotBatch>>,
         deletes: Vec<Tombstone>,
