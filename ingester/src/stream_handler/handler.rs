@@ -396,6 +396,12 @@ something clever.",
             if let Some(delta) = duration_since_production {
                 // Update the TTBR metric before potentially sleeping.
                 self.time_to_be_readable.set(delta);
+                trace!(
+                    kafka_topic=%self.topic_name,
+                    shard_index=%self.shard_index,
+                    delta=%delta.as_millis(),
+                    "reporting TTBR for shard (ms)"
+                );
             }
 
             if should_pause {
