@@ -30,8 +30,8 @@ use trace::ctx::SpanContext;
 use write_summary::WriteSummary;
 
 use crate::{
-    data::{FlatIngesterQueryResponse, FlatIngesterQueryResponseStream},
     handler::IngestHandler,
+    querier_handler::{FlatIngesterQueryResponse, FlatIngesterQueryResponseStream},
 };
 
 /// This type is responsible for managing all gRPC services exposed by
@@ -464,8 +464,9 @@ mod tests {
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use schema::selection::Selection;
 
+    use crate::querier_handler::PartitionStatus;
+
     use super::*;
-    use crate::data::partition::PartitionStatus;
 
     #[tokio::test]
     async fn test_get_stream_empty() {

@@ -14,12 +14,9 @@ use generated_types::{
 };
 use influxdb_iox_client::flight::{low_level::LowLevelMessage, Error as FlightError};
 use ingester::{
-    data::{
-        partition::resolver::CatalogPartitionResolver, FlatIngesterQueryResponse, IngesterData,
-        IngesterQueryResponse, Persister,
-    },
+    data::{partition::resolver::CatalogPartitionResolver, IngesterData, Persister},
     lifecycle::mock_handle::MockLifecycleHandle,
-    querier_handler::prepare_data_to_querier,
+    querier_handler::{prepare_data_to_querier, FlatIngesterQueryResponse, IngesterQueryResponse},
 };
 use iox_catalog::interface::get_schema_by_name;
 use iox_query::exec::{Executor, ExecutorConfig};

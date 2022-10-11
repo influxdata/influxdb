@@ -30,11 +30,11 @@ use crate::{
     data::{
         partition::resolver::{CatalogPartitionResolver, PartitionCache, PartitionProvider},
         shard::ShardData,
-        IngesterData, IngesterQueryResponse,
+        IngesterData,
     },
     lifecycle::{run_lifecycle_manager, LifecycleConfig, LifecycleManager},
     poison::PoisonCabinet,
-    querier_handler::prepare_data_to_querier,
+    querier_handler::{prepare_data_to_querier, IngesterQueryResponse},
     stream_handler::{
         handler::SequencedStreamHandler, sink_adaptor::IngestSinkAdaptor,
         sink_instrumentation::SinkInstrumentation, PeriodicWatermarkFetcher,

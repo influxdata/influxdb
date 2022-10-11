@@ -14,7 +14,7 @@ use self::{
     buffer::{BufferBatch, DataBuffer},
     resolver::DeferredSortKey,
 };
-use crate::query::QueryableBatch;
+use crate::{querier_handler::PartitionStatus, query::QueryableBatch};
 
 use super::table::TableName;
 
@@ -28,17 +28,6 @@ pub(crate) struct UnpersistedPartitionData {
     pub(crate) non_persisted: Vec<Arc<SnapshotBatch>>,
     pub(crate) persisting: Option<QueryableBatch>,
     pub(crate) partition_status: PartitionStatus,
-}
-
-/// Status of a partition that has unpersisted data.
-///
-/// Note that this structure is specific to a partition (which itself is bound to a table and
-/// shard)!
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[allow(missing_copy_implementations)]
-pub struct PartitionStatus {
-    /// Max sequence number persisted
-    pub parquet_max_sequence_number: Option<SequenceNumber>,
 }
 
 /// PersistingBatch contains all needed info and data for creating
