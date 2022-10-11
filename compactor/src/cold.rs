@@ -45,7 +45,7 @@ pub async fn compact(compactor: Arc<Compactor>, do_full_compact: bool) -> usize 
         compaction_type,
         CompactionLevel::Initial,
         compact_in_parallel,
-        false, // no split
+        true, // split
         candidates.clone().into(),
     )
     .await;
@@ -57,7 +57,7 @@ pub async fn compact(compactor: Arc<Compactor>, do_full_compact: bool) -> usize 
             compaction_type,
             CompactionLevel::FileNonOverlapped,
             compact_in_parallel,
-            false, // don't split
+            true, // split
             candidates.into(),
         )
         .await;
@@ -812,24 +812,42 @@ mod tests {
 
         compact(compactor, true).await;
 
-        // Should have 1 non-soft-deleted file:
+        // Should have 2 non-soft-deleted file:
         //
-        // - the level 2 file created after combining all 3 level 1 files created by the first step
+        // - the 2 level-2 files created after combining all 3 level 1 files created by the first step
         //   of compaction to compact remaining level 0 files
         let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
-        assert_eq!(files.len(), 1, "{files:?}");
+        assert_eq!(files.len(), 2, "{files:?}");
         let files_and_levels: Vec<_> = files
             .iter()
             .map(|f| (f.id.get(), f.compaction_level))
             .collect();
 
         // The initial files are: L0 1-4, L1 5-6. The first step of cold compaction took files 1-5
-        // and compacted them into a l-1 file 7. The second step of cold compaction
-        // took 6 and 7 and combined them all into file 8.
-        assert_eq!(files_and_levels, vec![(8, CompactionLevel::Final)]);
+        // and compacted them into two l-1 files 7, 8. The second step of cold compaction
+        // took 6, 7, and 8 and combined them all into two files 9 and 10.
+        assert_eq!(
+            files_and_levels,
+            vec![(9, CompactionLevel::Final), (10, CompactionLevel::Final)]
+        );
 
         // ------------------------------------------------
         // Verify the parquet file content
+        // first file:
+        let file = files.pop().unwrap();
+        let batches = table.read_parquet_file(file).await;
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+------+------+-----------------------------+",
+                "| field_int | tag1 | tag2 | tag3 | time                        |",
+                "+-----------+------+------+------+-----------------------------+",
+                "| 421       |      | OH   | 21   | 1970-01-01T00:00:00.000091Z |",
+                "| 81601     |      | PA   | 15   | 1970-01-01T00:00:00.000090Z |",
+                "+-----------+------+------+------+-----------------------------+",
+            ],
+            &batches
+        );
+        // second file
         let file = files.pop().unwrap();
         let batches = table.read_parquet_file(file).await;
         assert_batches_sorted_eq!(
@@ -847,9 +865,7 @@ mod tests {
                 "| 20        |      | VT   | 20   | 1970-01-01T00:00:00.000026Z    |",
                 "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000000025Z |",
                 "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z    |",
-                "| 421       |      | OH   | 21   | 1970-01-01T00:00:00.000091Z    |",
                 "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z    |",
-                "| 81601     |      | PA   | 15   | 1970-01-01T00:00:00.000090Z    |",
                 "+-----------+------+------+------+--------------------------------+",
             ],
             &batches
@@ -1027,14 +1043,14 @@ mod tests {
 
         compact(compactor, true).await;
 
-        // Should have 3 non-soft-deleted files:
+        // Should have 4 non-soft-deleted files:
         //
         // - pf4, the level 1 file untouched because it didn't fit in the memory budget
         // - pf6, the level 2 file untouched because it doesn't overlap anything
-        // - the level 2 file created after combining all 3 level 1 files created by the first step
+        // - two level-2 files created after combining all 3 level 1 files created by the first step
         //   of compaction to compact remaining level 0 files
         let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
-        assert_eq!(files.len(), 3, "{files:?}");
+        assert_eq!(files.len(), 4, "{files:?}");
         let files_and_levels: Vec<_> = files
             .iter()
             .map(|f| (f.id.get(), f.compaction_level))
@@ -1042,20 +1058,35 @@ mod tests {
 
         // File 4 was L1 but didn't fit in the memory budget, so was untouched.
         // File 6 was already L2 and did not overlap with anything, so was untouched.
-        // Cold compaction took files 1, 2, 3, 5 and compacted them into file 7.
+        // Cold compaction took files 1, 2, 3, 5 and compacted them into 2 files 7 and 8.
         assert_eq!(
             files_and_levels,
             vec![
                 (4, CompactionLevel::FileNonOverlapped),
                 (6, CompactionLevel::Final),
                 (7, CompactionLevel::Final),
+                (8, CompactionLevel::Final),
             ]
         );
 
         // ------------------------------------------------
         // Verify the parquet file content
-        let file1 = files.pop().unwrap();
-        let batches = table.read_parquet_file(file1).await;
+        // newly created L-2 with largest timestamp
+        let file = files.pop().unwrap();
+        let batches = table.read_parquet_file(file).await;
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+------+------+-----------------------------+",
+                "| field_int | tag1 | tag2 | tag3 | time                        |",
+                "+-----------+------+------+------+-----------------------------+",
+                "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
+                "+-----------+------+------+------+-----------------------------+",
+            ],
+            &batches
+        );
+        // newly created L-2 with smallest timestamp
+        let file = files.pop().unwrap();
+        let batches = table.read_parquet_file(file).await;
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+------+------+--------------------------------+",
@@ -1068,15 +1099,14 @@ mod tests {
                 "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z    |",
                 "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000000009Z |",
                 "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000000025Z |",
-                "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z    |",
                 "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z    |",
                 "+-----------+------+------+------+--------------------------------+",
             ],
             &batches
         );
-
-        let file0 = files.pop().unwrap();
-        let batches = table.read_parquet_file(file0).await;
+        // available L2 that does not overlap
+        let file = files.pop().unwrap();
+        let batches = table.read_parquet_file(file).await;
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+------+-----------------------------+",
@@ -1084,6 +1114,20 @@ mod tests {
                 "+-----------+------+------+-----------------------------+",
                 "| 421       | OH   | 21   | 1970-01-01T00:00:00.000091Z |",
                 "| 81601     | PA   | 15   | 1970-01-01T00:00:00.000090Z |",
+                "+-----------+------+------+-----------------------------+",
+            ],
+            &batches
+        );
+        // available L1 that did not fit in the memory budget
+        let file = files.pop().unwrap();
+        let batches = table.read_parquet_file(file).await;
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+------+-----------------------------+",
+                "| field_int | tag2 | tag3 | time                        |",
+                "+-----------+------+------+-----------------------------+",
+                "| 1600      | WA   | 10   | 1970-01-01T00:00:00.000028Z |",
+                "| 20        | VT   | 20   | 1970-01-01T00:00:00.000026Z |",
                 "+-----------+------+------+-----------------------------+",
             ],
             &batches
