@@ -3115,9 +3115,9 @@ dependencies = [
 
 [[package]]
 name = "object_store"
-version = "0.5.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2168fee79ee3e7695905bc3a48777d807f82d956f821186fa7a2601c1295a73e"
+checksum = "56ce10a205d9f610ae3532943039c34c145930065ce0c4284134c897fe6073b1"
 dependencies = [
  "async-trait",
  "base64",
@@ -3127,7 +3127,7 @@ dependencies = [
  "itertools",
  "parking_lot 0.12.1",
  "percent-encoding",
- "quick-xml 0.24.1",
+ "quick-xml 0.25.0",
  "rand",
  "reqwest",
  "ring",
@@ -3927,9 +3927,9 @@ dependencies = [
 
 [[package]]
 name = "quick-xml"
-version = "0.24.1"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37dddbbe9df96afafcb8027fcf263971b726530e12f0787f620a7ba5b4846081"
+checksum = "58e21a144a0ffb5fad7b464babcdab934a325ad69b7c0373bcfef5cbd9799ca9"
 dependencies = [
  "memchr",
  "serde",
