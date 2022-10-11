@@ -6,10 +6,8 @@ use data_types::{NamespaceId, PartitionId, PartitionKey, SequenceNumber, ShardId
 use mutable_batch::MutableBatch;
 use write_summary::ShardProgress;
 
-use super::partition::{
-    resolver::PartitionProvider, PartitionData, PartitionStatus, UnpersistedPartitionData,
-};
-use crate::lifecycle::LifecycleHandle;
+use super::partition::{resolver::PartitionProvider, PartitionData, UnpersistedPartitionData};
+use crate::{lifecycle::LifecycleHandle, querier_handler::PartitionStatus};
 
 /// A double-referenced map where [`PartitionData`] can be looked up by
 /// [`PartitionKey`], or ID.
