@@ -937,7 +937,7 @@ mod tests {
         let mut config = make_compactor_config();
 
         // Set the memory budget such that only some of the files will be compacted in a group
-        config.memory_budget_bytes = 1050;
+        config.memory_budget_bytes = 18000;
 
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Arc::new(Compactor::new(
@@ -951,9 +951,6 @@ mod tests {
             Arc::clone(&metrics),
         ));
 
-        // parquet files that are all in the same partition
-        let mut size_overrides = HashMap::<ParquetFileId, i64>::default();
-
         // pf1, L1, overlaps with lp5 (L2)
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp1)
@@ -962,11 +959,9 @@ mod tests {
             .with_max_time(20)
             .with_creation_time(time_38_hour_ago)
             .with_compaction_level(CompactionLevel::FileNonOverlapped);
+        // p1 file size: 1757
         let pf1 = partition.create_parquet_file(builder).await;
-        size_overrides.insert(
-            pf1.parquet_file.id,
-            compactor.config.max_desired_file_size_bytes as i64 + 10,
-        );
+        println!("=== p1 file size: {:#?}", pf1.parquet_file.file_size_bytes);
 
         // pf2, L2, overlaps with lp3 (L1)
         let builder = TestParquetFileBuilder::default()
@@ -976,11 +971,9 @@ mod tests {
             .with_max_time(20_000)
             .with_creation_time(time_38_hour_ago)
             .with_compaction_level(CompactionLevel::Final);
+        // p2 file size: 1777
         let pf2 = partition.create_parquet_file(builder).await;
-        size_overrides.insert(
-            pf2.parquet_file.id,
-            100, // small file
-        );
+        println!("=== p2 file size: {:#?}", pf2.parquet_file.file_size_bytes);
 
         // pf3, L1, overlaps with lp2 (L2)
         let builder = TestParquetFileBuilder::default()
@@ -990,11 +983,9 @@ mod tests {
             .with_max_time(25_000)
             .with_creation_time(time_38_hour_ago)
             .with_compaction_level(CompactionLevel::FileNonOverlapped);
+        // p3 file size: 1777
         let pf3 = partition.create_parquet_file(builder).await;
-        size_overrides.insert(
-            pf3.parquet_file.id,
-            100, // small file
-        );
+        println!("=== p3 file size: {:#?}", pf3.parquet_file.file_size_bytes);
 
         // pf4, L1, does not overlap with any, won't fit in budget with 1, 2, 3, 5
         let builder = TestParquetFileBuilder::default()
@@ -1004,11 +995,9 @@ mod tests {
             .with_max_time(28_000)
             .with_creation_time(time_38_hour_ago)
             .with_compaction_level(CompactionLevel::FileNonOverlapped);
+        // p4 file size: 2183
         let pf4 = partition.create_parquet_file(builder).await;
-        size_overrides.insert(
-            pf4.parquet_file.id,
-            100, // small file
-        );
+        println!("=== p4 file size: {:#?}", pf4.parquet_file.file_size_bytes);
 
         // pf5, L2, overlaps with lp1 (L1)
         let builder = TestParquetFileBuilder::default()
@@ -1018,11 +1007,9 @@ mod tests {
             .with_max_time(25)
             .with_creation_time(time_38_hour_ago)
             .with_compaction_level(CompactionLevel::Final);
+        // p5 file size: 2183
         let pf5 = partition.create_parquet_file(builder).await;
-        size_overrides.insert(
-            pf5.parquet_file.id,
-            100, // small file
-        );
+        println!("=== p5 file size: {:#?}", pf5.parquet_file.file_size_bytes);
 
         // pf6, L2, does not overlap with any
         let builder = TestParquetFileBuilder::default()
@@ -1032,11 +1019,9 @@ mod tests {
             .with_max_time(91000)
             .with_creation_time(time_38_hour_ago)
             .with_compaction_level(CompactionLevel::Final);
+        // p6 file size: 2183
         let pf6 = partition.create_parquet_file(builder).await;
-        size_overrides.insert(
-            pf6.parquet_file.id,
-            100, // small file
-        );
+        println!("=== p6 file size: {:#?}", pf6.parquet_file.file_size_bytes);
 
         // ------------------------------------------------
         // Compact

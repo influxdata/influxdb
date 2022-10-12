@@ -88,17 +88,22 @@ impl ParquetFilesForCompaction {
         let mut level_2 = Vec::with_capacity(parquet_files.len());
 
         for parquet_file in parquet_files {
+            // Estimate the bytes DataFusion needs when scan this file
             let estimated_arrow_bytes = partition.estimated_arrow_bytes(
                 min_num_rows_allocated_per_record_batch_to_datafusion_plan,
                 parquet_file.row_count,
             );
+            // Add bytes need to read this file into memory
+            // as well as the bytes needed to buffer the output
+            let total_estimated_bytes =
+                estimated_arrow_bytes + (2 * parquet_file.file_size_bytes as u64);
             let parquet_file = match size_overrides.get(&parquet_file.id) {
                 Some(size) => CompactorParquetFile::new_with_size_override(
                     parquet_file,
-                    estimated_arrow_bytes,
+                    total_estimated_bytes,
                     *size,
                 ),
-                None => CompactorParquetFile::new(parquet_file, estimated_arrow_bytes),
+                None => CompactorParquetFile::new(parquet_file, total_estimated_bytes),
             };
             match parquet_file.compaction_level() {
                 CompactionLevel::Initial => level_0.push(parquet_file),
@@ -259,9 +264,13 @@ mod tests {
         .await
         .unwrap();
 
+        let parquet_file_file_size_in_mem = 2 * parquet_file.parquet_file.file_size_bytes as u64;
         assert_eq!(
             parquet_files_for_compaction.level_0,
-            vec![CompactorParquetFile::new(parquet_file.parquet_file, 0)]
+            vec![CompactorParquetFile::new(
+                parquet_file.parquet_file,
+                parquet_file_file_size_in_mem
+            )]
         );
 
         assert!(
@@ -304,9 +313,13 @@ mod tests {
             parquet_files_for_compaction.level_0
         );
 
+        let parquet_file_file_size_in_mem = 2 * parquet_file.parquet_file.file_size_bytes as u64;
         assert_eq!(
             parquet_files_for_compaction.level_1,
-            vec![CompactorParquetFile::new(parquet_file.parquet_file, 0)]
+            vec![CompactorParquetFile::new(
+                parquet_file.parquet_file,
+                parquet_file_file_size_in_mem
+            )]
         );
     }
 
@@ -349,9 +362,13 @@ mod tests {
             parquet_files_for_compaction.level_1
         );
 
+        let parquet_file_file_size_in_mem = 2 * parquet_file.parquet_file.file_size_bytes as u64;
         assert_eq!(
             parquet_files_for_compaction.level_2,
-            vec![CompactorParquetFile::new(parquet_file.parquet_file, 0)]
+            vec![CompactorParquetFile::new(
+                parquet_file.parquet_file,
+                parquet_file_file_size_in_mem
+            )]
         );
     }
 
@@ -394,19 +411,31 @@ mod tests {
         .await
         .unwrap();
 
+        let l0_file_size_in_mem = 2 * l0.parquet_file.file_size_bytes as u64;
         assert_eq!(
             parquet_files_for_compaction.level_0,
-            vec![CompactorParquetFile::new(l0.parquet_file, 0)]
+            vec![CompactorParquetFile::new(
+                l0.parquet_file,
+                l0_file_size_in_mem
+            )]
         );
 
+        let l1_file_size_in_mem = 2 * l1.parquet_file.file_size_bytes as u64;
         assert_eq!(
             parquet_files_for_compaction.level_1,
-            vec![CompactorParquetFile::new(l1.parquet_file, 0)]
+            vec![CompactorParquetFile::new(
+                l1.parquet_file,
+                l1_file_size_in_mem
+            )]
         );
 
+        let l2_file_size_in_mem = 2 * l2.parquet_file.file_size_bytes as u64;
         assert_eq!(
             parquet_files_for_compaction.level_2,
-            vec![CompactorParquetFile::new(l2.parquet_file, 0)]
+            vec![CompactorParquetFile::new(
+                l2.parquet_file,
+                l2_file_size_in_mem
+            )]
         );
     }
 
@@ -451,17 +480,31 @@ mod tests {
         .await
         .unwrap();
 
+        let l0_max_seq_50_file_size_in_mem = 2 * l0_max_seq_50.parquet_file.file_size_bytes as u64;
+        let l0_max_seq_100_file_size_in_mem =
+            2 * l0_max_seq_100.parquet_file.file_size_bytes as u64;
+        let l1_file_size_in_mem = 2 * l1.parquet_file.file_size_bytes as u64;
+
         assert_eq!(
             parquet_files_for_compaction.level_0,
             vec![
-                CompactorParquetFile::new(l0_max_seq_50.parquet_file, 0),
-                CompactorParquetFile::new(l0_max_seq_100.parquet_file, 0),
+                CompactorParquetFile::new(
+                    l0_max_seq_50.parquet_file,
+                    l0_max_seq_50_file_size_in_mem
+                ),
+                CompactorParquetFile::new(
+                    l0_max_seq_100.parquet_file,
+                    l0_max_seq_100_file_size_in_mem
+                ),
             ]
         );
 
         assert_eq!(
             parquet_files_for_compaction.level_1,
-            vec![CompactorParquetFile::new(l1.parquet_file, 0)]
+            vec![CompactorParquetFile::new(
+                l1.parquet_file,
+                l1_file_size_in_mem
+            )]
         );
     }
 
@@ -522,23 +565,46 @@ mod tests {
         .await
         .unwrap();
 
+        let l0_file_size_in_mem = 2 * l0.parquet_file.file_size_bytes as u64;
         assert_eq!(
             parquet_files_for_compaction.level_0,
-            vec![CompactorParquetFile::new(l0.parquet_file, 0)]
+            vec![CompactorParquetFile::new(
+                l0.parquet_file,
+                l0_file_size_in_mem
+            )]
         );
 
+        let l1_min_time_6666_file_size_in_mem =
+            2 * l1_min_time_6666.parquet_file.file_size_bytes as u64;
+        let l1_min_time_7777_file_size_in_mem =
+            2 * l1_min_time_7777.parquet_file.file_size_bytes as u64;
+        let l1_min_time_8888_file_size_in_mem =
+            2 * l1_min_time_8888.parquet_file.file_size_bytes as u64;
         assert_eq!(
             parquet_files_for_compaction.level_1,
             vec![
-                CompactorParquetFile::new(l1_min_time_6666.parquet_file, 0),
-                CompactorParquetFile::new(l1_min_time_7777.parquet_file, 0),
-                CompactorParquetFile::new(l1_min_time_8888.parquet_file, 0),
+                CompactorParquetFile::new(
+                    l1_min_time_6666.parquet_file,
+                    l1_min_time_6666_file_size_in_mem
+                ),
+                CompactorParquetFile::new(
+                    l1_min_time_7777.parquet_file,
+                    l1_min_time_7777_file_size_in_mem
+                ),
+                CompactorParquetFile::new(
+                    l1_min_time_8888.parquet_file,
+                    l1_min_time_8888_file_size_in_mem
+                ),
             ]
         );
 
+        let l2_file_size_in_mem = 2 * l2.parquet_file.file_size_bytes as u64;
         assert_eq!(
             parquet_files_for_compaction.level_2,
-            vec![CompactorParquetFile::new(l2.parquet_file, 0)]
+            vec![CompactorParquetFile::new(
+                l2.parquet_file,
+                l2_file_size_in_mem
+            )]
         );
     }
 }
