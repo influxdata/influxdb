@@ -45,7 +45,7 @@ pub struct QuerierConfig {
     ///
     /// If not specified, defaults to the number of cores on the system
     #[clap(
-        long = "--num-query-threads",
+        long = "num-query-threads",
         env = "INFLUXDB_IOX_NUM_QUERY_THREADS",
         action
     )]
@@ -114,7 +114,7 @@ pub struct QuerierConfig {
     /// }
     /// ```
     #[clap(
-        long = "--shard-to-ingesters-file",
+        long = "shard-to-ingesters-file",
         env = "INFLUXDB_IOX_SHARD_TO_INGESTERS_FILE",
         action
     )]
@@ -183,7 +183,7 @@ pub struct QuerierConfig {
     /// }
     /// ```
     #[clap(
-        long = "--shard-to-ingesters",
+        long = "shard-to-ingesters",
         env = "INFLUXDB_IOX_SHARD_TO_INGESTERS",
         action
     )]
@@ -191,7 +191,7 @@ pub struct QuerierConfig {
 
     /// Size of the RAM cache used to store catalog metadata information in bytes.
     #[clap(
-        long = "--ram-pool-metadata-bytes",
+        long = "ram-pool-metadata-bytes",
         env = "INFLUXDB_IOX_RAM_POOL_METADATA_BYTES",
         default_value = "134217728",  // 128MB
         action
@@ -200,7 +200,7 @@ pub struct QuerierConfig {
 
     /// Size of the RAM cache used to store data in bytes.
     #[clap(
-        long = "--ram-pool-data-bytes",
+        long = "ram-pool-data-bytes",
         env = "INFLUXDB_IOX_RAM_POOL_DATA_BYTES",
         default_value = "1073741824",  // 1GB
         action
@@ -209,7 +209,7 @@ pub struct QuerierConfig {
 
     /// Limit the number of concurrent queries.
     #[clap(
-        long = "--max-concurrent-queries",
+        long = "max-concurrent-queries",
         env = "INFLUXDB_IOX_MAX_CONCURRENT_QUERIES",
         default_value = "10",
         action
@@ -222,7 +222,7 @@ pub struct QuerierConfig {
     /// in a query, the query will error. This protects against potentially unbounded
     /// memory growth leading to OOMs in certain pathological queries.
     #[clap(
-        long = "--max-table-query-bytes",
+        long = "max-table-query-bytes",
         env = "INFLUXDB_IOX_MAX_TABLE_QUERY_BYTES",
         default_value = "1073741824",  // 1 GB
         action
@@ -394,7 +394,7 @@ pub struct ShardConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use clap::StructOpt;
+    use clap::Parser;
     use test_helpers::assert_error;
 
     #[test]

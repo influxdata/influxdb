@@ -19,7 +19,7 @@ macro_rules! gen_compactor_config {
             /// Write buffer topic/database that the compactor will be compacting files for. It
             /// won't connect to Kafka, but uses this to get the shards out of the catalog.
             #[clap(
-                long = "--write-buffer-topic",
+                long = "write-buffer-topic",
                 env = "INFLUXDB_IOX_WRITE_BUFFER_TOPIC",
                 default_value = "iox-shared",
                 action
@@ -28,7 +28,7 @@ macro_rules! gen_compactor_config {
 
             /// Write buffer shard index to start (inclusive) range with
             #[clap(
-                long = "--shard-index-range-start",
+                long = "shard-index-range-start",
                 env = "INFLUXDB_IOX_SHARD_INDEX_RANGE_START",
                 action
             )]
@@ -36,7 +36,7 @@ macro_rules! gen_compactor_config {
 
             /// Write buffer shard index to end (inclusive) range with
             #[clap(
-                long = "--shard-index-range-end",
+                long = "shard-index-range-end",
                 env = "INFLUXDB_IOX_SHARD_INDEX_RANGE_END",
                 action
             )]
@@ -46,7 +46,7 @@ macro_rules! gen_compactor_config {
             /// It is a target desired value, rather than a guarantee.
             /// 1024 * 1024 * 25 =  26,214,400 (25MB)
             #[clap(
-                long = "--compaction-max-desired-size-bytes",
+                long = "compaction-max-desired-size-bytes",
                 env = "INFLUXDB_IOX_COMPACTION_MAX_DESIRED_FILE_SIZE_BYTES",
                 default_value = "26214400",
                 action
@@ -60,7 +60,7 @@ macro_rules! gen_compactor_config {
             /// This value must be between (0, 100)
             /// Default is 80
             #[clap(
-                long = "--compaction-percentage-max-file_size",
+                long = "compaction-percentage-max-file_size",
                 env = "INFLUXDB_IOX_COMPACTION_PERCENTAGE_MAX_FILE_SIZE",
                 default_value = "80",
                 action
@@ -77,7 +77,7 @@ macro_rules! gen_compactor_config {
             /// This value must be between (0, 100)
             /// Default is 80
             #[clap(
-                long = "--compaction-split-percentage",
+                long = "compaction-split-percentage",
                 env = "INFLUXDB_IOX_COMPACTION_SPLIT_PERCENTAGE",
                 default_value = "80",
                 action
@@ -87,7 +87,7 @@ macro_rules! gen_compactor_config {
             /// Max number of partitions per shard we want to compact per cycle
             /// Default: 1
             #[clap(
-                long = "--compaction-max-number-partitions-per-shard",
+                long = "compaction-max-number-partitions-per-shard",
                 env = "INFLUXDB_IOX_COMPACTION_MAX_NUMBER_PARTITIONS_PER_SHARD",
                 default_value = "1",
                 action
@@ -99,7 +99,7 @@ macro_rules! gen_compactor_config {
             ///
             /// Default: 1
             #[clap(
-                long = "--compaction-min-number-recent-ingested-files-per-partition",
+                long = "compaction-min-number-recent-ingested-files-per-partition",
                 env = "INFLUXDB_IOX_COMPACTION_MIN_NUMBER_RECENT_INGESTED_FILES_PER_PARTITION",
                 default_value = "1",
                 action
@@ -113,7 +113,7 @@ macro_rules! gen_compactor_config {
             /// Default is
             #[doc = $hot_multiple_default]
             #[clap(
-                long = "--compaction-hot-multiple",
+                long = "compaction-hot-multiple",
                 env = "INFLUXDB_IOX_COMPACTION_HOT_MULTIPLE",
                 default_value = $hot_multiple_default,
                 action
@@ -134,7 +134,7 @@ macro_rules! gen_compactor_config {
             ///
             /// Default is 30 * 1024 * 1024 * 1024 = 32,212,254,720 bytes (30GB).
             #[clap(
-                long = "--compaction-memory-budget-bytes",
+                long = "compaction-memory-budget-bytes",
                 env = "INFLUXDB_IOX_COMPACTION_MEMORY_BUDGET_BYTES",
                 default_value = "32212254720",
                 action
@@ -147,7 +147,7 @@ macro_rules! gen_compactor_config {
             /// to estimate number of rows allocated for each record batch fed into DataFusion plan.
             /// 
             #[clap(
-                long = "--compaction-min-rows-allocated-per-record-batch-to-plan",
+                long = "compaction-min-rows-allocated-per-record-batch-to-plan",
                 env = "INFLUXDB_IOX_COMPACTION_MIN_ROWS_PER_RECORD_BATCH_TO_PLAN",
                 default_value = "8192",
                 action
@@ -160,7 +160,7 @@ macro_rules! gen_compactor_config {
             /// there is a hard maximum on the number of files that can be compacted
             /// at once. This avoids a wide fan-in multi-way merge in the DataFusion plan
             #[clap(
-                long = "--compaction-max-num-compacting-files",
+                long = "compaction-max-num-compacting-files",
                 env = "INFLUXDB_IOX_COMPACTION_MAX_COMPACTING_FILES",
                 default_value = "20",
                 action

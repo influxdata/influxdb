@@ -48,7 +48,15 @@ Logging:
     RUST_LOG=iox_data_generator=info iox_data_generator -s spec.toml -o lp
 "#,
     author,
-    version
+    version,
+    disable_help_flag = true,
+    arg(
+        clap::Arg::new("help")
+            .long("help")
+            .help("Print help information")
+            .action(clap::ArgAction::Help)
+            .global(true)
+    ),
 )]
 struct Config {
     /// Path to the specification TOML file describing the data generation

@@ -148,6 +148,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
     name = "all-in-one",
     about = "Runs in IOx All in One mode, containing router, ingester, compactor and querier."
 )]
+#[group(skip)]
 pub struct Config {
     /// logging options
     #[clap(flatten)]
@@ -159,7 +160,7 @@ pub struct Config {
 
     /// Maximum size of HTTP requests.
     #[clap(
-        long = "--max-http-request-size",
+        long = "max-http-request-size",
         env = "INFLUXDB_IOX_MAX_HTTP_REQUEST_SIZE",
         default_value = "10485760", // 10 MiB
         action,
@@ -177,7 +178,7 @@ pub struct Config {
     /// ingest from the write buffer until persistence goes below this threshold.
     /// The default value is 100 GB (in bytes).
     #[clap(
-        long = "--pause-ingest-size-bytes",
+        long = "pause-ingest-size-bytes",
         env = "INFLUXDB_IOX_PAUSE_INGEST_SIZE_BYTES",
         default_value = "107374182400",
         action
@@ -190,7 +191,7 @@ pub struct Config {
     /// a steady state is expected to take up this much memory.
     /// The default value is 1 GB (in bytes).
     #[clap(
-        long = "--persist-memory-threshold-bytes",
+        long = "persist-memory-threshold-bytes",
         env = "INFLUXDB_IOX_PERSIST_MEMORY_THRESHOLD_BYTES",
         default_value = "1073741824",
         action
@@ -204,7 +205,7 @@ pub struct Config {
     /// NOTE: This number is related, but *NOT* the same as the size
     /// of the memory used to keep the partition buffered.
     #[clap(
-        long = "--persist-partition-size-threshold-bytes",
+        long = "persist-partition-size-threshold-bytes",
         env = "INFLUXDB_IOX_PERSIST_PARTITION_SIZE_THRESHOLD_BYTES",
         default_value = "314572800",
         action
@@ -216,7 +217,7 @@ pub struct Config {
     /// ingester may need to read in the write buffer on restart or recovery. The default value
     /// is 30 minutes (in seconds).
     #[clap(
-        long = "--persist-partition-age-threshold-seconds",
+        long = "persist-partition-age-threshold-seconds",
         env = "INFLUXDB_IOX_PERSIST_PARTITION_AGE_THRESHOLD_SECONDS",
         default_value = "1800",
         action
@@ -226,7 +227,7 @@ pub struct Config {
     /// If a partition has had data buffered and hasn't received a write for this
     /// period of time, it will be persisted. The default value is 300 seconds (5 minutes).
     #[clap(
-        long = "--persist-partition-cold-threshold-seconds",
+        long = "persist-partition-cold-threshold-seconds",
         env = "INFLUXDB_IOX_PERSIST_PARTITION_COLD_THRESHOLD_SECONDS",
         default_value = "300",
         action
@@ -235,7 +236,7 @@ pub struct Config {
 
     /// The address on which IOx will serve Router HTTP API requests
     #[clap(
-        long = "--router-http-bind",
+        long = "router-http-bind",
         // by default, write API requests go to router
         alias = "api-bind",
         env = "INFLUXDB_IOX_ROUTER_HTTP_BIND_ADDR",
@@ -246,7 +247,7 @@ pub struct Config {
 
     /// The address on which IOx will serve Router gRPC API requests
     #[clap(
-        long = "--router-grpc-bind",
+        long = "router-grpc-bind",
         env = "INFLUXDB_IOX_ROUTER_GRPC_BIND_ADDR",
         default_value = DEFAULT_ROUTER_GRPC_BIND_ADDR,
         action,
@@ -255,7 +256,7 @@ pub struct Config {
 
     /// The address on which IOx will serve Querier gRPC API requests
     #[clap(
-        long = "--querier-grpc-bind",
+        long = "querier-grpc-bind",
         // by default, grpc requests go to querier
         alias = "grpc-bind",
         env = "INFLUXDB_IOX_QUERIER_GRPC_BIND_ADDR",
@@ -266,7 +267,7 @@ pub struct Config {
 
     /// The address on which IOx will serve Router Ingester API requests
     #[clap(
-        long = "--ingester-grpc-bind",
+        long = "ingester-grpc-bind",
         env = "INFLUXDB_IOX_INGESTER_GRPC_BIND_ADDR",
         default_value = DEFAULT_INGESTER_GRPC_BIND_ADDR,
         action,
@@ -275,7 +276,7 @@ pub struct Config {
 
     /// The address on which IOx will serve Router Compactor API requests
     #[clap(
-        long = "--compactor-grpc-bind",
+        long = "compactor-grpc-bind",
         env = "INFLUXDB_IOX_COMPACTOR_GRPC_BIND_ADDR",
         default_value = DEFAULT_COMPACTOR_GRPC_BIND_ADDR,
         action,
@@ -284,7 +285,7 @@ pub struct Config {
 
     /// Size of the querier RAM cache used to store catalog metadata information in bytes.
     #[clap(
-        long = "--querier-ram-pool-metadata-bytes",
+        long = "querier-ram-pool-metadata-bytes",
         env = "INFLUXDB_IOX_QUERIER_RAM_POOL_METADATA_BYTES",
         default_value = "134217728",  // 128MB
         action
@@ -293,7 +294,7 @@ pub struct Config {
 
     /// Size of the querier RAM cache used to store data in bytes.
     #[clap(
-        long = "--querier-ram-pool-data-bytes",
+        long = "querier-ram-pool-data-bytes",
         env = "INFLUXDB_IOX_QUERIER_RAM_POOL_DATA_BYTES",
         default_value = "1073741824",  // 1GB
         action
@@ -302,7 +303,7 @@ pub struct Config {
 
     /// Limit the number of concurrent queries.
     #[clap(
-        long = "--querier-max-concurrent-queries",
+        long = "querier-max-concurrent-queries",
         env = "INFLUXDB_IOX_QUERIER_MAX_CONCURRENT_QUERIES",
         default_value = "10",
         action
@@ -315,7 +316,7 @@ pub struct Config {
     /// in a query, the query will error. This protects against potentially unbounded
     /// memory growth leading to OOMs in certain pathological queries.
     #[clap(
-        long = "--querier-max-table-query-bytes",
+        long = "querier-max-table-query-bytes",
         env = "INFLUXDB_IOX_QUERIER_MAX_TABLE_QUERY_BYTES",
         default_value = "1073741824",  // 1 GB
         action
