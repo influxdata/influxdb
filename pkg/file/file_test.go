@@ -1,5 +1,3 @@
-//go:build !windows
-
 package file_test
 
 import (
