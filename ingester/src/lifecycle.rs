@@ -12,7 +12,7 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 use data_types::{NamespaceId, PartitionId, SequenceNumber, ShardId, TableId};
 use iox_time::{Time, TimeProvider};
 use metric::{Metric, U64Counter};
-use observability_deps::tracing::{error, info, warn};
+use observability_deps::tracing::{error, info, trace, warn};
 use parking_lot::Mutex;
 use tokio_util::sync::CancellationToken;
 use tracker::TrackedFutureExt;
@@ -96,6 +96,18 @@ impl LifecycleHandle for LifecycleHandleImpl {
         stats.bytes_written += bytes_written;
         stats.last_write = now;
         stats.rows_written += rows_written;
+
+        trace!(
+            shard_id=%stats.shard_id,
+            partition_id=%stats.partition_id,
+            namespace_id=%stats.namespace_id,
+            table_id=%stats.table_id,
+            first_write=%stats.first_write,
+            last_write=%stats.last_write,
+            bytes_written=%stats.bytes_written,
+            first_sequence_number=?stats.first_sequence_number,
+            "logged write"
+        );
 
         s.total_bytes += bytes_written;
 
@@ -538,6 +550,12 @@ impl LifecycleManager {
                     .map(|s| s.first_sequence_number)
                     .min()
                     .unwrap_or(sequence_number);
+                trace!(
+                    min_unpersisted_sequence_number=?min,
+                    shard_id=%shard_id,
+                    sequence_number=?sequence_number,
+                    "updated min_unpersisted_sequence_number for persisted shard"
+                );
                 persister
                     .update_min_unpersisted_sequence_number(shard_id, min)
                     .await;

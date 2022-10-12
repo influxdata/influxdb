@@ -5,6 +5,7 @@ use std::sync::Arc;
 use arrow::record_batch::RecordBatch;
 use data_types::{NamespaceId, PartitionId, PartitionKey, SequenceNumber, ShardId, TableId};
 use mutable_batch::MutableBatch;
+use observability_deps::tracing::*;
 use schema::{selection::Selection, sort::SortKey};
 use snafu::ResultExt;
 use uuid::Uuid;
@@ -232,19 +233,26 @@ impl PartitionData {
         sequence_number: SequenceNumber,
         mb: MutableBatch,
     ) -> Result<(), super::Error> {
-        match &mut self.data.buffer {
+        let (min_sequence_number, max_sequence_number) = match &mut self.data.buffer {
             Some(buf) => {
                 buf.max_sequence_number = sequence_number.max(buf.max_sequence_number);
                 buf.data.extend_from(&mb).context(super::BufferWriteSnafu)?;
+                (buf.min_sequence_number, buf.max_sequence_number)
             }
             None => {
                 self.data.buffer = Some(BufferBatch {
                     min_sequence_number: sequence_number,
                     max_sequence_number: sequence_number,
                     data: mb,
-                })
+                });
+                (sequence_number, sequence_number)
             }
-        }
+        };
+        trace!(
+            min_sequence_number=?min_sequence_number,
+            max_sequence_number=?max_sequence_number,
+            "buffered write"
+        );
 
         Ok(())
     }

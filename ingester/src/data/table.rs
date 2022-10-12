@@ -4,6 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use data_types::{NamespaceId, PartitionId, PartitionKey, SequenceNumber, ShardId, TableId};
 use mutable_batch::MutableBatch;
+use observability_deps::tracing::*;
 use write_summary::ShardProgress;
 
 use super::partition::{resolver::PartitionProvider, PartitionData, UnpersistedPartitionData};
@@ -159,6 +160,11 @@ impl TableData {
         // skip the write if it has already been persisted
         if let Some(max) = partition_data.max_persisted_sequence_number() {
             if max >= sequence_number {
+                trace!(
+                    shard_id=%self.shard_id,
+                    op_sequence_number=?sequence_number,
+                    "skipping already-persisted write"
+                );
                 return Ok(false);
             }
         }
