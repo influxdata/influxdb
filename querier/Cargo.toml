@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-arrow = "23.0.0"
+arrow = "24.0.0"
 async-trait = "0.1.57"
 backoff = { path = "../backoff" }
 bytes = "1.2"

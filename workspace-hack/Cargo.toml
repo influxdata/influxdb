@@ -14,7 +14,7 @@ publish = false
 ### BEGIN HAKARI SECTION
 [dependencies]
 ahash-ca01ad9e24f5d932 = { package = "ahash", version = "0.7", features = ["std"] }
-arrow = { git = "https://github.com/alamb/arrow-rs.git", branch = "alamb/23.0.0_patched", features = ["comfy-table", "csv", "csv_crate", "dyn_cmp_dict", "flatbuffers", "ipc", "json", "prettyprint", "serde", "serde_json"] }
+arrow = { version = "24", features = ["comfy-table", "csv", "csv_crate", "dyn_cmp_dict", "flatbuffers", "ipc", "json", "prettyprint", "serde_json"] }
 base64 = { version = "0.13", features = ["std"] }
 bitflags = { version = "1" }
 byteorder = { version = "1", features = ["std"] }
@@ -45,7 +45,7 @@ num-traits = { version = "0.2", features = ["i128", "libm", "std"] }
 object_store = { version = "0.5", default-features = false, features = ["aws", "azure", "base64", "cloud", "gcp", "quick-xml", "rand", "reqwest", "ring", "rustls-pemfile", "serde", "serde_json"] }
 once_cell = { version = "1", features = ["alloc", "parking_lot", "parking_lot_core", "race", "std"] }
 parking_lot = { version = "0.12", features = ["arc_lock"] }
-parquet = { git = "https://github.com/alamb/arrow-rs.git", branch = "alamb/23.0.0_patched", features = ["arrow", "async", "base64", "brotli", "experimental", "flate2", "futures", "lz4", "snap", "tokio", "zstd"] }
+parquet = { version = "24", features = ["arrow", "async", "base64", "brotli", "experimental", "flate2", "futures", "lz4", "snap", "tokio", "zstd"] }
 predicates = { version = "2", features = ["diff", "difflib", "float-cmp", "normalize-line-endings", "regex"] }
 prost = { version = "0.11", features = ["prost-derive", "std"] }
 prost-types = { version = "0.11", features = ["std"] }
@@ -64,7 +64,7 @@ sqlx-core = { version = "0.6", default-features = false, features = ["_rt-tokio"
 thrift = { version = "0.16", features = ["log", "server", "threadpool"] }
 tokio = { version = "1", features = ["bytes", "fs", "io-std", "io-util", "libc", "macros", "memchr", "mio", "net", "num_cpus", "once_cell", "parking_lot", "rt", "rt-multi-thread", "signal", "signal-hook-registry", "socket2", "sync", "time", "tokio-macros", "tracing"] }
 tokio-stream = { version = "0.1", features = ["fs", "net", "time"] }
-tokio-util = { version = "0.7", features = ["codec", "tracing"] }
+tokio-util = { version = "0.7", features = ["codec", "io", "tracing"] }
 tonic = { version = "0.8", features = ["async-trait", "axum", "channel", "codegen", "h2", "hyper", "hyper-timeout", "prost", "prost-derive", "prost1", "tokio", "tower", "tracing-futures", "transport"] }
 tower = { version = "0.4", features = ["__common", "balance", "buffer", "discover", "futures-core", "futures-util", "indexmap", "limit", "load", "log", "make", "pin-project", "pin-project-lite", "rand", "ready-cache", "slab", "timeout", "tokio", "tokio-util", "tracing", "util"] }
 tower-http = { version = "0.3", features = ["catch-panic", "map-response-body", "tower", "tracing", "util"] }
@@ -130,7 +130,6 @@ uuid = { version = "1", features = ["private_getrandom", "rng", "std", "v4"] }
 ahash-c38e5c1d305a1b54 = { package = "ahash", version = "0.8", features = ["getrandom", "runtime-rng", "std"] }
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-tokio-util = { version = "0.7", default-features = false, features = ["io"] }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
@@ -140,7 +139,6 @@ once_cell = { version = "1", default-features = false, features = ["unstable"] }
 ahash-c38e5c1d305a1b54 = { package = "ahash", version = "0.8", features = ["getrandom", "runtime-rng", "std"] }
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-tokio-util = { version = "0.7", default-features = false, features = ["io"] }
 
 [target.x86_64-apple-darwin.build-dependencies]
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
@@ -150,7 +148,6 @@ once_cell = { version = "1", default-features = false, features = ["unstable"] }
 ahash-c38e5c1d305a1b54 = { package = "ahash", version = "0.8", features = ["getrandom", "runtime-rng", "std"] }
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-tokio-util = { version = "0.7", default-features = false, features = ["io"] }
 
 [target.aarch64-apple-darwin.build-dependencies]
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
@@ -162,7 +159,6 @@ getrandom = { version = "0.2", default-features = false, features = ["std"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 scopeguard = { version = "1", features = ["use_std"] }
 tokio = { version = "1", default-features = false, features = ["winapi"] }
-tokio-util = { version = "0.7", default-features = false, features = ["io"] }
 winapi = { version = "0.3", default-features = false, features = ["accctrl", "aclapi", "activation", "basetsd", "combaseapi", "consoleapi", "errhandlingapi", "fileapi", "handleapi", "impl-debug", "impl-default", "knownfolders", "libloaderapi", "minwinbase", "minwindef", "namedpipeapi", "ntsecapi", "ntstatus", "objbase", "processenv", "roapi", "shellapi", "shlobj", "std", "stringapiset", "synchapi", "timezoneapi", "winbase", "wincon", "winerror", "winnt", "winreg", "winstring", "winuser", "ws2ipdef", "ws2tcpip", "wtypesbase"] }
 windows-sys = { version = "0.36", features = ["Win32", "Win32_Foundation", "Win32_Networking", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage", "Win32_Storage_FileSystem", "Win32_System", "Win32_System_IO", "Win32_System_LibraryLoader", "Win32_System_Pipes", "Win32_System_SystemServices", "Win32_System_WindowsProgramming"] }
 

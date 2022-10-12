@@ -461,12 +461,6 @@ mod tests {
                     .and(field_ref().eq(lit("f2")).or(col("f2").eq(lit(5.0)))),
                 "Unsupported _field predicate",
             ),
-            (
-                // incorrect type
-                // _field % "gg"
-                field_ref().modulus(lit("gg")),
-                "Unsupported _field predicate",
-            ),
         ];
 
         for (input, exp_error) in cases {

@@ -251,6 +251,7 @@ mod test {
     use std::sync::Arc;
 
     use datafusion::logical_plan::{col, lit};
+    use datafusion_util::lit_dict;
     use predicate::Predicate;
     use schema::merge::SchemaMerger;
 
@@ -280,7 +281,7 @@ mod test {
             Some(10.0),
         ));
 
-        let predicate = Predicate::new().with_expr(col("column1").gt(lit(100.0)));
+        let predicate = Predicate::new().with_expr(col("column1").gt(lit(100.0f64)));
 
         let result = prune_chunks(c1.schema(), &vec![c1], &predicate);
         assert_eq!(result.expect("pruning succeeds"), vec![false]);
@@ -298,7 +299,7 @@ mod test {
             Some(10),
         ));
 
-        let predicate = Predicate::new().with_expr(col("column1").gt(lit(100)));
+        let predicate = Predicate::new().with_expr(col("column1").gt(lit(100i64)));
 
         let result = prune_chunks(c1.schema(), &vec![c1], &predicate);
 
@@ -317,7 +318,7 @@ mod test {
             Some(10),
         ));
 
-        let predicate = Predicate::new().with_expr(col("column1").gt(lit(100)));
+        let predicate = Predicate::new().with_expr(col("column1").gt(lit(100u64)));
 
         let result = prune_chunks(c1.schema(), &vec![c1], &predicate);
         assert_eq!(result.expect("pruning succeeds"), vec![false]);
@@ -371,7 +372,7 @@ mod test {
             Some(10.0),
         ));
 
-        let predicate = Predicate::new().with_expr(col("column1").lt(lit(100.0)));
+        let predicate = Predicate::new().with_expr(col("column1").lt(lit(100.0f64)));
 
         let result = prune_chunks(c1.schema(), &vec![c1], &predicate);
         assert_eq!(result.expect("pruning succeeds"), vec![true]);
@@ -389,7 +390,7 @@ mod test {
             Some(10),
         ));
 
-        let predicate = Predicate::new().with_expr(col("column1").lt(lit(100)));
+        let predicate = Predicate::new().with_expr(col("column1").lt(lit(100i64)));
 
         let result = prune_chunks(c1.schema(), &vec![c1], &predicate);
         assert_eq!(result.expect("pruning succeeds"), vec![true]);
@@ -407,7 +408,7 @@ mod test {
             Some(10),
         ));
 
-        let predicate = Predicate::new().with_expr(col("column1").lt(lit(100)));
+        let predicate = Predicate::new().with_expr(col("column1").lt(lit(100u64)));
 
         let result = prune_chunks(c1.schema(), &vec![c1], &predicate);
         assert_eq!(result.expect("pruning succeeds"), vec![true]);
@@ -487,7 +488,7 @@ mod test {
         let c4 = Arc::new(TestChunk::new("chunk4").with_i64_field_column_no_stats("column1"))
             as Arc<dyn QueryChunk>;
 
-        let predicate = Predicate::new().with_expr(col("column1").gt(lit(100)));
+        let predicate = Predicate::new().with_expr(col("column1").gt(lit(100i64)));
 
         let chunks = vec![c1, c2, c3, c4];
         let schema = merge_schema(&chunks);
@@ -545,7 +546,7 @@ mod test {
             Some(20),
         )) as Arc<dyn QueryChunk>;
 
-        let predicate = Predicate::new().with_expr(col("column1").gt(lit(100)));
+        let predicate = Predicate::new().with_expr(col("column1").gt(lit(100i64)));
 
         let chunks = vec![c1, c2, c3, c4, c5, c6];
         let schema = merge_schema(&chunks);
@@ -583,7 +584,7 @@ mod test {
             Some(4),
         )) as Arc<dyn QueryChunk>;
 
-        let predicate = Predicate::new().with_expr(col("column1").gt(lit(100)));
+        let predicate = Predicate::new().with_expr(col("column1").gt(lit(100i64)));
 
         let chunks = vec![c1, c2, c3];
         let schema = merge_schema(&chunks);
@@ -640,7 +641,7 @@ mod test {
             col("column1")
                 .is_null()
                 .not()
-                .and(col("column1").eq(lit("bar"))),
+                .and(col("column1").eq(lit_dict("bar"))),
         );
 
         let chunks = vec![c1, c2, c3];
@@ -698,8 +699,11 @@ mod test {
                 .with_i64_field_column_with_stats("column2", Some(0), Some(4)),
         ) as Arc<dyn QueryChunk>;
 
-        let predicate =
-            Predicate::new().with_expr(col("column1").gt(lit(100)).and(col("column2").lt(lit(5))));
+        let predicate = Predicate::new().with_expr(
+            col("column1")
+                .gt(lit(100i64))
+                .and(col("column2").lt(lit(5i64))),
+        );
 
         let chunks = vec![c1, c2, c3, c4, c5, c6];
         let schema = merge_schema(&chunks);

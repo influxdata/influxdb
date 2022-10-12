@@ -22,7 +22,8 @@ use datafusion::{
         context::SessionState,
         runtime_env::{RuntimeConfig, RuntimeEnv},
     },
-    logical_plan::{normalize_col, plan::Extension, Expr, LogicalPlan},
+    logical_expr::Extension,
+    logical_plan::{normalize_col, Expr, LogicalPlan},
     prelude::SessionContext,
 };
 

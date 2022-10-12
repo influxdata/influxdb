@@ -121,19 +121,3 @@ inherits = "release"
 codegen-units = 16
 lto = false
 incremental = true
-
-
-# Work around https://github.com/apache/arrow-rs/issues/2779 until fixis released
-#
-# Use https://github.com/alamb/arrow-rs/tree/alamb/23.0.0_patched
-# Created by:
-#
-# git checkout 23.0.0
-# git checkout -b alamb/23.0.0_patched
-# # get fix for #2779
-# git cherry-pick a7cf274765945af4111fddaeec26d672715de9d0
-
-[patch.crates-io]
-arrow = {  git = "https://github.com/alamb/arrow-rs.git", branch="alamb/23.0.0_patched" }
-parquet = {  git = "https://github.com/alamb/arrow-rs.git", branch="alamb/23.0.0_patched" }
-arrow-flight = {  git = "https://github.com/alamb/arrow-rs.git", branch="alamb/23.0.0_patched" }

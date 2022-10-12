@@ -12,7 +12,7 @@
 +---------------+---------------------------------------------------------------------------------------------------------------------+
 | plan_type     | plan                                                                                                                |
 +---------------+---------------------------------------------------------------------------------------------------------------------+
-| logical_plan  | Projection: #h2o.city, #h2o.other_temp, #h2o.state, #h2o.temp, #h2o.time                                            |
+| logical_plan  | Projection: h2o.city, h2o.other_temp, h2o.state, h2o.temp, h2o.time                                                 |
 |               |   TableScan: h2o projection=[city, other_temp, state, temp, time]                                                   |
 | physical_plan | ProjectionExec: expr=[city@0 as city, other_temp@1 as other_temp, state@2 as state, temp@3 as temp, time@4 as time] |
 |               |   DeduplicateExec: [city@0 ASC,state@2 ASC,time@4 ASC]                                                              |
@@ -35,7 +35,7 @@
 +---------------+-------------------------------------------------------------------------------------+
 | plan_type     | plan                                                                                |
 +---------------+-------------------------------------------------------------------------------------+
-| logical_plan  | Projection: #h2o.temp, #h2o.other_temp, #h2o.time                                   |
+| logical_plan  | Projection: h2o.temp, h2o.other_temp, h2o.time                                      |
 |               |   TableScan: h2o projection=[other_temp, temp, time]                                |
 | physical_plan | ProjectionExec: expr=[temp@1 as temp, other_temp@0 as other_temp, time@2 as time]   |
 |               |   ProjectionExec: expr=[other_temp@1 as other_temp, temp@3 as temp, time@4 as time] |

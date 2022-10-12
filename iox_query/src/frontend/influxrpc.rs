@@ -1886,7 +1886,8 @@ fn cheap_chunk_first(mut chunks: Vec<Arc<dyn QueryChunk>>) -> Vec<Arc<dyn QueryC
 
 #[cfg(test)]
 mod tests {
-    use datafusion::logical_plan::lit;
+    use datafusion::logical_plan::{lit, lit_timestamp_nano};
+    use datafusion_util::lit_dict;
     use futures::{future::BoxFuture, FutureExt};
     use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
 
@@ -2453,6 +2454,7 @@ mod tests {
     where
         T: Fn(Arc<TestDatabase>, InfluxRpcPredicate) -> BoxFuture<'static, ()> + Send + Sync,
     {
+        test_helpers::maybe_start_logging();
         // ------------- Test 1 ----------------
 
         // this is what happens with a grpc predicate on a tag
@@ -2469,7 +2471,7 @@ mod tests {
         let silly_predicate = Predicate::new().with_expr(expr.eq(lit("bar")));
 
         // verify that the predicate was rewritten to `foo = 'bar'`
-        let expr = col("foo").eq(lit("bar"));
+        let expr = col("foo").eq(lit_dict("bar"));
         let expected_predicate = Predicate::new().with_expr(expr);
 
         run_test_with_predicate(&func, silly_predicate, expected_predicate).await;
@@ -2497,11 +2499,11 @@ mod tests {
             col("_measurement")
                 .eq(lit("foo"))
                 .or(col("_measurement").eq(lit("h2o")))
-                .and(col("time").gt(lit(5))),
+                .and(col("time").gt(lit_timestamp_nano(5))),
         );
 
         // verify that the predicate was rewritten to time > 5
-        let expr = col("time").gt(lit(5));
+        let expr = col("time").gt(lit_timestamp_nano(5));
 
         let expected_predicate = Predicate::new().with_expr(expr);
         run_test_with_predicate(&func, silly_predicate, expected_predicate).await;

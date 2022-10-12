@@ -877,6 +877,7 @@ fn format_comparison(v: i32, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 #[cfg(test)]
 mod tests {
     use arrow::datatypes::DataType;
+    use datafusion_util::lit_dict;
     use generated_types::node::Type as RPCNodeType;
     use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
     use schema::{Schema, SchemaBuilder};
@@ -1294,9 +1295,9 @@ mod tests {
         make_tag_ref_node(TAG_KEY_MEASUREMENT, field_name)
     }
 
-    /// returns (RPCNode, and expected_expr for the "host > 5.0")
+    /// returns (RPCNode, and expected_expr for the "host = 'h'")
     fn make_host_comparison() -> (RPCNode, Vec<Expr>) {
-        // host > 5.0
+        // host = "h"
         let field_ref = RPCNode {
             node_type: RPCNodeType::FieldRef as i32,
             children: vec![],
@@ -1305,15 +1306,15 @@ mod tests {
         let iconst = RPCNode {
             node_type: RPCNodeType::Literal as i32,
             children: vec![],
-            value: Some(RPCValue::FloatValue(5.0)),
+            value: Some(RPCValue::StringValue("h".into())),
         };
         let comparison = RPCNode {
             node_type: RPCNodeType::ComparisonExpression as i32,
             children: vec![field_ref, iconst],
-            value: Some(RPCValue::Comparison(RPCComparison::Gt as i32)),
+            value: Some(RPCValue::Comparison(RPCComparison::Equal as i32)),
         };
 
-        let expected_expr = col("host").gt(lit(5.0));
+        let expected_expr = col("host").eq(lit_dict("h"));
 
         (comparison, vec![expected_expr])
     }
@@ -1632,7 +1633,7 @@ mod tests {
             root: Some(comparison),
         });
         assert_eq!(
-            "(FieldRef:host > 5)",
+            r#"(FieldRef:host == "h")"#,
             format!("{}", displayable_predicate(rpc_pred.as_ref()))
         );
     }

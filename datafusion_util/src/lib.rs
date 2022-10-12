@@ -9,6 +9,7 @@ use std::task::{Context, Poll};
 
 use datafusion::arrow::array::BooleanArray;
 use datafusion::arrow::compute::filter_record_batch;
+use datafusion::arrow::datatypes::DataType;
 use datafusion::common::DataFusionError;
 use datafusion::datasource::MemTable;
 use datafusion::execution::context::TaskContext;
@@ -38,6 +39,7 @@ use watch::WatchedTask;
 /// A ==> Vec[A]
 /// A AND B AND C ==> Vec[A, B, C]
 /// ```
+/// TODO rewrite using datafusion `split_conjunction`
 pub fn disassemble_conjuct(expr: Expr) -> Vec<Expr> {
     let mut exprs = vec![];
     disassemble_conjuct_impl(expr, &mut exprs);
@@ -89,6 +91,16 @@ impl AsExpr for Expr {
     fn as_expr(&self) -> Expr {
         self.clone()
     }
+}
+
+/// Creates an `Expr` that represents a Dictionary encoded string (e.g
+/// the type of constant that a tag would be compared to)
+pub fn lit_dict(value: &str) -> Expr {
+    // expr has been type coerced
+    lit(ScalarValue::Dictionary(
+        Box::new(DataType::Int32),
+        Box::new(ScalarValue::new_utf8(value)),
+    ))
 }
 
 /// Creates expression like:
@@ -375,7 +387,7 @@ mod tests {
 
         let ts_predicate_expr = make_range_expr(101, 202, "time");
         let expected_string =
-            "TimestampNanosecond(101, None) <= #time AND #time < TimestampNanosecond(202, None)";
+            "TimestampNanosecond(101, None) <= time AND time < TimestampNanosecond(202, None)";
         let actual_string = format!("{:?}", ts_predicate_expr);
 
         assert_eq!(actual_string, expected_string);

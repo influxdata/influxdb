@@ -1056,7 +1056,7 @@ impl Deduplicater {
         trace!(?del_preds, "Chunk delete predicates");
         let negated_del_expr_val = Predicate::negated_expr(&del_preds[..]);
         if let Some(negated_del_expr) = negated_del_expr_val {
-            debug!(?negated_del_expr, "Logical negated expressions");
+            debug!(?negated_del_expr, "Logical negated delete predicates");
 
             let negated_physical_del_expr =
                 df_physical_expr(&*input, negated_del_expr).context(InternalFilterSnafu)?;
@@ -1138,8 +1138,9 @@ impl Deduplicater {
         debug!(?sort_exprs, chunk_id=?chunk.id(), "Sort Expression for the sort operator of chunk");
 
         // Create SortExec operator
+        let fetch = None;
         Ok(Arc::new(
-            SortExec::try_new(sort_exprs, input).context(InternalSortSnafu)?,
+            SortExec::try_new(sort_exprs, input, fetch).context(InternalSortSnafu)?,
         ))
     }
 

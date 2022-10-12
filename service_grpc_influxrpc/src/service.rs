@@ -1611,7 +1611,8 @@ where
 mod tests {
     use super::*;
     use data_types::ChunkId;
-    use datafusion::logical_plan::{col, lit, Expr};
+    use datafusion::logical_plan::{col, Expr};
+    use datafusion_util::lit_dict;
     use futures::Future;
     use generated_types::{i_ox_testing_client::IOxTestingClient, tag_key_predicate::Value};
     use influxdb_storage_client::{
@@ -2628,7 +2629,7 @@ mod tests {
             // should NOT have CASE nonsense for handling empty strings as
             // that should bave been optimized by the time it gets to
             // the chunk
-            .with_expr(col("state").eq(lit("MA")));
+            .with_expr(col("state").eq(lit_dict("MA")));
 
         fixture
             .expect_predicates(
@@ -2691,7 +2692,7 @@ mod tests {
             // comparison to empty string conversion results in a messier translation
             // to handle backwards compatibility semantics
             // #state IS NULL OR #state = Utf8("")
-            .with_expr(col("state").is_null().or(col("state").eq(lit(""))));
+            .with_expr(col("state").is_null().or(col("state").eq(lit_dict(""))));
 
         fixture
             .expect_predicates(
@@ -3468,7 +3469,7 @@ mod tests {
     ///
     /// state="MA"
     fn make_state_ma_expr() -> Expr {
-        col("state").eq(lit("MA"))
+        col("state").eq(lit_dict("MA"))
     }
 
     /// Convert to a Vec<String> to facilitate comparison with results of client

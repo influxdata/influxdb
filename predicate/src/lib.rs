@@ -67,7 +67,7 @@ pub const EMPTY_PREDICATE: Predicate = Predicate {
 ///
 /// assert_eq!(
 ///   p.to_string(),
-///   "Predicate range: [1 - 100] exprs: [#foo = Int32(42)]"
+///   "Predicate range: [1 - 100] exprs: [foo = Int32(42)]"
 /// );
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd)]
@@ -727,7 +727,7 @@ mod tests {
 
         assert_eq!(
             p.to_string(),
-            "Predicate range: [1 - 100] exprs: [#foo = Int32(42) AND #bar < Int32(11)]"
+            "Predicate range: [1 - 100] exprs: [foo = Int32(42) AND bar < Int32(11)]"
         );
     }
 
@@ -740,7 +740,7 @@ mod tests {
 
         assert_eq!(
             p.to_string(),
-            "Predicate field_columns: {f1, f2} range: [1 - 100] exprs: [#foo = Int32(42)]"
+            "Predicate field_columns: {f1, f2} range: [1 - 100] exprs: [foo = Int32(42)]"
         );
     }
 

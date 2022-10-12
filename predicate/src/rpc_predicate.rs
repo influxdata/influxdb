@@ -10,8 +10,9 @@ use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::ExecutionProps;
 use datafusion::logical_expr::lit;
 use datafusion::logical_plan::{
-    Column, Expr, ExprRewritable, ExprSchema, ExprSchemable, ExprSimplifiable, SimplifyInfo,
+    Column, Expr, ExprRewritable, ExprSchema, ExprSchemable, SimplifyInfo, ToDFSchema,
 };
+use datafusion::optimizer::expr_simplifier::ExprSimplifier;
 use observability_deps::tracing::{debug, trace};
 use schema::Schema;
 use std::collections::BTreeSet;
@@ -195,10 +196,15 @@ fn normalize_predicate(
 
     let mut field_value_exprs = vec![];
 
+    // TODO find some better interface than a DFSchema :vomit:
+    let df_schema = schema.as_arrow().to_dfschema_ref()?;
+
     predicate.exprs = predicate
         .exprs
         .into_iter()
         .map(|e| {
+            let simplifier = ExprSimplifier::new(SimplifyAdapter::new(schema.as_ref()));
+
             debug!(?e, "rewriting expr");
 
             let e = rewrite_measurement_references(table_name, e)
@@ -219,15 +225,18 @@ fn normalize_predicate(
                 // apply IOx specific rewrites (that unlock other simplifications)
                 .and_then(rewrite::rewrite)
                 .map(|e| log_rewrite(e, "rewrite"))
+                // apply type_coercing so datafuson simplification can deal with this
+                .and_then(|e| simplifier.coerce(e, Arc::clone(&df_schema)))
+                .map(|e| log_rewrite(e, "coerce_expr"))
                 // Call DataFusion simplification logic
                 .and_then(|e| {
-                    let adapter = SimplifyAdapter::new(schema.as_ref());
                     // simplify twice to ensure "full" cleanup
-                    e.simplify(&adapter)?.simplify(&adapter)
+                    let e = simplifier.simplify(e)?;
+                    simplifier.simplify(e)
                 })
                 .map(|e| log_rewrite(e, "simplify_expr"))
                 .and_then(rewrite::simplify_predicate)
-                .map(|e| log_rewrite(e, "simplify_expr"));
+                .map(|e| log_rewrite(e, "simplify_predicate"));
 
             debug!(?e, "rewritten expr");
             e
@@ -318,6 +327,7 @@ mod tests {
         logical_plan::{col, lit},
         scalar::ScalarValue,
     };
+    use datafusion_util::lit_dict;
     use test_helpers::assert_contains;
 
     #[test]
@@ -330,7 +340,7 @@ mod tests {
         )
         .unwrap();
 
-        let expected = Predicate::new().with_expr(col("t1").eq(lit("f1")));
+        let expected = Predicate::new().with_expr(col("t1").eq(lit_dict("f1")));
 
         assert_eq!(predicate, expected);
     }
@@ -407,7 +417,7 @@ mod tests {
         )
         .unwrap_err();
 
-        let expected = r#"Error during planning: Unsupported _field predicate: #t1 = Utf8("my_awesome_tag_value") OR #_field = Utf8("f2")"#;
+        let expected = r#"Error during planning: Unsupported _field predicate: t1 = Utf8("my_awesome_tag_value") OR _field = Utf8("f2")"#;
 
         assert_contains!(err.to_string(), expected);
     }

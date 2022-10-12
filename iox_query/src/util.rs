@@ -15,13 +15,15 @@ use arrow::{
 
 use data_types::TimestampMinMax;
 use datafusion::{
+    self,
     datasource::MemTable,
     error::{DataFusionError, Result as DatafusionResult},
     execution::context::ExecutionProps,
     logical_plan::{
         lit, provider_as_source, DFSchema, Expr, ExprRewriter, ExprSchemable, LogicalPlan,
-        LogicalPlanBuilder,
+        LogicalPlanBuilder, ToDFSchema,
     },
+    optimizer::expr_simplifier::{ExprSimplifier, SimplifyContext},
     physical_expr::create_physical_expr,
     physical_plan::{
         expressions::{col as physical_col, PhysicalSortExpr},
@@ -111,34 +113,25 @@ pub fn arrow_sort_key_exprs(
         .collect()
 }
 
-/// Build a datafusion physical expression from its logical one
+/// Build a datafusion physical expression from a logical one
 pub fn df_physical_expr(
     input: &dyn ExecutionPlan,
     expr: Expr,
 ) -> std::result::Result<Arc<dyn PhysicalExpr>, DataFusionError> {
-    df_physical_expr_from_schema_and_expr(input.schema(), expr)
-}
+    let schema = input.schema();
 
-/// Build a datafusion physical expression from its logical one and a provided schema
-pub fn df_physical_expr_from_schema_and_expr(
-    schema: Arc<ArrowSchema>,
-    expr: Expr,
-) -> std::result::Result<Arc<dyn PhysicalExpr>, DataFusionError> {
-    let execution_props = ExecutionProps::new();
+    let df_schema = Arc::clone(&schema).to_dfschema_ref()?;
 
-    let input_physical_schema = schema;
-    let input_logical_schema: DFSchema = input_physical_schema.as_ref().clone().try_into()?;
+    let props = ExecutionProps::new();
+    let simplifier =
+        ExprSimplifier::new(SimplifyContext::new(&props).with_schema(Arc::clone(&df_schema)));
 
-    trace!(%expr, "logical expression");
-    trace!(%input_logical_schema, "input logical schema");
-    trace!(%input_physical_schema, "input physical schema");
+    // apply type coercion here to ensure types match
+    trace!(%df_schema, "input schema");
+    let expr = simplifier.coerce(expr, Arc::clone(&df_schema))?;
+    trace!(%expr, "coerced logical expression");
 
-    create_physical_expr(
-        &expr,
-        &input_logical_schema,
-        &input_physical_schema,
-        &execution_props,
-    )
+    create_physical_expr(&expr, df_schema.as_ref(), schema.as_ref(), &props)
 }
 
 /// Rewrites the provided expr such that references to any column that

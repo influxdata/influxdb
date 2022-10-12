@@ -1,6 +1,6 @@
 use datafusion::{
     error::Result,
-    logical_expr::binary_expr,
+    logical_expr::{binary_expr, expr::Case},
     logical_plan::{Expr, ExprRewritable, ExprRewriter, Operator},
 };
 
@@ -68,7 +68,7 @@ impl IOxExprRewriter {
 /// if we can rewrite this case statement
 fn is_case(expr: &Expr) -> bool {
     // don't support the `CASE <expr> WHEN <..> ELSE <..> END` syntax yet
-    matches!(expr, Expr::Case { expr: None, .. })
+    matches!(expr, Expr::Case(Case { expr: None, .. }))
 }
 
 /// Returns true if this binary operator returns a boolean value
@@ -124,21 +124,21 @@ fn inline_case(case_on_left: bool, left: Expr, right: Expr, op: Operator) -> Exp
     let (when_then_expr, else_expr, other) = match (case_on_left, left, right) {
         (
             true,
-            Expr::Case {
+            Expr::Case(Case {
                 expr: None,
                 when_then_expr,
                 else_expr,
-            },
+            }),
             right,
         ) => (when_then_expr, else_expr, right),
         (
             false,
             left,
-            Expr::Case {
+            Expr::Case(Case {
                 expr: None,
                 when_then_expr,
                 else_expr,
-            },
+            }),
         ) => (when_then_expr, else_expr, left),
         _ => unreachable!(),
     };
@@ -163,11 +163,11 @@ fn inline_case(case_on_left: bool, left: Expr, right: Expr, op: Operator) -> Exp
         })
     });
 
-    Expr::Case {
+    Expr::Case(Case {
         expr: None,
         when_then_expr,
         else_expr,
-    }
+    })
 }
 
 /// see docs on [simplify_predicate]

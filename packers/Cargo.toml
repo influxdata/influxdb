@@ -5,11 +5,11 @@ authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
 edition = "2021"
 
 [dependencies] # In alphabetical order
-arrow = { version = "23.0.0", features = ["prettyprint"] }
+arrow = { version = "24.0.0", features = ["prettyprint"] }
 influxdb_tsm = { path = "../influxdb_tsm" }
 schema = { path = "../schema" }
 snafu = "0.7"
-parquet = "23.0.0"
+parquet = "24.0.0"
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies] # In alphabetical order

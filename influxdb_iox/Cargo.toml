@@ -40,7 +40,7 @@ trogging = { path = "../trogging", default-features = false, features = ["clap"]
 
 # Crates.io dependencies, in alphabetical order
 nu-ansi-term = "0.46.0"
-arrow = { version = "23.0.0", features = ["prettyprint"] }
+arrow = { version = "24.0.0", features = ["prettyprint"] }
 backtrace = "0.3"
 bytes = "1.2"
 clap = { version = "4", features = ["derive", "env"] }
