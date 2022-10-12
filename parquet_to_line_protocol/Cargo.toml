@@ -10,7 +10,7 @@ datafusion = { path = "../datafusion" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 futures = {version = "0.3"}
 num_cpus = "1.13.1"
-object_store = { version = "0.5.0" }
+object_store = { version = "0.5.1" }
 parquet_file  = { path = "../parquet_file" }
 schema = { path = "../schema" }
 tokio = "1.0"

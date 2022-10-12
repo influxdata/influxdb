@@ -14,12 +14,9 @@ use generated_types::{
 };
 use influxdb_iox_client::flight::{low_level::LowLevelMessage, Error as FlightError};
 use ingester::{
-    data::{
-        partition::resolver::CatalogPartitionResolver, FlatIngesterQueryResponse, IngesterData,
-        IngesterQueryResponse, Persister,
-    },
-    lifecycle::mock_handle::NoopLifecycleHandle,
-    querier_handler::prepare_data_to_querier,
+    data::{partition::resolver::CatalogPartitionResolver, IngesterData, Persister},
+    lifecycle::mock_handle::MockLifecycleHandle,
+    querier_handler::{prepare_data_to_querier, FlatIngesterQueryResponse, IngesterQueryResponse},
 };
 use iox_catalog::interface::get_schema_by_name;
 use iox_query::exec::{Executor, ExecutorConfig};
@@ -722,7 +719,7 @@ impl MockIngester {
     /// Takes `&self mut` because our partioning implementation does not work with concurrent
     /// access.
     async fn buffer_operation(&mut self, dml_operation: DmlOperation) {
-        let lifecycle_handle = NoopLifecycleHandle {};
+        let lifecycle_handle = MockLifecycleHandle::default();
 
         let should_pause = self
             .ingester_data
@@ -752,7 +749,32 @@ impl MockIngester {
                 .map(|f| f.id)
                 .collect();
 
-            self.ingester_data.persist(*partition_id).await;
+            let p = self
+                .catalog
+                .catalog
+                .repositories()
+                .await
+                .partitions()
+                .get_by_id(*partition_id)
+                .await
+                .unwrap()
+                .expect("partition not found");
+
+            let namespace_id = self
+                .catalog
+                .catalog
+                .repositories()
+                .await
+                .tables()
+                .get_by_id(p.table_id)
+                .await
+                .unwrap()
+                .expect("table does not exist")
+                .namespace_id;
+
+            self.ingester_data
+                .persist(p.shard_id, namespace_id, p.table_id, *partition_id)
+                .await;
 
             result.extend(
                 self.catalog
@@ -1022,9 +1044,6 @@ impl QueryDataAdapter {
                                 status: Some(PartitionStatus {
                                     parquet_max_sequence_number: status
                                         .parquet_max_sequence_number
-                                        .map(|x| x.get()),
-                                    tombstone_max_sequence_number: status
-                                        .tombstone_max_sequence_number
                                         .map(|x| x.get()),
                                 }),
                             },

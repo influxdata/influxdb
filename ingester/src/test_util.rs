@@ -9,17 +9,16 @@ use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_eq;
 use bitflags::bitflags;
 use data_types::{
-    CompactionLevel, NamespaceId, NonEmptyString, PartitionId, PartitionKey, Sequence,
-    SequenceNumber, ShardId, ShardIndex, TableId, Timestamp, Tombstone, TombstoneId,
+    CompactionLevel, NamespaceId, PartitionId, PartitionKey, Sequence, SequenceNumber, ShardId,
+    ShardIndex, TableId,
 };
-use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
+use dml::{DmlMeta, DmlOperation, DmlWrite};
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use iox_query::test::{raw_data, TestChunk};
 use iox_time::{SystemProvider, Time};
 use mutable_batch_lp::lines_to_batches;
 use object_store::memory::InMemory;
 use parquet_file::metadata::IoxMetadata;
-use predicate::delete_predicate::parse_delete_predicate;
 use schema::sort::SortKey;
 use uuid::Uuid;
 
@@ -28,30 +27,9 @@ use crate::{
         partition::{resolver::CatalogPartitionResolver, PersistingBatch, SnapshotBatch},
         IngesterData,
     },
-    lifecycle::{LifecycleConfig, LifecycleHandle, LifecycleManager},
+    lifecycle::{LifecycleConfig, LifecycleManager},
     query::QueryableBatch,
 };
-
-/// Create tombstone for testing
-pub(crate) fn create_tombstone(
-    id: i64,
-    table_id: i64,
-    shard_id: i64,
-    seq_num: i64,
-    min_time: i64,
-    max_time: i64,
-    predicate: &str,
-) -> Tombstone {
-    Tombstone {
-        id: TombstoneId::new(id),
-        table_id: TableId::new(table_id),
-        shard_id: ShardId::new(shard_id),
-        sequence_number: SequenceNumber::new(seq_num),
-        min_time: Timestamp::new(min_time),
-        max_time: Timestamp::new(max_time),
-        serialized_predicate: predicate.to_string(),
-    }
-}
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn make_meta(
@@ -93,15 +71,8 @@ pub(crate) fn make_persisting_batch(
     partition_id: i64,
     object_store_id: Uuid,
     batches: Vec<Arc<RecordBatch>>,
-    tombstones: Vec<Tombstone>,
 ) -> Arc<PersistingBatch> {
-    let queryable_batch = make_queryable_batch_with_deletes(
-        table_name,
-        partition_id,
-        seq_num_start,
-        batches,
-        tombstones,
-    );
+    let queryable_batch = make_queryable_batch(table_name, partition_id, seq_num_start, batches);
     Arc::new(PersistingBatch {
         shard_id: ShardId::new(shard_id),
         table_id: TableId::new(table_id),
@@ -117,16 +88,6 @@ pub(crate) fn make_queryable_batch(
     seq_num_start: i64,
     batches: Vec<Arc<RecordBatch>>,
 ) -> Arc<QueryableBatch> {
-    make_queryable_batch_with_deletes(table_name, partition_id, seq_num_start, batches, vec![])
-}
-
-pub(crate) fn make_queryable_batch_with_deletes(
-    table_name: &str,
-    partition_id: i64,
-    seq_num_start: i64,
-    batches: Vec<Arc<RecordBatch>>,
-    tombstones: Vec<Tombstone>,
-) -> Arc<QueryableBatch> {
     // make snapshots for the batches
     let mut snapshots = vec![];
     let mut seq_num = seq_num_start;
@@ -140,7 +101,6 @@ pub(crate) fn make_queryable_batch_with_deletes(
         table_name.into(),
         PartitionId::new(partition_id),
         snapshots,
-        tombstones,
     ))
 }
 
@@ -655,61 +615,20 @@ pub(crate) async fn make_ingester_data(two_partitions: bool, loc: DataLocation) 
         let _ignored = ingester
             .shard(shard_id)
             .unwrap()
-            .namespace(TEST_NAMESPACE)
+            .namespace(&TEST_NAMESPACE.into())
             .unwrap()
-            .snapshot_to_persisting(TEST_TABLE, &PartitionKey::from(TEST_PARTITION_1))
+            .snapshot_to_persisting(&TEST_TABLE.into(), &PartitionKey::from(TEST_PARTITION_1))
             .await;
     } else if loc.contains(DataLocation::SNAPSHOT) {
         // move partition 1 data to snapshot
         let _ignored = ingester
             .shard(shard_id)
             .unwrap()
-            .namespace(TEST_NAMESPACE)
+            .namespace(&TEST_NAMESPACE.into())
             .unwrap()
-            .snapshot(TEST_TABLE, &PartitionKey::from(TEST_PARTITION_1))
+            .snapshot(&TEST_TABLE.into(), &PartitionKey::from(TEST_PARTITION_1))
             .await;
     }
-
-    ingester
-}
-
-pub(crate) async fn make_ingester_data_with_tombstones(loc: DataLocation) -> IngesterData {
-    // Whatever data because they won't be used in the tests
-    let metrics: Arc<metric::Registry> = Default::default();
-    let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-    let object_store = Arc::new(InMemory::new());
-    let exec = Arc::new(iox_query::exec::Executor::new(1));
-    let lifecycle = LifecycleManager::new(
-        LifecycleConfig::new(
-            200_000_000,
-            100_000_000,
-            100_000_000,
-            Duration::from_secs(100_000_000),
-            Duration::from_secs(100_000_000),
-            100_000_000,
-        ),
-        Arc::clone(&metrics),
-        Arc::new(SystemProvider::default()),
-    );
-
-    // Make data for one shard and two tables
-    let shard_index = ShardIndex::new(0);
-    let (shard_id, _, _) =
-        populate_catalog(&*catalog, shard_index, TEST_NAMESPACE, TEST_TABLE).await;
-
-    let ingester = IngesterData::new(
-        object_store,
-        Arc::clone(&catalog),
-        [(shard_id, shard_index)],
-        exec,
-        Arc::new(CatalogPartitionResolver::new(catalog)),
-        backoff::BackoffConfig::default(),
-        metrics,
-    );
-
-    // Make partitions per requested
-    make_one_partition_with_tombstones(&ingester, &lifecycle.handle(), loc, shard_index, shard_id)
-        .await;
 
     ingester
 }
@@ -781,133 +700,6 @@ pub(crate) fn make_partitions(two_partitions: bool, shard_index: ShardIndex) -> 
     }
 
     ops
-}
-
-/// Make data for one partition with tombstones
-async fn make_one_partition_with_tombstones(
-    ingester: &IngesterData,
-    lifecycle_handle: &dyn LifecycleHandle,
-    loc: DataLocation,
-    shard_index: ShardIndex,
-    shard_id: ShardId,
-) {
-    // In-memory data includes these rows but split between 4 groups go into
-    // different batches of parittion 1 or partittion 2  as requeted
-    // let expected = vec![
-    //         "+------------+-----+------+--------------------------------+",
-    //         "| city       | day | temp | time                           |",
-    //         "+------------+-----+------+--------------------------------+",
-    //         "| Andover    | tue | 56   | 1970-01-01T00:00:00.000000030Z |", // in group 1 - seq_num: 2
-    //         "| Andover    | mon |      | 1970-01-01T00:00:00.000000046Z |", // in group 2 - seq_num: 3
-    //         "| Boston     | sun | 60   | 1970-01-01T00:00:00.000000036Z |", // in group 1 - seq_num: 1  --> will get deleted
-    //         "| Boston     | mon |      | 1970-01-01T00:00:00.000000038Z |", // in group 3 - seq_num: 5  --> will get deleted
-    //         "| Medford    | sun | 55   | 1970-01-01T00:00:00.000000022Z |", // in group 4 - seq_num: 8  (after the tombstone's seq num)
-    //         "| Medford    | wed |      | 1970-01-01T00:00:00.000000026Z |", // in group 2 - seq_num: 4
-    //         "| Reading    | mon | 58   | 1970-01-01T00:00:00.000000040Z |", // in group 4 - seq_num: 9
-    //         "| Wilmington | mon |      | 1970-01-01T00:00:00.000000035Z |", // in group 3 - seq_num: 6
-    //         "+------------+-----+------+--------------------------------+",
-    //     ];
-
-    let (ops, seq_num) =
-        make_first_partition_data(&PartitionKey::from(TEST_PARTITION_1), shard_index);
-
-    // Apply all ops
-    for op in ops {
-        ingester
-            .buffer_operation(shard_id, op, lifecycle_handle)
-            .await
-            .unwrap();
-    }
-
-    if loc.contains(DataLocation::PERSISTING) {
-        // Move partition 1 data to persisting
-        let _ignored = ingester
-            .shard(shard_id)
-            .unwrap()
-            .namespace(TEST_NAMESPACE)
-            .unwrap()
-            .snapshot_to_persisting(TEST_TABLE, &PartitionKey::from(TEST_PARTITION_1))
-            .await;
-    } else if loc.contains(DataLocation::SNAPSHOT) {
-        // move partition 1 data to snapshot
-        let _ignored = ingester
-            .shard(shard_id)
-            .unwrap()
-            .namespace(TEST_NAMESPACE)
-            .unwrap()
-            .snapshot(TEST_TABLE, &PartitionKey::from(TEST_PARTITION_1))
-            .await;
-    }
-
-    // Add tombstones
-    // Depending on where the existing data is, they (buffer & snapshot) will be either moved to a new snapshot after
-    // applying the tombstone or (persisting) stay where they are and the tombstones is kept to get applied later
-    // ------------------------------------------
-    // Delete
-    let mut seq_num = seq_num.get();
-    seq_num += 1;
-
-    let delete = parse_delete_predicate(
-        "1970-01-01T00:00:00.000000010Z",
-        "1970-01-01T00:00:00.000000050Z",
-        "city=Boston",
-    )
-    .unwrap();
-
-    ingester
-        .buffer_operation(
-            shard_id,
-            DmlOperation::Delete(DmlDelete::new(
-                TEST_NAMESPACE.to_string(),
-                delete,
-                NonEmptyString::new(TEST_TABLE),
-                DmlMeta::sequenced(
-                    Sequence {
-                        shard_index,
-                        sequence_number: SequenceNumber::new(seq_num),
-                    },
-                    Time::MIN,
-                    None,
-                    42,
-                ),
-            )),
-            lifecycle_handle,
-        )
-        .await
-        .unwrap();
-
-    // Group 4: in buffer of p1 after the tombstone
-
-    ingester
-        .buffer_operation(
-            shard_id,
-            DmlOperation::Write(make_write_op(
-                &PartitionKey::from(TEST_PARTITION_1),
-                shard_index,
-                TEST_NAMESPACE,
-                seq_num,
-                r#"test_table,city=Medford day="sun",temp=55 22"#,
-            )),
-            lifecycle_handle,
-        )
-        .await
-        .unwrap();
-    seq_num += 1;
-
-    ingester
-        .buffer_operation(
-            shard_id,
-            DmlOperation::Write(make_write_op(
-                &PartitionKey::from(TEST_PARTITION_1),
-                shard_index,
-                TEST_NAMESPACE,
-                seq_num,
-                r#"test_table,city=Reading day="mon",temp=58 40"#,
-            )),
-            lifecycle_handle,
-        )
-        .await
-        .unwrap();
 }
 
 pub(crate) fn make_write_op(

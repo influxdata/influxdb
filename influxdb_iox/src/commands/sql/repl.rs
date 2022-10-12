@@ -53,7 +53,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 enum QueryEngine {
-    /// Run queries against the named database on the remote server
+    /// Run queries against the namespace on the remote server
     Remote(String),
 
     /// Run queries against a local `Observer` instance
@@ -177,7 +177,7 @@ pub struct Repl {
     /// Client for running sql
     flight_client: influxdb_iox_client::flight::Client,
 
-    /// database name against which SQL commands are run
+    /// namespace name against which SQL commands are run
     query_engine: Option<QueryEngine>,
 
     /// Formatter to use to format query results
@@ -239,8 +239,8 @@ impl Repl {
                         .map_err(|e| println!("{}", e))
                         .ok();
                 }
-                ReplCommand::UseDatabase { db_name } => {
-                    self.use_database(db_name);
+                ReplCommand::UseNamespace { db_name } => {
+                    self.use_namespace(db_name);
                 }
                 ReplCommand::SqlCommand { sql } => {
                     self.run_sql(sql).await.map_err(|e| println!("{}", e)).ok();
@@ -302,18 +302,18 @@ impl Repl {
         self.print_results(&[record_batch])
     }
 
-    // Run a command against the currently selected remote database
+    // Run a command against the currently selected remote namespace
     async fn run_sql(&mut self, sql: String) -> Result<()> {
         let start = Instant::now();
 
         let batches = match &mut self.query_engine {
             None => {
-                println!("Error: no database selected.");
-                println!("Hint: Run USE DATABASE <dbname> to select database");
+                println!("Error: no namespace selected.");
+                println!("Hint: Run USE NAMESPACE <dbname> to select namespace");
                 return Ok(());
             }
             Some(QueryEngine::Remote(db_name)) => {
-                info!(%db_name, %sql, "Running sql on remote database");
+                info!(%db_name, %sql, "Running sql on remote namespace");
 
                 scrape_query(&mut self.flight_client, db_name, &sql).await?
             }
@@ -349,9 +349,9 @@ impl Repl {
         }
     }
 
-    fn use_database(&mut self, db_name: String) {
-        info!(%db_name, "setting current database");
-        println!("You are now in remote mode, querying database {}", db_name);
+    fn use_namespace(&mut self, db_name: String) {
+        info!(%db_name, "setting current namespace");
+        println!("You are now in remote mode, querying namespace {}", db_name);
         self.set_query_engine(QueryEngine::Remote(db_name));
     }
 

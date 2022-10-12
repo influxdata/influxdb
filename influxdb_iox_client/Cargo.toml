@@ -13,6 +13,7 @@ format = ["arrow", "arrow_util"]
 # Workspace dependencies, in alphabetical order
 arrow_util = { path = "../arrow_util", optional = true }
 client_util = { path = "../client_util" }
+influxdb_line_protocol = { path = "../influxdb_line_protocol"}
 generated_types = { path = "../generated_types", default-features = false, features = ["data_types_conversions"] }
 
 # Crates.io dependencies, in alphabetical order
@@ -23,9 +24,7 @@ futures-util = { version = "0.3", optional = true }
 prost = "0.11"
 rand = "0.8.3"
 reqwest = { version = "0.11", default-features = false, features = ["stream", "rustls-tls"] }
+tokio = { version = "1.21", features = ["macros", "parking_lot", "rt-multi-thread"] }
+tokio-stream = "0.1.11"
 thiserror = "1.0.37"
 tonic = { version = "0.8" }
-
-[dev-dependencies] # In alphabetical order
-tokio = { version = "1.21", features = ["macros", "parking_lot", "rt-multi-thread"] }
-mockito = "0.31"

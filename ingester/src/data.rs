@@ -1,15 +1,12 @@
 //! Data for the lifecycle of the Ingester
 
-use std::{collections::BTreeMap, pin::Pin, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 
-use arrow::{error::ArrowError, record_batch::RecordBatch};
-use arrow_util::optimize::{optimize_record_batch, optimize_schema};
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
-use data_types::{PartitionId, SequenceNumber, ShardId, ShardIndex};
-use datafusion::physical_plan::SendableRecordBatchStream;
+use data_types::{NamespaceId, PartitionId, SequenceNumber, ShardId, ShardIndex, TableId};
+
 use dml::DmlOperation;
-use futures::{Stream, StreamExt};
 use iox_catalog::interface::{get_table_schema_by_id, Catalog};
 use iox_query::exec::Executor;
 use iox_time::SystemProvider;
@@ -25,16 +22,12 @@ use crate::{
     lifecycle::LifecycleHandle,
 };
 
-pub mod namespace;
+pub(crate) mod namespace;
 pub mod partition;
-mod query_dedup;
-pub mod shard;
-pub mod table;
+pub(crate) mod shard;
+pub(crate) mod table;
 
-use self::{
-    partition::{resolver::PartitionProvider, PartitionStatus},
-    shard::ShardData,
-};
+use self::{partition::resolver::PartitionProvider, shard::ShardData, table::TableName};
 
 #[cfg(test)]
 mod triggers;
@@ -50,9 +43,6 @@ pub enum Error {
 
     #[snafu(display("Table {} not found in buffer", table_name))]
     TableNotFound { table_name: String },
-
-    #[snafu(display("Table must be specified in delete"))]
-    TableNotPresent,
 
     #[snafu(display("Error accessing catalog: {}", source))]
     Catalog {
@@ -186,7 +176,7 @@ impl IngesterData {
             .get(&shard_id)
             .context(ShardNotFoundSnafu { shard_id })?;
         shard_data
-            .buffer_operation(dml_operation, &self.catalog, lifecycle_handle, &self.exec)
+            .buffer_operation(dml_operation, &self.catalog, lifecycle_handle)
             .await
     }
 
@@ -220,7 +210,13 @@ impl IngesterData {
 #[async_trait]
 pub trait Persister: Send + Sync + 'static {
     /// Persits the partition ID. Will retry forever until it succeeds.
-    async fn persist(&self, partition_id: PartitionId);
+    async fn persist(
+        &self,
+        shard_id: ShardId,
+        namespace_id: NamespaceId,
+        table_id: TableId,
+        partition_id: PartitionId,
+    );
 
     /// Updates the shard's `min_unpersisted_sequence_number` in the catalog.
     /// This number represents the minimum that might be unpersisted, which is the
@@ -235,7 +231,69 @@ pub trait Persister: Send + Sync + 'static {
 
 #[async_trait]
 impl Persister for IngesterData {
-    async fn persist(&self, partition_id: PartitionId) {
+    async fn persist(
+        &self,
+        shard_id: ShardId,
+        namespace_id: NamespaceId,
+        table_id: TableId,
+        partition_id: PartitionId,
+    ) {
+        // lookup the state from the ingester data. If something isn't found,
+        // it's unexpected. Crash so someone can take a look.
+        let shard_data = self
+            .shards
+            .get(&shard_id)
+            .unwrap_or_else(|| panic!("shard state for {shard_id} not in ingester data"));
+        let namespace = shard_data
+            .namespace_by_id(namespace_id)
+            .unwrap_or_else(|| panic!("namespace {namespace_id} not in shard {shard_id} state"));
+
+        let partition_key;
+        let batch;
+        {
+            let table_data = namespace.table_id(table_id).unwrap_or_else(|| {
+                panic!("table {table_id} in namespace {namespace_id} not in shard {shard_id} state")
+            });
+
+            let mut guard = table_data.write().await;
+            let partition = guard.get_partition(partition_id).unwrap_or_else(|| {
+                panic!(
+                    "partition {partition_id} in table {table_id} in namespace {namespace_id} not in shard {shard_id} state"
+                )
+            });
+
+            partition_key = partition.partition_key().clone();
+            batch = partition.snapshot_to_persisting_batch();
+        };
+
+        debug!(%shard_id, %namespace_id, %table_id, %partition_id, %partition_key, "persisting partition");
+
+        // Check if there is any data to persist.
+        let batch = match batch {
+            Some(v) if !v.data.data.is_empty() => v,
+            _ => {
+                warn!(
+                    %shard_id,
+                    %namespace_id,
+                    %table_id,
+                    %partition_id,
+                    %partition_key,
+                    "partition marked for persistence contains no data"
+                );
+                return;
+            }
+        };
+
+        // lookup column IDs from catalog
+        // TODO: this can be removed once the ingester uses column IDs internally as well
+        let table_schema = Backoff::new(&self.backoff_config)
+            .retry_all_errors("get table schema", || async {
+                let mut repos = self.catalog.repositories().await;
+                get_table_schema_by_id(table_id, repos.as_mut()).await
+            })
+            .await
+            .expect("retry forever");
+
         // lookup the partition_info from the catalog
         let partition_info = Backoff::new(&self.backoff_config)
             .retry_all_errors("get partition_info_by_id", || async {
@@ -243,217 +301,159 @@ impl Persister for IngesterData {
                 repos.partitions().partition_info_by_id(partition_id).await
             })
             .await
-            .expect("retry forever");
+            .expect("retry forever").unwrap_or_else(|| panic!("partition {partition_id} in table {table_id} in namespace {namespace_id} in shard {shard_id} has no partition info in catalog"));
 
-        // lookup the state from the ingester data. If something isn't found, it's unexpected. Crash
-        // so someone can take a look.
-        let partition_info = partition_info
-            .unwrap_or_else(|| panic!("partition {} not found in catalog", partition_id));
-        let shard_data = self
-            .shards
-            .get(&partition_info.partition.shard_id)
-            .unwrap_or_else(|| {
-                panic!(
-                    "shard state for {} not in ingester data",
-                    partition_info.partition.shard_id
-                )
-            }); //{
-        let namespace = shard_data
-            .namespace(&partition_info.namespace_name)
-            .unwrap_or_else(|| {
-                panic!(
-                    "namespace {} not in shard {} state",
-                    partition_info.namespace_name, partition_info.partition.shard_id
-                )
-            });
-        debug!(?partition_id, ?partition_info, "persisting partition");
+        // do the CPU intensive work of compaction, de-duplication and sorting
+        let CompactedStream {
+            stream: record_stream,
+            iox_metadata,
+            sort_key_update,
+        } = compact_persisting_batch(
+            Arc::new(SystemProvider::new()),
+            &self.exec,
+            namespace.namespace_id().get(),
+            &partition_info,
+            Arc::clone(&batch),
+        )
+        .await
+        .expect("unable to compact persisting batch");
 
-        // lookup column IDs from catalog
-        // TODO: this can be removed once the ingester uses column IDs internally as well
-        let table_schema = Backoff::new(&self.backoff_config)
-            .retry_all_errors("get table schema", || async {
-                let mut repos = self.catalog.repositories().await;
-                let table = repos
-                    .tables()
-                    .get_by_namespace_and_name(namespace.namespace_id(), &partition_info.table_name)
-                    .await?
-                    .expect("table not found in catalog");
-                get_table_schema_by_id(table.id, repos.as_mut()).await
-            })
+        // Save the compacted data to a parquet file in object storage.
+        //
+        // This call retries until it completes.
+        let (md, file_size) = self
+            .store
+            .upload(record_stream, &iox_metadata)
             .await
-            .expect("retry forever");
+            .expect("unexpected fatal persist error");
 
-        let persisting_batch = namespace
-            .snapshot_to_persisting(
-                &partition_info.table_name,
-                &partition_info.partition.partition_key,
-            )
-            .await;
-
-        if let Some(persisting_batch) = persisting_batch {
-            // do the CPU intensive work of compaction, de-duplication and sorting
-            let compacted_stream = match compact_persisting_batch(
-                Arc::new(SystemProvider::new()),
-                &self.exec,
-                namespace.namespace_id().get(),
-                &partition_info,
-                Arc::clone(&persisting_batch),
-            )
-            .await
-            {
-                Err(e) => {
-                    // this should never error out. if it does, we need to crash hard so
-                    // someone can take a look.
-                    panic!("unable to compact persisting batch with error: {:?}", e);
-                }
-                Ok(Some(r)) => r,
-                Ok(None) => {
-                    warn!("persist called with no data");
-                    return;
-                }
-            };
-            let CompactedStream {
-                stream: record_stream,
-                iox_metadata,
-                sort_key_update,
-            } = compacted_stream;
-
-            // Save the compacted data to a parquet file in object storage.
-            //
-            // This call retries until it completes.
-            let (md, file_size) = self
-                .store
-                .upload(record_stream, &iox_metadata)
-                .await
-                .expect("unexpected fatal persist error");
-
-            // Update the sort key in the catalog if there are
-            // additional columns BEFORE adding parquet file to the
-            // catalog. If the order is reversed, the querier or
-            // compactor may see a parquet file with an inconsistent
-            // sort key. https://github.com/influxdata/influxdb_iox/issues/5090
-            if let Some(new_sort_key) = sort_key_update {
-                let sort_key = new_sort_key.to_columns().collect::<Vec<_>>();
-                Backoff::new(&self.backoff_config)
-                    .retry_all_errors("update_sort_key", || async {
-                        let mut repos = self.catalog.repositories().await;
-                        let _partition = repos
-                            .partitions()
-                            .update_sort_key(partition_id, &sort_key)
-                            .await?;
-                        // compiler insisted on getting told the type of the error :shrug:
-                        Ok(()) as Result<(), iox_catalog::interface::Error>
-                    })
-                    .await
-                    .expect("retry forever");
-                debug!(
-                    ?partition_id,
-                    table = partition_info.table_name,
-                    ?new_sort_key,
-                    "adjusted sort key during batch compact & persist"
-                );
-            }
-
-            // Add the parquet file to the catalog until succeed
-            let parquet_file = iox_metadata.to_parquet_file(partition_id, file_size, &md, |name| {
-                table_schema.columns.get(name).expect("Unknown column").id
-            });
-
-            // Assert partitions are persisted in-order.
-            //
-            // It is an invariant that partitions are persisted in order so that
-            // both the per-shard, and per-partition watermarks are correctly
-            // advanced and accurate.
-            if let Some(last_persist) = partition_info.partition.persisted_sequence_number {
-                assert!(
-                    parquet_file.max_sequence_number > last_persist,
-                    "out of order partition persistence, persisting {}, previously persisted {}",
-                    parquet_file.max_sequence_number.get(),
-                    last_persist.get(),
-                );
-            }
-
-            // Add the parquet file to the catalog.
-            //
-            // This has the effect of allowing the queriers to "discover" the
-            // parquet file by polling / querying the catalog.
+        // Update the sort key in the catalog if there are
+        // additional columns BEFORE adding parquet file to the
+        // catalog. If the order is reversed, the querier or
+        // compactor may see a parquet file with an inconsistent
+        // sort key. https://github.com/influxdata/influxdb_iox/issues/5090
+        if let Some(new_sort_key) = sort_key_update {
+            let sort_key = new_sort_key.to_columns().collect::<Vec<_>>();
             Backoff::new(&self.backoff_config)
-                .retry_all_errors("add parquet file to catalog", || async {
+                .retry_all_errors("update_sort_key", || async {
                     let mut repos = self.catalog.repositories().await;
-                    let parquet_file = repos.parquet_files().create(parquet_file.clone()).await?;
-                    debug!(
-                        ?partition_id,
-                        table_id=?parquet_file.table_id,
-                        parquet_file_id=?parquet_file.id,
-                        table_name=%iox_metadata.table_name,
-                        "parquet file written to catalog"
-                    );
+                    let _partition = repos
+                        .partitions()
+                        .update_sort_key(partition_id, &sort_key)
+                        .await?;
                     // compiler insisted on getting told the type of the error :shrug:
                     Ok(()) as Result<(), iox_catalog::interface::Error>
                 })
                 .await
                 .expect("retry forever");
-
-            // Update the per-partition persistence watermark, so that new
-            // ingester instances skip the just-persisted ops during replay.
-            //
-            // This could be transactional with the above parquet insert to
-            // maintain catalog consistency, though in practice it is an
-            // unnecessary overhead - the system can tolerate replaying the ops
-            // that lead to this parquet file being generated, and tolerate
-            // creating a parquet file containing duplicate data (remedied by
-            // compaction).
-            //
-            // This means it is possible to observe a parquet file with a
-            // max_persisted_sequence_number >
-            // partition.persisted_sequence_number, either in-between these
-            // catalog updates, or for however long it takes a crashed ingester
-            // to restart and replay the ops, and re-persist a file containing
-            // the same (or subset of) data.
-            //
-            // The above is also true of the per-shard persist marker that
-            // governs the ingester's replay start point, which is
-            // non-transactionally updated after all partitions have persisted.
-            Backoff::new(&self.backoff_config)
-                .retry_all_errors("set partition persist marker", || async {
-                    self.catalog
-                        .repositories()
-                        .await
-                        .partitions()
-                        .update_persisted_sequence_number(
-                            parquet_file.partition_id,
-                            parquet_file.max_sequence_number,
-                        )
-                        .await
-                })
-                .await
-                .expect("retry forever");
-
-            // Record metrics
-            let attributes = Attributes::from([(
-                "shard_id",
-                format!("{}", partition_info.partition.shard_id).into(),
-            )]);
-            self.persisted_file_size_bytes
-                .recorder(attributes)
-                .record(file_size as u64);
-
-            // and remove the persisted data from memory
-            namespace
-                .mark_persisted(
-                    &partition_info.table_name,
-                    &partition_info.partition.partition_key,
-                    iox_metadata.max_sequence_number,
-                )
-                .await;
             debug!(
                 ?partition_id,
-                table_name=%partition_info.table_name,
-                partition_key=%partition_info.partition.partition_key,
-                max_sequence_number=%iox_metadata.max_sequence_number.get(),
-                "marked partition as persisted"
+                table = partition_info.table_name,
+                ?new_sort_key,
+                "adjusted sort key during batch compact & persist"
             );
         }
+
+        // Add the parquet file to the catalog until succeed
+        let parquet_file = iox_metadata.to_parquet_file(partition_id, file_size, &md, |name| {
+            table_schema.columns.get(name).expect("Unknown column").id
+        });
+
+        // Assert partitions are persisted in-order.
+        //
+        // It is an invariant that partitions are persisted in order so that
+        // both the per-shard, and per-partition watermarks are correctly
+        // advanced and accurate.
+        if let Some(last_persist) = partition_info.partition.persisted_sequence_number {
+            assert!(
+                parquet_file.max_sequence_number > last_persist,
+                "out of order partition persistence, persisting {}, previously persisted {}",
+                parquet_file.max_sequence_number.get(),
+                last_persist.get(),
+            );
+        }
+
+        // Add the parquet file to the catalog.
+        //
+        // This has the effect of allowing the queriers to "discover" the
+        // parquet file by polling / querying the catalog.
+        Backoff::new(&self.backoff_config)
+            .retry_all_errors("add parquet file to catalog", || async {
+                let mut repos = self.catalog.repositories().await;
+                let parquet_file = repos.parquet_files().create(parquet_file.clone()).await?;
+                debug!(
+                    ?partition_id,
+                    table_id=?parquet_file.table_id,
+                    parquet_file_id=?parquet_file.id,
+                    table_name=%iox_metadata.table_name,
+                    "parquet file written to catalog"
+                );
+                // compiler insisted on getting told the type of the error :shrug:
+                Ok(()) as Result<(), iox_catalog::interface::Error>
+            })
+            .await
+            .expect("retry forever");
+
+        // Update the per-partition persistence watermark, so that new
+        // ingester instances skip the just-persisted ops during replay.
+        //
+        // This could be transactional with the above parquet insert to
+        // maintain catalog consistency, though in practice it is an
+        // unnecessary overhead - the system can tolerate replaying the ops
+        // that lead to this parquet file being generated, and tolerate
+        // creating a parquet file containing duplicate data (remedied by
+        // compaction).
+        //
+        // This means it is possible to observe a parquet file with a
+        // max_persisted_sequence_number >
+        // partition.persisted_sequence_number, either in-between these
+        // catalog updates, or for however long it takes a crashed ingester
+        // to restart and replay the ops, and re-persist a file containing
+        // the same (or subset of) data.
+        //
+        // The above is also true of the per-shard persist marker that
+        // governs the ingester's replay start point, which is
+        // non-transactionally updated after all partitions have persisted.
+        Backoff::new(&self.backoff_config)
+            .retry_all_errors("set partition persist marker", || async {
+                self.catalog
+                    .repositories()
+                    .await
+                    .partitions()
+                    .update_persisted_sequence_number(
+                        parquet_file.partition_id,
+                        parquet_file.max_sequence_number,
+                    )
+                    .await
+            })
+            .await
+            .expect("retry forever");
+
+        // Record metrics
+        let attributes = Attributes::from([(
+            "shard_id",
+            format!("{}", partition_info.partition.shard_id).into(),
+        )]);
+        self.persisted_file_size_bytes
+            .recorder(attributes)
+            .record(file_size as u64);
+
+        // and remove the persisted data from memory
+        let table_name = TableName::from(&partition_info.table_name);
+        namespace
+            .mark_persisted(
+                &table_name,
+                &partition_info.partition.partition_key,
+                iox_metadata.max_sequence_number,
+            )
+            .await;
+        debug!(
+            ?partition_id,
+            %table_name,
+            partition_key=%partition_info.partition.partition_key,
+            max_sequence_number=%iox_metadata.max_sequence_number.get(),
+            "marked partition as persisted"
+        );
     }
 
     async fn update_min_unpersisted_sequence_number(
@@ -475,172 +475,24 @@ impl Persister for IngesterData {
     }
 }
 
-/// Stream of snapshots.
-///
-/// Every snapshot is a dedicated [`SendableRecordBatchStream`].
-pub(crate) type SnapshotStream =
-    Pin<Box<dyn Stream<Item = Result<SendableRecordBatchStream, ArrowError>> + Send>>;
-
-/// Response data for a single partition.
-pub(crate) struct IngesterQueryPartition {
-    /// Stream of snapshots.
-    snapshots: SnapshotStream,
-
-    /// Partition ID.
-    id: PartitionId,
-
-    /// Partition persistence status.
-    status: PartitionStatus,
-}
-
-impl std::fmt::Debug for IngesterQueryPartition {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("IngesterQueryPartition")
-            .field("snapshots", &"<SNAPSHOT STREAM>")
-            .field("id", &self.id)
-            .field("status", &self.status)
-            .finish()
-    }
-}
-
-impl IngesterQueryPartition {
-    pub(crate) fn new(snapshots: SnapshotStream, id: PartitionId, status: PartitionStatus) -> Self {
-        Self {
-            snapshots,
-            id,
-            status,
-        }
-    }
-}
-
-/// Stream of partitions in this response.
-pub(crate) type IngesterQueryPartitionStream =
-    Pin<Box<dyn Stream<Item = Result<IngesterQueryPartition, ArrowError>> + Send>>;
-
-/// Response streams for querier<>ingester requests.
-///
-/// The data structure is constructed to allow lazy/streaming data generation. For easier
-/// consumption according to the wire protocol, use the [`flatten`](Self::flatten) method.
-pub struct IngesterQueryResponse {
-    /// Stream of partitions.
-    partitions: IngesterQueryPartitionStream,
-}
-
-impl std::fmt::Debug for IngesterQueryResponse {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("IngesterQueryResponse")
-            .field("partitions", &"<PARTITION STREAM>")
-            .finish()
-    }
-}
-
-impl IngesterQueryResponse {
-    /// Make a response
-    pub(crate) fn new(partitions: IngesterQueryPartitionStream) -> Self {
-        Self { partitions }
-    }
-
-    /// Flattens the data according to the wire protocol.
-    pub fn flatten(self) -> FlatIngesterQueryResponseStream {
-        self.partitions
-            .flat_map(|partition_res| match partition_res {
-                Ok(partition) => {
-                    let head = futures::stream::once(async move {
-                        Ok(FlatIngesterQueryResponse::StartPartition {
-                            partition_id: partition.id,
-                            status: partition.status,
-                        })
-                    });
-                    let tail = partition
-                        .snapshots
-                        .flat_map(|snapshot_res| match snapshot_res {
-                            Ok(snapshot) => {
-                                let schema = Arc::new(optimize_schema(&snapshot.schema()));
-
-                                let schema_captured = Arc::clone(&schema);
-                                let head = futures::stream::once(async {
-                                    Ok(FlatIngesterQueryResponse::StartSnapshot {
-                                        schema: schema_captured,
-                                    })
-                                });
-
-                                let tail = snapshot.map(move |batch_res| match batch_res {
-                                    Ok(batch) => Ok(FlatIngesterQueryResponse::RecordBatch {
-                                        batch: optimize_record_batch(&batch, Arc::clone(&schema))?,
-                                    }),
-                                    Err(e) => Err(e),
-                                });
-
-                                head.chain(tail).boxed()
-                            }
-                            Err(e) => futures::stream::once(async { Err(e) }).boxed(),
-                        });
-
-                    head.chain(tail).boxed()
-                }
-                Err(e) => futures::stream::once(async { Err(e) }).boxed(),
-            })
-            .boxed()
-    }
-}
-
-/// Flattened version of [`IngesterQueryResponse`].
-pub(crate) type FlatIngesterQueryResponseStream =
-    Pin<Box<dyn Stream<Item = Result<FlatIngesterQueryResponse, ArrowError>> + Send>>;
-
-/// Element within the flat wire protocol.
-#[derive(Debug, PartialEq)]
-pub enum FlatIngesterQueryResponse {
-    /// Start a new partition.
-    StartPartition {
-        /// Partition ID.
-        partition_id: PartitionId,
-
-        /// Partition persistence status.
-        status: PartitionStatus,
-    },
-
-    /// Start a new snapshot.
-    ///
-    /// The snapshot belongs to the partition of the last [`StartPartition`](Self::StartPartition)
-    /// message.
-    StartSnapshot {
-        /// Snapshot schema.
-        schema: Arc<arrow::datatypes::Schema>,
-    },
-
-    /// Add a record batch to the snapshot that was announced by the last
-    /// [`StartSnapshot`](Self::StartSnapshot) message.
-    RecordBatch {
-        /// Record batch.
-        batch: RecordBatch,
-    },
-}
-
 #[cfg(test)]
 mod tests {
-    use std::{
-        ops::DerefMut,
-        sync::Arc,
-        task::{Context, Poll},
-        time::Duration,
-    };
+    use std::{ops::DerefMut, sync::Arc, time::Duration};
 
-    use arrow::datatypes::SchemaRef;
     use assert_matches::assert_matches;
     use data_types::{
         ColumnId, ColumnSet, CompactionLevel, DeletePredicate, NamespaceSchema, NonEmptyString,
         ParquetFileParams, Sequence, Timestamp, TimestampRange,
     };
-    use datafusion::physical_plan::RecordBatchStream;
+
     use dml::{DmlDelete, DmlMeta, DmlWrite};
     use futures::TryStreamExt;
     use iox_catalog::{mem::MemCatalog, validate_or_insert_schema};
     use iox_time::Time;
     use metric::{MetricObserver, Observation};
-    use mutable_batch_lp::{lines_to_batches, test_helpers::lp_to_mutable_batch};
+    use mutable_batch_lp::lines_to_batches;
     use object_store::memory::InMemory;
-    use schema::selection::Selection;
+
     use uuid::Uuid;
 
     use super::*;
@@ -804,17 +656,20 @@ mod tests {
         // limits)
         assert!(!should_pause);
 
-        let partition_id = {
+        let (table_id, partition_id) = {
             let sd = data.shards.get(&shard1.id).unwrap();
-            let n = sd.namespace("foo").unwrap();
-            let mem_table = n.table_data("mem").unwrap();
-            assert!(n.table_data("mem").is_some());
+            let n = sd.namespace(&"foo".into()).unwrap();
+            let mem_table = n.table_data(&"mem".into()).unwrap();
+            assert!(n.table_data(&"mem".into()).is_some());
             let mem_table = mem_table.write().await;
-            let p = mem_table.partition_data.get(&"1970-01-01".into()).unwrap();
-            p.id()
+            let p = mem_table
+                .get_partition_by_key(&"1970-01-01".into())
+                .unwrap();
+            (mem_table.table_id(), p.partition_id())
         };
 
-        data.persist(partition_id).await;
+        data.persist(shard1.id, namespace.id, table_id, partition_id)
+            .await;
 
         // verify that a file got put into object store
         let file_paths: Vec<_> = object_store
@@ -945,17 +800,20 @@ mod tests {
         assert_progress(&data, shard_index, expected_progress).await;
 
         let sd = data.shards.get(&shard1.id).unwrap();
-        let n = sd.namespace("foo").unwrap();
+        let n = sd.namespace(&"foo".into()).unwrap();
         let partition_id;
         let table_id;
         {
-            let mem_table = n.table_data("mem").unwrap();
-            assert!(n.table_data("cpu").is_some());
-            let mem_table = mem_table.write().await;
-            let p = mem_table.partition_data.get(&"1970-01-01".into()).unwrap();
+            let mem_table = n.table_data(&"mem".into()).unwrap();
+            assert!(n.table_data(&"cpu".into()).is_some());
 
+            let mem_table = mem_table.write().await;
             table_id = mem_table.table_id();
-            partition_id = p.id();
+
+            let p = mem_table
+                .get_partition_by_key(&"1970-01-01".into())
+                .unwrap();
+            partition_id = p.partition_id();
         }
         {
             // verify the partition doesn't have a sort key before any data has been persisted
@@ -969,7 +827,8 @@ mod tests {
             assert!(partition_info.partition.sort_key.is_empty());
         }
 
-        data.persist(partition_id).await;
+        data.persist(shard1.id, namespace.id, table_id, partition_id)
+            .await;
 
         // verify that a file got put into object store
         let file_paths: Vec<_> = object_store
@@ -1061,7 +920,7 @@ mod tests {
             .unwrap();
         assert_eq!(partition_info.partition.sort_key, vec!["time"]);
 
-        let mem_table = n.table_data("mem").unwrap();
+        let mem_table = n.table_data(&"mem".into()).unwrap();
         let mem_table = mem_table.read().await;
 
         // verify that the parquet_max_sequence_number got updated
@@ -1177,7 +1036,7 @@ mod tests {
 
         // Get the namespace
         let sd = data.shards.get(&shard1.id).unwrap();
-        let n = sd.namespace("foo").unwrap();
+        let n = sd.namespace(&"foo".into()).unwrap();
 
         let expected_progress = ShardProgress::new().with_buffered(SequenceNumber::new(1));
         assert_progress(&data, shard_index, expected_progress).await;
@@ -1336,23 +1195,28 @@ mod tests {
             Arc::clone(&metrics),
             Arc::new(SystemProvider::new()),
         );
-        let exec = Executor::new(1);
 
         let partition_provider = Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog)));
 
-        let data = NamespaceData::new(namespace.id, shard.id, partition_provider, &*metrics);
+        let data = NamespaceData::new(
+            namespace.id,
+            "foo".into(),
+            shard.id,
+            partition_provider,
+            &*metrics,
+        );
 
         // w1 should be ignored because the per-partition replay offset is set
         // to 1 already, so it shouldn't be buffered and the buffer should
         // remain empty.
         let should_pause = data
-            .buffer_operation(DmlOperation::Write(w1), &catalog, &manager.handle(), &exec)
+            .buffer_operation(DmlOperation::Write(w1), &catalog, &manager.handle())
             .await
             .unwrap();
         {
-            let table_data = data.table_data("mem").unwrap();
+            let table_data = data.table_data(&"mem".into()).unwrap();
             let table = table_data.read().await;
-            let p = table.partition_data.get(&"1970-01-01".into()).unwrap();
+            let p = table.get_partition_by_key(&"1970-01-01".into()).unwrap();
             assert_eq!(
                 p.max_persisted_sequence_number(),
                 Some(SequenceNumber::new(1))
@@ -1362,13 +1226,13 @@ mod tests {
         assert!(!should_pause);
 
         // w2 should be in the buffer
-        data.buffer_operation(DmlOperation::Write(w2), &catalog, &manager.handle(), &exec)
+        data.buffer_operation(DmlOperation::Write(w2), &catalog, &manager.handle())
             .await
             .unwrap();
 
-        let table_data = data.table_data("mem").unwrap();
+        let table_data = data.table_data(&"mem".into()).unwrap();
         let table = table_data.read().await;
-        let partition = table.partition_data.get(&"1970-01-01".into()).unwrap();
+        let partition = table.get_partition_by_key(&"1970-01-01".into()).unwrap();
         assert_eq!(
             partition.data.buffer.as_ref().unwrap().min_sequence_number,
             SequenceNumber::new(2)
@@ -1454,19 +1318,6 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(
-            data.shard(shard1.id)
-                .unwrap()
-                .namespace(&namespace.name)
-                .unwrap()
-                .table_data("mem")
-                .unwrap()
-                .read()
-                .await
-                .tombstone_max_sequence_number(),
-            None,
-        );
-
         let predicate = DeletePredicate {
             range: TimestampRange::new(1, 2),
             exprs: vec![],
@@ -1485,19 +1336,6 @@ mod tests {
         data.buffer_operation(shard1.id, DmlOperation::Delete(d1), &manager.handle())
             .await
             .unwrap();
-
-        assert_eq!(
-            data.shard(shard1.id)
-                .unwrap()
-                .namespace(&namespace.name)
-                .unwrap()
-                .table_data("mem")
-                .unwrap()
-                .read()
-                .await
-                .tombstone_max_sequence_number(),
-            Some(SequenceNumber::new(2)),
-        );
     }
 
     /// Verifies that the progress in data is the same as expected_progress
@@ -1512,133 +1350,5 @@ mod tests {
             .collect::<BTreeMap<_, _>>();
 
         assert_eq!(progresses, expected_progresses);
-    }
-
-    #[tokio::test]
-    async fn test_ingester_query_response_flatten() {
-        let batch_1_1 = lp_to_batch("table x=1 0");
-        let batch_1_2 = lp_to_batch("table x=2 1");
-        let batch_2 = lp_to_batch("table y=1 10");
-        let batch_3 = lp_to_batch("table z=1 10");
-
-        let schema_1 = batch_1_1.schema();
-        let schema_2 = batch_2.schema();
-        let schema_3 = batch_3.schema();
-
-        let response = IngesterQueryResponse::new(Box::pin(futures::stream::iter([
-            Ok(IngesterQueryPartition::new(
-                Box::pin(futures::stream::iter([
-                    Ok(Box::pin(TestRecordBatchStream::new(
-                        vec![
-                            Ok(batch_1_1.clone()),
-                            Err(ArrowError::NotYetImplemented("not yet implemeneted".into())),
-                            Ok(batch_1_2.clone()),
-                        ],
-                        Arc::clone(&schema_1),
-                    )) as _),
-                    Err(ArrowError::InvalidArgumentError("invalid arg".into())),
-                    Ok(Box::pin(TestRecordBatchStream::new(
-                        vec![Ok(batch_2.clone())],
-                        Arc::clone(&schema_2),
-                    )) as _),
-                    Ok(Box::pin(TestRecordBatchStream::new(vec![], Arc::clone(&schema_3))) as _),
-                ])),
-                PartitionId::new(2),
-                PartitionStatus {
-                    parquet_max_sequence_number: None,
-                    tombstone_max_sequence_number: Some(SequenceNumber::new(1)),
-                },
-            )),
-            Err(ArrowError::IoError("some io error".into())),
-            Ok(IngesterQueryPartition::new(
-                Box::pin(futures::stream::iter([])),
-                PartitionId::new(1),
-                PartitionStatus {
-                    parquet_max_sequence_number: None,
-                    tombstone_max_sequence_number: None,
-                },
-            )),
-        ])));
-
-        let actual: Vec<_> = response.flatten().collect().await;
-        let expected = vec![
-            Ok(FlatIngesterQueryResponse::StartPartition {
-                partition_id: PartitionId::new(2),
-                status: PartitionStatus {
-                    parquet_max_sequence_number: None,
-                    tombstone_max_sequence_number: Some(SequenceNumber::new(1)),
-                },
-            }),
-            Ok(FlatIngesterQueryResponse::StartSnapshot { schema: schema_1 }),
-            Ok(FlatIngesterQueryResponse::RecordBatch { batch: batch_1_1 }),
-            Err(ArrowError::NotYetImplemented("not yet implemeneted".into())),
-            Ok(FlatIngesterQueryResponse::RecordBatch { batch: batch_1_2 }),
-            Err(ArrowError::InvalidArgumentError("invalid arg".into())),
-            Ok(FlatIngesterQueryResponse::StartSnapshot { schema: schema_2 }),
-            Ok(FlatIngesterQueryResponse::RecordBatch { batch: batch_2 }),
-            Ok(FlatIngesterQueryResponse::StartSnapshot { schema: schema_3 }),
-            Err(ArrowError::IoError("some io error".into())),
-            Ok(FlatIngesterQueryResponse::StartPartition {
-                partition_id: PartitionId::new(1),
-                status: PartitionStatus {
-                    parquet_max_sequence_number: None,
-                    tombstone_max_sequence_number: None,
-                },
-            }),
-        ];
-
-        assert_eq!(actual.len(), expected.len());
-        for (actual, expected) in actual.into_iter().zip(expected) {
-            match (actual, expected) {
-                (Ok(actual), Ok(expected)) => {
-                    assert_eq!(actual, expected);
-                }
-                (Err(_), Err(_)) => {
-                    // cannot compare `ArrowError`, but it's unlikely that someone changed the error
-                }
-                (Ok(_), Err(_)) => panic!("Actual is Ok but expected is Err"),
-                (Err(_), Ok(_)) => panic!("Actual is Err but expected is Ok"),
-            }
-        }
-    }
-
-    fn lp_to_batch(lp: &str) -> RecordBatch {
-        lp_to_mutable_batch(lp).1.to_arrow(Selection::All).unwrap()
-    }
-
-    pub struct TestRecordBatchStream {
-        schema: SchemaRef,
-        batches: Vec<Result<RecordBatch, ArrowError>>,
-    }
-
-    impl TestRecordBatchStream {
-        pub fn new(batches: Vec<Result<RecordBatch, ArrowError>>, schema: SchemaRef) -> Self {
-            Self { schema, batches }
-        }
-    }
-
-    impl RecordBatchStream for TestRecordBatchStream {
-        fn schema(&self) -> SchemaRef {
-            Arc::clone(&self.schema)
-        }
-    }
-
-    impl futures::Stream for TestRecordBatchStream {
-        type Item = Result<RecordBatch, ArrowError>;
-
-        fn poll_next(
-            mut self: std::pin::Pin<&mut Self>,
-            _: &mut Context<'_>,
-        ) -> Poll<Option<Self::Item>> {
-            if self.batches.is_empty() {
-                Poll::Ready(None)
-            } else {
-                Poll::Ready(Some(self.batches.remove(0)))
-            }
-        }
-
-        fn size_hint(&self) -> (usize, Option<usize>) {
-            (self.batches.len(), Some(self.batches.len()))
-        }
     }
 }

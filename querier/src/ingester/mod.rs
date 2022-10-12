@@ -11,6 +11,7 @@ use data_types::{
     ChunkId, ChunkOrder, IngesterMapping, PartitionId, SequenceNumber, ShardId, ShardIndex,
     TableSummary, TimestampMinMax,
 };
+use datafusion::error::DataFusionError;
 use datafusion_util::MemoryStream;
 use futures::{stream::FuturesUnordered, TryStreamExt};
 use generated_types::{
@@ -24,7 +25,7 @@ use influxdb_iox_client::flight::{
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
     util::compute_timenanosecond_min_max,
-    QueryChunk, QueryChunkError, QueryChunkMeta,
+    QueryChunk, QueryChunkMeta,
 };
 use iox_time::{Time, TimeProvider};
 use metric::{DurationHistogram, Metric};
@@ -612,9 +613,7 @@ impl IngesterStreamDecoder {
                     partition_id,
                     shard_id,
                     status.parquet_max_sequence_number.map(SequenceNumber::new),
-                    status
-                        .tombstone_max_sequence_number
-                        .map(SequenceNumber::new),
+                    None,
                     partition_sort_key,
                 );
                 self.current_partition = Some(partition);
@@ -1097,7 +1096,7 @@ impl QueryChunk for IngesterChunk {
         _ctx: IOxSessionContext,
         _predicate: &Predicate,
         _columns: Selection<'_>,
-    ) -> Result<Option<StringSet>, QueryChunkError> {
+    ) -> Result<Option<StringSet>, DataFusionError> {
         // TODO maybe some special handling?
         Ok(None)
     }
@@ -1107,7 +1106,7 @@ impl QueryChunk for IngesterChunk {
         _ctx: IOxSessionContext,
         _column_name: &str,
         _predicate: &Predicate,
-    ) -> Result<Option<StringSet>, QueryChunkError> {
+    ) -> Result<Option<StringSet>, DataFusionError> {
         // TODO maybe some special handling?
         Ok(None)
     }
@@ -1117,11 +1116,15 @@ impl QueryChunk for IngesterChunk {
         _ctx: IOxSessionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
-    ) -> Result<datafusion::physical_plan::SendableRecordBatchStream, QueryChunkError> {
+    ) -> Result<datafusion::physical_plan::SendableRecordBatchStream, DataFusionError> {
         trace!(?predicate, ?selection, input_batches=?self.batches, "Reading data");
 
         // Apply selection to in-memory batch
-        let batches = match self.schema.df_projection(selection)? {
+        let batches = match self
+            .schema
+            .df_projection(selection)
+            .map_err(|e| DataFusionError::External(Box::new(e)))?
+        {
             None => self.batches.clone(),
             Some(projection) => self
                 .batches
@@ -1333,7 +1336,6 @@ mod tests {
                             partition_id: 1,
                             status: Some(PartitionStatus {
                                 parquet_max_sequence_number: None,
-                                tombstone_max_sequence_number: None,
                             }),
                         },
                     ))],
@@ -1389,7 +1391,6 @@ mod tests {
                                 partition_id: 1,
                                 status: Some(PartitionStatus {
                                     parquet_max_sequence_number: None,
-                                    tombstone_max_sequence_number: None,
                                 }),
                             },
                         )),
@@ -1399,7 +1400,6 @@ mod tests {
                                 partition_id: 2,
                                 status: Some(PartitionStatus {
                                     parquet_max_sequence_number: None,
-                                    tombstone_max_sequence_number: None,
                                 }),
                             },
                         )),
@@ -1409,7 +1409,6 @@ mod tests {
                                 partition_id: 1,
                                 status: Some(PartitionStatus {
                                     parquet_max_sequence_number: None,
-                                    tombstone_max_sequence_number: None,
                                 }),
                             },
                         )),
@@ -1489,7 +1488,6 @@ mod tests {
                                     partition_id: 1,
                                     status: Some(PartitionStatus {
                                         parquet_max_sequence_number: Some(11),
-                                        tombstone_max_sequence_number: Some(12),
                                     }),
                                 },
                             )),
@@ -1519,7 +1517,6 @@ mod tests {
                                     partition_id: 2,
                                     status: Some(PartitionStatus {
                                         parquet_max_sequence_number: Some(21),
-                                        tombstone_max_sequence_number: Some(22),
                                     }),
                                 },
                             )),
@@ -1544,7 +1541,6 @@ mod tests {
                                     partition_id: 3,
                                     status: Some(PartitionStatus {
                                         parquet_max_sequence_number: Some(31),
-                                        tombstone_max_sequence_number: Some(32),
                                     }),
                                 },
                             )),
@@ -1574,10 +1570,7 @@ mod tests {
             p1.parquet_max_sequence_number,
             Some(SequenceNumber::new(11))
         );
-        assert_eq!(
-            p1.tombstone_max_sequence_number,
-            Some(SequenceNumber::new(12))
-        );
+        assert_eq!(p1.tombstone_max_sequence_number, None);
         assert_eq!(p1.chunks.len(), 2);
         assert_eq!(p1.chunks[0].schema().as_arrow(), schema_1_1);
         assert_eq!(p1.chunks[0].batches.len(), 2);
@@ -1594,10 +1587,7 @@ mod tests {
             p2.parquet_max_sequence_number,
             Some(SequenceNumber::new(21))
         );
-        assert_eq!(
-            p2.tombstone_max_sequence_number,
-            Some(SequenceNumber::new(22))
-        );
+        assert_eq!(p2.tombstone_max_sequence_number, None);
         assert_eq!(p2.chunks.len(), 1);
         assert_eq!(p2.chunks[0].schema().as_arrow(), schema_2_1);
         assert_eq!(p2.chunks[0].batches.len(), 1);
@@ -1610,10 +1600,7 @@ mod tests {
             p3.parquet_max_sequence_number,
             Some(SequenceNumber::new(31))
         );
-        assert_eq!(
-            p3.tombstone_max_sequence_number,
-            Some(SequenceNumber::new(32))
-        );
+        assert_eq!(p3.tombstone_max_sequence_number, None);
         assert_eq!(p3.chunks.len(), 1);
         assert_eq!(p3.chunks[0].schema().as_arrow(), schema_3_1);
         assert_eq!(p3.chunks[0].batches.len(), 1);
@@ -1733,7 +1720,6 @@ mod tests {
                                     partition_id: 1,
                                     status: Some(PartitionStatus {
                                         parquet_max_sequence_number: Some(11),
-                                        tombstone_max_sequence_number: Some(12),
                                     }),
                                 },
                             )),
@@ -1773,10 +1759,7 @@ mod tests {
             p1.parquet_max_sequence_number,
             Some(SequenceNumber::new(11))
         );
-        assert_eq!(
-            p1.tombstone_max_sequence_number,
-            Some(SequenceNumber::new(12))
-        );
+        assert_eq!(p1.tombstone_max_sequence_number, None);
         assert_eq!(p1.chunks.len(), 1);
     }
 

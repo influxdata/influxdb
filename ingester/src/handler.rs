@@ -30,16 +30,23 @@ use crate::{
     data::{
         partition::resolver::{CatalogPartitionResolver, PartitionCache, PartitionProvider},
         shard::ShardData,
-        IngesterData, IngesterQueryResponse,
+        IngesterData,
     },
     lifecycle::{run_lifecycle_manager, LifecycleConfig, LifecycleManager},
     poison::PoisonCabinet,
-    querier_handler::prepare_data_to_querier,
+    querier_handler::{prepare_data_to_querier, IngesterQueryResponse},
     stream_handler::{
         handler::SequencedStreamHandler, sink_adaptor::IngestSinkAdaptor,
         sink_instrumentation::SinkInstrumentation, PeriodicWatermarkFetcher,
     },
 };
+
+/// The maximum duration of time between creating a [`PartitionData`] and its
+/// [`SortKey`] being fetched from the catalog.
+///
+/// [`PartitionData`]: crate::data::partition::PartitionData
+/// [`SortKey`]: schema::sort::SortKey
+const SORT_KEY_PRE_FETCH: Duration = Duration::from_secs(30);
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -160,7 +167,13 @@ impl IngestHandlerImpl {
 
         // Build the partition provider.
         let partition_provider = CatalogPartitionResolver::new(Arc::clone(&catalog));
-        let partition_provider = PartitionCache::new(partition_provider, recent_partitions);
+        let partition_provider = PartitionCache::new(
+            partition_provider,
+            recent_partitions,
+            SORT_KEY_PRE_FETCH,
+            Arc::clone(&catalog),
+            BackoffConfig::default(),
+        );
         let partition_provider: Arc<dyn PartitionProvider> = Arc::new(partition_provider);
 
         // build the initial ingester data state
@@ -432,7 +445,7 @@ mod tests {
     use write_buffer::mock::{MockBufferForReading, MockBufferSharedState};
 
     use super::*;
-    use crate::data::partition::SnapshotBatch;
+    use crate::data::{partition::SnapshotBatch, table::TableName};
 
     #[tokio::test]
     async fn read_from_write_buffer_write_to_mutable_buffer() {
@@ -499,13 +512,16 @@ mod tests {
         // give the writes some time to go through the buffer. Exit once we've verified there's
         // data in there from both writes.
         tokio::time::timeout(Duration::from_secs(2), async {
+            let ns_name = ingester.namespace.name.into();
+            let table_name = TableName::from("a");
             loop {
                 let mut has_measurement = false;
 
                 if let Some(data) = ingester.ingester.data.shard(ingester.shard.id) {
-                    if let Some(data) = data.namespace(&ingester.namespace.name) {
+                    if let Some(data) = data.namespace(&ns_name) {
                         // verify there's data in the buffer
-                        if let Some((b, _)) = data.snapshot("a", &"1970-01-01".into()).await {
+                        if let Some((b, _)) = data.snapshot(&table_name, &"1970-01-01".into()).await
+                        {
                             if let Some(b) = b.first() {
                                 if b.data.num_rows() > 0 {
                                     has_measurement = true;
@@ -740,13 +756,16 @@ mod tests {
         // give the writes some time to go through the buffer. Exit once we've verified there's
         // data in there
         tokio::time::timeout(Duration::from_secs(1), async move {
+            let ns_name = namespace.name.into();
+            let table_name = TableName::from("cpu");
             loop {
                 let mut has_measurement = false;
 
                 if let Some(data) = ingester.data.shard(shard.id) {
-                    if let Some(data) = data.namespace(&namespace.name) {
+                    if let Some(data) = data.namespace(&ns_name) {
                         // verify there's data in the buffer
-                        if let Some((b, _)) = data.snapshot("cpu", &"1970-01-01".into()).await {
+                        if let Some((b, _)) = data.snapshot(&table_name, &"1970-01-01".into()).await
+                        {
                             if let Some(b) = b.first() {
                                 custom_batch_verification(b);
 

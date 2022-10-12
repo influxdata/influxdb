@@ -11,7 +11,7 @@ chrono = { version = "0.4", default-features = false }
 chrono-english = "0.1.4"
 clap = { version = "4", features = ["derive", "env", "cargo"] }
 futures = "0.3"
-handlebars = "4.3.4"
+handlebars = "4.3.5"
 humantime = "2.1.0"
 influxdb2_client = { path = "../influxdb2_client" }
 itertools = "0.10.5"
@@ -22,7 +22,7 @@ rand = { version = "0.8.3", features = ["small_rng"] }
 regex = "1.6"
 schema = { path = "../schema" }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.83"
+serde_json = "1.0.86"
 snafu = "0.7"
 tokio = { version = "1.21", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 toml = "0.5.9"

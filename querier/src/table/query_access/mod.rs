@@ -66,8 +66,7 @@ impl TableProvider for QuerierTable {
                 ctx.child_span("querier table chunks"),
                 projection,
             )
-            .await
-            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+            .await?;
 
         for chunk in chunks {
             builder = builder.add_chunk(chunk);

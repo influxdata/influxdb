@@ -56,8 +56,6 @@ async fn test_field_columns_no_predicate() {
     run_field_columns_test_case(TwoMeasurementsManyFields {}, predicate, expected_fields).await;
 }
 
-// NGA todo: add delete tests when the TwoMeasurementsManyFieldsWithDelete available
-
 #[tokio::test]
 async fn test_field_columns_with_pred() {
     // get only fields from h20 (but both chunks)
@@ -199,86 +197,6 @@ async fn test_field_name_plan() {
     };
 
     run_field_columns_test_case(OneMeasurementManyFields {}, predicate, expected_fields).await;
-}
-
-#[tokio::test]
-async fn test_field_name_plan_with_delete() {
-    test_helpers::maybe_start_logging();
-
-    let predicate = Predicate::default().with_range(0, 2000);
-    let predicate = InfluxRpcPredicate::new(None, predicate);
-
-    let expected_fields = FieldList {
-        fields: vec![
-            Field {
-                name: "field1".into(),
-                data_type: DataType::Float64,
-                last_timestamp: 100,
-            },
-            Field {
-                name: "field2".into(),
-                data_type: DataType::Utf8,
-                last_timestamp: 100,
-            },
-            Field {
-                name: "field3".into(),
-                data_type: DataType::Float64,
-                last_timestamp: 100,
-            },
-        ],
-    };
-
-    run_field_columns_test_case(
-        OneMeasurementManyFieldsWithDelete {},
-        predicate,
-        expected_fields,
-    )
-    .await;
-}
-
-#[tokio::test]
-async fn test_field_name_plan_with_delete_all_time() {
-    test_helpers::maybe_start_logging();
-
-    let predicate = Predicate::default();
-    let predicate = InfluxRpcPredicate::new(None, predicate);
-
-    let expected_fields = FieldList {
-        fields: vec![
-            Field {
-                name: "field1".into(),
-                data_type: DataType::Float64,
-                last_timestamp: 0, // all time queries are optimized but do not return timestamps
-            },
-            Field {
-                name: "field2".into(),
-                data_type: DataType::Utf8,
-                last_timestamp: 0,
-            },
-            Field {
-                name: "field3".into(),
-                data_type: DataType::Float64,
-                last_timestamp: 0,
-            },
-            Field {
-                name: "field4".into(),
-                data_type: DataType::Boolean,
-                last_timestamp: 0,
-            },
-            Field {
-                name: "field5".into(),
-                data_type: DataType::Boolean,
-                last_timestamp: 0,
-            },
-        ],
-    };
-
-    run_field_columns_test_case(
-        OneMeasurementManyFieldsWithDelete {},
-        predicate,
-        expected_fields,
-    )
-    .await;
 }
 
 #[tokio::test]

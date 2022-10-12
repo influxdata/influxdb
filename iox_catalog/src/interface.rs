@@ -463,7 +463,10 @@ pub trait PartitionRepo: Send + Sync {
         partition_id: PartitionId,
     ) -> Result<Option<PartitionInfo>>;
 
-    /// Update the sort key for the partition
+    /// Update the sort key for the partition.
+    ///
+    /// NOTE: it is expected that ONLY the ingesters update sort keys for
+    /// existing partitions.
     async fn update_sort_key(
         &mut self,
         partition_id: PartitionId,

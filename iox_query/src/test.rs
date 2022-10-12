@@ -8,8 +8,8 @@ use crate::{
         stringset::{StringSet, StringSetRef},
         ExecutionContextProvider, Executor, ExecutorType, IOxSessionContext,
     },
-    Predicate, PredicateMatch, QueryChunk, QueryChunkError, QueryChunkMeta, QueryCompletedToken,
-    QueryDatabase, QueryDatabaseError, QueryText,
+    Predicate, PredicateMatch, QueryChunk, QueryChunkMeta, QueryCompletedToken, QueryDatabase,
+    QueryText,
 };
 use arrow::{
     array::{
@@ -24,7 +24,7 @@ use data_types::{
     ChunkId, ChunkOrder, ColumnSummary, DeletePredicate, InfluxDbType, PartitionId, StatValues,
     Statistics, TableSummary, TimestampMinMax,
 };
-use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 use datafusion_util::stream_from_batches;
 use futures::StreamExt;
 use hashbrown::HashSet;
@@ -108,18 +108,54 @@ impl QueryDatabase for TestDatabase {
         &self,
         table_name: &str,
         predicate: &Predicate,
+        projection: &Option<Vec<usize>>,
         _ctx: IOxSessionContext,
-    ) -> Result<Vec<Arc<dyn QueryChunk>>, QueryDatabaseError> {
+    ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         // save last predicate
         *self.chunks_predicate.lock() = predicate.clone();
 
-        let partitions = self.partitions.lock();
-        Ok(partitions
+        let partitions = self.partitions.lock().clone();
+        let chunks = partitions
             .values()
             .flat_map(|x| x.values())
             .filter(|x| x.table_name == table_name)
-            .map(|x| Arc::clone(x) as _)
-            .collect())
+            .map(|x| Arc::clone(x) as Arc<dyn QueryChunk>)
+            .collect::<Vec<_>>();
+
+        // Return chunks with fewer columns if a projection is specified
+        let mut new_chunks = Vec::with_capacity(chunks.len());
+        for c in chunks {
+            let schema = c.schema();
+            let cols = schema.select_given_and_pk_columns(projection);
+            let cols = cols.iter().map(|c| c.as_str()).collect::<Vec<_>>();
+            let selection = Selection::Some(&cols);
+
+            let read_result =
+                c.read_filter(IOxSessionContext::with_testing(), predicate, selection);
+            if read_result.is_err() {
+                return Err(read_result.err().unwrap());
+            }
+            let mut stream = read_result.unwrap();
+
+            let mut new_chunk = TestChunk::new(c.table_name());
+            while let Some(b) = stream.next().await {
+                let b = b.expect("Error in stream");
+                new_chunk.table_data.push(Arc::new(b));
+            }
+
+            let new_chunk = if !new_chunk.table_data.is_empty() {
+                let new_schema = Schema::try_from(new_chunk.table_data[0].schema()).unwrap();
+                let new_chunk = new_chunk.add_schema_to_table(new_schema, true, None);
+                Arc::new(new_chunk) as _
+            } else {
+                // No data, return the original empty chunk with the original schema
+                c
+            };
+
+            new_chunks.push(new_chunk);
+        }
+
+        Ok(new_chunks)
     }
 
     fn record_query(
@@ -327,9 +363,9 @@ impl TestChunk {
     }
 
     /// Checks the saved error, and returns it if any, otherwise returns OK
-    fn check_error(&self) -> Result<(), QueryChunkError> {
+    fn check_error(&self) -> Result<(), DataFusionError> {
         if let Some(message) = self.saved_error.as_ref() {
-            Err(message.clone().into())
+            Err(DataFusionError::External(message.clone().into()))
         } else {
             Ok(())
         }
@@ -509,12 +545,8 @@ impl TestChunk {
         mut self,
         new_column_schema: Schema,
         add_column_summary: bool,
-        stats: Option<Statistics>,
+        input_stats: Option<Statistics>,
     ) -> Self {
-        // assume the new schema has exactly a single table
-        assert_eq!(new_column_schema.len(), 1);
-        let (col_type, new_field) = new_column_schema.field(0);
-
         let mut merger = SchemaMerger::new();
         merger = merger.merge(&new_column_schema).unwrap();
         merger = merger
@@ -522,34 +554,38 @@ impl TestChunk {
             .expect("merging was successful");
         self.schema = merger.build();
 
-        if add_column_summary {
-            let influxdb_type = col_type.map(|t| match t {
-                InfluxColumnType::Tag => InfluxDbType::Tag,
-                InfluxColumnType::Field(_) => InfluxDbType::Field,
-                InfluxColumnType::Timestamp => InfluxDbType::Timestamp,
-            });
+        for i in 0..new_column_schema.len() {
+            let (col_type, new_field) = new_column_schema.field(i);
+            if add_column_summary {
+                let influxdb_type = col_type.map(|t| match t {
+                    InfluxColumnType::Tag => InfluxDbType::Tag,
+                    InfluxColumnType::Field(_) => InfluxDbType::Field,
+                    InfluxColumnType::Timestamp => InfluxDbType::Timestamp,
+                });
 
-            let stats = stats.unwrap_or_else(|| match new_field.data_type() {
-                DataType::Boolean => Statistics::Bool(StatValues::default()),
-                DataType::Int64 => Statistics::I64(StatValues::default()),
-                DataType::UInt64 => Statistics::U64(StatValues::default()),
-                DataType::Utf8 => Statistics::String(StatValues::default()),
-                DataType::Dictionary(_, value_type) => {
-                    assert!(matches!(**value_type, DataType::Utf8));
-                    Statistics::String(StatValues::default())
-                }
-                DataType::Float64 => Statistics::F64(StatValues::default()),
-                DataType::Timestamp(_, _) => Statistics::I64(StatValues::default()),
-                _ => panic!("Unsupported type in TestChunk: {:?}", new_field.data_type()),
-            });
+                let stats = input_stats.clone();
+                let stats = stats.unwrap_or_else(|| match new_field.data_type() {
+                    DataType::Boolean => Statistics::Bool(StatValues::default()),
+                    DataType::Int64 => Statistics::I64(StatValues::default()),
+                    DataType::UInt64 => Statistics::U64(StatValues::default()),
+                    DataType::Utf8 => Statistics::String(StatValues::default()),
+                    DataType::Dictionary(_, value_type) => {
+                        assert!(matches!(**value_type, DataType::Utf8));
+                        Statistics::String(StatValues::default())
+                    }
+                    DataType::Float64 => Statistics::F64(StatValues::default()),
+                    DataType::Timestamp(_, _) => Statistics::I64(StatValues::default()),
+                    _ => panic!("Unsupported type in TestChunk: {:?}", new_field.data_type()),
+                });
 
-            let column_summary = ColumnSummary {
-                name: new_field.name().clone(),
-                influxdb_type,
-                stats,
-            };
+                let column_summary = ColumnSummary {
+                    name: new_field.name().clone(),
+                    influxdb_type,
+                    stats,
+                };
 
-            self.table_summary.columns.push(column_summary);
+                self.table_summary.columns.push(column_summary);
+            }
         }
 
         self
@@ -921,13 +957,17 @@ impl QueryChunk for TestChunk {
         _ctx: IOxSessionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
-    ) -> Result<SendableRecordBatchStream, QueryChunkError> {
+    ) -> Result<SendableRecordBatchStream, DataFusionError> {
         self.check_error()?;
 
         // save the predicate
         self.predicates.lock().push(predicate.clone());
 
-        let batches = match self.schema.df_projection(selection)? {
+        let batches = match self
+            .schema
+            .df_projection(selection)
+            .map_err(|e| DataFusionError::External(Box::new(e)))?
+        {
             None => self.table_data.clone(),
             Some(projection) => self
                 .table_data
@@ -938,7 +978,8 @@ impl QueryChunk for TestChunk {
                 })
                 .collect::<std::result::Result<Vec<_>, ArrowError>>()?,
         };
-        Ok(stream_from_batches(batches))
+
+        Ok(stream_from_batches(self.schema().as_arrow(), batches))
     }
 
     fn chunk_type(&self) -> &str {
@@ -948,7 +989,7 @@ impl QueryChunk for TestChunk {
     fn apply_predicate_to_metadata(
         &self,
         predicate: &Predicate,
-    ) -> Result<PredicateMatch, QueryChunkError> {
+    ) -> Result<PredicateMatch, DataFusionError> {
         self.check_error()?;
 
         // save the predicate
@@ -967,7 +1008,7 @@ impl QueryChunk for TestChunk {
         _ctx: IOxSessionContext,
         _column_name: &str,
         _predicate: &Predicate,
-    ) -> Result<Option<StringSet>, QueryChunkError> {
+    ) -> Result<Option<StringSet>, DataFusionError> {
         // Model not being able to get column values from metadata
         Ok(None)
     }
@@ -977,7 +1018,7 @@ impl QueryChunk for TestChunk {
         _ctx: IOxSessionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
-    ) -> Result<Option<StringSet>, QueryChunkError> {
+    ) -> Result<Option<StringSet>, DataFusionError> {
         self.check_error()?;
 
         // save the predicate

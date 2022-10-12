@@ -529,7 +529,7 @@ pub fn parse_lines(input: &str) -> impl Iterator<Item = Result<ParsedLine<'_>>> 
 /// logic duplication for scanning fields, duplicating it also means
 /// we can be more sure of the compatibility of the rust parser and
 /// the canonical Go parser.
-fn split_lines(input: &str) -> impl Iterator<Item = &str> {
+pub fn split_lines(input: &str) -> impl Iterator<Item = &str> {
     // NB: This is ported as closely as possibly from the original Go code:
     let mut quoted = false;
     let mut fields = false;

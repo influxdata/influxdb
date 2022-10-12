@@ -30,8 +30,8 @@ use trace::ctx::SpanContext;
 use write_summary::WriteSummary;
 
 use crate::{
-    data::{FlatIngesterQueryResponse, FlatIngesterQueryResponseStream},
     handler::IngestHandler,
+    querier_handler::{FlatIngesterQueryResponse, FlatIngesterQueryResponseStream},
 };
 
 /// This type is responsible for managing all gRPC services exposed by
@@ -410,9 +410,6 @@ impl Stream for GetStream {
                             parquet_max_sequence_number: status
                                 .parquet_max_sequence_number
                                 .map(|x| x.get()),
-                            tombstone_max_sequence_number: status
-                                .tombstone_max_sequence_number
-                                .map(|x| x.get()),
                         }),
                     };
                     prost::Message::encode(&app_metadata, &mut bytes)
@@ -467,8 +464,9 @@ mod tests {
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use schema::selection::Selection;
 
+    use crate::querier_handler::PartitionStatus;
+
     use super::*;
-    use crate::data::partition::PartitionStatus;
 
     #[tokio::test]
     async fn test_get_stream_empty() {
@@ -489,7 +487,6 @@ mod tests {
                     partition_id: PartitionId::new(1),
                     status: PartitionStatus {
                         parquet_max_sequence_number: None,
-                        tombstone_max_sequence_number: None,
                     },
                 }),
                 Ok(FlatIngesterQueryResponse::StartSnapshot { schema }),
@@ -502,7 +499,6 @@ mod tests {
                         partition_id: 1,
                         status: Some(proto::PartitionStatus {
                             parquet_max_sequence_number: None,
-                            tombstone_max_sequence_number: None,
                         }),
                     },
                 }),
@@ -527,7 +523,6 @@ mod tests {
                     partition_id: PartitionId::new(1),
                     status: PartitionStatus {
                         parquet_max_sequence_number: None,
-                        tombstone_max_sequence_number: None,
                     },
                 }),
                 Err(ArrowError::IoError("foo".into())),
@@ -535,7 +530,6 @@ mod tests {
                     partition_id: PartitionId::new(1),
                     status: PartitionStatus {
                         parquet_max_sequence_number: None,
-                        tombstone_max_sequence_number: None,
                     },
                 }),
             ],
@@ -546,7 +540,6 @@ mod tests {
                         partition_id: 1,
                         status: Some(proto::PartitionStatus {
                             parquet_max_sequence_number: None,
-                            tombstone_max_sequence_number: None,
                         }),
                     },
                 }),

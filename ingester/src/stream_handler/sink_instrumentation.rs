@@ -414,11 +414,13 @@ mod tests {
         let got = test(
             op,
             &metrics,
-            Err(crate::data::Error::TableNotPresent),
+            Err(crate::data::Error::NamespaceNotFound {
+                namespace: "bananas".to_string(),
+            }),
             Some(12345),
         )
         .await;
-        assert_matches!(got, Err(crate::data::Error::TableNotPresent));
+        assert_matches!(got, Err(crate::data::Error::NamespaceNotFound { .. }));
 
         // Validate the various write buffer metrics
         assert_matches!(

@@ -1,41 +1,12 @@
-use crate::common::{measurement_name_expression, MeasurementNameExpression, OneOrMore, Parser};
+use crate::common::{
+    qualified_measurement_name, MeasurementName, OneOrMore, Parser, QualifiedMeasurementName,
+};
 use crate::identifier::{identifier, Identifier};
 use crate::internal::ParseResult;
-use crate::string::{regex, Regex};
-use nom::branch::alt;
 use nom::bytes::complete::tag_no_case;
 use nom::character::complete::multispace1;
-use nom::combinator::map;
 use nom::sequence::{pair, preceded};
 use std::fmt;
-use std::fmt::Formatter;
-
-/// Represents a single measurement selection found in a `FROM` measurement clause.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum MeasurementSelection<T: Parser> {
-    Name(T),
-    Regex(Regex),
-}
-
-impl<T: Parser> Parser for MeasurementSelection<T> {
-    fn parse(i: &str) -> ParseResult<&str, Self> {
-        alt((
-            map(T::parse, MeasurementSelection::Name),
-            map(regex, MeasurementSelection::Regex),
-        ))(i)
-    }
-}
-
-impl<T: fmt::Display + Parser> fmt::Display for MeasurementSelection<T> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Name(ref name) => fmt::Display::fmt(name, f)?,
-            Self::Regex(ref re) => fmt::Display::fmt(re, f)?,
-        };
-
-        Ok(())
-    }
-}
 
 /// Represents a `FROM` clause of a `DELETE` or `SHOW` statement.
 ///
@@ -43,7 +14,7 @@ impl<T: fmt::Display + Parser> fmt::Display for MeasurementSelection<T> {
 /// for measurements names.
 ///
 /// A `FROM` clause for a number of `SHOW` statements can accept a 3-part measurement name or
-pub type FromMeasurementClause<U> = OneOrMore<MeasurementSelection<U>>;
+pub type FromMeasurementClause<U> = OneOrMore<U>;
 
 fn from_clause<T: Parser + fmt::Display>(i: &str) -> ParseResult<&str, FromMeasurementClause<T>> {
     preceded(
@@ -54,9 +25,9 @@ fn from_clause<T: Parser + fmt::Display>(i: &str) -> ParseResult<&str, FromMeasu
     )(i)
 }
 
-impl Parser for MeasurementNameExpression {
+impl Parser for QualifiedMeasurementName {
     fn parse(i: &str) -> ParseResult<&str, Self> {
-        measurement_name_expression(i)
+        qualified_measurement_name(i)
     }
 }
 
@@ -68,10 +39,9 @@ impl Parser for MeasurementNameExpression {
 /// It is defined by the following EBNF notation:
 ///
 /// ```text
-/// from_clause ::= "FROM" measurement_selection ("," measurement_selection)*
-/// measurement_selection ::= measurement
+/// from_clause ::= "FROM" qualified_measurement_name ("," qualified_measurement_name)*
 ///
-/// measurement      ::= measurement_name |
+/// qualified_measurement_name ::= measurement_name |
 ///                      ( policy_name "." measurement_name ) |
 ///                      ( db_name "." policy_name? "." measurement_name )
 ///
@@ -92,7 +62,7 @@ impl Parser for MeasurementNameExpression {
 /// ```text
 /// FROM foo, /bar/, some_database..foo, some_retention_policy.foobar
 /// ```
-pub type ShowFromClause = FromMeasurementClause<MeasurementNameExpression>;
+pub type ShowFromClause = FromMeasurementClause<QualifiedMeasurementName>;
 
 /// Parse a `FROM` clause for various `SHOW` statements.
 pub fn show_from_clause(i: &str) -> ParseResult<&str, ShowFromClause> {
@@ -106,7 +76,7 @@ impl Parser for Identifier {
 }
 
 /// Represents a `FROM` clause for a `DELETE` statement.
-pub type DeleteFromClause = FromMeasurementClause<Identifier>;
+pub type DeleteFromClause = FromMeasurementClause<MeasurementName>;
 
 /// Parse a `FROM` clause for a `DELETE` statement.
 pub fn delete_from_clause(i: &str) -> ParseResult<&str, DeleteFromClause> {
@@ -119,49 +89,52 @@ mod test {
 
     #[test]
     fn test_show_from_clause() {
-        use crate::simple_from_clause::MeasurementSelection::*;
+        use crate::common::MeasurementName::*;
 
         let (_, from) = show_from_clause("FROM c").unwrap();
         assert_eq!(
             from,
-            ShowFromClause::new(vec![Name(MeasurementNameExpression::new("c".into()))])
+            ShowFromClause::new(vec![QualifiedMeasurementName::new(Name("c".into()))])
         );
 
         let (_, from) = show_from_clause("FROM a..c").unwrap();
         assert_eq!(
             from,
-            ShowFromClause::new(vec![Name(MeasurementNameExpression::new_db(
-                "c".into(),
+            ShowFromClause::new(vec![QualifiedMeasurementName::new_db(
+                Name("c".into()),
                 "a".into()
-            ))])
+            )])
         );
 
         let (_, from) = show_from_clause("FROM a.b.c").unwrap();
         assert_eq!(
             from,
-            ShowFromClause::new(vec![Name(MeasurementNameExpression::new_db_rp(
-                "c".into(),
+            ShowFromClause::new(vec![QualifiedMeasurementName::new_db_rp(
+                Name("c".into()),
                 "a".into(),
                 "b".into()
-            ))])
+            )])
         );
 
         let (_, from) = show_from_clause("FROM /reg/").unwrap();
-        assert_eq!(from, ShowFromClause::new(vec![Regex("reg".into())]));
+        assert_eq!(
+            from,
+            ShowFromClause::new(vec![QualifiedMeasurementName::new(Regex("reg".into()))])
+        );
 
         let (_, from) = show_from_clause("FROM c, /reg/").unwrap();
         assert_eq!(
             from,
             ShowFromClause::new(vec![
-                Name(MeasurementNameExpression::new("c".into())),
-                Regex("reg".into())
+                QualifiedMeasurementName::new(Name("c".into())),
+                QualifiedMeasurementName::new(Regex("reg".into()))
             ])
         );
     }
 
     #[test]
     fn test_delete_from_clause() {
-        use crate::simple_from_clause::MeasurementSelection::*;
+        use crate::common::MeasurementName::*;
 
         let (_, from) = delete_from_clause("FROM c").unwrap();
         assert_eq!(from, DeleteFromClause::new(vec![Name("c".into())]));

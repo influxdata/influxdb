@@ -3,18 +3,21 @@
 use std::sync::Arc;
 
 use arrow::record_batch::RecordBatch;
-use data_types::{
-    NamespaceId, PartitionId, PartitionKey, SequenceNumber, ShardId, TableId, Tombstone,
-};
-use iox_query::exec::Executor;
+use data_types::{NamespaceId, PartitionId, PartitionKey, SequenceNumber, ShardId, TableId};
 use mutable_batch::MutableBatch;
-use schema::selection::Selection;
+use observability_deps::tracing::*;
+use schema::{selection::Selection, sort::SortKey};
 use snafu::ResultExt;
 use uuid::Uuid;
 use write_summary::ShardProgress;
 
-use self::buffer::{BufferBatch, DataBuffer};
-use crate::{data::query_dedup::query, query::QueryableBatch};
+use self::{
+    buffer::{BufferBatch, DataBuffer},
+    resolver::DeferredSortKey,
+};
+use crate::{querier_handler::PartitionStatus, query::QueryableBatch};
+
+use super::table::TableName;
 
 mod buffer;
 pub mod resolver;
@@ -26,20 +29,6 @@ pub(crate) struct UnpersistedPartitionData {
     pub(crate) non_persisted: Vec<Arc<SnapshotBatch>>,
     pub(crate) persisting: Option<QueryableBatch>,
     pub(crate) partition_status: PartitionStatus,
-}
-
-/// Status of a partition that has unpersisted data.
-///
-/// Note that this structure is specific to a partition (which itself is bound to a table and
-/// shard)!
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[allow(missing_copy_implementations)]
-pub struct PartitionStatus {
-    /// Max sequence number persisted
-    pub parquet_max_sequence_number: Option<SequenceNumber>,
-
-    /// Max sequence number for a tombstone
-    pub tombstone_max_sequence_number: Option<SequenceNumber>,
 }
 
 /// PersistingBatch contains all needed info and data for creating
@@ -132,7 +121,28 @@ impl SnapshotBatch {
     }
 }
 
-/// Data of an IOx Partition of a given Table of a Namesapce that belongs to a given Shard
+/// The load state of the [`SortKey`] for a given partition.
+#[derive(Debug)]
+pub(crate) enum SortKeyState {
+    /// The [`SortKey`] has not yet been fetched from the catalog, and will be
+    /// lazy loaded (or loaded in the background) by a call to
+    /// [`DeferredSortKey::get()`].
+    Deferred(DeferredSortKey),
+    /// The sort key is known and specified.
+    Provided(Option<SortKey>),
+}
+
+impl SortKeyState {
+    async fn get(&self) -> Option<SortKey> {
+        match self {
+            Self::Deferred(v) => v.get().await,
+            Self::Provided(v) => v.clone(),
+        }
+    }
+}
+
+/// Data of an IOx Partition of a given Table of a Namespace that belongs to a
+/// given Shard
 #[derive(Debug)]
 pub struct PartitionData {
     /// The catalog ID of the partition this buffer is for.
@@ -140,12 +150,23 @@ pub struct PartitionData {
     /// The string partition key for this partition.
     partition_key: PartitionKey,
 
+    /// The sort key of this partition.
+    ///
+    /// This can known, in which case this field will contain a
+    /// [`SortKeyState::Provided`] with the [`SortKey`], or unknown with a value
+    /// of [`SortKeyState::Deferred`] causing it to be loaded from the catalog
+    /// (potentially) in the background or at read time.
+    ///
+    /// Callers should use [`Self::sort_key()`] to be abstracted away from these
+    /// fetch details.
+    sort_key: SortKeyState,
+
     /// The shard, namespace & table IDs for this partition.
     shard_id: ShardId,
     namespace_id: NamespaceId,
     table_id: TableId,
     /// The name of the table this partition is part of.
-    table_name: Arc<str>,
+    table_name: TableName,
 
     pub(super) data: DataBuffer,
 
@@ -156,18 +177,21 @@ pub struct PartitionData {
 
 impl PartitionData {
     /// Initialize a new partition data buffer
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         id: PartitionId,
         partition_key: PartitionKey,
         shard_id: ShardId,
         namespace_id: NamespaceId,
         table_id: TableId,
-        table_name: Arc<str>,
+        table_name: TableName,
+        sort_key: SortKeyState,
         max_persisted_sequence_number: Option<SequenceNumber>,
     ) -> Self {
         Self {
             id,
             partition_key,
+            sort_key,
             shard_id,
             namespace_id,
             table_id,
@@ -209,92 +233,28 @@ impl PartitionData {
         sequence_number: SequenceNumber,
         mb: MutableBatch,
     ) -> Result<(), super::Error> {
-        match &mut self.data.buffer {
+        let (min_sequence_number, max_sequence_number) = match &mut self.data.buffer {
             Some(buf) => {
                 buf.max_sequence_number = sequence_number.max(buf.max_sequence_number);
                 buf.data.extend_from(&mb).context(super::BufferWriteSnafu)?;
+                (buf.min_sequence_number, buf.max_sequence_number)
             }
             None => {
                 self.data.buffer = Some(BufferBatch {
                     min_sequence_number: sequence_number,
                     max_sequence_number: sequence_number,
                     data: mb,
-                })
+                });
+                (sequence_number, sequence_number)
             }
-        }
+        };
+        trace!(
+            min_sequence_number=?min_sequence_number,
+            max_sequence_number=?max_sequence_number,
+            "buffered write"
+        );
 
         Ok(())
-    }
-
-    /// Buffers a new tombstone:
-    ///   . All the data in the `buffer` and `snapshots` will be replaced with one
-    ///     tombstone-applied snapshot
-    ///   . The tombstone is only added in the `deletes_during_persisting` if the `persisting`
-    ///     exists
-    pub(super) async fn buffer_tombstone(&mut self, executor: &Executor, tombstone: Tombstone) {
-        self.data.add_tombstone(tombstone.clone());
-
-        // ----------------------------------------------------------
-        // First apply the tombstone on all in-memory & non-persisting data
-        // Make a QueryableBatch for all buffer + snapshots + the given tombstone
-        let max_sequence_number = tombstone.sequence_number;
-        let query_batch = match self.data.snapshot_to_queryable_batch(
-            &self.table_name,
-            self.id,
-            Some(tombstone.clone()),
-        ) {
-            Some(query_batch) if !query_batch.is_empty() => query_batch,
-            _ => {
-                // No need to proceed further
-                return;
-            }
-        };
-
-        let (min_sequence_number, _) = query_batch.min_max_sequence_numbers();
-        assert!(min_sequence_number <= max_sequence_number);
-
-        // Run query on the QueryableBatch to apply the tombstone.
-        let stream = match query(executor, Arc::new(query_batch)).await {
-            Err(e) => {
-                // this should never error out. if it does, we need to crash hard so
-                // someone can take a look.
-                panic!("unable to apply tombstones on snapshots: {:?}", e);
-            }
-            Ok(stream) => stream,
-        };
-        let record_batches = match datafusion::physical_plan::common::collect(stream).await {
-            Err(e) => {
-                // this should never error out. if it does, we need to crash hard so
-                // someone can take a look.
-                panic!("unable to collect record batches: {:?}", e);
-            }
-            Ok(batches) => batches,
-        };
-
-        // Merge all result record batches into one record batch
-        // and make a snapshot for it
-        let snapshot = if !record_batches.is_empty() {
-            let record_batch =
-                arrow::compute::concat_batches(&record_batches[0].schema(), &record_batches)
-                    .unwrap_or_else(|e| {
-                        panic!("unable to concat record batches: {:?}", e);
-                    });
-            let snapshot = SnapshotBatch {
-                min_sequence_number,
-                max_sequence_number,
-                data: Arc::new(record_batch),
-            };
-
-            Some(Arc::new(snapshot))
-        } else {
-            None
-        };
-
-        // ----------------------------------------------------------
-        // Add the tombstone-applied data back in as one snapshot
-        if let Some(snapshot) = snapshot {
-            self.data.snapshots.push(snapshot);
-        }
     }
 
     /// Return the progress from this Partition
@@ -302,7 +262,7 @@ impl PartitionData {
         self.data.progress()
     }
 
-    pub(super) fn id(&self) -> PartitionId {
+    pub(super) fn partition_id(&self) -> PartitionId {
         self.id
     }
 
@@ -347,6 +307,13 @@ impl PartitionData {
     pub fn namespace_id(&self) -> NamespaceId {
         self.namespace_id
     }
+
+    /// Return the [`SortKey`] for this partition.
+    ///
+    /// NOTE: this MAY involve querying the catalog with unbounded retries.
+    pub async fn sort_key(&self) -> Option<SortKey> {
+        self.sort_key.get().await
+    }
 }
 
 #[cfg(test)]
@@ -355,7 +322,6 @@ mod tests {
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 
     use super::*;
-    use crate::test_util::create_tombstone;
 
     #[test]
     fn snapshot_buffer_different_but_compatible_schemas() {
@@ -366,6 +332,7 @@ mod tests {
             NamespaceId::new(42),
             TableId::new(1),
             "foo".into(),
+            SortKeyState::Provided(None),
             None,
         );
 
@@ -401,7 +368,7 @@ mod tests {
 
     // Test deletes mixed with writes on a single parittion
     #[tokio::test]
-    async fn writes_and_deletes() {
+    async fn writes() {
         // Make a partition with empty DataBuffer
         let s_id = 1;
         let t_id = 1;
@@ -413,9 +380,9 @@ mod tests {
             NamespaceId::new(42),
             TableId::new(t_id),
             "restaurant".into(),
+            SortKeyState::Provided(None),
             None,
         );
-        let exec = Executor::new(1);
 
         // ------------------------------------------
         // Fill `buffer`
@@ -438,41 +405,7 @@ mod tests {
             SequenceNumber::new(2)
         );
         assert_eq!(p.data.snapshots.len(), 0);
-        assert_eq!(p.data.deletes_during_persisting().len(), 0);
         assert_eq!(p.data.persisting, None);
-
-        // ------------------------------------------
-        // Delete
-        // --- seq_num: 3
-        let ts = create_tombstone(
-            1,         // tombstone id
-            t_id,      // table id
-            s_id,      // shard id
-            3,         // delete's seq_number
-            0,         // min time of data to get deleted
-            20,        // max time of data to get deleted
-            "day=thu", // delete predicate
-        );
-        // one row will get deleted, the other is moved to snapshot
-        p.buffer_tombstone(&exec, ts).await;
-
-        // verify data
-        assert!(p.data.buffer.is_none()); // always empty after delete
-        assert_eq!(p.data.snapshots.len(), 1); // one snpashot if there is data
-        assert_eq!(p.data.deletes_during_persisting().len(), 0);
-        assert_eq!(p.data.persisting, None);
-        // snapshot only has one row since the other one got deleted
-        let data = (*p.data.snapshots[0].data).clone();
-        let expected = vec![
-            "+--------+-----+------+--------------------------------+",
-            "| city   | day | temp | time                           |",
-            "+--------+-----+------+--------------------------------+",
-            "| Boston | fri | 50   | 1970-01-01T00:00:00.000000010Z |",
-            "+--------+-----+------+--------------------------------+",
-        ];
-        assert_batches_sorted_eq!(&expected, &[data]);
-        assert_eq!(p.data.snapshots[0].min_sequence_number.get(), 1);
-        assert_eq!(p.data.snapshots[0].max_sequence_number.get(), 3);
 
         // ------------------------------------------
         // Fill `buffer`
@@ -493,50 +426,15 @@ mod tests {
         // verify data
         assert_eq!(
             p.data.buffer.as_ref().unwrap().min_sequence_number,
-            SequenceNumber::new(4)
+            SequenceNumber::new(1)
         );
         assert_eq!(
             p.data.buffer.as_ref().unwrap().max_sequence_number,
             SequenceNumber::new(5)
         );
-        assert_eq!(p.data.snapshots.len(), 1); // existing sanpshot
-        assert_eq!(p.data.deletes_during_persisting().len(), 0);
+        assert_eq!(p.data.snapshots.len(), 0);
         assert_eq!(p.data.persisting, None);
-
-        // ------------------------------------------
-        // Delete
-        // --- seq_num: 6
-        let ts = create_tombstone(
-            2,             // tombstone id
-            t_id,          // table id
-            s_id,          // shard id
-            6,             // delete's seq_number
-            10,            // min time of data to get deleted
-            50,            // max time of data to get deleted
-            "city=Boston", // delete predicate
-        );
-        // two rows will get deleted, one from existing snapshot, one from the buffer being moved
-        // to snpashot
-        p.buffer_tombstone(&exec, ts).await;
-
-        // verify data
-        assert!(p.data.buffer.is_none()); // always empty after delete
-        assert_eq!(p.data.snapshots.len(), 1); // one snpashot
-        assert_eq!(p.data.deletes_during_persisting().len(), 0);
-        assert_eq!(p.data.persisting, None);
-        // snapshot only has two rows since the other 2 rows with city=Boston have got deleted
-        let data = (*p.data.snapshots[0].data).clone();
-        let expected = vec![
-            "+---------+-----+------+--------------------------------+",
-            "| city    | day | temp | time                           |",
-            "+---------+-----+------+--------------------------------+",
-            "| Andover | tue | 56   | 1970-01-01T00:00:00.000000030Z |",
-            "| Medford | sun | 55   | 1970-01-01T00:00:00.000000022Z |",
-            "+---------+-----+------+--------------------------------+",
-        ];
-        assert_batches_sorted_eq!(&expected, &[data]);
-        assert_eq!(p.data.snapshots[0].min_sequence_number.get(), 1);
-        assert_eq!(p.data.snapshots[0].max_sequence_number.get(), 6);
+        assert!(p.data.buffer.is_some());
 
         // ------------------------------------------
         // Persisting
@@ -545,32 +443,12 @@ mod tests {
         // verify data
         assert!(p.data.buffer.is_none()); // always empty after issuing persit
         assert_eq!(p.data.snapshots.len(), 0); // always empty after issuing persit
-        assert_eq!(p.data.deletes_during_persisting().len(), 0); // deletes not happen yet
         assert_eq!(p.data.persisting, Some(Arc::clone(&p_batch)));
 
-        // ------------------------------------------
-        // Delete
-        // --- seq_num: 7
-        let ts = create_tombstone(
-            3,         // tombstone id
-            t_id,      // table id
-            s_id,      // shard id
-            7,         // delete's seq_number
-            10,        // min time of data to get deleted
-            50,        // max time of data to get deleted
-            "temp=55", // delete predicate
-        );
-        // if a query come while persisting, the row with temp=55 will be deleted before
-        // data is sent back to Querier
-        p.buffer_tombstone(&exec, ts).await;
-
         // verify data
-        assert!(p.data.buffer.is_none()); // always empty after delete
-                                          // no snpashots becasue buffer has not data yet and the
-                                          // snapshot was empty too
-        assert_eq!(p.data.snapshots.len(), 0);
-        assert_eq!(p.data.deletes_during_persisting().len(), 1); // tombstone added since data is
-                                                                 // persisting
+        assert!(p.data.buffer.is_none());
+        assert_eq!(p.data.snapshots.len(), 0); // no snpashots becasue buffer has not data yet and the
+                                               // snapshot was empty too
         assert_eq!(p.data.persisting, Some(Arc::clone(&p_batch)));
 
         // ------------------------------------------
@@ -591,7 +469,6 @@ mod tests {
             SequenceNumber::new(8)
         ); // 1 newly added mutable batch of 3 rows of data
         assert_eq!(p.data.snapshots.len(), 0); // still empty
-        assert_eq!(p.data.deletes_during_persisting().len(), 1);
         assert_eq!(p.data.persisting, Some(Arc::clone(&p_batch)));
 
         // ------------------------------------------
@@ -600,7 +477,6 @@ mod tests {
         // verify data
         assert!(p.data.buffer.is_none()); // empty after snapshot
         assert_eq!(p.data.snapshots.len(), 1); // data moved from buffer
-        assert_eq!(p.data.deletes_during_persisting().len(), 1);
         assert_eq!(p.data.persisting, Some(Arc::clone(&p_batch)));
         // snapshot has three rows moved from buffer
         let data = (*p.data.snapshots[0].data).clone();
@@ -616,41 +492,5 @@ mod tests {
         assert_batches_sorted_eq!(&expected, &[data]);
         assert_eq!(p.data.snapshots[0].min_sequence_number.get(), 8);
         assert_eq!(p.data.snapshots[0].max_sequence_number.get(), 8);
-
-        // ------------------------------------------
-        // Delete
-        // --- seq_num: 9
-        let ts = create_tombstone(
-            4,         // tombstone id
-            t_id,      // table id
-            s_id,      // shard id
-            9,         // delete's seq_number
-            10,        // min time of data to get deleted
-            50,        // max time of data to get deleted
-            "temp=60", // delete predicate
-        );
-        // the row with temp=60 will be removed from the sanphot
-        p.buffer_tombstone(&exec, ts).await;
-
-        // verify data
-        assert!(p.data.buffer.is_none()); // always empty after delete
-        assert_eq!(p.data.snapshots.len(), 1); // new snapshot of the existing with delete applied
-        assert_eq!(p.data.deletes_during_persisting().len(), 2); // one more tombstone added make it 2
-        assert_eq!(p.data.persisting, Some(Arc::clone(&p_batch)));
-        // snapshot has only 2 rows because the row with tem=60 was removed
-        let data = (*p.data.snapshots[0].data).clone();
-        let expected = vec![
-            "+------------+-----+------+--------------------------------+",
-            "| city       | day | temp | time                           |",
-            "+------------+-----+------+--------------------------------+",
-            "| Wilmington | sun | 55   | 1970-01-01T00:00:00.000000035Z |",
-            "| Boston     | sun | 62   | 1970-01-01T00:00:00.000000038Z |",
-            "+------------+-----+------+--------------------------------+",
-        ];
-        assert_batches_sorted_eq!(&expected, &[data]);
-        assert_eq!(p.data.snapshots[0].min_sequence_number.get(), 8);
-        assert_eq!(p.data.snapshots[0].max_sequence_number.get(), 9);
-
-        exec.join().await;
     }
 }

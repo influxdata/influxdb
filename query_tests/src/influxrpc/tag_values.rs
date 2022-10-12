@@ -81,32 +81,6 @@ async fn list_tag_values_no_predicate_state_col() {
 }
 
 #[tokio::test]
-async fn list_tag_values_no_predicate_state_col_with_delete() {
-    let tag_name = "state";
-    let expected_tag_keys = vec!["CA", "MA"];
-    run_tag_values_test_case(
-        OneMeasurementManyNullTagsWithDelete {},
-        tag_name,
-        InfluxRpcPredicate::default(),
-        expected_tag_keys,
-    )
-    .await;
-}
-
-#[tokio::test]
-async fn list_tag_values_no_predicate_state_col_with_delete_all() {
-    let tag_name = "state";
-    let expected_tag_keys = vec![];
-    run_tag_values_test_case(
-        OneMeasurementManyNullTagsWithDeleteAll {},
-        tag_name,
-        InfluxRpcPredicate::default(),
-        expected_tag_keys,
-    )
-    .await;
-}
-
-#[tokio::test]
 async fn list_tag_values_no_predicate_city_col() {
     let tag_name = "city";
     let expected_tag_keys = vec!["Boston", "LA", "NYC"];

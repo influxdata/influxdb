@@ -290,6 +290,11 @@ impl TestConfig {
         self.with_env("INFLUXDB_IOX_FLIGHT_DO_GET_PANIC", times.to_string())
     }
 
+    /// Configure maximum per-table query bytes for the querier.
+    pub fn with_querier_max_table_query_bytes(self, bytes: usize) -> Self {
+        self.with_env("INFLUXDB_IOX_MAX_TABLE_QUERY_BYTES", bytes.to_string())
+    }
+
     /// Changes the log to JSON for easier parsing.
     pub fn with_json_logs(self) -> Self {
         self.with_env("LOG_FORMAT", "json")

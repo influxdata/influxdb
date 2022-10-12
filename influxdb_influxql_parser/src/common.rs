@@ -2,6 +2,7 @@ use crate::expression::conditional::{conditional_expression, ConditionalExpressi
 use crate::identifier::{identifier, Identifier};
 use crate::internal::{expect, ParseResult};
 use crate::literal::unsigned_integer;
+use crate::string::{regex, Regex};
 use core::fmt;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case};
@@ -11,73 +12,82 @@ use nom::multi::separated_list1;
 use nom::sequence::{pair, preceded, terminated};
 use std::fmt::{Display, Formatter};
 
-/// Represents a fully-qualified measurement name.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct MeasurementNameExpression {
+/// Represents a measurement name as either an identifier or a regular expression.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MeasurementName {
+    /// A measurement name expressed as an [`Identifier`].
+    Name(Identifier),
+
+    /// A measurement name expressed as a [`Regex`].
+    Regex(Regex),
+}
+
+impl Parser for MeasurementName {
+    /// Parse a measurement name, which may be an identifier or a regular expression.
+    fn parse(i: &str) -> ParseResult<&str, Self> {
+        alt((
+            map(identifier, MeasurementName::Name),
+            map(regex, MeasurementName::Regex),
+        ))(i)
+    }
+}
+
+impl Display for MeasurementName {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Name(ident) => fmt::Display::fmt(ident, f),
+            Self::Regex(regex) => fmt::Display::fmt(regex, f),
+        }
+    }
+}
+
+/// Represents a fully-qualified, 3-part measurement name.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct QualifiedMeasurementName {
     pub database: Option<Identifier>,
     pub retention_policy: Option<Identifier>,
-    pub name: Identifier,
+    pub name: MeasurementName,
 }
 
-impl MeasurementNameExpression {
-    /// Constructs a new `MeasurementNameExpression` with the specified `name`.
-    pub fn new(name: Identifier) -> Self {
-        Self {
-            database: None,
-            retention_policy: None,
-            name,
-        }
-    }
-
-    /// Constructs a new `MeasurementNameExpression` with the specified `name` and `database`.
-    pub fn new_db(name: Identifier, database: Identifier) -> Self {
-        Self {
-            database: Some(database),
-            retention_policy: None,
-            name,
-        }
-    }
-
-    /// Constructs a new `MeasurementNameExpression` with the specified `name`, `database` and `retention_policy`.
-    pub fn new_db_rp(name: Identifier, database: Identifier, retention_policy: Identifier) -> Self {
-        Self {
-            database: Some(database),
-            retention_policy: Some(retention_policy),
-            name,
-        }
-    }
-}
-
-impl fmt::Display for MeasurementNameExpression {
+impl Display for QualifiedMeasurementName {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self {
                 database: None,
                 retention_policy: None,
                 name,
-            } => write!(f, "{}", name)?,
+            } => write!(f, "{}", name),
             Self {
                 database: Some(db),
                 retention_policy: None,
                 name,
-            } => write!(f, "{}..{}", db, name)?,
+            } => write!(f, "{}..{}", db, name),
             Self {
                 database: None,
                 retention_policy: Some(rp),
                 name,
-            } => write!(f, "{}.{}", rp, name)?,
+            } => write!(f, "{}.{}", rp, name),
             Self {
                 database: Some(db),
                 retention_policy: Some(rp),
                 name,
-            } => write!(f, "{}.{}.{}", db, rp, name)?,
-        };
-        Ok(())
+            } => write!(f, "{}.{}.{}", db, rp, name),
+        }
     }
 }
 
-/// Match a 3-part measurement name expression.
-pub fn measurement_name_expression(i: &str) -> ParseResult<&str, MeasurementNameExpression> {
+/// Match a fully-qualified, 3-part measurement name.
+///
+/// ```text
+/// qualified_measurement_name ::= measurement_name |
+///                              ( policy_name "." measurement_name ) |
+///                              ( db_name "." policy_name? "." measurement_name )
+///
+/// db_name          ::= identifier
+/// policy_name      ::= identifier
+/// measurement_name ::= identifier | regex_lit
+/// ```
+pub fn qualified_measurement_name(i: &str) -> ParseResult<&str, QualifiedMeasurementName> {
     let (remaining_input, (opt_db_rp, name)) = pair(
         opt(alt((
             // database "." retention_policy "."
@@ -93,7 +103,7 @@ pub fn measurement_name_expression(i: &str) -> ParseResult<&str, MeasurementName
             // retention_policy "."
             map(terminated(identifier, tag(".")), |rp| (None, Some(rp))),
         ))),
-        identifier,
+        MeasurementName::parse,
     )(i)?;
 
     // Extract possible `database` and / or `retention_policy`
@@ -104,7 +114,7 @@ pub fn measurement_name_expression(i: &str) -> ParseResult<&str, MeasurementName
 
     Ok((
         remaining_input,
-        MeasurementNameExpression {
+        QualifiedMeasurementName {
             database,
             retention_policy,
             name,
@@ -290,35 +300,107 @@ mod tests {
     use crate::assert_expect_error;
     use nom::character::complete::alphanumeric1;
 
-    #[test]
-    fn test_measurement_name_expression() {
-        let (_, got) = measurement_name_expression("diskio").unwrap();
-        assert_eq!(
-            got,
-            MeasurementNameExpression {
+    impl From<&str> for MeasurementName {
+        /// Convert a `str` to [`MeasurementName::Name`].
+        fn from(s: &str) -> Self {
+            Self::Name(Identifier(s.into()))
+        }
+    }
+
+    impl QualifiedMeasurementName {
+        /// Constructs a new `MeasurementNameExpression` with the specified `name`.
+        pub fn new(name: MeasurementName) -> Self {
+            Self {
                 database: None,
                 retention_policy: None,
-                name: "diskio".into(),
+                name,
+            }
+        }
+
+        /// Constructs a new `MeasurementNameExpression` with the specified `name` and `database`.
+        pub fn new_db(name: MeasurementName, database: Identifier) -> Self {
+            Self {
+                database: Some(database),
+                retention_policy: None,
+                name,
+            }
+        }
+
+        /// Constructs a new `MeasurementNameExpression` with the specified `name`, `database` and `retention_policy`.
+        pub fn new_db_rp(
+            name: MeasurementName,
+            database: Identifier,
+            retention_policy: Identifier,
+        ) -> Self {
+            Self {
+                database: Some(database),
+                retention_policy: Some(retention_policy),
+                name,
+            }
+        }
+    }
+
+    #[test]
+    fn test_qualified_measurement_name() {
+        use MeasurementName::*;
+
+        let (_, got) = qualified_measurement_name("diskio").unwrap();
+        assert_eq!(
+            got,
+            QualifiedMeasurementName {
+                database: None,
+                retention_policy: None,
+                name: Name("diskio".into()),
             }
         );
 
-        let (_, got) = measurement_name_expression("telegraf.autogen.diskio").unwrap();
+        let (_, got) = qualified_measurement_name("/diskio/").unwrap();
         assert_eq!(
             got,
-            MeasurementNameExpression {
+            QualifiedMeasurementName {
+                database: None,
+                retention_policy: None,
+                name: Regex("diskio".into()),
+            }
+        );
+
+        let (_, got) = qualified_measurement_name("telegraf.autogen.diskio").unwrap();
+        assert_eq!(
+            got,
+            QualifiedMeasurementName {
                 database: Some("telegraf".into()),
                 retention_policy: Some("autogen".into()),
-                name: "diskio".into(),
+                name: Name("diskio".into()),
             }
         );
 
-        let (_, got) = measurement_name_expression("telegraf..diskio").unwrap();
+        let (_, got) = qualified_measurement_name("telegraf.autogen./diskio/").unwrap();
         assert_eq!(
             got,
-            MeasurementNameExpression {
+            QualifiedMeasurementName {
+                database: Some("telegraf".into()),
+                retention_policy: Some("autogen".into()),
+                name: Regex("diskio".into()),
+            }
+        );
+
+        let (_, got) = qualified_measurement_name("telegraf..diskio").unwrap();
+        assert_eq!(
+            got,
+            QualifiedMeasurementName {
                 database: Some("telegraf".into()),
                 retention_policy: None,
-                name: "diskio".into(),
+                name: Name("diskio".into()),
+            }
+        );
+
+        let (_, got) = qualified_measurement_name("telegraf../diskio/").unwrap();
+        assert_eq!(
+            got,
+            QualifiedMeasurementName {
+                database: Some("telegraf".into()),
+                retention_policy: None,
+                name: Regex("diskio".into()),
             }
         );
     }

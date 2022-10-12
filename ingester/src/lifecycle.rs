@@ -12,7 +12,7 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 use data_types::{NamespaceId, PartitionId, SequenceNumber, ShardId, TableId};
 use iox_time::{Time, TimeProvider};
 use metric::{Metric, U64Counter};
-use observability_deps::tracing::{error, info, warn};
+use observability_deps::tracing::{error, info, trace, warn};
 use parking_lot::Mutex;
 use tokio_util::sync::CancellationToken;
 use tracker::TrackedFutureExt;
@@ -96,6 +96,18 @@ impl LifecycleHandle for LifecycleHandleImpl {
         stats.bytes_written += bytes_written;
         stats.last_write = now;
         stats.rows_written += rows_written;
+
+        trace!(
+            shard_id=%stats.shard_id,
+            partition_id=%stats.partition_id,
+            namespace_id=%stats.namespace_id,
+            table_id=%stats.table_id,
+            first_write=%stats.first_write,
+            last_write=%stats.last_write,
+            bytes_written=%stats.bytes_written,
+            first_sequence_number=?stats.first_sequence_number,
+            "logged write"
+        );
 
         s.total_bytes += bytes_written;
 
@@ -234,7 +246,7 @@ struct LifecycleStats {
 }
 
 /// The stats for a partition
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct PartitionLifecycleStats {
     /// The shard this partition is under
     shard_id: ShardId,
@@ -469,6 +481,18 @@ impl LifecycleManager {
         let persist_tasks: Vec<_> = to_persist
             .into_iter()
             .map(|s| {
+                // BUG: TOCTOU: memory usage released may be incorrect.
+                //
+                // Here the amount of memory to be reduced is acquired, but this
+                // code does not prevent continued writes adding more data to
+                // the partition in another thread.
+                //
+                // This may lead to more actual data being persisted than the
+                // call below returns to the server pool - this would slowly
+                // starve the ingester of memory it thinks it has.
+                //
+                // See https://github.com/influxdata/influxdb_iox/issues/5777
+
                 // Mark this partition as being persisted, and remember the
                 // memory allocation it had accumulated.
                 let partition_memory_usage = self
@@ -483,7 +507,9 @@ impl LifecycleManager {
 
                 let state = Arc::clone(&self.state);
                 tokio::task::spawn(async move {
-                    persister.persist(s.partition_id).await;
+                    persister
+                        .persist(s.shard_id, s.namespace_id, s.table_id, s.partition_id)
+                        .await;
                     // Now the data has been uploaded and the memory it was
                     // using has been freed, released the memory capacity back
                     // the ingester.
@@ -524,6 +550,12 @@ impl LifecycleManager {
                     .map(|s| s.first_sequence_number)
                     .min()
                     .unwrap_or(sequence_number);
+                trace!(
+                    min_unpersisted_sequence_number=?min,
+                    shard_id=%shard_id,
+                    sequence_number=?sequence_number,
+                    "updated min_unpersisted_sequence_number for persisted shard"
+                );
                 persister
                     .update_min_unpersisted_sequence_number(shard_id, min)
                     .await;
@@ -602,7 +634,13 @@ mod tests {
 
     #[async_trait]
     impl Persister for TestPersister {
-        async fn persist(&self, partition_id: PartitionId) {
+        async fn persist(
+            &self,
+            _shard_id: ShardId,
+            _namespace_id: NamespaceId,
+            _table_id: TableId,
+            partition_id: PartitionId,
+        ) {
             let mut p = self.persist_called.lock();
             p.insert(partition_id);
         }
@@ -662,8 +700,16 @@ mod tests {
 
     #[async_trait]
     impl Persister for PausablePersister {
-        async fn persist(&self, partition_id: PartitionId) {
-            self.inner.persist(partition_id).await;
+        async fn persist(
+            &self,
+            shard_id: ShardId,
+            namespace_id: NamespaceId,
+            table_id: TableId,
+            partition_id: PartitionId,
+        ) {
+            self.inner
+                .persist(shard_id, namespace_id, table_id, partition_id)
+                .await;
             if let Some(event) = self.event(partition_id) {
                 event.before.wait().await;
                 event.after.wait().await;

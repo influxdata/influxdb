@@ -12,6 +12,7 @@ use crate::{
     StorageService,
 };
 use data_types::{org_and_bucket_to_database, DatabaseName};
+use datafusion::error::DataFusionError;
 use futures::Stream;
 use generated_types::{
     google::protobuf::Empty, literal_or_regex::Value as RegexOrLiteralValue,
@@ -54,43 +55,43 @@ pub enum Error {
     #[snafu(display("Error listing tables in database '{}': {}", db_name, source))]
     ListingTables {
         db_name: String,
-        source: Box<dyn std::error::Error + Send + Sync>,
+        source: DataFusionError,
     },
 
     #[snafu(display("Error listing columns in database '{}': {}", db_name, source))]
     ListingColumns {
         db_name: String,
-        source: Box<dyn std::error::Error + Send + Sync>,
+        source: DataFusionError,
     },
 
     #[snafu(display("Error listing fields in database '{}': {}", db_name, source))]
     ListingFields {
         db_name: String,
-        source: Box<dyn std::error::Error + Send + Sync>,
+        source: DataFusionError,
     },
 
     #[snafu(display("Error creating series plans for database '{}': {}", db_name, source))]
     PlanningFilteringSeries {
         db_name: String,
-        source: Box<dyn std::error::Error + Send + Sync>,
+        source: DataFusionError,
     },
 
     #[snafu(display("Error creating group plans for database '{}': {}", db_name, source))]
     PlanningGroupSeries {
         db_name: String,
-        source: Box<dyn std::error::Error + Send + Sync>,
+        source: DataFusionError,
     },
 
     #[snafu(display("Error running series plans for database '{}': {}", db_name, source))]
     FilteringSeries {
         db_name: String,
-        source: Box<dyn std::error::Error + Send + Sync>,
+        source: DataFusionError,
     },
 
     #[snafu(display("Error running grouping plans for database '{}': {}", db_name, source))]
     GroupingSeries {
         db_name: String,
-        source: Box<dyn std::error::Error + Send + Sync>,
+        source: DataFusionError,
     },
 
     #[snafu(display(
@@ -102,7 +103,7 @@ pub enum Error {
     ListingTagValues {
         db_name: String,
         tag_name: String,
-        source: Box<dyn std::error::Error + Send + Sync>,
+        source: DataFusionError,
     },
 
     #[snafu(display("Error converting Predicate '{}: {}", rpc_predicate_string, source))]
@@ -177,44 +178,56 @@ impl From<Error> for tonic::Status {
     /// status
     fn from(err: Error) -> Self {
         error!("Error handling gRPC request: {}", err);
-        err.to_status()
+        err.into_status()
     }
 }
 
 impl Error {
     /// Converts a result from the business logic into the appropriate tonic
     /// status
-    fn to_status(&self) -> tonic::Status {
-        match &self {
-            Self::DatabaseNotFound { .. } => Status::not_found(self.to_string()),
-            Self::ListingTables { .. } => Status::internal(self.to_string()),
-            Self::ListingColumns { .. } => {
-                // TODO: distinguish between input errors and internal errors
-                Status::invalid_argument(self.to_string())
+    fn into_status(self) -> tonic::Status {
+        let msg = self.to_string();
+
+        let code = match self {
+            Self::DatabaseNotFound { .. } => tonic::Code::NotFound,
+            Self::ListingTables { source, .. }
+            | Self::ListingColumns { source, .. }
+            | Self::ListingFields { source, .. }
+            | Self::PlanningFilteringSeries { source, .. }
+            | Self::PlanningGroupSeries { source, .. }
+            | Self::FilteringSeries { source, .. }
+            | Self::GroupingSeries { source, .. }
+            | Self::ListingTagValues { source, .. } => {
+                // traverse context chain
+                let mut source = source;
+                while let DataFusionError::Context(_msg, inner) = source {
+                    source = *inner;
+                }
+
+                match source {
+                    DataFusionError::ResourcesExhausted(_) => tonic::Code::ResourceExhausted,
+                    DataFusionError::Plan(_) => tonic::Code::InvalidArgument,
+                    DataFusionError::NotImplemented(_) => tonic::Code::Unimplemented,
+                    _ => tonic::Code::Internal,
+                }
             }
-            Self::ListingFields { .. } => {
-                // TODO: distinguish between input errors and internal errors
-                Status::invalid_argument(self.to_string())
+            Self::ConvertingPredicate { .. }
+            | Self::ConvertingReadGroupAggregate { .. }
+            | Self::ConvertingReadGroupType { .. }
+            | Self::ConvertingWindowAggregate { .. }
+            | Self::ConvertingTagKeyInTagValues { .. }
+            | Self::ComputingGroupedSeriesSet { .. }
+            | Self::ConvertingFieldList { .. }
+            | Self::MeasurementLiteralOrRegex { .. }
+            | Self::MissingTagKeyPredicate {}
+            | Self::InvalidTagKeyRegex { .. } => tonic::Code::InvalidArgument,
+            Self::SendingResults { .. } | Self::InternalHintsFieldNotSupported { .. } => {
+                tonic::Code::Internal
             }
-            Self::PlanningFilteringSeries { .. } => Status::invalid_argument(self.to_string()),
-            Self::PlanningGroupSeries { .. } => Status::invalid_argument(self.to_string()),
-            Self::FilteringSeries { .. } => Status::invalid_argument(self.to_string()),
-            Self::GroupingSeries { .. } => Status::invalid_argument(self.to_string()),
-            Self::ListingTagValues { .. } => Status::invalid_argument(self.to_string()),
-            Self::ConvertingPredicate { .. } => Status::invalid_argument(self.to_string()),
-            Self::ConvertingReadGroupAggregate { .. } => Status::invalid_argument(self.to_string()),
-            Self::ConvertingReadGroupType { .. } => Status::invalid_argument(self.to_string()),
-            Self::ConvertingWindowAggregate { .. } => Status::invalid_argument(self.to_string()),
-            Self::ConvertingTagKeyInTagValues { .. } => Status::invalid_argument(self.to_string()),
-            Self::ComputingGroupedSeriesSet { .. } => Status::invalid_argument(self.to_string()),
-            Self::ConvertingFieldList { .. } => Status::invalid_argument(self.to_string()),
-            Self::SendingResults { .. } => Status::internal(self.to_string()),
-            Self::InternalHintsFieldNotSupported { .. } => Status::internal(self.to_string()),
-            Self::NotYetImplemented { .. } => Status::internal(self.to_string()),
-            Self::MeasurementLiteralOrRegex { .. } => Status::invalid_argument(self.to_string()),
-            Self::MissingTagKeyPredicate {} => Status::invalid_argument(self.to_string()),
-            Self::InvalidTagKeyRegex { .. } => Status::invalid_argument(self.to_string()),
-        }
+            Self::NotYetImplemented { .. } => tonic::Code::Unimplemented,
+        };
+
+        tonic::Status::new(code, msg)
     }
 }
 
@@ -341,7 +354,7 @@ where
             &ctx,
         )
         .await
-        .map_err(|e| e.to_status())?
+        .map_err(|e| e.into_status())?
         .into_iter()
         .map(Ok)
         .collect::<Vec<_>>();
@@ -423,7 +436,7 @@ where
             &ctx,
         )
         .await
-        .map_err(|e| e.to_status())?
+        .map_err(|e| e.into_status())?
         .into_iter()
         .map(Ok)
         .collect::<Vec<_>>();
@@ -489,7 +502,7 @@ where
             &ctx,
         )
         .await
-        .map_err(|e| e.to_status());
+        .map_err(|e| e.into_status());
 
         if response.is_ok() {
             query_completed_token.set_success();
@@ -560,7 +573,7 @@ where
                         operation: "tag_value for a measurement, with general predicate"
                             .to_string(),
                     }
-                    .to_status());
+                    .into_status());
                 }
 
                 measurement_name_impl(Arc::clone(&db), db_name, range, predicate, &ctx).await
@@ -593,7 +606,7 @@ where
             }
         };
 
-        let response = response.map_err(|e| e.to_status());
+        let response = response.map_err(|e| e.into_status());
 
         if response.is_ok() {
             query_completed_token.set_success();
@@ -652,7 +665,7 @@ where
         let results =
             tag_values_grouped_by_measurement_and_tag_key_impl(Arc::clone(&db), db_name, req, &ctx)
                 .await
-                .map_err(|e| e.to_status())?
+                .map_err(|e| e.into_status())?
                 .into_iter()
                 .map(Ok)
                 .collect::<Vec<_>>();
@@ -762,7 +775,7 @@ where
 
         let response = measurement_name_impl(Arc::clone(&db), db_name, range, predicate, &ctx)
             .await
-            .map_err(|e| e.to_status());
+            .map_err(|e| e.into_status());
 
         if response.is_ok() {
             query_completed_token.set_success();
@@ -833,7 +846,7 @@ where
             &ctx,
         )
         .await
-        .map_err(|e| e.to_status());
+        .map_err(|e| e.into_status());
 
         if response.is_ok() {
             query_completed_token.set_success();
@@ -907,7 +920,7 @@ where
             &ctx,
         )
         .await
-        .map_err(|e| e.to_status());
+        .map_err(|e| e.into_status());
 
         if response.is_ok() {
             query_completed_token.set_success();
@@ -981,9 +994,9 @@ where
         .map(|fieldlist| {
             fieldlist_to_measurement_fields_response(fieldlist)
                 .context(ConvertingFieldListSnafu)
-                .map_err(|e| e.to_status())
+                .map_err(|e| e.into_status())
         })
-        .map_err(|e| e.to_status())?;
+        .map_err(|e| e.into_status())?;
 
         if response.is_ok() {
             query_completed_token.set_success();
@@ -1048,13 +1061,11 @@ where
     let plan = Planner::new(ctx)
         .table_names(db, predicate)
         .await
-        .map_err(|e| Box::new(e) as _)
         .context(ListingTablesSnafu { db_name })?;
 
     let table_names = ctx
         .to_string_set(plan)
         .await
-        .map_err(|e| Box::new(e) as _)
         .context(ListingTablesSnafu { db_name })?;
 
     // Map the resulting collection of Strings into a Vec<Vec<u8>>for return
@@ -1095,13 +1106,11 @@ where
     let tag_key_plan = Planner::new(ctx)
         .tag_keys(db, predicate)
         .await
-        .map_err(|e| Box::new(e) as _)
         .context(ListingColumnsSnafu { db_name })?;
 
     let tag_keys = ctx
         .to_string_set(tag_key_plan)
         .await
-        .map_err(|e| Box::new(e) as _)
         .context(ListingColumnsSnafu { db_name })?;
 
     // Map the resulting collection of Strings into a Vec<Vec<u8>>for return
@@ -1142,13 +1151,11 @@ where
     let tag_value_plan = Planner::new(ctx)
         .tag_values(db, tag_name, predicate)
         .await
-        .map_err(|e| Box::new(e) as _)
         .context(ListingTagValuesSnafu { db_name, tag_name })?;
 
     let tag_values = ctx
         .to_string_set(tag_value_plan)
         .await
-        .map_err(|e| Box::new(e) as _)
         .context(ListingTagValuesSnafu { db_name, tag_name })?;
 
     // Map the resulting collection of Strings into a Vec<Vec<u8>>for return
@@ -1266,14 +1273,12 @@ where
     let series_plan = Planner::new(ctx)
         .read_filter(db, predicate)
         .await
-        .map_err(|e| Box::new(e) as _)
         .context(PlanningFilteringSeriesSnafu { db_name })?;
 
     // Execute the plans.
     let series_or_groups = ctx
         .to_series_and_groups(series_plan)
         .await
-        .map_err(|e| Box::new(e) as _)
         .context(FilteringSeriesSnafu { db_name })
         .log_if_error("Running series set plan")?;
 
@@ -1319,9 +1324,8 @@ where
                 .await
         }
     };
-    let grouped_series_set_plan = grouped_series_set_plan
-        .map_err(|e| Box::new(e) as _)
-        .context(PlanningGroupSeriesSnafu { db_name })?;
+    let grouped_series_set_plan =
+        grouped_series_set_plan.context(PlanningGroupSeriesSnafu { db_name })?;
 
     // PERF - This used to send responses to the client before execution had
     // completed, but now it doesn't. We may need to revisit this in the future
@@ -1331,7 +1335,6 @@ where
     let series_or_groups = ctx
         .to_series_and_groups(grouped_series_set_plan)
         .await
-        .map_err(|e| Box::new(e) as _)
         .context(GroupingSeriesSnafu { db_name })
         .log_if_error("Running Grouped SeriesSet Plan")?;
 
@@ -1370,13 +1373,11 @@ where
     let field_list_plan = Planner::new(ctx)
         .field_columns(db, predicate)
         .await
-        .map_err(|e| Box::new(e) as _)
         .context(ListingFieldsSnafu { db_name })?;
 
     let field_list = ctx
         .to_field_list(field_list_plan)
         .await
-        .map_err(|e| Box::new(e) as _)
         .context(ListingFieldsSnafu { db_name })?;
 
     trace!(field_names=?field_list, "Field names response");
@@ -1801,11 +1802,13 @@ mod tests {
         // Note multiple tables / measureemnts:
         let chunk0 = TestChunk::new("m1")
             .with_id(0)
+            .with_tag_column("state")
             .with_tag_column("k1")
             .with_tag_column("k2");
 
         let chunk1 = TestChunk::new("m2")
             .with_id(1)
+            .with_tag_column("state")
             .with_tag_column("k3")
             .with_tag_column("k4");
 
@@ -1825,7 +1828,7 @@ mod tests {
         };
 
         let actual_tag_keys = fixture.storage_client.tag_keys(request).await.unwrap();
-        let expected_tag_keys = vec!["_f(0xff)", "_m(0x00)", "k1", "k2", "k3", "k4"];
+        let expected_tag_keys = vec!["_f(0xff)", "_m(0x00)", "k1", "k2", "k3", "k4", "state"];
 
         assert_eq!(actual_tag_keys, expected_tag_keys,);
 
@@ -1878,7 +1881,7 @@ mod tests {
         let response = fixture.storage_client.tag_keys(request).await;
         assert_contains!(response.unwrap_err().to_string(), "Sugar we are going down");
 
-        grpc_request_metric_has_count(&fixture, "TagKeys", "client_error", 1);
+        grpc_request_metric_has_count(&fixture, "TagKeys", "server_error", 1);
     }
 
     /// test the plumbing of the RPC layer for measurement_tag_keys--
@@ -1897,6 +1900,7 @@ mod tests {
             .with_tag_column("k0");
 
         let chunk1 = TestChunk::new("m4")
+            .with_tag_column("state")
             .with_tag_column("k1")
             .with_tag_column("k2")
             .with_tag_column("k3")
@@ -1926,7 +1930,7 @@ mod tests {
             .measurement_tag_keys(request)
             .await
             .unwrap();
-        let expected_tag_keys = vec!["_f(0xff)", "_m(0x00)", "k1", "k2", "k3", "k4"];
+        let expected_tag_keys = vec!["_f(0xff)", "_m(0x00)", "k1", "k2", "k3", "k4", "state"];
 
         assert_eq!(
             actual_tag_keys, expected_tag_keys,
@@ -1984,7 +1988,7 @@ mod tests {
         let response = fixture.storage_client.measurement_tag_keys(request).await;
         assert_contains!(response.unwrap_err().to_string(), "This is an error");
 
-        grpc_request_metric_has_count(&fixture, "MeasurementTagKeys", "client_error", 1);
+        grpc_request_metric_has_count(&fixture, "MeasurementTagKeys", "server_error", 1);
     }
 
     /// test the plumbing of the RPC layer for tag_values -- specifically that
@@ -2173,7 +2177,8 @@ mod tests {
             "Error converting tag_key to UTF-8 in tag_values request"
         );
 
-        grpc_request_metric_has_count(&fixture, "TagValues", "client_error", 2);
+        grpc_request_metric_has_count(&fixture, "TagValues", "client_error", 1);
+        grpc_request_metric_has_count(&fixture, "TagValues", "server_error", 1);
     }
 
     #[tokio::test]
@@ -2524,7 +2529,7 @@ mod tests {
 
         assert_contains!(response_string, "Sugar we are going down");
 
-        grpc_request_metric_has_count(&fixture, "MeasurementTagValues", "client_error", 1);
+        grpc_request_metric_has_count(&fixture, "MeasurementTagValues", "server_error", 1);
     }
 
     #[tokio::test]
@@ -2730,7 +2735,7 @@ mod tests {
         let response = fixture.storage_client.read_filter(request).await;
         assert_contains!(response.unwrap_err().to_string(), "Sugar we are going down");
 
-        grpc_request_metric_has_count(&fixture, "ReadFilter", "client_error", 1);
+        grpc_request_metric_has_count(&fixture, "ReadFilter", "server_error", 1);
     }
 
     #[tokio::test]
@@ -2822,7 +2827,7 @@ mod tests {
             .to_string();
         assert_contains!(response_string, "Sugar we are going down");
 
-        grpc_request_metric_has_count(&fixture, "ReadGroup", "client_error", 1);
+        grpc_request_metric_has_count(&fixture, "ReadGroup", "server_error", 1);
     }
 
     #[tokio::test]
@@ -2988,7 +2993,7 @@ mod tests {
 
         assert_contains!(response_string, "Sugar we are going down");
 
-        grpc_request_metric_has_count(&fixture, "ReadWindowAggregate", "client_error", 1);
+        grpc_request_metric_has_count(&fixture, "ReadWindowAggregate", "server_error", 1);
     }
 
     #[tokio::test]

@@ -4,10 +4,10 @@ use data_types::{
     ChunkId, ChunkOrder, CompactionLevel, DeletePredicate, PartitionId, SequenceNumber,
     TableSummary, Timestamp, TimestampMinMax, Tombstone,
 };
-use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
-    QueryChunk, QueryChunkError, QueryChunkMeta,
+    QueryChunk, QueryChunkMeta,
 };
 use observability_deps::tracing::trace;
 use parquet_file::chunk::ParquetChunk;
@@ -194,7 +194,7 @@ impl QueryChunk for QueryableParquetChunk {
         _ctx: IOxSessionContext,
         _predicate: &Predicate,
         _columns: Selection<'_>,
-    ) -> Result<Option<StringSet>, QueryChunkError> {
+    ) -> Result<Option<StringSet>, DataFusionError> {
         Ok(None)
     }
 
@@ -208,7 +208,7 @@ impl QueryChunk for QueryableParquetChunk {
         _ctx: IOxSessionContext,
         _column_name: &str,
         _predicate: &Predicate,
-    ) -> Result<Option<StringSet>, QueryChunkError> {
+    ) -> Result<Option<StringSet>, DataFusionError> {
         Ok(None)
     }
 
@@ -230,7 +230,7 @@ impl QueryChunk for QueryableParquetChunk {
         mut ctx: IOxSessionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
-    ) -> Result<SendableRecordBatchStream, QueryChunkError> {
+    ) -> Result<SendableRecordBatchStream, DataFusionError> {
         ctx.set_metadata("storage", "compactor");
         ctx.set_metadata("projection", format!("{}", selection));
         trace!(?selection, "selection");
@@ -238,7 +238,7 @@ impl QueryChunk for QueryableParquetChunk {
         self.data
             .read_filter(predicate, selection)
             .context(ReadParquetSnafu)
-            .map_err(|e| Box::new(e) as _)
+            .map_err(|e| DataFusionError::External(Box::new(e)))
     }
 
     /// Returns chunk type

@@ -18,7 +18,7 @@ use crate::{data::partition::PersistingBatch, query::QueryableBatch};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
-pub enum Error {
+pub(crate) enum Error {
     #[snafu(display("Error while building logical plan for Ingester's compaction"))]
     LogicalPlan {
         source: iox_query::frontend::reorg::Error,
@@ -86,11 +86,8 @@ pub(crate) async fn compact_persisting_batch(
     namespace_id: i64,
     partition_info: &PartitionInfo,
     batch: Arc<PersistingBatch>,
-) -> Result<Option<CompactedStream>> {
-    // Nothing to compact
-    if batch.data.data.is_empty() {
-        return Ok(None);
-    }
+) -> Result<CompactedStream> {
+    assert!(!batch.data.data.is_empty());
 
     let namespace_name = &partition_info.namespace_name;
     let table_name = &partition_info.table_name;
@@ -141,11 +138,11 @@ pub(crate) async fn compact_persisting_batch(
         sort_key: Some(metadata_sort_key),
     };
 
-    Ok(Some(CompactedStream {
+    Ok(CompactedStream {
         stream,
         iox_metadata,
         sort_key_update,
-    }))
+    })
 }
 
 /// Compact a given Queryable Batch
@@ -192,8 +189,8 @@ mod tests {
         create_batches_with_influxtype_same_columns_different_type,
         create_one_record_batch_with_influxtype_duplicates,
         create_one_record_batch_with_influxtype_no_duplicates,
-        create_one_row_record_batch_with_influxtype, create_tombstone, make_meta,
-        make_persisting_batch, make_queryable_batch, make_queryable_batch_with_deletes,
+        create_one_row_record_batch_with_influxtype, make_meta, make_persisting_batch,
+        make_queryable_batch,
     };
 
     // this test was added to guard against https://github.com/influxdata/influxdb_iox/issues/3782
@@ -226,7 +223,6 @@ mod tests {
             partition_id,
             uuid,
             batches,
-            vec![],
         );
 
         // verify PK
@@ -254,7 +250,6 @@ mod tests {
         let CompactedStream { stream, .. } =
             compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
                 .await
-                .unwrap()
                 .unwrap();
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
@@ -297,7 +292,6 @@ mod tests {
             partition_id,
             uuid,
             batches,
-            vec![],
         );
 
         // verify PK
@@ -328,7 +322,6 @@ mod tests {
             sort_key_update,
         } = compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
             .await
-            .unwrap()
             .unwrap();
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
@@ -394,7 +387,6 @@ mod tests {
             partition_id,
             uuid,
             batches,
-            vec![],
         );
 
         // verify PK
@@ -426,7 +418,6 @@ mod tests {
             sort_key_update,
         } = compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
             .await
-            .unwrap()
             .unwrap();
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
@@ -494,7 +485,6 @@ mod tests {
             partition_id,
             uuid,
             batches,
-            vec![],
         );
 
         // verify PK
@@ -527,7 +517,6 @@ mod tests {
             sort_key_update,
         } = compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
             .await
-            .unwrap()
             .unwrap();
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
@@ -595,7 +584,6 @@ mod tests {
             partition_id,
             uuid,
             batches,
-            vec![],
         );
 
         // verify PK
@@ -629,7 +617,6 @@ mod tests {
             sort_key_update,
         } = compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
             .await
-            .unwrap()
             .unwrap();
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
@@ -700,7 +687,6 @@ mod tests {
             partition_id,
             uuid,
             batches,
-            vec![],
         );
 
         // verify PK
@@ -739,7 +725,6 @@ mod tests {
             sort_key_update,
         } = compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
             .await
-            .unwrap()
             .unwrap();
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
@@ -820,54 +805,6 @@ mod tests {
             "| field_int | tag1 | time                        |",
             "+-----------+------+-----------------------------+",
             "| 1000      | MA   | 1970-01-01T00:00:00.000001Z |",
-            "+-----------+------+-----------------------------+",
-        ];
-        assert_batches_eq!(&expected, &output_batches);
-    }
-
-    #[tokio::test]
-    async fn test_compact_one_batch_no_dupilcates_with_deletes() {
-        test_helpers::maybe_start_logging();
-
-        // create input data
-        let batches = create_one_record_batch_with_influxtype_no_duplicates().await;
-        let tombstones = vec![create_tombstone(1, 1, 1, 1, 0, 200000, "tag1=UT")];
-
-        // build queryable batch from the input batches
-        let compact_batch =
-            make_queryable_batch_with_deletes("test_table", 0, 1, batches, tombstones);
-
-        // verify PK
-        let schema = compact_batch.schema();
-        let pk = schema.primary_key();
-        let expected_pk = vec!["tag1", "time"];
-        assert_eq!(expected_pk, pk);
-
-        let sort_key = compute_sort_key(
-            &schema,
-            compact_batch.data.iter().map(|sb| sb.data.as_ref()),
-        );
-        assert_eq!(sort_key, SortKey::from_columns(["tag1", "time"]));
-
-        // compact
-        let exc = Executor::new(1);
-        let stream = compact(&exc, compact_batch, sort_key).await.unwrap();
-        let output_batches = datafusion::physical_plan::common::collect(stream)
-            .await
-            .unwrap();
-        // verify no empty record batches - bug #3782
-        assert_eq!(output_batches.len(), 2);
-        assert_eq!(output_batches[0].num_rows(), 1);
-        assert_eq!(output_batches[1].num_rows(), 1);
-
-        // verify compacted data
-        // row with "tag1=UT" no longer available
-        let expected = vec![
-            "+-----------+------+-----------------------------+",
-            "| field_int | tag1 | time                        |",
-            "+-----------+------+-----------------------------+",
-            "| 10        | VT   | 1970-01-01T00:00:00.000010Z |",
-            "| 1000      | WA   | 1970-01-01T00:00:00.000008Z |",
             "+-----------+------+-----------------------------+",
         ];
         assert_batches_eq!(&expected, &output_batches);
@@ -1019,23 +956,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_compact_many_batches_different_columns_different_order_with_duplicates_with_deletes(
-    ) {
+    async fn test_compact_many_batches_different_columns_different_order_with_duplicates() {
         // create many-batches input data
         let batches = create_batches_with_influxtype_different_columns_different_order().await;
-        let tombstones = vec![create_tombstone(
-            1,
-            1,
-            1,
-            100,                          // delete's seq_number
-            0,                            // min time of data to get deleted
-            200000,                       // max time of data to get deleted
-            "tag2=CT and field_int=1000", // delete predicate
-        )];
 
         // build queryable batch from the input batches
-        let compact_batch =
-            make_queryable_batch_with_deletes("test_table", 0, 1, batches, tombstones);
+        let compact_batch = make_queryable_batch("test_table", 0, 1, batches);
 
         // verify PK
         let schema = compact_batch.schema();
@@ -1058,7 +984,6 @@ mod tests {
 
         // verify compacted data
         // data is sorted and all duplicates are removed
-        // all rows with ("tag2=CT and field_int=1000") are also removed
         // CORRECT RESULT
         let expected = vec![
             "+-----------+------+------+--------------------------------+",
@@ -1067,73 +992,15 @@ mod tests {
             "| 5         |      | AL   | 1970-01-01T00:00:00.000005Z    |",
             "| 10        |      | AL   | 1970-01-01T00:00:00.000007Z    |",
             "| 70        |      | CT   | 1970-01-01T00:00:00.000000100Z |",
+            "| 1000      |      | CT   | 1970-01-01T00:00:00.000001Z    |",
             "| 100       |      | MA   | 1970-01-01T00:00:00.000000050Z |",
             "| 10        | AL   | MA   | 1970-01-01T00:00:00.000000050Z |",
             "| 70        | CT   | CT   | 1970-01-01T00:00:00.000000100Z |",
             "| 70        | CT   | CT   | 1970-01-01T00:00:00.000000500Z |",
             "| 30        | MT   | AL   | 1970-01-01T00:00:00.000000005Z |",
             "| 20        | MT   | AL   | 1970-01-01T00:00:00.000007Z    |",
-            "+-----------+------+------+--------------------------------+",
-        ];
-
-        assert_batches_eq!(&expected, &output_batches);
-    }
-
-    #[tokio::test]
-    async fn test_compact_many_batches_different_columns_different_order_with_duplicates_with_many_deletes(
-    ) {
-        // create many-batches input data
-        let batches = create_batches_with_influxtype_different_columns_different_order().await;
-        let tombstones = vec![
-            create_tombstone(
-                1,
-                1,
-                1,
-                100,                          // delete's seq_number
-                0,                            // min time of data to get deleted
-                200000,                       // max time of data to get deleted
-                "tag2=CT and field_int=1000", // delete predicate
-            ),
-            create_tombstone(
-                1, 1, 1, 101,        // delete's seq_number
-                0,          // min time of data to get deleted
-                200000,     // max time of data to get deleted
-                "tag1!=MT", // delete predicate
-            ),
-        ];
-
-        // build queryable batch from the input batches
-        let compact_batch =
-            make_queryable_batch_with_deletes("test_table", 0, 1, batches, tombstones);
-
-        // verify PK
-        let schema = compact_batch.schema();
-        let pk = schema.primary_key();
-        let expected_pk = vec!["tag1", "tag2", "time"];
-        assert_eq!(expected_pk, pk);
-
-        let sort_key = compute_sort_key(
-            &schema,
-            compact_batch.data.iter().map(|sb| sb.data.as_ref()),
-        );
-        assert_eq!(sort_key, SortKey::from_columns(["tag1", "tag2", "time"]));
-
-        // compact
-        let exc = Executor::new(1);
-        let stream = compact(&exc, compact_batch, sort_key).await.unwrap();
-        let output_batches = datafusion::physical_plan::common::collect(stream)
-            .await
-            .unwrap();
-
-        // verify compacted data
-        // data is sorted and all duplicates are removed
-        // all rows with ("tag2=CT and field_int=1000") and ("tag1!=MT") are also removed
-        let expected = vec![
-            "+-----------+------+------+--------------------------------+",
-            "| field_int | tag1 | tag2 | time                           |",
-            "+-----------+------+------+--------------------------------+",
-            "| 30        | MT   | AL   | 1970-01-01T00:00:00.000000005Z |",
-            "| 20        | MT   | AL   | 1970-01-01T00:00:00.000007Z    |",
+            "| 1000      | MT   | CT   | 1970-01-01T00:00:00.000001Z    |",
+            "| 1000      | MT   | CT   | 1970-01-01T00:00:00.000002Z    |",
             "+-----------+------+------+--------------------------------+",
         ];
 
@@ -1142,31 +1009,12 @@ mod tests {
 
     // BUG
     #[tokio::test]
-    async fn test_compact_many_batches_different_columns_different_order_with_duplicates_with_many_deletes_2(
-    ) {
+    async fn test_compact_many_batches_different_columns_different_order_with_duplicates2() {
         // create many-batches input data
         let batches = create_batches_with_influxtype_different_columns_different_order().await;
-        let tombstones = vec![
-            create_tombstone(
-                1,
-                1,
-                1,
-                100,                          // delete's seq_number
-                0,                            // min time of data to get deleted
-                200000,                       // max time of data to get deleted
-                "tag2=CT and field_int=1000", // delete predicate
-            ),
-            create_tombstone(
-                1, 1, 1, 101,       // delete's seq_number
-                0,         // min time of data to get deleted
-                200000,    // max time of data to get deleted
-                "tag1=MT", // delete predicate
-            ),
-        ];
 
         // build queryable batch from the input batches
-        let compact_batch =
-            make_queryable_batch_with_deletes("test_table", 0, 1, batches, tombstones);
+        let compact_batch = make_queryable_batch("test_table", 0, 1, batches);
 
         // verify PK
         let schema = compact_batch.schema();
@@ -1189,29 +1037,22 @@ mod tests {
 
         // verify compacted data
         // data is sorted and all duplicates are removed
-        // all rows with ("tag2=CT and field_int=1000") and ("tag1=MT") are also removed
-        // CORRECT RESULT
-        // let expected = vec![
-        //     "+-----------+------+------+--------------------------------+",
-        //     "| field_int | tag1 | tag2 | time                           |",
-        //     "+-----------+------+------+--------------------------------+",
-        //     "| 5         |      | AL   | 1970-01-01T00:00:00.000005Z    |",
-        //     "| 10        |      | AL   | 1970-01-01T00:00:00.000007Z    |",
-        //     "| 70        |      | CT   | 1970-01-01T00:00:00.000000100Z |",
-        //     "| 100       |      | MA   | 1970-01-01T00:00:00.000000050Z |",
-        //     "| 10        | AL   | MA   | 1970-01-01T00:00:00.000000050Z |",
-        //     "| 70        | CT   | CT   | 1970-01-01T00:00:00.000000100Z |",
-        //     "| 70        | CT   | CT   | 1970-01-01T00:00:00.000000500Z |",
-        //     "+-----------+------+------+--------------------------------+",
-        // ];
-        // current WRONMG result: "tag1 is null" is also eliminated
         let expected = vec![
             "+-----------+------+------+--------------------------------+",
             "| field_int | tag1 | tag2 | time                           |",
             "+-----------+------+------+--------------------------------+",
+            "| 5         |      | AL   | 1970-01-01T00:00:00.000005Z    |",
+            "| 10        |      | AL   | 1970-01-01T00:00:00.000007Z    |",
+            "| 70        |      | CT   | 1970-01-01T00:00:00.000000100Z |",
+            "| 1000      |      | CT   | 1970-01-01T00:00:00.000001Z    |",
+            "| 100       |      | MA   | 1970-01-01T00:00:00.000000050Z |",
             "| 10        | AL   | MA   | 1970-01-01T00:00:00.000000050Z |",
             "| 70        | CT   | CT   | 1970-01-01T00:00:00.000000100Z |",
             "| 70        | CT   | CT   | 1970-01-01T00:00:00.000000500Z |",
+            "| 30        | MT   | AL   | 1970-01-01T00:00:00.000000005Z |",
+            "| 20        | MT   | AL   | 1970-01-01T00:00:00.000007Z    |",
+            "| 1000      | MT   | CT   | 1970-01-01T00:00:00.000001Z    |",
+            "| 1000      | MT   | CT   | 1970-01-01T00:00:00.000002Z    |",
             "+-----------+------+------+--------------------------------+",
         ];
 

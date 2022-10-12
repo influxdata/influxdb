@@ -7,7 +7,7 @@ pub enum ReplCommand {
     ShowNamespaces,
     Observer,
     SetFormat { format: String },
-    UseDatabase { db_name: String },
+    UseNamespace { db_name: String },
     SqlCommand { sql: String },
     Exit,
 }
@@ -64,18 +64,18 @@ impl TryFrom<&str> for ReplCommand {
             ["observer"] => Ok(Self::Observer),
             ["exit"] => Ok(Self::Exit),
             ["quit"] => Ok(Self::Exit),
-            ["use", "database"] => {
-                Err("name not specified. Usage: USE DATABASE <name>".to_string())
-            } // USE DATABASE
-            ["use", "database", _name] => {
-                // USE DATABASE <name>
-                Ok(Self::UseDatabase {
+            ["use", "namespace"] => {
+                Err("name not specified. Usage: USE NAMESPACE <name>".to_string())
+            } // USE NAMESPACE
+            ["use", "namespace", _name] => {
+                // USE namespace <name>
+                Ok(Self::UseNamespace {
                     db_name: raw_commands[2].to_string(),
                 })
             }
             ["use", _command] => {
                 // USE <name>
-                Ok(Self::UseDatabase {
+                Ok(Self::UseNamespace {
                     db_name: raw_commands[1].to_string(),
                 })
             }
@@ -98,9 +98,9 @@ impl ReplCommand {
 Available commands (not case sensitive):
 HELP (this one)
 
-SHOW NAMESPACES: List databases available on the server
+SHOW NAMESPACES: List namespaces available on the server
 
-USE [DATABASE|NAMESPACE] <name>: Set the current remote database to name
+USE NAMESPACE <name>: Set the current remote namespace to name
 
 SET FORMAT <format>: Set the output format to Pretty, csv or json
 
@@ -108,9 +108,9 @@ OBSERVER: Locally query unified queryable views of remote system tables
 
 [EXIT | QUIT]: Quit this session and exit the program
 
-# Examples: use remote database foo
-SHOW DATABASES;
-USE DATABASE foo;
+# Examples: use remote namespace foo
+SHOW NAMESPACES;
+USE foo;
 
 # Basic IOx SQL Primer
 
@@ -199,35 +199,35 @@ mod tests {
     }
 
     #[test]
-    fn use_database() {
-        let expected = Ok(ReplCommand::UseDatabase {
+    fn use_namespace() {
+        let expected = Ok(ReplCommand::UseNamespace {
             db_name: "Foo".to_string(),
         });
         assert_eq!("use Foo".try_into(), expected);
-        assert_eq!("use Database Foo;".try_into(), expected);
-        assert_eq!("use Database Foo ;".try_into(), expected);
-        assert_eq!(" use Database Foo;   ".try_into(), expected);
-        assert_eq!("   use Database Foo;   ".try_into(), expected);
+        assert_eq!("use Namespace Foo;".try_into(), expected);
+        assert_eq!("use Namespace Foo ;".try_into(), expected);
+        assert_eq!(" use Namespace Foo;   ".try_into(), expected);
+        assert_eq!("   use Namespace Foo;   ".try_into(), expected);
 
-        // ensure that database name is case sensitive
-        let expected = Ok(ReplCommand::UseDatabase {
+        // ensure that namespace name is case sensitive
+        let expected = Ok(ReplCommand::UseNamespace {
             db_name: "FOO".to_string(),
         });
         assert_eq!("use FOO".try_into(), expected);
-        assert_eq!("use DATABASE FOO;".try_into(), expected);
-        assert_eq!("USE DATABASE FOO;".try_into(), expected);
+        assert_eq!("use NAMESPACE FOO;".try_into(), expected);
+        assert_eq!("USE NAMESPACE FOO;".try_into(), expected);
 
         let expected: Result<ReplCommand, String> =
-            Err("name not specified. Usage: USE DATABASE <name>".to_string());
-        assert_eq!("use Database;".try_into(), expected);
-        assert_eq!("use DATABASE".try_into(), expected);
-        assert_eq!("use database".try_into(), expected);
+            Err("name not specified. Usage: USE NAMESPACE <name>".to_string());
+        assert_eq!("use Namespace;".try_into(), expected);
+        assert_eq!("use NAMESPACE".try_into(), expected);
+        assert_eq!("use namespace".try_into(), expected);
 
-        let expected = sql_cmd("use database foo bar");
-        assert_eq!("use database foo bar".try_into(), expected);
+        let expected = sql_cmd("use namespace foo bar");
+        assert_eq!("use namespace foo bar".try_into(), expected);
 
-        let expected = sql_cmd("use database foo BAR");
-        assert_eq!("use database foo BAR".try_into(), expected);
+        let expected = sql_cmd("use namespace foo BAR");
+        assert_eq!("use namespace foo BAR".try_into(), expected);
     }
 
     #[test]

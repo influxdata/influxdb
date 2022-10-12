@@ -3,7 +3,7 @@ use std::{fmt::Debug, sync::Arc};
 use async_trait::async_trait;
 use data_types::{NamespaceId, PartitionKey, ShardId, TableId};
 
-use crate::data::partition::PartitionData;
+use crate::data::{partition::PartitionData, table::TableName};
 
 /// An infallible resolver of [`PartitionData`] for the specified shard, table,
 /// and partition key, returning an initialised [`PartitionData`] buffer for it.
@@ -20,7 +20,7 @@ pub trait PartitionProvider: Send + Sync + Debug {
         shard_id: ShardId,
         namespace_id: NamespaceId,
         table_id: TableId,
-        table_name: Arc<str>,
+        table_name: TableName,
     ) -> PartitionData;
 }
 
@@ -35,7 +35,7 @@ where
         shard_id: ShardId,
         namespace_id: NamespaceId,
         table_id: TableId,
-        table_name: Arc<str>,
+        table_name: TableName,
     ) -> PartitionData {
         (**self)
             .get_partition(partition_key, shard_id, namespace_id, table_id, table_name)
@@ -49,7 +49,7 @@ mod tests {
 
     use data_types::PartitionId;
 
-    use crate::data::partition::resolver::MockPartitionProvider;
+    use crate::data::partition::{resolver::MockPartitionProvider, SortKeyState};
 
     use super::*;
 
@@ -59,7 +59,7 @@ mod tests {
         let shard_id = ShardId::new(42);
         let namespace_id = NamespaceId::new(1234);
         let table_id = TableId::new(24);
-        let table_name = "platanos".into();
+        let table_name = TableName::from("platanos");
         let partition = PartitionId::new(4242);
         let data = PartitionData::new(
             partition,
@@ -67,22 +67,17 @@ mod tests {
             shard_id,
             namespace_id,
             table_id,
-            Arc::clone(&table_name),
+            table_name.clone(),
+            SortKeyState::Provided(None),
             None,
         );
 
         let mock = Arc::new(MockPartitionProvider::default().with_partition(data));
 
         let got = mock
-            .get_partition(
-                key,
-                shard_id,
-                namespace_id,
-                table_id,
-                Arc::clone(&table_name),
-            )
+            .get_partition(key, shard_id, namespace_id, table_id, table_name.clone())
             .await;
-        assert_eq!(got.id(), partition);
+        assert_eq!(got.partition_id(), partition);
         assert_eq!(got.namespace_id(), namespace_id);
         assert_eq!(*got.table_name(), *table_name);
     }
