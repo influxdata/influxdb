@@ -676,9 +676,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.0.7"
+version = "4.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a1af219c3e254a8b4649d6ddaef886b2015089f35f2ac5e1db31410c0566ab8"
+checksum = "6ea54a38e4bce14ff6931c72e5b3c43da7051df056913d4e7e1fcdb1c03df69d"
 dependencies = [
  "atty",
  "bitflags",
@@ -693,7 +693,7 @@ dependencies = [
 name = "clap_blocks"
 version = "0.1.0"
 dependencies = [
- "clap 4.0.7",
+ "clap 4.0.14",
  "data_types",
  "futures",
  "humantime",
@@ -717,9 +717,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.0.7"
+version = "4.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd114ae53ce5a0670f43d2f169c1cd26c69b4896b0c121900cf1e4d06d67316c"
+checksum = "c42f169caba89a7d512b5418b09864543eeb4d497416c917d7137863bd2076ad"
 dependencies = [
  "heck",
  "proc-macro-error",
@@ -1654,7 +1654,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "chrono-english",
- "clap 4.0.7",
+ "clap 4.0.14",
  "clap_blocks",
  "data_types",
  "filetime",
@@ -2130,7 +2130,7 @@ dependencies = [
  "assert_cmd",
  "backtrace",
  "bytes",
- "clap 4.0.7",
+ "clap 4.0.14",
  "clap_blocks",
  "compactor",
  "console-subscriber",
@@ -2375,7 +2375,7 @@ dependencies = [
  "bytes",
  "chrono",
  "chrono-english",
- "clap 4.0.7",
+ "clap 4.0.14",
  "criterion",
  "futures",
  "handlebars",
@@ -2469,7 +2469,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "chrono",
- "clap 4.0.7",
+ "clap 4.0.14",
  "clap_blocks",
  "data_types",
  "dml",
@@ -2628,7 +2628,7 @@ name = "ioxd_test"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "clap 4.0.7",
+ "clap 4.0.14",
  "hyper",
  "ioxd_common",
  "metric",
@@ -5482,7 +5482,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
- "clap 4.0.7",
+ "clap 4.0.14",
  "futures",
  "observability_deps",
  "snafu",
@@ -5621,7 +5621,7 @@ name = "trogging"
 version = "0.1.0"
 dependencies = [
  "atty",
- "clap 4.0.7",
+ "clap 4.0.14",
  "logfmt",
  "observability_deps",
  "regex",
