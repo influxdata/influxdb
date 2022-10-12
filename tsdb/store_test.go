@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/predicate"
 	"math"
 	"math/rand"
 	"os"
@@ -2122,6 +2123,58 @@ func TestStore_TagValues_ConcurrentDropShard(t *testing.T) {
 		if err := <-errC; err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestStore_DeleteByPredicate(t *testing.T) {
+	test := func(t *testing.T, index string) error {
+		s := MustOpenStore(t, index)
+		defer s.Close()
+
+		s.MustCreateShardWithData("db0", "rp0", 0,
+			`cpu,host=serverA value=1  0`,
+			`cpu,region=west value=3 20`,
+			`cpu,secret=foo value=5 30`,
+			`mem,secret=foo value=1 30`,
+			`disk value=4 30`,
+		)
+
+		p, err := predicate.Parse(`_measurement="cpu"`)
+		if err != nil {
+			return err
+		}
+
+		pred, err := predicate.New(p)
+		if err != nil {
+			return err
+		}
+
+		expr, err := influxql.ParseExpr(`_measurement="cpu"`)
+		if err != nil {
+			return err
+		}
+
+		err = s.DeleteSeriesWithPredicate(context.Background(), "db0", math.MinInt, math.MaxInt, pred, expr)
+		if err != nil {
+			return err
+		}
+
+		names, err := s.MeasurementNames(context.Background(), query.OpenAuthorizer, "db0", nil)
+		if err != nil {
+			return err
+		}
+
+		require.Equal(t, 2, len(names), "expected cpu to be deleted, leaving 2 measurements")
+
+		return nil
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			if err := test(t, index); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 

@@ -335,7 +335,7 @@ func TestDelete(t *testing.T) {
 				body: []byte(`{
 					"start":"2009-01-01T23:00:00Z",
 					"stop":"2019-11-10T01:00:00Z",
-					"predicate": "tag1=\"v1\" and (tag2=\"v2\" and tag3=\"v3\")"
+					"predicate": "_measurement=\"testing\" and tag1=\"v1\" and (tag2=\"v2\" and tag3=\"v3\")"
 				}`),
 				authorizer: &influxdb.Authorization{
 					UserID: user1ID,
