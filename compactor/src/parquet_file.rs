@@ -8,15 +8,23 @@ use data_types::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompactorParquetFile {
     inner: ParquetFile,
+    // Bytes estimated a (Datafusion) query plan needs to scan and stream this parquet file
     estimated_arrow_bytes: u64,
+    // Bytes estimated to store a parquet file in memory before running a query plan on it
+    estimated_file_size_in_memory_bytes: u64,
     size_override: Option<i64>,
 }
 
 impl CompactorParquetFile {
-    pub fn new(inner: ParquetFile, estimated_arrow_bytes: u64) -> Self {
+    pub fn new(
+        inner: ParquetFile,
+        estimated_arrow_bytes: u64,
+        estimated_file_size_in_memory_bytes: u64,
+    ) -> Self {
         Self {
             inner,
             estimated_arrow_bytes,
+            estimated_file_size_in_memory_bytes,
             size_override: None,
         }
     }
@@ -24,16 +32,21 @@ impl CompactorParquetFile {
     pub(crate) fn new_with_size_override(
         inner: ParquetFile,
         estimated_arrow_bytes: u64,
+        estimated_file_size_in_memory_bytes: u64,
         size: i64,
     ) -> Self {
-        let mut this = Self::new(inner, estimated_arrow_bytes);
+        let mut this = Self::new(
+            inner,
+            estimated_arrow_bytes,
+            estimated_file_size_in_memory_bytes,
+        );
         this.size_override = Some(size);
         this
     }
 
     #[cfg(test)]
     pub(crate) fn with_size_override(f: ParquetFile, size: i64) -> Self {
-        let mut this = Self::new(f, 0);
+        let mut this = Self::new(f, 0, 0);
         this.size_override = Some(size);
         this
     }
@@ -46,8 +59,17 @@ impl CompactorParquetFile {
         self.size_override.unwrap_or(self.inner.file_size_bytes)
     }
 
-    pub fn estimated_arrow_bytes(&self) -> u64 {
+    // Bytes estimated to scan and stream the columns of this file
+    // This bytes will be used to compute:
+    //  . the input bytes needed to scan this file when we compact it with other files
+    //  . the bytes each output stream needed when we split uoutput data into multiple streams
+    pub fn estimated_arrow_bytes_for_streaming_query_plan(&self) -> u64 {
         self.estimated_arrow_bytes
+    }
+
+    // Bytes estimated to store the parquet file in memory and then scan & stream it
+    pub fn estimated_file_total_bytes_for_in_memory_storing_and_scanning(&self) -> u64 {
+        self.estimated_file_size_in_memory_bytes + self.estimated_arrow_bytes
     }
 
     pub fn compaction_level(&self) -> CompactionLevel {
@@ -112,7 +134,7 @@ pub mod tests {
 
             match size_override {
                 Some(size) => Self::with_size_override(parquet_file, size),
-                None => Self::new(parquet_file, 0),
+                None => Self::new(parquet_file, 0, 0),
             }
         }
     }

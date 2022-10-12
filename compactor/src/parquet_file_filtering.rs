@@ -122,7 +122,8 @@ fn filter_parquet_files_inner(
     let mut total_estimated_budget = 0;
     for level_n_file in level_n {
         // Estimate memory needed for this LN file
-        let ln_estimated_file_bytes = level_n_file.estimated_arrow_bytes();
+        let ln_estimated_file_bytes =
+            level_n_file.estimated_file_total_bytes_for_in_memory_storing_and_scanning();
 
         // Note: even though we can stop here if the ln_estimated_file_bytes is larger than the
         // given budget,we still continue estimated the memory needed for its overlapped LN+1 to
@@ -136,7 +137,7 @@ fn filter_parquet_files_inner(
         // Estimate memory needed for each LN+1
         let current_ln_plus_1_estimated_file_bytes: Vec<_> = overlaps
             .iter()
-            .map(|file| file.estimated_arrow_bytes())
+            .map(|file| file.estimated_file_total_bytes_for_in_memory_storing_and_scanning())
             .collect();
         let estimated_file_bytes =
             ln_estimated_file_bytes + current_ln_plus_1_estimated_file_bytes.iter().sum::<u64>();
@@ -1203,7 +1204,7 @@ mod tests {
                 column_set: ColumnSet::new(std::iter::empty()),
             };
             // Estimated arrow bytes for one file with a tag, a time and 11 rows = 1176
-            CompactorParquetFile::new(f, 1176)
+            CompactorParquetFile::new(f, 1176, 0)
         }
     }
 
