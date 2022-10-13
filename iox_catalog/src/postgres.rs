@@ -4,8 +4,8 @@ use crate::{
     interface::{
         self, sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnTypeMismatchSnafu,
         ColumnUpsertRequest, Error, NamespaceRepo, ParquetFileRepo, PartitionRepo,
-        ProcessedTombstoneRepo, QueryPoolRepo, RepoCollection, Result, ShardRepo, TablePersistInfo,
-        TableRepo, TombstoneRepo, TopicMetadataRepo, Transaction,
+        ProcessedTombstoneRepo, QueryPoolRepo, RepoCollection, Result, ShardRepo, TableRepo,
+        TombstoneRepo, TopicMetadataRepo, Transaction,
     },
     metrics::MetricDecorator,
 };
@@ -843,42 +843,6 @@ WHERE namespace_id = $1;
             .map_err(|e| Error::SqlxError { source: e })?;
 
         Ok(rec)
-    }
-
-    async fn get_table_persist_info(
-        &mut self,
-        shard_id: ShardId,
-        namespace_id: NamespaceId,
-        table_name: &str,
-    ) -> Result<Option<TablePersistInfo>> {
-        let rec = sqlx::query_as::<_, TablePersistInfo>(
-            r#"
-WITH tid as (SELECT id FROM table_name WHERE name = $2 AND namespace_id = $3)
-SELECT $1 as shard_id, id as table_id,
-       tombstone.sequence_number as tombstone_max_sequence_number
-FROM tid
-LEFT JOIN (
-  SELECT tombstone.table_id, sequence_number
-  FROM tombstone
-  WHERE shard_id = $1 AND tombstone.table_id = (SELECT id FROM tid)
-  ORDER BY sequence_number DESC
-  LIMIT 1
-) tombstone ON tombstone.table_id = tid.id
-            "#,
-        )
-        .bind(&shard_id) // $1
-        .bind(&table_name) // $2
-        .bind(&namespace_id) // $3
-        .fetch_one(&mut self.inner)
-        .await;
-
-        if let Err(sqlx::Error::RowNotFound) = rec {
-            return Ok(None);
-        }
-
-        let info = rec.map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(Some(info))
     }
 }
 

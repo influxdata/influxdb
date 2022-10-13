@@ -5,8 +5,8 @@ use crate::{
     interface::{
         sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnTypeMismatchSnafu,
         ColumnUpsertRequest, Error, NamespaceRepo, ParquetFileRepo, PartitionRepo,
-        ProcessedTombstoneRepo, QueryPoolRepo, RepoCollection, Result, ShardRepo, TablePersistInfo,
-        TableRepo, TombstoneRepo, TopicMetadataRepo, Transaction,
+        ProcessedTombstoneRepo, QueryPoolRepo, RepoCollection, Result, ShardRepo, TableRepo,
+        TombstoneRepo, TopicMetadataRepo, Transaction,
     },
     metrics::MetricDecorator,
 };
@@ -442,36 +442,6 @@ impl TableRepo for MemTxn {
     async fn list(&mut self) -> Result<Vec<Table>> {
         let stage = self.stage();
         Ok(stage.tables.clone())
-    }
-
-    async fn get_table_persist_info(
-        &mut self,
-        shard_id: ShardId,
-        namespace_id: NamespaceId,
-        table_name: &str,
-    ) -> Result<Option<TablePersistInfo>> {
-        let stage = self.stage();
-
-        if let Some(table) = stage
-            .tables
-            .iter()
-            .find(|t| t.name == table_name && t.namespace_id == namespace_id)
-        {
-            let tombstone_max_sequence_number = stage
-                .tombstones
-                .iter()
-                .filter(|t| t.shard_id == shard_id && t.table_id == table.id)
-                .max_by_key(|t| t.sequence_number)
-                .map(|t| t.sequence_number);
-
-            return Ok(Some(TablePersistInfo {
-                shard_id,
-                table_id: table.id,
-                tombstone_max_sequence_number,
-            }));
-        }
-
-        Ok(None)
     }
 }
 

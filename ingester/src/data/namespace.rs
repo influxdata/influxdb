@@ -315,14 +315,15 @@ impl NamespaceData {
     ) -> Result<Arc<tokio::sync::RwLock<TableData>>, super::Error> {
         let mut repos = catalog.repositories().await;
 
-        let info = repos
+        let table_id = repos
             .tables()
-            .get_table_persist_info(self.shard_id, self.namespace_id, table_name)
+            .get_by_namespace_and_name(self.namespace_id, table_name)
             .await
             .context(super::CatalogSnafu)?
             .ok_or_else(|| super::Error::TableNotFound {
                 table_name: table_name.to_string(),
-            })?;
+            })?
+            .id;
 
         let mut t = self.tables.write();
 
@@ -333,7 +334,7 @@ impl NamespaceData {
 
                 // Insert the table and then return a ref to it.
                 t.insert(TableData::new(
-                    info.table_id,
+                    table_id,
                     table_name.clone(),
                     self.shard_id,
                     self.namespace_id,
