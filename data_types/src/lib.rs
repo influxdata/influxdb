@@ -899,15 +899,6 @@ impl Partition {
     }
 }
 
-/// Information for a partition from the catalog.
-#[derive(Debug)]
-#[allow(missing_docs)]
-pub struct PartitionInfo {
-    pub partition: Partition,
-    pub namespace_name: String,
-    pub table_name: String,
-}
-
 /// Data for a partition  chosen from its parquet files
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::FromRow)]
 pub struct PartitionParam {

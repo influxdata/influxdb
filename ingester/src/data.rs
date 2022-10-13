@@ -876,11 +876,11 @@ mod tests {
             let mut repos = catalog.repositories().await;
             let partition_info = repos
                 .partitions()
-                .partition_info_by_id(partition_id)
+                .get_by_id(partition_id)
                 .await
                 .unwrap()
                 .unwrap();
-            assert!(partition_info.partition.sort_key.is_empty());
+            assert!(partition_info.sort_key.is_empty());
         }
 
         data.persist(shard1.id, namespace.id, table_id, partition_id)
@@ -970,11 +970,11 @@ mod tests {
         // verify it set a sort key on the partition in the catalog
         let partition_info = repos
             .partitions()
-            .partition_info_by_id(partition_id)
+            .get_by_id(partition_id)
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(partition_info.partition.sort_key, vec!["time"]);
+        assert_eq!(partition_info.sort_key, vec!["time"]);
 
         let mem_table = n.table_data(&"mem".into()).unwrap();
         let mem_table = mem_table.read().await;
