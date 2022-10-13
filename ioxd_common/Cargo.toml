@@ -9,18 +9,15 @@ edition = "2021"
 # Workspace dependencies, in alphabetical order
 clap_blocks = { path = "../clap_blocks" }
 data_types = { path = "../data_types" }
-dml = { path = "../dml" }
 generated_types = { path = "../generated_types" }
 heappy = { git = "https://github.com/mkmik/heappy", rev = "b98e7f7dc080d5d7972a134de0e01e999e68e350", features = ["enable_heap_profiler", "jemalloc_shim", "measure_free"], optional = true }
 metric = { path = "../metric" }
 metric_exporters = { path = "../metric_exporters" }
-mutable_batch_lp = { path = "../mutable_batch_lp" }
 observability_deps = { path = "../observability_deps" }
 # NOTE: we may not notice that we need the "backtrace-rs" feature if we also build with the heappy feature, which depends on backtrace-rs.
 # (honestly I thought that cargo dependencies were isolated on a per crate basis so I'm a bit surprised that pprof accidentally builds
 # successfully just because another crate happens to depend on backtrace-rs)
 pprof = { version = "0.10", default-features = false, features = ["flamegraph", "prost-codec"], optional = true }
-predicate = { path = "../predicate" }
 service_grpc_testing = { path = "../service_grpc_testing" }
 trace = { path = "../trace" }
 trace_exporters = { path = "../trace_exporters" }

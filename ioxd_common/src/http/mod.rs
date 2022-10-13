@@ -23,7 +23,6 @@ mod heappy;
 #[cfg(feature = "pprof")]
 mod pprof;
 
-pub mod dml;
 pub mod error;
 pub mod metrics;
 pub mod utils;
