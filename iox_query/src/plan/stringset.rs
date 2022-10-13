@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use arrow_util::util::str_iter_to_batch;
-use datafusion::logical_plan::LogicalPlan;
+use datafusion::logical_expr::LogicalPlan;
 
 /// The name of the column containing table names returned by a call to
 /// `table_names`.

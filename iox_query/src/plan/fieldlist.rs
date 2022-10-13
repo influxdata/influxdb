@@ -1,5 +1,6 @@
+use datafusion::logical_expr::LogicalPlan;
+
 use crate::exec::fieldlist::Field;
-use datafusion::logical_plan::LogicalPlan;
 use std::collections::BTreeMap;
 
 pub type FieldSet = BTreeMap<String, Field>;

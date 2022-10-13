@@ -22,8 +22,8 @@ use datafusion::{
         context::SessionState,
         runtime_env::{RuntimeConfig, RuntimeEnv},
     },
-    logical_expr::Extension,
-    logical_plan::{normalize_col, Expr, LogicalPlan},
+    logical_expr::{expr_rewriter::normalize_col, Extension},
+    logical_expr::{Expr, LogicalPlan},
     prelude::SessionContext,
 };
 
@@ -270,8 +270,8 @@ mod tests {
         datatypes::{DataType, Field, Schema, SchemaRef},
     };
     use datafusion::{
-        datasource::MemTable,
-        logical_plan::{provider_as_source, LogicalPlanBuilder},
+        datasource::{provider_as_source, MemTable},
+        logical_expr::LogicalPlanBuilder,
     };
     use stringset::StringSet;
 

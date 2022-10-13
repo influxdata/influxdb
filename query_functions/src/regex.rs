@@ -7,8 +7,8 @@ use arrow::{
 use datafusion::{
     error::DataFusionError,
     logical_expr::{ScalarFunctionImplementation, ScalarUDF, Volatility},
-    logical_plan::create_udf,
     physical_plan::ColumnarValue,
+    prelude::create_udf,
     scalar::ScalarValue,
 };
 use once_cell::sync::Lazy;
@@ -206,8 +206,7 @@ mod test {
     };
     use datafusion::{
         error::DataFusionError,
-        logical_plan::{col, Expr},
-        prelude::lit,
+        prelude::{col, lit, Expr},
     };
     use datafusion_util::context_with_table;
     use std::sync::Arc;

@@ -12,6 +12,7 @@ use datafusion::{
         expressions::PhysicalSortExpr, ExecutionPlan, Partitioning, RecordBatchStream,
         SendableRecordBatchStream, Statistics,
     },
+    prelude::Expr,
 };
 use std::{
     any::Any,
@@ -102,7 +103,7 @@ where
         _ctx: &SessionState,
         projection: &Option<Vec<usize>>,
         // It would be cool to push projection and limit down
-        _filters: &[datafusion::logical_plan::Expr],
+        _filters: &[Expr],
         _limit: Option<usize>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
         let schema = self.table.schema();

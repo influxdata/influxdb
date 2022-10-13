@@ -12,8 +12,8 @@
 )]
 
 use datafusion::{
-    logical_plan::{Expr, FunctionRegistry},
-    prelude::lit,
+    execution::FunctionRegistry,
+    prelude::{lit, Expr},
 };
 use group_by::WindowDuration;
 use window::EncodedWindowDuration;
@@ -97,7 +97,7 @@ mod test {
         array::{ArrayRef, StringArray, TimestampNanosecondArray},
         record_batch::RecordBatch,
     };
-    use datafusion::{assert_batches_eq, logical_plan::col};
+    use datafusion::{assert_batches_eq, prelude::col};
     use datafusion_util::context_with_table;
     use std::sync::Arc;
 

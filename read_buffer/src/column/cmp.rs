@@ -45,17 +45,17 @@ impl TryFrom<&str> for Operator {
     }
 }
 
-impl TryFrom<&datafusion::logical_plan::Operator> for Operator {
+impl TryFrom<&datafusion::logical_expr::Operator> for Operator {
     type Error = String;
 
-    fn try_from(op: &datafusion::logical_plan::Operator) -> Result<Self, Self::Error> {
+    fn try_from(op: &datafusion::logical_expr::Operator) -> Result<Self, Self::Error> {
         match op {
-            datafusion::logical_plan::Operator::Eq => Ok(Self::Equal),
-            datafusion::logical_plan::Operator::NotEq => Ok(Self::NotEqual),
-            datafusion::logical_plan::Operator::Lt => Ok(Self::LT),
-            datafusion::logical_plan::Operator::LtEq => Ok(Self::LTE),
-            datafusion::logical_plan::Operator::Gt => Ok(Self::GT),
-            datafusion::logical_plan::Operator::GtEq => Ok(Self::GTE),
+            datafusion::logical_expr::Operator::Eq => Ok(Self::Equal),
+            datafusion::logical_expr::Operator::NotEq => Ok(Self::NotEqual),
+            datafusion::logical_expr::Operator::Lt => Ok(Self::LT),
+            datafusion::logical_expr::Operator::LtEq => Ok(Self::LTE),
+            datafusion::logical_expr::Operator::Gt => Ok(Self::GT),
+            datafusion::logical_expr::Operator::GtEq => Ok(Self::GTE),
             v => Err(format!("unsupported operator {:?}", v)),
         }
     }

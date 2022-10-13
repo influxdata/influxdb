@@ -1,11 +1,10 @@
 use data_types::{DeleteExpr, Op, Scalar};
+use datafusion::prelude::Expr;
 use snafu::{ResultExt, Snafu};
 use std::ops::Deref;
 
-pub(crate) fn expr_to_df(expr: DeleteExpr) -> datafusion::logical_plan::Expr {
-    use datafusion::logical_plan::Expr;
-
-    let column = datafusion::logical_plan::Column {
+pub(crate) fn expr_to_df(expr: DeleteExpr) -> Expr {
+    let column = datafusion::prelude::Column {
         relation: None,
         name: expr.column,
     };
@@ -20,15 +19,10 @@ pub(crate) fn expr_to_df(expr: DeleteExpr) -> datafusion::logical_plan::Expr {
 #[derive(Debug, Snafu)]
 pub enum DataFusionToExprError {
     #[snafu(display("unsupported expression: {:?}", expr))]
-    UnsupportedExpression {
-        expr: datafusion::logical_plan::Expr,
-    },
+    UnsupportedExpression { expr: Expr },
 
     #[snafu(display("unsupported operants: left {:?}; right {:?}", left, right))]
-    UnsupportedOperants {
-        left: datafusion::logical_plan::Expr,
-        right: datafusion::logical_plan::Expr,
-    },
+    UnsupportedOperants { left: Expr, right: Expr },
 
     #[snafu(display("cannot convert datafusion operator: {}", source))]
     CannotConvertDataFusionOperator {
@@ -41,18 +35,13 @@ pub enum DataFusionToExprError {
     },
 }
 
-pub(crate) fn df_to_expr(
-    expr: datafusion::logical_plan::Expr,
-) -> Result<DeleteExpr, DataFusionToExprError> {
+pub(crate) fn df_to_expr(expr: Expr) -> Result<DeleteExpr, DataFusionToExprError> {
     match expr {
-        datafusion::logical_plan::Expr::BinaryExpr { left, op, right } => {
+        Expr::BinaryExpr { left, op, right } => {
             let (column, scalar) = match (left.deref(), right.deref()) {
                 // The delete predicate parser currently only supports `<column><op><value>`, not `<value><op><column>`,
                 // however this could can easily be extended to support the latter case as well.
-                (
-                    datafusion::logical_plan::Expr::Column(column),
-                    datafusion::logical_plan::Expr::Literal(value),
-                ) => {
+                (Expr::Column(column), Expr::Literal(value)) => {
                     let column = column.name.clone();
 
                     let scalar = df_to_scalar(value.clone())
@@ -76,10 +65,10 @@ pub(crate) fn df_to_expr(
     }
 }
 
-pub(crate) fn op_to_df(op: Op) -> datafusion::logical_plan::Operator {
+pub(crate) fn op_to_df(op: Op) -> datafusion::logical_expr::Operator {
     match op {
-        Op::Eq => datafusion::logical_plan::Operator::Eq,
-        Op::Ne => datafusion::logical_plan::Operator::NotEq,
+        Op::Eq => datafusion::logical_expr::Operator::Eq,
+        Op::Ne => datafusion::logical_expr::Operator::NotEq,
     }
 }
 
@@ -88,14 +77,14 @@ pub(crate) fn op_to_df(op: Op) -> datafusion::logical_plan::Operator {
 pub enum DataFusionToOpError {
     #[snafu(display("unsupported operator: {:?}", op))]
     UnsupportedOperator {
-        op: datafusion::logical_plan::Operator,
+        op: datafusion::logical_expr::Operator,
     },
 }
 
-pub(crate) fn df_to_op(op: datafusion::logical_plan::Operator) -> Result<Op, DataFusionToOpError> {
+pub(crate) fn df_to_op(op: datafusion::logical_expr::Operator) -> Result<Op, DataFusionToOpError> {
     match op {
-        datafusion::logical_plan::Operator::Eq => Ok(Op::Eq),
-        datafusion::logical_plan::Operator::NotEq => Ok(Op::Ne),
+        datafusion::logical_expr::Operator::Eq => Ok(Op::Eq),
+        datafusion::logical_expr::Operator::NotEq => Ok(Op::Ne),
         other => Err(DataFusionToOpError::UnsupportedOperator { op: other }),
     }
 }
@@ -184,40 +173,32 @@ mod tests {
 
     #[test]
     fn test_unsupported_expression() {
-        let expr = datafusion::logical_plan::Expr::Not(Box::new(
-            datafusion::logical_plan::Expr::BinaryExpr {
-                left: Box::new(datafusion::logical_plan::Expr::Column(
-                    datafusion::logical_plan::Column {
-                        relation: None,
-                        name: "foo".to_string(),
-                    },
-                )),
-                op: datafusion::logical_plan::Operator::Eq,
-                right: Box::new(datafusion::logical_plan::Expr::Literal(
-                    datafusion::scalar::ScalarValue::Utf8(Some("x".to_string())),
-                )),
-            },
-        ));
+        let expr = Expr::Not(Box::new(Expr::BinaryExpr {
+            left: Box::new(Expr::Column(datafusion::prelude::Column {
+                relation: None,
+                name: "foo".to_string(),
+            })),
+            op: datafusion::logical_expr::Operator::Eq,
+            right: Box::new(Expr::Literal(datafusion::scalar::ScalarValue::Utf8(Some(
+                "x".to_string(),
+            )))),
+        }));
         let res = df_to_expr(expr);
         assert_contains!(res.unwrap_err().to_string(), "unsupported expression:");
     }
 
     #[test]
     fn test_unsupported_operants() {
-        let expr = datafusion::logical_plan::Expr::BinaryExpr {
-            left: Box::new(datafusion::logical_plan::Expr::Column(
-                datafusion::logical_plan::Column {
-                    relation: None,
-                    name: "foo".to_string(),
-                },
-            )),
-            op: datafusion::logical_plan::Operator::Eq,
-            right: Box::new(datafusion::logical_plan::Expr::Column(
-                datafusion::logical_plan::Column {
-                    relation: None,
-                    name: "bar".to_string(),
-                },
-            )),
+        let expr = Expr::BinaryExpr {
+            left: Box::new(Expr::Column(datafusion::prelude::Column {
+                relation: None,
+                name: "foo".to_string(),
+            })),
+            op: datafusion::logical_expr::Operator::Eq,
+            right: Box::new(Expr::Column(datafusion::prelude::Column {
+                relation: None,
+                name: "bar".to_string(),
+            })),
         };
         let res = df_to_expr(expr);
         assert_contains!(res.unwrap_err().to_string(), "unsupported operants:");
@@ -239,24 +220,20 @@ mod tests {
 
     #[test]
     fn test_unsupported_scalar_value_in_expr() {
-        let expr = datafusion::logical_plan::Expr::BinaryExpr {
-            left: Box::new(datafusion::logical_plan::Expr::Column(
-                datafusion::logical_plan::Column {
-                    relation: None,
-                    name: "foo".to_string(),
-                },
-            )),
-            op: datafusion::logical_plan::Operator::Eq,
-            right: Box::new(datafusion::logical_plan::Expr::Literal(
-                datafusion::scalar::ScalarValue::List(
-                    Some(vec![]),
-                    Box::new(Field::new(
-                        "field",
-                        arrow::datatypes::DataType::Float64,
-                        true,
-                    )),
-                ),
-            )),
+        let expr = Expr::BinaryExpr {
+            left: Box::new(Expr::Column(datafusion::prelude::Column {
+                relation: None,
+                name: "foo".to_string(),
+            })),
+            op: datafusion::logical_expr::Operator::Eq,
+            right: Box::new(Expr::Literal(datafusion::scalar::ScalarValue::List(
+                Some(vec![]),
+                Box::new(Field::new(
+                    "field",
+                    arrow::datatypes::DataType::Float64,
+                    true,
+                )),
+            ))),
         };
         let res = df_to_expr(expr);
         assert_contains!(res.unwrap_err().to_string(), "unsupported scalar value:");
@@ -264,23 +241,21 @@ mod tests {
 
     #[test]
     fn test_unsupported_operator() {
-        let res = df_to_op(datafusion::logical_plan::Operator::Like);
+        let res = df_to_op(datafusion::logical_expr::Operator::Like);
         assert_contains!(res.unwrap_err().to_string(), "unsupported operator:");
     }
 
     #[test]
     fn test_unsupported_operator_in_expr() {
-        let expr = datafusion::logical_plan::Expr::BinaryExpr {
-            left: Box::new(datafusion::logical_plan::Expr::Column(
-                datafusion::logical_plan::Column {
-                    relation: None,
-                    name: "foo".to_string(),
-                },
-            )),
-            op: datafusion::logical_plan::Operator::Like,
-            right: Box::new(datafusion::logical_plan::Expr::Literal(
-                datafusion::scalar::ScalarValue::Utf8(Some("x".to_string())),
-            )),
+        let expr = Expr::BinaryExpr {
+            left: Box::new(Expr::Column(datafusion::prelude::Column {
+                relation: None,
+                name: "foo".to_string(),
+            })),
+            op: datafusion::logical_expr::Operator::Like,
+            right: Box::new(Expr::Literal(datafusion::scalar::ScalarValue::Utf8(Some(
+                "x".to_string(),
+            )))),
         };
         let res = df_to_expr(expr);
         assert_contains!(res.unwrap_err().to_string(), "unsupported operator:");

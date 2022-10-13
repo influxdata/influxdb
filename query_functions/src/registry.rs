@@ -2,8 +2,8 @@ use std::{collections::HashSet, sync::Arc};
 
 use datafusion::{
     common::{DataFusionError, Result as DataFusionResult},
+    execution::FunctionRegistry,
     logical_expr::{AggregateUDF, ScalarUDF},
-    logical_plan::FunctionRegistry,
 };
 use once_cell::sync::Lazy;
 

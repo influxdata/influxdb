@@ -14,7 +14,7 @@ use crate::{
     },
 };
 use datafusion::{
-    logical_plan::{col, lit},
+    prelude::{col, lit},
     scalar::ScalarValue,
 };
 use iox_query::frontend::influxrpc::InfluxRpcPlanner;

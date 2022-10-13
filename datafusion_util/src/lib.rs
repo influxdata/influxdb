@@ -22,18 +22,18 @@ use datafusion::arrow::datatypes::DataType;
 use datafusion::common::DataFusionError;
 use datafusion::datasource::MemTable;
 use datafusion::execution::context::TaskContext;
+use datafusion::logical_expr::Operator;
 use datafusion::physical_expr::PhysicalExpr;
 use datafusion::physical_plan::common::SizedRecordBatchStream;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MemTrackingMetrics};
 use datafusion::physical_plan::{collect, EmptyRecordBatchStream, ExecutionPlan};
-use datafusion::prelude::SessionContext;
+use datafusion::prelude::{col, lit, Expr, SessionContext};
 use datafusion::{
     arrow::{
         datatypes::{Schema, SchemaRef},
         error::Result as ArrowResult,
         record_batch::RecordBatch,
     },
-    logical_plan::{col, lit, Expr, Operator},
     physical_plan::{RecordBatchStream, SendableRecordBatchStream},
     scalar::ScalarValue,
 };

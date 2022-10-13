@@ -61,9 +61,10 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use datafusion::{
+    common::DFSchemaRef,
     error::{DataFusionError, Result},
     execution::context::TaskContext,
-    logical_plan::{DFSchemaRef, Expr, LogicalPlan, UserDefinedLogicalNode},
+    logical_expr::{Expr, LogicalPlan, UserDefinedLogicalNode},
     physical_plan::{
         expressions::PhysicalSortExpr,
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet, RecordOutput},
@@ -519,8 +520,8 @@ mod tests {
     use arrow::array::{Int64Array, StringArray};
     use arrow_util::assert_batches_sorted_eq;
     use datafusion::{
-        logical_plan::{col, lit},
         physical_plan::memory::MemoryExec,
+        prelude::{col, lit},
     };
     use datafusion_util::test_collect_partition;
 

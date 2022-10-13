@@ -2,7 +2,10 @@
 
 use std::sync::Arc;
 
-use datafusion::logical_plan::{col, lit_timestamp_nano, LogicalPlan};
+use datafusion::{
+    logical_expr::LogicalPlan,
+    prelude::{col, lit_timestamp_nano},
+};
 use observability_deps::tracing::debug;
 use schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
 

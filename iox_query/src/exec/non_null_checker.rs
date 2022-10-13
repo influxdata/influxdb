@@ -49,9 +49,10 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use datafusion::{
+    common::{DFSchemaRef, ToDFSchema},
     error::{DataFusionError as Error, Result},
     execution::context::TaskContext,
-    logical_plan::{DFSchemaRef, Expr, LogicalPlan, ToDFSchema, UserDefinedLogicalNode},
+    logical_expr::{Expr, LogicalPlan, UserDefinedLogicalNode},
     physical_plan::{
         expressions::PhysicalSortExpr,
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet},

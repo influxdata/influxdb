@@ -1,7 +1,12 @@
 use datafusion::{
     error::Result,
-    logical_expr::{binary_expr, expr::Case},
-    logical_plan::{Expr, ExprRewritable, ExprRewriter, Operator},
+    logical_expr::{
+        binary_expr,
+        expr::Case,
+        expr_rewriter::{ExprRewritable, ExprRewriter},
+        Operator,
+    },
+    prelude::Expr,
 };
 
 /// Special purpose `Expr` rewrite rules for IOx
@@ -279,7 +284,7 @@ mod tests {
     use std::ops::Add;
 
     use super::*;
-    use datafusion::logical_plan::{case, col, lit, when};
+    use datafusion::prelude::{case, col, lit, when};
 
     #[test]
     fn test_fold_case_expr() {

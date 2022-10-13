@@ -6,7 +6,7 @@ use data_types::{
     CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, PartitionId, SequenceNumber,
     TableSchema, TimestampMinMax,
 };
-use datafusion::{error::DataFusionError, logical_plan::LogicalPlan};
+use datafusion::{error::DataFusionError, logical_expr::LogicalPlan};
 use futures::{stream::FuturesOrdered, StreamExt, TryStreamExt};
 use iox_catalog::interface::Catalog;
 use iox_query::{
