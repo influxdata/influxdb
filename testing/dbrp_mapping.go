@@ -701,7 +701,17 @@ func FindManyDBRPMappingsV2(
 							{ID: 500, Name: "testdb4", OrgID: MustIDBase16(dbrpOrg2ID)},
 						}, 0, nil
 					}},
-				DBRPMappingsV2: []*influxdb.DBRPMapping{},
+				DBRPMappingsV2: []*influxdb.DBRPMapping{
+					{
+						ID:              500,
+						Database:        "testdb4",
+						RetentionPolicy: "autogen",
+						Default:         true,
+						Virtual:         false,
+						OrganizationID:  MustIDBase16(dbrpOrg2ID),
+						BucketID:        500,
+					},
+				},
 			},
 			args: args{
 				filter: influxdb.DBRPMappingFilter{
@@ -715,7 +725,7 @@ func FindManyDBRPMappingsV2(
 						Database:        "testdb4",
 						RetentionPolicy: "autogen",
 						Default:         true,
-						Virtual:         true,
+						Virtual:         false,
 						OrganizationID:  MustIDBase16(dbrpOrg2ID),
 						BucketID:        500,
 					},

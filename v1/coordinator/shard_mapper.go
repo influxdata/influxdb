@@ -6,7 +6,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/influxdata/influx-cli/v2/api"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/kit/platform"
@@ -67,7 +66,7 @@ func (e *LocalShardMapper) mapShards(ctx context.Context, a *LocalShardMapping, 
 					OrgID:           &orgID,
 					Database:        &s.Database,
 					RetentionPolicy: &s.RetentionPolicy,
-					Virtual:         api.PtrBool(false),
+					Virtual:         nil,
 				})
 				if err != nil {
 					return fmt.Errorf("finding DBRP mappings: %v", err)
