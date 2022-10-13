@@ -1,6 +1,15 @@
 #![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![allow(clippy::clone_on_ref_ptr)]
 
+//! This module contains various DataFusion utility functions.
+//!
+//! Almost everything for manipulating DataFusion `Expr`s IOx should be in DataFusion already
+//! (or if not it should be upstreamed).
+//!
+//! For example, check out
+//! [datafusion_optimizer::utils](https://docs.rs/datafusion-optimizer/13.0.0/datafusion_optimizer/utils/index.html)
+//! for expression manipulation functions.
+
 pub mod sender;
 pub mod watch;
 
