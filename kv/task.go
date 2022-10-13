@@ -1012,6 +1012,15 @@ func (s *Service) findRunByID(ctx context.Context, tx Tx, taskID, runID platform
 	runBytes, err := bucket.Get(key)
 	if err != nil {
 		if IsNotFound(err) {
+			runs, err := s.manualRuns(ctx, tx, taskID)
+			for _, run := range runs {
+				if run.ID == runID {
+					return run, nil
+				}
+			}
+			if err != nil {
+				return nil, taskmodel.ErrRunNotFound
+			}
 			return nil, taskmodel.ErrRunNotFound
 		}
 		return nil, taskmodel.ErrUnexpectedTaskBucketErr(err)

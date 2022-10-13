@@ -461,6 +461,10 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			combinedTaskService,
 			executor.WithFlagger(m.flagger),
 		)
+		err = executor.LoadExistingScheduleRuns(ctx)
+		if err != nil {
+			m.log.Fatal("could not load existing scheduled runs", zap.Error(err))
+		}
 		m.executor = executor
 		m.reg.MustRegister(executorMetrics.PrometheusCollectors()...)
 		schLogger := m.log.With(zap.String("service", "task-scheduler"))

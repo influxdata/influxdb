@@ -145,6 +145,7 @@ func NewExecutor(log *zap.Logger, qs query.QueryService, us PermissionService, t
 		ps:  us,
 
 		currentPromises:        sync.Map{},
+		futurePromises:         sync.Map{},
 		promiseQueue:           make(chan *promise, maxPromises),
 		workerLimit:            make(chan struct{}, cfg.maxWorkers),
 		limitFunc:              func(*taskmodel.Task, *taskmodel.Run) error { return nil }, // noop
@@ -158,6 +159,8 @@ func NewExecutor(log *zap.Logger, qs query.QueryService, us PermissionService, t
 	wm := &workerMaker{
 		e: e,
 	}
+
+	go e.processScheduledTasks()
 
 	e.workerPool = sync.Pool{New: wm.new}
 	return e, e.metrics
@@ -177,6 +180,9 @@ type Executor struct {
 	// currentPromises are all the promises we are made that have not been fulfilled
 	currentPromises sync.Map
 
+	// futurePromises are promises that are scheduled to be executed in the future
+	futurePromises sync.Map
+
 	// keep a pool of promise's we have in queue
 	promiseQueue chan *promise
 
@@ -189,6 +195,52 @@ type Executor struct {
 	nonSystemBuildCompiler CompilerBuilderFunc
 	systemBuildCompiler    CompilerBuilderFunc
 	flagger                feature.Flagger
+}
+
+func (e *Executor) LoadExistingScheduleRuns(ctx context.Context) error {
+	tasks, _, err := e.ts.FindTasks(ctx, taskmodel.TaskFilter{})
+	if err != nil {
+		e.log.Error("err finding tasks:", zap.Error(err))
+		return err
+	}
+	for _, t := range tasks {
+		beforeTime := time.Now().Add(time.Hour * 24 * 365).Format(time.RFC3339)
+		runs, _, err := e.ts.FindRuns(ctx, taskmodel.RunFilter{Task: t.ID, BeforeTime: beforeTime})
+		if err != nil {
+			e.log.Error("err finding runs:", zap.Error(err))
+			return err
+		}
+		for _, run := range runs {
+			if run.ScheduledFor.After(time.Now()) {
+				perm, err := e.ps.FindPermissionForUser(ctx, t.OwnerID)
+				if err != nil {
+					e.log.Error("err finding perms:", zap.Error(err))
+					return err
+				}
+
+				ctx, cancel := context.WithCancel(ctx)
+				// create promise
+				p := &promise{
+					run:  run,
+					task: t,
+					auth: &influxdb.Authorization{
+						Status:      influxdb.Active,
+						UserID:      t.OwnerID,
+						ID:          platform.ID(1),
+						OrgID:       t.OrganizationID,
+						Permissions: perm,
+					},
+					createdAt:  time.Now().UTC(),
+					done:       make(chan struct{}),
+					ctx:        ctx,
+					cancelFunc: cancel,
+				}
+				e.futurePromises.Store(run.ID, p)
+			}
+		}
+	}
+
+	return nil
 }
 
 // SetLimitFunc sets the limit func for this task executor
@@ -239,6 +291,58 @@ func (e *Executor) ManualRun(ctx context.Context, id platform.ID, runID platform
 	e.startWorker()
 	e.metrics.manualRunsCounter.WithLabelValues(id.String()).Inc()
 	return p, err
+}
+
+func (e *Executor) ScheduleManualRun(ctx context.Context, id platform.ID, runID platform.ID) error {
+	// create promises for any manual runs
+	r, err := e.tcs.StartManualRun(ctx, id, runID)
+	if err != nil {
+		return err
+	}
+
+	auth, err := icontext.GetAuthorizer(ctx)
+	if err != nil {
+		return err
+	}
+
+	// create a new context for running the task in the background so that returning the HTTP response does not cancel the
+	// context of the task to be run
+	ctx = icontext.SetAuthorizer(context.Background(), auth)
+
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	t, err := e.ts.FindTaskByID(ctx, r.TaskID)
+	if err != nil {
+		return err
+	}
+
+	perm, err := e.ps.FindPermissionForUser(ctx, t.OwnerID)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	// create promise
+	p := &promise{
+		run:  r,
+		task: t,
+		auth: &influxdb.Authorization{
+			Status:      influxdb.Active,
+			UserID:      t.OwnerID,
+			ID:          platform.ID(1),
+			OrgID:       t.OrganizationID,
+			Permissions: perm,
+		},
+		createdAt:  time.Now().UTC(),
+		done:       make(chan struct{}),
+		ctx:        ctx,
+		cancelFunc: cancel,
+	}
+	e.metrics.manualRunsCounter.WithLabelValues(id.String()).Inc()
+
+	e.futurePromises.Store(runID, p)
+	return nil
 }
 
 func (e *Executor) ResumeCurrentRun(ctx context.Context, id platform.ID, runID platform.ID) (Promise, error) {
@@ -363,6 +467,23 @@ func (e *Executor) createPromise(ctx context.Context, run *taskmodel.Run) (*prom
 	return p, nil
 }
 
+func (e *Executor) processScheduledTasks() {
+	t := time.Tick(1 * time.Second)
+	for range t {
+		e.futurePromises.Range(func(k any, v any) bool {
+			vv := v.(*promise)
+			if vv.run.ScheduledFor.Equal(time.Now()) || vv.run.ScheduledFor.Before(time.Now()) {
+				if vv.run.RunAt.IsZero() {
+					e.promiseQueue <- vv
+					e.futurePromises.Delete(k)
+					e.startWorker()
+				}
+			}
+			return true
+		})
+	}
+}
+
 type workerMaker struct {
 	e *Executor
 }
@@ -445,9 +566,18 @@ func (w *worker) start(p *promise) {
 	defer span.Finish()
 
 	// add to run log
-	w.e.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now().UTC(), fmt.Sprintf("Started task from script: %q", p.task.Flux))
+	if err := w.e.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now().UTC(), fmt.Sprintf("Started task from script: %q", p.task.Flux)); err != nil {
+		tid := zap.String("taskID", p.task.ID.String())
+		rid := zap.String("runID", p.run.ID.String())
+		w.e.log.With(zap.Error(err)).With(tid).With(rid).Warn("error adding run log: ")
+	}
+
 	// update run status
-	w.e.tcs.UpdateRunState(ctx, p.task.ID, p.run.ID, time.Now().UTC(), taskmodel.RunStarted)
+	if err := w.e.tcs.UpdateRunState(ctx, p.task.ID, p.run.ID, time.Now().UTC(), taskmodel.RunStarted); err != nil {
+		tid := zap.String("taskID", p.task.ID.String())
+		rid := zap.String("runID", p.run.ID.String())
+		w.e.log.With(zap.Error(err)).With(tid).With(rid).Warn("error updating run state: ")
+	}
 
 	// add to metrics
 	w.e.metrics.StartRun(p.task, time.Since(p.createdAt), time.Since(p.run.RunAt))

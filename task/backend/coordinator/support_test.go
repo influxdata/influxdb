@@ -17,8 +17,9 @@ type (
 	}
 
 	manualRunCall struct {
-		TaskID platform.ID
-		RunID  platform.ID
+		TaskID       platform.ID
+		RunID        platform.ID
+		WasScheduled bool
 	}
 
 	cancelCallC struct {
@@ -96,7 +97,7 @@ func (s *schedulerC) Release(taskID scheduler.ID) error {
 }
 
 func (e *executorE) ManualRun(ctx context.Context, id platform.ID, runID platform.ID) (executor.Promise, error) {
-	e.calls = append(e.calls, manualRunCall{id, runID})
+	e.calls = append(e.calls, manualRunCall{id, runID, false})
 	ctx, cancel := context.WithCancel(ctx)
 	p := promise{
 		done:       make(chan struct{}),
@@ -107,6 +108,11 @@ func (e *executorE) ManualRun(ctx context.Context, id platform.ID, runID platfor
 
 	err := p.Error()
 	return &p, err
+}
+
+func (e *executorE) ScheduleManualRun(ctx context.Context, id platform.ID, runID platform.ID) error {
+	e.calls = append(e.calls, manualRunCall{id, runID, true})
+	return nil
 }
 
 func (e *executorE) Cancel(ctx context.Context, runID platform.ID) error {
