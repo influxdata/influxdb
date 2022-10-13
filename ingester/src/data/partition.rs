@@ -275,6 +275,18 @@ impl PartitionData {
     /// Mark this partition as having completed persistence up to, and
     /// including, the specified [`SequenceNumber`].
     pub(super) fn mark_persisted(&mut self, sequence_number: SequenceNumber) {
+        // It is an invariant that partitions are persisted in order so that
+        // both the per-shard, and per-partition watermarks are correctly
+        // advanced and accurate.
+        if let Some(last_persist) = self.max_persisted_sequence_number() {
+            assert!(
+                sequence_number > last_persist,
+                "out of order partition persistence, persisting {}, previously persisted {}",
+                sequence_number.get(),
+                last_persist.get(),
+            );
+        }
+
         self.max_persisted_sequence_number = Some(sequence_number);
         self.data.mark_persisted();
     }
