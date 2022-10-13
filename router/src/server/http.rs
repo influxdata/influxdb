@@ -1,5 +1,8 @@
 //! HTTP service implementations for `router`.
 
+mod delete_predicate;
+
+use self::delete_predicate::parse_http_delete_request;
 use crate::dml_handlers::{DmlError, DmlHandler, PartitionError, SchemaError};
 use bytes::{Bytes, BytesMut};
 use data_types::{org_and_bucket_to_database, OrgBucketMappingError};
@@ -11,7 +14,7 @@ use metric::{DurationHistogram, U64Counter};
 use mutable_batch::MutableBatch;
 use mutable_batch_lp::LinesConverter;
 use observability_deps::tracing::*;
-use predicate::delete_predicate::{parse_delete_predicate, parse_http_delete_request};
+use predicate::delete_predicate::parse_delete_predicate;
 use serde::Deserialize;
 use std::time::Instant;
 use std::{str::Utf8Error, sync::Arc};
@@ -65,6 +68,10 @@ pub enum Error {
     #[error("failed to parse delete predicate: {0}")]
     ParseDelete(#[from] predicate::delete_predicate::Error),
 
+    /// Failure to parse the delete predicate in the http request
+    #[error("failed to parse delete predicate from http request: {0}")]
+    ParseHttpDelete(#[from] self::delete_predicate::Error),
+
     /// An error returned from the [`DmlHandler`].
     #[error("dml handler error: {0}")]
     DmlHandler(#[from] DmlError),
@@ -88,6 +95,7 @@ impl Error {
             Error::NonUtf8Body(_) => StatusCode::BAD_REQUEST,
             Error::ParseLineProtocol(_) => StatusCode::BAD_REQUEST,
             Error::ParseDelete(_) => StatusCode::BAD_REQUEST,
+            Error::ParseHttpDelete(_) => StatusCode::BAD_REQUEST,
             Error::RequestSizeExceeded(_) => StatusCode::PAYLOAD_TOO_LARGE,
             Error::InvalidContentEncoding(_) => {
                 // https://www.rfc-editor.org/rfc/rfc7231#section-6.5.13
@@ -937,7 +945,7 @@ mod tests {
         query_string = "?org=bananas&bucket=test",
         body = r#"{wat}"#.as_bytes(),
         dml_handler = [],
-        want_result = Err(Error::ParseDelete(_)),
+        want_result = Err(Error::ParseHttpDelete(_)),
         want_dml_calls = []
     );
 

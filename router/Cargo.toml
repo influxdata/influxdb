@@ -26,9 +26,11 @@ parking_lot = "0.12"
 predicate = { path = "../predicate" }
 schema = { version = "0.1.0", path = "../schema" }
 serde = "1.0"
+serde_json = "1.0.86"
 serde_urlencoded = "0.7"
 service_grpc_schema = { path = "../service_grpc_schema" }
 service_grpc_object_store = { path = "../service_grpc_object_store" }
+snafu = "0.7"
 sharder = { path = "../sharder" }
 thiserror = "1.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

@@ -13,7 +13,6 @@ itertools = "0.10"
 observability_deps = { path = "../observability_deps" }
 query_functions = { path = "../query_functions"}
 schema = { path = "../schema" }
-serde_json = "1.0.86"
 snafu = "0.7"
 sqlparser = "0.25.0"
 workspace-hack = { path = "../workspace-hack"}
