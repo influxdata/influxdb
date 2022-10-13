@@ -33,7 +33,7 @@ macro_rules! regex {
 macro_rules! param {
     ($EXPR: expr) => {
         $crate::expression::arithmetic::Expr::BindParameter(
-            $crate::parameter::BindParameter($EXPR.into()).into(),
+            $crate::parameter::BindParameter::new($EXPR.into()).into(),
         )
     };
 }

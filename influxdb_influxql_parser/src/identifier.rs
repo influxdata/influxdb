@@ -14,7 +14,7 @@
 use crate::internal::ParseResult;
 use crate::keywords::sql_keyword;
 use crate::string::double_quoted_string;
-use crate::write_quoted_string;
+use crate::{impl_tuple_clause, write_quoted_string};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{alpha1, alphanumeric1};
@@ -25,7 +25,7 @@ use std::fmt;
 use std::fmt::{Display, Formatter, Write};
 
 /// Parse an unquoted InfluxQL identifier.
-pub fn unquoted_identifier(i: &str) -> ParseResult<&str, &str> {
+pub(crate) fn unquoted_identifier(i: &str) -> ParseResult<&str, &str> {
     preceded(
         not(sql_keyword),
         recognize(pair(
@@ -37,13 +37,9 @@ pub fn unquoted_identifier(i: &str) -> ParseResult<&str, &str> {
 
 /// A type that represents an InfluxQL identifier.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct Identifier(pub String);
+pub struct Identifier(pub(crate) String);
 
-impl From<String> for Identifier {
-    fn from(s: String) -> Self {
-        Self(s)
-    }
-}
+impl_tuple_clause!(Identifier, String);
 
 impl From<&str> for Identifier {
     fn from(s: &str) -> Self {
@@ -59,7 +55,7 @@ impl Display for Identifier {
 }
 
 /// Parses an InfluxQL [Identifier].
-pub fn identifier(i: &str) -> ParseResult<&str, Identifier> {
+pub(crate) fn identifier(i: &str) -> ParseResult<&str, Identifier> {
     // See: https://github.com/influxdata/influxql/blob/df51a45762be9c1b578f01718fa92d286a843fe9/scanner.go#L358-L362
     alt((
         map(unquoted_identifier, Into::into),

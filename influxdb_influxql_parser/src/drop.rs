@@ -19,7 +19,7 @@ impl Display for DropMeasurementStatement {
     }
 }
 
-pub fn drop_statement(i: &str) -> ParseResult<&str, DropMeasurementStatement> {
+pub(crate) fn drop_statement(i: &str) -> ParseResult<&str, DropMeasurementStatement> {
     preceded(
         pair(tag_no_case("DROP"), multispace1),
         expect(

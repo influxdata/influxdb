@@ -121,3 +121,10 @@ inherits = "release"
 codegen-units = 16
 lto = false
 incremental = true
+
+# Per insta docs: https://insta.rs/docs/quickstart/#optional-faster-runs
+[profile.dev.package.insta]
+opt-level = 3
+
+[profile.dev.package.similar]
+opt-level = 3

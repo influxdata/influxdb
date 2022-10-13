@@ -7,6 +7,7 @@ use nom::bytes::complete::tag_no_case;
 use nom::character::complete::multispace1;
 use nom::sequence::{pair, preceded};
 use std::fmt;
+use std::fmt::{Display, Formatter};
 
 /// Represents a `FROM` clause of a `DELETE` or `SHOW` statement.
 ///
@@ -64,8 +65,18 @@ impl Parser for QualifiedMeasurementName {
 /// ```
 pub type ShowFromClause = FromMeasurementClause<QualifiedMeasurementName>;
 
+impl Display for ShowFromClause {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "FROM {}", self.first())?;
+        for arg in self.rest() {
+            write!(f, ", {}", arg)?;
+        }
+        Ok(())
+    }
+}
+
 /// Parse a `FROM` clause for various `SHOW` statements.
-pub fn show_from_clause(i: &str) -> ParseResult<&str, ShowFromClause> {
+pub(crate) fn show_from_clause(i: &str) -> ParseResult<&str, ShowFromClause> {
     from_clause(i)
 }
 
@@ -78,8 +89,18 @@ impl Parser for Identifier {
 /// Represents a `FROM` clause for a `DELETE` statement.
 pub type DeleteFromClause = FromMeasurementClause<MeasurementName>;
 
+impl Display for DeleteFromClause {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "FROM {}", self.first())?;
+        for arg in self.rest() {
+            write!(f, ", {}", arg)?;
+        }
+        Ok(())
+    }
+}
+
 /// Parse a `FROM` clause for a `DELETE` statement.
-pub fn delete_from_clause(i: &str) -> ParseResult<&str, DeleteFromClause> {
+pub(crate) fn delete_from_clause(i: &str) -> ParseResult<&str, DeleteFromClause> {
     from_clause(i)
 }
 

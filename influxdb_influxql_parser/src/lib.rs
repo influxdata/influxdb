@@ -14,10 +14,29 @@
     clippy::dbg_macro
 )]
 
+pub use crate::common::*;
+pub use crate::delete::*;
+pub use crate::drop::*;
+pub use crate::explain::*;
+pub use crate::expression::*;
+pub use crate::identifier::*;
+pub use crate::literal::*;
+pub use crate::parameter::*;
+pub use crate::select::*;
+pub use crate::show::*;
+pub use crate::show_field_keys::*;
+pub use crate::show_measurements::*;
+pub use crate::show_retention_policies::*;
+pub use crate::show_tag_keys::*;
+pub use crate::show_tag_values::*;
+pub use crate::simple_from_clause::*;
+pub use crate::statement::*;
+pub use crate::string::*;
+pub use crate::visit::*;
+
 use crate::common::statement_terminator;
 use crate::internal::Error as InternalError;
 use crate::statement::statement;
-pub use crate::statement::Statement;
 use nom::character::complete::multispace0;
 use nom::combinator::eof;
 use nom::Offset;
@@ -46,6 +65,7 @@ mod show_tag_values;
 mod simple_from_clause;
 mod statement;
 mod string;
+mod visit;
 
 /// A error returned when parsing an InfluxQL query using
 /// [`parse_statements`] fails.

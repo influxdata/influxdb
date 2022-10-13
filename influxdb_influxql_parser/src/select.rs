@@ -1,19 +1,20 @@
 use crate::common::{
     limit_clause, offset_clause, order_by_clause, qualified_measurement_name, where_clause,
-    OneOrMore, OrderByClause, Parser, QualifiedMeasurementName,
+    LimitClause, OffsetClause, OneOrMore, OrderByClause, Parser, QualifiedMeasurementName,
+    WhereClause,
 };
 use crate::expression::arithmetic::Expr::Wildcard;
 use crate::expression::arithmetic::{
     arithmetic, call_expression, var_ref, ArithmeticParsers, Expr, WildcardType,
 };
-use crate::expression::conditional::{is_valid_now_call, ConditionalExpression};
+use crate::expression::conditional::is_valid_now_call;
 use crate::identifier::{identifier, Identifier};
 use crate::internal::{expect, verify, ParseResult};
 use crate::literal::{duration, literal, number, unsigned_integer, Literal, Number};
 use crate::parameter::parameter;
 use crate::select::MeasurementSelection::Subquery;
 use crate::string::{regex, single_quoted_string, Regex};
-use crate::write_escaped;
+use crate::{impl_tuple_clause, write_escaped};
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case};
 use nom::character::complete::{char, multispace0, multispace1};
@@ -22,6 +23,7 @@ use nom::sequence::{delimited, pair, preceded, tuple};
 use std::fmt;
 use std::fmt::{Display, Formatter, Write};
 
+/// Represents a `SELECT` statement.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SelectStatement {
     /// Expressions returned by the selection.
@@ -31,85 +33,83 @@ pub struct SelectStatement {
     pub from: FromMeasurementClause,
 
     /// A conditional expression to filter the selection.
-    pub condition: Option<ConditionalExpression>,
+    pub condition: Option<WhereClause>,
 
     /// Expressions used for grouping the selection.
-    pub group_by: Option<GroupByList>,
+    pub group_by: Option<GroupByClause>,
 
-    /// The [fill option][fill] specified for the selection. If the value is [`None`],
+    /// The [fill clause] specifies the fill behaviour for the selection. If the value is [`None`],
     /// it is the same behavior as `fill(none)`.
     ///
     /// [fill]: https://docs.influxdata.com/influxdb/v1.8/query_language/explore-data/#group-by-time-intervals-and-fill
-    pub fill_option: Option<FillOption>,
+    pub fill: Option<FillClause>,
 
     /// Configures the ordering of the selection by time.
     pub order_by: Option<OrderByClause>,
 
     /// A value to restrict the number of rows returned.
-    pub limit: Option<u64>,
+    pub limit: Option<LimitClause>,
 
     /// A value to specify an offset to start retrieving rows.
-    pub offset: Option<u64>,
+    pub offset: Option<OffsetClause>,
 
     /// A value to restrict the number of series returned.
-    pub series_limit: Option<u64>,
+    pub series_limit: Option<SLimitClause>,
 
     /// A value to specify an offset to start retrieving series.
-    pub series_offset: Option<u64>,
+    pub series_offset: Option<SOffsetClause>,
 
     /// The timezone for the query, specified as [`tz('<time zone>')`][time_zone_clause].
     ///
     /// [time_zone_clause]: https://docs.influxdata.com/influxdb/v1.8/query_language/explore-data/#the-time-zone-clause
-    pub timezone: Option<String>,
+    pub timezone: Option<TimeZoneClause>,
 }
 
 impl Display for SelectStatement {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "SELECT {} FROM {}", self.fields, self.from)?;
+        write!(f, "SELECT {} {}", self.fields, self.from)?;
 
-        if let Some(condition) = &self.condition {
-            write!(f, " WHERE {}", condition)?;
+        if let Some(where_clause) = &self.condition {
+            write!(f, " {}", where_clause)?;
         }
 
         if let Some(group_by) = &self.group_by {
-            write!(f, " GROUP BY {}", group_by)?;
+            write!(f, " {}", group_by)?;
         }
 
-        if let Some(fill_option) = &self.fill_option {
-            write!(f, " FILL({})", fill_option)?;
+        if let Some(fill_clause) = &self.fill {
+            write!(f, " {}", fill_clause)?;
         }
 
-        if let Some(OrderByClause::Descending) = &self.order_by {
-            write!(f, " ORDER BY TIME DESC")?;
+        if let Some(order_by) = &self.order_by {
+            write!(f, " {}", order_by)?;
         }
 
         if let Some(limit) = &self.limit {
-            write!(f, " LIMIT {}", limit)?;
+            write!(f, " {}", limit)?;
         }
 
         if let Some(offset) = &self.offset {
-            write!(f, " OFFSET {}", offset)?;
+            write!(f, " {}", offset)?;
         }
 
         if let Some(slimit) = &self.series_limit {
-            write!(f, " SLIMIT {}", slimit)?;
+            write!(f, " {}", slimit)?;
         }
 
         if let Some(soffset) = &self.series_offset {
-            write!(f, " SOFFSET {}", soffset)?;
+            write!(f, " {}", soffset)?;
         }
 
-        if let Some(tz) = &self.timezone {
-            f.write_str(" TZ('")?;
-            write_escaped!(f, tz, '\n' => "\\n", '\\' => "\\\\", '\'' => "\\'", '"' => "\\\"");
-            f.write_str("')")?;
+        if let Some(tz_clause) = &self.timezone {
+            write!(f, " {}", tz_clause)?;
         }
 
         Ok(())
     }
 }
 
-pub fn select_statement(i: &str) -> ParseResult<&str, SelectStatement> {
+pub(crate) fn select_statement(i: &str) -> ParseResult<&str, SelectStatement> {
     let (
         remaining,
         (
@@ -150,7 +150,7 @@ pub fn select_statement(i: &str) -> ParseResult<&str, SelectStatement> {
             from,
             condition,
             group_by,
-            fill_option,
+            fill: fill_option,
             order_by,
             limit,
             offset,
@@ -161,10 +161,13 @@ pub fn select_statement(i: &str) -> ParseResult<&str, SelectStatement> {
     ))
 }
 
-/// Represents a single measurement selection found in a `FROM` clause.
+/// Represents a single measurement selection for a `FROM` clause.
 #[derive(Clone, Debug, PartialEq)]
 pub enum MeasurementSelection {
+    /// The measurement selection is measurement name or regular expression.
     Name(QualifiedMeasurementName),
+
+    /// The measurement selection is a subquery.
     Subquery(Box<SelectStatement>),
 }
 
@@ -196,6 +199,16 @@ impl Parser for MeasurementSelection {
 /// Represents a `FROM` clause for a `SELECT` statement.
 pub type FromMeasurementClause = OneOrMore<MeasurementSelection>;
 
+impl Display for FromMeasurementClause {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "FROM {}", self.first())?;
+        for arg in self.rest() {
+            write!(f, ", {}", arg)?;
+        }
+        Ok(())
+    }
+}
+
 fn from_clause(i: &str) -> ParseResult<&str, FromMeasurementClause> {
     preceded(
         pair(tag_no_case("FROM"), multispace1),
@@ -205,7 +218,18 @@ fn from_clause(i: &str) -> ParseResult<&str, FromMeasurementClause> {
     )(i)
 }
 
-pub type GroupByList = OneOrMore<Dimension>;
+/// Represents the collection of dimensions for a `GROUP BY` clause.
+pub type GroupByClause = OneOrMore<Dimension>;
+
+impl Display for GroupByClause {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "GROUP BY {}", self.first())?;
+        for arg in self.rest() {
+            write!(f, ", {}", arg)?;
+        }
+        Ok(())
+    }
+}
 
 /// Used to parse the interval argument of the TIME function
 struct TimeCallIntervalArgument;
@@ -251,11 +275,14 @@ impl ArithmeticParsers for TimeCallOffsetArgument {
     }
 }
 
+/// Represents a dimension of a `GROUP BY` clause.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Dimension {
     /// Represents a `TIME` call in a `GROUP BY` clause.
     Time {
+        /// The first argument of the `TIME` call.
         interval: Expr,
+        /// An optional second argument to specify the offset applied to the `TIME` call.
         offset: Option<Expr>,
     },
 
@@ -336,7 +363,7 @@ fn time_call_expression(i: &str) -> ParseResult<&str, Dimension> {
 /// ```text
 /// group_by_clause ::= dimension ( "," dimension )*
 /// ```
-fn group_by_clause(i: &str) -> ParseResult<&str, GroupByList> {
+fn group_by_clause(i: &str) -> ParseResult<&str, GroupByClause> {
     preceded(
         tuple((
             tag_no_case("GROUP"),
@@ -344,15 +371,15 @@ fn group_by_clause(i: &str) -> ParseResult<&str, GroupByList> {
             expect("invalid GROUP BY clause, expected BY", tag_no_case("BY")),
             multispace1,
         )),
-        GroupByList::separated_list1(
+        GroupByClause::separated_list1(
             "invalid GROUP BY clause, expected wildcard, TIME, identifier or regular expression",
         ),
     )(i)
 }
 
-/// Represents all cases of an option argument of a `FILL` clause.
+/// Represents a `FILL` clause, and specifies all possible cases of the argument to the `FILL` clause.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum FillOption {
+pub enum FillClause {
     /// Empty aggregate windows will contain null values and is specified as `fill(null)`
     Null,
 
@@ -372,22 +399,27 @@ pub enum FillOption {
     Linear,
 }
 
-impl Display for FillOption {
+impl Display for FillClause {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str("FILL(")?;
         match self {
-            Self::Null => f.write_str("NULL"),
-            Self::None => f.write_str("NONE"),
-            Self::Value(v) => fmt::Display::fmt(v, f),
-            Self::Previous => f.write_str("PREVIOUS"),
-            Self::Linear => f.write_str("LINEAR"),
+            Self::Null => f.write_str("NULL")?,
+            Self::None => f.write_str("NONE")?,
+            Self::Value(v) => fmt::Display::fmt(v, f)?,
+            Self::Previous => f.write_str("PREVIOUS")?,
+            Self::Linear => f.write_str("LINEAR")?,
         }
+        f.write_str(")")
     }
 }
 
 /// Represents an expression specified in the projection list of a `SELECT` statement.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Field {
+    /// The expression which represents the field projection.
     pub expr: Expr,
+
+    /// An optional alias for the field projection.
     pub alias: Option<Identifier>,
 }
 
@@ -440,7 +472,18 @@ fn wildcard(i: &str) -> ParseResult<&str, Option<WildcardType>> {
     )(i)
 }
 
+/// Represents the field projection list of a `SELECT` statement.
 pub type FieldList = OneOrMore<Field>;
+
+impl Display for FieldList {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        Display::fmt(self.first(), f)?;
+        for arg in self.rest() {
+            write!(f, ", {}", arg)?;
+        }
+        Ok(())
+    }
+}
 
 /// Parse a field expression.
 ///
@@ -495,7 +538,7 @@ fn field_list(i: &str) -> ParseResult<&str, FieldList> {
 /// fill_option ::= "NULL" | "NONE" | "PREVIOUS" | "LINEAR" | number
 /// number      ::= signed_integer | signed_float
 /// ```
-fn fill_clause(i: &str) -> ParseResult<&str, FillOption> {
+fn fill_clause(i: &str) -> ParseResult<&str, FillClause> {
     preceded(
         tag_no_case("FILL"),
         delimited(
@@ -505,11 +548,11 @@ fn fill_clause(i: &str) -> ParseResult<&str, FillOption> {
                 preceded(
                     multispace0,
                     alt((
-                        value(FillOption::Null, tag_no_case("NULL")),
-                        value(FillOption::None, tag_no_case("NONE")),
-                        map(number, FillOption::Value),
-                        value(FillOption::Previous, tag_no_case("PREVIOUS")),
-                        value(FillOption::Linear, tag_no_case("LINEAR")),
+                        value(FillClause::Null, tag_no_case("NULL")),
+                        value(FillClause::None, tag_no_case("NONE")),
+                        map(number, FillClause::Value),
+                        value(FillClause::Previous, tag_no_case("PREVIOUS")),
+                        value(FillClause::Linear, tag_no_case("LINEAR")),
                     )),
                 ),
             ),
@@ -518,19 +561,43 @@ fn fill_clause(i: &str) -> ParseResult<&str, FillOption> {
     )(i)
 }
 
+/// Represents the value for a `SLIMIT` clause.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SLimitClause(pub(crate) u64);
+
+impl_tuple_clause!(SLimitClause, u64);
+
+impl Display for SLimitClause {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SLIMIT {}", self.0)
+    }
+}
+
 /// Parse a series limit (`SLIMIT <n>`) clause.
 ///
 /// ```text
 /// slimit_clause ::= "SLIMIT" unsigned_integer
 /// ```
-fn slimit_clause(i: &str) -> ParseResult<&str, u64> {
+fn slimit_clause(i: &str) -> ParseResult<&str, SLimitClause> {
     preceded(
         pair(tag_no_case("SLIMIT"), multispace1),
         expect(
             "invalid SLIMIT clause, expected unsigned integer",
-            unsigned_integer,
+            map(unsigned_integer, SLimitClause),
         ),
     )(i)
+}
+
+/// Represents the value for a `SOFFSET` clause.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SOffsetClause(pub(crate) u64);
+
+impl_tuple_clause!(SOffsetClause, u64);
+
+impl Display for SOffsetClause {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SOFFSET {}", self.0)
+    }
 }
 
 /// Parse a series offset (`SOFFSET <n>`) clause.
@@ -538,14 +605,28 @@ fn slimit_clause(i: &str) -> ParseResult<&str, u64> {
 /// ```text
 /// soffset_clause ::= "SOFFSET" unsigned_integer
 /// ```
-fn soffset_clause(i: &str) -> ParseResult<&str, u64> {
+fn soffset_clause(i: &str) -> ParseResult<&str, SOffsetClause> {
     preceded(
         pair(tag_no_case("SOFFSET"), multispace1),
         expect(
             "invalid SLIMIT clause, expected unsigned integer",
-            unsigned_integer,
+            map(unsigned_integer, SOffsetClause),
         ),
     )(i)
+}
+
+/// Represents the value of the time zone string of a `TZ` clause.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TimeZoneClause(pub(crate) String);
+
+impl_tuple_clause!(TimeZoneClause, String);
+
+impl Display for TimeZoneClause {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str("TZ('")?;
+        write_escaped!(f, self.0, '\n' => "\\n", '\\' => "\\\\", '\'' => "\\'", '"' => "\\\"");
+        f.write_str("')")
+    }
 }
 
 /// Parse a timezone clause.
@@ -553,14 +634,14 @@ fn soffset_clause(i: &str) -> ParseResult<&str, u64> {
 /// ```text
 /// timezone_clause ::= "TZ" "(" single_quoted_string ")"
 /// ```
-fn timezone_clause(i: &str) -> ParseResult<&str, String> {
+fn timezone_clause(i: &str) -> ParseResult<&str, TimeZoneClause> {
     preceded(
         tag_no_case("TZ"),
         delimited(
             preceded(multispace0, char('(')),
             expect(
                 "invalid TZ clause, expected string",
-                preceded(multispace0, single_quoted_string),
+                preceded(multispace0, map(single_quoted_string, TimeZoneClause)),
             ),
             preceded(multispace0, char(')')),
         ),
@@ -608,7 +689,10 @@ mod test {
         );
 
         let (_, got) = select_statement("SELECT value FROM foo ORDER BY TIME ASC").unwrap();
-        assert_eq!(format!("{}", got), r#"SELECT value FROM foo"#);
+        assert_eq!(
+            format!("{}", got),
+            r#"SELECT value FROM foo ORDER BY TIME ASC"#
+        );
 
         let (_, got) = select_statement("SELECT value FROM foo LIMIT 5").unwrap();
         assert_eq!(format!("{}", got), r#"SELECT value FROM foo LIMIT 5"#);
@@ -958,26 +1042,26 @@ mod test {
     #[test]
     fn test_fill_clause() {
         let (_, got) = fill_clause("FILL(null)").unwrap();
-        assert_matches!(got, FillOption::Null);
+        assert_matches!(got, FillClause::Null);
 
         let (_, got) = fill_clause("FILL(NONE)").unwrap();
-        assert_matches!(got, FillOption::None);
+        assert_matches!(got, FillClause::None);
 
         let (_, got) = fill_clause("FILL(53)").unwrap();
-        assert_matches!(got, FillOption::Value(v) if v == 53.into());
+        assert_matches!(got, FillClause::Value(v) if v == 53.into());
 
         let (_, got) = fill_clause("FILL(-18.9)").unwrap();
-        assert_matches!(got, FillOption::Value(v) if v == (-18.9).into());
+        assert_matches!(got, FillClause::Value(v) if v == (-18.9).into());
 
         let (_, got) = fill_clause("FILL(previous)").unwrap();
-        assert_matches!(got, FillOption::Previous);
+        assert_matches!(got, FillClause::Previous);
 
         let (_, got) = fill_clause("FILL(linear)").unwrap();
-        assert_matches!(got, FillOption::Linear);
+        assert_matches!(got, FillClause::Linear);
 
         // unnecessary whitespace
         let (_, got) = fill_clause("FILL ( null )").unwrap();
-        assert_matches!(got, FillOption::Null);
+        assert_matches!(got, FillClause::Null);
 
         // Fallible cases
 
@@ -990,7 +1074,7 @@ mod test {
     #[test]
     fn test_timezone_clause() {
         let (_, got) = timezone_clause("TZ('Australia/Hobart')").unwrap();
-        assert_eq!(got, "Australia/Hobart");
+        assert_eq!(*got, "Australia/Hobart");
 
         // Fallible cases
         assert_expect_error!(

@@ -109,4 +109,4 @@ impl<I> NomParseError<I> for Error<I> {
 
 /// ParseResult is a type alias for [`nom::IResult`] used by nom combinator
 /// functions for parsing InfluxQL.
-pub type ParseResult<I, T, E = Error<I>> = nom::IResult<I, T, E>;
+pub(crate) type ParseResult<I, T, E = Error<I>> = nom::IResult<I, T, E>;

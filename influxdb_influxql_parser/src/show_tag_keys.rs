@@ -1,8 +1,8 @@
-use crate::common::{limit_clause, offset_clause, where_clause};
-use crate::expression::conditional::ConditionalExpression;
-use crate::identifier::Identifier;
+use crate::common::{
+    limit_clause, offset_clause, where_clause, LimitClause, OffsetClause, WhereClause,
+};
 use crate::internal::ParseResult;
-use crate::show::on_clause;
+use crate::show::{on_clause, OnClause};
 use crate::simple_from_clause::{show_from_clause, ShowFromClause};
 use nom::bytes::complete::tag_no_case;
 use nom::character::complete::multispace1;
@@ -16,44 +16,44 @@ use std::fmt::Formatter;
 pub struct ShowTagKeysStatement {
     /// The name of the database to query. If `None`, a default
     /// database will be used.
-    pub database: Option<Identifier>,
+    pub database: Option<OnClause>,
 
     /// The measurement or measurements to restrict which tag keys
     /// are retrieved.
     pub from: Option<ShowFromClause>,
 
     /// A conditional expression to filter the tag keys.
-    pub condition: Option<ConditionalExpression>,
+    pub condition: Option<WhereClause>,
 
     /// A value to restrict the number of tag keys returned.
-    pub limit: Option<u64>,
+    pub limit: Option<LimitClause>,
 
     /// A value to specify an offset to start retrieving tag keys.
-    pub offset: Option<u64>,
+    pub offset: Option<OffsetClause>,
 }
 
 impl fmt::Display for ShowTagKeysStatement {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "SHOW TAG KEYS")?;
 
-        if let Some(ref expr) = self.database {
-            write!(f, " ON {}", expr)?;
+        if let Some(ref on_clause) = self.database {
+            write!(f, " {}", on_clause)?;
         }
 
         if let Some(ref expr) = self.from {
-            write!(f, " FROM {}", expr)?;
+            write!(f, " {}", expr)?;
         }
 
         if let Some(ref cond) = self.condition {
-            write!(f, " WHERE {}", cond)?;
+            write!(f, " {}", cond)?;
         }
 
-        if let Some(limit) = self.limit {
-            write!(f, " LIMIT {}", limit)?;
+        if let Some(ref limit) = self.limit {
+            write!(f, " {}", limit)?;
         }
 
-        if let Some(offset) = self.offset {
-            write!(f, " OFFSET {}", offset)?;
+        if let Some(ref offset) = self.offset {
+            write!(f, " {}", offset)?;
         }
 
         Ok(())
@@ -61,7 +61,7 @@ impl fmt::Display for ShowTagKeysStatement {
 }
 
 /// Parse a `SHOW TAG KEYS` statement, starting from the `KEYS` token.
-pub fn show_tag_keys(i: &str) -> ParseResult<&str, ShowTagKeysStatement> {
+pub(crate) fn show_tag_keys(i: &str) -> ParseResult<&str, ShowTagKeysStatement> {
     let (
         remaining_input,
         (

@@ -1,5 +1,4 @@
-use crate::common::where_clause;
-use crate::expression::conditional::ConditionalExpression;
+use crate::common::{where_clause, WhereClause};
 use crate::internal::{expect, ParseResult};
 use crate::simple_from_clause::{delete_from_clause, DeleteFromClause};
 use nom::branch::alt;
@@ -9,17 +8,21 @@ use nom::combinator::{map, opt};
 use nom::sequence::{pair, preceded};
 use std::fmt::{Display, Formatter};
 
+/// Represents a `DELETE` statement.
 #[derive(Clone, Debug, PartialEq)]
 pub enum DeleteStatement {
-    /// A DELETE with a measurement or measurements and an optional conditional expression
-    /// to restrict which series are deleted.
+    /// A DELETE with a `FROM` clause specifying one or more measurements
+    /// and an optional `WHERE` clause to restrict which series are deleted.
     FromWhere {
+        /// Represents the `FROM` clause.
         from: DeleteFromClause,
-        condition: Option<ConditionalExpression>,
+
+        /// Represents the optional `WHERE` clause.
+        condition: Option<WhereClause>,
     },
 
-    /// A `DELETE` with a conditional expression to restrict which series are deleted.
-    Where(ConditionalExpression),
+    /// A `DELETE` with a `WHERE` clause to restrict which series are deleted.
+    Where(WhereClause),
 }
 
 impl Display for DeleteStatement {
@@ -28,12 +31,12 @@ impl Display for DeleteStatement {
 
         match self {
             Self::FromWhere { from, condition } => {
-                write!(f, " FROM {}", from)?;
-                if let Some(condition) = condition {
-                    write!(f, " WHERE {}", condition)?;
+                write!(f, " {}", from)?;
+                if let Some(where_clause) = condition {
+                    write!(f, " {}", where_clause)?;
                 }
             }
-            Self::Where(condition) => write!(f, " WHERE {}", condition)?,
+            Self::Where(where_clause) => write!(f, " {}", where_clause)?,
         };
 
         Ok(())
@@ -41,7 +44,7 @@ impl Display for DeleteStatement {
 }
 
 /// Parse a `DELETE` statement.
-pub fn delete_statement(i: &str) -> ParseResult<&str, DeleteStatement> {
+pub(crate) fn delete_statement(i: &str) -> ParseResult<&str, DeleteStatement> {
     // delete ::=  "DELETE" ( from_clause where_clause? | where_clause )
     preceded(
         tag_no_case("DELETE"),

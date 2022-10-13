@@ -4,6 +4,7 @@
 // Taken liberally from https://github.com/Geal/nom/blob/main/examples/string.rs and
 // amended for InfluxQL.
 
+use crate::impl_tuple_clause;
 use crate::internal::{expect, ParseError, ParseResult};
 use nom::branch::alt;
 use nom::bytes::complete::{is_not, tag};
@@ -61,7 +62,7 @@ enum StringFragment<'a> {
 }
 
 /// Parse a single-quoted literal string.
-pub fn single_quoted_string(i: &str) -> ParseResult<&str, String> {
+pub(crate) fn single_quoted_string(i: &str) -> ParseResult<&str, String> {
     let escaped = preceded(
         char('\\'),
         expect(
@@ -79,7 +80,7 @@ pub fn single_quoted_string(i: &str) -> ParseResult<&str, String> {
 }
 
 /// Parse a double-quoted identifier string.
-pub fn double_quoted_string(i: &str) -> ParseResult<&str, String> {
+pub(crate) fn double_quoted_string(i: &str) -> ParseResult<&str, String> {
     let escaped = preceded(
         char('\\'),
         expect(
@@ -158,19 +159,15 @@ fn regex_literal(i: &str) -> ParseResult<&str, &str> {
 
 /// An unescaped regular expression.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Regex(pub String);
+pub struct Regex(pub(crate) String);
+
+impl_tuple_clause!(Regex, String);
 
 impl Display for Regex {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_char('/')?;
         write_escaped!(f, self.0, '/' => "\\/");
         f.write_char('/')
-    }
-}
-
-impl From<String> for Regex {
-    fn from(v: String) -> Self {
-        Self(v)
     }
 }
 
@@ -181,7 +178,7 @@ impl From<&str> for Regex {
 }
 
 /// Parse a regular expression, delimited by `/`.
-pub fn regex(i: &str) -> ParseResult<&str, Regex> {
+pub(crate) fn regex(i: &str) -> ParseResult<&str, Regex> {
     map(
         string(
             '/',
