@@ -281,6 +281,7 @@ impl IngestHandlerImpl {
                         lifecycle_handle,
                         topic_name,
                         shard.shard_index,
+                        shard.id,
                         &*metric_registry,
                         skip_to_oldest_available,
                     );
