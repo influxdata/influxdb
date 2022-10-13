@@ -65,7 +65,7 @@ impl std::fmt::Display for TableName {
 }
 
 impl std::ops::Deref for TableName {
-    type Target = str;
+    type Target = Arc<str>;
 
     fn deref(&self) -> &Self::Target {
         &self.0

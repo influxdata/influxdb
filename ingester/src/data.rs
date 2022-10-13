@@ -4,16 +4,18 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
-use data_types::{NamespaceId, PartitionId, SequenceNumber, ShardId, ShardIndex, TableId};
+use data_types::{
+    CompactionLevel, NamespaceId, PartitionId, SequenceNumber, ShardId, ShardIndex, TableId,
+};
 
 use dml::DmlOperation;
 use iox_catalog::interface::{get_table_schema_by_id, Catalog};
 use iox_query::exec::Executor;
-use iox_time::SystemProvider;
+use iox_time::{SystemProvider, TimeProvider};
 use metric::{Attributes, Metric, U64Histogram, U64HistogramOptions};
 use object_store::DynObjectStore;
-use observability_deps::tracing::{debug, warn};
-use parquet_file::storage::ParquetStorage;
+use observability_deps::tracing::*;
+use parquet_file::{metadata::IoxMetadata, storage::ParquetStorage};
 use snafu::{OptionExt, Snafu};
 use write_summary::ShardProgress;
 
@@ -27,7 +29,7 @@ pub mod partition;
 pub(crate) mod shard;
 pub(crate) mod table;
 
-use self::{partition::resolver::PartitionProvider, shard::ShardData, table::TableName};
+use self::{partition::resolver::PartitionProvider, shard::ShardData};
 
 #[cfg(test)]
 mod triggers;
@@ -247,15 +249,21 @@ impl Persister for IngesterData {
         let namespace = shard_data
             .namespace_by_id(namespace_id)
             .unwrap_or_else(|| panic!("namespace {namespace_id} not in shard {shard_id} state"));
+        let namespace_name = namespace.namespace_name();
+
+        let table_data = namespace.table_id(table_id).unwrap_or_else(|| {
+            panic!("table {table_id} in namespace {namespace_id} not in shard {shard_id} state")
+        });
 
         let partition_key;
+        let table_name;
         let batch;
+        let sort_key;
+        let last_persisted_sequence_number;
         {
-            let table_data = namespace.table_id(table_id).unwrap_or_else(|| {
-                panic!("table {table_id} in namespace {namespace_id} not in shard {shard_id} state")
-            });
-
             let mut guard = table_data.write().await;
+            table_name = guard.table_name().clone();
+
             let partition = guard.get_partition(partition_id).unwrap_or_else(|| {
                 panic!(
                     "partition {partition_id} in table {table_id} in namespace {namespace_id} not in shard {shard_id} state"
@@ -264,9 +272,34 @@ impl Persister for IngesterData {
 
             partition_key = partition.partition_key().clone();
             batch = partition.snapshot_to_persisting_batch();
+            sort_key = partition.sort_key().clone();
+            last_persisted_sequence_number = partition.max_persisted_sequence_number();
         };
 
-        debug!(%shard_id, %namespace_id, %table_id, %partition_id, %partition_key, "persisting partition");
+        let sort_key = sort_key.get().await;
+        trace!(
+            %shard_id,
+            %namespace_id,
+            %namespace_name,
+            %table_id,
+            %table_name,
+            %partition_id,
+            %partition_key,
+            ?sort_key,
+            "fetched sort key"
+        );
+
+        debug!(
+            %shard_id,
+            %namespace_id,
+            %namespace_name,
+            %table_id,
+            %table_name,
+            %partition_id,
+            %partition_key,
+            ?sort_key,
+            "persisting partition"
+        );
 
         // Check if there is any data to persist.
         let batch = match batch {
@@ -275,7 +308,9 @@ impl Persister for IngesterData {
                 warn!(
                     %shard_id,
                     %namespace_id,
+                    %namespace_name,
                     %table_id,
+                    %table_name,
                     %partition_id,
                     %partition_key,
                     "partition marked for persistence contains no data"
@@ -284,39 +319,41 @@ impl Persister for IngesterData {
             }
         };
 
-        // lookup column IDs from catalog
-        // TODO: this can be removed once the ingester uses column IDs internally as well
-        let table_schema = Backoff::new(&self.backoff_config)
-            .retry_all_errors("get table schema", || async {
-                let mut repos = self.catalog.repositories().await;
-                get_table_schema_by_id(table_id, repos.as_mut()).await
-            })
-            .await
-            .expect("retry forever");
+        assert_eq!(batch.shard_id(), shard_id);
+        assert_eq!(batch.table_id(), table_id);
+        assert_eq!(batch.partition_id(), partition_id);
 
-        // lookup the partition_info from the catalog
-        let partition_info = Backoff::new(&self.backoff_config)
-            .retry_all_errors("get partition_info_by_id", || async {
-                let mut repos = self.catalog.repositories().await;
-                repos.partitions().partition_info_by_id(partition_id).await
-            })
-            .await
-            .expect("retry forever").unwrap_or_else(|| panic!("partition {partition_id} in table {table_id} in namespace {namespace_id} in shard {shard_id} has no partition info in catalog"));
+        // Read the maximum SequenceNumber in the batch.
+        let (_min, max_sequence_number) = batch.data.min_max_sequence_numbers();
+
+        // Read the future object store ID before passing the batch into
+        // compaction, instead of retaining a copy of the data post-compaction.
+        let object_store_id = batch.object_store_id();
 
         // do the CPU intensive work of compaction, de-duplication and sorting
         let CompactedStream {
             stream: record_stream,
-            iox_metadata,
-            sort_key_update,
-        } = compact_persisting_batch(
-            Arc::new(SystemProvider::new()),
-            &self.exec,
-            namespace.namespace_id().get(),
-            &partition_info,
-            Arc::clone(&batch),
-        )
-        .await
-        .expect("unable to compact persisting batch");
+            catalog_sort_key_update,
+            data_sort_key,
+        } = compact_persisting_batch(&self.exec, sort_key, batch)
+            .await
+            .expect("unable to compact persisting batch");
+
+        // Construct the metadata for this parquet file.
+        let iox_metadata = IoxMetadata {
+            object_store_id,
+            creation_timestamp: SystemProvider::new().now(),
+            shard_id,
+            namespace_id,
+            namespace_name: Arc::clone(&**namespace.namespace_name()),
+            table_id,
+            table_name: Arc::clone(&*table_name),
+            partition_id,
+            partition_key: partition_key.clone(),
+            max_sequence_number,
+            compaction_level: CompactionLevel::Initial,
+            sort_key: Some(data_sort_key),
+        };
 
         // Save the compacted data to a parquet file in object storage.
         //
@@ -332,7 +369,7 @@ impl Persister for IngesterData {
         // catalog. If the order is reversed, the querier or
         // compactor may see a parquet file with an inconsistent
         // sort key. https://github.com/influxdata/influxdb_iox/issues/5090
-        if let Some(new_sort_key) = sort_key_update {
+        if let Some(new_sort_key) = catalog_sort_key_update {
             let sort_key = new_sort_key.to_columns().collect::<Vec<_>>();
             Backoff::new(&self.backoff_config)
                 .retry_all_errors("update_sort_key", || async {
@@ -346,13 +383,41 @@ impl Persister for IngesterData {
                 })
                 .await
                 .expect("retry forever");
+
+            // Update the sort key in the partition cache.
+            table_data
+                .write()
+                .await
+                .get_partition(partition_id)
+                .unwrap()
+                .update_sort_key(Some(new_sort_key.clone()));
+
             debug!(
-                ?partition_id,
-                table = partition_info.table_name,
-                ?new_sort_key,
+                %object_store_id,
+                %shard_id,
+                %namespace_id,
+                %namespace_name,
+                %table_id,
+                %table_name,
+                %partition_id,
+                %partition_key,
+                old_sort_key = ?sort_key,
+                %new_sort_key,
                 "adjusted sort key during batch compact & persist"
             );
         }
+
+        // Read the table schema from the catalog to act as a map of column name
+        // -> column IDs.
+        //
+        // TODO: this can be removed once the ingester uses column IDs
+        let table_schema = Backoff::new(&self.backoff_config)
+            .retry_all_errors("get table schema", || async {
+                let mut repos = self.catalog.repositories().await;
+                get_table_schema_by_id(table_id, repos.as_mut()).await
+            })
+            .await
+            .expect("retry forever");
 
         // Add the parquet file to the catalog until succeed
         let parquet_file = iox_metadata.to_parquet_file(partition_id, file_size, &md, |name| {
@@ -364,7 +429,7 @@ impl Persister for IngesterData {
         // It is an invariant that partitions are persisted in order so that
         // both the per-shard, and per-partition watermarks are correctly
         // advanced and accurate.
-        if let Some(last_persist) = partition_info.partition.persisted_sequence_number {
+        if let Some(last_persist) = last_persisted_sequence_number {
             assert!(
                 parquet_file.max_sequence_number > last_persist,
                 "out of order partition persistence, persisting {}, previously persisted {}",
@@ -430,27 +495,28 @@ impl Persister for IngesterData {
             .expect("retry forever");
 
         // Record metrics
-        let attributes = Attributes::from([(
-            "shard_id",
-            format!("{}", partition_info.partition.shard_id).into(),
-        )]);
+        let attributes = Attributes::from([("shard_id", format!("{}", shard_id).into())]);
         self.persisted_file_size_bytes
             .recorder(attributes)
             .record(file_size as u64);
 
         // and remove the persisted data from memory
-        let table_name = TableName::from(&partition_info.table_name);
         namespace
             .mark_persisted(
                 &table_name,
-                &partition_info.partition.partition_key,
+                &partition_key,
                 iox_metadata.max_sequence_number,
             )
             .await;
         debug!(
-            ?partition_id,
+            %object_store_id,
+            %shard_id,
+            %namespace_id,
+            %namespace_name,
+            %table_id,
             %table_name,
-            partition_key=%partition_info.partition.partition_key,
+            %partition_id,
+            %partition_key,
             max_sequence_number=%iox_metadata.max_sequence_number.get(),
             "marked partition as persisted"
         );
@@ -493,6 +559,7 @@ mod tests {
     use mutable_batch_lp::lines_to_batches;
     use object_store::memory::InMemory;
 
+    use schema::sort::SortKey;
     use uuid::Uuid;
 
     use super::*;
@@ -820,11 +887,11 @@ mod tests {
             let mut repos = catalog.repositories().await;
             let partition_info = repos
                 .partitions()
-                .partition_info_by_id(partition_id)
+                .get_by_id(partition_id)
                 .await
                 .unwrap()
                 .unwrap();
-            assert!(partition_info.partition.sort_key.is_empty());
+            assert!(partition_info.sort_key.is_empty());
         }
 
         data.persist(shard1.id, namespace.id, table_id, partition_id)
@@ -871,6 +938,30 @@ mod tests {
             Some(SequenceNumber::new(2))
         );
 
+        // verify it set a sort key on the partition in the catalog
+        assert_eq!(partition.sort_key, vec!["time"]);
+
+        // Verify the partition sort key cache was updated to reflect the new
+        // catalog value.
+        let cached_sort_key = data
+            .shard(shard1.id)
+            .unwrap()
+            .namespace_by_id(namespace.id)
+            .unwrap()
+            .table_id(table_id)
+            .unwrap()
+            .write()
+            .await
+            .get_partition(partition_id)
+            .unwrap()
+            .sort_key()
+            .get()
+            .await;
+        assert_eq!(
+            cached_sort_key,
+            Some(SortKey::from_columns(partition.sort_key))
+        );
+
         // This value should be recorded in the metrics asserted next;
         // it is less than 500 KB
         //
@@ -910,15 +1001,6 @@ mod tests {
             .collect();
         // Only the < 500 KB bucket has a count
         assert_eq!(buckets_with_counts, &[500 * 1024]);
-
-        // verify it set a sort key on the partition in the catalog
-        let partition_info = repos
-            .partitions()
-            .partition_info_by_id(partition_id)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(partition_info.partition.sort_key, vec!["time"]);
 
         let mem_table = n.table_data(&"mem".into()).unwrap();
         let mem_table = mem_table.read().await;

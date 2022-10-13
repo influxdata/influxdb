@@ -12,10 +12,10 @@ use crate::{
 use async_trait::async_trait;
 use data_types::{
     Column, ColumnType, ColumnTypeCount, CompactionLevel, Namespace, NamespaceId, ParquetFile,
-    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo, PartitionKey,
-    PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId,
-    ShardIndex, SkippedCompaction, Table, TableId, TablePartition, Timestamp, Tombstone,
-    TombstoneId, TopicId, TopicMetadata,
+    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, PartitionParam,
+    ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex,
+    SkippedCompaction, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId, TopicId,
+    TopicMetadata,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, info, warn};
@@ -1201,42 +1201,6 @@ WHERE table_id = $1;
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })
-    }
-
-    async fn partition_info_by_id(
-        &mut self,
-        partition_id: PartitionId,
-    ) -> Result<Option<PartitionInfo>> {
-        let info = sqlx::query(
-            r#"
-SELECT namespace.name as namespace_name, table_name.name as table_name, partition.*
-FROM partition
-INNER JOIN table_name on table_name.id = partition.table_id
-INNER JOIN namespace on namespace.id = table_name.namespace_id
-WHERE partition.id = $1;
-        "#,
-        )
-        .bind(&partition_id) // $1
-        .fetch_one(&mut self.inner)
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?;
-
-        let namespace_name = info.get("namespace_name");
-        let table_name = info.get("table_name");
-        let partition = Partition {
-            id: info.get("id"),
-            shard_id: info.get("shard_id"),
-            table_id: info.get("table_id"),
-            partition_key: info.get("partition_key"),
-            sort_key: info.get("sort_key"),
-            persisted_sequence_number: info.get("persisted_sequence_number"),
-        };
-
-        Ok(Some(PartitionInfo {
-            namespace_name,
-            table_name,
-            partition,
-        }))
     }
 
     async fn update_sort_key(

@@ -2,15 +2,12 @@
 
 use std::sync::Arc;
 
-use data_types::{CompactionLevel, NamespaceId, PartitionInfo};
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 use iox_query::{
     exec::{Executor, ExecutorType},
     frontend::reorg::ReorgPlanner,
     QueryChunk, QueryChunkMeta,
 };
-use iox_time::TimeProvider;
-use parquet_file::metadata::IoxMetadata;
 use schema::sort::{adjust_sort_key_columns, compute_sort_key, SortKey};
 use snafu::{ResultExt, Snafu};
 
@@ -59,21 +56,31 @@ pub(crate) struct CompactedStream {
     /// A stream of compacted, deduplicated
     /// [`RecordBatch`](arrow::record_batch::RecordBatch)es
     pub(crate) stream: SendableRecordBatchStream,
-    /// Metadata for `stream`
-    pub(crate) iox_metadata: IoxMetadata,
-    /// An updated [`SortKey`], if any.  If returned, the compaction
-    /// required extending the partition's [`SortKey`] (typically
-    /// because new columns were in this parquet file that were not in
-    /// previous files).
-    pub(crate) sort_key_update: Option<SortKey>,
+
+    /// The sort key value the catalog should be updated to, if any.
+    ///
+    /// If returned, the compaction required extending the partition's
+    /// [`SortKey`] (typically because new columns were in this parquet file
+    /// that were not in previous files).
+    pub(crate) catalog_sort_key_update: Option<SortKey>,
+
+    /// The sort key to be used for compaction.
+    ///
+    /// This should be used in the [`IoxMetadata`] for the compacted data, and
+    /// may be a subset of the full sort key contained in
+    /// [`Self::catalog_sort_key_update`] (or the existing sort key in the
+    /// catalog).
+    ///
+    /// [`IoxMetadata`]: parquet_file::metadata::IoxMetadata
+    pub(crate) data_sort_key: SortKey,
 }
 
 impl std::fmt::Debug for CompactedStream {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CompactedStream")
             .field("stream", &"<SendableRecordBatchStream>")
-            .field("iox_metadata", &self.iox_metadata)
-            .field("sort_key_update", &self.sort_key_update)
+            .field("data_sort_key", &self.data_sort_key)
+            .field("catalog_sort_key_update", &self.catalog_sort_key_update)
             .finish()
     }
 }
@@ -81,22 +88,15 @@ impl std::fmt::Debug for CompactedStream {
 /// Compact a given persisting batch into a [`CompactedStream`] or
 /// `None` if there is no data to compact.
 pub(crate) async fn compact_persisting_batch(
-    time_provider: Arc<dyn TimeProvider>,
     executor: &Executor,
-    namespace_id: i64,
-    partition_info: &PartitionInfo,
+    sort_key: Option<SortKey>,
     batch: Arc<PersistingBatch>,
 ) -> Result<CompactedStream> {
     assert!(!batch.data.data.is_empty());
 
-    let namespace_name = &partition_info.namespace_name;
-    let table_name = &partition_info.table_name;
-    let partition_key = &partition_info.partition.partition_key;
-    let sort_key = partition_info.partition.sort_key();
-
     // Get sort key from the catalog or compute it from
     // cardinality.
-    let (metadata_sort_key, sort_key_update) = match sort_key {
+    let (data_sort_key, catalog_sort_key_update) = match sort_key {
         Some(sk) => {
             // Remove any columns not present in this data from the
             // sort key that will be used to compact this parquet file
@@ -118,30 +118,12 @@ pub(crate) async fn compact_persisting_batch(
     };
 
     // Compact
-    let stream = compact(executor, Arc::clone(&batch.data), metadata_sort_key.clone()).await?;
-
-    // Compute min and max sequence numbers
-    let (_min_seq, max_seq) = batch.data.min_max_sequence_numbers();
-
-    let iox_metadata = IoxMetadata {
-        object_store_id: batch.object_store_id(),
-        creation_timestamp: time_provider.now(),
-        shard_id: batch.shard_id(),
-        namespace_id: NamespaceId::new(namespace_id),
-        namespace_name: Arc::from(namespace_name.as_str()),
-        table_id: batch.table_id(),
-        table_name: Arc::from(table_name.as_str()),
-        partition_id: batch.partition_id(),
-        partition_key: partition_key.clone(),
-        max_sequence_number: max_seq,
-        compaction_level: CompactionLevel::Initial,
-        sort_key: Some(metadata_sort_key),
-    };
+    let stream = compact(executor, Arc::clone(&batch.data), data_sort_key.clone()).await?;
 
     Ok(CompactedStream {
         stream,
-        iox_metadata,
-        sort_key_update,
+        catalog_sort_key_update,
+        data_sort_key,
     })
 }
 
@@ -175,8 +157,6 @@ pub(crate) async fn compact(
 #[cfg(test)]
 mod tests {
     use arrow_util::assert_batches_eq;
-    use data_types::{Partition, PartitionId, SequenceNumber, ShardId, TableId};
-    use iox_time::SystemProvider;
     use mutable_batch_lp::lines_to_batches;
     use schema::selection::Selection;
     use uuid::Uuid;
@@ -189,8 +169,7 @@ mod tests {
         create_batches_with_influxtype_same_columns_different_type,
         create_one_record_batch_with_influxtype_duplicates,
         create_one_record_batch_with_influxtype_no_duplicates,
-        create_one_row_record_batch_with_influxtype, make_meta, make_persisting_batch,
-        make_queryable_batch,
+        create_one_row_record_batch_with_influxtype, make_persisting_batch, make_queryable_batch,
     };
 
     // this test was added to guard against https://github.com/influxdata/influxdb_iox/issues/3782
@@ -208,8 +187,6 @@ mod tests {
         let batches = vec![Arc::new(batch)];
         // build persisting batch from the input batches
         let uuid = Uuid::new_v4();
-        let namespace_name = "test_namespace";
-        let partition_key = "test_partition_key";
         let table_name = "test_table";
         let shard_id = 1;
         let seq_num_start: i64 = 1;
@@ -233,22 +210,8 @@ mod tests {
 
         // compact
         let exc = Executor::new(1);
-        let time_provider = Arc::new(SystemProvider::new());
-        let partition_info = PartitionInfo {
-            namespace_name: namespace_name.into(),
-            table_name: table_name.into(),
-            partition: Partition {
-                id: PartitionId::new(partition_id),
-                shard_id: ShardId::new(shard_id),
-                table_id: TableId::new(table_id),
-                partition_key: partition_key.into(),
-                sort_key: vec![],
-                persisted_sequence_number: Some(SequenceNumber::new(42)),
-            },
-        };
-
         let CompactedStream { stream, .. } =
-            compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
+            compact_persisting_batch(&exc, Some(SortKey::empty()), persisting_batch)
                 .await
                 .unwrap();
 
@@ -275,13 +238,9 @@ mod tests {
 
         // build persisting batch from the input batches
         let uuid = Uuid::new_v4();
-        let namespace_name = "test_namespace";
-        let partition_key = "test_partition_key";
         let table_name = "test_table";
         let shard_id = 1;
         let seq_num_start: i64 = 1;
-        let seq_num_end: i64 = seq_num_start; // one batch
-        let namespace_id = 1;
         let table_id = 1;
         let partition_id = 1;
         let persisting_batch = make_persisting_batch(
@@ -302,25 +261,11 @@ mod tests {
 
         // compact
         let exc = Executor::new(1);
-        let time_provider = Arc::new(SystemProvider::new());
-        let partition_info = PartitionInfo {
-            namespace_name: namespace_name.into(),
-            table_name: table_name.into(),
-            partition: Partition {
-                id: PartitionId::new(partition_id),
-                shard_id: ShardId::new(shard_id),
-                table_id: TableId::new(table_id),
-                partition_key: partition_key.into(),
-                sort_key: vec![],
-                persisted_sequence_number: Some(SequenceNumber::new(42)),
-            },
-        };
-
         let CompactedStream {
             stream,
-            iox_metadata,
-            sort_key_update,
-        } = compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
+            data_sort_key,
+            catalog_sort_key_update,
+        } = compact_persisting_batch(&exc, Some(SortKey::empty()), persisting_batch)
             .await
             .unwrap();
 
@@ -341,24 +286,10 @@ mod tests {
         ];
         assert_batches_eq!(&expected_data, &output_batches);
 
-        let expected_meta = make_meta(
-            uuid,
-            iox_metadata.creation_timestamp,
-            shard_id,
-            namespace_id,
-            namespace_name,
-            table_id,
-            table_name,
-            partition_id,
-            partition_key,
-            seq_num_end,
-            CompactionLevel::Initial,
-            Some(SortKey::from_columns(["tag1", "time"])),
-        );
-        assert_eq!(expected_meta, iox_metadata);
+        assert_eq!(data_sort_key, SortKey::from_columns(["tag1", "time"]));
 
         assert_eq!(
-            sort_key_update.unwrap(),
+            catalog_sort_key_update.unwrap(),
             SortKey::from_columns(["tag1", "time"])
         );
     }
@@ -370,13 +301,9 @@ mod tests {
 
         // build persisting batch from the input batches
         let uuid = Uuid::new_v4();
-        let namespace_name = "test_namespace";
-        let partition_key = "test_partition_key";
         let table_name = "test_table";
         let shard_id = 1;
         let seq_num_start: i64 = 1;
-        let seq_num_end: i64 = seq_num_start; // one batch
-        let namespace_id = 1;
         let table_id = 1;
         let partition_id = 1;
         let persisting_batch = make_persisting_batch(
@@ -395,28 +322,14 @@ mod tests {
         let expected_pk = vec!["tag1", "tag3", "time"];
         assert_eq!(expected_pk, pk);
 
-        // compact
         let exc = Executor::new(1);
-        let time_provider = Arc::new(SystemProvider::new());
-        let partition_info = PartitionInfo {
-            namespace_name: namespace_name.into(),
-            table_name: table_name.into(),
-            partition: Partition {
-                id: PartitionId::new(partition_id),
-                shard_id: ShardId::new(shard_id),
-                table_id: TableId::new(table_id),
-                partition_key: partition_key.into(),
-                // NO SORT KEY from the catalog here, first persisting batch
-                sort_key: vec![],
-                persisted_sequence_number: Some(SequenceNumber::new(42)),
-            },
-        };
 
+        // NO SORT KEY from the catalog here, first persisting batch
         let CompactedStream {
             stream,
-            iox_metadata,
-            sort_key_update,
-        } = compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
+            data_sort_key,
+            catalog_sort_key_update,
+        } = compact_persisting_batch(&exc, Some(SortKey::empty()), persisting_batch)
             .await
             .unwrap();
 
@@ -438,25 +351,13 @@ mod tests {
         ];
         assert_batches_eq!(&expected_data, &output_batches);
 
-        let expected_meta = make_meta(
-            uuid,
-            iox_metadata.creation_timestamp,
-            shard_id,
-            namespace_id,
-            namespace_name,
-            table_id,
-            table_name,
-            partition_id,
-            partition_key,
-            seq_num_end,
-            CompactionLevel::Initial,
-            // Sort key should now be set
-            Some(SortKey::from_columns(["tag1", "tag3", "time"])),
+        assert_eq!(
+            data_sort_key,
+            SortKey::from_columns(["tag1", "tag3", "time"])
         );
-        assert_eq!(expected_meta, iox_metadata);
 
         assert_eq!(
-            sort_key_update.unwrap(),
+            catalog_sort_key_update.unwrap(),
             SortKey::from_columns(["tag1", "tag3", "time"])
         );
     }
@@ -468,13 +369,9 @@ mod tests {
 
         // build persisting batch from the input batches
         let uuid = Uuid::new_v4();
-        let namespace_name = "test_namespace";
-        let partition_key = "test_partition_key";
         let table_name = "test_table";
         let shard_id = 1;
         let seq_num_start: i64 = 1;
-        let seq_num_end: i64 = seq_num_start; // one batch
-        let namespace_id = 1;
         let table_id = 1;
         let partition_id = 1;
         let persisting_batch = make_persisting_batch(
@@ -493,31 +390,21 @@ mod tests {
         let expected_pk = vec!["tag1", "tag3", "time"];
         assert_eq!(expected_pk, pk);
 
-        // compact
         let exc = Executor::new(1);
-        let time_provider = Arc::new(SystemProvider::new());
-        let partition_info = PartitionInfo {
-            namespace_name: namespace_name.into(),
-            table_name: table_name.into(),
-            partition: Partition {
-                id: PartitionId::new(partition_id),
-                shard_id: ShardId::new(shard_id),
-                table_id: TableId::new(table_id),
-                partition_key: partition_key.into(),
-                // SPECIFY A SORT KEY HERE to simulate a sort key being stored in the catalog
-                // this is NOT what the computed sort key would be based on this data's cardinality
-                sort_key: vec!["tag3".to_string(), "tag1".to_string(), "time".to_string()],
-                persisted_sequence_number: Some(SequenceNumber::new(42)),
-            },
-        };
 
+        // SPECIFY A SORT KEY HERE to simulate a sort key being stored in the catalog
+        // this is NOT what the computed sort key would be based on this data's cardinality
         let CompactedStream {
             stream,
-            iox_metadata,
-            sort_key_update,
-        } = compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
-            .await
-            .unwrap();
+            data_sort_key,
+            catalog_sort_key_update,
+        } = compact_persisting_batch(
+            &exc,
+            Some(SortKey::from_columns(["tag3", "tag1", "time"])),
+            persisting_batch,
+        )
+        .await
+        .unwrap();
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
@@ -538,26 +425,13 @@ mod tests {
         ];
         assert_batches_eq!(&expected_data, &output_batches);
 
-        let expected_meta = make_meta(
-            uuid,
-            iox_metadata.creation_timestamp,
-            shard_id,
-            namespace_id,
-            namespace_name,
-            table_id,
-            table_name,
-            partition_id,
-            partition_key,
-            seq_num_end,
-            CompactionLevel::Initial,
-            // The sort key in the metadata should be the same as specified (that is, not
-            // recomputed)
-            Some(SortKey::from_columns(["tag3", "tag1", "time"])),
+        assert_eq!(
+            data_sort_key,
+            SortKey::from_columns(["tag3", "tag1", "time"])
         );
-        assert_eq!(expected_meta, iox_metadata);
 
         // The sort key does not need to be updated in the catalog
-        assert!(sort_key_update.is_none());
+        assert!(catalog_sort_key_update.is_none());
     }
 
     #[tokio::test]
@@ -567,13 +441,9 @@ mod tests {
 
         // build persisting batch from the input batches
         let uuid = Uuid::new_v4();
-        let namespace_name = "test_namespace";
-        let partition_key = "test_partition_key";
         let table_name = "test_table";
         let shard_id = 1;
         let seq_num_start: i64 = 1;
-        let seq_num_end: i64 = seq_num_start; // one batch
-        let namespace_id = 1;
         let table_id = 1;
         let partition_id = 1;
         let persisting_batch = make_persisting_batch(
@@ -592,32 +462,22 @@ mod tests {
         let expected_pk = vec!["tag1", "tag3", "time"];
         assert_eq!(expected_pk, pk);
 
-        // compact
         let exc = Executor::new(1);
-        let time_provider = Arc::new(SystemProvider::new());
-        let partition_info = PartitionInfo {
-            namespace_name: namespace_name.into(),
-            table_name: table_name.into(),
-            partition: Partition {
-                id: PartitionId::new(partition_id),
-                shard_id: ShardId::new(shard_id),
-                table_id: TableId::new(table_id),
-                partition_key: partition_key.into(),
-                // SPECIFY A SORT KEY HERE to simulate a sort key being stored in the catalog
-                // this is NOT what the computed sort key would be based on this data's cardinality
-                // The new column, tag1, should get added just before the time column
-                sort_key: vec!["tag3".to_string(), "time".to_string()],
-                persisted_sequence_number: Some(SequenceNumber::new(42)),
-            },
-        };
 
+        // SPECIFY A SORT KEY HERE to simulate a sort key being stored in the catalog
+        // this is NOT what the computed sort key would be based on this data's cardinality
+        // The new column, tag1, should get added just before the time column
         let CompactedStream {
             stream,
-            iox_metadata,
-            sort_key_update,
-        } = compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
-            .await
-            .unwrap();
+            data_sort_key,
+            catalog_sort_key_update,
+        } = compact_persisting_batch(
+            &exc,
+            Some(SortKey::from_columns(["tag3", "time"])),
+            persisting_batch,
+        )
+        .await
+        .unwrap();
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
@@ -638,27 +498,14 @@ mod tests {
         ];
         assert_batches_eq!(&expected_data, &output_batches);
 
-        let expected_meta = make_meta(
-            uuid,
-            iox_metadata.creation_timestamp,
-            shard_id,
-            namespace_id,
-            namespace_name,
-            table_id,
-            table_name,
-            partition_id,
-            partition_key,
-            seq_num_end,
-            CompactionLevel::Initial,
-            // The sort key in the metadata should be updated to include the new column just before
-            // the time column
-            Some(SortKey::from_columns(["tag3", "tag1", "time"])),
+        assert_eq!(
+            data_sort_key,
+            SortKey::from_columns(["tag3", "tag1", "time"])
         );
-        assert_eq!(expected_meta, iox_metadata);
 
         // The sort key in the catalog needs to be updated to include the new column
         assert_eq!(
-            sort_key_update.unwrap(),
+            catalog_sort_key_update.unwrap(),
             SortKey::from_columns(["tag3", "tag1", "time"])
         );
     }
@@ -670,13 +517,9 @@ mod tests {
 
         // build persisting batch from the input batches
         let uuid = Uuid::new_v4();
-        let namespace_name = "test_namespace";
-        let partition_key = "test_partition_key";
         let table_name = "test_table";
         let shard_id = 1;
         let seq_num_start: i64 = 1;
-        let seq_num_end: i64 = seq_num_start; // one batch
-        let namespace_id = 1;
         let table_id = 1;
         let partition_id = 1;
         let persisting_batch = make_persisting_batch(
@@ -695,37 +538,22 @@ mod tests {
         let expected_pk = vec!["tag1", "tag3", "time"];
         assert_eq!(expected_pk, pk);
 
-        // compact
         let exc = Executor::new(1);
-        let time_provider = Arc::new(SystemProvider::new());
-        let partition_info = PartitionInfo {
-            namespace_name: namespace_name.into(),
-            table_name: table_name.into(),
-            partition: Partition {
-                id: PartitionId::new(partition_id),
-                shard_id: ShardId::new(shard_id),
-                table_id: TableId::new(table_id),
-                partition_key: partition_key.into(),
-                // SPECIFY A SORT KEY HERE to simulate a sort key being stored in the catalog
-                // this is NOT what the computed sort key would be based on this data's cardinality
-                // This contains a sort key, "tag4", that doesn't appear in the data.
-                sort_key: vec![
-                    "tag3".to_string(),
-                    "tag1".to_string(),
-                    "tag4".to_string(),
-                    "time".to_string(),
-                ],
-                persisted_sequence_number: Some(SequenceNumber::new(42)),
-            },
-        };
 
+        // SPECIFY A SORT KEY HERE to simulate a sort key being stored in the catalog
+        // this is NOT what the computed sort key would be based on this data's cardinality
+        // This contains a sort key, "tag4", that doesn't appear in the data.
         let CompactedStream {
             stream,
-            iox_metadata,
-            sort_key_update,
-        } = compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
-            .await
-            .unwrap();
+            data_sort_key,
+            catalog_sort_key_update,
+        } = compact_persisting_batch(
+            &exc,
+            Some(SortKey::from_columns(["tag3", "tag1", "tag4", "time"])),
+            persisting_batch,
+        )
+        .await
+        .unwrap();
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
@@ -746,25 +574,13 @@ mod tests {
         ];
         assert_batches_eq!(&expected_data, &output_batches);
 
-        let expected_meta = make_meta(
-            uuid,
-            iox_metadata.creation_timestamp,
-            shard_id,
-            namespace_id,
-            namespace_name,
-            table_id,
-            table_name,
-            partition_id,
-            partition_key,
-            seq_num_end,
-            CompactionLevel::Initial,
-            // The sort key in the metadata should only contain the columns in this file
-            Some(SortKey::from_columns(["tag3", "tag1", "time"])),
+        assert_eq!(
+            data_sort_key,
+            SortKey::from_columns(["tag3", "tag1", "time"])
         );
-        assert_eq!(expected_meta, iox_metadata);
 
         // The sort key in the catalog should NOT get a new value
-        assert!(sort_key_update.is_none());
+        assert!(catalog_sort_key_update.is_none());
     }
 
     #[tokio::test]

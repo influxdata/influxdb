@@ -4,9 +4,9 @@ use async_trait::async_trait;
 use data_types::{
     Column, ColumnSchema, ColumnType, ColumnTypeCount, CompactionLevel, Namespace, NamespaceId,
     NamespaceSchema, ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId,
-    PartitionInfo, PartitionKey, PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId,
-    SequenceNumber, Shard, ShardId, ShardIndex, SkippedCompaction, Table, TableId, TablePartition,
-    TableSchema, Timestamp, Tombstone, TombstoneId, TopicId, TopicMetadata,
+    PartitionKey, PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber,
+    Shard, ShardId, ShardIndex, SkippedCompaction, Table, TableId, TablePartition, TableSchema,
+    Timestamp, Tombstone, TombstoneId, TopicId, TopicMetadata,
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
@@ -436,13 +436,6 @@ pub trait PartitionRepo: Send + Sync {
 
     /// return the partitions by table id
     async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>>;
-
-    /// return the partition record, the namespace name it belongs to, and the table name it is
-    /// under
-    async fn partition_info_by_id(
-        &mut self,
-        partition_id: PartitionId,
-    ) -> Result<Option<PartitionInfo>>;
 
     /// Update the sort key for the partition.
     ///
@@ -1434,17 +1427,6 @@ pub(crate) mod test_helpers {
 
         created.insert(other_partition.id, other_partition.clone());
         assert_eq!(created, listed);
-
-        // test get_partition_info_by_id
-        let info = repos
-            .partitions()
-            .partition_info_by_id(other_partition.id)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(info.partition, other_partition);
-        assert_eq!(info.table_name, "test_table");
-        assert_eq!(info.namespace_name, "namespace_partition_test");
 
         // test list_by_namespace
         let namespace2 = repos

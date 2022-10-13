@@ -13,10 +13,10 @@ use crate::{
 use async_trait::async_trait;
 use data_types::{
     Column, ColumnId, ColumnType, ColumnTypeCount, CompactionLevel, Namespace, NamespaceId,
-    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
-    PartitionKey, PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber,
-    Shard, ShardId, ShardIndex, SkippedCompaction, Table, TableId, TablePartition, Timestamp,
-    Tombstone, TombstoneId, TopicId, TopicMetadata,
+    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey,
+    PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId,
+    ShardIndex, SkippedCompaction, Table, TableId, TablePartition, Timestamp, Tombstone,
+    TombstoneId, TopicId, TopicMetadata,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::warn;
@@ -764,43 +764,6 @@ impl PartitionRepo for MemTxn {
             .cloned()
             .collect();
         Ok(partitions)
-    }
-
-    async fn partition_info_by_id(
-        &mut self,
-        partition_id: PartitionId,
-    ) -> Result<Option<PartitionInfo>> {
-        let stage = self.stage();
-
-        let partition = stage
-            .partitions
-            .iter()
-            .find(|p| p.id == partition_id)
-            .cloned();
-
-        if let Some(partition) = partition {
-            let table = stage
-                .tables
-                .iter()
-                .find(|t| t.id == partition.table_id)
-                .cloned();
-            if let Some(table) = table {
-                let namespace = stage
-                    .namespaces
-                    .iter()
-                    .find(|n| n.id == table.namespace_id)
-                    .cloned();
-                if let Some(namespace) = namespace {
-                    return Ok(Some(PartitionInfo {
-                        namespace_name: namespace.name,
-                        table_name: table.name,
-                        partition,
-                    }));
-                }
-            }
-        }
-
-        Ok(None)
     }
 
     async fn update_sort_key(

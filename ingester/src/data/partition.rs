@@ -122,18 +122,18 @@ impl SnapshotBatch {
 }
 
 /// The load state of the [`SortKey`] for a given partition.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) enum SortKeyState {
     /// The [`SortKey`] has not yet been fetched from the catalog, and will be
     /// lazy loaded (or loaded in the background) by a call to
     /// [`DeferredSortKey::get()`].
-    Deferred(DeferredSortKey),
+    Deferred(Arc<DeferredSortKey>),
     /// The sort key is known and specified.
     Provided(Option<SortKey>),
 }
 
 impl SortKeyState {
-    async fn get(&self) -> Option<SortKey> {
+    pub(crate) async fn get(&self) -> Option<SortKey> {
         match self {
             Self::Deferred(v) => v.get().await,
             Self::Provided(v) => v.clone(),
@@ -268,13 +268,25 @@ impl PartitionData {
 
     /// Return the [`SequenceNumber`] that forms the (inclusive) persistence
     /// watermark for this partition.
-    pub(super) fn max_persisted_sequence_number(&self) -> Option<SequenceNumber> {
+    pub(crate) fn max_persisted_sequence_number(&self) -> Option<SequenceNumber> {
         self.max_persisted_sequence_number
     }
 
     /// Mark this partition as having completed persistence up to, and
     /// including, the specified [`SequenceNumber`].
     pub(super) fn mark_persisted(&mut self, sequence_number: SequenceNumber) {
+        // It is an invariant that partitions are persisted in order so that
+        // both the per-shard, and per-partition watermarks are correctly
+        // advanced and accurate.
+        if let Some(last_persist) = self.max_persisted_sequence_number() {
+            assert!(
+                sequence_number > last_persist,
+                "out of order partition persistence, persisting {}, previously persisted {}",
+                sequence_number.get(),
+                last_persist.get(),
+            );
+        }
+
         self.max_persisted_sequence_number = Some(sequence_number);
         self.data.mark_persisted();
     }
@@ -311,15 +323,31 @@ impl PartitionData {
     /// Return the [`SortKey`] for this partition.
     ///
     /// NOTE: this MAY involve querying the catalog with unbounded retries.
-    pub async fn sort_key(&self) -> Option<SortKey> {
-        self.sort_key.get().await
+    pub(crate) fn sort_key(&self) -> &SortKeyState {
+        &self.sort_key
+    }
+
+    /// Set the cached [`SortKey`] to the specified value.
+    ///
+    /// All subsequent calls to [`Self::sort_key`] will return
+    /// [`SortKeyState::Provided`]  with the `new`.
+    pub(crate) fn update_sort_key(&mut self, new: Option<SortKey>) {
+        self.sort_key = SortKeyState::Provided(new);
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use arrow_util::assert_batches_sorted_eq;
+    use assert_matches::assert_matches;
+    use backoff::BackoffConfig;
+    use data_types::ShardIndex;
+    use iox_catalog::interface::Catalog;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
+
+    use crate::test_util::populate_catalog;
 
     use super::*;
 
@@ -492,5 +520,84 @@ mod tests {
         assert_batches_sorted_eq!(&expected, &[data]);
         assert_eq!(p.data.snapshots[0].min_sequence_number.get(), 8);
         assert_eq!(p.data.snapshots[0].max_sequence_number.get(), 8);
+    }
+
+    #[tokio::test]
+    async fn test_update_provided_sort_key() {
+        let starting_state =
+            SortKeyState::Provided(Some(SortKey::from_columns(["banana", "time"])));
+
+        let mut p = PartitionData::new(
+            PartitionId::new(1),
+            "bananas".into(),
+            ShardId::new(1),
+            NamespaceId::new(42),
+            TableId::new(1),
+            "platanos".into(),
+            starting_state,
+            None,
+        );
+
+        let want = Some(SortKey::from_columns(["banana", "platanos", "time"]));
+        p.update_sort_key(want.clone());
+
+        assert_matches!(p.sort_key(), SortKeyState::Provided(_));
+        assert_eq!(p.sort_key().get().await, want);
+    }
+
+    #[tokio::test]
+    async fn test_update_deferred_sort_key() {
+        let metrics = Arc::new(metric::Registry::default());
+        let backoff_config = BackoffConfig::default();
+        let catalog: Arc<dyn Catalog> =
+            Arc::new(iox_catalog::mem::MemCatalog::new(Arc::clone(&metrics)));
+
+        // Populate the catalog with the shard / namespace / table
+        let (shard_id, _ns_id, table_id) =
+            populate_catalog(&*catalog, ShardIndex::new(1), "bananas", "platanos").await;
+
+        let partition_id = catalog
+            .repositories()
+            .await
+            .partitions()
+            .create_or_get("test".into(), shard_id, table_id)
+            .await
+            .expect("should create")
+            .id;
+
+        catalog
+            .repositories()
+            .await
+            .partitions()
+            .update_sort_key(partition_id, &["terrific"])
+            .await
+            .unwrap();
+
+        // Read the just-created sort key (None)
+        let fetcher = Arc::new(DeferredSortKey::new(
+            partition_id,
+            Duration::from_nanos(1),
+            Arc::clone(&catalog),
+            backoff_config.clone(),
+        ));
+
+        let starting_state = SortKeyState::Deferred(fetcher);
+
+        let mut p = PartitionData::new(
+            PartitionId::new(1),
+            "bananas".into(),
+            ShardId::new(1),
+            NamespaceId::new(42),
+            TableId::new(1),
+            "platanos".into(),
+            starting_state,
+            None,
+        );
+
+        let want = Some(SortKey::from_columns(["banana", "platanos", "time"]));
+        p.update_sort_key(want.clone());
+
+        assert_matches!(p.sort_key(), SortKeyState::Provided(_));
+        assert_eq!(p.sort_key().get().await, want);
     }
 }

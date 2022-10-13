@@ -8,10 +8,10 @@ use crate::interface::{
 use async_trait::async_trait;
 use data_types::{
     Column, ColumnType, ColumnTypeCount, CompactionLevel, Namespace, NamespaceId, ParquetFile,
-    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo, PartitionKey,
-    PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId,
-    ShardIndex, SkippedCompaction, Table, TableId, TablePartition, Timestamp, Tombstone,
-    TombstoneId, TopicId, TopicMetadata,
+    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, PartitionParam,
+    ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex,
+    SkippedCompaction, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId, TopicId,
+    TopicMetadata,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
@@ -244,7 +244,6 @@ decorate!(
         "partition_list_by_shard" = list_by_shard(&mut self, shard_id: ShardId) -> Result<Vec<Partition>>;
         "partition_list_by_namespace" = list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Partition>>;
         "partition_list_by_table_id" = list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>>;
-        "partition_partition_info_by_id" = partition_info_by_id(&mut self, partition_id: PartitionId) -> Result<Option<PartitionInfo>>;
         "partition_update_sort_key" = update_sort_key(&mut self, partition_id: PartitionId, sort_key: &[&str]) -> Result<Partition>;
         "partition_record_skipped_compaction" = record_skipped_compaction(&mut self, partition_id: PartitionId, reason: &str, num_files: usize, limit_num_files: usize,estimated_bytes: u64, limit_bytes: u64) -> Result<()>;
         "partition_list_skipped_compactions" = list_skipped_compactions(&mut self) -> Result<Vec<SkippedCompaction>>;
