@@ -42,6 +42,7 @@ pub(crate) enum FilterResult {
 ///
 /// The returned files will be ordered with the level N + 1 files first, then the level N files
 /// in the same order as they were in the input.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn filter_parquet_files(
     // partition of the parquet files
     partition: Arc<PartitionCompactionCandidateWithInfo>,
@@ -55,6 +56,8 @@ pub(crate) fn filter_parquet_files(
     // stop considering level N files when the total files selected for compaction so far exceeds
     // this value
     max_num_files: usize,
+    // max desired output file size in bytes
+    max_desired_file_size_bytes: u64,
     // Gauge for the number of Parquet file candidates
     parquet_file_candidate_gauge: &Metric<U64Gauge>,
     // Histogram for the number of bytes of Parquet file candidates
@@ -65,6 +68,7 @@ pub(crate) fn filter_parquet_files(
         level_n_plus_1,
         max_bytes,
         max_num_files,
+        max_desired_file_size_bytes,
         parquet_file_candidate_gauge,
         parquet_file_candidate_bytes,
     );
@@ -86,6 +90,8 @@ fn filter_parquet_files_inner(
     // stop considering level N files when the total files selected for compaction so far exceeds
     // this value
     max_num_files: usize,
+    // max desired output file size in bytes
+    max_desired_file_size_bytes: u64,
     // Gauge for the number of Parquet file candidates
     parquet_file_candidate_gauge: &Metric<U64Gauge>,
     // Histogram for the number of bytes of Parquet file candidates
@@ -119,6 +125,19 @@ fn filter_parquet_files_inner(
     let mut ln_estimated_budget = Vec::with_capacity(level_n.len());
 
     // Memory needed to compact the returned files
+    // Estimated memory include:
+    //  a. bytes needed to store the file in memory
+    //  b. bytes to stream the file
+    //  c. bytes needed for output streams
+    // If we have n input files and m output streams, the estimated memory is:
+    //    n * (a + b ) + m * c
+    //  . a will be different for different file and depends on their file size
+    //  . b will be different for different file and depends on the number of columns,
+    //    their data types, and cardinality which is estimated using their row counts.
+    //    Since files in a partition of a table would have similar schema, unless they
+    //    have very different row count, their b would be similar.
+    //  . c is computed similar to b, but since it is the estimate of an output stream
+    //    that we do not know ahead, we will use value of b for the first input file for c.
     let mut total_estimated_budget = 0;
     for level_n_file in level_n {
         // Estimate memory needed for this LN file
@@ -139,8 +158,30 @@ fn filter_parquet_files_inner(
             .iter()
             .map(|file| file.estimated_file_total_bytes_for_in_memory_storing_and_scanning())
             .collect();
-        let estimated_file_bytes =
+        let estimated_processing_file_bytes =
             ln_estimated_file_bytes + current_ln_plus_1_estimated_file_bytes.iter().sum::<u64>();
+
+        // Estimate memory needed for the output streams if the files are large enough to split
+        // Get total size of ln files (level_n_file and level_n_to_return) and ln+1 files (overlaps and files_to_return)
+        let total_fize_size_bytes = level_n_file.file_size_bytes()
+            + overlaps.iter().map(|f| f.file_size_bytes()).sum::<i64>()
+            + level_n_to_return
+                .iter()
+                .map(|f: &CompactorParquetFile| f.file_size_bytes())
+                .sum::<i64>()
+            + files_to_return
+                .iter()
+                .map(|f: &CompactorParquetFile| f.file_size_bytes())
+                .sum::<i64>();
+        let estimated_memory_for_output_streams = estimate_memory_for_output_streams(
+            total_fize_size_bytes as u64,
+            max_desired_file_size_bytes,
+            &level_n_file,
+        );
+
+        // memory needed if we only compact the current ln and its overlapped ln_plus files
+        let budget_for_current_ln_and_ln_plus =
+            estimated_processing_file_bytes + estimated_memory_for_output_streams;
 
         // Over limit of num files
         // At this stage files_to_return only includes LN+1 files. To get both returning LN+1 and LN files,
@@ -153,18 +194,18 @@ fn filter_parquet_files_inner(
                 // exceed the file limit
                 return FilterResult::OverLimitFileNum {
                     num_files: 1 + overlaps.len(),
-                    budget_bytes: estimated_file_bytes,
+                    budget_bytes: budget_for_current_ln_and_ln_plus,
                 };
             } else {
                 // Only compact files that are under limit number of files
                 break;
             }
-        } else if total_estimated_budget + estimated_file_bytes > max_bytes {
+        } else if total_estimated_budget + budget_for_current_ln_and_ln_plus > max_bytes {
             // Over budget
             if total_estimated_budget == 0 {
                 // Cannot compact this partition further with the given budget
                 return FilterResult::OverBudget {
-                    budget_bytes: estimated_file_bytes,
+                    budget_bytes: budget_for_current_ln_and_ln_plus,
                     num_files: 1 + overlaps.len(),
                 };
             } else {
@@ -172,8 +213,9 @@ fn filter_parquet_files_inner(
                 break;
             }
         } else {
-            // still under budget and under limit of number of files
-            total_estimated_budget += estimated_file_bytes;
+            // Still under budget and under limit of number of files.
+            // We do not add memory budget for output stream yet becasue it will change when we add more files
+            total_estimated_budget += estimated_processing_file_bytes;
             ln_estimated_budget.push(ln_estimated_file_bytes);
             ln_plus_1_estimated_budget.extend(current_ln_plus_1_estimated_file_bytes);
 
@@ -233,10 +275,35 @@ fn filter_parquet_files_inner(
     // ordering for deduplication happens using `QueryChunk.order`.
     files_to_return.extend(level_n_to_return);
 
+    // Add estimated memory for output streams
+    if !files_to_return.is_empty() {
+        let output_size = (files_to_return
+            .iter()
+            .map(|f| f.file_size_bytes())
+            .sum::<i64>()) as u64;
+        total_estimated_budget += estimate_memory_for_output_streams(
+            output_size,
+            max_desired_file_size_bytes,
+            &files_to_return[0],
+        );
+    }
+
     FilterResult::Proceed {
         files: files_to_return,
         budget_bytes: total_estimated_budget,
     }
+}
+
+fn estimate_memory_for_output_streams(
+    total_size: u64,
+    max_output_size: u64,
+    file: &CompactorParquetFile,
+) -> u64 {
+    let estimated_num_streams = (total_size as f64 / max_output_size as f64).ceil() as u64;
+    let etimated_memory_for_one_output_stream =
+        file.estimated_arrow_bytes_for_streaming_query_plan();
+
+    estimated_num_streams * etimated_memory_for_one_output_stream
 }
 
 fn overlaps_in_time(a: &CompactorParquetFile, b: &CompactorParquetFile) -> bool {
@@ -425,6 +492,9 @@ mod tests {
 
     const MEMORY_BUDGET: u64 = 1024 * 1024 * 10;
     const FILE_NUM_LIMIT: usize = 20;
+    const DEFAULT_MAX_OUTPUT_SIZE: u64 = 1024 * 1024 * 1024;
+    const ESTIMATED_STREAM_BYTES: u64 = 1176;
+    const FILE_SIZE_BYTES: i64 = 10;
 
     #[test]
     fn empty_in_empty_out() {
@@ -437,6 +507,7 @@ mod tests {
             level_1,
             MEMORY_BUDGET,
             FILE_NUM_LIMIT,
+            DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
         );
@@ -450,11 +521,15 @@ mod tests {
         let level_1 = vec![];
         let (files_metric, bytes_metric) = metrics();
 
+        let expected_estimated_budget = (2 * level_0[0].file_size_bytes())  as  u64 // bytes stored the file in memory
+            + 2 * ESTIMATED_STREAM_BYTES; // one input stream, one output stream
+
         let filter_result = filter_parquet_files_inner(
             level_0,
             level_1,
             0,
             FILE_NUM_LIMIT,
+            DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
         );
@@ -462,7 +537,67 @@ mod tests {
         assert_eq!(
             filter_result,
             FilterResult::OverBudget {
-                budget_bytes: 1176,
+                budget_bytes: expected_estimated_budget,
+                num_files: 1
+            }
+        );
+    }
+
+    #[test]
+    fn budget_0_small_output_returns_over_budget() {
+        let level_0 = vec![ParquetFileBuilder::level_0().id(1).build()];
+        let file_size_bytes = level_0[0].file_size_bytes();
+        let level_1 = vec![];
+        let (files_metric, bytes_metric) = metrics();
+
+        let expected_estimated_budget = (2 * level_0[0].file_size_bytes())  as  u64 // bytes stored the file in memory
+            + 3 * ESTIMATED_STREAM_BYTES; // one input stream, two output streams
+
+        let filter_result = filter_parquet_files_inner(
+            level_0,
+            level_1,
+            0,
+            FILE_NUM_LIMIT,
+            // output size smaller than input size to force return 2 output streams
+            (file_size_bytes - 1) as u64,
+            &files_metric,
+            &bytes_metric,
+        );
+
+        assert_eq!(
+            filter_result,
+            FilterResult::OverBudget {
+                budget_bytes: expected_estimated_budget,
+                num_files: 1
+            }
+        );
+    }
+
+    #[test]
+    fn budget_0_super_small_output_returns_over_budget() {
+        let level_0 = vec![ParquetFileBuilder::level_0().id(1).build()];
+        let file_size_bytes = level_0[0].file_size_bytes();
+        let level_1 = vec![];
+        let (files_metric, bytes_metric) = metrics();
+
+        let expected_estimated_budget = (2 * level_0[0].file_size_bytes())  as  u64 // bytes stored the file in memory
+            + 4 * ESTIMATED_STREAM_BYTES; // one input stream, three output streams
+
+        let filter_result = filter_parquet_files_inner(
+            level_0,
+            level_1,
+            0,
+            FILE_NUM_LIMIT,
+            // max desiredoutput size ~1/3 input size to force return 3 output streams
+            (file_size_bytes / 3 + 1) as u64,
+            &files_metric,
+            &bytes_metric,
+        );
+
+        assert_eq!(
+            filter_result,
+            FilterResult::OverBudget {
+                budget_bytes: expected_estimated_budget,
                 num_files: 1
             }
         );
@@ -474,11 +609,15 @@ mod tests {
         let level_1 = vec![];
         let (files_metric, bytes_metric) = metrics();
 
+        let expected_estimated_budget = (2 * level_0[0].file_size_bytes())  as  u64 // bytes stored the file in memory
+            + 2 * ESTIMATED_STREAM_BYTES; // one input stream, one output stream
+
         let filter_result = filter_parquet_files_inner(
             level_0,
             level_1,
             1000,
             FILE_NUM_LIMIT,
+            DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
         );
@@ -486,7 +625,7 @@ mod tests {
         assert_eq!(
             filter_result,
             FilterResult::OverBudget {
-                budget_bytes: 1176,
+                budget_bytes: expected_estimated_budget,
                 num_files: 1
             }
         );
@@ -498,11 +637,15 @@ mod tests {
         let level_1 = vec![];
         let (files_metric, bytes_metric) = metrics();
 
+        let expected_estimated_budget = (2 * level_0[0].file_size_bytes())  as  u64 // bytes stored the file in memory
+            + 2 * ESTIMATED_STREAM_BYTES; // one input stream, one output stream
+
         let filter_result = filter_parquet_files_inner(
             level_0,
             level_1,
             MEMORY_BUDGET,
             0,
+            DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
         );
@@ -511,7 +654,7 @@ mod tests {
             filter_result,
             FilterResult::OverLimitFileNum {
                 num_files: 1,
-                budget_bytes: 1176
+                budget_bytes: expected_estimated_budget // one input stream, one output stream
             }
         );
     }
@@ -533,11 +676,15 @@ mod tests {
         ];
         let (files_metric, bytes_metric) = metrics();
 
+        let expected_estimated_budget = 2 * (2 * level_0[0].file_size_bytes())  as  u64 // bytes stored 2 files in memory
+            + 3 * ESTIMATED_STREAM_BYTES; // two input streams, one output stream
+
         let filter_result = filter_parquet_files_inner(
             level_0,
             level_1,
             MEMORY_BUDGET,
             1,
+            DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
         );
@@ -546,7 +693,7 @@ mod tests {
             filter_result,
             FilterResult::OverLimitFileNum {
                 num_files: 2,
-                budget_bytes: 2 * 1176
+                budget_bytes: expected_estimated_budget
             }
         );
     }
@@ -559,19 +706,19 @@ mod tests {
                 .id(1)
                 .min_time(200)
                 .max_time(300)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
             ParquetFileBuilder::level_0()
                 .id(2)
                 .min_time(280)
                 .max_time(310)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
             ParquetFileBuilder::level_0()
                 .id(3)
                 .min_time(309)
                 .max_time(350)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
         ];
 
@@ -581,21 +728,28 @@ mod tests {
                 .id(101)
                 .min_time(301)
                 .max_time(500)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
             // overlaps in time with first and second L0s
             ParquetFileBuilder::level_1()
                 .id(102)
                 .min_time(150)
                 .max_time(250)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
         ];
         let (files_metric, bytes_metric) = metrics();
 
+        let mut expected_estimated_budget = 2 * (2 * level_0[0].file_size_bytes())  as  u64 // bytes stored 2 files in memory: first L0 (id=1) and second L1 (id=102)
+            + 3 * ESTIMATED_STREAM_BYTES; // two input streams, one output stream
+
+        // Test 1: allow large output size --> only one output stream
         let filter_result = filter_parquet_files_inner(
-            level_0,
-            level_1,
+            level_0.clone(),
+            level_1.clone(),
             MEMORY_BUDGET,
             2,
+            DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
         );
@@ -607,7 +761,34 @@ mod tests {
                 FilterResult::Proceed { files, budget_bytes }
                     if files.len() == 2
                         && files.iter().map(|f| f.id().get()).collect::<Vec<_>>() == [102, 1]
-                        && *budget_bytes == 2 * 1176
+                        && *budget_bytes == expected_estimated_budget
+            ),
+            "Match failed, got: {filter_result:?}"
+        );
+
+        // Test 2: max output size small
+        let filter_result = filter_parquet_files_inner(
+            level_0,
+            level_1,
+            MEMORY_BUDGET,
+            2,
+            // max output size is just over 1/3 of (10 + 10) which is size of first L0 (id=1) and second L1 (id=102)
+            8,
+            &files_metric,
+            &bytes_metric,
+        );
+
+        // add budget for 2 two more output streams
+        expected_estimated_budget += 2 * ESTIMATED_STREAM_BYTES;
+
+        // should include 2 files: first L0 (id=1) and second L1 (id=102)
+        assert!(
+            matches!(
+                &filter_result,
+                FilterResult::Proceed { files, budget_bytes }
+                    if files.len() == 2
+                        && files.iter().map(|f| f.id().get()).collect::<Vec<_>>() == [102, 1]
+                        && *budget_bytes == expected_estimated_budget// 2 input streams & 3 output streams
             ),
             "Match failed, got: {filter_result:?}"
         );
@@ -621,19 +802,19 @@ mod tests {
                 .id(1)
                 .min_time(200)
                 .max_time(300)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
             ParquetFileBuilder::level_0()
                 .id(2)
                 .min_time(280)
                 .max_time(310)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
             ParquetFileBuilder::level_0()
                 .id(3)
                 .min_time(309)
                 .max_time(350)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
         ];
 
@@ -653,11 +834,15 @@ mod tests {
         ];
         let (files_metric, bytes_metric) = metrics();
 
+        let expected_estimated_budget = 5 * (2 * level_0[0].file_size_bytes())  as  u64 // bytes stored 5 files in memory
+            + 6 * ESTIMATED_STREAM_BYTES; // 5 input streams, one output stream
+
         let filter_result = filter_parquet_files_inner(
             level_0,
             level_1,
             MEMORY_BUDGET,
             10,
+            DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
         );
@@ -669,7 +854,7 @@ mod tests {
                 FilterResult::Proceed { files, budget_bytes }
                     if files.len() == 5
                         && files.iter().map(|f| f.id().get()).collect::<Vec<_>>() == [102, 101, 1, 2, 3]
-                        && *budget_bytes == 5 * 1176
+                        && *budget_bytes ==  expected_estimated_budget
             ),
             "Match failed, got: {filter_result:?}"
         );
@@ -684,31 +869,31 @@ mod tests {
                 .id(1)
                 .min_time(200)
                 .max_time(300)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
             ParquetFileBuilder::level_0()
                 .id(2)
                 .min_time(280)
                 .max_time(310)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
             ParquetFileBuilder::level_0()
                 .id(3)
                 .min_time(309)
                 .max_time(350)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
             ParquetFileBuilder::level_0()
                 .id(4)
                 .min_time(309)
                 .max_time(350)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
             ParquetFileBuilder::level_0()
                 .id(5)
                 .min_time(309)
                 .max_time(350)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
         ];
 
@@ -721,12 +906,15 @@ mod tests {
                 .build(),
         ];
         let (files_metric, bytes_metric) = metrics();
+        let expected_estimated_budget = 3 * (2 * level_0[0].file_size_bytes())  as  u64 // bytes stored 3 files in memory
+            + 4 * ESTIMATED_STREAM_BYTES; // 3 input streams, one output stream
 
         let filter_result = filter_parquet_files_inner(
             level_0,
             level_1,
             MEMORY_BUDGET,
             3,
+            DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
         );
@@ -738,7 +926,7 @@ mod tests {
                 FilterResult::Proceed { files, budget_bytes }
                     if files.len() == 3
                         && files.iter().map(|f| f.id().get()).collect::<Vec<_>>() == [101, 1, 2]
-                        && *budget_bytes == 3 * 1176
+                        && *budget_bytes == expected_estimated_budget
             ),
             "Match failed, got: {filter_result:?}"
         );
@@ -773,11 +961,15 @@ mod tests {
         ];
         let (files_metric, bytes_metric) = metrics();
 
+        let expected_estimated_budget = 2 * (2 * level_0[0].file_size_bytes())  as  u64 // bytes stored 2 files in memory
+            + 3 * ESTIMATED_STREAM_BYTES; // 2 input streams, one output stream
+
         let filter_result = filter_parquet_files_inner(
             level_0,
             level_1,
             MEMORY_BUDGET,
             FILE_NUM_LIMIT,
+            DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
         );
@@ -788,7 +980,7 @@ mod tests {
                 FilterResult::Proceed { files, budget_bytes }
                     if files.len() == 2
                         && files.iter().map(|f| f.id().get()).collect::<Vec<_>>() == [102, 1]
-                        && *budget_bytes == 2 * 1176
+                        && *budget_bytes == expected_estimated_budget
             ),
             "Match failed, got: {filter_result:?}"
         );
@@ -802,19 +994,19 @@ mod tests {
                 .id(1)
                 .min_time(200)
                 .max_time(300)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
             ParquetFileBuilder::level_0()
                 .id(2)
                 .min_time(280)
                 .max_time(310)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
             ParquetFileBuilder::level_0()
                 .id(3)
                 .min_time(309)
                 .max_time(350)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
         ];
 
@@ -825,35 +1017,35 @@ mod tests {
                 .id(101)
                 .min_time(1)
                 .max_time(50)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
             // Overlaps file 1
             ParquetFileBuilder::level_1()
                 .id(102)
                 .min_time(199)
                 .max_time(201)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
             // Overlaps files 1 and 2
             ParquetFileBuilder::level_1()
                 .id(103)
                 .min_time(290)
                 .max_time(300)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
             // Overlaps file 2
             ParquetFileBuilder::level_1()
                 .id(104)
                 .min_time(305)
                 .max_time(305)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
             // Overlaps files 2 and 3
             ParquetFileBuilder::level_1()
                 .id(105)
                 .min_time(308)
                 .max_time(311)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
             // Overlaps file 3
             ParquetFileBuilder::level_1()
@@ -867,17 +1059,22 @@ mod tests {
                 .id(107)
                 .min_time(390)
                 .max_time(399)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
         ];
 
+        // Test 1: budget enough for 3 files only
         let (files_metric, bytes_metric) = metrics();
+
+        let expected_estimated_budget = 3 * (2 * level_0[0].file_size_bytes())  as  u64 // bytes stored 3 files in memory
+            + 4 * ESTIMATED_STREAM_BYTES; // 3 input streams, one output stream
 
         let filter_result = filter_parquet_files_inner(
             level_0.clone(),
             level_1.clone(),
-            1176 * 3 + 5, // enough for 3 files
+            (ESTIMATED_STREAM_BYTES * 4) + (FILE_SIZE_BYTES as u64 * 3 * 2) + 1, // enough for 3 files and one output stream
             FILE_NUM_LIMIT,
+            DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
         );
@@ -891,7 +1088,7 @@ mod tests {
                                 .iter()
                                 .map(|f| f.id().get())
                                 .collect::<Vec<_>>() == [102, 103, 1]
-                        && *budget_bytes == 3 * 1176
+                        && *budget_bytes == expected_estimated_budget
             ),
             "Match failed, got: {filter_result:?}"
         );
@@ -910,15 +1107,20 @@ mod tests {
             }
         );
 
+        // Test 2: increase udget to fit all files
         let (files_metric, bytes_metric) = metrics();
+
+        let expected_estimated_budget = 6 * (2 * level_0[0].file_size_bytes())  as  u64 // bytes stored 6 files in memory
+            + 7 * ESTIMATED_STREAM_BYTES; // 6 input streams, one output stream
 
         let filter_result = filter_parquet_files_inner(
             level_0,
             level_1,
             // Increase budget to more than 6 files; 1st two level 0 files & their overlapping
             // level 1 files get returned
-            1176 * 6 + 5,
+            (ESTIMATED_STREAM_BYTES * 7) + (FILE_SIZE_BYTES as u64 * 6 * 2) + 1, // enough for 6 files/input streams and one output stream
             FILE_NUM_LIMIT,
+            DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
         );
@@ -932,7 +1134,7 @@ mod tests {
                                 .iter()
                                 .map(|f| f.id().get())
                                 .collect::<Vec<_>>() == [102, 103, 104, 105, 1, 2]
-                        && *budget_bytes == 6 * 1176
+                        && *budget_bytes == expected_estimated_budget
             ),
             "Match failed, got: {filter_result:?}"
         );
@@ -960,19 +1162,19 @@ mod tests {
                 .id(1)
                 .min_time(200)
                 .max_time(300)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
             ParquetFileBuilder::level_1()
                 .id(2)
                 .min_time(310)
                 .max_time(330)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
             ParquetFileBuilder::level_1()
                 .id(3)
                 .min_time(340)
                 .max_time(350)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
         ];
 
@@ -983,35 +1185,35 @@ mod tests {
                 .id(101)
                 .min_time(1)
                 .max_time(50)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
             // Overlaps file 1
             ParquetFileBuilder::level_2()
                 .id(102)
                 .min_time(199)
                 .max_time(201)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
             // Overlaps files 1 and 2
             ParquetFileBuilder::level_2()
                 .id(103)
                 .min_time(290)
                 .max_time(312)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
             // Overlaps file 2
             ParquetFileBuilder::level_2()
                 .id(104)
                 .min_time(315)
                 .max_time(315)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
             // Overlaps files 2 and 3
             ParquetFileBuilder::level_2()
                 .id(105)
                 .min_time(329)
                 .max_time(341)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
             // Overlaps file 3
             ParquetFileBuilder::level_2()
@@ -1025,17 +1227,21 @@ mod tests {
                 .id(107)
                 .min_time(390)
                 .max_time(399)
-                .file_size_bytes(10)
+                .file_size_bytes(FILE_SIZE_BYTES)
                 .build(),
         ];
 
         let (files_metric, bytes_metric) = metrics();
 
+        let expected_estimated_budget = 3 * (2 * level_1[0].file_size_bytes())  as  u64 // bytes stored 6 files in memory
+            + 4 * ESTIMATED_STREAM_BYTES; // 3 input streams, one output stream
+
         let filter_result = filter_parquet_files_inner(
             level_1.clone(),
             level_2.clone(),
-            1176 * 3 + 5, // enough for 3 files
+            (ESTIMATED_STREAM_BYTES * 4) + (FILE_SIZE_BYTES as u64 * 3 * 2) + 1, // enough for 3 files and one output stream
             FILE_NUM_LIMIT,
+            DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
         );
@@ -1049,7 +1255,7 @@ mod tests {
                                 .iter()
                                 .map(|f| f.id().get())
                                 .collect::<Vec<_>>() == [102, 103, 1]
-                        && *budget_bytes == 3 * 1176
+                        && *budget_bytes == expected_estimated_budget
             ),
             "Match failed, got: {filter_result:?}"
         );
@@ -1070,13 +1276,17 @@ mod tests {
 
         let (files_metric, bytes_metric) = metrics();
 
+        let expected_estimated_budget = 6 * (2 * level_1[0].file_size_bytes())  as  u64 // bytes stored 6 files in memory
+            + 7 * ESTIMATED_STREAM_BYTES; // 6 input streams, one output stream
+
         let filter_result = filter_parquet_files_inner(
             level_1,
             level_2,
             // Increase budget to more than 6 files; 1st two level 1 files & their overlapping
             // level 2 files get returned
-            1176 * 6 + 5,
+            (ESTIMATED_STREAM_BYTES * 7) + (FILE_SIZE_BYTES as u64 * 6 * 2) + 1, // enough for 3 files and one output stream
             FILE_NUM_LIMIT,
+            DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
         );
@@ -1090,7 +1300,7 @@ mod tests {
                                 .iter()
                                 .map(|f| f.id().get())
                                 .collect::<Vec<_>>() == [102, 103, 104, 105, 1, 2]
-                        && *budget_bytes == 6 * 1176
+                        && *budget_bytes == expected_estimated_budget
             ),
             "Match failed, got: {filter_result:?}"
         );
@@ -1131,7 +1341,7 @@ mod tests {
                 id: 1,
                 min_time: 8,
                 max_time: 9,
-                file_size_bytes: 10,
+                file_size_bytes: FILE_SIZE_BYTES,
             }
         }
 
@@ -1204,7 +1414,7 @@ mod tests {
                 column_set: ColumnSet::new(std::iter::empty()),
             };
             // Estimated arrow bytes for one file with a tag, a time and 11 rows = 1176
-            CompactorParquetFile::new(f, 1176, 0)
+            CompactorParquetFile::new(f, ESTIMATED_STREAM_BYTES, (file_size_bytes * 2) as u64)
         }
     }
 

@@ -292,6 +292,7 @@ mod tests {
             level_1,
             compactor.config.memory_budget_bytes,
             compactor.config.max_num_compacting_files,
+            compactor.config.max_desired_file_size_bytes,
             &compactor.parquet_file_candidate_gauge,
             &compactor.parquet_file_candidate_bytes,
         );
@@ -486,6 +487,7 @@ mod tests {
             level_1,
             compactor.config.memory_budget_bytes,
             compactor.config.max_num_compacting_files,
+            compactor.config.max_desired_file_size_bytes,
             &compactor.parquet_file_candidate_gauge,
             &compactor.parquet_file_candidate_bytes,
         );
@@ -578,6 +580,7 @@ mod tests {
             level_2,
             compactor.config.memory_budget_bytes,
             compactor.config.max_num_compacting_files,
+            compactor.config.max_desired_file_size_bytes,
             &compactor.parquet_file_candidate_gauge,
             &compactor.parquet_file_candidate_bytes,
         );
