@@ -36,6 +36,7 @@ pub struct KafkaProducerMetrics<P = SystemProvider> {
 impl KafkaProducerMetrics {
     /// Decorate the specified [`ProducerClient`] implementation with an
     /// instrumentation layer.
+    #[allow(dead_code)]
     pub fn new(
         client: Box<dyn ProducerClient>,
         kafka_topic_name: String,

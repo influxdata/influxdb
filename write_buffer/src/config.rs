@@ -1,7 +1,7 @@
 use crate::{
     core::{WriteBufferError, WriteBufferReading, WriteBufferWriting},
     file::{FileBufferConsumer, FileBufferProducer},
-    kafka::{RSKafkaConsumer, RSKafkaProducer},
+    kafka::RSKafkaConsumer,
     mock::{
         MockBufferForReading, MockBufferForReadingThatAlwaysErrors, MockBufferForWriting,
         MockBufferForWritingThatAlwaysErrors, MockBufferSharedState,
@@ -152,8 +152,8 @@ impl WriteBufferConfigFactory {
     pub async fn new_config_write(
         &self,
         db_name: &str,
-        partitions: Option<Range<i32>>,
-        trace_collector: Option<&Arc<dyn TraceCollector>>,
+        _partitions: Option<Range<i32>>,
+        _trace_collector: Option<&Arc<dyn TraceCollector>>,
         cfg: &WriteBufferConnection,
     ) -> Result<Arc<dyn WriteBufferWriting>, WriteBufferError> {
         let writer = match &cfg.type_[..] {
@@ -168,20 +168,7 @@ impl WriteBufferConfigFactory {
                 .await?;
                 Arc::new(file_buffer) as _
             }
-            "kafka" => {
-                let rskafa_buffer = RSKafkaProducer::new(
-                    cfg.connection.clone(),
-                    db_name.to_owned(),
-                    &cfg.connection_config,
-                    Arc::clone(&self.time_provider),
-                    cfg.creation_config.as_ref(),
-                    partitions,
-                    trace_collector.map(Arc::clone),
-                    &*self.metric_registry,
-                )
-                .await?;
-                Arc::new(rskafa_buffer) as _
-            }
+            "kafka" => self.kafka_buffer_producer(db_name, cfg).await?,
             "mock" => match self.get_mock(&cfg.connection)? {
                 Mock::Normal(state) => {
                     let mock_buffer = MockBufferForWriting::new(
@@ -202,6 +189,24 @@ impl WriteBufferConfigFactory {
         };
 
         Ok(writer)
+    }
+
+    async fn kafka_buffer_producer(
+        &self,
+        db_name: &str,
+        cfg: &WriteBufferConnection,
+    ) -> Result<Arc<dyn WriteBufferWriting>, WriteBufferError> {
+        let kafka_buffer = crate::kafka::rdkafka::KafkaBufferProducer::new(
+            &cfg.connection,
+            db_name,
+            &cfg.connection_config,
+            cfg.creation_config.as_ref(),
+            Arc::clone(&self.time_provider),
+            &self.metric_registry,
+        )
+        .await?;
+
+        Ok(Arc::new(kafka_buffer) as _)
     }
 
     /// Returns a new [`WriteBufferReading`] for the provided [`WriteBufferConnection`]

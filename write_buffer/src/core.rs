@@ -80,6 +80,15 @@ impl From<std::io::Error> for WriteBufferError {
     }
 }
 
+impl From<rdkafka::error::KafkaError> for WriteBufferError {
+    fn from(e: rdkafka::error::KafkaError) -> Self {
+        Self {
+            inner: Box::new(e),
+            kind: WriteBufferErrorKind::IO,
+        }
+    }
+}
+
 impl From<rskafka::client::error::Error> for WriteBufferError {
     fn from(e: rskafka::client::error::Error) -> Self {
         Self {
