@@ -2175,6 +2175,25 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "{")
 	}
 
+	if val := diags["build"]; val != nil {
+		jv, err := parseBuildInfo(val)
+		if err != nil {
+			h.httpError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		data, err := json.Marshal(jv)
+		if err != nil {
+			h.httpError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if !first {
+			fmt.Fprintln(w, ",")
+		}
+		first = false
+		fmt.Fprintf(w, "\"build\": %s", data)
+	}
+
 	if val := expvar.Get("cmdline"); val != nil {
 		if !first {
 			fmt.Fprintln(w, ",")
@@ -2336,6 +2355,32 @@ func parseSystemDiagnostics(d *diagnostics.Diagnostics) (map[string]interface{},
 			return nil, fmt.Errorf("value for column %q is not parsable (got %T)", key, v)
 		}
 		m[key] = res
+	}
+	return m, nil
+}
+
+// parseBuildInfo converts the build info diagnostics into an appropriate
+// format for marshaling to JSON in the /debug/vars format.
+func parseBuildInfo(d *diagnostics.Diagnostics) (map[string]interface{}, error) {
+	m := map[string]interface{}{"Version": nil, "Commit": nil, "Branch": nil, "Build Time": nil}
+	for key := range m {
+		// Find the associated column.
+		ci := -1
+		for i, col := range d.Columns {
+			if col == key {
+				ci = i
+				break
+			}
+		}
+
+		if ci == -1 {
+			return nil, fmt.Errorf("unable to find column %q", key)
+		}
+
+		if len(d.Rows) < 1 || len(d.Rows[0]) <= ci {
+			return nil, fmt.Errorf("no data for column %q", key)
+		}
+		m[key] = d.Rows[0][ci]
 	}
 	return m, nil
 }
