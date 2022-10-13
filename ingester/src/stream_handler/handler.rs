@@ -354,13 +354,15 @@ something clever.",
 
     async fn maybe_apply_op(&mut self, op: Option<DmlOperation>) {
         if let Some(op) = op {
+            let op_sequence_number = op.meta().sequence().map(|s| s.sequence_number);
+
             // Emit per-op debug info.
             trace!(
                 kafka_topic=%self.topic_name,
                 shard_index=%self.shard_index,
                 op_size=op.size(),
                 op_namespace=op.namespace(),
-                op_sequence_number=?op.meta().sequence().map(|s| s.sequence_number),
+                ?op_sequence_number,
                 "decoded dml operation"
             );
 
@@ -376,6 +378,7 @@ something clever.",
                         kafka_topic=%self.topic_name,
                         shard_index=%self.shard_index,
                         %should_pause,
+                        ?op_sequence_number,
                         "successfully applied dml operation"
                     );
                     should_pause
@@ -385,6 +388,7 @@ something clever.",
                         error=%e,
                         kafka_topic=%self.topic_name,
                         shard_index=%self.shard_index,
+                        ?op_sequence_number,
                         potential_data_loss=true,
                         "failed to apply dml operation"
                     );
