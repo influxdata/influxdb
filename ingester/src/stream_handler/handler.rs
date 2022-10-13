@@ -2,7 +2,7 @@
 
 use std::{fmt::Debug, time::Duration};
 
-use data_types::{SequenceNumber, ShardIndex};
+use data_types::{SequenceNumber, ShardId, ShardIndex};
 use dml::DmlOperation;
 use futures::{pin_mut, FutureExt, StreamExt};
 use iox_time::{SystemProvider, TimeProvider};
@@ -70,6 +70,7 @@ pub(crate) struct SequencedStreamHandler<I, O, T = SystemProvider> {
     /// Log context fields - otherwise unused.
     topic_name: String,
     shard_index: ShardIndex,
+    shard_id: ShardId,
 
     skip_to_oldest_available: bool,
 }
@@ -89,6 +90,7 @@ impl<I, O> SequencedStreamHandler<I, O> {
         lifecycle_handle: LifecycleHandleImpl,
         topic_name: String,
         shard_index: ShardIndex,
+        shard_id: ShardId,
         metrics: &metric::Registry,
         skip_to_oldest_available: bool,
     ) -> Self {
@@ -169,6 +171,7 @@ impl<I, O> SequencedStreamHandler<I, O> {
             shard_reset_count,
             topic_name,
             shard_index,
+            shard_id,
             skip_to_oldest_available,
         }
     }
@@ -192,6 +195,7 @@ impl<I, O> SequencedStreamHandler<I, O> {
             shard_reset_count: self.shard_reset_count,
             topic_name: self.topic_name,
             shard_index: self.shard_index,
+            shard_id: self.shard_id,
             skip_to_oldest_available: self.skip_to_oldest_available,
         }
     }
@@ -229,6 +233,7 @@ where
                     info!(
                         kafka_topic=%self.topic_name,
                         shard_index=%self.shard_index,
+                        shard_id=%self.shard_id,
                         "stream handler shutdown",
                     );
                     return;
@@ -269,6 +274,7 @@ where
                             error=%e,
                             kafka_topic=%self.topic_name,
                             shard_index=%self.shard_index,
+                            shard_id=%self.shard_id,
                             potential_data_loss=true,
                             "reset stream"
                         );
@@ -282,6 +288,7 @@ where
                             error=%e,
                             kafka_topic=%self.topic_name,
                             shard_index=%self.shard_index,
+                            shard_id=%self.shard_id,
                             potential_data_loss=true,
                             "unable to read from desired sequence number offset"
                         );
@@ -294,6 +301,7 @@ where
                         error=%e,
                         kafka_topic=%self.topic_name,
                         shard_index=%self.shard_index,
+                        shard_id=%self.shard_id,
                         "I/O error reading from shard"
                     );
                     tokio::time::sleep(Duration::from_secs(1)).await;
@@ -309,6 +317,7 @@ where
                         error=%e,
                         kafka_topic=%self.topic_name,
                         shard_index=%self.shard_index,
+                        shard_id=%self.shard_id,
                         potential_data_loss=true,
                         "unable to deserialize dml operation"
                     );
@@ -331,6 +340,7 @@ something clever.",
                         error=%e,
                         kafka_topic=%self.topic_name,
                         shard_index=%self.shard_index,
+                        shard_id=%self.shard_id,
                         potential_data_loss=true,
                         "unhandled error converting write buffer data to DmlOperation",
                     );
@@ -360,6 +370,7 @@ something clever.",
             trace!(
                 kafka_topic=%self.topic_name,
                 shard_index=%self.shard_index,
+                shard_id=%self.shard_id,
                 op_size=op.size(),
                 op_namespace=op.namespace(),
                 ?op_sequence_number,
@@ -377,6 +388,7 @@ something clever.",
                     trace!(
                         kafka_topic=%self.topic_name,
                         shard_index=%self.shard_index,
+                        shard_id=%self.shard_id,
                         %should_pause,
                         ?op_sequence_number,
                         "successfully applied dml operation"
@@ -388,6 +400,7 @@ something clever.",
                         error=%e,
                         kafka_topic=%self.topic_name,
                         shard_index=%self.shard_index,
+                        shard_id=%self.shard_id,
                         ?op_sequence_number,
                         potential_data_loss=true,
                         "failed to apply dml operation"
@@ -403,6 +416,7 @@ something clever.",
                 trace!(
                     kafka_topic=%self.topic_name,
                     shard_index=%self.shard_index,
+                    shard_id=%self.shard_id,
                     delta=%delta.as_millis(),
                     "reporting TTBR for shard (ms)"
                 );
@@ -423,6 +437,7 @@ something clever.",
         warn!(
             kafka_topic=%self.topic_name,
             shard_index=%self.shard_index,
+            shard_id=%self.shard_id,
             "pausing ingest until persistence has run"
         );
         while !self.lifecycle_handle.can_resume_ingest() {
@@ -448,6 +463,7 @@ something clever.",
         info!(
             kafka_topic=%self.topic_name,
             shard_index=%self.shard_index,
+            shard_id=%self.shard_id,
             pause_duration=%duration_str,
             "resuming ingest"
         );
@@ -654,6 +670,7 @@ mod tests {
                         lifecycle.handle(),
                         TEST_TOPIC_NAME.to_string(),
                         TEST_SHARD_INDEX,
+                        ShardId::new(42),
                         &*metrics,
                         $skip_to_oldest_available,
                     ).with_time_provider(iox_time::MockProvider::new(*TEST_TIME));
@@ -1020,6 +1037,7 @@ mod tests {
             lifecycle.handle(),
             "topic_name".to_string(),
             ShardIndex::new(42),
+            ShardId::new(24),
             &*metrics,
             false,
         );
@@ -1067,6 +1085,7 @@ mod tests {
             lifecycle.handle(),
             "topic_name".to_string(),
             ShardIndex::new(42),
+            ShardId::new(24),
             &*metrics,
             false,
         );
