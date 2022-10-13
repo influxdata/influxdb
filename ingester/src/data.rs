@@ -251,16 +251,16 @@ impl Persister for IngesterData {
             .unwrap_or_else(|| panic!("namespace {namespace_id} not in shard {shard_id} state"));
         let namespace_name = namespace.namespace_name();
 
+        let table_data = namespace.table_id(table_id).unwrap_or_else(|| {
+            panic!("table {table_id} in namespace {namespace_id} not in shard {shard_id} state")
+        });
+
         let partition_key;
         let table_name;
         let batch;
         let sort_key;
         let last_persisted_sequence_number;
         {
-            let table_data = namespace.table_id(table_id).unwrap_or_else(|| {
-                panic!("table {table_id} in namespace {namespace_id} not in shard {shard_id} state")
-            });
-
             let mut guard = table_data.write().await;
             table_name = guard.table_name().clone();
 
@@ -276,6 +276,7 @@ impl Persister for IngesterData {
             last_persisted_sequence_number = partition.max_persisted_sequence_number();
         };
 
+        let sort_key = sort_key.get().await;
         trace!(
             %shard_id,
             %namespace_id,
@@ -284,9 +285,9 @@ impl Persister for IngesterData {
             %table_name,
             %partition_id,
             %partition_key,
-            "fetching sort key"
+            ?sort_key,
+            "fetched sort key"
         );
-        let sort_key = sort_key.get().await;
 
         debug!(
             %shard_id,
@@ -382,6 +383,15 @@ impl Persister for IngesterData {
                 })
                 .await
                 .expect("retry forever");
+
+            // Update the sort key in the partition cache.
+            table_data
+                .write()
+                .await
+                .get_partition(partition_id)
+                .unwrap()
+                .update_sort_key(Some(new_sort_key.clone()));
+
             debug!(
                 %object_store_id,
                 %shard_id,
@@ -549,6 +559,7 @@ mod tests {
     use mutable_batch_lp::lines_to_batches;
     use object_store::memory::InMemory;
 
+    use schema::sort::SortKey;
     use uuid::Uuid;
 
     use super::*;
@@ -927,6 +938,30 @@ mod tests {
             Some(SequenceNumber::new(2))
         );
 
+        // verify it set a sort key on the partition in the catalog
+        assert_eq!(partition.sort_key, vec!["time"]);
+
+        // Verify the partition sort key cache was updated to reflect the new
+        // catalog value.
+        let cached_sort_key = data
+            .shard(shard1.id)
+            .unwrap()
+            .namespace_by_id(namespace.id)
+            .unwrap()
+            .table_id(table_id)
+            .unwrap()
+            .write()
+            .await
+            .get_partition(partition_id)
+            .unwrap()
+            .sort_key()
+            .get()
+            .await;
+        assert_eq!(
+            cached_sort_key,
+            Some(SortKey::from_columns(partition.sort_key))
+        );
+
         // This value should be recorded in the metrics asserted next;
         // it is less than 500 KB
         //
@@ -966,15 +1001,6 @@ mod tests {
             .collect();
         // Only the < 500 KB bucket has a count
         assert_eq!(buckets_with_counts, &[500 * 1024]);
-
-        // verify it set a sort key on the partition in the catalog
-        let partition_info = repos
-            .partitions()
-            .get_by_id(partition_id)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(partition_info.sort_key, vec!["time"]);
 
         let mem_table = n.table_data(&"mem".into()).unwrap();
         let mem_table = mem_table.read().await;
