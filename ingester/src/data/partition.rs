@@ -122,18 +122,18 @@ impl SnapshotBatch {
 }
 
 /// The load state of the [`SortKey`] for a given partition.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) enum SortKeyState {
     /// The [`SortKey`] has not yet been fetched from the catalog, and will be
     /// lazy loaded (or loaded in the background) by a call to
     /// [`DeferredSortKey::get()`].
-    Deferred(DeferredSortKey),
+    Deferred(Arc<DeferredSortKey>),
     /// The sort key is known and specified.
     Provided(Option<SortKey>),
 }
 
 impl SortKeyState {
-    async fn get(&self) -> Option<SortKey> {
+    pub(crate) async fn get(&self) -> Option<SortKey> {
         match self {
             Self::Deferred(v) => v.get().await,
             Self::Provided(v) => v.clone(),
@@ -311,8 +311,8 @@ impl PartitionData {
     /// Return the [`SortKey`] for this partition.
     ///
     /// NOTE: this MAY involve querying the catalog with unbounded retries.
-    pub async fn sort_key(&self) -> Option<SortKey> {
-        self.sort_key.get().await
+    pub(crate) fn sort_key(&self) -> &SortKeyState {
+        &self.sort_key
     }
 }
 

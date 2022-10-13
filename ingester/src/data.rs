@@ -12,7 +12,7 @@ use iox_query::exec::Executor;
 use iox_time::SystemProvider;
 use metric::{Attributes, Metric, U64Histogram, U64HistogramOptions};
 use object_store::DynObjectStore;
-use observability_deps::tracing::{debug, warn};
+use observability_deps::tracing::*;
 use parquet_file::storage::ParquetStorage;
 use snafu::{OptionExt, Snafu};
 use write_summary::ShardProgress;
@@ -250,6 +250,7 @@ impl Persister for IngesterData {
 
         let partition_key;
         let batch;
+        let sort_key;
         {
             let table_data = namespace.table_id(table_id).unwrap_or_else(|| {
                 panic!("table {table_id} in namespace {namespace_id} not in shard {shard_id} state")
@@ -264,9 +265,28 @@ impl Persister for IngesterData {
 
             partition_key = partition.partition_key().clone();
             batch = partition.snapshot_to_persisting_batch();
+            sort_key = partition.sort_key().clone();
         };
 
-        debug!(%shard_id, %namespace_id, %table_id, %partition_id, %partition_key, "persisting partition");
+        trace!(
+            %shard_id,
+            %namespace_id,
+            %table_id,
+            %partition_id,
+            %partition_key,
+            "fetching sort key"
+        );
+        let sort_key = sort_key.get().await;
+
+        debug!(
+            %shard_id,
+            %namespace_id,
+            %table_id,
+            %partition_id,
+            %partition_key,
+            ?sort_key,
+            "persisting partition"
+        );
 
         // Check if there is any data to persist.
         let batch = match batch {

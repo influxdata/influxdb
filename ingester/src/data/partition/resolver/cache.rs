@@ -209,12 +209,12 @@ where
                 namespace_id,
                 table_id,
                 table_name,
-                SortKeyState::Deferred(DeferredSortKey::new(
+                SortKeyState::Deferred(Arc::new(DeferredSortKey::new(
                     cached.partition_id,
                     self.max_smear,
                     Arc::clone(&__self.catalog),
                     self.backoff_config.clone(),
-                )),
+                ))),
                 cached.max_sequence_number,
             );
         }
