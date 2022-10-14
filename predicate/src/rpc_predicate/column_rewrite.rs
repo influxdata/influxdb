@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use datafusion::{
-    error::Result as DataFusionResult, logical_plan::ExprRewriter, prelude::*, scalar::ScalarValue,
+    error::Result as DataFusionResult, logical_expr::expr_rewriter::ExprRewriter, prelude::*,
+    scalar::ScalarValue,
 };
 use schema::Schema;
 
@@ -46,7 +47,7 @@ impl ExprRewriter for MissingColumnRewriter {
 
 #[cfg(test)]
 mod tests {
-    use datafusion::{arrow::datatypes::DataType, logical_plan::ExprRewritable};
+    use datafusion::{arrow::datatypes::DataType, logical_expr::expr_rewriter::ExprRewritable};
     use schema::SchemaBuilder;
 
     use super::*;

@@ -175,10 +175,10 @@ impl From<Error> for tonic::Status {
             | Error::TableNotFound { .. } => {
                 // TODO(edd): this should be `debug`. Keeping at info whilst IOx still in early
                 // development
-                info!(?err, msg)
+                info!(e=%err, msg)
             }
             Error::QueryStream { .. } | Error::Serialization { .. } => {
-                warn!(?err, msg)
+                warn!(e=%err, msg)
             }
         }
         err.to_status()

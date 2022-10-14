@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use datafusion::logical_plan::{provider_as_source, ExprRewritable, LogicalPlanBuilder};
+use datafusion::{
+    datasource::provider_as_source,
+    logical_expr::{expr_rewriter::ExprRewritable, LogicalPlanBuilder},
+};
 use observability_deps::tracing::trace;
 use predicate::Predicate;
 use schema::{sort::SortKey, Schema};

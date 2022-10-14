@@ -1,6 +1,6 @@
 use crate::scenarios::*;
 use data_types::{MAX_NANO_TIME, MIN_NANO_TIME};
-use datafusion::logical_plan::{col, lit};
+use datafusion::prelude::{col, lit};
 use iox_query::{
     exec::stringset::{IntoStringSet, StringSetRef},
     frontend::influxrpc::InfluxRpcPlanner,

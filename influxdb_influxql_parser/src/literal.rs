@@ -1,6 +1,6 @@
 use crate::internal::{map_fail, ParseResult};
 use crate::string::{regex, single_quoted_string, Regex};
-use crate::write_escaped;
+use crate::{impl_tuple_clause, write_escaped};
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case};
 use nom::character::complete::{char, digit1, multispace0};
@@ -25,7 +25,7 @@ const NANOS_PER_DAY: i64 = 24 * NANOS_PER_HOUR;
 /// Number of nanoseconds in a week.
 const NANOS_PER_WEEK: i64 = 7 * NANOS_PER_DAY;
 
-// Primitive InfluxQL literal values, such as strings and regular expressions.
+/// Primitive InfluxQL literal values, such as strings and regular expressions.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Literal {
     /// Unsigned integer literal.
@@ -118,7 +118,7 @@ fn integer(i: &str) -> ParseResult<&str, i64> {
 /// ```text
 /// INTEGER ::= [0-9]+
 /// ```
-pub fn unsigned_integer(i: &str) -> ParseResult<&str, u64> {
+pub(crate) fn unsigned_integer(i: &str) -> ParseResult<&str, u64> {
     map_fail("unable to parse unsigned integer", digit1, &str::parse)(i)
 }
 
@@ -141,7 +141,9 @@ fn float(i: &str) -> ParseResult<&str, f64> {
 /// Represents any signed number.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Number {
+    /// Contains a 64-bit integer.
     Integer(i64),
+    /// Contains a 64-bit float.
     Float(f64),
 }
 
@@ -167,7 +169,7 @@ impl From<i64> for Number {
 }
 
 /// Parse a signed [`Number`].
-pub fn number(i: &str) -> ParseResult<&str, Number> {
+pub(crate) fn number(i: &str) -> ParseResult<&str, Number> {
     let (remaining, sign) = opt(alt((char('-'), char('+'))))(i)?;
     preceded(
         multispace0,
@@ -204,13 +206,9 @@ enum DurationUnit {
 
 /// Represents an InfluxQL duration in nanoseconds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Duration(i64);
+pub struct Duration(pub(crate) i64);
 
-impl From<i64> for Duration {
-    fn from(v: i64) -> Self {
-        Self(v)
-    }
-}
+impl_tuple_clause!(Duration, i64);
 
 static DIVISORS: [(i64, &str); 8] = [
     (NANOS_PER_WEEK, "w"),
@@ -276,7 +274,7 @@ fn single_duration(i: &str) -> ParseResult<&str, i64> {
 }
 
 /// Parse the input for an InfluxQL duration.
-pub fn duration(i: &str) -> ParseResult<&str, Duration> {
+pub(crate) fn duration(i: &str) -> ParseResult<&str, Duration> {
     map(
         fold_many1(single_duration, || 0, |acc, fragment| acc + fragment),
         Duration,
@@ -286,7 +284,7 @@ pub fn duration(i: &str) -> ParseResult<&str, Duration> {
 /// Parse an InfluxQL literal, except a [`Regex`].
 ///
 /// Use [`literal`] for parsing any literals, excluding regular expressions.
-pub fn literal_no_regex(i: &str) -> ParseResult<&str, Literal> {
+pub(crate) fn literal_no_regex(i: &str) -> ParseResult<&str, Literal> {
     alt((
         // NOTE: order is important, as floats should be tested before durations and integers.
         map(float, Literal::Float),
@@ -298,12 +296,12 @@ pub fn literal_no_regex(i: &str) -> ParseResult<&str, Literal> {
 }
 
 /// Parse any InfluxQL literal.
-pub fn literal(i: &str) -> ParseResult<&str, Literal> {
+pub(crate) fn literal(i: &str) -> ParseResult<&str, Literal> {
     alt((literal_no_regex, map(regex, Literal::Regex)))(i)
 }
 
 /// Parse an InfluxQL literal regular expression.
-pub fn literal_regex(i: &str) -> ParseResult<&str, Literal> {
+pub(crate) fn literal_regex(i: &str) -> ParseResult<&str, Literal> {
     map(regex, Literal::Regex)(i)
 }
 

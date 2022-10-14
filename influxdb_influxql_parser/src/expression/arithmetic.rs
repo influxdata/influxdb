@@ -68,12 +68,21 @@ pub enum Expr {
     UnaryOp(UnaryOperator, Box<Expr>),
 
     /// Function call
-    Call { name: String, args: Vec<Expr> },
+    Call {
+        /// Represents the name of the function call.
+        name: String,
+
+        /// Represents the list of arguments to the function call.
+        args: Vec<Expr>,
+    },
 
     /// Binary operations, such as `1 + 2`.
     Binary {
+        /// Represents the left-hand side of the binary expression.
         lhs: Box<Expr>,
+        /// Represents the operator to apply to the binary expression.
         op: BinaryOperator,
+        /// Represents the right-hand side of the binary expression.
         rhs: Box<Expr>,
     },
 
@@ -142,7 +151,10 @@ impl Display for Expr {
 /// Specifies the data type of a wildcard (`*`) when using the `::` operator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WildcardType {
+    /// Indicates the wildcard refers to tags only.
     Tag,
+
+    /// Indicates the wildcard refers to fields only.
     Field,
 }
 
@@ -163,11 +175,17 @@ impl Display for WildcardType {
 /// [cast]: https://docs.influxdata.com/influxdb/v1.8/query_language/explore-data/#cast-operations
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum VarRefDataType {
+    /// Represents a 64-bit float.
     Float,
+    /// Represents a 64-bit integer.
     Integer,
+    /// Represents a UTF-8 string.
     String,
+    /// Represents a boolean.
     Boolean,
+    /// Represents a tag.
     Tag,
+    /// Represents a field.
     Field,
 }
 
@@ -187,7 +205,9 @@ impl Display for VarRefDataType {
 /// An InfluxQL unary operator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnaryOperator {
+    /// Represents the unary `+` operator.
     Plus,
+    /// Represents the unary `-` operator.
     Minus,
 }
 
@@ -203,14 +223,22 @@ impl Display for UnaryOperator {
 /// An InfluxQL binary operators.
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
 pub enum BinaryOperator {
-    Add,        // +
-    Sub,        // -
-    Mul,        // *
-    Div,        // /
-    Mod,        // %
-    BitwiseAnd, // &
-    BitwiseOr,  // |
-    BitwiseXor, // ^
+    /// Represents the `+` operator.
+    Add,
+    /// Represents the `-` operator.
+    Sub,
+    /// Represents the `*` operator.
+    Mul,
+    /// Represents the `/` operator.
+    Div,
+    /// Represents the `%` or modulus operator.
+    Mod,
+    /// Represents the `&` or bitwise-and operator.
+    BitwiseAnd,
+    /// Represents the `|` or bitwise-or operator.
+    BitwiseOr,
+    /// Represents the `^` or bitwise-xor operator.
+    BitwiseXor,
 }
 
 impl Display for BinaryOperator {
@@ -259,7 +287,7 @@ where
 }
 
 /// Parse a function call expression
-pub fn call_expression<T>(i: &str) -> ParseResult<&str, Expr>
+pub(crate) fn call_expression<T>(i: &str) -> ParseResult<&str, Expr>
 where
     T: ArithmeticParsers,
 {
@@ -283,7 +311,7 @@ where
 }
 
 /// Parse a variable reference, which is an identifier followed by an optional cast expression.
-pub fn var_ref(i: &str) -> ParseResult<&str, Expr> {
+pub(crate) fn var_ref(i: &str) -> ParseResult<&str, Expr> {
     map(
         pair(
             identifier,
@@ -342,7 +370,7 @@ where
 /// Parse an arithmetic expression.
 ///
 /// This includes the addition, subtraction, bitwise or, and bitwise xor operators.
-pub fn arithmetic<T>(i: &str) -> ParseResult<&str, Expr>
+pub(crate) fn arithmetic<T>(i: &str) -> ParseResult<&str, Expr>
 where
     T: ArithmeticParsers,
 {
@@ -363,7 +391,7 @@ where
 }
 
 /// A trait for customizing arithmetic parsers.
-pub trait ArithmeticParsers {
+pub(crate) trait ArithmeticParsers {
     /// Parse an operand of an arithmetic expression.
     fn operand(i: &str) -> ParseResult<&str, Expr>;
 }

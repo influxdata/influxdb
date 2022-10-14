@@ -149,6 +149,7 @@ mod tests {
                 topic_id: TopicId::new(2),
                 query_pool_id: QueryPoolId::new(3),
                 tables: Default::default(),
+                max_columns_per_table: 4,
             },
         );
 
@@ -222,8 +223,8 @@ mod tests {
                 retention_duration: Some("inf".to_owned()),
                 topic_id: TopicId::new(42),
                 query_pool_id: QueryPoolId::new(42),
-                max_tables: 10000,
-                max_columns_per_table: 1000,
+                max_tables: iox_catalog::DEFAULT_MAX_TABLES,
+                max_columns_per_table: iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE,
             }
         );
     }

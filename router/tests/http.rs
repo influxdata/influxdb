@@ -330,16 +330,13 @@ async fn test_schema_limit() {
         &err,
         router::server::http::Error::DmlHandler(
             DmlError::Schema(
-                SchemaError::ServiceLimit(
-                    iox_catalog::interface::Error::TableCreateLimitError {
-                        table_name,
-                        namespace_id,
-                    }
-                )
+                SchemaError::ServiceLimit(e)
             )
         ) => {
-            assert_eq!(table_name, "platanos2");
-            assert_eq!(namespace_id.to_string(), "1");
+            assert_eq!(
+                e.to_string(),
+                "couldn't create table platanos2; limit reached on namespace 1"
+            );
         }
     );
     assert_eq!(err.as_status_code(), StatusCode::TOO_MANY_REQUESTS);

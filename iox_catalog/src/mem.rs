@@ -9,6 +9,7 @@ use crate::{
         TombstoneRepo, TopicMetadataRepo, Transaction,
     },
     metrics::MetricDecorator,
+    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
 };
 use async_trait::async_trait;
 use data_types::{
@@ -302,8 +303,8 @@ impl NamespaceRepo for MemTxn {
             topic_id,
             query_pool_id,
             retention_duration: Some(retention_duration.to_string()),
-            max_tables: 10000,
-            max_columns_per_table: 1000,
+            max_tables: DEFAULT_MAX_TABLES,
+            max_columns_per_table: DEFAULT_MAX_COLUMNS_PER_TABLE,
         };
         stage.namespaces.push(namespace);
         Ok(stage.namespaces.last().unwrap().clone())
@@ -522,17 +523,51 @@ impl ColumnRepo for MemTxn {
 
         Ok(column.clone())
     }
-    async fn create_or_get_many(
+
+    async fn create_or_get_many_unchecked(
         &mut self,
+        table_id: TableId,
         columns: &[ColumnUpsertRequest<'_>],
     ) -> Result<Vec<Column>> {
-        let mut out = Vec::new();
-        for column in columns {
-            out.push(
-                ColumnRepo::create_or_get(self, column.name, column.table_id, column.column_type)
-                    .await?,
-            );
-        }
+        // Explicitly NOT using `create_or_get` in this function: the Postgres catalog doesn't
+        // check column limits when inserting many columns because it's complicated and expensive,
+        // and for testing purposes the in-memory catalog needs to match its functionality.
+
+        let stage = self.stage();
+
+        let out: Vec<_> = columns
+            .iter()
+            .map(|column| {
+                match stage
+                    .columns
+                    .iter()
+                    .find(|t| t.name == column.name && t.table_id == table_id)
+                {
+                    Some(c) => {
+                        ensure!(
+                            column.column_type == c.column_type,
+                            ColumnTypeMismatchSnafu {
+                                name: column.name,
+                                existing: c.column_type,
+                                new: column.column_type
+                            }
+                        );
+                        Ok(c.clone())
+                    }
+                    None => {
+                        let new_column = Column {
+                            id: ColumnId::new(stage.columns.len() as i64 + 1),
+                            table_id,
+                            name: column.name.to_string(),
+                            column_type: column.column_type,
+                        };
+                        stage.columns.push(new_column);
+                        Ok(stage.columns.last().unwrap().clone())
+                    }
+                }
+            })
+            .collect::<Result<Vec<Column>>>()?;
+
         Ok(out)
     }
 

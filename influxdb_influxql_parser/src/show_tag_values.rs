@@ -1,8 +1,9 @@
-use crate::common::{limit_clause, offset_clause, where_clause, OneOrMore};
-use crate::expression::conditional::ConditionalExpression;
+use crate::common::{
+    limit_clause, offset_clause, where_clause, LimitClause, OffsetClause, OneOrMore, WhereClause,
+};
 use crate::identifier::{identifier, Identifier};
 use crate::internal::{expect, ParseResult};
-use crate::show::on_clause;
+use crate::show::{on_clause, OnClause};
 use crate::simple_from_clause::{show_from_clause, ShowFromClause};
 use crate::string::{regex, Regex};
 use nom::branch::alt;
@@ -18,50 +19,50 @@ use std::fmt::{Display, Formatter};
 pub struct ShowTagValuesStatement {
     /// The name of the database to query. If `None`, a default
     /// database will be used.
-    pub database: Option<Identifier>,
+    pub database: Option<OnClause>,
 
     /// The measurement or measurements to restrict which tag keys
     /// are retrieved.
     pub from: Option<ShowFromClause>,
 
-    /// `WITH KEY` expression, to limit the values retrieved to
+    /// Represents the `WITH KEY` clause, to restrict the tag values to
     /// the matching tag keys.
-    pub with_key: WithKeyExpression,
+    pub with_key: WithKeyClause,
 
     /// A conditional expression to filter the tag keys.
-    pub condition: Option<ConditionalExpression>,
+    pub condition: Option<WhereClause>,
 
     /// A value to restrict the number of tag keys returned.
-    pub limit: Option<u64>,
+    pub limit: Option<LimitClause>,
 
     /// A value to specify an offset to start retrieving tag keys.
-    pub offset: Option<u64>,
+    pub offset: Option<OffsetClause>,
 }
 
 impl Display for ShowTagValuesStatement {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "SHOW TAG VALUES")?;
 
-        if let Some(ref expr) = self.database {
-            write!(f, " ON {}", expr)?;
+        if let Some(ref on_clause) = self.database {
+            write!(f, " {}", on_clause)?;
         }
 
-        if let Some(ref expr) = self.from {
-            write!(f, " FROM {}", expr)?;
+        if let Some(ref from_clause) = self.from {
+            write!(f, " {}", from_clause)?;
         }
 
         write!(f, " {}", self.with_key)?;
 
-        if let Some(ref cond) = self.condition {
-            write!(f, " WHERE {}", cond)?;
+        if let Some(ref where_clause) = self.condition {
+            write!(f, " {}", where_clause)?;
         }
 
-        if let Some(limit) = self.limit {
-            write!(f, " LIMIT {}", limit)?;
+        if let Some(ref limit) = self.limit {
+            write!(f, " {}", limit)?;
         }
 
-        if let Some(offset) = self.offset {
-            write!(f, " OFFSET {}", offset)?;
+        if let Some(ref offset) = self.offset {
+            write!(f, " {}", offset)?;
         }
 
         Ok(())
@@ -69,7 +70,7 @@ impl Display for ShowTagValuesStatement {
 }
 
 /// Parse a `SHOW TAG VALUES` statement, starting from the `VALUES` token.
-pub fn show_tag_values(i: &str) -> ParseResult<&str, ShowTagValuesStatement> {
+pub(crate) fn show_tag_values(i: &str) -> ParseResult<&str, ShowTagValuesStatement> {
     let (
         remaining_input,
         (
@@ -107,19 +108,36 @@ pub fn show_tag_values(i: &str) -> ParseResult<&str, ShowTagValuesStatement> {
     ))
 }
 
+/// Represents a list of identifiers when the `WITH KEY` clause
+/// specifies the `IN` operator.
 pub type InList = OneOrMore<Identifier>;
 
+impl Display for InList {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        Display::fmt(self.first(), f)?;
+        for arg in self.rest() {
+            write!(f, ", {}", arg)?;
+        }
+        Ok(())
+    }
+}
+
+/// Represents a `WITH KEY` clause.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum WithKeyExpression {
+pub enum WithKeyClause {
+    /// Select a single tag key that equals the identifier.
     Eq(Identifier),
+    /// Select all tag keys that do not equal the identifier.
     NotEq(Identifier),
+    /// Select any tag keys that pass the regular expression.
     EqRegex(Regex),
+    /// Select the tag keys that do not pass the regular expression.
     NotEqRegex(Regex),
-    /// IN expression
+    /// Select the tag keys matching each of the identifiers in the list.
     In(InList),
 }
 
-impl Display for WithKeyExpression {
+impl Display for WithKeyClause {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str("WITH KEY ")?;
 
@@ -145,7 +163,7 @@ fn identifier_list(i: &str) -> ParseResult<&str, InList> {
     )(i)
 }
 
-fn with_key_clause(i: &str) -> ParseResult<&str, WithKeyExpression> {
+fn with_key_clause(i: &str) -> ParseResult<&str, WithKeyClause> {
     preceded(
         tuple((
             tag_no_case("WITH"),
@@ -163,7 +181,7 @@ fn with_key_clause(i: &str) -> ParseResult<&str, WithKeyExpression> {
                             regex,
                         ),
                     ),
-                    WithKeyExpression::EqRegex,
+                    WithKeyClause::EqRegex,
                 ),
                 map(
                     preceded(
@@ -173,7 +191,7 @@ fn with_key_clause(i: &str) -> ParseResult<&str, WithKeyExpression> {
                             regex,
                         ),
                     ),
-                    WithKeyExpression::NotEqRegex,
+                    WithKeyClause::NotEqRegex,
                 ),
                 map(
                     preceded(
@@ -183,7 +201,7 @@ fn with_key_clause(i: &str) -> ParseResult<&str, WithKeyExpression> {
                             identifier,
                         ),
                     ),
-                    WithKeyExpression::Eq,
+                    WithKeyClause::Eq,
                 ),
                 map(
                     preceded(
@@ -193,7 +211,7 @@ fn with_key_clause(i: &str) -> ParseResult<&str, WithKeyExpression> {
                             identifier,
                         ),
                     ),
-                    WithKeyExpression::NotEq,
+                    WithKeyClause::NotEq,
                 ),
                 map(
                     preceded(
@@ -203,7 +221,7 @@ fn with_key_clause(i: &str) -> ParseResult<&str, WithKeyExpression> {
                             identifier_list,
                         ),
                     ),
-                    WithKeyExpression::In,
+                    WithKeyClause::In,
                 ),
             )),
         ),
@@ -286,24 +304,24 @@ mod test {
     #[test]
     fn test_with_key_clause() {
         let (_, got) = with_key_clause("WITH KEY = foo").unwrap();
-        assert_eq!(got, WithKeyExpression::Eq("foo".into()));
+        assert_eq!(got, WithKeyClause::Eq("foo".into()));
 
         let (_, got) = with_key_clause("WITH KEY != foo").unwrap();
-        assert_eq!(got, WithKeyExpression::NotEq("foo".into()));
+        assert_eq!(got, WithKeyClause::NotEq("foo".into()));
 
         let (_, got) = with_key_clause("WITH KEY =~ /foo/").unwrap();
-        assert_eq!(got, WithKeyExpression::EqRegex("foo".into()));
+        assert_eq!(got, WithKeyClause::EqRegex("foo".into()));
 
         let (_, got) = with_key_clause("WITH KEY !~ /foo/").unwrap();
-        assert_eq!(got, WithKeyExpression::NotEqRegex("foo".into()));
+        assert_eq!(got, WithKeyClause::NotEqRegex("foo".into()));
 
         let (_, got) = with_key_clause("WITH KEY IN (foo)").unwrap();
-        assert_eq!(got, WithKeyExpression::In(InList::new(vec!["foo".into()])));
+        assert_eq!(got, WithKeyClause::In(InList::new(vec!["foo".into()])));
 
         let (_, got) = with_key_clause("WITH KEY IN (foo, bar, \"foo bar\")").unwrap();
         assert_eq!(
             got,
-            WithKeyExpression::In(InList::new(vec![
+            WithKeyClause::In(InList::new(vec![
                 "foo".into(),
                 "bar".into(),
                 "foo bar".into()
@@ -312,7 +330,7 @@ mod test {
 
         // Expressions are still valid when whitespace is omitted
         let (_, got) = with_key_clause("WITH KEY=foo").unwrap();
-        assert_eq!(got, WithKeyExpression::Eq("foo".into()));
+        assert_eq!(got, WithKeyClause::Eq("foo".into()));
 
         // Fallible cases
 

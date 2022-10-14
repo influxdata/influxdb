@@ -351,8 +351,8 @@ mod tests {
     use arrow_util::assert_batches_sorted_eq;
     use assert_matches::assert_matches;
     use datafusion::{
-        logical_plan::{col, lit},
         physical_plan::RecordBatchStream,
+        prelude::{col, lit},
     };
     use futures::TryStreamExt;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;

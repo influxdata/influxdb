@@ -9,6 +9,8 @@ use iox_time::{SystemProvider, TimeProvider};
 use metric::{Attributes, DurationHistogram, U64Counter, U64Gauge};
 use trace::span::{SpanExt, SpanRecorder};
 
+use crate::data::DmlApplyAction;
+
 use super::DmlSink;
 
 /// A [`WatermarkFetcher`] abstracts a source of the write buffer high watermark
@@ -155,7 +157,7 @@ where
     T: DmlSink,
     P: TimeProvider,
 {
-    async fn apply(&self, op: DmlOperation) -> Result<bool, crate::data::Error> {
+    async fn apply(&self, op: DmlOperation) -> Result<DmlApplyAction, crate::data::Error> {
         let meta = op.meta();
 
         // Immediately increment the "bytes read" metric as it records the
@@ -292,9 +294,9 @@ mod tests {
     async fn test(
         op: impl Into<DmlOperation> + Send,
         metrics: &metric::Registry,
-        with_sink_return: Result<bool, crate::data::Error>,
+        with_sink_return: Result<DmlApplyAction, crate::data::Error>,
         with_fetcher_return: Option<i64>,
-    ) -> Result<bool, crate::data::Error> {
+    ) -> Result<DmlApplyAction, crate::data::Error> {
         let op = op.into();
         let inner = MockDmlSink::default().with_apply_return([with_sink_return]);
         let instrumentation = SinkInstrumentation::new(
@@ -342,8 +344,8 @@ mod tests {
         );
         let op = make_write(meta);
 
-        let got = test(op, &metrics, Ok(true), Some(12345)).await;
-        assert_matches!(got, Ok(true));
+        let got = test(op, &metrics, Ok(DmlApplyAction::Applied(true)), Some(12345)).await;
+        assert_matches!(got, Ok(DmlApplyAction::Applied(true)));
 
         // Validate the various write buffer metrics
         assert_matches!(
@@ -487,8 +489,8 @@ mod tests {
         );
         let op = make_write(meta);
 
-        let got = test(op, &metrics, Ok(true), None).await;
-        assert_matches!(got, Ok(true));
+        let got = test(op, &metrics, Ok(DmlApplyAction::Applied(true)), None).await;
+        assert_matches!(got, Ok(DmlApplyAction::Applied(true)));
 
         // Validate the various write buffer metrics
         assert_matches!(
@@ -556,8 +558,8 @@ mod tests {
         );
         let op = make_write(meta);
 
-        let got = test(op, &metrics, Ok(true), Some(1)).await;
-        assert_matches!(got, Ok(true));
+        let got = test(op, &metrics, Ok(DmlApplyAction::Applied(true)), Some(1)).await;
+        assert_matches!(got, Ok(DmlApplyAction::Applied(true)));
 
         // Validate the various write buffer metrics
         assert_matches!(
@@ -617,7 +619,7 @@ mod tests {
         let meta = DmlMeta::unsequenced(None);
         let op = make_write(meta);
 
-        let _ = test(op, &metrics, Ok(true), Some(12345)).await;
+        let _ = test(op, &metrics, Ok(DmlApplyAction::Applied(true)), Some(12345)).await;
     }
 
     // The instrumentation emits per-shard metrics, so upon observing an op
@@ -639,6 +641,6 @@ mod tests {
         );
         let op = make_write(meta);
 
-        let _ = test(op, &metrics, Ok(true), Some(12345)).await;
+        let _ = test(op, &metrics, Ok(DmlApplyAction::Applied(true)), Some(12345)).await;
     }
 }

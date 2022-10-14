@@ -16,10 +16,10 @@ use crate::{
 use arrow::datatypes::DataType;
 use data_types::ChunkId;
 use datafusion::{
+    common::DFSchemaRef,
     error::DataFusionError,
-    logical_expr::utils::exprlist_to_columns,
-    logical_plan::{col, when, DFSchemaRef, Expr, ExprSchemable, LogicalPlan, LogicalPlanBuilder},
-    prelude::Column,
+    logical_expr::{utils::exprlist_to_columns, ExprSchemable, LogicalPlan, LogicalPlanBuilder},
+    prelude::{col, when, Column, Expr},
 };
 use datafusion_util::AsExpr;
 use futures::{Stream, StreamExt, TryStreamExt};
@@ -1886,7 +1886,7 @@ fn cheap_chunk_first(mut chunks: Vec<Arc<dyn QueryChunk>>) -> Vec<Arc<dyn QueryC
 
 #[cfg(test)]
 mod tests {
-    use datafusion::logical_plan::{lit, lit_timestamp_nano};
+    use datafusion::prelude::{lit, lit_timestamp_nano};
     use datafusion_util::lit_dict;
     use futures::{future::BoxFuture, FutureExt};
     use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};

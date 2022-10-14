@@ -1611,7 +1611,7 @@ where
 mod tests {
     use super::*;
     use data_types::ChunkId;
-    use datafusion::logical_plan::{col, Expr};
+    use datafusion::prelude::{col, Expr};
     use datafusion_util::lit_dict;
     use futures::Future;
     use generated_types::{i_ox_testing_client::IOxTestingClient, tag_key_predicate::Value};

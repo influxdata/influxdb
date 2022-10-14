@@ -126,7 +126,7 @@ fn keyword_show_to_write(i: &str) -> ParseResult<&str, &str> {
 }
 
 /// Matches any InfluxQL reserved keyword.
-pub fn sql_keyword(i: &str) -> ParseResult<&str, &str> {
+pub(crate) fn sql_keyword(i: &str) -> ParseResult<&str, &str> {
     // NOTE that the alt function takes a tuple with a maximum arity of 21, hence
     // the reason these are broken into groups
     alt((

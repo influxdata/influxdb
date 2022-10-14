@@ -7,8 +7,8 @@ use datafusion::{
     error::DataFusionError,
     execution::context::SessionState,
     logical_expr::TableProviderFilterPushDown,
-    logical_plan::Expr,
     physical_plan::ExecutionPlan,
+    prelude::Expr,
 };
 use iox_query::{
     exec::{ExecutorType, SessionContextIOxExt},

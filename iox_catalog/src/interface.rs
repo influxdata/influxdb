@@ -332,13 +332,11 @@ pub trait TableRepo: Send + Sync {
 }
 
 /// Parameters necessary to perform a batch insert of
-/// [`ColumnRepo::create_or_get()`].
+/// [`ColumnRepo::create_or_get()`] for one table (specified separately)
 #[derive(Debug)]
 pub struct ColumnUpsertRequest<'a> {
     /// The name of the column.
     pub name: &'a str,
-    /// The table ID to which it belongs.
-    pub table_id: TableId,
     /// The data type of the column.
     pub column_type: ColumnType,
 }
@@ -361,8 +359,13 @@ pub trait ColumnRepo: Send + Sync {
     /// Implementations make no guarantees as to the ordering or atomicity of
     /// the batch of column upsert operations - a batch upsert may partially
     /// commit, in which case an error MUST be returned by the implementation.
-    async fn create_or_get_many(
+    ///
+    /// Per-namespace limits on the number of columns allowed per table are explicitly NOT checked
+    /// by this function, hence the name containing `unchecked`. It is expected that the caller
+    /// will check this first-- and yes, this is racy.
+    async fn create_or_get_many_unchecked(
         &mut self,
+        table_id: TableId,
         columns: &[ColumnUpsertRequest<'_>],
     ) -> Result<Vec<Column>>;
 
@@ -714,8 +717,12 @@ where
     let columns = repos.columns().list_by_namespace_id(namespace.id).await?;
     let tables = repos.tables().list_by_namespace_id(namespace.id).await?;
 
-    let mut namespace =
-        NamespaceSchema::new(namespace.id, namespace.topic_id, namespace.query_pool_id);
+    let mut namespace = NamespaceSchema::new(
+        namespace.id,
+        namespace.topic_id,
+        namespace.query_pool_id,
+        namespace.max_columns_per_table,
+    );
 
     let mut table_id_to_schema = BTreeMap::new();
     for t in tables {
@@ -846,7 +853,8 @@ pub async fn list_schemas(
         // was created, or have no tables/columns (and therefore have no entry
         // in "joined").
         .filter_map(move |v| {
-            let mut ns = NamespaceSchema::new(v.id, v.topic_id, v.query_pool_id);
+            let mut ns =
+                NamespaceSchema::new(v.id, v.topic_id, v.query_pool_id, v.max_columns_per_table);
             ns.tables = joined.remove(&v.id)?;
             Some((v, ns))
         });
@@ -856,7 +864,7 @@ pub async fn list_schemas(
 
 #[cfg(test)]
 pub(crate) mod test_helpers {
-    use crate::validate_or_insert_schema;
+    use crate::{validate_or_insert_schema, DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES};
 
     use super::*;
     use ::test_helpers::{assert_contains, tracing::TracingCapture};
@@ -947,6 +955,13 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert!(namespace.id > NamespaceId::new(0));
         assert_eq!(namespace.name, namespace_name);
+
+        // Assert default values for service protection limits.
+        assert_eq!(namespace.max_tables, DEFAULT_MAX_TABLES);
+        assert_eq!(
+            namespace.max_columns_per_table,
+            DEFAULT_MAX_COLUMNS_PER_TABLE
+        );
 
         let conflict = repos
             .namespaces()
@@ -1179,14 +1194,7 @@ pub(crate) mod test_helpers {
             .create_or_get("column_test", table.id, ColumnType::U64)
             .await
             .expect_err("should error with wrong column type");
-        assert!(matches!(
-            err,
-            Error::ColumnTypeMismatch {
-                name: _,
-                existing: _,
-                new: _
-            }
-        ));
+        assert!(matches!(err, Error::ColumnTypeMismatch { .. }));
 
         // test that we can create a column of the same name under a different table
         let table2 = repos
@@ -1201,23 +1209,6 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert_ne!(c, ccc);
 
-        let cols3 = repos
-            .columns()
-            .create_or_get_many(&[
-                ColumnUpsertRequest {
-                    name: "a",
-                    table_id: table2.id,
-                    column_type: ColumnType::U64,
-                },
-                ColumnUpsertRequest {
-                    name: "a",
-                    table_id: table.id,
-                    column_type: ColumnType::U64,
-                },
-            ])
-            .await
-            .unwrap();
-
         let columns = repos
             .columns()
             .list_by_namespace_id(namespace.id)
@@ -1225,12 +1216,11 @@ pub(crate) mod test_helpers {
             .unwrap();
 
         let mut want = vec![c.clone(), ccc];
-        want.extend(cols3.clone());
         assert_eq!(want, columns);
 
         let columns = repos.columns().list_by_table_id(table.id).await.unwrap();
 
-        let want2 = vec![c, cols3[1].clone()];
+        let want2 = vec![c];
         assert_eq!(want2, columns);
 
         // Add another tag column into table2
@@ -1252,7 +1242,7 @@ pub(crate) mod test_helpers {
             },
             ColumnTypeCount {
                 col_type: ColumnType::U64,
-                count: 2,
+                count: 1,
             },
         ];
         expect.sort_by_key(|c| c.col_type);
@@ -1263,6 +1253,28 @@ pub(crate) mod test_helpers {
         let list = repos.columns().list().await.unwrap();
         want.extend([c3]);
         assert_eq!(list, want);
+
+        // test create_or_get_many_unchecked, below column limit
+        let table1_columns = repos
+            .columns()
+            .create_or_get_many_unchecked(
+                table.id,
+                &[
+                    ColumnUpsertRequest {
+                        name: "column_test",
+                        column_type: ColumnType::Tag,
+                    },
+                    ColumnUpsertRequest {
+                        name: "new_column",
+                        column_type: ColumnType::Tag,
+                    },
+                ],
+            )
+            .await
+            .unwrap();
+        let mut table1_column_names: Vec<_> = table1_columns.iter().map(|c| &c.name).collect();
+        table1_column_names.sort();
+        assert_eq!(table1_column_names, vec!["column_test", "new_column"]);
 
         // test per-namespace column limits
         repos
@@ -1282,6 +1294,33 @@ pub(crate) mod test_helpers {
                 table_id: _,
             }
         ));
+
+        // test per-namespace column limits are NOT enforced with create_or_get_many_unchecked
+        let table3 = repos
+            .tables()
+            .create_or_get("test_table_3", namespace.id)
+            .await
+            .unwrap();
+        let table3_columns = repos
+            .columns()
+            .create_or_get_many_unchecked(
+                table3.id,
+                &[
+                    ColumnUpsertRequest {
+                        name: "apples",
+                        column_type: ColumnType::Tag,
+                    },
+                    ColumnUpsertRequest {
+                        name: "oranges",
+                        column_type: ColumnType::Tag,
+                    },
+                ],
+            )
+            .await
+            .unwrap();
+        let mut table3_column_names: Vec<_> = table3_columns.iter().map(|c| &c.name).collect();
+        table3_column_names.sort();
+        assert_eq!(table3_column_names, vec!["apples", "oranges"]);
     }
 
     async fn test_shards(catalog: Arc<dyn Catalog>) {
@@ -3989,7 +4028,12 @@ pub(crate) mod test_helpers {
 
         let batches = mutable_batch_lp::lines_to_batches(lines, 42).unwrap();
         let batches = batches.iter().map(|(table, batch)| (table.as_str(), batch));
-        let ns = NamespaceSchema::new(namespace.id, topic.id, pool.id);
+        let ns = NamespaceSchema::new(
+            namespace.id,
+            topic.id,
+            pool.id,
+            namespace.max_columns_per_table,
+        );
 
         let schema = validate_or_insert_schema(batches, &ns, repos)
             .await

@@ -571,7 +571,7 @@ mod test {
         record_batch::RecordBatch,
         util::pretty::pretty_format_batches,
     };
-    use datafusion::{datasource::MemTable, logical_plan::Expr, prelude::*};
+    use datafusion::{datasource::MemTable, prelude::*};
     use schema::TIME_DATA_TIMEZONE;
 
     use super::*;

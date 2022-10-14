@@ -8,7 +8,7 @@ use observability_deps::tracing::*;
 use write_summary::ShardProgress;
 
 use super::partition::{resolver::PartitionProvider, PartitionData, UnpersistedPartitionData};
-use crate::{lifecycle::LifecycleHandle, querier_handler::PartitionStatus};
+use crate::{data::DmlApplyAction, lifecycle::LifecycleHandle, querier_handler::PartitionStatus};
 
 /// A double-referenced map where [`PartitionData`] can be looked up by
 /// [`PartitionKey`], or ID.
@@ -137,7 +137,7 @@ impl TableData {
         batch: MutableBatch,
         partition_key: PartitionKey,
         lifecycle_handle: &dyn LifecycleHandle,
-    ) -> Result<bool, super::Error> {
+    ) -> Result<DmlApplyAction, super::Error> {
         let partition_data = match self.partition_data.by_key.get_mut(&partition_key) {
             Some(p) => p,
             None => {
@@ -165,7 +165,7 @@ impl TableData {
                     op_sequence_number=?sequence_number,
                     "skipping already-persisted write"
                 );
-                return Ok(false);
+                return Ok(DmlApplyAction::Skipped);
             }
         }
 
@@ -188,7 +188,7 @@ impl TableData {
             rows,
         );
 
-        Ok(should_pause)
+        Ok(DmlApplyAction::Applied(should_pause))
     }
 
     /// Return the [`PartitionData`] for the specified ID.
@@ -332,7 +332,7 @@ mod tests {
         assert!(table.partition_data.by_id_mut(PARTITION_ID).is_none());
 
         // Write some test data
-        let pause = table
+        let action = table
             .buffer_table_write(
                 SequenceNumber::new(42),
                 batch,
@@ -341,7 +341,7 @@ mod tests {
             )
             .await
             .expect("buffer op should succeed");
-        assert!(!pause);
+        assert_matches!(action, DmlApplyAction::Applied(false));
 
         // Referencing the partition should succeed
         assert!(table.partition_data.by_key(&PARTITION_KEY.into()).is_some());
@@ -394,7 +394,7 @@ mod tests {
         assert!(table.partition_data.by_key(&PARTITION_KEY.into()).is_none());
 
         // Write some test data
-        let pause = table
+        let action = table
             .buffer_table_write(
                 SequenceNumber::new(42),
                 batch,
@@ -403,7 +403,7 @@ mod tests {
             )
             .await
             .expect("buffer op should succeed");
-        assert!(!pause);
+        assert_matches!(action, DmlApplyAction::Applied(false));
 
         // Referencing the partition should succeed
         assert!(table.partition_data.by_key(&PARTITION_KEY.into()).is_some());

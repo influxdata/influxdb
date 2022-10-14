@@ -1,7 +1,6 @@
-use crate::common::{limit_clause, offset_clause};
-use crate::identifier::Identifier;
+use crate::common::{limit_clause, offset_clause, LimitClause, OffsetClause};
 use crate::internal::{expect, ParseResult};
-use crate::show::on_clause;
+use crate::show::{on_clause, OnClause};
 use crate::simple_from_clause::{show_from_clause, ShowFromClause};
 use nom::bytes::complete::tag_no_case;
 use nom::character::complete::multispace1;
@@ -15,37 +14,37 @@ use std::fmt::Formatter;
 pub struct ShowFieldKeysStatement {
     /// The name of the database to query. If `None`, a default
     /// database will be used.
-    pub database: Option<Identifier>,
+    pub database: Option<OnClause>,
 
     /// The measurement or measurements to restrict which field keys
     /// are retrieved.
     pub from: Option<ShowFromClause>,
 
     /// A value to restrict the number of field keys returned.
-    pub limit: Option<u64>,
+    pub limit: Option<LimitClause>,
 
     /// A value to specify an offset to start retrieving field keys.
-    pub offset: Option<u64>,
+    pub offset: Option<OffsetClause>,
 }
 
 impl fmt::Display for ShowFieldKeysStatement {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "SHOW FIELD KEYS")?;
+        f.write_str("SHOW FIELD KEYS")?;
 
-        if let Some(ref expr) = self.database {
-            write!(f, " ON {}", expr)?;
+        if let Some(ref on_clause) = self.database {
+            write!(f, " {}", on_clause)?;
         }
 
         if let Some(ref expr) = self.from {
-            write!(f, " FROM {}", expr)?;
+            write!(f, " {}", expr)?;
         }
 
-        if let Some(limit) = self.limit {
-            write!(f, " LIMIT {}", limit)?;
+        if let Some(ref limit) = self.limit {
+            write!(f, " {}", limit)?;
         }
 
-        if let Some(offset) = self.offset {
-            write!(f, " OFFSET {}", offset)?;
+        if let Some(ref offset) = self.offset {
+            write!(f, " {}", offset)?;
         }
 
         Ok(())
@@ -53,7 +52,7 @@ impl fmt::Display for ShowFieldKeysStatement {
 }
 
 /// Parse a `SHOW FIELD KEYS` statement, starting from the `FIELD` token.
-pub fn show_field_keys(i: &str) -> ParseResult<&str, ShowFieldKeysStatement> {
+pub(crate) fn show_field_keys(i: &str) -> ParseResult<&str, ShowFieldKeysStatement> {
     let (
         remaining_input,
         (

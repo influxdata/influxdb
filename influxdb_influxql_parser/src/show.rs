@@ -5,7 +5,7 @@ use crate::show_measurements::show_measurements;
 use crate::show_retention_policies::show_retention_policies;
 use crate::show_tag_keys::show_tag_keys;
 use crate::show_tag_values::show_tag_values;
-use crate::Statement;
+use crate::{impl_tuple_clause, Statement};
 use nom::branch::alt;
 use nom::bytes::complete::tag_no_case;
 use nom::character::complete::multispace1;
@@ -14,7 +14,7 @@ use nom::sequence::{pair, preceded};
 use std::fmt::{Display, Formatter};
 
 /// Parse a SHOW statement.
-pub fn show_statement(i: &str) -> ParseResult<&str, Statement> {
+pub(crate) fn show_statement(i: &str) -> ParseResult<&str, Statement> {
     preceded(
         pair(tag_no_case("SHOW"), multispace1),
         expect(
@@ -54,12 +54,26 @@ fn show_databases(i: &str) -> ParseResult<&str, ShowDatabasesStatement> {
     value(ShowDatabasesStatement, tag_no_case("DATABASES"))(i)
 }
 
-/// Parse an `ON` clause for `SHOW TAG KEYS`, `SHOW TAG VALUES` and `SHOW FIELD KEYS`
-/// statements.
-pub fn on_clause(i: &str) -> ParseResult<&str, Identifier> {
+/// Represents an `ON` clause for the case where the database is a single [`Identifier`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OnClause(pub(crate) Identifier);
+
+impl_tuple_clause!(OnClause, Identifier);
+
+impl Display for OnClause {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ON {}", self.0)
+    }
+}
+
+/// Parse an `ON` clause for statements such as `SHOW TAG KEYS` and `SHOW FIELD KEYS`.
+pub(crate) fn on_clause(i: &str) -> ParseResult<&str, OnClause> {
     preceded(
         pair(tag_no_case("ON"), multispace1),
-        expect("invalid ON clause, expected identifier", identifier),
+        expect(
+            "invalid ON clause, expected identifier",
+            map(identifier, OnClause),
+        ),
     )(i)
 }
 

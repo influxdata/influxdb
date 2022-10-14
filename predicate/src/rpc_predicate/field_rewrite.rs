@@ -4,11 +4,13 @@ use super::FIELD_COLUMN_NAME;
 use arrow::array::{as_boolean_array, as_string_array, ArrayRef, StringArray};
 use arrow::compute::kernels;
 use arrow::record_batch::RecordBatch;
+use datafusion::common::DFSchema;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
-use datafusion::logical_plan::{lit, DFSchema, Expr, ExprVisitable, ExpressionVisitor, Recursion};
+use datafusion::logical_expr::expr_visitor::{ExprVisitable, ExpressionVisitor, Recursion};
 use datafusion::physical_expr::create_physical_expr;
 use datafusion::physical_expr::execution_props::ExecutionProps;
 use datafusion::physical_plan::ColumnarValue;
+use datafusion::prelude::{lit, Expr};
 use datafusion_util::disassemble_conjuct;
 use schema::Schema;
 use std::sync::Arc;
@@ -245,7 +247,7 @@ impl ExpressionVisitor for ColumnReferencesFinder {
 mod tests {
     use super::*;
     use arrow::datatypes::DataType;
-    use datafusion::logical_plan::{case, col};
+    use datafusion::prelude::{case, col};
     use schema::builder::SchemaBuilder;
     use test_helpers::assert_contains;
 

@@ -10,7 +10,7 @@ use nom::sequence::{preceded, tuple};
 use std::fmt::{Display, Formatter};
 
 /// Represents various options for an `EXPLAIN` statement.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExplainOption {
     /// `EXPLAIN VERBOSE statement`
     Verbose,
@@ -38,8 +38,11 @@ impl Display for ExplainOption {
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExplainStatement {
-    options: Option<ExplainOption>,
-    select: Box<SelectStatement>,
+    /// Represents any options specified for the `EXPLAIN` statement.
+    pub options: Option<ExplainOption>,
+
+    /// Represents the `SELECT` statement to be explained and / or analyzed.
+    pub select: Box<SelectStatement>,
 }
 
 impl Display for ExplainStatement {
@@ -53,7 +56,7 @@ impl Display for ExplainStatement {
 }
 
 /// Parse an `EXPLAIN` statement.
-pub fn explain_statement(i: &str) -> ParseResult<&str, ExplainStatement> {
+pub(crate) fn explain_statement(i: &str) -> ParseResult<&str, ExplainStatement> {
     map(
         tuple((
             tag_no_case("EXPLAIN"),

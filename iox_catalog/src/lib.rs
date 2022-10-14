@@ -27,6 +27,11 @@ const SHARED_TOPIC_NAME: &str = "iox-shared";
 const SHARED_QUERY_POOL: &str = SHARED_TOPIC_NAME;
 const TIME_COLUMN: &str = "time";
 
+/// Default per-namespace table count service protection limit.
+pub const DEFAULT_MAX_TABLES: i32 = 10_000;
+/// Default per-table column count service protection limit.
+pub const DEFAULT_MAX_COLUMNS_PER_TABLE: i32 = 200;
+
 /// A string value representing an infinite retention policy.
 pub const INFINITE_RETENTION_POLICY: &str = "inf";
 
@@ -144,43 +149,47 @@ where
     // If the table itself needs to be updated during column validation it
     // becomes a Cow::owned() copy and the modified copy should be inserted into
     // the schema before returning.
-    let mut column_batch = Vec::default();
-    for (name, col) in mb.columns() {
-        // Check if the column exists in the cached schema.
-        //
-        // If it does, validate it. If it does not exist, create it and insert
-        // it into the cached schema.
-        match table.columns.get(name.as_str()) {
-            Some(existing) if existing.matches_type(col.influx_type()) => {
-                // No action is needed as the column matches the existing column
-                // schema.
-            }
-            Some(existing) => {
-                // The column schema, and the column in the mutable batch are of
-                // different types.
-                return ColumnTypeMismatchSnafu {
-                    name,
-                    existing: existing.column_type,
-                    new: col.influx_type(),
+    let column_batch: Vec<_> = mb
+        .columns()
+        .filter_map(|(name, col)| {
+            // Check if the column exists in the cached schema.
+            //
+            // If it does, validate it. If it does not exist, create it and insert
+            // it into the cached schema.
+            match table.columns.get(name.as_str()) {
+                Some(existing) if existing.matches_type(col.influx_type()) => {
+                    // No action is needed as the column matches the existing column
+                    // schema.
+                    None
                 }
-                .fail();
+                Some(existing) => {
+                    // The column schema, and the column in the mutable batch are of
+                    // different types.
+                    Some(
+                        ColumnTypeMismatchSnafu {
+                            name,
+                            existing: existing.column_type,
+                            new: col.influx_type(),
+                        }
+                        .fail(),
+                    )
+                }
+                None => {
+                    // The column does not exist in the cache, add it to the column
+                    // batch to be bulk inserted later.
+                    Some(Ok(ColumnUpsertRequest {
+                        name: name.as_str(),
+                        column_type: ColumnType::from(col.influx_type()),
+                    }))
+                }
             }
-            None => {
-                // The column does not exist in the cache, add it to the column
-                // batch to be bulk inserted later.
-                column_batch.push(ColumnUpsertRequest {
-                    name: name.as_str(),
-                    table_id: table.id,
-                    column_type: ColumnType::from(col.influx_type()),
-                });
-            }
-        };
-    }
+        })
+        .collect::<Result<Vec<_>>>()?;
 
     if !column_batch.is_empty() {
         repos
             .columns()
-            .create_or_get_many(&column_batch)
+            .create_or_get_many_unchecked(table.id, &column_batch)
             .await?
             .into_iter()
             .for_each(|c| table.to_mut().add_column(&c));
@@ -270,6 +279,7 @@ mod tests {
                         namespace.id,
                         namespace.topic_id,
                         namespace.query_pool_id,
+                        namespace.max_columns_per_table,
                     );
 
                     // Apply all the lp literals as individual writes, feeding

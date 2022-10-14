@@ -1,5 +1,6 @@
 use datafusion::error::Result as DataFusionResult;
-use datafusion::logical_plan::{lit, Expr, ExprRewritable, ExprRewriter};
+use datafusion::logical_expr::expr_rewriter::{ExprRewritable, ExprRewriter};
+use datafusion::prelude::{lit, Expr};
 
 use crate::ValueExpr;
 
@@ -38,7 +39,7 @@ mod tests {
     use super::*;
     use crate::rpc_predicate::VALUE_COLUMN_NAME;
 
-    use datafusion::logical_plan::col;
+    use datafusion::prelude::col;
 
     #[test]
     fn test_field_value_rewriter() {

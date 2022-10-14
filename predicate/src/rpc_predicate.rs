@@ -6,13 +6,13 @@ mod value_rewrite;
 
 use crate::Predicate;
 
+use datafusion::common::{ExprSchema, ToDFSchema};
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::ExecutionProps;
-use datafusion::logical_expr::lit;
-use datafusion::logical_plan::{
-    Column, Expr, ExprRewritable, ExprSchema, ExprSchemable, SimplifyInfo, ToDFSchema,
-};
-use datafusion::optimizer::expr_simplifier::ExprSimplifier;
+use datafusion::logical_expr::expr_rewriter::ExprRewritable;
+use datafusion::logical_expr::ExprSchemable;
+use datafusion::optimizer::expr_simplifier::{ExprSimplifier, SimplifyInfo};
+use datafusion::prelude::{lit, Column, Expr};
 use observability_deps::tracing::{debug, trace};
 use schema::Schema;
 use std::collections::BTreeSet;
@@ -324,7 +324,7 @@ mod tests {
     use super::*;
     use arrow::datatypes::DataType;
     use datafusion::{
-        logical_plan::{col, lit},
+        prelude::{col, lit},
         scalar::ScalarValue,
     };
     use datafusion_util::lit_dict;

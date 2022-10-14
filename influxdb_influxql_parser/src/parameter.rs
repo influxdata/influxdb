@@ -9,7 +9,7 @@
 
 use crate::internal::ParseResult;
 use crate::string::double_quoted_string;
-use crate::write_quoted_string;
+use crate::{impl_tuple_clause, write_quoted_string};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{alphanumeric1, char};
@@ -26,13 +26,9 @@ fn unquoted_parameter(i: &str) -> ParseResult<&str, &str> {
 
 /// A type that represents an InfluxQL bind parameter.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct BindParameter(pub String);
+pub struct BindParameter(pub(crate) String);
 
-impl From<String> for BindParameter {
-    fn from(s: String) -> Self {
-        Self(s)
-    }
-}
+impl_tuple_clause!(BindParameter, String);
 
 impl From<&str> for BindParameter {
     fn from(s: &str) -> Self {
@@ -49,7 +45,7 @@ impl Display for BindParameter {
 }
 
 /// Parses an InfluxQL [BindParameter].
-pub fn parameter(i: &str) -> ParseResult<&str, BindParameter> {
+pub(crate) fn parameter(i: &str) -> ParseResult<&str, BindParameter> {
     // See: https://github.com/influxdata/influxql/blob/df51a45762be9c1b578f01718fa92d286a843fe9/scanner.go#L358-L362
     preceded(
         char('$'),

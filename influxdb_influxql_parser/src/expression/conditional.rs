@@ -13,19 +13,31 @@ use nom::sequence::{delimited, preceded, tuple};
 use std::fmt;
 use std::fmt::{Display, Formatter, Write};
 
+/// Represents on of the conditional operators supported by [`ConditionalExpression::Binary`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConditionalOperator {
-    Eq,         // =
-    NotEq,      // !=
-    EqRegex,    // =~
-    NotEqRegex, // !~
-    Lt,         // <
-    LtEq,       // <=
-    Gt,         // >
-    GtEq,       // >=
-    In,         // IN
-    And,        // AND
-    Or,         // OR
+    /// Represents the `=` operator.
+    Eq,
+    /// Represents the `!=` operator.
+    NotEq,
+    /// Represents the `=~` (regular expression equals) operator.
+    EqRegex,
+    /// Represents the `!~` (regular expression not equals) operator.
+    NotEqRegex,
+    /// Represents the `<` operator.
+    Lt,
+    /// Represents the `<=` operator.
+    LtEq,
+    /// Represents the `>` operator.
+    Gt,
+    /// Represents the `>=` operator.
+    GtEq,
+    /// Represents the `IN` operator.
+    In,
+    /// Represents the `AND` operator.
+    And,
+    /// Represents the `OR` operator.
+    Or,
 }
 
 impl Display for ConditionalOperator {
@@ -46,6 +58,7 @@ impl Display for ConditionalOperator {
     }
 }
 
+/// Represents a conditional expression.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConditionalExpression {
     /// Represents an arithmetic expression.
@@ -53,8 +66,11 @@ pub enum ConditionalExpression {
 
     /// Binary operations, such as `foo = 'bar'` or `true AND false`.
     Binary {
+        /// Represents the left-hand side of the conditional binary expression.
         lhs: Box<ConditionalExpression>,
+        /// Represents the operator to apply to the conditional binary expression.
         op: ConditionalOperator,
+        /// Represents the right-hand side of the conditional binary expression.
         rhs: Box<ConditionalExpression>,
     },
 
@@ -162,7 +178,7 @@ fn disjunction(i: &str) -> ParseResult<&str, ConditionalExpression> {
 }
 
 /// Parse an InfluxQL conditional expression.
-pub fn conditional_expression(i: &str) -> ParseResult<&str, ConditionalExpression> {
+pub(crate) fn conditional_expression(i: &str) -> ParseResult<&str, ConditionalExpression> {
     disjunction(i)
 }
 
@@ -181,7 +197,7 @@ fn reduce_expr(
 }
 
 /// Returns true if `expr` is a valid [`Expr::Call`] expression for the `now` function.
-pub fn is_valid_now_call(expr: &Expr) -> bool {
+pub(crate) fn is_valid_now_call(expr: &Expr) -> bool {
     match expr {
         Expr::Call { name, args } => name.to_lowercase() == "now" && args.is_empty(),
         _ => false,

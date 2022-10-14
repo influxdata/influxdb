@@ -456,6 +456,7 @@ mod tests {
             ingester.namespace.id,
             ingester.topic.id,
             ingester.query_pool.id,
+            100,
         );
         let mut txn = ingester.catalog.start_transaction().await.unwrap();
         let ingest_ts1 = Time::from_timestamp_millis(42);
@@ -708,7 +709,12 @@ mod tests {
         let write_buffer_state =
             MockBufferSharedState::empty_with_n_shards(NonZeroU32::try_from(1).unwrap());
 
-        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id);
+        let schema = NamespaceSchema::new(
+            namespace.id,
+            topic.id,
+            query_pool.id,
+            namespace.max_columns_per_table,
+        );
         for write_operation in write_operations {
             validate_or_insert_schema(write_operation.tables(), &schema, txn.deref_mut())
                 .await

@@ -7,7 +7,10 @@ use data_types::ShardId;
 use dml::DmlOperation;
 
 use super::DmlSink;
-use crate::{data::IngesterData, lifecycle::LifecycleHandleImpl};
+use crate::{
+    data::{DmlApplyAction, IngesterData},
+    lifecycle::LifecycleHandleImpl,
+};
 
 /// Provides a [`DmlSink`] implementation for a [`IngesterData`] instance.
 #[derive(Debug)]
@@ -35,7 +38,7 @@ impl IngestSinkAdaptor {
 
 #[async_trait]
 impl DmlSink for IngestSinkAdaptor {
-    async fn apply(&self, op: DmlOperation) -> Result<bool, crate::data::Error> {
+    async fn apply(&self, op: DmlOperation) -> Result<DmlApplyAction, crate::data::Error> {
         self.ingest_data
             .buffer_operation(self.shard_id, op, &self.lifecycle_handle)
             .await

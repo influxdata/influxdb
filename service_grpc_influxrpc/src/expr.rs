@@ -10,13 +10,8 @@ use std::string::FromUtf8Error;
 use std::{convert::TryFrom, fmt};
 
 use datafusion::error::DataFusionError;
-use datafusion::logical_expr::binary_expr;
-use datafusion::logical_plan::when;
-use datafusion::{
-    logical_plan::{Expr, Operator},
-    prelude::*,
-    scalar::ScalarValue,
-};
+use datafusion::logical_expr::{binary_expr, Operator};
+use datafusion::{prelude::*, scalar::ScalarValue};
 use generated_types::{
     aggregate::AggregateType as RPCAggregateType, node::Comparison as RPCComparison,
     node::Logical as RPCLogical, node::Value as RPCValue, read_group_request::Group as RPCGroup,

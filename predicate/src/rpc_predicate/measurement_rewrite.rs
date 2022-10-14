@@ -1,5 +1,6 @@
 use datafusion::error::Result as DataFusionResult;
-use datafusion::logical_plan::{lit, Column, Expr, ExprRewritable, ExprRewriter};
+use datafusion::logical_expr::expr_rewriter::{ExprRewritable, ExprRewriter};
+use datafusion::prelude::{lit, Column, Expr};
 
 use super::MEASUREMENT_COLUMN_NAME;
 

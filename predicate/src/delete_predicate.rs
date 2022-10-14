@@ -1,7 +1,8 @@
 use crate::delete_expr::{df_to_expr, expr_to_df};
 use chrono::DateTime;
 use data_types::{DeleteExpr, DeletePredicate, TimestampRange, Tombstone};
-use datafusion::logical_plan::{lit, Column, Expr, Operator};
+use datafusion::logical_expr::Operator;
+use datafusion::prelude::{lit, Column, Expr};
 use snafu::Snafu;
 use sqlparser::{
     ast::{BinaryOperator, Expr as SqlParserExpr, Ident, Statement, Value},

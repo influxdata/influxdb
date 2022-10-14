@@ -172,7 +172,7 @@ impl IngesterData {
         shard_id: ShardId,
         dml_operation: DmlOperation,
         lifecycle_handle: &dyn LifecycleHandle,
-    ) -> Result<bool> {
+    ) -> Result<DmlApplyAction> {
         let shard_data = self
             .shards
             .get(&shard_id)
@@ -541,6 +541,16 @@ impl Persister for IngesterData {
     }
 }
 
+/// A successful DML apply operation can perform one of these actions
+#[derive(Clone, Copy, Debug)]
+pub enum DmlApplyAction {
+    /// The DML operation was successful; bool indicates if ingestion should be paused
+    Applied(bool),
+
+    /// The DML operation was skipped because it has already been applied
+    Skipped,
+}
+
 #[cfg(test)]
 mod tests {
     use std::{ops::DerefMut, sync::Arc, time::Duration};
@@ -599,7 +609,7 @@ mod tests {
             Arc::clone(&metrics),
         ));
 
-        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id);
+        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
         let ignored_ts = Time::from_timestamp_millis(42);
 
@@ -634,7 +644,7 @@ mod tests {
             metrics,
             Arc::new(SystemProvider::new()),
         );
-        let should_pause = data
+        let action = data
             .buffer_operation(
                 shard1.id,
                 DmlOperation::Write(w1.clone()),
@@ -642,12 +652,12 @@ mod tests {
             )
             .await
             .unwrap();
-        assert!(!should_pause);
-        let should_pause = data
+        assert_matches!(action, DmlApplyAction::Applied(false));
+        let action = data
             .buffer_operation(shard1.id, DmlOperation::Write(w1), &manager.handle())
             .await
             .unwrap();
-        assert!(should_pause);
+        assert_matches!(action, DmlApplyAction::Applied(true));
     }
 
     #[tokio::test]
@@ -681,7 +691,7 @@ mod tests {
             Arc::clone(&metrics),
         ));
 
-        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id);
+        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
         let w1 = DmlWrite::new(
             "foo",
@@ -715,13 +725,13 @@ mod tests {
             Arc::new(SystemProvider::new()),
         );
 
-        let should_pause = data
+        let action = data
             .buffer_operation(shard1.id, DmlOperation::Write(w1), &manager.handle())
             .await
             .unwrap();
         // Exceeding the row count doesn't pause ingest (like other partition
         // limits)
-        assert!(!should_pause);
+        assert_matches!(action, DmlApplyAction::Applied(false));
 
         let (table_id, partition_id) = {
             let sd = data.shards.get(&shard1.id).unwrap();
@@ -788,7 +798,7 @@ mod tests {
             Arc::clone(&metrics),
         ));
 
-        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id);
+        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
         let ignored_ts = Time::from_timestamp_millis(42);
 
@@ -1058,7 +1068,7 @@ mod tests {
             Arc::clone(&metrics),
         ));
 
-        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id);
+        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
         let ignored_ts = Time::from_timestamp_millis(42);
 
@@ -1174,7 +1184,7 @@ mod tests {
             .await
             .unwrap();
 
-        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id);
+        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
         let ignored_ts = Time::from_timestamp_millis(42);
 
@@ -1291,7 +1301,7 @@ mod tests {
         // w1 should be ignored because the per-partition replay offset is set
         // to 1 already, so it shouldn't be buffered and the buffer should
         // remain empty.
-        let should_pause = data
+        let action = data
             .buffer_operation(DmlOperation::Write(w1), &catalog, &manager.handle())
             .await
             .unwrap();
@@ -1305,7 +1315,7 @@ mod tests {
             );
             assert!(p.data.buffer.is_none());
         }
-        assert!(!should_pause);
+        assert_matches!(action, DmlApplyAction::Skipped);
 
         // w2 should be in the buffer
         data.buffer_operation(DmlOperation::Write(w2), &catalog, &manager.handle())
@@ -1357,7 +1367,7 @@ mod tests {
             Arc::clone(&metrics),
         ));
 
-        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id);
+        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
         let ignored_ts = Time::from_timestamp_millis(42);
 

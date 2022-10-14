@@ -10,7 +10,6 @@ use datafusion::{
     error::{DataFusionError, Result as DataFusionResult},
     execution::context::SessionState,
     logical_expr::{TableProviderFilterPushDown, TableType},
-    logical_plan::Expr,
     physical_plan::{
         expressions::{col as physical_col, PhysicalSortExpr},
         filter::FilterExec,
@@ -19,6 +18,7 @@ use datafusion::{
         union::UnionExec,
         ExecutionPlan,
     },
+    prelude::Expr,
 };
 use observability_deps::tracing::{debug, trace, warn};
 use predicate::Predicate;

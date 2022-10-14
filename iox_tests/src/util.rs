@@ -265,6 +265,16 @@ impl TestNamespace {
             .await
             .unwrap()
     }
+
+    /// Set the number of columns per table allowed in this namespace.
+    pub async fn update_column_limit(&self, new_max: i32) {
+        let mut repos = self.catalog.catalog.repositories().await;
+        repos
+            .namespaces()
+            .update_column_limit(&self.namespace.name, new_max)
+            .await
+            .unwrap();
+    }
 }
 
 /// A test shard with its namespace in the catalog

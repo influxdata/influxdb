@@ -11,6 +11,7 @@ use nom::combinator::{map, opt, value};
 use nom::multi::separated_list1;
 use nom::sequence::{pair, preceded, terminated};
 use std::fmt::{Display, Formatter};
+use std::ops::{Deref, DerefMut};
 
 /// Represents a measurement name as either an identifier or a regular expression.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -44,8 +45,13 @@ impl Display for MeasurementName {
 /// Represents a fully-qualified, 3-part measurement name.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QualifiedMeasurementName {
+    /// An optional database name.
     pub database: Option<Identifier>,
+
+    /// An optional retention policy.
     pub retention_policy: Option<Identifier>,
+
+    /// The measurement name.
     pub name: MeasurementName,
 }
 
@@ -87,7 +93,7 @@ impl Display for QualifiedMeasurementName {
 /// policy_name      ::= identifier
 /// measurement_name ::= identifier | regex_lit
 /// ```
-pub fn qualified_measurement_name(i: &str) -> ParseResult<&str, QualifiedMeasurementName> {
+pub(crate) fn qualified_measurement_name(i: &str) -> ParseResult<&str, QualifiedMeasurementName> {
     let (remaining_input, (opt_db_rp, name)) = pair(
         opt(alt((
             // database "." retention_policy "."
@@ -122,47 +128,151 @@ pub fn qualified_measurement_name(i: &str) -> ParseResult<&str, QualifiedMeasure
     ))
 }
 
+/// Implements common behaviour for u64 tuple-struct types
+#[macro_export]
+macro_rules! impl_tuple_clause {
+    ($NAME:ident, $FOR:ty) => {
+        impl $NAME {
+            /// Create a new instance with the specified value.
+            pub fn new(value: $FOR) -> Self {
+                Self(value)
+            }
+        }
+
+        impl std::ops::DerefMut for $NAME {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                &mut self.0
+            }
+        }
+
+        impl std::ops::Deref for $NAME {
+            type Target = $FOR;
+
+            fn deref(&self) -> &Self::Target {
+                &self.0
+            }
+        }
+
+        impl From<$FOR> for $NAME {
+            fn from(value: $FOR) -> Self {
+                Self(value)
+            }
+        }
+    };
+}
+
+/// Represents the value for a `LIMIT` clause.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LimitClause(pub(crate) u64);
+
+impl_tuple_clause!(LimitClause, u64);
+
+impl Display for LimitClause {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "LIMIT {}", self.0)
+    }
+}
+
 /// Parse a `LIMIT <n>` clause.
-pub fn limit_clause(i: &str) -> ParseResult<&str, u64> {
+pub(crate) fn limit_clause(i: &str) -> ParseResult<&str, LimitClause> {
     preceded(
         pair(tag_no_case("LIMIT"), multispace1),
         expect(
             "invalid LIMIT clause, expected unsigned integer",
-            unsigned_integer,
+            map(unsigned_integer, LimitClause),
         ),
     )(i)
 }
 
+/// Represents the value for a `OFFSET` clause.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OffsetClause(pub(crate) u64);
+
+impl_tuple_clause!(OffsetClause, u64);
+
+impl Display for OffsetClause {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "OFFSET {}", self.0)
+    }
+}
+
 /// Parse an `OFFSET <n>` clause.
-pub fn offset_clause(i: &str) -> ParseResult<&str, u64> {
+pub(crate) fn offset_clause(i: &str) -> ParseResult<&str, OffsetClause> {
     preceded(
         pair(tag_no_case("OFFSET"), multispace1),
         expect(
             "invalid OFFSET clause, expected unsigned integer",
-            unsigned_integer,
+            map(unsigned_integer, OffsetClause),
         ),
     )(i)
 }
 
 /// Parse a terminator that ends a SQL statement.
-pub fn statement_terminator(i: &str) -> ParseResult<&str, ()> {
+pub(crate) fn statement_terminator(i: &str) -> ParseResult<&str, ()> {
     value((), char(';'))(i)
 }
 
+/// Represents the `WHERE` clause of a statement.
+#[derive(Debug, Clone, PartialEq)]
+pub struct WhereClause(pub(crate) ConditionalExpression);
+
+impl WhereClause {
+    /// Create an instance of a `WhereClause` using `expr`
+    pub fn new(expr: ConditionalExpression) -> Self {
+        Self(expr)
+    }
+}
+
+impl DerefMut for WhereClause {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl Deref for WhereClause {
+    type Target = ConditionalExpression;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Display for WhereClause {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "WHERE {}", self.0)
+    }
+}
+
 /// Parse a `WHERE` clause.
-pub fn where_clause(i: &str) -> ParseResult<&str, ConditionalExpression> {
+pub(crate) fn where_clause(i: &str) -> ParseResult<&str, WhereClause> {
     preceded(
         pair(tag_no_case("WHERE"), multispace1),
-        conditional_expression,
+        map(conditional_expression, WhereClause),
     )(i)
 }
 
 /// Represents an InfluxQL `ORDER BY` clause.
 #[derive(Default, Debug, Clone, Copy, Eq, PartialEq)]
 pub enum OrderByClause {
+    /// Signals the `ORDER BY` is in ascending order.
     #[default]
     Ascending,
+
+    /// Signals the `ORDER BY` is in descending order.
     Descending,
+}
+
+impl Display for OrderByClause {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ORDER BY TIME {}",
+            match self {
+                Self::Ascending => "ASC",
+                Self::Descending => "DESC",
+            }
+        )
+    }
 }
 
 /// Parse an InfluxQL `ORDER BY` clause.
@@ -187,7 +297,7 @@ pub enum OrderByClause {
 /// ```
 ///
 /// [EBNF]: https://www.w3.org/TR/2010/REC-xquery-20101214/#EBNFNotation
-pub fn order_by_clause(i: &str) -> ParseResult<&str, OrderByClause> {
+pub(crate) fn order_by_clause(i: &str) -> ParseResult<&str, OrderByClause> {
     let order = || {
         preceded(
             multispace1,
@@ -221,29 +331,18 @@ pub fn order_by_clause(i: &str) -> ParseResult<&str, OrderByClause> {
 
 /// Parser is a trait that allows a type to parse itself.
 pub trait Parser: Sized {
+    /// Parse this type from the string `i`.
     fn parse(i: &str) -> ParseResult<&str, Self>;
 }
 
 /// `OneOrMore` is a container for representing a minimum of one `T`.
-///
-/// `OneOrMore` provides a default implementation of [`fmt::Display`],
-/// which displays the contents separated by commas.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct OneOrMore<T: Display + Parser> {
-    contents: Vec<T>,
+pub struct OneOrMore<T> {
+    pub(crate) contents: Vec<T>,
 }
 
-impl<T: Display + Parser> Display for OneOrMore<T> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(self.first(), f)?;
-        for arg in self.rest() {
-            write!(f, ", {}", arg)?;
-        }
-        Ok(())
-    }
-}
-
-impl<T: Display + Parser> OneOrMore<T> {
+#[allow(clippy::len_without_is_empty)]
+impl<T> OneOrMore<T> {
     /// Construct a new `OneOrMore<T>` with `contents`.
     ///
     /// **NOTE:** that `new` panics if contents is empty.
@@ -272,11 +371,11 @@ impl<T: Display + Parser> OneOrMore<T> {
     }
 }
 
-impl<T: Display + Parser> OneOrMore<T> {
+impl<T: Parser> OneOrMore<T> {
     /// Parse a list of one or more `T`, separated by commas.
     ///
     /// Returns an error using `msg` if `separated_list1` fails to parse any elements.
-    pub fn separated_list1<'a>(
+    pub(crate) fn separated_list1<'a>(
         msg: &'static str,
     ) -> impl FnMut(&'a str) -> ParseResult<&'a str, Self> {
         move |i: &str| {
@@ -303,7 +402,7 @@ mod tests {
     impl From<&str> for MeasurementName {
         /// Convert a `str` to [`MeasurementName::Name`].
         fn from(s: &str) -> Self {
-            Self::Name(Identifier(s.into()))
+            Self::Name(Identifier::new(s.into()))
         }
     }
 
@@ -408,15 +507,15 @@ mod tests {
     #[test]
     fn test_limit_clause() {
         let (_, got) = limit_clause("LIMIT 587").unwrap();
-        assert_eq!(got, 587);
+        assert_eq!(*got, 587);
 
         // case insensitive
         let (_, got) = limit_clause("limit 587").unwrap();
-        assert_eq!(got, 587);
+        assert_eq!(*got, 587);
 
         // extra spaces between tokens
         let (_, got) = limit_clause("LIMIT     123").unwrap();
-        assert_eq!(got, 123);
+        assert_eq!(*got, 123);
 
         // not digits
         assert_expect_error!(
@@ -440,15 +539,15 @@ mod tests {
     #[test]
     fn test_offset_clause() {
         let (_, got) = offset_clause("OFFSET 587").unwrap();
-        assert_eq!(got, 587);
+        assert_eq!(*got, 587);
 
         // case insensitive
         let (_, got) = offset_clause("offset 587").unwrap();
-        assert_eq!(got, 587);
+        assert_eq!(*got, 587);
 
         // extra spaces between tokens
         let (_, got) = offset_clause("OFFSET     123").unwrap();
-        assert_eq!(got, 123);
+        assert_eq!(*got, 123);
 
         // not digits
         assert_expect_error!(
@@ -536,6 +635,16 @@ mod tests {
     }
 
     type OneOrMoreString = OneOrMore<String>;
+
+    impl Display for OneOrMoreString {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            Display::fmt(self.first(), f)?;
+            for arg in self.rest() {
+                write!(f, ", {}", arg)?;
+            }
+            Ok(())
+        }
+    }
 
     #[test]
     #[should_panic(expected = "OneOrMore requires elements")]

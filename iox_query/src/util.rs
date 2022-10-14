@@ -16,19 +16,18 @@ use arrow::{
 use data_types::TimestampMinMax;
 use datafusion::{
     self,
-    datasource::MemTable,
+    common::{DFSchema, ToDFSchema},
+    datasource::{provider_as_source, MemTable},
     error::{DataFusionError, Result as DatafusionResult},
     execution::context::ExecutionProps,
-    logical_plan::{
-        lit, provider_as_source, DFSchema, Expr, ExprRewriter, ExprSchemable, LogicalPlan,
-        LogicalPlanBuilder, ToDFSchema,
-    },
+    logical_expr::{expr_rewriter::ExprRewriter, ExprSchemable, LogicalPlan, LogicalPlanBuilder},
     optimizer::expr_simplifier::{ExprSimplifier, SimplifyContext},
     physical_expr::create_physical_expr,
     physical_plan::{
         expressions::{col as physical_col, PhysicalSortExpr},
         ExecutionPlan, PhysicalExpr,
     },
+    prelude::{lit, Expr},
     scalar::ScalarValue,
 };
 
@@ -278,7 +277,8 @@ pub fn compute_timenanosecond_min_max_for_one_record_batch(
 mod tests {
     use arrow::datatypes::DataType;
     use datafusion::{
-        logical_plan::{col, lit, ExprRewritable},
+        logical_expr::expr_rewriter::ExprRewritable,
+        prelude::{col, lit},
         scalar::ScalarValue,
     };
     use schema::builder::SchemaBuilder;

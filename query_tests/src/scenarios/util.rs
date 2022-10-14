@@ -14,7 +14,9 @@ use generated_types::{
 };
 use influxdb_iox_client::flight::{low_level::LowLevelMessage, Error as FlightError};
 use ingester::{
-    data::{partition::resolver::CatalogPartitionResolver, IngesterData, Persister},
+    data::{
+        partition::resolver::CatalogPartitionResolver, DmlApplyAction, IngesterData, Persister,
+    },
     lifecycle::mock_handle::MockLifecycleHandle,
     querier_handler::{prepare_data_to_querier, FlatIngesterQueryResponse, IngesterQueryResponse},
 };
@@ -721,12 +723,14 @@ impl MockIngester {
     async fn buffer_operation(&mut self, dml_operation: DmlOperation) {
         let lifecycle_handle = MockLifecycleHandle::default();
 
-        let should_pause = self
+        let action = self
             .ingester_data
             .buffer_operation(self.shard.shard.id, dml_operation, &lifecycle_handle)
             .await
             .unwrap();
-        assert!(!should_pause);
+        if let DmlApplyAction::Applied(should_pause) = action {
+            assert!(!should_pause);
+        }
     }
 
     /// Persists the given set of partitions.

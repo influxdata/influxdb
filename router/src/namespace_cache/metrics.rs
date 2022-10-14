@@ -194,6 +194,7 @@ mod tests {
             topic_id: TopicId::new(24),
             query_pool_id: QueryPoolId::new(1234),
             tables,
+            max_columns_per_table: 100,
         }
     }
 

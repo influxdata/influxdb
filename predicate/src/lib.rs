@@ -23,10 +23,10 @@ use arrow::{
 use data_types::{InfluxDbType, TableSummary, TimestampRange};
 use datafusion::{
     error::DataFusionError,
-    logical_expr::{binary_expr, utils::expr_to_columns},
-    logical_plan::{col, lit_timestamp_nano, Expr, Operator},
+    logical_expr::{binary_expr, utils::expr_to_columns, Operator},
     optimizer::utils::split_conjunction,
     physical_optimizer::pruning::{PruningPredicate, PruningStatistics},
+    prelude::{col, lit_timestamp_nano, Expr},
 };
 use datafusion_util::{make_range_expr, nullable_schema};
 use observability_deps::tracing::debug;
@@ -59,7 +59,7 @@ pub const EMPTY_PREDICATE: Predicate = Predicate {
 /// Example:
 /// ```
 /// use predicate::Predicate;
-/// use datafusion::logical_plan::{col, lit};
+/// use datafusion::prelude::{col, lit};
 ///
 /// let p = Predicate::new()
 ///    .with_range(1, 100)
@@ -301,10 +301,7 @@ struct SummaryWrapper<'a> {
 }
 
 impl<'a> PruningStatistics for SummaryWrapper<'a> {
-    fn min_values(
-        &self,
-        column: &datafusion::logical_plan::Column,
-    ) -> Option<arrow::array::ArrayRef> {
+    fn min_values(&self, column: &datafusion::prelude::Column) -> Option<arrow::array::ArrayRef> {
         let col = self.summary.column(&column.name)?;
         let stats = &col.stats;
 
@@ -327,10 +324,7 @@ impl<'a> PruningStatistics for SummaryWrapper<'a> {
         Some(array)
     }
 
-    fn max_values(
-        &self,
-        column: &datafusion::logical_plan::Column,
-    ) -> Option<arrow::array::ArrayRef> {
+    fn max_values(&self, column: &datafusion::prelude::Column) -> Option<arrow::array::ArrayRef> {
         let col = self.summary.column(&column.name)?;
         let stats = &col.stats;
 
@@ -358,10 +352,7 @@ impl<'a> PruningStatistics for SummaryWrapper<'a> {
         1
     }
 
-    fn null_counts(
-        &self,
-        column: &datafusion::logical_plan::Column,
-    ) -> Option<arrow::array::ArrayRef> {
+    fn null_counts(&self, column: &datafusion::prelude::Column) -> Option<arrow::array::ArrayRef> {
         let null_count = self.summary.column(&column.name)?.stats.null_count();
 
         Some(Arc::new(UInt64Array::from(vec![null_count])))
@@ -606,7 +597,7 @@ mod tests {
     use super::*;
     use arrow::datatypes::DataType as ArrowDataType;
     use data_types::{ColumnSummary, InfluxDbType, StatValues, MAX_NANO_TIME, MIN_NANO_TIME};
-    use datafusion::logical_plan::{col, lit};
+    use datafusion::prelude::{col, lit};
     use schema::builder::SchemaBuilder;
     use test_helpers::maybe_start_logging;
 

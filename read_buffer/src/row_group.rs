@@ -26,7 +26,7 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use datafusion::{
-    logical_plan::Expr as DfExpr, logical_plan::Operator as DFOperator,
+    logical_expr::Operator as DFOperator, prelude::Expr as DfExpr,
     scalar::ScalarValue as DFScalarValue,
 };
 use std::num::NonZeroU64;
@@ -4033,7 +4033,7 @@ west,host-c,pro,10,6
         assert_eq!(result, to_map(vec![]));
     }
 
-    use datafusion::logical_plan::{col, lit, lit_timestamp_nano};
+    use datafusion::prelude::{col, lit, lit_timestamp_nano};
     use std::convert::TryFrom;
 
     #[test]

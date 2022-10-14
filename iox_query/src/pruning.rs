@@ -9,8 +9,8 @@ use arrow::{
 };
 use data_types::{StatValues, Statistics, TableSummary};
 use datafusion::{
-    logical_plan::Column,
     physical_optimizer::pruning::{PruningPredicate, PruningStatistics},
+    prelude::Column,
 };
 use observability_deps::tracing::{debug, trace, warn};
 use predicate::Predicate;
@@ -250,7 +250,7 @@ fn get_aggregate<T>(stats: StatValues<T>, aggregate: Aggregate) -> Option<T> {
 mod test {
     use std::sync::Arc;
 
-    use datafusion::logical_plan::{col, lit};
+    use datafusion::prelude::{col, lit};
     use datafusion_util::lit_dict;
     use predicate::Predicate;
     use schema::merge::SchemaMerger;

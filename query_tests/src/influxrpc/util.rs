@@ -1,5 +1,5 @@
 use datafusion::error::DataFusionError;
-use datafusion::logical_plan::{col, lit, when, Expr};
+use datafusion::prelude::{col, lit, when, Expr};
 use iox_query::exec::IOxSessionContext;
 use iox_query::plan::seriesset::SeriesSetPlans;
 

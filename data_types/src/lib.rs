@@ -25,7 +25,7 @@ use snafu::{ResultExt, Snafu};
 use sqlx::postgres::PgHasArrayType;
 use std::{
     borrow::{Borrow, Cow},
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     convert::TryFrom,
     fmt::{Display, Write},
     mem::{self, size_of_val},
@@ -464,16 +464,24 @@ pub struct NamespaceSchema {
     pub query_pool_id: QueryPoolId,
     /// the tables in the namespace by name
     pub tables: BTreeMap<String, TableSchema>,
+    /// the number of columns per table this namespace allows
+    pub max_columns_per_table: usize,
 }
 
 impl NamespaceSchema {
     /// Create a new `NamespaceSchema`
-    pub fn new(id: NamespaceId, topic_id: TopicId, query_pool_id: QueryPoolId) -> Self {
+    pub fn new(
+        id: NamespaceId,
+        topic_id: TopicId,
+        query_pool_id: QueryPoolId,
+        max_columns_per_table: i32,
+    ) -> Self {
         Self {
             id,
             tables: BTreeMap::new(),
             topic_id,
             query_pool_id,
+            max_columns_per_table: max_columns_per_table as usize,
         }
     }
 
@@ -546,6 +554,12 @@ impl TableSchema {
             .iter()
             .map(|(name, c)| (c.id, name.as_str()))
             .collect()
+    }
+
+    /// Return the set of column names for this table. Used in combination with a write operation's
+    /// column names to determine whether a write would exceed the max allowed columns.
+    pub fn column_names(&self) -> BTreeSet<&str> {
+        self.columns.keys().map(|name| name.as_str()).collect()
     }
 }
 
@@ -3367,12 +3381,14 @@ mod tests {
             topic_id: TopicId::new(2),
             query_pool_id: QueryPoolId::new(3),
             tables: BTreeMap::from([]),
+            max_columns_per_table: 4,
         };
         let schema2 = NamespaceSchema {
             id: NamespaceId::new(1),
             topic_id: TopicId::new(2),
             query_pool_id: QueryPoolId::new(3),
             tables: BTreeMap::from([(String::from("foo"), TableSchema::new(TableId::new(1)))]),
+            max_columns_per_table: 4,
         };
         assert!(schema1.size() < schema2.size());
     }
