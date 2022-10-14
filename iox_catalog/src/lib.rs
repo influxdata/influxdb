@@ -28,9 +28,9 @@ const SHARED_QUERY_POOL: &str = SHARED_TOPIC_NAME;
 const TIME_COLUMN: &str = "time";
 
 /// Default per-namespace table count service protection limit.
-const DEFAULT_MAX_TABLES: i32 = 1000;
+pub const DEFAULT_MAX_TABLES: i32 = 10_000;
 /// Default per-table column count service protection limit.
-const DEFAULT_MAX_COLUMNS_PER_TABLE: i32 = 200;
+pub const DEFAULT_MAX_COLUMNS_PER_TABLE: i32 = 200;
 
 /// A string value representing an infinite retention policy.
 pub const INFINITE_RETENTION_POLICY: &str = "inf";
