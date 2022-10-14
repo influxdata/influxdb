@@ -215,6 +215,9 @@ fn filter_parquet_files_inner(
             }
         } else if compaction_level_n == CompactionLevel::FileNonOverlapped
             && total_file_size_bytes as u64 > max_desired_file_size_bytes
+            // Don't limit to 0 files if the first L1 file is already over the limit, let it
+            // be added to the group anyway
+            && !level_n_to_return.is_empty()
         {
             // Only compact the level 1 files under the desired file size
             break;
@@ -1363,6 +1366,50 @@ mod tests {
             FILE_NUM_LIMIT,
             // Limit to only 1 of the 2 files based on file size
             FILE_SIZE_BYTES as u64 + 1,
+            &files_metric,
+            &bytes_metric,
+        );
+
+        assert!(
+            matches!(
+                &filter_result,
+                FilterResult::Proceed { files, budget_bytes: _ }
+                    if files.len() == 1
+                        && files
+                                .iter()
+                                .map(|f| f.id().get())
+                                .collect::<Vec<_>>() == [101]
+            ),
+            "Match failed, got: {filter_result:#?}"
+        );
+    }
+
+    #[test]
+    fn level_1_file_already_over_desired_size() {
+        let level_1 = vec![
+            ParquetFileBuilder::level_1()
+                .id(101)
+                .min_time(1)
+                .max_time(50)
+                .file_size_bytes(FILE_SIZE_BYTES)
+                .build(),
+            ParquetFileBuilder::level_1()
+                .id(102)
+                .min_time(199)
+                .max_time(201)
+                .file_size_bytes(FILE_SIZE_BYTES)
+                .build(),
+        ];
+
+        let (files_metric, bytes_metric) = metrics();
+        let filter_result = filter_parquet_files_inner(
+            level_1,
+            vec![],
+            // enough to not limit based on this criteria
+            (ESTIMATED_STREAM_BYTES * 4) + (FILE_SIZE_BYTES as u64 * 3 * 2) + 1,
+            FILE_NUM_LIMIT,
+            // Limit such that the first file is already over the limit
+            FILE_SIZE_BYTES as u64 - 1,
             &files_metric,
             &bytes_metric,
         );
