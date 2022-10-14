@@ -339,5 +339,5 @@ async fn test_schema_limit() {
             );
         }
     );
-    assert_eq!(err.as_status_code(), StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(err.as_status_code(), StatusCode::BAD_REQUEST);
 }
