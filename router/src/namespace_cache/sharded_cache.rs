@@ -60,6 +60,7 @@ mod tests {
             topic_id: TopicId::new(1),
             query_pool_id: QueryPoolId::new(1),
             tables: Default::default(),
+            max_columns_per_table: 7,
         }
     }
 

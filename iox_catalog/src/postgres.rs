@@ -939,31 +939,30 @@ WHERE table_id = $1;
         Ok(rec)
     }
 
-    async fn create_or_get_many(
+    async fn create_or_get_many_unchecked(
         &mut self,
+        table_id: TableId,
         columns: &[ColumnUpsertRequest<'_>],
     ) -> Result<Vec<Column>> {
         let mut v_name = Vec::new();
-        let mut v_table_id = Vec::new();
         let mut v_column_type = Vec::new();
         for c in columns {
             v_name.push(c.name.to_string());
-            v_table_id.push(c.table_id.get());
             v_column_type.push(c.column_type as i16);
         }
 
         let out = sqlx::query_as::<_, Column>(
             r#"
 INSERT INTO column_name ( name, table_id, column_type )
-SELECT name, table_id, column_type FROM UNNEST($1, $2, $3) as a(name, table_id, column_type)
+SELECT name, $1, column_type FROM UNNEST($2, $3) as a(name, column_type)
 ON CONFLICT ON CONSTRAINT column_name_unique
 DO UPDATE SET name = column_name.name
 RETURNING *;
             "#,
         )
-        .bind(&v_name)
-        .bind(&v_table_id)
-        .bind(&v_column_type)
+        .bind(&table_id) // $1
+        .bind(&v_name) // $2
+        .bind(&v_column_type) // $3
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| {
@@ -2622,7 +2621,7 @@ mod tests {
         assert_eq!(application_name, TEST_APPLICATION_NAME_NEW);
     }
 
-    macro_rules! test_column_create_or_get_many {
+    macro_rules! test_column_create_or_get_many_unchecked {
         (
             $name:ident,
             calls = {$([$($col_name:literal => $col_type:expr),+ $(,)?]),+},
@@ -2630,7 +2629,7 @@ mod tests {
         ) => {
             paste::paste! {
                 #[tokio::test]
-                async fn [<test_column_create_or_get_many_ $name>]() {
+                async fn [<test_column_create_or_get_many_unchecked_ $name>]() {
                     // If running an integration test on your laptop, this requires that you have
                     // Postgres running and that you've done the sqlx migrations. See the README in
                     // this crate for info to set it up.
@@ -2668,7 +2667,6 @@ mod tests {
                             $(
                                 ColumnUpsertRequest {
                                     name: $col_name,
-                                    table_id,
                                     column_type: $col_type,
                                 },
                             )+
@@ -2677,7 +2675,7 @@ mod tests {
                             .repositories()
                             .await
                             .columns()
-                            .create_or_get_many(&insert)
+                            .create_or_get_many_unchecked(table_id, &insert)
                             .await;
 
                         // The returned columns MUST always match the requested
@@ -2686,13 +2684,13 @@ mod tests {
                             assert_eq!(insert.len(), got.len());
                             insert.iter().zip(got).for_each(|(req, got)| {
                                 assert_eq!(req.name, got.name);
-                                assert_eq!(req.table_id, got.table_id);
+                                assert_eq!(table_id, got.table_id);
                                 assert_eq!(
                                     req.column_type,
                                     ColumnType::try_from(got.column_type).expect("invalid column type")
                                 );
                             });
-                            assert_metric_hit(&metrics, "column_create_or_get_many");
+                            assert_metric_hit(&metrics, "column_create_or_get_many_unchecked");
                         }
                     )+
 
@@ -2704,7 +2702,7 @@ mod tests {
 
     // Issue a few calls to create_or_get_many that contain distinct columns and
     // covers the full set of column types.
-    test_column_create_or_get_many!(
+    test_column_create_or_get_many_unchecked!(
         insert,
         calls = {
             [
@@ -2726,7 +2724,7 @@ mod tests {
 
     // Issue two calls with overlapping columns - request should succeed (upsert
     // semantics).
-    test_column_create_or_get_many!(
+    test_column_create_or_get_many_unchecked!(
         partial_upsert,
         calls = {
             [
@@ -2750,7 +2748,7 @@ mod tests {
     );
 
     // Issue two calls with the same columns and types.
-    test_column_create_or_get_many!(
+    test_column_create_or_get_many_unchecked!(
         full_upsert,
         calls = {
             [
@@ -2771,7 +2769,7 @@ mod tests {
 
     // Issue two calls with overlapping columns with conflicting types and
     // observe a correctly populated ColumnTypeMismatch error.
-    test_column_create_or_get_many!(
+    test_column_create_or_get_many_unchecked!(
         partial_type_conflict,
         calls = {
             [
@@ -2802,7 +2800,7 @@ mod tests {
 
     // Issue one call containing a column specified twice, with differing types
     // and observe an error different from the above test case.
-    test_column_create_or_get_many!(
+    test_column_create_or_get_many_unchecked!(
         intra_request_type_conflict,
         calls = {
             [

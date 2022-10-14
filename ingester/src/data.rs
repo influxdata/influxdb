@@ -599,7 +599,7 @@ mod tests {
             Arc::clone(&metrics),
         ));
 
-        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id);
+        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
         let ignored_ts = Time::from_timestamp_millis(42);
 
@@ -681,7 +681,7 @@ mod tests {
             Arc::clone(&metrics),
         ));
 
-        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id);
+        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
         let w1 = DmlWrite::new(
             "foo",
@@ -788,7 +788,7 @@ mod tests {
             Arc::clone(&metrics),
         ));
 
-        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id);
+        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
         let ignored_ts = Time::from_timestamp_millis(42);
 
@@ -1058,7 +1058,7 @@ mod tests {
             Arc::clone(&metrics),
         ));
 
-        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id);
+        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
         let ignored_ts = Time::from_timestamp_millis(42);
 
@@ -1174,7 +1174,7 @@ mod tests {
             .await
             .unwrap();
 
-        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id);
+        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
         let ignored_ts = Time::from_timestamp_millis(42);
 
@@ -1357,7 +1357,7 @@ mod tests {
             Arc::clone(&metrics),
         ));
 
-        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id);
+        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
         let ignored_ts = Time::from_timestamp_millis(42);
 

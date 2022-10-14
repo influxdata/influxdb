@@ -220,7 +220,6 @@ where
                     // column doesn't exist; add it
                     column_batch.push(ColumnUpsertRequest {
                         name: tag.name.as_str(),
-                        table_id: table.id,
                         column_type: ColumnType::Tag,
                     });
                 }
@@ -257,7 +256,6 @@ where
                     // column doesn't exist; add it
                     column_batch.push(ColumnUpsertRequest {
                         name: field.name.as_str(),
-                        table_id: table.id,
                         column_type: ColumnType::from(influx_column_type),
                     });
                 }
@@ -270,7 +268,10 @@ where
             // that with short-lived loop variables.
             // since this is a CLI tool rather than something called a lot on the write path, i
             // figure it's okay.
-            repos.columns().create_or_get_many(&column_batch).await?;
+            repos
+                .columns()
+                .create_or_get_many_unchecked(table.id, &column_batch)
+                .await?;
         }
         // create a partition for every day in the date range.
         // N.B. this will need updating if we someday support partitioning by inputs other than

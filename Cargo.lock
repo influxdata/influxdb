@@ -4447,6 +4447,7 @@ dependencies = [
  "hashbrown",
  "hyper",
  "iox_catalog",
+ "iox_tests",
  "iox_time",
  "metric",
  "mutable_batch",

@@ -1,7 +1,7 @@
 use super::DmlHandler;
 use crate::namespace_cache::{metrics::InstrumentedCache, MemoryNamespaceCache, NamespaceCache};
 use async_trait::async_trait;
-use data_types::{DatabaseName, DeletePredicate};
+use data_types::{DatabaseName, DeletePredicate, NamespaceSchema};
 use hashbrown::HashMap;
 use iox_catalog::{
     interface::{get_schema_by_name, Catalog, Error as CatalogError},
@@ -23,7 +23,7 @@ pub enum SchemaError {
 
     /// The user has hit their column/table limit.
     #[error("service limit reached: {0}")]
-    ServiceLimit(iox_catalog::interface::Error),
+    ServiceLimit(Box<dyn std::error::Error + Send + Sync + 'static>),
 
     /// The request schema conflicts with the existing namespace schema.
     #[error("schema conflict: {0}")]
@@ -66,6 +66,22 @@ pub enum SchemaError {
 /// requests. This overwriting is scoped to the namespace, and is expected to be
 /// relatively rare - it results in additional requests being made to the
 /// catalog until the cached schema converges to match the catalog schema.
+///
+/// Note that the namespace-wide limit of the number of columns allowed per table
+/// is also cached, which has two implications:
+///
+/// 1. If the namespace's column limit is updated in the catalog, the new limit
+///    will not be enforced until the whole namespace is recached, likely only
+///    on startup. In other words, updating the namespace's column limit requires
+///    both a catalog update and service restart.
+/// 2. There's a race condition that can result in a table ending up with more
+///    columns than the namespace limit should allow. When multiple concurrent
+///    writes come in to different service instances that each have their own
+///    cache, and each of those writes add a disjoint set of new columns, the
+///    requests will all succeed because when considered separately, they do
+///    not exceed the number of columns in the cache. Once all the writes have
+///    completed, the total set of columns in the table will be some multiple
+///    of the limit.
 ///
 /// # Correctness
 ///
@@ -178,6 +194,12 @@ where
             }
         };
 
+        validate_column_limits(&batches, &schema).map_err(|e| {
+            warn!(%namespace, error=%e, "service protection limit reached");
+            self.service_limit_hit.inc(1);
+            SchemaError::ServiceLimit(Box::new(e))
+        })?;
+
         let maybe_new_schema = validate_or_insert_schema(
             batches.iter().map(|(k, v)| (k.as_str(), v)),
             &schema,
@@ -208,7 +230,7 @@ where
                 | CatalogError::TableCreateLimitError { .. } => {
                     warn!(%namespace, error=%e, "service protection limit reached");
                     self.service_limit_hit.inc(1);
-                    SchemaError::ServiceLimit(e.into_err())
+                    SchemaError::ServiceLimit(Box::new(e.into_err()))
                 }
                 _ => {
                     error!(%namespace, error=%e, "schema validation failed");
@@ -253,16 +275,220 @@ where
     }
 }
 
+#[derive(Debug, Error)]
+#[error(
+    "couldn't create columns in table `{table_name}`; table contains \
+     {existing_column_count} existing columns, applying this write would result \
+     in {merged_column_count} columns, limit is {max_columns_per_table}"
+)]
+struct OverColumnLimit {
+    table_name: String,
+    // Number of columns already in the table.
+    existing_column_count: usize,
+    // Number of resultant columns after merging the write with existing columns.
+    merged_column_count: usize,
+    // The configured limit.
+    max_columns_per_table: usize,
+}
+
+fn validate_column_limits(
+    batches: &HashMap<String, MutableBatch>,
+    schema: &NamespaceSchema,
+) -> Result<(), OverColumnLimit> {
+    for (table_name, batch) in batches {
+        let mut existing_columns = schema
+            .tables
+            .get(table_name)
+            .map(|t| t.column_names())
+            .unwrap_or_default();
+        let existing_column_count = existing_columns.len();
+
+        let merged_column_count = {
+            existing_columns.append(&mut batch.column_names());
+            existing_columns.len()
+        };
+
+        // If the table is currently over the column limit but this write only includes existing
+        // columns and doesn't exceed the limit more, this is allowed.
+        let columns_were_added_in_this_batch = merged_column_count > existing_column_count;
+        let column_limit_exceeded = merged_column_count > schema.max_columns_per_table;
+
+        if columns_were_added_in_this_batch && column_limit_exceeded {
+            return Err(OverColumnLimit {
+                table_name: table_name.into(),
+                merged_column_count,
+                existing_column_count,
+                max_columns_per_table: schema.max_columns_per_table,
+            });
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use assert_matches::assert_matches;
-    use data_types::{ColumnType, QueryPoolId, TimestampRange, TopicId};
-    use iox_catalog::mem::MemCatalog;
+    use data_types::{ColumnType, TimestampRange};
+    use iox_tests::util::{TestCatalog, TestNamespace};
     use once_cell::sync::Lazy;
     use std::sync::Arc;
 
     static NAMESPACE: Lazy<DatabaseName<'static>> = Lazy::new(|| "bananas".try_into().unwrap());
+
+    #[tokio::test]
+    async fn validate_limits() {
+        let (catalog, namespace) = test_setup().await;
+
+        namespace.update_column_limit(3).await;
+
+        // Table not found in schema,
+        {
+            let schema = namespace.schema().await;
+            // Columns under the limit is ok
+            let batches = lp_to_writes("nonexistent val=42i 123456");
+            assert!(validate_column_limits(&batches, &schema).is_ok());
+            // Columns over the limit is an error
+            let batches = lp_to_writes("nonexistent,tag1=A,tag2=B val=42i 123456");
+            assert_matches!(
+                validate_column_limits(&batches, &schema),
+                Err(OverColumnLimit {
+                    table_name: _,
+                    existing_column_count: 0,
+                    merged_column_count: 4,
+                    max_columns_per_table: 3,
+                })
+            );
+        }
+
+        // Table exists but no columns in schema,
+        {
+            namespace.create_table("no_columns_in_schema").await;
+            let schema = namespace.schema().await;
+            // Columns under the limit is ok
+            let batches = lp_to_writes("no_columns_in_schema val=42i 123456");
+            assert!(validate_column_limits(&batches, &schema).is_ok());
+            // Columns over the limit is an error
+            let batches = lp_to_writes("no_columns_in_schema,tag1=A,tag2=B val=42i 123456");
+            assert_matches!(
+                validate_column_limits(&batches, &schema),
+                Err(OverColumnLimit {
+                    table_name: _,
+                    existing_column_count: 0,
+                    merged_column_count: 4,
+                    max_columns_per_table: 3,
+                })
+            );
+        }
+
+        // Table exists with a column in the schema,
+        {
+            let table = namespace.create_table("i_got_columns").await;
+            table.create_column("i_got_music", ColumnType::I64).await;
+            let schema = namespace.schema().await;
+            // Columns already existing is ok
+            let batches = lp_to_writes("i_got_columns i_got_music=42i 123456");
+            assert!(validate_column_limits(&batches, &schema).is_ok());
+            // Adding columns under the limit is ok
+            let batches = lp_to_writes("i_got_columns,tag1=A i_got_music=42i 123456");
+            assert!(validate_column_limits(&batches, &schema).is_ok());
+            // Adding columns over the limit is an error
+            let batches = lp_to_writes("i_got_columns,tag1=A,tag2=B i_got_music=42i 123456");
+            assert_matches!(
+                validate_column_limits(&batches, &schema),
+                Err(OverColumnLimit {
+                    table_name: _,
+                    existing_column_count: 1,
+                    merged_column_count: 4,
+                    max_columns_per_table: 3,
+                })
+            );
+        }
+
+        // Table exists and is at the column limit,
+        {
+            let table = namespace.create_table("bananas").await;
+            table.create_column("greatness", ColumnType::I64).await;
+            table.create_column("tastiness", ColumnType::I64).await;
+            table
+                .create_column(schema::TIME_COLUMN_NAME, ColumnType::Time)
+                .await;
+            let schema = namespace.schema().await;
+            // Columns already existing is allowed
+            let batches = lp_to_writes("bananas greatness=42i 123456");
+            assert!(validate_column_limits(&batches, &schema).is_ok());
+            // Adding columns over the limit is an error
+            let batches = lp_to_writes("bananas i_got_music=42i 123456");
+            assert_matches!(
+                validate_column_limits(&batches, &schema),
+                Err(OverColumnLimit {
+                    table_name: _,
+                    existing_column_count: 3,
+                    merged_column_count: 4,
+                    max_columns_per_table: 3,
+                })
+            );
+        }
+
+        // Table exists and is over the column limit because of the race condition,
+        {
+            // Make two schema validator instances each with their own cache
+            let handler1 = SchemaValidator::new(
+                catalog.catalog(),
+                Arc::new(MemoryNamespaceCache::default()),
+                &catalog.metric_registry,
+            );
+            let handler2 = SchemaValidator::new(
+                catalog.catalog(),
+                Arc::new(MemoryNamespaceCache::default()),
+                &catalog.metric_registry,
+            );
+
+            // Make a valid write with one column + timestamp through each validator so the
+            // namespace schema gets cached
+            let writes1_valid = lp_to_writes("dragonfruit val=42i 123456");
+            handler1
+                .write(&*NAMESPACE, writes1_valid, None)
+                .await
+                .expect("request should succeed");
+            let writes2_valid = lp_to_writes("dragonfruit val=43i 123457");
+            handler2
+                .write(&*NAMESPACE, writes2_valid, None)
+                .await
+                .expect("request should succeed");
+
+            // Make "valid" writes through each validator that each add a different column, thus
+            // putting the table over the limit
+            let writes1_add_column = lp_to_writes("dragonfruit,tag1=A val=42i 123456");
+            handler1
+                .write(&*NAMESPACE, writes1_add_column, None)
+                .await
+                .expect("request should succeed");
+            let writes2_add_column = lp_to_writes("dragonfruit,tag2=B val=43i 123457");
+            handler2
+                .write(&*NAMESPACE, writes2_add_column, None)
+                .await
+                .expect("request should succeed");
+
+            let schema = namespace.schema().await;
+
+            // Columns already existing is allowed
+            let batches = lp_to_writes("dragonfruit val=42i 123456");
+            assert!(validate_column_limits(&batches, &schema).is_ok());
+            // Adding more columns over the limit is an error
+            let batches = lp_to_writes("dragonfruit i_got_music=42i 123456");
+            assert_matches!(
+                validate_column_limits(&batches, &schema),
+                Err(OverColumnLimit {
+                    table_name: _,
+                    existing_column_count: 4,
+                    merged_column_count: 5,
+                    max_columns_per_table: 3,
+                })
+            );
+        }
+    }
 
     // Parse `lp` into a table-keyed MutableBatch map.
     fn lp_to_writes(lp: &str) -> HashMap<String, MutableBatch> {
@@ -273,23 +499,11 @@ mod tests {
 
     /// Initialise an in-memory [`MemCatalog`] and create a single namespace
     /// named [`NAMESPACE`].
-    async fn create_catalog() -> Arc<dyn Catalog> {
-        let metrics = Arc::new(metric::Registry::new());
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
+    async fn test_setup() -> (Arc<TestCatalog>, Arc<TestNamespace>) {
+        let catalog = TestCatalog::new();
+        let namespace = catalog.create_namespace(&NAMESPACE).await;
 
-        let mut repos = catalog.repositories().await;
-        repos
-            .namespaces()
-            .create(
-                NAMESPACE.as_str(),
-                "inf",
-                TopicId::new(42),
-                QueryPoolId::new(24),
-            )
-            .await
-            .expect("failed to create test namespace");
-
-        catalog
+        (catalog, namespace)
     }
 
     fn assert_cache<C>(handler: &SchemaValidator<C>, table: &str, col: &str, want: ColumnType)
@@ -314,10 +528,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_write_ok() {
-        let catalog = create_catalog().await;
+        let (catalog, _namespace) = test_setup().await;
         let metrics = Arc::new(metric::Registry::default());
         let handler = SchemaValidator::new(
-            catalog,
+            catalog.catalog(),
             Arc::new(MemoryNamespaceCache::default()),
             &*metrics,
         );
@@ -337,10 +551,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_write_schema_not_found() {
-        let catalog = create_catalog().await;
+        let (catalog, _namespace) = test_setup().await;
         let metrics = Arc::new(metric::Registry::default());
         let handler = SchemaValidator::new(
-            catalog,
+            catalog.catalog(),
             Arc::new(MemoryNamespaceCache::default()),
             &*metrics,
         );
@@ -361,10 +575,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_write_validation_failure() {
-        let catalog = create_catalog().await;
+        let (catalog, _namespace) = test_setup().await;
         let metrics = Arc::new(metric::Registry::default());
         let handler = SchemaValidator::new(
-            catalog,
+            catalog.catalog(),
             Arc::new(MemoryNamespaceCache::default()),
             &*metrics,
         );
@@ -399,10 +613,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_write_table_service_limit() {
-        let catalog = create_catalog().await;
+        let (catalog, _namespace) = test_setup().await;
         let metrics = Arc::new(metric::Registry::default());
         let handler = SchemaValidator::new(
-            Arc::clone(&catalog),
+            catalog.catalog(),
             Arc::new(MemoryNamespaceCache::default()),
             &*metrics,
         );
@@ -417,6 +631,7 @@ mod tests {
 
         // Configure the service limit to be hit next request
         catalog
+            .catalog()
             .repositories()
             .await
             .namespaces()
@@ -437,10 +652,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_write_column_service_limit() {
-        let catalog = create_catalog().await;
+        let (catalog, namespace) = test_setup().await;
         let metrics = Arc::new(metric::Registry::default());
         let handler = SchemaValidator::new(
-            Arc::clone(&catalog),
+            catalog.catalog(),
             Arc::new(MemoryNamespaceCache::default()),
             &*metrics,
         );
@@ -454,15 +669,45 @@ mod tests {
         assert_eq!(writes.len(), got.len());
 
         // Configure the service limit to be hit next request
+        namespace.update_column_limit(1).await;
+        let handler = SchemaValidator::new(
+            catalog.catalog(),
+            Arc::new(MemoryNamespaceCache::default()),
+            &*metrics,
+        );
+
+        // Second write attempts to violate limits, causing an error
+        let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i,val2=42i 123456");
+        let err = handler
+            .write(&*NAMESPACE, writes, None)
+            .await
+            .expect_err("request should fail");
+
+        assert_matches!(err, SchemaError::ServiceLimit(_));
+        assert_eq!(1, handler.service_limit_hit.fetch());
+    }
+
+    #[tokio::test]
+    async fn test_first_write_many_columns_service_limit() {
+        let (catalog, _namespace) = test_setup().await;
+        let metrics = Arc::new(metric::Registry::default());
+        let handler = SchemaValidator::new(
+            catalog.catalog(),
+            Arc::new(MemoryNamespaceCache::default()),
+            &*metrics,
+        );
+
+        // Configure the service limit to be hit next request
         catalog
+            .catalog()
             .repositories()
             .await
             .namespaces()
-            .update_column_limit(NAMESPACE.as_str(), 1)
+            .update_column_limit(NAMESPACE.as_str(), 3)
             .await
             .expect("failed to set column limit");
 
-        // Second write attempts to violate limits, causing an error
+        // First write attempts to add columns over the limit, causing an error
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i,val2=42i 123456");
         let err = handler
             .write(&*NAMESPACE, writes, None)
@@ -478,10 +723,10 @@ mod tests {
         const NAMESPACE: &str = "NAMESPACE_IS_NOT_VALIDATED";
         const TABLE: &str = "bananas";
 
-        let catalog = create_catalog().await;
+        let (catalog, _namespace) = test_setup().await;
         let metrics = Arc::new(metric::Registry::default());
         let handler = SchemaValidator::new(
-            catalog,
+            catalog.catalog(),
             Arc::new(MemoryNamespaceCache::default()),
             &*metrics,
         );
