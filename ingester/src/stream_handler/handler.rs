@@ -12,7 +12,10 @@ use tokio_util::sync::CancellationToken;
 use write_buffer::core::{WriteBufferErrorKind, WriteBufferStreamHandler};
 
 use super::DmlSink;
-use crate::lifecycle::{LifecycleHandle, LifecycleHandleImpl};
+use crate::{
+    data::DmlApplyAction,
+    lifecycle::{LifecycleHandle, LifecycleHandleImpl},
+};
 
 /// When the [`LifecycleManager`] indicates that ingest should be paused because
 /// of memory pressure, the shard will loop, sleeping this long between
@@ -384,7 +387,7 @@ something clever.",
                 op.meta().duration_since_production(&self.time_provider);
 
             let should_pause = match self.sink.apply(op).await {
-                Ok(should_pause) => {
+                Ok(DmlApplyAction::Applied(should_pause)) => {
                     trace!(
                         kafka_topic=%self.topic_name,
                         shard_index=%self.shard_index,
@@ -393,7 +396,30 @@ something clever.",
                         ?op_sequence_number,
                         "successfully applied dml operation"
                     );
+                    // we only want to report the TTBR if anything was applied
+                    if let Some(delta) = duration_since_production {
+                        // Update the TTBR metric before potentially sleeping.
+                        self.time_to_be_readable.set(delta);
+                        trace!(
+                            kafka_topic=%self.topic_name,
+                            shard_index=%self.shard_index,
+                            shard_id=%self.shard_id,
+                            delta=%delta.as_millis(),
+                            "reporting TTBR for shard (ms)"
+                        );
+                    }
                     should_pause
+                }
+                Ok(DmlApplyAction::Skipped) => {
+                    trace!(
+                        kafka_topic=%self.topic_name,
+                        shard_index=%self.shard_index,
+                        shard_id=%self.shard_id,
+                        false,
+                        ?op_sequence_number,
+                        "did not apply dml operation (op was already persisted previously)"
+                    );
+                    false
                 }
                 Err(e) => {
                     error!(
@@ -409,18 +435,6 @@ something clever.",
                     return;
                 }
             };
-
-            if let Some(delta) = duration_since_production {
-                // Update the TTBR metric before potentially sleeping.
-                self.time_to_be_readable.set(delta);
-                trace!(
-                    kafka_topic=%self.topic_name,
-                    shard_index=%self.shard_index,
-                    shard_id=%self.shard_id,
-                    delta=%delta.as_millis(),
-                    "reporting TTBR for shard (ms)"
-                );
-            }
 
             if should_pause {
                 // The lifecycle manager may temporarily pause ingest - wait for
@@ -772,7 +786,7 @@ mod tests {
         stream_ops = vec![
             vec![Ok(DmlOperation::Write(make_write("bananas", 42)))]
         ],
-        sink_rets = [Ok(true)],
+        sink_rets = [Ok(DmlApplyAction::Applied(true))],
         want_ttbr = 42,
         want_reset = 0,
         want_err_metrics = [],
@@ -788,7 +802,7 @@ mod tests {
         stream_ops = vec![
             vec![Ok(DmlOperation::Delete(make_delete("platanos", 24)))]
         ],
-        sink_rets = [Ok(true)],
+        sink_rets = [Ok(DmlApplyAction::Applied(true))],
         want_ttbr = 24,
         want_reset = 0,
         want_err_metrics = [],
@@ -806,7 +820,7 @@ mod tests {
             Err(WriteBufferError::new(WriteBufferErrorKind::IO, "explosions")),
             Ok(DmlOperation::Write(make_write("bananas", 13)))
         ]],
-        sink_rets = [Ok(true)],
+        sink_rets = [Ok(DmlApplyAction::Applied(true))],
         want_ttbr = 13,
         want_reset = 0,
         want_err_metrics = [
@@ -829,7 +843,7 @@ mod tests {
             Err(WriteBufferError::new(WriteBufferErrorKind::SequenceNumberNoLongerExists, "explosions")),
             Ok(DmlOperation::Write(make_write("bananas", 31)))
         ]],
-        sink_rets = [Ok(true)],
+        sink_rets = [Ok(DmlApplyAction::Applied(true))],
         want_ttbr = 31,
         want_reset = 0,
         want_err_metrics = [
@@ -858,7 +872,7 @@ mod tests {
             ],
             vec![Ok(DmlOperation::Write(make_write("bananas", 31)))],
         ],
-        sink_rets = [Ok(true)],
+        sink_rets = [Ok(DmlApplyAction::Applied(true))],
         want_ttbr = 31,
         want_reset = 1,
         want_err_metrics = [
@@ -880,7 +894,7 @@ mod tests {
             Err(WriteBufferError::new(WriteBufferErrorKind::InvalidData, "explosions")),
             Ok(DmlOperation::Write(make_write("bananas", 50)))
         ]],
-        sink_rets = [Ok(true)],
+        sink_rets = [Ok(DmlApplyAction::Applied(true))],
         want_ttbr = 50,
         want_reset = 0,
         want_err_metrics = [
@@ -902,7 +916,7 @@ mod tests {
             Err(WriteBufferError::new(WriteBufferErrorKind::Unknown, "explosions")),
             Ok(DmlOperation::Write(make_write("bananas", 60)))
         ]],
-        sink_rets = [Ok(true)],
+        sink_rets = [Ok(DmlApplyAction::Applied(true))],
         want_ttbr = 60,
         want_reset = 0,
         want_err_metrics = [
@@ -932,7 +946,7 @@ mod tests {
         want_sink = []
     );
 
-    // Asserts the TTBR is uses the last value in the stream.
+    // Asserts the TTBR used is the last value in the stream.
     test_stream_handler!(
         reports_last_ttbr,
         skip_to_oldest_available = false,
@@ -942,7 +956,7 @@ mod tests {
             Ok(DmlOperation::Write(make_write("bananas", 3))),
             Ok(DmlOperation::Write(make_write("bananas", 42))),
         ]],
-        sink_rets = [Ok(true), Ok(false), Ok(true), Ok(false),],
+        sink_rets = [Ok(DmlApplyAction::Applied(true)), Ok(DmlApplyAction::Applied(false)), Ok(DmlApplyAction::Applied(true)), Ok(DmlApplyAction::Applied(false)),],
         want_ttbr = 42,
         want_reset = 0,
         want_err_metrics = [
@@ -967,7 +981,7 @@ mod tests {
         ]],
         sink_rets = [
             Err(crate::data::Error::NamespaceNotFound{namespace: "bananas".to_string() }),
-            Ok(true),
+            Ok(DmlApplyAction::Applied(true)),
         ],
         want_ttbr = 2,
         want_reset = 0,
@@ -983,6 +997,21 @@ mod tests {
             DmlOperation::Write(op), // Second call succeeds
         ] => {
             assert_eq!(op.namespace(), "good_op");
+        }
+    );
+
+    test_stream_handler!(
+        skipped_op_no_ttbr,
+        skip_to_oldest_available = false,
+        stream_ops = vec![vec![Ok(DmlOperation::Write(make_write("some_op", 1)))]],
+        sink_rets = [Ok(DmlApplyAction::Skipped)],
+        want_ttbr = 0,
+        want_reset = 0,
+        want_err_metrics = [],
+        want_sink = [
+            DmlOperation::Write(op),
+        ] => {
+            assert_eq!(op.namespace(), "some_op");
         }
     );
 

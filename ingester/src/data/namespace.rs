@@ -17,7 +17,7 @@ use super::{
     partition::resolver::PartitionProvider,
     table::{TableData, TableName},
 };
-use crate::lifecycle::LifecycleHandle;
+use crate::{data::DmlApplyAction, lifecycle::LifecycleHandle};
 
 /// A double-referenced map where [`TableData`] can be looked up by name, or ID.
 #[derive(Debug, Default)]
@@ -177,7 +177,7 @@ impl NamespaceData {
         dml_operation: DmlOperation,
         catalog: &Arc<dyn Catalog>,
         lifecycle_handle: &dyn LifecycleHandle,
-    ) -> Result<bool, super::Error> {
+    ) -> Result<DmlApplyAction, super::Error> {
         let sequence_number = dml_operation
             .meta()
             .sequence()
@@ -194,6 +194,7 @@ impl NamespaceData {
         match dml_operation {
             DmlOperation::Write(write) => {
                 let mut pause_writes = false;
+                let mut all_skipped = true;
 
                 // Extract the partition key derived by the router.
                 let partition_key = write
@@ -211,7 +212,7 @@ impl NamespaceData {
                     {
                         // lock scope
                         let mut table_data = table_data.write().await;
-                        let should_pause = table_data
+                        let action = table_data
                             .buffer_table_write(
                                 sequence_number,
                                 b,
@@ -219,13 +220,21 @@ impl NamespaceData {
                                 lifecycle_handle,
                             )
                             .await?;
-                        pause_writes = pause_writes || should_pause;
+                        if let DmlApplyAction::Applied(should_pause) = action {
+                            pause_writes = pause_writes || should_pause;
+                            all_skipped = false;
+                        }
                     }
                     #[cfg(test)]
                     self.test_triggers.on_write().await;
                 }
 
-                Ok(pause_writes)
+                if all_skipped {
+                    Ok(DmlApplyAction::Skipped)
+                } else {
+                    // at least some were applied
+                    Ok(DmlApplyAction::Applied(pause_writes))
+                }
             }
             DmlOperation::Delete(delete) => {
                 // Deprecated delete support:
@@ -239,7 +248,7 @@ impl NamespaceData {
                     "discarding unsupported delete op"
                 );
 
-                Ok(false)
+                Ok(DmlApplyAction::Applied(false))
             }
         }
     }

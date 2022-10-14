@@ -13,6 +13,7 @@ use write_summary::ShardProgress;
 use super::{
     namespace::{NamespaceData, NamespaceName},
     partition::resolver::PartitionProvider,
+    DmlApplyAction,
 };
 use crate::lifecycle::LifecycleHandle;
 
@@ -99,7 +100,7 @@ impl ShardData {
         dml_operation: DmlOperation,
         catalog: &Arc<dyn Catalog>,
         lifecycle_handle: &dyn LifecycleHandle,
-    ) -> Result<bool, super::Error> {
+    ) -> Result<DmlApplyAction, super::Error> {
         let namespace_data = match self.namespace(&NamespaceName::from(dml_operation.namespace())) {
             Some(d) => d,
             None => {
