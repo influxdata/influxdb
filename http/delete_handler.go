@@ -5,8 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	http "net/http"
 	"time"
+
+	"github.com/influxdata/influxql"
 
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
@@ -91,7 +94,7 @@ func (h *DeleteHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dr, err := decodeDeleteRequest(
+	dr, measurement, err := decodeDeleteRequest(
 		ctx, r,
 		h.OrganizationService,
 		h.BucketService,
@@ -121,7 +124,7 @@ func (h *DeleteHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.DeleteService.DeleteBucketRangePredicate(r.Context(), dr.Org.ID, dr.Bucket.ID, dr.Start, dr.Stop, dr.Predicate); err != nil {
+	if err := h.DeleteService.DeleteBucketRangePredicate(r.Context(), dr.Org.ID, dr.Bucket.ID, dr.Start, dr.Stop, dr.Predicate, measurement); err != nil {
 		h.HandleHTTPError(ctx, &errors.Error{
 			Code: errors.EInternal,
 			Op:   "http/handleDelete",
@@ -139,24 +142,78 @@ func (h *DeleteHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func decodeDeleteRequest(ctx context.Context, r *http.Request, orgSvc influxdb.OrganizationService, bucketSvc influxdb.BucketService) (*deleteRequest, error) {
+func decodeDeleteRequest(ctx context.Context, r *http.Request, orgSvc influxdb.OrganizationService, bucketSvc influxdb.BucketService) (*deleteRequest, influxql.Expr, error) {
 	dr := new(deleteRequest)
-	err := json.NewDecoder(r.Body).Decode(dr)
+	buf, err := io.ReadAll(r.Body)
 	if err != nil {
-		return nil, &errors.Error{
+		je := &errors.Error{
 			Code: errors.EInvalid,
-			Msg:  "invalid request; error parsing request json",
+			Msg:  "error reading json body",
 			Err:  err,
 		}
+		return nil, nil, je
 	}
+	buffer := bytes.NewBuffer(buf)
+	err = json.NewDecoder(buffer).Decode(dr)
+	if err != nil {
+		je := &errors.Error{
+			Code: errors.EInvalid,
+			Msg:  "error decoding json body",
+			Err:  err,
+		}
+		return nil, nil, je
+	}
+
+	var drd deleteRequestDecode
+	err = json.Unmarshal(buf, &drd)
+	if err != nil {
+		je := &errors.Error{
+			Code: errors.EInvalid,
+			Msg:  "error decoding json body for predicate",
+			Err:  err,
+		}
+		return nil, nil, je
+	}
+	var measurementExpr influxql.Expr
+	if drd.Predicate != "" {
+		expr, err := influxql.ParseExpr(drd.Predicate)
+		if err != nil {
+			return nil, nil, &errors.Error{
+				Code: errors.EInvalid,
+				Msg:  "invalid request; error parsing predicate",
+				Err:  err,
+			}
+		}
+		measurementExpr, _, err = influxql.PartitionExpr(influxql.CloneExpr(expr), func(e influxql.Expr) (bool, error) {
+			switch e := e.(type) {
+			case *influxql.BinaryExpr:
+				switch e.Op {
+				case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
+					tag, ok := e.LHS.(*influxql.VarRef)
+					if ok && tag.Val == "_measurement" {
+						return true, nil
+					}
+				}
+			}
+			return false, nil
+		})
+		if err != nil {
+			return nil, nil, &errors.Error{
+				Code: errors.EInvalid,
+				Msg:  "invalid request; error partitioning predicate",
+				Err:  err,
+			}
+		}
+	}
+
 	if dr.Org, err = queryOrganization(ctx, r, orgSvc); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if dr.Bucket, err = queryBucket(ctx, dr.Org.ID, r, bucketSvc); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return dr, nil
+	return dr, measurementExpr, nil
 }
 
 type deleteRequest struct {

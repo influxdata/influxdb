@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	errors3 "github.com/influxdata/influxdb/v2/pkg/errors"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
@@ -1335,7 +1337,7 @@ func (s *Store) ShardRelativePath(id uint64) (string, error) {
 
 // DeleteSeries loops through the local shards and deletes the series data for
 // the passed in series keys.
-func (s *Store) DeleteSeriesWithPredicate(ctx context.Context, database string, min, max int64, pred influxdb.Predicate) error {
+func (s *Store) DeleteSeriesWithPredicate(ctx context.Context, database string, min, max int64, pred influxdb.Predicate, measurement influxql.Expr) error {
 	s.mu.RLock()
 	if s.databases[database].hasMultipleIndexTypes() {
 		s.mu.RUnlock()
@@ -1355,7 +1357,7 @@ func (s *Store) DeleteSeriesWithPredicate(ctx context.Context, database string, 
 	// of series keys can be very memory intensive if run concurrently.
 	limit := limiter.NewFixed(1)
 
-	return s.walkShards(shards, func(sh *Shard) error {
+	return s.walkShards(shards, func(sh *Shard) (err error) {
 		if err := limit.Take(ctx); err != nil {
 			return err
 		}
@@ -1372,12 +1374,43 @@ func (s *Store) DeleteSeriesWithPredicate(ctx context.Context, database string, 
 			return err
 		}
 
+		measurementName := make([]byte, 0)
+
+		if measurement != nil {
+			if m, ok := measurement.(*influxql.BinaryExpr); ok {
+				rhs, ok := m.RHS.(*influxql.VarRef)
+				if ok {
+					measurementName = []byte(rhs.Val)
+					exists, err := sh.MeasurementExists(measurementName)
+					if err != nil {
+						return err
+					}
+					if !exists {
+						return nil
+					}
+				}
+			}
+		}
+
 		// Find matching series keys for each measurement.
 		mitr, err := index.MeasurementIterator()
 		if err != nil {
 			return err
 		}
-		defer mitr.Close()
+		defer errors3.Capture(&err, mitr.Close)()
+
+		deleteSeries := func(mm []byte) error {
+			sitr, err := index.MeasurementSeriesIDIterator(mm)
+			if err != nil {
+				return err
+			} else if sitr == nil {
+				return nil
+			}
+			defer errors3.Capture(&err, sitr.Close)()
+
+			itr := NewSeriesIteratorAdapter(sfile, NewPredicateSeriesIDIterator(sitr, sfile, pred))
+			return sh.DeleteSeriesRange(ctx, itr, min, max)
+		}
 
 		for {
 			mm, err := mitr.Next()
@@ -1387,19 +1420,14 @@ func (s *Store) DeleteSeriesWithPredicate(ctx context.Context, database string, 
 				break
 			}
 
-			if err := func() error {
-				sitr, err := index.MeasurementSeriesIDIterator(mm)
+			// If we are deleting within a measurement and have found a match, we can return after the delete.
+			if measurementName != nil && bytes.Equal(mm, measurementName) {
+				return deleteSeries(mm)
+			} else {
+				err := deleteSeries(mm)
 				if err != nil {
 					return err
-				} else if sitr == nil {
-					return nil
 				}
-				defer sitr.Close()
-
-				itr := NewSeriesIteratorAdapter(sfile, NewPredicateSeriesIDIterator(sitr, sfile, pred))
-				return sh.DeleteSeriesRange(ctx, itr, min, max)
-			}(); err != nil {
-				return err
 			}
 		}
 
