@@ -120,7 +120,7 @@ impl From<&DmlError> for StatusCode {
             }
             DmlError::Schema(SchemaError::ServiceLimit(_)) => {
                 // https://docs.influxdata.com/influxdb/cloud/account-management/limits/#api-error-responses
-                StatusCode::TOO_MANY_REQUESTS
+                StatusCode::BAD_REQUEST
             }
             DmlError::Schema(SchemaError::Conflict(_)) => StatusCode::BAD_REQUEST,
             DmlError::Schema(SchemaError::UnexpectedCatalogError(_)) => {
