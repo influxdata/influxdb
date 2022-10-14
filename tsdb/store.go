@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	errors3 "github.com/influxdata/influxdb/v2/pkg/errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -15,6 +14,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	errors3 "github.com/influxdata/influxdb/v2/pkg/errors"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/influxql/query"
