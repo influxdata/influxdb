@@ -260,6 +260,8 @@ fn new_gcs(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError
     use object_store::gcp::GoogleCloudStorageBuilder;
     use object_store::limit::LimitStore;
 
+    info!(bucket=?config.bucket, object_store_type="GCS", "Object Store");
+
     let mut builder = GoogleCloudStorageBuilder::new();
 
     if let Some(bucket) = &config.bucket {
@@ -284,6 +286,8 @@ fn new_gcs(_: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
 fn new_s3(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
     use object_store::aws::AmazonS3Builder;
     use object_store::limit::LimitStore;
+
+    info!(bucket=?config.bucket, endpoint=?config.aws_endpoint, object_store_type="S3", "Object Store");
 
     let mut builder = AmazonS3Builder::new()
         .with_allow_http(config.aws_allow_http)
@@ -322,6 +326,9 @@ fn new_azure(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseErr
     use object_store::azure::MicrosoftAzureBuilder;
     use object_store::limit::LimitStore;
 
+    info!(bucket=?config.bucket, account=?config.azure_storage_account,
+          object_store_type="Azure", "Object Store");
+
     let mut builder = MicrosoftAzureBuilder::new();
 
     if let Some(bucket) = &config.bucket {
@@ -355,7 +362,10 @@ pub fn make_object_store(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStor
     }
 
     match &config.object_store {
-        Some(ObjectStoreType::Memory) | None => Ok(Arc::new(InMemory::new())),
+        Some(ObjectStoreType::Memory) | None => {
+            info!(object_store_type = "Memory", "Object Store");
+            Ok(Arc::new(InMemory::new()))
+        }
         Some(ObjectStoreType::MemoryThrottled) => {
             let config = ThrottleConfig {
                 // for every call: assume a 100ms latency
@@ -373,6 +383,7 @@ pub fn make_object_store(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStor
                 wait_get_per_byte: Duration::from_secs(1) / 1_000_000_000,
             };
 
+            info!(?config, object_store_type = "Memory", "Object Store");
             Ok(Arc::new(ThrottledStore::new(InMemory::new(), config)))
         }
 
@@ -381,6 +392,7 @@ pub fn make_object_store(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStor
         Some(ObjectStoreType::Azure) => new_azure(config),
         Some(ObjectStoreType::File) => match config.database_directory.as_ref() {
             Some(db_dir) => {
+                info!(?db_dir, object_store_type = "Directory", "Object Store");
                 fs::create_dir_all(db_dir)
                     .context(CreatingDatabaseDirectorySnafu { path: db_dir })?;
 

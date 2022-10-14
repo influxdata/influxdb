@@ -8,6 +8,7 @@ use crate::{
         TombstoneRepo, TopicMetadataRepo, Transaction,
     },
     metrics::MetricDecorator,
+    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
 };
 use async_trait::async_trait;
 use data_types::{
@@ -617,6 +618,10 @@ RETURNING *;
                 Error::SqlxError { source: e }
             }
         })?;
+
+        // Ensure the column default values match the code values.
+        debug_assert_eq!(rec.max_tables, DEFAULT_MAX_TABLES);
+        debug_assert_eq!(rec.max_columns_per_table, DEFAULT_MAX_COLUMNS_PER_TABLE);
 
         Ok(rec)
     }

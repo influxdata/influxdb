@@ -864,7 +864,7 @@ pub async fn list_schemas(
 
 #[cfg(test)]
 pub(crate) mod test_helpers {
-    use crate::validate_or_insert_schema;
+    use crate::{validate_or_insert_schema, DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES};
 
     use super::*;
     use ::test_helpers::{assert_contains, tracing::TracingCapture};
@@ -955,6 +955,13 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert!(namespace.id > NamespaceId::new(0));
         assert_eq!(namespace.name, namespace_name);
+
+        // Assert default values for service protection limits.
+        assert_eq!(namespace.max_tables, DEFAULT_MAX_TABLES);
+        assert_eq!(
+            namespace.max_columns_per_table,
+            DEFAULT_MAX_COLUMNS_PER_TABLE
+        );
 
         let conflict = repos
             .namespaces()
@@ -4021,7 +4028,12 @@ pub(crate) mod test_helpers {
 
         let batches = mutable_batch_lp::lines_to_batches(lines, 42).unwrap();
         let batches = batches.iter().map(|(table, batch)| (table.as_str(), batch));
-        let ns = NamespaceSchema::new(namespace.id, topic.id, pool.id, 1000);
+        let ns = NamespaceSchema::new(
+            namespace.id,
+            topic.id,
+            pool.id,
+            namespace.max_columns_per_table,
+        );
 
         let schema = validate_or_insert_schema(batches, &ns, repos)
             .await
