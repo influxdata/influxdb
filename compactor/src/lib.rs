@@ -105,7 +105,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                 // This may just be a hiccup reading object store, skip compacting it in
                 // this cycle
                 warn!(
-                    ?e,
+                    %e,
                     ?partition_id,
                     compaction_type,
                     "failed due to error in reading parquet files"
@@ -318,7 +318,7 @@ async fn compact_in_parallel(
                 compact_one_partition(&comp, group, compaction_type, split).await;
             match compaction_result {
                 Err(e) => {
-                    warn!(?e, ?partition_id, compaction_type, "compaction failed");
+                    warn!(%e, ?partition_id, compaction_type, "compaction failed");
                 }
                 Ok(_) => {
                     debug!(?partition_id, compaction_type, "compaction complete");

@@ -86,10 +86,10 @@ impl From<Error> for tonic::Status {
             | Error::InvalidTicketLegacy { .. }
             | Error::InvalidQuery { .. }
             // TODO(edd): this should be `debug`. Keeping at info whilst IOx still in early development
-            | Error::InvalidDatabaseName { .. } => info!(?err, msg),
-            Error::Query { .. } => info!(?err, msg),
+            | Error::InvalidDatabaseName { .. } => info!(e=%err, msg),
+            Error::Query { .. } => info!(e=%err, msg),
             Error::Optimize { .. }
-            | Error::Planning { .. } | Error::Serialization { .. } => warn!(?err, msg),
+            | Error::Planning { .. } | Error::Serialization { .. } => warn!(e=%err, msg),
         }
         err.into_status()
     }
