@@ -9,6 +9,7 @@ use crate::{
         TombstoneRepo, TopicMetadataRepo, Transaction,
     },
     metrics::MetricDecorator,
+    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
 };
 use async_trait::async_trait;
 use data_types::{
@@ -302,8 +303,8 @@ impl NamespaceRepo for MemTxn {
             topic_id,
             query_pool_id,
             retention_duration: Some(retention_duration.to_string()),
-            max_tables: 10000,
-            max_columns_per_table: 1000,
+            max_tables: DEFAULT_MAX_TABLES,
+            max_columns_per_table: DEFAULT_MAX_COLUMNS_PER_TABLE,
         };
         stage.namespaces.push(namespace);
         Ok(stage.namespaces.last().unwrap().clone())
