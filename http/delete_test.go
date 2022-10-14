@@ -72,7 +72,7 @@ func TestDelete(t *testing.T) {
 				contentType: "application/json; charset=utf-8",
 				body: `{
 					"code": "invalid",
-					"message": "invalid request; error parsing request json: invalid RFC3339Nano for field start, please format your time with RFC3339Nano format, example: 2009-01-02T23:00:00Z"
+					"message": "error decoding json body: invalid RFC3339Nano for field start, please format your time with RFC3339Nano format, example: 2009-01-02T23:00:00Z"
 				  }`,
 			},
 		},
@@ -89,7 +89,7 @@ func TestDelete(t *testing.T) {
 				contentType: "application/json; charset=utf-8",
 				body: `{
 					"code": "invalid",
-					"message": "invalid request; error parsing request json: invalid RFC3339Nano for field stop, please format your time with RFC3339Nano format, example: 2009-01-01T23:00:00Z"
+					"message": "error decoding json body: invalid RFC3339Nano for field stop, please format your time with RFC3339Nano format, example: 2009-01-01T23:00:00Z"
 				  }`,
 			},
 		},
@@ -106,7 +106,7 @@ func TestDelete(t *testing.T) {
 				contentType: "application/json; charset=utf-8",
 				body: fmt.Sprintf(`{
 					"code": "invalid",
-					"message": "invalid request; error parsing request json: %s"
+					"message": "error decoding json body: %s"
 				  }`, msgStartTooSoon),
 			},
 		},
@@ -123,7 +123,7 @@ func TestDelete(t *testing.T) {
 				contentType: "application/json; charset=utf-8",
 				body: fmt.Sprintf(`{
 					"code": "invalid",
-					"message": "invalid request; error parsing request json: %s"
+					"message": "error decoding json body: %s"
 				  }`, msgStopTooLate),
 			},
 		},
@@ -321,7 +321,61 @@ func TestDelete(t *testing.T) {
 				statusCode: http.StatusBadRequest,
 				body: `{
 					"code": "invalid",
-					"message": "invalid request; error parsing request json: the logical operator OR is not supported yet at position 25"
+					"message": "error decoding json body: the logical operator OR is not supported yet at position 25"
+				  }`,
+			},
+		},
+		{
+			name: "unsupported delete measurements",
+			args: args{
+				queryParams: map[string][]string{
+					"org":    {"org1"},
+					"bucket": {"buck1"},
+				},
+				body: []byte(`{
+					"start":"2009-01-01T23:00:00Z",
+					"stop":"2019-11-10T01:00:00Z",
+					"predicate": "_measurement=\"cpu\" or _measurement=\"mem\""
+				}`),
+				authorizer: &influxdb.Authorization{
+					UserID: user1ID,
+					Status: influxdb.Active,
+					Permissions: []influxdb.Permission{
+						{
+							Action: influxdb.WriteAction,
+							Resource: influxdb.Resource{
+								Type:  influxdb.BucketsResourceType,
+								ID:    influxtesting.IDPtr(platform.ID(2)),
+								OrgID: influxtesting.IDPtr(platform.ID(1)),
+							},
+						},
+					},
+				},
+			},
+			fields: fields{
+				DeleteService: mock.NewDeleteService(),
+				BucketService: &mock.BucketService{
+					FindBucketFn: func(ctx context.Context, f influxdb.BucketFilter) (*influxdb.Bucket, error) {
+						return &influxdb.Bucket{
+							ID:   platform.ID(2),
+							Name: "bucket1",
+						}, nil
+					},
+				},
+				OrganizationService: &mock.OrganizationService{
+					FindOrganizationF: func(ctx context.Context, f influxdb.OrganizationFilter) (*influxdb.Organization, error) {
+						return &influxdb.Organization{
+							ID:   platform.ID(1),
+							Name: "org1",
+						}, nil
+					},
+				},
+			},
+			wants: wants{
+				statusCode: http.StatusBadRequest,
+				body: `{
+					"code": "invalid",
+					"message": "error decoding json body: the logical operator OR is not supported yet at position 19"
 				  }`,
 			},
 		},

@@ -143,29 +143,36 @@ func (h *DeleteHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 }
 
 func decodeDeleteRequest(ctx context.Context, r *http.Request, orgSvc influxdb.OrganizationService, bucketSvc influxdb.BucketService) (*deleteRequest, influxql.Expr, error) {
-	jsonErr := &errors.Error{
-		Code: errors.EInvalid,
-		Msg:  "invalid request; error parsing request json",
-	}
-
 	dr := new(deleteRequest)
 	buf, err := io.ReadAll(r.Body)
 	if err != nil {
-		jsonErr.Err = err
-		return nil, nil, jsonErr
+		je := &errors.Error{
+			Code: errors.EInvalid,
+			Msg:  "error reading json body",
+			Err:  err,
+		}
+		return nil, nil, je
 	}
 	buffer := bytes.NewBuffer(buf)
 	err = json.NewDecoder(buffer).Decode(dr)
 	if err != nil {
-		jsonErr.Err = err
-		return nil, nil, jsonErr
+		je := &errors.Error{
+			Code: errors.EInvalid,
+			Msg:  "error decoding json body",
+			Err:  err,
+		}
+		return nil, nil, je
 	}
 
 	var drd deleteRequestDecode
 	err = json.Unmarshal(buf, &drd)
 	if err != nil {
-		jsonErr.Err = err
-		return nil, nil, jsonErr
+		je := &errors.Error{
+			Code: errors.EInvalid,
+			Msg:  "error decoding json body for predicate",
+			Err:  err,
+		}
+		return nil, nil, je
 	}
 	var measurementExpr influxql.Expr
 	if drd.Predicate != "" {
@@ -193,7 +200,7 @@ func decodeDeleteRequest(ctx context.Context, r *http.Request, orgSvc influxdb.O
 		if err != nil {
 			return nil, nil, &errors.Error{
 				Code: errors.EInvalid,
-				Msg:  "invalid request; error parsing predicate",
+				Msg:  "invalid request; error partitioning predicate",
 				Err:  err,
 			}
 		}

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	errors3 "github.com/influxdata/influxdb/v2/pkg/errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -1355,7 +1356,7 @@ func (s *Store) DeleteSeriesWithPredicate(ctx context.Context, database string, 
 	// of series keys can be very memory intensive if run concurrently.
 	limit := limiter.NewFixed(1)
 
-	return s.walkShards(shards, func(sh *Shard) error {
+	return s.walkShards(shards, func(sh *Shard) (err error) {
 		if err := limit.Take(ctx); err != nil {
 			return err
 		}
@@ -1395,7 +1396,7 @@ func (s *Store) DeleteSeriesWithPredicate(ctx context.Context, database string, 
 		if err != nil {
 			return err
 		}
-		defer mitr.Close()
+		defer errors3.Capture(&err, mitr.Close)()
 
 		deleteSeries := func(mm []byte) error {
 			sitr, err := index.MeasurementSeriesIDIterator(mm)
@@ -1404,7 +1405,7 @@ func (s *Store) DeleteSeriesWithPredicate(ctx context.Context, database string, 
 			} else if sitr == nil {
 				return nil
 			}
-			defer sitr.Close()
+			defer errors3.Capture(&err, sitr.Close)()
 
 			itr := NewSeriesIteratorAdapter(sfile, NewPredicateSeriesIDIterator(sitr, sfile, pred))
 			return sh.DeleteSeriesRange(ctx, itr, min, max)
