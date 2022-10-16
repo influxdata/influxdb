@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/NYTimes/gziphandler"
 	"github.com/influxdata/influxdb/v2/http/legacy"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
@@ -45,12 +46,14 @@ func NewPlatformHandler(b *APIBackend, opts ...APIHandlerOptFn) *PlatformHandler
 
 	legacyBackend := newLegacyBackend(b)
 	lh := newLegacyHandler(legacyBackend, *legacy.NewHandlerConfig())
+	// legacy reponses can optionally be gzip encoded
+	gh := gziphandler.GzipHandler(lh)
 
 	return &PlatformHandler{
 		AssetHandler:  assetHandler,
 		DocsHandler:   Redoc("/api/v2/swagger.json"),
 		APIHandler:    wrappedHandler,
-		LegacyHandler: legacy.NewInflux1xAuthenticationHandler(lh, b.AuthorizerV1, b.HTTPErrorHandler),
+		LegacyHandler: legacy.NewInflux1xAuthenticationHandler(gh, b.AuthorizerV1, b.HTTPErrorHandler),
 	}
 }
 
