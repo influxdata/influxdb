@@ -1,6 +1,6 @@
 use crate::internal::{expect, ParseResult};
+use crate::keywords::keyword;
 use crate::show::{on_clause, OnClause};
-use nom::bytes::complete::tag_no_case;
 use nom::character::complete::multispace1;
 use nom::combinator::opt;
 use nom::sequence::{preceded, tuple};
@@ -27,11 +27,11 @@ pub(crate) fn show_retention_policies(
     i: &str,
 ) -> ParseResult<&str, ShowRetentionPoliciesStatement> {
     let (remaining, (_, _, _, database)) = tuple((
-        tag_no_case("RETENTION"),
+        keyword("RETENTION"),
         multispace1,
         expect(
             "invalid SHOW RETENTION POLICIES statement, expected POLICIES",
-            tag_no_case("POLICIES"),
+            keyword("POLICIES"),
         ),
         opt(preceded(multispace1, on_clause)),
     ))(i)?;

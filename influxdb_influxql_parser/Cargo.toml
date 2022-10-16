@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies] # In alphabetical order
 nom = { version = "7", default-features = false, features = ["std"] }
+once_cell = "1"
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies] # In alphabetical order

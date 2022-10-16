@@ -2192,6 +2192,7 @@ dependencies = [
  "assert_matches",
  "insta",
  "nom",
+ "once_cell",
  "test_helpers",
  "workspace-hack",
 ]

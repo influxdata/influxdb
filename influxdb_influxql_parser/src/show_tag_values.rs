@@ -3,11 +3,12 @@ use crate::common::{
 };
 use crate::identifier::{identifier, Identifier};
 use crate::internal::{expect, ParseResult};
+use crate::keywords::keyword;
 use crate::show::{on_clause, OnClause};
 use crate::simple_from_clause::{show_from_clause, ShowFromClause};
 use crate::string::{regex, Regex};
 use nom::branch::alt;
-use nom::bytes::complete::{tag, tag_no_case};
+use nom::bytes::complete::tag;
 use nom::character::complete::{char, multispace0, multispace1};
 use nom::combinator::{map, opt};
 use nom::sequence::{delimited, preceded, tuple};
@@ -83,7 +84,7 @@ pub(crate) fn show_tag_values(i: &str) -> ParseResult<&str, ShowTagValuesStateme
             offset,
         ),
     ) = tuple((
-        tag_no_case("VALUES"),
+        keyword("VALUES"),
         opt(preceded(multispace1, on_clause)),
         opt(preceded(multispace1, show_from_clause)),
         expect(
@@ -166,9 +167,9 @@ fn identifier_list(i: &str) -> ParseResult<&str, InList> {
 fn with_key_clause(i: &str) -> ParseResult<&str, WithKeyClause> {
     preceded(
         tuple((
-            tag_no_case("WITH"),
+            keyword("WITH"),
             multispace1,
-            expect("invalid WITH KEY clause, expected KEY", tag_no_case("KEY")),
+            expect("invalid WITH KEY clause, expected KEY", keyword("KEY")),
         )),
         expect(
             "invalid WITH KEY clause, expected condition",

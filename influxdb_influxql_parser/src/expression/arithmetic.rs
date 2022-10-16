@@ -1,5 +1,6 @@
 use crate::identifier::unquoted_identifier;
 use crate::internal::{expect, ParseResult};
+use crate::keywords::keyword;
 use crate::literal::literal_regex;
 use crate::{
     identifier::{identifier, Identifier},
@@ -7,7 +8,7 @@ use crate::{
     parameter::BindParameter,
 };
 use nom::branch::alt;
-use nom::bytes::complete::{tag, tag_no_case};
+use nom::bytes::complete::tag;
 use nom::character::complete::{char, multispace0};
 use nom::combinator::{cut, map, opt, value};
 use nom::multi::{many0, separated_list0};
@@ -293,7 +294,12 @@ where
 {
     map(
         separated_pair(
-            map(unquoted_identifier, &str::to_string),
+            // special case to handle `DISTINCT`, which is allowed as an identifier
+            // in a call expression
+            map(
+                alt((unquoted_identifier, keyword("DISTINCT"))),
+                &str::to_string,
+            ),
             multispace0,
             delimited(
                 char('('),
@@ -320,12 +326,12 @@ pub(crate) fn var_ref(i: &str) -> ParseResult<&str, Expr> {
                 expect(
                     "invalid data type for tag or field reference, expected float, integer, string, boolean, tag or field",
                     alt((
-                        value(VarRefDataType::Float, tag_no_case("float")),
-                        value(VarRefDataType::Integer, tag_no_case("integer")),
-                        value(VarRefDataType::String, tag_no_case("string")),
-                        value(VarRefDataType::Boolean, tag_no_case("boolean")),
-                        value(VarRefDataType::Tag, tag_no_case("tag")),
-                        value(VarRefDataType::Field, tag_no_case("field"))
+                        value(VarRefDataType::Float, keyword("FLOAT")),
+                        value(VarRefDataType::Integer, keyword("INTEGER")),
+                        value(VarRefDataType::String, keyword("STRING")),
+                        value(VarRefDataType::Boolean, keyword("BOOLEAN")),
+                        value(VarRefDataType::Tag, keyword("TAG")),
+                        value(VarRefDataType::Field, keyword("FIELD"))
                     ))
                 )
             )),

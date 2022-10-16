@@ -1,9 +1,9 @@
 #![allow(dead_code)] // Temporary
 
 use crate::internal::{expect, ParseResult};
+use crate::keywords::keyword;
 use crate::select::{select_statement, SelectStatement};
 use nom::branch::alt;
-use nom::bytes::complete::tag_no_case;
 use nom::character::complete::multispace1;
 use nom::combinator::{map, opt, value};
 use nom::sequence::{preceded, tuple};
@@ -59,14 +59,14 @@ impl Display for ExplainStatement {
 pub(crate) fn explain_statement(i: &str) -> ParseResult<&str, ExplainStatement> {
     map(
         tuple((
-            tag_no_case("EXPLAIN"),
+            keyword("EXPLAIN"),
             opt(preceded(
                 multispace1,
                 alt((
                     map(
                         preceded(
-                            tag_no_case("ANALYZE"),
-                            opt(preceded(multispace1, tag_no_case("VERBOSE"))),
+                            keyword("ANALYZE"),
+                            opt(preceded(multispace1, keyword("VERBOSE"))),
                         ),
                         |v| match v {
                             // If the optional combinator is Some, then it matched VERBOSE
@@ -74,7 +74,7 @@ pub(crate) fn explain_statement(i: &str) -> ParseResult<&str, ExplainStatement> 
                             _ => ExplainOption::Analyze,
                         },
                     ),
-                    value(ExplainOption::Verbose, tag_no_case("VERBOSE")),
+                    value(ExplainOption::Verbose, keyword("VERBOSE")),
                 )),
             )),
             multispace1,

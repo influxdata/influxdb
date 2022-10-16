@@ -1,8 +1,8 @@
 use crate::common::{where_clause, WhereClause};
 use crate::internal::{expect, ParseResult};
+use crate::keywords::keyword;
 use crate::simple_from_clause::{delete_from_clause, DeleteFromClause};
 use nom::branch::alt;
-use nom::bytes::complete::tag_no_case;
 use nom::character::complete::{multispace0, multispace1};
 use nom::combinator::{map, opt};
 use nom::sequence::{pair, preceded};
@@ -47,7 +47,7 @@ impl Display for DeleteStatement {
 pub(crate) fn delete_statement(i: &str) -> ParseResult<&str, DeleteStatement> {
     // delete ::=  "DELETE" ( from_clause where_clause? | where_clause )
     preceded(
-        tag_no_case("DELETE"),
+        keyword("DELETE"),
         expect(
             "invalid DELETE statement, expected FROM or WHERE",
             preceded(

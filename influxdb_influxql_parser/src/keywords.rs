@@ -5,10 +5,16 @@
 use crate::internal::ParseResult;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case};
-use nom::combinator::{eof, peek};
+use nom::character::complete::alpha1;
+use nom::combinator::{eof, fail, peek, verify};
 use nom::sequence::terminated;
+use once_cell::sync::Lazy;
+use std::collections::HashSet;
+use std::hash::{Hash, Hasher};
 
-/// Peeks at the input for acceptable characters following a keyword.
+/// Peeks at the input for acceptable characters separating a keyword.
+///
+/// Will return a failure if one of the expected characters is not found.
 fn keyword_follow_char(i: &str) -> ParseResult<&str, &str> {
     peek(alt((
         tag(" "),
@@ -20,126 +26,140 @@ fn keyword_follow_char(i: &str) -> ParseResult<&str, &str> {
         tag(","),
         tag("="),
         eof,
+        fail, // Return a failure if we reach the end of this alternation
     )))(i)
 }
 
-/// Parses the input for matching InfluxQL keywords from ALL to DROP.
-fn keyword_all_to_drop(i: &str) -> ParseResult<&str, &str> {
-    alt((
-        terminated(tag_no_case("ALL"), keyword_follow_char),
-        terminated(tag_no_case("ALTER"), keyword_follow_char),
-        terminated(tag_no_case("ANALYZE"), keyword_follow_char),
-        terminated(tag_no_case("AND"), keyword_follow_char),
-        terminated(tag_no_case("ANY"), keyword_follow_char),
-        terminated(tag_no_case("AS"), keyword_follow_char),
-        terminated(tag_no_case("ASC"), keyword_follow_char),
-        terminated(tag_no_case("BEGIN"), keyword_follow_char),
-        terminated(tag_no_case("BY"), keyword_follow_char),
-        terminated(tag_no_case("CARDINALITY"), keyword_follow_char),
-        terminated(tag_no_case("CREATE"), keyword_follow_char),
-        terminated(tag_no_case("CONTINUOUS"), keyword_follow_char),
-        terminated(tag_no_case("DATABASE"), keyword_follow_char),
-        terminated(tag_no_case("DATABASES"), keyword_follow_char),
-        terminated(tag_no_case("DEFAULT"), keyword_follow_char),
-        terminated(tag_no_case("DELETE"), keyword_follow_char),
-        terminated(tag_no_case("DESC"), keyword_follow_char),
-        terminated(tag_no_case("DESTINATIONS"), keyword_follow_char),
-        terminated(tag_no_case("DIAGNOSTICS"), keyword_follow_char),
-        terminated(tag_no_case("DISTINCT"), keyword_follow_char),
-        terminated(tag_no_case("DROP"), keyword_follow_char),
-    ))(i)
+/// Token represents a string with case-insensitive ordering and equality.
+#[derive(Debug, Clone)]
+pub(crate) struct Token<'a>(pub(crate) &'a str);
+
+impl PartialEq<Self> for Token<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.len() == other.0.len()
+            && self
+                .0
+                .chars()
+                .zip(other.0.chars())
+                .all(|(l, r)| l.to_ascii_uppercase() == r.to_ascii_uppercase())
+    }
 }
 
-/// Parses the input for matching InfluxQL keywords from DURATION to LIMIT.
-fn keyword_duration_to_limit(i: &str) -> ParseResult<&str, &str> {
-    alt((
-        terminated(tag_no_case("DURATION"), keyword_follow_char),
-        terminated(tag_no_case("END"), keyword_follow_char),
-        terminated(tag_no_case("EVERY"), keyword_follow_char),
-        terminated(tag_no_case("EXACT"), keyword_follow_char),
-        terminated(tag_no_case("EXPLAIN"), keyword_follow_char),
-        terminated(tag_no_case("FIELD"), keyword_follow_char),
-        terminated(tag_no_case("FOR"), keyword_follow_char),
-        terminated(tag_no_case("FROM"), keyword_follow_char),
-        terminated(tag_no_case("GRANT"), keyword_follow_char),
-        terminated(tag_no_case("GRANTS"), keyword_follow_char),
-        terminated(tag_no_case("GROUP"), keyword_follow_char),
-        terminated(tag_no_case("GROUPS"), keyword_follow_char),
-        terminated(tag_no_case("IN"), keyword_follow_char),
-        terminated(tag_no_case("INF"), keyword_follow_char),
-        terminated(tag_no_case("INSERT"), keyword_follow_char),
-        terminated(tag_no_case("INTO"), keyword_follow_char),
-        terminated(tag_no_case("KEY"), keyword_follow_char),
-        terminated(tag_no_case("KEYS"), keyword_follow_char),
-        terminated(tag_no_case("KILL"), keyword_follow_char),
-        terminated(tag_no_case("LIMIT"), keyword_follow_char),
-    ))(i)
+impl<'a> Eq for Token<'a> {}
+
+/// The Hash implementation for Token ensures
+/// that two tokens, regardless of case, hash to the same
+/// value.
+impl<'a> Hash for Token<'a> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0
+            .as_bytes()
+            .iter()
+            .map(u8::to_ascii_uppercase)
+            .for_each(|v| state.write_u8(v));
+    }
 }
 
-/// Parses the input for matching InfluxQL keywords from MEASUREMENT to SET.
-fn keyword_measurement_to_set(i: &str) -> ParseResult<&str, &str> {
-    alt((
-        terminated(tag_no_case("MEASUREMENT"), keyword_follow_char),
-        terminated(tag_no_case("MEASUREMENTS"), keyword_follow_char),
-        terminated(tag_no_case("NAME"), keyword_follow_char),
-        terminated(tag_no_case("OFFSET"), keyword_follow_char),
-        terminated(tag_no_case("OR"), keyword_follow_char),
-        terminated(tag_no_case("ON"), keyword_follow_char),
-        terminated(tag_no_case("ORDER"), keyword_follow_char),
-        terminated(tag_no_case("PASSWORD"), keyword_follow_char),
-        terminated(tag_no_case("POLICY"), keyword_follow_char),
-        terminated(tag_no_case("POLICIES"), keyword_follow_char),
-        terminated(tag_no_case("PRIVILEGES"), keyword_follow_char),
-        terminated(tag_no_case("QUERIES"), keyword_follow_char),
-        terminated(tag_no_case("QUERY"), keyword_follow_char),
-        terminated(tag_no_case("READ"), keyword_follow_char),
-        terminated(tag_no_case("REPLICATION"), keyword_follow_char),
-        terminated(tag_no_case("RESAMPLE"), keyword_follow_char),
-        terminated(tag_no_case("RETENTION"), keyword_follow_char),
-        terminated(tag_no_case("REVOKE"), keyword_follow_char),
-        terminated(tag_no_case("SELECT"), keyword_follow_char),
-        terminated(tag_no_case("SERIES"), keyword_follow_char),
-        terminated(tag_no_case("SET"), keyword_follow_char),
-    ))(i)
-}
-
-/// Parses the input for matching InfluxQL keywords from SHOW to WRITE.
-fn keyword_show_to_write(i: &str) -> ParseResult<&str, &str> {
-    alt((
-        terminated(tag_no_case("SHOW"), keyword_follow_char),
-        terminated(tag_no_case("SHARD"), keyword_follow_char),
-        terminated(tag_no_case("SHARDS"), keyword_follow_char),
-        terminated(tag_no_case("SLIMIT"), keyword_follow_char),
-        terminated(tag_no_case("SOFFSET"), keyword_follow_char),
-        terminated(tag_no_case("STATS"), keyword_follow_char),
-        terminated(tag_no_case("SUBSCRIPTION"), keyword_follow_char),
-        terminated(tag_no_case("SUBSCRIPTIONS"), keyword_follow_char),
-        terminated(tag_no_case("TAG"), keyword_follow_char),
-        terminated(tag_no_case("TO"), keyword_follow_char),
-        terminated(tag_no_case("USER"), keyword_follow_char),
-        terminated(tag_no_case("USERS"), keyword_follow_char),
-        terminated(tag_no_case("VALUES"), keyword_follow_char),
-        terminated(tag_no_case("WHERE"), keyword_follow_char),
-        terminated(tag_no_case("WITH"), keyword_follow_char),
-        terminated(tag_no_case("WRITE"), keyword_follow_char),
-    ))(i)
-}
+static KEYWORDS: Lazy<HashSet<Token<'static>>> = Lazy::new(|| {
+    HashSet::from([
+        Token("ALL"),
+        Token("ALTER"),
+        Token("ANALYZE"),
+        Token("AND"),
+        Token("ANY"),
+        Token("AS"),
+        Token("ASC"),
+        Token("BEGIN"),
+        Token("BY"),
+        Token("CARDINALITY"),
+        Token("CREATE"),
+        Token("CONTINUOUS"),
+        Token("DATABASE"),
+        Token("DATABASES"),
+        Token("DEFAULT"),
+        Token("DELETE"),
+        Token("DESC"),
+        Token("DESTINATIONS"),
+        Token("DIAGNOSTICS"),
+        Token("DISTINCT"),
+        Token("DROP"),
+        Token("DURATION"),
+        Token("END"),
+        Token("EVERY"),
+        Token("EXACT"),
+        Token("EXPLAIN"),
+        Token("FIELD"),
+        Token("FOR"),
+        Token("FROM"),
+        Token("GRANT"),
+        Token("GRANTS"),
+        Token("GROUP"),
+        Token("GROUPS"),
+        Token("IN"),
+        Token("INF"),
+        Token("INSERT"),
+        Token("INTO"),
+        Token("KEY"),
+        Token("KEYS"),
+        Token("KILL"),
+        Token("LIMIT"),
+        Token("MEASUREMENT"),
+        Token("MEASUREMENTS"),
+        Token("NAME"),
+        Token("OFFSET"),
+        Token("OR"),
+        Token("ON"),
+        Token("ORDER"),
+        Token("PASSWORD"),
+        Token("POLICY"),
+        Token("POLICIES"),
+        Token("PRIVILEGES"),
+        Token("QUERIES"),
+        Token("QUERY"),
+        Token("READ"),
+        Token("REPLICATION"),
+        Token("RESAMPLE"),
+        Token("RETENTION"),
+        Token("REVOKE"),
+        Token("SELECT"),
+        Token("SERIES"),
+        Token("SET"),
+        Token("SHOW"),
+        Token("SHARD"),
+        Token("SHARDS"),
+        Token("SLIMIT"),
+        Token("SOFFSET"),
+        Token("STATS"),
+        Token("SUBSCRIPTION"),
+        Token("SUBSCRIPTIONS"),
+        Token("TAG"),
+        Token("TO"),
+        Token("USER"),
+        Token("USERS"),
+        Token("VALUES"),
+        Token("WHERE"),
+        Token("WITH"),
+        Token("WRITE"),
+    ])
+});
 
 /// Matches any InfluxQL reserved keyword.
 pub(crate) fn sql_keyword(i: &str) -> ParseResult<&str, &str> {
-    // NOTE that the alt function takes a tuple with a maximum arity of 21, hence
-    // the reason these are broken into groups
-    alt((
-        keyword_all_to_drop,
-        keyword_duration_to_limit,
-        keyword_measurement_to_set,
-        keyword_show_to_write,
-    ))(i)
+    verify(terminated(alpha1, keyword_follow_char), |tok: &str| {
+        KEYWORDS.contains(&Token(tok))
+    })(i)
+}
+
+/// Recognizes a case-insensitive `keyword`, ensuring it is followed by
+/// a valid separator.
+pub fn keyword<'a>(keyword: &'static str) -> impl FnMut(&'a str) -> ParseResult<&str, &str> {
+    terminated(tag_no_case(keyword), keyword_follow_char)
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use assert_matches::assert_matches;
 
     #[test]
     fn test_keywords() {
@@ -230,5 +250,74 @@ mod test {
         // └─────────────────────────────┘
 
         sql_keyword("NOT_A_KEYWORD").unwrap_err();
+    }
+
+    #[test]
+    fn test_keyword() {
+        // Create a parser for the OR keyword
+        let mut or_keyword = keyword("OR");
+
+        // Can parse with matching case
+        let (rem, got) = or_keyword("OR").unwrap();
+        assert_eq!(rem, "");
+        assert_eq!(got, "OR");
+
+        // Not case sensitive
+        let (rem, got) = or_keyword("or").unwrap();
+        assert_eq!(rem, "");
+        assert_eq!(got, "or");
+
+        // Will fail because keyword `OR` in `ORDER` is not recognized, as is not terminated by a valid character
+        let err = or_keyword("ORDER").unwrap_err();
+        assert_matches!(err, nom::Err::Error(crate::internal::Error::Nom(_, kind)) if kind == nom::error::ErrorKind::Fail);
+    }
+
+    #[test]
+    fn test_token() {
+        // Are equal with differing case
+        let (a, b) = (Token("and"), Token("AND"));
+        assert_eq!(a, b);
+
+        // Are equal with same case
+        let (a, b) = (Token("and"), Token("and"));
+        assert_eq!(a, b);
+
+        // a < b
+        let (a, b) = (Token("and"), Token("apple"));
+        assert_ne!(a, b);
+
+        // a < b
+        let (a, b) = (Token("and"), Token("APPLE"));
+        assert_ne!(a, b);
+
+        // a < b
+        let (a, b) = (Token("AND"), Token("apple"));
+        assert_ne!(a, b);
+
+        // a > b
+        let (a, b) = (Token("and"), Token("aardvark"));
+        assert_ne!(a, b);
+
+        // a > b
+        let (a, b) = (Token("and"), Token("AARDVARK"));
+        assert_ne!(a, b);
+
+        // a > b
+        let (a, b) = (Token("AND"), Token("aardvark"));
+        assert_ne!(a, b);
+
+        // Validate prefixes don't match and are correct ordering
+
+        let (a, b) = (Token("aaa"), Token("aaabbb"));
+        assert_ne!(a, b);
+
+        let (a, b) = (Token("aaabbb"), Token("aaa"));
+        assert_ne!(a, b);
+
+        let (a, b) = (Token("aaa"), Token("AAABBB"));
+        assert_ne!(a, b);
+
+        let (a, b) = (Token("AAABBB"), Token("aaa"));
+        assert_ne!(a, b);
     }
 }

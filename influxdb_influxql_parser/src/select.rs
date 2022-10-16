@@ -10,13 +10,14 @@ use crate::expression::arithmetic::{
 use crate::expression::conditional::is_valid_now_call;
 use crate::identifier::{identifier, Identifier};
 use crate::internal::{expect, verify, ParseResult};
+use crate::keywords::keyword;
 use crate::literal::{duration, literal, number, unsigned_integer, Literal, Number};
 use crate::parameter::parameter;
 use crate::select::MeasurementSelection::Subquery;
 use crate::string::{regex, single_quoted_string, Regex};
 use crate::{impl_tuple_clause, write_escaped};
 use nom::branch::alt;
-use nom::bytes::complete::{tag, tag_no_case};
+use nom::bytes::complete::tag;
 use nom::character::complete::{char, multispace0, multispace1};
 use nom::combinator::{map, opt, value};
 use nom::sequence::{delimited, pair, preceded, tuple};
@@ -119,7 +120,7 @@ pub(crate) fn select_statement(i: &str) -> ParseResult<&str, SelectStatement> {
             from,
             condition,
             group_by,
-            fill_option,
+            fill,
             order_by,
             limit,
             offset,
@@ -128,19 +129,19 @@ pub(crate) fn select_statement(i: &str) -> ParseResult<&str, SelectStatement> {
             timezone,
         ),
     ) = tuple((
-        tag_no_case("SELECT"),
-        multispace1,
+        keyword("SELECT"),
+        multispace0,
         field_list,
-        preceded(multispace1, from_clause),
-        opt(preceded(multispace1, where_clause)),
-        opt(preceded(multispace1, group_by_clause)),
-        opt(preceded(multispace1, fill_clause)),
-        opt(preceded(multispace1, order_by_clause)),
-        opt(preceded(multispace1, limit_clause)),
-        opt(preceded(multispace1, offset_clause)),
-        opt(preceded(multispace1, slimit_clause)),
-        opt(preceded(multispace1, soffset_clause)),
-        opt(preceded(multispace1, timezone_clause)),
+        preceded(multispace0, from_clause),
+        opt(preceded(multispace0, where_clause)),
+        opt(preceded(multispace0, group_by_clause)),
+        opt(preceded(multispace0, fill_clause)),
+        opt(preceded(multispace0, order_by_clause)),
+        opt(preceded(multispace0, limit_clause)),
+        opt(preceded(multispace0, offset_clause)),
+        opt(preceded(multispace0, slimit_clause)),
+        opt(preceded(multispace0, soffset_clause)),
+        opt(preceded(multispace0, timezone_clause)),
     ))(i)?;
 
     Ok((
@@ -150,7 +151,7 @@ pub(crate) fn select_statement(i: &str) -> ParseResult<&str, SelectStatement> {
             from,
             condition,
             group_by,
-            fill: fill_option,
+            fill,
             order_by,
             limit,
             offset,
@@ -211,7 +212,7 @@ impl Display for FromMeasurementClause {
 
 fn from_clause(i: &str) -> ParseResult<&str, FromMeasurementClause> {
     preceded(
-        pair(tag_no_case("FROM"), multispace1),
+        pair(keyword("FROM"), multispace0),
         FromMeasurementClause::separated_list1(
             "invalid FROM clause, expected identifier, regular expression or subquery",
         ),
@@ -236,12 +237,16 @@ struct TimeCallIntervalArgument;
 
 impl ArithmeticParsers for TimeCallIntervalArgument {
     fn operand(i: &str) -> ParseResult<&str, Expr> {
-        map(
-            preceded(
-                multispace0,
-                expect("invalid TIME call, expected duration", duration),
+        // Any literal
+        preceded(
+            multispace0,
+            map(
+                alt((
+                    map(duration, Literal::Duration),
+                    map(unsigned_integer, Literal::Unsigned),
+                )),
+                Expr::Literal,
             ),
-            |v| Expr::Literal(Literal::Duration(v)),
         )(i)
     }
 }
@@ -332,7 +337,7 @@ impl Parser for Dimension {
 fn time_call_expression(i: &str) -> ParseResult<&str, Dimension> {
     map(
         preceded(
-            tag_no_case("TIME"),
+            keyword("TIME"),
             delimited(
                 expect(
                     "invalid TIME call, expected 1 or 2 arguments",
@@ -366,9 +371,9 @@ fn time_call_expression(i: &str) -> ParseResult<&str, Dimension> {
 fn group_by_clause(i: &str) -> ParseResult<&str, GroupByClause> {
     preceded(
         tuple((
-            tag_no_case("GROUP"),
+            keyword("GROUP"),
             multispace1,
-            expect("invalid GROUP BY clause, expected BY", tag_no_case("BY")),
+            expect("invalid GROUP BY clause, expected BY", keyword("BY")),
             multispace1,
         )),
         GroupByClause::separated_list1(
@@ -444,7 +449,7 @@ impl Parser for Field {
             pair(
                 arithmetic::<FieldExpression>,
                 opt(preceded(
-                    delimited(multispace1, tag_no_case("AS"), multispace1),
+                    delimited(multispace0, keyword("AS"), multispace1),
                     expect("invalid field alias, expected identifier", identifier),
                 )),
             ),
@@ -464,8 +469,8 @@ fn wildcard(i: &str) -> ParseResult<&str, Option<WildcardType>> {
             expect(
                 "invalid wildcard type specifier, expected TAG or FIELD",
                 alt((
-                    value(WildcardType::Tag, tag_no_case("tag")),
-                    value(WildcardType::Field, tag_no_case("field")),
+                    value(WildcardType::Tag, keyword("TAG")),
+                    value(WildcardType::Field, keyword("FIELD")),
                 )),
             ),
         )),
@@ -499,7 +504,7 @@ impl ArithmeticParsers for FieldExpression {
                 // DISTINCT identifier
                 map(
                     preceded(
-                        pair(tag_no_case("DISTINCT"), multispace1),
+                        pair(keyword("DISTINCT"), multispace1),
                         expect(
                             "invalid DISTINCT expression, expected identifier",
                             identifier,
@@ -540,7 +545,7 @@ fn field_list(i: &str) -> ParseResult<&str, FieldList> {
 /// ```
 fn fill_clause(i: &str) -> ParseResult<&str, FillClause> {
     preceded(
-        tag_no_case("FILL"),
+        keyword("FILL"),
         delimited(
             preceded(multispace0, char('(')),
             expect(
@@ -548,11 +553,11 @@ fn fill_clause(i: &str) -> ParseResult<&str, FillClause> {
                 preceded(
                     multispace0,
                     alt((
-                        value(FillClause::Null, tag_no_case("NULL")),
-                        value(FillClause::None, tag_no_case("NONE")),
+                        value(FillClause::Null, keyword("NULL")),
+                        value(FillClause::None, keyword("NONE")),
                         map(number, FillClause::Value),
-                        value(FillClause::Previous, tag_no_case("PREVIOUS")),
-                        value(FillClause::Linear, tag_no_case("LINEAR")),
+                        value(FillClause::Previous, keyword("PREVIOUS")),
+                        value(FillClause::Linear, keyword("LINEAR")),
                     )),
                 ),
             ),
@@ -580,7 +585,7 @@ impl Display for SLimitClause {
 /// ```
 fn slimit_clause(i: &str) -> ParseResult<&str, SLimitClause> {
     preceded(
-        pair(tag_no_case("SLIMIT"), multispace1),
+        pair(keyword("SLIMIT"), multispace1),
         expect(
             "invalid SLIMIT clause, expected unsigned integer",
             map(unsigned_integer, SLimitClause),
@@ -607,7 +612,7 @@ impl Display for SOffsetClause {
 /// ```
 fn soffset_clause(i: &str) -> ParseResult<&str, SOffsetClause> {
     preceded(
-        pair(tag_no_case("SOFFSET"), multispace1),
+        pair(keyword("SOFFSET"), multispace1),
         expect(
             "invalid SLIMIT clause, expected unsigned integer",
             map(unsigned_integer, SOffsetClause),
@@ -636,7 +641,7 @@ impl Display for TimeZoneClause {
 /// ```
 fn timezone_clause(i: &str) -> ParseResult<&str, TimeZoneClause> {
     preceded(
-        tag_no_case("TZ"),
+        keyword("TZ"),
         delimited(
             preceded(multispace0, char('(')),
             expect(
@@ -673,6 +678,19 @@ mod test {
             format!("{}", got),
             r#"SELECT sum(value) FROM foo GROUP BY TIME(5m), host"#
         );
+
+        // Parses TIME() with expressions
+        let (_, got) =
+            select_statement("SELECT sum(value) FROM foo GROUP BY time(5m * 10), host").unwrap();
+        assert_eq!(
+            format!("{}", got),
+            r#"SELECT sum(value) FROM foo GROUP BY TIME(5m * 10), host"#
+        );
+
+        // TIME only supports integer and duration literals
+        select_statement("SELECT sum(value) FROM foo GROUP BY time(5m + 'foo'), host").unwrap_err();
+        select_statement("SELECT sum(value) FROM foo GROUP BY time(5m + 5.4), host").unwrap_err();
+        select_statement("SELECT sum(value) FROM foo GROUP BY time(5m + true), host").unwrap_err();
 
         let (_, got) =
             select_statement("SELECT sum(value) FROM foo GROUP BY time(5m), host FILL(previous)")
@@ -711,6 +729,47 @@ mod test {
             format!("{}", got),
             r#"SELECT value FROM foo TZ('Australia/Hobart')"#
         );
+
+        // validate spacing between keywords
+
+        let (rem, _) = select_statement("SELECT value FROM(SELECT val FROM cpu)").unwrap();
+        assert_eq!(rem, "");
+
+        let (rem, _) = select_statement("SELECT (value)FROM cpu").unwrap();
+        assert_eq!(rem, "");
+
+        let (rem, _) =
+            select_statement("SELECT value FROM (SELECT val FROM cpu)WHERE 1=1").unwrap();
+        assert_eq!(rem, "");
+
+        let (rem, _) =
+            select_statement("SELECT value FROM cpu WHERE time <= now()FILL(previous)").unwrap();
+        assert_eq!(rem, "");
+
+        let (rem, _) =
+            select_statement("SELECT value FROM cpu WHERE time <= now()ORDER BY time").unwrap();
+        assert_eq!(rem, "");
+
+        let (rem, _) =
+            select_statement("SELECT value FROM cpu WHERE time <= now()LIMIT 10").unwrap();
+        assert_eq!(rem, "");
+
+        let (rem, _) =
+            select_statement("SELECT value FROM cpu WHERE time <= now()OFFSET 10").unwrap();
+        assert_eq!(rem, "");
+
+        let (rem, _) =
+            select_statement("SELECT value FROM cpu WHERE time <= now()SLIMIT 10").unwrap();
+        assert_eq!(rem, "");
+
+        let (rem, _) =
+            select_statement("SELECT value FROM cpu WHERE time <= now()SOFFSET 10").unwrap();
+        assert_eq!(rem, "");
+
+        let (rem, _) =
+            select_statement("SELECT value FROM cpu WHERE time <= now()TZ('Australia/Hobart')")
+                .unwrap();
+        assert_eq!(rem, "");
     }
 
     #[test]
@@ -775,6 +834,16 @@ mod test {
             }
         );
 
+        // Parse expression with an alias and no unnecessary whitespace
+        let (_, got) = Field::parse("COUNT(foo)AS bar").unwrap();
+        assert_eq!(
+            got,
+            Field {
+                expr: call!("COUNT", var_ref!("foo")),
+                alias: Some("bar".into())
+            }
+        );
+
         // Parse a call with a VarRef
         let (_, got) = Field::parse("DISTINCT foo AS bar").unwrap();
         assert_eq!(
@@ -792,6 +861,16 @@ mod test {
             Field {
                 expr: call!("COUNT", distinct!("foo")),
                 alias: Some("bar".into())
+            }
+        );
+
+        // Parse a call with a nested distinct call
+        let (_, got) = Field::parse("COUNT(DISTINCT(foo))").unwrap();
+        assert_eq!(
+            got,
+            Field {
+                expr: call!("COUNT", call!("DISTINCT", var_ref!("foo"))),
+                alias: None
             }
         );
 
@@ -1013,18 +1092,14 @@ mod test {
         let (got, _) = time_call_expression("TIME(5m, 'some string')").unwrap();
         assert_eq!(got, "");
 
+        // Limited expressions are supported
+        let (got, _) = time_call_expression("TIME(5m * 10)").unwrap();
+        assert_eq!(got, "");
+
         // Fallible cases
         assert_expect_error!(
             time_call_expression("TIME"),
             "invalid TIME call, expected 1 or 2 arguments"
-        );
-        assert_expect_error!(
-            time_call_expression("TIME(3)"),
-            "invalid TIME call, expected duration"
-        );
-        assert_expect_error!(
-            time_call_expression("TIME(5m + 3)"),
-            "invalid TIME call, expected duration"
         );
         assert_expect_error!(
             time_call_expression("TIME(5m"),

@@ -8,8 +8,9 @@ use crate::common::{
 };
 use crate::identifier::{identifier, Identifier};
 use crate::internal::{expect, ParseResult};
+use crate::keywords::keyword;
 use nom::branch::alt;
-use nom::bytes::complete::{tag, tag_no_case};
+use nom::bytes::complete::tag;
 use nom::character::complete::{multispace0, multispace1};
 use nom::combinator::{map, opt, value};
 use nom::sequence::tuple;
@@ -47,7 +48,7 @@ impl fmt::Display for ExtendedOnClause {
 /// Parse the `ON` clause of the `SHOW MEASUREMENTS` statement.
 fn extended_on_clause(i: &str) -> ParseResult<&str, ExtendedOnClause> {
     preceded(
-        pair(tag_no_case("ON"), multispace1),
+        pair(keyword("ON"), multispace1),
         expect(
             "invalid ON clause, expected wildcard or identifier",
             alt((
@@ -144,11 +145,11 @@ impl fmt::Display for WithMeasurementClause {
 fn with_measurement_clause(i: &str) -> ParseResult<&str, WithMeasurementClause> {
     preceded(
         tuple((
-            tag_no_case("WITH"),
+            keyword("WITH"),
             multispace1,
             expect(
                 "invalid WITH clause, expected MEASUREMENT",
-                tag_no_case("MEASUREMENT"),
+                keyword("MEASUREMENT"),
             ),
             multispace0,
         )),
@@ -184,7 +185,7 @@ pub(crate) fn show_measurements(i: &str) -> ParseResult<&str, ShowMeasurementsSt
             offset,
         ),
     ) = tuple((
-        tag_no_case("MEASUREMENTS"),
+        keyword("MEASUREMENTS"),
         opt(preceded(multispace1, extended_on_clause)),
         opt(preceded(multispace1, with_measurement_clause)),
         opt(preceded(multispace1, where_clause)),

@@ -1,9 +1,10 @@
 use crate::internal::{map_fail, ParseResult};
+use crate::keywords::keyword;
 use crate::string::{regex, single_quoted_string, Regex};
 use crate::{impl_tuple_clause, write_escaped};
 use nom::branch::alt;
-use nom::bytes::complete::{tag, tag_no_case};
-use nom::character::complete::{char, digit1, multispace0};
+use nom::bytes::complete::tag;
+use nom::character::complete::{char, digit0, digit1, multispace0};
 use nom::combinator::{map, opt, recognize, value};
 use nom::multi::fold_many1;
 use nom::sequence::{pair, preceded, separated_pair};
@@ -133,7 +134,7 @@ pub(crate) fn unsigned_integer(i: &str) -> ParseResult<&str, u64> {
 fn float(i: &str) -> ParseResult<&str, f64> {
     map_fail(
         "unable to parse float",
-        recognize(separated_pair(digit1, tag("."), digit1)),
+        recognize(separated_pair(digit0, tag("."), digit1)),
         &str::parse,
     )(i)
 }
@@ -186,10 +187,7 @@ pub(crate) fn number(i: &str) -> ParseResult<&str, Number> {
 
 /// Parse the input for an InfluxQL boolean, which must be the value `true` or `false`.
 fn boolean(i: &str) -> ParseResult<&str, bool> {
-    alt((
-        value(true, tag_no_case("true")),
-        value(false, tag_no_case("false")),
-    ))(i)
+    alt((value(true, keyword("TRUE")), value(false, keyword("FALSE"))))(i)
 }
 
 #[derive(Clone)]
@@ -377,6 +375,9 @@ mod test {
         let (_, got) = float("42.69").unwrap();
         assert_eq!(got, 42.69);
 
+        let (_, got) = float(".25").unwrap();
+        assert_eq!(got, 0.25);
+
         let (_, got) = float(&format!("{:.1}", f64::MAX)[..]).unwrap();
         assert_eq!(got, f64::MAX);
 
@@ -395,6 +396,11 @@ mod test {
         assert!(got);
         let (_, got) = boolean("false").unwrap();
         assert!(!got);
+
+        // Fallible cases
+
+        boolean("truey").unwrap_err();
+        boolean("falsey").unwrap_err();
     }
 
     #[test]

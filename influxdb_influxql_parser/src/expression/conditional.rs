@@ -1,13 +1,14 @@
 use crate::expression::arithmetic::{
     arithmetic, call_expression, var_ref, ArithmeticParsers, Expr,
 };
-use crate::internal::{verify, ParseResult};
+use crate::internal::{expect, verify, ParseResult};
+use crate::keywords::keyword;
 use crate::literal::{literal_no_regex, literal_regex, Literal};
 use crate::parameter::parameter;
 use nom::branch::alt;
-use nom::bytes::complete::{tag, tag_no_case};
+use nom::bytes::complete::tag;
 use nom::character::complete::{char, multispace0};
-use nom::combinator::{cut, map, value};
+use nom::combinator::{map, value};
 use nom::multi::many0;
 use nom::sequence::{delimited, preceded, tuple};
 use std::fmt;
@@ -18,7 +19,7 @@ use std::fmt::{Display, Formatter, Write};
 pub enum ConditionalOperator {
     /// Represents the `=` operator.
     Eq,
-    /// Represents the `!=` operator.
+    /// Represents the `!=` or `<>` operator.
     NotEq,
     /// Represents the `=~` (regular expression equals) operator.
     EqRegex,
@@ -125,7 +126,13 @@ fn conditional_regex(i: &str) -> ParseResult<&str, ConditionalExpression> {
                 value(ConditionalOperator::NotEqRegex, tag("!~")),
             )),
         ),
-        map(cut(preceded(multispace0, literal_regex)), From::from),
+        map(
+            expect(
+                "invalid conditional, expected regular expression",
+                preceded(multispace0, literal_regex),
+            ),
+            From::from,
+        ),
     )))(input)?;
     Ok((input, reduce_expr(f1, exprs)))
 }
@@ -141,12 +148,13 @@ fn conditional(i: &str) -> ParseResult<&str, ConditionalExpression> {
                 value(ConditionalOperator::LtEq, tag("<=")),
                 value(ConditionalOperator::GtEq, tag(">=")),
                 value(ConditionalOperator::NotEq, tag("!=")),
+                value(ConditionalOperator::NotEq, tag("<>")),
                 value(ConditionalOperator::Lt, char('<')),
                 value(ConditionalOperator::Gt, char('>')),
                 value(ConditionalOperator::Eq, char('=')),
             )),
         ),
-        cut(conditional_regex),
+        expect("invalid conditional expression", conditional_regex),
     )))(input)?;
     Ok((input, reduce_expr(f1, exprs)))
 }
@@ -157,9 +165,9 @@ fn conjunction(i: &str) -> ParseResult<&str, ConditionalExpression> {
     let (input, exprs) = many0(tuple((
         value(
             ConditionalOperator::And,
-            preceded(multispace0, tag_no_case("and")),
+            preceded(multispace0, keyword("AND")),
         ),
-        cut(conditional),
+        expect("invalid conditional expression", conditional),
     )))(input)?;
     Ok((input, reduce_expr(f1, exprs)))
 }
@@ -170,9 +178,9 @@ fn disjunction(i: &str) -> ParseResult<&str, ConditionalExpression> {
     let (input, exprs) = many0(tuple((
         value(
             ConditionalOperator::Or,
-            preceded(multispace0, tag_no_case("or")),
+            preceded(multispace0, keyword("OR")),
         ),
-        cut(conjunction),
+        expect("invalid conditional expression", conjunction),
     )))(input)?;
     Ok((input, reduce_expr(f1, exprs)))
 }
@@ -363,6 +371,22 @@ mod test {
         let (_, got) = conditional_expression("5 AND (6 OR 7)").unwrap();
         assert_eq!(got, *cond_op!(5, And, grouped!(cond_op!(6, Or, 7))));
 
+        // <> is recognised as !=
+        let (_, got) = conditional_expression("5 <> 6").unwrap();
+        assert_eq!(got, *cond_op!(5, NotEq, 6));
+
+        // In the following cases, we validate that the `OR` keyword is not eagerly
+        // parsed from substrings
+        let (got, _) = conditional_expression("foo = bar ORDER BY time ASC").unwrap();
+        assert_eq!(got, " ORDER BY time ASC");
+
+        let (got, _) = conditional_expression("foo = bar OR1").unwrap();
+        assert_eq!(got, " OR1");
+
+        // Whitespace is optional for certain characters
+        let (got, _) = conditional_expression("foo = bar OR(foo > bar) ORDER BY time ASC").unwrap();
+        assert_eq!(got, " ORDER BY time ASC");
+
         // Fallible cases
 
         // Expects Expr after operator
@@ -390,8 +414,14 @@ mod test {
         // Fallible cases
 
         // Expects a regex literal after regex conditional operators
-        assert_failure!(conditional_expression("foo =~ 5"));
-        assert_failure!(conditional_expression("foo !~ 5"));
+        assert_expect_error!(
+            conditional_expression("foo =~ 5"),
+            "invalid conditional, expected regular expression"
+        );
+        assert_expect_error!(
+            conditional_expression("foo !~ 5"),
+            "invalid conditional, expected regular expression"
+        );
     }
 
     #[test]

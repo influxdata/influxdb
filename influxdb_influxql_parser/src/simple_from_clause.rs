@@ -3,7 +3,7 @@ use crate::common::{
 };
 use crate::identifier::{identifier, Identifier};
 use crate::internal::ParseResult;
-use nom::bytes::complete::tag_no_case;
+use crate::keywords::keyword;
 use nom::character::complete::multispace1;
 use nom::sequence::{pair, preceded};
 use std::fmt;
@@ -19,7 +19,7 @@ pub type FromMeasurementClause<U> = OneOrMore<U>;
 
 fn from_clause<T: Parser + fmt::Display>(i: &str) -> ParseResult<&str, FromMeasurementClause<T>> {
     preceded(
-        pair(tag_no_case("FROM"), multispace1),
+        pair(keyword("FROM"), multispace1),
         FromMeasurementClause::<T>::separated_list1(
             "invalid FROM clause, expected identifier or regular expression",
         ),

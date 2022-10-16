@@ -2,9 +2,9 @@ use crate::common::{
     limit_clause, offset_clause, where_clause, LimitClause, OffsetClause, WhereClause,
 };
 use crate::internal::ParseResult;
+use crate::keywords::keyword;
 use crate::show::{on_clause, OnClause};
 use crate::simple_from_clause::{show_from_clause, ShowFromClause};
-use nom::bytes::complete::tag_no_case;
 use nom::character::complete::multispace1;
 use nom::combinator::opt;
 use nom::sequence::{preceded, tuple};
@@ -73,7 +73,7 @@ pub(crate) fn show_tag_keys(i: &str) -> ParseResult<&str, ShowTagKeysStatement> 
             offset,
         ),
     ) = tuple((
-        tag_no_case("KEYS"),
+        keyword("KEYS"),
         opt(preceded(multispace1, on_clause)),
         opt(preceded(multispace1, show_from_clause)),
         opt(preceded(multispace1, where_clause)),

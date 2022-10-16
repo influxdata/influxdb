@@ -1,5 +1,6 @@
 use crate::identifier::{identifier, Identifier};
 use crate::internal::{expect, ParseResult};
+use crate::keywords::keyword;
 use crate::show_field_keys::show_field_keys;
 use crate::show_measurements::show_measurements;
 use crate::show_retention_policies::show_retention_policies;
@@ -7,7 +8,6 @@ use crate::show_tag_keys::show_tag_keys;
 use crate::show_tag_values::show_tag_values;
 use crate::{impl_tuple_clause, Statement};
 use nom::branch::alt;
-use nom::bytes::complete::tag_no_case;
 use nom::character::complete::multispace1;
 use nom::combinator::{map, value};
 use nom::sequence::{pair, preceded};
@@ -16,7 +16,7 @@ use std::fmt::{Display, Formatter};
 /// Parse a SHOW statement.
 pub(crate) fn show_statement(i: &str) -> ParseResult<&str, Statement> {
     preceded(
-        pair(tag_no_case("SHOW"), multispace1),
+        pair(keyword("SHOW"), multispace1),
         expect(
             "invalid SHOW statement, expected DATABASES, FIELD, MEASUREMENTS, TAG, or RETENTION following SHOW",
             alt((
@@ -51,7 +51,7 @@ impl Display for ShowDatabasesStatement {
 
 /// Parse a `SHOW DATABASES` statement.
 fn show_databases(i: &str) -> ParseResult<&str, ShowDatabasesStatement> {
-    value(ShowDatabasesStatement, tag_no_case("DATABASES"))(i)
+    value(ShowDatabasesStatement, keyword("DATABASES"))(i)
 }
 
 /// Represents an `ON` clause for the case where the database is a single [`Identifier`].
@@ -69,7 +69,7 @@ impl Display for OnClause {
 /// Parse an `ON` clause for statements such as `SHOW TAG KEYS` and `SHOW FIELD KEYS`.
 pub(crate) fn on_clause(i: &str) -> ParseResult<&str, OnClause> {
     preceded(
-        pair(tag_no_case("ON"), multispace1),
+        pair(keyword("ON"), multispace1),
         expect(
             "invalid ON clause, expected identifier",
             map(identifier, OnClause),
@@ -80,7 +80,7 @@ pub(crate) fn on_clause(i: &str) -> ParseResult<&str, OnClause> {
 /// Parse a `SHOW TAG (KEYS|VALUES)` statement.
 fn show_tag(i: &str) -> ParseResult<&str, Statement> {
     preceded(
-        pair(tag_no_case("TAG"), multispace1),
+        pair(keyword("TAG"), multispace1),
         expect(
             "invalid SHOW TAG statement, expected KEYS or VALUES",
             alt((

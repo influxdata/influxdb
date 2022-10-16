@@ -1,8 +1,8 @@
 use crate::common::{limit_clause, offset_clause, LimitClause, OffsetClause};
 use crate::internal::{expect, ParseResult};
+use crate::keywords::keyword;
 use crate::show::{on_clause, OnClause};
 use crate::simple_from_clause::{show_from_clause, ShowFromClause};
-use nom::bytes::complete::tag_no_case;
 use nom::character::complete::multispace1;
 use nom::combinator::opt;
 use nom::sequence::{preceded, tuple};
@@ -65,11 +65,11 @@ pub(crate) fn show_field_keys(i: &str) -> ParseResult<&str, ShowFieldKeysStateme
             offset,
         ),
     ) = tuple((
-        tag_no_case("FIELD"),
+        keyword("FIELD"),
         multispace1,
         expect(
             "invalid SHOW FIELD KEYS statement, expected KEYS",
-            tag_no_case("KEYS"),
+            keyword("KEYS"),
         ),
         opt(preceded(multispace1, on_clause)),
         opt(preceded(multispace1, show_from_clause)),

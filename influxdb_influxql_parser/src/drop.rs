@@ -1,6 +1,6 @@
 use crate::identifier::{identifier, Identifier};
 use crate::internal::{expect, ParseResult};
-use nom::bytes::complete::tag_no_case;
+use crate::keywords::keyword;
 use nom::character::complete::multispace1;
 use nom::combinator::map;
 use nom::sequence::{pair, preceded};
@@ -21,7 +21,7 @@ impl Display for DropMeasurementStatement {
 
 pub(crate) fn drop_statement(i: &str) -> ParseResult<&str, DropMeasurementStatement> {
     preceded(
-        pair(tag_no_case("DROP"), multispace1),
+        pair(keyword("DROP"), multispace1),
         expect(
             "invalid DROP statement, expected MEASUREMENT",
             drop_measurement,
@@ -31,7 +31,7 @@ pub(crate) fn drop_statement(i: &str) -> ParseResult<&str, DropMeasurementStatem
 
 fn drop_measurement(i: &str) -> ParseResult<&str, DropMeasurementStatement> {
     preceded(
-        pair(tag_no_case("MEASUREMENT"), multispace1),
+        pair(keyword("MEASUREMENT"), multispace1),
         map(
             expect(
                 "invalid DROP MEASUREMENT statement, expected identifier",

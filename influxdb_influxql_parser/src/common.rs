@@ -1,11 +1,12 @@
 use crate::expression::conditional::{conditional_expression, ConditionalExpression};
 use crate::identifier::{identifier, Identifier};
-use crate::internal::{expect, ParseResult};
+use crate::internal::{expect, verify, ParseResult};
+use crate::keywords::{keyword, Token};
 use crate::literal::unsigned_integer;
 use crate::string::{regex, Regex};
 use core::fmt;
 use nom::branch::alt;
-use nom::bytes::complete::{tag, tag_no_case};
+use nom::bytes::complete::tag;
 use nom::character::complete::{char, multispace0, multispace1};
 use nom::combinator::{map, opt, value};
 use nom::multi::separated_list1;
@@ -176,7 +177,7 @@ impl Display for LimitClause {
 /// Parse a `LIMIT <n>` clause.
 pub(crate) fn limit_clause(i: &str) -> ParseResult<&str, LimitClause> {
     preceded(
-        pair(tag_no_case("LIMIT"), multispace1),
+        pair(keyword("LIMIT"), multispace1),
         expect(
             "invalid LIMIT clause, expected unsigned integer",
             map(unsigned_integer, LimitClause),
@@ -199,7 +200,7 @@ impl Display for OffsetClause {
 /// Parse an `OFFSET <n>` clause.
 pub(crate) fn offset_clause(i: &str) -> ParseResult<&str, OffsetClause> {
     preceded(
-        pair(tag_no_case("OFFSET"), multispace1),
+        pair(keyword("OFFSET"), multispace1),
         expect(
             "invalid OFFSET clause, expected unsigned integer",
             map(unsigned_integer, OffsetClause),
@@ -246,7 +247,7 @@ impl Display for WhereClause {
 /// Parse a `WHERE` clause.
 pub(crate) fn where_clause(i: &str) -> ParseResult<&str, WhereClause> {
     preceded(
-        pair(tag_no_case("WHERE"), multispace1),
+        pair(keyword("WHERE"), multispace0),
         map(conditional_expression, WhereClause),
     )(i)
 }
@@ -302,18 +303,15 @@ pub(crate) fn order_by_clause(i: &str) -> ParseResult<&str, OrderByClause> {
         preceded(
             multispace1,
             alt((
-                value(OrderByClause::Ascending, tag_no_case("ASC")),
-                value(OrderByClause::Descending, tag_no_case("DESC")),
+                value(OrderByClause::Ascending, keyword("ASC")),
+                value(OrderByClause::Descending, keyword("DESC")),
             )),
         )
     };
 
     preceded(
         // "ORDER" "BY"
-        pair(
-            tag_no_case("ORDER"),
-            preceded(multispace1, tag_no_case("BY")),
-        ),
+        pair(keyword("ORDER"), preceded(multispace1, keyword("BY"))),
         expect(
             "invalid ORDER BY, expected ASC, DESC or TIME",
             alt((
@@ -321,7 +319,15 @@ pub(crate) fn order_by_clause(i: &str) -> ParseResult<&str, OrderByClause> {
                 order(),
                 // "TIME" ( "ASC" | "DESC" )?
                 map(
-                    preceded(preceded(multispace1, tag_no_case("TIME")), opt(order())),
+                    preceded(
+                        preceded(
+                            multispace1,
+                            verify("invalid ORDER BY, expected TIME column", identifier, |v| {
+                                Token(&v.0) == Token("time")
+                            }),
+                        ),
+                        opt(order()),
+                    ),
                     Option::<_>::unwrap_or_default,
                 ),
             )),
@@ -578,6 +584,10 @@ mod tests {
         let (_, got) = order_by_clause("ORDER by desc").unwrap();
         assert_eq!(got, Descending);
 
+        // "time" as a quoted identifier
+        let (_, got) = order_by_clause("ORDER by \"time\" asc").unwrap();
+        assert_eq!(got, Ascending);
+
         let (_, got) = order_by_clause("ORDER by time asc").unwrap();
         assert_eq!(got, Ascending);
 
@@ -586,6 +596,13 @@ mod tests {
 
         // default case is ascending
         let (_, got) = order_by_clause("ORDER by time").unwrap();
+        assert_eq!(got, Ascending);
+
+        // case insensitive
+        let (_, got) = order_by_clause("ORDER by \"TIME\"").unwrap();
+        assert_eq!(got, Ascending);
+
+        let (_, got) = order_by_clause("ORDER by Time").unwrap();
         assert_eq!(got, Ascending);
 
         // does not consume remaining input
@@ -598,7 +615,7 @@ mod tests {
         // Must be "time" identifier
         assert_expect_error!(
             order_by_clause("ORDER by foo"),
-            "invalid ORDER BY, expected ASC, DESC or TIME"
+            "invalid ORDER BY, expected TIME column"
         );
     }
 
@@ -610,6 +627,9 @@ mod tests {
         // Remaining input is not consumed
         let (i, _) = where_clause("WHERE foo = 'bar' LIMIT 10").unwrap();
         assert_eq!(i, " LIMIT 10");
+
+        // Without unnecessary whitespace
+        where_clause("WHERE(foo = 'bar')").unwrap();
 
         // Fallible cases
         where_clause("WHERE foo = LIMIT 10").unwrap_err();
