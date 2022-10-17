@@ -404,6 +404,13 @@ workflows:
   nightly:
     when:
       and:
+        # This requires a pipeline trigger with a custom "workflow" parameter
+        # set to "nightly". Since we want to trigger this workflow on several
+        # branches, we cannot use the trigger name as suggested by the
+        # documentation.
+        #
+        # For more information:
+        # https://circleci.com/docs/scheduled-pipelines/
         - equal: [ << pipeline.trigger_source >>, scheduled_pipeline ]
         - equal: [ << pipeline.parameters.workflow >>, nightly ]
     jobs:
