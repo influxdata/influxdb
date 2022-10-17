@@ -202,40 +202,4 @@ mod tests {
         ]);
         assert_eq!(actual, expected);
     }
-
-    #[test]
-    fn test_k8s_idpe_connection_config() {
-        let cfg = WriteBufferConfig::try_parse_from([
-            "my_binary",
-            "--write-buffer",
-            "kafka",
-            "--write-buffer-addr",
-            "localhost:1234",
-            "--write-buffer-connection-config",
-            "max_message_size=10485760,\
-            producer_max_batch_size=2621440,\
-            consumer_min_batch_size=1048576,\
-            consumer_max_batch_size=5242880,\
-            consumer_max_wait_ms=10",
-        ])
-        .unwrap();
-        let actual = cfg.connection_config();
-        let expected = BTreeMap::from([
-            (
-                String::from("consumer_max_batch_size"),
-                String::from("5242880"),
-            ),
-            (String::from("consumer_max_wait_ms"), String::from("10")),
-            (
-                String::from("consumer_min_batch_size"),
-                String::from("1048576"),
-            ),
-            (String::from("max_message_size"), String::from("10485760")),
-            (
-                String::from("producer_max_batch_size"),
-                String::from("2621440"),
-            ),
-        ]);
-        assert_eq!(actual, expected);
-    }
 }
