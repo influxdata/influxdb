@@ -9,6 +9,10 @@ parameters:
     type: string
     default: go1.18.6-9c97f2f2903566a00bd4b00184aeca0c813adda0
 
+  workflow:
+    type: string
+    default: build
+
 executors:
   cross-builder:
     docker:
@@ -64,6 +68,8 @@ nofork_filter: &nofork_filter
 workflows:
   version: 2
   build:
+    when:
+      equal: [ << pipeline.parameters.workflow >>, build ]
     jobs:
       - test-race:
           <<: *any_filter
@@ -200,13 +206,10 @@ workflows:
       - aws-destroy-by-date
 
   nightly:
-    triggers:
-      - schedule:
-          cron: "0 5 * * *"
-          filters:
-            branches:
-              only:
-                - master
+    when:
+      and:
+        - equal: [ << pipeline.trigger_source >>, scheduled_pipeline ]
+        - equal: [ << pipeline.parameters.workflow >>, nightly ]
     jobs:
       - changelog
       - s3-publish-changelog:
