@@ -122,6 +122,7 @@ func (s *Scheduler) doGather() {
 		return
 	}
 	for _, target := range targets {
+		target := target
 		select {
 		case s.scrapeRequest <- &target:
 		default:
