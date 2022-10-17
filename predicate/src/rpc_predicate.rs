@@ -229,11 +229,7 @@ fn normalize_predicate(
                 .and_then(|e| simplifier.coerce(e, Arc::clone(&df_schema)))
                 .map(|e| log_rewrite(e, "coerce_expr"))
                 // Call DataFusion simplification logic
-                .and_then(|e| {
-                    // simplify twice to ensure "full" cleanup
-                    let e = simplifier.simplify(e)?;
-                    simplifier.simplify(e)
-                })
+                .and_then(|e| simplifier.simplify(e))
                 .map(|e| log_rewrite(e, "simplify_expr"))
                 .and_then(rewrite::simplify_predicate)
                 .map(|e| log_rewrite(e, "simplify_predicate"));

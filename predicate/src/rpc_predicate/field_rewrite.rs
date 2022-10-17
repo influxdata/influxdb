@@ -7,11 +7,11 @@ use arrow::record_batch::RecordBatch;
 use datafusion::common::DFSchema;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::logical_expr::expr_visitor::{ExprVisitable, ExpressionVisitor, Recursion};
+use datafusion::optimizer::utils::split_conjunction_owned;
 use datafusion::physical_expr::create_physical_expr;
 use datafusion::physical_expr::execution_props::ExecutionProps;
 use datafusion::physical_plan::ColumnarValue;
 use datafusion::prelude::{lit, Expr};
-use datafusion_util::disassemble_conjuct;
 use schema::Schema;
 use std::sync::Arc;
 
@@ -62,7 +62,7 @@ impl FieldProjectionRewriter {
     pub(crate) fn rewrite_field_exprs(&mut self, expr: Expr) -> DataFusionResult<Expr> {
         // for predicates like `A AND B AND C`
         // rewrite `A`, `B` and `C` separately and put them back together
-        let rewritten_expr = disassemble_conjuct(expr)
+        let rewritten_expr = split_conjunction_owned(expr)
             .into_iter()
             // apply the rewrite individually
             .map(|expr| self.rewrite_single_conjunct(expr))

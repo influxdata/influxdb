@@ -489,24 +489,19 @@ impl Predicate {
     pub fn with_pushdown_exprs(mut self, filters: &[Expr]) -> Self {
         // For each expression of the filters, recursively split it, if it is is an AND conjunction
         // For example, expression (x AND y) will be split into a vector of 2 expressions [x, y]
-        let mut exprs = vec![];
-        filters
-            .iter()
-            .for_each(|expr| split_conjunction(expr, &mut exprs));
+        let mut exprs = filters.iter().flat_map(split_conjunction);
 
         // Only keep single_column and primitive binary expressions
         let mut pushdown_exprs: Vec<Expr> = vec![];
-        let exprs_result = exprs
-            .into_iter()
-            .try_for_each::<_, Result<_, DataFusionError>>(|expr| {
-                let mut columns = HashSet::new();
-                expr_to_columns(expr, &mut columns)?;
+        let exprs_result = exprs.try_for_each::<_, Result<_, DataFusionError>>(|expr| {
+            let mut columns = HashSet::new();
+            expr_to_columns(expr, &mut columns)?;
 
-                if columns.len() == 1 && Self::primitive_binary_expr(expr) {
-                    pushdown_exprs.push(expr.clone());
-                }
-                Ok(())
-            });
+            if columns.len() == 1 && Self::primitive_binary_expr(expr) {
+                pushdown_exprs.push(expr.clone());
+            }
+            Ok(())
+        });
 
         match exprs_result {
             Ok(()) => {
