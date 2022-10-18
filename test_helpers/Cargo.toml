@@ -5,7 +5,7 @@ authors = ["Paul Dix <paul@pauldix.net>"]
 edition = "2021"
 
 [dependencies] # In alphabetical order
-dotenvy = "0.15.5"
+dotenvy = "0.15.6"
 parking_lot = "0.12"
 tempfile = "3.1.0"
 tracing-log = "0.1"
