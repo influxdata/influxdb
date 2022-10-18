@@ -2,15 +2,15 @@
 
 use std::{pin::Pin, sync::Arc};
 
-use arrow::{error::ArrowError, record_batch::RecordBatch};
+use arrow::{array::new_null_array, error::ArrowError, record_batch::RecordBatch};
 use arrow_util::optimize::{optimize_record_batch, optimize_schema};
 use data_types::{PartitionId, SequenceNumber};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::MemoryStream;
-use futures::{Stream, StreamExt};
+use futures::{Stream, StreamExt, TryStreamExt};
 use generated_types::ingester::IngesterQueryRequest;
 use observability_deps::tracing::debug;
-use schema::selection::Selection;
+use schema::{merge::SchemaMerger, selection::Selection};
 use snafu::{ensure, Snafu};
 
 use crate::{
@@ -168,10 +168,63 @@ impl IngesterQueryResponse {
             })
             .boxed()
     }
+
+    /// Convert [`IngesterQueryResponse`] to a set of [`RecordBatch`]es.
+    ///
+    /// If the response contains multiple snapshots, this will merge the schemas into a single one and create
+    /// NULL-columns for snapshots that miss columns.
+    ///
+    /// # Panic
+    /// Panics if there are no batches returned at all. Also panics if the snapshot-scoped schemas do not line up with
+    /// the snapshot-scoped record batches.
+    pub async fn into_record_batches(self) -> Vec<RecordBatch> {
+        let mut snapshot_schema = None;
+        let mut schema_merger = SchemaMerger::new();
+        let mut batches = vec![];
+
+        let mut stream = self.flatten();
+        while let Some(msg) = stream.try_next().await.unwrap() {
+            match msg {
+                FlatIngesterQueryResponse::StartPartition { .. } => (),
+                FlatIngesterQueryResponse::RecordBatch { batch } => {
+                    let last_schema = snapshot_schema.as_ref().unwrap();
+                    assert_eq!(&batch.schema(), last_schema);
+                    batches.push(batch);
+                }
+                FlatIngesterQueryResponse::StartSnapshot { schema } => {
+                    snapshot_schema = Some(Arc::clone(&schema));
+
+                    schema_merger = schema_merger
+                        .merge(&schema::Schema::try_from(schema).unwrap())
+                        .unwrap();
+                }
+            }
+        }
+
+        assert!(!batches.is_empty());
+
+        // equalize schemas
+        let common_schema = schema_merger.build().as_arrow();
+        batches
+            .into_iter()
+            .map(|batch| {
+                let batch_schema = batch.schema();
+                let columns = common_schema
+                    .fields()
+                    .iter()
+                    .map(|field| match batch_schema.index_of(field.name()) {
+                        Ok(idx) => Arc::clone(batch.column(idx)),
+                        Err(_) => new_null_array(field.data_type(), batch.num_rows()),
+                    })
+                    .collect();
+                RecordBatch::try_new(Arc::clone(&common_schema), columns).unwrap()
+            })
+            .collect()
+    }
 }
 
 /// Flattened version of [`IngesterQueryResponse`].
-pub(crate) type FlatIngesterQueryResponseStream =
+pub type FlatIngesterQueryResponseStream =
     Pin<Box<dyn Stream<Item = Result<FlatIngesterQueryResponse, ArrowError>> + Send>>;
 
 /// Element within the flat wire protocol.
@@ -347,17 +400,15 @@ fn prepare_data_to_querier_for_partition(
 mod tests {
     use std::task::{Context, Poll};
 
-    use arrow::{array::new_null_array, datatypes::SchemaRef, record_batch::RecordBatch};
+    use arrow::{datatypes::SchemaRef, record_batch::RecordBatch};
     use arrow_util::assert_batches_sorted_eq;
     use assert_matches::assert_matches;
     use datafusion::{
         physical_plan::RecordBatchStream,
         prelude::{col, lit},
     };
-    use futures::TryStreamExt;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use predicate::Predicate;
-    use schema::merge::SchemaMerger;
 
     use super::*;
     use crate::test_util::{make_ingester_data, DataLocation, TEST_NAMESPACE, TEST_TABLE};
@@ -490,8 +541,11 @@ mod tests {
         ];
         for (loc, scenario) in &scenarios {
             println!("Location: {loc:?}");
-            let stream = prepare_data_to_querier(scenario, &request).await.unwrap();
-            let result = ingester_response_to_record_batches(stream).await;
+            let result = prepare_data_to_querier(scenario, &request)
+                .await
+                .unwrap()
+                .into_record_batches()
+                .await;
             assert_batches_sorted_eq!(&expected, &result);
         }
 
@@ -523,8 +577,11 @@ mod tests {
         ];
         for (loc, scenario) in &scenarios {
             println!("Location: {loc:?}");
-            let stream = prepare_data_to_querier(scenario, &request).await.unwrap();
-            let result = ingester_response_to_record_batches(stream).await;
+            let result = prepare_data_to_querier(scenario, &request)
+                .await
+                .unwrap()
+                .into_record_batches()
+                .await;
             assert_batches_sorted_eq!(&expected, &result);
         }
 
@@ -565,8 +622,11 @@ mod tests {
         ];
         for (loc, scenario) in &scenarios {
             println!("Location: {loc:?}");
-            let stream = prepare_data_to_querier(scenario, &request).await.unwrap();
-            let result = ingester_response_to_record_batches(stream).await;
+            let result = prepare_data_to_querier(scenario, &request)
+                .await
+                .unwrap()
+                .into_record_batches()
+                .await;
             assert_batches_sorted_eq!(&expected, &result);
         }
 
@@ -639,61 +699,5 @@ mod tests {
 
     fn lp_to_batch(lp: &str) -> RecordBatch {
         lp_to_mutable_batch(lp).1.to_arrow(Selection::All).unwrap()
-    }
-
-    /// Convert [`IngesterQueryResponse`] to a set of [`RecordBatch`]es.
-    ///
-    /// If the response contains multiple snapshots, this will merge the schemas into a single one and create
-    /// NULL-columns for snapshots that miss columns. This makes it easier to use the resulting batches with
-    /// [`assert_batches_sorted_eq`].
-    ///
-    /// # Panic
-    /// Panics if there are no batches returned at all. Also panics if the snapshot-scoped schemas do not line up with
-    /// the snapshot-scoped record batches.
-    async fn ingester_response_to_record_batches(
-        response: IngesterQueryResponse,
-    ) -> Vec<RecordBatch> {
-        let mut snapshot_schema = None;
-        let mut schema_merger = SchemaMerger::new();
-        let mut batches = vec![];
-
-        let mut stream = response.flatten();
-        while let Some(msg) = stream.try_next().await.unwrap() {
-            match msg {
-                FlatIngesterQueryResponse::StartPartition { .. } => (),
-                FlatIngesterQueryResponse::RecordBatch { batch } => {
-                    let last_schema = snapshot_schema.as_ref().unwrap();
-                    assert_eq!(&batch.schema(), last_schema);
-                    batches.push(batch);
-                }
-                FlatIngesterQueryResponse::StartSnapshot { schema } => {
-                    snapshot_schema = Some(Arc::clone(&schema));
-
-                    schema_merger = schema_merger
-                        .merge(&schema::Schema::try_from(schema).unwrap())
-                        .unwrap();
-                }
-            }
-        }
-
-        assert!(!batches.is_empty());
-
-        // equalize schemas
-        let common_schema = schema_merger.build().as_arrow();
-        batches
-            .into_iter()
-            .map(|batch| {
-                let batch_schema = batch.schema();
-                let columns = common_schema
-                    .fields()
-                    .iter()
-                    .map(|field| match batch_schema.index_of(field.name()) {
-                        Ok(idx) => Arc::clone(batch.column(idx)),
-                        Err(_) => new_null_array(field.data_type(), batch.num_rows()),
-                    })
-                    .collect();
-                RecordBatch::try_new(Arc::clone(&common_schema), columns).unwrap()
-            })
-            .collect()
     }
 }
