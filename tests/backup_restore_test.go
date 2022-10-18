@@ -30,9 +30,6 @@ func TestServer_BackupAndRestore(t *testing.T) {
 	portableBackupDir, _ := os.MkdirTemp("", "backup")
 	defer os.RemoveAll(portableBackupDir)
 
-	shardBackupDir, _ := os.MkdirTemp("", "backup")
-	defer os.RemoveAll(shardBackupDir)
-
 	db := "mydb"
 	rp := "forever"
 
