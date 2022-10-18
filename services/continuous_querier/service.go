@@ -412,7 +412,12 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 		tags := map[string]string{"db": dbi.Name, "cq": cq.Info.Name}
 		fields := map[string]interface{}{"durationNs": int64(execDuration), "pointsWrittenOK": written, "startTime": startTime.UnixNano(), "endTime": endTime.UnixNano()}
 		p, _ := models.NewPoint("cq_query", models.NewTags(tags), fields, time.Now())
-		s.Monitor.WritePoints(models.Points{p})
+		if err := s.Monitor.WritePoints(models.Points{p}); err != nil {
+			log.Error("failed storing continuous query statistics",
+				zap.String("name", cq.Info.Name),
+				logger.Database(cq.Database),
+				zap.Error(err))
+		}
 	}
 
 	return true, nil
