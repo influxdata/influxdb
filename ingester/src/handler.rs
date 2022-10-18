@@ -445,7 +445,6 @@ mod tests {
     use write_buffer::mock::{MockBufferForReading, MockBufferSharedState};
 
     use super::*;
-    use crate::data::{partition::SnapshotBatch, table::TableName};
 
     #[tokio::test]
     async fn test_shutdown() {
@@ -583,88 +582,6 @@ mod tests {
         (ingester, shard, namespace)
     }
 
-    async fn verify_ingester_buffer_has_data(
-        ingester: IngestHandlerImpl,
-        shard: Shard,
-        namespace: Namespace,
-        custom_batch_verification: impl Fn(&SnapshotBatch) + Send,
-    ) {
-        // give the writes some time to go through the buffer. Exit once we've verified there's
-        // data in there
-        tokio::time::timeout(Duration::from_secs(1), async move {
-            let ns_name = namespace.name.into();
-            let table_name = TableName::from("cpu");
-            loop {
-                let mut has_measurement = false;
-
-                if let Some(data) = ingester.data.shard(shard.id) {
-                    if let Some(data) = data.namespace(&ns_name) {
-                        // verify there's data in the buffer
-                        if let Some((b, _)) = data.snapshot(&table_name, &"1970-01-01".into()).await
-                        {
-                            if let Some(b) = b.first() {
-                                custom_batch_verification(b);
-
-                                if b.data.num_rows() == 1 {
-                                    has_measurement = true;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if has_measurement {
-                    break;
-                }
-
-                tokio::time::sleep(Duration::from_millis(200)).await;
-            }
-        })
-        .await
-        .expect("timeout");
-    }
-
-    #[tokio::test]
-    async fn seeks_on_initialization() {
-        let ingest_ts1 = Time::from_timestamp_millis(42);
-        let ingest_ts2 = Time::from_timestamp_millis(1337);
-        let write_operations = vec![
-            DmlWrite::new(
-                "foo",
-                lines_to_batches("cpu bar=2 20", 0).unwrap(),
-                Some("1970-01-01".into()),
-                DmlMeta::sequenced(
-                    Sequence::new(ShardIndex::new(0), SequenceNumber::new(1)),
-                    ingest_ts1,
-                    None,
-                    150,
-                ),
-            ),
-            DmlWrite::new(
-                "foo",
-                lines_to_batches("cpu bar=2 30", 0).unwrap(),
-                Some("1970-01-01".into()),
-                DmlMeta::sequenced(
-                    Sequence::new(ShardIndex::new(0), SequenceNumber::new(2)),
-                    ingest_ts2,
-                    None,
-                    150,
-                ),
-            ),
-        ];
-
-        let (ingester, shard, namespace) = ingester_test_setup(write_operations, 2, false).await;
-
-        verify_ingester_buffer_has_data(ingester, shard, namespace, |first_batch| {
-            if first_batch.min_sequence_number == SequenceNumber::new(1) {
-                panic!(
-                    "initialization did a seek to the beginning rather than the min_unpersisted"
-                );
-            }
-        })
-        .await;
-    }
-
     #[tokio::test]
     #[should_panic(expected = "JoinError::Panic")]
     async fn sequence_number_no_longer_exists() {
@@ -739,38 +656,6 @@ mod tests {
         tokio::time::timeout(Duration::from_millis(1100), ingester.join())
             .await
             .unwrap();
-    }
-
-    #[tokio::test]
-    async fn skip_to_oldest_available() {
-        maybe_start_logging();
-
-        let ingest_ts1 = Time::from_timestamp_millis(42);
-        let write_operations = vec![DmlWrite::new(
-            "foo",
-            lines_to_batches("cpu bar=2 20", 0).unwrap(),
-            Some("1970-01-01".into()),
-            DmlMeta::sequenced(
-                Sequence::new(ShardIndex::new(0), SequenceNumber::new(10)),
-                ingest_ts1,
-                None,
-                150,
-            ),
-        )];
-
-        // Set the min unpersisted to something bigger than the write's sequence number to
-        // cause an UnknownSequenceNumber error. Skip to oldest available = true, so ingester
-        // should find data
-        let (ingester, shard, namespace) = ingester_test_setup(write_operations, 1, true).await;
-
-        verify_ingester_buffer_has_data(ingester, shard, namespace, |first_batch| {
-            assert_eq!(
-                first_batch.min_sequence_number,
-                SequenceNumber::new(10),
-                "re-initialization didn't seek to the beginning",
-            );
-        })
-        .await;
     }
 
     #[tokio::test]
