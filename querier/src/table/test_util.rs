@@ -1,24 +1,20 @@
 use super::{PruneMetrics, QuerierTable, QuerierTableArgs};
 use crate::{
     cache::CatalogCache, chunk::ChunkAdapter, create_ingester_connection_for_testing,
-    IngesterPartition, QuerierChunkLoadSetting,
+    IngesterPartition,
 };
 use arrow::record_batch::RecordBatch;
-use data_types::{ChunkId, ParquetFileId, SequenceNumber, ShardIndex};
+use data_types::{ChunkId, SequenceNumber, ShardIndex};
 use iox_catalog::interface::get_schema_by_name;
 use iox_tests::util::{TestCatalog, TestPartition, TestShard, TestTable};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use schema::{selection::Selection, sort::SortKey, Schema};
 use sharder::JumpHash;
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 use tokio::runtime::Handle;
 
 /// Create a [`QuerierTable`] for testing.
-pub async fn querier_table(
-    catalog: &Arc<TestCatalog>,
-    table: &Arc<TestTable>,
-    load_settings: HashMap<ParquetFileId, QuerierChunkLoadSetting>,
-) -> QuerierTable {
+pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -> QuerierTable {
     let catalog_cache = Arc::new(CatalogCache::new_testing(
         catalog.catalog(),
         catalog.time_provider(),
@@ -26,11 +22,7 @@ pub async fn querier_table(
         catalog.object_store(),
         &Handle::current(),
     ));
-    let chunk_adapter = Arc::new(ChunkAdapter::new(
-        catalog_cache,
-        catalog.metric_registry(),
-        load_settings,
-    ));
+    let chunk_adapter = Arc::new(ChunkAdapter::new(catalog_cache, catalog.metric_registry()));
 
     let mut repos = catalog.catalog.repositories().await;
     let mut catalog_schema = get_schema_by_name(&table.namespace.namespace.name, repos.as_mut())

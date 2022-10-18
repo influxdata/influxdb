@@ -6,9 +6,8 @@ use crate::{
     ingester::IngesterConnection,
     query_log::QueryLog,
     table::{PruneMetrics, QuerierTable, QuerierTableArgs},
-    QuerierChunkLoadSetting,
 };
-use data_types::{NamespaceId, ParquetFileId, ShardIndex};
+use data_types::{NamespaceId, ShardIndex};
 use iox_query::exec::Executor;
 use sharder::JumpHash;
 use std::{collections::HashMap, sync::Arc};
@@ -106,15 +105,10 @@ impl QuerierNamespace {
         exec: Arc<Executor>,
         ingester_connection: Option<Arc<dyn IngesterConnection>>,
         sharder: Arc<JumpHash<Arc<ShardIndex>>>,
-        load_settings: HashMap<ParquetFileId, QuerierChunkLoadSetting>,
         max_table_query_bytes: usize,
     ) -> Self {
         let time_provider = catalog_cache.time_provider();
-        let chunk_adapter = Arc::new(ChunkAdapter::new(
-            catalog_cache,
-            metric_registry,
-            load_settings,
-        ));
+        let chunk_adapter = Arc::new(ChunkAdapter::new(catalog_cache, metric_registry));
         let query_log = Arc::new(QueryLog::new(10, time_provider));
         let prune_metrics = Arc::new(PruneMetrics::new(&chunk_adapter.metric_registry()));
 

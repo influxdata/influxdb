@@ -25,7 +25,6 @@ mod table;
 mod tombstone;
 
 pub use cache::CatalogCache as QuerierCatalogCache;
-pub use chunk::QuerierChunkLoadSetting;
 pub use database::{Error as QuerierDatabaseError, QuerierDatabase};
 pub use handler::{QuerierHandler, QuerierHandlerImpl};
 pub use ingester::{

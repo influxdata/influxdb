@@ -514,11 +514,10 @@ mod tests {
     use crate::{
         ingester::{test_util::MockIngesterConnection, IngesterPartition},
         table::test_util::{querier_table, IngesterPartitionBuilder},
-        QuerierChunkLoadSetting,
     };
     use arrow_util::assert_batches_eq;
     use assert_matches::assert_matches;
-    use data_types::{ChunkId, ColumnType, CompactionLevel, ParquetFileId, SequenceNumber};
+    use data_types::{ChunkId, ColumnType, CompactionLevel, SequenceNumber};
     use iox_query::exec::IOxSessionContext;
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
     use predicate::Predicate;
@@ -882,35 +881,29 @@ mod tests {
 
         let builder1 = IngesterPartitionBuilder::new(&table, &schema, &shard, &partition1);
         let builder2 = IngesterPartitionBuilder::new(&table, &schema, &shard, &partition2);
-
-        let load_settings = HashMap::from([(
-            file2.parquet_file.id,
-            QuerierChunkLoadSetting::ReadBufferOnly,
-        )]);
-        let querier_table =
-            TestQuerierTable::new_with_load_settings(&catalog, &table, load_settings)
-                .await
-                .with_ingester_partition(
-                    // this chunk is kept
-                    builder1
-                        .with_ingester_chunk_id(ingester_chunk_id1)
-                        .with_lp(["table foo=3i 33"])
-                        .build(
-                            // parquet max persisted sequence number
-                            Some(SequenceNumber::new(2)),
-                            // tombstone max persisted sequence number
-                            Some(SequenceNumber::new(10)),
-                        ),
-                )
-                .with_ingester_partition(
-                    // this chunk is filtered out because it has no record batches but the reconciling still takes place
-                    builder2.with_ingester_chunk_id(u128::MAX).build(
+        let querier_table = TestQuerierTable::new(&catalog, &table)
+            .await
+            .with_ingester_partition(
+                // this chunk is kept
+                builder1
+                    .with_ingester_chunk_id(ingester_chunk_id1)
+                    .with_lp(["table foo=3i 33"])
+                    .build(
                         // parquet max persisted sequence number
-                        Some(SequenceNumber::new(3)),
+                        Some(SequenceNumber::new(2)),
                         // tombstone max persisted sequence number
-                        Some(SequenceNumber::new(11)),
+                        Some(SequenceNumber::new(10)),
                     ),
-                );
+            )
+            .with_ingester_partition(
+                // this chunk is filtered out because it has no record batches but the reconciling still takes place
+                builder2.with_ingester_chunk_id(u128::MAX).build(
+                    // parquet max persisted sequence number
+                    Some(SequenceNumber::new(3)),
+                    // tombstone max persisted sequence number
+                    Some(SequenceNumber::new(11)),
+                ),
+            );
 
         let mut chunks = querier_table.chunks().await.unwrap();
 
@@ -932,7 +925,7 @@ mod tests {
 
         // check types
         assert_eq!(chunks[0].chunk_type(), "parquet");
-        assert_eq!(chunks[1].chunk_type(), "read_buffer");
+        assert_eq!(chunks[1].chunk_type(), "parquet");
         assert_eq!(chunks[2].chunk_type(), "IngesterPartition");
 
         // check delete predicates
@@ -1189,17 +1182,8 @@ mod tests {
         ///
         /// Uses default chunk load settings.
         async fn new(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -> Self {
-            Self::new_with_load_settings(catalog, table, Default::default()).await
-        }
-
-        /// Create a new wrapped [`QuerierTable`] with provided chunk load settings.
-        async fn new_with_load_settings(
-            catalog: &Arc<TestCatalog>,
-            table: &Arc<TestTable>,
-            load_settings: HashMap<ParquetFileId, QuerierChunkLoadSetting>,
-        ) -> Self {
             Self {
-                querier_table: querier_table(catalog, table, load_settings).await,
+                querier_table: querier_table(catalog, table).await,
                 ingester_partitions: vec![],
                 traces: Arc::new(RingBufferTraceCollector::new(100)),
             }

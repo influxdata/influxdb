@@ -1,4 +1,5 @@
 //! Cache Parquet file data in Read Buffer chunks.
+#![allow(dead_code)]
 
 use super::ram::RamSize;
 use backoff::{Backoff, BackoffConfig};

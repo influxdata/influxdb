@@ -1,4 +1,4 @@
-use crate::{chunk::QuerierChunk, QuerierChunkLoadSetting};
+use crate::chunk::QuerierChunk;
 use arrow::{
     datatypes::SchemaRef,
     error::{ArrowError, Result as ArrowResult},
@@ -261,40 +261,13 @@ impl QueryChunk for QuerierChunk {
 
         let output_schema = select_schema(selection, &self.schema.as_arrow());
 
-        let load_setting = self.load_setting;
         let chunk_id = self.id();
         let stage = Arc::clone(&self.stage);
         let selection: OwnedSelection = selection.into();
         let predicate = predicate.clone();
-        let store = self.store.clone();
-        let schema = Arc::clone(&self.schema);
-        let catalog_cache = Arc::clone(&self.catalog_cache);
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             output_schema,
             futures::stream::once(async move {
-                if load_setting == QuerierChunkLoadSetting::OnDemand {
-                    // maybe load RB
-                    let parquet_file = match &*stage.read() {
-                        ChunkStage::Parquet { parquet_chunk, .. } => {
-                            Some(Arc::clone(parquet_chunk.parquet_file()))
-                        }
-                        ChunkStage::ReadBuffer { .. } => None,
-                    };
-
-                    if let Some(parquet_file) = parquet_file {
-                        let rb_chunk = catalog_cache
-                            .read_buffer()
-                            .get(
-                                parquet_file,
-                                schema,
-                                store,
-                                span_recorder.child_span("cache GET read_buffer"),
-                            )
-                            .await;
-                        stage.write().load_to_read_buffer(rb_chunk);
-                    }
-                }
-
                 let stage = stage.read();
                 ctx.set_metadata("storage", stage.name());
 
@@ -304,6 +277,8 @@ impl QueryChunk for QuerierChunk {
                 let stream_res: ArrowResult<SendableRecordBatchStream> = match &*stage {
                     ChunkStage::Parquet { parquet_chunk, .. } => {
                         debug!(?predicate, "parquet read_filter");
+                        // TODO(marco): propagate span all the way down to the object store cache access
+                        let _span_recorder = span_recorder;
                         Ok(parquet_chunk
                             .read_filter(&pred_with_deleted_exprs, selection)
                             .context(ParquetFileChunkSnafu { chunk_id })?)

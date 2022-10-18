@@ -49,6 +49,7 @@ pub struct CatalogCache {
     tombstone_cache: TombstoneCache,
 
     /// Read buffer chunk cache
+    #[allow(dead_code)]
     read_buffer_cache: ReadBufferCache,
 
     /// Projected schema cache.
@@ -252,6 +253,7 @@ impl CatalogCache {
     }
 
     /// Read buffer chunk cache.
+    #[allow(dead_code)]
     pub(crate) fn read_buffer(&self) -> &ReadBufferCache {
         &self.read_buffer_cache
     }

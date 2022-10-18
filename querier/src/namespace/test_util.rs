@@ -43,7 +43,6 @@ pub async fn querier_namespace_with_limit(
         ns.catalog.exec(),
         Some(create_ingester_connection_for_testing()),
         sharder,
-        Default::default(),
         max_table_query_bytes,
     )
 }
