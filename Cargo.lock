@@ -3608,12 +3608,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "478c572c3d73181ff3c2539045f6eb99e5491218eae919370993b890cdbdd98e"
 
 [[package]]
-name = "permutation"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df202b0b0f5b8e389955afd5f27b007b00fb948162953f1db9c70d2c7e3157d7"
-
-[[package]]
 name = "pest"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4158,16 +4152,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rand_distr"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32cb0b9bc82b0a0876c2dd994a7e7a2683d3e7390ca40e6886785ef0c7e3ee31"
-dependencies = [
- "num-traits",
- "rand",
-]
-
-[[package]]
 name = "rand_xorshift"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4198,32 +4182,6 @@ dependencies = [
  "crossbeam-deque",
  "crossbeam-utils",
  "num_cpus",
-]
-
-[[package]]
-name = "read_buffer"
-version = "0.1.0"
-dependencies = [
- "arrow",
- "arrow_util",
- "criterion",
- "croaring",
- "data_types",
- "datafusion 0.1.0",
- "either",
- "hashbrown",
- "itertools",
- "metric",
- "observability_deps",
- "packers",
- "parking_lot 0.12.1",
- "permutation",
- "proptest",
- "rand",
- "rand_distr",
- "schema",
- "snafu",
- "workspace-hack",
 ]
 
 [[package]]

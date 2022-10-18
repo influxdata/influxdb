@@ -56,7 +56,6 @@ members = [
     "querier",
     "query_functions",
     "query_tests",
-    "read_buffer",
     "router",
     "schema",
     "service_common",
