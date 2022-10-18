@@ -3399,20 +3399,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 
 [[package]]
-name = "packers"
-version = "0.1.0"
-dependencies = [
- "arrow",
- "criterion",
- "influxdb_tsm",
- "parquet",
- "rand",
- "schema",
- "snafu",
- "workspace-hack",
-]
-
-[[package]]
 name = "panic_logging"
 version = "0.1.0"
 dependencies = [
