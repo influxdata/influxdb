@@ -10,8 +10,7 @@ use tokio::runtime::Handle;
 use self::{
     namespace::NamespaceCache, object_store::ObjectStoreCache, parquet_file::ParquetFileCache,
     partition::PartitionCache, processed_tombstones::ProcessedTombstonesCache,
-    projected_schema::ProjectedSchemaCache, ram::RamSize, read_buffer::ReadBufferCache,
-    tombstones::TombstoneCache,
+    projected_schema::ProjectedSchemaCache, ram::RamSize, tombstones::TombstoneCache,
 };
 
 pub mod namespace;
@@ -21,7 +20,6 @@ pub mod partition;
 pub mod processed_tombstones;
 pub mod projected_schema;
 mod ram;
-pub mod read_buffer;
 pub mod tombstones;
 
 #[cfg(test)]
@@ -47,10 +45,6 @@ pub struct CatalogCache {
 
     /// tombstone cache
     tombstone_cache: TombstoneCache,
-
-    /// Read buffer chunk cache
-    #[allow(dead_code)]
-    read_buffer_cache: ReadBufferCache,
 
     /// Projected schema cache.
     projected_schema_cache: ProjectedSchemaCache,
@@ -175,13 +169,6 @@ impl CatalogCache {
             Arc::clone(&ram_pool_metadata),
             testing,
         );
-        let read_buffer_cache = ReadBufferCache::new(
-            backoff_config.clone(),
-            Arc::clone(&time_provider),
-            Arc::clone(&metric_registry),
-            Arc::clone(&ram_pool_data),
-            testing,
-        );
         let projected_schema_cache = ProjectedSchemaCache::new(
             Arc::clone(&time_provider),
             &metric_registry,
@@ -204,7 +191,6 @@ impl CatalogCache {
             processed_tombstones_cache,
             parquet_file_cache,
             tombstone_cache,
-            read_buffer_cache,
             projected_schema_cache,
             object_store_cache,
             metric_registry,
@@ -250,12 +236,6 @@ impl CatalogCache {
     /// Tombstone cache.
     pub(crate) fn tombstone(&self) -> &TombstoneCache {
         &self.tombstone_cache
-    }
-
-    /// Read buffer chunk cache.
-    #[allow(dead_code)]
-    pub(crate) fn read_buffer(&self) -> &ReadBufferCache {
-        &self.read_buffer_cache
     }
 
     /// Projected schema cache.
