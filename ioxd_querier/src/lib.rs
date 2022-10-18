@@ -14,7 +14,6 @@ use ioxd_common::{
 };
 use metric::Registry;
 use object_store::DynObjectStore;
-use parquet_file::storage::ParquetStorage;
 use querier::{
     create_ingester_connections_by_shard, QuerierCatalogCache, QuerierDatabase, QuerierHandler,
     QuerierHandlerImpl, QuerierServer,
@@ -182,7 +181,6 @@ pub async fn create_querier_server_type(
         QuerierDatabase::new(
             catalog_cache,
             Arc::clone(&args.metric_registry),
-            ParquetStorage::new(args.object_store),
             args.exec,
             ingester_connection,
             args.querier_config.max_concurrent_queries(),

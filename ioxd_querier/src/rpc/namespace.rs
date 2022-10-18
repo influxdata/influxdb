@@ -56,7 +56,6 @@ mod tests {
     use super::*;
     use generated_types::influxdata::iox::namespace::v1::namespace_service_server::NamespaceService;
     use iox_tests::util::TestCatalog;
-    use parquet_file::storage::ParquetStorage;
     use querier::{create_ingester_connection_for_testing, QuerierCatalogCache};
     use tokio::runtime::Handle;
 
@@ -78,7 +77,6 @@ mod tests {
             QuerierDatabase::new(
                 catalog_cache,
                 catalog.metric_registry(),
-                ParquetStorage::new(catalog.object_store()),
                 catalog.exec(),
                 Some(create_ingester_connection_for_testing()),
                 QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
@@ -115,7 +113,6 @@ mod tests {
             QuerierDatabase::new(
                 catalog_cache,
                 catalog.metric_registry(),
-                ParquetStorage::new(catalog.object_store()),
                 catalog.exec(),
                 Some(create_ingester_connection_for_testing()),
                 QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,

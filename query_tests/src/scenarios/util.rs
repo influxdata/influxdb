@@ -26,7 +26,6 @@ use iox_tests::util::{TestCatalog, TestNamespace, TestShard};
 use itertools::Itertools;
 use mutable_batch_lp::LinesConverter;
 use once_cell::sync::Lazy;
-use parquet_file::storage::ParquetStorage;
 use querier::{
     IngesterConnectionImpl, IngesterFlightClient, IngesterFlightClientError,
     IngesterFlightClientQueryData, QuerierCatalogCache, QuerierChunkLoadSetting, QuerierNamespace,
@@ -977,7 +976,6 @@ impl MockIngester {
 
         Arc::new(QuerierNamespace::new_testing(
             catalog_cache,
-            ParquetStorage::new(catalog.object_store()),
             catalog.metric_registry(),
             ns.namespace.name.clone().into(),
             Arc::new(schema.as_ref().into()),
