@@ -456,6 +456,59 @@ async fn issue_4631_b() {
 }
 
 #[tokio::test]
+async fn unsupported_sql_returns_error() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol("this_table_does_exist,tag=A val=\"foo\" 1".into()),
+            Step::QueryExpectingError {
+                sql: "drop table this_table_doesnt_exist".into(),
+                expected_error_code: tonic::Code::InvalidArgument,
+                expected_message: "Error while planning query: This feature is not implemented: \
+                    DropTable"
+                    .into(),
+            },
+            Step::QueryExpectingError {
+                sql: "create view some_view as select * from this_table_does_exist".into(),
+                expected_error_code: tonic::Code::InvalidArgument,
+                expected_message: "Error while planning query: This feature is not implemented: \
+                    CreateView"
+                    .into(),
+            },
+            Step::QueryExpectingError {
+                sql: "create database my_new_database".into(),
+                // Should be InvalidArgument after
+                // https://github.com/apache/arrow-datafusion/issues/3873
+                expected_error_code: tonic::Code::Internal,
+                expected_message: "Error while planning query: Internal error: Unsupported \
+                    logical plan: CreateCatalog. This was likely caused by a bug in DataFusion's \
+                    code and we would welcome that you file an bug report in our issue tracker"
+                    .into(),
+            },
+            Step::QueryExpectingError {
+                sql: "create schema foo".into(),
+                // Should be InvalidArgument after
+                // https://github.com/apache/arrow-datafusion/issues/3873
+                expected_error_code: tonic::Code::Internal,
+                expected_message: "Error while planning query: Internal error: Unsupported \
+                    logical plan: CreateCatalogSchema. This was likely caused by a bug in \
+                    DataFusion's code and we would welcome that you file an bug report in our \
+                    issue tracker"
+                    .into(),
+            },
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
 async fn oom_protection() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();

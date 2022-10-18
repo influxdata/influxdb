@@ -584,6 +584,45 @@ async fn write_and_query() {
     .await
 }
 
+/// Test error handling for the query CLI command
+#[tokio::test]
+async fn query_error_handling() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let mut cluster = MiniCluster::create_shared(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol("this_table_does_exist,tag=A val=\"foo\" 1".into()),
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let querier_addr = state.cluster().querier().querier_grpc_base().to_string();
+                    let namespace = state.cluster().namespace();
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&querier_addr)
+                        .arg("query")
+                        .arg(&namespace)
+                        .arg("drop table this_table_doesnt_exist")
+                        .assert()
+                        .failure()
+                        .stderr(predicate::eq(
+                            "Error querying: Error while planning query: This feature is not \
+                            implemented: DropTable\n",
+                        ));
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
 /// Runs the specified query in a loop for up to 10 seconds, waiting
 /// for the specified output to appear
 async fn wait_for_query_result(state: &mut StepTestState<'_>, query_sql: &str, expected: &str) {

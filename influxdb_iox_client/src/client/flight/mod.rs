@@ -46,7 +46,7 @@ pub enum Error {
 
     /// An unknown server error occurred. Contains the `tonic::Status` returned
     /// from the server.
-    #[error(transparent)]
+    #[error("{}", .0.message())]
     GrpcError(#[from] tonic::Status),
 
     /// Arrow Flight handshake failed.
