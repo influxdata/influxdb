@@ -4,7 +4,7 @@ use datafusion::{
         binary_expr,
         expr::Case,
         expr_rewriter::{ExprRewritable, ExprRewriter},
-        Operator,
+        BinaryExpr, Operator,
     },
     prelude::Expr,
 };
@@ -114,10 +114,14 @@ fn is_comparison(op: Operator) -> bool {
 impl ExprRewriter for IOxExprRewriter {
     fn mutate(&mut self, expr: Expr) -> Result<Expr> {
         match expr {
-            Expr::BinaryExpr { left, op, right } if is_case(&left) && is_comparison(op) => {
+            Expr::BinaryExpr(BinaryExpr { left, op, right })
+                if is_case(&left) && is_comparison(op) =>
+            {
                 Ok(inline_case(true, *left, *right, op))
             }
-            Expr::BinaryExpr { left, op, right } if is_case(&right) && is_comparison(op) => {
+            Expr::BinaryExpr(BinaryExpr { left, op, right })
+                if is_case(&right) && is_comparison(op) =>
+            {
                 Ok(inline_case(false, *left, *right, op))
             }
             expr => Ok(expr),
@@ -218,8 +222,8 @@ fn is_lit(expr: &Expr) -> bool {
 /// returns the column name for an expression like `col = <lit>`
 fn is_col_op_lit(expr: &Expr) -> Option<&str> {
     match expr {
-        Expr::BinaryExpr { left, op: _, right } if is_lit(right) => is_col(left),
-        Expr::BinaryExpr { left, op: _, right } if is_lit(left) => is_col(right),
+        Expr::BinaryExpr(BinaryExpr { left, op: _, right }) if is_lit(right) => is_col(left),
+        Expr::BinaryExpr(BinaryExpr { left, op: _, right }) if is_lit(left) => is_col(right),
         _ => None,
     }
 }
@@ -251,11 +255,11 @@ impl ExprRewriter for IOxPredicateRewriter {
         // true AND true
         // true
         match expr {
-            Expr::BinaryExpr {
+            Expr::BinaryExpr(BinaryExpr {
                 left,
                 op: Operator::And,
                 right,
-            } => {
+            }) => {
                 if let (Some(coll), Some(colr)) = (is_col_not_null(&left), is_col_op_lit(&right)) {
                     if colr == coll {
                         return Ok(*right);
@@ -268,11 +272,11 @@ impl ExprRewriter for IOxPredicateRewriter {
                     }
                 };
 
-                Ok(Expr::BinaryExpr {
+                Ok(Expr::BinaryExpr(BinaryExpr {
                     left,
                     op: Operator::And,
                     right,
-                })
+                }))
             }
             expr => Ok(expr),
         }
@@ -387,26 +391,18 @@ mod tests {
 
     fn run_case(op: Operator, expect_rewrite: bool, lit1: Expr, lit2: Expr) {
         // CASE WHEN tag IS NULL then '' ELSE tag END = 'bar'
-        let expr = Expr::BinaryExpr {
-            left: Box::new(make_case(col("tag").is_null(), lit1.clone(), col("tag"))),
+        let expr = binary_expr(
+            make_case(col("tag").is_null(), lit1.clone(), col("tag")),
             op,
-            right: Box::new(lit2.clone()),
-        };
+            lit2.clone(),
+        );
 
         // CASE WHEN tag IS NULL then '' = 'bar' ELSE tag = 'bar' END
         let expected = if expect_rewrite {
             make_case(
                 col("tag").is_null(),
-                Expr::BinaryExpr {
-                    left: Box::new(lit1),
-                    op,
-                    right: Box::new(lit2.clone()),
-                },
-                Expr::BinaryExpr {
-                    left: Box::new(col("tag")),
-                    op,
-                    right: Box::new(lit2),
-                },
+                binary_expr(lit1, op, lit2.clone()),
+                binary_expr(col("tag"), op, lit2),
             )
         } else {
             expr.clone()

@@ -20,14 +20,16 @@ use datafusion::{
     datasource::{provider_as_source, MemTable},
     error::{DataFusionError, Result as DatafusionResult},
     execution::context::ExecutionProps,
-    logical_expr::{expr_rewriter::ExprRewriter, ExprSchemable, LogicalPlan, LogicalPlanBuilder},
+    logical_expr::{
+        expr_rewriter::ExprRewriter, BinaryExpr, ExprSchemable, LogicalPlan, LogicalPlanBuilder,
+    },
     optimizer::expr_simplifier::{ExprSimplifier, SimplifyContext},
     physical_expr::create_physical_expr,
     physical_plan::{
         expressions::{col as physical_col, PhysicalSortExpr},
         ExecutionPlan, PhysicalExpr,
     },
-    prelude::{lit, Expr},
+    prelude::{binary_expr, lit, Expr},
     scalar::ScalarValue,
 };
 
@@ -211,14 +213,10 @@ impl<'a> ExprRewriter for MissingColumnsToNull<'a> {
         // Until then, we need to know what type of expr the column is
         // being compared with, so workaround by finding the datatype of the other arg
         match expr {
-            Expr::BinaryExpr { left, op, right } => {
+            Expr::BinaryExpr(BinaryExpr { left, op, right }) => {
                 let left = self.rewrite_op_arg(*left, &right)?;
                 let right = self.rewrite_op_arg(*right, &left)?;
-                Ok(Expr::BinaryExpr {
-                    left: Box::new(left),
-                    op,
-                    right: Box::new(right),
-                })
+                Ok(binary_expr(left, op, right))
             }
             Expr::IsNull(expr) if self.is_null_column(&expr) => Ok(lit(true)),
             Expr::IsNotNull(expr) if self.is_null_column(&expr) => Ok(lit(false)),

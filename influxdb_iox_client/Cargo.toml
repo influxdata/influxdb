@@ -17,8 +17,8 @@ influxdb_line_protocol = { path = "../influxdb_line_protocol"}
 generated_types = { path = "../generated_types", default-features = false, features = ["data_types_conversions"] }
 
 # Crates.io dependencies, in alphabetical order
-arrow = { version = "24.0.0", optional = true }
-arrow-flight = { version = "24.0.0", optional = true }
+arrow = { version = "25.0.0", optional = true }
+arrow-flight = { version = "25.0.0", optional = true }
 bytes = "1.2"
 futures-util = { version = "0.3", optional = true }
 prost = "0.11"

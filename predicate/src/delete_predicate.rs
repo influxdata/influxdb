@@ -2,7 +2,7 @@ use crate::delete_expr::{df_to_expr, expr_to_df};
 use chrono::DateTime;
 use data_types::{DeleteExpr, DeletePredicate, TimestampRange, Tombstone};
 use datafusion::logical_expr::Operator;
-use datafusion::prelude::{lit, Column, Expr};
+use datafusion::prelude::{binary_expr, lit, Column, Expr};
 use snafu::Snafu;
 use sqlparser::{
     ast::{BinaryOperator, Expr as SqlParserExpr, Ident, Statement, Value},
@@ -203,11 +203,7 @@ fn split_members(predicate: &SqlParserExpr, predicates: &mut Vec<DeleteExpr>) ->
                 _ => return false, // not a literal
             };
 
-            let expr = Expr::BinaryExpr {
-                left: Box::new(column),
-                op,
-                right: Box::new(value),
-            };
+            let expr = binary_expr(column, op, value);
             let expr: Result<DeleteExpr, _> = df_to_expr(expr);
             match expr {
                 Ok(expr) => {

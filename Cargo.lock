@@ -100,9 +100,9 @@ checksum = "8da52d66c7071e2e3fa2a1e5c6d088fec47b593032b254f5e980de8ea54454d6"
 
 [[package]]
 name = "arrow"
-version = "24.0.0"
+version = "25.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d68391300d5237f6725f0f869ae7cb65d45fcf8a6d18f6ceecd328fb803bef93"
+checksum = "76312eb67808c67341f4234861c4fcd2f9868f55e88fa2186ab3b357a6c5830b"
 dependencies = [
  "ahash 0.8.0",
  "arrow-array",
@@ -128,9 +128,9 @@ dependencies = [
 
 [[package]]
 name = "arrow-array"
-version = "24.0.0"
+version = "25.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0bb00c5862b5eea683812083c495bef01a9a5149da46ad2f4c0e4aa8800f64d"
+checksum = "69dd2c257fa76de0bcc63cabe8c81d34c46ef6fa7651e3e497922c3c9878bd67"
 dependencies = [
  "ahash 0.8.0",
  "arrow-buffer",
@@ -144,18 +144,19 @@ dependencies = [
 
 [[package]]
 name = "arrow-buffer"
-version = "24.0.0"
+version = "25.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e594d0fe0026a8bc2459bdc5ac9623e5fb666724a715e0acbc96ba30c5d4cc7"
+checksum = "af963e71bdbbf928231d521083ddc8e8068cf5c8d45d4edcfeaf7eb5cdd779a9"
 dependencies = [
  "half 2.1.0",
+ "num",
 ]
 
 [[package]]
 name = "arrow-data"
-version = "24.0.0"
+version = "25.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8500df05060d86fdc53e9b5cb32e51bfeaacc040fdeced3eb99ac0d59200ff45"
+checksum = "52554ffff560c366d7210c2621a3cf1dc408f9969a0c7688a3ba0a62248a945d"
 dependencies = [
  "arrow-buffer",
  "arrow-schema",
@@ -165,9 +166,9 @@ dependencies = [
 
 [[package]]
 name = "arrow-flight"
-version = "24.0.0"
+version = "25.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5438183d2f3404f57418847a06a3925037916f80ed8aefc904276b41e7f90322"
+checksum = "ded4fc9e8a4c7afe216cdd92989f089d7ce47810d974da898b2b42a4b9cec9f3"
 dependencies = [
  "arrow",
  "base64",
@@ -183,9 +184,9 @@ dependencies = [
 
 [[package]]
 name = "arrow-schema"
-version = "24.0.0"
+version = "25.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86d1fef01f25e1452c86fa6887f078de8e0aaeeb828370feab205944cfc30e27"
+checksum = "1a5518f2bd7775057391f88257627cbb760ba3e1c2f2444a005ba79158624654"
 
 [[package]]
 name = "arrow_util"
@@ -1194,7 +1195,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=fc5081d48ef59e39c1b353dd45fcd13af6186676#fc5081d48ef59e39c1b353dd45fcd13af6186676"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=feff5dc805449afa4a7ecb5ca88b979ad5739cce#feff5dc805449afa4a7ecb5ca88b979ad5739cce"
 dependencies = [
  "ahash 0.8.0",
  "arrow",
@@ -1238,7 +1239,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=fc5081d48ef59e39c1b353dd45fcd13af6186676#fc5081d48ef59e39c1b353dd45fcd13af6186676"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=feff5dc805449afa4a7ecb5ca88b979ad5739cce#feff5dc805449afa4a7ecb5ca88b979ad5739cce"
 dependencies = [
  "arrow",
  "object_store",
@@ -1250,7 +1251,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=fc5081d48ef59e39c1b353dd45fcd13af6186676#fc5081d48ef59e39c1b353dd45fcd13af6186676"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=feff5dc805449afa4a7ecb5ca88b979ad5739cce#feff5dc805449afa4a7ecb5ca88b979ad5739cce"
 dependencies = [
  "ahash 0.8.0",
  "arrow",
@@ -1262,7 +1263,7 @@ dependencies = [
 [[package]]
 name = "datafusion-optimizer"
 version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=fc5081d48ef59e39c1b353dd45fcd13af6186676#fc5081d48ef59e39c1b353dd45fcd13af6186676"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=feff5dc805449afa4a7ecb5ca88b979ad5739cce#feff5dc805449afa4a7ecb5ca88b979ad5739cce"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1277,7 +1278,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=fc5081d48ef59e39c1b353dd45fcd13af6186676#fc5081d48ef59e39c1b353dd45fcd13af6186676"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=feff5dc805449afa4a7ecb5ca88b979ad5739cce#feff5dc805449afa4a7ecb5ca88b979ad5739cce"
 dependencies = [
  "ahash 0.8.0",
  "arrow",
@@ -1301,7 +1302,7 @@ dependencies = [
 [[package]]
 name = "datafusion-proto"
 version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=fc5081d48ef59e39c1b353dd45fcd13af6186676#fc5081d48ef59e39c1b353dd45fcd13af6186676"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=feff5dc805449afa4a7ecb5ca88b979ad5739cce#feff5dc805449afa4a7ecb5ca88b979ad5739cce"
 dependencies = [
  "arrow",
  "datafusion 13.0.0",
@@ -1314,7 +1315,7 @@ dependencies = [
 [[package]]
 name = "datafusion-row"
 version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=fc5081d48ef59e39c1b353dd45fcd13af6186676#fc5081d48ef59e39c1b353dd45fcd13af6186676"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=feff5dc805449afa4a7ecb5ca88b979ad5739cce#feff5dc805449afa4a7ecb5ca88b979ad5739cce"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1325,7 +1326,7 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=fc5081d48ef59e39c1b353dd45fcd13af6186676#fc5081d48ef59e39c1b353dd45fcd13af6186676"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=feff5dc805449afa4a7ecb5ca88b979ad5739cce#feff5dc805449afa4a7ecb5ca88b979ad5739cce"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -3457,9 +3458,9 @@ dependencies = [
 
 [[package]]
 name = "parquet"
-version = "24.0.0"
+version = "25.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74fd590f0672998df84503d1bcbebc69732583d03cc3495c7dd8d3e5a1d8437f"
+checksum = "f7758803135c32b243e52832473fc8f7c768a0a170b0851fb1bb37904c6b3550"
 dependencies = [
  "ahash 0.8.0",
  "arrow",

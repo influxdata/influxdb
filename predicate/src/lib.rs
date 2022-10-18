@@ -23,7 +23,7 @@ use arrow::{
 use data_types::{InfluxDbType, TableSummary, TimestampRange};
 use datafusion::{
     error::DataFusionError,
-    logical_expr::{binary_expr, utils::expr_to_columns, Operator},
+    logical_expr::{binary_expr, utils::expr_to_columns, BinaryExpr, Operator},
     optimizer::utils::split_conjunction,
     physical_optimizer::pruning::{PruningPredicate, PruningStatistics},
     prelude::{col, lit_timestamp_nano, Expr},
@@ -520,7 +520,7 @@ impl Predicate {
     // and op must be a comparison one
     pub fn primitive_binary_expr(expr: &Expr) -> bool {
         match expr {
-            Expr::BinaryExpr { left, op, right } => {
+            Expr::BinaryExpr(BinaryExpr { left, op, right }) => {
                 matches!(
                     (&**left, &**right),
                     (Expr::Column(_), Expr::Literal(_)) | (Expr::Literal(_), Expr::Column(_))
@@ -553,11 +553,11 @@ impl TryFrom<Expr> for ValueExpr {
     /// tries to create a new ValueExpr. If `expr` follows the
     /// expected pattrn, returns Ok(Self). If not, returns Err(expr)
     fn try_from(expr: Expr) -> Result<Self, Self::Error> {
-        if let Expr::BinaryExpr {
+        if let Expr::BinaryExpr(BinaryExpr {
             left,
             op: _,
             right: _,
-        } = &expr
+        }) = &expr
         {
             if let Expr::Column(inner) = left.as_ref() {
                 if inner.name == VALUE_COLUMN_NAME {
@@ -573,7 +573,7 @@ impl ValueExpr {
     /// Returns a new [`Expr`] with the reference to the `_value`
     /// column replaced with the specified column name
     pub fn replace_col(&self, name: &str) -> Expr {
-        if let Expr::BinaryExpr { left: _, op, right } = &self.expr {
+        if let Expr::BinaryExpr(BinaryExpr { left: _, op, right }) = &self.expr {
             binary_expr(col(name), *op, right.as_ref().clone())
         } else {
             unreachable!("Unexpected content in ValueExpr")

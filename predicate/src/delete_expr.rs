@@ -1,5 +1,8 @@
 use data_types::{DeleteExpr, Op, Scalar};
-use datafusion::prelude::Expr;
+use datafusion::{
+    logical_expr::BinaryExpr,
+    prelude::{binary_expr, lit, Expr},
+};
 use snafu::{ResultExt, Snafu};
 use std::ops::Deref;
 
@@ -9,11 +12,11 @@ pub(crate) fn expr_to_df(expr: DeleteExpr) -> Expr {
         name: expr.column,
     };
 
-    Expr::BinaryExpr {
-        left: Box::new(Expr::Column(column)),
-        op: op_to_df(expr.op),
-        right: Box::new(Expr::Literal(scalar_to_df(expr.scalar))),
-    }
+    binary_expr(
+        Expr::Column(column),
+        op_to_df(expr.op),
+        lit(scalar_to_df(expr.scalar)),
+    )
 }
 
 #[derive(Debug, Snafu)]
@@ -37,7 +40,7 @@ pub enum DataFusionToExprError {
 
 pub(crate) fn df_to_expr(expr: Expr) -> Result<DeleteExpr, DataFusionToExprError> {
     match expr {
-        Expr::BinaryExpr { left, op, right } => {
+        Expr::BinaryExpr(BinaryExpr { left, op, right }) => {
             let (column, scalar) = match (left.deref(), right.deref()) {
                 // The delete predicate parser currently only supports `<column><op><value>`, not `<value><op><column>`,
                 // however this could can easily be extended to support the latter case as well.
@@ -126,6 +129,7 @@ mod tests {
     use test_helpers::assert_contains;
 
     use super::*;
+    use datafusion::prelude::col;
 
     #[test]
     fn test_roundtrips() {
@@ -173,33 +177,14 @@ mod tests {
 
     #[test]
     fn test_unsupported_expression() {
-        let expr = Expr::Not(Box::new(Expr::BinaryExpr {
-            left: Box::new(Expr::Column(datafusion::prelude::Column {
-                relation: None,
-                name: "foo".to_string(),
-            })),
-            op: datafusion::logical_expr::Operator::Eq,
-            right: Box::new(Expr::Literal(datafusion::scalar::ScalarValue::Utf8(Some(
-                "x".to_string(),
-            )))),
-        }));
+        let expr = (col("foo").eq(lit("x"))).not();
         let res = df_to_expr(expr);
         assert_contains!(res.unwrap_err().to_string(), "unsupported expression:");
     }
 
     #[test]
     fn test_unsupported_operants() {
-        let expr = Expr::BinaryExpr {
-            left: Box::new(Expr::Column(datafusion::prelude::Column {
-                relation: None,
-                name: "foo".to_string(),
-            })),
-            op: datafusion::logical_expr::Operator::Eq,
-            right: Box::new(Expr::Column(datafusion::prelude::Column {
-                relation: None,
-                name: "bar".to_string(),
-            })),
-        };
+        let expr = col("foo").eq(col("bar"));
         let res = df_to_expr(expr);
         assert_contains!(res.unwrap_err().to_string(), "unsupported operants:");
     }
@@ -220,21 +205,10 @@ mod tests {
 
     #[test]
     fn test_unsupported_scalar_value_in_expr() {
-        let expr = Expr::BinaryExpr {
-            left: Box::new(Expr::Column(datafusion::prelude::Column {
-                relation: None,
-                name: "foo".to_string(),
-            })),
-            op: datafusion::logical_expr::Operator::Eq,
-            right: Box::new(Expr::Literal(datafusion::scalar::ScalarValue::List(
-                Some(vec![]),
-                Box::new(Field::new(
-                    "field",
-                    arrow::datatypes::DataType::Float64,
-                    true,
-                )),
-            ))),
-        };
+        let expr = col("foo").eq(lit(datafusion::scalar::ScalarValue::new_list(
+            Some(vec![]),
+            arrow::datatypes::DataType::Float64,
+        )));
         let res = df_to_expr(expr);
         assert_contains!(res.unwrap_err().to_string(), "unsupported scalar value:");
     }
@@ -247,16 +221,7 @@ mod tests {
 
     #[test]
     fn test_unsupported_operator_in_expr() {
-        let expr = Expr::BinaryExpr {
-            left: Box::new(Expr::Column(datafusion::prelude::Column {
-                relation: None,
-                name: "foo".to_string(),
-            })),
-            op: datafusion::logical_expr::Operator::Like,
-            right: Box::new(Expr::Literal(datafusion::scalar::ScalarValue::Utf8(Some(
-                "x".to_string(),
-            )))),
-        };
+        let expr = col("foo").like(lit("x"));
         let res = df_to_expr(expr);
         assert_contains!(res.unwrap_err().to_string(), "unsupported operator:");
     }
