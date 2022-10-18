@@ -26,7 +26,6 @@ pin-project = "1.0"
 predicate = { path = "../predicate" }
 iox_query = { path = "../iox_query" }
 rand = "0.8.3"
-read_buffer = { path = "../read_buffer" }
 service_common = { path = "../service_common" }
 service_grpc_schema = { path = "../service_grpc_schema" }
 schema = { path = "../schema" }

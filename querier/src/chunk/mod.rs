@@ -7,9 +7,7 @@ use data_types::{
     PartitionId, SequenceNumber, ShardId, TableSummary, TimestampMinMax,
 };
 use iox_catalog::interface::Catalog;
-use parking_lot::RwLock;
 use parquet_file::{chunk::ParquetChunk, storage::ParquetStorage};
-use read_buffer::RBChunk;
 use schema::{sort::SortKey, Schema};
 use std::{collections::HashMap, sync::Arc};
 use trace::span::{Span, SpanRecorder};
@@ -88,86 +86,6 @@ impl ChunkMeta {
     }
 }
 
-/// Internal [`QuerierChunk`] stage, i.e. how the data is loaded/organized.
-#[derive(Debug)]
-enum ChunkStage {
-    ReadBuffer {
-        /// Underlying read buffer chunk
-        rb_chunk: Arc<RBChunk>,
-
-        /// Table summary
-        table_summary: Arc<TableSummary>,
-    },
-    Parquet {
-        /// Chunk of the Parquet file
-        parquet_chunk: Arc<ParquetChunk>,
-
-        /// Table summary
-        table_summary: Arc<TableSummary>,
-    },
-}
-
-impl ChunkStage {
-    /// Get stage-specific table summary.
-    ///
-    /// The table summary may improve if we have more chunk information (e.g. when the actual data was loaded into
-    /// memory).
-    pub fn table_summary(&self) -> &Arc<TableSummary> {
-        match self {
-            Self::Parquet { table_summary, .. } => table_summary,
-            Self::ReadBuffer { table_summary, .. } => table_summary,
-        }
-    }
-
-    /// Machine- and human-readable name of the stage.
-    pub fn name(&self) -> &'static str {
-        match self {
-            Self::Parquet { .. } => "parquet",
-            Self::ReadBuffer { .. } => "read_buffer",
-        }
-    }
-
-    fn estimate_size(&self) -> usize {
-        match self {
-            Self::Parquet { parquet_chunk, .. } => {
-                parquet_chunk.parquet_file().file_size_bytes as usize
-            }
-            Self::ReadBuffer { rb_chunk, .. } => rb_chunk.size(),
-        }
-    }
-
-    fn rows(&self) -> usize {
-        match self {
-            Self::Parquet { parquet_chunk, .. } => parquet_chunk.rows(),
-            Self::ReadBuffer { rb_chunk, .. } => rb_chunk.rows() as usize,
-        }
-    }
-}
-
-impl From<Arc<ParquetChunk>> for ChunkStage {
-    fn from(parquet_chunk: Arc<ParquetChunk>) -> Self {
-        let table_summary = Arc::new(create_basic_summary(
-            parquet_chunk.rows() as u64,
-            &parquet_chunk.schema(),
-            parquet_chunk.timestamp_min_max(),
-        ));
-        Self::Parquet {
-            parquet_chunk,
-            table_summary,
-        }
-    }
-}
-
-impl From<Arc<RBChunk>> for ChunkStage {
-    fn from(rb_chunk: Arc<RBChunk>) -> Self {
-        let table_summary = Arc::new(rb_chunk.table_summary());
-        Self::ReadBuffer {
-            rb_chunk,
-            table_summary,
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct QuerierChunk {
     /// Immutable chunk metadata
@@ -185,10 +103,11 @@ pub struct QuerierChunk {
     /// Partition sort key (how does the read buffer use this?)
     partition_sort_key: Arc<Option<SortKey>>,
 
-    /// Current stage.
-    ///
-    /// Wrapped in an `Arc` so we can move it into a future/stream this is detached from `self`.
-    stage: Arc<RwLock<ChunkStage>>,
+    /// Chunk of the Parquet file
+    parquet_chunk: Arc<ParquetChunk>,
+
+    /// Table summary
+    table_summary: Arc<TableSummary>,
 }
 
 impl QuerierChunk {
@@ -201,7 +120,11 @@ impl QuerierChunk {
         let schema = parquet_chunk.schema();
         let timestamp_min_max = parquet_chunk.timestamp_min_max();
 
-        let stage: ChunkStage = parquet_chunk.into();
+        let table_summary = Arc::new(create_basic_summary(
+            parquet_chunk.rows() as u64,
+            &parquet_chunk.schema(),
+            parquet_chunk.timestamp_min_max(),
+        ));
 
         Self {
             meta,
@@ -209,7 +132,8 @@ impl QuerierChunk {
             partition_sort_key,
             schema,
             timestamp_min_max,
-            stage: Arc::new(RwLock::new(stage)),
+            parquet_chunk,
+            table_summary,
         }
     }
 
@@ -235,11 +159,11 @@ impl QuerierChunk {
     }
 
     pub fn estimate_size(&self) -> usize {
-        self.stage.read().estimate_size()
+        self.parquet_chunk.parquet_file().file_size_bytes as usize
     }
 
     pub fn rows(&self) -> usize {
-        self.stage.read().rows()
+        self.parquet_chunk.rows()
     }
 }
 
