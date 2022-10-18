@@ -14,6 +14,7 @@ metric = { path = "../metric" }
 parking_lot = "0.12"
 trace = { path = "../trace" }
 tracker = { path = "../tracker" }
+tonic = "0.8"
 workspace-hack = { path = "../workspace-hack"}
 
 # Crates.io dependencies, in alphabetical order

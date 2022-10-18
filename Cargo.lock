@@ -4621,6 +4621,7 @@ dependencies = [
  "metric",
  "parking_lot 0.12.1",
  "predicate",
+ "tonic",
  "trace",
  "tracker",
  "workspace-hack",

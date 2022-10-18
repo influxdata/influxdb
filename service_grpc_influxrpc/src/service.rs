@@ -34,7 +34,7 @@ use iox_query::{
 };
 use observability_deps::tracing::{error, info, trace};
 use pin_project::pin_project;
-use service_common::{planner::Planner, QueryDatabaseProvider};
+use service_common::{datafusion_error_to_tonic_code, planner::Planner, QueryDatabaseProvider};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     collections::{BTreeSet, HashMap},
@@ -197,20 +197,7 @@ impl Error {
             | Self::PlanningGroupSeries { source, .. }
             | Self::FilteringSeries { source, .. }
             | Self::GroupingSeries { source, .. }
-            | Self::ListingTagValues { source, .. } => {
-                // traverse context chain
-                let mut source = source;
-                while let DataFusionError::Context(_msg, inner) = source {
-                    source = *inner;
-                }
-
-                match source {
-                    DataFusionError::ResourcesExhausted(_) => tonic::Code::ResourceExhausted,
-                    DataFusionError::Plan(_) => tonic::Code::InvalidArgument,
-                    DataFusionError::NotImplemented(_) => tonic::Code::Unimplemented,
-                    _ => tonic::Code::Internal,
-                }
-            }
+            | Self::ListingTagValues { source, .. } => datafusion_error_to_tonic_code(&source),
             Self::ConvertingPredicate { .. }
             | Self::ConvertingReadGroupAggregate { .. }
             | Self::ConvertingReadGroupType { .. }
@@ -1645,15 +1632,15 @@ mod tests {
         fixture: &Fixture,
         path: &'static str,
         status: &'static str,
-        count: u64,
+        expected: u64,
     ) {
-        let metric = fixture
+        let metrics = fixture
             .test_storage
             .metric_registry
             .get_instrument::<Metric<U64Counter>>("grpc_requests")
             .unwrap();
 
-        let observation = metric
+        let observation = metrics
             .get_observer(&Attributes::from([
                 (
                     "path",
@@ -1664,7 +1651,11 @@ mod tests {
             .unwrap()
             .fetch();
 
-        assert_eq!(observation, count);
+        assert_eq!(
+            observation, expected,
+            "\n\npath: {}\nstatus:{}\nobservation:{}\nexpected:{}\n\nAll metrics:\n\n{:#?}",
+            path, status, observation, expected, metrics
+        );
     }
 
     #[tokio::test]
@@ -2178,8 +2169,11 @@ mod tests {
             "Error converting tag_key to UTF-8 in tag_values request"
         );
 
-        grpc_request_metric_has_count(&fixture, "TagValues", "client_error", 1);
+        // error from backend error
         grpc_request_metric_has_count(&fixture, "TagValues", "server_error", 1);
+
+        // error from bad utf8
+        grpc_request_metric_has_count(&fixture, "TagValues", "client_error", 1);
     }
 
     #[tokio::test]

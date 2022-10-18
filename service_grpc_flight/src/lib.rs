@@ -20,7 +20,7 @@ use observability_deps::tracing::{debug, info, warn};
 use pin_project::{pin_project, pinned_drop};
 use prost::Message;
 use serde::Deserialize;
-use service_common::{planner::Planner, QueryDatabaseProvider};
+use service_common::{datafusion_error_to_tonic_code, planner::Planner, QueryDatabaseProvider};
 use snafu::{ResultExt, Snafu};
 use std::{fmt::Debug, pin::Pin, sync::Arc, task::Poll, time::Instant};
 use tokio::task::JoinHandle;
@@ -96,8 +96,8 @@ impl From<Error> for tonic::Status {
 }
 
 impl Error {
-    /// Converts a result from the business logic into the appropriate tonic
-    /// status
+    /// Converts a result from the business logic into the appropriate tonic (gRPC)
+    /// status message to send back to users
     fn into_status(self) -> tonic::Status {
         let msg = self.to_string();
 
@@ -108,18 +108,7 @@ impl Error {
             | Self::InvalidQuery { .. }
             | Self::InvalidDatabaseName { .. } => tonic::Code::InvalidArgument,
             Self::Planning { source, .. } | Self::Query { source, .. } => {
-                // traverse context chain
-                let mut source = source;
-                while let DataFusionError::Context(_msg, inner) = source {
-                    source = *inner;
-                }
-
-                match source {
-                    DataFusionError::ResourcesExhausted(_) => tonic::Code::ResourceExhausted,
-                    DataFusionError::Plan(_) => tonic::Code::InvalidArgument,
-                    DataFusionError::NotImplemented(_) => tonic::Code::Unimplemented,
-                    _ => tonic::Code::Internal,
-                }
+                datafusion_error_to_tonic_code(&source)
             }
             Self::Optimize { .. } | Self::Serialization { .. } => tonic::Code::Internal,
         };

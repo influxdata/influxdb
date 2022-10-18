@@ -1,5 +1,6 @@
 //! Common methods for RPC service implementations
 
+mod error;
 pub mod planner;
 pub mod test_util;
 
@@ -25,3 +26,5 @@ pub trait QueryDatabaseProvider: std::fmt::Debug + Send + Sync + 'static {
     /// Acquire concurrency-limiting sempahore
     async fn acquire_semaphore(&self, span: Option<Span>) -> InstrumentedAsyncOwnedSemaphorePermit;
 }
+
+pub use error::datafusion_error_to_tonic_code;
