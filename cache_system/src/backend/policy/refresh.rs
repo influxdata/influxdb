@@ -1,20 +1,24 @@
-//! Time-to-live handling.
+//! Refresh handling.
 use std::{
-    collections::HashMap, fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc, time::Duration,
+    fmt::Debug,
+    hash::Hash,
+    marker::PhantomData,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
 };
 
+use backoff::{Backoff, BackoffConfig};
 use futures::{future::BoxFuture, stream::FuturesUnordered, FutureExt, StreamExt};
-use iox_time::Time;
+use iox_time::{Time, TimeProvider};
 use metric::U64Counter;
 use parking_lot::Mutex;
-use tokio::{
-    runtime::Handle,
-    sync::{mpsc::UnboundedSender, Notify},
-    task::JoinHandle,
-};
+use rand::rngs::mock::StepRng;
+use tokio::{runtime::Handle, sync::Notify, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 
-use crate::loader::Loader;
+use crate::{addressable_heap::AddressableHeap, loader::Loader};
 
 use super::{CacheBackend, CallbackHandle, ChangeRequest, Subscriber};
 
@@ -35,7 +39,7 @@ pub trait RefreshDurationProvider: std::fmt::Debug + Send + Sync + 'static {
     /// - You cannot change the timings after the data was cached.
     ///
     /// Refresh is set to take place AT OR AFTER the provided duration.
-    fn refresh_in(&self, k: &Self::K, v: &Self::V) -> Option<Duration>;
+    fn refresh_in(&self, k: &Self::K, v: &Self::V) -> Option<BackoffConfig>;
 }
 
 /// [`RefreshDurationProvider`] that never expires.
@@ -61,7 +65,7 @@ impl<K, V> RefreshDurationProvider for NeverRefreshProvider<K, V> {
     type K = K;
     type V = V;
 
-    fn refresh_in(&self, _k: &Self::K, _v: &Self::V) -> Option<Duration> {
+    fn refresh_in(&self, _k: &Self::K, _v: &Self::V) -> Option<BackoffConfig> {
         None
     }
 }
@@ -76,8 +80,8 @@ where
     _k: PhantomData<fn() -> K>,
     _v: PhantomData<fn() -> V>,
 
-    t_none: Option<Duration>,
-    t_some: Option<Duration>,
+    backoff_cfg_none: Option<BackoffConfig>,
+    backoff_cfg_some: Option<BackoffConfig>,
 }
 
 impl<K, V> OptionalValueRefreshDurationProvider<K, V>
@@ -86,12 +90,15 @@ where
     V: 'static,
 {
     /// Create new provider with the given refresh duration for `None` and `Some(...)`.
-    pub fn new(t_none: Option<Duration>, t_some: Option<Duration>) -> Self {
+    pub fn new(
+        backoff_cfg_none: Option<BackoffConfig>,
+        backoff_cfg_some: Option<BackoffConfig>,
+    ) -> Self {
         Self {
             _k: PhantomData::default(),
             _v: PhantomData::default(),
-            t_none,
-            t_some,
+            backoff_cfg_none,
+            backoff_cfg_some,
         }
     }
 }
@@ -99,8 +106,8 @@ where
 impl<K, V> std::fmt::Debug for OptionalValueRefreshDurationProvider<K, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("OptionalValueRefreshDurationProvider")
-            .field("t_none", &self.t_none)
-            .field("t_some", &self.t_some)
+            .field("t_none", &self.backoff_cfg_none)
+            .field("t_some", &self.backoff_cfg_some)
             .finish_non_exhaustive()
     }
 }
@@ -109,13 +116,16 @@ impl<K, V> RefreshDurationProvider for OptionalValueRefreshDurationProvider<K, V
     type K = K;
     type V = Option<V>;
 
-    fn refresh_in(&self, _k: &Self::K, v: &Self::V) -> Option<Duration> {
+    fn refresh_in(&self, _k: &Self::K, v: &Self::V) -> Option<BackoffConfig> {
         match v {
-            None => self.t_none,
-            Some(_) => self.t_some,
+            None => self.backoff_cfg_none.clone(),
+            Some(_) => self.backoff_cfg_some.clone(),
         }
     }
 }
+
+/// Tag for keys (incl. their backoff state and their running background tasks) to reason about lock gaps.
+type Tag = u64;
 
 /// Cache policy that implements refreshing.
 #[derive(Debug)]
@@ -125,12 +135,11 @@ where
     V: Clone + Debug + Send + 'static,
 {
     refresh_duration_provider: Arc<dyn RefreshDurationProvider<K = K, V = V>>,
-    loader: Arc<dyn Loader<K = K, V = V, Extra = ()>>,
-    callback_handle: Arc<Mutex<CallbackHandle<K, V>>>,
-    metric_refreshed: U64Counter,
     background_worker: JoinHandle<()>,
-    timings: Arc<Mutex<HashMap<K, RefreshState>>>,
-    tx_refresh_tasks: UnboundedSender<BoxFuture<'static, ()>>,
+    timings: Arc<Mutex<AddressableHeap<K, RefreshState, TimeOrNever>>>,
+    timings_changed: Arc<Notify>,
+    tag_counter: AtomicU64,
+    rng_overwrite: Option<StepRng>,
 }
 
 impl<K, V> RefreshPolicy<K, V>
@@ -141,6 +150,7 @@ where
     /// Create new refresh policy.
     #[allow(clippy::new_ret_no_self)]
     pub fn new(
+        time_provider: Arc<dyn TimeProvider>,
         refresh_duration_provider: Arc<dyn RefreshDurationProvider<K = K, V = V>>,
         loader: Arc<dyn Loader<K = K, V = V, Extra = ()>>,
         name: &'static str,
@@ -149,23 +159,34 @@ where
     ) -> impl FnOnce(CallbackHandle<K, V>) -> Self {
         let idle_notify = Arc::new(Notify::new());
         Self::new_inner(
+            time_provider,
             refresh_duration_provider,
             loader,
             name,
             metric_registry,
             idle_notify,
             handle,
+            None,
         )
     }
 
-    #[allow(clippy::new_ret_no_self)]
+    /// Create new refresh policy but allows to specify some internals for testing.
+    ///
+    /// These internals are:
+    ///
+    /// - `idle_notify`: a [`Notify`] that will be triggered when the background worker is idle.
+    /// - `rng_overwrite`: a static RNG that will be used for the [`backoff`]-based refresh timers instead of a true
+    ///   thread RNG.
+    #[allow(clippy::new_ret_no_self, clippy::too_many_arguments)]
     pub(crate) fn new_inner(
+        time_provider: Arc<dyn TimeProvider>,
         refresh_duration_provider: Arc<dyn RefreshDurationProvider<K = K, V = V>>,
         loader: Arc<dyn Loader<K = K, V = V, Extra = ()>>,
         name: &'static str,
         metric_registry: &metric::Registry,
         idle_notify: Arc<Notify>,
         handle: &Handle,
+        rng_overwrite: Option<StepRng>,
     ) -> impl FnOnce(CallbackHandle<K, V>) -> Self {
         let metric_refreshed = metric_registry
             .register_metric::<U64Counter>("cache_refresh", "Number of cache refresh operations.")
@@ -177,12 +198,16 @@ where
         move |mut callback_handle| {
             callback_handle.execute_requests(vec![ChangeRequest::ensure_empty()]);
 
-            let (tx_refresh_tasks, mut rx_refresh_tasks) = tokio::sync::mpsc::unbounded_channel();
-            let timings: Arc<Mutex<HashMap<K, RefreshState>>> = Default::default();
+            let timings: Arc<Mutex<AddressableHeap<K, RefreshState, TimeOrNever>>> =
+                Default::default();
+            let timings_captured = Arc::clone(&timings);
+            let timings_changed = Arc::new(Notify::new());
+            let timings_changed_captured = Arc::clone(&timings_changed);
             let callback_handle = Arc::new(Mutex::new(callback_handle));
+            let rng_overwrite_captured = rng_overwrite.clone();
 
             let background_worker = handle.spawn(async move {
-                let mut refresh_tasks = FuturesUnordered::<BoxFuture<'static, ()>>::new();
+                let mut refresh_tasks = FuturesUnordered::<BoxFuture<'static, Option<(K, Tag)>>>::new();
 
                 // We MUST NOT poll the empty task set because this would finish immediately. This will hot-loop
                 // the loop. Even worse, since `FuturesUnodered` is not hooked up into tokio's (somewhat bizarre)
@@ -194,6 +219,18 @@ where
                 let mut can_notify_idle = true;
 
                 loop {
+                    // future that waits for the next refresh task to start
+                    let fut_start_next_task: BoxFuture<'static, ()> = {
+                        let timings = timings_captured.lock();
+                        match timings.peek() {
+                            None => Box::pin(futures::future::pending()),
+                            Some((_k, _state, t_next)) => match t_next {
+                                TimeOrNever::Never => Box::pin(futures::future::pending()),
+                                TimeOrNever::Time(t) => Box::pin(time_provider.sleep_until(*t)),
+                            }
+                        }
+                    };
+
                     // future that "guards" our idle notification to prevent hot loops (essentially blocking the entire
                     // tokio thread forever)
                     let fut_idle_notify_guard: BoxFuture<'static, ()> = if can_notify_idle {
@@ -204,23 +241,52 @@ where
 
                     tokio::select! {
                         biased;
-                        _ = refresh_tasks.next() => {
+                        maybe_k_and_tag = refresh_tasks.next() => {
                             // a refresh tasks finished
 
-                            can_notify_idle = true;
-                        }
-                        maybe_new_task = rx_refresh_tasks.recv() => {
-                            match maybe_new_task {
-                                Some(new_task) => {
-                                    refresh_tasks.push(new_task);
-                                }
-                                None => {
-                                    // sender side (and therefore the whole policy) is gone, we shall exit
-                                    return;
+                            // see if this refresh task was NOT finished
+                            if let Some((k, tag)) = maybe_k_and_tag.flatten() {
+                                let mut timings = timings_captured.lock();
+                                if let Some((mut state, t_next)) = timings.remove(&k) {
+                                    if state.tag == tag {
+                                        state.running_refresh = None;
+                                        let (state, t_next) = state.next(time_provider.now(), &rng_overwrite_captured);
+                                        timings.insert(k, state, t_next);
+                                    } else {
+                                        // wrong one (lock gap)
+                                        timings.insert(k, state, t_next);
+                                    }
                                 }
                             }
 
                             can_notify_idle = true;
+                        }
+                        _ = fut_start_next_task => {
+                            // a new refresh task shall start
+                            let mut timings = timings_captured.lock();
+
+                            // careful with inspection of timings since there was a lock-gap, the data might have changed
+                            if let Some((k, mut state, t_next)) = timings.pop() {
+                                if t_next <= TimeOrNever::Time(time_provider.now()) {
+                                    assert!(state.running_refresh.is_none());
+
+                                    let (fut, ctoken) = Self::refresh(Arc::clone(&loader), Arc::clone(&callback_handle), k.clone(), state.tag, metric_refreshed.clone());
+                                    state.running_refresh = Some(ctoken);
+                                    refresh_tasks.push(fut);
+
+                                    timings.insert(k, state, TimeOrNever::Never);
+                                } else {
+                                    // the entry in question is gone and we got the wrong one, put it back
+                                    timings.insert(k, state, t_next);
+                                }
+                            }
+
+                            can_notify_idle = true;
+                        }
+                        _ = timings_changed_captured.notified() => {
+                            // timings updated
+
+                            // do NOT count this as "can not notify IDLE" because nothing really happened yet
                         }
                         _ = fut_idle_notify_guard => {
                             // no other jobs to do (this select is biased!), we inform the external test observer
@@ -233,12 +299,11 @@ where
 
             Self {
                 refresh_duration_provider,
-                loader,
-                callback_handle,
-                metric_refreshed,
                 background_worker,
                 timings,
-                tx_refresh_tasks,
+                timings_changed,
+                tag_counter: AtomicU64::new(0),
+                rng_overwrite,
             }
         }
     }
@@ -247,9 +312,13 @@ where
     ///
     /// You shall store the given token in [`RefreshState`].
     #[must_use]
-    fn refresh(&self, k: K) -> CancellationToken {
-        let loader = Arc::clone(&self.loader);
-        let callback_handle = Arc::clone(&self.callback_handle);
+    fn refresh(
+        loader: Arc<dyn Loader<K = K, V = V, Extra = ()>>,
+        callback_handle: Arc<Mutex<CallbackHandle<K, V>>>,
+        k: K,
+        tag: Tag,
+        metric_refreshed: U64Counter,
+    ) -> (BoxFuture<'static, Option<(K, Tag)>>, CancellationToken) {
         let cancelled = CancellationToken::default();
 
         let cancelled_captured = cancelled.clone();
@@ -266,29 +335,27 @@ where
                     return;
                 }
 
-                backend.set(k, v);
+                backend.set(k.clone(), v);
             })]);
+
+            // update metric AFTER change request
+            metric_refreshed.inc(1);
 
             // there is NO need to update our own `timings` after this refresh because this very Subscriber
             // will also get a `set` notification and update its timing table accordingly
+            (k, tag)
         };
 
         let cancelled_captured = cancelled.clone();
         let fut = async move {
             tokio::select! {
-                _ = cancelled_captured.cancelled() => {},
-                _ = fut => {}
+                _ = cancelled_captured.cancelled() => None,
+                k = fut => Some(k),
             }
         }
         .boxed();
 
-        self.tx_refresh_tasks
-            .send(fut)
-            .map_err(|_| ())
-            .expect("background worker alive");
-
-        self.metric_refreshed.inc(1);
-        cancelled
+        (fut, cancelled)
     }
 }
 
@@ -313,15 +380,20 @@ where
     fn get(&mut self, k: &Self::K, now: Time) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
         let mut timings = self.timings.lock();
 
-        // Does this entry exists and is there no a refresh operation running?
-        if let Some(RefreshState {
-            t,
-            running_refresh: running_refresh @ None,
-        }) = timings.get_mut(k)
-        {
-            // Is it time to refresh?
-            if *t <= now {
-                *running_refresh = Some(self.refresh(k.clone()));
+        // Does this entry exists?
+        if let Some((mut state, t_next)) = timings.remove(k) {
+            // reset backoff
+            state.next = None;
+
+            if state.running_refresh.is_some() {
+                // there is a refresh operation running, so just reset the backoff and put this back
+                assert_eq!(t_next, TimeOrNever::Never);
+                timings.insert(k.clone(), state, TimeOrNever::Never);
+            } else {
+                // refresh operation currently NOT running => schedule one
+                let (state, t_next) = state.next(now, &self.rng_overwrite);
+                timings.insert(k.clone(), state, t_next);
+                self.timings_changed.notify_one();
             }
         }
 
@@ -334,18 +406,34 @@ where
         v: &Self::V,
         now: Time,
     ) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
-        let d = self.refresh_duration_provider.refresh_in(k, v);
+        let backoff_cfg = self.refresh_duration_provider.refresh_in(k, v);
 
         let mut timings = self.timings.lock();
 
         // ignore any entries that don't require any work
-        if let Some(t) = d.and_then(|d| now.checked_add(d)) {
-            let state = RefreshState {
-                t,
-                running_refresh: None,
-            };
+        if let Some(backoff_cfg) = backoff_cfg {
+            if let Some((mut state, time)) = timings.remove(k) {
+                // we know this key already
+                state.next = match state.next.take() {
+                    Some(mut next) => {
+                        next.fade_to(&backoff_cfg);
+                        Some(next)
+                    }
+                    None => None,
+                };
+                state.backoff_cfg = backoff_cfg;
 
-            timings.insert(k.clone(), state);
+                timings.insert(k.clone(), state, time);
+                self.timings_changed.notify_one();
+            } else {
+                // new key
+                let state =
+                    RefreshState::new(backoff_cfg, self.tag_counter.fetch_add(1, Ordering::SeqCst));
+                let (state, time) = state.next(now, &self.rng_overwrite);
+
+                timings.insert(k.clone(), state, time);
+                self.timings_changed.notify_one();
+            }
         } else {
             // need to remove potentially existing entry that had some refresh set
             timings.remove(k);
@@ -371,12 +459,51 @@ where
 #[derive(Debug)]
 struct RefreshState {
     /// When to refresh or expire.
-    t: Time,
+    backoff_cfg: BackoffConfig,
+
+    /// Current backoff state
+    next: Option<Backoff>,
+
+    /// Tag that links the background task to this very entry
+    tag: Tag,
 
     /// Cancellation token for a potentially running refresh operation.
     ///
     /// This token will be triggered on [`drop`](Drop::drop).
     running_refresh: Option<CancellationToken>,
+}
+
+impl RefreshState {
+    fn new(backoff_cfg: BackoffConfig, tag: Tag) -> Self {
+        Self {
+            backoff_cfg,
+            next: None,
+            tag,
+            running_refresh: None,
+        }
+    }
+
+    fn next(mut self, now: Time, rng_overwrite: &Option<StepRng>) -> (Self, TimeOrNever) {
+        assert!(self.running_refresh.is_none());
+
+        let mut next = self.next.take().unwrap_or_else(|| {
+            Backoff::new_with_rng(
+                &self.backoff_cfg,
+                rng_overwrite.as_ref().map(|rng| Box::new(rng.clone()) as _),
+            )
+        });
+        let time = match next.next().and_then(|d| now.checked_add(d)) {
+            None => TimeOrNever::Never,
+            Some(time) => TimeOrNever::Time(time),
+        };
+        let this = Self {
+            backoff_cfg: self.backoff_cfg.clone(),
+            tag: self.tag,
+            next: Some(next),
+            running_refresh: None,
+        };
+        (this, time)
+    }
 }
 
 impl Drop for RefreshState {
@@ -387,8 +514,16 @@ impl Drop for RefreshState {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum TimeOrNever {
+    Time(Time),
+    Never,
+}
+
 pub mod test_util {
     //! Testing utilities for refresh policy.
+
+    use std::{collections::HashMap, time::Duration};
 
     use async_trait::async_trait;
     use tokio::sync::Barrier;
@@ -398,7 +533,7 @@ pub mod test_util {
     /// Easy-to-control [`RefreshDurationProvider`].
     #[derive(Debug, Default)]
     pub struct TestRefreshDurationProvider {
-        times: Mutex<HashMap<(u8, String), Option<Duration>>>,
+        times: Mutex<HashMap<(u8, String), Option<BackoffConfig>>>,
     }
 
     impl TestRefreshDurationProvider {
@@ -410,7 +545,7 @@ pub mod test_util {
         /// Specify a refresh duration for a given key-value pair.
         ///
         /// Existing values will be overridden.
-        pub fn set_refresh_in(&self, k: u8, v: String, d: Option<Duration>) {
+        pub fn set_refresh_in(&self, k: u8, v: String, d: Option<BackoffConfig>) {
             self.times.lock().insert((k, v), d);
             // do NOT check if there was already a value set because we allow overrides
         }
@@ -420,12 +555,12 @@ pub mod test_util {
         type K = u8;
         type V = String;
 
-        fn refresh_in(&self, k: &Self::K, v: &Self::V) -> Option<Duration> {
-            *self
-                .times
+        fn refresh_in(&self, k: &Self::K, v: &Self::V) -> Option<BackoffConfig> {
+            self.times
                 .lock()
                 .get(&(*k, v.clone()))
                 .unwrap_or_else(|| panic!("refresh time not mocked: K={k}, V={v}"))
+                .clone()
         }
     }
 
@@ -518,7 +653,7 @@ pub mod test_util {
             Box::pin(async {
                 tokio::time::timeout(Duration::from_secs(1), self.notified())
                     .await
-                    .unwrap();
+                    .expect("notified_with_timeout");
             })
         }
 
@@ -528,6 +663,18 @@ pub mod test_util {
                     .await
                     .unwrap_err();
             })
+        }
+    }
+
+    /// Generate a simple [`BackoffConfig`] for testing.
+    ///
+    /// Uses the given duration as initial backoff and a base of 2. No max backoff and deadline are set.
+    pub fn backoff_cfg(d: Duration) -> BackoffConfig {
+        BackoffConfig {
+            init_backoff: d,
+            max_backoff: Duration::MAX,
+            base: 2.0,
+            deadline: None,
         }
     }
 
@@ -546,26 +693,24 @@ pub mod test_util {
         fn test_provider_mocking() {
             let provider = TestRefreshDurationProvider::default();
 
-            provider.set_refresh_in(1, String::from("a"), None);
-            provider.set_refresh_in(1, String::from("b"), Some(Duration::from_secs(1)));
-            provider.set_refresh_in(2, String::from("a"), Some(Duration::from_secs(2)));
+            let cfg1 = BackoffConfig::default();
+            let cfg2 = BackoffConfig { base: 42., ..cfg1 };
+            let cfg3 = BackoffConfig {
+                base: 1337.,
+                ..cfg1
+            };
 
-            assert_eq!(provider.refresh_in(&1, &String::from("a")), None,);
-            assert_eq!(
-                provider.refresh_in(&1, &String::from("b")),
-                Some(Duration::from_secs(1)),
-            );
-            assert_eq!(
-                provider.refresh_in(&2, &String::from("a")),
-                Some(Duration::from_secs(2)),
-            );
+            provider.set_refresh_in(1, String::from("a"), None);
+            provider.set_refresh_in(1, String::from("b"), Some(cfg1.clone()));
+            provider.set_refresh_in(2, String::from("a"), Some(cfg2.clone()));
+
+            assert_eq!(provider.refresh_in(&1, &String::from("a")), None);
+            assert_eq!(provider.refresh_in(&1, &String::from("b")), Some(cfg1),);
+            assert_eq!(provider.refresh_in(&2, &String::from("a")), Some(cfg2),);
 
             // replace
-            provider.set_refresh_in(1, String::from("a"), Some(Duration::from_secs(3)));
-            assert_eq!(
-                provider.refresh_in(&1, &String::from("a")),
-                Some(Duration::from_secs(3)),
-            );
+            provider.set_refresh_in(1, String::from("a"), Some(cfg3.clone()));
+            assert_eq!(provider.refresh_in(&1, &String::from("a")), Some(cfg3),);
         }
 
         #[tokio::test]
@@ -653,9 +798,13 @@ mod tests {
 
     use iox_time::MockProvider;
     use metric::{Observation, RawReporter};
+    use rand::rngs::mock::StepRng;
 
     use crate::backend::{
-        policy::{refresh::test_util::NotifyExt, PolicyBackend},
+        policy::{
+            refresh::test_util::{backoff_cfg, NotifyExt},
+            PolicyBackend,
+        },
         CacheBackend,
     };
 
@@ -665,6 +814,20 @@ mod tests {
     };
 
     #[test]
+    fn test_time_or_never_ord() {
+        assert!(TimeOrNever::Never == TimeOrNever::Never);
+        assert!(
+            TimeOrNever::Time(Time::from_timestamp_millis(1))
+                == TimeOrNever::Time(Time::from_timestamp_millis(1))
+        );
+        assert!(
+            TimeOrNever::Time(Time::from_timestamp_millis(1))
+                < TimeOrNever::Time(Time::from_timestamp_millis(2))
+        );
+        assert!(TimeOrNever::Time(Time::from_timestamp_millis(1)) < TimeOrNever::Never);
+    }
+
+    #[test]
     fn test_never_refresh_provider() {
         let provider = NeverRefreshProvider::<u8, i8>::default();
         assert_eq!(provider.refresh_in(&1, &2), None);
@@ -672,9 +835,16 @@ mod tests {
 
     #[test]
     fn test_optional_value_ttl_provider() {
-        let t_none = Some(Duration::from_secs(1));
-        let t_some = Some(Duration::from_secs(2));
-        let provider = OptionalValueRefreshDurationProvider::<u8, i8>::new(t_none, t_some);
+        let t_none = Some(BackoffConfig {
+            base: 1.,
+            ..Default::default()
+        });
+        let t_some = Some(BackoffConfig {
+            base: 2.,
+            ..Default::default()
+        });
+        let provider =
+            OptionalValueRefreshDurationProvider::<u8, i8>::new(t_none.clone(), t_some.clone());
         assert_eq!(provider.refresh_in(&1, &None), t_none);
         assert_eq!(provider.refresh_in(&1, &Some(2)), t_some);
     }
@@ -687,8 +857,12 @@ mod tests {
 
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
         let loader = Arc::new(TestLoader::default());
-        let mut backend = PolicyBackend::new(Box::new(HashMap::<u8, String>::new()), time_provider);
+        let mut backend = PolicyBackend::new(
+            Box::new(HashMap::<u8, String>::new()),
+            Arc::clone(&time_provider) as _,
+        );
         let policy_constructor = RefreshPolicy::new(
+            time_provider,
             refresh_duration_provider,
             loader,
             "my_cache",
@@ -704,7 +878,14 @@ mod tests {
     #[tokio::test]
     async fn test_duration_overflow() {
         let refresh_duration_provider = Arc::new(TestRefreshDurationProvider::new());
-        refresh_duration_provider.set_refresh_in(1, String::from("a"), Some(Duration::MAX));
+        refresh_duration_provider.set_refresh_in(
+            1,
+            String::from("a"),
+            Some(BackoffConfig {
+                init_backoff: Duration::MAX,
+                ..Default::default()
+            }),
+        );
 
         let metric_registry = metric::Registry::new();
         let time_provider = Arc::new(MockProvider::new(Time::MAX - Duration::from_secs(1)));
@@ -714,6 +895,7 @@ mod tests {
             Arc::clone(&time_provider) as _,
         );
         backend.add_policy(RefreshPolicy::new(
+            Arc::clone(&time_provider) as _,
             refresh_duration_provider,
             loader,
             "my_cache",
@@ -742,52 +924,52 @@ mod tests {
 
         loader.mock_next(1, String::from("foo"));
         loader.mock_next(1, String::from("bar"));
+
         refresh_duration_provider.set_refresh_in(
             1,
             String::from("a"),
-            Some(Duration::from_secs(1)),
+            Some(backoff_cfg(Duration::from_secs(1))),
         );
         refresh_duration_provider.set_refresh_in(
             1,
             String::from("foo"),
-            Some(Duration::from_secs(2)),
+            Some(backoff_cfg(Duration::from_secs(1))),
         );
         refresh_duration_provider.set_refresh_in(1, String::from("bar"), None);
+
+        // start backoff cycle
         backend.set(1, String::from("a"));
 
-        // still the same key
-        assert_eq!(backend.get(&1), Some(String::from("a")));
-
-        time_provider.inc(Duration::from_secs(1));
+        // initial notify by the background loop
         notify_idle.notified_with_timeout().await;
+
+        // still the same key
+        assert_eq!(get_inner(&mut backend, 1), Some(String::from("a")));
         assert_eq!(get_refresh_metric(&metric_registry), 0);
 
-        // no refresh yet because key was not accessed after refresh window started
-        assert_eq!(backend.get(&1), Some(String::from("a")));
-        assert_eq!(get_refresh_metric(&metric_registry), 1);
-
-        // update arrived
+        // refresh starts by background timer
+        time_provider.inc(Duration::from_secs(1));
         notify_idle.notified_with_timeout().await;
-        assert_eq!(backend.get(&1), Some(String::from("foo")));
+        assert_eq!(get_refresh_metric(&metric_registry), 1);
+        assert_eq!(get_inner(&mut backend, 1), Some(String::from("foo")));
 
         // nothing to refresh yet
         notify_idle.not_notified().await;
-        assert_eq!(backend.get(&1), Some(String::from("foo")));
+        assert_eq!(get_refresh_metric(&metric_registry), 1);
+        assert_eq!(get_inner(&mut backend, 1), Some(String::from("foo")));
 
-        // just bumping the refresh by the old refresh timer won't do anything (we need 2 seconds this time)
+        // just bumping the refresh by the old refresh timer won't do anything (we need 2 seconds this time due to the
+        // base factor)
         time_provider.inc(Duration::from_secs(1));
         notify_idle.not_notified().await;
-        assert_eq!(backend.get(&1), Some(String::from("foo")));
-        notify_idle.not_notified().await;
-        assert_eq!(backend.get(&1), Some(String::from("foo")));
+        assert_eq!(get_refresh_metric(&metric_registry), 1);
+        assert_eq!(get_inner(&mut backend, 1), Some(String::from("foo")));
 
         // try a 2nd update
         time_provider.inc(Duration::from_secs(1));
-        notify_idle.not_notified().await;
-        assert_eq!(backend.get(&1), Some(String::from("foo")));
-        assert_eq!(get_refresh_metric(&metric_registry), 2);
         notify_idle.notified_with_timeout().await;
-        assert_eq!(backend.get(&1), Some(String::from("bar")));
+        assert_eq!(get_refresh_metric(&metric_registry), 2);
+        assert_eq!(get_inner(&mut backend, 1), Some(String::from("bar")));
     }
 
     #[tokio::test]
@@ -805,16 +987,17 @@ mod tests {
         refresh_duration_provider.set_refresh_in(
             1,
             String::from("a"),
-            Some(Duration::from_secs(1)),
+            Some(backoff_cfg(Duration::from_secs(1))),
         );
         refresh_duration_provider.set_refresh_in(1, String::from("foo"), None);
         backend.set(1, String::from("a"));
 
         time_provider.inc(Duration::from_secs(1));
-        assert_eq!(backend.get(&1), Some(String::from("a")));
         notify_idle.notified_with_timeout().await;
+
         // if this would start another refresh then the loader would panic because we've only mocked a single request
-        assert_eq!(backend.get(&1), Some(String::from("a")));
+        time_provider.inc(Duration::from_secs(100));
+        notify_idle.not_notified().await;
 
         barrier.wait().await;
         notify_idle.notified_with_timeout().await;
@@ -836,20 +1019,14 @@ mod tests {
         refresh_duration_provider.set_refresh_in(
             1,
             String::from("a"),
-            Some(Duration::from_secs(1)),
+            Some(backoff_cfg(Duration::from_secs(1))),
         );
-        refresh_duration_provider.set_refresh_in(
-            1,
-            String::from("b"),
-            Some(Duration::from_secs(1)),
-        );
+        refresh_duration_provider.set_refresh_in(1, String::from("b"), None);
         backend.set(1, String::from("a"));
 
         // perform refresh
         time_provider.inc(Duration::from_secs(1));
-        assert_eq!(backend.get(&1), Some(String::from("a")));
         notify_idle.notified_with_timeout().await;
-        assert_eq!(backend.get(&1), Some(String::from("a")));
 
         backend.set(1, String::from("b"));
         barrier.wait().await;
@@ -872,16 +1049,15 @@ mod tests {
         refresh_duration_provider.set_refresh_in(
             1,
             String::from("a"),
-            Some(Duration::from_secs(1)),
+            Some(backoff_cfg(Duration::from_secs(1))),
         );
         backend.set(1, String::from("a"));
 
         // perform refresh
         time_provider.inc(Duration::from_secs(1));
-        assert_eq!(backend.get(&1), Some(String::from("a")));
         notify_idle.notified_with_timeout().await;
-        assert_eq!(backend.get(&1), Some(String::from("a")));
 
+        assert_eq!(Arc::strong_count(&barrier), 2);
         backend.remove(&1);
         notify_idle.notified_with_timeout().await;
         assert_eq!(Arc::strong_count(&barrier), 1);
@@ -902,23 +1078,20 @@ mod tests {
         refresh_duration_provider.set_refresh_in(
             1,
             String::from("a"),
-            Some(Duration::from_secs(1)),
+            Some(backoff_cfg(Duration::from_secs(1))),
         );
         refresh_duration_provider.set_refresh_in(1, String::from("b"), None);
         backend.set(1, String::from("a"));
 
         // perform refresh
         time_provider.inc(Duration::from_secs(1));
-        assert_eq!(backend.get(&1), Some(String::from("a")));
         notify_idle.notified_with_timeout().await;
-        assert_eq!(backend.get(&1), Some(String::from("a")));
 
         backend.set(1, String::from("b"));
         barrier.wait().await;
 
         // no refresh
         time_provider.inc(Duration::from_secs(1));
-        assert_eq!(backend.get(&1), Some(String::from("b")));
         notify_idle.notified_with_timeout().await;
         assert_eq!(backend.get(&1), Some(String::from("b")));
     }
@@ -928,15 +1101,18 @@ mod tests {
         use crate::backend::test_util::test_generic;
 
         test_generic(|| {
-            let ttl_provider = Arc::new(NeverRefreshProvider::default());
+            let refresh_duration_provider = Arc::new(NeverRefreshProvider::default());
             let time_provider = Arc::new(MockProvider::new(Time::MIN));
             let metric_registry = metric::Registry::new();
             let loader = Arc::new(TestLoader::default());
-            let mut backend =
-                PolicyBackend::new(Box::new(HashMap::<u8, String>::new()), time_provider);
+            let mut backend = PolicyBackend::new(
+                Box::new(HashMap::<u8, String>::new()),
+                Arc::clone(&time_provider) as _,
+            );
 
             backend.add_policy(RefreshPolicy::new(
-                Arc::clone(&ttl_provider) as _,
+                time_provider,
+                Arc::clone(&refresh_duration_provider) as _,
                 loader,
                 "my_cache",
                 &metric_registry,
@@ -963,17 +1139,22 @@ mod tests {
             let loader = Arc::new(TestLoader::default());
             let notify_idle = Arc::new(Notify::new());
 
+            // set up "RNG" that always generates the maximum, so we can test things easier
+            let rng_overwrite = StepRng::new(u64::MAX, 0);
+
             let mut backend = PolicyBackend::new(
                 Box::new(HashMap::<u8, String>::new()),
                 Arc::clone(&time_provider) as _,
             );
             backend.add_policy(RefreshPolicy::new_inner(
+                Arc::clone(&time_provider) as _,
                 Arc::clone(&refresh_duration_provider) as _,
                 Arc::clone(&loader) as _,
                 "my_cache",
                 &metric_registry,
                 Arc::clone(&notify_idle),
                 &Handle::current(),
+                Some(rng_overwrite),
             ));
 
             Self {
@@ -985,6 +1166,15 @@ mod tests {
                 notify_idle,
             }
         }
+    }
+
+    fn get_inner(backend: &mut PolicyBackend<u8, String>, k: u8) -> Option<String> {
+        let inner_backend = backend.inner_ref();
+        let inner_backend = inner_backend
+            .as_any()
+            .downcast_ref::<HashMap<u8, String>>()
+            .unwrap();
+        inner_backend.get(&k).cloned()
     }
 
     fn get_refresh_metric(metric_registry: &metric::Registry) -> u64 {

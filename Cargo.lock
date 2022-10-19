@@ -536,6 +536,7 @@ name = "cache_system"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "backoff",
  "criterion",
  "futures",
  "iox_time",

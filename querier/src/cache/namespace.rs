@@ -29,10 +29,19 @@ use trace::span::Span;
 use super::ram::RamSize;
 
 /// Duration to keep existing namespaces.
-pub const TTL_EXISTING: Duration = Duration::from_secs(120);
+pub const TTL_EXISTING: Duration = Duration::from_secs(300);
 
-// When to refresh an existing namespace.
-pub const REFRESH_EXISTING: Duration = Duration::from_secs(30);
+/// When to refresh an existing namespace.
+///
+/// This policy is chosen to:
+/// 1. decorrelate refreshes which smooths out catalog load
+/// 2. refresh commonly accessed keys less frequently
+pub const REFRESH_EXISTING: BackoffConfig = BackoffConfig {
+    init_backoff: Duration::from_secs(30),
+    max_backoff: Duration::MAX,
+    base: 2.0,
+    deadline: None,
+};
 
 /// Duration to keep non-existing namespaces.
 ///
@@ -43,8 +52,7 @@ pub const REFRESH_EXISTING: Duration = Duration::from_secs(30);
 ///              SOME TTL mechanism attached.
 ///              The TTL is not relevant for prod at the moment because other layers should prevent/filter queries for
 ///              non-existing namespaces.
-pub const TTL_NON_EXISTING: Duration = Duration::from_nanos(2);
-pub const REFRESH_NON_EXISTING: Duration = Duration::from_nanos(1);
+pub const TTL_NON_EXISTING: Duration = Duration::from_nanos(1);
 
 const CACHE_ID: &str = "namespace";
 
@@ -115,8 +123,9 @@ impl NamespaceCache {
             metric_registry,
         ));
         backend.add_policy(RefreshPolicy::new(
+            Arc::clone(&time_provider),
             Arc::new(OptionalValueRefreshDurationProvider::new(
-                Some(REFRESH_NON_EXISTING),
+                None,
                 Some(REFRESH_EXISTING),
             )),
             Arc::clone(&loader) as _,
