@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 arrow = "25.0.0"
-async-trait = "0.1.57"
+async-trait = "0.1.58"
 backoff = { path = "../backoff" }
 bytes = "1.2"
 cache_system = { path = "../cache_system" }
