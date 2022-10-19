@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"time"
@@ -50,7 +49,7 @@ func (cmd *Command) Run(args ...string) (err error) {
 	}
 
 	if !cmd.verbose {
-		log.SetOutput(ioutil.Discard)
+		log.SetOutput(io.Discard)
 	}
 
 	// Validate measurement or sanitize flag.

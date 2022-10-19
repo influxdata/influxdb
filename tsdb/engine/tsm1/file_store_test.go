@@ -3,7 +3,6 @@ package tsm1_test
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -2725,7 +2724,7 @@ func TestFileStore_CreateSnapshot(t *testing.T) {
 	}
 	t.Logf("temp file for hard links: %q", s)
 
-	tfs, e := ioutil.ReadDir(s)
+	tfs, e := os.ReadDir(s)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -2927,7 +2926,7 @@ type keyValues struct {
 }
 
 func MustTempDir() string {
-	dir, err := ioutil.TempDir("", "tsm1-test")
+	dir, err := os.MkdirTemp("", "tsm1-test")
 	if err != nil {
 		panic(fmt.Sprintf("failed to create temp dir: %v", err))
 	}
@@ -2935,7 +2934,7 @@ func MustTempDir() string {
 }
 
 func MustTempFile(dir string) *os.File {
-	f, err := ioutil.TempFile(dir, "tsm1test")
+	f, err := os.CreateTemp(dir, "tsm1test")
 	if err != nil {
 		panic(fmt.Sprintf("failed to create temp file: %v", err))
 	}

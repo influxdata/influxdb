@@ -3,7 +3,7 @@ package httpd
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"mime"
 	"net/http"
 
@@ -32,7 +32,7 @@ func decodeQueryRequest(r *http.Request) (*client.QueryRequest, error) {
 	var req client.QueryRequest
 	switch mt {
 	case "application/vnd.flux":
-		if d, err := ioutil.ReadAll(r.Body); err != nil {
+		if d, err := io.ReadAll(r.Body); err != nil {
 			return nil, err
 		} else {
 			req.Query = string(d)

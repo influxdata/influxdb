@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -51,7 +50,7 @@ func (c *Client) UpdateMeta(req *Request, upStream io.Reader) (map[uint64]uint64
 		return nil, fmt.Errorf("error uploading file: err=%v, n=%d, uploadSize: %d", err, n, req.UploadSize)
 	}
 
-	resp, err := ioutil.ReadAll(conn)
+	resp, err := io.ReadAll(conn)
 	if err != nil || len(resp) == 0 {
 		return nil, fmt.Errorf("updating metadata on influxd service failed: err=%v, n=%d", err, len(resp))
 	}

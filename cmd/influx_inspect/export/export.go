@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"os"
 	"path/filepath"
@@ -246,7 +245,7 @@ func (cmd *Command) writeDML(mw io.Writer, w io.Writer) error {
 // the actual payload of the writes -- DML and DDL.
 //
 // Typically mw and w are the same but if we'd like to, for example, filter out
-// comments and other meta data, we can pass ioutil.Discard to mw to only
+// comments and other meta data, we can pass io.Discard to mw to only
 // include the raw data that writeFull() generates.
 func (cmd *Command) writeFull(mw io.Writer, w io.Writer) error {
 	s, e := time.Unix(0, cmd.startTime).Format(time.RFC3339), time.Unix(0, cmd.endTime).Format(time.RFC3339)
@@ -294,7 +293,7 @@ func (cmd *Command) write() error {
 
 	// mw is our "meta writer" -- the io.Writer to which meta/out-of-band data
 	// like comments will be sent.  If the lponly flag is set, mw will be
-	// ioutil.Discard which effectively filters out comments and any other
+	// io.Discard which effectively filters out comments and any other
 	// non-line protocol data.
 	//
 	// Otherwise, mw is set to the same writer as the actual DDL and line
@@ -303,7 +302,7 @@ func (cmd *Command) write() error {
 	//
 	mw := w
 	if cmd.lponly {
-		mw = ioutil.Discard
+		mw = io.Discard
 	}
 
 	return cmd.writeFull(mw, w)

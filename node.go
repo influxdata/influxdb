@@ -3,7 +3,6 @@ package influxdb
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -75,7 +74,7 @@ func (n *Node) Save() error {
 
 func upgradeNodeFile(path string) error {
 	oldFile := filepath.Join(path, oldNodeFile)
-	b, err := ioutil.ReadFile(oldFile)
+	b, err := os.ReadFile(oldFile)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -88,7 +87,7 @@ func upgradeNodeFile(path string) error {
 	}
 
 	peers := []string{}
-	pb, err := ioutil.ReadFile(filepath.Join(path, peersFilename))
+	pb, err := os.ReadFile(filepath.Join(path, peersFilename))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil

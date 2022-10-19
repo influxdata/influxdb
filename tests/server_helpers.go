@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -377,7 +376,7 @@ type Config struct {
 
 // NewConfig returns the default config with temporary paths.
 func NewConfig() *Config {
-	root, err := ioutil.TempDir("", "tests-influxdb-")
+	root, err := os.MkdirTemp("", "tests-influxdb-")
 	if err != nil {
 		panic(err)
 	}
@@ -443,7 +442,7 @@ var LosAngeles = mustParseLocation("America/Los_Angeles")
 
 // MustReadAll reads r. Panic on error.
 func MustReadAll(r io.Reader) []byte {
-	b, err := ioutil.ReadAll(r)
+	b, err := io.ReadAll(r)
 	if err != nil {
 		panic(err)
 	}
@@ -622,6 +621,6 @@ func writeTestData(s Server, t *Test) error {
 func configureLogging(s Server) {
 	// Set the logger to discard unless verbose is on
 	if !verboseServerLogs {
-		s.SetLogOutput(ioutil.Discard)
+		s.SetLogOutput(io.Discard)
 	}
 }

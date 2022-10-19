@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // Command represents the program execution for "influxd dumptsm".
@@ -237,7 +239,7 @@ func (cmd *Command) dump() error {
 		if len(counts) == 0 {
 			continue
 		}
-		fmt.Printf("    %s: ", strings.Title(fieldType[i]))
+		fmt.Printf("    %s: ", cases.Title(language.Und, cases.NoLower).String(fieldType[i]))
 		for j, v := range counts {
 			fmt.Printf("\t%s: %d (%d%%) ", encDescs[i][j], v, int(float64(v)/float64(blockCount)*100))
 		}

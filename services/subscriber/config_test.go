@@ -2,7 +2,6 @@ package subscriber_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -69,7 +68,7 @@ write-concurrency = 10
 }
 
 func TestConfig_ParseTLSConfigValidCerts(t *testing.T) {
-	tmpfile, err := ioutil.TempFile("", "ca-certs.crt")
+	tmpfile, err := os.CreateTemp("", "ca-certs.crt")
 	if err != nil {
 		t.Fatalf("could not create temp file. error was: %v", err)
 	}

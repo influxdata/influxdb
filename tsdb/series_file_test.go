@@ -3,7 +3,6 @@ package tsdb_test
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"testing"
@@ -317,7 +316,7 @@ type SeriesFile struct {
 
 // NewSeriesFile returns a new instance of SeriesFile with a temporary file path.
 func NewSeriesFile() *SeriesFile {
-	dir, err := ioutil.TempDir("", "tsdb-series-file-")
+	dir, err := os.MkdirTemp("", "tsdb-series-file-")
 	if err != nil {
 		panic(err)
 	}
@@ -334,7 +333,7 @@ func NewBrokenSeriesFile(content []byte) *SeriesFile {
 	if _, err := os.Stat(segPath); os.IsNotExist(err) {
 		panic(err)
 	}
-	err := ioutil.WriteFile(segPath, content, 0777)
+	err := os.WriteFile(segPath, content, 0777)
 	if err != nil {
 		panic(err)
 	}

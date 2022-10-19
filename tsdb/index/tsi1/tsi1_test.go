@@ -2,7 +2,6 @@ package tsi1_test
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -258,7 +257,7 @@ func (itr *SeriesIDIterator) Next() (elem tsdb.SeriesIDElem) {
 
 // MustTempDir returns a temporary directory. Panic on error.
 func MustTempDir() string {
-	path, err := ioutil.TempDir("", "tsi-")
+	path, err := os.MkdirTemp("", "tsi-")
 	if err != nil {
 		panic(err)
 	}
@@ -289,7 +288,7 @@ type SeriesFile struct {
 
 // NewSeriesFile returns a new instance of SeriesFile with a temporary file path.
 func NewSeriesFile() *SeriesFile {
-	dir, err := ioutil.TempDir("", "tsdb-series-file-")
+	dir, err := os.MkdirTemp("", "tsdb-series-file-")
 	if err != nil {
 		panic(err)
 	}

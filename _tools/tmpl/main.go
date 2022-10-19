@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"go/format"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -104,7 +103,7 @@ func main() {
 }
 
 func mustReadAll(path string) []byte {
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		errExit(err.Error())
 	}
@@ -164,7 +163,7 @@ func process(data interface{}, specs []pathSpec) {
 			}
 		}
 
-		ioutil.WriteFile(spec.out, generated, fileMode(spec.in))
+		os.WriteFile(spec.out, generated, fileMode(spec.in))
 	}
 }
 

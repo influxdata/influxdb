@@ -2,7 +2,6 @@ package seriesfile
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -48,7 +47,7 @@ func (v Verify) VerifySeriesFile(filePath string) (valid bool, err error) {
 		}
 	}()
 
-	partitionInfos, err := ioutil.ReadDir(filePath)
+	partitionInfos, err := os.ReadDir(filePath)
 	if os.IsNotExist(err) {
 		v.Logger.Error("Series file does not exist")
 		return false, nil
@@ -120,7 +119,7 @@ func (v Verify) VerifyPartition(partitionPath string) (valid bool, err error) {
 		}
 	}()
 
-	segmentInfos, err := ioutil.ReadDir(partitionPath)
+	segmentInfos, err := os.ReadDir(partitionPath)
 	if err != nil {
 		return false, err
 	}

@@ -1,7 +1,6 @@
 package tsm1
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -19,7 +18,7 @@ func TestEngine_ConcurrentShardSnapshots(t *testing.T) {
 		t.Skip("Skipping on windows")
 	}
 
-	tmpDir, err := ioutil.TempDir("", "shard_test")
+	tmpDir, err := os.MkdirTemp("", "shard_test")
 	if err != nil {
 		t.Fatalf("error creating temporary directory: %s", err.Error())
 	}
@@ -95,7 +94,7 @@ func TestEngine_ConcurrentShardSnapshots(t *testing.T) {
 
 // NewSeriesFile returns a new instance of SeriesFile with a temporary file path.
 func NewSeriesFile(tmpDir string) *tsdb.SeriesFile {
-	dir, err := ioutil.TempDir(tmpDir, "tsdb-series-file-")
+	dir, err := os.MkdirTemp(tmpDir, "tsdb-series-file-")
 	if err != nil {
 		panic(err)
 	}

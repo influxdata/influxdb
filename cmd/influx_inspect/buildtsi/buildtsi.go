@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -103,7 +102,7 @@ func (cmd *Command) run(dataDir, walDir string) error {
 		}
 	}
 
-	fis, err := ioutil.ReadDir(dataDir)
+	fis, err := os.ReadDir(dataDir)
 	if err != nil {
 		return err
 	}
@@ -259,7 +258,7 @@ func (cmd *Command) processDatabase(dbName, dataDir, walDir string) error {
 	}
 	defer sfile.Close()
 
-	fis, err := ioutil.ReadDir(dataDir)
+	fis, err := os.ReadDir(dataDir)
 	if err != nil {
 		return err
 	}
@@ -285,7 +284,7 @@ func (cmd *Command) processDatabase(dbName, dataDir, walDir string) error {
 func (cmd *Command) processRetentionPolicy(sfile *tsdb.SeriesFile, dbName, rpName, dataDir, walDir string) error {
 	cmd.Logger.Info("Rebuilding retention policy", logger.Database(dbName), logger.RetentionPolicy(rpName))
 
-	fis, err := ioutil.ReadDir(dataDir)
+	fis, err := os.ReadDir(dataDir)
 	if err != nil {
 		return err
 	}
@@ -531,7 +530,7 @@ func IndexTSMFile(index *tsi1.Index, path string, batchSize int, log *zap.Logger
 }
 
 func collectTSMFiles(path string) ([]string, error) {
-	fis, err := ioutil.ReadDir(path)
+	fis, err := os.ReadDir(path)
 	if err != nil {
 		return nil, err
 	}
@@ -553,7 +552,7 @@ func collectWALFiles(path string) ([]string, error) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return nil, err
 	}
-	fis, err := ioutil.ReadDir(path)
+	fis, err := os.ReadDir(path)
 	if err != nil {
 		return nil, err
 	}

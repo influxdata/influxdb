@@ -2,7 +2,6 @@ package tsi1_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -53,7 +52,7 @@ func TestPartition_Open(t *testing.T) {
 			}
 
 			// Log the MANIFEST file.
-			data, err := ioutil.ReadFile(mpath)
+			data, err := os.ReadFile(mpath)
 			if err != nil {
 				panic(err)
 			}

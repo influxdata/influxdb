@@ -3,7 +3,7 @@ package export
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math"
 	"math/rand"
 	"os"
@@ -227,8 +227,8 @@ func BenchmarkExportWALStrings_100s_250vps(b *testing.B) {
 // newCommand returns a command that discards its output and that accepts all timestamps.
 func newCommand() *Command {
 	return &Command{
-		Stderr:    ioutil.Discard,
-		Stdout:    ioutil.Discard,
+		Stderr:    io.Discard,
+		Stdout:    io.Discard,
 		startTime: math.MinInt64,
 		endTime:   math.MaxInt64,
 	}
@@ -292,7 +292,7 @@ func makeStringsCorpus(numSeries, numStringsPerSeries int) corpus {
 // It is the caller's responsibility to remove the returned temp file.
 // writeCorpusToWALFile will panic on any error that occurs.
 func writeCorpusToWALFile(c corpus) *os.File {
-	walFile, err := ioutil.TempFile("", "export_test_corpus_wal")
+	walFile, err := os.CreateTemp("", "export_test_corpus_wal")
 	if err != nil {
 		panic(err)
 	}
@@ -323,7 +323,7 @@ func writeCorpusToWALFile(c corpus) *os.File {
 // It is the caller's responsibility to remove the returned temp file.
 // writeCorpusToTSMFile will panic on any error that occurs.
 func writeCorpusToTSMFile(c corpus) *os.File {
-	tsmFile, err := ioutil.TempFile("", "export_test_corpus_tsm")
+	tsmFile, err := os.CreateTemp("", "export_test_corpus_tsm")
 	if err != nil {
 		panic(err)
 	}

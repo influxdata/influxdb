@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"mime"
 	"net"
 	"net/http"
@@ -177,7 +176,7 @@ func (c *client) Ping(timeout time.Duration) (time.Duration, string, error) {
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return 0, "", err
 	}
@@ -435,7 +434,7 @@ func (c *client) WriteRawCtx(ctx context.Context, bp BatchPoints, reqBody io.Rea
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
@@ -634,7 +633,7 @@ func checkResponse(resp *http.Response) error {
 	// but instead some other service. If the error code is also a 500+ code, then some
 	// downstream loadbalancer/proxy/etc had an issue and we should report that.
 	if resp.Header.Get("X-Influxdb-Version") == "" && resp.StatusCode >= http.StatusInternalServerError {
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil || len(body) == 0 {
 			return fmt.Errorf("received status code %d from downstream server", resp.StatusCode)
 		}
@@ -647,7 +646,7 @@ func checkResponse(resp *http.Response) error {
 	if cType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type")); cType != "application/json" {
 		// Read up to 1kb of the body to help identify downstream errors and limit the impact of things
 		// like downstream serving a large file
-		body, err := ioutil.ReadAll(io.LimitReader(resp.Body, 1024))
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		if err != nil || len(body) == 0 {
 			return fmt.Errorf("expected json response, got empty body, with status: %v", resp.StatusCode)
 		}
@@ -731,7 +730,7 @@ type ChunkedResponse struct {
 func NewChunkedResponse(r io.Reader) *ChunkedResponse {
 	rc, ok := r.(io.ReadCloser)
 	if !ok {
-		rc = ioutil.NopCloser(r)
+		rc = io.NopCloser(r)
 	}
 	resp := &ChunkedResponse{}
 	resp.duplex = &duplexReader{r: rc, w: &resp.buf}
@@ -750,7 +749,7 @@ func (r *ChunkedResponse) NextResponse() (*Response, error) {
 		// A decoding error happened. This probably means the server crashed
 		// and sent a last-ditch error message to us. Ensure we have read the
 		// entirety of the connection to get any remaining error text.
-		io.Copy(ioutil.Discard, r.duplex)
+		io.Copy(io.Discard, r.duplex)
 		return nil, errors.New(strings.TrimSpace(r.buf.String()))
 	}
 

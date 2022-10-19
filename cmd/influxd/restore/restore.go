@@ -9,7 +9,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -290,7 +289,7 @@ func (cmd *Command) unpackMeta() error {
 	}
 
 	// Write node.json back to meta dir
-	if err := ioutil.WriteFile(filepath.Join(c.Dir, "node.json"), nodeBytes, 0655); err != nil {
+	if err := os.WriteFile(filepath.Join(c.Dir, "node.json"), nodeBytes, 0655); err != nil {
 		return err
 	}
 
@@ -330,7 +329,7 @@ func (cmd *Command) updateMetaPortable() error {
 	var metaBytes []byte
 	fileName := filepath.Join(cmd.backupFilesPath, cmd.manifestMeta.FileName)
 
-	fileBytes, err := ioutil.ReadFile(fileName)
+	fileBytes, err := os.ReadFile(fileName)
 	if err != nil {
 		return err
 	}
