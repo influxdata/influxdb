@@ -7,7 +7,10 @@ use data_types::{
     PartitionId, SequenceNumber, ShardId, TableSummary, TimestampMinMax,
 };
 use iox_catalog::interface::Catalog;
-use parquet_file::{chunk::ParquetChunk, storage::ParquetStorage};
+use parquet_file::{
+    chunk::ParquetChunk,
+    storage::{ParquetStorage, StorageId},
+};
 use schema::{sort::SortKey, Schema};
 use std::{collections::HashMap, sync::Arc};
 use trace::span::{Span, SpanRecorder};
@@ -186,7 +189,10 @@ pub struct ChunkAdapter {
 impl ChunkAdapter {
     /// Create new adapter with empty cache.
     pub fn new(catalog_cache: Arc<CatalogCache>, metric_registry: Arc<metric::Registry>) -> Self {
-        let store = ParquetStorage::new(Arc::clone(catalog_cache.object_store().object_store()));
+        let store = ParquetStorage::new(
+            Arc::clone(catalog_cache.object_store().object_store()),
+            StorageId::from("iox"),
+        );
         Self {
             catalog_cache,
             store,

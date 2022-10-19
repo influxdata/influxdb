@@ -436,7 +436,7 @@ pub mod tests {
         compact::Compactor, compact_one_partition, handler::CompactorConfig,
         parquet_file_filtering, parquet_file_lookup, ParquetFilesForCompaction,
     };
-    use ::parquet_file::storage::ParquetStorage;
+    use ::parquet_file::storage::{ParquetStorage, StorageId};
     use arrow_util::assert_batches_sorted_eq;
     use backoff::BackoffConfig;
     use data_types::{ColumnType, CompactionLevel, ParquetFileId};
@@ -599,7 +599,7 @@ pub mod tests {
         let compactor = Arc::new(Compactor::new(
             vec![shard.shard.id],
             Arc::clone(&catalog.catalog),
-            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             Arc::new(Executor::new(1)),
             time_provider,
             BackoffConfig::default(),
@@ -927,7 +927,7 @@ pub mod tests {
         let compactor = Arc::new(Compactor::new(
             vec![shard.shard.id],
             Arc::clone(&catalog.catalog),
-            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),

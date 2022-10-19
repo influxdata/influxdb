@@ -20,7 +20,12 @@ use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use object_store::{memory::InMemory, DynObjectStore};
 use observability_deps::tracing::debug;
 use once_cell::sync::Lazy;
-use parquet_file::{metadata::IoxMetadata, storage::ParquetStorage, ParquetFilePath};
+use parquet_file::{
+    chunk::ParquetChunk,
+    metadata::IoxMetadata,
+    storage::{ParquetStorage, StorageId},
+};
+use predicate::Predicate;
 use schema::{
     selection::Selection,
     sort::{adjust_sort_key_columns, compute_sort_key, SortKey},
@@ -347,7 +352,7 @@ impl TestTable {
 
     /// Read the record batches from the specified Parquet File associated with this table.
     pub async fn read_parquet_file(&self, file: ParquetFile) -> Vec<RecordBatch> {
-        let storage = ParquetStorage::new(self.catalog.object_store());
+        let storage = ParquetStorage::new(self.catalog.object_store(), StorageId::from("iox"));
 
         // get schema
         let table_catalog_schema = self.catalog_schema().await;
@@ -360,9 +365,9 @@ impl TestTable {
             .collect();
         let schema = table_schema.select_by_names(&selection).unwrap();
 
-        let path: ParquetFilePath = (&file).into();
-        let rx = storage
-            .read_all(schema.as_arrow(), &path, file.file_size_bytes as usize)
+        let chunk = ParquetChunk::new(Arc::new(file), Arc::new(schema), storage);
+        let rx = chunk
+            .read_filter(&Predicate::default(), Selection::All)
             .unwrap();
         datafusion::physical_plan::common::collect(rx)
             .await
@@ -560,7 +565,10 @@ impl TestPartition {
             sort_key: Some(sort_key.clone()),
         };
         let real_file_size_bytes = create_parquet_file(
-            ParquetStorage::new(Arc::clone(&self.catalog.object_store)),
+            ParquetStorage::new(
+                Arc::clone(&self.catalog.object_store),
+                StorageId::from("iox"),
+            ),
             &metadata,
             record_batch.clone(),
         )

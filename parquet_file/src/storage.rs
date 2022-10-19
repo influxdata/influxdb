@@ -93,6 +93,16 @@ pub enum ReadError {
     MalformedRowCount(#[from] TryFromIntError),
 }
 
+/// ID for an object store hooked up into DataFusion.
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub struct StorageId(&'static str);
+
+impl From<&'static str> for StorageId {
+    fn from(id: &'static str) -> Self {
+        Self(id)
+    }
+}
+
 /// The [`ParquetStorage`] type encapsulates [`RecordBatch`] persistence to an
 /// underlying [`ObjectStore`].
 ///
@@ -107,13 +117,26 @@ pub enum ReadError {
 pub struct ParquetStorage {
     /// Underlying object store.
     object_store: Arc<DynObjectStore>,
+
+    /// Storage ID to hook it into DataFusion.
+    id: StorageId,
 }
 
 impl ParquetStorage {
     /// Initialise a new [`ParquetStorage`] using `object_store` as the
     /// persistence layer.
-    pub fn new(object_store: Arc<DynObjectStore>) -> Self {
-        Self { object_store }
+    pub fn new(object_store: Arc<DynObjectStore>, id: StorageId) -> Self {
+        Self { object_store, id }
+    }
+
+    /// Get underlying object store.
+    pub fn object_store(&self) -> &Arc<DynObjectStore> {
+        &self.object_store
+    }
+
+    /// Get ID.
+    pub fn id(&self) -> StorageId {
+        self.id
     }
 
     /// Push `batches`, a stream of [`RecordBatch`] instances, to object
@@ -248,22 +271,6 @@ impl ParquetStorage {
             futures::stream::once(execute_stream(Arc::new(exec), task_ctx)).try_flatten(),
         )))
     }
-
-    /// Read all data from the parquet file.
-    pub fn read_all(
-        &self,
-        schema: SchemaRef,
-        path: &ParquetFilePath,
-        file_size: usize,
-    ) -> Result<SendableRecordBatchStream, ReadError> {
-        self.read_filter(
-            &Predicate::default(),
-            Selection::All,
-            schema,
-            path,
-            file_size,
-        )
-    }
 }
 
 /// Error during projecting parquet file data to an expected schema.
@@ -298,7 +305,7 @@ mod tests {
     async fn test_upload_metadata() {
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::default());
 
-        let store = ParquetStorage::new(object_store);
+        let store = ParquetStorage::new(object_store, StorageId::from("iox"));
 
         let meta = meta();
         let batch = RecordBatch::try_from_iter([("a", to_string_array(&["value"]))]).unwrap();
@@ -443,7 +450,7 @@ mod tests {
     async fn test_schema_check_ignore_additional_metadata_in_mem() {
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::default());
 
-        let store = ParquetStorage::new(object_store);
+        let store = ParquetStorage::new(object_store, StorageId::from("iox"));
 
         let meta = meta();
         let batch = RecordBatch::try_from_iter([("a", to_string_array(&["value"]))]).unwrap();
@@ -468,7 +475,7 @@ mod tests {
     async fn test_schema_check_ignore_additional_metadata_in_file() {
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::default());
 
-        let store = ParquetStorage::new(object_store);
+        let store = ParquetStorage::new(object_store, StorageId::from("iox"));
 
         let meta = meta();
         let batch = RecordBatch::try_from_iter([("a", to_string_array(&["value"]))]).unwrap();
@@ -599,7 +606,7 @@ mod tests {
     ) {
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::default());
 
-        let store = ParquetStorage::new(object_store);
+        let store = ParquetStorage::new(object_store, StorageId::from("iox"));
 
         // Serialize & upload the record batches.
         let meta = meta();
@@ -619,7 +626,7 @@ mod tests {
     ) {
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::default());
 
-        let store = ParquetStorage::new(object_store);
+        let store = ParquetStorage::new(object_store, StorageId::from("iox"));
 
         let meta = meta();
         let (_iox_md, file_size) = upload(&store, &meta, persisted_batch).await;

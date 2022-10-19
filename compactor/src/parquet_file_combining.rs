@@ -659,12 +659,11 @@ mod tests {
     use crate::parquet_file::CompactorParquetFile;
 
     use super::*;
-    use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_sorted_eq;
     use data_types::{ColumnType, PartitionParam, ShardId};
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
     use metric::U64HistogramOptions;
-    use parquet_file::ParquetFilePath;
+    use parquet_file::storage::StorageId;
     use test_helpers::assert_error;
 
     #[test]
@@ -852,7 +851,7 @@ mod tests {
             files,
             candidate_partition,
             Arc::clone(&catalog.catalog),
-            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             Arc::clone(&catalog.exec),
             Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
             &compaction_input_file_bytes,
@@ -893,7 +892,7 @@ mod tests {
             vec![parquet_file],
             candidate_partition,
             Arc::clone(&catalog.catalog),
-            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             Arc::clone(&catalog.exec),
             Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
             &compaction_input_file_bytes,
@@ -955,7 +954,7 @@ mod tests {
             parquet_files.into_iter().take(4).collect(),
             candidate_partition,
             Arc::clone(&catalog.catalog),
-            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             Arc::clone(&catalog.exec),
             Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
             &compaction_input_file_bytes,
@@ -1003,7 +1002,7 @@ mod tests {
 
         // Compacted file
         let file1 = files.pop().unwrap();
-        let batches = read_parquet_file(&table, file1).await;
+        let batches = table.read_parquet_file(file1).await;
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+------+------+-----------------------------+",
@@ -1040,7 +1039,7 @@ mod tests {
             parquet_files.into_iter().take(5).collect(),
             candidate_partition,
             Arc::clone(&catalog.catalog),
-            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             Arc::clone(&catalog.exec),
             Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
             &compaction_input_file_bytes,
@@ -1087,7 +1086,7 @@ mod tests {
 
         // Compacted file with the later data
         let file1 = files.pop().unwrap();
-        let batches = read_parquet_file(&table, file1).await;
+        let batches = table.read_parquet_file(file1).await;
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+------+------+-----------------------------+",
@@ -1102,7 +1101,7 @@ mod tests {
 
         // Compacted file with the earlier data
         let file0 = files.pop().unwrap();
-        let batches = read_parquet_file(&table, file0).await;
+        let batches = table.read_parquet_file(file0).await;
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+------+------+-----------------------------+",
@@ -1143,7 +1142,7 @@ mod tests {
             files_to_compact,
             candidate_partition,
             Arc::clone(&catalog.catalog),
-            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             Arc::clone(&catalog.exec),
             Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
             &compaction_input_file_bytes,
@@ -1190,7 +1189,7 @@ mod tests {
 
         // Compacted file with all the data
         let file1 = files.pop().unwrap();
-        let batches = read_parquet_file(&table, file1).await;
+        let batches = table.read_parquet_file(file1).await;
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+------+------+-----------------------------+",
@@ -1227,7 +1226,7 @@ mod tests {
             parquet_files,
             candidate_partition,
             Arc::clone(&catalog.catalog),
-            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             Arc::clone(&catalog.exec),
             Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
             &compaction_input_file_bytes,
@@ -1272,7 +1271,7 @@ mod tests {
 
         // Compacted file with the latest data
         let file2 = files.pop().unwrap();
-        let batches = read_parquet_file(&table, file2).await;
+        let batches = table.read_parquet_file(file2).await;
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+------+------+-----------------------------+",
@@ -1286,7 +1285,7 @@ mod tests {
 
         // Compacted file with the later data
         let file1 = files.pop().unwrap();
-        let batches = read_parquet_file(&table, file1).await;
+        let batches = table.read_parquet_file(file1).await;
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+------+------+-----------------------------+",
@@ -1300,7 +1299,7 @@ mod tests {
 
         // Compacted file with the earlier data
         let file0 = files.pop().unwrap();
-        let batches = read_parquet_file(&table, file0).await;
+        let batches = table.read_parquet_file(file0).await;
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+------+------+-----------------------------+",
@@ -1343,7 +1342,7 @@ mod tests {
             level_1_files,
             candidate_partition,
             Arc::clone(&catalog.catalog),
-            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             Arc::clone(&catalog.exec),
             Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
             &compaction_input_file_bytes,
@@ -1384,7 +1383,7 @@ mod tests {
         // ------------------------------------------------
         // Verify the parquet file content
 
-        let batches = read_parquet_file(&table, file).await;
+        let batches = table.read_parquet_file(file).await;
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+------+------+-----------------------------+",
@@ -1398,29 +1397,6 @@ mod tests {
             ],
             &batches
         );
-    }
-
-    async fn read_parquet_file(table: &Arc<TestTable>, file: ParquetFile) -> Vec<RecordBatch> {
-        let storage = ParquetStorage::new(table.catalog.object_store());
-
-        // get schema
-        let table_catalog_schema = table.catalog_schema().await;
-        let column_id_lookup = table_catalog_schema.column_id_map();
-        let table_schema = table.schema().await;
-        let selection: Vec<_> = file
-            .column_set
-            .iter()
-            .map(|id| *column_id_lookup.get(id).unwrap())
-            .collect();
-        let schema = table_schema.select_by_names(&selection).unwrap();
-
-        let path: ParquetFilePath = (&file).into();
-        let rx = storage
-            .read_all(schema.as_arrow(), &path, file.file_size_bytes as usize)
-            .unwrap();
-        datafusion::physical_plan::common::collect(rx)
-            .await
-            .unwrap()
     }
 
     #[derive(Debug, PartialEq)]
