@@ -23,6 +23,7 @@ use tokio::{
     task::{JoinError, JoinHandle},
 };
 use tokio_util::sync::CancellationToken;
+use trace::span::{Span, SpanRecorder};
 use write_buffer::core::WriteBufferReading;
 use write_summary::ShardProgress;
 
@@ -71,6 +72,7 @@ pub trait IngestHandler: Send + Sync {
     async fn query(
         &self,
         request: IngesterQueryRequest,
+        span: Option<Span>,
     ) -> Result<IngesterQueryResponse, crate::querier_handler::Error>;
 
     /// Return shard progress for the requested shard indexes
@@ -331,7 +333,10 @@ impl IngestHandler for IngestHandlerImpl {
     async fn query(
         &self,
         request: IngesterQueryRequest,
+        span: Option<Span>,
     ) -> Result<IngesterQueryResponse, crate::querier_handler::Error> {
+        let span_recorder = SpanRecorder::new(span);
+
         // TODO(4567): move this into a instrumented query delegate
 
         // Acquire and hold a permit for the duration of this request, or return
@@ -361,7 +366,12 @@ impl IngestHandler for IngestHandlerImpl {
 
         let t = self.time_provider.now();
         let request = Arc::new(request);
-        let res = prepare_data_to_querier(&self.data, &request).await;
+        let res = prepare_data_to_querier(
+            &self.data,
+            &request,
+            span_recorder.child_span("ingester prepare data to querier"),
+        )
+        .await;
 
         if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
             match &res {
@@ -668,14 +678,14 @@ mod tests {
             predicate: None,
         };
 
-        let res = ingester.query(request.clone()).await.unwrap_err();
+        let res = ingester.query(request.clone(), None).await.unwrap_err();
         assert!(matches!(
             res,
             crate::querier_handler::Error::NamespaceNotFound { .. }
         ));
 
         ingester.request_sem = Semaphore::new(0);
-        let res = ingester.query(request).await.unwrap_err();
+        let res = ingester.query(request, None).await.unwrap_err();
         assert!(matches!(res, crate::querier_handler::Error::RequestLimit));
     }
 }

@@ -31,6 +31,7 @@ querier = { path = "../querier" }
 schema = { path = "../schema" }
 sharder = { path = "../sharder" }
 tokio = { version = "1.21", features = ["macros", "parking_lot", "rt-multi-thread", "time"] }
+trace = { path = "../trace" }
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]

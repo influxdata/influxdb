@@ -314,7 +314,7 @@ impl TestContext {
         &self,
         req: IngesterQueryRequest,
     ) -> Result<IngesterQueryResponse, ingester::querier_handler::Error> {
-        self.ingester.query(req).await
+        self.ingester.query(req, None).await
     }
 
     /// Retrieve the specified metric value.

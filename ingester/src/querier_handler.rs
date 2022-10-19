@@ -1,7 +1,12 @@
 //! Handle all requests from Querier
 
-use std::{pin::Pin, sync::Arc};
-
+use crate::{
+    data::{
+        namespace::NamespaceName, partition::UnpersistedPartitionData, table::TableName,
+        IngesterData,
+    },
+    query::QueryableBatch,
+};
 use arrow::{array::new_null_array, error::ArrowError, record_batch::RecordBatch};
 use arrow_util::optimize::{optimize_record_batch, optimize_schema};
 use data_types::{PartitionId, SequenceNumber};
@@ -12,14 +17,8 @@ use generated_types::ingester::IngesterQueryRequest;
 use observability_deps::tracing::debug;
 use schema::{merge::SchemaMerger, selection::Selection};
 use snafu::{ensure, Snafu};
-
-use crate::{
-    data::{
-        namespace::NamespaceName, partition::UnpersistedPartitionData, table::TableName,
-        IngesterData,
-    },
-    query::QueryableBatch,
-};
+use std::{pin::Pin, sync::Arc};
+use trace::span::{Span, SpanRecorder};
 
 /// Number of table data read locks that shall be acquired in parallel
 const CONCURRENT_TABLE_DATA_LOCKS: usize = 10;
@@ -171,12 +170,13 @@ impl IngesterQueryResponse {
 
     /// Convert [`IngesterQueryResponse`] to a set of [`RecordBatch`]es.
     ///
-    /// If the response contains multiple snapshots, this will merge the schemas into a single one and create
-    /// NULL-columns for snapshots that miss columns.
+    /// If the response contains multiple snapshots, this will merge the schemas into a single one
+    /// and create NULL-columns for snapshots that miss columns.
     ///
     /// # Panic
-    /// Panics if there are no batches returned at all. Also panics if the snapshot-scoped schemas do not line up with
-    /// the snapshot-scoped record batches.
+    ///
+    /// Panics if there are no batches returned at all. Also panics if the snapshot-scoped schemas
+    /// do not line up with the snapshot-scoped record batches.
     pub async fn into_record_batches(self) -> Vec<RecordBatch> {
         let mut snapshot_schema = None;
         let mut schema_merger = SchemaMerger::new();
@@ -260,8 +260,12 @@ pub enum FlatIngesterQueryResponse {
 pub async fn prepare_data_to_querier(
     ingest_data: &Arc<IngesterData>,
     request: &Arc<IngesterQueryRequest>,
+    span: Option<Span>,
 ) -> Result<IngesterQueryResponse> {
     debug!(?request, "prepare_data_to_querier");
+
+    let span_recorder = SpanRecorder::new(span);
+
     let mut tables_data = vec![];
     let mut found_namespace = false;
     for (shard_id, shard_data) in ingest_data.shards() {
@@ -324,13 +328,18 @@ pub async fn prepare_data_to_querier(
             // extract payload
             let partition_id = partition.partition_id;
             let status = partition.partition_status.clone();
-            let snapshots: Vec<_> = prepare_data_to_querier_for_partition(partition, &request)
-                .into_iter()
-                .map(Ok)
-                .collect();
+            let snapshots: Vec<_> = prepare_data_to_querier_for_partition(
+                partition,
+                &request,
+                span_recorder.child_span("ingester prepare data to querier for partition"),
+            )
+            .into_iter()
+            .map(Ok)
+            .collect();
 
-            // Note: include partition in `unpersisted_partitions` even when there we might filter out all the data, because
-            // the metadata (e.g. max persisted parquet file) is important for the querier.
+            // Note: include partition in `unpersisted_partitions` even when there we might filter
+            // out all the data, because the metadata (e.g. max persisted parquet file) is
+            // important for the querier.
             Ok(IngesterQueryPartition::new(
                 Box::pin(futures::stream::iter(snapshots)),
                 partition_id,
@@ -344,7 +353,10 @@ pub async fn prepare_data_to_querier(
 fn prepare_data_to_querier_for_partition(
     unpersisted_partition_data: UnpersistedPartitionData,
     request: &IngesterQueryRequest,
+    span: Option<Span>,
 ) -> Vec<SendableRecordBatchStream> {
+    let mut span_recorder = SpanRecorder::new(span);
+
     // ------------------------------------------------
     // Accumulate data
 
@@ -368,7 +380,7 @@ fn prepare_data_to_querier_for_partition(
         })
         .with_data(unpersisted_partition_data.non_persisted);
 
-    queryable_batch
+    let streams = queryable_batch
         .data
         .iter()
         .map(|snapshot_batch| {
@@ -393,7 +405,11 @@ fn prepare_data_to_querier_for_partition(
             // create stream
             Box::pin(MemoryStream::new(vec![batch])) as SendableRecordBatchStream
         })
-        .collect()
+        .collect();
+
+    span_recorder.ok("done");
+
+    streams
 }
 
 #[cfg(test)]
@@ -501,6 +517,8 @@ mod tests {
     async fn test_prepare_data_to_querier() {
         test_helpers::maybe_start_logging();
 
+        let span = None;
+
         // make 14 scenarios for ingester data
         let mut scenarios = vec![];
         for two_partitions in [false, true] {
@@ -541,7 +559,7 @@ mod tests {
         ];
         for (loc, scenario) in &scenarios {
             println!("Location: {loc:?}");
-            let result = prepare_data_to_querier(scenario, &request)
+            let result = prepare_data_to_querier(scenario, &request, span.clone())
                 .await
                 .unwrap()
                 .into_record_batches()
@@ -577,7 +595,7 @@ mod tests {
         ];
         for (loc, scenario) in &scenarios {
             println!("Location: {loc:?}");
-            let result = prepare_data_to_querier(scenario, &request)
+            let result = prepare_data_to_querier(scenario, &request, span.clone())
                 .await
                 .unwrap()
                 .into_record_batches()
@@ -622,7 +640,7 @@ mod tests {
         ];
         for (loc, scenario) in &scenarios {
             println!("Location: {loc:?}");
-            let result = prepare_data_to_querier(scenario, &request)
+            let result = prepare_data_to_querier(scenario, &request, span.clone())
                 .await
                 .unwrap()
                 .into_record_batches()
@@ -639,7 +657,7 @@ mod tests {
         ));
         for (loc, scenario) in &scenarios {
             println!("Location: {loc:?}");
-            let err = prepare_data_to_querier(scenario, &request)
+            let err = prepare_data_to_querier(scenario, &request, span.clone())
                 .await
                 .unwrap_err();
             assert_matches!(err, Error::TableNotFound { .. });
@@ -654,7 +672,7 @@ mod tests {
         ));
         for (loc, scenario) in &scenarios {
             println!("Location: {loc:?}");
-            let err = prepare_data_to_querier(scenario, &request)
+            let err = prepare_data_to_querier(scenario, &request, span.clone())
                 .await
                 .unwrap_err();
             assert_matches!(err, Error::NamespaceNotFound { .. });

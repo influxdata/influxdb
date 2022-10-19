@@ -2216,6 +2216,9 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tonic",
+ "trace",
+ "trace_exporters",
+ "trace_http",
 ]
 
 [[package]]
@@ -3992,6 +3995,7 @@ dependencies = [
  "tempfile",
  "test_helpers",
  "tokio",
+ "trace",
  "workspace-hack",
 ]
 

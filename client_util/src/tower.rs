@@ -38,6 +38,21 @@ pub struct SetRequestHeadersService<S> {
     headers: Arc<Vec<(HeaderName, HeaderValue)>>,
 }
 
+impl<S> SetRequestHeadersService<S> {
+    pub fn new(service: S, headers: Vec<(HeaderName, HeaderValue)>) -> Self {
+        Self {
+            service,
+            headers: Arc::new(headers),
+        }
+    }
+
+    pub fn into_parts(self) -> (S, Arc<Vec<(HeaderName, HeaderValue)>>) {
+        let SetRequestHeadersService { service, headers } = self;
+
+        (service, headers)
+    }
+}
+
 impl<S, ReqBody, ResBody> Service<Request<ReqBody>> for SetRequestHeadersService<S>
 where
     S: Service<Request<ReqBody>, Response = Response<ResBody>>,

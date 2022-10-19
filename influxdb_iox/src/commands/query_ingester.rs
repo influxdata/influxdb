@@ -53,7 +53,7 @@ pub struct Config {
 }
 
 pub async fn command(connection: Connection, config: Config) -> Result<()> {
-    let mut client = flight::low_level::Client::new(connection);
+    let mut client = flight::low_level::Client::new(connection, None);
     let Config {
         namespace,
         format,

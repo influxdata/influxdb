@@ -1,32 +1,30 @@
 //! Low-level flight client.
 //!
-//! This client allows more inspection of the flight messages which can be helpful to implement more advanced protocols.
+//! This client allows more inspection of the flight messages which can be helpful to implement
+//! more advanced protocols.
 //!
 //! # Protocol Usage
+//!
 //! The client handles flight messages as followes:
 //!
-//! - **None:** App metadata is extracted. Otherwise this message has no effect. This is useful to transmit metadata
-//!   without any actual payload.
-//! - **Schema:** The schema is (re-)set. Dictionaries are cleared. App metadata is extraced and both the schema and the
-//!   metadata are presented to the user.
-//! - **Dictionary Batch:** A new dictionary for a given column is registered. An existing dictionary for the same
-//!   column will be overwritten. No app metadata is extracted. This message is NOT visible to the user.
-//! - **Record Batch:** Record batch is created based on the current schema and dictionaries. This fails if no schema
-//!   was transmitted yet. App metadata is extracted is is presented -- together with the record batch -- to the user.
+//! - **None:** App metadata is extracted. Otherwise this message has no effect. This is useful to
+//!   transmit metadata without any actual payload.
+//! - **Schema:** The schema is (re-)set. Dictionaries are cleared. App metadata is extraced and
+//!   both the schema and the metadata are presented to the user.
+//! - **Dictionary Batch:** A new dictionary for a given column is registered. An existing
+//!   dictionary for the same column will be overwritten. No app metadata is extracted. This
+//!   message is NOT visible to the user.
+//! - **Record Batch:** Record batch is created based on the current schema and dictionaries. This
+//!   fails if no schema was transmitted yet. App metadata is extracted is is presented -- together
+//!   with the record batch -- to the user.
 //!
 //! All other message types (at the time of writing: tensor and sparse tensor) lead to an error.
-use std::{collections::HashMap, convert::TryFrom, marker::PhantomData, sync::Arc};
 
+use super::Error;
 use ::generated_types::influxdata::iox::{
     ingester::v1::{IngesterQueryRequest, IngesterQueryResponseMetadata},
     querier::v1::{AppMetadata, ReadInfo},
 };
-use client_util::connection::{Connection, GrpcConnection};
-use futures_util::stream;
-use futures_util::stream::StreamExt;
-use prost::Message;
-use tonic::Streaming;
-
 use arrow::{
     array::ArrayRef,
     buffer::Buffer,
@@ -38,9 +36,18 @@ use arrow_flight::{
     flight_service_client::FlightServiceClient, utils::flight_data_to_arrow_batch, FlightData,
     HandshakeRequest, Ticket,
 };
-
-use super::Error;
+use client_util::connection::{Connection, GrpcConnection};
+use futures_util::stream;
+use futures_util::stream::StreamExt;
+use prost::Message;
 use rand::Rng;
+use std::{collections::HashMap, convert::TryFrom, marker::PhantomData, str::FromStr, sync::Arc};
+use tonic::{
+    codegen::http::header::{HeaderName, HeaderValue},
+    Streaming,
+};
+use trace::ctx::SpanContext;
+use trace_http::ctx::format_jaeger_trace_context;
 
 /// Metadata that can be send during flight requests.
 pub trait ClientMetadata: Message {
@@ -59,9 +66,11 @@ impl ClientMetadata for IngesterQueryRequest {
 /// Low-level flight client.
 ///
 /// # Request and Response Metadata
-/// The type parameter `T` -- which must implement [`ClientMetadata`] describes the request and response metadata that
-/// is send and received during the flight request. The request is encoded as protobuf and send as the Flight "ticket",
-/// the response is received via the so called "app metadata".
+///
+/// The type parameter `T` -- which must implement [`ClientMetadata`] -- describes the request and
+/// response metadata that is sent and received during the flight request. The request is encoded
+/// as protobuf and send as the Flight "ticket". The response is received via the so-called "app
+/// metadata".
 #[derive(Debug)]
 pub struct Client<T>
 where
@@ -76,15 +85,32 @@ where
     T: ClientMetadata,
 {
     /// Creates a new client with the provided connection
-    pub fn new(connection: Connection) -> Self {
+    pub fn new(connection: Connection, span_context: Option<SpanContext>) -> Self {
+        let grpc_conn = connection.into_grpc_connection();
+
+        let grpc_conn = if let Some(ctx) = span_context {
+            let (service, headers) = grpc_conn.into_parts();
+
+            let mut headers: HashMap<_, _> = headers.iter().cloned().collect();
+            let key =
+                HeaderName::from_str(trace_exporters::DEFAULT_JAEGER_TRACE_CONTEXT_HEADER_NAME)
+                    .unwrap();
+            let value = HeaderValue::from_str(&format_jaeger_trace_context(&ctx)).unwrap();
+            headers.insert(key, value);
+
+            GrpcConnection::new(service, headers.into_iter().collect())
+        } else {
+            grpc_conn
+        };
+
         Self {
-            inner: FlightServiceClient::new(connection.into_grpc_connection()),
+            inner: FlightServiceClient::new(grpc_conn),
             _phantom: PhantomData::default(),
         }
     }
 
-    /// Query the given database with the given SQL query, and return a
-    /// [`PerformQuery`] instance that streams low-level message results.
+    /// Query the given database with the given SQL query, and return a [`PerformQuery`] instance
+    /// that streams low-level message results.
     pub async fn perform_query(&mut self, request: T) -> Result<PerformQuery<T::Response>, Error> {
         PerformQuery::<T::Response>::new(self, request).await
     }
@@ -141,6 +167,7 @@ impl LowLevelMessage {
             LowLevelMessage::RecordBatch(_) => panic!("Contains record batch"),
         }
     }
+
     /// Unwrap schema.
     pub fn unwrap_schema(self) -> Arc<Schema> {
         match self {
@@ -160,9 +187,8 @@ impl LowLevelMessage {
     }
 }
 
-/// A struct that manages the stream of Arrow `RecordBatch` results from an
-/// Arrow Flight query. Created by calling the `perform_query` method on a
-/// Flight [`Client`].
+/// A struct that manages the stream of Arrow `RecordBatch` results from an Arrow Flight query.
+/// Created by calling the `perform_query` method on a Flight [`Client`].
 #[derive(Debug)]
 pub struct PerformQuery<T>
 where
