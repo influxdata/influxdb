@@ -6,6 +6,7 @@ mod namespace;
 mod parquet_to_lp;
 mod print_cpu;
 mod schema;
+mod skipped_compactions;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -20,6 +21,10 @@ pub enum Error {
     #[snafu(context(false))]
     #[snafu(display("Error in parquet_to_lp subcommand: {}", source))]
     ParquetToLp { source: parquet_to_lp::Error },
+
+    #[snafu(context(false))]
+    #[snafu(display("Error in skipped-compactions subcommand: {}", source))]
+    SkippedCompactions { source: skipped_compactions::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -44,6 +49,9 @@ enum Command {
 
     /// Convert IOx Parquet files back into line protocol format
     ParquetToLp(parquet_to_lp::Config),
+
+    /// Interrogate skipped compactions
+    SkippedCompactions(skipped_compactions::Config),
 }
 
 pub async fn command<C, CFut>(connection: C, config: Config) -> Result<()>
@@ -62,6 +70,10 @@ where
             schema::command(connection, config).await?
         }
         Command::ParquetToLp(config) => parquet_to_lp::command(config).await?,
+        Command::SkippedCompactions(config) => {
+            let connection = connection().await;
+            skipped_compactions::command(connection, config).await?
+        }
     }
 
     Ok(())

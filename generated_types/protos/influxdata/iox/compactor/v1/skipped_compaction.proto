@@ -1,0 +1,31 @@
+syntax = "proto3";
+package influxdata.iox.compactor.v1;
+option go_package = "github.com/influxdata/iox/compactor/v1";
+
+service SkippedCompactionService {
+  // List all skipped compactions in the catalog
+  rpc ListSkippedCompactions(ListSkippedCompactionsRequest) returns (ListSkippedCompactionsResponse);
+}
+
+message ListSkippedCompactionsRequest {}
+
+message ListSkippedCompactionsResponse {
+  // A list of skipped compactions
+  repeated SkippedCompaction skipped_compactions = 1;
+}
+
+message SkippedCompaction {
+  int64 partition_id = 1;
+
+  string reason = 2;
+
+  int64 skipped_at = 3;
+
+  int64 num_files = 4;
+
+  int64 limit_num_files = 5;
+
+  int64 estimated_bytes = 6;
+
+  int64 limit_bytes = 7;
+}

@@ -48,6 +48,16 @@ pub mod influxdata {
             }
         }
 
+        pub mod compactor {
+            pub mod v1 {
+                include!(concat!(env!("OUT_DIR"), "/influxdata.iox.compactor.v1.rs"));
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.compactor.v1.serde.rs"
+                ));
+            }
+        }
+
         pub mod delete {
             pub mod v1 {
                 include!(concat!(env!("OUT_DIR"), "/influxdata.iox.delete.v1.rs"));
@@ -241,6 +251,8 @@ pub use influxdata::platform::storage::*;
 
 pub mod google;
 
+#[cfg(any(feature = "data_types_conversions", test))]
+pub mod compactor;
 #[cfg(any(feature = "data_types_conversions", test))]
 pub mod delete_predicate;
 #[cfg(any(feature = "data_types_conversions", test))]

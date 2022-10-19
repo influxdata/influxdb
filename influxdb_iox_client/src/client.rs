@@ -20,6 +20,9 @@ pub mod namespace;
 /// Client for schema API
 pub mod schema;
 
+/// Client for the skipped compactions API
+pub mod skipped_compactions;
+
 /// Client for interacting with a remote object store
 pub mod store;
 
