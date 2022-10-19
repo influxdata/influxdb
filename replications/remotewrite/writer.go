@@ -208,9 +208,11 @@ func PostWrite(ctx context.Context, config *influxdb.ReplicationHTTPConfig, data
 	conf.HTTPClient.Timeout = timeout
 	client := api.NewAPIClient(conf).WriteApi
 
-	bucket := config.RemoteBucketID.String()
-	if config.RemoteBucketName != "" {
+	var bucket string
+	if config.RemoteBucketID == nil || config.RemoteBucketName != "" {
 		bucket = config.RemoteBucketName
+	} else {
+		bucket = config.RemoteBucketID.String()
 	}
 
 	req := client.PostWrite(ctx).

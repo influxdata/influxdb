@@ -170,7 +170,7 @@ func (s *service) ValidateNewReplication(ctx context.Context, request influxdb.C
 		return errLocalBucketNotFound(request.LocalBucketID, err)
 	}
 
-	config := influxdb.ReplicationHTTPConfig{RemoteBucketID: request.RemoteBucketID}
+	config := influxdb.ReplicationHTTPConfig{RemoteBucketID: &request.RemoteBucketID}
 	if err := s.store.PopulateRemoteHTTPConfig(ctx, request.RemoteID, &config); err != nil {
 		return err
 	}
@@ -231,7 +231,7 @@ func (s *service) ValidateUpdatedReplication(ctx context.Context, id platform.ID
 		return err
 	}
 	if request.RemoteBucketID != nil {
-		baseConfig.RemoteBucketID = *request.RemoteBucketID
+		baseConfig.RemoteBucketID = request.RemoteBucketID
 	}
 
 	if request.RemoteID != nil {
