@@ -201,7 +201,7 @@ pub struct LifecycleConfig {
 impl LifecycleConfig {
     /// Initialize a new LifecycleConfig. panics if the passed `pause_ingest_size` is less than the
     /// `persist_memory_threshold`.
-    pub fn new(
+    pub const fn new(
         pause_ingest_size: usize,
         persist_memory_threshold: usize,
         partition_size_threshold: usize,
