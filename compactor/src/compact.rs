@@ -558,6 +558,7 @@ pub mod tests {
     };
     use iox_tests::util::{TestCatalog, TestPartition};
     use iox_time::SystemProvider;
+    use parquet_file::storage::StorageId;
     use uuid::Uuid;
 
     impl PartitionCompactionCandidateWithInfo {
@@ -814,7 +815,7 @@ pub mod tests {
         let compactor = Compactor::new(
             vec![shard.id, another_shard.id],
             Arc::clone(&catalog.catalog),
-            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             Arc::new(Executor::new(1)),
             time_provider,
             BackoffConfig::default(),

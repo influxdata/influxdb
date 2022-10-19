@@ -110,6 +110,7 @@ mod tests {
     use iox_query::exec::Executor;
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
     use iox_time::{SystemProvider, TimeProvider};
+    use parquet_file::storage::StorageId;
     use std::collections::HashMap;
 
     #[tokio::test]
@@ -178,7 +179,7 @@ mod tests {
         let compactor = Compactor::new(
             vec![shard.shard.id],
             Arc::clone(&catalog.catalog),
-            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
@@ -417,7 +418,7 @@ mod tests {
         let compactor = Compactor::new(
             vec![shard.shard.id],
             Arc::clone(&catalog.catalog),
-            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
@@ -642,7 +643,7 @@ mod tests {
         let compactor = Arc::new(Compactor::new(
             vec![shard.shard.id],
             Arc::clone(&catalog.catalog),
-            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
@@ -916,7 +917,7 @@ mod tests {
         let compactor = Arc::new(Compactor::new(
             vec![shard.shard.id],
             Arc::clone(&catalog.catalog),
-            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
@@ -1021,7 +1022,7 @@ mod tests {
         let compactor = Arc::new(Compactor::new(
             vec![shard.shard.id],
             Arc::clone(&catalog.catalog),
-            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
@@ -1161,7 +1162,7 @@ mod tests {
         let compactor = Arc::new(Compactor::new(
             vec![shard.shard.id],
             Arc::clone(&catalog.catalog),
-            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
@@ -1407,7 +1408,7 @@ mod tests {
         let compactor = Arc::new(Compactor::new(
             vec![shard.shard.id],
             Arc::clone(&catalog.catalog),
-            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),

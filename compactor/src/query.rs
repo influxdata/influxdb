@@ -283,7 +283,7 @@ mod tests {
     use super::*;
     use data_types::ColumnType;
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder};
-    use parquet_file::storage::ParquetStorage;
+    use parquet_file::storage::{ParquetStorage, StorageId};
 
     async fn test_setup(
         compaction_level: CompactionLevel,
@@ -314,7 +314,7 @@ mod tests {
         let parquet_chunk = Arc::new(ParquetChunk::new(
             Arc::clone(&parquet_file),
             Arc::new(table.schema().await),
-            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
         ));
 
         QueryableParquetChunk::new(

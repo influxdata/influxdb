@@ -15,7 +15,10 @@ use iox_time::{SystemProvider, TimeProvider};
 use metric::{Attributes, Metric, U64Histogram, U64HistogramOptions};
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
-use parquet_file::{metadata::IoxMetadata, storage::ParquetStorage};
+use parquet_file::{
+    metadata::IoxMetadata,
+    storage::{ParquetStorage, StorageId},
+};
 use snafu::{OptionExt, Snafu};
 use write_summary::ShardProgress;
 
@@ -136,7 +139,7 @@ impl IngesterData {
             .collect();
 
         Self {
-            store: ParquetStorage::new(object_store),
+            store: ParquetStorage::new(object_store, StorageId::from("iox")),
             catalog,
             shards,
             exec,

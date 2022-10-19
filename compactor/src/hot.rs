@@ -211,7 +211,7 @@ mod tests {
     use data_types::CompactionLevel;
     use iox_query::exec::Executor;
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestShard, TestTable};
-    use parquet_file::storage::ParquetStorage;
+    use parquet_file::storage::{ParquetStorage, StorageId};
     use std::sync::Arc;
 
     struct TestSetup {
@@ -499,7 +499,7 @@ mod tests {
         let compactor = Arc::new(Compactor::new(
             vec![shard1.shard.id, shard2.shard.id],
             Arc::clone(&catalog.catalog),
-            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             Arc::new(Executor::new(1)),
             time_provider,
             BackoffConfig::default(),

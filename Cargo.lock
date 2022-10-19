@@ -2524,6 +2524,7 @@ dependencies = [
  "observability_deps",
  "once_cell",
  "parquet_file",
+ "predicate",
  "schema",
  "sharder",
  "uuid",

@@ -19,7 +19,7 @@ use ioxd_common::{
 };
 use metric::Registry;
 use object_store::DynObjectStore;
-use parquet_file::storage::ParquetStorage;
+use parquet_file::storage::{ParquetStorage, StorageId};
 use std::{
     fmt::{Debug, Display},
     sync::Arc,
@@ -193,7 +193,7 @@ pub async fn build_compactor_from_config(
     }
     txn.commit().await?;
 
-    let parquet_store = ParquetStorage::new(object_store);
+    let parquet_store = ParquetStorage::new(object_store, StorageId::from("iox"));
 
     let CompactorConfig {
         max_desired_file_size_bytes,
