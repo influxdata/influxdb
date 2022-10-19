@@ -94,7 +94,7 @@ var (
 		RemoteToken:      replication1.RemoteID.String(),
 		RemoteOrgID:      platform.ID(888888),
 		AllowInsecureTLS: true,
-		RemoteBucketID:   *replication1.RemoteBucketID,
+		RemoteBucketID:   replication1.RemoteBucketID,
 	}
 )
 
@@ -295,7 +295,7 @@ func TestValidateNewReplication(t *testing.T) {
 
 			mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), tt.req.LocalBucketID).Return(nil, tt.bucketErr)
 
-			testConfig := &influxdb.ReplicationHTTPConfig{RemoteBucketID: tt.req.RemoteBucketID}
+			testConfig := &influxdb.ReplicationHTTPConfig{RemoteBucketID: &tt.req.RemoteBucketID}
 			if tt.bucketErr == nil {
 				mocks.serviceStore.EXPECT().PopulateRemoteHTTPConfig(gomock.Any(), tt.req.RemoteID, testConfig).Return(tt.storeErr)
 			}

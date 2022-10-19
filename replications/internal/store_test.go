@@ -46,7 +46,7 @@ var (
 		RemoteToken:      replication.RemoteID.String(),
 		RemoteOrgID:      platform.ID(888888),
 		AllowInsecureTLS: true,
-		RemoteBucketID:   *replication.RemoteBucketID,
+		RemoteBucketID:   replication.RemoteBucketID,
 	}
 	newRemoteID  = platform.ID(200)
 	newQueueSize = influxdb.MinReplicationMaxQueueSizeBytes
