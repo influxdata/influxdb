@@ -36,7 +36,7 @@ type migrationTarget struct {
 var downgradeMigrationTargets = map[string]migrationTarget{
 	"2.0": {kvMigration: 15, sqlMigration: 0},
 	"2.1": {kvMigration: 18, sqlMigration: 3},
-	"2.3": {kvMigration: 20, sqlMigration: 6},
+	"2.3": {kvMigration: 20, sqlMigration: 5},
 }
 
 func NewCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, error) {
