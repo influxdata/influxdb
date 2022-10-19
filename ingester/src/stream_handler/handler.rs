@@ -279,7 +279,8 @@ where
                             shard_index=%self.shard_index,
                             shard_id=%self.shard_id,
                             potential_data_loss=true,
-                            "reset stream"
+                            "unable to read from desired sequence number offset \
+                                - reset stream to oldest available data"
                         );
                         self.shard_reset_count.inc(1);
                         sequence_number_before_reset = Some(self.current_sequence_number);
@@ -293,7 +294,8 @@ where
                             shard_index=%self.shard_index,
                             shard_id=%self.shard_id,
                             potential_data_loss=true,
-                            "unable to read from desired sequence number offset"
+                            "unable to read from desired sequence number offset \
+                                - aborting ingest due to configuration"
                         );
                         self.shard_unknown_sequence_number_count.inc(1);
                         None
