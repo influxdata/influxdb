@@ -206,6 +206,15 @@ async fn list_tag_name_max_time_included() {
     run_tag_keys_test_case(MeasurementWithMaxTime {}, predicate, expected_tag_keys).await;
 }
 
+#[tokio::test]
+async fn list_tag_name_with_periods() {
+    test_helpers::maybe_start_logging();
+    let predicate = Predicate::default().with_range(0, 1700000001000000000);
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+    let expected_tag_keys = vec!["tag.one", "tag.two"];
+    run_tag_keys_test_case(PeriodsInNames {}, predicate, expected_tag_keys).await;
+}
+
 fn to_stringset(v: &[&str]) -> StringSetRef {
     v.into_stringset().unwrap()
 }

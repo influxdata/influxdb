@@ -245,3 +245,26 @@ async fn list_field_columns_max_time_excluded() {
 
     run_field_columns_test_case(MeasurementWithMaxTime {}, predicate, expected_fields).await;
 }
+
+#[tokio::test]
+async fn list_field_columns_with_periods() {
+    let predicate = Predicate::default().with_range(0, 1700000001000000000);
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+
+    let expected_fields = FieldList {
+        fields: vec![
+            Field {
+                name: "field.one".into(),
+                data_type: DataType::Float64,
+                last_timestamp: 1609459201000000002,
+            },
+            Field {
+                name: "field.two".into(),
+                data_type: DataType::Boolean,
+                last_timestamp: 1609459201000000002,
+            },
+        ],
+    };
+
+    run_field_columns_test_case(PeriodsInNames {}, predicate, expected_fields).await;
+}

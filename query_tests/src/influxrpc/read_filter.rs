@@ -9,7 +9,7 @@ use crate::{
     db::AbstractDb,
     influxrpc::util::run_series_set_plan_maybe_error,
     scenarios::{
-        MeasurementStatusCode, MeasurementsForDefect2845, MeasurementsSortableTags,
+        MeasurementStatusCode, MeasurementsForDefect2845, MeasurementsSortableTags, PeriodsInNames,
         TwoMeasurementsMultiSeries,
     },
 };
@@ -17,6 +17,7 @@ use datafusion::{
     prelude::{col, lit},
     scalar::ScalarValue,
 };
+use datafusion_util::AsExpr;
 use iox_query::frontend::influxrpc::InfluxRpcPlanner;
 use predicate::rpc_predicate::InfluxRpcPredicate;
 use predicate::Predicate;
@@ -569,4 +570,41 @@ async fn test_read_filter_on_field_multi_measurement() {
     ];
 
     run_read_filter_test_case(TwoMeasurementsManyFields {}, predicate, expected_results).await;
+}
+
+#[tokio::test]
+async fn test_read_filter_with_periods() {
+    test_helpers::maybe_start_logging();
+
+    let predicate = Predicate::default().with_range(0, 1700000001000000000);
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+
+    // Should return both series
+    let expected_results = vec![
+        "Series tags={_field=field.one, _measurement=measurement.one, tag.one=value, tag.two=other}\n  FloatPoints timestamps: [1609459201000000001], values: [1.0]",
+        "Series tags={_field=field.two, _measurement=measurement.one, tag.one=value, tag.two=other}\n  BooleanPoints timestamps: [1609459201000000001], values: [true]",
+        "Series tags={_field=field.one, _measurement=measurement.one, tag.one=value2, tag.two=other2}\n  FloatPoints timestamps: [1609459201000000002], values: [1.0]",
+        "Series tags={_field=field.two, _measurement=measurement.one, tag.one=value2, tag.two=other2}\n  BooleanPoints timestamps: [1609459201000000002], values: [false]",
+    ];
+
+    run_read_filter_test_case(PeriodsInNames {}, predicate, expected_results).await;
+}
+
+#[tokio::test]
+async fn test_read_filter_with_periods_predicates() {
+    test_helpers::maybe_start_logging();
+
+    let predicate = Predicate::default()
+        .with_range(0, 1700000001000000000)
+        // tag.one = "value"
+        .with_expr("tag.one".as_expr().eq(lit("value")));
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+
+    // Should return both series
+    let expected_results = vec![
+        "Series tags={_field=field.one, _measurement=measurement.one, tag.one=value, tag.two=other}\n  FloatPoints timestamps: [1609459201000000001], values: [1.0]",
+        "Series tags={_field=field.two, _measurement=measurement.one, tag.one=value, tag.two=other}\n  BooleanPoints timestamps: [1609459201000000001], values: [true]",
+    ];
+
+    run_read_filter_test_case(PeriodsInNames {}, predicate, expected_results).await;
 }

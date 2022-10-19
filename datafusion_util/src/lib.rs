@@ -26,7 +26,7 @@ use datafusion::physical_expr::PhysicalExpr;
 use datafusion::physical_plan::common::SizedRecordBatchStream;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MemTrackingMetrics};
 use datafusion::physical_plan::{collect, EmptyRecordBatchStream, ExecutionPlan};
-use datafusion::prelude::{col, lit, Expr, SessionContext};
+use datafusion::prelude::{lit, Column, Expr, SessionContext};
 use datafusion::{
     arrow::{
         datatypes::{Schema, SchemaRef},
@@ -58,13 +58,23 @@ pub trait AsExpr {
 
 impl AsExpr for Arc<str> {
     fn as_expr(&self) -> Expr {
-        col(self.as_ref())
+        self.as_ref().as_expr()
     }
 }
 
 impl AsExpr for str {
     fn as_expr(&self) -> Expr {
-        col(self)
+        // note using `col(<ident>)` will parse identifiers and try to
+        // split them on `.`.
+        //
+        // So it would treat 'foo.bar' as table 'foo', column 'bar'
+        //
+        // This is not correct for influxrpc, so instead treat it
+        // like the column "foo.bar"
+        Expr::Column(Column {
+            relation: None,
+            name: self.into(),
+        })
     }
 }
 
@@ -92,8 +102,9 @@ pub fn make_range_expr(start: i64, end: i64, time: impl AsRef<str>) -> Expr {
     let ts_start = ScalarValue::TimestampNanosecond(Some(start), None);
     let ts_end = ScalarValue::TimestampNanosecond(Some(end), None);
 
-    let ts_low = lit(ts_start).lt_eq(col(time.as_ref()));
-    let ts_high = col(time.as_ref()).lt(lit(ts_end));
+    let time_col = time.as_ref().as_expr();
+    let ts_low = lit(ts_start).lt_eq(time_col.clone());
+    let ts_high = time_col.lt(lit(ts_end));
 
     ts_low.and(ts_high)
 }

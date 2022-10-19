@@ -12,6 +12,7 @@ use std::{convert::TryFrom, fmt};
 use datafusion::error::DataFusionError;
 use datafusion::logical_expr::{binary_expr, Operator};
 use datafusion::{prelude::*, scalar::ScalarValue};
+use datafusion_util::AsExpr;
 use generated_types::{
     aggregate::AggregateType as RPCAggregateType, node::Comparison as RPCComparison,
     node::Logical as RPCLogical, node::Value as RPCValue, read_group_request::Group as RPCGroup,
@@ -499,7 +500,7 @@ fn build_node(value: RPCValue, inputs: Vec<Expr>) -> Result<Expr> {
         RPCValue::FloatValue(f) => Ok(lit(f)),
         RPCValue::RegexValue(pattern) => Ok(lit(pattern)),
         RPCValue::TagRefValue(tag_name) => build_tag_ref(tag_name),
-        RPCValue::FieldRefValue(field_name) => Ok(col(&field_name)),
+        RPCValue::FieldRefValue(field_name) => Ok(field_name.as_expr()),
         RPCValue::Logical(logical) => build_logical_node(logical, inputs),
         RPCValue::Comparison(comparison) => build_comparison_node(comparison, inputs),
     }
@@ -525,10 +526,13 @@ fn build_tag_ref(tag_name: Vec<u8>) -> Result<Expr> {
         .to_string();
 
     match tag_name.as_str() {
-        MEASUREMENT_COLUMN_NAME | FIELD_COLUMN_NAME => Ok(col(&tag_name)),
-        _ => when(col(&tag_name).is_null(), lit(""))
-            .otherwise(col(&tag_name))
-            .context(InternalCaseConversionSnafu { tag_name }),
+        MEASUREMENT_COLUMN_NAME | FIELD_COLUMN_NAME => Ok(tag_name.as_str().as_expr()),
+        _ => {
+            let tag = tag_name.as_str().as_expr();
+            when(tag.clone().is_null(), lit(""))
+                .otherwise(tag)
+                .context(InternalCaseConversionSnafu { tag_name })
+        }
     }
 }
 

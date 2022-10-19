@@ -343,6 +343,16 @@ async fn list_tag_values_field_col_does_exist() {
     .await;
 }
 
+#[tokio::test]
+async fn list_tag_values_with_periods() {
+    let tag_name = "tag.one";
+    let predicate = Predicate::default().with_range(0, 1700000001000000000);
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+    let expected_tag_keys = vec!["value", "value2"];
+
+    run_tag_values_test_case(PeriodsInNames {}, tag_name, predicate, expected_tag_keys).await;
+}
+
 fn to_stringset(v: &[&str]) -> StringSetRef {
     v.into_stringset().unwrap()
 }

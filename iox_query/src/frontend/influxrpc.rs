@@ -19,7 +19,7 @@ use datafusion::{
     common::DFSchemaRef,
     error::DataFusionError,
     logical_expr::{utils::exprlist_to_columns, ExprSchemable, LogicalPlan, LogicalPlanBuilder},
-    prelude::{col, when, Column, Expr},
+    prelude::{when, Column, Expr},
 };
 use datafusion_util::AsExpr;
 use futures::{Stream, StreamExt, TryStreamExt};
@@ -609,7 +609,7 @@ impl InfluxRpcPlanner {
 
         let mut builder = StringSetPlanBuilder::new();
 
-        let select_exprs = vec![col(tag_name)];
+        let select_exprs = vec![tag_name.as_expr()];
 
         // At this point, we have a set of tag_values we know at plan
         // time in `known_columns`, and some tables in chunks that we
@@ -919,7 +919,7 @@ impl InfluxRpcPlanner {
             .iter()
             .filter_map(|(influx_column_type, field)| {
                 if matches!(influx_column_type, Some(InfluxColumnType::Tag)) {
-                    Some(col(field.name()))
+                    Some(field.name().as_expr())
                 } else {
                     None
                 }
@@ -980,8 +980,8 @@ impl InfluxRpcPlanner {
             .schema()
             .iter()
             .filter_map(|(influx_column_type, field)| match influx_column_type {
-                Some(InfluxColumnType::Field(_)) => Some(col(field.name())),
-                Some(InfluxColumnType::Timestamp) => Some(col(field.name())),
+                Some(InfluxColumnType::Field(_)) => Some(field.name().as_expr()),
+                Some(InfluxColumnType::Timestamp) => Some(field.name().as_expr()),
                 Some(_) => None,
                 None => None,
             })
@@ -1032,7 +1032,7 @@ impl InfluxRpcPlanner {
 
         // Select only fields requested
         let select_exprs: Vec<_> = filtered_fields_iter(&scan_and_filter.schema(), predicate)
-            .map(|field| col(field.name))
+            .map(|field| field.name.as_expr())
             .collect();
 
         let plan = scan_and_filter
@@ -1552,11 +1552,11 @@ fn prune_chunks_metadata(
 fn project_exprs_in_schema(prefix: &[&str], schema: &DFSchemaRef) -> Vec<Expr> {
     let seen: HashSet<_> = prefix.iter().cloned().collect();
 
-    let prefix_exprs = prefix.iter().map(|name| col(name));
+    let prefix_exprs = prefix.iter().map(|name| name.as_expr());
     let new_exprs = schema.fields().iter().filter_map(|f| {
         let name = f.name().as_str();
         if !seen.contains(name) {
-            Some(col(name))
+            Some(name.as_expr())
         } else {
             None
         }
@@ -1599,12 +1599,13 @@ fn cast_aggregates(
             let field_name = df_field.name();
             let expr = if field_names.contains(field_name.as_str()) {
                 // CAST(field_name as Int64) as field_name
-                col(field_name)
+                field_name
+                    .as_expr()
                     .cast_to(&DataType::Int64, schema)
                     .context(CastingAggregatesSnafu { agg, field_name })?
                     .alias(field_name)
             } else {
-                col(field_name)
+                field_name.as_expr()
             };
             Ok(expr)
         })
@@ -1657,8 +1658,8 @@ fn filtered_fields_iter<'a>(
             .iter()
             .map(|value_expr| value_expr.replace_col(f.name()))
             .reduce(|a, b| a.or(b))
-            .map(|when_expr| when(when_expr, col(f.name())).end())
-            .unwrap_or_else(|| Ok(col(f.name())))
+            .map(|when_expr| when(when_expr, f.name().as_expr()).end())
+            .unwrap_or_else(|| Ok(f.name().as_expr()))
             .unwrap();
 
         Some(FieldExpr {
@@ -1771,7 +1772,7 @@ impl AggExprs {
                 make_agg_expr(
                     agg,
                     FieldExpr {
-                        expr: col(field.name()),
+                        expr: field.name().as_expr(),
                         datatype: field.data_type(),
                         name: field.name(),
                     },
@@ -1871,7 +1872,7 @@ fn make_selector_expr<'a>(
     };
 
     Ok(uda
-        .call(vec![field.expr, col(TIME_COLUMN_NAME)])
+        .call(vec![field.expr, TIME_COLUMN_NAME.as_expr()])
         .alias(col_name))
 }
 
@@ -1886,7 +1887,7 @@ fn cheap_chunk_first(mut chunks: Vec<Arc<dyn QueryChunk>>) -> Vec<Arc<dyn QueryC
 
 #[cfg(test)]
 mod tests {
-    use datafusion::prelude::{lit, lit_timestamp_nano};
+    use datafusion::prelude::{col, lit, lit_timestamp_nano};
     use datafusion_util::lit_dict;
     use futures::{future::BoxFuture, FutureExt};
     use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};

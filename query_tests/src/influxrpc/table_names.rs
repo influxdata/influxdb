@@ -156,6 +156,16 @@ async fn list_table_names_all_time() {
     .await;
 }
 
+#[tokio::test]
+async fn list_table_names_with_periods() {
+    run_table_names_test_case(
+        PeriodsInNames {},
+        tsp(MIN_NANO_TIME, MAX_NANO_TIME + 1),
+        vec!["measurement.one"],
+    )
+    .await;
+}
+
 // Note when table names supports general purpose predicates, add a
 // test here with a `_measurement` predicate
 // https://github.com/influxdata/influxdb_iox/issues/762

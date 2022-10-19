@@ -259,3 +259,29 @@ async fn test_read_window_aggregate_overflow() {
     )
     .await;
 }
+
+#[tokio::test]
+async fn test_read_window_aggregate_with_periods() {
+    let predicate = Predicate::default().with_range(0, 1700000001000000000);
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+
+    let agg = Aggregate::Max;
+    let every = WindowDuration::from_nanoseconds(500000000000);
+    let offset = WindowDuration::from_nanoseconds(0);
+
+    let expected_results = vec![
+        "Series tags={_field=field.one, _measurement=measurement.one, tag.one=value, tag.two=other}\n  FloatPoints timestamps: [1609459201000000001], values: [1.0]",
+        "Series tags={_field=field.two, _measurement=measurement.one, tag.one=value, tag.two=other}\n  BooleanPoints timestamps: [1609459201000000001], values: [true]",
+        "Series tags={_field=field.one, _measurement=measurement.one, tag.one=value2, tag.two=other2}\n  FloatPoints timestamps: [1609459201000000002], values: [1.0]",
+        "Series tags={_field=field.two, _measurement=measurement.one, tag.one=value2, tag.two=other2}\n  BooleanPoints timestamps: [1609459201000000002], values: [false]",
+    ];
+    run_read_window_aggregate_test_case(
+        PeriodsInNames {},
+        predicate,
+        agg,
+        every,
+        offset,
+        expected_results,
+    )
+    .await;
+}

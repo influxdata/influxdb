@@ -132,6 +132,178 @@ pub async fn read_filter_empty_tag_regex() {
     .await
 }
 
+#[tokio::test]
+pub async fn read_filter_periods() {
+    do_read_filter_test(
+        vec![
+            "measurement.one,tag.one=foo field.one=1,field.two=100 1000",
+            "measurement.one,tag.one=bar field.one=2,field.two=200 2000",
+        ],
+        GrpcRequestBuilder::new().timestamp_range(0, 2001),
+        vec![
+            "SeriesFrame, tags: _field=field.one,_measurement=measurement.one,tag.one=bar, type: 0",
+            "FloatPointsFrame, timestamps: [2000], values: \"2\"",
+            "SeriesFrame, tags: _field=field.two,_measurement=measurement.one,tag.one=bar, type: 0",
+            "FloatPointsFrame, timestamps: [2000], values: \"200\"",
+            "SeriesFrame, tags: _field=field.one,_measurement=measurement.one,tag.one=foo, type: 0",
+            "FloatPointsFrame, timestamps: [1000], values: \"1\"",
+            "SeriesFrame, tags: _field=field.two,_measurement=measurement.one,tag.one=foo, type: 0",
+            "FloatPointsFrame, timestamps: [1000], values: \"100\"",
+        ],
+    )
+    .await
+}
+
+#[tokio::test]
+pub async fn read_filter_periods_tag_predicate() {
+    do_read_filter_test(
+        vec![
+            "measurement.one,tag.one=foo field.one=1,field.two=100 1000",
+            "measurement.one,tag.one=bar field.one=2,field.two=200 2000",
+        ],
+        GrpcRequestBuilder::new()
+            .tag_predicate("tag.one", "foo")
+            .timestamp_range(0, 2001),
+        vec![
+            "SeriesFrame, tags: _field=field.one,_measurement=measurement.one,tag.one=foo, type: 0",
+            "FloatPointsFrame, timestamps: [1000], values: \"1\"",
+            "SeriesFrame, tags: _field=field.two,_measurement=measurement.one,tag.one=foo, type: 0",
+            "FloatPointsFrame, timestamps: [1000], values: \"100\"",
+        ],
+    )
+    .await
+}
+
+#[tokio::test]
+pub async fn read_filter_periods_multi_tag_predicate() {
+    do_read_filter_test(
+        // this setup has tags and fields that would be the same except for the period
+        vec![
+            "h2o,state=CA temp=90.0 100",
+            "h2o,state=CA,city.state=LA temp=90.0 200",
+            "h2o,state=CA,state.city=LA temp=91.0 300",
+        ],
+        GrpcRequestBuilder::new()
+            .tag_predicate("city.state", "LA")
+            .timestamp_range(0, 2001),
+        // only the one series (that has city.state), should not get state as well
+        vec![
+            "SeriesFrame, tags: _field=temp,_measurement=h2o,city.state=LA,state=CA, type: 0",
+            "FloatPointsFrame, timestamps: [200], values: \"90\"",
+        ],
+    )
+    .await
+}
+
+#[tokio::test]
+pub async fn read_filter_periods_multi_tag_predicate2() {
+    do_read_filter_test(
+        // this setup has tags and fields that would be the same except for the period
+        vec![
+            "h2o,state=CA temp=90.0 100",
+            "h2o,state=CA,city.state=LA temp=90.0 200",
+        ],
+        GrpcRequestBuilder::new()
+            .tag_predicate("state", "CA")
+            .timestamp_range(0, 2001),
+        // all the series (should not filter out the city.state one)
+        vec![
+            "SeriesFrame, tags: _field=temp,_measurement=h2o,state=CA, type: 0",
+            "FloatPointsFrame, timestamps: [100], values: \"90\"",
+            "SeriesFrame, tags: _field=temp,_measurement=h2o,city.state=LA,state=CA, type: 0",
+            "FloatPointsFrame, timestamps: [200], values: \"90\"",
+        ],
+    )
+    .await
+}
+
+#[tokio::test]
+pub async fn read_filter_periods_multi_tag_predicate3() {
+    do_read_filter_test(
+        // this setup has tags and fields that would be the same except for the period
+        vec!["h2o,.state=CA temp=90.0 100", "h2o,.state=CA temp=90.0 200"],
+        GrpcRequestBuilder::new()
+            .tag_predicate(".state", "CA")
+            .timestamp_range(0, 2001),
+        // all the series (should not filter out the city.state one)
+        vec![
+            "SeriesFrame, tags: .state=CA,_field=temp,_measurement=h2o, type: 0",
+            "FloatPointsFrame, timestamps: [100, 200], values: \"90,90\"",
+        ],
+    )
+    .await
+}
+
+#[tokio::test]
+pub async fn read_filter_periods_field_predicate() {
+    do_read_filter_test(
+        vec![
+            "measurement.one,tag.one=foo field.one=1,field.two=100 1000",
+            "measurement.one,tag.one=bar field.one=2,field.two=200 2000",
+        ],
+        GrpcRequestBuilder::new()
+            .field_predicate("field.two")
+            .timestamp_range(0, 2001),
+        vec![
+            "SeriesFrame, tags: _field=field.two,_measurement=measurement.one,tag.one=bar, type: 0",
+            "FloatPointsFrame, timestamps: [2000], values: \"200\"",
+            "SeriesFrame, tags: _field=field.two,_measurement=measurement.one,tag.one=foo, type: 0",
+            "FloatPointsFrame, timestamps: [1000], values: \"100\"",
+        ],
+    )
+    .await
+}
+
+#[tokio::test]
+pub async fn read_filter_periods_multi_field_prediate() {
+    do_read_filter_test(
+        // this setup has tags and fields that would be the same except for the period
+        vec![
+            "h2o,state=CA temp=90.0 100",
+            "h2o,state=CA,city.state=LA temp=90.0 200",
+            "h2o,state=CA,state.city=LA temp=91.0 300",
+            "h2o,state=CA,state.city=LA temp.foo=92.0 400",
+            "h2o,state=CA,state.city=LA foo.temp=93.0 500",
+        ],
+        GrpcRequestBuilder::new()
+            .field_predicate("temp")
+            .timestamp_range(0, 2001),
+        // expect not to see temp.foo
+        vec![
+            "SeriesFrame, tags: _field=temp,_measurement=h2o,state=CA, type: 0",
+            "FloatPointsFrame, timestamps: [100], values: \"90\"",
+            "SeriesFrame, tags: _field=temp,_measurement=h2o,state=CA,state.city=LA, type: 0",
+            "FloatPointsFrame, timestamps: [300], values: \"91\"",
+            "SeriesFrame, tags: _field=temp,_measurement=h2o,city.state=LA,state=CA, type: 0",
+            "FloatPointsFrame, timestamps: [200], values: \"90\"",
+        ],
+    )
+    .await
+}
+
+#[tokio::test]
+pub async fn read_filter_periods_multi_field_predicate2() {
+    do_read_filter_test(
+        // this setup has tags and fields that would be the same except for the period
+        vec![
+            "h2o,state=CA temp=90.0 100",
+            "h2o,state=CA,city.state=LA temp=90.0 200",
+            "h2o,state=CA,state.city=LA temp=91.0 300",
+            "h2o,state=CA,state.city=LA temp.foo=92.0 400",
+            "h2o,state=CA,state.city=LA foo.temp=93.0 500",
+        ],
+        GrpcRequestBuilder::new()
+            .field_predicate("temp.foo")
+            .timestamp_range(0, 2001),
+        // expect only one series
+        vec![
+            "SeriesFrame, tags: _field=temp.foo,_measurement=h2o,state=CA,state.city=LA, type: 0",
+            "FloatPointsFrame, timestamps: [400], values: \"92\"",
+        ],
+    )
+    .await
+}
+
 /// Sends the specified line protocol to a server with the timestamp/ predicate
 /// predicate, and compares it against expected frames
 async fn do_read_filter_test(
@@ -161,9 +333,13 @@ async fn do_read_filter_test(
                     let read_filter_request =
                         request_builder.source(state.cluster()).build_read_filter();
 
+                    let actual_frames =
+                        do_read_filter_request(&mut storage_client, read_filter_request).await;
+
                     assert_eq!(
-                        do_read_filter_request(&mut storage_client, read_filter_request).await,
-                        expected_frames,
+                        expected_frames, actual_frames,
+                        "\n\nExpected:\n{:#?}\n\nActual:\n{:#?}\n\n",
+                        expected_frames, actual_frames,
                     );
                 }
                 .boxed()

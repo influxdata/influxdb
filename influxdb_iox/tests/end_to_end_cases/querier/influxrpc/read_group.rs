@@ -180,6 +180,33 @@ async fn test_read_group_last_agg() {
     .await
 }
 
+/// Ensure we can group on tags that have periods
+#[tokio::test]
+async fn test_read_group_periods() {
+    do_read_group_test(
+        vec![
+            "measurement.one,tag.one=foo field.one=1,field.two=100 1000",
+            "measurement.one,tag.one=bar field.one=2,field.two=200 2000",
+        ],
+        // read_group(group_keys: region, agg: Last)
+        GrpcRequestBuilder::new()
+            .timestamp_range(0, 2001) // include all data
+            .field_predicate("field.two")
+            .group_keys(["tag.one"])
+            .group(Group::By)
+            .aggregate_type(AggregateType::Last),
+        vec![
+            "GroupFrame, tag_keys: _field,_measurement,tag.one, partition_key_vals: bar",
+            "SeriesFrame, tags: _field=field.two,_measurement=measurement.one,tag.one=bar, type: 0",
+            "FloatPointsFrame, timestamps: [2000], values: \"200\"",
+            "GroupFrame, tag_keys: _field,_measurement,tag.one, partition_key_vals: foo",
+            "SeriesFrame, tags: _field=field.two,_measurement=measurement.one,tag.one=foo, type: 0",
+            "FloatPointsFrame, timestamps: [1000], values: \"100\"",
+        ],
+    )
+    .await
+}
+
 /// Sends the specified line protocol to a server, runs a read_grou
 /// gRPC request, and compares it against expected frames
 async fn do_read_group_test(
@@ -214,9 +241,13 @@ async fn do_read_group_test(
                     let read_group_request =
                         request_builder.source(state.cluster()).build_read_group();
 
+                    let actual_frames =
+                        do_read_group_request(&mut storage_client, read_group_request).await;
+
                     assert_eq!(
-                        do_read_group_request(&mut storage_client, read_group_request).await,
-                        expected_frames,
+                        expected_frames, actual_frames,
+                        "\n\nExpected:\n{:#?}\n\nActual:\n{:#?}\n\n",
+                        expected_frames, actual_frames,
                     );
                 }
                 .boxed()

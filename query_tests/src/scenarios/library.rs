@@ -949,3 +949,20 @@ impl DbSetup for TwoChunksMissingColumns {
         .await
     }
 }
+
+// Test data for periods (`.`) in names which SQL treats as identifiers
+//
+pub struct PeriodsInNames {}
+#[async_trait]
+impl DbSetup for PeriodsInNames {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "2021-01-01T00";
+
+        let lp = vec![
+            "measurement.one,tag.one=value,tag.two=other field.one=1.0,field.two=t 1609459201000000001",
+            "measurement.one,tag.one=value2,tag.two=other2 field.one=1.0,field.two=f 1609459201000000002",
+        ];
+
+        all_scenarios_for_one_chunk(vec![], vec![], lp, "measurement.one", partition_key).await
+    }
+}
