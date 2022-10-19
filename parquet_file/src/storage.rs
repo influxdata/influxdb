@@ -6,11 +6,7 @@ use crate::{
     serialize::{self, CodecError, ROW_GROUP_WRITE_SIZE},
     ParquetFilePath,
 };
-use arrow::{
-    datatypes::{Field, SchemaRef},
-    error::ArrowError,
-    record_batch::RecordBatch,
-};
+use arrow::datatypes::{Field, SchemaRef};
 use bytes::Bytes;
 use datafusion::{
     datasource::{listing::PartitionedFile, object_store::ObjectStoreUrl},
@@ -23,7 +19,7 @@ use datafusion::{
     },
     prelude::SessionContext,
 };
-use futures::{Stream, TryStreamExt};
+use futures::TryStreamExt;
 use object_store::{DynObjectStore, ObjectMeta};
 use observability_deps::tracing::*;
 use predicate::Predicate;
@@ -42,9 +38,12 @@ pub const ROW_GROUP_READ_SIZE: usize = 1024 * 1024;
 // Skip clippy due to <https://github.com/rust-lang/rust-clippy/issues/8159>.
 #[allow(clippy::assertions_on_constants)]
 const _: () = assert!(ROW_GROUP_WRITE_SIZE % ROW_GROUP_READ_SIZE == 0);
+
 /// Errors returned during a Parquet "put" operation, covering [`RecordBatch`]
 /// pull from the provided stream, encoding, and finally uploading the bytes to
 /// the object store.
+///
+/// [`RecordBatch`]: arrow::record_batch::RecordBatch
 #[derive(Debug, Error)]
 pub enum UploadError {
     /// A codec failure during serialisation.
@@ -113,6 +112,7 @@ impl From<&'static str> for StorageId {
 /// type that encapsulates the storage & retrieval implementation.
 ///
 /// [`ObjectStore`]: object_store::ObjectStore
+/// [`RecordBatch`]: arrow::record_batch::RecordBatch
 #[derive(Debug, Clone)]
 pub struct ParquetStorage {
     /// Underlying object store.
@@ -146,14 +146,13 @@ impl ParquetStorage {
     ///
     /// This method retries forever in the presence of object store errors. All
     /// other errors are returned as they occur.
-    pub async fn upload<S>(
+    ///
+    /// [`RecordBatch`]: arrow::record_batch::RecordBatch
+    pub async fn upload(
         &self,
-        batches: S,
+        batches: SendableRecordBatchStream,
         meta: &IoxMetadata,
-    ) -> Result<(IoxParquetMetaData, usize), UploadError>
-    where
-        S: Stream<Item = Result<RecordBatch, ArrowError>> + Send,
-    {
+    ) -> Result<(IoxParquetMetaData, usize), UploadError> {
         let start = Instant::now();
 
         // Stream the record batches into a parquet file.
@@ -215,6 +214,8 @@ impl ParquetStorage {
     /// No caching is performed by `read_filter()`, and each call to
     /// `read_filter()` will re-download the parquet file unless the underlying
     /// object store impl caches the fetched bytes.
+    ///
+    /// [`RecordBatch`]: arrow::record_batch::RecordBatch
     pub fn read_filter(
         &self,
         predicate: &Predicate,
@@ -295,9 +296,13 @@ pub enum ProjectionError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow::array::{ArrayRef, Int64Array, StringArray};
+    use arrow::{
+        array::{ArrayRef, Int64Array, StringArray},
+        record_batch::RecordBatch,
+    };
     use data_types::{CompactionLevel, NamespaceId, PartitionId, SequenceNumber, ShardId, TableId};
     use datafusion::common::DataFusionError;
+    use datafusion_util::MemoryStream;
     use iox_time::Time;
     use std::collections::HashMap;
 
@@ -563,7 +568,7 @@ mod tests {
         meta: &IoxMetadata,
         batch: RecordBatch,
     ) -> (IoxParquetMetaData, usize) {
-        let stream = futures::stream::iter([Ok(batch)]);
+        let stream = Box::pin(MemoryStream::new(vec![batch]));
         store
             .upload(stream, meta)
             .await

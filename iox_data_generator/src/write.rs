@@ -2,6 +2,7 @@
 
 use crate::measurement::LineToGenerate;
 use bytes::Bytes;
+use datafusion_util::MemoryStream;
 use futures::stream;
 use influxdb2_client::models::WriteDataPoint;
 use mutable_batch_lp::lines_to_batches;
@@ -351,7 +352,7 @@ impl InnerPointsWriter {
                     let record_batch = batch
                         .to_arrow(Selection::All)
                         .context(ConvertToArrowSnafu)?;
-                    let stream = futures::stream::iter([Ok(record_batch)]);
+                    let stream = Box::pin(MemoryStream::new(vec![record_batch]));
 
                     let meta = IoxMetadata::external(crate::now_ns(), &*measurement);
 

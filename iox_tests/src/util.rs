@@ -10,6 +10,7 @@ use data_types::{
     ShardIndex, Table, TableId, TableSchema, Timestamp, Tombstone, TombstoneId, TopicMetadata,
 };
 use datafusion::physical_plan::metrics::Count;
+use datafusion_util::MemoryStream;
 use iox_catalog::{
     interface::{get_schema_by_id, get_table_schema_by_id, Catalog, PartitionRepo},
     mem::MemCatalog,
@@ -847,7 +848,7 @@ async fn create_parquet_file(
     metadata: &IoxMetadata,
     record_batch: RecordBatch,
 ) -> usize {
-    let stream = futures::stream::once(async { Ok(record_batch) });
+    let stream = Box::pin(MemoryStream::new(vec![record_batch]));
     let (_meta, file_size) = store
         .upload(stream, metadata)
         .await

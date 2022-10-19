@@ -994,6 +994,7 @@ mod tests {
         record_batch::RecordBatch,
     };
     use data_types::CompactionLevel;
+    use datafusion_util::MemoryStream;
     use schema::builder::SchemaBuilder;
 
     #[test]
@@ -1057,7 +1058,7 @@ mod tests {
             .as_arrow();
 
         let batch = RecordBatch::try_new(schema, vec![data, timestamps]).unwrap();
-        let stream = futures::stream::iter([Ok(batch.clone())]);
+        let stream = Box::pin(MemoryStream::new(vec![batch.clone()]));
 
         let (bytes, file_meta) = crate::serialize::to_parquet_bytes(stream, &meta)
             .await
