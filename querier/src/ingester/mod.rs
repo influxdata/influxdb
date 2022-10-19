@@ -29,7 +29,7 @@ use iox_query::{
 };
 use iox_time::{Time, TimeProvider};
 use metric::{DurationHistogram, Metric};
-use observability_deps::tracing::{debug, info, trace, warn};
+use observability_deps::tracing::{debug, trace, warn};
 use predicate::Predicate;
 use schema::{selection::Selection, sort::SortKey, Schema};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
@@ -293,7 +293,7 @@ impl<'a> Drop for ObserveIngesterRequest<'a> {
 
             metric.record(ingester_duration);
 
-            info!(
+            debug!(
                 predicate=?self.request.predicate,
                 namespace=%self.request.namespace_name,
                 table_name=%self.request.table_name,
