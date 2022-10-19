@@ -5,7 +5,6 @@ use snafu::{ResultExt, Snafu};
 
 use influxdb_iox_client::{connection::Connection, health};
 
-mod observer;
 mod repl;
 mod repl_command;
 

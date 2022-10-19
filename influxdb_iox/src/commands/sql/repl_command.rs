@@ -5,7 +5,6 @@ use observability_deps::tracing::{debug, warn};
 pub enum ReplCommand {
     Help,
     ShowNamespaces,
-    Observer,
     SetFormat { format: String },
     UseNamespace { db_name: String },
     SqlCommand { sql: String },
@@ -61,7 +60,6 @@ impl TryFrom<&str> for ReplCommand {
                 warn!(%extra_content, "ignoring tokens after 'help'");
                 Ok(Self::Help)
             }
-            ["observer"] => Ok(Self::Observer),
             ["exit"] => Ok(Self::Exit),
             ["quit"] => Ok(Self::Exit),
             ["use", "namespace"] => {
@@ -104,8 +102,6 @@ USE NAMESPACE <name>: Set the current remote namespace to name
 
 SET FORMAT <format>: Set the output format to Pretty, csv or json
 
-OBSERVER: Locally query unified queryable views of remote system tables
-
 [EXIT | QUIT]: Quit this session and exit the program
 
 # Examples: use remote namespace foo
@@ -117,20 +113,6 @@ USE foo;
 ;; Explore Schema:
 SHOW TABLES; ;; Show available tables
 SHOW COLUMNS FROM my_table; ;; Show columns in the table
-
-;; Show storage usage across partitions and tables
-SELECT
-   partition_key, table_name, storage,
-   count(*) as chunk_count,
-   sum(memory_bytes)/(1024*1024) as size_mb
-FROM
-  system.chunks
-GROUP BY
-   partition_key, table_name, storage
-ORDER BY
-  size_mb DESC
-LIMIT 20
-;
 
 "#
     }
@@ -167,21 +149,6 @@ mod tests {
         assert_eq!("  Help;  ".try_into(), expected);
         assert_eq!("  help  ; ".try_into(), expected);
         assert_eq!("  help me;  ".try_into(), expected);
-    }
-
-    #[test]
-    fn observer() {
-        let expected = Ok(ReplCommand::Observer);
-        assert_eq!("observer;".try_into(), expected);
-        assert_eq!("observer".try_into(), expected);
-        assert_eq!("  observer".try_into(), expected);
-        assert_eq!("  observer  ".try_into(), expected);
-        assert_eq!("  OBSERVER  ".try_into(), expected);
-        assert_eq!("  Observer;  ".try_into(), expected);
-        assert_eq!("  observer  ; ".try_into(), expected);
-
-        let expected = sql_cmd("  observer me;  ");
-        assert_eq!("  observer me;  ".try_into(), expected);
     }
 
     #[test]

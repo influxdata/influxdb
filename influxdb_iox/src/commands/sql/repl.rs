@@ -43,9 +43,6 @@ pub enum Error {
         source: influxdb_iox_client::flight::Error,
     },
 
-    #[snafu(display("Error running observer query: {}", source))]
-    RunningObserverQuery { source: super::observer::Error },
-
     #[snafu(display("Cannot create REPL: {}", source))]
     ReplCreation { source: ReadlineError },
 }
@@ -55,9 +52,6 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 enum QueryEngine {
     /// Run queries against the namespace on the remote server
     Remote(String),
-
-    /// Run queries against a local `Observer` instance
-    Observer(super::observer::Observer),
 }
 
 struct RustylineHelper {
@@ -168,9 +162,6 @@ pub struct Repl {
     /// Current prompt
     prompt: String,
 
-    /// Connection to the server
-    connection: Connection,
-
     /// Client for interacting with IOx namespace API
     namespace_client: influxdb_iox_client::namespace::Client,
 
@@ -192,7 +183,7 @@ impl Repl {
     /// Create a new Repl instance, connected to the specified URL
     pub fn new(connection: Connection) -> Result<Self> {
         let namespace_client = influxdb_iox_client::namespace::Client::new(connection.clone());
-        let flight_client = influxdb_iox_client::flight::Client::new(connection.clone());
+        let flight_client = influxdb_iox_client::flight::Client::new(connection);
 
         let mut rl = Editor::new().context(ReplCreationSnafu)?;
         rl.set_helper(Some(RustylineHelper::default()));
@@ -209,7 +200,6 @@ impl Repl {
         Ok(Self {
             rl,
             prompt,
-            connection,
             namespace_client,
             flight_client,
             query_engine: None,
@@ -226,12 +216,6 @@ impl Repl {
             match self.next_command()? {
                 ReplCommand::Help => {
                     self.print_help();
-                }
-                ReplCommand::Observer {} => {
-                    self.use_observer()
-                        .await
-                        .map_err(|e| println!("{}", e))
-                        .ok();
                 }
                 ReplCommand::ShowNamespaces => {
                     self.list_namespaces()
@@ -317,13 +301,6 @@ impl Repl {
 
                 scrape_query(&mut self.flight_client, db_name, &sql).await?
             }
-            Some(QueryEngine::Observer(observer)) => {
-                info!("Running sql on local observer");
-                observer
-                    .run_query(&sql)
-                    .await
-                    .context(RunningObserverQuerySnafu)?
-            }
         };
 
         let end = Instant::now();
@@ -355,22 +332,11 @@ impl Repl {
         self.set_query_engine(QueryEngine::Remote(db_name));
     }
 
-    async fn use_observer(&mut self) -> Result<()> {
-        println!("Preparing local views of remote system tables");
-        let observer = super::observer::Observer::try_new(self.connection.clone())
-            .await
-            .context(RunningObserverQuerySnafu)?;
-        println!("{}", observer.help());
-        self.set_query_engine(QueryEngine::Observer(observer));
-        Ok(())
-    }
-
     fn set_query_engine(&mut self, query_engine: QueryEngine) {
         self.prompt = match &query_engine {
             QueryEngine::Remote(db_name) => {
                 format!("{}> ", db_name)
             }
-            QueryEngine::Observer(_) => "OBSERVER> ".to_string(),
         };
         self.query_engine = Some(query_engine)
     }
