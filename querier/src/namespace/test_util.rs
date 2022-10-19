@@ -23,7 +23,7 @@ pub async fn querier_namespace_with_limit(
     let schema = get_schema_by_name(&ns.namespace.name, repos.as_mut())
         .await
         .unwrap();
-    let cached_ns = Arc::new(CachedNamespace::from(&schema));
+    let cached_ns = Arc::new(CachedNamespace::from(schema));
 
     let catalog_cache = Arc::new(QuerierCatalogCache::new_testing(
         ns.catalog.catalog(),

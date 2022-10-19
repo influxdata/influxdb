@@ -94,7 +94,7 @@ impl NamespaceCache {
                     .await
                     .expect("retry forever")?;
 
-                Some(Arc::new((&schema).into()))
+                Some(Arc::new(schema.into()))
             }
         });
         let loader = Arc::new(MetricsLoader::new(
@@ -214,8 +214,8 @@ impl CachedTable {
     }
 }
 
-impl From<&TableSchema> for CachedTable {
-    fn from(table: &TableSchema) -> Self {
+impl From<TableSchema> for CachedTable {
+    fn from(table: TableSchema) -> Self {
         let mut column_id_map: HashMap<ColumnId, Arc<str>> = table
             .columns
             .iter()
@@ -225,12 +225,7 @@ impl From<&TableSchema> for CachedTable {
 
         Self {
             id: table.id,
-            schema: Arc::new(
-                table
-                    .clone()
-                    .try_into()
-                    .expect("Catalog table schema broken"),
-            ),
+            schema: Arc::new(table.try_into().expect("Catalog table schema broken")),
             column_id_map,
         }
     }
@@ -254,14 +249,14 @@ impl CachedNamespace {
     }
 }
 
-impl From<&NamespaceSchema> for CachedNamespace {
-    fn from(ns: &NamespaceSchema) -> Self {
+impl From<NamespaceSchema> for CachedNamespace {
+    fn from(ns: NamespaceSchema) -> Self {
         let mut tables: HashMap<Arc<str>, Arc<CachedTable>> = ns
             .tables
-            .iter()
+            .into_iter()
             .map(|(name, table)| {
                 let table: CachedTable = table.into();
-                (Arc::from(name.clone()), Arc::new(table))
+                (Arc::from(name), Arc::new(table))
             })
             .collect();
         tables.shrink_to_fit();

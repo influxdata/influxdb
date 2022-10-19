@@ -474,7 +474,7 @@ pub mod tests {
         }
 
         async fn chunk(&self, namespace_schema: Arc<NamespaceSchema>) -> QuerierChunk {
-            let cached_namespace: CachedNamespace = namespace_schema.as_ref().into();
+            let cached_namespace: CachedNamespace = namespace_schema.as_ref().clone().into();
             let cached_table = cached_namespace.tables.get("table").expect("table exists");
             self.adapter
                 .new_chunk(

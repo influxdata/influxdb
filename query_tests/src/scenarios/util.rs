@@ -930,7 +930,7 @@ impl MockIngester {
             catalog_cache,
             catalog.metric_registry(),
             ns.namespace.name.clone().into(),
-            Arc::new(schema.as_ref().into()),
+            Arc::new(schema.as_ref().clone().into()),
             catalog.exec(),
             Some(ingester_connection),
             sharder,
