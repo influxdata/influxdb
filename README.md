@@ -1,5 +1,36 @@
-# InfluxDB [![CircleCI](https://circleci.com/gh/influxdata/influxdb.svg?style=svg)](https://circleci.com/gh/influxdata/influxdb)
-[![Slack Status](https://img.shields.io/badge/slack-join_chat-white.svg?logo=slack&style=social)](https://www.influxdata.com/slack)
+# InfluxDB
+<div align="center">
+  <img  src="assets/influxdb-logo.png" width="600" alt="InfluxDB Logo">
+</div>
+
+<p align="center">
+  <a href="https://circleci.com/gh/influxdata/influxdb">
+  <img alt="CircleCI" src="https://circleci.com/gh/influxdata/influxdb.svg?style=svg" />
+  </a>
+  
+  <a href="https://www.influxdata.com/slack">
+  <img alt="Slack Status" src="https://img.shields.io/badge/slack-join_chat-white.svg?logo=slack&style=social" />
+  </a>
+  
+  <a href="https://docs.influxdata.com/influxdb/v2.4/install/?t=Docker">
+  <img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/_/influxdb" />
+  </a>
+  
+  <a href="https://github.com/influxdata/influxdb/blob/master/LICENSE">
+  <img alt="Docker Pulls" src="https://img.shields.io/github/license/influxdata/influxdb" />
+  </a>
+</p>
+<h3 align="center">
+    <b><a href="https://www.influxdata.com/">Website</a></b>
+    •
+    <a href="https://docs.influxdata.com/">Documentation</a>
+    •
+    <a href="https://university.influxdata.com/">InfluxDB University</a>
+    •
+    <a href="https://www.influxdata.com/blog/">Blog</a>
+</h3>
+
+---
 
 InfluxDB is an open source time series platform. This includes APIs for storing and querying data, processing it in the background for ETL or monitoring and alerting purposes, user dashboards, and visualizing and exploring the data and more. The master branch on this repo now represents the latest InfluxDB, which now includes functionality for Kapacitor (background processing) and Chronograf (the UI) all in a single binary.
 
@@ -7,11 +38,18 @@ The list of InfluxDB Client Libraries that are compatible with the latest versio
 
 If you are looking for the 1.x line of releases, there are branches for each minor version as well as a `master-1.x` branch that will contain the code for the next 1.x release. The master-1.x [working branch is here](https://github.com/influxdata/influxdb/tree/master-1.x). The [InfluxDB 1.x Go Client can be found here](https://github.com/influxdata/influxdb1-client).
 
+| Try **InfluxDB Cloud** for free and get started fast with no local setup required. Click [**here**](https://cloud2.influxdata.com/signup) to start building your application on InfluxDB Cloud. |
+|:------|
+
 ## Install
 
 We have nightly and versioned Docker images, Debian packages, RPM packages, and tarballs of InfluxDB available at the [InfluxData downloads page](https://portal.influxdata.com/downloads/). We also provide the `influx` command line interface (CLI) client as a separate binary available at the same location.
 
 If you are interested in building from source, see the [building from source](CONTRIBUTING.md#building-from-source) guide for contributors.
+
+<a href="https://university.influxdata.com/catalog/">
+  <img src="assets/influxdbU-banner.png" width="600"/>
+</a>
 
 ## Get Started
 
@@ -175,3 +213,8 @@ CI also runs end-to-end tests. These test the integration between the `influxd` 
 Since the UI is used by interal repositories as well as the `influxdb` repository, the
 end-to-end tests cannot be run on forked pull requests or run locally. The extent of end-to-end
 testing required for forked pull requests will be determined as part of the review process.
+
+## Additional Resources
+- [InfluxDB Tips and Tutorials](https://www.influxdata.com/blog/category/tech/influxdb/)
+- [InfluxDB Essentials Course](https://university.influxdata.com/courses/influxdb-essentials-tutorial/)
+- [Exploring InfluxDB Cloud Course](https://university.influxdata.com/courses/exploring-influxdb-cloud-tutorial/)
