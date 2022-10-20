@@ -421,9 +421,7 @@ async fn execute(
         .query(
             Arc::clone(&ingester_address),
             ingester_query_request,
-            span_recorder
-                .child_span("IngesterQuery")
-                .map(|span| span.ctx),
+            span_recorder.span().map(|span| span.ctx.clone()),
         )
         .await;
 
