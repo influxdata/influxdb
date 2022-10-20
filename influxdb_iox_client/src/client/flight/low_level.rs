@@ -85,6 +85,7 @@ where
     T: ClientMetadata,
 {
     /// Creates a new client with the provided connection
+    #[allow(clippy::mutable_key_type)] // https://github.com/rust-lang/rust-clippy/issues/5812
     pub fn new(connection: Connection, span_context: Option<SpanContext>) -> Self {
         let grpc_conn = connection.into_grpc_connection();
 
