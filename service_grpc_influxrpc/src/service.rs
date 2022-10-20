@@ -177,7 +177,7 @@ impl From<Error> for tonic::Status {
     /// Converts a result from the business logic into the appropriate tonic
     /// status
     fn from(err: Error) -> Self {
-        error!("Error handling gRPC request: {}", err);
+        error!(e=%err, "Error handling gRPC request");
         err.into_status()
     }
 }
