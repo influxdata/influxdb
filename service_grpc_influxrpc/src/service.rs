@@ -221,6 +221,9 @@ impl Error {
 }
 
 /// Add IOx specific headers to the response
+///
+/// storage-type: iox (needed so IDPE can show the errors to users)
+///   see <https://github.com/influxdata/conductor/issues/1208>
 fn add_headers(metadata: &mut MetadataMap) {
     // Note we can't use capital letters otherwise the http header
     // library asserts, so return lowercase storage-type
