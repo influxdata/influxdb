@@ -41,7 +41,10 @@ use std::{
     time::Duration,
 };
 use tokio::runtime::Handle;
-use trace::ctx::SpanContext;
+use trace::{
+    ctx::SpanContext,
+    span::{SpanExt, SpanRecorder},
+};
 
 // Structs, enums, and functions used to exhaust all test scenarios of chunk lifecycle
 // & when delete predicates are applied
@@ -946,19 +949,21 @@ impl IngesterFlightClient for MockIngester {
         &self,
         _ingester_address: Arc<str>,
         request: IngesterQueryRequest,
-        _span_context: Option<SpanContext>,
+        span_context: Option<SpanContext>,
     ) -> Result<Box<dyn IngesterFlightClientQueryData>, IngesterFlightClientError> {
-        let span = None;
+        let span_recorder = SpanRecorder::new(span_context.child_span("ingester"));
         // NOTE: we MUST NOT unwrap errors here because some query tests assert error behavior
         // (e.g. passing predicates of wrong types)
         let request = Arc::new(request);
-        let response = prepare_data_to_querier(&self.ingester_data, &request, span)
-            .await
-            .map_err(|e| IngesterFlightClientError::Flight {
-                source: FlightError::ArrowError(arrow::error::ArrowError::ExternalError(Box::new(
-                    e,
-                ))),
-            })?;
+        let response = prepare_data_to_querier(
+            &self.ingester_data,
+            &request,
+            span_recorder.child_span("prepare_data_to_querier"),
+        )
+        .await
+        .map_err(|e| IngesterFlightClientError::Flight {
+            source: FlightError::ArrowError(arrow::error::ArrowError::ExternalError(Box::new(e))),
+        })?;
 
         Ok(Box::new(QueryDataAdapter::new(response).await))
     }
