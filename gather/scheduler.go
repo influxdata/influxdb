@@ -121,11 +121,11 @@ func (s *Scheduler) doGather() {
 		s.log.Error("Cannot list targets", zap.Error(err))
 		return
 	}
-	for _, target := range targets {
+	for i := range targets {
 		select {
-		case s.scrapeRequest <- &target:
+		case s.scrapeRequest <- &targets[i]:
 		default:
-			s.log.Warn("Skipping scrape due to scraper backlog", zap.String("target", target.Name))
+			s.log.Warn("Skipping scrape due to scraper backlog", zap.String("target", targets[i].Name))
 		}
 	}
 }
