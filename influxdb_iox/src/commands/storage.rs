@@ -40,7 +40,10 @@ pub enum ParseError {
     #[snafu(display("unsupported aggregate type: '{:?}'", agg))]
     Aggregate { agg: String },
 
-    #[snafu(display("unsupported group: '{:?}'", group))]
+    #[snafu(display(
+        "unsupported group. Expected '0', 'none', '2', or 'by': got '{:?}'",
+        group
+    ))]
     Group { group: String },
 }
 
