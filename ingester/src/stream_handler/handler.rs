@@ -101,8 +101,9 @@ impl<I, O> SequencedStreamHandler<I, O> {
         let time_to_be_readable = metrics
             .register_metric::<DurationHistogram>(
                 "ingester_ttbr",
-                "distribution of duration between producer writing \
-                to consumer putting into queryable cache",
+                "distribution of duration of Time To Become Readable (TTBR), the \
+                 time between write to a router and becoming readable \
+                 for query in the ingester",
             )
             .recorder(metric_attrs(shard_index, &topic_name, None, false));
 
