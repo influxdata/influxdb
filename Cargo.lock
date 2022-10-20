@@ -2300,6 +2300,7 @@ dependencies = [
  "client_util",
  "futures-util",
  "generated_types",
+ "observability_deps",
  "prost 0.11.0",
  "tonic",
  "workspace-hack",
