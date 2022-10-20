@@ -4,7 +4,8 @@
 
 use arrow::{
     self,
-    array::{Array, ArrayRef, BooleanArray, DictionaryArray, StringArray},
+    array::{as_boolean_array, Array, ArrayRef, BooleanArray, DictionaryArray, StringArray},
+    compute,
     datatypes::{DataType, Int32Type},
     record_batch::RecordBatch,
 };
@@ -97,8 +98,7 @@ impl SeriesSetConverter {
         let batches = collect(it).await.context(ReadingSnafu)?;
 
         let batch = if !batches.is_empty() {
-            arrow::compute::concat_batches(&batches[0].schema(), &batches)
-                .context(ConcatenatingSnafu)?
+            compute::concat_batches(&batches[0].schema(), &batches).context(ConcatenatingSnafu)?
         } else {
             return Ok(vec![]);
         };
@@ -128,22 +128,11 @@ impl SeriesSetConverter {
             let init = tag_transitions_it.next().expect("not empty");
             let intersections = tag_transitions_it.fold(init, |a, b| {
                 Arc::new(
-                    arrow::compute::or(
-                        a.as_any()
-                            .downcast_ref::<BooleanArray>()
-                            .expect("boolean array"),
-                        b.as_any()
-                            .downcast_ref::<BooleanArray>()
-                            .expect("boolean array"),
-                    )
-                    .expect("or operation"),
+                    compute::or(as_boolean_array(&a), as_boolean_array(&b)).expect("or operation"),
                 )
             });
-            let intersections = intersections
-                .as_any()
-                .downcast_ref::<BooleanArray>()
-                .expect("boolean array");
-            intersections
+
+            as_boolean_array(&intersections)
                 .iter()
                 .enumerate()
                 .filter(|(_idx, mask)| mask.unwrap_or(true))
@@ -193,13 +182,13 @@ impl SeriesSetConverter {
 
         let col = batch.column(col_idx);
 
-        arrow::compute::concat(&[
+        compute::concat(&[
             &{
                 let mut b = BooleanArray::builder(1);
                 b.append_value(false);
                 b.finish()
             },
-            &arrow::compute::neq_dyn(&col.slice(0, col.len() - 1), &col.slice(1, col.len() - 1))
+            &compute::neq_dyn(&col.slice(0, col.len() - 1), &col.slice(1, col.len() - 1))
                 .expect("cmp"),
         ])
         .expect("concat")
