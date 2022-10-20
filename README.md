@@ -74,22 +74,9 @@ Follow the instructions for your operating system on the `rustup` site.
 
 `rustup` will check the [`rust-toolchain`](./rust-toolchain.toml) file and automatically install and use the correct Rust version for you.
 
-#### Clang
+#### C/C++ Compiler
 
-Building InfluxDB IOx requires `clang` (for the [`croaring`] dependency).
-Check for `clang` by running `clang --version`.
-
-```shell
-clang --version
-Apple clang version 12.0.0 (clang-1200.0.32.27)
-Target: x86_64-apple-darwin20.1.0
-Thread model: posix
-InstalledDir: /Library/Developer/CommandLineTools/usr/bin
-```
-
-If `clang` is not already present, it can typically be installed with the system package manager.
-
-[`croaring`]: https://github.com/saulius/croaring-rs
+You need some C/C++ compiler for some non-Rust dependencies like [`zstd`](https://crates.io/crates/zstd).
 
 #### lld
 

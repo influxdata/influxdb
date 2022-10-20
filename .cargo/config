@@ -7,10 +7,3 @@ rustflags = [
     # Enable all features supported by CPUs more recent than haswell (2013)
     "-C", "target-cpu=haswell"
 ]
-
-[env]
-
-# set `ROARING_ARCH` in all processes run by cargo
-# workaround dynamic CPU detection bug in croaring
-# https://github.com/influxdata/influxdb_iox/pull/2119
-ROARING_ARCH = { value = "haswell", force = true }

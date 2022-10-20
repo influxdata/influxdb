@@ -4,18 +4,15 @@
 
 use arrow::{
     self,
-    array::{Array, DictionaryArray, StringArray},
+    array::{Array, ArrayRef, BooleanArray, DictionaryArray, StringArray},
     datatypes::{DataType, Int32Type},
     record_batch::RecordBatch,
 };
 use datafusion::physical_plan::{common::collect, SendableRecordBatchStream};
 
-use observability_deps::tracing::trace;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::sync::Arc;
 use tokio::sync::mpsc::error::SendError;
-
-use croaring::bitmap::Bitmap;
 
 use crate::exec::{
     field::{self, FieldColumns, FieldIndexes},
@@ -116,49 +113,60 @@ impl SeriesSetConverter {
         // Algorithm: compute, via bitsets, the rows at which each
         // tag column changes and thereby where the tagset
         // changes. Emit a new SeriesSet at each such transition
-        let mut tag_transitions = tag_indexes
+        let tag_transitions = tag_indexes
             .iter()
             .map(|&col| Self::compute_transitions(&batch, col))
             .collect::<Vec<_>>();
 
         // no tag columns, emit a single tagset
-        let intersections = if tag_transitions.is_empty() {
-            let mut b = Bitmap::create_with_capacity(1);
-            let end_row = batch.num_rows();
-            b.add(end_row as u32);
-            b
+        let intersections: Vec<usize> = if tag_transitions.is_empty() {
+            vec![batch.num_rows()]
         } else {
             // OR bitsets together to to find all rows where the
             // keyset (values of the tag keys) changes
-            let remaining = tag_transitions.split_off(1);
-
-            remaining
-                .into_iter()
-                .for_each(|b| tag_transitions[0].or_inplace(&b));
-            // take the first item
-            tag_transitions.into_iter().next().unwrap()
+            let mut tag_transitions_it = tag_transitions.into_iter();
+            let init = tag_transitions_it.next().expect("not empty");
+            let intersections = tag_transitions_it.fold(init, |a, b| {
+                Arc::new(
+                    arrow::compute::or(
+                        a.as_any()
+                            .downcast_ref::<BooleanArray>()
+                            .expect("boolean array"),
+                        b.as_any()
+                            .downcast_ref::<BooleanArray>()
+                            .expect("boolean array"),
+                    )
+                    .expect("or operation"),
+                )
+            });
+            let intersections = intersections
+                .as_any()
+                .downcast_ref::<BooleanArray>()
+                .expect("boolean array");
+            intersections
+                .iter()
+                .enumerate()
+                .filter(|(_idx, mask)| mask.unwrap_or(true))
+                .map(|(idx, _mask)| idx)
+                .chain(std::iter::once(batch.num_rows()))
+                .collect()
         };
 
-        let mut start_row: u32 = 0;
+        let mut start_row: usize = 0;
 
         // create each series (since bitmap are not Send, we can't
         // call await during the loop)
 
         // emit each series
         let series_sets = intersections
-            .iter()
+            .into_iter()
             .map(|end_row| {
                 let series_set = SeriesSet {
                     table_name: Arc::clone(&table_name),
-                    tags: Self::get_tag_keys(
-                        &batch,
-                        start_row as usize,
-                        &tag_columns,
-                        &tag_indexes,
-                    ),
+                    tags: Self::get_tag_keys(&batch, start_row, &tag_columns, &tag_indexes),
                     field_indexes: field_indexes.clone(),
-                    start_row: start_row as usize,
-                    num_rows: (end_row - start_row) as usize,
+                    start_row,
+                    num_rows: (end_row - start_row),
                     batch: batch.clone(),
                 };
 
@@ -176,92 +184,25 @@ impl SeriesSetConverter {
     ///
     /// Note: This may return false positives in the presence of dictionaries
     /// containing duplicates
-    fn compute_transitions(batch: &RecordBatch, col_idx: usize) -> Bitmap {
+    fn compute_transitions(batch: &RecordBatch, col_idx: usize) -> ArrayRef {
         let num_rows = batch.num_rows();
 
-        let mut bitmap = Bitmap::create_with_capacity(num_rows as u32);
-        if num_rows < 1 {
-            return bitmap;
+        if num_rows == 0 {
+            return Arc::new(BooleanArray::builder(0).finish());
         }
 
-        // otherwise, scan the column for transitions
         let col = batch.column(col_idx);
-        match col.data_type() {
-            DataType::Utf8 => {
-                let col = col
-                    .as_any()
-                    .downcast_ref::<StringArray>()
-                    .expect("Casting column");
-                let mut current_val = col.value(0);
-                for row in 1..num_rows {
-                    let next_val = col.value(row);
-                    if next_val != current_val {
-                        bitmap.add(row as u32);
-                        current_val = next_val;
-                    }
-                }
-            }
-            DataType::Dictionary(key, value)
-                if key.as_ref() == &DataType::Int32 && value.as_ref() == &DataType::Utf8 =>
-            {
-                let col = col
-                    .as_any()
-                    .downcast_ref::<DictionaryArray<Int32Type>>()
-                    .expect("Casting column");
-                let keys = col.keys();
-                let get_key = |idx| {
-                    if col.is_valid(idx) {
-                        return Some(keys.value(idx));
-                    }
-                    None
-                };
 
-                let col_values = col.values();
-                let values = col_values
-                    .as_any()
-                    .downcast_ref::<StringArray>()
-                    .expect("Casting values column failed");
-
-                let mut current_val = get_key(0);
-                for row in 1..num_rows {
-                    let next_val = get_key(row);
-                    if next_val != current_val {
-                        //
-                        // N.B, concatenating two Arrow dictionary arrays can
-                        // result in duplicate values with differing keys.
-                        // Therefore, when keys differ we should verify they are
-                        // encoding different values. See:
-                        // https://github.com/apache/arrow-rs/pull/15
-                        //
-                        if let (Some(curr), Some(next)) = (current_val, next_val) {
-                            if values.value(curr as usize) == values.value(next as usize) {
-                                // these logical values are the same even though
-                                // they have different encoded keys.
-                                continue;
-                            }
-                        }
-
-                        bitmap.add(row as u32);
-                        current_val = next_val;
-                    }
-                }
-            }
-            _ => unimplemented!(
-                "Series transition calculations not supported for tag type {:?} in column {:?}",
-                col.data_type(),
-                batch.schema().fields()[col_idx]
-            ),
-        }
-
-        // for now, always treat the last row as ending a series
-        bitmap.add(num_rows as u32);
-
-        trace!(
-            rows = ?bitmap.to_vec(),
-            ?col_idx,
-            "row transitions for results"
-        );
-        bitmap
+        arrow::compute::concat(&[
+            &{
+                let mut b = BooleanArray::builder(1);
+                b.append_value(false);
+                b.finish()
+            },
+            &arrow::compute::neq_dyn(&col.slice(0, col.len() - 1), &col.slice(1, col.len() - 1))
+                .expect("cmp"),
+        ])
+        .expect("concat")
     }
 
     /// Creates (column_name, column_value) pairs for each column
