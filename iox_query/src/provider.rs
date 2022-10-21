@@ -40,8 +40,7 @@ mod deduplicate;
 pub mod overlap;
 mod physical;
 use self::overlap::group_potential_duplicates;
-pub(crate) use deduplicate::DeduplicateExec;
-pub use deduplicate::RecordBatchDeduplicator;
+pub use deduplicate::{DeduplicateExec, RecordBatchDeduplicator};
 pub(crate) use physical::IOxReadFilterNode;
 
 #[derive(Debug, Snafu)]

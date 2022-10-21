@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use data_types::{NamespaceId, PartitionKey, SequenceNumber, ShardId, TableId};
+use data_types::{NamespaceId, SequenceNumber, ShardId, TableId};
 use dml::DmlOperation;
 use iox_catalog::interface::Catalog;
 use metric::U64Counter;
@@ -253,52 +253,7 @@ impl NamespaceData {
         }
     }
 
-    /// Snapshots the mutable buffer for the partition, which clears it out and moves it over to
-    /// snapshots. Then return a vec of the snapshots and the optional persisting batch.
-    #[cfg(test)] // Only used in tests
-    pub(crate) async fn snapshot(
-        &self,
-        table_name: &TableName,
-        partition_key: &PartitionKey,
-    ) -> Option<(
-        Vec<Arc<super::partition::SnapshotBatch>>,
-        Option<Arc<super::partition::PersistingBatch>>,
-    )> {
-        if let Some(t) = self.table_data(table_name) {
-            let mut t = t.write().await;
-
-            return t.get_partition_by_key_mut(partition_key).map(|p| {
-                p.data
-                    .generate_snapshot()
-                    .expect("snapshot on mutable batch should never fail");
-                (p.data.snapshots.to_vec(), p.data.persisting.clone())
-            });
-        }
-
-        None
-    }
-
-    /// Snapshots the mutable buffer for the partition, which clears it out and then moves all
-    /// snapshots over to a persisting batch, which is returned. If there is no data to snapshot
-    /// or persist, None will be returned.
-    #[cfg(test)] // Only used in tests
-    pub(crate) async fn snapshot_to_persisting(
-        &self,
-        table_name: &TableName,
-        partition_key: &PartitionKey,
-    ) -> Option<Arc<super::partition::PersistingBatch>> {
-        if let Some(table_data) = self.table_data(table_name) {
-            let mut table_data = table_data.write().await;
-
-            return table_data
-                .get_partition_by_key_mut(partition_key)
-                .and_then(|partition_data| partition_data.snapshot_to_persisting_batch());
-        }
-
-        None
-    }
-
-    /// Gets the buffered table data
+    /// Return the specified [`TableData`] if it exists.
     pub(crate) fn table_data(
         &self,
         table_name: &TableName,
@@ -353,30 +308,11 @@ impl NamespaceData {
         })
     }
 
-    /// Walks down the table and partition and clears the persisting batch. The sequence number is
-    /// the max_sequence_number for the persisted parquet file, which should be kept in the table
-    /// data buffer.
-    pub(super) async fn mark_persisted(
-        &self,
-        table_name: &TableName,
-        partition_key: &PartitionKey,
-        sequence_number: SequenceNumber,
-    ) {
-        if let Some(t) = self.table_data(table_name) {
-            let mut t = t.write().await;
-            let partition = t.get_partition_by_key_mut(partition_key);
-
-            if let Some(p) = partition {
-                p.mark_persisted(sequence_number);
-            }
-        }
-    }
-
     /// Return progress from this Namespace
     pub(super) async fn progress(&self) -> ShardProgress {
         let tables: Vec<_> = self.tables.read().by_id.values().map(Arc::clone).collect();
 
-        // Consolidate progtress across partitions.
+        // Consolidate progress across partitions.
         let mut progress = ShardProgress::new()
             // Properly account for any sequence number that is
             // actively buffering and thus not yet completely
@@ -442,7 +378,7 @@ impl<'a> Drop for ScopedSequenceNumber<'a> {
 mod tests {
     use std::sync::Arc;
 
-    use data_types::{PartitionId, ShardIndex};
+    use data_types::{PartitionId, PartitionKey, ShardIndex};
     use metric::{Attributes, Metric};
 
     use crate::{

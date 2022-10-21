@@ -20,6 +20,7 @@ use parquet_file::{
     storage::{ParquetStorage, StorageId},
 };
 use snafu::{OptionExt, Snafu};
+use uuid::Uuid;
 use write_summary::ShardProgress;
 
 use crate::{
@@ -29,8 +30,11 @@ use crate::{
 
 pub(crate) mod namespace;
 pub mod partition;
+mod sequence_range;
 pub(crate) mod shard;
 pub(crate) mod table;
+
+pub(crate) use sequence_range::*;
 
 use self::{partition::resolver::PartitionProvider, shard::ShardData};
 
@@ -245,26 +249,32 @@ impl Persister for IngesterData {
     ) {
         // lookup the state from the ingester data. If something isn't found,
         // it's unexpected. Crash so someone can take a look.
-        let shard_data = self
+        let namespace = self
             .shards
             .get(&shard_id)
-            .unwrap_or_else(|| panic!("shard state for {shard_id} not in ingester data"));
-        let namespace = shard_data
-            .namespace_by_id(namespace_id)
+            .and_then(|s| s.namespace_by_id(namespace_id))
             .unwrap_or_else(|| panic!("namespace {namespace_id} not in shard {shard_id} state"));
         let namespace_name = namespace.namespace_name();
+        // Assert the namespace ID matches the index key.
+        assert_eq!(namespace.namespace_id(), namespace_id);
 
         let table_data = namespace.table_id(table_id).unwrap_or_else(|| {
             panic!("table {table_id} in namespace {namespace_id} not in shard {shard_id} state")
         });
 
-        let partition_key;
         let table_name;
-        let batch;
+        let partition_key;
         let sort_key;
         let last_persisted_sequence_number;
+        let batch;
+        let batch_sequence_number_range;
         {
             let mut guard = table_data.write().await;
+            // Assert various properties of the table to ensure the index is
+            // correct, out of an abundance of caution.
+            assert_eq!(guard.shard_id(), shard_id);
+            assert_eq!(guard.namespace_id(), namespace_id);
+            assert_eq!(guard.table_id(), table_id);
             table_name = guard.table_name().clone();
 
             let partition = guard.get_partition(partition_id).unwrap_or_else(|| {
@@ -273,11 +283,33 @@ impl Persister for IngesterData {
                 )
             });
 
+            // Assert various properties of the partition to ensure the index is
+            // correct, out of an abundance of caution.
+            assert_eq!(partition.partition_id(), partition_id);
+            assert_eq!(partition.shard_id(), shard_id);
+            assert_eq!(partition.namespace_id(), namespace_id);
+            assert_eq!(partition.table_id(), table_id);
+            assert_eq!(*partition.table_name(), table_name);
+
             partition_key = partition.partition_key().clone();
-            batch = partition.snapshot_to_persisting_batch();
             sort_key = partition.sort_key().clone();
             last_persisted_sequence_number = partition.max_persisted_sequence_number();
+
+            // The sequence number MUST be read without releasing the write lock
+            // to ensure a consistent snapshot of batch contents and batch
+            // sequence number range.
+            batch = partition.mark_persisting();
+            batch_sequence_number_range = partition.sequence_number_range();
         };
+
+        // From this point on, the code MUST be infallible.
+        //
+        // The partition data was moved to the persisting slot, and any
+        // subsequent calls would be an error.
+        //
+        // This is NOT an invariant, and this could be changed in the future to
+        // allow partitions to marked as persisting repeatedly. Today however,
+        // the code is infallible (or rather, terminal - it does cause a retry).
 
         let sort_key = sort_key.get().await;
         trace!(
@@ -306,8 +338,13 @@ impl Persister for IngesterData {
 
         // Check if there is any data to persist.
         let batch = match batch {
-            Some(v) if !v.data.data.is_empty() => v,
-            _ => {
+            Some(v) => {
+                // The partition state machine will NOT return an empty batch.
+                assert!(!v.record_batches().is_empty());
+                v
+            }
+            None => {
+                // But it MAY return no batch at all.
                 warn!(
                     %shard_id,
                     %namespace_id,
@@ -322,17 +359,6 @@ impl Persister for IngesterData {
             }
         };
 
-        assert_eq!(batch.shard_id(), shard_id);
-        assert_eq!(batch.table_id(), table_id);
-        assert_eq!(batch.partition_id(), partition_id);
-
-        // Read the maximum SequenceNumber in the batch.
-        let (_min, max_sequence_number) = batch.data.min_max_sequence_numbers();
-
-        // Read the future object store ID before passing the batch into
-        // compaction, instead of retaining a copy of the data post-compaction.
-        let object_store_id = batch.object_store_id();
-
         // do the CPU intensive work of compaction, de-duplication and sorting
         let CompactedStream {
             stream: record_stream,
@@ -341,6 +367,10 @@ impl Persister for IngesterData {
         } = compact_persisting_batch(&self.exec, sort_key, batch)
             .await
             .expect("unable to compact persisting batch");
+
+        // Generate a UUID to uniquely identify this parquet file in object
+        // storage.
+        let object_store_id = Uuid::new_v4();
 
         // Construct the metadata for this parquet file.
         let iox_metadata = IoxMetadata {
@@ -353,7 +383,7 @@ impl Persister for IngesterData {
             table_name: Arc::clone(&*table_name),
             partition_id,
             partition_key: partition_key.clone(),
-            max_sequence_number,
+            max_sequence_number: batch_sequence_number_range.inclusive_max().unwrap(),
             compaction_level: CompactionLevel::Initial,
             sort_key: Some(data_sort_key),
         };
@@ -503,15 +533,28 @@ impl Persister for IngesterData {
             .recorder(attributes)
             .record(file_size as u64);
 
-        // and remove the persisted data from memory
-        namespace
-            .mark_persisted(
-                &table_name,
-                &partition_key,
-                iox_metadata.max_sequence_number,
-            )
-            .await;
-        debug!(
+        // Mark the partition as having completed persistence, causing it to
+        // release the reference to the in-flight persistence data it is
+        // holding.
+        //
+        // This SHOULD cause the data to be dropped, but there MAY be ongoing
+        // queries that currently hold a reference to the data. In either case,
+        // the persisted data will be dropped "shortly".
+        table_data
+            .write()
+            .await
+            .get_partition(partition_id)
+            .unwrap()
+            .mark_persisted(iox_metadata.max_sequence_number);
+
+        // BUG: ongoing queries retain references to the persisting data,
+        // preventing it from being dropped, but memory is released back to
+        // lifecycle memory tracker when this fn returns.
+        //
+        //  https://github.com/influxdata/influxdb_iox/issues/5805
+        //
+
+        info!(
             %object_store_id,
             %shard_id,
             %namespace_id,
@@ -521,7 +564,7 @@ impl Persister for IngesterData {
             %partition_id,
             %partition_key,
             max_sequence_number=%iox_metadata.max_sequence_number.get(),
-            "marked partition as persisted"
+            "persisted partition"
         );
     }
 
@@ -656,8 +699,21 @@ mod tests {
             .await
             .unwrap();
         assert_matches!(action, DmlApplyAction::Applied(false));
+
+        let w2 = DmlWrite::new(
+            "foo",
+            lines_to_batches("mem foo=1 10", 0).unwrap(),
+            Some("1970-01-01".into()),
+            DmlMeta::sequenced(
+                Sequence::new(ShardIndex::new(1), SequenceNumber::new(2)),
+                ignored_ts,
+                None,
+                50,
+            ),
+        );
+
         let action = data
-            .buffer_operation(shard1.id, DmlOperation::Write(w1), &manager.handle())
+            .buffer_operation(shard1.id, DmlOperation::Write(w2), &manager.handle())
             .await
             .unwrap();
         assert_matches!(action, DmlApplyAction::Applied(true));
@@ -1016,11 +1072,15 @@ mod tests {
         assert_eq!(buckets_with_counts, &[500 * 1024]);
 
         let mem_table = n.table_data(&"mem".into()).unwrap();
-        let mem_table = mem_table.read().await;
 
         // verify that the parquet_max_sequence_number got updated
         assert_eq!(
-            mem_table.parquet_max_sequence_number(),
+            mem_table
+                .write()
+                .await
+                .get_partition(partition_id)
+                .unwrap()
+                .max_persisted_sequence_number(),
             Some(SequenceNumber::new(2))
         );
 
@@ -1310,13 +1370,17 @@ mod tests {
             .unwrap();
         {
             let table_data = data.table_data(&"mem".into()).unwrap();
-            let table = table_data.read().await;
-            let p = table.get_partition_by_key(&"1970-01-01".into()).unwrap();
+            let mut table = table_data.write().await;
+            assert!(table
+                .partition_iter_mut()
+                .all(|p| p.get_query_data().is_none()));
             assert_eq!(
-                p.max_persisted_sequence_number(),
+                table
+                    .get_partition_by_key(&"1970-01-01".into())
+                    .unwrap()
+                    .max_persisted_sequence_number(),
                 Some(SequenceNumber::new(1))
             );
-            assert!(p.data.buffer.is_none());
         }
         assert_matches!(action, DmlApplyAction::Skipped);
 
@@ -1329,8 +1393,8 @@ mod tests {
         let table = table_data.read().await;
         let partition = table.get_partition_by_key(&"1970-01-01".into()).unwrap();
         assert_eq!(
-            partition.data.buffer.as_ref().unwrap().min_sequence_number,
-            SequenceNumber::new(2)
+            partition.sequence_number_range().inclusive_min(),
+            Some(SequenceNumber::new(2))
         );
 
         assert_matches!(data.table_count().observe(), Observation::U64Counter(v) => {

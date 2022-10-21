@@ -1,12 +1,7 @@
 //! Handle all requests from Querier
 
-use crate::{
-    data::{
-        namespace::NamespaceName, partition::UnpersistedPartitionData, table::TableName,
-        IngesterData,
-    },
-    query::QueryableBatch,
-};
+use std::{pin::Pin, sync::Arc};
+
 use arrow::{array::new_null_array, error::ArrowError, record_batch::RecordBatch};
 use arrow_util::optimize::{optimize_record_batch, optimize_schema};
 use data_types::{PartitionId, SequenceNumber};
@@ -17,8 +12,9 @@ use generated_types::ingester::IngesterQueryRequest;
 use observability_deps::tracing::debug;
 use schema::{merge::SchemaMerger, selection::Selection};
 use snafu::{ensure, Snafu};
-use std::{pin::Pin, sync::Arc};
 use trace::span::{Span, SpanRecorder};
+
+use crate::data::{namespace::NamespaceName, table::TableName, IngesterData};
 
 /// Number of table data read locks that shall be acquired in parallel
 const CONCURRENT_TABLE_DATA_LOCKS: usize = 10;
@@ -264,10 +260,11 @@ pub async fn prepare_data_to_querier(
 ) -> Result<IngesterQueryResponse> {
     debug!(?request, "prepare_data_to_querier");
 
-    let span_recorder = SpanRecorder::new(span);
+    let mut span_recorder = SpanRecorder::new(span);
 
-    let mut tables_data = vec![];
+    let mut table_refs = vec![];
     let mut found_namespace = false;
+
     for (shard_id, shard_data) in ingest_data.shards() {
         debug!(shard_id=%shard_id.get());
         let namespace_name = NamespaceName::from(&request.namespace);
@@ -293,7 +290,7 @@ pub async fn prepare_data_to_querier(
             }
         };
 
-        tables_data.push(table_data);
+        table_refs.push(table_data);
     }
 
     ensure!(
@@ -303,113 +300,83 @@ pub async fn prepare_data_to_querier(
         },
     );
 
-    // acquire locks in parallel
-    let unpersisted_partitions: Vec<_> = futures::stream::iter(tables_data)
-        .map(|table_data| async move {
-            let table_data = table_data.read().await;
-            table_data.unpersisted_partition_data()
-        })
-        // Note: the order doesn't matter
-        .buffer_unordered(CONCURRENT_TABLE_DATA_LOCKS)
-        .concat()
-        .await;
-
     ensure!(
-        !unpersisted_partitions.is_empty(),
+        !table_refs.is_empty(),
         TableNotFoundSnafu {
             namespace_name: &request.namespace,
             table_name: &request.table
         },
     );
 
-    let request = Arc::clone(request);
-    let partitions =
-        futures::stream::iter(unpersisted_partitions.into_iter().map(move |partition| {
-            // extract payload
-            let partition_id = partition.partition_id;
-            let status = partition.partition_status.clone();
-            let snapshots: Vec<_> = prepare_data_to_querier_for_partition(
-                partition,
-                &request,
-                span_recorder.child_span("ingester prepare data to querier for partition"),
-            )
-            .into_iter()
-            .map(Ok)
-            .collect();
-
-            // Note: include partition in `unpersisted_partitions` even when there we might filter
-            // out all the data, because the metadata (e.g. max persisted parquet file) is
-            // important for the querier.
-            Ok(IngesterQueryPartition::new(
-                Box::pin(futures::stream::iter(snapshots)),
-                partition_id,
-                status,
-            ))
-        }));
-
-    Ok(IngesterQueryResponse::new(Box::pin(partitions)))
-}
-
-fn prepare_data_to_querier_for_partition(
-    unpersisted_partition_data: UnpersistedPartitionData,
-    request: &IngesterQueryRequest,
-    span: Option<Span>,
-) -> Vec<SendableRecordBatchStream> {
-    let mut span_recorder = SpanRecorder::new(span);
-
-    // ------------------------------------------------
-    // Accumulate data
-
-    // Make Filters
-    let selection_columns: Vec<_> = request.columns.iter().map(String::as_str).collect();
-    let selection = if selection_columns.is_empty() {
-        Selection::All
-    } else {
-        Selection::Some(&selection_columns)
-    };
-
-    // figure out what batches
-    let queryable_batch = unpersisted_partition_data
-        .persisting
-        .unwrap_or_else(|| {
-            QueryableBatch::new(
-                request.table.clone().into(),
-                unpersisted_partition_data.partition_id,
-                vec![],
-            )
+    // acquire locks and read table data in parallel
+    let unpersisted_partitions: Vec<_> = futures::stream::iter(table_refs)
+        .map(|table_data| async move {
+            let mut table_data = table_data.write().await;
+            table_data
+                .partition_iter_mut()
+                .map(|p| {
+                    (
+                        p.partition_id(),
+                        p.get_query_data(),
+                        p.max_persisted_sequence_number(),
+                    )
+                })
+                .collect::<Vec<_>>()
         })
-        .with_data(unpersisted_partition_data.non_persisted);
+        // Note: the order doesn't matter
+        .buffer_unordered(CONCURRENT_TABLE_DATA_LOCKS)
+        .concat()
+        .await;
 
-    let streams = queryable_batch
-        .data
-        .iter()
-        .map(|snapshot_batch| {
-            let batch = snapshot_batch.data.as_ref();
-            let schema = batch.schema();
+    let request = Arc::clone(request);
+    let partitions = futures::stream::iter(unpersisted_partitions.into_iter().map(
+        move |(partition_id, data, max_persisted_sequence_number)| {
+            let snapshots = match data {
+                None => Box::pin(futures::stream::empty()) as SnapshotStream,
 
-            // Apply selection to in-memory batch
-            let batch = match selection {
-                Selection::All => batch.clone(),
-                Selection::Some(columns) => {
-                    let projection = columns
+                Some(batch) => {
+                    assert_eq!(partition_id, batch.partition_id());
+
+                    // Project the data if necessary
+                    let columns = request
+                        .columns
                         .iter()
-                        .flat_map(|&column_name| {
-                            // ignore non-existing columns
-                            schema.index_of(column_name).ok()
-                        })
+                        .map(String::as_str)
                         .collect::<Vec<_>>();
-                    batch.project(&projection).expect("bug in projection")
+                    let selection = if columns.is_empty() {
+                        Selection::All
+                    } else {
+                        Selection::Some(columns.as_ref())
+                    };
+
+                    let snapshots = batch.project_selection(selection).into_iter().map(|batch| {
+                        // Create a stream from the batch.
+                        Ok(Box::pin(MemoryStream::new(vec![batch])) as SendableRecordBatchStream)
+                    });
+
+                    Box::pin(futures::stream::iter(snapshots)) as SnapshotStream
                 }
             };
 
-            // create stream
-            Box::pin(MemoryStream::new(vec![batch])) as SendableRecordBatchStream
-        })
-        .collect();
+            // NOTE: the partition persist watermark MUST always be provided to
+            // the querier for any partition that has performed (or is aware of)
+            // a persist operation.
+            //
+            // This allows the querier to use the per-partition persist marker
+            // when planning queries.
+            Ok(IngesterQueryPartition::new(
+                snapshots,
+                partition_id,
+                PartitionStatus {
+                    parquet_max_sequence_number: max_persisted_sequence_number,
+                },
+            ))
+        },
+    ));
 
     span_recorder.ok("done");
 
-    streams
+    Ok(IngesterQueryResponse::new(Box::pin(partitions)))
 }
 
 #[cfg(test)]
@@ -427,7 +394,7 @@ mod tests {
     use predicate::Predicate;
 
     use super::*;
-    use crate::test_util::{make_ingester_data, DataLocation, TEST_NAMESPACE, TEST_TABLE};
+    use crate::test_util::{make_ingester_data, TEST_NAMESPACE, TEST_TABLE};
 
     #[tokio::test]
     async fn test_ingester_query_response_flatten() {
@@ -517,23 +484,11 @@ mod tests {
     async fn test_prepare_data_to_querier() {
         test_helpers::maybe_start_logging();
 
-        let span = None;
-
         // make 14 scenarios for ingester data
         let mut scenarios = vec![];
         for two_partitions in [false, true] {
-            for loc in [
-                DataLocation::BUFFER,
-                DataLocation::BUFFER_SNAPSHOT,
-                DataLocation::BUFFER_PERSISTING,
-                DataLocation::BUFFER_SNAPSHOT_PERSISTING,
-                DataLocation::SNAPSHOT,
-                DataLocation::SNAPSHOT_PERSISTING,
-                DataLocation::PERSISTING,
-            ] {
-                let scenario = Arc::new(make_ingester_data(two_partitions, loc).await);
-                scenarios.push((loc, scenario));
-            }
+            let scenario = Arc::new(make_ingester_data(two_partitions).await);
+            scenarios.push(scenario);
         }
 
         // read data from all scenarios without any filters
@@ -557,9 +512,8 @@ mod tests {
             "| Wilmington | mon |      | 1970-01-01T00:00:00.000000035Z |", // in group 3 - seq_num: 6
             "+------------+-----+------+--------------------------------+",
         ];
-        for (loc, scenario) in &scenarios {
-            println!("Location: {loc:?}");
-            let result = prepare_data_to_querier(scenario, &request, span.clone())
+        for scenario in &scenarios {
+            let result = prepare_data_to_querier(scenario, &request, None)
                 .await
                 .unwrap()
                 .into_record_batches()
@@ -593,9 +547,8 @@ mod tests {
             "| Wilmington |      | 1970-01-01T00:00:00.000000035Z |",
             "+------------+------+--------------------------------+",
         ];
-        for (loc, scenario) in &scenarios {
-            println!("Location: {loc:?}");
-            let result = prepare_data_to_querier(scenario, &request, span.clone())
+        for scenario in &scenarios {
+            let result = prepare_data_to_querier(scenario, &request, None)
                 .await
                 .unwrap()
                 .into_record_batches()
@@ -638,9 +591,8 @@ mod tests {
             "| Wilmington |      | 1970-01-01T00:00:00.000000035Z |",
             "+------------+------+--------------------------------+",
         ];
-        for (loc, scenario) in &scenarios {
-            println!("Location: {loc:?}");
-            let result = prepare_data_to_querier(scenario, &request, span.clone())
+        for scenario in &scenarios {
+            let result = prepare_data_to_querier(scenario, &request, None)
                 .await
                 .unwrap()
                 .into_record_batches()
@@ -655,9 +607,8 @@ mod tests {
             vec![],
             None,
         ));
-        for (loc, scenario) in &scenarios {
-            println!("Location: {loc:?}");
-            let err = prepare_data_to_querier(scenario, &request, span.clone())
+        for scenario in &scenarios {
+            let err = prepare_data_to_querier(scenario, &request, None)
                 .await
                 .unwrap_err();
             assert_matches!(err, Error::TableNotFound { .. });
@@ -670,9 +621,8 @@ mod tests {
             vec![],
             None,
         ));
-        for (loc, scenario) in &scenarios {
-            println!("Location: {loc:?}");
-            let err = prepare_data_to_querier(scenario, &request, span.clone())
+        for scenario in &scenarios {
+            let err = prepare_data_to_querier(scenario, &request, None)
                 .await
                 .unwrap_err();
             assert_matches!(err, Error::NamespaceNotFound { .. });

@@ -7,8 +7,11 @@ use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
 use write_summary::ShardProgress;
 
-use super::partition::{resolver::PartitionProvider, PartitionData, UnpersistedPartitionData};
-use crate::{data::DmlApplyAction, lifecycle::LifecycleHandle, querier_handler::PartitionStatus};
+use super::{
+    partition::{resolver::PartitionProvider, PartitionData},
+    DmlApplyAction,
+};
+use crate::lifecycle::LifecycleHandle;
 
 /// A double-referenced map where [`PartitionData`] can be looked up by
 /// [`PartitionKey`], or ID.
@@ -72,6 +75,12 @@ impl std::ops::Deref for TableName {
     }
 }
 
+impl PartialEq<str> for TableName {
+    fn eq(&self, other: &str) -> bool {
+        &*self.0 == other
+    }
+}
+
 /// Data of a Table in a given Namesapce that belongs to a given Shard
 #[derive(Debug)]
 pub(crate) struct TableData {
@@ -119,16 +128,6 @@ impl TableData {
         }
     }
 
-    /// Return parquet_max_sequence_number
-    pub(super) fn parquet_max_sequence_number(&self) -> Option<SequenceNumber> {
-        self.partition_data
-            .by_key
-            .values()
-            .map(|p| p.max_persisted_sequence_number())
-            .max()
-            .flatten()
-    }
-
     // buffers the table write and returns true if the lifecycle manager indicates that
     // ingest should be paused.
     pub(super) async fn buffer_table_write(
@@ -171,7 +170,7 @@ impl TableData {
 
         let size = batch.size();
         let rows = batch.rows();
-        partition_data.buffer_write(sequence_number, batch)?;
+        partition_data.buffer_write(batch, sequence_number)?;
 
         // Record the write as having been buffered.
         //
@@ -189,6 +188,18 @@ impl TableData {
         );
 
         Ok(DmlApplyAction::Applied(should_pause))
+    }
+
+    /// Return a mutable reference to all partitions buffered for this table.
+    ///
+    /// # Ordering
+    ///
+    /// The order of [`PartitionData`] in the iterator is arbitrary and should
+    /// not be relied upon.
+    pub(crate) fn partition_iter_mut(
+        &mut self,
+    ) -> impl Iterator<Item = &mut PartitionData> + ExactSizeIterator {
+        self.partition_data.by_key.values_mut()
     }
 
     /// Return the [`PartitionData`] for the specified ID.
@@ -209,43 +220,12 @@ impl TableData {
         self.partition_data.by_key(partition_key)
     }
 
-    /// Return the [`PartitionData`] for the specified partition key.
-    pub(crate) fn get_partition_by_key_mut(
-        &mut self,
-        partition_key: &PartitionKey,
-    ) -> Option<&mut PartitionData> {
-        self.partition_data.by_key_mut(partition_key)
-    }
-
-    pub(crate) fn unpersisted_partition_data(&self) -> Vec<UnpersistedPartitionData> {
-        self.partition_data
-            .by_key
-            .values()
-            .map(|p| UnpersistedPartitionData {
-                partition_id: p.partition_id(),
-                non_persisted: p
-                    .get_non_persisting_data()
-                    .expect("get_non_persisting should always work"),
-                persisting: p.get_persisting_data(),
-                partition_status: PartitionStatus {
-                    parquet_max_sequence_number: p.max_persisted_sequence_number(),
-                },
-            })
-            .collect()
-    }
-
     /// Return progress from this Table
     pub(super) fn progress(&self) -> ShardProgress {
-        let progress = ShardProgress::new();
-        let progress = match self.parquet_max_sequence_number() {
-            Some(n) => progress.with_persisted(n),
-            None => progress,
-        };
-
         self.partition_data
             .by_key
             .values()
-            .fold(progress, |progress, partition_data| {
+            .fold(Default::default(), |progress, partition_data| {
                 progress.combine(partition_data.progress())
             })
     }
@@ -258,6 +238,16 @@ impl TableData {
     /// Returns the name of this table.
     pub(crate) fn table_name(&self) -> &TableName {
         &self.table_name
+    }
+
+    /// Return the shard ID for this table.
+    pub(crate) fn shard_id(&self) -> ShardId {
+        self.shard_id
+    }
+
+    /// Return the [`NamespaceId`] this table is a part of.
+    pub fn namespace_id(&self) -> NamespaceId {
+        self.namespace_id
     }
 }
 

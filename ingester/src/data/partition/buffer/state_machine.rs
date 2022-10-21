@@ -31,7 +31,7 @@ pub(crate) enum Transition<A, B> {
 
 impl<A, B> Transition<A, B> {
     /// A helper function to construct [`Self::Ok`] variants.
-    pub(super) fn ok(v: A, sequence_range: SequenceNumberRange) -> Transition<A, B> {
+    pub(super) fn ok(v: A, sequence_range: SequenceNumberRange) -> Self {
         Self::Ok(BufferState {
             state: v,
             sequence_range,
@@ -39,7 +39,7 @@ impl<A, B> Transition<A, B> {
     }
 
     /// A helper function to construct [`Self::Unchanged`] variants.
-    pub(super) fn unchanged(v: BufferState<B>) -> Transition<A, B> {
+    pub(super) fn unchanged(v: BufferState<B>) -> Self {
         Self::Unchanged(v)
     }
 }
@@ -164,7 +164,7 @@ mod tests {
         // Keep the data to validate they are ref-counted copies after further
         // writes below. Note this construct allows the caller to decide when/if
         // to allocate.
-        let w1_data = buffer.get_query_data().to_owned();
+        let w1_data = buffer.get_query_data();
 
         let expected = vec![
             "+-------+----------+----------+--------------------------------+",
@@ -193,7 +193,7 @@ mod tests {
         };
 
         // Verify the writes are still queryable.
-        let w2_data = buffer.get_query_data().to_owned();
+        let w2_data = buffer.get_query_data();
         let expected = vec![
             "+-------+----------+----------+--------------------------------+",
             "| great | how_much | tag      | time                           |",
@@ -214,7 +214,7 @@ mod tests {
             let same_arcs = w2_data
                 .iter()
                 .zip(second_read.iter())
-                .all(|(a, b)| Arc::ptr_eq(a, &b));
+                .all(|(a, b)| Arc::ptr_eq(a, b));
             assert!(same_arcs);
         }
 
