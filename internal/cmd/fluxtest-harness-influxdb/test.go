@@ -198,8 +198,8 @@ const writeOptSource = `
 import "testing"
 import c "csv"
 
-option testing.loadStorage = (csv) => {
-	return c.from(csv: csv) |> to(bucket: bucket)
+option testing.load = (tables=<-) => {
+	return tables |> to(bucket: bucket, org: org)
 }
 `
 
@@ -210,7 +210,7 @@ const readOptSource = `
 import "testing"
 import c "csv"
 
-option testing.loadStorage = (csv) => {
+option testing.load = (tables=<-) => {
 	return from(bucket: bucket)
 }
 `
