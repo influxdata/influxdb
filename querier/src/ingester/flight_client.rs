@@ -8,6 +8,7 @@ use influxdb_iox_client::flight::{
 use observability_deps::tracing::debug;
 use snafu::{ResultExt, Snafu};
 use std::{collections::HashMap, fmt::Debug, ops::DerefMut, sync::Arc};
+use trace::ctx::SpanContext;
 
 pub use influxdb_iox_client::flight::Error as FlightError;
 
@@ -45,6 +46,7 @@ pub trait FlightClient: Debug + Send + Sync + 'static {
         &self,
         ingester_address: Arc<str>,
         request: IngesterQueryRequest,
+        span_context: Option<SpanContext>,
     ) -> Result<Box<dyn QueryData>, Error>;
 }
 
@@ -90,10 +92,12 @@ impl FlightClient for FlightClientImpl {
         &self,
         ingester_addr: Arc<str>,
         request: IngesterQueryRequest,
+        span_context: Option<SpanContext>,
     ) -> Result<Box<dyn QueryData>, Error> {
         let connection = self.connect(Arc::clone(&ingester_addr)).await?;
 
-        let mut client = LowLevelFlightClient::<proto::IngesterQueryRequest>::new(connection);
+        let mut client =
+            LowLevelFlightClient::<proto::IngesterQueryRequest>::new(connection, span_context);
 
         debug!(%ingester_addr, ?request, "Sending request to ingester");
         let request: proto::IngesterQueryRequest =
@@ -172,7 +176,7 @@ impl CachedConnection {
 
             // sanity check w/ a handshake
             let mut client =
-                LowLevelFlightClient::<proto::IngesterQueryRequest>::new(connection.clone());
+                LowLevelFlightClient::<proto::IngesterQueryRequest>::new(connection.clone(), None);
 
             // make contact with the ingester
             client

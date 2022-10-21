@@ -418,7 +418,11 @@ async fn execute(
     };
 
     let query_res = flight_client
-        .query(Arc::clone(&ingester_address), ingester_query_request)
+        .query(
+            Arc::clone(&ingester_address),
+            ingester_query_request,
+            span_recorder.span().map(|span| span.ctx.clone()),
+        )
         .await;
 
     if let Err(FlightClientError::Flight {
@@ -1230,7 +1234,7 @@ mod tests {
     };
     use test_helpers::assert_error;
     use tokio::{runtime::Handle, sync::Mutex};
-    use trace::{span::SpanStatus, RingBufferTraceCollector};
+    use trace::{ctx::SpanContext, span::SpanStatus, RingBufferTraceCollector};
 
     #[tokio::test]
     async fn test_flight_handshake_error() {
@@ -1902,6 +1906,7 @@ mod tests {
             &self,
             ingester_address: Arc<str>,
             _request: IngesterQueryRequest,
+            _span_context: Option<SpanContext>,
         ) -> Result<Box<dyn QueryData>, FlightClientError> {
             self.responses
                 .lock()

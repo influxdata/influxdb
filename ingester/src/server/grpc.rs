@@ -1,14 +1,9 @@
 //! gRPC service implementations for `ingester`.
 
-use std::{
-    pin::Pin,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc,
-    },
-    task::Poll,
+use crate::{
+    handler::IngestHandler,
+    querier_handler::{FlatIngesterQueryResponse, FlatIngesterQueryResponseStream},
 };
-
 use arrow::error::ArrowError;
 use arrow_flight::{
     flight_service_server::{FlightService as Flight, FlightServiceServer as FlightServer},
@@ -25,17 +20,19 @@ use observability_deps::tracing::{debug, info, warn};
 use pin_project::pin_project;
 use prost::Message;
 use snafu::{ResultExt, Snafu};
+use std::{
+    pin::Pin,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+    task::Poll,
+};
 use tonic::{Request, Response, Streaming};
-use trace::ctx::SpanContext;
+use trace::{ctx::SpanContext, span::SpanExt};
 use write_summary::WriteSummary;
 
-use crate::{
-    handler::IngestHandler,
-    querier_handler::{FlatIngesterQueryResponse, FlatIngesterQueryResponseStream},
-};
-
-/// This type is responsible for managing all gRPC services exposed by
-/// `ingester`.
+/// This type is responsible for managing all gRPC services exposed by `ingester`.
 #[derive(Debug, Default)]
 pub struct GrpcDelegate<I: IngestHandler> {
     ingest_handler: Arc<I>,
@@ -47,8 +44,7 @@ pub struct GrpcDelegate<I: IngestHandler> {
 }
 
 impl<I: IngestHandler + Send + Sync + 'static> GrpcDelegate<I> {
-    /// Initialise a new [`GrpcDelegate`] passing valid requests to the
-    /// specified `ingest_handler`.
+    /// Initialise a new [`GrpcDelegate`] passing valid requests to the specified `ingest_handler`.
     pub fn new(ingest_handler: Arc<I>, test_flight_do_get_panic: Arc<AtomicU64>) -> Self {
         Self {
             ingest_handler,
@@ -260,7 +256,7 @@ impl<I: IngestHandler + Send + Sync + 'static> Flight for FlightService<I> {
         &self,
         request: Request<Ticket>,
     ) -> Result<Response<Self::DoGetStream>, tonic::Status> {
-        let _span_ctx: Option<SpanContext> = request.extensions().get().cloned();
+        let span_ctx: Option<SpanContext> = request.extensions().get().cloned();
         let ticket = request.into_inner();
 
         let proto_query_request =
@@ -272,25 +268,25 @@ impl<I: IngestHandler + Send + Sync + 'static> Flight for FlightService<I> {
 
         self.maybe_panic_in_flight_do_get();
 
-        let query_response =
-            self.ingest_handler
-                .query(query_request)
-                .await
-                .map_err(|e| match e {
-                    crate::querier_handler::Error::NamespaceNotFound { namespace_name } => {
-                        Error::NamespaceNotFound { namespace_name }
-                    }
-                    crate::querier_handler::Error::TableNotFound {
-                        namespace_name,
-                        table_name,
-                    } => Error::TableNotFound {
-                        namespace_name,
-                        table_name,
-                    },
-                    _ => Error::Query {
-                        source: Box::new(e),
-                    },
-                })?;
+        let query_response = self
+            .ingest_handler
+            .query(query_request, span_ctx.child_span("ingest handler query"))
+            .await
+            .map_err(|e| match e {
+                crate::querier_handler::Error::NamespaceNotFound { namespace_name } => {
+                    Error::NamespaceNotFound { namespace_name }
+                }
+                crate::querier_handler::Error::TableNotFound {
+                    namespace_name,
+                    table_name,
+                } => Error::TableNotFound {
+                    namespace_name,
+                    table_name,
+                },
+                _ => Error::Query {
+                    source: Box::new(e),
+                },
+            })?;
 
         let output = GetStream::new(query_response.flatten());
 
