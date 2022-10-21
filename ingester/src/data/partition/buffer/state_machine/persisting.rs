@@ -1,4 +1,4 @@
-//! A buffer in the "persisting" state, containing one or more snapshots.
+//! A writfield1 buffer, with one or more snapshots.
 
 use std::sync::Arc;
 
@@ -24,8 +24,8 @@ impl Persisting {
 }
 
 impl Queryable for Persisting {
-    fn get_query_data(&self) -> &[Arc<RecordBatch>] {
-        &self.snapshots
+    fn get_query_data(&self) -> Vec<Arc<RecordBatch>> {
+        self.snapshots.clone()
     }
 }
 

@@ -13,5 +13,5 @@ pub(crate) trait Writeable: Debug {
 /// A state that can return the contents of the buffer as one or more
 /// [`RecordBatch`] instances.
 pub(crate) trait Queryable: Debug {
-    fn get_query_data(&self) -> &[Arc<RecordBatch>];
+    fn get_query_data(&self) -> Vec<Arc<RecordBatch>>;
 }
