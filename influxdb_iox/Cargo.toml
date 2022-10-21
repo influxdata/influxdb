@@ -44,6 +44,7 @@ arrow = { version = "25.0.0", features = ["prettyprint"] }
 backtrace = "0.3"
 bytes = "1.2"
 clap = { version = "4", features = ["derive", "env"] }
+comfy-table = { version = "6.1", default-features = false }
 console-subscriber = { version = "0.1.8", optional = true, features = ["parking_lot"] }
 dotenvy = "0.15.6"
 futures = "0.3"

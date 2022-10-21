@@ -2138,6 +2138,7 @@ dependencies = [
  "bytes",
  "clap 4.0.18",
  "clap_blocks",
+ "comfy-table",
  "compactor",
  "console-subscriber",
  "data_types",
