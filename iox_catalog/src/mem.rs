@@ -860,6 +860,26 @@ impl PartitionRepo for MemTxn {
         Ok(stage.skipped_compactions.clone())
     }
 
+    async fn delete_skipped_compactions(
+        &mut self,
+        partition_id: PartitionId,
+    ) -> Result<Option<SkippedCompaction>> {
+        use std::mem;
+
+        let stage = self.stage();
+        let skipped_compactions = mem::take(&mut stage.skipped_compactions);
+        let (mut removed, remaining) = skipped_compactions
+            .into_iter()
+            .partition(|sc| sc.partition_id == partition_id);
+        stage.skipped_compactions = remaining;
+
+        match removed.pop() {
+            Some(sc) if removed.is_empty() => Ok(Some(sc)),
+            Some(_) => unreachable!("There must be exactly one skipped compaction per partition"),
+            None => Ok(None),
+        }
+    }
+
     async fn update_persisted_sequence_number(
         &mut self,
         partition_id: PartitionId,

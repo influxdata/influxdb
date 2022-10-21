@@ -29,6 +29,9 @@ pub struct Config {
 enum Command {
     /// List all skipped compactions
     List,
+
+    /// Delete the requested skipped compaction
+    Delete { partition_id: i64 },
 }
 
 pub async fn command(connection: Connection, config: Config) -> Result<(), Error> {
@@ -37,6 +40,18 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
         Command::List => {
             let skipped_compactions = client.skipped_compactions().await?;
             println!("{}", create_table(&skipped_compactions));
+        }
+
+        Command::Delete { partition_id } => {
+            let deleted_skipped_compactions =
+                client.delete_skipped_compactions(partition_id).await?;
+
+            let deleted_skipped_compactions = deleted_skipped_compactions
+                .as_ref()
+                .map(std::slice::from_ref)
+                .unwrap_or_default();
+
+            println!("{}", create_table(deleted_skipped_compactions));
         } // Deliberately not adding _ => so the compiler will direct people here to impl new
           // commands
     }

@@ -30,4 +30,17 @@ impl Client {
 
         Ok(response.into_inner().skipped_compactions)
     }
+
+    /// Delete the requested skipped compaction
+    pub async fn delete_skipped_compactions(
+        &mut self,
+        partition_id: i64,
+    ) -> Result<Option<SkippedCompaction>, Error> {
+        let response = self
+            .inner
+            .delete_skipped_compactions(DeleteSkippedCompactionsRequest { partition_id })
+            .await?;
+
+        Ok(response.into_inner().skipped_compaction)
+    }
 }
