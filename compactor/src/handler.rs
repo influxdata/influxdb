@@ -2,7 +2,7 @@
 
 use crate::{cold, compact::Compactor, hot};
 use async_trait::async_trait;
-use data_types::SkippedCompaction;
+use data_types::{PartitionId, SkippedCompaction};
 use futures::{
     future::{BoxFuture, Shared},
     FutureExt, TryFutureExt,
@@ -28,6 +28,12 @@ pub trait CompactorHandler: Send + Sync {
     async fn skipped_compactions(
         &self,
     ) -> Result<Vec<SkippedCompaction>, ListSkippedCompactionsError>;
+
+    /// Delete skipped compactions from the catalog
+    async fn delete_skipped_compactions(
+        &self,
+        partition_id: PartitionId,
+    ) -> Result<Option<SkippedCompaction>, DeleteSkippedCompactionsError>;
 
     /// Wait until the handler finished  to shutdown.
     ///
@@ -207,6 +213,13 @@ pub enum ListSkippedCompactionsError {
     SkippedCompactionLookup(iox_catalog::interface::Error),
 }
 
+#[derive(Debug, Error)]
+#[allow(missing_copy_implementations, missing_docs)]
+pub enum DeleteSkippedCompactionsError {
+    #[error(transparent)]
+    SkippedCompactionDelete(iox_catalog::interface::Error),
+}
+
 #[async_trait]
 impl CompactorHandler for CompactorHandlerImpl {
     async fn skipped_compactions(
@@ -220,6 +233,20 @@ impl CompactorHandler for CompactorHandlerImpl {
             .list_skipped_compactions()
             .await
             .map_err(ListSkippedCompactionsError::SkippedCompactionLookup)
+    }
+
+    async fn delete_skipped_compactions(
+        &self,
+        partition_id: PartitionId,
+    ) -> Result<Option<SkippedCompaction>, DeleteSkippedCompactionsError> {
+        self.compactor
+            .catalog
+            .repositories()
+            .await
+            .partitions()
+            .delete_skipped_compactions(partition_id)
+            .await
+            .map_err(DeleteSkippedCompactionsError::SkippedCompactionDelete)
     }
 
     async fn join(&self) {
@@ -282,5 +309,48 @@ mod tests {
         let skipped_compactions = compactor_handler.skipped_compactions().await.unwrap();
         assert_eq!(skipped_compactions.len(), 1);
         assert_eq!(skipped_compactions[0].partition_id, partition.partition.id);
+    }
+
+    #[tokio::test]
+    async fn delete_skipped_compactions() {
+        let TestSetup {
+            compactor,
+            table,
+            shard,
+            ..
+        } = test_setup().await;
+
+        let compactor_handler = CompactorHandlerImpl::new(Arc::clone(&compactor));
+
+        // no skipped compactions to delete
+        let partition_id_that_does_not_exist = PartitionId::new(0);
+        let deleted_skipped_compaction = compactor_handler
+            .delete_skipped_compactions(partition_id_that_does_not_exist)
+            .await
+            .unwrap();
+
+        assert!(deleted_skipped_compaction.is_none());
+
+        // insert a partition and a skipped compaction
+        let partition = table.with_shard(&shard).create_partition("one").await;
+        {
+            let mut repos = compactor.catalog.repositories().await;
+            repos
+                .partitions()
+                .record_skipped_compaction(partition.partition.id, "Not today", 3, 2, 100_000, 100)
+                .await
+                .unwrap();
+        }
+
+        let deleted_skipped_compaction = compactor_handler
+            .delete_skipped_compactions(partition.partition.id)
+            .await
+            .unwrap()
+            .expect("Should have deleted one skipped compaction");
+
+        assert_eq!(
+            deleted_skipped_compaction.partition_id,
+            partition.partition.id,
+        );
     }
 }

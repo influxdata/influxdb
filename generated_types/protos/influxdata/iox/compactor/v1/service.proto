@@ -5,6 +5,9 @@ option go_package = "github.com/influxdata/iox/compactor/v1";
 service CompactionService {
   // List all skipped compactions in the catalog
   rpc ListSkippedCompactions(ListSkippedCompactionsRequest) returns (ListSkippedCompactionsResponse);
+
+  // Delete a skipped compaction by partition ID
+  rpc DeleteSkippedCompactions(DeleteSkippedCompactionsRequest) returns (DeleteSkippedCompactionsResponse);
 }
 
 message ListSkippedCompactionsRequest {}
@@ -39,4 +42,13 @@ message SkippedCompaction {
   // The compactor's limit on the number of bytes of memory that can be used for a compaction
   // operation at the time this compaction was skipped.
   int64 limit_bytes = 7;
+}
+
+message DeleteSkippedCompactionsRequest {
+  int64 partition_id = 1;
+}
+
+message DeleteSkippedCompactionsResponse {
+  // The deleted skipped compaction
+  optional SkippedCompaction skipped_compaction = 1;
 }
