@@ -1,8 +1,15 @@
 //! A write buffer.
 
-use mutable_batch::MutableBatch;
+use std::sync::Arc;
 
-use crate::data::partition::buffer::{mutable_buffer::Buffer, traits::Writeable};
+use arrow::record_batch::RecordBatch;
+use mutable_batch::MutableBatch;
+use schema::selection::Selection;
+
+use crate::data::partition::buffer::{
+    mutable_buffer::Buffer,
+    traits::{Queryable, Writeable},
+};
 
 use super::{snapshot::Snapshot, BufferState, Transition};
 
@@ -14,6 +21,29 @@ pub(crate) struct Buffering {
     /// This buffer MAY be empty when no writes have occured since transitioning
     /// to this state.
     buffer: Buffer,
+}
+
+/// Implement on-demand querying of the buffered contents without storing the
+/// generated snapshot.
+///
+/// In the future this [`Queryable`] should NOT be implemented for
+/// [`Buffering`], and instead snapshots should be incrementally generated and
+/// compacted. See https://github.com/influxdata/influxdb_iox/issues/5805 for
+/// context.
+impl Queryable for Buffering {
+    fn get_query_data(&self) -> Vec<Arc<RecordBatch>> {
+        let data = self.buffer.buffer().map(|v| {
+            Arc::new(
+                v.to_arrow(Selection::All)
+                    .expect("failed to snapshot buffer data"),
+            )
+        });
+
+        match data {
+            Some(v) => vec![v],
+            None => vec![],
+        }
+    }
 }
 
 impl Writeable for Buffering {

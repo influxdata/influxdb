@@ -50,4 +50,8 @@ impl Buffer {
     pub(super) fn is_empty(&self) -> bool {
         self.buffer.is_none()
     }
+
+    pub(super) fn buffer(&self) -> Option<&MutableBatch> {
+        self.buffer.as_ref()
+    }
 }

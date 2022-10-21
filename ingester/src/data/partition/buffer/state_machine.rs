@@ -6,14 +6,11 @@ use data_types::SequenceNumber;
 use mutable_batch::MutableBatch;
 
 mod buffering;
-mod buffering_with_snapshot;
 mod persisting;
 mod snapshot;
 
 pub(in crate::data::partition::buffer) use buffering::*;
-pub(in crate::data::partition::buffer) use buffering_with_snapshot::*;
 pub(crate) use persisting::*;
-pub(in crate::data::partition::buffer) use snapshot::*;
 
 use crate::data::SequenceNumberRange;
 
@@ -54,19 +51,14 @@ impl<A, B> Transition<A, B> {
 /// lifecycle within a partition buffer:
 ///
 /// ```text
-///                      ┌──────────────┐
-///                      │  Buffering   │
-///                      └───────┬──────┘
-///                              │
-///                              ▼
-///                      ┌ ─ ─ ─ ─ ─ ─ ─       ┌ ─ ─ ─ ─ ─ ─ ─
-///               ┌─────▶    Snapshot   ├─────▶   Persisting  │
-///               │      └ ─ ─ ─ ┬ ─ ─ ─       └ ─ ─ ─ ─ ─ ─ ─
-///               │              │
-///               │              ▼
-///               │  ┌───────────────────────┐
-///               └──│ BufferingWithSnapshot │
-///                  └───────────────────────┘
+///                  ┌──────────────┐
+///                  │  Buffering   │
+///                  └───────┬──────┘
+///                          │
+///                          ▼
+///                  ┌ ─ ─ ─ ─ ─ ─ ─       ┌ ─ ─ ─ ─ ─ ─ ─
+///                      Snapshot   ├─────▶   Persisting  │
+///                  └ ─ ─ ─ ─ ─ ─ ─       └ ─ ─ ─ ─ ─ ─ ─
 /// ```
 ///
 /// Boxes with dashed lines indicate immutable, queryable states that contain
@@ -131,13 +123,14 @@ where
     /// Returns the current buffer data.
     ///
     /// This is always a cheap method call.
-    fn get_query_data(&self) -> &[Arc<RecordBatch>] {
+    fn get_query_data(&self) -> Vec<Arc<RecordBatch>> {
         self.state.get_query_data()
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use snapshot::*;
     use std::ops::Deref;
 
     use arrow_util::assert_batches_eq;
@@ -158,16 +151,13 @@ mod tests {
         // Write some data to a buffer.
         buffer
             .write(
-                lp_to_mutable_batch(r#"bananas,tag=platanos great=true 668563242000000042"#).1,
+                lp_to_mutable_batch(
+                    r#"bananas,tag=platanos great=true,how_much=42 668563242000000042"#,
+                )
+                .1,
                 SequenceNumber::new(0),
             )
             .expect("write to empty buffer should succeed");
-
-        // Snapshot the buffer into an immutable, queryable data format.
-        let buffer: BufferState<Snapshot> = match buffer.snapshot() {
-            Transition::Ok(v) => v,
-            Transition::Unchanged(_) => panic!("did not transition to snapshot state"),
-        };
 
         // Extract the queryable data from the buffer and validate it.
         //
@@ -177,23 +167,19 @@ mod tests {
         let w1_data = buffer.get_query_data().to_owned();
 
         let expected = vec![
-            "+-------+----------+--------------------------------+",
-            "| great | tag      | time                           |",
-            "+-------+----------+--------------------------------+",
-            "| true  | platanos | 1991-03-10T00:00:42.000000042Z |",
-            "+-------+----------+--------------------------------+",
+            "+-------+----------+----------+--------------------------------+",
+            "| great | how_much | tag      | time                           |",
+            "+-------+----------+----------+--------------------------------+",
+            "| true  | 42       | platanos | 1991-03-10T00:00:42.000000042Z |",
+            "+-------+----------+----------+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &[w1_data[0].deref().clone()]);
-
-        // Transition the buffer into a mutable state in which it can accept
-        // writes.
-        let mut buffer: BufferState<BufferingWithSnapshot> = buffer.into_buffering();
 
         // Apply another write.
         buffer
             .write(
                 lp_to_mutable_batch(
-                    r#"bananas,tag=platanos great=true,how_much=1000 668563242000000042"#,
+                    r#"bananas,tag=platanos great=true,how_much=1000 668563242000000043"#,
                 )
                 .1,
                 SequenceNumber::new(1),
@@ -201,24 +187,23 @@ mod tests {
             .expect("write to empty buffer should succeed");
 
         // Snapshot the buffer into an immutable, queryable data format.
-        let buffer: BufferState<Snapshot> = buffer.snapshot();
+        let buffer: BufferState<Snapshot> = match buffer.snapshot() {
+            Transition::Ok(v) => v,
+            Transition::Unchanged(_) => panic!("did not transition to snapshot state"),
+        };
 
-        // Verify the second write was buffered.
+        // Verify the writes are still queryable.
         let w2_data = buffer.get_query_data().to_owned();
         let expected = vec![
             "+-------+----------+----------+--------------------------------+",
             "| great | how_much | tag      | time                           |",
             "+-------+----------+----------+--------------------------------+",
-            "| true  | 1000     | platanos | 1991-03-10T00:00:42.000000042Z |",
+            "| true  | 42       | platanos | 1991-03-10T00:00:42.000000042Z |",
+            "| true  | 1000     | platanos | 1991-03-10T00:00:42.000000043Z |",
             "+-------+----------+----------+--------------------------------+",
         ];
-        assert_batches_eq!(&expected, &[w2_data[1].deref().clone()]);
-
-        // Verify the first write has not changed, and has not been
-        // re-ordered.
-        assert_eq!(w1_data, w2_data[..1]);
-        // Furthermore, ensure no data was actually copied
-        assert!(Arc::ptr_eq(&w1_data[0], &w2_data[0]));
+        assert_eq!(w2_data.len(), 1);
+        assert_batches_eq!(&expected, &[w2_data[0].deref().clone()]);
 
         // Ensure the same data is returned for a second read.
         {
