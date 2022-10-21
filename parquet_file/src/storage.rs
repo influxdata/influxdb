@@ -227,6 +227,15 @@ impl ParquetStorage {
         let path = path.object_store_path();
         trace!(path=?path, "fetching parquet data for filtered read");
 
+        // set up "fake" DataFusion session (TODO thread the real one
+        // down so config options set on query context take effect here)
+        let object_store = Arc::clone(&self.object_store);
+        let session_ctx = SessionContext::new();
+        let task_ctx = Arc::new(TaskContext::from(&session_ctx));
+        task_ctx
+            .runtime_env()
+            .register_object_store("iox", "iox", object_store);
+
         // Compute final (output) schema after selection
         let schema = Arc::new(
             select_schema(selection, &schema)
@@ -256,16 +265,10 @@ impl ParquetStorage {
             projection: None,
             limit: None,
             table_partition_cols: vec![],
+            // TODO avoid this `copied_config` when config_options are directly available on context
+            config_options: session_ctx.copied_config().config_options(),
         };
         let exec = ParquetExec::new(base_config, expr, None);
-
-        // set up "fake" DataFusion session
-        let object_store = Arc::clone(&self.object_store);
-        let session_ctx = SessionContext::new();
-        let task_ctx = Arc::new(TaskContext::from(&session_ctx));
-        task_ctx
-            .runtime_env()
-            .register_object_store("iox", "iox", object_store);
 
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             Arc::clone(&schema),

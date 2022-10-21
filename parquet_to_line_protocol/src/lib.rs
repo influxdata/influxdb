@@ -2,6 +2,7 @@
 
 use datafusion::{
     arrow::datatypes::SchemaRef as ArrowSchemaRef,
+    config::ConfigOptions,
     datasource::{
         file_format::{parquet::ParquetFormat, FileFormat},
         listing::PartitionedFile,
@@ -212,6 +213,7 @@ impl ParquetFileReader {
             projection: None,
             limit: None,
             table_partition_cols: vec![],
+            config_options: ConfigOptions::new().into_shareable(),
         };
 
         // set up enough datafusion context to do the real read session
