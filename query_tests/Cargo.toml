@@ -19,23 +19,22 @@ generated_types = { path = "../generated_types" }
 influxdb_iox_client = { path = "../influxdb_iox_client" }
 ingester = { path = "../ingester" }
 iox_catalog = { path = "../iox_catalog" }
+iox_query = { path = "../iox_query" }
 iox_tests = { path = "../iox_tests" }
 itertools = "0.10"
 mutable_batch = { path = "../mutable_batch" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 once_cell = { version = "1.15.0", features = ["parking_lot"] }
+parquet_file = { version = "0.1.0", path = "../parquet_file" }
 predicate = { path = "../predicate" }
+querier = { path = "../querier" }
 schema = { path = "../schema" }
 sharder = { path = "../sharder" }
 tokio = { version = "1.21", features = ["macros", "parking_lot", "rt-multi-thread", "time"] }
-querier = { path = "../querier" }
-iox_query = { path = "../iox_query" }
+trace = { path = "../trace" }
 workspace-hack = { path = "../workspace-hack"}
-parquet_file = { version = "0.1.0", path = "../parquet_file" }
 
 [dev-dependencies]
-arrow = { version = "25.0.0", features = ["prettyprint"] }
-arrow_util = { path = "../arrow_util" }
 snafu = "0.7"
 tempfile = "3.1.0"
 test_helpers = { path = "../test_helpers" }

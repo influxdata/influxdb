@@ -120,7 +120,7 @@ impl Client {
     /// Creates a new client with the provided connection
     pub fn new(connection: Connection) -> Self {
         Self {
-            inner: LowLevelClient::new(connection),
+            inner: LowLevelClient::new(connection, None),
         }
     }
 
