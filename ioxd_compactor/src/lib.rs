@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use clap_blocks::compactor::CompactorConfig;
 use compactor::{
     handler::{CompactorHandler, CompactorHandlerImpl},
-    server::CompactorServer,
+    server::{grpc::GrpcDelegate, CompactorServer},
 };
 use data_types::ShardIndex;
 use hyper::{Body, Request, Response};
@@ -87,6 +87,7 @@ impl<C: CompactorHandler + std::fmt::Debug + 'static> ServerType for CompactorSe
     /// Provide a placeholder gRPC service.
     async fn server_grpc(self: Arc<Self>, builder_input: RpcBuilderInput) -> Result<(), RpcError> {
         let builder = setup_builder!(builder_input, self);
+        add_service!(builder, self.server.grpc().compaction_service());
         serve_builder!(builder);
 
         Ok(())
@@ -149,8 +150,11 @@ pub async fn create_compactor_server_type(
     )
     .await?;
 
-    let compactor_handler = Arc::new(CompactorHandlerImpl::new(compactor));
-    let compactor = CompactorServer::new(metric_registry, compactor_handler);
+    let compactor_handler = Arc::new(CompactorHandlerImpl::new(Arc::new(compactor)));
+
+    let grpc = GrpcDelegate::new(Arc::clone(&compactor_handler));
+
+    let compactor = CompactorServer::new(metric_registry, grpc, compactor_handler);
     Ok(Arc::new(CompactorServerType::new(compactor, common_state)))
 }
 

@@ -19,6 +19,7 @@ fn main() -> Result<()> {
 /// Creates:
 ///
 /// - `influxdata.iox.catalog.v1.rs`
+/// - `influxdata.iox.compactor.v1.rs`
 /// - `influxdata.iox.delete.v1.rs`
 /// - `influxdata.iox.ingester.v1.rs`
 /// - `influxdata.iox.namespace.v1.rs`
@@ -32,6 +33,7 @@ fn main() -> Result<()> {
 /// - `influxdata.platform.storage.rs`
 fn generate_grpc_types(root: &Path) -> Result<()> {
     let catalog_path = root.join("influxdata/iox/catalog/v1");
+    let compactor_path = root.join("influxdata/iox/compactor/v1");
     let delete_path = root.join("influxdata/iox/delete/v1");
     let ingester_path = root.join("influxdata/iox/ingester/v1");
     let namespace_path = root.join("influxdata/iox/namespace/v1");
@@ -47,6 +49,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
     let proto_files = vec![
         catalog_path.join("parquet_file.proto"),
         catalog_path.join("service.proto"),
+        compactor_path.join("service.proto"),
         delete_path.join("service.proto"),
         ingester_path.join("parquet_metadata.proto"),
         ingester_path.join("query.proto"),

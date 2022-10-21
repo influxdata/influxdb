@@ -2,6 +2,7 @@
 
 use crate::{cold, compact::Compactor, hot};
 use async_trait::async_trait;
+use data_types::SkippedCompaction;
 use futures::{
     future::{BoxFuture, Shared},
     FutureExt, TryFutureExt,
@@ -20,9 +21,14 @@ use tokio_util::sync::CancellationToken;
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {}
 
-/// The [`CompactorHandler`] does nothing at this point
+/// The [`CompactorHandler`] runs the compactor as a service and handles skipped compactions.
 #[async_trait]
 pub trait CompactorHandler: Send + Sync {
+    /// Return skipped compactions from the catalog
+    async fn skipped_compactions(
+        &self,
+    ) -> Result<Vec<SkippedCompaction>, ListSkippedCompactionsError>;
+
     /// Wait until the handler finished  to shutdown.
     ///
     /// Use [`shutdown`](Self::shutdown) to trigger a shutdown.
@@ -40,12 +46,11 @@ fn shared_handle(handle: JoinHandle<()>) -> SharedJoinHandle {
     handle.map_err(Arc::new).boxed().shared()
 }
 
-/// Implementation of the `CompactorHandler` trait (that currently does nothing)
+/// Implementation of the `CompactorHandler` trait
 #[derive(Debug)]
 pub struct CompactorHandlerImpl {
-    /// Data to compact
-    #[allow(dead_code)]
-    compactor_data: Arc<Compactor>,
+    /// Management of all data relevant to compaction
+    compactor: Arc<Compactor>,
 
     /// A token that is used to trigger shutdown of the background worker
     shutdown: CancellationToken,
@@ -59,21 +64,19 @@ pub struct CompactorHandlerImpl {
 
 impl CompactorHandlerImpl {
     /// Initialize the Compactor
-    pub fn new(compactor: Compactor) -> Self {
-        let compactor_data = Arc::new(compactor);
-
+    pub fn new(compactor: Arc<Compactor>) -> Self {
         let shutdown = CancellationToken::new();
         let runner_handle = tokio::task::spawn(run_compactor(
-            Arc::clone(&compactor_data),
+            Arc::clone(&compactor),
             shutdown.child_token(),
         ));
         let runner_handle = shared_handle(runner_handle);
-        info!("compactor started with config {:?}", compactor_data.config);
+        info!("compactor started with config {:?}", compactor.config);
 
-        let exec = Arc::clone(&compactor_data.exec);
+        let exec = Arc::clone(&compactor.exec);
 
         Self {
-            compactor_data,
+            compactor,
             shutdown,
             runner_handle,
             exec,
@@ -130,13 +133,22 @@ pub struct CompactorConfig {
 
     /// Minimum number of rows allocated for each record batch fed into DataFusion plan
     ///
-    /// We will use max(parquet_file's row_count, min_num_rows_allocated_per_record_batch_to_datafusion_plan)
+    /// We will use:
+    ///
+    /// ```text
+    /// max(
+    ///     parquet_file's row_count,
+    ///     min_num_rows_allocated_per_record_batch_to_datafusion_plan
+    /// )
+    /// ```
+    ///
     /// to estimate number of rows allocated for each record batch fed into DataFusion plan.
     pub min_num_rows_allocated_per_record_batch_to_datafusion_plan: u64,
 
     /// Max number of files to compact per partition
     ///
-    /// Due to limit in fan-in of datafusion plan, we need to limit the number of files to compact per partition.
+    /// Due to limit in fan-in of datafusion plan, we need to limit the number of files to compact
+    /// per partition.
     pub max_num_compacting_files: usize,
 }
 
@@ -188,8 +200,28 @@ pub async fn run_compactor_once(compactor: Arc<Compactor>) {
     );
 }
 
+#[derive(Debug, Error)]
+#[allow(missing_copy_implementations, missing_docs)]
+pub enum ListSkippedCompactionsError {
+    #[error(transparent)]
+    SkippedCompactionLookup(iox_catalog::interface::Error),
+}
+
 #[async_trait]
 impl CompactorHandler for CompactorHandlerImpl {
+    async fn skipped_compactions(
+        &self,
+    ) -> Result<Vec<SkippedCompaction>, ListSkippedCompactionsError> {
+        self.compactor
+            .catalog
+            .repositories()
+            .await
+            .partitions()
+            .list_skipped_compactions()
+            .await
+            .map_err(ListSkippedCompactionsError::SkippedCompactionLookup)
+    }
+
     async fn join(&self) {
         self.runner_handle
             .clone()
@@ -210,5 +242,45 @@ impl Drop for CompactorHandlerImpl {
             warn!("CompactorHandlerImpl dropped without calling shutdown()");
             self.shutdown.cancel();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tests::{test_setup, TestSetup};
+
+    #[tokio::test]
+    async fn list_skipped_compactions() {
+        let TestSetup {
+            compactor,
+            table,
+            shard,
+            ..
+        } = test_setup().await;
+
+        let compactor_handler = CompactorHandlerImpl::new(Arc::clone(&compactor));
+
+        // no skipped compactions
+        let skipped_compactions = compactor_handler.skipped_compactions().await.unwrap();
+        assert!(
+            skipped_compactions.is_empty(),
+            "Expected no compactions, got {skipped_compactions:?}"
+        );
+
+        // insert a partition and a skipped compaction
+        let partition = table.with_shard(&shard).create_partition("one").await;
+        {
+            let mut repos = compactor.catalog.repositories().await;
+            repos
+                .partitions()
+                .record_skipped_compaction(partition.partition.id, "Not today", 3, 2, 100_000, 100)
+                .await
+                .unwrap()
+        }
+
+        let skipped_compactions = compactor_handler.skipped_compactions().await.unwrap();
+        assert_eq!(skipped_compactions.len(), 1);
+        assert_eq!(skipped_compactions[0].partition_id, partition.partition.id);
     }
 }
