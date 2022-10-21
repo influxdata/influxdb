@@ -79,7 +79,7 @@ fn create_table(skipped_compactions: &[SkippedCompaction]) -> Table {
     table.set_header(headers);
 
     for skipped_compaction in skipped_compactions {
-        let timestamp = Time::from_timestamp_nanos(skipped_compaction.skipped_at);
+        let timestamp = Time::from_timestamp(skipped_compaction.skipped_at, 0);
 
         table.add_row(vec![
             Cell::new(skipped_compaction.partition_id.to_string()),
