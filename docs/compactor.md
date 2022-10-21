@@ -144,6 +144,30 @@ To deduplicate data correctly, the Compactor must compact level-0 files in ascen
 
 If you find your queries on data of a partition that is in `skipped_compactions` are slow, we may want to force the Compactor to compact that partition by increasing your memory budget and then removing that partition from the `skipped_compactions` table. If you remove the partition without adjusting your config params, the Compactor will skip it again without compacting it.
 
+To list the records in the `skipped_compactions` table, get the gRPC address of a compactor and use this command:
+
+```
+$ influxdb_iox debug skipped-compactions list -h <compactor gRPC address>
+```
+
+and you'll see a list of the records similar to this:
+
+```
++--------------+--------------------+-------------------------------------+-----------------+-------------+-----------+-----------------+
+| partition_id | reason             | skipped_at                          | estimated_bytes | limit_bytes | num_files | limit_num_files |
++--------------+--------------------+-------------------------------------+-----------------+-------------+-----------+-----------------+
+| 51           | over memory budget | 2023-01-01T00:00:00.000000003+00:00 | 10000           | 500         | 10        | 8               |
++--------------+--------------------+-------------------------------------+-----------------+-------------+-----------+-----------------+
+```
+
+To remove a partition from the `skipped_compactions` table to attempt compaction on that partition again, use this command with the gRPC address of a compactor and the `partition_id` of the partition whose record you'd like to delete:
+
+```
+$ influxdb_iox debug skipped-compactions delete -h <compactor gRPC address> <partition ID>
+```
+
+If the record was removed successfully, this command will print it out.
+
 Increasing the memory budget can be as simple as increasing your actual memory size and then increasing the value of `INFLUXDB_IOX_COMPACTION_MEMORY_BUDGET_BYTES` accordingly. You can also try to reduce the value of `INFLUXDB_IOX_COMPACTION_MIN_ROWS_PER_RECORD_BATCH_TO_PLAN` to at minimum 8 * 1024 but you may hit OOMs if you do so. This depends on the column types and number of columns of your files.
 
 If your partition is put into the `skipped_compactions` table with the reason `over limit of num files`, you have to increase `INFLUXDB_IOX_COMPACTION_MAX_COMPACTING_FILES` accordingly but you may hit OOMs if you do not increase your actual memory.
