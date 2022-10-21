@@ -1,6 +1,9 @@
 /// Client for interacting with a remote catalog
 pub mod catalog;
 
+/// Client for the compactor API
+pub mod compactor;
+
 /// Client for delete API
 pub mod delete;
 
@@ -19,9 +22,6 @@ pub mod namespace;
 
 /// Client for schema API
 pub mod schema;
-
-/// Client for the skipped compactions API
-pub mod skipped_compactions;
 
 /// Client for interacting with a remote object store
 pub mod store;

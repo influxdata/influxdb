@@ -3,7 +3,7 @@
 use crate::handler::{CompactorHandler, ListSkippedCompactionsError};
 use generated_types::influxdata::iox::compactor::v1::{
     self as proto,
-    skipped_compaction_service_server::{SkippedCompactionService, SkippedCompactionServiceServer},
+    compaction_service_server::{CompactionService, CompactionServiceServer},
 };
 use std::sync::Arc;
 use tonic::{Request, Response};
@@ -21,22 +21,20 @@ impl<I: CompactorHandler + Send + Sync + 'static> GrpcDelegate<I> {
         Self { compactor_handler }
     }
 
-    /// Acquire a SkippedCompaction gRPC service implementation.
-    pub fn skipped_compaction_service(
-        &self,
-    ) -> SkippedCompactionServiceServer<impl SkippedCompactionService> {
-        SkippedCompactionServiceServer::new(SkippedCompactionServiceImpl::new(Arc::clone(
-            &self.compactor_handler,
-        ) as _))
+    /// Acquire a Compaction gRPC service implementation.
+    pub fn compaction_service(&self) -> CompactionServiceServer<impl CompactionService> {
+        CompactionServiceServer::new(CompactionServiceImpl::new(
+            Arc::clone(&self.compactor_handler) as _,
+        ))
     }
 }
 
 /// Implementation of skipped compaction
-struct SkippedCompactionServiceImpl {
+struct CompactionServiceImpl {
     handler: Arc<dyn CompactorHandler + Send + Sync + 'static>,
 }
 
-impl SkippedCompactionServiceImpl {
+impl CompactionServiceImpl {
     pub fn new(handler: Arc<dyn CompactorHandler + Send + Sync + 'static>) -> Self {
         Self { handler }
     }
@@ -54,7 +52,7 @@ impl From<ListSkippedCompactionsError> for tonic::Status {
 }
 
 #[tonic::async_trait]
-impl SkippedCompactionService for SkippedCompactionServiceImpl {
+impl CompactionService for CompactionServiceImpl {
     async fn list_skipped_compactions(
         &self,
         _request: Request<proto::ListSkippedCompactionsRequest>,

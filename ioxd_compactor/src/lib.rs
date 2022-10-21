@@ -87,7 +87,7 @@ impl<C: CompactorHandler + std::fmt::Debug + 'static> ServerType for CompactorSe
     /// Provide a placeholder gRPC service.
     async fn server_grpc(self: Arc<Self>, builder_input: RpcBuilderInput) -> Result<(), RpcError> {
         let builder = setup_builder!(builder_input, self);
-        add_service!(builder, self.server.grpc().skipped_compaction_service());
+        add_service!(builder, self.server.grpc().compaction_service());
         serve_builder!(builder);
 
         Ok(())

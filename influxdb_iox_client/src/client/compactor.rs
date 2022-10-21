@@ -1,4 +1,4 @@
-use self::generated_types::{skipped_compaction_service_client::SkippedCompactionServiceClient, *};
+use self::generated_types::{compaction_service_client::CompactionServiceClient, *};
 use crate::{connection::Connection, error::Error};
 use client_util::connection::GrpcConnection;
 
@@ -7,17 +7,17 @@ pub mod generated_types {
     pub use generated_types::influxdata::iox::compactor::v1::*;
 }
 
-/// A basic client for fetching the Schema for a Namespace.
+/// A basic client for interacting with the compaction service.
 #[derive(Debug, Clone)]
 pub struct Client {
-    inner: SkippedCompactionServiceClient<GrpcConnection>,
+    inner: CompactionServiceClient<GrpcConnection>,
 }
 
 impl Client {
     /// Creates a new client with the provided connection
     pub fn new(connection: Connection) -> Self {
         Self {
-            inner: SkippedCompactionServiceClient::new(connection.into_grpc_connection()),
+            inner: CompactionServiceClient::new(connection.into_grpc_connection()),
         }
     }
 

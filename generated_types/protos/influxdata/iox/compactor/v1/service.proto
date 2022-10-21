@@ -2,7 +2,7 @@ syntax = "proto3";
 package influxdata.iox.compactor.v1;
 option go_package = "github.com/influxdata/iox/compactor/v1";
 
-service SkippedCompactionService {
+service CompactionService {
   // List all skipped compactions in the catalog
   rpc ListSkippedCompactions(ListSkippedCompactionsRequest) returns (ListSkippedCompactionsResponse);
 }

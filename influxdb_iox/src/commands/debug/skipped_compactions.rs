@@ -1,6 +1,6 @@
 //! This module implements the `skipped-compactions` CLI command
 
-use influxdb_iox_client::{connection::Connection, skipped_compactions};
+use influxdb_iox_client::{compactor, connection::Connection};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -27,7 +27,7 @@ enum Command {
 }
 
 pub async fn command(connection: Connection, config: Config) -> Result<(), Error> {
-    let mut client = skipped_compactions::Client::new(connection);
+    let mut client = compactor::Client::new(connection);
     match config.command {
         Command::List => {
             let skipped_compactions = client.skipped_compactions().await?;
