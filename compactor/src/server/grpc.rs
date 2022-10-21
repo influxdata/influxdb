@@ -44,8 +44,12 @@ impl SkippedCompactionServiceImpl {
 
 impl From<ListSkippedCompactionsError> for tonic::Status {
     /// Logs and converts a result from the business logic into the appropriate tonic status
-    fn from(_err: ListSkippedCompactionsError) -> Self {
-        Self::unimplemented("Not yet implemented")
+    fn from(err: ListSkippedCompactionsError) -> Self {
+        use ListSkippedCompactionsError::*;
+
+        match err {
+            SkippedCompactionLookup(_) => Self::internal(err.to_string()),
+        }
     }
 }
 
