@@ -1,4 +1,5 @@
-//! A writfield1 buffer, with one or more snapshots.
+//! An immutable buffer, containing one or more snapshots in an efficient query
+//! format.
 
 use std::sync::Arc;
 

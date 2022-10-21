@@ -1,4 +1,4 @@
-//! A writfield1 buffer, with one or more snapshots.
+//! A mutable buffer, containing one or more snapshots.
 
 use std::sync::Arc;
 
