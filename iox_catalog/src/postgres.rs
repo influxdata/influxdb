@@ -1289,6 +1289,23 @@ SELECT * FROM skipped_compactions
         .context(interface::CouldNotListSkippedCompactionsSnafu)
     }
 
+    async fn delete_skipped_compactions(
+        &mut self,
+        partition_id: PartitionId,
+    ) -> Result<Option<SkippedCompaction>> {
+        sqlx::query_as::<_, SkippedCompaction>(
+            r#"
+DELETE FROM skipped_compactions
+WHERE partition_id = $1
+RETURNING *
+        "#,
+        )
+        .bind(partition_id)
+        .fetch_optional(&mut self.inner)
+        .await
+        .context(interface::CouldNotDeleteSkippedCompactionsSnafu)
+    }
+
     async fn update_persisted_sequence_number(
         &mut self,
         partition_id: PartitionId,

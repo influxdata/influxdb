@@ -126,6 +126,9 @@ pub enum Error {
 
     #[snafu(display("could not list skipped compactions: {source}"))]
     CouldNotListSkippedCompactions { source: sqlx::Error },
+
+    #[snafu(display("could not delete skipped compactions: {source}"))]
+    CouldNotDeleteSkippedCompactions { source: sqlx::Error },
 }
 
 /// A specialized `Error` for Catalog errors
@@ -464,6 +467,12 @@ pub trait PartitionRepo: Send + Sync {
 
     /// List the records of compacting a partition being skipped. This is mostly useful for testing.
     async fn list_skipped_compactions(&mut self) -> Result<Vec<SkippedCompaction>>;
+
+    /// Delete the records of skipping a partition being compacted.
+    async fn delete_skipped_compactions(
+        &mut self,
+        partition_id: PartitionId,
+    ) -> Result<Option<SkippedCompaction>>;
 
     /// Update the per-partition persistence watermark.
     ///
@@ -1581,6 +1590,37 @@ pub(crate) mod test_helpers {
         assert_eq!(skipped_compactions[0].limit_num_files, 12);
         assert_eq!(skipped_compactions[0].estimated_bytes, 110);
         assert_eq!(skipped_compactions[0].limit_bytes, 120);
+
+        let deleted_skipped_compaction = repos
+            .partitions()
+            .delete_skipped_compactions(other_partition.id)
+            .await
+            .unwrap()
+            .expect("The skipped compaction should have been returned");
+
+        assert_eq!(deleted_skipped_compaction.partition_id, other_partition.id);
+        assert_eq!(deleted_skipped_compaction.reason, "I'm on fire");
+        assert_eq!(deleted_skipped_compaction.num_files, 11);
+        assert_eq!(deleted_skipped_compaction.limit_num_files, 12);
+        assert_eq!(deleted_skipped_compaction.estimated_bytes, 110);
+        assert_eq!(deleted_skipped_compaction.limit_bytes, 120);
+
+        let not_deleted_skipped_compaction = repos
+            .partitions()
+            .delete_skipped_compactions(other_partition.id)
+            .await
+            .unwrap();
+
+        assert!(
+            not_deleted_skipped_compaction.is_none(),
+            "There should be no skipped compation",
+        );
+
+        let skipped_compactions = repos.partitions().list_skipped_compactions().await.unwrap();
+        assert!(
+            skipped_compactions.is_empty(),
+            "Expected no skipped compactions, got: {skipped_compactions:?}"
+        );
 
         // Test setting and reading the per-partition persistence numbers
         let partition = repos
