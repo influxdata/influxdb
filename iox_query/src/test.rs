@@ -108,54 +108,27 @@ impl QueryDatabase for TestDatabase {
         &self,
         table_name: &str,
         predicate: &Predicate,
-        projection: &Option<Vec<usize>>,
+        _projection: &Option<Vec<usize>>,
         _ctx: IOxSessionContext,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         // save last predicate
         *self.chunks_predicate.lock() = predicate.clone();
 
         let partitions = self.partitions.lock().clone();
-        let chunks = partitions
+        Ok(partitions
             .values()
             .flat_map(|x| x.values())
-            .filter(|x| x.table_name == table_name)
+            // filter by table
+            .filter(|c| c.table_name == table_name)
+            // only keep chunks if their statistics overlap
+            .filter(|c| {
+                !matches!(
+                    predicate.apply_to_table_summary(&c.table_summary, c.schema.as_arrow()),
+                    PredicateMatch::Zero
+                )
+            })
             .map(|x| Arc::clone(x) as Arc<dyn QueryChunk>)
-            .collect::<Vec<_>>();
-
-        // Return chunks with fewer columns if a projection is specified
-        let mut new_chunks = Vec::with_capacity(chunks.len());
-        for c in chunks {
-            let schema = c.schema();
-            let cols = schema.select_given_and_pk_columns(projection);
-            let cols = cols.iter().map(|c| c.as_str()).collect::<Vec<_>>();
-            let selection = Selection::Some(&cols);
-
-            let read_result =
-                c.read_filter(IOxSessionContext::with_testing(), predicate, selection);
-            if read_result.is_err() {
-                return Err(read_result.err().unwrap());
-            }
-            let mut stream = read_result.unwrap();
-
-            let mut new_chunk = TestChunk::new(c.table_name());
-            while let Some(b) = stream.next().await {
-                let b = b.expect("Error in stream");
-                new_chunk.table_data.push(Arc::new(b));
-            }
-
-            let new_chunk = if !new_chunk.table_data.is_empty() {
-                let new_schema = Schema::try_from(new_chunk.table_data[0].schema()).unwrap();
-                let new_chunk = new_chunk.add_schema_to_table(new_schema, true, None);
-                Arc::new(new_chunk) as _
-            } else {
-                // No data, return the original empty chunk with the original schema
-                c
-            };
-
-            new_chunks.push(new_chunk);
-        }
-
-        Ok(new_chunks)
+            .collect::<Vec<_>>())
     }
 
     fn record_query(
