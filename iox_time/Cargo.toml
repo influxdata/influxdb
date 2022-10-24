@@ -1,8 +1,10 @@
 [package]
 name = "iox_time"
-version = "0.1.0"
-edition = "2021"
 description = "Time functionality for IOx"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 chrono = { version = "0.4.22", default-features = false, features = ["clock", "std"] }

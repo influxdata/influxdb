@@ -1,7 +1,9 @@
 [package]
 name = "clap_blocks"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 clap = { version = "4", features = ["derive", "env"] }

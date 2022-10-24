@@ -1,8 +1,10 @@
 [package]
 name = "mutable_batch_tests"
-version = "0.1.0"
-edition = "2021"
 description = "MutableBatch integration tests and benchmarks"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 dml = { path = "../dml" }

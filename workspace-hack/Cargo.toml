@@ -4,9 +4,12 @@
 
 [package]
 name = "workspace-hack"
-version = "0.1.0"
 description = "workspace-hack package, managed by hakari"
 publish = false
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 # The parts of the file between the BEGIN HAKARI SECTION and END HAKARI SECTION comments
 # are managed by hakari.

@@ -1,12 +1,12 @@
 [package]
 name = "trace_http"
-version = "0.1.0"
-authors = ["Raphael Taylor-Davies <r.taylordavies@googlemail.com>"]
-edition = "2021"
 description = "Distributed tracing support for HTTP services"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
-
 trace = { path = "../trace" }
 futures = "0.3"
 hashbrown = "0.12"

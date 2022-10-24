@@ -1,8 +1,10 @@
 [package]
 name = "mutable_batch"
-version = "0.1.0"
-edition = "2021"
 description = "A mutable arrow RecordBatch"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 arrow = { version = "25.0.0", features = ["prettyprint"] }

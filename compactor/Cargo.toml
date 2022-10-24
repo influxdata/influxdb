@@ -1,8 +1,9 @@
 [package]
 name = "compactor"
-version = "0.1.0"
-authors = ["Luke Bond <luke.n.bond@gmail.com>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 arrow = { version = "25.0.0", features = ["prettyprint"] }

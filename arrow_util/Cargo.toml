@@ -1,9 +1,10 @@
 [package]
 name = "arrow_util"
-version = "0.1.0"
-authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
-edition = "2021"
 description = "Apache Arrow utilities"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 ahash = { version = "0.8.0", default-features = false, features = ["runtime-rng"] }

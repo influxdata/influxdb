@@ -1,12 +1,12 @@
 [package]
 name = "tracker"
-version = "0.1.0"
-authors = ["Raphael Taylor-Davies <r.taylordavies@googlemail.com>"]
-edition = "2021"
 description = "Utilities for tracking resource utilisation within IOx"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
-
 futures = "0.3"
 hashbrown = "0.12"
 lock_api = "0.4.9"

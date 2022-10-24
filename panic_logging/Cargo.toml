@@ -1,8 +1,9 @@
 [package]
 name = "panic_logging"
-version = "0.1.0"
-authors = ["Paul Dix <paul@pauldix.net>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies] # In alphabetical order
 metric = { path = "../metric" }

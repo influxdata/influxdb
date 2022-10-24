@@ -1,9 +1,10 @@
 [package]
 name = "client_util"
-version = "0.1.0"
-authors = ["Raphael Taylor-Davies <r.taylordavies@googlemail.com>"]
 description = "Shared code for IOx clients"
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 http = "0.2.8"

@@ -1,8 +1,9 @@
 [package]
 name = "ingester"
-version = "0.1.0"
-authors = ["Nga Tran <nga-tran@live.com>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 arrow = { version = "25.0.0", features = ["prettyprint"] }

@@ -1,9 +1,10 @@
 [package]
 name = "iox_data_generator"
-version = "0.1.0"
-authors = ["Paul Dix <paul@pauldix.net>"]
-edition = "2021"
 default-run = "iox_data_generator"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 bytes = "1.2"

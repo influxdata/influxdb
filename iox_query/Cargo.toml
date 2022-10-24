@@ -1,9 +1,10 @@
 [package]
 name = "iox_query"
-version = "0.1.0"
-authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
-edition = "2021"
 description = "IOx Query Interface and Executor"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 # This crate is designed to be independent of the rest of the IOx
 # server and specific storage systems such as Mutable Buffer and Read Buffer.

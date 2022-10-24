@@ -1,7 +1,9 @@
 [package]
 name = "ioxd_common"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 # Optional feature 'pprof' enables http://localhost:8080/debug/pprof/profile support support
 
