@@ -7,7 +7,7 @@ license.workspace = true
 
 [dependencies]
 arrow = { workspace = true, features = ["prettyprint"] }
-arrow-flight = "25.0.0"
+arrow-flight = { workspace = true }
 arrow_util = { path = "../arrow_util" }
 async-trait = "0.1.58"
 backoff = { path = "../backoff" }

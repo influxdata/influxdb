@@ -12,7 +12,7 @@ format = ["arrow", "arrow_util"]
 
 [dependencies]
 arrow = { workspace = true, optional = true }
-arrow-flight = { version = "25.0.0", optional = true }
+arrow-flight = { workspace = true, optional = true }
 arrow_util = { path = "../arrow_util", optional = true }
 bytes = "1.2"
 client_util = { path = "../client_util" }

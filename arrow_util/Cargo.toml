@@ -20,5 +20,5 @@ snafu = "0.7"
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
-arrow-flight = "25.0.0"
+arrow-flight = { workspace = true }
 rand = "0.8.3"
