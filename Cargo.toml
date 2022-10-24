@@ -8,7 +8,6 @@ members = [
     "client_util",
     "compactor",
     "data_types",
-    "datafusion",
     "datafusion_util",
     "dml",
     "executor",
@@ -107,6 +106,10 @@ version = "0.1.0"
 authors = ["IOx Project Developers"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="48f73c6af3b0cc747c38b4a9c7a610f4630e8736", default-features = false }
+datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="48f73c6af3b0cc747c38b4a9c7a610f4630e8736" }
 
 # This profile optimizes for runtime performance and small binary size at the expense of longer
 # build times. It's most suitable for final release builds.

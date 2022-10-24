@@ -1,6 +1,7 @@
 use crate::{google::FieldViolation, influxdata::iox::ingester::v1 as proto};
 use data_types::TimestampRange;
-use datafusion::{common::DataFusionError, datafusion_proto::bytes::Serializeable, prelude::Expr};
+use datafusion::{common::DataFusionError, prelude::Expr};
+use datafusion_proto::bytes::Serializeable;
 use predicate::{Predicate, ValueExpr};
 use prost::Message;
 use snafu::{ResultExt, Snafu};

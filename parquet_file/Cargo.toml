@@ -10,7 +10,7 @@ arrow = { version = "25.0.0", features = ["prettyprint"] }
 base64 = "0.13"
 bytes = "1.2"
 data_types = { path = "../data_types" }
-datafusion = { path = "../datafusion" }
+datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }

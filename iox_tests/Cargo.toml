@@ -10,7 +10,7 @@ license.workspace = true
 arrow = "25.0.0"
 bytes = "1.2"
 data_types = { path = "../data_types" }
-datafusion = { path = "../datafusion" }
+datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }
 iox_catalog = { path = "../iox_catalog" }
 iox_time = { path = "../iox_time" }

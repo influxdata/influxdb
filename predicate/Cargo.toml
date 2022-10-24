@@ -9,7 +9,7 @@ license.workspace = true
 arrow = { version = "25.0.0", features = ["prettyprint"] }
 chrono = { version = "0.4", default-features = false }
 data_types = { path = "../data_types" }
-datafusion = { path = "../datafusion" }
+datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }
 itertools = "0.10"
 observability_deps = { path = "../observability_deps" }

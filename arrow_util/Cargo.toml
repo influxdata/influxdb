@@ -13,7 +13,7 @@ arrow = { version = "25.0.0", features = ["prettyprint", "dyn_cmp_dict"] }
 # used by arrow anyway (needed for printing workaround)
 chrono = { version = "0.4", default-features = false }
 comfy-table = { version = "6.1", default-features = false }
-datafusion = { path = "../datafusion" }
+datafusion = { workspace = true }
 hashbrown = "0.12"
 num-traits = "0.2"
 snafu = "0.7"

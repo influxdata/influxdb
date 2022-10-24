@@ -8,7 +8,7 @@ license.workspace = true
 
 [dependencies]
 async-trait = "0.1"
-datafusion = { path = "../datafusion" }
+datafusion = { workspace = true }
 futures = "0.3"
 observability_deps = { path = "../observability_deps" }
 pin-project = "1.0"

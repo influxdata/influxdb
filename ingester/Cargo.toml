@@ -12,7 +12,7 @@ arrow_util = { path = "../arrow_util" }
 async-trait = "0.1.58"
 backoff = { path = "../backoff" }
 bytes = "1.2"
-datafusion = { path = "../datafusion" }
+datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }
 data_types = { path = "../data_types" }
 flatbuffers = "2.1.2"

@@ -13,7 +13,7 @@ bytes = "1.2"
 cache_system = { path = "../cache_system" }
 client_util = { path = "../client_util" }
 data_types = { path = "../data_types" }
-datafusion = { path = "../datafusion" }
+datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }

@@ -5,17 +5,14 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
-[dependencies]
-# Workspace dependencies, in alphabetical order
-datafusion = { path = "../datafusion" }
-predicate = { path = "../predicate" }
+[dependencies] # In alphabetical order
+async-trait = "0.1.58"
+datafusion = { workspace = true }
 iox_query = { path = "../iox_query" }
 metric = { path = "../metric" }
 parking_lot = "0.12"
+predicate = { path = "../predicate" }
+tonic = "0.8"
 trace = { path = "../trace" }
 tracker = { path = "../tracker" }
-tonic = "0.8"
 workspace-hack = { path = "../workspace-hack"}
-
-# Crates.io dependencies, in alphabetical order
-async-trait = "0.1.58"
