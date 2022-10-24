@@ -288,10 +288,15 @@ mod tests {
         let schema = SchemaBuilder::new()
             .tag("tag")
             .field("str", DataType::Utf8)
+            .unwrap()
             .field("int", DataType::Int64)
+            .unwrap()
             .field("uint", DataType::UInt64)
+            .unwrap()
             .field("float", DataType::Float64)
+            .unwrap()
             .field("bool", DataType::Boolean)
+            .unwrap()
             .build()
             .unwrap();
 

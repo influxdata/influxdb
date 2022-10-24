@@ -1026,8 +1026,11 @@ mod test {
     fn test_sort_fields_by_name_already_sorted() {
         let schema = SchemaBuilder::new()
             .field("field_a", ArrowDataType::Int64)
+            .unwrap()
             .field("field_b", ArrowDataType::Int64)
+            .unwrap()
             .field("field_c", ArrowDataType::Int64)
+            .unwrap()
             .build()
             .unwrap();
 
@@ -1044,8 +1047,11 @@ mod test {
     fn test_sort_fields_by_name() {
         let schema = SchemaBuilder::new()
             .field("field_b", ArrowDataType::Int64)
+            .unwrap()
             .field("field_a", ArrowDataType::Int64)
+            .unwrap()
             .field("field_c", ArrowDataType::Int64)
+            .unwrap()
             .build()
             .unwrap();
 
@@ -1053,8 +1059,11 @@ mod test {
 
         let expected_schema = SchemaBuilder::new()
             .field("field_a", ArrowDataType::Int64)
+            .unwrap()
             .field("field_b", ArrowDataType::Int64)
+            .unwrap()
             .field("field_c", ArrowDataType::Int64)
+            .unwrap()
             .build()
             .unwrap();
 

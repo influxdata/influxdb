@@ -85,6 +85,7 @@ async fn list_schema_cpu_all() {
         .tag("region")
         .timestamp()
         .field("user", DataType::Float64)
+        .unwrap()
         .build()
         .unwrap();
 
@@ -107,6 +108,7 @@ async fn list_schema_cpu_all_set_sort_key() {
         .tag("region")
         .timestamp()
         .field("user", DataType::Float64)
+        .unwrap()
         .build()
         .unwrap();
 
@@ -127,6 +129,7 @@ async fn list_schema_disk_all() {
     // we expect columns to come out in lexicographic order by name
     let expected_schema = SchemaBuilder::new()
         .field("bytes", DataType::Int64)
+        .unwrap()
         .tag("region")
         .timestamp()
         .build()
@@ -146,6 +149,7 @@ async fn list_schema_disk_all() {
 async fn list_schema_cpu_selection() {
     let expected_schema = SchemaBuilder::new()
         .field("user", DataType::Float64)
+        .unwrap()
         .tag("region")
         .build()
         .unwrap();
@@ -162,6 +166,7 @@ async fn list_schema_disk_selection() {
     let expected_schema = SchemaBuilder::new()
         .timestamp()
         .field("bytes", DataType::Int64)
+        .unwrap()
         .build()
         .unwrap();
 
@@ -176,6 +181,7 @@ async fn list_schema_location_all() {
     // we expect columns to come out in lexicographic order by name
     let expected_schema = SchemaBuilder::new()
         .field("count", DataType::UInt64)
+        .unwrap()
         .timestamp()
         .tag("town")
         .build()

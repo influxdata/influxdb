@@ -908,7 +908,9 @@ mod tests {
                         .tag("t2")
                         .tag("host")
                         .field("foo", DataType::Int64)
+                        .unwrap()
                         .field("bar", DataType::Int64)
+                        .unwrap()
                         .build()
                         .unwrap();
 
@@ -918,6 +920,7 @@ mod tests {
                     let schema = SchemaBuilder::new()
                         .tag("t3")
                         .field("baz", DataType::Int64)
+                        .unwrap()
                         .build()
                         .unwrap();
 

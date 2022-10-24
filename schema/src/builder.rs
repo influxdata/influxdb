@@ -70,34 +70,34 @@ impl SchemaBuilder {
     pub fn influx_column(&mut self, column_name: &str, column_type: InfluxColumnType) -> &mut Self {
         match column_type {
             InfluxColumnType::Tag => self.tag(column_name),
-            InfluxColumnType::Field(influx_field_type) => {
-                self.field(column_name, influx_field_type.into())
-            }
+            InfluxColumnType::Field(influx_field_type) => self
+                .field(column_name, influx_field_type.into())
+                .expect("just converted this from a valid type"),
             InfluxColumnType::Timestamp => self.timestamp(),
         }
     }
 
     /// Add a new nullable field column with the specified Arrow datatype.
-    pub fn field(&mut self, column_name: &str, arrow_type: ArrowDataType) -> &mut Self {
-        let influxdb_column_type = arrow_type
-            .clone()
-            .try_into()
-            .map(InfluxColumnType::Field)
-            .ok();
+    pub fn field(
+        &mut self,
+        column_name: &str,
+        arrow_type: ArrowDataType,
+    ) -> Result<&mut Self, &'static str> {
+        let influxdb_column_type = arrow_type.clone().try_into().map(InfluxColumnType::Field)?;
 
-        self.add_column(column_name, true, influxdb_column_type, arrow_type)
+        Ok(self.add_column(column_name, true, Some(influxdb_column_type), arrow_type))
     }
 
     /// Add a new field column with the specified Arrow datatype that can not be
     /// null
-    pub fn non_null_field(&mut self, column_name: &str, arrow_type: ArrowDataType) -> &mut Self {
-        let influxdb_column_type = arrow_type
-            .clone()
-            .try_into()
-            .map(InfluxColumnType::Field)
-            .ok();
+    pub fn non_null_field(
+        &mut self,
+        column_name: &str,
+        arrow_type: ArrowDataType,
+    ) -> Result<&mut Self, &'static str> {
+        let influxdb_column_type = arrow_type.clone().try_into().map(InfluxColumnType::Field)?;
 
-        self.add_column(column_name, false, influxdb_column_type, arrow_type)
+        Ok(self.add_column(column_name, false, Some(influxdb_column_type), arrow_type))
     }
 
     /// Add the InfluxDB data model timestamp column
@@ -241,8 +241,9 @@ mod test {
     fn test_builder_field() {
         let s = SchemaBuilder::new()
             .field("the_influx_field", ArrowDataType::Float64)
-            // can't represent with lp
-            .field("the_no_influx_field", ArrowDataType::Decimal128(10, 0))
+            .unwrap()
+            .field("the_other_influx_field", ArrowDataType::Int64)
+            .unwrap()
             .build()
             .unwrap();
 
@@ -253,10 +254,10 @@ mod test {
         assert_eq!(influxdb_column_type, Some(Field(Float)));
 
         let (influxdb_column_type, field) = s.field(1);
-        assert_eq!(field.name(), "the_no_influx_field");
-        assert_eq!(field.data_type(), &ArrowDataType::Decimal128(10, 0));
+        assert_eq!(field.name(), "the_other_influx_field");
+        assert_eq!(field.data_type(), &ArrowDataType::Int64);
         assert!(field.is_nullable());
-        assert_eq!(influxdb_column_type, None);
+        assert_eq!(influxdb_column_type, Some(Field(Integer)));
 
         assert_eq!(s.len(), 2);
     }
@@ -281,8 +282,9 @@ mod test {
     fn test_builder_non_field() {
         let s = SchemaBuilder::new()
             .non_null_field("the_influx_field", ArrowDataType::Float64)
-            // can't represent with lp
-            .non_null_field("the_no_influx_field", ArrowDataType::Decimal128(10, 0))
+            .unwrap()
+            .non_null_field("the_other_influx_field", ArrowDataType::Int64)
+            .unwrap()
             .build()
             .unwrap();
 
@@ -293,10 +295,10 @@ mod test {
         assert_eq!(influxdb_column_type, Some(Field(Float)));
 
         let (influxdb_column_type, field) = s.field(1);
-        assert_eq!(field.name(), "the_no_influx_field");
-        assert_eq!(field.data_type(), &ArrowDataType::Decimal128(10, 0));
+        assert_eq!(field.name(), "the_other_influx_field");
+        assert_eq!(field.data_type(), &ArrowDataType::Int64);
         assert!(!field.is_nullable());
-        assert_eq!(influxdb_column_type, None);
+        assert_eq!(influxdb_column_type, Some(Field(Integer)));
 
         assert_eq!(s.len(), 2);
     }

@@ -2006,6 +2006,7 @@ mod test {
         // request just the field and timestamp
         let schema = SchemaBuilder::new()
             .field("field_int", DataType::Int64)
+            .unwrap()
             .timestamp()
             .build()
             .unwrap();
@@ -2101,7 +2102,9 @@ mod test {
         // request just the fields
         let schema = SchemaBuilder::new()
             .field("field_int", DataType::Int64)
+            .unwrap()
             .field("other_field_int", DataType::Int64)
+            .unwrap()
             .build()
             .unwrap();
 
@@ -2416,6 +2419,7 @@ mod test {
         // request just the field and timestamp
         let schema = SchemaBuilder::new()
             .field("field_int", DataType::Int64)
+            .unwrap()
             .timestamp()
             .build()
             .unwrap();

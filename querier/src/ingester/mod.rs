@@ -1955,6 +1955,7 @@ mod tests {
         let expected_schema = Arc::new(
             SchemaBuilder::new()
                 .field("b", DataType::Boolean)
+                .unwrap()
                 .timestamp()
                 .build()
                 .unwrap(),

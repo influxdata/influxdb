@@ -454,7 +454,9 @@ mod tests {
             .tag("t1")
             .tag("t2")
             .field("f1", DataType::Int64)
+            .unwrap()
             .field("f2", DataType::Int64)
+            .unwrap()
             .build()
             .unwrap();
 

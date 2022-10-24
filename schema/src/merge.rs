@@ -418,16 +418,16 @@ mod tests {
     #[test]
     fn test_merge_incompatible_data_types() {
         // same field name with different type
-        let schema1 = SchemaBuilder::new()
-            .field("the_field", ArrowDataType::Int16)
-            .build()
-            .unwrap();
+        let schema1 = Schema::try_from_arrow(Arc::new(arrow::datatypes::Schema::new(vec![
+            arrow::datatypes::Field::new("the_field", ArrowDataType::Int16, true),
+        ])))
+        .unwrap();
 
         // same field name with different type
-        let schema2 = SchemaBuilder::new()
-            .field("the_field", ArrowDataType::Int8)
-            .build()
-            .unwrap();
+        let schema2 = Schema::try_from_arrow(Arc::new(arrow::datatypes::Schema::new(vec![
+            arrow::datatypes::Field::new("the_field", ArrowDataType::Int8, true),
+        ])))
+        .unwrap();
 
         let merged_schema_error = SchemaMerger::new()
             .merge(&schema1)
@@ -461,12 +461,14 @@ mod tests {
     fn test_merge_incompatible_schema_nullability() {
         let schema1 = SchemaBuilder::new()
             .non_null_field("int_field", ArrowDataType::Int64)
+            .unwrap()
             .build()
             .unwrap();
 
         // same field name with different nullability
         let schema2 = SchemaBuilder::new()
             .field("int_field", ArrowDataType::Int64)
+            .unwrap()
             .build()
             .unwrap();
 
