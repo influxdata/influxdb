@@ -6,7 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-arrow = { version = "25.0.0", features = ["prettyprint"] }
+arrow = { workspace = true, features = ["prettyprint"] }
 chrono = { version = "0.4", default-features = false }
 data_types = { path = "../data_types" }
 datafusion = { workspace = true }

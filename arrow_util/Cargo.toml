@@ -9,7 +9,7 @@ license.workspace = true
 [dependencies]
 ahash = { version = "0.8.0", default-features = false, features = ["runtime-rng"] }
 # need dyn_cmp_dict feature for comparing dictionary arrays
-arrow = { version = "25.0.0", features = ["prettyprint", "dyn_cmp_dict"] }
+arrow = { workspace = true, features = ["prettyprint", "dyn_cmp_dict"] }
 # used by arrow anyway (needed for printing workaround)
 chrono = { version = "0.4", default-features = false }
 comfy-table = { version = "6.1", default-features = false }

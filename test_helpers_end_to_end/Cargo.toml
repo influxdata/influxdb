@@ -6,7 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies] # In alphabetical order
-arrow = { version = "25.0.0", features = ["prettyprint"] }
+arrow = { workspace = true, features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 assert_cmd = "2.0.5"
 bytes = "1.2"
