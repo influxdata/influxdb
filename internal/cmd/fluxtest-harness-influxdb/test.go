@@ -199,7 +199,7 @@ import "testing"
 import c "csv"
 
 option testing.load = (tables=<-) => {
-	return tables |> to(bucket: bucket, org: org)
+	return tables |> to(bucket: bucket)
 }
 `
 
