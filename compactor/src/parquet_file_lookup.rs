@@ -89,10 +89,8 @@ impl ParquetFilesForCompaction {
 
         for parquet_file in parquet_files {
             // Estimate the bytes DataFusion needs when scan this file
-            let estimated_arrow_bytes = partition.estimated_arrow_bytes(
-                min_num_rows_allocated_per_record_batch_to_datafusion_plan,
-                parquet_file.row_count,
-            );
+            let estimated_arrow_bytes = partition
+                .estimated_arrow_bytes(min_num_rows_allocated_per_record_batch_to_datafusion_plan);
             // Estimated bytes to store this file in memory
             let estimated_bytes_to_store_in_memory = 2 * parquet_file.file_size_bytes as u64;
             let parquet_file = match size_overrides.get(&parquet_file.id) {

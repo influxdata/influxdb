@@ -275,7 +275,7 @@ impl Drop for CompactorHandlerImpl {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{test_setup, TestSetup};
+    use crate::tests::{test_setup_with_default_budget, TestSetup};
 
     #[tokio::test]
     async fn list_skipped_compactions() {
@@ -284,7 +284,7 @@ mod tests {
             table,
             shard,
             ..
-        } = test_setup().await;
+        } = test_setup_with_default_budget().await;
 
         let compactor_handler = CompactorHandlerImpl::new(Arc::clone(&compactor));
 
@@ -318,7 +318,7 @@ mod tests {
             table,
             shard,
             ..
-        } = test_setup().await;
+        } = test_setup_with_default_budget().await;
 
         let compactor_handler = CompactorHandlerImpl::new(Arc::clone(&compactor));
 
