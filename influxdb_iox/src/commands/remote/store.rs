@@ -1,7 +1,7 @@
 //! This module implements the `remote store` CLI subcommand
 
 use futures::StreamExt;
-use influxdb_iox_client::{connection::Connection, store};
+use influxdb_iox_client::{catalog, connection::Connection, store};
 use thiserror::Error;
 use tokio::{
     fs::{self, File},
@@ -76,7 +76,40 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
             Ok(())
         }
         Command::GetTable(get_table) => {
-            fs::create_dir_all(&get_table.table).await?;
+            let directory = std::path::Path::new(&get_table.table);
+            fs::create_dir_all(&directory).await?;
+            let mut catalog_client = catalog::Client::new(connection.clone());
+            let mut store_client = store::Client::new(connection);
+
+            let parquet_files = catalog_client
+                .get_parquet_files_by_database_table(
+                    get_table.database.clone(),
+                    get_table.table.clone(),
+                )
+                .await?;
+            let num_parquet_files = parquet_files.len();
+            println!("found {num_parquet_files} Parquet files, downloading...");
+            let indexed_object_store_ids = parquet_files
+                .into_iter()
+                .map(|pf| pf.object_store_id)
+                .enumerate();
+
+            for (index, uuid) in indexed_object_store_ids {
+                let index = index + 1;
+                let filename = format!("{uuid}.parquet");
+                println!("downloading file {index} of {num_parquet_files} ({filename})...");
+                let mut response = store_client
+                    .get_parquet_file_by_object_store_id(uuid.clone())
+                    .await?;
+                let mut file = File::create(directory.join(&filename)).await?;
+                while let Some(res) = response.next().await {
+                    let res = res.unwrap();
+
+                    file.write_all(&res.data).await?;
+                }
+            }
+            println!("Done.");
+
             Ok(())
         }
     }

@@ -19,7 +19,15 @@ async fn remote_store_get_table() {
     StepTest::new(
         &mut cluster,
         vec![
+            // Persist some data
             Step::WriteLineProtocol(format!("{table_name},tag1=A,tag2=B val=42i 123456")),
+            Step::WaitForPersisted,
+            // Persist some more data for the same table in a 2nd Parquet file
+            Step::WriteLineProtocol(format!("{table_name},tag1=C,tag2=B val=9000i 789000")),
+            Step::WaitForPersisted,
+            // Persist some more data for a different table
+            Step::WriteLineProtocol(format!("{table_name}_2,tag1=A,tag2=B val=42i 123456")),
+            Step::WaitForPersisted,
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 async move {
                     let router_addr = state.cluster().router().router_grpc_base().to_string();
@@ -41,7 +49,22 @@ async fn remote_store_get_table() {
                         .assert()
                         .success();
 
-                    assert!(dir.as_ref().join(&table_name).is_dir());
+                    let table_dir = dir.as_ref().join(&table_name);
+                    assert!(table_dir.is_dir());
+                    let entries: Vec<_> = table_dir.read_dir().unwrap().flatten().collect();
+                    assert_eq!(
+                        entries.len(),
+                        2,
+                        "Expected 2 files in the directory, got: {entries:?}"
+                    );
+                    let path = entries[0].path();
+                    let extension = path.extension().unwrap();
+                    assert_eq!(
+                        "parquet",
+                        extension,
+                        "Expected filename to have extension 'parquet', got: {}",
+                        extension.to_str().unwrap()
+                    );
                 }
                 .boxed()
             })),
