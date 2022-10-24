@@ -29,12 +29,12 @@ pub struct Config {
     command: Command,
 }
 
-/// All possible subcommands for catalog
+/// All possible subcommands for remote
 #[derive(Debug, clap::Parser)]
 enum Command {
     /// Get partition data
     Partition(partition::Config),
-    /// Get parquet files from the object store
+    /// Get Parquet files from the object store
     Store(store::Config),
 }
 

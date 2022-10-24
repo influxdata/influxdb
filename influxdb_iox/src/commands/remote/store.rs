@@ -3,8 +3,10 @@
 use futures::StreamExt;
 use influxdb_iox_client::{connection::Connection, store};
 use thiserror::Error;
-use tokio::fs::File;
-use tokio::io::AsyncWriteExt;
+use tokio::{
+    fs::{self, File},
+    io::AsyncWriteExt,
+};
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
@@ -26,10 +28,10 @@ pub struct Config {
     command: Command,
 }
 
-/// Get a parquet file by its object store uuid
+/// Get a Parquet file by its object store uuid
 #[derive(Debug, clap::Parser)]
 struct Get {
-    /// The object store uuid of the parquet file
+    /// The object store uuid of the Parquet file
     #[clap(action)]
     uuid: String,
 
@@ -38,10 +40,24 @@ struct Get {
     file_name: String,
 }
 
-/// All possible subcommands for partition
+/// Get all the Parquet files for a particular database's table
+#[derive(Debug, clap::Parser)]
+struct GetTable {
+    /// The database (namespace) to get the Parquet files for
+    #[clap(action)]
+    database: String,
+
+    /// The table to get the Parquet files for
+    #[clap(action)]
+    table: String,
+}
+
+/// All possible subcommands for store
 #[derive(Debug, clap::Parser)]
 enum Command {
     Get(Get),
+
+    GetTable(GetTable),
 }
 
 pub async fn command(connection: Connection, config: Config) -> Result<(), Error> {
@@ -57,6 +73,10 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
             }
             println!("wrote data to {}", get.file_name);
 
+            Ok(())
+        }
+        Command::GetTable(get_table) => {
+            fs::create_dir_all(&get_table.table).await?;
             Ok(())
         }
     }

@@ -7,6 +7,50 @@ use predicates::prelude::*;
 use tempfile::tempdir;
 use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState};
 
+/// Get all Parquet files for a table, using the command `remote store get-table`
+#[tokio::test]
+async fn remote_store_get_table() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+    let table_name = "my_awesome_table";
+
+    let mut cluster = MiniCluster::create_shared(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!("{table_name},tag1=A,tag2=B val=42i 123456")),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let router_addr = state.cluster().router().router_grpc_base().to_string();
+                    let namespace = state.cluster().namespace().to_string();
+
+                    // Ensure files are actually written to the filesystem
+                    let dir = tempfile::tempdir().expect("could not get temporary directory");
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .current_dir(&dir)
+                        .arg("-h")
+                        .arg(&router_addr)
+                        .arg("remote")
+                        .arg("store")
+                        .arg("get-table")
+                        .arg(&namespace)
+                        .arg("my_awesome_table")
+                        .assert()
+                        .success();
+
+                    assert!(dir.as_ref().join(&table_name).is_dir());
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
 /// remote partition command and getting a parquet file from the object store and pulling the
 /// files, using these commands:
 ///
