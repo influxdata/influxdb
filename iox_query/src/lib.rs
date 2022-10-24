@@ -149,10 +149,14 @@ pub type QueryText = Box<dyn std::fmt::Display + Send + Sync>;
 #[async_trait]
 pub trait QueryDatabase: QueryDatabaseMeta + Debug + Send + Sync {
     /// Returns a set of chunks within the partition with data that may match
-    /// the provided predicate. If possible, chunks which have no rows that can
+    /// the provided predicate.
+    ///
+    /// If possible, chunks which have no rows that can
     /// possibly match the predicate may be omitted.
+    ///
     /// If projection is None, returned chunks will include all columns of its original data. Otherwise,
-    /// returned chunks will includs PK columns (tags and time) and columns specified in the projection.
+    /// returned chunks will include PK columns (tags and time) and columns specified in the projection. Projecting
+    /// chunks here is optional and a mere optimization. The query subsystem does NOT rely on it.
     async fn chunks(
         &self,
         table_name: &str,

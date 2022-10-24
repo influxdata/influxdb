@@ -2074,7 +2074,7 @@ mod tests {
         executor.join().await;
 
         ////////////////////////////
-        // Test 2: no need_fields --> only PK + columns in predicate are return
+        // Test 2: no need_fields
         let need_fields = false;
 
         let test_db = Arc::new(TestDatabase::new(Arc::clone(&executor)));
@@ -2090,14 +2090,15 @@ mod tests {
         assert_eq!(result[0].0, "h2o"); // table name
         assert_eq!(result[0].2.len(), 1); // returned chunks
 
-        // chunk schema includes  only 3 columns of the table PK + cols in predicate
+        // chunk schema includes still includes everything (the test table implementation does NOT project chunks)
         let chunk = &result[0].2[0];
         let chunk_schema = (*chunk.schema()).clone();
-        assert_eq!(chunk_schema.len(), 3);
+        assert_eq!(chunk_schema.len(), 5);
         let chunk_schema = chunk_schema.sort_fields_by_name();
         assert_eq!(chunk_schema.field(0).1.name(), "bar");
         assert_eq!(chunk_schema.field(1).1.name(), "foo");
-        assert_eq!(chunk_schema.field(2).1.name(), TIME_COLUMN_NAME);
+        assert_eq!(chunk_schema.field(2).1.name(), "i64_field");
+        assert_eq!(chunk_schema.field(3).1.name(), "i64_field_2");
         executor.join().await;
     }
 
@@ -2205,7 +2206,6 @@ mod tests {
         assert_eq!(result[0].2.len(), 1); // returned chunks
 
         // Since no data, we do not do pushdown in the test chunk.
-        // the no-data returned chunk will include all columns of the table
         let chunk = &result[0].2[0];
         let chunk_schema = (*chunk.schema()).clone();
         assert_eq!(chunk_schema.len(), 5);
@@ -2255,15 +2255,16 @@ mod tests {
         assert_eq!(result[0].0, "h2o"); // table name
         assert_eq!(result[0].2.len(), 1); // returned chunks
 
-        // chunk schema includes 4 columns: 3 cols of PK plus i64_field_2
+        // chunk schema includes everything (test table does NOT perform any projection)
         let chunk = &result[0].2[0];
         let chunk_schema = (*chunk.schema()).clone();
-        assert_eq!(chunk_schema.len(), 4);
+        assert_eq!(chunk_schema.len(), 5);
         let chunk_schema = chunk_schema.sort_fields_by_name();
         assert_eq!(chunk_schema.field(0).1.name(), "bar");
         assert_eq!(chunk_schema.field(1).1.name(), "foo");
-        assert_eq!(chunk_schema.field(2).1.name(), "i64_field_2");
-        assert_eq!(chunk_schema.field(3).1.name(), TIME_COLUMN_NAME);
+        assert_eq!(chunk_schema.field(2).1.name(), "i64_field");
+        assert_eq!(chunk_schema.field(3).1.name(), "i64_field_2");
+        assert_eq!(chunk_schema.field(4).1.name(), TIME_COLUMN_NAME);
         executor.join().await;
 
         /////////////
@@ -2287,15 +2288,16 @@ mod tests {
         assert_eq!(result[0].0, "h2o"); // table name
         assert_eq!(result[0].2.len(), 1); // returned chunks
 
-        // chunk schema includes 4 columns: 3 cols of PK plus i64_field_1
+        // chunk schema includes everything (test table does NOT perform any projection)
         let chunk = &result[0].2[0];
         let chunk_schema = (*chunk.schema()).clone();
-        assert_eq!(chunk_schema.len(), 4);
+        assert_eq!(chunk_schema.len(), 5);
         let chunk_schema = chunk_schema.sort_fields_by_name();
         assert_eq!(chunk_schema.field(0).1.name(), "bar");
         assert_eq!(chunk_schema.field(1).1.name(), "foo");
         assert_eq!(chunk_schema.field(2).1.name(), "i64_field");
-        assert_eq!(chunk_schema.field(3).1.name(), TIME_COLUMN_NAME);
+        assert_eq!(chunk_schema.field(3).1.name(), "i64_field_2");
+        assert_eq!(chunk_schema.field(4).1.name(), TIME_COLUMN_NAME);
         executor.join().await;
     }
 
