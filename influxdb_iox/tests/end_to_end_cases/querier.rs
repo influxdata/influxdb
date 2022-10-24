@@ -164,7 +164,8 @@ async fn query_after_persist_sees_new_files() {
             ],
         },
         // write another parquet file
-        Step::WriteLineProtocol(setup.lp_to_force_persistence()),
+        // that has non duplicated data
+        Step::WriteLineProtocol(setup.lp_to_force_persistence().replace("tag=A", "tag=B")),
         Step::WaitForPersisted,
         // query should correctly see the data in the second parquet file
         Step::Query {

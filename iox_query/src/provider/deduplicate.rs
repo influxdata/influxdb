@@ -237,15 +237,9 @@ impl ExecutionPlan for DeduplicateExec {
     }
 
     fn statistics(&self) -> Statistics {
-        // TODO: we should acount for overlaps at this point -- if
-        // there is overlap across the chunks, we probably can't
-        // provide exact statistics without more work
-        let is_exact = true;
-
-        // for now, pass on the input statistics but note they can not
-        // be exact
+        // use a guess from our input but they are NOT exact
         Statistics {
-            is_exact,
+            is_exact: false,
             ..self.input.statistics()
         }
     }

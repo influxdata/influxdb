@@ -174,12 +174,6 @@ impl ExecutionPlan for IOxReadFilterNode {
     fn statistics(&self) -> Statistics {
         let mut combined_summary_option: Option<TableSummary> = None;
         for chunk in &self.chunks {
-            if chunk.has_delete_predicates() || chunk.may_contain_pk_duplicates() {
-                // Not use statistics if there is at least one delete predicate or
-                // if chunk may have duplicates
-                return Statistics::default();
-            }
-
             combined_summary_option = match combined_summary_option {
                 None => Some(
                     chunk
