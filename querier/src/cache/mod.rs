@@ -1,5 +1,6 @@
 //! Caches used by the querier.
 use ::object_store::ObjectStore;
+use ::parquet_file::storage::{ParquetStorage, StorageId};
 use backoff::BackoffConfig;
 use cache_system::backend::policy::lru::ResourcePool;
 use iox_catalog::interface::Catalog;
@@ -247,5 +248,13 @@ impl CatalogCache {
     #[allow(dead_code)]
     pub(crate) fn object_store(&self) -> &ObjectStoreCache {
         &self.object_store_cache
+    }
+
+    /// Parquet store that points to the cached object store.
+    pub fn parquet_store(&self) -> ParquetStorage {
+        ParquetStorage::new(
+            Arc::clone(self.object_store_cache.object_store()),
+            StorageId::from("iox_cached"),
+        )
     }
 }

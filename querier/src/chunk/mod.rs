@@ -7,10 +7,7 @@ use data_types::{
     PartitionId, SequenceNumber, ShardId, TableSummary, TimestampMinMax,
 };
 use iox_catalog::interface::Catalog;
-use parquet_file::{
-    chunk::ParquetChunk,
-    storage::{ParquetStorage, StorageId},
-};
+use parquet_file::chunk::ParquetChunk;
 use schema::{sort::SortKey, Schema};
 use std::{collections::HashMap, sync::Arc};
 use trace::span::{Span, SpanRecorder};
@@ -176,12 +173,6 @@ pub struct ChunkAdapter {
     /// Cache
     catalog_cache: Arc<CatalogCache>,
 
-    /// Object store.
-    ///
-    /// Internally, `ParquetStorage` wraps the actual store implementation in an `Arc`, so
-    /// `ParquetStorage` is cheap to clone.
-    store: ParquetStorage,
-
     /// Metric registry.
     metric_registry: Arc<metric::Registry>,
 }
@@ -189,13 +180,8 @@ pub struct ChunkAdapter {
 impl ChunkAdapter {
     /// Create new adapter with empty cache.
     pub fn new(catalog_cache: Arc<CatalogCache>, metric_registry: Arc<metric::Registry>) -> Self {
-        let store = ParquetStorage::new(
-            Arc::clone(catalog_cache.object_store().object_store()),
-            StorageId::from("iox"),
-        );
         Self {
             catalog_cache,
-            store,
             metric_registry,
         }
     }
@@ -235,7 +221,7 @@ impl ChunkAdapter {
         let parquet_chunk = Arc::new(ParquetChunk::new(
             parquet_file,
             parts.schema,
-            self.store.clone(),
+            self.catalog_cache.parquet_store(),
         ));
 
         Some(QuerierChunk::new(
@@ -362,7 +348,10 @@ pub mod tests {
     use arrow_util::assert_batches_eq;
     use data_types::{ColumnType, NamespaceSchema};
     use futures::StreamExt;
-    use iox_query::{exec::IOxSessionContext, QueryChunk, QueryChunkMeta};
+    use iox_query::{
+        exec::{ExecutorType, IOxSessionContext},
+        QueryChunk, QueryChunkMeta,
+    };
     use iox_tests::util::{TestCatalog, TestNamespace, TestParquetFileBuilder};
     use metric::{Attributes, Observation, RawReporter};
     use schema::{builder::SchemaBuilder, selection::Selection, sort::SortKeyBuilder};
@@ -394,7 +383,7 @@ pub mod tests {
         let table_summary_1 = chunk.summary().unwrap();
 
         // check if chunk can be queried
-        assert_content(&chunk).await;
+        assert_content(&chunk, &test_data).await;
 
         // check state again
         assert_eq!(chunk.chunk_type(), "parquet");
@@ -410,13 +399,12 @@ pub mod tests {
     }
 
     /// collect data for the given chunk
-    async fn collect_read_filter(chunk: &dyn QueryChunk) -> Vec<RecordBatch> {
+    async fn collect_read_filter(
+        chunk: &dyn QueryChunk,
+        ctx: IOxSessionContext,
+    ) -> Vec<RecordBatch> {
         chunk
-            .read_filter(
-                IOxSessionContext::with_testing(),
-                &Default::default(),
-                Selection::All,
-            )
+            .read_filter(ctx, &Default::default(), Selection::All)
             .unwrap()
             .collect::<Vec<_>>()
             .await
@@ -539,8 +527,16 @@ pub mod tests {
         assert_eq!(actual_sort_key, &expected_sort_key);
     }
 
-    async fn assert_content(chunk: &QuerierChunk) {
-        let batches = collect_read_filter(chunk).await;
+    async fn assert_content(chunk: &QuerierChunk, test_data: &TestData) {
+        let ctx = test_data.catalog.exec.new_context(ExecutorType::Query);
+        let parquet_store = test_data.adapter.catalog_cache.parquet_store();
+        ctx.inner().runtime_env().register_object_store(
+            "iox",
+            parquet_store.id(),
+            Arc::clone(parquet_store.object_store()),
+        );
+
+        let batches = collect_read_filter(chunk, ctx).await;
 
         assert_batches_eq!(
             &[

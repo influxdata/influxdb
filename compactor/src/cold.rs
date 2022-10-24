@@ -107,7 +107,6 @@ mod tests {
     use arrow_util::assert_batches_sorted_eq;
     use backoff::BackoffConfig;
     use data_types::{ColumnType, CompactionLevel, ParquetFileId};
-    use iox_query::exec::Executor;
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
     use iox_time::{SystemProvider, TimeProvider};
     use parquet_file::storage::StorageId;
@@ -180,7 +179,7 @@ mod tests {
             vec![shard.shard.id],
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
-            Arc::new(Executor::new(1)),
+            catalog.exec(),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
             config,
@@ -419,7 +418,7 @@ mod tests {
             vec![shard.shard.id],
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
-            Arc::new(Executor::new(1)),
+            catalog.exec(),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
             config,
@@ -644,7 +643,7 @@ mod tests {
             vec![shard.shard.id],
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
-            Arc::new(Executor::new(1)),
+            catalog.exec(),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
             config,
@@ -918,7 +917,7 @@ mod tests {
             vec![shard.shard.id],
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
-            Arc::new(Executor::new(1)),
+            catalog.exec(),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
             config,
@@ -1023,7 +1022,7 @@ mod tests {
             vec![shard.shard.id],
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
-            Arc::new(Executor::new(1)),
+            catalog.exec(),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
             config,
@@ -1163,7 +1162,7 @@ mod tests {
             vec![shard.shard.id],
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
-            Arc::new(Executor::new(1)),
+            catalog.exec(),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
             config,
@@ -1409,7 +1408,7 @@ mod tests {
             vec![shard.shard.id],
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
-            Arc::new(Executor::new(1)),
+            catalog.exec(),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
             config,

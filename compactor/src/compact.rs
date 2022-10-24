@@ -816,7 +816,7 @@ pub mod tests {
             vec![shard.id, another_shard.id],
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
-            Arc::new(Executor::new(1)),
+            catalog.exec(),
             time_provider,
             BackoffConfig::default(),
             config,

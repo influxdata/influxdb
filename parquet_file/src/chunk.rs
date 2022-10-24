@@ -3,7 +3,7 @@
 
 use crate::{storage::ParquetStorage, ParquetFilePath};
 use data_types::{ParquetFile, TimestampMinMax};
-use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion::{physical_plan::SendableRecordBatchStream, prelude::SessionContext};
 use predicate::Predicate;
 use schema::{selection::Selection, Schema};
 use std::{collections::BTreeSet, mem, sync::Arc};
@@ -31,6 +31,11 @@ impl ParquetChunk {
             schema,
             store,
         }
+    }
+
+    /// Store that contains this file.
+    pub fn store(&self) -> &ParquetStorage {
+        &self.store
     }
 
     /// Return raw parquet file metadata.
@@ -77,6 +82,7 @@ impl ParquetChunk {
         &self,
         predicate: &Predicate,
         selection: Selection<'_>,
+        session_ctx: &SessionContext,
     ) -> Result<SendableRecordBatchStream, crate::storage::ReadError> {
         let path: ParquetFilePath = self.parquet_file.as_ref().into();
         self.store.read_filter(
@@ -85,6 +91,7 @@ impl ParquetChunk {
             Arc::clone(&self.schema.as_arrow()),
             &path,
             self.file_size_bytes(),
+            session_ctx,
         )
     }
 

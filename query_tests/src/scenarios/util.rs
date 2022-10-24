@@ -21,7 +21,7 @@ use ingester::{
     querier_handler::{prepare_data_to_querier, FlatIngesterQueryResponse, IngesterQueryResponse},
 };
 use iox_catalog::interface::get_schema_by_name;
-use iox_query::exec::{Executor, ExecutorConfig};
+use iox_query::exec::{DedicatedExecutors, ExecutorType};
 use iox_tests::util::{TestCatalog, TestNamespace, TestShard};
 use itertools::Itertools;
 use mutable_batch_lp::LinesConverter;
@@ -647,18 +647,14 @@ struct MockIngester {
 
 /// Query-test specific executor with static properties that may be relevant for the query optimizer and therefore may
 /// change `EXPLAIN` plans.
-static GLOBAL_EXEC: Lazy<Arc<Executor>> = Lazy::new(|| {
-    Arc::new(Executor::new_with_config(ExecutorConfig {
-        num_threads: 1,
-        target_query_partitions: 4,
-    }))
-});
+static GLOBAL_EXEC: Lazy<Arc<DedicatedExecutors>> =
+    Lazy::new(|| Arc::new(DedicatedExecutors::new(1)));
 
 impl MockIngester {
     /// Create new empty ingester.
     async fn new() -> Self {
         let exec = Arc::clone(&GLOBAL_EXEC);
-        let catalog = TestCatalog::with_exec(exec);
+        let catalog = TestCatalog::with_execs(exec, 4);
         let ns = catalog.create_namespace("test_db").await;
         let shard = ns.create_shard(1).await;
 
@@ -910,6 +906,20 @@ impl MockIngester {
             self.catalog.object_store(),
             &Handle::current(),
         ));
+
+        // patch in parquet store
+        let parquet_store = catalog_cache.parquet_store();
+        ns.catalog
+            .exec()
+            .new_context(ExecutorType::Query)
+            .inner()
+            .runtime_env()
+            .register_object_store(
+                "iox",
+                parquet_store.id(),
+                Arc::clone(parquet_store.object_store()),
+            );
+
         let shard_to_ingesters = [(
             ShardIndex::new(0),
             IngesterMapping::Addr(Arc::from("some_address")),

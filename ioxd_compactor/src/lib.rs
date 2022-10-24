@@ -18,8 +18,7 @@ use ioxd_common::{
     setup_builder,
 };
 use metric::Registry;
-use object_store::DynObjectStore;
-use parquet_file::storage::{ParquetStorage, StorageId};
+use parquet_file::storage::ParquetStorage;
 use std::{
     fmt::{Debug, Display},
     sync::Arc,
@@ -135,7 +134,7 @@ pub async fn create_compactor_server_type(
     common_state: &CommonServerState,
     metric_registry: Arc<metric::Registry>,
     catalog: Arc<dyn Catalog>,
-    object_store: Arc<DynObjectStore>,
+    parquet_store: ParquetStorage,
     exec: Arc<Executor>,
     time_provider: Arc<dyn TimeProvider>,
     compactor_config: CompactorConfig,
@@ -143,7 +142,7 @@ pub async fn create_compactor_server_type(
     let compactor = build_compactor_from_config(
         compactor_config,
         catalog,
-        object_store,
+        parquet_store,
         exec,
         time_provider,
         Arc::clone(&metric_registry),
@@ -161,7 +160,7 @@ pub async fn create_compactor_server_type(
 pub async fn build_compactor_from_config(
     compactor_config: CompactorConfig,
     catalog: Arc<dyn Catalog>,
-    object_store: Arc<DynObjectStore>,
+    parquet_store: ParquetStorage,
     exec: Arc<Executor>,
     time_provider: Arc<dyn TimeProvider>,
     metric_registry: Arc<Registry>,
@@ -196,8 +195,6 @@ pub async fn build_compactor_from_config(
         shards.push(s.id);
     }
     txn.commit().await?;
-
-    let parquet_store = ParquetStorage::new(object_store, StorageId::from("iox"));
 
     let CompactorConfig {
         max_desired_file_size_bytes,

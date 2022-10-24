@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use clap_blocks::querier::{IngesterAddresses, QuerierConfig};
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
-use iox_query::exec::Executor;
+use iox_query::exec::{Executor, ExecutorType};
 use iox_time::TimeProvider;
 use ioxd_common::{
     add_service,
@@ -168,6 +168,20 @@ pub async fn create_querier_server_type(
         args.querier_config.ram_pool_data_bytes(),
         &Handle::current(),
     ));
+
+    // register cached object store with the execution context
+    let parquet_store = catalog_cache.parquet_store();
+    let existing = args
+        .exec
+        .new_context(ExecutorType::Query)
+        .inner()
+        .runtime_env()
+        .register_object_store(
+            "iox",
+            parquet_store.id(),
+            Arc::clone(parquet_store.object_store()),
+        );
+    assert!(existing.is_none());
 
     let ingester_connection = match args.ingester_addresses {
         IngesterAddresses::None => None,

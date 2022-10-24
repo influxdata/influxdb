@@ -1,10 +1,12 @@
 //! Implementation of command line option for running the compactor
 
-use iox_query::exec::Executor;
+use iox_query::exec::{Executor, ExecutorConfig};
 use iox_time::{SystemProvider, TimeProvider};
 use object_store::DynObjectStore;
 use object_store_metrics::ObjectStoreMetrics;
 use observability_deps::tracing::*;
+use parquet_file::storage::{ParquetStorage, StorageId};
+use std::collections::HashMap;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -94,14 +96,23 @@ pub async fn command(config: Config) -> Result<(), Error> {
         &*metric_registry,
     ));
 
-    let exec = Arc::new(Executor::new(config.query_exec_thread_count));
+    let parquet_store = ParquetStorage::new(object_store, StorageId::from("iox"));
+
+    let exec = Arc::new(Executor::new_with_config(ExecutorConfig {
+        num_threads: config.query_exec_thread_count,
+        target_query_partitions: config.query_exec_thread_count,
+        object_stores: HashMap::from([(
+            parquet_store.id(),
+            Arc::clone(parquet_store.object_store()),
+        )]),
+    }));
     let time_provider = Arc::new(SystemProvider::new());
 
     let server_type = create_compactor_server_type(
         &common_state,
         Arc::clone(&metric_registry),
         catalog,
-        object_store,
+        parquet_store,
         exec,
         time_provider,
         config.compactor_config,

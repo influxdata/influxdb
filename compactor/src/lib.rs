@@ -440,7 +440,6 @@ pub mod tests {
     use arrow_util::assert_batches_sorted_eq;
     use backoff::BackoffConfig;
     use data_types::{ColumnType, CompactionLevel, ParquetFileId};
-    use iox_query::exec::Executor;
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestShard, TestTable};
     use iox_time::{SystemProvider, TimeProvider};
     use std::{
@@ -600,7 +599,7 @@ pub mod tests {
             vec![shard.shard.id],
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
-            Arc::new(Executor::new(1)),
+            catalog.exec(),
             time_provider,
             BackoffConfig::default(),
             config,
@@ -928,7 +927,7 @@ pub mod tests {
             vec![shard.shard.id],
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
-            Arc::new(Executor::new(1)),
+            catalog.exec(),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
             config,

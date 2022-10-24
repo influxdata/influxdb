@@ -12,7 +12,7 @@ use clap_blocks::{
     write_buffer::WriteBufferConfig,
 };
 use data_types::{IngesterMapping, ShardIndex};
-use iox_query::exec::Executor;
+use iox_query::exec::{Executor, ExecutorConfig};
 use iox_time::{SystemProvider, TimeProvider};
 use ioxd_common::{
     server_type::{CommonServerState, CommonServerStateError},
@@ -24,7 +24,8 @@ use ioxd_querier::{create_querier_server_type, QuerierServerTypeArgs};
 use ioxd_router::create_router_server_type;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
-use std::sync::Arc;
+use parquet_file::storage::{ParquetStorage, StorageId};
+use std::{collections::HashMap, sync::Arc};
 use thiserror::Error;
 use trace_exporters::TracingConfig;
 use trogging::cli::LoggingConfig;
@@ -513,7 +514,16 @@ pub async fn command(config: Config) -> Result<()> {
     // configured by a command line)
     let num_threads = num_cpus::get();
     info!(%num_threads, "Creating shared query executor");
-    let exec = Arc::new(Executor::new(num_threads));
+
+    let parquet_store = ParquetStorage::new(Arc::clone(&object_store), StorageId::from("iox"));
+    let exec = Arc::new(Executor::new_with_config(ExecutorConfig {
+        num_threads,
+        target_query_partitions: num_threads,
+        object_stores: HashMap::from([(
+            parquet_store.id(),
+            Arc::clone(parquet_store.object_store()),
+        )]),
+    }));
 
     info!("starting router");
     let router = create_router_server_type(
@@ -544,7 +554,7 @@ pub async fn command(config: Config) -> Result<()> {
         &common_state,
         Arc::clone(&metrics),
         Arc::clone(&catalog),
-        Arc::clone(&object_store),
+        parquet_store,
         Arc::clone(&exec),
         Arc::clone(&time_provider),
         compactor_config,

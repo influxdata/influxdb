@@ -12,9 +12,11 @@ pub(crate) mod split;
 pub mod stringset;
 pub use context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
 use executor::DedicatedExecutor;
+use object_store::DynObjectStore;
+use parquet_file::storage::StorageId;
 use trace::span::{SpanExt, SpanRecorder};
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use datafusion::{
     self,
@@ -40,6 +42,39 @@ pub struct ExecutorConfig {
 
     /// Target parallelism for query execution
     pub target_query_partitions: usize,
+
+    /// Object stores
+    pub object_stores: HashMap<StorageId, Arc<DynObjectStore>>,
+}
+
+#[derive(Debug)]
+pub struct DedicatedExecutors {
+    /// Executor for running user queries
+    query_exec: DedicatedExecutor,
+
+    /// Executor for running system/reorganization tasks such as
+    /// compact
+    reorg_exec: DedicatedExecutor,
+
+    /// Number of threads per thread pool
+    num_threads: usize,
+}
+
+impl DedicatedExecutors {
+    pub fn new(num_threads: usize) -> Self {
+        let query_exec = DedicatedExecutor::new("IOx Query Executor Thread", num_threads);
+        let reorg_exec = DedicatedExecutor::new("IOx Reorg Executor Thread", num_threads);
+
+        Self {
+            query_exec,
+            reorg_exec,
+            num_threads,
+        }
+    }
+
+    pub fn num_threads(&self) -> usize {
+        self.num_threads
+    }
 }
 
 /// Handles executing DataFusion plans, and marshalling the results into rust
@@ -49,12 +84,8 @@ pub struct ExecutorConfig {
 /// running, based on a policy
 #[derive(Debug)]
 pub struct Executor {
-    /// Executor for running user queries
-    query_exec: DedicatedExecutor,
-
-    /// Executor for running system/reorganization tasks such as
-    /// compact
-    reorg_exec: DedicatedExecutor,
+    /// Executors
+    executors: Arc<DedicatedExecutors>,
 
     /// The default configuration options with which to create contexts
     config: ExecutorConfig,
@@ -68,6 +99,7 @@ pub struct Executor {
 pub enum ExecutorType {
     /// Run using the pool for queries
     Query,
+
     /// Run using the pool for system / reorganization tasks
     Reorg,
 }
@@ -79,19 +111,39 @@ impl Executor {
         Self::new_with_config(ExecutorConfig {
             num_threads,
             target_query_partitions: num_threads,
+            object_stores: HashMap::default(),
         })
     }
 
     pub fn new_with_config(config: ExecutorConfig) -> Self {
-        let query_exec = DedicatedExecutor::new("IOx Query Executor Thread", config.num_threads);
-        let reorg_exec = DedicatedExecutor::new("IOx Reorg Executor Thread", config.num_threads);
+        let executors = Arc::new(DedicatedExecutors::new(config.num_threads));
+        Self::new_with_config_and_executors(config, executors)
+    }
+
+    /// Low-level constructor.
+    ///
+    /// This is mostly useful if you wanna keep the executors (because they are quiet expensive to create) but need a fresh IOx runtime.
+    ///
+    /// # Panic
+    /// Panics if the number of threads in `executors` is different from `config`.
+    pub fn new_with_config_and_executors(
+        config: ExecutorConfig,
+        executors: Arc<DedicatedExecutors>,
+    ) -> Self {
+        assert_eq!(config.num_threads, executors.num_threads);
 
         let runtime_config = RuntimeConfig::new();
+
+        for (id, store) in &config.object_stores {
+            runtime_config
+                .object_store_registry
+                .register_store("iox", id, Arc::clone(store));
+        }
+
         let runtime = Arc::new(RuntimeEnv::new(runtime_config).expect("creating runtime"));
 
         Self {
-            query_exec,
-            reorg_exec,
+            executors,
             config,
             runtime,
         }
@@ -128,15 +180,15 @@ impl Executor {
     /// Return the execution pool  of the specified type
     fn executor(&self, executor_type: ExecutorType) -> &DedicatedExecutor {
         match executor_type {
-            ExecutorType::Query => &self.query_exec,
-            ExecutorType::Reorg => &self.reorg_exec,
+            ExecutorType::Query => &self.executors.query_exec,
+            ExecutorType::Reorg => &self.executors.reorg_exec,
         }
     }
 
     /// Initializes shutdown.
     pub fn shutdown(&self) {
-        self.query_exec.shutdown();
-        self.reorg_exec.shutdown();
+        self.executors.query_exec.shutdown();
+        self.executors.reorg_exec.shutdown();
     }
 
     /// Stops all subsequent task executions, and waits for the worker
@@ -146,8 +198,8 @@ impl Executor {
     /// executing thread to complete. All other calls to join will
     /// complete immediately.
     pub async fn join(&self) {
-        self.query_exec.join().await;
-        self.reorg_exec.join().await;
+        self.executors.query_exec.join().await;
+        self.executors.reorg_exec.join().await;
     }
 }
 

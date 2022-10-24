@@ -209,7 +209,6 @@ mod tests {
     use crate::{compact::Compactor, handler::CompactorConfig};
     use backoff::BackoffConfig;
     use data_types::CompactionLevel;
-    use iox_query::exec::Executor;
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestShard, TestTable};
     use parquet_file::storage::{ParquetStorage, StorageId};
     use std::sync::Arc;
@@ -500,7 +499,7 @@ mod tests {
             vec![shard1.shard.id, shard2.shard.id],
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
-            Arc::new(Executor::new(1)),
+            catalog.exec(),
             time_provider,
             BackoffConfig::default(),
             config,

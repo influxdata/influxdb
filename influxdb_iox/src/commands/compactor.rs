@@ -3,13 +3,14 @@ use clap_blocks::{
     compactor::CompactorOnceConfig,
     object_store::{make_object_store, ObjectStoreConfig},
 };
-use iox_query::exec::Executor;
+use iox_query::exec::{Executor, ExecutorConfig};
 use iox_time::{SystemProvider, TimeProvider};
 use ioxd_compactor::build_compactor_from_config;
 use object_store::DynObjectStore;
 use object_store_metrics::ObjectStoreMetrics;
+use parquet_file::storage::{ParquetStorage, StorageId};
 use snafu::prelude::*;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 mod generate;
 
@@ -82,14 +83,22 @@ pub async fn command(config: Config) -> Result<()> {
                 Arc::clone(&time_provider),
                 &*metric_registry,
             ));
+            let parquet_store = ParquetStorage::new(object_store, StorageId::from("iox"));
 
-            let exec = Arc::new(Executor::new(query_exec_thread_count));
+            let exec = Arc::new(Executor::new_with_config(ExecutorConfig {
+                num_threads: query_exec_thread_count,
+                target_query_partitions: query_exec_thread_count,
+                object_stores: HashMap::from([(
+                    parquet_store.id(),
+                    Arc::clone(parquet_store.object_store()),
+                )]),
+            }));
             let time_provider = Arc::new(SystemProvider::new());
 
             let compactor = build_compactor_from_config(
                 compactor_config,
                 catalog,
-                object_store,
+                parquet_store,
                 exec,
                 time_provider,
                 metric_registry,

@@ -236,7 +236,7 @@ impl QueryChunk for QueryableParquetChunk {
         trace!(?selection, "selection");
 
         self.data
-            .read_filter(predicate, selection)
+            .read_filter(predicate, selection, ctx.inner())
             .context(ReadParquetSnafu)
             .map_err(|e| DataFusionError::External(Box::new(e)))
     }

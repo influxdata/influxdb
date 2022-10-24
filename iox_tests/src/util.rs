@@ -15,7 +15,11 @@ use iox_catalog::{
     interface::{get_schema_by_id, get_table_schema_by_id, Catalog, PartitionRepo},
     mem::MemCatalog,
 };
-use iox_query::{exec::Executor, provider::RecordBatchDeduplicator, util::arrow_sort_key_exprs};
+use iox_query::{
+    exec::{DedicatedExecutors, Executor, ExecutorConfig},
+    provider::RecordBatchDeduplicator,
+    util::arrow_sort_key_exprs,
+};
 use iox_time::{MockProvider, Time, TimeProvider};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use object_store::{memory::InMemory, DynObjectStore};
@@ -32,11 +36,12 @@ use schema::{
     sort::{adjust_sort_key_columns, compute_sort_key, SortKey},
     Schema,
 };
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
 
 /// Global executor used by all test catalogs.
-static GLOBAL_EXEC: Lazy<Arc<Executor>> = Lazy::new(|| Arc::new(Executor::new(1)));
+static GLOBAL_EXEC: Lazy<Arc<DedicatedExecutors>> =
+    Lazy::new(|| Arc::new(DedicatedExecutors::new(1)));
 
 /// Catalog for tests
 #[derive(Debug)]
@@ -45,6 +50,7 @@ pub struct TestCatalog {
     pub catalog: Arc<dyn Catalog>,
     pub metric_registry: Arc<metric::Registry>,
     pub object_store: Arc<DynObjectStore>,
+    pub parquet_store: ParquetStorage,
     pub time_provider: Arc<MockProvider>,
     pub exec: Arc<Executor>,
 }
@@ -52,25 +58,39 @@ pub struct TestCatalog {
 impl TestCatalog {
     /// Initialize the catalog
     ///
-    /// All test catalogs use the same [`Executor`]. Use [`with_exec`](Self::with_exec) if you need a special or
+    /// All test catalogs use the same [`Executor`]. Use [`with_execs`](Self::with_execs) if you need a special or
     /// dedicated executor.
     pub fn new() -> Arc<Self> {
         let exec = Arc::clone(&GLOBAL_EXEC);
 
-        Self::with_exec(exec)
+        Self::with_execs(exec, 1)
     }
 
-    /// Initialize with given executor.
-    pub fn with_exec(exec: Arc<Executor>) -> Arc<Self> {
+    /// Initialize with given executors.
+    pub fn with_execs(exec: Arc<DedicatedExecutors>, target_query_partitions: usize) -> Arc<Self> {
         let metric_registry = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metric_registry)));
         let object_store = Arc::new(InMemory::new());
+        let parquet_store =
+            ParquetStorage::new(Arc::clone(&object_store) as _, StorageId::from("iox"));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp(0, 0)));
+        let exec = Arc::new(Executor::new_with_config_and_executors(
+            ExecutorConfig {
+                num_threads: exec.num_threads(),
+                target_query_partitions,
+                object_stores: HashMap::from([(
+                    parquet_store.id(),
+                    Arc::clone(parquet_store.object_store()),
+                )]),
+            },
+            exec,
+        ));
 
         Arc::new(Self {
             metric_registry,
             catalog,
             object_store,
+            parquet_store,
             time_provider,
             exec,
         })
@@ -353,8 +373,6 @@ impl TestTable {
 
     /// Read the record batches from the specified Parquet File associated with this table.
     pub async fn read_parquet_file(&self, file: ParquetFile) -> Vec<RecordBatch> {
-        let storage = ParquetStorage::new(self.catalog.object_store(), StorageId::from("iox"));
-
         // get schema
         let table_catalog_schema = self.catalog_schema().await;
         let column_id_lookup = table_catalog_schema.column_id_map();
@@ -366,9 +384,17 @@ impl TestTable {
             .collect();
         let schema = table_schema.select_by_names(&selection).unwrap();
 
-        let chunk = ParquetChunk::new(Arc::new(file), Arc::new(schema), storage);
+        let chunk = ParquetChunk::new(
+            Arc::new(file),
+            Arc::new(schema),
+            self.catalog.parquet_store.clone(),
+        );
         let rx = chunk
-            .read_filter(&Predicate::default(), Selection::All)
+            .read_filter(
+                &Predicate::default(),
+                Selection::All,
+                &chunk.store().test_df_context(),
+            )
             .unwrap();
         datafusion::physical_plan::common::collect(rx)
             .await

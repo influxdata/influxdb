@@ -102,6 +102,18 @@ impl From<&'static str> for StorageId {
     }
 }
 
+impl AsRef<str> for StorageId {
+    fn as_ref(&self) -> &str {
+        self.0
+    }
+}
+
+impl std::fmt::Display for StorageId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 /// The [`ParquetStorage`] type encapsulates [`RecordBatch`] persistence to an
 /// underlying [`ObjectStore`].
 ///
@@ -137,6 +149,19 @@ impl ParquetStorage {
     /// Get ID.
     pub fn id(&self) -> StorageId {
         self.id
+    }
+
+    /// Fake DataFusion context for testing that contains this store
+    pub fn test_df_context(&self) -> SessionContext {
+        // set up "fake" DataFusion session
+        let object_store = Arc::clone(&self.object_store);
+        let session_ctx = SessionContext::new();
+        let task_ctx = Arc::new(TaskContext::from(&session_ctx));
+        task_ctx
+            .runtime_env()
+            .register_object_store("iox", self.id, object_store);
+
+        session_ctx
     }
 
     /// Push `batches`, a stream of [`RecordBatch`] instances, to object
@@ -223,18 +248,10 @@ impl ParquetStorage {
         schema: SchemaRef,
         path: &ParquetFilePath,
         file_size: usize,
+        session_ctx: &SessionContext,
     ) -> Result<SendableRecordBatchStream, ReadError> {
         let path = path.object_store_path();
         trace!(path=?path, "fetching parquet data for filtered read");
-
-        // set up "fake" DataFusion session (TODO thread the real one
-        // down so config options set on query context take effect here)
-        let object_store = Arc::clone(&self.object_store);
-        let session_ctx = SessionContext::new();
-        let task_ctx = Arc::new(TaskContext::from(&session_ctx));
-        task_ctx
-            .runtime_env()
-            .register_object_store("iox", "iox", object_store);
 
         // Compute final (output) schema after selection
         let schema = Arc::new(
@@ -253,7 +270,8 @@ impl ParquetStorage {
         };
         let expr = predicate.filter_expr();
         let base_config = FileScanConfig {
-            object_store_url: ObjectStoreUrl::parse("iox://iox/").expect("valid object store URL"),
+            object_store_url: ObjectStoreUrl::parse(format!("iox://{}/", self.id))
+                .expect("valid object store URL"),
             file_schema: Arc::clone(&schema),
             file_groups: vec![vec![PartitionedFile {
                 object_meta,
@@ -272,7 +290,8 @@ impl ParquetStorage {
 
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             Arc::clone(&schema),
-            futures::stream::once(execute_stream(Arc::new(exec), task_ctx)).try_flatten(),
+            futures::stream::once(execute_stream(Arc::new(exec), session_ctx.task_ctx()))
+                .try_flatten(),
         )))
     }
 }
@@ -593,6 +612,7 @@ mod tests {
                 expected_schema,
                 &path,
                 file_size,
+                &store.test_df_context(),
             )
             .expect("should read record batches from object store");
         let schema = rx.schema();

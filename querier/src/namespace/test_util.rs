@@ -4,6 +4,7 @@ use crate::{
 };
 use data_types::{ShardIndex, TableId};
 use iox_catalog::interface::get_schema_by_name;
+use iox_query::exec::ExecutorType;
 use iox_tests::util::TestNamespace;
 use sharder::JumpHash;
 use std::sync::Arc;
@@ -32,6 +33,19 @@ pub async fn querier_namespace_with_limit(
         ns.catalog.object_store(),
         &Handle::current(),
     ));
+
+    // add cached store
+    let parquet_store = catalog_cache.parquet_store();
+    ns.catalog
+        .exec()
+        .new_context(ExecutorType::Query)
+        .inner()
+        .runtime_env()
+        .register_object_store(
+            "iox",
+            parquet_store.id(),
+            Arc::clone(parquet_store.object_store()),
+        );
 
     let sharder = Arc::new(JumpHash::new((0..1).map(ShardIndex::new).map(Arc::new)));
 

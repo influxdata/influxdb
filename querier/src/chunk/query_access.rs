@@ -141,7 +141,7 @@ impl QueryChunk for QuerierChunk {
         let _span_recorder = span_recorder;
 
         self.parquet_chunk
-            .read_filter(&pred_with_deleted_exprs, selection)
+            .read_filter(&pred_with_deleted_exprs, selection, ctx.inner())
             .map_err(Box::new)
             .context(ParquetFileChunkSnafu { chunk_id })
             .map_err(|e| DataFusionError::External(Box::new(e)))
