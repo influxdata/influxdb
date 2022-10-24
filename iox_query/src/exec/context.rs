@@ -44,6 +44,7 @@ use datafusion::{
 use executor::DedicatedExecutor;
 use futures::TryStreamExt;
 use observability_deps::tracing::debug;
+use parquet_file::serialize::ROW_GROUP_WRITE_SIZE;
 use query_functions::selectors::register_selector_aggregates;
 use std::{convert::TryInto, fmt, sync::Arc};
 use trace::{
@@ -176,6 +177,11 @@ impl fmt::Debug for IOxSessionConfig {
 
 const BATCH_SIZE: usize = 8 * 1024;
 const COALESCE_BATCH_SIZE: usize = BATCH_SIZE / 2;
+
+// ensure read and write work well together
+// Skip clippy due to <https://github.com/rust-lang/rust-clippy/issues/8159>.
+#[allow(clippy::assertions_on_constants)]
+const _: () = assert!(ROW_GROUP_WRITE_SIZE % BATCH_SIZE == 0);
 
 impl IOxSessionConfig {
     pub(super) fn new(exec: DedicatedExecutor, runtime: Arc<RuntimeEnv>) -> Self {

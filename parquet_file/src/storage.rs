@@ -3,7 +3,7 @@
 
 use crate::{
     metadata::{IoxMetadata, IoxParquetMetaData},
-    serialize::{self, CodecError, ROW_GROUP_WRITE_SIZE},
+    serialize::{self, CodecError},
     ParquetFilePath,
 };
 use arrow::datatypes::{Field, SchemaRef};
@@ -30,14 +30,6 @@ use std::{
     time::{Duration, Instant},
 };
 use thiserror::Error;
-
-/// Parquet row group read size
-pub const ROW_GROUP_READ_SIZE: usize = 1024 * 1024;
-
-// ensure read and write work well together
-// Skip clippy due to <https://github.com/rust-lang/rust-clippy/issues/8159>.
-#[allow(clippy::assertions_on_constants)]
-const _: () = assert!(ROW_GROUP_WRITE_SIZE % ROW_GROUP_READ_SIZE == 0);
 
 /// Errors returned during a Parquet "put" operation, covering [`RecordBatch`]
 /// pull from the provided stream, encoding, and finally uploading the bytes to
