@@ -52,7 +52,8 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
             let mut file = File::create(&get.file_name).await?;
             while let Some(res) = response.next().await {
                 let res = res.unwrap();
-                let _ = file.write(&res.data).await?;
+
+                file.write_all(&res.data).await?;
             }
             println!("wrote data to {}", get.file_name);
 
