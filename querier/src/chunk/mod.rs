@@ -510,6 +510,7 @@ pub mod tests {
     fn assert_schema(chunk: &QuerierChunk) {
         let expected_schema = SchemaBuilder::new()
             .field("field_int", DataType::Int64)
+            .unwrap()
             .tag("tag1")
             .timestamp()
             .build()

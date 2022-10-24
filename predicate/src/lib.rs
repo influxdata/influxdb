@@ -789,7 +789,9 @@ mod tests {
 
         let schema = SchemaBuilder::new()
             .field("foo", ArrowDataType::Int64)
+            .unwrap()
             .field("bar", ArrowDataType::Int64)
+            .unwrap()
             .timestamp()
             .build()
             .unwrap();
@@ -896,6 +898,7 @@ mod tests {
 
         let schema = SchemaBuilder::new()
             .field("foo", ArrowDataType::Int64)
+            .unwrap()
             .timestamp()
             .build()
             .unwrap();

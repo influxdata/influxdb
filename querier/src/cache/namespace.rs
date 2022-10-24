@@ -327,6 +327,7 @@ mod tests {
                         schema: Arc::new(
                             SchemaBuilder::new()
                                 .field("col1", DataType::Int64)
+                                .unwrap()
                                 .tag("col2")
                                 .timestamp()
                                 .build()
@@ -346,6 +347,7 @@ mod tests {
                         schema: Arc::new(
                             SchemaBuilder::new()
                                 .field("col1", DataType::Float64)
+                                .unwrap()
                                 .timestamp()
                                 .build()
                                 .unwrap(),

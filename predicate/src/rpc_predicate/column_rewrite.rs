@@ -91,6 +91,7 @@ mod tests {
         let schema = SchemaBuilder::new()
             .tag("t1")
             .field("f1", DataType::Int64)
+            .unwrap()
             .build()
             .unwrap();
 

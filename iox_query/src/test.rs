@@ -240,6 +240,7 @@ macro_rules! impl_with_column {
 
             let new_column_schema = SchemaBuilder::new()
                 .field(&column_name, DataType::$DATA_TYPE)
+                .unwrap()
                 .build()
                 .unwrap();
             self.add_schema_to_table(new_column_schema, true, None)
@@ -255,6 +256,7 @@ macro_rules! impl_with_column_no_stats {
 
             let new_column_schema = SchemaBuilder::new()
                 .field(&column_name, DataType::$DATA_TYPE)
+                .unwrap()
                 .build()
                 .unwrap();
 
@@ -276,6 +278,7 @@ macro_rules! impl_with_column_with_stats {
 
             let new_column_schema = SchemaBuilder::new()
                 .field(&column_name, DataType::$DATA_TYPE)
+                .unwrap()
                 .build()
                 .unwrap();
 
@@ -498,6 +501,7 @@ impl TestChunk {
         // merge it in to any existing schema
         let new_column_schema = SchemaBuilder::new()
             .field(&column_name, DataType::Utf8)
+            .unwrap()
             .build()
             .unwrap();
 
