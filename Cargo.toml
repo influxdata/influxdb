@@ -126,3 +126,7 @@ opt-level = 3
 
 [profile.dev.package.similar]
 opt-level = 3
+
+[patch.crates-io]
+# See https://github.com/clap-rs/clap/issues/4418
+clap3 = { git = "https://github.com/crepererum/clap.git", branch = "crepererum/issue4418", package = "clap" }
