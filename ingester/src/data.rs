@@ -308,8 +308,9 @@ impl Persister for IngesterData {
         // subsequent calls would be an error.
         //
         // This is NOT an invariant, and this could be changed in the future to
-        // allow partitions to marked as persisting repeatedly. Today however,
-        // the code is infallible (or rather, terminal - it does cause a retry).
+        // allow partitions to be marked as persisting repeatedly. Today
+        // however, the code is infallible (or rather, terminal - it does cause
+        // a retry).
 
         let sort_key = sort_key.get().await;
         trace!(
@@ -551,7 +552,7 @@ impl Persister for IngesterData {
         // preventing it from being dropped, but memory is released back to
         // lifecycle memory tracker when this fn returns.
         //
-        //  https://github.com/influxdata/influxdb_iox/issues/5805
+        //  https://github.com/influxdata/influxdb_iox/issues/5872
         //
 
         info!(
