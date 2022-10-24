@@ -112,6 +112,10 @@ union # unbounded
 union_heterogeneous # unbounded
 unique # unbounded
 window_null # failing with differences
+
+group_one_tag_last              # broken (fixed in flux@3d6f47ded)
+group_all_filter_field_last     # broken (fixed in flux@3d6f47ded)
+group_one_tag_filter_field_last # broken (fixed in flux@3d6f47ded)
 ENDSKIPS
 )
   echo "$doc" | sed '/^[[:space:]]*$/d' | sed 's/[[:space:]]*#.*$//' | tr '\n' ',' | sed 's/,$//'
