@@ -174,7 +174,7 @@ impl MockBufferSharedState {
     pub fn push_lp(&self, sequence: Sequence, lp: &str) {
         let tables = mutable_batch_lp::lines_to_batches(lp, 0).unwrap();
         let meta = DmlMeta::sequenced(sequence, iox_time::Time::from_timestamp_nanos(0), None, 0);
-        self.push_write(DmlWrite::new("foo", tables, None, meta))
+        self.push_write(DmlWrite::new("foo", tables, "test-partition".into(), meta))
     }
 
     /// Push error to specified shard.
@@ -732,19 +732,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "write must be sequenced")]
-    fn test_state_push_write_panic_unsequenced() {
-        let state = MockBufferSharedState::empty_with_n_shards(NonZeroU32::try_from(2).unwrap());
-        let tables = lines_to_batches("upc user=1 100", 0).unwrap();
-        state.push_write(DmlWrite::new(
-            "test_db",
-            tables,
-            None,
-            DmlMeta::unsequenced(None),
-        ));
-    }
-
-    #[test]
     #[should_panic(expected = "invalid shard index")]
     fn test_state_push_write_panic_wrong_shard() {
         let state = MockBufferSharedState::empty_with_n_shards(NonZeroU32::try_from(2).unwrap());
@@ -907,8 +894,12 @@ mod tests {
         let writer = MockBufferForWritingThatAlwaysErrors {};
 
         let tables = lines_to_batches("upc user=1 100", 0).unwrap();
-        let operation =
-            DmlOperation::Write(DmlWrite::new("test_db", tables, None, Default::default()));
+        let operation = DmlOperation::Write(DmlWrite::new(
+            "test_db",
+            tables,
+            "bananas".into(),
+            Default::default(),
+        ));
 
         assert_contains!(
             writer

@@ -272,7 +272,7 @@ mod tests {
     /// Return a DmlWrite with the given metadata and a single table.
     fn make_write(meta: DmlMeta) -> DmlWrite {
         let tables = lines_to_batches("bananas level=42 4242", 0).unwrap();
-        DmlWrite::new("bananas", tables, None, meta)
+        DmlWrite::new("bananas", tables, "1970-01-01".into(), meta)
     }
 
     /// Extract the metric with the given name from `metrics`.

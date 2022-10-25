@@ -547,7 +547,7 @@ mod tests {
             None,
             42,
         );
-        DmlWrite::new(name, tables, Some("1970-01-01".into()), sequence)
+        DmlWrite::new(name, tables, "1970-01-01".into(), sequence)
     }
 
     // Return a DmlDelete with the given namespace.

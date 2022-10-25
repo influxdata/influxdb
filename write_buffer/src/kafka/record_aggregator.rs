@@ -236,7 +236,7 @@ mod tests {
         DmlOperation::Write(DmlWrite::new(
             NAMESPACE.to_string(),
             m,
-            Some("1970-01-01".into()),
+            "1970-01-01".into(),
             DmlMeta::unsequenced(Some(span)),
         ))
     }

@@ -195,9 +195,11 @@ pub fn decode(
                     })?;
 
                     let partition_key = if write.partition_key.is_empty() {
-                        None
+                        return Err(WriteBufferError::invalid_data(
+                            "write contains no partition key",
+                        ));
                     } else {
-                        Some(PartitionKey::from(write.partition_key))
+                        PartitionKey::from(write.partition_key)
                     };
 
                     Ok(DmlOperation::Write(DmlWrite::new(
