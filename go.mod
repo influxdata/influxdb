@@ -16,7 +16,7 @@ require (
 	github.com/golang/mock v1.5.0
 	github.com/golang/snappy v0.0.4
 	github.com/google/go-cmp v0.5.7
-	github.com/influxdata/flux v0.173.0
+	github.com/influxdata/flux v0.174.0
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
 	github.com/influxdata/influxql v1.1.1-0.20211004132434-7e7d61973256
 	github.com/influxdata/pkg-config v0.2.11
@@ -25,7 +25,7 @@ require (
 	github.com/jsternberg/zap-logfmt v1.2.0
 	github.com/jwilder/encoding v0.0.0-20170811194829-b4e1701a28ef
 	github.com/klauspost/pgzip v1.0.2-0.20170402124221-0bf5dcad4ada
-	github.com/mattn/go-isatty v0.0.12
+	github.com/mattn/go-isatty v0.0.14
 	github.com/mileusna/useragent v0.0.0-20190129205925-3e331f0949a5
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/peterh/liner v1.0.1-0.20180619022028-8c1271fcf47f
@@ -95,6 +95,7 @@ require (
 	github.com/dimchansky/utfbom v1.1.0 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/eclipse/paho.mqtt.golang v1.2.0 // indirect
+	github.com/fatih/color v1.13.0 // indirect
 	github.com/form3tech-oss/jwt-go v3.2.5+incompatible // indirect
 	github.com/gabriel-vasile/mimetype v1.4.0 // indirect
 	github.com/glycerine/go-unsnap-stream v0.0.0-20180323001048-9f0cb55181dd // indirect
@@ -116,12 +117,14 @@ require (
 	github.com/influxdata/gosnowflake v1.6.9 // indirect
 	github.com/influxdata/influxdb-client-go/v2 v2.3.1-0.20210518120617-5d1fff431040 // indirect
 	github.com/influxdata/line-protocol v0.0.0-20200327222509-2487e7298839 // indirect
+	github.com/influxdata/line-protocol/v2 v2.2.1 // indirect
 	github.com/influxdata/tdigest v0.0.2-0.20210216194612-fc98d27c9e8b // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jstemmer/go-junit-report v0.9.1 // indirect
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/klauspost/crc32 v0.0.0-20161016154125-cb6bfca970f6 // indirect
 	github.com/lib/pq v1.0.0 // indirect
+	github.com/mattn/go-colorable v0.1.9 // indirect
 	github.com/mattn/go-ieproxy v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.3 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
