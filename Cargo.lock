@@ -609,8 +609,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.2.22"
-source = "git+https://github.com/crepererum/clap.git?branch=crepererum/issue4418#6ca8aca7ba656f06358440e95ada08019073e1a5"
+version = "3.2.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71655c45cb9845d3270c9d6df84ebe72b4dad3c2ba3f7023ad47c144e4e473a5"
 dependencies = [
  "bitflags",
  "clap_lex 0.2.4",
@@ -675,7 +676,8 @@ dependencies = [
 [[package]]
 name = "clap_lex"
 version = "0.2.4"
-source = "git+https://github.com/crepererum/clap.git?branch=crepererum/issue4418#6ca8aca7ba656f06358440e95ada08019073e1a5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2850f2f5a82cbf437dd5af4d49848fbdfc27c157c3d010345776f952765261c5"
 dependencies = [
  "os_str_bytes",
 ]
@@ -933,7 +935,7 @@ dependencies = [
  "atty",
  "cast",
  "ciborium",
- "clap 3.2.22",
+ "clap 3.2.23",
  "criterion-plot",
  "futures",
  "itertools",
