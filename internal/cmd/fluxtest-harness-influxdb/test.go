@@ -15,7 +15,6 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/cmd/flux/cmd"
 	"github.com/influxdata/flux/csv"
-	"github.com/influxdata/flux/execute/table"
 	"github.com/influxdata/flux/parser"
 	fluxClient "github.com/influxdata/influxdb/flux/client"
 	"github.com/influxdata/influxdb/tests"
@@ -47,11 +46,11 @@ func (t *testExecutor) Close() error {
 
 // Run executes an e2e test case for every supported index type.
 // On failure, logs collected from the server will be printed to stderr.
-func (t *testExecutor) Run(pkg *ast.Package) error {
+func (t *testExecutor) Run(pkg *ast.Package, fn cmd.TestResultFunc) error {
 	var failed bool
 	for _, idx := range []string{"inmem", "tsi1"} {
 		logOut := &bytes.Buffer{}
-		if err := t.run(pkg, idx, logOut); err != nil {
+		if err := t.run(pkg, idx, logOut, fn); err != nil {
 			failed = true
 			_, _ = fmt.Fprintf(os.Stderr, "Failed for index %s:\n%v\n", idx, err)
 			_, _ = io.Copy(os.Stderr, logOut)
@@ -66,7 +65,7 @@ func (t *testExecutor) Run(pkg *ast.Package) error {
 
 // run executes an e2e test case against a specific index type.
 // Server logs will be written to the specified logOut writer, for reporting.
-func (t *testExecutor) run(pkg *ast.Package, index string, logOut io.Writer) error {
+func (t *testExecutor) run(pkg *ast.Package, index string, logOut io.Writer, fn cmd.TestResultFunc) error {
 	_, _ = fmt.Fprintf(os.Stderr, "Testing %s...\n", index)
 
 	config := tests.NewConfig()
@@ -99,10 +98,22 @@ func (t *testExecutor) run(pkg *ast.Package, index string, logOut io.Writer) err
 
 	// During the first execution, we are performing the writes
 	// that are in the testcase. We do not care about errors.
-	_ = t.executeWithOptions(bucketOpt, t.writeOptAST, pkg, s.URL(), logOut, false)
+	_ = t.executeWithOptions(bucketOpt, t.writeOptAST, pkg, s.URL(), logOut,
+        func (ctx context.Context, results flux.ResultIterator) error {
+            for results.More() {
+                res := results.Next()
+                if err := res.Tables().Do(func(table flux.Table) error {
+                    table.Done()
+                    return nil
+                }); err != nil {
+                    return err
+                }
+            }
+            return nil
+    })
 
 	// Execute the read pass.
-	return t.executeWithOptions(bucketOpt, t.readOptAST, pkg, s.URL(), logOut, true)
+	return t.executeWithOptions(bucketOpt, t.readOptAST, pkg, s.URL(), logOut, fn)
 }
 
 // executeWithOptions runs a Flux query against a running server via the HTTP API.
@@ -114,7 +125,7 @@ func (t *testExecutor) executeWithOptions(
 	pkg *ast.Package,
 	serverUrl string,
 	logOut io.Writer,
-	checkOutput bool,
+    fn cmd.TestResultFunc,
 ) error {
 	options := optionsAST.Copy().(*ast.File)
 	options.Body = append([]ast.Statement{bucketOpt}, options.Body...)
@@ -164,31 +175,7 @@ func (t *testExecutor) executeWithOptions(
 	}
 	defer r.Release()
 
-	wasDiff := false
-	if checkOutput {
-		for r.More() {
-			wasDiff = true
-			v := r.Next()
-			if err := v.Tables().Do(func(tbl flux.Table) error {
-				// The data returned here is the result of `testing.diff`, so any result means that
-				// a comparison of two tables showed inequality. Capture that inequality as part of the error.
-				// XXX: rockstar (08 Dec 2020) - This could use some ergonomic work, as the diff testOutput
-				// is not exactly "human readable."
-				_, _ = fmt.Fprintln(logOut, table.Stringify(tbl))
-				return nil
-			}); err != nil {
-				return err
-			}
-		}
-	}
-	r.Release()
-	if err := r.Err(); err != nil {
-		return err
-	}
-	if wasDiff {
-		return errors.New("test failed - diff table in output")
-	}
-	return nil
+	return fn(t.ctx, r)
 }
 
 // This options definition puts to() in the path of the CSV input. The tests
