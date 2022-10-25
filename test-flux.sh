@@ -126,7 +126,7 @@ run_integration_tests() {
   ./fluxtest \
       -v \
       -p flux.zip \
-      -p query/ \
+      -p flux/ \
       --skip "$(skipped_tests)"
 }
 

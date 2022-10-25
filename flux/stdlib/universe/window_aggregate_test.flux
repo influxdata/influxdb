@@ -51,7 +51,8 @@ testcase windowed_count {
 ,,2,2021-01-01T00:00:00Z,1
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: -100y)
         |> window(every: 1y)
         |> count()
@@ -74,7 +75,8 @@ testcase windowed_sum {
 ,,2,2021-01-01T00:00:00Z,-1099.00
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: -100y)
         |> window(every: 1y)
         |> sum()
@@ -97,7 +99,8 @@ testcase windowed_mean {
 ,,2,2021-01-01T00:00:00Z,-1099.00
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: -100y)
         |> window(every: 1y)
         |> mean()
@@ -120,7 +123,8 @@ testcase windowed_min {
 ,,0,2021-01-26T08:00:00Z,-1099,bank,pge_bill
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: -100y)
         |> window(every: 1y)
         |> min()
@@ -144,7 +148,8 @@ testcase windowed_max {
 ,,0,2021-01-26T08:00:00Z,-1099,bank,pge_bill
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: -100y)
         |> window(every: 1y)
         |> max()
@@ -168,7 +173,8 @@ testcase windowed_first {
 ,,0,2021-01-26T08:00:00Z,-1099,bank,pge_bill
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: -100y)
         |> window(every: 1y)
         |> first()
@@ -192,7 +198,8 @@ testcase windowed_last {
 ,,0,2021-01-26T08:00:00Z,-1099,bank,pge_bill
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: -100y)
         |> window(every: 1y)
         |> last()

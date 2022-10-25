@@ -51,7 +51,8 @@ testcase windowed_by_time_count {
 ,,0,2021-01-01T00:00:00Z,1
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: -100y)
         |> aggregateWindow(every: 1y, fn: count, timeSrc: "_start", createEmpty: false)
         |> keep(columns: ["_time", "_value"])
@@ -73,7 +74,8 @@ testcase windowed_by_time_sum {
 ,,0,2021-01-01T00:00:00Z,-1099.00
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: -100y)
         |> aggregateWindow(every: 1y, fn: sum, timeSrc: "_start", createEmpty: false)
         |> keep(columns: ["_time", "_value"])
@@ -95,7 +97,8 @@ testcase windowed_by_time_mean {
 ,,0,2021-01-01T00:00:00Z,-1099.00
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: -100y)
         |> aggregateWindow(every: 1y, fn: mean, timeSrc: "_start", createEmpty: false)
         |> keep(columns: ["_time", "_value"])
@@ -117,7 +120,8 @@ testcase windowed_by_time_min {
 ,,0,2021-01-01T00:00:00Z,-1099,bank,pge_bill
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: -100y)
         |> aggregateWindow(every: 1y, fn: min, timeSrc: "_start", createEmpty: false)
         |> keep(columns: ["_time", "_value", "_field", "_measurement"])
@@ -140,7 +144,8 @@ testcase windowed_by_time_max {
 ,,0,2021-01-01T00:00:00Z,-1099,bank,pge_bill
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: -100y)
         |> aggregateWindow(every: 1y, fn: max, timeSrc: "_start", createEmpty: false)
         |> keep(columns: ["_time", "_value", "_field", "_measurement"])
@@ -163,7 +168,8 @@ testcase windowed_by_time_first {
 ,,0,2021-01-01T00:00:00Z,-1099,bank,pge_bill
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: -100y)
         |> aggregateWindow(every: 1y, fn: first, timeSrc: "_start", createEmpty: false)
         |> keep(columns: ["_time", "_value", "_field", "_measurement"])
@@ -186,7 +192,8 @@ testcase windowed_by_time_last {
 ,,0,2021-01-01T00:00:00Z,-1099,bank,pge_bill
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: -100y)
         |> aggregateWindow(every: 1y, fn: last, timeSrc: "_start", createEmpty: false)
         |> keep(columns: ["_time", "_value", "_field", "_measurement"])

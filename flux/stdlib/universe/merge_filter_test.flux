@@ -3,6 +3,7 @@ package universe_test
 import "testing"
 import "testing/expect"
 import "planner"
+import "csv"
 
 option now = () => (2030-01-01T00:00:00Z)
 
@@ -29,7 +30,8 @@ output = "
 "
 
 merge_filter_fn = () =>
-    testing.loadStorage(csv: input)
+    csv.from(csv: input)
+    |> testing.load()
     |> range(start: 2018-05-22T19:53:26Z)
     |> filter(fn: (r) => r["_value"] == 1.77)
     |> filter(fn: (r) => r["_field"] == "load4")
@@ -39,5 +41,5 @@ testcase merge_filter {
     // expect.planner(rules: ["MergeFiltersRule": 1])
 
     result = merge_filter_fn()
-    testing.diff(got: result, want: testing.loadMem(csv: output))
+    testing.diff(got: result, want: csv.from(csv: output))
 }
