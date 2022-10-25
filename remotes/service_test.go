@@ -17,13 +17,14 @@ var (
 	ctx        = context.Background()
 	initID     = platform.ID(1)
 	desc       = "testing testing"
+	remoteID   = platform.ID(20)
 	connection = influxdb.RemoteConnection{
 		ID:               initID,
 		OrgID:            platform.ID(10),
 		Name:             "test",
 		Description:      &desc,
 		RemoteURL:        "https://influxdb.cloud",
-		RemoteOrgID:      platform.ID(20),
+		RemoteOrgID:      &remoteID,
 		AllowInsecureTLS: true,
 	}
 	fakeToken = "abcdefghijklmnop"

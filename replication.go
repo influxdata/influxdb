@@ -109,7 +109,7 @@ func (r *UpdateReplicationRequest) OK() error {
 type ReplicationHTTPConfig struct {
 	RemoteURL            string       `db:"remote_url"`
 	RemoteToken          string       `db:"remote_api_token"`
-	RemoteOrgID          platform.ID  `db:"remote_org_id"`
+	RemoteOrgID          *platform.ID `db:"remote_org_id"`
 	AllowInsecureTLS     bool         `db:"allow_insecure_tls"`
 	RemoteBucketID       *platform.ID `db:"remote_bucket_id"`
 	RemoteBucketName     string       `db:"remote_bucket_name"`

@@ -31,7 +31,7 @@ var (
 		OrgID:            *orgID,
 		Name:             "example",
 		RemoteURL:        "https://influxdb.cloud",
-		RemoteOrgID:      *remoteOrgID,
+		RemoteOrgID:      remoteOrgID,
 		AllowInsecureTLS: true,
 	}
 )

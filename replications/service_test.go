@@ -89,10 +89,11 @@ var (
 		RemoteBucketID:    replication1.RemoteBucketID,
 		MaxQueueSizeBytes: replication1.MaxQueueSizeBytes,
 	}
+	remoteID   = platform.ID(888888)
 	httpConfig = influxdb.ReplicationHTTPConfig{
 		RemoteURL:        fmt.Sprintf("http://%s.cloud", replication1.RemoteID),
 		RemoteToken:      replication1.RemoteID.String(),
-		RemoteOrgID:      platform.ID(888888),
+		RemoteOrgID:      &remoteID,
 		AllowInsecureTLS: true,
 		RemoteBucketID:   replication1.RemoteBucketID,
 	}
