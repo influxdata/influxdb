@@ -15,9 +15,33 @@
 # On main if all these checks pass it will then additionally compile in "release" mode and
 # publish a docker image to quay.io/influxdb/iox:$COMMIT_SHA
 #
-# Manual CI Image:
+# Manually trigger build and push of container image for a branch:
 #
-# It is possible to manually trigger a rebuild of the image used in CI. To do this, navigate to
+# Navigate to https://app.circleci.com/pipelines/github/influxdata/influxdb_iox?branch=<branch-name> (<- change this!)
+# Then:
+#
+# - Click "Run Pipeline" in the top-right
+# - Expand "Add Parameters"
+# - Add a "boolean" parameter called "release_branch" with the value true
+# - Click "Run Pipeline"
+#
+# You can also do this using the CircleCI API:
+#
+# Using `xh`:
+#
+#   # e.g. using 'xh' (https://github.com/ducaale/xh)
+#   $ xh -a '<your personal circleCI token>:' POST \
+#       https://circleci.com/api/v2/project/github/influxdata/influxdb_iox/pipeline \
+#       parameters:='{"release_branch": true}' branch=chore/ci-tidy-up
+#
+# ...or equivalent with `curl`:
+#   $ curl -XPOST -H "Content-Type: application/json" -H "Circle-Token: <your personal circleCI token>" \
+#       -d '{"parameters": {"release_branch": true}, "branch": "chore/ci-tidy-up"}' \
+#       https://circleci.com/api/v2/project/github/influxdata/influxdb_iox/pipeline
+#
+# Manual CI Base Image:
+#
+# It is possible to manually trigger a rebuild of the base image used in CI. To do this, navigate to
 # https://app.circleci.com/pipelines/github/influxdata/influxdb_iox?branch=main (overriding the
 # branch name if desired). Then:
 # - Click "Run Pipeline" in the top-right
@@ -457,9 +481,8 @@ parameters:
     description: "Trigger build of CI image"
     type: boolean
     default: false
-  build_perf:
-    # see comments below in build_perf job for usage
-    description: "Trigger build of perf image"
+  release_branch:
+    description: "Build and push container image for non-main branch"
     type: boolean
     default: false
 
@@ -471,7 +494,7 @@ workflows:
     when:
       and:
         - not: << pipeline.parameters.ci_image >>
-        - not: << pipeline.parameters.build_perf >>
+        - not: << pipeline.parameters.release_branch >>
     jobs:
       - fmt
       - lint
@@ -509,20 +532,10 @@ workflows:
     jobs:
       - ci_image
 
-  # Manual build of release image for a branch.
-  # Trigger using the CircleCI API, like so:
-  #
-  #   # e.g. using 'xh' (https://github.com/ducaale/xh)
-  #   $ xh -a '<your personal circleCI token>:' POST \
-  #       https://circleci.com/api/v2/project/github/influxdata/influxdb_iox/pipeline \
-  #       parameters:='{"build_perf": true}' branch=chore/ci-tidy-up
-  #
-  # ...or equivalent with `curl`:
-  #   $ curl -XPOST -H "Content-Type: application/json" -H "Circle-Token: <your personal circleCI token>" \
-  #       -d '{"parameters": {"build_perf": true}, "branch": "chore/ci-tidy-up"}' \
-  #       https://circleci.com/api/v2/project/github/influxdata/influxdb_iox/pipeline
-  build_perf:
-    when: << pipeline.parameters.build_perf >>
+  # Force build and push of container image for non-main branch.
+  # See instructions at the top of this file
+  release_branch:
+    when: << pipeline.parameters.release_branch >>
     jobs:
       - build_release
       - deploy_release:
