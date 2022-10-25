@@ -99,18 +99,18 @@ func (t *testExecutor) run(pkg *ast.Package, index string, logOut io.Writer, fn 
 	// During the first execution, we are performing the writes
 	// that are in the testcase. We do not care about errors.
 	_ = t.executeWithOptions(bucketOpt, t.writeOptAST, pkg, s.URL(), logOut,
-        func (ctx context.Context, results flux.ResultIterator) error {
-            for results.More() {
-                res := results.Next()
-                if err := res.Tables().Do(func(table flux.Table) error {
-                    table.Done()
-                    return nil
-                }); err != nil {
-                    return err
-                }
-            }
-            return nil
-    })
+		func(ctx context.Context, results flux.ResultIterator) error {
+			for results.More() {
+				res := results.Next()
+				if err := res.Tables().Do(func(table flux.Table) error {
+					table.Done()
+					return nil
+				}); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
 
 	// Execute the read pass.
 	return t.executeWithOptions(bucketOpt, t.readOptAST, pkg, s.URL(), logOut, fn)
@@ -125,7 +125,7 @@ func (t *testExecutor) executeWithOptions(
 	pkg *ast.Package,
 	serverUrl string,
 	logOut io.Writer,
-    fn cmd.TestResultFunc,
+	fn cmd.TestResultFunc,
 ) error {
 	options := optionsAST.Copy().(*ast.File)
 	options.Body = append([]ast.Statement{bucketOpt}, options.Body...)
