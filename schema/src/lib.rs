@@ -62,6 +62,18 @@ pub enum Error {
         actual_type: ArrowDataType,
     },
 
+    #[snafu(display(
+    "Error: Invalid metadata type found in schema for column '{}'. Metadata specifies {:?} which requires the nullable flag to be set to {}",
+        column_name,
+        influxdb_column_type,
+        nullable,
+    ))]
+    Nullability {
+        column_name: String,
+        influxdb_column_type: InfluxColumnType,
+        nullable: bool,
+    },
+
     #[snafu(display("Column not found '{}'", column_name))]
     ColumnNotFound { column_name: String },
 
@@ -143,6 +155,19 @@ impl Schema {
                             column_name: column_name.to_string(),
                             influxdb_column_type,
                             actual_type: actual_type.clone(),
+                        });
+                    }
+
+                    let expected_nullable = match influxdb_column_type {
+                        InfluxColumnType::Tag => true,
+                        InfluxColumnType::Field(_) => true,
+                        InfluxColumnType::Timestamp => false,
+                    };
+                    if field.is_nullable() != expected_nullable {
+                        return Err(Error::Nullability {
+                            column_name: column_name.to_string(),
+                            influxdb_column_type,
+                            nullable: expected_nullable,
                         });
                     }
                 }
@@ -694,13 +719,10 @@ macro_rules! assert_column_eq {
 }
 
 #[cfg(test)]
-mod test {
-    use InfluxColumnType::*;
-    use InfluxFieldType::*;
+pub(crate) mod test_util {
+    use super::*;
 
-    use super::{builder::SchemaBuilder, *};
-
-    fn make_field(
+    pub fn make_field(
         name: &str,
         data_type: arrow::datatypes::DataType,
         nullable: bool,
@@ -714,6 +736,16 @@ mod test {
         ));
         field
     }
+}
+
+#[cfg(test)]
+mod test {
+    use InfluxColumnType::*;
+    use InfluxFieldType::*;
+
+    use crate::test_util::make_field;
+
+    use super::{builder::SchemaBuilder, *};
 
     #[test]
     fn new_from_arrow_no_metadata() {
@@ -744,37 +776,37 @@ mod test {
             make_field(
                 "tag_col",
                 ArrowDataType::Utf8,
-                false,
+                true,
                 "iox::column_type::tag",
             ),
             make_field(
                 "int_col",
                 ArrowDataType::Int64,
-                false,
+                true,
                 "iox::column_type::field::integer",
             ),
             make_field(
                 "uint_col",
                 ArrowDataType::UInt64,
-                false,
+                true,
                 "iox::column_type::field::uinteger",
             ),
             make_field(
                 "float_col",
                 ArrowDataType::Float64,
-                false,
+                true,
                 "iox::column_type::field::float",
             ),
             make_field(
                 "str_col",
                 ArrowDataType::Utf8,
-                false,
+                true,
                 "iox::column_type::field::string",
             ),
             make_field(
                 "bool_col",
                 ArrowDataType::Boolean,
-                false,
+                true,
                 "iox::column_type::field::boolean",
             ),
             make_field(
@@ -911,6 +943,51 @@ mod test {
             res.unwrap_err().to_string(),
             "Error: Duplicate column name found in schema: 'the_column'"
         );
+    }
+
+    #[test]
+    fn new_from_arrow_nullable_wrong_tag() {
+        let fields = vec![make_field(
+            "tag_col",
+            ArrowDataType::Utf8,
+            false,
+            "iox::column_type::tag",
+        )];
+
+        let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new(fields));
+
+        let res = Schema::try_from_arrow(arrow_schema);
+        assert_eq!(res.unwrap_err().to_string(), "Error: Invalid metadata type found in schema for column 'tag_col'. Metadata specifies Tag which requires the nullable flag to be set to true");
+    }
+
+    #[test]
+    fn new_from_arrow_nullable_wrong_field() {
+        let fields = vec![make_field(
+            "field_col",
+            ArrowDataType::Utf8,
+            false,
+            "iox::column_type::field::string",
+        )];
+
+        let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new(fields));
+
+        let res = Schema::try_from_arrow(arrow_schema);
+        assert_eq!(res.unwrap_err().to_string(), "Error: Invalid metadata type found in schema for column 'field_col'. Metadata specifies Field(String) which requires the nullable flag to be set to true");
+    }
+
+    #[test]
+    fn new_from_arrow_nullable_wrong_timestamp() {
+        let fields = vec![make_field(
+            "time",
+            TIME_DATA_TYPE(),
+            true,
+            "iox::column_type::timestamp",
+        )];
+
+        let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new(fields));
+
+        let res = Schema::try_from_arrow(arrow_schema);
+        assert_eq!(res.unwrap_err().to_string(), "Error: Invalid metadata type found in schema for column 'time'. Metadata specifies Timestamp which requires the nullable flag to be set to false");
     }
 
     #[test]

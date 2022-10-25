@@ -42,15 +42,6 @@ impl SchemaBuilder {
         self.add_column(column_name, true, Some(influxdb_column_type), arrow_type)
     }
 
-    /// Add a new tag column to this schema that is known (somehow) to
-    /// have no nulls for all rows
-    pub fn non_null_tag(&mut self, column_name: &str) -> &mut Self {
-        let influxdb_column_type = InfluxColumnType::Tag;
-        let arrow_type = (&influxdb_column_type).into();
-
-        self.add_column(column_name, false, Some(influxdb_column_type), arrow_type)
-    }
-
     /// Add a new field column with the specified InfluxDB data model type
     pub fn influx_field(
         &mut self,
@@ -86,18 +77,6 @@ impl SchemaBuilder {
         let influxdb_column_type = arrow_type.clone().try_into().map(InfluxColumnType::Field)?;
 
         Ok(self.add_column(column_name, true, Some(influxdb_column_type), arrow_type))
-    }
-
-    /// Add a new field column with the specified Arrow datatype that can not be
-    /// null
-    pub fn non_null_field(
-        &mut self,
-        column_name: &str,
-        arrow_type: ArrowDataType,
-    ) -> Result<&mut Self, &'static str> {
-        let influxdb_column_type = arrow_type.clone().try_into().map(InfluxColumnType::Field)?;
-
-        Ok(self.add_column(column_name, false, Some(influxdb_column_type), arrow_type))
     }
 
     /// Add the InfluxDB data model timestamp column
@@ -206,7 +185,7 @@ mod test {
     fn test_builder_tag() {
         let s = SchemaBuilder::new()
             .tag("the_tag")
-            .non_null_tag("the_non_null_tag")
+            .tag("the_other_tag")
             .build()
             .unwrap();
 
@@ -223,7 +202,7 @@ mod test {
         assert_eq!(influxdb_column_type, Some(Tag));
 
         let (influxdb_column_type, field) = s.field(1);
-        assert_eq!(field.name(), "the_non_null_tag");
+        assert_eq!(field.name(), "the_other_tag");
         assert_eq!(
             field.data_type(),
             &ArrowDataType::Dictionary(
@@ -231,7 +210,7 @@ mod test {
                 Box::new(ArrowDataType::Utf8)
             )
         );
-        assert!(!field.is_nullable());
+        assert!(field.is_nullable());
         assert_eq!(influxdb_column_type, Some(Tag));
 
         assert_eq!(s.len(), 2);
@@ -276,31 +255,6 @@ mod test {
         assert_eq!(influxdb_column_type, Some(Field(Float)));
 
         assert_eq!(s.len(), 1);
-    }
-
-    #[test]
-    fn test_builder_non_field() {
-        let s = SchemaBuilder::new()
-            .non_null_field("the_influx_field", ArrowDataType::Float64)
-            .unwrap()
-            .non_null_field("the_other_influx_field", ArrowDataType::Int64)
-            .unwrap()
-            .build()
-            .unwrap();
-
-        let (influxdb_column_type, field) = s.field(0);
-        assert_eq!(field.name(), "the_influx_field");
-        assert_eq!(field.data_type(), &ArrowDataType::Float64);
-        assert!(!field.is_nullable());
-        assert_eq!(influxdb_column_type, Some(Field(Float)));
-
-        let (influxdb_column_type, field) = s.field(1);
-        assert_eq!(field.name(), "the_other_influx_field");
-        assert_eq!(field.data_type(), &ArrowDataType::Int64);
-        assert!(!field.is_nullable());
-        assert_eq!(influxdb_column_type, Some(Field(Integer)));
-
-        assert_eq!(s.len(), 2);
     }
 
     #[test]

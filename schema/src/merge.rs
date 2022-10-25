@@ -218,6 +218,7 @@ impl<'a> SchemaMerger<'a> {
 #[cfg(test)]
 mod tests {
     use crate::builder::SchemaBuilder;
+    use crate::test_util::make_field;
     use crate::InfluxFieldType::Integer;
 
     use super::*;
@@ -459,17 +460,23 @@ mod tests {
 
     #[test]
     fn test_merge_incompatible_schema_nullability() {
-        let schema1 = SchemaBuilder::new()
-            .non_null_field("int_field", ArrowDataType::Int64)
-            .unwrap()
-            .build()
+        let schema1 =
+            Schema::try_from_arrow(Arc::new(arrow::datatypes::Schema::new(vec![make_field(
+                "int_field",
+                ArrowDataType::Int64,
+                false,
+                "invalid",
+            )])))
             .unwrap();
 
         // same field name with different nullability
-        let schema2 = SchemaBuilder::new()
-            .field("int_field", ArrowDataType::Int64)
-            .unwrap()
-            .build()
+        let schema2 =
+            Schema::try_from_arrow(Arc::new(arrow::datatypes::Schema::new(vec![make_field(
+                "int_field",
+                ArrowDataType::Int64,
+                true,
+                "invalid",
+            )])))
             .unwrap();
 
         let merged_schema_error = SchemaMerger::new()
