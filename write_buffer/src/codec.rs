@@ -1,7 +1,7 @@
 //! Encode/Decode for messages
 
 use crate::core::WriteBufferError;
-use data_types::{NonEmptyString, PartitionKey, Sequence};
+use data_types::{NamespaceId, NonEmptyString, PartitionKey, Sequence};
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use generated_types::{
     google::FromOptionalField,
@@ -10,6 +10,7 @@ use generated_types::{
         write_buffer::v1::{write_buffer_payload::Payload, WriteBufferPayload},
     },
 };
+use hashbrown::HashMap;
 use http::{HeaderMap, HeaderValue};
 use iox_time::Time;
 use mutable_batch_pb::decode::decode_database_batch;
@@ -187,7 +188,7 @@ pub fn decode(
 
             match payload {
                 Payload::Write(write) => {
-                    let tables = decode_database_batch(&write).map_err(|e| {
+                    let (tables, _ids) = decode_database_batch(&write).map_err(|e| {
                         WriteBufferError::invalid_data(format!(
                             "failed to decode database batch: {}",
                             e
@@ -204,7 +205,14 @@ pub fn decode(
 
                     Ok(DmlOperation::Write(DmlWrite::new(
                         headers.namespace,
+                        // Decoding MUST NOT make use of the (potentially empty)
+                        // namespace ID during the Kafka wire format change transition period.
+                        NamespaceId::new(0),
                         tables,
+                        // Decoding MUST NOT make use of the (potentially empty)
+                        // table IDs during the Kafka wire format change
+                        // transition period.
+                        HashMap::with_capacity(0),
                         partition_key,
                         meta,
                     )))
@@ -235,7 +243,13 @@ pub fn encode_operation(
 ) -> Result<(), WriteBufferError> {
     let payload = match operation {
         DmlOperation::Write(write) => {
-            let batch = mutable_batch_pb::encode::encode_write(db_name, write);
+            // Safety: this code path is only invoked in the Kafka producer, so
+            // it is safe to utilise the ID.
+            //
+            // See DmlWrite docs for context.
+            let namespace_id = unsafe { write.namespace_id().get() };
+
+            let batch = mutable_batch_pb::encode::encode_write(db_name, namespace_id, write);
             Payload::Write(batch)
         }
         DmlOperation::Delete(delete) => Payload::Delete(DeletePayload {
@@ -257,9 +271,11 @@ pub fn encode_operation(
 
 #[cfg(test)]
 mod tests {
+    use data_types::{SequenceNumber, ShardIndex};
+    use iox_time::{SystemProvider, TimeProvider};
     use trace::RingBufferTraceCollector;
 
-    use crate::core::test_utils::assert_span_context_eq_or_linked;
+    use crate::core::test_utils::{assert_span_context_eq_or_linked, lp_to_batches};
 
     use super::*;
 
@@ -332,5 +348,51 @@ mod tests {
         let iox_headers2 = IoxHeaders::from_headers(encoded, None).unwrap();
 
         assert!(iox_headers2.span_context.is_none());
+    }
+
+    #[test]
+    fn test_dml_write_round_trip() {
+        let (data, ids) = lp_to_batches("platanos great=yes 100\nbananas greatness=1000 100");
+
+        let w = DmlWrite::new(
+            "bananas",
+            NamespaceId::new(42),
+            data,
+            ids,
+            PartitionKey::from("2022-01-01"),
+            DmlMeta::default(),
+        );
+
+        let mut buf = Vec::new();
+        encode_operation("namespace", &DmlOperation::Write(w.clone()), &mut buf)
+            .expect("should encode valid DmlWrite successfully");
+
+        let time = SystemProvider::new().now();
+
+        let got = decode(
+            &buf,
+            IoxHeaders::new(ContentType::Protobuf, None, "bananas".into()),
+            Sequence::new(ShardIndex::new(1), SequenceNumber::new(42)),
+            time,
+            424242,
+        )
+        .expect("failed to decode valid wire format");
+
+        assert_eq!(w.namespace(), got.namespace());
+        let got = match got {
+            DmlOperation::Write(w) => w,
+            _ => panic!("wrong op type"),
+        };
+
+        assert_eq!(w.namespace(), got.namespace());
+        assert_eq!(w.table_count(), got.table_count());
+        assert_eq!(w.min_timestamp(), got.min_timestamp());
+        assert_eq!(w.max_timestamp(), got.max_timestamp());
+        assert_eq!(w.size(), got.size());
+        assert!(got.table("bananas").is_some());
+        assert_eq!(
+            w.tables().map(|(name, _)| name).collect::<Vec<_>>(),
+            got.tables().map(|(name, _)| name).collect::<Vec<_>>(),
+        );
     }
 }

@@ -522,12 +522,12 @@ mod tests {
     use super::*;
     use crate::{
         core::test_utils::{
-            assert_span_context_eq_or_linked, perform_generic_tests, random_topic_name,
-            set_pop_first, TestAdapter, TestContext,
+            assert_span_context_eq_or_linked, lp_to_batches, perform_generic_tests,
+            random_topic_name, set_pop_first, TestAdapter, TestContext,
         },
         maybe_skip_kafka_integration,
     };
-    use data_types::{DeletePredicate, PartitionKey, TimestampRange};
+    use data_types::{DeletePredicate, NamespaceId, PartitionKey, TimestampRange};
     use dml::{test_util::assert_write_op_eq, DmlDelete, DmlWrite};
     use futures::{stream::FuturesUnordered, TryStreamExt};
     use iox_time::TimeProvider;
@@ -835,10 +835,12 @@ mod tests {
         partition_key: impl Into<PartitionKey> + Send,
     ) -> DmlMeta {
         let span_ctx = SpanContext::new(Arc::clone(trace_collector) as Arc<_>);
-        let tables = mutable_batch_lp::lines_to_batches("table foo=1", 0).unwrap();
+        let (tables, names) = lp_to_batches("table foo=1");
         let write = DmlWrite::new(
             namespace,
+            NamespaceId::new(42),
             tables,
+            names,
             partition_key.into(),
             DmlMeta::unsequenced(Some(span_ctx)),
         );

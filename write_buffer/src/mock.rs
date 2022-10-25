@@ -1,9 +1,12 @@
 use crate::{
     config::WriteBufferCreationConfig,
-    core::{WriteBufferError, WriteBufferReading, WriteBufferStreamHandler, WriteBufferWriting},
+    core::{
+        test_utils::lp_to_batches, WriteBufferError, WriteBufferReading, WriteBufferStreamHandler,
+        WriteBufferWriting,
+    },
 };
 use async_trait::async_trait;
-use data_types::{Sequence, SequenceNumber, ShardIndex};
+use data_types::{NamespaceId, Sequence, SequenceNumber, ShardIndex};
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use futures::{stream::BoxStream, StreamExt};
 use iox_time::TimeProvider;
@@ -172,9 +175,16 @@ impl MockBufferSharedState {
 
     /// Push line protocol data with placeholder values used for write metadata
     pub fn push_lp(&self, sequence: Sequence, lp: &str) {
-        let tables = mutable_batch_lp::lines_to_batches(lp, 0).unwrap();
+        let (tables, names) = lp_to_batches(lp);
         let meta = DmlMeta::sequenced(sequence, iox_time::Time::from_timestamp_nanos(0), None, 0);
-        self.push_write(DmlWrite::new("foo", tables, "test-partition".into(), meta))
+        self.push_write(DmlWrite::new(
+            "foo",
+            NamespaceId::new(42),
+            tables,
+            names,
+            "test-partition".into(),
+            meta,
+        ))
     }
 
     /// Push error to specified shard.
@@ -651,14 +661,14 @@ mod tests {
     use std::convert::TryFrom;
     use std::time::Duration;
 
+    use data_types::NamespaceId;
     use futures::StreamExt;
     use iox_time::TimeProvider;
-    use mutable_batch_lp::lines_to_batches;
     use test_helpers::assert_contains;
     use trace::RingBufferTraceCollector;
 
     use crate::core::{
-        test_utils::{perform_generic_tests, TestAdapter, TestContext},
+        test_utils::{lp_to_batches, perform_generic_tests, TestAdapter, TestContext},
         WriteBufferErrorKind,
     };
 
@@ -893,10 +903,12 @@ mod tests {
     async fn test_always_error_write() {
         let writer = MockBufferForWritingThatAlwaysErrors {};
 
-        let tables = lines_to_batches("upc user=1 100", 0).unwrap();
+        let (tables, names) = lp_to_batches("upc user=1 100");
         let operation = DmlOperation::Write(DmlWrite::new(
             "test_db",
+            NamespaceId::new(42),
             tables,
+            names,
             "bananas".into(),
             Default::default(),
         ));

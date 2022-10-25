@@ -132,7 +132,9 @@ where
         let iter = collated.into_iter().map(|(shard, batch)| {
             let dml = DmlWrite::new(
                 namespace,
+                namespace_id,
                 batch,
+                table_ids.remove(&shard).unwrap(),
                 partition_key.clone(),
                 DmlMeta::unsequenced(span_ctx.clone()),
             );

@@ -239,7 +239,7 @@ mod tests {
     use std::sync::Arc;
 
     use assert_matches::assert_matches;
-    use data_types::{Sequence, SequenceNumber};
+    use data_types::{NamespaceId, Sequence, SequenceNumber, TableId};
     use dml::{DmlMeta, DmlWrite};
     use iox_time::Time;
     use metric::{Metric, MetricObserver, Observation};
@@ -272,7 +272,19 @@ mod tests {
     /// Return a DmlWrite with the given metadata and a single table.
     fn make_write(meta: DmlMeta) -> DmlWrite {
         let tables = lines_to_batches("bananas level=42 4242", 0).unwrap();
-        DmlWrite::new("bananas", tables, "1970-01-01".into(), meta)
+        let ids = tables
+            .keys()
+            .enumerate()
+            .map(|(i, v)| (v.clone(), TableId::new(i as _)))
+            .collect();
+        DmlWrite::new(
+            "bananas",
+            NamespaceId::new(42),
+            tables,
+            ids,
+            "1970-01-01".into(),
+            meta,
+        )
     }
 
     /// Extract the metric with the given name from `metrics`.

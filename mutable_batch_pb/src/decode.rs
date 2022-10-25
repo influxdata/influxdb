@@ -60,16 +60,21 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Decodes a [`DatabaseBatch`] to a map of [`MutableBatch`] keyed by table name
 pub fn decode_database_batch(
     database_batch: &DatabaseBatch,
-) -> Result<HashMap<String, MutableBatch>> {
-    let mut ret = HashMap::with_capacity(database_batch.table_batches.len());
+) -> Result<(HashMap<String, MutableBatch>, HashMap<i64, String>)> {
+    let mut name_to_data = HashMap::with_capacity(database_batch.table_batches.len());
+    let mut id_to_name = HashMap::with_capacity(database_batch.table_batches.len());
+
     for table_batch in &database_batch.table_batches {
-        let (_, batch) = ret
+        let (_, batch) = name_to_data
             .raw_entry_mut()
             .from_key(table_batch.table_name.as_str())
             .or_insert_with(|| (table_batch.table_name.clone(), MutableBatch::new()));
+
+        id_to_name.insert(table_batch.table_id, table_batch.table_name.clone());
+
         write_table_batch(batch, table_batch)?;
     }
-    Ok(ret)
+    Ok((name_to_data, id_to_name))
 }
 
 /// Writes the provided [`TableBatch`] to a [`MutableBatch`] on error any changes made
@@ -620,6 +625,7 @@ mod tests {
                 ),
             ],
             row_count: 5,
+            table_id: 42,
         };
 
         let mut batch = MutableBatch::new();
@@ -759,6 +765,7 @@ mod tests {
                 ),
             ],
             row_count: 6,
+            table_id: 42,
         };
 
         let mut batch = MutableBatch::new();
@@ -792,6 +799,7 @@ mod tests {
                     other,
                 ],
                 row_count: 6,
+                table_id: 42,
             };
 
             let err = write_table_batch(&mut batch, &table_batch)
@@ -899,6 +907,7 @@ mod tests {
                 ),
             ],
             row_count: 10,
+            table_id: 42,
         };
 
         let mut batch = MutableBatch::new();
@@ -936,6 +945,7 @@ mod tests {
                 vec![],
             )],
             row_count: 9,
+            table_id: 42,
         };
 
         let mut batch = MutableBatch::new();
@@ -1038,6 +1048,7 @@ mod tests {
                 with_i64(column("time", SemanticType::Time), vec![1, 2, 3], vec![]),
             ],
             row_count: 9,
+            table_id: 42,
         };
 
         let mut batch = MutableBatch::new();
@@ -1067,6 +1078,7 @@ mod tests {
             table_name: "table".to_string(),
             columns: vec![with_i64(column("time", SemanticType::Time), vec![], vec![])],
             row_count: 9,
+            table_id: 42,
         };
 
         let mut batch = MutableBatch::new();

@@ -445,7 +445,7 @@ impl<T> Drop for IngestHandlerImpl<T> {
 mod tests {
     use std::{num::NonZeroU32, ops::DerefMut};
 
-    use data_types::{Namespace, NamespaceSchema, Sequence, SequenceNumber};
+    use data_types::{Namespace, NamespaceId, NamespaceSchema, Sequence, SequenceNumber, TableId};
     use dml::{DmlMeta, DmlWrite};
     use iox_catalog::{mem::MemCatalog, validate_or_insert_schema};
     use iox_time::Time;
@@ -600,7 +600,9 @@ mod tests {
         let ingest_ts1 = Time::from_timestamp_millis(42);
         let write_operations = vec![DmlWrite::new(
             "foo",
+            NamespaceId::new(1),
             lines_to_batches("cpu bar=2 20", 0).unwrap(),
+            [("cpu".to_string(), TableId::new(1))].into_iter().collect(),
             "1970-01-01".into(),
             DmlMeta::sequenced(
                 Sequence::new(ShardIndex::new(0), SequenceNumber::new(10)),
@@ -626,7 +628,9 @@ mod tests {
         let ingest_ts1 = Time::from_timestamp_millis(42);
         let write_operations = vec![DmlWrite::new(
             "foo",
+            NamespaceId::new(1),
             lines_to_batches("cpu bar=2 20", 0).unwrap(),
+            [("cpu".to_string(), TableId::new(1))].into_iter().collect(),
             "1970-01-01".into(),
             DmlMeta::sequenced(
                 Sequence::new(ShardIndex::new(0), SequenceNumber::new(2)),
@@ -652,7 +656,9 @@ mod tests {
         let ingest_ts1 = Time::from_timestamp_millis(42);
         let write_operations = vec![DmlWrite::new(
             "foo",
+            NamespaceId::new(1),
             lines_to_batches("cpu bar=2 20", 0).unwrap(),
+            [("cpu".to_string(), TableId::new(1))].into_iter().collect(),
             "1970-01-01".into(),
             DmlMeta::sequenced(
                 Sequence::new(ShardIndex::new(0), SequenceNumber::new(2)),

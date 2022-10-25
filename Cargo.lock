@@ -2294,6 +2294,7 @@ dependencies = [
  "flatbuffers",
  "futures",
  "generated_types",
+ "hashbrown",
  "hyper",
  "iox_catalog",
  "iox_query",
@@ -3061,6 +3062,7 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "criterion",
+ "data_types",
  "dml",
  "flate2",
  "generated_types",

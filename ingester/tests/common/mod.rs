@@ -5,6 +5,7 @@ use data_types::{
     ShardIndex, TopicId,
 };
 use dml::{DmlMeta, DmlWrite};
+use futures::{stream::FuturesUnordered, StreamExt};
 use generated_types::ingester::IngesterQueryRequest;
 use ingester::{
     handler::{IngestHandler, IngestHandlerImpl},
@@ -261,9 +262,42 @@ impl TestContext {
         partition_key: PartitionKey,
         sequence_number: i64,
     ) -> SequenceNumber {
+        // Resolve the namespace ID needed to construct the DML op
+        let namespace_id = self
+            .namespaces
+            .get(namespace)
+            .expect("namespace does not exist")
+            .id;
+
+        // Build the TableId -> TableName map, upserting the tables in the
+        // process.
+        let ids = lines_to_batches(lp, 0)
+            .unwrap()
+            .keys()
+            .map(|v| {
+                let catalog = Arc::clone(&self.catalog);
+                async move {
+                    let id = catalog
+                        .repositories()
+                        .await
+                        .tables()
+                        .create_or_get(v, namespace_id)
+                        .await
+                        .expect("table should create OK")
+                        .id;
+
+                    (v.clone(), id)
+                }
+            })
+            .collect::<FuturesUnordered<_>>()
+            .collect::<hashbrown::HashMap<_, _>>()
+            .await;
+
         self.enqueue_write(DmlWrite::new(
             namespace,
+            namespace_id,
             lines_to_batches(lp, 0).unwrap(),
+            ids,
             partition_key,
             DmlMeta::sequenced(
                 Sequence::new(TEST_SHARD_INDEX, SequenceNumber::new(sequence_number)),

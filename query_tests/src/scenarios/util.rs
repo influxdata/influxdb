@@ -806,6 +806,12 @@ impl MockIngester {
                 .await;
             partition_ids.push(partition.partition.id);
         }
+
+        let ids = tables
+            .iter()
+            .map(|v| (v.table.name.clone(), v.table.id))
+            .collect();
+
         for table in tables {
             let schema = mutable_batches
                 .get(&table.table.name)
@@ -829,7 +835,9 @@ impl MockIngester {
         );
         let op = DmlOperation::Write(DmlWrite::new(
             self.ns.namespace.name.clone(),
+            self.ns.namespace.id,
             mutable_batches,
+            ids,
             PartitionKey::from(partition_key),
             meta,
         ));

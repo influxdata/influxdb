@@ -7,8 +7,8 @@ license.workspace = true
 
 [dependencies]
 arrow = { workspace = true, features = ["prettyprint"] }
-arrow-flight = { workspace = true }
 arrow_util = { path = "../arrow_util" }
+arrow-flight = { workspace = true }
 async-trait = "0.1.58"
 backoff = { path = "../backoff" }
 bytes = "1.2"
@@ -20,6 +20,7 @@ dml = { path = "../dml" }
 flatbuffers = "2.1.2"
 futures = "0.3"
 generated_types = { path = "../generated_types" }
+hashbrown = "0.12.3"
 hyper = "0.14"
 iox_catalog = { path = "../iox_catalog" }
 iox_query = { path = "../iox_query" }
