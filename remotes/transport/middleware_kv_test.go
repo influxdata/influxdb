@@ -58,12 +58,13 @@ func TestRemoteCreateKVUpdate(t *testing.T) {
 	require.NoError(t, kvMigrator.Up(context.Background()))
 
 	ctx := context.Background()
+	remoteID := platform.ID(2)
 	req := influxdb.CreateRemoteConnectionRequest{
 		OrgID:       platform.ID(1),
 		Name:        "test1",
 		RemoteURL:   "cloud2.influxdata.com",
 		RemoteToken: "testtoken",
-		RemoteOrgID: platform.ID(2),
+		RemoteOrgID: &remoteID,
 	}
 
 	remoteConnction := influxdb.RemoteConnection{
@@ -101,12 +102,13 @@ func TestRemoteDeleteKVUpdate(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, kvMigrator.Up(ctx))
 
+	remoteID := platform.ID(2)
 	req := influxdb.CreateRemoteConnectionRequest{
 		OrgID:       platform.ID(1),
 		Name:        "test1",
 		RemoteURL:   "cloud2.influxdata.com",
 		RemoteToken: "testtoken",
-		RemoteOrgID: platform.ID(2),
+		RemoteOrgID: &remoteID,
 	}
 	req2 := req
 	req2.Name = "test2"
