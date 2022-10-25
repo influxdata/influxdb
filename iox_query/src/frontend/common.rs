@@ -95,6 +95,8 @@ pub struct ScanPlanBuilder<'a> {
     /// The sort key that describes the desired output sort order
     output_sort_key: Option<SortKey>,
     predicate: Option<&'a Predicate>,
+    /// Do deduplication
+    deduplication: bool,
 }
 
 impl<'a> ScanPlanBuilder<'a> {
@@ -106,6 +108,8 @@ impl<'a> ScanPlanBuilder<'a> {
             chunks: vec![],
             output_sort_key: None,
             predicate: None,
+            // always do deduplication in query
+            deduplication: true,
         }
     }
 
@@ -131,6 +135,12 @@ impl<'a> ScanPlanBuilder<'a> {
         self
     }
 
+    /// Deduplication
+    pub fn enable_deduplication(mut self, deduplication: bool) -> Self {
+        self.deduplication = deduplication;
+        self
+    }
+
     /// Creates a `ScanPlan` from the specified chunks
     pub fn build(self) -> Result<ScanPlan> {
         let Self {
@@ -140,6 +150,7 @@ impl<'a> ScanPlanBuilder<'a> {
             output_sort_key,
             table_schema,
             predicate,
+            deduplication,
         } = self;
 
         assert!(!chunks.is_empty(), "no chunks provided");
@@ -149,7 +160,8 @@ impl<'a> ScanPlanBuilder<'a> {
 
         // Prepare the plan for the table
         let mut builder =
-            ProviderBuilder::new(table_name, table_schema, ctx.child_ctx("provider_builder"));
+            ProviderBuilder::new(table_name, table_schema, ctx.child_ctx("provider_builder"))
+                .with_enable_deduplication(deduplication);
 
         if let Some(output_sort_key) = output_sort_key {
             // Tell the scan of this provider to sort its output on the given sort_key
