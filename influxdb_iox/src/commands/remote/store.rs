@@ -2,6 +2,7 @@
 
 use futures::StreamExt;
 use influxdb_iox_client::{catalog, connection::Connection, store};
+use std::path::PathBuf;
 use thiserror::Error;
 use tokio::{
     fs::{self, File},
@@ -51,6 +52,11 @@ struct GetTable {
     /// The name of the table to get the Parquet files for
     #[clap(action)]
     table: String,
+
+    /// The output directory to use. If not specified, files will be placed in a directory named
+    /// after the table in the current working directory.
+    #[clap(action, short)]
+    output_directory: Option<PathBuf>,
 }
 
 /// All possible subcommands for store
@@ -77,7 +83,9 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
             Ok(())
         }
         Command::GetTable(get_table) => {
-            let directory = std::path::Path::new(&get_table.table);
+            let directory = get_table
+                .output_directory
+                .unwrap_or_else(|| PathBuf::from(&get_table.table));
             fs::create_dir_all(&directory).await?;
             let mut catalog_client = catalog::Client::new(connection.clone());
             let mut store_client = store::Client::new(connection);
