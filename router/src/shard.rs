@@ -1,10 +1,11 @@
 //! A representation of a single operation shard.
 
+use std::{borrow::Cow, hash::Hash, sync::Arc};
+
 use data_types::ShardIndex;
 use dml::{DmlMeta, DmlOperation};
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
-use std::{borrow::Cow, hash::Hash, sync::Arc};
 use write_buffer::core::{WriteBufferError, WriteBufferWriting};
 
 /// A shard tags a write buffer with a shard index (Kafka partition).

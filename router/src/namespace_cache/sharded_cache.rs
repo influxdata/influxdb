@@ -1,7 +1,9 @@
-use super::NamespaceCache;
+use std::sync::Arc;
+
 use data_types::{DatabaseName, NamespaceSchema};
 use sharder::JumpHash;
-use std::sync::Arc;
+
+use super::NamespaceCache;
 
 /// A decorator sharding the [`NamespaceCache`] keyspace into a set of `T`.
 #[derive(Debug)]
@@ -38,11 +40,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::namespace_cache::MemoryNamespaceCache;
+    use std::{collections::HashMap, iter};
+
     use data_types::{NamespaceId, QueryPoolId, TopicId};
     use rand::{distributions::Alphanumeric, thread_rng, Rng};
-    use std::{collections::HashMap, iter};
+
+    use super::*;
+    use crate::namespace_cache::MemoryNamespaceCache;
 
     fn rand_namespace() -> DatabaseName<'static> {
         thread_rng()

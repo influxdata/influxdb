@@ -1,10 +1,12 @@
 //! Metric instrumentation for a [`NamespaceCache`] implementation.
 
-use super::NamespaceCache;
+use std::sync::Arc;
+
 use data_types::{DatabaseName, NamespaceSchema};
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric, U64Gauge};
-use std::sync::Arc;
+
+use super::NamespaceCache;
 
 /// An [`InstrumentedCache`] decorates a [`NamespaceCache`] with cache read
 /// hit/miss and cache put insert/update metrics.
@@ -151,13 +153,15 @@ impl NamespaceStats {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::namespace_cache::MemoryNamespaceCache;
+    use std::collections::BTreeMap;
+
     use data_types::{
         ColumnId, ColumnSchema, ColumnType, NamespaceId, QueryPoolId, TableId, TableSchema, TopicId,
     };
     use metric::{Attributes, MetricObserver, Observation};
-    use std::collections::BTreeMap;
+
+    use super::*;
+    use crate::namespace_cache::MemoryNamespaceCache;
 
     /// Deterministically generate a schema containing tables with the specified
     /// column cardinality.

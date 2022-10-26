@@ -1,4 +1,3 @@
-use super::DmlHandler;
 use async_trait::async_trait;
 use data_types::{DatabaseName, DeletePredicate};
 use iox_time::{SystemProvider, TimeProvider};
@@ -7,6 +6,8 @@ use trace::{
     ctx::SpanContext,
     span::{SpanExt, SpanRecorder},
 };
+
+use super::DmlHandler;
 
 /// An instrumentation decorator recording call latencies for [`DmlHandler`] implementations.
 ///
@@ -135,14 +136,16 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::dml_handlers::{mock::MockDmlHandler, DmlError};
+    use std::sync::Arc;
+
     use assert_matches::assert_matches;
     use data_types::TimestampRange;
     use metric::Attributes;
-    use std::sync::Arc;
     use trace::{span::SpanStatus, RingBufferTraceCollector, TraceCollector};
     use write_summary::WriteSummary;
+
+    use super::*;
+    use crate::dml_handlers::{mock::MockDmlHandler, DmlError};
 
     const HANDLER_NAME: &str = "bananas";
 

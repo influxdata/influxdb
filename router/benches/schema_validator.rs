@@ -1,3 +1,5 @@
+use std::{iter, sync::Arc};
+
 use criterion::{
     criterion_group, criterion_main, measurement::WallTime, BatchSize, BenchmarkGroup, Criterion,
     Throughput,
@@ -12,7 +14,6 @@ use router::{
     namespace_cache::{MemoryNamespaceCache, ShardedCache},
 };
 use schema::selection::Selection;
-use std::{iter, sync::Arc};
 use tokio::runtime::Runtime;
 
 static NAMESPACE: Lazy<DatabaseName<'static>> = Lazy::new(|| "bananas".try_into().unwrap());

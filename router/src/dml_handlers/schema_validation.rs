@@ -1,5 +1,5 @@
-use super::DmlHandler;
-use crate::namespace_cache::{metrics::InstrumentedCache, MemoryNamespaceCache, NamespaceCache};
+use std::{ops::DerefMut, sync::Arc};
+
 use async_trait::async_trait;
 use data_types::{DatabaseName, DeletePredicate, NamespaceSchema};
 use hashbrown::HashMap;
@@ -10,9 +10,11 @@ use iox_catalog::{
 use metric::U64Counter;
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
-use std::{ops::DerefMut, sync::Arc};
 use thiserror::Error;
 use trace::ctx::SpanContext;
+
+use super::DmlHandler;
+use crate::namespace_cache::{metrics::InstrumentedCache, MemoryNamespaceCache, NamespaceCache};
 
 /// Errors emitted during schema validation.
 #[derive(Debug, Error)]
@@ -328,12 +330,14 @@ fn validate_column_limits(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::sync::Arc;
+
     use assert_matches::assert_matches;
     use data_types::{ColumnType, TimestampRange};
     use iox_tests::util::{TestCatalog, TestNamespace};
     use once_cell::sync::Lazy;
-    use std::sync::Arc;
+
+    use super::*;
 
     static NAMESPACE: Lazy<DatabaseName<'static>> = Lazy::new(|| "bananas".try_into().unwrap());
 

@@ -1,3 +1,5 @@
+use std::{collections::BTreeSet, iter, sync::Arc};
+
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use data_types::{PartitionTemplate, TemplatePart};
 use hyper::{Body, Request};
@@ -12,7 +14,6 @@ use router::{
     shard::Shard,
 };
 use sharder::JumpHash;
-use std::{collections::BTreeSet, iter, sync::Arc};
 use tokio::runtime::Runtime;
 use write_buffer::{
     core::WriteBufferWriting,

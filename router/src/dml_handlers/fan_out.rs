@@ -1,9 +1,11 @@
-use super::DmlHandler;
+use std::{fmt::Debug, marker::PhantomData};
+
 use async_trait::async_trait;
 use data_types::{DatabaseName, DeletePredicate};
 use futures::{stream::FuturesUnordered, TryStreamExt};
-use std::{fmt::Debug, marker::PhantomData};
 use trace::ctx::SpanContext;
+
+use super::DmlHandler;
 
 /// A [`FanOutAdaptor`] takes an iterator of DML write operation inputs and
 /// executes them concurrently against the inner handler, returning once all

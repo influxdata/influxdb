@@ -1,11 +1,13 @@
 //! Router server entrypoint.
 
-use self::{grpc::GrpcDelegate, http::HttpDelegate};
-use crate::dml_handlers::DmlHandler;
+use std::sync::Arc;
+
 use hashbrown::HashMap;
 use mutable_batch::MutableBatch;
-use std::sync::Arc;
 use trace::TraceCollector;
+
+use self::{grpc::GrpcDelegate, http::HttpDelegate};
+use crate::dml_handlers::DmlHandler;
 
 pub mod grpc;
 pub mod http;

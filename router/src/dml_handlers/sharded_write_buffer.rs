@@ -1,7 +1,10 @@
 //! Logic to shard writes/deletes and push them into a write buffer shard.
 
-use super::Partitioned;
-use crate::{dml_handlers::DmlHandler, shard::Shard};
+use std::{
+    fmt::{Debug, Display},
+    sync::Arc,
+};
+
 use async_trait::async_trait;
 use data_types::{DatabaseName, DeletePredicate, NonEmptyString};
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
@@ -10,13 +13,12 @@ use hashbrown::HashMap;
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
 use sharder::Sharder;
-use std::{
-    fmt::{Debug, Display},
-    sync::Arc,
-};
 use thiserror::Error;
 use trace::ctx::SpanContext;
 use write_buffer::core::WriteBufferError;
+
+use super::Partitioned;
+use crate::{dml_handlers::DmlHandler, shard::Shard};
 
 /// Errors occurring while writing to one or more write buffer shards.
 #[derive(Debug, Error)]
@@ -211,13 +213,15 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::dml_handlers::DmlHandler;
+    use std::sync::Arc;
+
     use assert_matches::assert_matches;
     use data_types::{ShardIndex, TimestampRange};
     use sharder::mock::{MockSharder, MockSharderCall, MockSharderPayload};
-    use std::sync::Arc;
     use write_buffer::mock::{MockBufferForWriting, MockBufferSharedState};
+
+    use super::*;
+    use crate::dml_handlers::DmlHandler;
 
     // Parse `lp` into a table-keyed MutableBatch map.
     fn lp_to_writes(lp: &str) -> Partitioned<HashMap<String, MutableBatch>> {

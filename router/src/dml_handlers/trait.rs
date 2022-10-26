@@ -1,9 +1,11 @@
-use super::{partitioner::PartitionError, NamespaceCreationError, SchemaError, ShardError};
+use std::{error::Error, fmt::Debug, sync::Arc};
+
 use async_trait::async_trait;
 use data_types::{DatabaseName, DeletePredicate};
-use std::{error::Error, fmt::Debug, sync::Arc};
 use thiserror::Error;
 use trace::ctx::SpanContext;
+
+use super::{partitioner::PartitionError, NamespaceCreationError, SchemaError, ShardError};
 
 /// Errors emitted by a [`DmlHandler`] implementation during DML request
 /// processing.

@@ -2,8 +2,8 @@
 
 mod delete_predicate;
 
-use self::delete_predicate::parse_http_delete_request;
-use crate::dml_handlers::{DmlError, DmlHandler, PartitionError, SchemaError};
+use std::{str::Utf8Error, sync::Arc, time::Instant};
+
 use bytes::{Bytes, BytesMut};
 use data_types::{org_and_bucket_to_database, OrgBucketMappingError};
 use futures::StreamExt;
@@ -16,12 +16,13 @@ use mutable_batch_lp::LinesConverter;
 use observability_deps::tracing::*;
 use predicate::delete_predicate::parse_delete_predicate;
 use serde::Deserialize;
-use std::time::Instant;
-use std::{str::Utf8Error, sync::Arc};
 use thiserror::Error;
 use tokio::sync::{Semaphore, TryAcquireError};
 use trace::ctx::SpanContext;
 use write_summary::WriteSummary;
+
+use self::delete_predicate::parse_http_delete_request;
+use crate::dml_handlers::{DmlError, DmlHandler, PartitionError, SchemaError};
 
 const WRITE_TOKEN_HTTP_HEADER: &str = "X-IOx-Write-Token";
 
@@ -521,7 +522,6 @@ mod tests {
     use std::{io::Write, iter, sync::Arc, time::Duration};
 
     use assert_matches::assert_matches;
-
     use flate2::{write::GzEncoder, Compression};
     use hyper::header::HeaderValue;
     use metric::{Attributes, Metric};
@@ -530,9 +530,8 @@ mod tests {
     use test_helpers::timeout::FutureTimeout;
     use tokio_stream::wrappers::ReceiverStream;
 
-    use crate::dml_handlers::mock::{MockDmlHandler, MockDmlHandlerCall};
-
     use super::*;
+    use crate::dml_handlers::mock::{MockDmlHandler, MockDmlHandlerCall};
 
     const MAX_BYTES: usize = 1024;
 

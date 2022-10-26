@@ -1,12 +1,14 @@
-use super::DmlHandler;
-use crate::namespace_cache::NamespaceCache;
+use std::{fmt::Debug, marker::PhantomData, sync::Arc};
+
 use async_trait::async_trait;
 use data_types::{DatabaseName, DeletePredicate, QueryPoolId, TopicId};
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::*;
-use std::{fmt::Debug, marker::PhantomData, sync::Arc};
 use thiserror::Error;
 use trace::ctx::SpanContext;
+
+use super::DmlHandler;
+use crate::namespace_cache::NamespaceCache;
 
 /// An error auto-creating the request namespace.
 #[derive(Debug, Error)]
@@ -130,11 +132,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::namespace_cache::MemoryNamespaceCache;
+    use std::sync::Arc;
+
     use data_types::{Namespace, NamespaceId, NamespaceSchema};
     use iox_catalog::mem::MemCatalog;
-    use std::sync::Arc;
+
+    use super::*;
+    use crate::namespace_cache::MemoryNamespaceCache;
 
     #[tokio::test]
     async fn test_cache_hit() {

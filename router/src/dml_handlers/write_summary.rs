@@ -1,10 +1,12 @@
-use super::DmlHandler;
+use std::fmt::Debug;
+
 use async_trait::async_trait;
 use data_types::{DatabaseName, DeletePredicate};
 use dml::DmlMeta;
-use std::fmt::Debug;
 use trace::ctx::SpanContext;
 use write_summary::WriteSummary;
+
+use super::DmlHandler;
 
 /// A [`WriteSummaryAdapter`] wraps DML Handler that produces
 ///  `Vec<Vec<DmlMeta>>` for each write, and produces a WriteSummary,

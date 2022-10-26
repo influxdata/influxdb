@@ -1,3 +1,5 @@
+use std::{collections::BTreeSet, iter, string::String, sync::Arc};
+
 use assert_matches::assert_matches;
 use data_types::{ColumnType, PartitionTemplate, QueryPoolId, ShardIndex, TemplatePart, TopicId};
 use dml::DmlOperation;
@@ -17,7 +19,6 @@ use router::{
     shard::Shard,
 };
 use sharder::JumpHash;
-use std::{collections::BTreeSet, iter, string::String, sync::Arc};
 use write_buffer::{
     core::WriteBufferWriting,
     mock::{MockBufferForWriting, MockBufferSharedState},

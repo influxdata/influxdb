@@ -1,10 +1,12 @@
-use super::{DmlError, DmlHandler};
+use std::{collections::VecDeque, fmt::Debug};
+
 use async_trait::async_trait;
 use data_types::{DatabaseName, DeletePredicate};
 use parking_lot::Mutex;
-use std::{collections::VecDeque, fmt::Debug};
 use trace::ctx::SpanContext;
 use write_summary::WriteSummary;
+
+use super::{DmlError, DmlHandler};
 
 /// A captured call to a [`MockDmlHandler`], generic over `W`, the captured
 /// [`DmlHandler::WriteInput`] type.
