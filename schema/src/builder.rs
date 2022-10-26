@@ -21,7 +21,7 @@ pub struct SchemaBuilder {
     measurement: Option<String>,
 
     /// The fields, in order
-    fields: Vec<(ArrowField, Option<InfluxColumnType>)>,
+    fields: Vec<(ArrowField, InfluxColumnType)>,
 
     /// If the builder has been consumed
     finished: bool,
@@ -39,7 +39,7 @@ impl SchemaBuilder {
         let influxdb_column_type = InfluxColumnType::Tag;
         let arrow_type = (&influxdb_column_type).into();
 
-        self.add_column(column_name, true, Some(influxdb_column_type), arrow_type)
+        self.add_column(column_name, true, influxdb_column_type, arrow_type)
     }
 
     /// Add a new field column with the specified InfluxDB data model type
@@ -52,7 +52,7 @@ impl SchemaBuilder {
         self.add_column(
             column_name,
             true,
-            Some(InfluxColumnType::Field(influxdb_field_type)),
+            InfluxColumnType::Field(influxdb_field_type),
             arrow_type,
         )
     }
@@ -76,19 +76,14 @@ impl SchemaBuilder {
     ) -> Result<&mut Self, &'static str> {
         let influxdb_column_type = arrow_type.clone().try_into().map(InfluxColumnType::Field)?;
 
-        Ok(self.add_column(column_name, true, Some(influxdb_column_type), arrow_type))
+        Ok(self.add_column(column_name, true, influxdb_column_type, arrow_type))
     }
 
     /// Add the InfluxDB data model timestamp column
     pub fn timestamp(&mut self) -> &mut Self {
         let influxdb_column_type = InfluxColumnType::Timestamp;
         let arrow_type = (&influxdb_column_type).into();
-        self.add_column(
-            TIME_COLUMN_NAME,
-            false,
-            Some(influxdb_column_type),
-            arrow_type,
-        )
+        self.add_column(TIME_COLUMN_NAME, false, influxdb_column_type, arrow_type)
     }
 
     /// Set optional InfluxDB data model measurement name
@@ -111,15 +106,15 @@ impl SchemaBuilder {
     ///
     /// let (influxdb_column_type, arrow_field) = schema.field(0);
     /// assert_eq!(arrow_field.name(), "region");
-    /// assert_eq!(influxdb_column_type, Some(InfluxColumnType::Tag));
+    /// assert_eq!(influxdb_column_type, InfluxColumnType::Tag);
     ///
     /// let (influxdb_column_type, arrow_field) = schema.field(1);
     /// assert_eq!(arrow_field.name(), "counter");
-    /// assert_eq!(influxdb_column_type, Some(InfluxColumnType::Field(InfluxFieldType::Float)));
+    /// assert_eq!(influxdb_column_type, InfluxColumnType::Field(InfluxFieldType::Float));
     ///
     /// let (influxdb_column_type, arrow_field) = schema.field(2);
     /// assert_eq!(arrow_field.name(), "time");
-    /// assert_eq!(influxdb_column_type, Some(InfluxColumnType::Timestamp));
+    /// assert_eq!(influxdb_column_type, InfluxColumnType::Timestamp);
     /// ```
     pub fn build(&mut self) -> Result<Schema> {
         assert!(!self.finished, "build called multiple times");
@@ -134,7 +129,7 @@ impl SchemaBuilder {
         &mut self,
         column_name: &str,
         nullable: bool,
-        column_type: Option<InfluxColumnType>,
+        column_type: InfluxColumnType,
         arrow_type: ArrowDataType,
     ) -> &mut Self {
         let field = ArrowField::new(column_name, arrow_type, nullable);
@@ -199,7 +194,7 @@ mod test {
             )
         );
         assert!(field.is_nullable());
-        assert_eq!(influxdb_column_type, Some(Tag));
+        assert_eq!(influxdb_column_type, Tag);
 
         let (influxdb_column_type, field) = s.field(1);
         assert_eq!(field.name(), "the_other_tag");
@@ -211,7 +206,7 @@ mod test {
             )
         );
         assert!(field.is_nullable());
-        assert_eq!(influxdb_column_type, Some(Tag));
+        assert_eq!(influxdb_column_type, Tag);
 
         assert_eq!(s.len(), 2);
     }
@@ -230,13 +225,13 @@ mod test {
         assert_eq!(field.name(), "the_influx_field");
         assert_eq!(field.data_type(), &ArrowDataType::Float64);
         assert!(field.is_nullable());
-        assert_eq!(influxdb_column_type, Some(Field(Float)));
+        assert_eq!(influxdb_column_type, Field(Float));
 
         let (influxdb_column_type, field) = s.field(1);
         assert_eq!(field.name(), "the_other_influx_field");
         assert_eq!(field.data_type(), &ArrowDataType::Int64);
         assert!(field.is_nullable());
-        assert_eq!(influxdb_column_type, Some(Field(Integer)));
+        assert_eq!(influxdb_column_type, Field(Integer));
 
         assert_eq!(s.len(), 2);
     }
@@ -252,7 +247,7 @@ mod test {
         assert_eq!(field.name(), "the_influx_field");
         assert_eq!(field.data_type(), &ArrowDataType::Float64);
         assert!(field.is_nullable());
-        assert_eq!(influxdb_column_type, Some(Field(Float)));
+        assert_eq!(influxdb_column_type, Field(Float));
 
         assert_eq!(s.len(), 1);
     }

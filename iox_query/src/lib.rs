@@ -365,7 +365,7 @@ fn compute_sort_key(summaries: impl Iterator<Item = Arc<TableSummary>>) -> SortK
     let mut cardinalities: HashMap<String, u64> = Default::default();
     for summary in summaries {
         for column in &summary.columns {
-            if column.influxdb_type != Some(InfluxDbType::Tag) {
+            if column.influxdb_type != InfluxDbType::Tag {
                 continue;
             }
 

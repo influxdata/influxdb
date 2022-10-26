@@ -177,7 +177,8 @@ pub fn optimize_schema(schema: &Schema) -> Schema {
                 field.name(),
                 value_type.as_ref().clone(),
                 field.is_nullable(),
-            ),
+            )
+            .with_metadata(field.metadata().cloned()),
             _ => field.clone(),
         })
         .collect();

@@ -16,7 +16,9 @@ use parquet_file::{
     serialize::CodecError,
     storage::{ParquetStorage, StorageId, UploadError},
 };
-use schema::{builder::SchemaBuilder, sort::SortKey, InfluxFieldType, TIME_COLUMN_NAME};
+use schema::{
+    builder::SchemaBuilder, sort::SortKey, InfluxColumnType, InfluxFieldType, TIME_COLUMN_NAME,
+};
 
 #[tokio::test]
 async fn test_decoded_iox_metadata() {
@@ -31,12 +33,18 @@ async fn test_decoded_iox_metadata() {
                 1653311292000000000,
                 1647695292000000000,
             ]),
+            InfluxColumnType::Timestamp,
         ),
         (
             "some_field",
             to_string_array(&["bananas", "platanos", "manzana"]),
+            InfluxColumnType::Field(InfluxFieldType::String),
         ),
-        ("null_field", null_string_array(3)),
+        (
+            "null_field",
+            null_string_array(3),
+            InfluxColumnType::Field(InfluxFieldType::String),
+        ),
     ];
 
     // And the metadata the batch would be encoded with if it came through the
@@ -56,7 +64,19 @@ async fn test_decoded_iox_metadata() {
         sort_key: None,
     };
 
-    let batch = RecordBatch::try_from_iter(data).unwrap();
+    let mut schema_builder = SchemaBuilder::new();
+    for (name, _array, column_type) in &data {
+        schema_builder.influx_column(name, *column_type);
+    }
+    let schema = schema_builder.build().unwrap();
+
+    let batch = RecordBatch::try_new(
+        schema.as_arrow(),
+        data.into_iter()
+            .map(|(_name, array, _column_type)| array)
+            .collect(),
+    )
+    .unwrap();
     let stream = Box::pin(MemoryStream::new(vec![batch.clone()]));
 
     let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::default());
@@ -99,7 +119,7 @@ async fn test_decoded_iox_metadata() {
     let col_summary = decoded
         .read_statistics(&*schema)
         .expect("Invalid Statistics");
-    assert!(col_summary.is_empty()); // TODO: must NOT be empty after the fix of 4714
+    assert_eq!(col_summary.len(), 3);
 
     let got = decoded
         .read_iox_metadata_new()
@@ -226,9 +246,17 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
     }
 
     // First column is time
-    data.push((TIME_COLUMN_NAME.to_string(), to_timestamp_array(&time_arr)));
+    data.push((
+        TIME_COLUMN_NAME.to_string(),
+        to_timestamp_array(&time_arr),
+        InfluxColumnType::Timestamp,
+    ));
     // Second column contains all nulls
-    data.push(("column_name_1".to_string(), null_string_array(num_rows)));
+    data.push((
+        "column_name_1".to_string(),
+        null_string_array(num_rows),
+        InfluxColumnType::Field(InfluxFieldType::String),
+    ));
     // Names of other columns
     fn make_col_name(i: usize) -> String {
         "column_name_".to_string() + i.to_string().as_str()
@@ -236,7 +264,11 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
     // Data of the rest of the columns
     for i in 2..num_cols {
         let col = make_col_name(i);
-        let col_data = (col, to_string_array(&string_arr));
+        let col_data = (
+            col,
+            to_string_array(&string_arr),
+            InfluxColumnType::Field(InfluxFieldType::String),
+        );
         data.push(col_data);
     }
 
@@ -267,7 +299,19 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
         sort_key: Some(sort_key),
     };
 
-    let batch = RecordBatch::try_from_iter(data).unwrap();
+    let mut schema_builder = SchemaBuilder::new();
+    for (name, _array, column_type) in &data {
+        schema_builder.influx_column(name, *column_type);
+    }
+    let schema = schema_builder.build().unwrap();
+
+    let batch = RecordBatch::try_new(
+        schema.as_arrow(),
+        data.into_iter()
+            .map(|(_name, array, _column_type)| array)
+            .collect(),
+    )
+    .unwrap();
     let stream = Box::pin(MemoryStream::new(vec![batch.clone()]));
 
     let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::default());
@@ -300,7 +344,7 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
     let col_summary = decoded
         .read_statistics(&*schema)
         .expect("Invalid Statistics");
-    assert!(col_summary.is_empty()); // TODO: must NOT be empty after the fix of 4714
+    assert_eq!(col_summary.len(), num_cols);
 
     let got = decoded
         .read_iox_metadata_new()

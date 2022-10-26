@@ -814,7 +814,6 @@ impl MockIngester {
                 .unwrap();
 
             for (t, field) in schema.iter() {
-                let t = t.unwrap();
                 table.create_column(field.name(), t.into()).await;
             }
         }

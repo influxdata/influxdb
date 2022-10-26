@@ -1319,7 +1319,7 @@ impl Deduplicater {
             for (column_type, field) in chunk_schema.iter() {
                 if matches!(
                     column_type,
-                    Some(InfluxColumnType::Tag | InfluxColumnType::Timestamp)
+                    InfluxColumnType::Tag | InfluxColumnType::Timestamp
                 ) {
                     schema_merger
                         .merge_field(field, column_type)

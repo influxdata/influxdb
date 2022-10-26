@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use arrow::{
-    datatypes::{DataType as ArrowDataType, Field},
-    record_batch::RecordBatch,
-};
+use arrow::{datatypes::Field, record_batch::RecordBatch};
 use hashbrown::hash_map::RawEntryMut;
 use hashbrown::HashMap;
 use snafu::Snafu;
@@ -35,42 +32,12 @@ pub enum Error {
     ))]
     TryMergeBadColumnType {
         field_name: String,
-        existing_column_type: Option<InfluxColumnType>,
-        new_column_type: Option<InfluxColumnType>,
-    },
-
-    #[snafu(display(
-        "Schema Merge Error: Incompatible data type for '{}'. Existing type {:?}, new type {:?}",
-        field_name,
-        existing_data_type,
-        new_data_type
-    ))]
-    TryMergeBadArrowType {
-        field_name: String,
-        existing_data_type: ArrowDataType,
-        new_data_type: ArrowDataType,
-    },
-
-    #[snafu(display(
-        "Schema Merge Error: Incompatible nullability for '{}'. Existing field {}, new field {}",
-        field_name, nullable_to_str(*existing_nullability), nullable_to_str(*new_nullability)
-    ))]
-    TryMergeBadNullability {
-        field_name: String,
-        existing_nullability: bool,
-        new_nullability: bool,
+        existing_column_type: InfluxColumnType,
+        new_column_type: InfluxColumnType,
     },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
-
-fn nullable_to_str(nullability: bool) -> &'static str {
-    if nullability {
-        "can be null"
-    } else {
-        "can not be null"
-    }
-}
 
 /// Return the merged schema for RecordBatches
 ///
@@ -101,7 +68,7 @@ pub fn merge_record_batch_schemas(batches: &[Arc<RecordBatch>]) -> Arc<Schema> {
 #[derive(Debug, Default)]
 pub struct SchemaMerger<'a> {
     /// Maps column names to their definition
-    fields: HashMap<String, (Field, Option<InfluxColumnType>)>,
+    fields: HashMap<String, (Field, InfluxColumnType)>,
     /// The measurement name if any
     measurement: Option<String>,
     /// Interner, if any.
@@ -152,7 +119,7 @@ impl<'a> SchemaMerger<'a> {
     pub fn merge_field(
         &mut self,
         field: &Field,
-        column_type: Option<InfluxColumnType>,
+        column_type: InfluxColumnType,
     ) -> Result<&mut Self> {
         let field_name = field.name();
         match self.fields.raw_entry_mut().from_key(field_name) {
@@ -177,21 +144,9 @@ impl<'a> SchemaMerger<'a> {
                     });
                 }
 
-                if field.data_type() != existing_field.data_type() {
-                    return Err(Error::TryMergeBadArrowType {
-                        field_name: field_name.to_string(),
-                        existing_data_type: existing_field.data_type().clone(),
-                        new_data_type: field.data_type().clone(),
-                    });
-                }
-
-                if field.is_nullable() != existing_field.is_nullable() {
-                    return Err(Error::TryMergeBadNullability {
-                        field_name: field_name.to_string(),
-                        existing_nullability: existing_field.is_nullable(),
-                        new_nullability: field.is_nullable(),
-                    });
-                }
+                // both are valid schemas, so this should always hold
+                assert_eq!(field.is_nullable(), existing_field.is_nullable());
+                assert_eq!(field.data_type(), existing_field.data_type());
             }
         }
 
@@ -218,7 +173,6 @@ impl<'a> SchemaMerger<'a> {
 #[cfg(test)]
 mod tests {
     use crate::builder::SchemaBuilder;
-    use crate::test_util::make_field;
     use crate::InfluxFieldType::Integer;
 
     use super::*;
@@ -417,29 +371,6 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_incompatible_data_types() {
-        // same field name with different type
-        let schema1 = Schema::try_from_arrow(Arc::new(arrow::datatypes::Schema::new(vec![
-            arrow::datatypes::Field::new("the_field", ArrowDataType::Int16, true),
-        ])))
-        .unwrap();
-
-        // same field name with different type
-        let schema2 = Schema::try_from_arrow(Arc::new(arrow::datatypes::Schema::new(vec![
-            arrow::datatypes::Field::new("the_field", ArrowDataType::Int8, true),
-        ])))
-        .unwrap();
-
-        let merged_schema_error = SchemaMerger::new()
-            .merge(&schema1)
-            .unwrap()
-            .merge(&schema2)
-            .unwrap_err();
-
-        assert_eq!(merged_schema_error.to_string(), "Schema Merge Error: Incompatible data type for 'the_field'. Existing type Int16, new type Int8");
-    }
-
-    #[test]
     fn test_merge_incompatible_column_types() {
         let schema1 = SchemaBuilder::new().tag("the_tag").build().unwrap();
 
@@ -455,37 +386,7 @@ mod tests {
             .merge(&schema2)
             .unwrap_err();
 
-        assert_eq!(merged_schema_error.to_string(), "Schema Merge Error: Incompatible column type for 'the_tag'. Existing type Some(Tag), new type Some(Field(Integer))");
-    }
-
-    #[test]
-    fn test_merge_incompatible_schema_nullability() {
-        let schema1 =
-            Schema::try_from_arrow(Arc::new(arrow::datatypes::Schema::new(vec![make_field(
-                "int_field",
-                ArrowDataType::Int64,
-                false,
-                "invalid",
-            )])))
-            .unwrap();
-
-        // same field name with different nullability
-        let schema2 =
-            Schema::try_from_arrow(Arc::new(arrow::datatypes::Schema::new(vec![make_field(
-                "int_field",
-                ArrowDataType::Int64,
-                true,
-                "invalid",
-            )])))
-            .unwrap();
-
-        let merged_schema_error = SchemaMerger::new()
-            .merge(&schema1)
-            .unwrap()
-            .merge(&schema2)
-            .unwrap_err();
-
-        assert_eq!(merged_schema_error.to_string(), "Schema Merge Error: Incompatible nullability for 'int_field'. Existing field can not be null, new field can be null");
+        assert_eq!(merged_schema_error.to_string(), "Schema Merge Error: Incompatible column type for 'the_tag'. Existing type Tag, new type Field(Integer)");
     }
 
     #[test]

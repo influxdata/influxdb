@@ -17,7 +17,6 @@ pub fn create_basic_summary(
     let mut columns = Vec::with_capacity(schema.len());
     for i in 0..schema.len() {
         let (t, field) = schema.field(i);
-        let t = t.expect("influx column type must be known");
 
         let influxdb_type = match t {
             InfluxColumnType::Tag => InfluxDbType::Tag,
@@ -74,7 +73,7 @@ pub fn create_basic_summary(
 
         columns.push(ColumnSummary {
             name: field.name().clone(),
-            influxdb_type: Some(influxdb_type),
+            influxdb_type,
             stats,
         })
     }
@@ -110,7 +109,7 @@ mod tests {
             columns: vec![
                 ColumnSummary {
                     name: String::from("tag"),
-                    influxdb_type: Some(InfluxDbType::Tag),
+                    influxdb_type: InfluxDbType::Tag,
                     stats: Statistics::String(StatValues {
                         min: None,
                         max: None,
@@ -121,7 +120,7 @@ mod tests {
                 },
                 ColumnSummary {
                     name: String::from("field_bool"),
-                    influxdb_type: Some(InfluxDbType::Field),
+                    influxdb_type: InfluxDbType::Field,
                     stats: Statistics::Bool(StatValues {
                         min: None,
                         max: None,
@@ -132,7 +131,7 @@ mod tests {
                 },
                 ColumnSummary {
                     name: String::from("field_float"),
-                    influxdb_type: Some(InfluxDbType::Field),
+                    influxdb_type: InfluxDbType::Field,
                     stats: Statistics::F64(StatValues {
                         min: None,
                         max: None,
@@ -143,7 +142,7 @@ mod tests {
                 },
                 ColumnSummary {
                     name: String::from("field_integer"),
-                    influxdb_type: Some(InfluxDbType::Field),
+                    influxdb_type: InfluxDbType::Field,
                     stats: Statistics::I64(StatValues {
                         min: None,
                         max: None,
@@ -154,7 +153,7 @@ mod tests {
                 },
                 ColumnSummary {
                     name: String::from("field_string"),
-                    influxdb_type: Some(InfluxDbType::Field),
+                    influxdb_type: InfluxDbType::Field,
                     stats: Statistics::String(StatValues {
                         min: None,
                         max: None,
@@ -165,7 +164,7 @@ mod tests {
                 },
                 ColumnSummary {
                     name: String::from("field_uinteger"),
-                    influxdb_type: Some(InfluxDbType::Field),
+                    influxdb_type: InfluxDbType::Field,
                     stats: Statistics::U64(StatValues {
                         min: None,
                         max: None,
@@ -176,7 +175,7 @@ mod tests {
                 },
                 ColumnSummary {
                     name: String::from("time"),
-                    influxdb_type: Some(InfluxDbType::Timestamp),
+                    influxdb_type: InfluxDbType::Timestamp,
                     stats: Statistics::I64(StatValues {
                         min: Some(10),
                         max: Some(20),
@@ -201,7 +200,7 @@ mod tests {
             columns: vec![
                 ColumnSummary {
                     name: String::from("tag"),
-                    influxdb_type: Some(InfluxDbType::Tag),
+                    influxdb_type: InfluxDbType::Tag,
                     stats: Statistics::String(StatValues {
                         min: None,
                         max: None,
@@ -212,7 +211,7 @@ mod tests {
                 },
                 ColumnSummary {
                     name: String::from("field_bool"),
-                    influxdb_type: Some(InfluxDbType::Field),
+                    influxdb_type: InfluxDbType::Field,
                     stats: Statistics::Bool(StatValues {
                         min: None,
                         max: None,
@@ -223,7 +222,7 @@ mod tests {
                 },
                 ColumnSummary {
                     name: String::from("field_float"),
-                    influxdb_type: Some(InfluxDbType::Field),
+                    influxdb_type: InfluxDbType::Field,
                     stats: Statistics::F64(StatValues {
                         min: None,
                         max: None,
@@ -234,7 +233,7 @@ mod tests {
                 },
                 ColumnSummary {
                     name: String::from("field_integer"),
-                    influxdb_type: Some(InfluxDbType::Field),
+                    influxdb_type: InfluxDbType::Field,
                     stats: Statistics::I64(StatValues {
                         min: None,
                         max: None,
@@ -245,7 +244,7 @@ mod tests {
                 },
                 ColumnSummary {
                     name: String::from("field_string"),
-                    influxdb_type: Some(InfluxDbType::Field),
+                    influxdb_type: InfluxDbType::Field,
                     stats: Statistics::String(StatValues {
                         min: None,
                         max: None,
@@ -256,7 +255,7 @@ mod tests {
                 },
                 ColumnSummary {
                     name: String::from("field_uinteger"),
-                    influxdb_type: Some(InfluxDbType::Field),
+                    influxdb_type: InfluxDbType::Field,
                     stats: Statistics::U64(StatValues {
                         min: None,
                         max: None,
@@ -267,7 +266,7 @@ mod tests {
                 },
                 ColumnSummary {
                     name: String::from("time"),
-                    influxdb_type: Some(InfluxDbType::Timestamp),
+                    influxdb_type: InfluxDbType::Timestamp,
                     stats: Statistics::I64(StatValues {
                         min: Some(42),
                         max: Some(42),

@@ -545,16 +545,14 @@ impl InfluxRpcPlanner {
                 // Validate that this really is a Tag column
                 let (influx_column_type, field) = schema.field(idx);
                 ensure!(
-                    matches!(influx_column_type, Some(InfluxColumnType::Tag)),
+                    influx_column_type == InfluxColumnType::Tag,
                     InvalidTagColumnSnafu {
                         tag_name,
                         influx_column_type,
                     }
                 );
                 ensure!(
-                    influx_column_type
-                        .unwrap()
-                        .valid_arrow_type(field.data_type()),
+                    influx_column_type.valid_arrow_type(field.data_type()),
                     InternalInvalidTagTypeSnafu {
                         tag_name,
                         data_type: field.data_type().clone(),
@@ -918,7 +916,7 @@ impl InfluxRpcPlanner {
             .schema()
             .iter()
             .filter_map(|(influx_column_type, field)| {
-                if matches!(influx_column_type, Some(InfluxColumnType::Tag)) {
+                if influx_column_type == InfluxColumnType::Tag {
                     Some(field.name().as_expr())
                 } else {
                     None
@@ -980,10 +978,9 @@ impl InfluxRpcPlanner {
             .schema()
             .iter()
             .filter_map(|(influx_column_type, field)| match influx_column_type {
-                Some(InfluxColumnType::Field(_)) => Some(field.name().as_expr()),
-                Some(InfluxColumnType::Timestamp) => Some(field.name().as_expr()),
-                Some(_) => None,
-                None => None,
+                InfluxColumnType::Field(_) => Some(field.name().as_expr()),
+                InfluxColumnType::Timestamp => Some(field.name().as_expr()),
+                InfluxColumnType::Tag => None,
             })
             .collect::<Vec<_>>();
 

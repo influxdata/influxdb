@@ -306,7 +306,7 @@ impl<'a> PruningStatistics for SummaryWrapper<'a> {
         let stats = &col.stats;
 
         // special handling for timestamps
-        if col.influxdb_type == Some(InfluxDbType::Timestamp) {
+        if col.influxdb_type == InfluxDbType::Timestamp {
             let val = stats.as_i64()?;
             return Some(Arc::new(TimestampNanosecondArray::from(vec![val.min])));
         }
@@ -329,7 +329,7 @@ impl<'a> PruningStatistics for SummaryWrapper<'a> {
         let stats = &col.stats;
 
         // special handling for timestamps
-        if col.influxdb_type == Some(InfluxDbType::Timestamp) {
+        if col.influxdb_type == InfluxDbType::Timestamp {
             let val = stats.as_i64()?;
             return Some(Arc::new(TimestampNanosecondArray::from(vec![val.max])));
         }
@@ -799,7 +799,7 @@ mod tests {
         let summary = TableSummary {
             columns: vec![ColumnSummary {
                 name: "foo".to_owned(),
-                influxdb_type: Some(InfluxDbType::Field),
+                influxdb_type: InfluxDbType::Field,
                 stats: data_types::Statistics::I64(StatValues {
                     min: Some(10),
                     max: Some(20),
@@ -817,7 +817,7 @@ mod tests {
         let summary = TableSummary {
             columns: vec![ColumnSummary {
                 name: "foo".to_owned(),
-                influxdb_type: Some(InfluxDbType::Field),
+                influxdb_type: InfluxDbType::Field,
                 stats: data_types::Statistics::I64(StatValues {
                     min: Some(10),
                     max: Some(50),
@@ -835,7 +835,7 @@ mod tests {
         let summary = TableSummary {
             columns: vec![ColumnSummary {
                 name: TIME_COLUMN_NAME.to_owned(),
-                influxdb_type: Some(InfluxDbType::Timestamp),
+                influxdb_type: InfluxDbType::Timestamp,
                 stats: data_types::Statistics::I64(StatValues {
                     min: Some(115),
                     max: Some(115),
@@ -853,7 +853,7 @@ mod tests {
         let summary = TableSummary {
             columns: vec![ColumnSummary {
                 name: TIME_COLUMN_NAME.to_owned(),
-                influxdb_type: Some(InfluxDbType::Timestamp),
+                influxdb_type: InfluxDbType::Timestamp,
                 stats: data_types::Statistics::I64(StatValues {
                     min: Some(300),
                     max: Some(300),
@@ -871,7 +871,7 @@ mod tests {
         let summary = TableSummary {
             columns: vec![ColumnSummary {
                 name: TIME_COLUMN_NAME.to_owned(),
-                influxdb_type: Some(InfluxDbType::Timestamp),
+                influxdb_type: InfluxDbType::Timestamp,
                 stats: data_types::Statistics::I64(StatValues {
                     min: Some(150),
                     max: Some(300),
@@ -907,7 +907,7 @@ mod tests {
             columns: vec![
                 ColumnSummary {
                     name: TIME_COLUMN_NAME.to_owned(),
-                    influxdb_type: Some(InfluxDbType::Timestamp),
+                    influxdb_type: InfluxDbType::Timestamp,
                     stats: data_types::Statistics::I64(StatValues {
                         min: Some(10),
                         max: Some(20),
@@ -918,7 +918,7 @@ mod tests {
                 },
                 ColumnSummary {
                     name: "foo".to_owned(),
-                    influxdb_type: Some(InfluxDbType::Field),
+                    influxdb_type: InfluxDbType::Field,
                     stats: data_types::Statistics::I64(StatValues {
                         min: Some(10),
                         max: Some(20),

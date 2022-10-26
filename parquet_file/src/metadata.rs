@@ -473,7 +473,7 @@ impl IoxMetadata {
             .expect("no time column in metadata statistics");
 
         // Sanity check the type of this column before using the values.
-        assert_eq!(time_summary.influxdb_type, Some(InfluxDbType::Timestamp));
+        assert_eq!(time_summary.influxdb_type, InfluxDbType::Timestamp);
 
         // Extract the min/max timestamps.
         let (min_time, max_time) = match time_summary.stats {
@@ -814,46 +814,41 @@ fn read_statistics_from_parquet_row_group(
     let mut column_summaries = Vec::with_capacity(schema.len());
 
     for ((iox_type, field), column_chunk_metadata) in schema.iter().zip(row_group.columns()) {
-        if let Some(iox_type) = iox_type {
-            let parquet_stats =
-                column_chunk_metadata
-                    .statistics()
-                    .context(StatisticsMissingSnafu {
-                        row_group: row_group_idx,
-                        column: field.name().clone(),
-                    })?;
+        let parquet_stats = column_chunk_metadata
+            .statistics()
+            .context(StatisticsMissingSnafu {
+                row_group: row_group_idx,
+                column: field.name().clone(),
+            })?;
 
-            let min_max_set = parquet_stats.has_min_max_set();
-            if min_max_set && parquet_stats.is_min_max_deprecated() {
-                StatisticsMinMaxDeprecatedSnafu {
-                    row_group: row_group_idx,
-                    column: field.name().clone(),
-                }
-                .fail()?;
+        let min_max_set = parquet_stats.has_min_max_set();
+        if min_max_set && parquet_stats.is_min_max_deprecated() {
+            StatisticsMinMaxDeprecatedSnafu {
+                row_group: row_group_idx,
+                column: field.name().clone(),
             }
-
-            let count = row_group.num_rows().max(0) as u64;
-
-            let stats = extract_iox_statistics(
-                parquet_stats,
-                min_max_set,
-                iox_type,
-                count,
-                row_group_idx,
-                field.name(),
-            )?;
-            column_summaries.push(ColumnSummary {
-                name: field.name().clone(),
-                influxdb_type: Some(match iox_type {
-                    InfluxColumnType::Tag => InfluxDbType::Tag,
-                    InfluxColumnType::Field(_) => InfluxDbType::Field,
-                    InfluxColumnType::Timestamp => InfluxDbType::Timestamp,
-                }),
-                stats,
-            });
-        } else {
-            debug!(?field, "Provided schema of the field does not include IOx Column Type such as Tag, Field, Time");
+            .fail()?;
         }
+
+        let count = row_group.num_rows().max(0) as u64;
+
+        let stats = extract_iox_statistics(
+            parquet_stats,
+            min_max_set,
+            iox_type,
+            count,
+            row_group_idx,
+            field.name(),
+        )?;
+        column_summaries.push(ColumnSummary {
+            name: field.name().clone(),
+            influxdb_type: match iox_type {
+                InfluxColumnType::Tag => InfluxDbType::Tag,
+                InfluxColumnType::Field(_) => InfluxDbType::Field,
+                InfluxColumnType::Timestamp => InfluxDbType::Timestamp,
+            },
+            stats,
+        });
     }
 
     Ok(column_summaries)

@@ -1627,8 +1627,8 @@ pub struct ColumnSummary {
     /// Column name
     pub name: String,
 
-    /// Column's Influx data model type (if any)
-    pub influxdb_type: Option<InfluxDbType>,
+    /// Column's Influx data model type
+    pub influxdb_type: InfluxDbType,
 
     /// Per column
     pub stats: Statistics,
@@ -2988,7 +2988,7 @@ mod tests {
         string_stats.update("bar");
         let string_col = ColumnSummary {
             name: "string".to_string(),
-            influxdb_type: None,
+            influxdb_type: InfluxDbType::Field,
             stats: Statistics::String(string_stats),
         };
 
@@ -2996,7 +2996,7 @@ mod tests {
         int_stats.update(&5);
         let int_col = ColumnSummary {
             name: "int".to_string(),
-            influxdb_type: None,
+            influxdb_type: InfluxDbType::Field,
             stats: Statistics::I64(int_stats),
         };
 
@@ -3004,7 +3004,7 @@ mod tests {
         float_stats.update(&1.3);
         let float_col = ColumnSummary {
             name: "float".to_string(),
-            influxdb_type: None,
+            influxdb_type: InfluxDbType::Field,
             stats: Statistics::F64(float_stats),
         };
 
@@ -3016,7 +3016,7 @@ mod tests {
         string_stats.update("zzz");
         let string_col = ColumnSummary {
             name: "string".to_string(),
-            influxdb_type: None,
+            influxdb_type: InfluxDbType::Field,
             stats: Statistics::String(string_stats),
         };
 
@@ -3024,7 +3024,7 @@ mod tests {
         int_stats.update(&9);
         let int_col = ColumnSummary {
             name: "int".to_string(),
-            influxdb_type: None,
+            influxdb_type: InfluxDbType::Field,
             stats: Statistics::I64(int_stats),
         };
 
@@ -3087,14 +3087,14 @@ mod tests {
         let string_stats = StatValues::new_with_value("bar".to_string());
         let string_col = ColumnSummary {
             name: "string".to_string(),
-            influxdb_type: None,
+            influxdb_type: InfluxDbType::Tag,
             stats: Statistics::String(string_stats),
         };
 
         let int_stats = StatValues::new_with_value(5);
         let int_col = ColumnSummary {
             name: "int".to_string(),
-            influxdb_type: None,
+            influxdb_type: InfluxDbType::Field,
             stats: Statistics::I64(int_stats),
         };
 
@@ -3151,12 +3151,12 @@ mod tests {
     fn column_update_from_boolean() {
         let bool_false = ColumnSummary {
             name: "b".to_string(),
-            influxdb_type: None,
+            influxdb_type: InfluxDbType::Field,
             stats: Statistics::Bool(StatValues::new(Some(false), Some(false), 1, Some(1))),
         };
         let bool_true = ColumnSummary {
             name: "b".to_string(),
-            influxdb_type: None,
+            influxdb_type: InfluxDbType::Field,
             stats: Statistics::Bool(StatValues::new(Some(true), Some(true), 1, Some(2))),
         };
 
@@ -3175,13 +3175,13 @@ mod tests {
     fn column_update_from_u64() {
         let mut min = ColumnSummary {
             name: "foo".to_string(),
-            influxdb_type: None,
+            influxdb_type: InfluxDbType::Field,
             stats: Statistics::U64(StatValues::new(Some(5), Some(23), 1, Some(1))),
         };
 
         let max = ColumnSummary {
             name: "foo".to_string(),
-            influxdb_type: None,
+            influxdb_type: InfluxDbType::Field,
             stats: Statistics::U64(StatValues::new(Some(6), Some(506), 43, Some(2))),
         };
 

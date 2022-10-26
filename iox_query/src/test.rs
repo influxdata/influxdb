@@ -534,11 +534,11 @@ impl TestChunk {
         for i in 0..new_column_schema.len() {
             let (col_type, new_field) = new_column_schema.field(i);
             if add_column_summary {
-                let influxdb_type = col_type.map(|t| match t {
+                let influxdb_type = match col_type {
                     InfluxColumnType::Tag => InfluxDbType::Tag,
                     InfluxColumnType::Field(_) => InfluxDbType::Field,
                     InfluxColumnType::Timestamp => InfluxDbType::Timestamp,
-                });
+                };
 
                 let stats = input_stats.clone();
                 let stats = stats.unwrap_or_else(|| match new_field.data_type() {

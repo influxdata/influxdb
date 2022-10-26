@@ -9,12 +9,12 @@ use schema::Schema;
 
 /// Converts stats.min and an appropriate `ScalarValue`
 pub(crate) fn min_to_scalar(
-    influx_type: &Option<InfluxDbType>,
+    influx_type: &InfluxDbType,
     stats: &IOxStatistics,
 ) -> Option<ScalarValue> {
     match stats {
         IOxStatistics::I64(v) => {
-            if let Some(InfluxDbType::Timestamp) = *influx_type {
+            if InfluxDbType::Timestamp == *influx_type {
                 v.min
                     .map(|x| ScalarValue::TimestampNanosecond(Some(x), None))
             } else {
@@ -30,12 +30,12 @@ pub(crate) fn min_to_scalar(
 
 /// Converts stats.max to an appropriate `ScalarValue`
 pub(crate) fn max_to_scalar(
-    influx_type: &Option<InfluxDbType>,
+    influx_type: &InfluxDbType,
     stats: &IOxStatistics,
 ) -> Option<ScalarValue> {
     match stats {
         IOxStatistics::I64(v) => {
-            if let Some(InfluxDbType::Timestamp) = *influx_type {
+            if InfluxDbType::Timestamp == *influx_type {
                 v.max
                     .map(|x| ScalarValue::TimestampNanosecond(Some(x), None))
             } else {
@@ -131,7 +131,7 @@ mod test {
         };
         let c1_summary = ColumnSummary {
             name: "c1".to_string(),
-            influxdb_type: Some(InfluxDbType::Tag),
+            influxdb_type: InfluxDbType::Tag,
             stats: IOxStatistics::I64(c1_stats),
         };
 
@@ -144,7 +144,7 @@ mod test {
         };
         let c2_summary = ColumnSummary {
             name: "c2".to_string(),
-            influxdb_type: Some(InfluxDbType::Field),
+            influxdb_type: InfluxDbType::Field,
             stats: IOxStatistics::I64(c2_stats),
         };
 
@@ -214,7 +214,7 @@ mod test {
         };
         let c_summary = ColumnSummary {
             name: "time".to_string(),
-            influxdb_type: Some(InfluxDbType::Timestamp),
+            influxdb_type: InfluxDbType::Timestamp,
             stats: IOxStatistics::I64(c_stats),
         };
 

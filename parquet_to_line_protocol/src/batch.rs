@@ -59,7 +59,7 @@ fn tags_values_iter<'a>(
         .iter()
         .enumerate()
         .filter_map(move |(column_index, (influx_column_type, field))| {
-            if matches!(influx_column_type, Some(InfluxColumnType::Tag)) {
+            if influx_column_type == InfluxColumnType::Tag {
                 // tags are always dictionaries
                 let arr = as_dictionary_array::<Int32Type>(batch.column(column_index))
                     .downcast_dict::<StringArray>()
@@ -103,25 +103,23 @@ fn field_values_iter<'a>(
 
             // Extract the value from the relevant array and convert it
             let value = match influx_column_type {
-                Some(InfluxColumnType::Field(InfluxFieldType::Float)) => {
+                InfluxColumnType::Field(InfluxFieldType::Float) => {
                     LPFieldValue::F64(as_primitive_array::<Float64Type>(arr).value(row_index))
                 }
-                Some(InfluxColumnType::Field(InfluxFieldType::Integer)) => {
+                InfluxColumnType::Field(InfluxFieldType::Integer) => {
                     LPFieldValue::I64(as_primitive_array::<Int64Type>(arr).value(row_index))
                 }
-                Some(InfluxColumnType::Field(InfluxFieldType::UInteger)) => {
+                InfluxColumnType::Field(InfluxFieldType::UInteger) => {
                     LPFieldValue::U64(as_primitive_array::<UInt64Type>(arr).value(row_index))
                 }
-                Some(InfluxColumnType::Field(InfluxFieldType::String)) => {
+                InfluxColumnType::Field(InfluxFieldType::String) => {
                     LPFieldValue::String(as_string_array(arr).value(row_index).into())
                 }
-                Some(InfluxColumnType::Field(InfluxFieldType::Boolean)) => {
+                InfluxColumnType::Field(InfluxFieldType::Boolean) => {
                     LPFieldValue::Boolean(as_boolean_array(arr).value(row_index))
                 }
                 // not a field
-                Some(InfluxColumnType::Tag) | Some(InfluxColumnType::Timestamp) | None => {
-                    return None
-                }
+                InfluxColumnType::Tag | InfluxColumnType::Timestamp => return None,
             };
 
             Some(FieldColumn { name, value })
@@ -156,7 +154,7 @@ fn timestamp_value<'a>(
         .iter()
         .enumerate()
         .filter_map(move |(column_index, (influx_column_type, _))| {
-            if matches!(influx_column_type, Some(InfluxColumnType::Timestamp)) {
+            if influx_column_type == InfluxColumnType::Timestamp {
                 Some(column_index)
             } else {
                 None

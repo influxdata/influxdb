@@ -1,7 +1,7 @@
 //! This module contains the schema definition for IOx
 use std::{
     cmp::Ordering,
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     convert::{TryFrom, TryInto},
     fmt,
     mem::{size_of, size_of_val},
@@ -79,6 +79,16 @@ pub enum Error {
 
     #[snafu(display("Sort column not found '{}'", column_name))]
     SortColumnNotFound { column_name: String },
+
+    #[snafu(display(
+        "Invalid InfluxDB column type for column '{}', cannot parse metadata: {:?}",
+        column_name,
+        md
+    ))]
+    InvalidInfluxColumnType {
+        column_name: String,
+        md: Option<String>,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -148,28 +158,31 @@ impl Schema {
 
                 // for each field, ensure any type specified by the metadata
                 // is compatible with the actual type of the field
-                if let Some(influxdb_column_type) = get_influx_type(field) {
-                    let actual_type = field.data_type();
-                    if !influxdb_column_type.valid_arrow_type(actual_type) {
-                        return Err(Error::IncompatibleMetadata {
-                            column_name: column_name.to_string(),
-                            influxdb_column_type,
-                            actual_type: actual_type.clone(),
-                        });
-                    }
+                let influxdb_column_type =
+                    get_influx_type(field).map_err(|md| Error::InvalidInfluxColumnType {
+                        column_name: column_name.to_string(),
+                        md,
+                    })?;
+                let actual_type = field.data_type();
+                if !influxdb_column_type.valid_arrow_type(actual_type) {
+                    return Err(Error::IncompatibleMetadata {
+                        column_name: column_name.to_string(),
+                        influxdb_column_type,
+                        actual_type: actual_type.clone(),
+                    });
+                }
 
-                    let expected_nullable = match influxdb_column_type {
-                        InfluxColumnType::Tag => true,
-                        InfluxColumnType::Field(_) => true,
-                        InfluxColumnType::Timestamp => false,
-                    };
-                    if field.is_nullable() != expected_nullable {
-                        return Err(Error::Nullability {
-                            column_name: column_name.to_string(),
-                            influxdb_column_type,
-                            nullable: expected_nullable,
-                        });
-                    }
+                let expected_nullable = match influxdb_column_type {
+                    InfluxColumnType::Tag => true,
+                    InfluxColumnType::Field(_) => true,
+                    InfluxColumnType::Timestamp => false,
+                };
+                if field.is_nullable() != expected_nullable {
+                    return Err(Error::Nullability {
+                        column_name: column_name.to_string(),
+                        influxdb_column_type,
+                        nullable: expected_nullable,
+                    });
                 }
             }
         }
@@ -187,7 +200,7 @@ impl Schema {
     /// used only by the SchemaBuilder.
     pub(crate) fn new_from_parts(
         measurement: Option<String>,
-        fields: impl Iterator<Item = (ArrowField, Option<InfluxColumnType>)>,
+        fields: impl Iterator<Item = (ArrowField, InfluxColumnType)>,
         sort_columns: bool,
     ) -> Result<Self> {
         let mut metadata = HashMap::new();
@@ -231,9 +244,12 @@ impl Schema {
     ///
     /// if there is no corresponding influx metadata,
     /// returns None for the influxdb_column_type
-    pub fn field(&self, idx: usize) -> (Option<InfluxColumnType>, &ArrowField) {
+    pub fn field(&self, idx: usize) -> (InfluxColumnType, &ArrowField) {
         let field = self.inner.field(idx);
-        (get_influx_type(field), field)
+        (
+            get_influx_type(field).expect("was checked during creation"),
+            field,
+        )
     }
 
     /// Find the index of the column with the given name, if any.
@@ -267,7 +283,7 @@ impl Schema {
     /// this schema, in order
     pub fn tags_iter(&self) -> impl Iterator<Item = &ArrowField> {
         self.iter().filter_map(|(influx_column_type, field)| {
-            if matches!(influx_column_type, Some(InfluxColumnType::Tag)) {
+            if matches!(influx_column_type, InfluxColumnType::Tag) {
                 Some(field)
             } else {
                 None
@@ -279,7 +295,7 @@ impl Schema {
     /// this schema, in order
     pub fn fields_iter(&self) -> impl Iterator<Item = &ArrowField> {
         self.iter().filter_map(|(influx_column_type, field)| {
-            if matches!(influx_column_type, Some(InfluxColumnType::Field(_))) {
+            if matches!(influx_column_type, InfluxColumnType::Field(_)) {
                 Some(field)
             } else {
                 None
@@ -292,7 +308,7 @@ impl Schema {
     /// be only one or 0 such columns
     pub fn time_iter(&self) -> impl Iterator<Item = &ArrowField> {
         self.iter().filter_map(|(influx_column_type, field)| {
-            if matches!(influx_column_type, Some(InfluxColumnType::Timestamp)) {
+            if matches!(influx_column_type, InfluxColumnType::Timestamp) {
                 Some(field)
             } else {
                 None
@@ -418,10 +434,9 @@ impl Schema {
         let mut primary_keys: Vec<_> = self
             .iter()
             .filter_map(|(column_type, field)| match column_type {
-                Some(Tag) => Some((Tag, field)),
-                Some(Field(_)) => None,
-                Some(Timestamp) => Some((Timestamp, field)),
-                None => None,
+                Tag => Some((Tag, field)),
+                Field(_) => None,
+                Timestamp => Some((Timestamp, field)),
             })
             .collect();
 
@@ -480,25 +495,24 @@ impl Schema {
 }
 
 /// Gets the influx type for a field
-pub(crate) fn get_influx_type(field: &ArrowField) -> Option<InfluxColumnType> {
-    field
+pub(crate) fn get_influx_type(field: &ArrowField) -> Result<InfluxColumnType, Option<String>> {
+    let md = field
         .metadata()
-        .as_ref()?
-        .get(COLUMN_METADATA_KEY)?
-        .as_str()
-        .try_into()
-        .ok()
+        .as_ref()
+        .ok_or(None)?
+        .get(COLUMN_METADATA_KEY)
+        .ok_or(None)?
+        .as_str();
+
+    md.try_into().map_err(|_| Some(md.to_owned()))
 }
 
 /// Sets the metadata for a field - replacing any existing metadata
-pub(crate) fn set_field_metadata(field: &mut ArrowField, column_type: Option<InfluxColumnType>) {
-    let mut metadata = std::collections::BTreeMap::new();
-
-    if let Some(column_type) = column_type {
-        metadata.insert(COLUMN_METADATA_KEY.to_string(), column_type.to_string());
-    }
-
-    field.set_metadata(Some(metadata))
+pub(crate) fn set_field_metadata(field: &mut ArrowField, column_type: InfluxColumnType) {
+    field.set_metadata(Some(BTreeMap::from([(
+        COLUMN_METADATA_KEY.to_string(),
+        column_type.to_string(),
+    )])));
 }
 
 /// Field value types for InfluxDB 2.0 data model, as defined in
@@ -674,7 +688,7 @@ impl<'a> fmt::Debug for SchemaIter<'a> {
 }
 
 impl<'a> Iterator for SchemaIter<'a> {
-    type Item = (Option<InfluxColumnType>, &'a ArrowField);
+    type Item = (InfluxColumnType, &'a ArrowField);
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.idx < self.schema.len() {
@@ -700,12 +714,9 @@ macro_rules! assert_column_eq {
     ($schema:expr, $i:expr, $expected_influxdb_column_type:expr, $expected_field_name:expr) => {
         let (influxdb_column_type, arrow_field) = $schema.field($i);
         assert_eq!(
-            influxdb_column_type,
-            Some($expected_influxdb_column_type),
+            influxdb_column_type, $expected_influxdb_column_type,
             "Line protocol column mismatch for column {}, field {:?}, in schema {:#?}",
-            $i,
-            arrow_field,
-            $schema
+            $i, arrow_field, $schema
         );
         assert_eq!(
             arrow_field.name(),
@@ -746,29 +757,6 @@ mod test {
     use crate::test_util::make_field;
 
     use super::{builder::SchemaBuilder, *};
-
-    #[test]
-    fn new_from_arrow_no_metadata() {
-        let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new(vec![
-            ArrowField::new("col1", ArrowDataType::Int64, false),
-            ArrowField::new("col2", ArrowDataType::Utf8, false),
-        ]));
-
-        // Given a schema created from arrow record batch with no metadata
-        let schema: Schema = Arc::clone(&arrow_schema).try_into().unwrap();
-        assert_eq!(schema.len(), 2);
-
-        // It still works, but has no lp column types
-        let (influxdb_column_type, field) = schema.field(0);
-        assert_eq!(field.name(), "col1");
-        assert_eq!(field, arrow_schema.field(0));
-        assert_eq!(influxdb_column_type, None);
-
-        let (influxdb_column_type, field) = schema.field(1);
-        assert_eq!(field.name(), "col2");
-        assert_eq!(field, arrow_schema.field(1));
-        assert_eq!(influxdb_column_type, None);
-    }
 
     #[test]
     fn new_from_arrow_metadata_good() {
@@ -839,43 +827,6 @@ mod test {
         assert_eq!(schema.measurement().unwrap(), "the_measurement");
     }
 
-    #[test]
-    fn new_from_arrow_metadata_extra() {
-        let fields = vec![
-            make_field(
-                "tag_col",
-                ArrowDataType::Utf8,
-                false,
-                "something_other_than_iox",
-            ),
-            make_field(
-                "int_col",
-                ArrowDataType::Int64,
-                false,
-                "iox::column_type::field::some_new_exotic_type",
-            ),
-        ];
-
-        // This metadata models metadata that was not created by this
-        // rust module itself
-        let metadata: HashMap<_, _> = vec![("iox::some::new::key".to_string(), "foo".to_string())]
-            .into_iter()
-            .collect();
-
-        let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new_with_metadata(fields, metadata));
-
-        // Having this succeed is the primary test
-        let schema: Schema = arrow_schema.try_into().unwrap();
-
-        let (influxdb_column_type, field) = schema.field(0);
-        assert_eq!(field.name(), "tag_col");
-        assert_eq!(influxdb_column_type, None);
-
-        let (influxdb_column_type, field) = schema.field(1);
-        assert_eq!(field.name(), "int_col");
-        assert_eq!(influxdb_column_type, None);
-    }
-
     // mismatched metadata / arrow types
     #[test]
     fn new_from_arrow_metadata_mismatched_tag() {
@@ -931,9 +882,24 @@ mod test {
     fn new_from_arrow_replicated_columns() {
         // arrow allows duplicated colum names
         let fields = vec![
-            ArrowField::new("the_column", ArrowDataType::Utf8, false),
-            ArrowField::new("another_column", ArrowDataType::Utf8, false),
-            ArrowField::new("the_column", ArrowDataType::Utf8, false),
+            make_field(
+                "the_column",
+                ArrowDataType::Utf8,
+                true,
+                "iox::column_type::tag",
+            ),
+            make_field(
+                "another_columng",
+                ArrowDataType::Utf8,
+                true,
+                "iox::column_type::tag",
+            ),
+            make_field(
+                "the_column",
+                ArrowDataType::Utf8,
+                true,
+                "iox::column_type::tag",
+            ),
         ];
 
         let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new(fields));
@@ -988,6 +954,51 @@ mod test {
 
         let res = Schema::try_from_arrow(arrow_schema);
         assert_eq!(res.unwrap_err().to_string(), "Error: Invalid metadata type found in schema for column 'time'. Metadata specifies Timestamp which requires the nullable flag to be set to false");
+    }
+
+    #[test]
+    fn new_from_arrow_no_metadata() {
+        let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new(vec![ArrowField::new(
+            "col1",
+            ArrowDataType::Int64,
+            false,
+        )]));
+
+        let res = Schema::try_from_arrow(arrow_schema);
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "Invalid InfluxDB column type for column 'col1', cannot parse metadata: None"
+        );
+    }
+
+    #[test]
+    fn new_from_arrow_metadata_invalid_md() {
+        let fields = vec![make_field(
+            "tag_col",
+            ArrowDataType::Utf8,
+            false,
+            "something_other_than_iox",
+        )];
+
+        let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new(fields));
+
+        let res = Schema::try_from_arrow(arrow_schema);
+        assert_eq!(res.unwrap_err().to_string(), "Invalid InfluxDB column type for column 'tag_col', cannot parse metadata: Some(\"something_other_than_iox\")");
+    }
+
+    #[test]
+    fn new_from_arrow_metadata_invalid_field() {
+        let fields = vec![make_field(
+            "int_col",
+            ArrowDataType::Int64,
+            false,
+            "iox::column_type::field::some_new_exotic_type",
+        )];
+
+        let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new(fields));
+
+        let res = Schema::try_from_arrow(arrow_schema);
+        assert_eq!(res.unwrap_err().to_string(), "Invalid InfluxDB column type for column 'int_col', cannot parse metadata: Some(\"iox::column_type::field::some_new_exotic_type\")");
     }
 
     #[test]
@@ -1177,7 +1188,7 @@ mod test {
 
         let get_type = |x: &Schema, field: &str| -> InfluxColumnType {
             let idx = x.find_index_of(field).unwrap();
-            x.field(idx).0.unwrap()
+            x.field(idx).0
         };
 
         assert_eq!(
