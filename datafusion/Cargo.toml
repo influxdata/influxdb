@@ -10,6 +10,6 @@ license.workspace = true
 
 # Rename to workaround doctest bug
 # Turn off optional datafusion features (e.g. don't get support for crypto functions or avro)
-upstream = { git = "https://github.com/apache/arrow-datafusion.git", rev="57e445aadcc87cad33de8a969eb4203b219ec9dd", default-features = false, package = "datafusion" }
-datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="57e445aadcc87cad33de8a969eb4203b219ec9dd" }
+upstream = { git = "https://github.com/apache/arrow-datafusion.git", rev="48f73c6af3b0cc747c38b4a9c7a610f4630e8736", default-features = false, package = "datafusion" }
+datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="48f73c6af3b0cc747c38b4a9c7a610f4630e8736" }
 workspace-hack = { path = "../workspace-hack"}
