@@ -67,6 +67,16 @@ integration_mysql_injection
 integration_mariadb_injection
 integration_mssql_injection
 
+# Tests skipped because a feature flag must be enabled
+# the flag is: removeRedundantSortNodes
+remove_sort
+remove_sort_more_columns
+remove_sort_aggregate
+remove_sort_selector
+remove_sort_filter_range
+remove_sort_aggregate_window
+remove_sort_join
+
 # Other skipped tests
 buckets # unbounded
 columns # failing with differences
