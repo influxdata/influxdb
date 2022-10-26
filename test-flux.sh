@@ -116,6 +116,10 @@ window_null # failing with differences
 group_one_tag_last              # broken (fixed in flux@3d6f47ded)
 group_all_filter_field_last     # broken (fixed in flux@3d6f47ded)
 group_one_tag_filter_field_last # broken (fixed in flux@3d6f47ded)
+
+windowed_by_time_count # TODO(bnpfeife) broken by flux@05a1065f, OptimizeAggregateWindow
+windowed_by_time_sum   # TODO(bnpfeife) broken by flux@05a1065f, OptimizeAggregateWindow
+windowed_by_time_mean  # TODO(bnpfeife) broken by flux@05a1065f, OptimizeAggregateWindow
 ENDSKIPS
 )
   echo "$doc" | sed '/^[[:space:]]*$/d' | sed 's/[[:space:]]*#.*$//' | tr '\n' ',' | sed 's/,$//'
