@@ -5,6 +5,9 @@ use std::{collections::BTreeMap, fmt::Display, str::FromStr, time::Duration};
 /// "create topic").
 #[derive(Debug, PartialEq, Eq)]
 pub struct ClientConfig {
+    /// Client ID.
+    pub client_id: Option<String>,
+
     /// Maximum message size in bytes.
     ///
     /// extracted from `max_message_size`. Defaults to `None` (rskafka default).
@@ -21,6 +24,7 @@ impl TryFrom<&BTreeMap<String, String>> for ClientConfig {
 
     fn try_from(cfg: &BTreeMap<String, String>) -> Result<Self, Self::Error> {
         Ok(Self {
+            client_id: parse_key(cfg, "client.id")?,
             // TODO: Revert this back to after we have proper prod config management.
             //       See https://github.com/influxdata/influxdb_iox/issues/3723
             //
@@ -152,6 +156,7 @@ mod tests {
     fn test_client_config_default() {
         let actual = ClientConfig::try_from(&BTreeMap::default()).unwrap();
         let expected = ClientConfig {
+            client_id: None,
             max_message_size: Some(10485760),
             socks5_proxy: None,
         };
@@ -161,12 +166,14 @@ mod tests {
     #[test]
     fn test_client_config_parse() {
         let actual = ClientConfig::try_from(&BTreeMap::from([
+            (String::from("client.id"), String::from("my_id")),
             (String::from("max_message_size"), String::from("1024")),
             (String::from("socks5_proxy"), String::from("my_proxy")),
             (String::from("foo"), String::from("bar")),
         ]))
         .unwrap();
         let expected = ClientConfig {
+            client_id: Some(String::from("my_id")),
             max_message_size: Some(1024),
             socks5_proxy: Some(String::from("my_proxy")),
         };
