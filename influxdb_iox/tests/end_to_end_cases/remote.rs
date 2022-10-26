@@ -101,6 +101,38 @@ async fn remote_store_get_table() {
                         1,
                         "Expected 1 file in the directory, got: {entries:?}"
                     );
+
+                    // Specifying a table that doesn't exist prints an error message
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .current_dir(&dir)
+                        .arg("-h")
+                        .arg(&router_addr)
+                        .arg("remote")
+                        .arg("store")
+                        .arg("get-table")
+                        .arg(&namespace)
+                        .arg("nacho-table")
+                        .assert()
+                        .failure()
+                        .stderr(predicate::str::contains("Table nacho-table not found"));
+
+                    // Specifying a namespace that doesn't exist prints an error message
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .current_dir(&dir)
+                        .arg("-h")
+                        .arg(&router_addr)
+                        .arg("remote")
+                        .arg("store")
+                        .arg("get-table")
+                        .arg("nacho-namespace")
+                        .arg(&table_name)
+                        .assert()
+                        .failure()
+                        .stderr(predicate::str::contains(
+                            "Database nacho-namespace not found",
+                        ));
                 }
                 .boxed()
             })),

@@ -9,10 +9,10 @@ mod store;
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Error in partition subcommand: {0}")]
+    #[error("{0}")]
     Partition(#[from] partition::Error),
 
-    #[error("Error in the store subcommand: {0}")]
+    #[error("{0}")]
     Store(#[from] store::Error),
 
     #[error("Catalog error: {0}")]

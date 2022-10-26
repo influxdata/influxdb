@@ -15,7 +15,7 @@ pub enum Error {
     #[error("JSON Serialization error: {0}")]
     Serde(#[from] serde_json::Error),
 
-    #[error("Client error: {0}")]
+    #[error("IOx request failed: {0}")]
     ClientError(#[from] influxdb_iox_client::error::Error),
 
     #[error("Writing file: {0}")]
