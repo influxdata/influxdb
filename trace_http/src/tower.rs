@@ -99,24 +99,16 @@ where
     fn call(&mut self, mut request: Request<ReqBody>) -> Self::Future {
         let metrics_recorder = Some(self.metrics.recorder(&request));
 
-        let collector = match self.collector.as_ref() {
-            Some(collector) => collector,
-            None => {
-                return TracedFuture {
-                    metrics_recorder,
-                    span_recorder: SpanRecorder::new(None),
-                    inner: self.service.call(request),
-                }
-            }
-        };
-
-        let span = match self.trace_header_parser.parse(collector, request.headers()) {
+        let span = match self
+            .trace_header_parser
+            .parse(self.collector.as_ref(), request.headers())
+        {
             Ok(Some(ctx)) => {
                 request
                     .extensions_mut()
                     .insert(RequestLogContext::new(ctx.clone()));
 
-                ctx.sampled.then(|| {
+                (ctx.sampled && ctx.collector.is_some()).then(|| {
                     let span = ctx.child("IOx");
 
                     // Add context to request for use by service handlers

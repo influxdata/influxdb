@@ -97,7 +97,7 @@ impl IoxHeaders {
                         let parser = TraceHeaderParser::new()
                             .with_jaeger_trace_context_header_name(HEADER_TRACE_CONTEXT);
 
-                        span_context = match parser.parse(trace_collector, &headers) {
+                        span_context = match parser.parse(Some(trace_collector), &headers) {
                             Ok(None) => None,
                             Ok(Some(ctx)) => ctx.sampled.then_some(ctx),
                             Err(e) => {

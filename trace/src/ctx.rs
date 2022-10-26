@@ -64,6 +64,11 @@ impl SpanContext {
     /// new span context has a random trace_id and span_id, and thus
     /// is not connected to any existing span or trace.
     pub fn new(collector: Arc<dyn TraceCollector>) -> Self {
+        Self::new_with_optional_collector(Some(collector))
+    }
+
+    /// Same as [`new`](Self::new), but with an optional collector.
+    pub fn new_with_optional_collector(collector: Option<Arc<dyn TraceCollector>>) -> Self {
         let mut rng = rand::thread_rng();
         let trace_id: u128 = rng.gen_range(1..u128::MAX);
         let span_id: u64 = rng.gen_range(1..u64::MAX);
@@ -73,7 +78,7 @@ impl SpanContext {
             parent_span_id: None,
             span_id: SpanId(NonZeroU64::new(span_id).unwrap()),
             links: vec![],
-            collector: Some(collector),
+            collector,
             sampled: true,
         }
     }
