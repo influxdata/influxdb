@@ -118,13 +118,7 @@ impl TestContext {
             iox_catalog::INFINITE_RETENTION_POLICY.to_owned(),
         );
 
-        let delegate = HttpDelegate::new(
-            1024,
-            100,
-            namespace_resolver,
-            Arc::new(handler_stack),
-            &metrics,
-        );
+        let delegate = HttpDelegate::new(1024, 100, namespace_resolver, handler_stack, &metrics);
 
         Self {
             delegate,

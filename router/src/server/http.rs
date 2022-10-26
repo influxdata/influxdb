@@ -2,7 +2,7 @@
 
 mod delete_predicate;
 
-use std::{str::Utf8Error, sync::Arc, time::Instant};
+use std::{str::Utf8Error, time::Instant};
 
 use bytes::{Bytes, BytesMut};
 use data_types::{org_and_bucket_to_database, OrgBucketMappingError};
@@ -229,7 +229,7 @@ pub struct HttpDelegate<D, N, T = SystemProvider> {
     max_request_bytes: usize,
     time_provider: T,
     namespace_resolver: N,
-    dml_handler: Arc<D>,
+    dml_handler: D,
 
     // A request limiter to restrict the number of simultaneous requests this
     // router services.
@@ -259,7 +259,7 @@ impl<D, N> HttpDelegate<D, N, SystemProvider> {
         max_request_bytes: usize,
         max_requests: usize,
         namespace_resolver: N,
-        dml_handler: Arc<D>,
+        dml_handler: D,
         metrics: &metric::Registry,
     ) -> Self {
         let write_metric_lines = metrics
