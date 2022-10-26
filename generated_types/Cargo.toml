@@ -9,7 +9,8 @@ license.workspace = true
 base64 = "0.13"
 bytes = "1.2"
 data_types = { path = "../data_types", optional = true }
-datafusion = { path = "../datafusion", optional = true }
+datafusion = { workspace = true, optional = true }
+datafusion-proto = { workspace = true, optional = true }
 observability_deps = { path = "../observability_deps" }
 pbjson = "0.5"
 pbjson-types = "0.5"
@@ -28,9 +29,9 @@ pbjson-build = "0.5"
 
 [dev-dependencies]
 data_types = { path = "../data_types" }
-datafusion = { path = "../datafusion" }
+datafusion = { workspace = true }
 predicate = { path = "../predicate" }
 
 [features]
 default = ["data_types_conversions"]
-data_types_conversions = ["data_types", "datafusion", "predicate"]
+data_types_conversions = ["data_types", "datafusion", "datafusion-proto", "predicate"]

@@ -9,7 +9,7 @@ license.workspace = true
 # Workspace dependencies, in alphabetical order
 arrow_util = { path = "../arrow_util" }
 data_types = { path = "../data_types" }
-datafusion = { path = "../datafusion" }
+datafusion = { workspace = true }
 generated_types = { path = "../generated_types" }
 observability_deps = { path = "../observability_deps" }
 iox_query = { path = "../iox_query" }
@@ -19,8 +19,8 @@ trace_http = { path = "../trace_http"}
 tracker = { path = "../tracker" }
 
 # Crates.io dependencies, in alphabetical order
-arrow = { version = "25.0.0", features = ["prettyprint"] }
-arrow-flight = "25.0.0"
+arrow = { workspace = true, features = ["prettyprint"] }
+arrow-flight = { workspace = true }
 bytes = "1.2"
 futures = "0.3"
 pin-project = "1.0"

@@ -6,11 +6,11 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies] # In alphabetical order
-arrow = { version = "25.0.0", features = ["prettyprint"] }
+arrow = { workspace = true, features = ["prettyprint"] }
 base64 = "0.13"
 bytes = "1.2"
 data_types = { path = "../data_types" }
-datafusion = { path = "../datafusion" }
+datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }
@@ -18,15 +18,15 @@ iox_time = { path = "../iox_time" }
 object_store = "0.5.1"
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.12"
-parquet = {version = "25.0.0", features = ["experimental"]}
+parquet = { workspace = true, features = ["experimental"]}
 pbjson-types = "0.5"
 predicate = { path = "../predicate" }
 prost = "0.11"
 schema = { path = "../schema" }
 snafu = "0.7"
+thiserror = "1.0.37"
 thrift = "0.16"
 tokio = { version = "1.21", features = ["macros", "parking_lot", "rt", "rt-multi-thread", "sync"] }
 uuid = { version = "1", features = ["v4"] }
 zstd = "0.11"
 workspace-hack = { path = "../workspace-hack"}
-thiserror = "1.0.37"

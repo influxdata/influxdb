@@ -8,7 +8,7 @@ license.workspace = true
 [dependencies]
 # Workspace dependencies, in alphabetical order
 data_types = { path = "../data_types" }
-datafusion = { path = "../datafusion" }
+datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }
 generated_types = { path = "../generated_types" }
 observability_deps = { path = "../observability_deps" }
@@ -22,7 +22,7 @@ trace_http = { path = "../trace_http"}
 tracker = { path = "../tracker" }
 
 # Crates.io dependencies, in alphabetical order
-arrow = { version = "25.0.0", features = ["prettyprint"] }
+arrow = { workspace = true, features = ["prettyprint"] }
 async-trait = "0.1"
 futures = "0.3"
 pin-project = "1.0"

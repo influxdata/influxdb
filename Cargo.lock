@@ -197,7 +197,7 @@ dependencies = [
  "arrow-flight",
  "chrono",
  "comfy-table",
- "datafusion 0.1.0",
+ "datafusion",
  "hashbrown",
  "num-traits",
  "rand",
@@ -767,7 +767,7 @@ dependencies = [
  "backoff",
  "bytes",
  "data_types",
- "datafusion 0.1.0",
+ "datafusion",
  "futures",
  "generated_types",
  "iox_catalog",
@@ -1127,15 +1127,6 @@ dependencies = [
 
 [[package]]
 name = "datafusion"
-version = "0.1.0"
-dependencies = [
- "datafusion 13.0.0",
- "datafusion-proto",
- "workspace-hack",
-]
-
-[[package]]
-name = "datafusion"
 version = "13.0.0"
 source = "git+https://github.com/apache/arrow-datafusion.git?rev=48f73c6af3b0cc747c38b4a9c7a610f4630e8736#48f73c6af3b0cc747c38b4a9c7a610f4630e8736"
 dependencies = [
@@ -1248,7 +1239,7 @@ source = "git+https://github.com/apache/arrow-datafusion.git?rev=48f73c6af3b0cc7
 dependencies = [
  "arrow",
  "async-trait",
- "datafusion 13.0.0",
+ "datafusion",
  "datafusion-common",
  "datafusion-expr",
  "prost 0.11.0",
@@ -1282,7 +1273,7 @@ name = "datafusion_util"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "datafusion 0.1.0",
+ "datafusion",
  "futures",
  "observability_deps",
  "pin-project",
@@ -1676,7 +1667,8 @@ dependencies = [
  "base64",
  "bytes",
  "data_types",
- "datafusion 0.1.0",
+ "datafusion",
+ "datafusion-proto",
  "observability_deps",
  "pbjson",
  "pbjson-build",
@@ -2143,7 +2135,7 @@ dependencies = [
  "compactor",
  "console-subscriber",
  "data_types",
- "datafusion 0.1.0",
+ "datafusion",
  "dotenvy",
  "flate2",
  "futures",
@@ -2291,7 +2283,7 @@ dependencies = [
  "bytes",
  "chrono",
  "data_types",
- "datafusion 0.1.0",
+ "datafusion",
  "datafusion_util",
  "dml",
  "flatbuffers",
@@ -2435,7 +2427,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "data_types",
- "datafusion 0.1.0",
+ "datafusion",
  "datafusion_util",
  "executor",
  "futures",
@@ -2463,7 +2455,7 @@ dependencies = [
  "arrow",
  "bytes",
  "data_types",
- "datafusion 0.1.0",
+ "datafusion",
  "datafusion_util",
  "futures",
  "iox_catalog",
@@ -3426,7 +3418,7 @@ dependencies = [
  "base64",
  "bytes",
  "data_types",
- "datafusion 0.1.0",
+ "datafusion",
  "datafusion_util",
  "futures",
  "generated_types",
@@ -3452,7 +3444,7 @@ dependencies = [
 name = "parquet_to_line_protocol"
 version = "0.1.0"
 dependencies = [
- "datafusion 0.1.0",
+ "datafusion",
  "futures",
  "influxdb_line_protocol",
  "mutable_batch",
@@ -3654,7 +3646,7 @@ dependencies = [
  "arrow",
  "chrono",
  "data_types",
- "datafusion 0.1.0",
+ "datafusion",
  "datafusion_util",
  "itertools",
  "observability_deps",
@@ -3915,7 +3907,7 @@ dependencies = [
  "cache_system",
  "client_util",
  "data_types",
- "datafusion 0.1.0",
+ "datafusion",
  "datafusion_util",
  "futures",
  "generated_types",
@@ -3956,7 +3948,7 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "chrono",
- "datafusion 0.1.0",
+ "datafusion",
  "datafusion_util",
  "itertools",
  "observability_deps",
@@ -3978,7 +3970,7 @@ dependencies = [
  "async-trait",
  "backoff",
  "data_types",
- "datafusion 0.1.0",
+ "datafusion",
  "datafusion_util",
  "dml",
  "futures",
@@ -4485,7 +4477,7 @@ name = "service_common"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "datafusion 0.1.0",
+ "datafusion",
  "iox_query",
  "metric",
  "parking_lot 0.12.1",
@@ -4520,7 +4512,7 @@ dependencies = [
  "arrow_util",
  "bytes",
  "data_types",
- "datafusion 0.1.0",
+ "datafusion",
  "futures",
  "generated_types",
  "iox_query",
@@ -4547,7 +4539,7 @@ dependencies = [
  "arrow",
  "async-trait",
  "data_types",
- "datafusion 0.1.0",
+ "datafusion",
  "datafusion_util",
  "futures",
  "generated_types",
@@ -6008,11 +6000,11 @@ dependencies = [
  "chrono",
  "crossbeam-utils",
  "crypto-common",
+ "datafusion",
  "digest",
  "either",
  "fixedbitset",
  "flatbuffers",
- "flate2",
  "futures-channel",
  "futures-core",
  "futures-sink",

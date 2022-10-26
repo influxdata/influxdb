@@ -6,7 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-datafusion = { path = "../datafusion" }
+datafusion = { workspace = true }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 futures = {version = "0.3"}
 num_cpus = "1.13.1"
