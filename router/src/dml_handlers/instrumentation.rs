@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use data_types::{DatabaseName, DeletePredicate};
+use data_types::{DatabaseName, DeletePredicate, NamespaceId};
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
 use trace::{
@@ -68,6 +68,7 @@ where
     async fn write(
         &self,
         namespace: &DatabaseName<'static>,
+        namespace_id: NamespaceId,
         input: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
@@ -77,7 +78,10 @@ where
         let mut span_recorder =
             SpanRecorder::new(span_ctx.clone().map(|parent| parent.child(self.name)));
 
-        let res = self.inner.write(namespace, input, span_ctx).await;
+        let res = self
+            .inner
+            .write(namespace, namespace_id, input, span_ctx)
+            .await;
 
         // Avoid exploding if time goes backwards - simply drop the measurement
         // if it happens.
@@ -202,7 +206,7 @@ mod tests {
         let decorator = InstrumentationDecorator::new(HANDLER_NAME, &*metrics, handler);
 
         decorator
-            .write(&ns, (), Some(span))
+            .write(&ns, NamespaceId::new(42), (), Some(span))
             .await
             .expect("inner handler configured to succeed");
 
@@ -225,7 +229,7 @@ mod tests {
         let decorator = InstrumentationDecorator::new(HANDLER_NAME, &*metrics, handler);
 
         let err = decorator
-            .write(&ns, (), Some(span))
+            .write(&ns, NamespaceId::new(42), (), Some(span))
             .await
             .expect_err("inner handler configured to fail");
 

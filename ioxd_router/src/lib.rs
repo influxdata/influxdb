@@ -18,13 +18,13 @@ use object_store::DynObjectStore;
 use observability_deps::tracing::info;
 use router::{
     dml_handlers::{
-        DmlHandler, DmlHandlerChainExt, FanOutAdaptor, InstrumentationDecorator,
-        NamespaceAutocreation, Partitioner, SchemaValidator, ShardedWriteBuffer,
-        WriteSummaryAdapter,
+        DmlHandler, DmlHandlerChainExt, FanOutAdaptor, InstrumentationDecorator, Partitioner,
+        SchemaValidator, ShardedWriteBuffer, WriteSummaryAdapter,
     },
     namespace_cache::{
         metrics::InstrumentedCache, MemoryNamespaceCache, NamespaceCache, ShardedCache,
     },
+    namespace_resolver::{NamespaceAutocreation, NamespaceResolver, NamespaceSchemaResolver},
     server::{
         grpc::{sharder::ShardService, GrpcDelegate},
         http::HttpDelegate,
@@ -66,14 +66,14 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-pub struct RouterServerType<D, S> {
-    server: RouterServer<D, S>,
+pub struct RouterServerType<D, N, S> {
+    server: RouterServer<D, N, S>,
     shutdown: CancellationToken,
     trace_collector: Option<Arc<dyn TraceCollector>>,
 }
 
-impl<D, S> RouterServerType<D, S> {
-    pub fn new(server: RouterServer<D, S>, common_state: &CommonServerState) -> Self {
+impl<D, N, S> RouterServerType<D, N, S> {
+    pub fn new(server: RouterServer<D, N, S>, common_state: &CommonServerState) -> Self {
         Self {
             server,
             shutdown: CancellationToken::new(),
@@ -82,17 +82,18 @@ impl<D, S> RouterServerType<D, S> {
     }
 }
 
-impl<D, S> std::fmt::Debug for RouterServerType<D, S> {
+impl<D, N, S> std::fmt::Debug for RouterServerType<D, N, S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Router")
     }
 }
 
 #[async_trait]
-impl<D, S> ServerType for RouterServerType<D, S>
+impl<D, N, S> ServerType for RouterServerType<D, N, S>
 where
     D: DmlHandler<WriteInput = HashMap<String, MutableBatch>, WriteOutput = WriteSummary> + 'static,
     S: Sharder<(), Item = Arc<Shard>> + Clone + 'static,
+    N: NamespaceResolver + 'static,
 {
     /// Return the [`metric::Registry`] used by the router.
     fn metric_registry(&self) -> Arc<Registry> {
@@ -210,6 +211,10 @@ pub async fn create_router_server_type(
     });
     let partitioner = InstrumentationDecorator::new("partitioner", &*metrics, partitioner);
 
+    // Initialise the Namespace ID lookup + cache
+    let namespace_resolver =
+        NamespaceSchemaResolver::new(Arc::clone(&catalog), Arc::clone(&ns_cache));
+
     ////////////////////////////////////////////////////////////////////////////
     //
     // THIS CODE IS FOR TESTING ONLY.
@@ -247,9 +252,10 @@ pub async fn create_router_server_type(
         });
     txn.commit().await?;
 
-    let ns_creator = NamespaceAutocreation::new(
+    let namespace_resolver = NamespaceAutocreation::new(
+        namespace_resolver,
+        Arc::clone(&ns_cache),
         Arc::clone(&catalog),
-        ns_cache,
         topic_id,
         query_id,
         iox_catalog::INFINITE_RETENTION_POLICY.to_owned(),
@@ -262,8 +268,7 @@ pub async fn create_router_server_type(
     // Build the chain of DML handlers that forms the request processing
     // pipeline, starting with the namespace creator (for testing purposes) and
     // write partitioner that yields a set of partitioned batches.
-    let handler_stack = ns_creator
-        .and_then(schema_validator)
+    let handler_stack = schema_validator
         .and_then(partitioner)
         // Once writes have been partitioned, they are processed in parallel.
         //
@@ -288,6 +293,7 @@ pub async fn create_router_server_type(
     let http = HttpDelegate::new(
         common_state.run_config().max_http_request_size,
         request_limit,
+        namespace_resolver,
         Arc::clone(&handler_stack),
         &metrics,
     );

@@ -1,7 +1,7 @@
 use std::{collections::VecDeque, fmt::Debug};
 
 use async_trait::async_trait;
-use data_types::{DatabaseName, DeletePredicate};
+use data_types::{DatabaseName, DeletePredicate, NamespaceId};
 use parking_lot::Mutex;
 use trace::ctx::SpanContext;
 use write_summary::WriteSummary;
@@ -14,6 +14,7 @@ use super::{DmlError, DmlHandler};
 pub enum MockDmlHandlerCall<W> {
     Write {
         namespace: String,
+        namespace_id: NamespaceId,
         write_input: W,
     },
     Delete {
@@ -102,6 +103,7 @@ where
     async fn write(
         &self,
         namespace: &DatabaseName<'static>,
+        namespace_id: NamespaceId,
         write_input: Self::WriteInput,
         _span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
@@ -109,6 +111,7 @@ where
             self,
             MockDmlHandlerCall::Write {
                 namespace: namespace.into(),
+                namespace_id,
                 write_input,
             },
             write_return

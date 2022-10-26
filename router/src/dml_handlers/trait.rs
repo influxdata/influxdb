@@ -1,11 +1,11 @@
 use std::{error::Error, fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{DatabaseName, DeletePredicate};
+use data_types::{DatabaseName, DeletePredicate, NamespaceId};
 use thiserror::Error;
 use trace::ctx::SpanContext;
 
-use super::{partitioner::PartitionError, NamespaceCreationError, SchemaError, ShardError};
+use super::{partitioner::PartitionError, SchemaError, ShardError};
 
 /// Errors emitted by a [`DmlHandler`] implementation during DML request
 /// processing.
@@ -22,10 +22,6 @@ pub enum DmlError {
     /// A schema validation failure.
     #[error(transparent)]
     Schema(#[from] SchemaError),
-
-    /// Failed to create the request namespace.
-    #[error(transparent)]
-    NamespaceCreation(#[from] NamespaceCreationError),
 
     /// An error partitioning the request.
     #[error(transparent)]
@@ -63,6 +59,7 @@ pub trait DmlHandler: Debug + Send + Sync {
     async fn write(
         &self,
         namespace: &DatabaseName<'static>,
+        namespace_id: NamespaceId,
         input: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError>;
@@ -90,10 +87,13 @@ where
     async fn write(
         &self,
         namespace: &DatabaseName<'static>,
+        namespace_id: NamespaceId,
         input: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
-        (**self).write(namespace, input, span_ctx).await
+        (**self)
+            .write(namespace, namespace_id, input, span_ctx)
+            .await
     }
 
     /// Delete the data specified in `delete`.

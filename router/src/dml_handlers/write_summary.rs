@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
-use data_types::{DatabaseName, DeletePredicate};
+use data_types::{DatabaseName, DeletePredicate, NamespaceId};
 use dml::DmlMeta;
 use trace::ctx::SpanContext;
 use write_summary::WriteSummary;
@@ -40,10 +40,14 @@ where
     async fn write(
         &self,
         namespace: &DatabaseName<'static>,
+        namespace_id: NamespaceId,
         input: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
-        let metas = self.inner.write(namespace, input, span_ctx).await?;
+        let metas = self
+            .inner
+            .write(namespace, namespace_id, input, span_ctx)
+            .await?;
         Ok(WriteSummary::new(metas))
     }
 

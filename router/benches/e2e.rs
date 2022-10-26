@@ -1,7 +1,7 @@
 use std::{collections::BTreeSet, iter, sync::Arc};
 
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use data_types::{PartitionTemplate, TemplatePart};
+use data_types::{NamespaceId, PartitionTemplate, TemplatePart};
 use hyper::{Body, Request};
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use router::{
@@ -10,6 +10,7 @@ use router::{
         WriteSummaryAdapter,
     },
     namespace_cache::{MemoryNamespaceCache, ShardedCache},
+    namespace_resolver::mock::MockNamespaceResolver,
     server::http::HttpDelegate,
     shard::Shard,
 };
@@ -74,7 +75,16 @@ fn e2e_benchmarks(c: &mut Criterion) {
             partitioner.and_then(WriteSummaryAdapter::new(FanOutAdaptor::new(write_buffer))),
         );
 
-        HttpDelegate::new(1024, 100, Arc::new(handler_stack), &metrics)
+        let namespace_resolver =
+            MockNamespaceResolver::default().with_mapping("bananas", NamespaceId::new(42));
+
+        HttpDelegate::new(
+            1024,
+            100,
+            namespace_resolver,
+            Arc::new(handler_stack),
+            &metrics,
+        )
     };
 
     let body_str = "platanos,tag1=A,tag2=B val=42i 123456";

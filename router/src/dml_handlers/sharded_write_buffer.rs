@@ -6,7 +6,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use data_types::{DatabaseName, DeletePredicate, NonEmptyString};
+use data_types::{DatabaseName, DeletePredicate, NamespaceId, NonEmptyString};
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use futures::{stream::FuturesUnordered, StreamExt};
 use hashbrown::HashMap;
@@ -94,6 +94,7 @@ where
     async fn write(
         &self,
         namespace: &DatabaseName<'static>,
+        namespace_id: NamespaceId,
         writes: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, ShardError> {
@@ -129,6 +130,7 @@ where
                 kafka_partition=%shard.shard_index(),
                 tables=%dml.table_count(),
                 %namespace,
+                %namespace_id,
                 approx_size=%dml.size(),
                 "routing writes to shard"
             );
@@ -274,7 +276,9 @@ mod tests {
 
         // Call the ShardedWriteBuffer and drive the test
         let ns = DatabaseName::new("bananas").unwrap();
-        w.write(&ns, writes, None).await.expect("write failed");
+        w.write(&ns, NamespaceId::new(42), writes, None)
+            .await
+            .expect("write failed");
 
         // Assert the sharder saw all the tables
         let calls = sharder.calls();
@@ -340,7 +344,9 @@ mod tests {
 
         // Call the ShardedWriteBuffer and drive the test
         let ns = DatabaseName::new("bananas").unwrap();
-        w.write(&ns, writes, None).await.expect("write failed");
+        w.write(&ns, NamespaceId::new(42), writes, None)
+            .await
+            .expect("write failed");
 
         // Assert the sharder saw all the tables
         let calls = sharder.calls();
@@ -417,7 +423,7 @@ mod tests {
         // Call the ShardedWriteBuffer and drive the test
         let ns = DatabaseName::new("bananas").unwrap();
         let err = w
-            .write(&ns, writes, None)
+            .write(&ns, NamespaceId::new(42), writes, None)
             .await
             .expect_err("write should return a failure");
         assert_matches!(err, ShardError::WriteBufferErrors{successes, errs} => {

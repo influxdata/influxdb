@@ -4,7 +4,7 @@ use criterion::{
     criterion_group, criterion_main, measurement::WallTime, BatchSize, BenchmarkGroup, Criterion,
     Throughput,
 };
-use data_types::DatabaseName;
+use data_types::{DatabaseName, NamespaceId};
 use hashbrown::HashMap;
 use iox_catalog::mem::MemCatalog;
 use mutable_batch::MutableBatch;
@@ -49,7 +49,7 @@ fn bench(group: &mut BenchmarkGroup<WallTime>, tables: usize, columns_per_table:
 
     for i in 0..65_000 {
         let write = lp_to_writes(format!("{}{}", i + 10_000_000, generate_lp(1, 1)).as_str());
-        let _ = runtime().block_on(validator.write(&*NAMESPACE, write, None));
+        let _ = runtime().block_on(validator.write(&*NAMESPACE, NamespaceId::new(42), write, None));
     }
 
     let write = lp_to_writes(&generate_lp(tables, columns_per_table));
@@ -61,7 +61,7 @@ fn bench(group: &mut BenchmarkGroup<WallTime>, tables: usize, columns_per_table:
     group.bench_function(format!("{tables}x{columns_per_table}"), |b| {
         b.to_async(runtime()).iter_batched(
             || write.clone(),
-            |write| validator.write(&*NAMESPACE, write, None),
+            |write| validator.write(&*NAMESPACE, NamespaceId::new(42), write, None),
             BatchSize::SmallInput,
         );
     });
