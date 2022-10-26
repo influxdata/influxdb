@@ -90,14 +90,14 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
                 .await?;
             let num_parquet_files = parquet_files.len();
             println!("found {num_parquet_files} Parquet files, downloading...");
-            let indexed_object_store_ids = parquet_files
+            let indexed_parquet_file_metadata = parquet_files
                 .into_iter()
-                .map(|pf| pf.object_store_id)
+                .map(|pf| (pf.object_store_id, pf.partition_id))
                 .enumerate();
 
-            for (index, uuid) in indexed_object_store_ids {
+            for (index, (uuid, partition_id)) in indexed_parquet_file_metadata {
                 let index = index + 1;
-                let filename = format!("{uuid}.parquet");
+                let filename = format!("{uuid}.{partition_id}.parquet");
                 println!("downloading file {index} of {num_parquet_files} ({filename})...");
                 let mut response = store_client
                     .get_parquet_file_by_object_store_id(uuid.clone())
