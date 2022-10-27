@@ -439,6 +439,9 @@ async fn setup_topic(
 ) -> Result<BTreeMap<ShardIndex, PartitionClient>> {
     let client_config = ClientConfig::try_from(connection_config)?;
     let mut client_builder = ClientBuilder::new(vec![conn]);
+    if let Some(client_id) = client_config.client_id {
+        client_builder = client_builder.client_id(client_id);
+    }
     if let Some(max_message_size) = client_config.max_message_size {
         client_builder = client_builder.max_message_size(max_message_size);
     }

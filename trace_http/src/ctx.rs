@@ -283,6 +283,10 @@ impl RequestLogContext {
     pub(crate) fn new(ctx: SpanContext) -> Self {
         Self(ctx)
     }
+
+    pub fn ctx(&self) -> &SpanContext {
+        &self.0
+    }
 }
 
 /// Format span context as Jaeger trace context.

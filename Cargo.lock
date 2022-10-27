@@ -3466,9 +3466,9 @@ checksum = "b1de2e551fb905ac83f73f7aedf2f0cb4a0da7e35efa24a202a936269f1f18e1"
 
 [[package]]
 name = "pbjson"
-version = "0.5.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f06d6c64fa91b40a9321e174ad4e9702038c90210f87b295b4f723c7ad2155a"
+checksum = "048f9ac93c1eab514f9470c4bc8d97ca2a0a236b84f45cc19d69a59fc11467f6"
 dependencies = [
  "base64",
  "serde",
@@ -3476,9 +3476,9 @@ dependencies = [
 
 [[package]]
 name = "pbjson-build"
-version = "0.5.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "780b05debc7ed9a64c4ba63309c39a329368aa54a6894686c3a91608a18f9bb2"
+checksum = "bdbb7b706f2afc610f3853550cdbbf6372fd324824a087806bd4480ea4996e24"
 dependencies = [
  "heck",
  "itertools",
@@ -3488,9 +3488,9 @@ dependencies = [
 
 [[package]]
 name = "pbjson-types"
-version = "0.5.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2aa68b479d28fc76e96b1973cb307c177607bbd975e7cd9101605d56cf09f22d"
+checksum = "4a88c8d87f99a4ac14325e7a4c24af190fca261956e3b82dd7ed67e77e6c7043"
 dependencies = [
  "bytes",
  "chrono",
@@ -4266,7 +4266,7 @@ dependencies = [
 [[package]]
 name = "rskafka"
 version = "0.3.0"
-source = "git+https://github.com/influxdata/rskafka.git?rev=3208e4742f08048bbab4e8fc4e0a775507fe3e66#3208e4742f08048bbab4e8fc4e0a775507fe3e66"
+source = "git+https://github.com/influxdata/rskafka.git?rev=8c98c56b5d4b06206ce40e21404a75e6bb7bf7af#8c98c56b5d4b06206ce40e21404a75e6bb7bf7af"
 dependencies = [
  "async-socks5",
  "async-trait",
