@@ -1,7 +1,7 @@
 use std::{ops::DerefMut, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{DatabaseName, DeletePredicate, NamespaceId, NamespaceSchema};
+use data_types::{DatabaseName, DeletePredicate, NamespaceId, NamespaceSchema, TableId};
 use hashbrown::HashMap;
 use iox_catalog::{
     interface::{get_schema_by_name, Catalog, Error as CatalogError},
@@ -146,8 +146,10 @@ where
     type WriteError = SchemaError;
     type DeleteError = SchemaError;
 
+    // Accepts a map of "TableName -> MutableBatch"
     type WriteInput = HashMap<String, MutableBatch>;
-    type WriteOutput = Self::WriteInput;
+    // And returns a map of TableId -> (TableName, MutableBatch)
+    type WriteOutput = HashMap<TableId, (String, MutableBatch)>;
 
     /// Validate the schema of all the writes in `batches`.
     ///
@@ -270,18 +272,31 @@ where
         // (before passing through the write) in order to allow subsequent,
         // parallel requests to use it while waiting on this request to
         // complete.
-        match maybe_new_schema {
+        let latest_schema = match maybe_new_schema {
             Some(v) => {
                 // This call MAY overwrite a more-up-to-date cache entry if
                 // racing with another request for the same namespace, but the
                 // cache will eventually converge in subsequent requests.
-                self.cache.put_schema(namespace.clone(), v);
+                self.cache.put_schema(namespace.clone(), Arc::clone(&v));
                 trace!(%namespace, "schema cache updated");
+                v
             }
             None => {
                 trace!(%namespace, "schema unchanged");
+                schema
             }
-        }
+        };
+
+        // Map the "TableName -> Data" into "(TableName, TableId) -> Data" for
+        // downstream handlers.
+        let batches = batches
+            .into_iter()
+            .map(|(name, data)| {
+                let id = latest_schema.tables.get(&name).unwrap().id;
+
+                (id, (name, data))
+            })
+            .collect();
 
         Ok(batches)
     }
@@ -554,7 +569,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_write_ok() {
-        let (catalog, _namespace) = test_setup().await;
+        let (catalog, namespace) = test_setup().await;
+
+        // Create the table so that the is a known ID that must be returned.
+        let want_id = namespace.create_table("bananas").await.table.id;
+
         let metrics = Arc::new(metric::Registry::default());
         let handler = SchemaValidator::new(
             catalog.catalog(),
@@ -563,7 +582,7 @@ mod tests {
         );
 
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");
-        handler
+        let got = handler
             .write(&*NAMESPACE, NamespaceId::new(42), writes, None)
             .await
             .expect("request should succeed");
@@ -573,6 +592,10 @@ mod tests {
         assert_cache(&handler, "bananas", "tag2", ColumnType::Tag);
         assert_cache(&handler, "bananas", "val", ColumnType::I64);
         assert_cache(&handler, "bananas", "time", ColumnType::Time);
+
+        // Validate the table ID mapping.
+        let (name, _data) = got.get(&want_id).expect("table not in output");
+        assert_eq!(name, "bananas");
     }
 
     #[tokio::test]
