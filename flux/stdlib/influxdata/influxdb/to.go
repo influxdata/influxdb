@@ -278,7 +278,7 @@ func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
 	var fn *execute.RowMapPreparedFn
 	if t.fn != nil {
 		var err error
-		if fn, err = t.fn.Prepare(columns); err != nil {
+		if fn, err = t.fn.Prepare(t.Ctx, columns); err != nil {
 			return err
 		}
 	}

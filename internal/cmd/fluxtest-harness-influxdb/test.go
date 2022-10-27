@@ -71,6 +71,7 @@ func (t *testExecutor) run(pkg *ast.Package, index string, logOut io.Writer, fn 
 	config := tests.NewConfig()
 	config.HTTPD.FluxEnabled = true
 	config.HTTPD.FluxLogEnabled = true
+	config.HTTPD.FluxTesting = true
 	config.Data.Index = index
 
 	s := tests.NewServer(config)
