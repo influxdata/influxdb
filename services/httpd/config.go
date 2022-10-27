@@ -40,6 +40,7 @@ type Config struct {
 	WriteTracing            bool              `toml:"write-tracing"`
 	FluxEnabled             bool              `toml:"flux-enabled"`
 	FluxLogEnabled          bool              `toml:"flux-log-enabled"`
+	FluxTesting             bool              `toml:"-"`
 	PprofEnabled            bool              `toml:"pprof-enabled"`
 	PprofAuthEnabled        bool              `toml:"pprof-auth-enabled"`
 	DebugPprofEnabled       bool              `toml:"debug-pprof-enabled"`
@@ -72,6 +73,7 @@ func NewConfig() Config {
 		Enabled:               true,
 		FluxEnabled:           false,
 		FluxLogEnabled:        false,
+		FluxTesting:           false,
 		BindAddress:           DefaultBindAddress,
 		LogEnabled:            true,
 		PprofEnabled:          true,

@@ -31,11 +31,64 @@ build_test_harness() {
   "$GO" build -o fluxtest ./internal/cmd/fluxtest-harness-influxdb
 }
 
-# Many tests targeting 3rd party databases are not yet supported in CI and should be filtered out.
-DB_INTEGRATION_WRITE_TESTS=integration_mqtt_pub,integration_sqlite_write_to,integration_vertica_write_to,integration_mssql_write_to,integration_mysql_write_to,integration_mariadb_write_to,integration_pg_write_to,integration_hdb_write_to
-DB_INTEGRATION_READ_TESTS=integration_sqlite_read_from_seed,integration_sqlite_read_from_nonseed,integration_vertica_read_from_seed,integration_vertica_read_from_nonseed,integration_mssql_read_from_seed,integration_mssql_read_from_nonseed,integration_mariadb_read_from_seed,integration_mariadb_read_from_nonseed,integration_mysql_read_from_seed,integration_mysql_read_from_nonseed,integration_pg_read_from_seed,integration_pg_read_from_nonseed,integration_hdb_read_from_seed,integration_hdb_read_from_nonseed
-DB_INTEGRATION_INJECTION_TESTS="integration_sqlite_injection,integration_hdb_injection,integration_pg_injection,integration_mysql_injection,integration_mariadb_injection,integration_mssql_injection"
-DB_TESTS="${DB_INTEGRATION_WRITE_TESTS},${DB_INTEGRATION_READ_TESTS},${DB_INTEGRATION_INJECTION_TESTS}"
+skipped_tests() {
+  doc=$(cat <<ENDSKIPS
+# Tests skipped because a feature flag must be enabled
+# the flag is: removeRedundantSortNodes
+remove_sort
+remove_sort_more_columns
+remove_sort_aggregate
+remove_sort_selector
+remove_sort_filter_range
+remove_sort_aggregate_window
+remove_sort_join
+
+# Other skipped tests
+align_time
+buckets
+covariance
+cumulative_sum_default
+cumulative_sum_noop
+cumulative_sum
+difference_columns
+fill
+fill_bool
+fill_float
+fill_time
+fill_int
+fill_uint
+fill_string
+group
+group_nulls
+histogram_normalize
+histogram_quantile_minvalue
+histogram_quantile
+histogram
+key_values_host_name
+secrets
+set
+shapeDataWithFilter
+shapeData
+shift_negative_duration
+unique
+window_null
+
+# https://github.com/influxdata/influxdb/issues/23757
+# Flux acceptance tests for group |> first (and last)
+push_down_group_one_tag_first
+push_down_group_all_filter_field_first
+push_down_group_one_tag_filter_field_first
+push_down_group_one_tag_last
+push_down_group_all_filter_field_last
+push_down_group_one_tag_filter_field_last
+
+windowed_by_time_count # TODO(bnpfeife) broken by flux@05a1065f, OptimizeAggregateWindow
+windowed_by_time_sum   # TODO(bnpfeife) broken by flux@05a1065f, OptimizeAggregateWindow
+windowed_by_time_mean  # TODO(bnpfeife) broken by flux@05a1065f, OptimizeAggregateWindow
+ENDSKIPS
+)
+  echo "$doc" | sed '/^[[:space:]]*$/d' | sed 's/[[:space:]]*#.*$//' | tr '\n' ',' | sed 's/,$//'
+}
 
 run_integration_tests() {
   log "Running integration tests..."
