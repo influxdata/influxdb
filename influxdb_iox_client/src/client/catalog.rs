@@ -24,7 +24,7 @@ impl Client {
         }
     }
 
-    /// Get the parquet file records by their partition id
+    /// Get the Parquet file records by their partition id
     pub async fn get_parquet_files_by_partition_id(
         &mut self,
         partition_id: i64,
@@ -48,5 +48,22 @@ impl Client {
             .await?;
 
         Ok(response.into_inner().partitions)
+    }
+
+    /// Get the Parquet file records by their database and table names
+    pub async fn get_parquet_files_by_database_table(
+        &mut self,
+        database_name: String,
+        table_name: String,
+    ) -> Result<Vec<ParquetFile>, Error> {
+        let response = self
+            .inner
+            .get_parquet_files_by_database_table(GetParquetFilesByDatabaseTableRequest {
+                database_name,
+                table_name,
+            })
+            .await?;
+
+        Ok(response.into_inner().parquet_files)
     }
 }
