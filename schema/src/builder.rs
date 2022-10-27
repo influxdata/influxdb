@@ -265,7 +265,7 @@ mod test {
 
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Error validating schema: Error: Duplicate column name found in schema: 'the tag'"
+            "Error validating schema: Internal Error: Duplicate column name found in schema: 'the tag'"
         );
     }
 
@@ -278,7 +278,7 @@ mod test {
 
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Error validating schema: Error: Duplicate column name found in schema: 'the name'"
+            "Error validating schema: Internal Error: Duplicate column name found in schema: 'the name'"
         );
     }
 
@@ -288,7 +288,7 @@ mod test {
 
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Error validating schema: Error: Duplicate column name found in schema: 'time'"
+            "Error validating schema: Internal Error: Duplicate column name found in schema: 'time'"
         );
     }
 }
