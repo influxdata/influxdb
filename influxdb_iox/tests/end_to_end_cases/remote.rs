@@ -13,6 +13,7 @@ async fn remote_store_get_table() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
     let table_name = "my_awesome_table";
+    let other_table_name = "my_ordinary_table";
 
     let mut cluster = MiniCluster::create_shared(database_url).await;
 
@@ -26,7 +27,7 @@ async fn remote_store_get_table() {
             Step::WriteLineProtocol(format!("{table_name},tag1=C,tag2=B val=9000i 789000")),
             Step::WaitForPersisted,
             // Persist some more data for a different table
-            Step::WriteLineProtocol(format!("{table_name}_2,tag1=A,tag2=B val=42i 123456")),
+            Step::WriteLineProtocol(format!("{other_table_name},tag1=A,tag2=B val=42i 123456")),
             Step::WaitForPersisted,
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 async move {
@@ -45,13 +46,17 @@ async fn remote_store_get_table() {
                         .arg("store")
                         .arg("get-table")
                         .arg(&namespace)
-                        .arg("my_awesome_table")
+                        .arg(&table_name)
                         .assert()
                         .success();
 
                     let table_dir = dir.as_ref().join(&table_name);
+
+                    // There should be a directory created that, by default, is named the same as
+                    // the table
                     assert!(table_dir.is_dir());
                     let entries: Vec<_> = table_dir.read_dir().unwrap().flatten().collect();
+                    // The two Parquet files for this table should be present
                     assert_eq!(
                         entries.len(),
                         2,
@@ -59,12 +64,75 @@ async fn remote_store_get_table() {
                     );
                     let path = entries[0].path();
                     let extension = path.extension().unwrap();
+                    // Their extension should be 'parquet'
                     assert_eq!(
                         "parquet",
                         extension,
                         "Expected filename to have extension 'parquet', got: {}",
                         extension.to_str().unwrap()
                     );
+
+                    // The `-o` argument should specify where the files go instead of a directory
+                    // named after the table. Note that this `Command` doesn't set `current dir`;
+                    // the `-o` argument shouldn't have anything to do with the current working
+                    // directory.
+                    let custom_output_dir = dir.as_ref().join("my_special_directory");
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&router_addr)
+                        .arg("remote")
+                        .arg("store")
+                        .arg("get-table")
+                        .arg("-o")
+                        .arg(&custom_output_dir)
+                        .arg(&namespace)
+                        // This time ask for the table that only has one Parquet file
+                        .arg(&other_table_name)
+                        .assert()
+                        .success();
+
+                    assert!(custom_output_dir.is_dir());
+                    let entries: Vec<_> = custom_output_dir.read_dir().unwrap().flatten().collect();
+                    // The one Parquet file for this table should be present
+                    assert_eq!(
+                        entries.len(),
+                        1,
+                        "Expected 1 file in the directory, got: {entries:?}"
+                    );
+
+                    // Specifying a table that doesn't exist prints an error message
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .current_dir(&dir)
+                        .arg("-h")
+                        .arg(&router_addr)
+                        .arg("remote")
+                        .arg("store")
+                        .arg("get-table")
+                        .arg(&namespace)
+                        .arg("nacho-table")
+                        .assert()
+                        .failure()
+                        .stderr(predicate::str::contains("Table nacho-table not found"));
+
+                    // Specifying a namespace that doesn't exist prints an error message
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .current_dir(&dir)
+                        .arg("-h")
+                        .arg(&router_addr)
+                        .arg("remote")
+                        .arg("store")
+                        .arg("get-table")
+                        .arg("nacho-namespace")
+                        .arg(&table_name)
+                        .assert()
+                        .failure()
+                        .stderr(predicate::str::contains(
+                            "Namespace nacho-namespace not found",
+                        ));
                 }
                 .boxed()
             })),

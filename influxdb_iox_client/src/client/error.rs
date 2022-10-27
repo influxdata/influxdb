@@ -73,7 +73,7 @@ pub enum Error {
     #[error("Deadline expired before operation could complete: {0}")]
     DeadlineExceeded(ServerError<()>),
 
-    #[error("Some requested entity was not found: {0}")]
+    #[error("{0}")]
     NotFound(ServerError<NotFound>),
 
     #[error("Some entity that we attempted to create already exists: {0}")]

@@ -50,16 +50,16 @@ impl Client {
         Ok(response.into_inner().partitions)
     }
 
-    /// Get the Parquet file records by their database and table names
-    pub async fn get_parquet_files_by_database_table(
+    /// Get the Parquet file records by their namespace and table names
+    pub async fn get_parquet_files_by_namespace_table(
         &mut self,
-        database_name: String,
+        namespace_name: String,
         table_name: String,
     ) -> Result<Vec<ParquetFile>, Error> {
         let response = self
             .inner
-            .get_parquet_files_by_database_table(GetParquetFilesByDatabaseTableRequest {
-                database_name,
+            .get_parquet_files_by_namespace_table(GetParquetFilesByNamespaceTableRequest {
+                namespace_name,
                 table_name,
             })
             .await?;

@@ -81,20 +81,20 @@ impl catalog_service_server::CatalogService for CatalogService {
         Ok(Response::new(response))
     }
 
-    async fn get_parquet_files_by_database_table(
+    async fn get_parquet_files_by_namespace_table(
         &self,
-        request: Request<GetParquetFilesByDatabaseTableRequest>,
-    ) -> Result<Response<GetParquetFilesByDatabaseTableResponse>, Status> {
+        request: Request<GetParquetFilesByNamespaceTableRequest>,
+    ) -> Result<Response<GetParquetFilesByNamespaceTableResponse>, Status> {
         let mut repos = self.catalog.repositories().await;
         let req = request.into_inner();
 
         let namespace = repos
             .namespaces()
-            .get_by_name(&req.database_name)
+            .get_by_name(&req.namespace_name)
             .await
             .map_err(|e| Status::unknown(e.to_string()))?
             .ok_or_else(|| {
-                Status::not_found(format!("Database {} not found", req.database_name))
+                Status::not_found(format!("Namespace {} not found", req.namespace_name))
             })?;
 
         let table = repos
@@ -113,7 +113,7 @@ impl catalog_service_server::CatalogService for CatalogService {
             .map_err(|e| {
                 warn!(
                     error=%e,
-                    %req.database_name,
+                    %req.namespace_name,
                     %req.table_name,
                     "failed to get parquet_files for table"
                 );
@@ -122,7 +122,7 @@ impl catalog_service_server::CatalogService for CatalogService {
 
         let parquet_files: Vec<_> = parquet_files.into_iter().map(to_parquet_file).collect();
 
-        let response = GetParquetFilesByDatabaseTableResponse { parquet_files };
+        let response = GetParquetFilesByNamespaceTableResponse { parquet_files };
 
         Ok(Response::new(response))
     }

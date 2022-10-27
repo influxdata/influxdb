@@ -2,6 +2,7 @@
 
 use futures::StreamExt;
 use influxdb_iox_client::{catalog, connection::Connection, store};
+use std::path::PathBuf;
 use thiserror::Error;
 use tokio::{
     fs::{self, File},
@@ -14,7 +15,7 @@ pub enum Error {
     #[error("JSON Serialization error: {0}")]
     Serde(#[from] serde_json::Error),
 
-    #[error("Client error: {0}")]
+    #[error("IOx request failed: {0}")]
     ClientError(#[from] influxdb_iox_client::error::Error),
 
     #[error("Writing file: {0}")]
@@ -40,17 +41,21 @@ struct Get {
     file_name: String,
 }
 
-/// Get all the Parquet files for a particular database's table
-/// into a local directory
+/// Get all the Parquet files for a particular namespace's table into a local directory
 #[derive(Debug, clap::Parser)]
 struct GetTable {
-    /// The database (namespace) to get the Parquet files for
+    /// The namespace to get the Parquet files for
     #[clap(action)]
-    database: String,
+    namespace: String,
 
     /// The name of the table to get the Parquet files for
     #[clap(action)]
     table: String,
+
+    /// The output directory to use. If not specified, files will be placed in a directory named
+    /// after the table in the current working directory.
+    #[clap(action, short)]
+    output_directory: Option<PathBuf>,
 }
 
 /// All possible subcommands for store
@@ -77,27 +82,29 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
             Ok(())
         }
         Command::GetTable(get_table) => {
-            let directory = std::path::Path::new(&get_table.table);
+            let directory = get_table
+                .output_directory
+                .unwrap_or_else(|| PathBuf::from(&get_table.table));
             fs::create_dir_all(&directory).await?;
             let mut catalog_client = catalog::Client::new(connection.clone());
             let mut store_client = store::Client::new(connection);
 
             let parquet_files = catalog_client
-                .get_parquet_files_by_database_table(
-                    get_table.database.clone(),
+                .get_parquet_files_by_namespace_table(
+                    get_table.namespace.clone(),
                     get_table.table.clone(),
                 )
                 .await?;
             let num_parquet_files = parquet_files.len();
             println!("found {num_parquet_files} Parquet files, downloading...");
-            let indexed_object_store_ids = parquet_files
+            let indexed_parquet_file_metadata = parquet_files
                 .into_iter()
-                .map(|pf| pf.object_store_id)
+                .map(|pf| (pf.object_store_id, pf.partition_id))
                 .enumerate();
 
-            for (index, uuid) in indexed_object_store_ids {
+            for (index, (uuid, partition_id)) in indexed_parquet_file_metadata {
                 let index = index + 1;
-                let filename = format!("{uuid}.parquet");
+                let filename = format!("{uuid}.{partition_id}.parquet");
                 println!("downloading file {index} of {num_parquet_files} ({filename})...");
                 let mut response = store_client
                     .get_parquet_file_by_object_store_id(uuid.clone())
