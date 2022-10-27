@@ -11,8 +11,8 @@ service CatalogService {
     // Get the partition catalog records by the table id
     rpc GetPartitionsByTableId(GetPartitionsByTableIdRequest) returns (GetPartitionsByTableIdResponse);
 
-    // Get the parquet_file catalog records in the given database and table name
-    rpc GetParquetFilesByDatabaseTable(GetParquetFilesByDatabaseTableRequest) returns (GetParquetFilesByDatabaseTableResponse);
+    // Get the parquet_file catalog records in the given namespace and table name
+    rpc GetParquetFilesByNamespaceTable(GetParquetFilesByNamespaceTableRequest) returns (GetParquetFilesByNamespaceTableResponse);
 }
 
 message GetParquetFilesByPartitionIdRequest {
@@ -51,15 +51,15 @@ message GetPartitionsByTableIdResponse {
     repeated Partition partitions = 1;
 }
 
-message GetParquetFilesByDatabaseTableRequest {
-    // the database name
-    string database_name = 1;
+message GetParquetFilesByNamespaceTableRequest {
+    // the namespace name
+    string namespace_name = 1;
 
-    // the table name in the database
+    // the table name in the namespace
     string table_name = 2;
 }
 
-message GetParquetFilesByDatabaseTableResponse {
-    // the parquet_file records in the table in the database
+message GetParquetFilesByNamespaceTableResponse {
+    // the parquet_file records in the table in the namespace
     repeated ParquetFile parquet_files = 1;
 }

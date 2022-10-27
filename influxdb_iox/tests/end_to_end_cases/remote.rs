@@ -131,7 +131,7 @@ async fn remote_store_get_table() {
                         .assert()
                         .failure()
                         .stderr(predicate::str::contains(
-                            "Database nacho-namespace not found",
+                            "Namespace nacho-namespace not found",
                         ));
                 }
                 .boxed()

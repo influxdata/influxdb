@@ -41,13 +41,12 @@ struct Get {
     file_name: String,
 }
 
-/// Get all the Parquet files for a particular database's table
-/// into a local directory
+/// Get all the Parquet files for a particular namespace's table into a local directory
 #[derive(Debug, clap::Parser)]
 struct GetTable {
-    /// The database (namespace) to get the Parquet files for
+    /// The namespace to get the Parquet files for
     #[clap(action)]
-    database: String,
+    namespace: String,
 
     /// The name of the table to get the Parquet files for
     #[clap(action)]
@@ -91,8 +90,8 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
             let mut store_client = store::Client::new(connection);
 
             let parquet_files = catalog_client
-                .get_parquet_files_by_database_table(
-                    get_table.database.clone(),
+                .get_parquet_files_by_namespace_table(
+                    get_table.namespace.clone(),
                     get_table.table.clone(),
                 )
                 .await?;
