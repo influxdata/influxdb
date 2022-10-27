@@ -7,10 +7,9 @@
 package reads
 
 import (
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
-
-	"google.golang.org/protobuf/proto"
 )
 
 func (w *ResponseWriter) getFloatPointsFrame() *datatypes.ReadResponse_Frame_FloatPoints {
@@ -59,27 +58,18 @@ func (w *ResponseWriter) putFloatValues(f *datatypes.ReadResponse_AnyPoints_Floa
 	w.buffer.FloatValues = append(w.buffer.FloatValues, f)
 }
 
-func (w *ResponseWriter) streamFloatArraySeries(cur cursors.FloatArrayCursor) {
-	w.sf.DataType = datatypes.ReadResponse_DataTypeFloat
-	ss := len(w.res.Frames) - 1
+func (w *ResponseWriter) streamFloatArraySeries(tags models.Tags, cur cursors.FloatArrayCursor) {
 	a := cur.Next()
-	if len(a.Timestamps) == 0 {
-		w.sz -= proto.Size(w.sf)
-		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
-		w.res.Frames = w.res.Frames[:ss]
-	} else if w.sz > writeSize {
+	if a.Len() != 0 {
+		w.startSeries(datatypes.ReadResponse_DataTypeFloat, tags)
+	}
+	if w.sz > writeSize {
 		w.Flush()
 	}
 }
 
-func (w *ResponseWriter) streamFloatArrayPoints(cur cursors.FloatArrayCursor) {
-	w.sf.DataType = datatypes.ReadResponse_DataTypeFloat
-	ss := len(w.res.Frames) - 1
-
-	p := w.getFloatPointsFrame()
-	frame := p.FloatPoints
-	w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
-
+func (w *ResponseWriter) streamFloatArrayPoints(tags models.Tags, cur cursors.FloatArrayCursor) {
+	var frame *datatypes.ReadResponse_FloatPointsFrame
 	var seriesValueCount = 0
 	for {
 		// If the number of values produced by cur > 1000,
@@ -91,11 +81,21 @@ func (w *ResponseWriter) streamFloatArrayPoints(cur cursors.FloatArrayCursor) {
 		// to append values from a into frame without additional allocations.
 		a := cur.Next()
 
-		if len(a.Timestamps) == 0 {
+		if a.Len() == 0 {
 			break
 		}
 
+		if seriesValueCount == 0 {
+			w.startSeries(datatypes.ReadResponse_DataTypeFloat, tags)
+		}
 		seriesValueCount += a.Len()
+
+		if frame == nil {
+			p := w.getFloatPointsFrame()
+			frame = p.FloatPoints
+			w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
+		}
+
 		// As specified in the struct definition, w.sz is an estimated
 		// size (in bytes) of the buffered data. It is therefore a
 		// deliberate choice to accumulate using the array Size, which is
@@ -108,31 +108,21 @@ func (w *ResponseWriter) streamFloatArrayPoints(cur cursors.FloatArrayCursor) {
 
 		// given the expectation of cur.Next, we attempt to limit
 		// the number of values appended to the frame to batchSize (1000)
-		needsFrame := len(frame.Timestamps) >= batchSize
+		if len(frame.Timestamps) >= batchSize {
+			frame = nil
+		}
 
 		if w.sz >= writeSize {
-			needsFrame = true
+			frame = nil
 			w.Flush()
 			if w.err != nil {
 				break
 			}
 		}
-
-		if needsFrame {
-			// new frames are returned with Timestamps and Values preallocated
-			// to a minimum of batchSize length to reduce further allocations.
-			p = w.getFloatPointsFrame()
-			frame = p.FloatPoints
-			w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
-		}
 	}
 
 	w.vc += seriesValueCount
-	if seriesValueCount == 0 {
-		w.sz -= proto.Size(w.sf)
-		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
-		w.res.Frames = w.res.Frames[:ss]
-	} else if w.sz > writeSize {
+	if w.sz > writeSize {
 		w.Flush()
 	}
 }
@@ -183,27 +173,18 @@ func (w *ResponseWriter) putIntegerValues(f *datatypes.ReadResponse_AnyPoints_In
 	w.buffer.IntegerValues = append(w.buffer.IntegerValues, f)
 }
 
-func (w *ResponseWriter) streamIntegerArraySeries(cur cursors.IntegerArrayCursor) {
-	w.sf.DataType = datatypes.ReadResponse_DataTypeInteger
-	ss := len(w.res.Frames) - 1
+func (w *ResponseWriter) streamIntegerArraySeries(tags models.Tags, cur cursors.IntegerArrayCursor) {
 	a := cur.Next()
-	if len(a.Timestamps) == 0 {
-		w.sz -= proto.Size(w.sf)
-		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
-		w.res.Frames = w.res.Frames[:ss]
-	} else if w.sz > writeSize {
+	if a.Len() != 0 {
+		w.startSeries(datatypes.ReadResponse_DataTypeInteger, tags)
+	}
+	if w.sz > writeSize {
 		w.Flush()
 	}
 }
 
-func (w *ResponseWriter) streamIntegerArrayPoints(cur cursors.IntegerArrayCursor) {
-	w.sf.DataType = datatypes.ReadResponse_DataTypeInteger
-	ss := len(w.res.Frames) - 1
-
-	p := w.getIntegerPointsFrame()
-	frame := p.IntegerPoints
-	w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
-
+func (w *ResponseWriter) streamIntegerArrayPoints(tags models.Tags, cur cursors.IntegerArrayCursor) {
+	var frame *datatypes.ReadResponse_IntegerPointsFrame
 	var seriesValueCount = 0
 	for {
 		// If the number of values produced by cur > 1000,
@@ -215,11 +196,21 @@ func (w *ResponseWriter) streamIntegerArrayPoints(cur cursors.IntegerArrayCursor
 		// to append values from a into frame without additional allocations.
 		a := cur.Next()
 
-		if len(a.Timestamps) == 0 {
+		if a.Len() == 0 {
 			break
 		}
 
+		if seriesValueCount == 0 {
+			w.startSeries(datatypes.ReadResponse_DataTypeInteger, tags)
+		}
 		seriesValueCount += a.Len()
+
+		if frame == nil {
+			p := w.getIntegerPointsFrame()
+			frame = p.IntegerPoints
+			w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
+		}
+
 		// As specified in the struct definition, w.sz is an estimated
 		// size (in bytes) of the buffered data. It is therefore a
 		// deliberate choice to accumulate using the array Size, which is
@@ -232,31 +223,21 @@ func (w *ResponseWriter) streamIntegerArrayPoints(cur cursors.IntegerArrayCursor
 
 		// given the expectation of cur.Next, we attempt to limit
 		// the number of values appended to the frame to batchSize (1000)
-		needsFrame := len(frame.Timestamps) >= batchSize
+		if len(frame.Timestamps) >= batchSize {
+			frame = nil
+		}
 
 		if w.sz >= writeSize {
-			needsFrame = true
+			frame = nil
 			w.Flush()
 			if w.err != nil {
 				break
 			}
 		}
-
-		if needsFrame {
-			// new frames are returned with Timestamps and Values preallocated
-			// to a minimum of batchSize length to reduce further allocations.
-			p = w.getIntegerPointsFrame()
-			frame = p.IntegerPoints
-			w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
-		}
 	}
 
 	w.vc += seriesValueCount
-	if seriesValueCount == 0 {
-		w.sz -= proto.Size(w.sf)
-		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
-		w.res.Frames = w.res.Frames[:ss]
-	} else if w.sz > writeSize {
+	if w.sz > writeSize {
 		w.Flush()
 	}
 }
@@ -307,27 +288,18 @@ func (w *ResponseWriter) putUnsignedValues(f *datatypes.ReadResponse_AnyPoints_U
 	w.buffer.UnsignedValues = append(w.buffer.UnsignedValues, f)
 }
 
-func (w *ResponseWriter) streamUnsignedArraySeries(cur cursors.UnsignedArrayCursor) {
-	w.sf.DataType = datatypes.ReadResponse_DataTypeUnsigned
-	ss := len(w.res.Frames) - 1
+func (w *ResponseWriter) streamUnsignedArraySeries(tags models.Tags, cur cursors.UnsignedArrayCursor) {
 	a := cur.Next()
-	if len(a.Timestamps) == 0 {
-		w.sz -= proto.Size(w.sf)
-		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
-		w.res.Frames = w.res.Frames[:ss]
-	} else if w.sz > writeSize {
+	if a.Len() != 0 {
+		w.startSeries(datatypes.ReadResponse_DataTypeUnsigned, tags)
+	}
+	if w.sz > writeSize {
 		w.Flush()
 	}
 }
 
-func (w *ResponseWriter) streamUnsignedArrayPoints(cur cursors.UnsignedArrayCursor) {
-	w.sf.DataType = datatypes.ReadResponse_DataTypeUnsigned
-	ss := len(w.res.Frames) - 1
-
-	p := w.getUnsignedPointsFrame()
-	frame := p.UnsignedPoints
-	w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
-
+func (w *ResponseWriter) streamUnsignedArrayPoints(tags models.Tags, cur cursors.UnsignedArrayCursor) {
+	var frame *datatypes.ReadResponse_UnsignedPointsFrame
 	var seriesValueCount = 0
 	for {
 		// If the number of values produced by cur > 1000,
@@ -339,11 +311,21 @@ func (w *ResponseWriter) streamUnsignedArrayPoints(cur cursors.UnsignedArrayCurs
 		// to append values from a into frame without additional allocations.
 		a := cur.Next()
 
-		if len(a.Timestamps) == 0 {
+		if a.Len() == 0 {
 			break
 		}
 
+		if seriesValueCount == 0 {
+			w.startSeries(datatypes.ReadResponse_DataTypeUnsigned, tags)
+		}
 		seriesValueCount += a.Len()
+
+		if frame == nil {
+			p := w.getUnsignedPointsFrame()
+			frame = p.UnsignedPoints
+			w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
+		}
+
 		// As specified in the struct definition, w.sz is an estimated
 		// size (in bytes) of the buffered data. It is therefore a
 		// deliberate choice to accumulate using the array Size, which is
@@ -356,31 +338,21 @@ func (w *ResponseWriter) streamUnsignedArrayPoints(cur cursors.UnsignedArrayCurs
 
 		// given the expectation of cur.Next, we attempt to limit
 		// the number of values appended to the frame to batchSize (1000)
-		needsFrame := len(frame.Timestamps) >= batchSize
+		if len(frame.Timestamps) >= batchSize {
+			frame = nil
+		}
 
 		if w.sz >= writeSize {
-			needsFrame = true
+			frame = nil
 			w.Flush()
 			if w.err != nil {
 				break
 			}
 		}
-
-		if needsFrame {
-			// new frames are returned with Timestamps and Values preallocated
-			// to a minimum of batchSize length to reduce further allocations.
-			p = w.getUnsignedPointsFrame()
-			frame = p.UnsignedPoints
-			w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
-		}
 	}
 
 	w.vc += seriesValueCount
-	if seriesValueCount == 0 {
-		w.sz -= proto.Size(w.sf)
-		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
-		w.res.Frames = w.res.Frames[:ss]
-	} else if w.sz > writeSize {
+	if w.sz > writeSize {
 		w.Flush()
 	}
 }
@@ -431,27 +403,18 @@ func (w *ResponseWriter) putStringValues(f *datatypes.ReadResponse_AnyPoints_Str
 	w.buffer.StringValues = append(w.buffer.StringValues, f)
 }
 
-func (w *ResponseWriter) streamStringArraySeries(cur cursors.StringArrayCursor) {
-	w.sf.DataType = datatypes.ReadResponse_DataTypeString
-	ss := len(w.res.Frames) - 1
+func (w *ResponseWriter) streamStringArraySeries(tags models.Tags, cur cursors.StringArrayCursor) {
 	a := cur.Next()
-	if len(a.Timestamps) == 0 {
-		w.sz -= proto.Size(w.sf)
-		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
-		w.res.Frames = w.res.Frames[:ss]
-	} else if w.sz > writeSize {
+	if a.Len() != 0 {
+		w.startSeries(datatypes.ReadResponse_DataTypeString, tags)
+	}
+	if w.sz > writeSize {
 		w.Flush()
 	}
 }
 
-func (w *ResponseWriter) streamStringArrayPoints(cur cursors.StringArrayCursor) {
-	w.sf.DataType = datatypes.ReadResponse_DataTypeString
-	ss := len(w.res.Frames) - 1
-
-	p := w.getStringPointsFrame()
-	frame := p.StringPoints
-	w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
-
+func (w *ResponseWriter) streamStringArrayPoints(tags models.Tags, cur cursors.StringArrayCursor) {
+	var frame *datatypes.ReadResponse_StringPointsFrame
 	var seriesValueCount = 0
 	for {
 		// If the number of values produced by cur > 1000,
@@ -463,11 +426,21 @@ func (w *ResponseWriter) streamStringArrayPoints(cur cursors.StringArrayCursor) 
 		// to append values from a into frame without additional allocations.
 		a := cur.Next()
 
-		if len(a.Timestamps) == 0 {
+		if a.Len() == 0 {
 			break
 		}
 
+		if seriesValueCount == 0 {
+			w.startSeries(datatypes.ReadResponse_DataTypeString, tags)
+		}
 		seriesValueCount += a.Len()
+
+		if frame == nil {
+			p := w.getStringPointsFrame()
+			frame = p.StringPoints
+			w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
+		}
+
 		// As specified in the struct definition, w.sz is an estimated
 		// size (in bytes) of the buffered data. It is therefore a
 		// deliberate choice to accumulate using the array Size, which is
@@ -480,31 +453,21 @@ func (w *ResponseWriter) streamStringArrayPoints(cur cursors.StringArrayCursor) 
 
 		// given the expectation of cur.Next, we attempt to limit
 		// the number of values appended to the frame to batchSize (1000)
-		needsFrame := len(frame.Timestamps) >= batchSize
+		if len(frame.Timestamps) >= batchSize {
+			frame = nil
+		}
 
 		if w.sz >= writeSize {
-			needsFrame = true
+			frame = nil
 			w.Flush()
 			if w.err != nil {
 				break
 			}
 		}
-
-		if needsFrame {
-			// new frames are returned with Timestamps and Values preallocated
-			// to a minimum of batchSize length to reduce further allocations.
-			p = w.getStringPointsFrame()
-			frame = p.StringPoints
-			w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
-		}
 	}
 
 	w.vc += seriesValueCount
-	if seriesValueCount == 0 {
-		w.sz -= proto.Size(w.sf)
-		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
-		w.res.Frames = w.res.Frames[:ss]
-	} else if w.sz > writeSize {
+	if w.sz > writeSize {
 		w.Flush()
 	}
 }
@@ -555,27 +518,18 @@ func (w *ResponseWriter) putBooleanValues(f *datatypes.ReadResponse_AnyPoints_Bo
 	w.buffer.BooleanValues = append(w.buffer.BooleanValues, f)
 }
 
-func (w *ResponseWriter) streamBooleanArraySeries(cur cursors.BooleanArrayCursor) {
-	w.sf.DataType = datatypes.ReadResponse_DataTypeBoolean
-	ss := len(w.res.Frames) - 1
+func (w *ResponseWriter) streamBooleanArraySeries(tags models.Tags, cur cursors.BooleanArrayCursor) {
 	a := cur.Next()
-	if len(a.Timestamps) == 0 {
-		w.sz -= proto.Size(w.sf)
-		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
-		w.res.Frames = w.res.Frames[:ss]
-	} else if w.sz > writeSize {
+	if a.Len() != 0 {
+		w.startSeries(datatypes.ReadResponse_DataTypeBoolean, tags)
+	}
+	if w.sz > writeSize {
 		w.Flush()
 	}
 }
 
-func (w *ResponseWriter) streamBooleanArrayPoints(cur cursors.BooleanArrayCursor) {
-	w.sf.DataType = datatypes.ReadResponse_DataTypeBoolean
-	ss := len(w.res.Frames) - 1
-
-	p := w.getBooleanPointsFrame()
-	frame := p.BooleanPoints
-	w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
-
+func (w *ResponseWriter) streamBooleanArrayPoints(tags models.Tags, cur cursors.BooleanArrayCursor) {
+	var frame *datatypes.ReadResponse_BooleanPointsFrame
 	var seriesValueCount = 0
 	for {
 		// If the number of values produced by cur > 1000,
@@ -587,11 +541,21 @@ func (w *ResponseWriter) streamBooleanArrayPoints(cur cursors.BooleanArrayCursor
 		// to append values from a into frame without additional allocations.
 		a := cur.Next()
 
-		if len(a.Timestamps) == 0 {
+		if a.Len() == 0 {
 			break
 		}
 
+		if seriesValueCount == 0 {
+			w.startSeries(datatypes.ReadResponse_DataTypeBoolean, tags)
+		}
 		seriesValueCount += a.Len()
+
+		if frame == nil {
+			p := w.getBooleanPointsFrame()
+			frame = p.BooleanPoints
+			w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
+		}
+
 		// As specified in the struct definition, w.sz is an estimated
 		// size (in bytes) of the buffered data. It is therefore a
 		// deliberate choice to accumulate using the array Size, which is
@@ -604,31 +568,21 @@ func (w *ResponseWriter) streamBooleanArrayPoints(cur cursors.BooleanArrayCursor
 
 		// given the expectation of cur.Next, we attempt to limit
 		// the number of values appended to the frame to batchSize (1000)
-		needsFrame := len(frame.Timestamps) >= batchSize
+		if len(frame.Timestamps) >= batchSize {
+			frame = nil
+		}
 
 		if w.sz >= writeSize {
-			needsFrame = true
+			frame = nil
 			w.Flush()
 			if w.err != nil {
 				break
 			}
 		}
-
-		if needsFrame {
-			// new frames are returned with Timestamps and Values preallocated
-			// to a minimum of batchSize length to reduce further allocations.
-			p = w.getBooleanPointsFrame()
-			frame = p.BooleanPoints
-			w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
-		}
 	}
 
 	w.vc += seriesValueCount
-	if seriesValueCount == 0 {
-		w.sz -= proto.Size(w.sf)
-		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
-		w.res.Frames = w.res.Frames[:ss]
-	} else if w.sz > writeSize {
+	if w.sz > writeSize {
 		w.Flush()
 	}
 }

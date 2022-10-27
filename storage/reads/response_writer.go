@@ -6,6 +6,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
+
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/proto"
 )
@@ -28,9 +29,6 @@ type ResponseWriter struct {
 	res    *datatypes.ReadResponse
 	err    error
 
-	// current series
-	sf *datatypes.ReadResponse_SeriesFrame
-	ss int // pointer to current series frame; used to skip writing if no points
 	// sz is an estimated size in bytes for pending writes to flush periodically
 	// when the size exceeds writeSize.
 	sz int
@@ -78,8 +76,7 @@ func (w *ResponseWriter) WriteResultSet(rs ResultSet) error {
 			continue
 		}
 
-		w.startSeries(rs.Tags())
-		w.streamCursor(cur)
+		w.streamCursor(rs.Tags(), cur)
 		if w.err != nil {
 			cur.Close()
 			return w.err
@@ -91,23 +88,24 @@ func (w *ResponseWriter) WriteResultSet(rs ResultSet) error {
 		"scanned-bytes", fmt.Sprint(stats.ScannedBytes),
 		"scanned-values", fmt.Sprint(stats.ScannedValues)))
 
-	return nil
+	return rs.Err()
 }
 
 func (w *ResponseWriter) WriteGroupResultSet(rs GroupResultSet) error {
 	stats := cursors.CursorStats{}
 	gc := rs.Next()
+	var err error
 	for gc != nil {
 		w.startGroup(gc.Keys(), gc.PartitionKeyVals())
 		for gc.Next() {
+
 			cur := gc.Cursor()
 			if cur == nil {
 				// no data for series key + field combination
 				continue
 			}
 
-			w.startSeries(gc.Tags())
-			w.streamCursor(cur)
+			w.streamCursor(gc.Tags(), cur)
 			if w.err != nil {
 				gc.Close()
 				return w.err
@@ -115,6 +113,9 @@ func (w *ResponseWriter) WriteGroupResultSet(rs GroupResultSet) error {
 			stats.Add(gc.Stats())
 		}
 		gc.Close()
+		if err = gc.Err(); err != nil {
+			break
+		}
 		gc = rs.Next()
 	}
 
@@ -122,7 +123,7 @@ func (w *ResponseWriter) WriteGroupResultSet(rs GroupResultSet) error {
 		"scanned-bytes", fmt.Sprint(stats.ScannedBytes),
 		"scanned-values", fmt.Sprint(stats.ScannedValues)))
 
-	return nil
+	return err
 }
 
 func (w *ResponseWriter) Err() error { return w.err }
@@ -163,7 +164,7 @@ func (w *ResponseWriter) putGroupFrame(f *datatypes.ReadResponse_Frame_Group) {
 	w.buffer.Group = append(w.buffer.Group, f)
 }
 
-func (w *ResponseWriter) getSeriesFrame(next models.Tags) *datatypes.ReadResponse_Frame_Series {
+func (w *ResponseWriter) getSeriesFrame(lenTags int) *datatypes.ReadResponse_Frame_Series {
 	var res *datatypes.ReadResponse_Frame_Series
 	if len(w.buffer.Series) > 0 {
 		i := len(w.buffer.Series) - 1
@@ -174,10 +175,10 @@ func (w *ResponseWriter) getSeriesFrame(next models.Tags) *datatypes.ReadRespons
 		res = &datatypes.ReadResponse_Frame_Series{Series: &datatypes.ReadResponse_SeriesFrame{}}
 	}
 
-	if cap(res.Series.GetTags()) < len(next) {
-		res.Series.Tags = make([]*datatypes.Tag, len(next))
-	} else if len(res.Series.GetTags()) != len(next) {
-		res.Series.Tags = res.Series.GetTags()[:len(next)]
+	if cap(res.Series.GetTags()) < lenTags {
+		res.Series.Tags = make([]*datatypes.Tag, lenTags)
+	} else if len(res.Series.GetTags()) != lenTags {
+		res.Series.Tags = res.Series.Tags[:lenTags]
 	}
 
 	return res
@@ -201,43 +202,38 @@ func (w *ResponseWriter) startGroup(keys, partitionKey [][]byte) {
 	w.sz += proto.Size(fr)
 }
 
-func (w *ResponseWriter) startSeries(next models.Tags) {
-	if w.hints.NoSeries() {
-		return
-	}
-
-	w.ss = len(w.res.Frames)
-
-	f := w.getSeriesFrame(next)
-	w.sf = f.Series
+func (w *ResponseWriter) startSeries(dataType datatypes.ReadResponse_DataType, next models.Tags) {
+	f := w.getSeriesFrame(len(next))
+	sf := f.Series
+	sf.DataType = dataType
 	for i, t := range next {
-		w.sf.Tags[i] = &datatypes.Tag{
+		sf.Tags[i] = &datatypes.Tag{
 			Key:   t.Key,
 			Value: t.Value,
 		}
 	}
 	w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: f})
-	w.sz += proto.Size(w.sf)
+	w.sz += proto.Size(sf)
 }
 
-func (w *ResponseWriter) streamCursor(cur cursors.Cursor) {
+func (w *ResponseWriter) streamCursor(tags models.Tags, cur cursors.Cursor) {
 	switch {
 	case w.hints.NoSeries():
 		// skip
 	case w.hints.NoPoints():
 		switch cur := cur.(type) {
 		case cursors.IntegerArrayCursor:
-			w.streamIntegerArraySeries(cur)
+			w.streamIntegerArraySeries(tags, cur)
 		case cursors.FloatArrayCursor:
-			w.streamFloatArraySeries(cur)
+			w.streamFloatArraySeries(tags, cur)
 		case cursors.UnsignedArrayCursor:
-			w.streamUnsignedArraySeries(cur)
+			w.streamUnsignedArraySeries(tags, cur)
 		case cursors.BooleanArrayCursor:
-			w.streamBooleanArraySeries(cur)
+			w.streamBooleanArraySeries(tags, cur)
 		case cursors.StringArrayCursor:
-			w.streamStringArraySeries(cur)
+			w.streamStringArraySeries(tags, cur)
 		case cursors.MeanCountArrayCursor:
-			w.streamMeanCountArraySeries(cur)
+			w.streamMeanCountArraySeries(tags, cur)
 		default:
 			panic(fmt.Sprintf("unreachable: %T", cur))
 		}
@@ -245,17 +241,17 @@ func (w *ResponseWriter) streamCursor(cur cursors.Cursor) {
 	default:
 		switch cur := cur.(type) {
 		case cursors.IntegerArrayCursor:
-			w.streamIntegerArrayPoints(cur)
+			w.streamIntegerArrayPoints(tags, cur)
 		case cursors.FloatArrayCursor:
-			w.streamFloatArrayPoints(cur)
+			w.streamFloatArrayPoints(tags, cur)
 		case cursors.UnsignedArrayCursor:
-			w.streamUnsignedArrayPoints(cur)
+			w.streamUnsignedArrayPoints(tags, cur)
 		case cursors.BooleanArrayCursor:
-			w.streamBooleanArrayPoints(cur)
+			w.streamBooleanArrayPoints(tags, cur)
 		case cursors.StringArrayCursor:
-			w.streamStringArrayPoints(cur)
+			w.streamStringArrayPoints(tags, cur)
 		case cursors.MeanCountArrayCursor:
-			w.streamMeanCountArrayPoints(cur)
+			w.streamMeanCountArrayPoints(tags, cur)
 		default:
 			panic(fmt.Sprintf("unreachable: %T", cur))
 		}
@@ -264,39 +260,42 @@ func (w *ResponseWriter) streamCursor(cur cursors.Cursor) {
 }
 
 func (w *ResponseWriter) Flush() {
+	// We defer the clearing of the frames array,
+	// as we should attempt that regardless of other errors.
+	defer func() {
+		w.sz = 0
+		for i := range w.res.Frames {
+			d := w.res.Frames[i].Data
+			w.res.Frames[i].Data = nil
+			switch p := d.(type) {
+			case *datatypes.ReadResponse_Frame_FloatPoints:
+				w.putFloatPointsFrame(p)
+			case *datatypes.ReadResponse_Frame_IntegerPoints:
+				w.putIntegerPointsFrame(p)
+			case *datatypes.ReadResponse_Frame_UnsignedPoints:
+				w.putUnsignedPointsFrame(p)
+			case *datatypes.ReadResponse_Frame_BooleanPoints:
+				w.putBooleanPointsFrame(p)
+			case *datatypes.ReadResponse_Frame_StringPoints:
+				w.putStringPointsFrame(p)
+			case *datatypes.ReadResponse_Frame_MultiPoints:
+				w.putMultiPointsFrame(p)
+			case *datatypes.ReadResponse_Frame_Series:
+				w.putSeriesFrame(p)
+			case *datatypes.ReadResponse_Frame_Group:
+				w.putGroupFrame(p)
+			}
+		}
+		w.res.Frames = w.res.Frames[:0]
+	}()
+
 	if w.err != nil || w.sz == 0 {
 		return
 	}
 
-	w.sz = 0
-
 	if w.err = w.stream.Send(w.res); w.err != nil {
 		return
 	}
-
-	for i := range w.res.Frames {
-		d := w.res.Frames[i].Data
-		w.res.Frames[i].Data = nil
-		switch p := d.(type) {
-		case *datatypes.ReadResponse_Frame_FloatPoints:
-			w.putFloatPointsFrame(p)
-		case *datatypes.ReadResponse_Frame_IntegerPoints:
-			w.putIntegerPointsFrame(p)
-		case *datatypes.ReadResponse_Frame_UnsignedPoints:
-			w.putUnsignedPointsFrame(p)
-		case *datatypes.ReadResponse_Frame_BooleanPoints:
-			w.putBooleanPointsFrame(p)
-		case *datatypes.ReadResponse_Frame_StringPoints:
-			w.putStringPointsFrame(p)
-		case *datatypes.ReadResponse_Frame_MultiPoints:
-			w.putMultiPointsFrame(p)
-		case *datatypes.ReadResponse_Frame_Series:
-			w.putSeriesFrame(p)
-		case *datatypes.ReadResponse_Frame_Group:
-			w.putGroupFrame(p)
-		}
-	}
-	w.res.Frames = w.res.Frames[:0]
 }
 
 // The MultiPoints <==> MeanCount converters do not fit the codegen pattern in response_writer.gen.go
@@ -340,26 +339,18 @@ func (w *ResponseWriter) putMultiPointsFrame(f *datatypes.ReadResponse_Frame_Mul
 	w.buffer.Multi = append(w.buffer.Multi, f)
 }
 
-func (w *ResponseWriter) streamMeanCountArraySeries(cur cursors.MeanCountArrayCursor) {
-	w.sf.DataType = datatypes.ReadResponse_DataTypeMulti
-	ss := len(w.res.Frames) - 1
+func (w *ResponseWriter) streamMeanCountArraySeries(tags models.Tags, cur cursors.MeanCountArrayCursor) {
 	a := cur.Next()
-	if len(a.Timestamps) == 0 {
-		w.sz -= proto.Size(w.sf)
-		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
-		w.res.Frames = w.res.Frames[:ss]
+	if a.Len() != 0 {
+		w.startSeries(datatypes.ReadResponse_DataTypeMulti, tags)
 	} else if w.sz > writeSize {
 		w.Flush()
 	}
 }
 
-func (w *ResponseWriter) streamMeanCountArrayPoints(cur cursors.MeanCountArrayCursor) {
-	w.sf.DataType = datatypes.ReadResponse_DataTypeMulti
-	ss := len(w.res.Frames) - 1
+func (w *ResponseWriter) streamMeanCountArrayPoints(tags models.Tags, cur cursors.MeanCountArrayCursor) {
 
-	p := w.getMultiPointsFrameForMeanCount()
-	frame := p.MultiPoints
-	w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
+	var frame *datatypes.ReadResponse_MultiPointsFrame
 
 	var seriesValueCount = 0
 	for {
@@ -372,11 +363,22 @@ func (w *ResponseWriter) streamMeanCountArrayPoints(cur cursors.MeanCountArrayCu
 		// to append values from a into frame without additional allocations.
 		a := cur.Next()
 
-		if len(a.Timestamps) == 0 {
+		if a.Len() == 0 {
 			break
 		}
 
+		if seriesValueCount == 0 {
+			w.startSeries(datatypes.ReadResponse_DataTypeMulti, tags)
+		}
+
 		seriesValueCount += a.Len()
+
+		if frame == nil {
+			p := w.getMultiPointsFrameForMeanCount()
+			frame = p.MultiPoints
+			w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
+		}
+
 		// As specified in the struct definition, w.sz is an estimated
 		// size (in bytes) of the buffered data. It is therefore a
 		// deliberate choice to accumulate using the array Size, which is
@@ -391,31 +393,20 @@ func (w *ResponseWriter) streamMeanCountArrayPoints(cur cursors.MeanCountArrayCu
 
 		// given the expectation of cur.Next, we attempt to limit
 		// the number of values appended to the frame to batchSize (1000)
-		needsFrame := len(frame.Timestamps) >= batchSize
+		if len(frame.Timestamps) >= batchSize {
+			frame = nil
+		}
 
 		if w.sz >= writeSize {
-			needsFrame = true
+			frame = nil
 			w.Flush()
 			if w.err != nil {
 				break
 			}
 		}
-
-		if needsFrame {
-			// new frames are returned with Timestamps and Values preallocated
-			// to a minimum of batchSize length to reduce further allocations.
-			p = w.getMultiPointsFrameForMeanCount()
-			frame = p.MultiPoints
-			w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
-		}
 	}
-
 	w.vc += seriesValueCount
-	if seriesValueCount == 0 {
-		w.sz -= proto.Size(w.sf)
-		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
-		w.res.Frames = w.res.Frames[:ss]
-	} else if w.sz > writeSize {
+	if w.sz > writeSize {
 		w.Flush()
 	}
 }
