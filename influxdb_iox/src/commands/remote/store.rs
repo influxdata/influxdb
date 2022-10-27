@@ -41,13 +41,14 @@ struct Get {
 }
 
 /// Get all the Parquet files for a particular database's table
+/// into a local directory
 #[derive(Debug, clap::Parser)]
 struct GetTable {
     /// The database (namespace) to get the Parquet files for
     #[clap(action)]
     database: String,
 
-    /// The table to get the Parquet files for
+    /// The name of the table to get the Parquet files for
     #[clap(action)]
     table: String,
 }
