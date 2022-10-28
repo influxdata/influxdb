@@ -1,6 +1,6 @@
 //! Data for the lifecycle of the Ingester
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc, time::Instant};
 
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
@@ -247,6 +247,10 @@ impl Persister for IngesterData {
         table_id: TableId,
         partition_id: PartitionId,
     ) {
+        // Record time it takes for this persist operation to help
+        // identify partitions that are taking substantial time.
+        let start_time = Instant::now();
+
         // lookup the state from the ingester data. If something isn't found,
         // it's unexpected. Crash so someone can take a look.
         let namespace = self
@@ -360,7 +364,7 @@ impl Persister for IngesterData {
             }
         };
 
-        // do the CPU intensive work of compaction, de-duplication and sorting
+        // Prepare the plan for CPU intensive work of compaction, de-duplication and sorting
         let CompactedStream {
             stream: record_stream,
             catalog_sort_key_update,
@@ -554,7 +558,6 @@ impl Persister for IngesterData {
         //
         //  https://github.com/influxdata/influxdb_iox/issues/5872
         //
-
         info!(
             %object_store_id,
             %shard_id,
@@ -564,6 +567,7 @@ impl Persister for IngesterData {
             %table_name,
             %partition_id,
             %partition_key,
+            duration_sec=(Instant::now() - start_time).as_secs(),
             max_sequence_number=%iox_metadata.max_sequence_number.get(),
             "persisted partition"
         );
