@@ -153,7 +153,7 @@ pub async fn generate(
             )
             .context(CouldNotCreateAgentSnafu)?;
 
-            info!(
+            println!(
                 "Configuring {} agents of \"{}\" to write data \
                 to org {} and bucket {} (database {})",
                 agent_assignment.count,
@@ -163,12 +163,15 @@ pub async fn generate(
                 database_assignments.database,
             );
 
-            for mut agent in agents.into_iter() {
-                let agent_points_writer = points_writer_builder
+            let agent_points_writer = Arc::new(
+                points_writer_builder
                     .build_for_agent(&agent_assignment.spec.name, org, bucket)
-                    .context(CouldNotCreateAgentWriterSnafu)?;
+                    .context(CouldNotCreateAgentWriterSnafu)?,
+            );
 
+            for mut agent in agents.into_iter() {
                 let lock_ref = Arc::clone(&lock);
+                let agent_points_writer = Arc::clone(&agent_points_writer);
 
                 let total_rows = Arc::clone(&total_rows);
                 handles.push(tokio::task::spawn(async move {
