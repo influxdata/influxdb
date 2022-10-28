@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use data_types::{SequenceNumber, ShardIndex};
+use data_types::{PartitionKey, SequenceNumber, ShardIndex};
 use dml::{DmlMeta, DmlOperation, DmlWrite};
 use futures::stream::BoxStream;
 use std::{
@@ -178,7 +178,12 @@ pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
 
         self.store_operation(
             shard_index,
-            DmlOperation::Write(DmlWrite::new("test_db", tables, None, Default::default())),
+            DmlOperation::Write(DmlWrite::new(
+                "test_db",
+                tables,
+                PartitionKey::from("platanos"),
+                Default::default(),
+            )),
         )
         .await
     }
@@ -396,7 +401,7 @@ pub mod test_utils {
         let write = DmlWrite::new(
             namespace,
             tables,
-            Some(partition_key),
+            partition_key,
             DmlMeta::unsequenced(span_context.cloned()),
         );
         let operation = DmlOperation::Write(write);
@@ -1240,7 +1245,7 @@ pub mod test_utils {
         let context = adapter.new_context(NonZeroU32::try_from(1).unwrap()).await;
 
         let tables = mutable_batch_lp::lines_to_batches("upc user=1 100", 0).unwrap();
-        let write = DmlWrite::new("foo", tables, Some("bananas".into()), Default::default());
+        let write = DmlWrite::new("foo", tables, "bananas".into(), Default::default());
         let operation = DmlOperation::Write(write);
 
         let writer = context.writing(true).await.unwrap();
@@ -1510,7 +1515,7 @@ pub mod test_utils {
 
     fn partition_key(dml_op: &DmlOperation) -> Option<&PartitionKey> {
         match dml_op {
-            DmlOperation::Write(w) => w.partition_key(),
+            DmlOperation::Write(w) => Some(w.partition_key()),
             DmlOperation::Delete(_) => None,
         }
     }

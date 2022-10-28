@@ -197,10 +197,7 @@ impl NamespaceData {
                 let mut all_skipped = true;
 
                 // Extract the partition key derived by the router.
-                let partition_key = write
-                    .partition_key()
-                    .expect("no partition key in dml write")
-                    .clone();
+                let partition_key = write.partition_key().clone();
 
                 for (t, b) in write.into_tables() {
                     let t = TableName::from(t);

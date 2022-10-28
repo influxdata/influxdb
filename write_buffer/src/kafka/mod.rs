@@ -119,14 +119,6 @@ impl WriteBufferWriting for RSKafkaProducer {
         shard_index: ShardIndex,
         operation: DmlOperation,
     ) -> Result<DmlMeta, WriteBufferError> {
-        // Sanity check to ensure only partitioned writes are pushed into Kafka.
-        if let DmlOperation::Write(w) = &operation {
-            assert!(
-                w.partition_key().is_some(),
-                "enqueuing unpartitioned write into kafka"
-            )
-        }
-
         let producer = self
             .producers
             .get(&shard_index)
@@ -834,25 +826,6 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    #[should_panic = "enqueuing unpartitioned write into kafka"]
-    async fn test_enqueue_no_partition_key() {
-        let conn = maybe_skip_kafka_integration!("enqueuing unpartitioned write into kafka");
-        let adapter = RSKafkaTestAdapter::new(conn);
-        let ctx = adapter.new_context(NonZeroU32::new(1).unwrap()).await;
-
-        let producer = ctx.writing(true).await.unwrap();
-
-        let tables = mutable_batch_lp::lines_to_batches("table foo=1", 0).unwrap();
-        let write = DmlWrite::new("bananas", tables, None, DmlMeta::unsequenced(None));
-
-        let shard_index = set_pop_first(&mut producer.shard_indexes()).unwrap();
-        producer
-            .store_operation(shard_index, DmlOperation::Write(write))
-            .await
-            .unwrap();
-    }
-
     async fn write(
         namespace: &str,
         producer: &RSKafkaProducer,
@@ -865,7 +838,7 @@ mod tests {
         let write = DmlWrite::new(
             namespace,
             tables,
-            Some(partition_key.into()),
+            partition_key.into(),
             DmlMeta::unsequenced(Some(span_ctx)),
         );
         let op = DmlOperation::Write(write);

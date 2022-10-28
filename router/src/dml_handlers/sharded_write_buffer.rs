@@ -118,7 +118,7 @@ where
             let dml = DmlWrite::new(
                 namespace,
                 batch,
-                Some(partition_key.clone()),
+                partition_key.clone(),
                 DmlMeta::unsequenced(span_ctx.clone()),
             );
 

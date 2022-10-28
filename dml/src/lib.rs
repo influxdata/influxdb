@@ -180,11 +180,8 @@ pub struct DmlWrite {
     meta: DmlMeta,
     min_timestamp: i64,
     max_timestamp: i64,
-    /// An optional partition key for this write.
-    ///
-    /// NOTE: all rows in this batch MUST map to this partition key if
-    /// specified.
-    partition_key: Option<PartitionKey>,
+    /// The partition key derived for this write.
+    partition_key: PartitionKey,
 }
 
 impl DmlWrite {
@@ -200,7 +197,7 @@ impl DmlWrite {
     pub fn new(
         namespace: impl Into<String>,
         tables: HashMap<String, MutableBatch>,
-        partition_key: Option<PartitionKey>,
+        partition_key: PartitionKey,
         meta: DmlMeta,
     ) -> Self {
         assert_ne!(tables.len(), 0);
@@ -293,8 +290,8 @@ impl DmlWrite {
     }
 
     /// Return the partition key derived for this op.
-    pub fn partition_key(&self) -> Option<&PartitionKey> {
-        self.partition_key.as_ref()
+    pub fn partition_key(&self) -> &PartitionKey {
+        &self.partition_key
     }
 }
 

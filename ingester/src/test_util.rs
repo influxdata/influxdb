@@ -575,7 +575,7 @@ pub(crate) fn make_write_op(
     DmlWrite::new(
         namespace.to_string(),
         lines_to_batches(lines, 0).unwrap(),
-        Some(partition_key.clone()),
+        partition_key.clone(),
         DmlMeta::sequenced(
             Sequence {
                 shard_index,

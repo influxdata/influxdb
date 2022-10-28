@@ -264,7 +264,7 @@ impl TestContext {
         self.enqueue_write(DmlWrite::new(
             namespace,
             lines_to_batches(lp, 0).unwrap(),
-            Some(partition_key),
+            partition_key,
             DmlMeta::sequenced(
                 Sequence::new(TEST_SHARD_INDEX, SequenceNumber::new(sequence_number)),
                 iox_time::SystemProvider::new().now(),

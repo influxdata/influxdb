@@ -830,7 +830,7 @@ impl MockIngester {
         let op = DmlOperation::Write(DmlWrite::new(
             self.ns.namespace.name.clone(),
             mutable_batches,
-            Some(PartitionKey::from(partition_key)),
+            PartitionKey::from(partition_key),
             meta,
         ));
         (op, partition_ids)

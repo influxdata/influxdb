@@ -601,7 +601,7 @@ mod tests {
         let write_operations = vec![DmlWrite::new(
             "foo",
             lines_to_batches("cpu bar=2 20", 0).unwrap(),
-            Some("1970-01-01".into()),
+            "1970-01-01".into(),
             DmlMeta::sequenced(
                 Sequence::new(ShardIndex::new(0), SequenceNumber::new(10)),
                 ingest_ts1,
@@ -627,7 +627,7 @@ mod tests {
         let write_operations = vec![DmlWrite::new(
             "foo",
             lines_to_batches("cpu bar=2 20", 0).unwrap(),
-            Some("1970-01-01".into()),
+            "1970-01-01".into(),
             DmlMeta::sequenced(
                 Sequence::new(ShardIndex::new(0), SequenceNumber::new(2)),
                 ingest_ts1,
@@ -653,7 +653,7 @@ mod tests {
         let write_operations = vec![DmlWrite::new(
             "foo",
             lines_to_batches("cpu bar=2 20", 0).unwrap(),
-            Some("1970-01-01".into()),
+            "1970-01-01".into(),
             DmlMeta::sequenced(
                 Sequence::new(ShardIndex::new(0), SequenceNumber::new(2)),
                 ingest_ts1,

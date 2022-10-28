@@ -19,10 +19,7 @@ pub fn encode_write(db_name: &str, write: &DmlWrite) -> DatabaseBatch {
             .tables()
             .map(|(table_name, batch)| encode_batch(table_name, batch))
             .collect(),
-        partition_key: write
-            .partition_key()
-            .map(ToString::to_string)
-            .unwrap_or_default(),
+        partition_key: write.partition_key().to_string(),
     }
 }
 
