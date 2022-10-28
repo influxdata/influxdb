@@ -4,7 +4,7 @@
 
 use arrow::{
     self,
-    array::{as_boolean_array, Array, ArrayRef, BooleanArray, DictionaryArray, StringArray},
+    array::{Array, BooleanArray, DictionaryArray, StringArray},
     compute,
     datatypes::{DataType, Int32Type},
     record_batch::RecordBatch,
@@ -126,13 +126,10 @@ impl SeriesSetConverter {
             // keyset (values of the tag keys) changes
             let mut tag_transitions_it = tag_transitions.into_iter();
             let init = tag_transitions_it.next().expect("not empty");
-            let intersections = tag_transitions_it.fold(init, |a, b| {
-                Arc::new(
-                    compute::or(as_boolean_array(&a), as_boolean_array(&b)).expect("or operation"),
-                )
-            });
+            let intersections =
+                tag_transitions_it.fold(init, |a, b| compute::or(&a, &b).expect("or operation"));
 
-            as_boolean_array(&intersections)
+            intersections
                 .iter()
                 .enumerate()
                 .filter(|(_idx, mask)| mask.unwrap_or(true))
@@ -173,16 +170,16 @@ impl SeriesSetConverter {
     ///
     /// Note: This may return false positives in the presence of dictionaries
     /// containing duplicates
-    fn compute_transitions(batch: &RecordBatch, col_idx: usize) -> ArrayRef {
+    fn compute_transitions(batch: &RecordBatch, col_idx: usize) -> BooleanArray {
         let num_rows = batch.num_rows();
 
         if num_rows == 0 {
-            return Arc::new(BooleanArray::builder(0).finish());
+            return BooleanArray::builder(0).finish();
         }
 
         let col = batch.column(col_idx);
 
-        compute::concat(&[
+        let arr = compute::concat(&[
             &{
                 let mut b = BooleanArray::builder(1);
                 b.append_value(false);
@@ -191,7 +188,11 @@ impl SeriesSetConverter {
             &compute::neq_dyn(&col.slice(0, col.len() - 1), &col.slice(1, col.len() - 1))
                 .expect("cmp"),
         ])
-        .expect("concat")
+        .expect("concat");
+
+        // until https://github.com/apache/arrow-rs/issues/2901 is done, use a workaround
+        // to get a `BooleanArray`
+        BooleanArray::from(arr.data().clone())
     }
 
     /// Creates (column_name, column_value) pairs for each column
