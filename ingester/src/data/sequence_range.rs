@@ -39,7 +39,7 @@ impl SequenceNumberRange {
         let merged_range = self
             .range
             .into_iter()
-            .chain(other.range.clone())
+            .chain(other.range)
             .reduce(|a, b| (a.0.min(b.0), a.1.max(b.1)));
 
         Self {

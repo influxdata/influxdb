@@ -1,12 +1,12 @@
-//! Module to handle query on Ingester's data
+//! An adaptor over a set of [`RecordBatch`] allowing them to be used as an IOx
+//! [`QueryChunk`].
 
 use std::{any::Any, sync::Arc};
 
 use arrow::record_batch::RecordBatch;
 use arrow_util::util::ensure_schema;
 use data_types::{
-    ChunkId, ChunkOrder, DeletePredicate, PartitionId, SequenceNumber, TableSummary,
-    TimestampMinMax,
+    ChunkId, ChunkOrder, DeletePredicate, PartitionId, TableSummary, TimestampMinMax,
 };
 use datafusion::{
     error::DataFusionError,
@@ -21,11 +21,12 @@ use iox_query::{
     QueryChunk, QueryChunkMeta,
 };
 use observability_deps::tracing::trace;
+use once_cell::sync::OnceCell;
 use predicate::Predicate;
 use schema::{merge::merge_record_batch_schemas, selection::Selection, sort::SortKey, Schema};
 use snafu::{ResultExt, Snafu};
 
-use crate::data::{partition::SnapshotBatch, table::TableName};
+use crate::data::table::TableName;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
@@ -47,72 +48,106 @@ pub enum Error {
 /// A specialized `Error` for Ingester's Query errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Queryable data used for both query and persistence
+/// A queryable wrapper over a set of ordered [`RecordBatch`] snapshot from a
+/// single [`PartitionData`].
+///
+/// It is an invariant that a [`QueryAdaptor`] MUST always contain at least one
+/// row. This frees the caller of having to reason about empty [`QueryAdaptor`]
+/// instances yielding empty [`RecordBatch`].
+///
+/// [`PartitionData`]: crate::data::partition::PartitionData
 #[derive(Debug, PartialEq, Clone)]
-pub(crate) struct QueryableBatch {
-    /// data
-    pub(crate) data: Vec<Arc<SnapshotBatch>>,
+pub(crate) struct QueryAdaptor {
+    /// The snapshot data from a partition.
+    ///
+    /// This MUST be non-pub / closed for modification / immutable to support
+    /// interning the merged schema in [`Self::schema()`].
+    data: Vec<Arc<RecordBatch>>,
 
-    /// This is needed to return a reference for a trait function
-    pub(crate) table_name: TableName,
+    /// The name of the table this data is part of.
+    table_name: TableName,
 
-    /// Partition ID
-    pub(crate) partition_id: PartitionId,
+    /// The catalog ID of the partition the this data is part of.
+    partition_id: PartitionId,
+
+    /// An interned schema for all [`RecordBatch`] in data.
+    schema: OnceCell<Arc<Schema>>,
 }
 
-impl QueryableBatch {
-    /// Initilaize a QueryableBatch
+impl QueryAdaptor {
+    /// Construct a [`QueryAdaptor`].
+    ///
+    /// # Panics
+    ///
+    /// This constructor panics if `data` contains no [`RecordBatch`], or all
+    /// [`RecordBatch`] are empty.
     pub(crate) fn new(
         table_name: TableName,
         partition_id: PartitionId,
-        data: Vec<Arc<SnapshotBatch>>,
+        data: Vec<Arc<RecordBatch>>,
     ) -> Self {
+        // There must always be at least one record batch and one row.
+        //
+        // This upholds an invariant that simplifies dealing with empty
+        // partitions - if there is a QueryAdaptor, it contains data.
+        assert!(data.iter().map(|b| b.num_rows()).sum::<usize>() > 0);
+
         Self {
             data,
             table_name,
             partition_id,
+            schema: OnceCell::default(),
         }
     }
 
-    /// Add snapshots to this batch
-    pub(crate) fn with_data(mut self, mut data: Vec<Arc<SnapshotBatch>>) -> Self {
-        self.data.append(&mut data);
-        self
+    pub(crate) fn project_selection(&self, selection: Selection<'_>) -> Vec<RecordBatch> {
+        // Project the column selection across all RecordBatch
+        self.data
+            .iter()
+            .map(|data| {
+                let batch = data.as_ref();
+                let schema = batch.schema();
+
+                // Apply selection to in-memory batch
+                match selection {
+                    Selection::All => batch.clone(),
+                    Selection::Some(columns) => {
+                        let projection = columns
+                            .iter()
+                            .flat_map(|&column_name| {
+                                // ignore non-existing columns
+                                schema.index_of(column_name).ok()
+                            })
+                            .collect::<Vec<_>>();
+                        batch.project(&projection).expect("bug in projection")
+                    }
+                }
+            })
+            .collect()
     }
 
-    /// return min and max of all the snapshots
-    pub(crate) fn min_max_sequence_numbers(&self) -> (SequenceNumber, SequenceNumber) {
-        let min = self
-            .data
-            .first()
-            .expect("The Queryable Batch should not empty")
-            .min_sequence_number;
+    /// Returns the [`RecordBatch`] instances in this [`QueryAdaptor`].
+    pub(crate) fn record_batches(&self) -> &[Arc<RecordBatch>] {
+        self.data.as_ref()
+    }
 
-        let max = self
-            .data
-            .first()
-            .expect("The Queryable Batch should not empty")
-            .max_sequence_number;
-
-        assert!(min <= max);
-
-        (min, max)
+    /// Returns the partition ID from which the data this [`QueryAdaptor`] was
+    /// sourced from.
+    pub(crate) fn partition_id(&self) -> PartitionId {
+        self.partition_id
     }
 }
 
-impl QueryChunkMeta for QueryableBatch {
+impl QueryChunkMeta for QueryAdaptor {
     fn summary(&self) -> Option<Arc<TableSummary>> {
         None
     }
 
     fn schema(&self) -> Arc<Schema> {
-        // TODO: may want store this schema as a field of QueryableBatch and
-        // only do this schema merge the first time it is called
-
-        // Merge schema of all RecordBatches of the PerstingBatch
-        let batches: Vec<Arc<RecordBatch>> =
-            self.data.iter().map(|s| Arc::clone(&s.data)).collect();
-        merge_record_batch_schemas(&batches)
+        Arc::clone(
+            self.schema
+                .get_or_init(|| merge_record_batch_schemas(&self.data)),
+        )
     }
 
     fn partition_sort_key(&self) -> Option<&SortKey> {
@@ -139,11 +174,11 @@ impl QueryChunkMeta for QueryableBatch {
     }
 }
 
-impl QueryChunk for QueryableBatch {
+impl QueryChunk for QueryAdaptor {
     // This function should not be used in QueryBatch context
     fn id(&self) -> ChunkId {
-        // To return a value for debugging and make it consistent with ChunkId created in Compactor,
-        // use Uuid for this
+        // To return a value for debugging and make it consistent with ChunkId
+        // created in Compactor, use Uuid for this
         ChunkId::new()
     }
 
@@ -152,10 +187,11 @@ impl QueryChunk for QueryableBatch {
         &self.table_name
     }
 
-    /// Returns true if the chunk may contain a duplicate "primary
-    /// key" within itself
+    /// Returns true if the chunk may contain a duplicate "primary key" within
+    /// itself
     fn may_contain_pk_duplicates(&self) -> bool {
-        // always true because they are not deduplicated yet
+        // always true because the rows across record batches have not been
+        // de-duplicated.
         true
     }
 
@@ -204,22 +240,15 @@ impl QueryChunk for QueryableBatch {
             .context(SchemaSnafu)
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
-        // Get all record batches from their snapshots
+        // Apply the projection over all the data in self, ensuring each batch
+        // has the specified schema.
         let batches = self
-            .data
-            .iter()
-            .filter_map(|snapshot| {
-                let batch = snapshot
-                    // Only return columns in the selection
-                    .scan(selection)
-                    .context(FilterColumnsSnafu {})
-                    .transpose()?
-                    // ensure batch has desired schema
-                    .and_then(|batch| {
-                        ensure_schema(&schema.as_arrow(), &batch).context(ConcatBatchesSnafu {})
-                    })
-                    .map(Arc::new);
-                Some(batch)
+            .project_selection(selection)
+            .into_iter()
+            .map(|batch| {
+                ensure_schema(&schema.as_arrow(), &batch)
+                    .context(ConcatBatchesSnafu {})
+                    .map(Arc::new)
             })
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
@@ -233,10 +262,9 @@ impl QueryChunk for QueryableBatch {
 
     /// Returns chunk type
     fn chunk_type(&self) -> &str {
-        "PersistingBatch"
+        "QueryAdaptor"
     }
 
-    // This function should not be used in PersistingBatch context
     fn order(&self) -> ChunkOrder {
         unimplemented!()
     }

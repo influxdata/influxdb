@@ -28,7 +28,7 @@ pub(crate) struct Buffering {
 ///
 /// In the future this [`Queryable`] should NOT be implemented for
 /// [`Buffering`], and instead snapshots should be incrementally generated and
-/// compacted. See https://github.com/influxdata/influxdb_iox/issues/5805 for
+/// compacted. See <https://github.com/influxdata/influxdb_iox/issues/5805> for
 /// context.
 impl Queryable for Buffering {
     fn get_query_data(&self) -> Vec<Arc<RecordBatch>> {

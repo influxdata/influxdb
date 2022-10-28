@@ -7,9 +7,8 @@ use std::{sync::Arc, time::Duration};
 
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_eq;
-use bitflags::bitflags;
 use data_types::{
-    NamespaceId, PartitionId, PartitionKey, Sequence, SequenceNumber, ShardId, ShardIndex, TableId,
+    NamespaceId, PartitionKey, Sequence, SequenceNumber, ShardId, ShardIndex, TableId,
 };
 use dml::{DmlMeta, DmlOperation, DmlWrite};
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
@@ -17,70 +16,11 @@ use iox_query::test::{raw_data, TestChunk};
 use iox_time::{SystemProvider, Time};
 use mutable_batch_lp::lines_to_batches;
 use object_store::memory::InMemory;
-use uuid::Uuid;
 
 use crate::{
-    data::{
-        partition::{resolver::CatalogPartitionResolver, PersistingBatch, SnapshotBatch},
-        IngesterData,
-    },
+    data::{partition::resolver::CatalogPartitionResolver, IngesterData},
     lifecycle::{LifecycleConfig, LifecycleManager},
-    query::QueryableBatch,
 };
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn make_persisting_batch(
-    shard_id: i64,
-    seq_num_start: i64,
-    table_id: i64,
-    table_name: &str,
-    partition_id: i64,
-    object_store_id: Uuid,
-    batches: Vec<Arc<RecordBatch>>,
-) -> Arc<PersistingBatch> {
-    let queryable_batch = make_queryable_batch(table_name, partition_id, seq_num_start, batches);
-    Arc::new(PersistingBatch {
-        shard_id: ShardId::new(shard_id),
-        table_id: TableId::new(table_id),
-        partition_id: PartitionId::new(partition_id),
-        object_store_id,
-        data: queryable_batch,
-    })
-}
-
-pub(crate) fn make_queryable_batch(
-    table_name: &str,
-    partition_id: i64,
-    seq_num_start: i64,
-    batches: Vec<Arc<RecordBatch>>,
-) -> Arc<QueryableBatch> {
-    // make snapshots for the batches
-    let mut snapshots = vec![];
-    let mut seq_num = seq_num_start;
-    for batch in batches {
-        let seq = SequenceNumber::new(seq_num);
-        snapshots.push(Arc::new(make_snapshot_batch(batch, seq, seq)));
-        seq_num += 1;
-    }
-
-    Arc::new(QueryableBatch::new(
-        table_name.into(),
-        PartitionId::new(partition_id),
-        snapshots,
-    ))
-}
-
-pub(crate) fn make_snapshot_batch(
-    batch: Arc<RecordBatch>,
-    min: SequenceNumber,
-    max: SequenceNumber,
-) -> SnapshotBatch {
-    SnapshotBatch {
-        min_sequence_number: min,
-        max_sequence_number: max,
-        data: batch,
-    }
-}
 
 pub(crate) async fn create_one_row_record_batch_with_influxtype() -> Vec<Arc<RecordBatch>> {
     let chunk1 = Arc::new(
@@ -506,32 +446,9 @@ pub(crate) const TEST_TABLE: &str = "test_table";
 pub(crate) const TEST_PARTITION_1: &str = "test+partition_1";
 pub(crate) const TEST_PARTITION_2: &str = "test+partition_2";
 
-bitflags! {
-    /// Make the same in-memory data but data are split between:
-    ///    . one or two partition
-    ///    . The first partition will have a choice to have data in either
-    ///       . buffer only
-    ///       . snapshot only
-    ///       . persisting only
-    ///       . buffer + snapshot
-    ///       . buffer + persisting
-    ///       . snapshot + persisting
-    ///       . buffer + snapshot + persisting
-    ///    . If the second partittion exists, it only has data in its buffer
-    pub(crate) struct DataLocation: u8 {
-        const BUFFER = 0b001;
-        const SNAPSHOT = 0b010;
-        const PERSISTING = 0b100;
-        const BUFFER_SNAPSHOT = Self::BUFFER.bits | Self::SNAPSHOT.bits;
-        const BUFFER_PERSISTING = Self::BUFFER.bits | Self::PERSISTING.bits;
-        const SNAPSHOT_PERSISTING = Self::SNAPSHOT.bits | Self::PERSISTING.bits;
-        const BUFFER_SNAPSHOT_PERSISTING = Self::BUFFER.bits | Self::SNAPSHOT.bits | Self::PERSISTING.bits;
-    }
-}
-
 /// This function produces one scenario but with the parameter combination (2*7),
 /// you will be able to produce 14 scenarios by calling it in 2 loops
-pub(crate) async fn make_ingester_data(two_partitions: bool, loc: DataLocation) -> IngesterData {
+pub(crate) async fn make_ingester_data(two_partitions: bool) -> IngesterData {
     // Whatever data because they won't be used in the tests
     let metrics: Arc<metric::Registry> = Default::default();
     let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
@@ -574,26 +491,6 @@ pub(crate) async fn make_ingester_data(two_partitions: bool, loc: DataLocation) 
             .buffer_operation(shard_id, op, &lifecycle.handle())
             .await
             .unwrap();
-    }
-
-    if loc.contains(DataLocation::PERSISTING) {
-        // Move partition 1 data to persisting
-        let _ignored = ingester
-            .shard(shard_id)
-            .unwrap()
-            .namespace(&TEST_NAMESPACE.into())
-            .unwrap()
-            .snapshot_to_persisting(&TEST_TABLE.into(), &PartitionKey::from(TEST_PARTITION_1))
-            .await;
-    } else if loc.contains(DataLocation::SNAPSHOT) {
-        // move partition 1 data to snapshot
-        let _ignored = ingester
-            .shard(shard_id)
-            .unwrap()
-            .namespace(&TEST_NAMESPACE.into())
-            .unwrap()
-            .snapshot(&TEST_TABLE.into(), &PartitionKey::from(TEST_PARTITION_1))
-            .await;
     }
 
     ingester

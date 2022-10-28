@@ -11,7 +11,7 @@ use iox_query::{
 use schema::sort::{adjust_sort_key_columns, compute_sort_key, SortKey};
 use snafu::{ResultExt, Snafu};
 
-use crate::{data::partition::PersistingBatch, query::QueryableBatch};
+use crate::query_adaptor::QueryAdaptor;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -85,14 +85,14 @@ impl std::fmt::Debug for CompactedStream {
     }
 }
 
-/// Compact a given persisting batch into a [`CompactedStream`] or
-/// `None` if there is no data to compact.
+/// Compact a given batch into a [`CompactedStream`] or `None` if there is no
+/// data to compact, returning an updated sort key, if any.
 pub(crate) async fn compact_persisting_batch(
     executor: &Executor,
     sort_key: Option<SortKey>,
-    batch: Arc<PersistingBatch>,
+    batch: QueryAdaptor,
 ) -> Result<CompactedStream> {
-    assert!(!batch.data.data.is_empty());
+    assert!(!batch.record_batches().is_empty());
 
     // Get sort key from the catalog or compute it from
     // cardinality.
@@ -104,12 +104,12 @@ pub(crate) async fn compact_persisting_batch(
             //
             // If there are any new columns, add them to the end of the sort key in the catalog and
             // return that to be updated in the catalog.
-            adjust_sort_key_columns(&sk, &batch.data.schema().primary_key())
+            adjust_sort_key_columns(&sk, &batch.schema().primary_key())
         }
         None => {
             let sort_key = compute_sort_key(
-                batch.data.schema().as_ref(),
-                batch.data.data.iter().map(|sb| sb.data.as_ref()),
+                batch.schema().as_ref(),
+                batch.record_batches().iter().map(|sb| sb.as_ref()),
             );
             // Use the sort key computed from the cardinality as the sort key for this parquet
             // file's metadata, also return the sort key to be stored in the catalog
@@ -118,7 +118,7 @@ pub(crate) async fn compact_persisting_batch(
     };
 
     // Compact
-    let stream = compact(executor, Arc::clone(&batch.data), data_sort_key.clone()).await?;
+    let stream = compact(executor, Arc::new(batch), data_sort_key.clone()).await?;
 
     Ok(CompactedStream {
         stream,
@@ -127,10 +127,10 @@ pub(crate) async fn compact_persisting_batch(
     })
 }
 
-/// Compact a given Queryable Batch
+/// Compact a given batch without updating the sort key.
 pub(crate) async fn compact(
     executor: &Executor,
-    data: Arc<QueryableBatch>,
+    data: Arc<QueryAdaptor>,
     sort_key: SortKey,
 ) -> Result<SendableRecordBatchStream> {
     // Build logical plan for compaction
@@ -157,9 +157,9 @@ pub(crate) async fn compact(
 #[cfg(test)]
 mod tests {
     use arrow_util::assert_batches_eq;
+    use data_types::PartitionId;
     use mutable_batch_lp::lines_to_batches;
     use schema::selection::Selection;
-    use uuid::Uuid;
 
     use super::*;
     use crate::test_util::{
@@ -169,14 +169,14 @@ mod tests {
         create_batches_with_influxtype_same_columns_different_type,
         create_one_record_batch_with_influxtype_duplicates,
         create_one_record_batch_with_influxtype_no_duplicates,
-        create_one_row_record_batch_with_influxtype, make_persisting_batch, make_queryable_batch,
+        create_one_row_record_batch_with_influxtype,
     };
 
     // this test was added to guard against https://github.com/influxdata/influxdb_iox/issues/3782
     // where if sending in a single row it would compact into an output of two batches, one of
     // which was empty, which would cause this to panic.
     #[tokio::test]
-    async fn test_compact_persisting_batch_on_one_record_batch_with_one_row() {
+    async fn test_compact_batch_on_one_record_batch_with_one_row() {
         // create input data
         let batch = lines_to_batches("cpu bar=2 20", 0)
             .unwrap()
@@ -184,26 +184,15 @@ mod tests {
             .unwrap()
             .to_arrow(Selection::All)
             .unwrap();
-        let batches = vec![Arc::new(batch)];
-        // build persisting batch from the input batches
-        let uuid = Uuid::new_v4();
-        let table_name = "test_table";
-        let shard_id = 1;
-        let seq_num_start: i64 = 1;
-        let table_id = 1;
-        let partition_id = 1;
-        let persisting_batch = make_persisting_batch(
-            shard_id,
-            seq_num_start,
-            table_id,
-            table_name,
-            partition_id,
-            uuid,
-            batches,
+
+        let batch = QueryAdaptor::new(
+            "test_table".into(),
+            PartitionId::new(1),
+            vec![Arc::new(batch)],
         );
 
         // verify PK
-        let schema = persisting_batch.data.schema();
+        let schema = batch.schema();
         let pk = schema.primary_key();
         let expected_pk = vec!["time"];
         assert_eq!(expected_pk, pk);
@@ -211,7 +200,7 @@ mod tests {
         // compact
         let exc = Executor::new(1);
         let CompactedStream { stream, .. } =
-            compact_persisting_batch(&exc, Some(SortKey::empty()), persisting_batch)
+            compact_persisting_batch(&exc, Some(SortKey::empty()), batch)
                 .await
                 .unwrap();
 
@@ -232,29 +221,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_compact_persisting_batch_on_one_record_batch_no_dupilcates() {
+    async fn test_compact_batch_on_one_record_batch_no_dupilcates() {
         // create input data
-        let batches = create_one_record_batch_with_influxtype_no_duplicates().await;
-
-        // build persisting batch from the input batches
-        let uuid = Uuid::new_v4();
-        let table_name = "test_table";
-        let shard_id = 1;
-        let seq_num_start: i64 = 1;
-        let table_id = 1;
-        let partition_id = 1;
-        let persisting_batch = make_persisting_batch(
-            shard_id,
-            seq_num_start,
-            table_id,
-            table_name,
-            partition_id,
-            uuid,
-            batches,
+        let batch = QueryAdaptor::new(
+            "test_table".into(),
+            PartitionId::new(1),
+            create_one_record_batch_with_influxtype_no_duplicates().await,
         );
 
         // verify PK
-        let schema = persisting_batch.data.schema();
+        let schema = batch.schema();
         let pk = schema.primary_key();
         let expected_pk = vec!["tag1", "time"];
         assert_eq!(expected_pk, pk);
@@ -265,7 +241,7 @@ mod tests {
             stream,
             data_sort_key,
             catalog_sort_key_update,
-        } = compact_persisting_batch(&exc, Some(SortKey::empty()), persisting_batch)
+        } = compact_persisting_batch(&exc, Some(SortKey::empty()), batch)
             .await
             .unwrap();
 
@@ -295,29 +271,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_compact_persisting_batch_no_sort_key() {
+    async fn test_compact_batch_no_sort_key() {
         // create input data
-        let batches = create_batches_with_influxtype_different_cardinality().await;
-
-        // build persisting batch from the input batches
-        let uuid = Uuid::new_v4();
-        let table_name = "test_table";
-        let shard_id = 1;
-        let seq_num_start: i64 = 1;
-        let table_id = 1;
-        let partition_id = 1;
-        let persisting_batch = make_persisting_batch(
-            shard_id,
-            seq_num_start,
-            table_id,
-            table_name,
-            partition_id,
-            uuid,
-            batches,
+        let batch = QueryAdaptor::new(
+            "test_table".into(),
+            PartitionId::new(1),
+            create_batches_with_influxtype_different_cardinality().await,
         );
 
         // verify PK
-        let schema = persisting_batch.data.schema();
+        let schema = batch.schema();
         let pk = schema.primary_key();
         let expected_pk = vec!["tag1", "tag3", "time"];
         assert_eq!(expected_pk, pk);
@@ -329,7 +292,7 @@ mod tests {
             stream,
             data_sort_key,
             catalog_sort_key_update,
-        } = compact_persisting_batch(&exc, Some(SortKey::empty()), persisting_batch)
+        } = compact_persisting_batch(&exc, Some(SortKey::empty()), batch)
             .await
             .unwrap();
 
@@ -363,29 +326,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_compact_persisting_batch_with_specified_sort_key() {
+    async fn test_compact_batch_with_specified_sort_key() {
         // create input data
-        let batches = create_batches_with_influxtype_different_cardinality().await;
-
-        // build persisting batch from the input batches
-        let uuid = Uuid::new_v4();
-        let table_name = "test_table";
-        let shard_id = 1;
-        let seq_num_start: i64 = 1;
-        let table_id = 1;
-        let partition_id = 1;
-        let persisting_batch = make_persisting_batch(
-            shard_id,
-            seq_num_start,
-            table_id,
-            table_name,
-            partition_id,
-            uuid,
-            batches,
+        let batch = QueryAdaptor::new(
+            "test_table".into(),
+            PartitionId::new(1),
+            create_batches_with_influxtype_different_cardinality().await,
         );
 
         // verify PK
-        let schema = persisting_batch.data.schema();
+        let schema = batch.schema();
         let pk = schema.primary_key();
         let expected_pk = vec!["tag1", "tag3", "time"];
         assert_eq!(expected_pk, pk);
@@ -401,7 +351,7 @@ mod tests {
         } = compact_persisting_batch(
             &exc,
             Some(SortKey::from_columns(["tag3", "tag1", "time"])),
-            persisting_batch,
+            batch,
         )
         .await
         .unwrap();
@@ -435,29 +385,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_compact_persisting_batch_new_column_for_sort_key() {
+    async fn test_compact_batch_new_column_for_sort_key() {
         // create input data
-        let batches = create_batches_with_influxtype_different_cardinality().await;
-
-        // build persisting batch from the input batches
-        let uuid = Uuid::new_v4();
-        let table_name = "test_table";
-        let shard_id = 1;
-        let seq_num_start: i64 = 1;
-        let table_id = 1;
-        let partition_id = 1;
-        let persisting_batch = make_persisting_batch(
-            shard_id,
-            seq_num_start,
-            table_id,
-            table_name,
-            partition_id,
-            uuid,
-            batches,
+        let batch = QueryAdaptor::new(
+            "test_table".into(),
+            PartitionId::new(1),
+            create_batches_with_influxtype_different_cardinality().await,
         );
 
         // verify PK
-        let schema = persisting_batch.data.schema();
+        let schema = batch.schema();
         let pk = schema.primary_key();
         let expected_pk = vec!["tag1", "tag3", "time"];
         assert_eq!(expected_pk, pk);
@@ -471,13 +408,9 @@ mod tests {
             stream,
             data_sort_key,
             catalog_sort_key_update,
-        } = compact_persisting_batch(
-            &exc,
-            Some(SortKey::from_columns(["tag3", "time"])),
-            persisting_batch,
-        )
-        .await
-        .unwrap();
+        } = compact_persisting_batch(&exc, Some(SortKey::from_columns(["tag3", "time"])), batch)
+            .await
+            .unwrap();
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
@@ -511,29 +444,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_compact_persisting_batch_missing_column_for_sort_key() {
+    async fn test_compact_batch_missing_column_for_sort_key() {
         // create input data
-        let batches = create_batches_with_influxtype_different_cardinality().await;
-
-        // build persisting batch from the input batches
-        let uuid = Uuid::new_v4();
-        let table_name = "test_table";
-        let shard_id = 1;
-        let seq_num_start: i64 = 1;
-        let table_id = 1;
-        let partition_id = 1;
-        let persisting_batch = make_persisting_batch(
-            shard_id,
-            seq_num_start,
-            table_id,
-            table_name,
-            partition_id,
-            uuid,
-            batches,
+        let batch = QueryAdaptor::new(
+            "test_table".into(),
+            PartitionId::new(1),
+            create_batches_with_influxtype_different_cardinality().await,
         );
 
         // verify PK
-        let schema = persisting_batch.data.schema();
+        let schema = batch.schema();
         let pk = schema.primary_key();
         let expected_pk = vec!["tag1", "tag3", "time"];
         assert_eq!(expected_pk, pk);
@@ -550,7 +470,7 @@ mod tests {
         } = compact_persisting_batch(
             &exc,
             Some(SortKey::from_columns(["tag3", "tag1", "tag4", "time"])),
-            persisting_batch,
+            batch,
         )
         .await
         .unwrap();
@@ -588,26 +508,25 @@ mod tests {
         test_helpers::maybe_start_logging();
 
         // create input data
-        let batches = create_one_row_record_batch_with_influxtype().await;
-
-        // build queryable batch from the input batches
-        let compact_batch = make_queryable_batch("test_table", 0, 1, batches);
+        let batch = QueryAdaptor::new(
+            "test_table".into(),
+            PartitionId::new(1),
+            create_one_row_record_batch_with_influxtype().await,
+        );
 
         // verify PK
-        let schema = compact_batch.schema();
+        let schema = batch.schema();
         let pk = schema.primary_key();
         let expected_pk = vec!["tag1", "time"];
         assert_eq!(expected_pk, pk);
 
-        let sort_key = compute_sort_key(
-            &schema,
-            compact_batch.data.iter().map(|sb| sb.data.as_ref()),
-        );
+        let sort_key =
+            compute_sort_key(&schema, batch.record_batches().iter().map(|rb| rb.as_ref()));
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "time"]));
 
         // compact
         let exc = Executor::new(1);
-        let stream = compact(&exc, compact_batch, sort_key).await.unwrap();
+        let stream = compact(&exc, Arc::new(batch), sort_key).await.unwrap();
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();
@@ -629,26 +548,25 @@ mod tests {
     #[tokio::test]
     async fn test_compact_one_batch_with_duplicates() {
         // create input data
-        let batches = create_one_record_batch_with_influxtype_duplicates().await;
-
-        // build queryable batch from the input batches
-        let compact_batch = make_queryable_batch("test_table", 0, 1, batches);
+        let batch = QueryAdaptor::new(
+            "test_table".into(),
+            PartitionId::new(1),
+            create_one_record_batch_with_influxtype_duplicates().await,
+        );
 
         // verify PK
-        let schema = compact_batch.schema();
+        let schema = batch.schema();
         let pk = schema.primary_key();
         let expected_pk = vec!["tag1", "time"];
         assert_eq!(expected_pk, pk);
 
-        let sort_key = compute_sort_key(
-            &schema,
-            compact_batch.data.iter().map(|sb| sb.data.as_ref()),
-        );
+        let sort_key =
+            compute_sort_key(&schema, batch.record_batches().iter().map(|rb| rb.as_ref()));
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "time"]));
 
         // compact
         let exc = Executor::new(1);
-        let stream = compact(&exc, compact_batch, sort_key).await.unwrap();
+        let stream = compact(&exc, Arc::new(batch), sort_key).await.unwrap();
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();
@@ -678,26 +596,25 @@ mod tests {
     #[tokio::test]
     async fn test_compact_many_batches_same_columns_with_duplicates() {
         // create many-batches input data
-        let batches = create_batches_with_influxtype().await;
-
-        // build queryable batch from the input batches
-        let compact_batch = make_queryable_batch("test_table", 0, 1, batches);
+        let batch = QueryAdaptor::new(
+            "test_table".into(),
+            PartitionId::new(1),
+            create_batches_with_influxtype().await,
+        );
 
         // verify PK
-        let schema = compact_batch.schema();
+        let schema = batch.schema();
         let pk = schema.primary_key();
         let expected_pk = vec!["tag1", "time"];
         assert_eq!(expected_pk, pk);
 
-        let sort_key = compute_sort_key(
-            &schema,
-            compact_batch.data.iter().map(|sb| sb.data.as_ref()),
-        );
+        let sort_key =
+            compute_sort_key(&schema, batch.record_batches().iter().map(|rb| rb.as_ref()));
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "time"]));
 
         // compact
         let exc = Executor::new(1);
-        let stream = compact(&exc, compact_batch, sort_key).await.unwrap();
+        let stream = compact(&exc, Arc::new(batch), sort_key).await.unwrap();
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();
@@ -724,26 +641,25 @@ mod tests {
     #[tokio::test]
     async fn test_compact_many_batches_different_columns_with_duplicates() {
         // create many-batches input data
-        let batches = create_batches_with_influxtype_different_columns().await;
-
-        // build queryable batch from the input batches
-        let compact_batch = make_queryable_batch("test_table", 0, 1, batches);
+        let batch = QueryAdaptor::new(
+            "test_table".into(),
+            PartitionId::new(1),
+            create_batches_with_influxtype_different_columns().await,
+        );
 
         // verify PK
-        let schema = compact_batch.schema();
+        let schema = batch.schema();
         let pk = schema.primary_key();
         let expected_pk = vec!["tag1", "tag2", "time"];
         assert_eq!(expected_pk, pk);
 
-        let sort_key = compute_sort_key(
-            &schema,
-            compact_batch.data.iter().map(|sb| sb.data.as_ref()),
-        );
+        let sort_key =
+            compute_sort_key(&schema, batch.record_batches().iter().map(|rb| rb.as_ref()));
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "tag2", "time"]));
 
         // compact
         let exc = Executor::new(1);
-        let stream = compact(&exc, compact_batch, sort_key).await.unwrap();
+        let stream = compact(&exc, Arc::new(batch), sort_key).await.unwrap();
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();
@@ -774,26 +690,25 @@ mod tests {
     #[tokio::test]
     async fn test_compact_many_batches_different_columns_different_order_with_duplicates() {
         // create many-batches input data
-        let batches = create_batches_with_influxtype_different_columns_different_order().await;
-
-        // build queryable batch from the input batches
-        let compact_batch = make_queryable_batch("test_table", 0, 1, batches);
+        let batch = QueryAdaptor::new(
+            "test_table".into(),
+            PartitionId::new(1),
+            create_batches_with_influxtype_different_columns_different_order().await,
+        );
 
         // verify PK
-        let schema = compact_batch.schema();
+        let schema = batch.schema();
         let pk = schema.primary_key();
         let expected_pk = vec!["tag1", "tag2", "time"];
         assert_eq!(expected_pk, pk);
 
-        let sort_key = compute_sort_key(
-            &schema,
-            compact_batch.data.iter().map(|sb| sb.data.as_ref()),
-        );
+        let sort_key =
+            compute_sort_key(&schema, batch.record_batches().iter().map(|rb| rb.as_ref()));
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "tag2", "time"]));
 
         // compact
         let exc = Executor::new(1);
-        let stream = compact(&exc, compact_batch, sort_key).await.unwrap();
+        let stream = compact(&exc, Arc::new(batch), sort_key).await.unwrap();
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();
@@ -823,68 +738,17 @@ mod tests {
         assert_batches_eq!(&expected, &output_batches);
     }
 
-    // BUG
-    #[tokio::test]
-    async fn test_compact_many_batches_different_columns_different_order_with_duplicates2() {
-        // create many-batches input data
-        let batches = create_batches_with_influxtype_different_columns_different_order().await;
-
-        // build queryable batch from the input batches
-        let compact_batch = make_queryable_batch("test_table", 0, 1, batches);
-
-        // verify PK
-        let schema = compact_batch.schema();
-        let pk = schema.primary_key();
-        let expected_pk = vec!["tag1", "tag2", "time"];
-        assert_eq!(expected_pk, pk);
-
-        let sort_key = compute_sort_key(
-            &schema,
-            compact_batch.data.iter().map(|sb| sb.data.as_ref()),
-        );
-        assert_eq!(sort_key, SortKey::from_columns(["tag1", "tag2", "time"]));
-
-        // compact
-        let exc = Executor::new(1);
-        let stream = compact(&exc, compact_batch, sort_key).await.unwrap();
-        let output_batches = datafusion::physical_plan::common::collect(stream)
-            .await
-            .unwrap();
-
-        // verify compacted data
-        // data is sorted and all duplicates are removed
-        let expected = vec![
-            "+-----------+------+------+--------------------------------+",
-            "| field_int | tag1 | tag2 | time                           |",
-            "+-----------+------+------+--------------------------------+",
-            "| 5         |      | AL   | 1970-01-01T00:00:00.000005Z    |",
-            "| 10        |      | AL   | 1970-01-01T00:00:00.000007Z    |",
-            "| 70        |      | CT   | 1970-01-01T00:00:00.000000100Z |",
-            "| 1000      |      | CT   | 1970-01-01T00:00:00.000001Z    |",
-            "| 100       |      | MA   | 1970-01-01T00:00:00.000000050Z |",
-            "| 10        | AL   | MA   | 1970-01-01T00:00:00.000000050Z |",
-            "| 70        | CT   | CT   | 1970-01-01T00:00:00.000000100Z |",
-            "| 70        | CT   | CT   | 1970-01-01T00:00:00.000000500Z |",
-            "| 30        | MT   | AL   | 1970-01-01T00:00:00.000000005Z |",
-            "| 20        | MT   | AL   | 1970-01-01T00:00:00.000007Z    |",
-            "| 1000      | MT   | CT   | 1970-01-01T00:00:00.000001Z    |",
-            "| 1000      | MT   | CT   | 1970-01-01T00:00:00.000002Z    |",
-            "+-----------+------+------+--------------------------------+",
-        ];
-
-        assert_batches_eq!(&expected, &output_batches);
-    }
-
     #[tokio::test]
     #[should_panic(expected = "Schemas compatible")]
     async fn test_compact_many_batches_same_columns_different_types() {
         // create many-batches input data
-        let batches = create_batches_with_influxtype_same_columns_different_type().await;
+        let batch = QueryAdaptor::new(
+            "test_table".into(),
+            PartitionId::new(1),
+            create_batches_with_influxtype_same_columns_different_type().await,
+        );
 
-        // build queryable batch from the input batches
-        let compact_batch = make_queryable_batch("test_table", 0, 1, batches);
-
-        // the schema merge will thorw a panic
-        compact_batch.schema();
+        // the schema merge should throw a panic
+        batch.schema();
     }
 }

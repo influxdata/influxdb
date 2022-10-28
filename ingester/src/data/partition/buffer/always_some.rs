@@ -1,31 +1,8 @@
 //! A helper type that ensures an `Option` is always `Some` once the guard is
 //! dropped.
 
-/// A guard through which a value can be placed back into the [`AlwaysSome`].
-#[derive(Debug)]
-#[must_use = "Guard must be used to restore the value"]
-pub(super) struct Guard<'a, T>(&'a mut Option<T>);
-
-impl<'a, T> Guard<'a, T> {
-    /// Store `value` in the [`AlwaysSome`] for subsequent
-    /// [`AlwaysSome::take()`] calls.
-    pub(super) fn store(self, value: T) {
-        assert!(self.0.is_none());
-        *self.0 = Some(value);
-    }
-}
-
-/// A helper type that aims to ease working with an [`Option`] that must always
-/// be restored in a given scope.
-///
-/// Accessing the value within an [`AlwaysSome`] returns a [`Guard`], which MUST
-/// be used to store the value before going out of scope. Failure to store a
-/// value cause a subsequent [`Self::take()`] call to panic.
-///
-/// Failing to store a value in the [`Guard`] causes a compiler warning, however
-/// this does not prevent failing to return a value to the [`AlwaysSome`] as the
-/// warning can be falsely silenced by using it within one conditional code path
-/// and not the other.
+/// A helper type that aims to ease calling methods on a type that takes `self`,
+/// that must always be restored at the end of the method call.
 #[derive(Debug)]
 pub(super) struct AlwaysSome<T>(Option<T>);
 
@@ -52,14 +29,14 @@ impl<T> AlwaysSome<T> {
         Self(Some(value))
     }
 
-    /// Read the value.
-    pub(super) fn take(&mut self) -> (Guard<'_, T>, T) {
+    pub(super) fn mutate<F, R>(&mut self, f: F) -> R
+    where
+        F: FnOnce(T) -> (T, R),
+    {
         let value = std::mem::take(&mut self.0);
-
-        (
-            Guard(&mut self.0),
-            value.expect("AlwaysSome value is None!"),
-        )
+        let (value, ret) = f(value.expect("AlwaysSome value is None!"));
+        self.0 = Some(value);
+        ret
     }
 
     /// Deconstruct `self`, returning the inner value.
@@ -76,24 +53,18 @@ mod tests {
     fn test_always_some() {
         let mut a = AlwaysSome::<usize>::default();
 
-        let (guard, value) = a.take();
-        assert_eq!(value, 0);
-        guard.store(42);
+        let ret = a.mutate(|value| {
+            assert_eq!(value, 0);
+            (42, true)
+        });
+        assert!(ret);
 
-        let (guard, value) = a.take();
-        assert_eq!(value, 42);
-        guard.store(24);
+        let ret = a.mutate(|value| {
+            assert_eq!(value, 42);
+            (13, "bananas")
+        });
+        assert_eq!(ret, "bananas");
 
-        assert_eq!(a.into_inner(), 24);
-    }
-
-    #[test]
-    #[should_panic = "AlwaysSome value is None!"]
-    fn test_drops_guard() {
-        let mut a = AlwaysSome::<usize>::default();
-        {
-            let _ = a.take();
-        }
-        let _ = a.take();
+        assert_eq!(a.into_inner(), 13);
     }
 }

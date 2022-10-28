@@ -24,7 +24,7 @@ mod job;
 pub mod lifecycle;
 mod poison;
 pub mod querier_handler;
-pub(crate) mod query;
+pub(crate) mod query_adaptor;
 pub mod server;
 pub(crate) mod stream_handler;
 

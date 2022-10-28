@@ -157,7 +157,7 @@ mod tests {
             .repositories()
             .await
             .partitions()
-            .get_by_id(got.id)
+            .get_by_id(got.partition_id)
             .await
             .unwrap()
             .expect("partition not created");
