@@ -5,6 +5,7 @@ use data_types::{
     ColumnType, PartitionTemplate, QueryPoolId, ShardIndex, TableId, TemplatePart, TopicId,
 };
 use dml::DmlOperation;
+use futures::{stream::FuturesUnordered, StreamExt};
 use hashbrown::HashMap;
 use hyper::{Body, Request, StatusCode};
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
@@ -134,8 +135,8 @@ impl TestContext {
     }
 
     /// Get a reference to the test context's catalog.
-    pub fn catalog(&self) -> &dyn Catalog {
-        self.catalog.as_ref()
+    pub fn catalog(&self) -> Arc<dyn Catalog> {
+        Arc::clone(&self.catalog)
     }
 
     /// Get a reference to the test context's write buffer state.
@@ -342,4 +343,127 @@ async fn test_schema_limit() {
         }
     );
     assert_eq!(err.as_status_code(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn test_write_propagate_ids() {
+    let ctx = TestContext::new();
+
+    // Create the namespace and a set of tables.
+    let ns = ctx
+        .catalog()
+        .repositories()
+        .await
+        .namespaces()
+        .create(
+            "bananas_test",
+            iox_catalog::INFINITE_RETENTION_POLICY,
+            TopicId::new(TEST_TOPIC_ID),
+            QueryPoolId::new(TEST_QUERY_POOL_ID),
+        )
+        .await
+        .expect("failed to update table limit");
+
+    let catalog = ctx.catalog();
+    let ids = ["another", "test", "table", "platanos"]
+        .iter()
+        .map(|t| {
+            let catalog = Arc::clone(&catalog);
+            async move {
+                let table = catalog
+                    .repositories()
+                    .await
+                    .tables()
+                    .create_or_get(t, ns.id)
+                    .await
+                    .unwrap();
+                (*t, table.id)
+            }
+        })
+        .collect::<FuturesUnordered<_>>()
+        .collect::<HashMap<_, _>>()
+        .await;
+
+    let request = Request::builder()
+        .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
+        .method("POST")
+        .body(Body::from(
+            "\
+                platanos,tag1=A,tag2=B val=42i 123456\n\
+                another,tag1=A,tag2=B val=42i 123458\n\
+                test,tag1=A,tag2=B val=42i 123458\n\
+                platanos,tag1=A,tag2=B val=42i 123458\n\
+                table,tag1=A,tag2=B val=42i 123458\n\
+            ",
+        ))
+        .expect("failed to construct HTTP request");
+
+    let response = ctx
+        .delegate()
+        .route(request)
+        .await
+        .expect("LP write request failed");
+
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    // Check the write buffer observed the correct write.
+    let writes = ctx.write_buffer_state().get_messages(ShardIndex::new(0));
+    assert_eq!(writes.len(), 1);
+    assert_matches!(writes.as_slice(), [Ok(DmlOperation::Write(w))] => {
+        assert_eq!(w.namespace(), "bananas_test");
+        assert_eq!(unsafe { w.namespace_id() } , ns.id);
+        assert!(w.table("platanos").is_some());
+
+        for (name, id) in ids {
+            assert_eq!(unsafe { w.table_id(name).unwrap() }, id);
+        }
+    });
+}
+
+#[tokio::test]
+async fn test_delete_propagate_ids() {
+    let ctx = TestContext::new();
+
+    // Create the namespace and a set of tables.
+    let ns = ctx
+        .catalog()
+        .repositories()
+        .await
+        .namespaces()
+        .create(
+            "bananas_test",
+            iox_catalog::INFINITE_RETENTION_POLICY,
+            TopicId::new(TEST_TOPIC_ID),
+            QueryPoolId::new(TEST_QUERY_POOL_ID),
+        )
+        .await
+        .expect("failed to update table limit");
+
+    let request = Request::builder()
+        .uri("https://bananas.example/api/v2/delete?org=bananas&bucket=test")
+        .method("POST")
+        .body(Body::from(
+            r#"{
+                "predicate": "_measurement=bananas",
+                "start": "1970-01-01T00:00:00Z",
+                "stop": "2070-01-02T00:00:00Z"
+            }"#,
+        ))
+        .expect("failed to construct HTTP request");
+
+    let response = ctx
+        .delegate()
+        .route(request)
+        .await
+        .expect("delete request failed");
+
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    // Check the write buffer observed the correct write.
+    let writes = ctx.write_buffer_state().get_messages(ShardIndex::new(0));
+    assert_eq!(writes.len(), 1);
+    assert_matches!(writes.as_slice(), [Ok(DmlOperation::Delete(w))] => {
+        assert_eq!(w.namespace(), "bananas_test");
+        assert_eq!(unsafe { w.namespace_id() } , ns.id);
+    });
 }
