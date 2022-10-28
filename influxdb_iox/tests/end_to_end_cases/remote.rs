@@ -6,6 +6,7 @@ use futures::FutureExt;
 use predicates::prelude::*;
 use tempfile::tempdir;
 use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState};
+use tokio::fs;
 
 /// Get all Parquet files for a table, using the command `remote store get-table`
 #[tokio::test]
@@ -133,6 +134,46 @@ async fn remote_store_get_table() {
                         .stderr(predicate::str::contains(
                             "Namespace nacho-namespace not found",
                         ));
+
+                    // Running the same command again shouldn't download any new files
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&router_addr)
+                        .arg("remote")
+                        .arg("store")
+                        .arg("get-table")
+                        .arg("-o")
+                        .arg(&custom_output_dir)
+                        .arg(&namespace)
+                        .arg(&other_table_name)
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains(format!(
+                            "skipping file 1 of 1 ({} already exists)",
+                            entries[0].path().file_name().unwrap().to_str().unwrap()
+                        )));
+
+                    // If the file sizes don't match, re-download that file
+                    fs::write(entries[0].path(), b"not parquet").await.unwrap();
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&router_addr)
+                        .arg("remote")
+                        .arg("store")
+                        .arg("get-table")
+                        .arg("-o")
+                        .arg(&custom_output_dir)
+                        .arg(&namespace)
+                        .arg(&other_table_name)
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains(format!(
+                            "downloading file 1 of 1 ({})...",
+                            entries[0].path().file_name().unwrap().to_str().unwrap()
+                        )));
                 }
                 .boxed()
             })),

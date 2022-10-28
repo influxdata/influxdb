@@ -1,13 +1,15 @@
 //! This module implements the `remote store` CLI subcommand
 
 use futures::StreamExt;
+use futures_util::TryStreamExt;
 use influxdb_iox_client::{catalog, connection::Connection, store};
 use std::path::PathBuf;
 use thiserror::Error;
 use tokio::{
     fs::{self, File},
-    io::AsyncWriteExt,
+    io::{self, AsyncWriteExt},
 };
+use tokio_util::compat::FuturesAsyncReadCompatExt;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
@@ -97,23 +99,36 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
                 .await?;
             let num_parquet_files = parquet_files.len();
             println!("found {num_parquet_files} Parquet files, downloading...");
-            let indexed_parquet_file_metadata = parquet_files
-                .into_iter()
-                .map(|pf| (pf.object_store_id, pf.partition_id))
-                .enumerate();
+            let indexed_parquet_file_metadata = parquet_files.into_iter().enumerate();
 
-            for (index, (uuid, partition_id)) in indexed_parquet_file_metadata {
+            for (index, parquet_file) in indexed_parquet_file_metadata {
+                let uuid = parquet_file.object_store_id;
+                let partition_id = parquet_file.partition_id;
+                let file_size_bytes = parquet_file.file_size_bytes as u64;
+
                 let index = index + 1;
                 let filename = format!("{uuid}.{partition_id}.parquet");
-                println!("downloading file {index} of {num_parquet_files} ({filename})...");
-                let mut response = store_client
-                    .get_parquet_file_by_object_store_id(uuid.clone())
-                    .await?;
-                let mut file = File::create(directory.join(&filename)).await?;
-                while let Some(res) = response.next().await {
-                    let res = res.unwrap();
+                let file_path = directory.join(&filename);
 
-                    file.write_all(&res.data).await?;
+                if fs::metadata(&file_path)
+                    .await
+                    .map_or(false, |metadata| metadata.len() == file_size_bytes)
+                {
+                    println!(
+                        "skipping file {index} of {num_parquet_files} ({filename} already exists)"
+                    );
+                } else {
+                    println!("downloading file {index} of {num_parquet_files} ({filename})...");
+                    let mut response = store_client
+                        .get_parquet_file_by_object_store_id(uuid.clone())
+                        .await?
+                        .map_ok(|res| res.data)
+                        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+                        .into_async_read()
+                        .compat();
+                    let mut file = File::create(file_path).await?;
+
+                    io::copy(&mut response, &mut file).await?;
                 }
             }
             println!("Done.");
