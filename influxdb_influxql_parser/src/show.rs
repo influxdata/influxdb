@@ -1,4 +1,9 @@
+//! Types and parsers for various [`SHOW`][sql] schema statements.
+//!
+//! [sql]: https://docs.influxdata.com/influxdb/v1.8/query_language/explore-schema/
+
 use crate::identifier::{identifier, Identifier};
+use crate::impl_tuple_clause;
 use crate::internal::{expect, ParseResult};
 use crate::keywords::keyword;
 use crate::show_field_keys::show_field_keys;
@@ -6,7 +11,7 @@ use crate::show_measurements::show_measurements;
 use crate::show_retention_policies::show_retention_policies;
 use crate::show_tag_keys::show_tag_keys;
 use crate::show_tag_values::show_tag_values;
-use crate::{impl_tuple_clause, Statement};
+use crate::statement::Statement;
 use nom::branch::alt;
 use nom::character::complete::multispace1;
 use nom::combinator::{map, value};

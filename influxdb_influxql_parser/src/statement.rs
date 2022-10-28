@@ -1,3 +1,5 @@
+//! Types and parsers for an InfluxQL statement.
+
 use crate::delete::{delete_statement, DeleteStatement};
 use crate::drop::{drop_statement, DropMeasurementStatement};
 use crate::explain::{explain_statement, ExplainStatement};

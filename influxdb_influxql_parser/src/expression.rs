@@ -1,3 +1,5 @@
+//! Types and parsers for arithmetic and conditional expressions.
+
 pub use arithmetic::*;
 pub use conditional::*;
 

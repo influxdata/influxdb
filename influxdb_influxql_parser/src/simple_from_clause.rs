@@ -1,3 +1,5 @@
+//! Types and parsers for the `FROM` clause common to `DELETE` or `SHOW` schema statements.
+
 use crate::common::{
     qualified_measurement_name, MeasurementName, OneOrMore, Parser, QualifiedMeasurementName,
 };
@@ -14,7 +16,7 @@ use std::fmt::{Display, Formatter};
 /// A `FROM` clause for a `DELETE` can only accept [`Identifier`] or regular expressions
 /// for measurements names.
 ///
-/// A `FROM` clause for a number of `SHOW` statements can accept a 3-part measurement name or
+/// A `FROM` clause for a number of `SHOW` statements can accept a [`QualifiedMeasurementName`].
 pub type FromMeasurementClause<U> = OneOrMore<U>;
 
 fn from_clause<T: Parser + fmt::Display>(i: &str) -> ParseResult<&str, FromMeasurementClause<T>> {

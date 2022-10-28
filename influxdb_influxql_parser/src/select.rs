@@ -1,3 +1,7 @@
+//! Types and parsers for the [`SELECT`][sql] statement.
+//!
+//! [sql]: https://docs.influxdata.com/influxdb/v1.8/query_language/explore-data/#the-basic-select-statement
+
 use crate::common::{
     limit_clause, offset_clause, order_by_clause, qualified_measurement_name, where_clause,
     LimitClause, OffsetClause, OneOrMore, OrderByClause, Parser, QualifiedMeasurementName,

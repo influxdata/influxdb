@@ -1,3 +1,5 @@
+//! Type and parsers common to many statements.
+
 use crate::expression::conditional::{conditional_expression, ConditionalExpression};
 use crate::identifier::{identifier, Identifier};
 use crate::internal::{expect, verify, ParseResult};
