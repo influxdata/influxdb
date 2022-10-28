@@ -1,6 +1,5 @@
 use self::query_access::QuerierTableChunkPruner;
 use self::state_reconciler::Reconciler;
-use crate::chunk::util::create_basic_summary;
 use crate::table::query_access::MetricPruningObserver;
 use crate::{
     chunk::ChunkAdapter,
@@ -11,6 +10,7 @@ use data_types::{ColumnId, PartitionId, ShardIndex, TableId, TimestampMinMax};
 use datafusion::error::DataFusionError;
 use futures::{join, StreamExt};
 use iox_query::pruning::prune_summaries;
+use iox_query::util::create_basic_summary;
 use iox_query::{exec::Executor, provider, provider::ChunkPruner, QueryChunk};
 use observability_deps::tracing::{debug, trace};
 use predicate::Predicate;

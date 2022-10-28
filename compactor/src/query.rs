@@ -2,11 +2,12 @@
 
 use data_types::{
     ChunkId, ChunkOrder, CompactionLevel, DeletePredicate, PartitionId, SequenceNumber,
-    TableSummary, Timestamp, TimestampMinMax, Tombstone,
+    TableSummary, Timestamp, Tombstone,
 };
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
+    util::create_basic_summary,
     QueryChunk, QueryChunkMeta,
 };
 use observability_deps::tracing::trace;
@@ -61,6 +62,7 @@ pub struct QueryableParquetChunk {
     /// * When compacting L1 + L2, the target level is L2. L1 files should have priority, so all L2
     ///   files should have chunk order 0 to be sorted first.
     target_level: CompactionLevel,
+    summary: Arc<TableSummary>,
 }
 
 impl QueryableParquetChunk {
@@ -80,6 +82,11 @@ impl QueryableParquetChunk {
         target_level: CompactionLevel,
     ) -> Self {
         let delete_predicates = tombstones_to_delete_predicates(deletes);
+        let summary = Arc::new(create_basic_summary(
+            data.rows() as u64,
+            &data.schema(),
+            data.timestamp_min_max(),
+        ));
         Self {
             data,
             delete_predicates,
@@ -92,6 +99,7 @@ impl QueryableParquetChunk {
             partition_sort_key,
             compaction_level,
             target_level,
+            summary,
         }
     }
 
@@ -127,7 +135,7 @@ impl QueryableParquetChunk {
 
 impl QueryChunkMeta for QueryableParquetChunk {
     fn summary(&self) -> Option<Arc<TableSummary>> {
-        None
+        Some(Arc::clone(&self.summary))
     }
 
     fn schema(&self) -> Arc<Schema> {
@@ -148,13 +156,6 @@ impl QueryChunkMeta for QueryableParquetChunk {
 
     fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
         self.delete_predicates.as_ref()
-    }
-
-    fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
-        Some(TimestampMinMax {
-            min: self.min_time(),
-            max: self.max_time(),
-        })
     }
 }
 

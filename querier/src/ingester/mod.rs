@@ -2,7 +2,7 @@ use self::{
     flight_client::{Error as FlightClientError, FlightClient, FlightClientImpl, FlightError},
     test_util::MockIngesterConnection,
 };
-use crate::{cache::CatalogCache, chunk::util::create_basic_summary};
+use crate::cache::CatalogCache;
 use arrow::{datatypes::DataType, error::ArrowError, record_batch::RecordBatch};
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig, BackoffError};
@@ -24,7 +24,7 @@ use influxdb_iox_client::flight::{
 };
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
-    util::compute_timenanosecond_min_max,
+    util::{compute_timenanosecond_min_max, create_basic_summary},
     QueryChunk, QueryChunkMeta,
 };
 use iox_time::{Time, TimeProvider};
@@ -1074,10 +1074,6 @@ impl QueryChunkMeta for IngesterChunk {
 
     fn delete_predicates(&self) -> &[Arc<data_types::DeletePredicate>] {
         &[]
-    }
-
-    fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
-        Some(self.ts_min_max)
     }
 }
 

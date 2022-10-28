@@ -5,9 +5,7 @@ use std::{any::Any, sync::Arc};
 
 use arrow::record_batch::RecordBatch;
 use arrow_util::util::ensure_schema;
-use data_types::{
-    ChunkId, ChunkOrder, DeletePredicate, PartitionId, TableSummary, TimestampMinMax,
-};
+use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId, TableSummary};
 use datafusion::{
     error::DataFusionError,
     physical_plan::{
@@ -18,6 +16,7 @@ use datafusion::{
 };
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
+    util::{compute_timenanosecond_min_max, create_basic_summary},
     QueryChunk, QueryChunkMeta,
 };
 use observability_deps::tracing::trace;
@@ -70,8 +69,14 @@ pub(crate) struct QueryAdaptor {
     /// The catalog ID of the partition the this data is part of.
     partition_id: PartitionId,
 
+    /// Chunk ID.
+    id: ChunkId,
+
     /// An interned schema for all [`RecordBatch`] in data.
     schema: OnceCell<Arc<Schema>>,
+
+    /// An interned table summary.
+    summary: OnceCell<Arc<TableSummary>>,
 }
 
 impl QueryAdaptor {
@@ -96,7 +101,11 @@ impl QueryAdaptor {
             data,
             table_name,
             partition_id,
+            // To return a value for debugging and make it consistent with ChunkId created in Compactor,
+            // use Uuid for this. Draw this UUID during chunk generation so that it is stable during the whole query process.
+            id: ChunkId::new(),
             schema: OnceCell::default(),
+            summary: OnceCell::default(),
         }
     }
 
@@ -140,7 +149,16 @@ impl QueryAdaptor {
 
 impl QueryChunkMeta for QueryAdaptor {
     fn summary(&self) -> Option<Arc<TableSummary>> {
-        None
+        Some(Arc::clone(self.summary.get_or_init(|| {
+            let ts_min_max = compute_timenanosecond_min_max(self.data.iter().map(|b| b.as_ref()))
+                .expect("Should have time range");
+
+            Arc::new(create_basic_summary(
+                self.data.iter().map(|b| b.num_rows()).sum::<usize>() as u64,
+                &self.schema(),
+                ts_min_max,
+            ))
+        })))
     }
 
     fn schema(&self) -> Arc<Schema> {
@@ -162,24 +180,14 @@ impl QueryChunkMeta for QueryAdaptor {
         None // Ingester data is not sorted
     }
 
-    fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
-        // Note: we need to consider which option we want to go with
-        //  . Return None here and avoid taking time to compute time's min max of RecordBacthes (current choice)
-        //  . Compute time's min max here and avoid compacting non-overlapped QueryableBatches in the Ingester
-        None
-    }
-
     fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
         &[]
     }
 }
 
 impl QueryChunk for QueryAdaptor {
-    // This function should not be used in QueryBatch context
     fn id(&self) -> ChunkId {
-        // To return a value for debugging and make it consistent with ChunkId
-        // created in Compactor, use Uuid for this
-        ChunkId::new()
+        self.id
     }
 
     /// Returns the name of the table stored in this chunk

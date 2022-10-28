@@ -1,7 +1,5 @@
 use crate::chunk::QuerierChunk;
-use data_types::{
-    ChunkId, ChunkOrder, DeletePredicate, PartitionId, TableSummary, TimestampMinMax,
-};
+use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId, TableSummary};
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
@@ -56,10 +54,6 @@ impl QueryChunkMeta for QuerierChunk {
 
     fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
         &self.delete_predicates
-    }
-
-    fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
-        Some(self.timestamp_min_max)
     }
 }
 

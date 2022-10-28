@@ -22,7 +22,7 @@ use arrow::{
 use async_trait::async_trait;
 use data_types::{
     ChunkId, ChunkOrder, ColumnSummary, DeletePredicate, InfluxDbType, PartitionId, StatValues,
-    Statistics, TableSummary, TimestampMinMax,
+    Statistics, TableSummary,
 };
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 use datafusion_util::stream_from_batches;
@@ -33,7 +33,7 @@ use parking_lot::Mutex;
 use predicate::rpc_predicate::QueryDatabaseMeta;
 use schema::{
     builder::SchemaBuilder, merge::SchemaMerger, selection::Selection, sort::SortKey,
-    InfluxColumnType, Schema,
+    InfluxColumnType, Schema, TIME_COLUMN_NAME,
 };
 use std::{any::Any, collections::BTreeMap, fmt, num::NonZeroU64, sync::Arc};
 use trace::ctx::SpanContext;
@@ -227,9 +227,6 @@ pub struct TestChunk {
 
     /// The partition sort key of this chunk
     partition_sort_key: Option<SortKey>,
-
-    /// Time range of the data
-    timestamp_min_max: Option<TimestampMinMax>,
 }
 
 /// Implements a method for adding a column with default stats
@@ -310,7 +307,6 @@ impl TestChunk {
             order: ChunkOrder::MIN,
             sort_key: None,
             partition_sort_key: None,
-            timestamp_min_max: None,
             partition_id: PartitionId::new(0),
         }
     }
@@ -438,7 +434,7 @@ impl TestChunk {
 
     /// Register a timestamp column with full stats with the test chunk
     pub fn with_time_column_with_full_stats(
-        mut self,
+        self,
         min: Option<i64>,
         max: Option<i64>,
         count: u64,
@@ -458,17 +454,41 @@ impl TestChunk {
             distinct_count,
         });
 
-        if let Some(min) = min {
-            if let Some(max) = max {
-                self.timestamp_min_max = Some(TimestampMinMax { min, max });
-            }
-        }
-
         self.add_schema_to_table(new_column_schema, true, Some(stats))
     }
 
     pub fn with_timestamp_min_max(mut self, min: i64, max: i64) -> Self {
-        self.timestamp_min_max = Some(TimestampMinMax { min, max });
+        match self
+            .table_summary
+            .columns
+            .iter_mut()
+            .find(|c| c.name == TIME_COLUMN_NAME)
+        {
+            Some(col) => {
+                let stats = &mut col.stats;
+                *stats = Statistics::I64(StatValues {
+                    min: Some(min),
+                    max: Some(max),
+                    total_count: stats.total_count(),
+                    null_count: stats.null_count(),
+                    distinct_count: stats.distinct_count(),
+                });
+            }
+            None => {
+                let total_count = self.table_summary.total_count();
+                self.table_summary.columns.push(ColumnSummary {
+                    name: TIME_COLUMN_NAME.to_string(),
+                    influxdb_type: InfluxDbType::Timestamp,
+                    stats: Statistics::I64(StatValues {
+                        min: Some(min),
+                        max: Some(max),
+                        total_count,
+                        null_count: None,
+                        distinct_count: None,
+                    }),
+                });
+            }
+        }
         self
     }
 
@@ -1046,10 +1066,6 @@ impl QueryChunkMeta for TestChunk {
         debug!(?pred, "Delete predicate in Test Chunk");
 
         pred
-    }
-
-    fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
-        self.timestamp_min_max
     }
 }
 

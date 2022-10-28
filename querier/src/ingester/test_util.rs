@@ -1,12 +1,10 @@
-use crate::chunk::util::create_basic_summary;
-
 use super::IngesterConnection;
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use data_types::ShardIndex;
 use futures::StreamExt;
 use generated_types::influxdata::iox::ingester::v1::GetWriteInfoResponse;
-use iox_query::{exec::IOxSessionContext, QueryChunk};
+use iox_query::{exec::IOxSessionContext, util::create_basic_summary, QueryChunk};
 use parking_lot::Mutex;
 use schema::selection::Selection;
 use schema::Schema as IOxSchema;
