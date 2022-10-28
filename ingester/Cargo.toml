@@ -12,42 +12,42 @@ arrow_util = { path = "../arrow_util" }
 async-trait = "0.1.58"
 backoff = { path = "../backoff" }
 bytes = "1.2"
+chrono = { version = "0.4", default-features = false }
+data_types = { path = "../data_types" }
 datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }
-data_types = { path = "../data_types" }
+dml = { path = "../dml" }
 flatbuffers = "2.1.2"
 futures = "0.3"
 generated_types = { path = "../generated_types" }
-chrono = { version = "0.4", default-features = false }
-dml = { path = "../dml" }
 hyper = "0.14"
 iox_catalog = { path = "../iox_catalog" }
+iox_query = { path = "../iox_query" }
+iox_time = { path = "../iox_time" }
 metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch"}
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 object_store = "0.5.1"
 observability_deps = { path = "../observability_deps" }
+once_cell = "1"
 parking_lot = "0.12"
 parquet_file = { path = "../parquet_file" }
 pin-project = "1.0"
 predicate = { path = "../predicate" }
 prost = "0.11"
-iox_query = { path = "../iox_query" }
+rand = "0.8.5"
 schema = { path = "../schema" }
 snafu = "0.7"
 thiserror = "1.0"
-iox_time = { path = "../iox_time" }
 tokio = { version = "1.21", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+tokio-util = { version = "0.7.4" }
 tonic = { version = "0.8" }
+trace = { path = "../trace" }
 tracker = { path = "../tracker" }
 uuid = { version = "1", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
 write_buffer = { path = "../write_buffer" }
 write_summary = { path = "../write_summary" }
-tokio-util = { version = "0.7.4" }
-trace = { path = "../trace" }
-rand = "0.8.5"
-once_cell = "1"
 
 [dev-dependencies]
 assert_matches = "1.5.0"

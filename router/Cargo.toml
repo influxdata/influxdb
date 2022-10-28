@@ -16,7 +16,6 @@ generated_types = { path = "../generated_types" }
 hashbrown = "0.12"
 hyper = "0.14"
 iox_catalog = { path = "../iox_catalog" }
-service_grpc_catalog = { path = "../service_grpc_catalog"}
 iox_time = { path = "../iox_time" }
 metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch" }
@@ -30,10 +29,11 @@ schema = { version = "0.1.0", path = "../schema" }
 serde = "1.0"
 serde_json = "1.0.87"
 serde_urlencoded = "0.7"
+service_grpc_catalog = { path = "../service_grpc_catalog"}
 service_grpc_schema = { path = "../service_grpc_schema" }
 service_grpc_object_store = { path = "../service_grpc_object_store" }
-snafu = "0.7"
 sharder = { path = "../sharder" }
+snafu = "0.7"
 thiserror = "1.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 tonic = "0.8"

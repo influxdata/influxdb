@@ -15,16 +15,16 @@ datafusion = { workspace = true }
 futures = "0.3"
 generated_types = { path = "../generated_types" }
 iox_catalog = { path = "../iox_catalog" }
+iox_query = { path = "../iox_query" }
+iox_time = { path = "../iox_time" }
 metric = { path = "../metric" }
 object_store = "0.5.1"
 observability_deps = { path = "../observability_deps" }
 parquet_file = { path = "../parquet_file" }
 predicate = { path = "../predicate" }
-iox_query = { path = "../iox_query" }
 schema = { path = "../schema" }
 snafu = "0.7"
 thiserror = "1.0"
-iox_time = { path = "../iox_time" }
 tokio = { version = "1.21", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7.4" }
 tonic = { version = "0.8" }

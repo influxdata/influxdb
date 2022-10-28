@@ -19,6 +19,8 @@ futures = "0.3"
 generated_types = { path = "../generated_types" }
 influxdb_iox_client = { path = "../influxdb_iox_client" }
 iox_catalog = { path = "../iox_catalog" }
+iox_query = { path = "../iox_query" }
+iox_time = { path = "../iox_time" }
 metric = { path = "../metric" }
 object_store = "0.5.1"
 observability_deps = { path = "../observability_deps" }
@@ -26,7 +28,6 @@ parking_lot = "0.12"
 parquet_file = { path = "../parquet_file" }
 pin-project = "1.0"
 predicate = { path = "../predicate" }
-iox_query = { path = "../iox_query" }
 rand = "0.8.3"
 service_common = { path = "../service_common" }
 service_grpc_schema = { path = "../service_grpc_schema" }
@@ -34,7 +35,6 @@ schema = { path = "../schema" }
 sharder = { path = "../sharder" }
 snafu = "0.7"
 thiserror = "1.0"
-iox_time = { path = "../iox_time" }
 tokio = { version = "1.21", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7.4" }
 tonic = { version = "0.8" }
