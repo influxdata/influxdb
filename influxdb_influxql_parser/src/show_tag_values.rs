@@ -1,3 +1,7 @@
+//! Types and parsers for the [`SHOW TAG VALUES`][sql] statement.
+//!
+//! [sql]: https://docs.influxdata.com/influxdb/v1.8/query_language/explore-schema/#show-tag-values
+
 use crate::common::{
     limit_clause, offset_clause, where_clause, LimitClause, OffsetClause, OneOrMore, WhereClause,
 };

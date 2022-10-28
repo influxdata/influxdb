@@ -1,4 +1,4 @@
-//! Parse a [`SHOW MEASUREMENTS`][sql] statement.
+//! Types and parsers for the [`SHOW MEASUREMENTS`][sql] statement.
 //!
 //! [sql]: https://docs.influxdata.com/influxdb/v1.8/query_language/explore-schema/#show-measurements
 

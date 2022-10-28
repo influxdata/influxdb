@@ -11,9 +11,7 @@
 )]
 
 use async_trait::async_trait;
-use data_types::{
-    ChunkId, ChunkOrder, DeletePredicate, InfluxDbType, PartitionId, TableSummary, TimestampMinMax,
-};
+use data_types::{ChunkId, ChunkOrder, DeletePredicate, InfluxDbType, PartitionId, TableSummary};
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 use exec::{stringset::StringSet, IOxSessionContext};
 use hashbrown::HashMap;
@@ -56,9 +54,6 @@ pub trait QueryChunkMeta {
 
     /// return a reference to the sort key if any
     fn sort_key(&self) -> Option<&SortKey>;
-
-    /// Return time range of the data
-    fn timestamp_min_max(&self) -> Option<TimestampMinMax>;
 
     /// return a reference to delete predicates of the chunk
     fn delete_predicates(&self) -> &[Arc<DeletePredicate>];
@@ -291,10 +286,6 @@ where
         debug!(?pred, "Delete predicate in QueryChunkMeta");
         pred
     }
-
-    fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
-        self.as_ref().timestamp_min_max()
-    }
 }
 
 /// Implement ChunkMeta for Arc<dyn QueryChunk>
@@ -323,10 +314,6 @@ impl QueryChunkMeta for Arc<dyn QueryChunk> {
         let pred = self.as_ref().delete_predicates();
         debug!(?pred, "Delete predicate in QueryChunkMeta");
         pred
-    }
-
-    fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
-        self.as_ref().timestamp_min_max()
     }
 }
 

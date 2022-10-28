@@ -1,3 +1,7 @@
+//! Types and parsers for the [`SHOW FIELD KEYS`][sql] statement.
+//!
+//! [sql]: https://docs.influxdata.com/influxdb/v1.8/query_language/explore-schema/#show-field-keys
+
 use crate::common::{limit_clause, offset_clause, LimitClause, OffsetClause};
 use crate::internal::{expect, ParseResult};
 use crate::keywords::keyword;

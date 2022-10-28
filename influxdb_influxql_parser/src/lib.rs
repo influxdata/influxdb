@@ -14,29 +14,9 @@
     clippy::dbg_macro
 )]
 
-pub use crate::common::*;
-pub use crate::delete::*;
-pub use crate::drop::*;
-pub use crate::explain::*;
-pub use crate::expression::*;
-pub use crate::identifier::*;
-pub use crate::literal::*;
-pub use crate::parameter::*;
-pub use crate::select::*;
-pub use crate::show::*;
-pub use crate::show_field_keys::*;
-pub use crate::show_measurements::*;
-pub use crate::show_retention_policies::*;
-pub use crate::show_tag_keys::*;
-pub use crate::show_tag_values::*;
-pub use crate::simple_from_clause::*;
-pub use crate::statement::*;
-pub use crate::string::*;
-pub use crate::visit::*;
-
 use crate::common::statement_terminator;
 use crate::internal::Error as InternalError;
-use crate::statement::statement;
+use crate::statement::{statement, Statement};
 use nom::character::complete::multispace0;
 use nom::combinator::eof;
 use nom::Offset;
@@ -45,27 +25,27 @@ use std::fmt::{Debug, Display, Formatter};
 #[cfg(test)]
 mod test_util;
 
-mod common;
-mod delete;
-mod drop;
-mod explain;
-mod expression;
-mod identifier;
+pub mod common;
+pub mod delete;
+pub mod drop;
+pub mod explain;
+pub mod expression;
+pub mod identifier;
 mod internal;
 mod keywords;
-mod literal;
-mod parameter;
-mod select;
-mod show;
-mod show_field_keys;
-mod show_measurements;
-mod show_retention_policies;
-mod show_tag_keys;
-mod show_tag_values;
-mod simple_from_clause;
-mod statement;
-mod string;
-mod visit;
+pub mod literal;
+pub mod parameter;
+pub mod select;
+pub mod show;
+pub mod show_field_keys;
+pub mod show_measurements;
+pub mod show_retention_policies;
+pub mod show_tag_keys;
+pub mod show_tag_values;
+pub mod simple_from_clause;
+pub mod statement;
+pub mod string;
+pub mod visit;
 
 /// A error returned when parsing an InfluxQL query using
 /// [`parse_statements`] fails.

@@ -3,8 +3,8 @@
 //! have been written in via multiple distinct line protocol writes (and thus are stored in
 //! separate rows)
 
-use crate::{QueryChunk, QueryChunkMeta};
-use data_types::Statistics;
+use crate::QueryChunk;
+use data_types::{Statistics, TimestampMinMax};
 use observability_deps::tracing::debug;
 use snafu::Snafu;
 use std::sync::Arc;
@@ -35,9 +35,14 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub fn group_potential_duplicates(
     chunks: Vec<Arc<dyn QueryChunk>>,
 ) -> Result<Vec<Vec<Arc<dyn QueryChunk>>>> {
+    let ts: Vec<_> = chunks
+        .iter()
+        .map(|c| timestamp_min_max(c.as_ref()))
+        .collect();
+
     // If at least one of the chunks has no time range,
     // all chunks are considered to overlap with each other.
-    if chunks.iter().any(|c| c.timestamp_min_max().is_none()) {
+    if ts.iter().any(|ts| ts.is_none()) {
         debug!("At least one chunk has not timestamp mim max");
         return Ok(vec![chunks]);
     }
@@ -63,10 +68,8 @@ pub fn group_potential_duplicates(
         start_end_chunk: StartEndChunk<I>,
     }
 
-    for chunk in chunks {
-        let time_range = chunk
-            .timestamp_min_max()
-            .expect("Time range should have value");
+    for (chunk, ts) in chunks.into_iter().zip(ts) {
+        let time_range = ts.expect("Time range should have value");
 
         grouper.push(GrouperRecord {
             value: time_range.min,
@@ -106,6 +109,10 @@ pub fn group_potential_duplicates(
         }
     }
     Ok(groups)
+}
+
+fn timestamp_min_max(chunk: &dyn QueryChunk) -> Option<TimestampMinMax> {
+    chunk.summary().and_then(|summary| summary.time_range())
 }
 
 #[cfg(test)]

@@ -1,3 +1,7 @@
+//! Types and parsers for the [`DROP MEASUREMENT`][sql] statement.
+//!
+//! [sql]: https://docs.influxdata.com/influxdb/v1.8/query_language/manage-database/#delete-measurements-with-drop-measurement
+
 use crate::identifier::{identifier, Identifier};
 use crate::internal::{expect, ParseResult};
 use crate::keywords::keyword;

@@ -1,3 +1,7 @@
+//! Types and parsers for the [`EXPLAIN`][sql] statement.
+//!
+//! [sql]: https://docs.influxdata.com/influxdb/v1.8/query_language/spec/#explain
+
 #![allow(dead_code)] // Temporary
 
 use crate::internal::{expect, ParseResult};

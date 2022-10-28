@@ -4,19 +4,17 @@ use crate::cache::namespace::CachedTable;
 use crate::cache::CatalogCache;
 use data_types::{
     ChunkId, ChunkOrder, ColumnId, CompactionLevel, DeletePredicate, ParquetFile, ParquetFileId,
-    PartitionId, SequenceNumber, ShardId, TableSummary, TimestampMinMax,
+    PartitionId, SequenceNumber, ShardId, TableSummary,
 };
 use iox_catalog::interface::Catalog;
+use iox_query::util::create_basic_summary;
 use parquet_file::chunk::ParquetChunk;
 use schema::{sort::SortKey, Schema};
 use std::{collections::HashMap, sync::Arc};
 use trace::span::{Span, SpanRecorder};
 use uuid::Uuid;
 
-use self::util::create_basic_summary;
-
 mod query_access;
-pub(crate) mod util;
 
 /// Immutable metadata attached to a [`QuerierChunk`].
 #[derive(Debug)]
@@ -94,9 +92,6 @@ pub struct QuerierChunk {
     /// Schema of the chunk
     schema: Arc<Schema>,
 
-    /// min/max time range of this chunk
-    timestamp_min_max: TimestampMinMax,
-
     /// Delete predicates to be combined with the chunk
     delete_predicates: Vec<Arc<DeletePredicate>>,
 
@@ -118,7 +113,6 @@ impl QuerierChunk {
         partition_sort_key: Arc<Option<SortKey>>,
     ) -> Self {
         let schema = parquet_chunk.schema();
-        let timestamp_min_max = parquet_chunk.timestamp_min_max();
 
         let table_summary = Arc::new(create_basic_summary(
             parquet_chunk.rows() as u64,
@@ -131,7 +125,6 @@ impl QuerierChunk {
             delete_predicates: Vec::new(),
             partition_sort_key,
             schema,
-            timestamp_min_max,
             parquet_chunk,
             table_summary,
         }

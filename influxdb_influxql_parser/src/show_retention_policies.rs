@@ -1,3 +1,7 @@
+//! Types and parsers for the [`SHOW RETENTION POLICIES`][sql] statement.
+//!
+//! [sql]: https://docs.influxdata.com/influxdb/v1.8/query_language/explore-schema/#show-retention-policies
+
 use crate::internal::{expect, ParseResult};
 use crate::keywords::keyword;
 use crate::show::{on_clause, OnClause};

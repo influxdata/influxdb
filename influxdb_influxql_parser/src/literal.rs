@@ -1,3 +1,5 @@
+//! Types and parsers for literals.
+
 use crate::internal::{map_fail, ParseResult};
 use crate::keywords::keyword;
 use crate::string::{regex, single_quoted_string, Regex};

@@ -3,14 +3,14 @@
 //! # Example
 //!
 //! ```
-//! use influxdb_influxql_parser::Visitor;
-//! use influxdb_influxql_parser::Visitable;
+//! use influxdb_influxql_parser::visit::{Visitable, Visitor, VisitorResult};
 //! use influxdb_influxql_parser::parse_statements;
+//! use influxdb_influxql_parser::common::WhereClause;
 //!
 //! struct MyVisitor;
 //!
 //! impl Visitor for MyVisitor {
-//!     fn post_visit_where_clause(self, n: &influxdb_influxql_parser::WhereClause) -> influxdb_influxql_parser::VisitorResult<Self> {
+//!     fn post_visit_where_clause(self, n: &WhereClause) -> VisitorResult<Self> {
 //!         println!("{}", n);
 //!         Ok(self)
 //!     }
@@ -43,8 +43,8 @@ use crate::show_retention_policies::ShowRetentionPoliciesStatement;
 use crate::show_tag_keys::ShowTagKeysStatement;
 use crate::show_tag_values::{ShowTagValuesStatement, WithKeyClause};
 use crate::simple_from_clause::{DeleteFromClause, ShowFromClause};
+use crate::statement::Statement;
 use crate::visit::Recursion::*;
-use crate::Statement;
 
 /// The result type for a [`Visitor`].
 pub type VisitorResult<T, E = &'static str> = Result<T, E>;
@@ -1160,9 +1160,9 @@ mod test {
     use crate::show_tag_keys::ShowTagKeysStatement;
     use crate::show_tag_values::{ShowTagValuesStatement, WithKeyClause};
     use crate::simple_from_clause::{DeleteFromClause, ShowFromClause};
-    use crate::visit::{Recursion, Visitor, VisitorResult};
-    use crate::Recursion::Continue;
-    use crate::{statement, Statement, Visitable};
+    use crate::statement::{statement, Statement};
+    use crate::visit::Recursion::Continue;
+    use crate::visit::{Recursion, Visitable, Visitor, VisitorResult};
     use std::fmt::Debug;
 
     struct TestVisitor(Vec<String>);
