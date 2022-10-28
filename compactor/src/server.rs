@@ -9,7 +9,7 @@ pub mod grpc;
 
 /// The [`CompactorServer`] manages the lifecycle and contains all state for a
 /// `compactor` server instance.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct CompactorServer<C: CompactorHandler> {
     metrics: Arc<metric::Registry>,
 

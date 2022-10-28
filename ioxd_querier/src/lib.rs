@@ -74,7 +74,7 @@ impl<C: QuerierHandler + std::fmt::Debug + 'static> ServerType for QuerierServer
         Err(Box::new(IoxHttpError::NotFound))
     }
 
-    /// Provide a placeholder gRPC service.
+    /// Configure the gRPC services.
     async fn server_grpc(self: Arc<Self>, builder_input: RpcBuilderInput) -> Result<(), RpcError> {
         let builder = setup_builder!(builder_input, self);
         add_service!(
@@ -94,6 +94,8 @@ impl<C: QuerierHandler + std::fmt::Debug + 'static> ServerType for QuerierServer
             rpc::write_info::write_info_service(Arc::clone(&self.database))
         );
         add_service!(builder, self.server.handler().schema_service());
+        add_service!(builder, self.server.handler().catalog_service());
+
         serve_builder!(builder);
 
         Ok(())

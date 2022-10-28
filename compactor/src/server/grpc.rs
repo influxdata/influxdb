@@ -4,24 +4,33 @@ use crate::handler::{
     CompactorHandler, DeleteSkippedCompactionsError, ListSkippedCompactionsError,
 };
 use data_types::PartitionId;
-use generated_types::influxdata::iox::compactor::v1::{
-    self as proto,
-    compaction_service_server::{CompactionService, CompactionServiceServer},
+use generated_types::influxdata::iox::{
+    catalog::v1::*,
+    compactor::v1::{
+        self as proto,
+        compaction_service_server::{CompactionService, CompactionServiceServer},
+    },
 };
+use iox_catalog::interface::Catalog;
+use service_grpc_catalog::CatalogService;
 use std::sync::Arc;
 use tonic::{Request, Response};
 
 /// This type is responsible for managing all gRPC services exposed by `compactor`.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct GrpcDelegate<I: CompactorHandler> {
+    catalog: Arc<dyn Catalog>,
     compactor_handler: Arc<I>,
 }
 
 impl<I: CompactorHandler + Send + Sync + 'static> GrpcDelegate<I> {
     /// Initialise a new [`GrpcDelegate`] passing valid requests to the specified
     /// `compactor_handler`.
-    pub fn new(compactor_handler: Arc<I>) -> Self {
-        Self { compactor_handler }
+    pub fn new(catalog: Arc<dyn Catalog>, compactor_handler: Arc<I>) -> Self {
+        Self {
+            catalog,
+            compactor_handler,
+        }
     }
 
     /// Acquire a Compaction gRPC service implementation.
@@ -29,6 +38,18 @@ impl<I: CompactorHandler + Send + Sync + 'static> GrpcDelegate<I> {
         CompactionServiceServer::new(CompactionServiceImpl::new(
             Arc::clone(&self.compactor_handler) as _,
         ))
+    }
+
+    /// Acquire a [`CatalogService`] gRPC service implementation.
+    ///
+    /// [`CatalogService`]: generated_types::influxdata::iox::catalog::v1::catalog_service_server::CatalogService.
+    pub fn catalog_service(
+        &self,
+    ) -> catalog_service_server::CatalogServiceServer<impl catalog_service_server::CatalogService>
+    {
+        catalog_service_server::CatalogServiceServer::new(CatalogService::new(Arc::clone(
+            &self.catalog,
+        )))
     }
 }
 

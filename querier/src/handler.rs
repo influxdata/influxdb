@@ -6,9 +6,13 @@ use futures::{
     stream::FuturesUnordered,
     FutureExt, StreamExt, TryFutureExt,
 };
-use influxdb_iox_client::schema::generated_types::schema_service_server::SchemaServiceServer;
+use influxdb_iox_client::{
+    catalog::generated_types::catalog_service_server::CatalogServiceServer,
+    schema::generated_types::schema_service_server::SchemaServiceServer,
+};
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::warn;
+use service_grpc_catalog::CatalogService;
 use service_grpc_schema::SchemaService;
 use std::sync::Arc;
 use thiserror::Error;
@@ -28,6 +32,11 @@ pub trait QuerierHandler: Send + Sync {
     ///
     /// [`SchemaService`]: generated_types::influxdata::iox::schema::v1::schema_service_server::SchemaService.
     fn schema_service(&self) -> SchemaServiceServer<SchemaService>;
+
+    /// Acquire a [`CatalogService`] gRPC service implementation.
+    ///
+    /// [`CatalogService`]: generated_types::influxdata::iox::catalog::v1::catalog_service_server::CatalogService.
+    fn catalog_service(&self) -> CatalogServiceServer<CatalogService>;
 
     /// Wait until the handler finished  to shutdown.
     ///
@@ -88,6 +97,10 @@ impl QuerierHandlerImpl {
 impl QuerierHandler for QuerierHandlerImpl {
     fn schema_service(&self) -> SchemaServiceServer<SchemaService> {
         SchemaServiceServer::new(SchemaService::new(Arc::clone(&self.catalog)))
+    }
+
+    fn catalog_service(&self) -> CatalogServiceServer<CatalogService> {
+        CatalogServiceServer::new(CatalogService::new(Arc::clone(&self.catalog)))
     }
 
     async fn join(&self) {
