@@ -33,8 +33,6 @@ DROP TABLE _remotes_old;
 -- Create indexes on lookup patterns we expect to be common
 CREATE INDEX idx_remote_url_per_org ON remotes (org_id, remote_url);
 
-CREATE INDEX idx_remote_url_per_org ON remotes (org_id, remote_url);
-
 -- Edit the replications table as the remotes table key has changed
 ALTER TABLE replications RENAME TO _replications_old;
 
@@ -58,7 +56,7 @@ CREATE TABLE replications
 
     CONSTRAINT replications_uniq_orgid_name UNIQUE (org_id, name),
     CONSTRAINT replications_one_of_id_name CHECK (remote_bucket_id IS NOT NULL OR remote_bucket_name != ''),
-     FOREIGN KEY (remote_id) REFERENCES remotes (id)
+    FOREIGN KEY (remote_id) REFERENCES remotes (id)
  );
 
 INSERT INTO replications (
