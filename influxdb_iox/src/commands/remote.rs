@@ -9,10 +9,10 @@ mod store;
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Error in partition subcommand: {0}")]
+    #[error("{0}")]
     Partition(#[from] partition::Error),
 
-    #[error("Error in the store subcommand: {0}")]
+    #[error("{0}")]
     Store(#[from] store::Error),
 
     #[error("Catalog error: {0}")]
@@ -29,12 +29,12 @@ pub struct Config {
     command: Command,
 }
 
-/// All possible subcommands for catalog
+/// All possible subcommands for remote
 #[derive(Debug, clap::Parser)]
 enum Command {
     /// Get partition data
     Partition(partition::Config),
-    /// Get parquet files from the object store
+    /// Get Parquet files from the object store
     Store(store::Config),
 }
 

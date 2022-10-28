@@ -49,12 +49,15 @@ pub use builder::SchemaBuilder;
 /// Database schema creation / validation errors.
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Error: Duplicate column name found in schema: '{}'", column_name,))]
+    #[snafu(display(
+        "Internal Error: Duplicate column name found in schema: '{}'",
+        column_name,
+    ))]
     DuplicateColumnName { column_name: String },
 
     #[snafu(display(
-    "Error: Incompatible metadata type found in schema for column '{}'. Metadata specified {:?} which is incompatible with actual type {:?}",
-    column_name, influxdb_column_type, actual_type
+        "Internal Error: Incompatible metadata type found in schema for column '{}'. Metadata specified {:?} which is incompatible with actual type {:?}",
+        column_name, influxdb_column_type, actual_type
     ))]
     IncompatibleMetadata {
         column_name: String,
@@ -63,7 +66,7 @@ pub enum Error {
     },
 
     #[snafu(display(
-    "Error: Invalid metadata type found in schema for column '{}'. Metadata specifies {:?} which requires the nullable flag to be set to {}",
+        "Internal Error: Invalid metadata type found in schema for column '{}'. Metadata specifies {:?} which requires the nullable flag to be set to {}",
         column_name,
         influxdb_column_type,
         nullable,
@@ -81,7 +84,7 @@ pub enum Error {
     SortColumnNotFound { column_name: String },
 
     #[snafu(display(
-        "Invalid InfluxDB column type for column '{}', cannot parse metadata: {:?}",
+        "Internal Error: Invalid InfluxDB column type for column '{}', cannot parse metadata: {:?}",
         column_name,
         md
     ))]
@@ -89,6 +92,13 @@ pub enum Error {
         column_name: String,
         md: Option<String>,
     },
+
+    #[snafu(display(
+        "Internal Error: Time column should be named '{}' but is named '{}'",
+        TIME_COLUMN_NAME,
+        column_name
+    ))]
+    WrongTimeColumnName { column_name: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -182,6 +192,14 @@ impl Schema {
                         column_name: column_name.to_string(),
                         influxdb_column_type,
                         nullable: expected_nullable,
+                    });
+                }
+
+                if (influxdb_column_type == InfluxColumnType::Timestamp)
+                    && (column_name != TIME_COLUMN_NAME)
+                {
+                    return Err(Error::WrongTimeColumnName {
+                        column_name: column_name.to_string(),
                     });
                 }
             }
@@ -798,7 +816,7 @@ mod test {
                 "iox::column_type::field::boolean",
             ),
             make_field(
-                "time_col",
+                TIME_COLUMN_NAME,
                 TIME_DATA_TYPE(),
                 false,
                 "iox::column_type::timestamp",
@@ -821,7 +839,7 @@ mod test {
         assert_column_eq!(schema, 3, Field(Float), "float_col");
         assert_column_eq!(schema, 4, Field(String), "str_col");
         assert_column_eq!(schema, 5, Field(Boolean), "bool_col");
-        assert_column_eq!(schema, 6, Timestamp, "time_col");
+        assert_column_eq!(schema, 6, Timestamp, TIME_COLUMN_NAME);
         assert_eq!(schema.len(), 7);
 
         assert_eq!(schema.measurement().unwrap(), "the_measurement");
@@ -842,7 +860,10 @@ mod test {
         let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new(fields));
 
         let res = Schema::try_from_arrow(arrow_schema);
-        assert_eq!(res.unwrap_err().to_string(), "Error: Incompatible metadata type found in schema for column 'tag_col'. Metadata specified Tag which is incompatible with actual type Int64");
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "Internal Error: Incompatible metadata type found in schema for column 'tag_col'. Metadata specified Tag which is incompatible with actual type Int64"
+        );
     }
 
     // mismatched metadata / arrow types
@@ -857,7 +878,10 @@ mod test {
         let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new(fields));
 
         let res = Schema::try_from_arrow(arrow_schema);
-        assert_eq!(res.unwrap_err().to_string(), "Error: Incompatible metadata type found in schema for column 'int_col'. Metadata specified Field(Float) which is incompatible with actual type Int64");
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "Internal Error: Incompatible metadata type found in schema for column 'int_col'. Metadata specified Field(Float) which is incompatible with actual type Int64"
+        );
     }
 
     // mismatched metadata / arrow types
@@ -875,7 +899,10 @@ mod test {
         let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new(fields));
 
         let res = Schema::try_from_arrow(arrow_schema);
-        assert_eq!(res.unwrap_err().to_string(), "Error: Incompatible metadata type found in schema for column 'time'. Metadata specified Timestamp which is incompatible with actual type Utf8");
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "Internal Error: Incompatible metadata type found in schema for column 'time'. Metadata specified Timestamp which is incompatible with actual type Utf8"
+        );
     }
 
     #[test]
@@ -907,7 +934,7 @@ mod test {
         let res = Schema::try_from_arrow(arrow_schema);
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Error: Duplicate column name found in schema: 'the_column'"
+            "Internal Error: Duplicate column name found in schema: 'the_column'"
         );
     }
 
@@ -923,7 +950,10 @@ mod test {
         let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new(fields));
 
         let res = Schema::try_from_arrow(arrow_schema);
-        assert_eq!(res.unwrap_err().to_string(), "Error: Invalid metadata type found in schema for column 'tag_col'. Metadata specifies Tag which requires the nullable flag to be set to true");
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "Internal Error: Invalid metadata type found in schema for column 'tag_col'. Metadata specifies Tag which requires the nullable flag to be set to true"
+        );
     }
 
     #[test]
@@ -938,7 +968,10 @@ mod test {
         let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new(fields));
 
         let res = Schema::try_from_arrow(arrow_schema);
-        assert_eq!(res.unwrap_err().to_string(), "Error: Invalid metadata type found in schema for column 'field_col'. Metadata specifies Field(String) which requires the nullable flag to be set to true");
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "Internal Error: Invalid metadata type found in schema for column 'field_col'. Metadata specifies Field(String) which requires the nullable flag to be set to true"
+        );
     }
 
     #[test]
@@ -953,7 +986,10 @@ mod test {
         let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new(fields));
 
         let res = Schema::try_from_arrow(arrow_schema);
-        assert_eq!(res.unwrap_err().to_string(), "Error: Invalid metadata type found in schema for column 'time'. Metadata specifies Timestamp which requires the nullable flag to be set to false");
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "Internal Error: Invalid metadata type found in schema for column 'time'. Metadata specifies Timestamp which requires the nullable flag to be set to false"
+        );
     }
 
     #[test]
@@ -967,7 +1003,7 @@ mod test {
         let res = Schema::try_from_arrow(arrow_schema);
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Invalid InfluxDB column type for column 'col1', cannot parse metadata: None"
+            "Internal Error: Invalid InfluxDB column type for column 'col1', cannot parse metadata: None"
         );
     }
 
@@ -983,7 +1019,10 @@ mod test {
         let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new(fields));
 
         let res = Schema::try_from_arrow(arrow_schema);
-        assert_eq!(res.unwrap_err().to_string(), "Invalid InfluxDB column type for column 'tag_col', cannot parse metadata: Some(\"something_other_than_iox\")");
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "Internal Error: Invalid InfluxDB column type for column 'tag_col', cannot parse metadata: Some(\"something_other_than_iox\")"
+        );
     }
 
     #[test]
@@ -998,7 +1037,28 @@ mod test {
         let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new(fields));
 
         let res = Schema::try_from_arrow(arrow_schema);
-        assert_eq!(res.unwrap_err().to_string(), "Invalid InfluxDB column type for column 'int_col', cannot parse metadata: Some(\"iox::column_type::field::some_new_exotic_type\")");
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "Internal Error: Invalid InfluxDB column type for column 'int_col', cannot parse metadata: Some(\"iox::column_type::field::some_new_exotic_type\")"
+        );
+    }
+
+    #[test]
+    fn new_from_arrow_wrong_time_column_name() {
+        let fields = vec![make_field(
+            "foo",
+            TIME_DATA_TYPE(),
+            false,
+            "iox::column_type::timestamp",
+        )];
+
+        let arrow_schema = ArrowSchemaRef::new(ArrowSchema::new(fields));
+
+        let res = Schema::try_from_arrow(arrow_schema);
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "Internal Error: Time column should be named 'time' but is named 'foo'"
+        );
     }
 
     #[test]
