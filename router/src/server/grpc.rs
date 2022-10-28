@@ -2,8 +2,8 @@
 
 pub mod sharder;
 
-use self::sharder::ShardService;
-use crate::shard::Shard;
+use std::sync::Arc;
+
 use ::sharder::Sharder;
 use generated_types::influxdata::iox::{
     catalog::v1::*, object_store::v1::*, schema::v1::*, sharder::v1::*,
@@ -13,7 +13,9 @@ use object_store::DynObjectStore;
 use service_grpc_catalog::CatalogService;
 use service_grpc_object_store::ObjectStoreService;
 use service_grpc_schema::SchemaService;
-use std::sync::Arc;
+
+use self::sharder::ShardService;
+use crate::shard::Shard;
 
 /// This type is responsible for managing all gRPC services exposed by `router`.
 #[derive(Debug)]

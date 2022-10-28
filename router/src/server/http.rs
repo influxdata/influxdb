@@ -2,8 +2,8 @@
 
 mod delete_predicate;
 
-use self::delete_predicate::parse_http_delete_request;
-use crate::dml_handlers::{DmlError, DmlHandler, PartitionError, SchemaError};
+use std::{str::Utf8Error, sync::Arc, time::Instant};
+
 use bytes::{Bytes, BytesMut};
 use data_types::{org_and_bucket_to_database, OrgBucketMappingError};
 use futures::StreamExt;
@@ -16,12 +16,16 @@ use mutable_batch_lp::LinesConverter;
 use observability_deps::tracing::*;
 use predicate::delete_predicate::parse_delete_predicate;
 use serde::Deserialize;
-use std::time::Instant;
-use std::{str::Utf8Error, sync::Arc};
 use thiserror::Error;
 use tokio::sync::{Semaphore, TryAcquireError};
 use trace::ctx::SpanContext;
 use write_summary::WriteSummary;
+
+use self::delete_predicate::parse_http_delete_request;
+use crate::{
+    dml_handlers::{DmlError, DmlHandler, PartitionError, SchemaError},
+    namespace_resolver::NamespaceResolver,
+};
 
 const WRITE_TOKEN_HTTP_HEADER: &str = "X-IOx-Write-Token";
 
@@ -76,6 +80,13 @@ pub enum Error {
     #[error("dml handler error: {0}")]
     DmlHandler(#[from] DmlError),
 
+    /// An error that occurs when attempting to map the user-provided namespace
+    /// name into a [`NamespaceId`].
+    ///
+    /// [`NamespaceId`]: data_types::NamespaceId
+    #[error("failed to resolve namespace ID: {0}")]
+    NamespaceResolver(#[from] crate::namespace_resolver::Error),
+
     /// The router is currently servicing the maximum permitted number of
     /// simultaneous requests.
     #[error("this service is overloaded, please try again later")]
@@ -102,6 +113,7 @@ impl Error {
                 StatusCode::UNSUPPORTED_MEDIA_TYPE
             }
             Error::DmlHandler(err) => StatusCode::from(err),
+            Error::NamespaceResolver(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Error::RequestLimit => StatusCode::SERVICE_UNAVAILABLE,
         }
     }
@@ -127,9 +139,7 @@ impl From<&DmlError> for StatusCode {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
 
-            DmlError::Internal(_) | DmlError::WriteBuffer(_) | DmlError::NamespaceCreation(_) => {
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
+            DmlError::Internal(_) | DmlError::WriteBuffer(_) => StatusCode::INTERNAL_SERVER_ERROR,
             DmlError::Partition(PartitionError::BatchWrite(_)) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -215,9 +225,10 @@ impl<T> TryFrom<&Request<T>> for WriteInfo {
 /// server runner framework takes care of implementing the heath endpoint,
 /// metrics, pprof, etc.
 #[derive(Debug)]
-pub struct HttpDelegate<D, T = SystemProvider> {
+pub struct HttpDelegate<D, N, T = SystemProvider> {
     max_request_bytes: usize,
     time_provider: T,
+    namespace_resolver: N,
     dml_handler: Arc<D>,
 
     // A request limiter to restrict the number of simultaneous requests this
@@ -238,7 +249,7 @@ pub struct HttpDelegate<D, T = SystemProvider> {
     request_limit_rejected: U64Counter,
 }
 
-impl<D> HttpDelegate<D, SystemProvider> {
+impl<D, N> HttpDelegate<D, N, SystemProvider> {
     /// Initialise a new [`HttpDelegate`] passing valid requests to the
     /// specified `dml_handler`.
     ///
@@ -247,6 +258,7 @@ impl<D> HttpDelegate<D, SystemProvider> {
     pub fn new(
         max_request_bytes: usize,
         max_requests: usize,
+        namespace_resolver: N,
         dml_handler: Arc<D>,
         metrics: &metric::Registry,
     ) -> Self {
@@ -296,6 +308,7 @@ impl<D> HttpDelegate<D, SystemProvider> {
         Self {
             max_request_bytes,
             time_provider: SystemProvider::default(),
+            namespace_resolver,
             dml_handler,
             request_sem: Semaphore::new(max_requests),
             write_metric_lines,
@@ -309,9 +322,10 @@ impl<D> HttpDelegate<D, SystemProvider> {
     }
 }
 
-impl<D, T> HttpDelegate<D, T>
+impl<D, N, T> HttpDelegate<D, N, T>
 where
     D: DmlHandler<WriteInput = HashMap<String, MutableBatch>, WriteOutput = WriteSummary>,
+    N: NamespaceResolver,
     T: TimeProvider,
 {
     /// Routes `req` to the appropriate handler, if any, returning the handler
@@ -394,9 +408,12 @@ where
             "routing write",
         );
 
+        // Retrieve the namespace ID for this namespace.
+        let namespace_id = self.namespace_resolver.get_namespace_id(&namespace).await?;
+
         let summary = self
             .dml_handler
-            .write(&namespace, batches, span_ctx)
+            .write(&namespace, namespace_id, batches, span_ctx)
             .await
             .map_err(Into::into)?;
 
@@ -521,7 +538,7 @@ mod tests {
     use std::{io::Write, iter, sync::Arc, time::Duration};
 
     use assert_matches::assert_matches;
-
+    use data_types::NamespaceId;
     use flate2::{write::GzEncoder, Compression};
     use hyper::header::HeaderValue;
     use metric::{Attributes, Metric};
@@ -530,11 +547,14 @@ mod tests {
     use test_helpers::timeout::FutureTimeout;
     use tokio_stream::wrappers::ReceiverStream;
 
-    use crate::dml_handlers::mock::{MockDmlHandler, MockDmlHandlerCall};
-
     use super::*;
+    use crate::{
+        dml_handlers::mock::{MockDmlHandler, MockDmlHandlerCall},
+        namespace_resolver::mock::MockNamespaceResolver,
+    };
 
     const MAX_BYTES: usize = 1024;
+    const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
 
     fn summary() -> WriteSummary {
         WriteSummary::default()
@@ -621,12 +641,20 @@ mod tests {
                     // encoding
                     test_http_handler!(encoding_header=$encoding, request);
 
+                    let mock_namespace_resolver = MockNamespaceResolver::default()
+                        .with_mapping("bananas_test", NAMESPACE_ID);
                     let dml_handler = Arc::new(MockDmlHandler::default()
                         .with_write_return($dml_write_handler)
                         .with_delete_return($dml_delete_handler)
                     );
                     let metrics = Arc::new(metric::Registry::default());
-                    let delegate = HttpDelegate::new(MAX_BYTES, 100, Arc::clone(&dml_handler), &metrics);
+                    let delegate = HttpDelegate::new(
+                        MAX_BYTES,
+                        100,
+                        mock_namespace_resolver,
+                        Arc::clone(&dml_handler),
+                        &metrics
+                    );
 
                     let got = delegate.route(request).await;
                     assert_matches!(got, $want_result);
@@ -733,8 +761,9 @@ mod tests {
         body = "platanos,tag1=A,tag2=B val=42i 1647622847".as_bytes(),
         dml_handler = [Ok(summary())],
         want_result = Ok(_),
-        want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input}] => {
+        want_dml_calls = [MockDmlHandlerCall::Write{namespace, namespace_id, write_input}] => {
             assert_eq!(namespace, "bananas_test");
+            assert_eq!(*namespace_id, NAMESPACE_ID);
 
             let table = write_input.get("platanos").expect("table not found");
             let ts = table.timestamp_summary().expect("no timestamp summary");
@@ -748,8 +777,9 @@ mod tests {
         body = "platanos,tag1=A,tag2=B val=42i 1647622847000".as_bytes(),
         dml_handler = [Ok(summary())],
         want_result = Ok(_),
-        want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input}] => {
+        want_dml_calls = [MockDmlHandlerCall::Write{namespace, namespace_id, write_input}] => {
             assert_eq!(namespace, "bananas_test");
+            assert_eq!(*namespace_id, NAMESPACE_ID);
 
             let table = write_input.get("platanos").expect("table not found");
             let ts = table.timestamp_summary().expect("no timestamp summary");
@@ -763,8 +793,9 @@ mod tests {
         body = "platanos,tag1=A,tag2=B val=42i 1647622847000000".as_bytes(),
         dml_handler = [Ok(summary())],
         want_result = Ok(_),
-        want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input}] => {
+        want_dml_calls = [MockDmlHandlerCall::Write{namespace, namespace_id, write_input}] => {
             assert_eq!(namespace, "bananas_test");
+            assert_eq!(*namespace_id, NAMESPACE_ID);
 
             let table = write_input.get("platanos").expect("table not found");
             let ts = table.timestamp_summary().expect("no timestamp summary");
@@ -778,8 +809,9 @@ mod tests {
         body = "platanos,tag1=A,tag2=B val=42i 1647622847000000000".as_bytes(),
         dml_handler = [Ok(summary())],
         want_result = Ok(_),
-        want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input}] => {
+        want_dml_calls = [MockDmlHandlerCall::Write{namespace, namespace_id, write_input}] => {
             assert_eq!(namespace, "bananas_test");
+            assert_eq!(*namespace_id, NAMESPACE_ID);
 
             let table = write_input.get("platanos").expect("table not found");
             let ts = table.timestamp_summary().expect("no timestamp summary");
@@ -907,8 +939,9 @@ mod tests {
         body = "test field=1u 100\ntest field=2u 100".as_bytes(),
         dml_handler = [Ok(summary())],
         want_result = Ok(_),
-        want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input}] => {
+        want_dml_calls = [MockDmlHandlerCall::Write{namespace, namespace_id, write_input}] => {
             assert_eq!(namespace, "bananas_test");
+            assert_eq!(*namespace_id, NAMESPACE_ID);
             let table = write_input.get("test").expect("table not in write");
             let col = table.column("field").expect("column missing");
             assert_matches!(col.data(), ColumnData::U64(data, _) => {
@@ -1040,7 +1073,7 @@ mod tests {
             body = "whydo InputPower=300i,InputPower=300i".as_bytes(),
             dml_handler = [Ok(summary())],
             want_result = Ok(_),
-            want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input}] => {
+            want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input, ..}] => {
                 assert_eq!(namespace, "bananas_test");
                 let table = write_input.get("whydo").expect("table not in write");
                 let col = table.column("InputPower").expect("column missing");
@@ -1057,7 +1090,7 @@ mod tests {
             body = "whydo InputPower=300i,InputPower=42i".as_bytes(),
             dml_handler = [Ok(summary())],
             want_result = Ok(_),
-            want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input}] => {
+            want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input, ..}] => {
                 assert_eq!(namespace, "bananas_test");
                 let table = write_input.get("whydo").expect("table not in write");
                 let col = table.column("InputPower").expect("column missing");
@@ -1155,11 +1188,15 @@ mod tests {
     // number of simultaneous requests are being serviced.
     #[tokio::test]
     async fn test_request_limit_enforced() {
+        let mock_namespace_resolver =
+            MockNamespaceResolver::default().with_mapping("bananas", NamespaceId::new(42));
+
         let dml_handler = Arc::new(MockDmlHandler::default());
         let metrics = Arc::new(metric::Registry::default());
         let delegate = Arc::new(HttpDelegate::new(
             MAX_BYTES,
             1,
+            mock_namespace_resolver,
             Arc::clone(&dml_handler),
             &metrics,
         ));

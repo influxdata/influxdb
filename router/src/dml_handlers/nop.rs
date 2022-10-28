@@ -1,11 +1,13 @@
 //! A NOP implementation of [`DmlHandler`].
 
-use super::{DmlError, DmlHandler};
-use async_trait::async_trait;
-use data_types::{DatabaseName, DeletePredicate};
-use observability_deps::tracing::*;
 use std::{fmt::Debug, marker::PhantomData};
+
+use async_trait::async_trait;
+use data_types::{DatabaseName, DeletePredicate, NamespaceId};
+use observability_deps::tracing::*;
 use trace::ctx::SpanContext;
+
+use super::{DmlError, DmlHandler};
 
 /// A [`DmlHandler`] implementation that does nothing.
 #[derive(Debug)]
@@ -30,10 +32,11 @@ where
     async fn write(
         &self,
         namespace: &DatabaseName<'static>,
+        namespace_id: NamespaceId,
         batches: Self::WriteInput,
         _span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
-        info!(%namespace, ?batches, "dropping write operation");
+        info!(%namespace, %namespace_id, ?batches, "dropping write operation");
         Ok(batches)
     }
 

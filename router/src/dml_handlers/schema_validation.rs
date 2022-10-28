@@ -1,7 +1,7 @@
-use super::DmlHandler;
-use crate::namespace_cache::{metrics::InstrumentedCache, MemoryNamespaceCache, NamespaceCache};
+use std::{ops::DerefMut, sync::Arc};
+
 use async_trait::async_trait;
-use data_types::{DatabaseName, DeletePredicate, NamespaceSchema};
+use data_types::{DatabaseName, DeletePredicate, NamespaceId, NamespaceSchema};
 use hashbrown::HashMap;
 use iox_catalog::{
     interface::{get_schema_by_name, Catalog, Error as CatalogError},
@@ -10,9 +10,11 @@ use iox_catalog::{
 use metric::U64Counter;
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
-use std::{ops::DerefMut, sync::Arc};
 use thiserror::Error;
 use trace::ctx::SpanContext;
+
+use super::DmlHandler;
+use crate::namespace_cache::{metrics::InstrumentedCache, MemoryNamespaceCache, NamespaceCache};
 
 /// Errors emitted during schema validation.
 #[derive(Debug, Error)]
@@ -165,6 +167,7 @@ where
     async fn write(
         &self,
         namespace: &DatabaseName<'static>,
+        namespace_id: NamespaceId,
         batches: Self::WriteInput,
         _span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
@@ -181,7 +184,12 @@ where
                 let schema = get_schema_by_name(namespace, repos.deref_mut())
                     .await
                     .map_err(|e| {
-                        warn!(error=%e, %namespace, "failed to retrieve namespace schema");
+                        warn!(
+                            error=%e,
+                            %namespace,
+                            %namespace_id,
+                            "failed to retrieve namespace schema"
+                        );
                         SchemaError::NamespaceLookup(e)
                     })
                     .map(Arc::new)?;
@@ -195,7 +203,12 @@ where
         };
 
         validate_column_limits(&batches, &schema).map_err(|e| {
-            warn!(%namespace, error=%e, "service protection limit reached");
+            warn!(
+                %namespace,
+                %namespace_id,
+                error=%e,
+                "service protection limit reached"
+            );
             self.service_limit_hit.inc(1);
             SchemaError::ServiceLimit(Box::new(e))
         })?;
@@ -216,6 +229,7 @@ where
                 } => {
                     warn!(
                         %namespace,
+                        %namespace_id,
                         column_name=%name,
                         existing_column_type=%existing,
                         request_column_type=%new,
@@ -228,12 +242,22 @@ where
                 // Service limits
                 CatalogError::ColumnCreateLimitError { .. }
                 | CatalogError::TableCreateLimitError { .. } => {
-                    warn!(%namespace, error=%e, "service protection limit reached");
+                    warn!(
+                        %namespace,
+                        %namespace_id,
+                        error=%e,
+                        "service protection limit reached"
+                    );
                     self.service_limit_hit.inc(1);
                     SchemaError::ServiceLimit(Box::new(e.into_err()))
                 }
                 _ => {
-                    error!(%namespace, error=%e, "schema validation failed");
+                    error!(
+                        %namespace,
+                        %namespace_id,
+                        error=%e,
+                        "schema validation failed"
+                    );
                     SchemaError::UnexpectedCatalogError(e.into_err())
                 }
             }
@@ -328,12 +352,14 @@ fn validate_column_limits(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::sync::Arc;
+
     use assert_matches::assert_matches;
     use data_types::{ColumnType, TimestampRange};
     use iox_tests::util::{TestCatalog, TestNamespace};
     use once_cell::sync::Lazy;
-    use std::sync::Arc;
+
+    use super::*;
 
     static NAMESPACE: Lazy<DatabaseName<'static>> = Lazy::new(|| "bananas".try_into().unwrap());
 
@@ -449,12 +475,12 @@ mod tests {
             // namespace schema gets cached
             let writes1_valid = lp_to_writes("dragonfruit val=42i 123456");
             handler1
-                .write(&*NAMESPACE, writes1_valid, None)
+                .write(&*NAMESPACE, NamespaceId::new(42), writes1_valid, None)
                 .await
                 .expect("request should succeed");
             let writes2_valid = lp_to_writes("dragonfruit val=43i 123457");
             handler2
-                .write(&*NAMESPACE, writes2_valid, None)
+                .write(&*NAMESPACE, NamespaceId::new(42), writes2_valid, None)
                 .await
                 .expect("request should succeed");
 
@@ -462,12 +488,12 @@ mod tests {
             // putting the table over the limit
             let writes1_add_column = lp_to_writes("dragonfruit,tag1=A val=42i 123456");
             handler1
-                .write(&*NAMESPACE, writes1_add_column, None)
+                .write(&*NAMESPACE, NamespaceId::new(42), writes1_add_column, None)
                 .await
                 .expect("request should succeed");
             let writes2_add_column = lp_to_writes("dragonfruit,tag2=B val=43i 123457");
             handler2
-                .write(&*NAMESPACE, writes2_add_column, None)
+                .write(&*NAMESPACE, NamespaceId::new(42), writes2_add_column, None)
                 .await
                 .expect("request should succeed");
 
@@ -538,7 +564,7 @@ mod tests {
 
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");
         handler
-            .write(&*NAMESPACE, writes, None)
+            .write(&*NAMESPACE, NamespaceId::new(42), writes, None)
             .await
             .expect("request should succeed");
 
@@ -563,7 +589,7 @@ mod tests {
 
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");
         let err = handler
-            .write(&ns, writes, None)
+            .write(&ns, NamespaceId::new(42), writes, None)
             .await
             .expect_err("request should fail");
 
@@ -586,7 +612,7 @@ mod tests {
         // First write sets the schema
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456"); // val=i64
         let got = handler
-            .write(&*NAMESPACE, writes.clone(), None)
+            .write(&*NAMESPACE, NamespaceId::new(42), writes.clone(), None)
             .await
             .expect("request should succeed");
         assert_eq!(writes.len(), got.len());
@@ -594,7 +620,7 @@ mod tests {
         // Second write attempts to violate it causing an error
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42.0 123456"); // val=float
         let err = handler
-            .write(&*NAMESPACE, writes, None)
+            .write(&*NAMESPACE, NamespaceId::new(42), writes, None)
             .await
             .expect_err("request should fail");
 
@@ -624,7 +650,7 @@ mod tests {
         // First write sets the schema
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");
         let got = handler
-            .write(&*NAMESPACE, writes.clone(), None)
+            .write(&*NAMESPACE, NamespaceId::new(42), writes.clone(), None)
             .await
             .expect("request should succeed");
         assert_eq!(writes.len(), got.len());
@@ -642,7 +668,7 @@ mod tests {
         // Second write attempts to violate limits, causing an error
         let writes = lp_to_writes("bananas2,tag1=A,tag2=B val=42i 123456");
         let err = handler
-            .write(&*NAMESPACE, writes, None)
+            .write(&*NAMESPACE, NamespaceId::new(42), writes, None)
             .await
             .expect_err("request should fail");
 
@@ -663,7 +689,7 @@ mod tests {
         // First write sets the schema
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");
         let got = handler
-            .write(&*NAMESPACE, writes.clone(), None)
+            .write(&*NAMESPACE, NamespaceId::new(42), writes.clone(), None)
             .await
             .expect("request should succeed");
         assert_eq!(writes.len(), got.len());
@@ -679,7 +705,7 @@ mod tests {
         // Second write attempts to violate limits, causing an error
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i,val2=42i 123456");
         let err = handler
-            .write(&*NAMESPACE, writes, None)
+            .write(&*NAMESPACE, NamespaceId::new(42), writes, None)
             .await
             .expect_err("request should fail");
 
@@ -710,7 +736,7 @@ mod tests {
         // First write attempts to add columns over the limit, causing an error
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i,val2=42i 123456");
         let err = handler
-            .write(&*NAMESPACE, writes, None)
+            .write(&*NAMESPACE, NamespaceId::new(42), writes, None)
             .await
             .expect_err("request should fail");
 

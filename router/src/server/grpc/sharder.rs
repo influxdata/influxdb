@@ -1,6 +1,7 @@
 //! A gRPC service to provide shard mappings to external clients.
 
-use crate::shard::Shard;
+use std::sync::Arc;
+
 use data_types::{DatabaseName, ShardId, ShardIndex, TopicMetadata};
 use generated_types::influxdata::iox::sharder::v1::{
     shard_service_server, MapToShardRequest, MapToShardResponse,
@@ -8,8 +9,9 @@ use generated_types::influxdata::iox::sharder::v1::{
 use hashbrown::HashMap;
 use iox_catalog::interface::Catalog;
 use sharder::Sharder;
-use std::sync::Arc;
 use tonic::{Request, Response};
+
+use crate::shard::Shard;
 
 /// A [`ShardService`] exposes a [gRPC endpoint] for external systems to discover the shard mapping
 /// for specific tables.

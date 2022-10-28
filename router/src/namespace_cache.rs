@@ -8,8 +8,9 @@ pub use sharded_cache::*;
 
 pub mod metrics;
 
-use data_types::{DatabaseName, NamespaceSchema};
 use std::{fmt::Debug, sync::Arc};
+
+use data_types::{DatabaseName, NamespaceSchema};
 
 /// An abstract cache of [`NamespaceSchema`].
 pub trait NamespaceCache: Debug + Send + Sync {

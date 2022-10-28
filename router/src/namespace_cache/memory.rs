@@ -1,8 +1,10 @@
-use super::NamespaceCache;
+use std::sync::Arc;
+
 use data_types::{DatabaseName, NamespaceSchema};
 use hashbrown::HashMap;
 use parking_lot::RwLock;
-use std::sync::Arc;
+
+use super::NamespaceCache;
 
 /// An in-memory cache of [`NamespaceSchema`] backed by a hashmap protected with
 /// a read-write mutex.
@@ -27,8 +29,9 @@ impl NamespaceCache for Arc<MemoryNamespaceCache> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use data_types::{NamespaceId, QueryPoolId, TopicId};
+
+    use super::*;
 
     #[test]
     fn test_put_get() {

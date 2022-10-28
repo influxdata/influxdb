@@ -1,11 +1,12 @@
-use super::DmlHandler;
 use async_trait::async_trait;
-use data_types::{DatabaseName, DeletePredicate, PartitionKey, PartitionTemplate};
+use data_types::{DatabaseName, DeletePredicate, NamespaceId, PartitionKey, PartitionTemplate};
 use hashbrown::HashMap;
 use mutable_batch::{MutableBatch, PartitionWrite, WritePayload};
 use observability_deps::tracing::*;
 use thiserror::Error;
 use trace::ctx::SpanContext;
+
+use super::DmlHandler;
 
 /// An error raised by the [`Partitioner`] handler.
 #[derive(Debug, Error)]
@@ -70,6 +71,7 @@ impl DmlHandler for Partitioner {
     async fn write(
         &self,
         _namespace: &DatabaseName<'static>,
+        _namespace_id: NamespaceId,
         batch: Self::WriteInput,
         _span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
@@ -112,9 +114,10 @@ impl DmlHandler for Partitioner {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use assert_matches::assert_matches;
     use data_types::TemplatePart;
+
+    use super::*;
 
     /// The default timestamp applied to test LP if the write does not specify
     /// one.
@@ -143,7 +146,7 @@ mod tests {
 
                     let (writes, _) = mutable_batch_lp::lines_to_batches_stats($lp, DEFAULT_TIMESTAMP_NANOS).expect("failed to parse test LP");
 
-                    let handler_ret = partitioner.write(&ns, writes, None).await;
+                    let handler_ret = partitioner.write(&ns, NamespaceId::new(42), writes, None).await;
                     assert_matches!(handler_ret, $($want_handler_ret)+);
 
                     // Check the partition -> table mapping.

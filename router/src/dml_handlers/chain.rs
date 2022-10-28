@@ -1,7 +1,8 @@
-use super::{DmlError, DmlHandler};
 use async_trait::async_trait;
-use data_types::{DatabaseName, DeletePredicate};
+use data_types::{DatabaseName, DeletePredicate, NamespaceId};
 use trace::ctx::SpanContext;
+
+use super::{DmlError, DmlHandler};
 
 /// An extension trait to chain together the execution of a pair of
 /// [`DmlHandler`] implementations.
@@ -58,17 +59,18 @@ where
     async fn write(
         &self,
         namespace: &DatabaseName<'static>,
+        namespace_id: NamespaceId,
         input: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
         let output = self
             .first
-            .write(namespace, input, span_ctx.clone())
+            .write(namespace, namespace_id, input, span_ctx.clone())
             .await
             .map_err(Into::into)?;
 
         self.second
-            .write(namespace, output, span_ctx)
+            .write(namespace, namespace_id, output, span_ctx)
             .await
             .map_err(Into::into)
     }

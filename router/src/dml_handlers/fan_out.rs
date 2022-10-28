@@ -1,9 +1,11 @@
-use super::DmlHandler;
-use async_trait::async_trait;
-use data_types::{DatabaseName, DeletePredicate};
-use futures::{stream::FuturesUnordered, TryStreamExt};
 use std::{fmt::Debug, marker::PhantomData};
+
+use async_trait::async_trait;
+use data_types::{DatabaseName, DeletePredicate, NamespaceId};
+use futures::{stream::FuturesUnordered, TryStreamExt};
 use trace::ctx::SpanContext;
+
+use super::DmlHandler;
 
 /// A [`FanOutAdaptor`] takes an iterator of DML write operation inputs and
 /// executes them concurrently against the inner handler, returning once all
@@ -48,6 +50,7 @@ where
     async fn write(
         &self,
         namespace: &DatabaseName<'static>,
+        namespace_id: NamespaceId,
         input: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
@@ -56,7 +59,11 @@ where
             .map(|v| {
                 let namespace = namespace.clone();
                 let span_ctx = span_ctx.clone();
-                async move { self.inner.write(&namespace, v, span_ctx).await }
+                async move {
+                    self.inner
+                        .write(&namespace, namespace_id, v, span_ctx)
+                        .await
+                }
             })
             .collect::<FuturesUnordered<_>>()
             .try_collect::<Vec<_>>()

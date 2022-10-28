@@ -1,11 +1,13 @@
 //! Router server entrypoint.
 
-use self::{grpc::GrpcDelegate, http::HttpDelegate};
-use crate::dml_handlers::DmlHandler;
+use std::sync::Arc;
+
 use hashbrown::HashMap;
 use mutable_batch::MutableBatch;
-use std::sync::Arc;
 use trace::TraceCollector;
+
+use self::{grpc::GrpcDelegate, http::HttpDelegate};
+use crate::dml_handlers::DmlHandler;
 
 pub mod grpc;
 pub mod http;
@@ -13,19 +15,19 @@ pub mod http;
 /// The [`RouterServer`] manages the lifecycle and contains all state for a
 /// `router` server instance.
 #[derive(Debug)]
-pub struct RouterServer<D, S> {
+pub struct RouterServer<D, N, S> {
     metrics: Arc<metric::Registry>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
 
-    http: HttpDelegate<D>,
+    http: HttpDelegate<D, N>,
     grpc: GrpcDelegate<S>,
 }
 
-impl<D, S> RouterServer<D, S> {
+impl<D, N, S> RouterServer<D, N, S> {
     /// Initialise a new [`RouterServer`] using the provided HTTP and gRPC
     /// handlers.
     pub fn new(
-        http: HttpDelegate<D>,
+        http: HttpDelegate<D, N>,
         grpc: GrpcDelegate<S>,
         metrics: Arc<metric::Registry>,
         trace_collector: Option<Arc<dyn TraceCollector>>,
@@ -49,12 +51,12 @@ impl<D, S> RouterServer<D, S> {
     }
 }
 
-impl<D, S> RouterServer<D, S>
+impl<D, N, S> RouterServer<D, N, S>
 where
     D: DmlHandler<WriteInput = HashMap<String, MutableBatch>>,
 {
     /// Get a reference to the router http delegate.
-    pub fn http(&self) -> &HttpDelegate<D> {
+    pub fn http(&self) -> &HttpDelegate<D, N> {
         &self.http
     }
 

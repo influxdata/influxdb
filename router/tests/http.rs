@@ -1,3 +1,5 @@
+use std::{collections::BTreeSet, iter, string::String, sync::Arc};
+
 use assert_matches::assert_matches;
 use data_types::{ColumnType, PartitionTemplate, QueryPoolId, ShardIndex, TemplatePart, TopicId};
 use dml::DmlOperation;
@@ -8,16 +10,15 @@ use metric::{Attributes, DurationHistogram, Metric, Registry, U64Counter};
 use mutable_batch::MutableBatch;
 use router::{
     dml_handlers::{
-        Chain, DmlError, DmlHandlerChainExt, FanOutAdaptor, InstrumentationDecorator,
-        NamespaceAutocreation, Partitioned, Partitioner, SchemaError, SchemaValidator,
-        ShardedWriteBuffer, WriteSummaryAdapter,
+        Chain, DmlError, DmlHandlerChainExt, FanOutAdaptor, InstrumentationDecorator, Partitioned,
+        Partitioner, SchemaError, SchemaValidator, ShardedWriteBuffer, WriteSummaryAdapter,
     },
     namespace_cache::{MemoryNamespaceCache, ShardedCache},
+    namespace_resolver::{NamespaceAutocreation, NamespaceSchemaResolver},
     server::http::HttpDelegate,
     shard::Shard,
 };
 use sharder::JumpHash;
-use std::{collections::BTreeSet, iter, string::String, sync::Arc};
 use write_buffer::{
     core::WriteBufferWriting,
     mock::{MockBufferForWriting, MockBufferSharedState},
@@ -45,16 +46,7 @@ pub struct TestContext {
 type HttpDelegateStack = HttpDelegate<
     InstrumentationDecorator<
         Chain<
-            Chain<
-                Chain<
-                    NamespaceAutocreation<
-                        Arc<ShardedCache<Arc<MemoryNamespaceCache>>>,
-                        HashMap<String, MutableBatch>,
-                    >,
-                    SchemaValidator<Arc<ShardedCache<Arc<MemoryNamespaceCache>>>>,
-                >,
-                Partitioner,
-            >,
+            Chain<SchemaValidator<Arc<ShardedCache<Arc<MemoryNamespaceCache>>>>, Partitioner>,
             WriteSummaryAdapter<
                 FanOutAdaptor<
                     ShardedWriteBuffer<JumpHash<Arc<Shard>>>,
@@ -62,6 +54,10 @@ type HttpDelegateStack = HttpDelegate<
                 >,
             >,
         >,
+    >,
+    NamespaceAutocreation<
+        Arc<ShardedCache<Arc<MemoryNamespaceCache>>>,
+        NamespaceSchemaResolver<Arc<ShardedCache<Arc<MemoryNamespaceCache>>>>,
     >,
 >;
 
@@ -94,29 +90,39 @@ impl TestContext {
             iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
         ));
 
-        let ns_creator = NamespaceAutocreation::new(
-            Arc::clone(&catalog),
+        let schema_validator =
+            SchemaValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache), &*metrics);
+        let partitioner = Partitioner::new(PartitionTemplate {
+            parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],
+        });
+
+        let handler_stack =
+            schema_validator
+                .and_then(partitioner)
+                .and_then(WriteSummaryAdapter::new(FanOutAdaptor::new(
+                    sharded_write_buffer,
+                )));
+
+        let handler_stack = InstrumentationDecorator::new("request", &*metrics, handler_stack);
+
+        let namespace_resolver =
+            NamespaceSchemaResolver::new(Arc::clone(&catalog), Arc::clone(&ns_cache));
+        let namespace_resolver = NamespaceAutocreation::new(
+            namespace_resolver,
             Arc::clone(&ns_cache),
+            Arc::clone(&catalog),
             TopicId::new(TEST_TOPIC_ID),
             QueryPoolId::new(TEST_QUERY_POOL_ID),
             iox_catalog::INFINITE_RETENTION_POLICY.to_owned(),
         );
 
-        let schema_validator = SchemaValidator::new(Arc::clone(&catalog), ns_cache, &*metrics);
-        let partitioner = Partitioner::new(PartitionTemplate {
-            parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],
-        });
-
-        let handler_stack = ns_creator
-            .and_then(schema_validator)
-            .and_then(partitioner)
-            .and_then(WriteSummaryAdapter::new(FanOutAdaptor::new(
-                sharded_write_buffer,
-            )));
-
-        let handler_stack = InstrumentationDecorator::new("request", &*metrics, handler_stack);
-
-        let delegate = HttpDelegate::new(1024, 100, Arc::new(handler_stack), &metrics);
+        let delegate = HttpDelegate::new(
+            1024,
+            100,
+            namespace_resolver,
+            Arc::new(handler_stack),
+            &metrics,
+        );
 
         Self {
             delegate,

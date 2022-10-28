@@ -1,13 +1,12 @@
-use std::{fmt::Debug, marker::PhantomData, sync::Arc};
+use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{DatabaseName, DeletePredicate, QueryPoolId, TopicId};
+use data_types::{DatabaseName, NamespaceId, QueryPoolId, TopicId};
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::*;
 use thiserror::Error;
-use trace::ctx::SpanContext;
 
-use super::DmlHandler;
+use super::NamespaceResolver;
 use crate::namespace_cache::NamespaceCache;
 
 /// An error auto-creating the request namespace.
@@ -25,13 +24,13 @@ pub enum NamespaceCreationError {
 /// router has not yet observed a schema for.
 #[derive(Debug)]
 pub struct NamespaceAutocreation<C, T> {
-    catalog: Arc<dyn Catalog>,
+    inner: T,
     cache: C,
+    catalog: Arc<dyn Catalog>,
 
     topic_id: TopicId,
     query_id: QueryPoolId,
     retention: String,
-    _input: PhantomData<T>,
 }
 
 impl<C, T> NamespaceAutocreation<C, T> {
@@ -44,46 +43,36 @@ impl<C, T> NamespaceAutocreation<C, T> {
     /// Namespaces are looked up in `cache`, skipping the creation request to
     /// the catalog if there's a hit.
     pub fn new(
-        catalog: Arc<dyn Catalog>,
+        inner: T,
         cache: C,
+        catalog: Arc<dyn Catalog>,
         topic_id: TopicId,
         query_id: QueryPoolId,
         retention: String,
     ) -> Self {
         Self {
-            catalog,
+            inner,
             cache,
+            catalog,
             topic_id,
             query_id,
             retention,
-            _input: Default::default(),
         }
     }
 }
 
 #[async_trait]
-impl<C, T> DmlHandler for NamespaceAutocreation<C, T>
+impl<C, T> NamespaceResolver for NamespaceAutocreation<C, T>
 where
     C: NamespaceCache,
-    T: Debug + Send + Sync,
+    T: NamespaceResolver,
 {
-    type WriteError = NamespaceCreationError;
-    type DeleteError = NamespaceCreationError;
-
-    // This handler accepts any write input type, returning it to the caller
-    // unmodified.
-    type WriteInput = T;
-    type WriteOutput = T;
-
-    /// Write `batches` to `namespace`.
-    async fn write(
+    /// Force the creation of `namespace` if it does not already exist in the
+    /// cache, before passing the request through to the inner delegate.
+    async fn get_namespace_id(
         &self,
-        namespace: &'_ DatabaseName<'static>,
-        batches: Self::WriteInput,
-        _span_ctx: Option<SpanContext>,
-    ) -> Result<Self::WriteOutput, Self::WriteError> {
-        // If the namespace does not exist in the schema cache (populated by the
-        // schema validator) request an (idempotent) creation.
+        namespace: &DatabaseName<'static>,
+    ) -> Result<NamespaceId, super::Error> {
         if self.cache.get_schema(namespace).is_none() {
             trace!(%namespace, "namespace auto-create cache miss");
 
@@ -110,23 +99,12 @@ where
                 }
                 Err(e) => {
                     error!(error=%e, %namespace, "failed to auto-create namespace");
-                    return Err(NamespaceCreationError::Create(e));
+                    return Err(NamespaceCreationError::Create(e).into());
                 }
             }
         }
 
-        Ok(batches)
-    }
-
-    /// Delete the data specified in `delete`.
-    async fn delete(
-        &self,
-        _namespace: &DatabaseName<'static>,
-        _table_name: &str,
-        _predicate: &DeletePredicate,
-        _span_ctx: Option<SpanContext>,
-    ) -> Result<(), Self::DeleteError> {
-        Ok(())
+        self.inner.get_namespace_id(namespace).await
     }
 }
 
@@ -138,10 +116,14 @@ mod tests {
     use iox_catalog::mem::MemCatalog;
 
     use super::*;
-    use crate::namespace_cache::MemoryNamespaceCache;
+    use crate::{
+        namespace_cache::MemoryNamespaceCache, namespace_resolver::mock::MockNamespaceResolver,
+    };
 
     #[tokio::test]
     async fn test_cache_hit() {
+        const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
+
         let ns = DatabaseName::try_from("bananas").unwrap();
 
         // Prep the cache before the test to cause a hit
@@ -149,7 +131,7 @@ mod tests {
         cache.put_schema(
             ns.clone(),
             NamespaceSchema {
-                id: NamespaceId::new(1),
+                id: NAMESPACE_ID,
                 topic_id: TopicId::new(2),
                 query_pool_id: QueryPoolId::new(3),
                 tables: Default::default(),
@@ -161,18 +143,20 @@ mod tests {
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
 
         let creator = NamespaceAutocreation::new(
-            Arc::clone(&catalog),
+            MockNamespaceResolver::default().with_mapping(ns.clone(), NAMESPACE_ID),
             cache,
+            Arc::clone(&catalog),
             TopicId::new(42),
             QueryPoolId::new(42),
             "inf".to_owned(),
         );
 
         // Drive the code under test
-        creator
-            .write(&ns, (), None)
+        let got = creator
+            .get_namespace_id(&ns)
             .await
             .expect("handler should succeed");
+        assert_eq!(got, NAMESPACE_ID);
 
         // The cache hit should mean the catalog SHOULD NOT see a create request
         // for the namespace.
@@ -197,15 +181,16 @@ mod tests {
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
 
         let creator = NamespaceAutocreation::new(
-            Arc::clone(&catalog),
+            MockNamespaceResolver::default().with_mapping(ns.clone(), NamespaceId::new(1)),
             cache,
+            Arc::clone(&catalog),
             TopicId::new(42),
             QueryPoolId::new(42),
             "inf".to_owned(),
         );
 
-        creator
-            .write(&ns, (), None)
+        let created_id = creator
+            .get_namespace_id(&ns)
             .await
             .expect("handler should succeed");
 
@@ -219,6 +204,7 @@ mod tests {
             .expect("lookup should not error")
             .expect("creation request should be sent to catalog");
 
+        assert_eq!(got.id, created_id);
         assert_eq!(
             got,
             Namespace {

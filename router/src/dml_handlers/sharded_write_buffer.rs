@@ -1,22 +1,24 @@
 //! Logic to shard writes/deletes and push them into a write buffer shard.
 
-use super::Partitioned;
-use crate::{dml_handlers::DmlHandler, shard::Shard};
+use std::{
+    fmt::{Debug, Display},
+    sync::Arc,
+};
+
 use async_trait::async_trait;
-use data_types::{DatabaseName, DeletePredicate, NonEmptyString};
+use data_types::{DatabaseName, DeletePredicate, NamespaceId, NonEmptyString};
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use futures::{stream::FuturesUnordered, StreamExt};
 use hashbrown::HashMap;
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
 use sharder::Sharder;
-use std::{
-    fmt::{Debug, Display},
-    sync::Arc,
-};
 use thiserror::Error;
 use trace::ctx::SpanContext;
 use write_buffer::core::WriteBufferError;
+
+use super::Partitioned;
+use crate::{dml_handlers::DmlHandler, shard::Shard};
 
 /// Errors occurring while writing to one or more write buffer shards.
 #[derive(Debug, Error)]
@@ -92,6 +94,7 @@ where
     async fn write(
         &self,
         namespace: &DatabaseName<'static>,
+        namespace_id: NamespaceId,
         writes: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, ShardError> {
@@ -127,6 +130,7 @@ where
                 kafka_partition=%shard.shard_index(),
                 tables=%dml.table_count(),
                 %namespace,
+                %namespace_id,
                 approx_size=%dml.size(),
                 "routing writes to shard"
             );
@@ -211,13 +215,15 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::dml_handlers::DmlHandler;
+    use std::sync::Arc;
+
     use assert_matches::assert_matches;
     use data_types::{ShardIndex, TimestampRange};
     use sharder::mock::{MockSharder, MockSharderCall, MockSharderPayload};
-    use std::sync::Arc;
     use write_buffer::mock::{MockBufferForWriting, MockBufferSharedState};
+
+    use super::*;
+    use crate::dml_handlers::DmlHandler;
 
     // Parse `lp` into a table-keyed MutableBatch map.
     fn lp_to_writes(lp: &str) -> Partitioned<HashMap<String, MutableBatch>> {
@@ -270,7 +276,9 @@ mod tests {
 
         // Call the ShardedWriteBuffer and drive the test
         let ns = DatabaseName::new("bananas").unwrap();
-        w.write(&ns, writes, None).await.expect("write failed");
+        w.write(&ns, NamespaceId::new(42), writes, None)
+            .await
+            .expect("write failed");
 
         // Assert the sharder saw all the tables
         let calls = sharder.calls();
@@ -336,7 +344,9 @@ mod tests {
 
         // Call the ShardedWriteBuffer and drive the test
         let ns = DatabaseName::new("bananas").unwrap();
-        w.write(&ns, writes, None).await.expect("write failed");
+        w.write(&ns, NamespaceId::new(42), writes, None)
+            .await
+            .expect("write failed");
 
         // Assert the sharder saw all the tables
         let calls = sharder.calls();
@@ -413,7 +423,7 @@ mod tests {
         // Call the ShardedWriteBuffer and drive the test
         let ns = DatabaseName::new("bananas").unwrap();
         let err = w
-            .write(&ns, writes, None)
+            .write(&ns, NamespaceId::new(42), writes, None)
             .await
             .expect_err("write should return a failure");
         assert_matches!(err, ShardError::WriteBufferErrors{successes, errs} => {
