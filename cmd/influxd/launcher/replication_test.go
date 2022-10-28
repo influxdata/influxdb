@@ -33,7 +33,7 @@ func TestValidateReplication_Valid(t *testing.T) {
 			OrgID:            l.Org.ID.String(),
 			RemoteURL:        l.URL().String(),
 			RemoteAPIToken:   l.Auth.Token,
-			RemoteOrgID:      l.Org.ID.String(),
+			RemoteOrgID:      api.PtrString(l.Org.ID.String()),
 			AllowInsecureTLS: false,
 		}).Execute()
 	require.NoError(t, err)
@@ -44,7 +44,7 @@ func TestValidateReplication_Valid(t *testing.T) {
 		OrgID:             l.Org.ID.String(),
 		RemoteID:          remote.Id,
 		LocalBucketID:     l.Bucket.ID.String(),
-		RemoteBucketID:    l.Bucket.ID.String(),
+		RemoteBucketID:    api.PtrString(l.Bucket.ID.String()),
 		MaxQueueSizeBytes: influxdb.DefaultReplicationMaxQueueSizeBytes,
 	}
 	_, err = client.ReplicationsApi.PostReplication(ctx).ReplicationCreationRequest(createReq).Validate(true).Execute()
@@ -97,7 +97,7 @@ func TestValidateReplication_Invalid(t *testing.T) {
 			OrgID:            l.Org.ID.String(),
 			RemoteURL:        l.URL().String(),
 			RemoteAPIToken:   "foo",
-			RemoteOrgID:      l.Org.ID.String(),
+			RemoteOrgID:      api.PtrString(l.Org.ID.String()),
 			AllowInsecureTLS: false,
 		}).Execute()
 	require.NoError(t, err)
@@ -109,7 +109,7 @@ func TestValidateReplication_Invalid(t *testing.T) {
 		OrgID:             l.Org.ID.String(),
 		RemoteID:          remote.Id,
 		LocalBucketID:     l.Bucket.ID.String(),
-		RemoteBucketID:    l.Bucket.ID.String(),
+		RemoteBucketID:    api.PtrString(l.Bucket.ID.String()),
 		MaxQueueSizeBytes: influxdb.DefaultReplicationMaxQueueSizeBytes,
 	}
 	_, err = client.ReplicationsApi.PostReplication(ctx).ReplicationCreationRequest(createReq).Validate(true).Execute()
@@ -233,7 +233,7 @@ csv.from(csv: csvData) |> to(bucket: %q)
 			OrgID:            l.Org.ID.String(),
 			RemoteURL:        proxy.URL,
 			RemoteAPIToken:   l.Auth.Token,
-			RemoteOrgID:      l.Org.ID.String(),
+			RemoteOrgID:      api.PtrString(l.Org.ID.String()),
 			AllowInsecureTLS: false,
 		}).Execute()
 	require.NoError(t, err)
@@ -257,7 +257,7 @@ csv.from(csv: csvData) |> to(bucket: %q)
 		OrgID:             l.Org.ID.String(),
 		RemoteID:          remote.Id,
 		LocalBucketID:     l.Bucket.ID.String(),
-		RemoteBucketID:    remote1Bucket.ID.String(),
+		RemoteBucketID:    api.PtrString(remote1Bucket.ID.String()),
 		MaxQueueSizeBytes: influxdb.DefaultReplicationMaxQueueSizeBytes,
 		MaxAgeSeconds:     influxdb.DefaultReplicationMaxAge,
 	}
@@ -284,7 +284,7 @@ csv.from(csv: csvData) |> to(bucket: %q)
 		OrgID:             l.Org.ID.String(),
 		RemoteID:          remote.Id,
 		LocalBucketID:     l.Bucket.ID.String(),
-		RemoteBucketID:    remote2Bucket.ID.String(),
+		RemoteBucketID:    api.PtrString(remote2Bucket.ID.String()),
 		MaxQueueSizeBytes: influxdb.DefaultReplicationMaxQueueSizeBytes,
 		MaxAgeSeconds:     influxdb.DefaultReplicationMaxAge,
 	}
@@ -378,7 +378,7 @@ func TestReplicationStreamEndToEndRemoteFailures(t *testing.T) {
 			OrgID:            l.Org.ID.String(),
 			RemoteURL:        proxy.URL,
 			RemoteAPIToken:   l.Auth.Token,
-			RemoteOrgID:      l.Org.ID.String(),
+			RemoteOrgID:      api.PtrString(l.Org.ID.String()),
 			AllowInsecureTLS: false,
 		}).Execute()
 	require.NoError(t, err)
@@ -397,7 +397,7 @@ func TestReplicationStreamEndToEndRemoteFailures(t *testing.T) {
 		OrgID:             l.Org.ID.String(),
 		RemoteID:          remote.Id,
 		LocalBucketID:     l.Bucket.ID.String(),
-		RemoteBucketID:    remoteBucket.ID.String(),
+		RemoteBucketID:    api.PtrString(remoteBucket.ID.String()),
 		MaxQueueSizeBytes: influxdb.DefaultReplicationMaxQueueSizeBytes,
 		MaxAgeSeconds:     influxdb.DefaultReplicationMaxAge,
 	}
@@ -434,7 +434,7 @@ func TestReplicationsLocalWriteAndShutdownBlocking(t *testing.T) {
 			OrgID:            l.Org.ID.String(),
 			RemoteURL:        svr.URL,
 			RemoteAPIToken:   "foo",
-			RemoteOrgID:      l.Org.ID.String(),
+			RemoteOrgID:      api.PtrString(l.Org.ID.String()),
 			AllowInsecureTLS: false,
 		}).Execute()
 	require.NoError(t, err)
@@ -444,7 +444,7 @@ func TestReplicationsLocalWriteAndShutdownBlocking(t *testing.T) {
 		OrgID:             l.Org.ID.String(),
 		RemoteID:          remote.Id,
 		LocalBucketID:     l.Bucket.ID.String(),
-		RemoteBucketID:    l.Bucket.ID.String(),
+		RemoteBucketID:    api.PtrString(l.Bucket.ID.String()),
 		MaxQueueSizeBytes: influxdb.DefaultReplicationMaxQueueSizeBytes,
 	}
 
