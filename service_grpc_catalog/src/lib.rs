@@ -1,4 +1,4 @@
-//! gRPC service for the Catalog. Used in router, but can be included in any gRPC server.
+//! gRPC service for the Catalog.
 
 #![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![warn(

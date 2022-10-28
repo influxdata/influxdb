@@ -10,7 +10,7 @@ pub mod http;
 
 /// The [`IngesterServer`] manages the lifecycle and contains all state for a
 /// `ingester` server instance.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct IngesterServer<I: IngestHandler> {
     metrics: Arc<metric::Registry>,
 

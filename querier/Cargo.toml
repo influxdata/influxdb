@@ -30,6 +30,7 @@ pin-project = "1.0"
 predicate = { path = "../predicate" }
 rand = "0.8.3"
 service_common = { path = "../service_common" }
+service_grpc_catalog = { path = "../service_grpc_catalog"}
 service_grpc_schema = { path = "../service_grpc_schema" }
 schema = { path = "../schema" }
 sharder = { path = "../sharder" }

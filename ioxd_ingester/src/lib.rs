@@ -88,11 +88,14 @@ impl<I: IngestHandler + Sync + Send + Debug + 'static> ServerType for IngesterSe
         Err(Box::new(IoxHttpError::NotFound))
     }
 
-    /// Provide a placeholder gRPC service.
+    /// Configure the gRPC services.
     async fn server_grpc(self: Arc<Self>, builder_input: RpcBuilderInput) -> Result<(), RpcError> {
         let builder = setup_builder!(builder_input, self);
+
         add_service!(builder, self.server.grpc().flight_service());
         add_service!(builder, self.server.grpc().write_info_service());
+        add_service!(builder, self.server.grpc().catalog_service());
+
         serve_builder!(builder);
 
         Ok(())
@@ -185,6 +188,7 @@ pub async fn create_ingester_server_type(
         Duration::from_secs(ingester_config.persist_partition_cold_threshold_seconds),
         ingester_config.persist_partition_rows_max,
     );
+    let grpc_catalog = Arc::clone(&catalog);
     let ingest_handler = Arc::new(
         IngestHandlerImpl::new(
             lifecycle_config,
@@ -202,6 +206,7 @@ pub async fn create_ingester_server_type(
     );
     let http = HttpDelegate::new(Arc::clone(&ingest_handler));
     let grpc = GrpcDelegate::new(
+        grpc_catalog,
         Arc::clone(&ingest_handler),
         Arc::new(AtomicU64::new(ingester_config.test_flight_do_get_panic)),
     );

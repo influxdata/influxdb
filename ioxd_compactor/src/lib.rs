@@ -83,10 +83,13 @@ impl<C: CompactorHandler + std::fmt::Debug + 'static> ServerType for CompactorSe
         Err(Box::new(IoxHttpError::NotFound))
     }
 
-    /// Provide a placeholder gRPC service.
+    /// Configure the gRPC services.
     async fn server_grpc(self: Arc<Self>, builder_input: RpcBuilderInput) -> Result<(), RpcError> {
         let builder = setup_builder!(builder_input, self);
+
         add_service!(builder, self.server.grpc().compaction_service());
+        add_service!(builder, self.server.grpc().catalog_service());
+
         serve_builder!(builder);
 
         Ok(())
@@ -139,6 +142,7 @@ pub async fn create_compactor_server_type(
     time_provider: Arc<dyn TimeProvider>,
     compactor_config: CompactorConfig,
 ) -> Result<Arc<dyn ServerType>> {
+    let grpc_catalog = Arc::clone(&catalog);
     let compactor = build_compactor_from_config(
         compactor_config,
         catalog,
@@ -151,7 +155,7 @@ pub async fn create_compactor_server_type(
 
     let compactor_handler = Arc::new(CompactorHandlerImpl::new(Arc::new(compactor)));
 
-    let grpc = GrpcDelegate::new(Arc::clone(&compactor_handler));
+    let grpc = GrpcDelegate::new(grpc_catalog, Arc::clone(&compactor_handler));
 
     let compactor = CompactorServer::new(metric_registry, grpc, compactor_handler);
     Ok(Arc::new(CompactorServerType::new(compactor, common_state)))

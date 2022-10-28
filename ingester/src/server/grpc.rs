@@ -12,13 +12,18 @@ use arrow_flight::{
 };
 use flatbuffers::FlatBufferBuilder;
 use futures::Stream;
-use generated_types::influxdata::iox::ingester::v1::{
-    self as proto,
-    write_info_service_server::{WriteInfoService, WriteInfoServiceServer},
+use generated_types::influxdata::iox::{
+    catalog::v1::*,
+    ingester::v1::{
+        self as proto,
+        write_info_service_server::{WriteInfoService, WriteInfoServiceServer},
+    },
 };
+use iox_catalog::interface::Catalog;
 use observability_deps::tracing::{debug, info, warn};
 use pin_project::pin_project;
 use prost::Message;
+use service_grpc_catalog::CatalogService;
 use snafu::{ResultExt, Snafu};
 use std::{
     pin::Pin,
@@ -33,8 +38,9 @@ use trace::{ctx::SpanContext, span::SpanExt};
 use write_summary::WriteSummary;
 
 /// This type is responsible for managing all gRPC services exposed by `ingester`.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct GrpcDelegate<I: IngestHandler> {
+    catalog: Arc<dyn Catalog>,
     ingest_handler: Arc<I>,
 
     /// How many `do_get` flight requests should panic for testing purposes.
@@ -45,8 +51,13 @@ pub struct GrpcDelegate<I: IngestHandler> {
 
 impl<I: IngestHandler + Send + Sync + 'static> GrpcDelegate<I> {
     /// Initialise a new [`GrpcDelegate`] passing valid requests to the specified `ingest_handler`.
-    pub fn new(ingest_handler: Arc<I>, test_flight_do_get_panic: Arc<AtomicU64>) -> Self {
+    pub fn new(
+        catalog: Arc<dyn Catalog>,
+        ingest_handler: Arc<I>,
+        test_flight_do_get_panic: Arc<AtomicU64>,
+    ) -> Self {
         Self {
+            catalog,
             ingest_handler,
             test_flight_do_get_panic,
         }
@@ -65,6 +76,18 @@ impl<I: IngestHandler + Send + Sync + 'static> GrpcDelegate<I> {
         WriteInfoServiceServer::new(WriteInfoServiceImpl::new(
             Arc::clone(&self.ingest_handler) as _
         ))
+    }
+
+    /// Acquire a [`CatalogService`] gRPC service implementation.
+    ///
+    /// [`CatalogService`]: generated_types::influxdata::iox::catalog::v1::catalog_service_server::CatalogService.
+    pub fn catalog_service(
+        &self,
+    ) -> catalog_service_server::CatalogServiceServer<impl catalog_service_server::CatalogService>
+    {
+        catalog_service_server::CatalogServiceServer::new(CatalogService::new(Arc::clone(
+            &self.catalog,
+        )))
     }
 }
 

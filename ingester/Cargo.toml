@@ -37,6 +37,7 @@ predicate = { path = "../predicate" }
 prost = "0.11"
 rand = "0.8.5"
 schema = { path = "../schema" }
+service_grpc_catalog = { path = "../service_grpc_catalog"}
 snafu = "0.7"
 thiserror = "1.0"
 tokio = { version = "1.21", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
