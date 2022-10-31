@@ -56,7 +56,7 @@ CREATE TABLE replications
 
     CONSTRAINT replications_uniq_orgid_name UNIQUE (org_id, name),
     CONSTRAINT replications_one_of_id_name CHECK (remote_bucket_id IS NOT NULL OR remote_bucket_name != ''),
-     FOREIGN KEY (remote_id) REFERENCES remotes (id)
+    FOREIGN KEY (remote_id) REFERENCES remotes (id)
  );
 
 INSERT INTO replications (
