@@ -27,7 +27,6 @@ use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use datafusion::{
     catalog::catalog::CatalogProvider,
-    config::OPT_COALESCE_TARGET_BATCH_SIZE,
     execution::{
         context::{QueryPlanner, SessionState, TaskContext},
         runtime_env::RuntimeEnv,
@@ -41,10 +40,10 @@ use datafusion::{
     },
     prelude::*,
 };
+use datafusion_util::config::{iox_session_config, DEFAULT_CATALOG};
 use executor::DedicatedExecutor;
 use futures::TryStreamExt;
 use observability_deps::tracing::debug;
-use parquet_file::serialize::ROW_GROUP_WRITE_SIZE;
 use query_functions::selectors::register_selector_aggregates;
 use std::{convert::TryInto, fmt, sync::Arc};
 use trace::{
@@ -54,11 +53,6 @@ use trace::{
 
 // Reuse DataFusion error and Result types for this module
 pub use datafusion::error::{DataFusionError as Error, Result};
-
-// The default catalog name - this impacts what SQL queries use if not specified
-pub const DEFAULT_CATALOG: &str = "public";
-// The default schema name - this impacts what SQL queries use if not specified
-pub const DEFAULT_SCHEMA: &str = "iox";
 
 /// This structure implements the DataFusion notion of "query planner"
 /// and is needed to create plans with the IOx extension nodes.
@@ -175,26 +169,9 @@ impl fmt::Debug for IOxSessionConfig {
     }
 }
 
-const BATCH_SIZE: usize = 8 * 1024;
-const COALESCE_BATCH_SIZE: usize = BATCH_SIZE / 2;
-
-// ensure read and write work well together
-// Skip clippy due to <https://github.com/rust-lang/rust-clippy/issues/8159>.
-#[allow(clippy::assertions_on_constants)]
-const _: () = assert!(ROW_GROUP_WRITE_SIZE % BATCH_SIZE == 0);
-
 impl IOxSessionConfig {
     pub(super) fn new(exec: DedicatedExecutor, runtime: Arc<RuntimeEnv>) -> Self {
-        let session_config = SessionConfig::new()
-            .with_batch_size(BATCH_SIZE)
-            // TODO add function in SessionCofig
-            .set_u64(
-                OPT_COALESCE_TARGET_BATCH_SIZE,
-                COALESCE_BATCH_SIZE.try_into().unwrap(),
-            )
-            .create_default_catalog_and_schema(true)
-            .with_information_schema(true)
-            .with_default_catalog_and_schema(DEFAULT_CATALOG, DEFAULT_SCHEMA);
+        let session_config = iox_session_config();
 
         Self {
             exec,

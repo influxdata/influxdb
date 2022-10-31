@@ -19,6 +19,7 @@ use datafusion::{
     },
     prelude::SessionContext,
 };
+use datafusion_util::config::iox_session_config;
 use futures::TryStreamExt;
 use object_store::{DynObjectStore, ObjectMeta};
 use observability_deps::tracing::*;
@@ -147,7 +148,7 @@ impl ParquetStorage {
     pub fn test_df_context(&self) -> SessionContext {
         // set up "fake" DataFusion session
         let object_store = Arc::clone(&self.object_store);
-        let session_ctx = SessionContext::new();
+        let session_ctx = SessionContext::with_config(iox_session_config());
         let task_ctx = Arc::new(TaskContext::from(&session_ctx));
         task_ctx
             .runtime_env()

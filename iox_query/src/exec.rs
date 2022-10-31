@@ -10,7 +10,6 @@ mod schema_pivot;
 pub mod seriesset;
 pub(crate) mod split;
 pub mod stringset;
-pub use context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
 use executor::DedicatedExecutor;
 use object_store::DynObjectStore;
 use parquet_file::storage::StorageId;

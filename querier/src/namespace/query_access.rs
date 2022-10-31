@@ -13,9 +13,10 @@ use datafusion::{
     datasource::TableProvider,
     error::DataFusionError,
 };
+use datafusion_util::config::DEFAULT_SCHEMA;
 use iox_query::{
     exec::{ExecutionContextProvider, ExecutorType, IOxSessionContext},
-    QueryChunk, QueryCompletedToken, QueryDatabase, QueryText, DEFAULT_SCHEMA,
+    QueryChunk, QueryCompletedToken, QueryDatabase, QueryText,
 };
 use observability_deps::tracing::{debug, trace};
 use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
