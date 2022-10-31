@@ -795,7 +795,9 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 			resp.Results = append(resp.Results, r)
 		} else if resp.Results[l-1].StatementID == r.StatementID {
 			if r.Err != nil {
-				resp.Results[l-1] = r
+				if resp.Results[l-1].Err == nil {
+					resp.Results[l-1] = r
+				}
 				continue
 			}
 
