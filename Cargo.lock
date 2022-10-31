@@ -1129,7 +1129,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=48f73c6af3b0cc747c38b4a9c7a610f4630e8736#48f73c6af3b0cc747c38b4a9c7a610f4630e8736"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=ca42f4cdb9ce3cddd46447d289b3a89824b7e8d7#ca42f4cdb9ce3cddd46447d289b3a89824b7e8d7"
 dependencies = [
  "ahash 0.8.0",
  "arrow",
@@ -1161,7 +1161,7 @@ dependencies = [
  "pin-project-lite",
  "rand",
  "smallvec",
- "sqlparser 0.25.0",
+ "sqlparser",
  "tempfile",
  "tokio",
  "tokio-stream",
@@ -1173,31 +1173,32 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=48f73c6af3b0cc747c38b4a9c7a610f4630e8736#48f73c6af3b0cc747c38b4a9c7a610f4630e8736"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=ca42f4cdb9ce3cddd46447d289b3a89824b7e8d7#ca42f4cdb9ce3cddd46447d289b3a89824b7e8d7"
 dependencies = [
  "arrow",
+ "chrono",
  "object_store",
  "ordered-float 3.3.0",
  "parquet",
- "sqlparser 0.25.0",
+ "sqlparser",
 ]
 
 [[package]]
 name = "datafusion-expr"
 version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=48f73c6af3b0cc747c38b4a9c7a610f4630e8736#48f73c6af3b0cc747c38b4a9c7a610f4630e8736"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=ca42f4cdb9ce3cddd46447d289b3a89824b7e8d7#ca42f4cdb9ce3cddd46447d289b3a89824b7e8d7"
 dependencies = [
  "ahash 0.8.0",
  "arrow",
  "datafusion-common",
  "log",
- "sqlparser 0.25.0",
+ "sqlparser",
 ]
 
 [[package]]
 name = "datafusion-optimizer"
 version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=48f73c6af3b0cc747c38b4a9c7a610f4630e8736#48f73c6af3b0cc747c38b4a9c7a610f4630e8736"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=ca42f4cdb9ce3cddd46447d289b3a89824b7e8d7#ca42f4cdb9ce3cddd46447d289b3a89824b7e8d7"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1212,7 +1213,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=48f73c6af3b0cc747c38b4a9c7a610f4630e8736#48f73c6af3b0cc747c38b4a9c7a610f4630e8736"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=ca42f4cdb9ce3cddd46447d289b3a89824b7e8d7#ca42f4cdb9ce3cddd46447d289b3a89824b7e8d7"
 dependencies = [
  "ahash 0.8.0",
  "arrow",
@@ -1236,13 +1237,13 @@ dependencies = [
 [[package]]
 name = "datafusion-proto"
 version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=48f73c6af3b0cc747c38b4a9c7a610f4630e8736#48f73c6af3b0cc747c38b4a9c7a610f4630e8736"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=ca42f4cdb9ce3cddd46447d289b3a89824b7e8d7#ca42f4cdb9ce3cddd46447d289b3a89824b7e8d7"
 dependencies = [
  "arrow",
- "async-trait",
  "datafusion",
  "datafusion-common",
  "datafusion-expr",
+ "pbjson-build",
  "prost 0.11.0",
  "prost-build 0.11.1",
 ]
@@ -1250,7 +1251,7 @@ dependencies = [
 [[package]]
 name = "datafusion-row"
 version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=48f73c6af3b0cc747c38b4a9c7a610f4630e8736#48f73c6af3b0cc747c38b4a9c7a610f4630e8736"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=ca42f4cdb9ce3cddd46447d289b3a89824b7e8d7#ca42f4cdb9ce3cddd46447d289b3a89824b7e8d7"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1261,12 +1262,12 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=48f73c6af3b0cc747c38b4a9c7a610f4630e8736#48f73c6af3b0cc747c38b4a9c7a610f4630e8736"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=ca42f4cdb9ce3cddd46447d289b3a89824b7e8d7#ca42f4cdb9ce3cddd46447d289b3a89824b7e8d7"
 dependencies = [
  "arrow",
  "datafusion-common",
  "datafusion-expr",
- "sqlparser 0.25.0",
+ "sqlparser",
 ]
 
 [[package]]
@@ -2266,7 +2267,7 @@ version = "0.1.0"
 dependencies = [
  "generated_types",
  "snafu",
- "sqlparser 0.26.0",
+ "sqlparser",
  "workspace-hack",
 ]
 
@@ -3655,7 +3656,7 @@ dependencies = [
  "query_functions",
  "schema",
  "snafu",
- "sqlparser 0.26.0",
+ "sqlparser",
  "test_helpers",
  "workspace-hack",
 ]
@@ -4762,15 +4763,6 @@ dependencies = [
  "itertools",
  "nom",
  "unicode_categories",
-]
-
-[[package]]
-name = "sqlparser"
-version = "0.25.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0781f2b6bd03e5adf065c8e772b49eaea9f640d06a1b9130330fe8bd2563f4fd"
-dependencies = [
- "log",
 ]
 
 [[package]]
