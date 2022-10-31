@@ -1050,8 +1050,8 @@ impl IngesterChunk {
 }
 
 impl QueryChunkMeta for IngesterChunk {
-    fn summary(&self) -> Option<Arc<TableSummary>> {
-        Some(Arc::clone(&self.summary))
+    fn summary(&self) -> Arc<TableSummary> {
+        Arc::clone(&self.summary)
     }
 
     fn schema(&self) -> Arc<Schema> {

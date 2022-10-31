@@ -87,7 +87,7 @@ pub fn prune_chunks(
 /// `false` for every single row.
 pub fn prune_summaries(
     table_schema: Arc<Schema>,
-    summaries: &Vec<Option<Arc<TableSummary>>>,
+    summaries: &Vec<Arc<TableSummary>>,
     predicate: &Predicate,
 ) -> Result<Vec<bool>, NotPrunedReason> {
     let filter_expr = match predicate.filter_expr() {
@@ -127,7 +127,7 @@ pub fn prune_summaries(
 /// interface required by [`PruningPredicate`]
 struct ChunkPruningStatistics<'a> {
     table_schema: &'a Schema,
-    summaries: &'a Vec<Option<Arc<TableSummary>>>,
+    summaries: &'a Vec<Arc<TableSummary>>,
 }
 
 impl<'a> ChunkPruningStatistics<'a> {
@@ -143,10 +143,9 @@ impl<'a> ChunkPruningStatistics<'a> {
         &'c self,
         column: &'b Column,
     ) -> impl Iterator<Item = Option<Statistics>> + 'a {
-        self.summaries.iter().map(|summary| match summary {
-            Some(summary) => Some(summary.column(&column.name)?.stats.clone()),
-            None => None,
-        })
+        self.summaries
+            .iter()
+            .map(|summary| Some(summary.column(&column.name)?.stats.clone()))
     }
 }
 

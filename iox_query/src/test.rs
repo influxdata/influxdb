@@ -1040,8 +1040,8 @@ impl QueryChunk for TestChunk {
 }
 
 impl QueryChunkMeta for TestChunk {
-    fn summary(&self) -> Option<Arc<TableSummary>> {
-        Some(Arc::new(self.table_summary.clone()))
+    fn summary(&self) -> Arc<TableSummary> {
+        Arc::new(self.table_summary.clone())
     }
 
     fn schema(&self) -> Arc<Schema> {

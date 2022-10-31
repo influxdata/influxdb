@@ -148,8 +148,8 @@ impl QueryAdaptor {
 }
 
 impl QueryChunkMeta for QueryAdaptor {
-    fn summary(&self) -> Option<Arc<TableSummary>> {
-        Some(Arc::clone(self.summary.get_or_init(|| {
+    fn summary(&self) -> Arc<TableSummary> {
+        Arc::clone(self.summary.get_or_init(|| {
             let ts_min_max = compute_timenanosecond_min_max(self.data.iter().map(|b| b.as_ref()))
                 .expect("Should have time range");
 
@@ -158,7 +158,7 @@ impl QueryChunkMeta for QueryAdaptor {
                 &self.schema(),
                 ts_min_max,
             ))
-        })))
+        }))
     }
 
     fn schema(&self) -> Arc<Schema> {

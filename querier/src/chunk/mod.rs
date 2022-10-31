@@ -373,7 +373,7 @@ pub mod tests {
         assert_sort_key(&chunk);
 
         // back up table summary
-        let table_summary_1 = chunk.summary().unwrap();
+        let table_summary_1 = chunk.summary();
 
         // check if chunk can be queried
         assert_content(&chunk, &test_data).await;
@@ -382,7 +382,7 @@ pub mod tests {
         assert_eq!(chunk.chunk_type(), "parquet");
 
         // summary has NOT changed
-        let table_summary_2 = chunk.summary().unwrap();
+        let table_summary_2 = chunk.summary();
         assert_eq!(table_summary_1, table_summary_2);
 
         // retrieving the chunk again should not require any catalog requests

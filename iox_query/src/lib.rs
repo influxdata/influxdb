@@ -40,7 +40,7 @@ pub use query_functions::group_by::{Aggregate, WindowDuration};
 /// metadata
 pub trait QueryChunkMeta {
     /// Return a summary of the data
-    fn summary(&self) -> Option<Arc<TableSummary>>;
+    fn summary(&self) -> Arc<TableSummary>;
 
     /// return a reference to the summary of the data held in this chunk
     fn schema(&self) -> Arc<Schema>;
@@ -197,10 +197,7 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
         &self,
         predicate: &Predicate,
     ) -> Result<PredicateMatch, DataFusionError> {
-        Ok(self
-            .summary()
-            .map(|summary| predicate.apply_to_table_summary(&summary, self.schema().as_arrow()))
-            .unwrap_or(PredicateMatch::Unknown))
+        Ok(predicate.apply_to_table_summary(&self.summary(), self.schema().as_arrow()))
     }
 
     /// Returns a set of Strings with column names from the specified
@@ -261,7 +258,7 @@ impl<P> QueryChunkMeta for Arc<P>
 where
     P: QueryChunkMeta,
 {
-    fn summary(&self) -> Option<Arc<TableSummary>> {
+    fn summary(&self) -> Arc<TableSummary> {
         self.as_ref().summary()
     }
 
@@ -290,7 +287,7 @@ where
 
 /// Implement ChunkMeta for Arc<dyn QueryChunk>
 impl QueryChunkMeta for Arc<dyn QueryChunk> {
-    fn summary(&self) -> Option<Arc<TableSummary>> {
+    fn summary(&self) -> Arc<TableSummary> {
         self.as_ref().summary()
     }
 
@@ -317,26 +314,32 @@ impl QueryChunkMeta for Arc<dyn QueryChunk> {
     }
 }
 
-/// return true if all the chunks include statistics
-pub fn chunks_have_stats<'a>(chunks: impl IntoIterator<Item = &'a Arc<dyn QueryChunk>>) -> bool {
+/// return true if all the chunks include distinct counts for all columns.
+pub fn chunks_have_distinct_counts<'a>(
+    chunks: impl IntoIterator<Item = &'a Arc<dyn QueryChunk>>,
+) -> bool {
     // If at least one of the provided chunk cannot provide stats,
     // do not need to compute potential duplicates. We will treat
     // as all of them have duplicates
-    chunks.into_iter().all(|c| c.summary().is_some())
+    chunks.into_iter().all(|chunk| {
+        chunk
+            .summary()
+            .columns
+            .iter()
+            .all(|col| col.stats.distinct_count().is_some())
+    })
 }
 
 pub fn compute_sort_key_for_chunks<'a>(
     schema: &Schema,
     chunks: impl Copy + IntoIterator<Item = &'a Arc<dyn QueryChunk>>,
 ) -> SortKey {
-    if !chunks_have_stats(chunks) {
+    if !chunks_have_distinct_counts(chunks) {
         // chunks have not enough stats, return its pk that is
         // sorted lexicographically but time column always last
         SortKey::from_columns(schema.primary_key())
     } else {
-        let summaries = chunks
-            .into_iter()
-            .map(|x| x.summary().expect("Chunk should have summary"));
+        let summaries = chunks.into_iter().map(|x| x.summary());
         compute_sort_key(summaries)
     }
 }

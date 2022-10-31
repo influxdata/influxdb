@@ -175,16 +175,9 @@ impl ExecutionPlan for IOxReadFilterNode {
         let mut combined_summary_option: Option<TableSummary> = None;
         for chunk in &self.chunks {
             combined_summary_option = match combined_summary_option {
-                None => Some(
-                    chunk
-                        .summary()
-                        .expect("Chunk should have summary")
-                        .as_ref()
-                        .clone(),
-                ),
+                None => Some(chunk.summary().as_ref().clone()),
                 Some(mut combined_summary) => {
-                    combined_summary
-                        .update_from(&chunk.summary().expect("Chunk should have summary"));
+                    combined_summary.update_from(&chunk.summary());
                     Some(combined_summary)
                 }
             }

@@ -32,8 +32,8 @@ pub enum Error {
 }
 
 impl QueryChunkMeta for QuerierChunk {
-    fn summary(&self) -> Option<Arc<TableSummary>> {
-        Some(Arc::clone(&self.table_summary))
+    fn summary(&self) -> Arc<TableSummary> {
+        Arc::clone(&self.table_summary)
     }
 
     fn schema(&self) -> Arc<Schema> {

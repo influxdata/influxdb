@@ -312,7 +312,6 @@ impl QuerierTable {
                             },
                         ))
                     })
-                    .map(Some)
                     .collect();
 
                 // Prune on the most basic summary data (timestamps and column names) before trying to fully load the chunks
