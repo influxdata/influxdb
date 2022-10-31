@@ -29,7 +29,6 @@ INSERT INTO remotes (
     updated_at
 ) SELECT * FROM _remotes_old;
 DROP TABLE _remotes_old;
-
 -- Create indexes on lookup patterns we expect to be common
 CREATE INDEX idx_remote_url_per_org ON remotes (org_id, remote_url);
 

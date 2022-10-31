@@ -27,11 +27,7 @@ INSERT INTO remotes (
     allow_insecure_tls,
     created_at,
     updated_at
-) SELECT * FROM _remotes_old;
-DROP TABLE _remotes_old;
-
--- Create indexes on lookup patterns we expect to be common
-CREATE INDEX idx_remote_url_per_org ON remotes (org_id, remote_url);
+) SELECT * FROM _remotes_old WHERE remote_org_id IS NOT NULL;
 
 -- Edit the replications table as the remotes table key has changed
 ALTER TABLE replications RENAME TO _replications_old;
@@ -55,8 +51,7 @@ CREATE TABLE replications
     updated_at               TIMESTAMP   NOT NULL,
 
     CONSTRAINT replications_uniq_orgid_name UNIQUE (org_id, name),
-    CONSTRAINT replications_one_of_id_name CHECK (remote_bucket_id IS NOT NULL OR remote_bucket_name != ''),
-    FOREIGN KEY (remote_id) REFERENCES remotes (id)
+    CONSTRAINT replications_one_of_id_name CHECK (remote_bucket_id IS NOT NULL OR remote_bucket_name != '')
  );
 
 INSERT INTO replications (
@@ -77,6 +72,13 @@ INSERT INTO replications (
     updated_at
 ) SELECT * FROM _replications_old;
 DROP TABLE _replications_old;
+DROP TABLE _remotes_old;
+
+-- The DROP _remotes has to be at the end due to the FK from replications remote_id to remotes id.
+-- The replications table will follow the ALTER TABLE and FK to _remotes until we
+-- reinsert. By putting the DROP after all the data is re-entered, it will stay consistent throughout the process.
 
 -- Create indexes on lookup patterns we expect to be common
 CREATE INDEX idx_local_bucket_id_per_org ON replications (org_id, local_bucket_id);
+-- Create indexes on lookup patterns we expect to be common
+CREATE INDEX idx_remote_url_per_org ON remotes (org_id, remote_url);
