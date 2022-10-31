@@ -313,6 +313,7 @@ LOOP:
 						results <- &Result{
 							Err: fmt.Errorf("unable to use system source '%s': use %s instead", s.Name, command),
 						}
+						i++
 						break LOOP
 					}
 				}
@@ -324,6 +325,7 @@ LOOP:
 		newStmt, err := RewriteStatement(stmt)
 		if err != nil {
 			results <- &Result{Err: err}
+			i++
 			break
 		}
 		stmt = newStmt
@@ -334,6 +336,7 @@ LOOP:
 				if err := ctx.send(&Result{Err: err, StatementID: i}); err == ErrQueryAborted {
 					return
 				}
+				i++
 				break
 			}
 		}
@@ -362,6 +365,7 @@ LOOP:
 				return
 			}
 			// Stop after the first error.
+			i++
 			break
 		}
 
@@ -375,6 +379,7 @@ LOOP:
 		}
 
 		if interrupted {
+			i++
 			break
 		}
 	}
