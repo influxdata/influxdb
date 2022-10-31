@@ -495,7 +495,7 @@ func TestMigrateDownFromReplicationsWithName(t *testing.T) {
 
 	logger := zaptest.NewLogger(t)
 	sqliteMigrator := sqlite.NewMigrator(testStore.sqlStore, logger)
-	require.NoError(t, sqliteMigrator.Down(ctx, 6, migrations.AllDown))
+	require.NoError(t, sqliteMigrator.Down(ctx, 5, migrations.AllDown))
 
 	// Can't use ListReplications because it expects the `remote_bucket_name` column to be there in this version of influx.
 	q := sq.Select(
