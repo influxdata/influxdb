@@ -1,3 +1,55 @@
+## v2.5.0 [2022-11-01]
+----------------------
+
+### Bug Fixes
+
+1. [daaf866](https://github.com/influxdata/influxdb/commit/daaf866): Several minor quality issues
+1. [ee8ca45](https://github.com/influxdata/influxdb/commit/ee8ca45): Use copy of loop variable in parallel test
+1. [11019d2](https://github.com/influxdata/influxdb/commit/11019d2): Check that user IDs are not in use in user create
+1. [b87deb4](https://github.com/influxdata/influxdb/commit/b87deb4): Don't allow creating an auth with instance resources
+1. [b51fefd](https://github.com/influxdata/influxdb/commit/b51fefd): Set limited permissions on package installs
+1. [663d43d](https://github.com/influxdata/influxdb/commit/663d43d): Allow backup of all buckets
+1. [a0f1184](https://github.com/influxdata/influxdb/commit/a0f1184): Manually scheduled task runs now run when expected
+1. [4ed184d](https://github.com/influxdata/influxdb/commit/4ed184d): Fixes an error querying virtual dbrps
+1. [2ad8995](https://github.com/influxdata/influxdb/commit/2ad8995): Improve delete speed when a measurement is part of the predicate
+1. [3ac7a10](https://github.com/influxdata/influxdb/commit/3ac7a10): Downgrading to 2.3 was broken
+1. [55b7d29](https://github.com/influxdata/influxdb/commit/55b7d29): Sql scan error on remote bucket id when replication to 1.x
+1. [81e2ec6](https://github.com/influxdata/influxdb/commit/81e2ec6): Enable gzipped responses with the legacy handler
+1. [e61485a](https://github.com/influxdata/influxdb/commit/e61485a): Only the latest scraper being run
+1. [9582826](https://github.com/influxdata/influxdb/commit/9582826): Handle a potential nil iterator leading to a panic
+1. [6fc66ac](https://github.com/influxdata/influxdb/commit/6fc66ac): Do not require remoteOrgID in remote config/creation request
+
+### Features
+
+1. [485968c](https://github.com/influxdata/influxdb/commit/485968c): Unpin ui to point at latest
+1. [b72848d](https://github.com/influxdata/influxdb/commit/b72848d): Optimize saving changes to fields.idx
+1. [f36646d](https://github.com/influxdata/influxdb/commit/f36646d): Bump to latest UI
+
+### Other
+
+1. [accce86](https://github.com/influxdata/influxdb/commit/accce86): Chore: update CHANGELOG_frozen.md for 2.4
+1. [785a465](https://github.com/influxdata/influxdb/commit/785a465): Refactor: remove reference to flux.Spec in query tests
+1. [728070e](https://github.com/influxdata/influxdb/commit/728070e): Chore: upgrade Rust to 1.63.0
+1. [aa9c49e](https://github.com/influxdata/influxdb/commit/aa9c49e): Build(flux): update flux to v0.180.1
+1. [8f15620](https://github.com/influxdata/influxdb/commit/8f15620): Build(flux): update flux to v0.181.0
+1. [1c6fbf9](https://github.com/influxdata/influxdb/commit/1c6fbf9): Chore: add protoc-gen script to releng (2.x)
+1. [c433342](https://github.com/influxdata/influxdb/commit/c433342): Chore: remove duplicate word in comments
+1. [91623dd](https://github.com/influxdata/influxdb/commit/91623dd): Docs(logger): fix incorrect doc string
+1. [c40ad64](https://github.com/influxdata/influxdb/commit/c40ad64): Feat(security): set SameSite=strict on session cookie
+1. [43c2e08](https://github.com/influxdata/influxdb/commit/43c2e08): Chore: upgrade to Go 1.18.6
+1. [635f8d8](https://github.com/influxdata/influxdb/commit/635f8d8): Build(flux): update flux to v0.184.2
+1. [eada36b](https://github.com/influxdata/influxdb/commit/eada36b): Test: remove group skips
+1. [aa5c1c0](https://github.com/influxdata/influxdb/commit/aa5c1c0): Docs: cleanup CONTRIBUTING.md - clarify instructions and output.
+1. [a321e72](https://github.com/influxdata/influxdb/commit/a321e72): Build(flux): update flux to v0.185.0
+1. [d8553c0](https://github.com/influxdata/influxdb/commit/d8553c0): Test(flux): use vanilla flagger for fluxtest
+1. [34254ee](https://github.com/influxdata/influxdb/commit/34254ee): Build(flux): update flux to v0.186.0
+1. [a0c3703](https://github.com/influxdata/influxdb/commit/a0c3703): Build(flux): update flux to v0.187.0
+1. [89d9207](https://github.com/influxdata/influxdb/commit/89d9207): Chore: update to use scheduled pipeline (2.x)
+1. [0389d51](https://github.com/influxdata/influxdb/commit/0389d51): Chore: upgrade to Go 1.18.7
+1. [fa393cc](https://github.com/influxdata/influxdb/commit/fa393cc): Chore(readme): add resource links and logo
+1. [1033334](https://github.com/influxdata/influxdb/commit/1033334): Build(flux): update flux to v0.188.0
+1. [8c23f92](https://github.com/influxdata/influxdb/commit/8c23f92): Build(flux): update flux to v0.188.1
+
 ## v2.4.0 [2022-08-18]
 ----------------------
 
