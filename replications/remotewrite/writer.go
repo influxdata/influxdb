@@ -215,10 +215,18 @@ func PostWrite(ctx context.Context, config *influxdb.ReplicationHTTPConfig, data
 		bucket = config.RemoteBucketID.String()
 	}
 
+	var org string
+	if config.RemoteOrgID != nil {
+		org = config.RemoteOrgID.String()
+	} else {
+		// We need to provide something here for the write api to be happy
+		org = platform.InvalidID().String()
+	}
+
 	req := client.PostWrite(ctx).
-		Org(config.RemoteOrgID.String()).
 		Bucket(bucket).
-		Body(data)
+		Body(data).
+		Org(org)
 
 	// Don't set the encoding header for empty bodies, like those used for validation.
 	if len(data) > 0 {

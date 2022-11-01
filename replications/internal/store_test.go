@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
 	"testing"
 
 	sq "github.com/Masterminds/squirrel"
@@ -44,14 +45,13 @@ var (
 	httpConfig = influxdb.ReplicationHTTPConfig{
 		RemoteURL:        fmt.Sprintf("http://%s.cloud", replication.RemoteID),
 		RemoteToken:      replication.RemoteID.String(),
-		RemoteOrgID:      platform.ID(888888),
+		RemoteOrgID:      idPointer(888888),
 		AllowInsecureTLS: true,
 		RemoteBucketID:   replication.RemoteBucketID,
 	}
-	newRemoteID  = platform.ID(200)
 	newQueueSize = influxdb.MinReplicationMaxQueueSizeBytes
 	updateReq    = influxdb.UpdateReplicationRequest{
-		RemoteID:             &newRemoteID,
+		RemoteID:             idPointer(200),
 		MaxQueueSizeBytes:    &newQueueSize,
 		DropNonRetryableData: boolPointer(true),
 	}
@@ -393,6 +393,14 @@ func TestListReplications(t *testing.T) {
 
 		listed, err := testStore.ListReplications(ctx, influxdb.ReplicationListFilter{OrgID: createReq.OrgID})
 		require.NoError(t, err)
+
+		// The order from sqlite is not the same, so for simplicity we sort both lists before comparing.
+		sort.Slice(allRepls, func(i int, j int) bool {
+			return allRepls[i].ID < allRepls[j].ID
+		})
+		sort.Slice(listed.Replications, func(i int, j int) bool {
+			return listed.Replications[i].ID < listed.Replications[j].ID
+		})
 		require.Equal(t, influxdb.Replications{Replications: allRepls}, *listed)
 	})
 
@@ -496,7 +504,7 @@ func TestMigrateDownFromReplicationsWithName(t *testing.T) {
 
 	logger := zaptest.NewLogger(t)
 	sqliteMigrator := sqlite.NewMigrator(testStore.sqlStore, logger)
-	require.NoError(t, sqliteMigrator.Down(ctx, 6, migrations.AllDown))
+	require.NoError(t, sqliteMigrator.Down(ctx, 5, migrations.AllDown))
 
 	// Can't use ListReplications because it expects the `remote_bucket_name` column to be there in this version of influx.
 	q := sq.Select(
@@ -544,7 +552,7 @@ func TestPopulateRemoteHTTPConfig(t *testing.T) {
 	testStore, clean := newTestStore(t)
 	defer clean(t)
 
-	emptyConfig := &influxdb.ReplicationHTTPConfig{}
+	emptyConfig := &influxdb.ReplicationHTTPConfig{RemoteOrgID: idPointer(0)}
 
 	// Remote not found returns the appropriate error
 	target := &influxdb.ReplicationHTTPConfig{}
