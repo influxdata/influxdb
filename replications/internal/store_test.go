@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
 	"testing"
 
 	sq "github.com/Masterminds/squirrel"
@@ -392,6 +393,14 @@ func TestListReplications(t *testing.T) {
 
 		listed, err := testStore.ListReplications(ctx, influxdb.ReplicationListFilter{OrgID: createReq.OrgID})
 		require.NoError(t, err)
+
+		// The order from sqlite is not the same, so for simplicity we sort both lists before comparing.
+		sort.Slice(allRepls, func(i int, j int) bool {
+			return allRepls[i].ID < allRepls[j].ID
+		})
+		sort.Slice(listed.Replications, func(i int, j int) bool {
+			return listed.Replications[i].ID < listed.Replications[j].ID
+		})
 		require.Equal(t, influxdb.Replications{Replications: allRepls}, *listed)
 	})
 
