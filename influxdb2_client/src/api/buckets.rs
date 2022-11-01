@@ -16,6 +16,7 @@ impl Client {
 
         let response = self
             .request(Method::POST, &create_bucket_url)
+            .header("Content-Type", "application/json")
             .body(
                 serde_json::to_string(&post_bucket_request.unwrap_or_default())
                     .context(SerializingSnafu)?,
@@ -47,6 +48,7 @@ mod tests {
 
         let mock_server = mock("POST", "/api/v2/buckets")
             .match_header("Authorization", format!("Token {}", token).as_str())
+            .match_header("Content-Type", "application/json")
             .match_body(
                 format!(
                     r#"{{"orgID":"{}","name":"{}","retentionRules":[]}}"#,

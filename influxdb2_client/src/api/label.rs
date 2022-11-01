@@ -73,6 +73,7 @@ impl Client {
         };
         let response = self
             .request(Method::POST, &create_label_url)
+            .header("Content-Type", "application/json")
             .body(serde_json::to_string(&body).context(SerializingSnafu)?)
             .send()
             .await
@@ -100,6 +101,7 @@ impl Client {
         let body = LabelUpdate { name, properties };
         let response = self
             .request(Method::PATCH, &update_label_url)
+            .header("Content-Type", "application/json")
             .body(serde_json::to_string(&body).context(SerializingSnafu)?)
             .send()
             .await
@@ -198,6 +200,7 @@ mod tests {
 
         let mock_server = mock("POST", BASE_PATH)
             .match_header("Authorization", format!("Token {}", token).as_str())
+            .match_header("Content-Type", "application/json")
             .match_body(
                 format!(
                     r#"{{"orgID":"{}","name":"{}","properties":{{"some-key":"some-value"}}}}"#,
@@ -222,6 +225,7 @@ mod tests {
 
         let mock_server = mock("POST", BASE_PATH)
             .match_header("Authorization", format!("Token {}", token).as_str())
+            .match_header("Content-Type", "application/json")
             .match_body(format!(r#"{{"orgID":"{}","name":"{}"}}"#, org_id, name).as_str())
             .create();
 
@@ -242,6 +246,7 @@ mod tests {
 
         let mock_server = mock("PATCH", format!("{}/{}", BASE_PATH, label_id).as_str())
             .match_header("Authorization", format!("Token {}", token).as_str())
+            .match_header("Content-Type", "application/json")
             .match_body(
                 format!(
                     r#"{{"name":"{}","properties":{{"some-key":"some-value"}}}}"#,
@@ -267,6 +272,7 @@ mod tests {
 
         let mock_server = mock("PATCH", format!("{}/{}", BASE_PATH, label_id).as_str())
             .match_header("Authorization", format!("Token {}", token).as_str())
+            .match_header("Content-Type", "application/json")
             .match_body("{}")
             .create();
 
