@@ -54,6 +54,7 @@ impl Client {
 
         let response = self
             .request(Method::POST, &setup_init_url)
+            .header("Content-Type", "application/json")
             .body(serde_json::to_string(&body).context(SerializingSnafu)?)
             .send()
             .await
@@ -94,6 +95,7 @@ impl Client {
 
         let response = self
             .request(Method::POST, &setup_new_url)
+            .header("Content-Type", "application/json")
             .body(serde_json::to_string(&body).context(SerializingSnafu)?)
             .send()
             .await
@@ -138,6 +140,7 @@ mod tests {
         let retention_period_hrs = 1;
 
         let mock_server = mock("POST", "/api/v2/setup")
+            .match_header("Content-Type", "application/json")
             .match_body(
                 format!(
                     r#"{{"username":"{}","org":"{}","bucket":"{}","password":"{}","retentionPeriodHrs":{}}}"#,
@@ -173,6 +176,7 @@ mod tests {
 
         let mock_server = mock("POST", "/api/v2/setup/user")
             .match_header("Authorization", format!("Token {}", token).as_str())
+            .match_header("Content-Type", "application/json")
             .match_body(
                 format!(
                     r#"{{"username":"{}","org":"{}","bucket":"{}","password":"{}","retentionPeriodHrs":{}}}"#,
@@ -204,6 +208,7 @@ mod tests {
         let bucket = "some-bucket";
 
         let mock_server = mock("POST", "/api/v2/setup")
+            .match_header("Content-Type", "application/json")
             .match_body(
                 format!(
                     r#"{{"username":"{}","org":"{}","bucket":"{}"}}"#,
@@ -231,6 +236,7 @@ mod tests {
 
         let mock_server = mock("POST", "/api/v2/setup/user")
             .match_header("Authorization", format!("Token {}", token).as_str())
+            .match_header("Content-Type", "application/json")
             .match_body(
                 format!(
                     r#"{{"username":"{}","org":"{}","bucket":"{}"}}"#,
