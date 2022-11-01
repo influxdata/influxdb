@@ -172,8 +172,7 @@ jobs:
       - cache_restore
       - run:
           name: Cargo doc
-          # excluding datafusion because it's effectively a dependency masqueraded as workspace crate.
-          command: cargo doc --document-private-items --no-deps --workspace --exclude datafusion
+          command: cargo doc --document-private-items --no-deps --workspace
       - cache_save
       - run:
           name: Compress Docs
