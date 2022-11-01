@@ -691,7 +691,7 @@ mod tests {
                     headers: Default::default(),
                     timestamp: rskafka::chrono::Utc::now(),
                 }],
-                Compression::NoCompression,
+                Compression::Zstd,
             )
             .await
             .unwrap();
