@@ -20,6 +20,7 @@ use datafusion::{
 };
 use futures::TryStreamExt;
 use observability_deps::tracing::trace;
+use parking_lot::Mutex;
 use predicate::Predicate;
 use schema::Schema;
 use std::{collections::HashSet, fmt, sync::Arc};
@@ -33,8 +34,17 @@ pub(crate) struct IOxReadFilterNode {
     iox_schema: Arc<Schema>,
     chunks: Vec<Arc<dyn QueryChunk>>,
     predicate: Predicate,
+
     /// Execution metrics
     metrics: ExecutionPlanMetricsSet,
+
+    /// remember all ParquetExecs created by this node so we can pass
+    /// along metrics.
+    ///
+    /// When we use ParquetExec directly (rather
+    /// than an IOxReadFilterNode) the metric will be directly
+    /// available: <https://github.com/influxdata/influxdb_iox/issues/5897>
+    parquet_execs: Mutex<Vec<Arc<ParquetExec>>>,
 
     // execution context used for tracing
     ctx: IOxSessionContext,
@@ -52,13 +62,20 @@ impl IOxReadFilterNode {
         predicate: Predicate,
     ) -> Self {
         Self {
-            ctx,
             table_name,
             iox_schema,
             chunks,
             predicate,
             metrics: ExecutionPlanMetricsSet::new(),
+            parquet_execs: Mutex::new(vec![]),
+            ctx,
         }
+    }
+
+    // Meant for testing -- provide input to the inner parquet execs
+    // that were created
+    pub fn parquet_execs(&self) -> Vec<Arc<ParquetExec>> {
+        self.parquet_execs.lock().to_vec()
     }
 }
 
@@ -101,6 +118,7 @@ impl ExecutionPlan for IOxReadFilterNode {
             iox_schema: Arc::clone(&self.iox_schema),
             chunks,
             predicate: self.predicate.clone(),
+            parquet_execs: Mutex::new(self.parquet_execs()),
             metrics: ExecutionPlanMetricsSet::new(),
         };
 
@@ -187,10 +205,19 @@ impl ExecutionPlan for IOxReadFilterNode {
                     .predicate
                     .clone()
                     .with_delete_predicates(&delete_predicates);
-                let exec = ParquetExec::new(base_config, predicate.filter_expr(), None);
+                let metadata_size_hint = None;
+
+                let exec = Arc::new(ParquetExec::new(
+                    base_config,
+                    predicate.filter_expr(),
+                    metadata_size_hint,
+                ));
+
+                self.parquet_execs.lock().push(Arc::clone(&exec));
+
                 let stream = RecordBatchStreamAdapter::new(
                     schema,
-                    futures::stream::once(execute_stream(Arc::new(exec), context)).try_flatten(),
+                    futures::stream::once(execute_stream(exec, context)).try_flatten(),
                 );
 
                 // Note: No SchemaAdapterStream required here because `ParquetExec` already creates NULL columns for us.

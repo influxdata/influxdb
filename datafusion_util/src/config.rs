@@ -1,4 +1,9 @@
-use datafusion::{config::OPT_COALESCE_TARGET_BATCH_SIZE, prelude::SessionConfig};
+use datafusion::{
+    config::{
+        OPT_COALESCE_TARGET_BATCH_SIZE, OPT_PARQUET_PUSHDOWN_FILTERS, OPT_PARQUET_REORDER_FILTERS,
+    },
+    prelude::SessionConfig,
+};
 
 // The default catalog name - this impacts what SQL queries use if not specified
 pub const DEFAULT_CATALOG: &str = "public";
@@ -18,6 +23,9 @@ pub fn iox_session_config() -> SessionConfig {
             OPT_COALESCE_TARGET_BATCH_SIZE,
             COALESCE_BATCH_SIZE.try_into().unwrap(),
         )
+        // Enable parquet predicate pushdown optimization
+        .set_bool(OPT_PARQUET_PUSHDOWN_FILTERS, true)
+        .set_bool(OPT_PARQUET_REORDER_FILTERS, true)
         .create_default_catalog_and_schema(true)
         .with_information_schema(true)
         .with_default_catalog_and_schema(DEFAULT_CATALOG, DEFAULT_SCHEMA)

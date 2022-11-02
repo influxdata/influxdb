@@ -15,6 +15,8 @@ mod runner;
 #[cfg(test)]
 pub mod sql;
 #[cfg(test)]
+pub mod sql_metrics;
+#[cfg(test)]
 pub mod table_schema;
 
 pub mod db;
