@@ -15,7 +15,6 @@ KillMode=control-group
 Restart=on-failure
 Type=forking
 PIDFile=/var/lib/influxdb/influxd.pid
-UMask=0027
 
 [Install]
 WantedBy=multi-user.target
