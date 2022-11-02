@@ -6,7 +6,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use data_types::{DatabaseName, DeletePredicate, NamespaceId, NonEmptyString};
+use data_types::{DatabaseName, DeletePredicate, NamespaceId, NonEmptyString, TableId};
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use futures::{stream::FuturesUnordered, StreamExt};
 use hashbrown::HashMap;
@@ -87,7 +87,7 @@ where
     type WriteError = ShardError;
     type DeleteError = ShardError;
 
-    type WriteInput = Partitioned<HashMap<String, MutableBatch>>;
+    type WriteInput = Partitioned<HashMap<TableId, (String, MutableBatch)>>;
     type WriteOutput = Vec<DmlMeta>;
 
     /// Shard `writes` and dispatch the resultant DML operations.
@@ -98,24 +98,36 @@ where
         writes: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, ShardError> {
-        let mut collated: HashMap<_, HashMap<String, MutableBatch>> = HashMap::new();
-
         // Extract the partition key & DML writes.
         let (partition_key, writes) = writes.into_parts();
+
+        // Sets of maps collated by destination shard for batching/merging of
+        // shard data.
+        let mut collated: HashMap<_, HashMap<String, MutableBatch>> = HashMap::new();
+        let mut table_ids: HashMap<_, HashMap<String, TableId>> = HashMap::new();
 
         // Shard each entry in `writes` and collate them into one DML operation
         // per shard to maximise the size of each write, and therefore increase
         // the effectiveness of compression of ops in the write buffer.
-        for (table, batch) in writes.into_iter() {
-            let shard = self.sharder.shard(&table, namespace, &batch);
+        for (table_id, (table_name, batch)) in writes.into_iter() {
+            let shard = self.sharder.shard(&table_name, namespace, &batch);
 
             let existing = collated
+                .entry(Arc::clone(&shard))
+                .or_default()
+                .insert(table_name.clone(), batch);
+            assert!(existing.is_none());
+
+            let existing = table_ids
                 .entry(shard)
                 .or_default()
-                .insert(table, batch.clone());
-
+                .insert(table_name.clone(), table_id);
             assert!(existing.is_none());
         }
+
+        // This will be used in a future PR, and eliminated in a dead code pass
+        // by LLVM in the meantime.
+        let _ = table_ids;
 
         let iter = collated.into_iter().map(|(shard, batch)| {
             let dml = DmlWrite::new(
@@ -226,9 +238,15 @@ mod tests {
     use crate::dml_handlers::DmlHandler;
 
     // Parse `lp` into a table-keyed MutableBatch map.
-    fn lp_to_writes(lp: &str) -> Partitioned<HashMap<String, MutableBatch>> {
+    fn lp_to_writes(lp: &str) -> Partitioned<HashMap<TableId, (String, MutableBatch)>> {
         let (writes, _) = mutable_batch_lp::lines_to_batches_stats(lp, 42)
             .expect("failed to build test writes from LP");
+
+        let writes = writes
+            .into_iter()
+            .enumerate()
+            .map(|(i, (name, data))| (TableId::new(i as _), (name, data)))
+            .collect();
         Partitioned::new("key".into(), writes)
     }
 

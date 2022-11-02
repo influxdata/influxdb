@@ -289,12 +289,11 @@ pub async fn create_router_server_type(
     let shard_service = init_shard_service(sharder, write_buffer_config, catalog).await?;
 
     // Initialise the API delegates
-    let handler_stack = Arc::new(handler_stack);
     let http = HttpDelegate::new(
         common_state.run_config().max_http_request_size,
         request_limit,
         namespace_resolver,
-        Arc::clone(&handler_stack),
+        handler_stack,
         &metrics,
     );
     let grpc = GrpcDelegate::new(schema_catalog, object_store, shard_service);
