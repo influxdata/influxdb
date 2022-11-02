@@ -614,9 +614,11 @@ mod tests {
 
     use dml::{DmlDelete, DmlMeta, DmlWrite};
     use futures::TryStreamExt;
-    use iox_catalog::{mem::MemCatalog, validate_or_insert_schema};
+    use hashbrown::HashMap;
+    use iox_catalog::{interface::RepoCollection, mem::MemCatalog, validate_or_insert_schema};
     use iox_time::Time;
     use metric::{MetricObserver, Observation};
+    use mutable_batch::MutableBatch;
     use mutable_batch_lp::lines_to_batches;
     use object_store::memory::InMemory;
 
@@ -664,9 +666,12 @@ mod tests {
 
         let ignored_ts = Time::from_timestamp_millis(42);
 
+        let batch = lines_to_batches("mem foo=1 10", 0).unwrap();
         let w1 = DmlWrite::new(
             "foo",
-            lines_to_batches("mem foo=1 10", 0).unwrap(),
+            namespace.id,
+            batch.clone(),
+            build_id_map(repos.deref_mut(), namespace.id, &batch).await,
             "1970-01-01".into(),
             DmlMeta::sequenced(
                 Sequence::new(ShardIndex::new(1), SequenceNumber::new(1)),
@@ -705,9 +710,12 @@ mod tests {
             .unwrap();
         assert_matches!(action, DmlApplyAction::Applied(false));
 
+        let batch = lines_to_batches("mem foo=1 10", 0).unwrap();
         let w2 = DmlWrite::new(
             "foo",
-            lines_to_batches("mem foo=1 10", 0).unwrap(),
+            namespace.id,
+            batch.clone(),
+            build_id_map(&mut *catalog.repositories().await, namespace.id, &batch).await,
             "1970-01-01".into(),
             DmlMeta::sequenced(
                 Sequence::new(ShardIndex::new(1), SequenceNumber::new(2)),
@@ -750,16 +758,19 @@ mod tests {
             Arc::clone(&catalog),
             [(shard1.id, shard1.shard_index)],
             Arc::new(Executor::new(1)),
-            Arc::new(CatalogPartitionResolver::new(catalog)),
+            Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog))),
             BackoffConfig::default(),
             Arc::clone(&metrics),
         ));
 
         let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
+        let batch = lines_to_batches("mem foo=1 10\nmem foo=1 11", 0).unwrap();
         let w1 = DmlWrite::new(
             "foo",
-            lines_to_batches("mem foo=1 10\nmem foo=1 11", 0).unwrap(),
+            namespace.id,
+            batch.clone(),
+            build_id_map(repos.deref_mut(), namespace.id, &batch).await,
             "1970-01-01".into(),
             DmlMeta::sequenced(
                 Sequence::new(ShardIndex::new(1), SequenceNumber::new(1)),
@@ -866,9 +877,12 @@ mod tests {
 
         let ignored_ts = Time::from_timestamp_millis(42);
 
+        let batch = lines_to_batches("mem foo=1 10", 0).unwrap();
         let w1 = DmlWrite::new(
             "foo",
-            lines_to_batches("mem foo=1 10", 0).unwrap(),
+            namespace.id,
+            batch.clone(),
+            build_id_map(repos.deref_mut(), namespace.id, &batch).await,
             "1970-01-01".into(),
             DmlMeta::sequenced(
                 Sequence::new(ShardIndex::new(1), SequenceNumber::new(1)),
@@ -882,9 +896,12 @@ mod tests {
             .unwrap()
             .unwrap();
 
+        let batch = lines_to_batches("cpu foo=1 10", 1).unwrap();
         let w2 = DmlWrite::new(
             "foo",
-            lines_to_batches("cpu foo=1 10", 1).unwrap(),
+            namespace.id,
+            batch.clone(),
+            build_id_map(repos.deref_mut(), namespace.id, &batch).await,
             "1970-01-01".into(),
             DmlMeta::sequenced(
                 Sequence::new(ShardIndex::new(2), SequenceNumber::new(1)),
@@ -900,9 +917,12 @@ mod tests {
 
         // drop repos so the mem catalog won't deadlock.
         std::mem::drop(repos);
+        let batch = lines_to_batches("mem foo=1 30", 2).unwrap();
         let w3 = DmlWrite::new(
             "foo",
-            lines_to_batches("mem foo=1 30", 2).unwrap(),
+            namespace.id,
+            batch.clone(),
+            build_id_map(&mut *catalog.repositories().await, namespace.id, &batch).await,
             "1970-01-01".into(),
             DmlMeta::sequenced(
                 Sequence::new(ShardIndex::new(1), SequenceNumber::new(2)),
@@ -1131,7 +1151,7 @@ mod tests {
                 (shard2.id, shard2.shard_index),
             ],
             Arc::new(Executor::new(1)),
-            Arc::new(CatalogPartitionResolver::new(catalog)),
+            Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog))),
             BackoffConfig::default(),
             Arc::clone(&metrics),
         ));
@@ -1141,9 +1161,12 @@ mod tests {
         let ignored_ts = Time::from_timestamp_millis(42);
 
         // write with sequence number 1
+        let batch = lines_to_batches("mem foo=1 10", 0).unwrap();
         let w1 = DmlWrite::new(
             "foo",
-            lines_to_batches("mem foo=1 10", 0).unwrap(),
+            namespace.id,
+            batch.clone(),
+            build_id_map(repos.deref_mut(), namespace.id, &batch).await,
             "1970-01-01".into(),
             DmlMeta::sequenced(
                 Sequence::new(ShardIndex::new(1), SequenceNumber::new(1)),
@@ -1158,9 +1181,12 @@ mod tests {
             .unwrap();
 
         // write with sequence number 2
+        let batch = lines_to_batches("mem foo=1 30\ncpu bar=1 20", 0).unwrap();
         let w2 = DmlWrite::new(
             "foo",
-            lines_to_batches("mem foo=1 30\ncpu bar=1 20", 0).unwrap(),
+            namespace.id,
+            batch.clone(),
+            build_id_map(repos.deref_mut(), namespace.id, &batch).await,
             "1970-01-01".into(),
             DmlMeta::sequenced(
                 Sequence::new(ShardIndex::new(1), SequenceNumber::new(2)),
@@ -1256,9 +1282,12 @@ mod tests {
 
         let ignored_ts = Time::from_timestamp_millis(42);
 
+        let batch = lines_to_batches("mem foo=1 10", 0).unwrap();
         let w1 = DmlWrite::new(
             "foo",
-            lines_to_batches("mem foo=1 10", 0).unwrap(),
+            namespace.id,
+            batch.clone(),
+            build_id_map(repos.deref_mut(), namespace.id, &batch).await,
             "1970-01-01".into(),
             DmlMeta::sequenced(
                 Sequence::new(ShardIndex::new(1), SequenceNumber::new(1)),
@@ -1267,9 +1296,12 @@ mod tests {
                 50,
             ),
         );
+        let batch = lines_to_batches("mem foo=1 10", 0).unwrap();
         let w2 = DmlWrite::new(
             "foo",
-            lines_to_batches("mem foo=1 10", 0).unwrap(),
+            namespace.id,
+            batch.clone(),
+            build_id_map(repos.deref_mut(), namespace.id, &batch).await,
             "1970-01-01".into(),
             DmlMeta::sequenced(
                 Sequence::new(ShardIndex::new(1), SequenceNumber::new(2)),
@@ -1434,7 +1466,7 @@ mod tests {
             Arc::clone(&catalog),
             [(shard1.id, shard_index)],
             Arc::new(Executor::new(1)),
-            Arc::new(CatalogPartitionResolver::new(catalog)),
+            Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog))),
             BackoffConfig::default(),
             Arc::clone(&metrics),
         ));
@@ -1443,9 +1475,12 @@ mod tests {
 
         let ignored_ts = Time::from_timestamp_millis(42);
 
+        let batch = lines_to_batches("mem foo=1 10", 0).unwrap();
         let w1 = DmlWrite::new(
             "foo",
-            lines_to_batches("mem foo=1 10", 0).unwrap(),
+            namespace.id,
+            batch.clone(),
+            build_id_map(repos.deref_mut(), namespace.id, &batch).await,
             "1970-01-01".into(),
             DmlMeta::sequenced(
                 Sequence::new(ShardIndex::new(1), SequenceNumber::new(1)),
@@ -1514,5 +1549,29 @@ mod tests {
             .collect::<BTreeMap<_, _>>();
 
         assert_eq!(progresses, expected_progresses);
+    }
+
+    pub async fn build_id_map<R>(
+        catalog: &mut R,
+        namespace_id: NamespaceId,
+        tables: &HashMap<String, MutableBatch>,
+    ) -> HashMap<String, TableId>
+    where
+        R: RepoCollection + ?Sized,
+    {
+        let mut ret = HashMap::with_capacity(tables.len());
+
+        for k in tables.keys() {
+            let id = catalog
+                .tables()
+                .create_or_get(k, namespace_id)
+                .await
+                .expect("table should create OK")
+                .id;
+
+            ret.insert(k.clone(), id);
+        }
+
+        ret
     }
 }

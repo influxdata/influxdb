@@ -8,6 +8,9 @@ message DatabaseBatch {
     // The destination database name / namespace for this write.
     string database_name = 1;
 
+    // The catalog ID for this database / namespace.
+    int64 database_id = 4;
+
     // An optional partition key for this batch.
     //
     // If specified, all batches in this write MUST map to this partition key.
@@ -21,6 +24,9 @@ message DatabaseBatch {
 
 message TableBatch {
     string table_name = 1;
+
+    // The catalog ID for this table.
+    int64 table_id = 4;
 
     // Data are represented here.
     //
@@ -119,7 +125,7 @@ message Column {
 }
 
 // Note there used to be a service that would load this internal protobuf format.
-// See https://github.com/influxdata/influxdb_iox/pull/5750 and 
+// See https://github.com/influxdata/influxdb_iox/pull/5750 and
 // https://github.com/influxdata/influxdb_iox/issues/4866
 // for rationale of why it was removed
 

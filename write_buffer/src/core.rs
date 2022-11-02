@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use data_types::{PartitionKey, SequenceNumber, ShardIndex};
-use dml::{DmlMeta, DmlOperation, DmlWrite};
+use data_types::{SequenceNumber, ShardIndex};
+use dml::{DmlMeta, DmlOperation};
 use futures::stream::BoxStream;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -142,6 +142,8 @@ pub enum WriteBufferErrorKind {
 
 /// Writing to a Write Buffer takes a [`DmlWrite`] and returns the [`DmlMeta`] for the
 /// payload that was written
+///
+/// [`DmlWrite`]: dml::DmlWrite
 #[async_trait]
 pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
     /// List all known shard indexes/indices.
@@ -166,30 +168,7 @@ pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
         operation: DmlOperation,
     ) -> Result<DmlMeta, WriteBufferError>;
 
-    /// Sends line protocol to the write buffer - primarily intended for testing
-    async fn store_lp(
-        &self,
-        shard_index: ShardIndex,
-        lp: &str,
-        default_time: i64,
-    ) -> Result<DmlMeta, WriteBufferError> {
-        let tables = mutable_batch_lp::lines_to_batches(lp, default_time)
-            .map_err(WriteBufferError::invalid_input)?;
-
-        self.store_operation(
-            shard_index,
-            DmlOperation::Write(DmlWrite::new(
-                "test_db",
-                tables,
-                PartitionKey::from("platanos"),
-                Default::default(),
-            )),
-        )
-        .await
-    }
-
-    /// Flush all currently blocking store operations ([`store_operation`](Self::store_operation) /
-    /// [`store_lp`](Self::store_lp)).
+    /// Flush all currently blocking store operations ([`store_operation`](Self::store_operation)).
     ///
     /// This call is pending while outstanding data is being submitted and will return AFTER the
     /// flush completed. However you still need to poll the store operations to get the metadata
@@ -248,6 +227,8 @@ impl WriteBufferStreamHandler for Box<dyn WriteBufferStreamHandler> {
 }
 
 /// Produce streams (one per shard) of [`DmlWrite`]s.
+///
+/// [`DmlWrite`]: dml::DmlWrite
 #[async_trait]
 pub trait WriteBufferReading: Sync + Send + Debug + 'static {
     /// List all known shard indexes/indices.
@@ -297,10 +278,12 @@ pub mod test_utils {
     };
     use crate::core::WriteBufferErrorKind;
     use async_trait::async_trait;
-    use data_types::{PartitionKey, SequenceNumber, ShardIndex};
+    use data_types::{NamespaceId, PartitionKey, SequenceNumber, ShardIndex, TableId};
     use dml::{test_util::assert_write_op_eq, DmlMeta, DmlOperation, DmlWrite};
     use futures::{stream::FuturesUnordered, Stream, StreamExt, TryStreamExt};
+    use hashbrown::HashMap;
     use iox_time::{Time, TimeProvider};
+    use mutable_batch::MutableBatch;
     use std::{
         collections::{BTreeSet, HashSet},
         convert::TryFrom,
@@ -388,7 +371,26 @@ pub mod test_utils {
         test_flush(&adapter).await;
     }
 
-    /// Writes line protocol and returns the [`DmlWrite`] that was written
+    /// Parse the provided line-protocol and return both the table ID indexed
+    /// data map, and the table ID to table name map.
+    ///
+    /// Makes up the namespace ID & table IDs.
+    pub fn lp_to_batches(lp: &str) -> (HashMap<String, MutableBatch>, HashMap<String, TableId>) {
+        mutable_batch_lp::lines_to_batches(lp, 0)
+            .unwrap()
+            .into_iter()
+            .enumerate()
+            .map(|(idx, (name, data))| {
+                let idx = idx as i64;
+                let name_mapping = (name.clone(), data);
+                let id_mapping = (name, TableId::new(idx));
+
+                (name_mapping, id_mapping)
+            })
+            .unzip()
+    }
+
+    /// Writes line protocol and returns the [`DmlWrite`] that was written.
     pub async fn write(
         namespace: &str,
         writer: &impl WriteBufferWriting,
@@ -397,10 +399,13 @@ pub mod test_utils {
         partition_key: PartitionKey,
         span_context: Option<&SpanContext>,
     ) -> DmlWrite {
-        let tables = mutable_batch_lp::lines_to_batches(lp, 0).unwrap();
+        let (tables, names) = lp_to_batches(lp);
+
         let write = DmlWrite::new(
             namespace,
+            NamespaceId::new(42),
             tables,
+            names,
             partition_key,
             DmlMeta::unsequenced(span_context.cloned()),
         );
@@ -1244,8 +1249,15 @@ pub mod test_utils {
     {
         let context = adapter.new_context(NonZeroU32::try_from(1).unwrap()).await;
 
-        let tables = mutable_batch_lp::lines_to_batches("upc user=1 100", 0).unwrap();
-        let write = DmlWrite::new("foo", tables, "bananas".into(), Default::default());
+        let (tables, names) = lp_to_batches("upc user=1 100");
+        let write = DmlWrite::new(
+            "foo",
+            NamespaceId::new(42),
+            tables,
+            names,
+            "bananas".into(),
+            Default::default(),
+        );
         let operation = DmlOperation::Write(write);
 
         let writer = context.writing(true).await.unwrap();

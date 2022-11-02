@@ -18,6 +18,7 @@ prost = "0.11"
 [dev-dependencies]
 bytes = "1.2"
 criterion = { version = "0.4", default-features = false, features = ["rayon"]}
+data_types = { path = "../data_types", default-features = false }
 
 [[bench]]
 name = "write_lp"
