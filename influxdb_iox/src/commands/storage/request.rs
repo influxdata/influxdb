@@ -33,6 +33,21 @@ pub fn measurement_fields(
     }
 }
 
+pub fn measurement_tag_keys(
+    org_bucket: Any,
+    measurement: String,
+    start: i64,
+    stop: i64,
+    predicate: std::option::Option<Predicate>,
+) -> MeasurementTagKeysRequest {
+    generated_types::MeasurementTagKeysRequest {
+        source: Some(org_bucket),
+        measurement,
+        range: Some(TimestampRange { start, end: stop }),
+        predicate,
+    }
+}
+
 pub fn read_filter(
     org_bucket: Any,
     start: i64,
