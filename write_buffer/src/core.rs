@@ -382,8 +382,8 @@ pub mod test_utils {
             .enumerate()
             .map(|(idx, (name, data))| {
                 let idx = idx as i64;
-                let name_mapping = (name.to_string(), data);
-                let id_mapping = (name.to_string(), TableId::new(idx));
+                let name_mapping = (name.clone(), data);
+                let id_mapping = (name, TableId::new(idx));
 
                 (name_mapping, id_mapping)
             })
