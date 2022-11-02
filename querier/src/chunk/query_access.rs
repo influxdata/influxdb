@@ -1,35 +1,13 @@
 use crate::chunk::QuerierChunk;
 use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId, TableSummary};
-use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
+use datafusion::error::DataFusionError;
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
-    QueryChunk, QueryChunkMeta,
+    QueryChunk, QueryChunkData, QueryChunkMeta,
 };
-use observability_deps::tracing::debug;
 use predicate::Predicate;
 use schema::{selection::Selection, sort::SortKey, Schema};
-use snafu::{ResultExt, Snafu};
 use std::{any::Any, sync::Arc};
-use trace::span::SpanRecorder;
-
-#[derive(Debug, Snafu)]
-pub enum Error {
-    #[snafu(display("Parquet File Error in chunk {}: {}", chunk_id, source))]
-    ParquetFileChunk {
-        source: Box<parquet_file::storage::ReadError>,
-        chunk_id: ChunkId,
-    },
-
-    #[snafu(display(
-        "Could not find column name '{}' in read buffer column_values results for chunk {}",
-        column_name,
-        chunk_id,
-    ))]
-    ColumnNameNotFound {
-        column_name: String,
-        chunk_id: ChunkId,
-    },
-}
 
 impl QueryChunkMeta for QuerierChunk {
     fn summary(&self) -> Arc<TableSummary> {
@@ -103,42 +81,8 @@ impl QueryChunk for QuerierChunk {
         Ok(None)
     }
 
-    fn read_filter(
-        &self,
-        mut ctx: IOxSessionContext,
-        predicate: &Predicate,
-        selection: Selection<'_>,
-    ) -> Result<SendableRecordBatchStream, DataFusionError> {
-        let span_recorder = SpanRecorder::new(
-            ctx.span()
-                .map(|span| span.child("QuerierChunk::read_filter")),
-        );
-        let delete_predicates: Vec<_> = self
-            .delete_predicates()
-            .iter()
-            .map(|pred| Arc::new(pred.as_ref().clone().into()))
-            .collect();
-        ctx.set_metadata("delete_predicates", delete_predicates.len() as i64);
-
-        // merge the negated delete predicates into the select predicate
-        let pred_with_deleted_exprs = predicate.clone().with_delete_predicates(&delete_predicates);
-        debug!(?pred_with_deleted_exprs, "Merged negated predicate");
-
-        ctx.set_metadata("predicate", format!("{}", &pred_with_deleted_exprs));
-        ctx.set_metadata("projection", format!("{}", selection));
-        ctx.set_metadata("storage", "parquet");
-
-        let chunk_id = self.id();
-        debug!(?predicate, "parquet read_filter");
-
-        // TODO(marco): propagate span all the way down to the object store cache access
-        let _span_recorder = span_recorder;
-
-        self.parquet_chunk
-            .read_filter(&pred_with_deleted_exprs, selection, ctx.inner())
-            .map_err(Box::new)
-            .context(ParquetFileChunkSnafu { chunk_id })
-            .map_err(|e| DataFusionError::External(Box::new(e)))
+    fn data(&self) -> QueryChunkData {
+        QueryChunkData::Parquet(self.parquet_chunk.parquet_exec_input())
     }
 
     fn chunk_type(&self) -> &str {

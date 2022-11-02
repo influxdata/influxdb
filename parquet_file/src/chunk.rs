@@ -1,10 +1,11 @@
 //! A metadata summary of a Parquet file in object storage, with the ability to
 //! download & execute a scan.
 
-use crate::{storage::ParquetStorage, ParquetFilePath};
+use crate::{
+    storage::{ParquetExecInput, ParquetStorage},
+    ParquetFilePath,
+};
 use data_types::{ParquetFile, TimestampMinMax};
-use datafusion::{physical_plan::SendableRecordBatchStream, prelude::SessionContext};
-use predicate::Predicate;
 use schema::{selection::Selection, Schema};
 use std::{collections::BTreeSet, mem, sync::Arc};
 use uuid::Uuid;
@@ -78,21 +79,14 @@ impl ParquetChunk {
     }
 
     /// Return stream of data read from parquet file
-    pub fn read_filter(
-        &self,
-        predicate: &Predicate,
-        selection: Selection<'_>,
-        session_ctx: &SessionContext,
-    ) -> Result<SendableRecordBatchStream, crate::storage::ReadError> {
+    /// Inputs for [`ParquetExec`].
+    ///
+    /// See [`ParquetExecInput`] for more information.
+    ///
+    /// [`ParquetExec`]: datafusion::physical_plan::file_format::ParquetExec
+    pub fn parquet_exec_input(&self) -> ParquetExecInput {
         let path: ParquetFilePath = self.parquet_file.as_ref().into();
-        self.store.read_filter(
-            predicate,
-            selection,
-            Arc::clone(&self.schema.as_arrow()),
-            &path,
-            self.file_size_bytes(),
-            session_ctx,
-        )
+        self.store.parquet_exec_input(&path, self.file_size_bytes())
     }
 
     /// The total number of rows in all row groups in this chunk.

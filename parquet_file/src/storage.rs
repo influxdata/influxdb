@@ -6,27 +6,26 @@ use crate::{
     serialize::{self, CodecError},
     ParquetFilePath,
 };
-use arrow::datatypes::{Field, SchemaRef};
+use arrow::{
+    datatypes::{Field, SchemaRef},
+    record_batch::RecordBatch,
+};
 use bytes::Bytes;
 use datafusion::{
     datasource::{listing::PartitionedFile, object_store::ObjectStoreUrl},
+    error::DataFusionError,
     execution::context::TaskContext,
     physical_plan::{
-        execute_stream,
         file_format::{FileScanConfig, ParquetExec},
-        stream::RecordBatchStreamAdapter,
-        SendableRecordBatchStream, Statistics,
+        ExecutionPlan, SendableRecordBatchStream, Statistics,
     },
     prelude::SessionContext,
 };
 use datafusion_util::config::iox_session_config;
-use futures::TryStreamExt;
 use object_store::{DynObjectStore, ObjectMeta};
 use observability_deps::tracing::*;
-use predicate::Predicate;
 use schema::selection::{select_schema, Selection};
 use std::{
-    num::TryFromIntError,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -53,38 +52,6 @@ pub enum UploadError {
     Upload(#[from] object_store::Error),
 }
 
-/// Errors during Parquet file download & scan.
-#[derive(Debug, Error)]
-#[allow(clippy::large_enum_variant)]
-pub enum ReadError {
-    /// Error writing the bytes fetched from object store to the temporary
-    /// parquet file on disk.
-    #[error("i/o error writing downloaded parquet: {0}")]
-    IO(#[from] std::io::Error),
-
-    /// An error fetching Parquet file bytes from object store.
-    #[error("failed to read data from object store: {0}")]
-    ObjectStore(#[from] object_store::Error),
-
-    /// An error reading the downloaded Parquet file.
-    #[error("invalid parquet file: {0}")]
-    Parquet(#[from] parquet::errors::ParquetError),
-
-    /// Schema mismatch
-    #[error("Schema mismatch (expected VS actual parquet file) for file '{path}': {source}")]
-    SchemaMismatch {
-        /// Path of the affected parquet file.
-        path: object_store::path::Path,
-
-        /// Source error
-        source: ProjectionError,
-    },
-
-    /// Malformed integer data for row count
-    #[error("Malformed row count integer")]
-    MalformedRowCount(#[from] TryFromIntError),
-}
-
 /// ID for an object store hooked up into DataFusion.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct StorageId(&'static str);
@@ -104,6 +71,68 @@ impl AsRef<str> for StorageId {
 impl std::fmt::Display for StorageId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
+    }
+}
+
+/// Inputs required to build a [`ParquetExec`] for one or multiple files.
+///
+/// The files shall be grouped by [`object_store_url`](Self::object_store_url). For each each object store, you shall
+/// create one [`ParquetExec`] and put each file into its own "file group".
+///
+/// [`ParquetExec`]: datafusion::physical_plan::file_format::ParquetExec
+#[derive(Debug)]
+pub struct ParquetExecInput {
+    /// Store where the file is located.
+    pub object_store_url: ObjectStoreUrl,
+
+    /// Object metadata.
+    pub object_meta: ObjectMeta,
+}
+
+impl ParquetExecInput {
+    /// Read parquet file into [`RecordBatch`]es.
+    ///
+    /// This should only be used for testing purposes.
+    pub async fn read_to_batches(
+        &self,
+        schema: SchemaRef,
+        selection: Selection<'_>,
+        session_ctx: &SessionContext,
+    ) -> Result<Vec<RecordBatch>, DataFusionError> {
+        // Compute final (output) schema after selection
+        let schema = Arc::new(
+            select_schema(selection, &schema)
+                .as_ref()
+                .clone()
+                .with_metadata(Default::default()),
+        );
+
+        let base_config = FileScanConfig {
+            object_store_url: self.object_store_url.clone(),
+            file_schema: schema,
+            file_groups: vec![vec![PartitionedFile {
+                object_meta: self.object_meta.clone(),
+                partition_values: vec![],
+                range: None,
+                extensions: None,
+            }]],
+            statistics: Statistics::default(),
+            projection: None,
+            limit: None,
+            table_partition_cols: vec![],
+            // TODO avoid this `copied_config` when config_options are directly available on context
+            config_options: session_ctx.copied_config().config_options(),
+        };
+        let exec = ParquetExec::new(base_config, None, None);
+        let exec_schema = exec.schema();
+        datafusion::physical_plan::collect(Arc::new(exec), session_ctx.task_ctx())
+            .await
+            .map(|batches| {
+                for batch in &batches {
+                    assert_eq!(batch.schema(), exec_schema);
+                }
+                batches
+            })
     }
 }
 
@@ -220,72 +249,22 @@ impl ParquetStorage {
         Ok((parquet_meta, file_size))
     }
 
-    /// Pull the Parquet-encoded [`RecordBatch`] at the file path derived from
-    /// the provided [`ParquetFilePath`].
+    /// Inputs for [`ParquetExec`].
     ///
-    /// The `selection` projection is pushed down to the Parquet deserializer.
+    /// See [`ParquetExecInput`] for more information.
     ///
-    /// This impl fetches the associated Parquet file bytes from object storage,
-    /// temporarily persisting them to a local temp file to feed to the arrow
-    /// reader.
-    ///
-    /// No caching is performed by `read_filter()`, and each call to
-    /// `read_filter()` will re-download the parquet file unless the underlying
-    /// object store impl caches the fetched bytes.
-    ///
-    /// [`RecordBatch`]: arrow::record_batch::RecordBatch
-    pub fn read_filter(
-        &self,
-        predicate: &Predicate,
-        selection: Selection<'_>,
-        schema: SchemaRef,
-        path: &ParquetFilePath,
-        file_size: usize,
-        session_ctx: &SessionContext,
-    ) -> Result<SendableRecordBatchStream, ReadError> {
-        let path = path.object_store_path();
-        trace!(path=?path, "fetching parquet data for filtered read");
-
-        // Compute final (output) schema after selection
-        let schema = Arc::new(
-            select_schema(selection, &schema)
-                .as_ref()
-                .clone()
-                .with_metadata(Default::default()),
-        );
-
-        // create ParquetExec node
-        let object_meta = ObjectMeta {
-            location: path,
-            // we don't care about the "last modified" field
-            last_modified: Default::default(),
-            size: file_size,
-        };
-        let expr = predicate.filter_expr();
-        let base_config = FileScanConfig {
+    /// [`ParquetExec`]: datafusion::physical_plan::file_format::ParquetExec
+    pub fn parquet_exec_input(&self, path: &ParquetFilePath, file_size: usize) -> ParquetExecInput {
+        ParquetExecInput {
             object_store_url: ObjectStoreUrl::parse(format!("iox://{}/", self.id))
                 .expect("valid object store URL"),
-            file_schema: Arc::clone(&schema),
-            file_groups: vec![vec![PartitionedFile {
-                object_meta,
-                partition_values: vec![],
-                range: None,
-                extensions: None,
-            }]],
-            statistics: Statistics::default(),
-            projection: None,
-            limit: None,
-            table_partition_cols: vec![],
-            // TODO avoid this `copied_config` when config_options are directly available on context
-            config_options: session_ctx.copied_config().config_options(),
-        };
-        let exec = ParquetExec::new(base_config, expr, None);
-
-        Ok(Box::pin(RecordBatchStreamAdapter::new(
-            Arc::clone(&schema),
-            futures::stream::once(execute_stream(Arc::new(exec), session_ctx.task_ctx()))
-                .try_flatten(),
-        )))
+            object_meta: ObjectMeta {
+                location: path.object_store_path(),
+                // we don't care about the "last modified" field
+                last_modified: Default::default(),
+                size: file_size,
+            },
+        }
     }
 }
 
@@ -598,24 +577,13 @@ mod tests {
         file_size: usize,
     ) -> Result<RecordBatch, DataFusionError> {
         let path: ParquetFilePath = meta.into();
-        let rx = store
-            .read_filter(
-                &Predicate::default(),
-                selection,
-                expected_schema,
-                &path,
-                file_size,
-                &store.test_df_context(),
-            )
-            .expect("should read record batches from object store");
-        let schema = rx.schema();
-        datafusion::physical_plan::common::collect(rx)
+        store
+            .parquet_exec_input(&path, file_size)
+            .read_to_batches(expected_schema, selection, &store.test_df_context())
             .await
             .map(|mut batches| {
                 assert_eq!(batches.len(), 1);
-                let batch = batches.remove(0);
-                assert_eq!(batch.schema(), schema);
-                batch
+                batches.remove(0)
             })
     }
 

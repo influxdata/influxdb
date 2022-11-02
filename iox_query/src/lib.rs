@@ -10,12 +10,14 @@
     clippy::dbg_macro
 )]
 
+use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use data_types::{ChunkId, ChunkOrder, DeletePredicate, InfluxDbType, PartitionId, TableSummary};
-use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
+use datafusion::{error::DataFusionError, prelude::SessionContext};
 use exec::{stringset::StringSet, IOxSessionContext};
 use hashbrown::HashMap;
 use observability_deps::tracing::{debug, trace};
+use parquet_file::storage::ParquetExecInput;
 use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate, PredicateMatch};
 use schema::{
     selection::Selection,
@@ -173,6 +175,37 @@ pub trait QueryDatabase: QueryDatabaseMeta + Debug + Send + Sync {
     fn as_meta(&self) -> &dyn QueryDatabaseMeta;
 }
 
+/// Raw data of a [`QueryChunk`].
+#[derive(Debug)]
+pub enum QueryChunkData {
+    /// In-memory record batches.
+    ///
+    /// **IMPORTANT: All batches MUST have the schema that the [chunk reports](QueryChunkMeta::schema).**
+    RecordBatches(Vec<RecordBatch>),
+
+    /// Parquet file.
+    ///
+    /// See [`ParquetExecInput`] for details.
+    Parquet(ParquetExecInput),
+}
+
+impl QueryChunkData {
+    /// Read data into [`RecordBatch`]es. This is mostly meant for testing!
+    pub async fn read_to_batches(
+        self,
+        schema: Arc<Schema>,
+        session_ctx: &SessionContext,
+    ) -> Vec<RecordBatch> {
+        match self {
+            Self::RecordBatches(batches) => batches,
+            Self::Parquet(exec_input) => exec_input
+                .read_to_batches(schema.as_arrow(), Selection::All, session_ctx)
+                .await
+                .unwrap(),
+        }
+    }
+}
+
 /// Collection of data that shares the same partition key
 pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
     /// returns the Id of this chunk. Ids are unique within a
@@ -222,25 +255,10 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
         predicate: &Predicate,
     ) -> Result<Option<StringSet>, DataFusionError>;
 
-    /// Provides access to raw `QueryChunk` data as an
-    /// asynchronous stream of `RecordBatch`es filtered by a *required*
-    /// predicate. Note that not all chunks can evaluate all types of
-    /// predicates and this function will return an error
-    /// if requested to evaluate with a predicate that is not supported
+    /// Provides access to raw [`QueryChunk`] data.
     ///
-    /// This is the analog of the `TableProvider` in DataFusion
-    ///
-    /// The reason we can't simply use the `TableProvider` trait
-    /// directly is that the data for a particular Table lives in
-    /// several chunks within a partition, so there needs to be an
-    /// implementation of `TableProvider` that stitches together the
-    /// streams from several different `QueryChunk`s.
-    fn read_filter(
-        &self,
-        ctx: IOxSessionContext,
-        predicate: &Predicate,
-        selection: Selection<'_>,
-    ) -> Result<SendableRecordBatchStream, DataFusionError>;
+    /// The engine assume that minimal work shall be performed to gather the `QueryChunkData`.
+    fn data(&self) -> QueryChunkData;
 
     /// Returns chunk type. Useful in tests and debug logs.
     fn chunk_type(&self) -> &str;

@@ -340,14 +340,13 @@ pub mod tests {
     use arrow::{datatypes::DataType, record_batch::RecordBatch};
     use arrow_util::assert_batches_eq;
     use data_types::{ColumnType, NamespaceSchema};
-    use futures::StreamExt;
     use iox_query::{
         exec::{ExecutorType, IOxSessionContext},
         QueryChunk, QueryChunkMeta,
     };
     use iox_tests::util::{TestCatalog, TestNamespace, TestParquetFileBuilder};
     use metric::{Attributes, Observation, RawReporter};
-    use schema::{builder::SchemaBuilder, selection::Selection, sort::SortKeyBuilder};
+    use schema::{builder::SchemaBuilder, sort::SortKeyBuilder};
     use test_helpers::maybe_start_logging;
     use tokio::runtime::Handle;
 
@@ -397,13 +396,9 @@ pub mod tests {
         ctx: IOxSessionContext,
     ) -> Vec<RecordBatch> {
         chunk
-            .read_filter(ctx, &Default::default(), Selection::All)
-            .unwrap()
-            .collect::<Vec<_>>()
+            .data()
+            .read_to_batches(chunk.schema(), ctx.inner())
             .await
-            .into_iter()
-            .map(Result::unwrap)
-            .collect()
     }
 
     struct TestData {

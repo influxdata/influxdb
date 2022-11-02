@@ -30,7 +30,6 @@ use parquet_file::{
     metadata::IoxMetadata,
     storage::{ParquetStorage, StorageId},
 };
-use predicate::Predicate;
 use schema::{
     selection::Selection,
     sort::{adjust_sort_key_columns, compute_sort_key, SortKey},
@@ -389,14 +388,13 @@ impl TestTable {
             Arc::new(schema),
             self.catalog.parquet_store.clone(),
         );
-        let rx = chunk
-            .read_filter(
-                &Predicate::default(),
+        chunk
+            .parquet_exec_input()
+            .read_to_batches(
+                chunk.schema().as_arrow(),
                 Selection::All,
                 &chunk.store().test_df_context(),
             )
-            .unwrap();
-        datafusion::physical_plan::common::collect(rx)
             .await
             .unwrap()
     }

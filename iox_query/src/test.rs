@@ -8,15 +8,14 @@ use crate::{
         stringset::{StringSet, StringSetRef},
         ExecutionContextProvider, Executor, ExecutorType, IOxSessionContext,
     },
-    Predicate, PredicateMatch, QueryChunk, QueryChunkMeta, QueryCompletedToken, QueryDatabase,
-    QueryText,
+    Predicate, PredicateMatch, QueryChunk, QueryChunkData, QueryChunkMeta, QueryCompletedToken,
+    QueryDatabase, QueryText,
 };
 use arrow::{
     array::{
         ArrayRef, DictionaryArray, Int64Array, StringArray, TimestampNanosecondArray, UInt64Array,
     },
     datatypes::{DataType, Int32Type, TimeUnit},
-    error::ArrowError,
     record_batch::RecordBatch,
 };
 use async_trait::async_trait;
@@ -24,9 +23,7 @@ use data_types::{
     ChunkId, ChunkOrder, ColumnSummary, DeletePredicate, InfluxDbType, PartitionId, StatValues,
     Statistics, TableSummary,
 };
-use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
-use datafusion_util::stream_from_batches;
-use futures::StreamExt;
+use datafusion::error::DataFusionError;
 use hashbrown::HashSet;
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
@@ -949,34 +946,8 @@ impl QueryChunk for TestChunk {
         self.may_contain_pk_duplicates
     }
 
-    fn read_filter(
-        &self,
-        _ctx: IOxSessionContext,
-        predicate: &Predicate,
-        selection: Selection<'_>,
-    ) -> Result<SendableRecordBatchStream, DataFusionError> {
-        self.check_error()?;
-
-        // save the predicate
-        self.predicates.lock().push(predicate.clone());
-
-        let batches = match self
-            .schema
-            .df_projection(selection)
-            .map_err(|e| DataFusionError::External(Box::new(e)))?
-        {
-            None => self.table_data.clone(),
-            Some(projection) => self
-                .table_data
-                .iter()
-                .map(|batch| {
-                    let batch = batch.project(&projection)?;
-                    Ok(Arc::new(batch))
-                })
-                .collect::<std::result::Result<Vec<_>, ArrowError>>()?,
-        };
-
-        Ok(stream_from_batches(self.schema().as_arrow(), batches))
+    fn data(&self) -> QueryChunkData {
+        QueryChunkData::RecordBatches(self.table_data.iter().map(|b| b.as_ref().clone()).collect())
     }
 
     fn chunk_type(&self) -> &str {
@@ -1071,17 +1042,10 @@ impl QueryChunkMeta for TestChunk {
 
 /// Return the raw data from the list of chunks
 pub async fn raw_data(chunks: &[Arc<dyn QueryChunk>]) -> Vec<RecordBatch> {
+    let ctx = IOxSessionContext::with_testing();
     let mut batches = vec![];
     for c in chunks {
-        let pred = Predicate::default();
-        let selection = Selection::All;
-        let mut stream = c
-            .read_filter(IOxSessionContext::with_testing(), &pred, selection)
-            .expect("Error in read_filter");
-        while let Some(b) = stream.next().await {
-            let b = b.expect("Error in stream");
-            batches.push(b)
-        }
+        batches.append(&mut c.data().read_to_batches(c.schema(), ctx.inner()).await);
     }
     batches
 }
