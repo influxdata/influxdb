@@ -142,6 +142,8 @@ pub enum WriteBufferErrorKind {
 
 /// Writing to a Write Buffer takes a [`DmlWrite`] and returns the [`DmlMeta`] for the
 /// payload that was written
+///
+/// [`DmlWrite`]: dml::DmlWrite
 #[async_trait]
 pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
     /// List all known shard indexes/indices.
@@ -166,8 +168,7 @@ pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
         operation: DmlOperation,
     ) -> Result<DmlMeta, WriteBufferError>;
 
-    /// Flush all currently blocking store operations ([`store_operation`](Self::store_operation) /
-    /// [`store_lp`](Self::store_lp)).
+    /// Flush all currently blocking store operations ([`store_operation`](Self::store_operation)).
     ///
     /// This call is pending while outstanding data is being submitted and will return AFTER the
     /// flush completed. However you still need to poll the store operations to get the metadata
@@ -226,6 +227,8 @@ impl WriteBufferStreamHandler for Box<dyn WriteBufferStreamHandler> {
 }
 
 /// Produce streams (one per shard) of [`DmlWrite`]s.
+///
+/// [`DmlWrite`]: dml::DmlWrite
 #[async_trait]
 pub trait WriteBufferReading: Sync + Send + Debug + 'static {
     /// List all known shard indexes/indices.
