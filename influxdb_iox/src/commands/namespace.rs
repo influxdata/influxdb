@@ -20,7 +20,7 @@ pub struct Config {
     command: Command,
 }
 
-/// All possible subcommands for catalog
+/// All possible subcommands for namespace
 #[derive(Debug, clap::Parser)]
 enum Command {
     /// Fetch namespaces

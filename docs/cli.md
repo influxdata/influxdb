@@ -110,7 +110,7 @@ Note you can also write such parquet files that came from IOx to another IOx ins
 
 ```shell
 # Connects to port 8082 (gRPC by default)
-$ influxdb_iox debug namespace list
+$ influxdb_iox namespace list
 [
   {
     "id": "1",

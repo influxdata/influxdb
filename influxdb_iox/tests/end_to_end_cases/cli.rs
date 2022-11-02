@@ -533,7 +533,7 @@ async fn wait_for_query_result(state: &mut StepTestState<'_>, query_sql: &str, e
     );
 }
 
-/// Test the schema cli command
+/// Test the namespace cli command
 #[tokio::test]
 async fn namespaces_cli() {
     test_helpers::maybe_start_logging();
@@ -556,7 +556,6 @@ async fn namespaces_cli() {
                         .unwrap()
                         .arg("-h")
                         .arg(&querier_addr)
-                        .arg("debug")
                         .arg("namespace")
                         .arg("list")
                         .assert()
