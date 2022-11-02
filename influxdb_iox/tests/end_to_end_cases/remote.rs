@@ -177,6 +177,44 @@ async fn remote_store_get_table() {
                 }
                 .boxed()
             })),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    // Test that we can download files from the querier (not just the router)
+                    // to ensure it has the correct grpc services
+                    let querier_addr = state.cluster().querier().querier_grpc_base().to_string();
+                    let namespace = state.cluster().namespace().to_string();
+
+                    // Ensure files are actually written to the filesystem
+                    let dir = tempfile::tempdir().expect("could not get temporary directory");
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .current_dir(&dir)
+                        .arg("-h")
+                        .arg(&querier_addr)
+                        .arg("remote")
+                        .arg("store")
+                        .arg("get-table")
+                        .arg(&namespace)
+                        .arg(&table_name)
+                        .assert()
+                        .success();
+
+                    let table_dir = dir.as_ref().join(&table_name);
+
+                    // There should be a directory created that, by default, is named the same as
+                    // the table
+                    assert!(table_dir.is_dir());
+                    let entries: Vec<_> = table_dir.read_dir().unwrap().flatten().collect();
+                    // The two Parquet files for this table should be present
+                    assert_eq!(
+                        entries.len(),
+                        2,
+                        "Expected 2 files in the directory, got: {entries:?}"
+                    );
+                }
+                .boxed()
+            })),
         ],
     )
     .run()

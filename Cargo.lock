@@ -3938,6 +3938,7 @@ dependencies = [
  "schema",
  "service_common",
  "service_grpc_catalog",
+ "service_grpc_object_store",
  "service_grpc_schema",
  "sharder",
  "snafu",
