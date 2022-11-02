@@ -571,7 +571,7 @@ mod tests {
     async fn test_write_ok() {
         let (catalog, namespace) = test_setup().await;
 
-        // Create the table so that the is a known ID that must be returned.
+        // Create the table so that there is a known ID that must be returned.
         let want_id = namespace.create_table("bananas").await.table.id;
 
         let metrics = Arc::new(metric::Registry::default());
