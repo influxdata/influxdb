@@ -2,7 +2,7 @@
 
 use arrow::datatypes::DataType;
 use iox_query::QueryChunk;
-use schema::selection::Selection;
+use schema::Projection;
 use schema::{builder::SchemaBuilder, sort::SortKey, Schema, TIME_COLUMN_NAME};
 
 use super::scenarios::*;
@@ -14,7 +14,7 @@ use super::scenarios::*;
 /// output
 async fn run_table_schema_test_case<D>(
     db_setup: D,
-    selection: Selection<'_>,
+    selection: Projection<'_>,
     table_name: &str,
     expected_schema: Schema,
     expected_sort_key: Option<&SortKey>,
@@ -91,7 +91,7 @@ async fn list_schema_cpu_all() {
 
     run_table_schema_test_case(
         TwoMeasurements {},
-        Selection::All,
+        Projection::All,
         "cpu",
         expected_schema,
         Some(&sort_key),
@@ -114,7 +114,7 @@ async fn list_schema_cpu_all_set_sort_key() {
 
     run_table_schema_test_case(
         TwoMeasurements {},
-        Selection::All,
+        Projection::All,
         "cpu",
         expected_schema,
         Some(&sort_key),
@@ -137,7 +137,7 @@ async fn list_schema_disk_all() {
 
     run_table_schema_test_case(
         TwoMeasurements {},
-        Selection::All,
+        Projection::All,
         "disk",
         expected_schema,
         None,
@@ -155,7 +155,7 @@ async fn list_schema_cpu_selection() {
         .unwrap();
 
     // Pick an order that is not lexographic
-    let selection = Selection::Some(&["user", "region"]);
+    let selection = Projection::Some(&["user", "region"]);
 
     run_table_schema_test_case(TwoMeasurements {}, selection, "cpu", expected_schema, None).await;
 }
@@ -171,7 +171,7 @@ async fn list_schema_disk_selection() {
         .unwrap();
 
     // Pick an order that is not lexicographic
-    let selection = Selection::Some(&["time", "bytes"]);
+    let selection = Projection::Some(&["time", "bytes"]);
 
     run_table_schema_test_case(TwoMeasurements {}, selection, "disk", expected_schema, None).await;
 }
@@ -189,7 +189,7 @@ async fn list_schema_location_all() {
 
     run_table_schema_test_case(
         TwoMeasurementsUnsignedType {},
-        Selection::All,
+        Projection::All,
         "restaurant",
         expected_schema,
         None,

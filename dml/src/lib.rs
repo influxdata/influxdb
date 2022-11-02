@@ -424,7 +424,7 @@ impl DmlDelete {
 /// Test utilities
 pub mod test_util {
     use arrow_util::display::pretty_format_batches;
-    use schema::selection::Selection;
+    use schema::Projection;
 
     use super::*;
 
@@ -466,8 +466,8 @@ pub mod test_util {
             let b_batch = b.table(table_name).expect("table not found");
 
             assert_eq!(
-                pretty_format_batches(&[a_batch.to_arrow(Selection::All).unwrap()]).unwrap(),
-                pretty_format_batches(&[b_batch.to_arrow(Selection::All).unwrap()]).unwrap(),
+                pretty_format_batches(&[a_batch.to_arrow(Projection::All).unwrap()]).unwrap(),
+                pretty_format_batches(&[b_batch.to_arrow(Projection::All).unwrap()]).unwrap(),
                 "batches for table \"{}\" differ",
                 table_name
             );

@@ -180,7 +180,7 @@ fn timestamp_value<'a>(
 mod tests {
     use super::*;
     use mutable_batch_lp::lines_to_batches;
-    use schema::selection::Selection;
+    use schema::Projection;
 
     #[test]
     fn basic() {
@@ -228,7 +228,7 @@ m,tag2=multi_field bool_field=false,str_field="blargh" 610
         );
         let (table_name, mutable_batch) = mutable_batches.into_iter().next().unwrap();
 
-        let selection = Selection::All;
+        let selection = Projection::All;
         let record_batch = mutable_batch.to_arrow(selection).unwrap();
         let iox_schema = mutable_batch.schema(selection).unwrap();
 

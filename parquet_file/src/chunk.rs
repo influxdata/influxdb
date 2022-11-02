@@ -6,7 +6,7 @@ use crate::{
     ParquetFilePath,
 };
 use data_types::{ParquetFile, TimestampMinMax};
-use schema::{selection::Selection, Schema};
+use schema::{Projection, Schema};
 use std::{collections::BTreeSet, mem, sync::Arc};
 use uuid::Uuid;
 
@@ -61,11 +61,11 @@ impl ParquetChunk {
     }
 
     /// Return the columns names that belong to the given column selection
-    pub fn column_names(&self, selection: Selection<'_>) -> Option<BTreeSet<String>> {
+    pub fn column_names(&self, selection: Projection<'_>) -> Option<BTreeSet<String>> {
         let fields = self.schema.inner().fields().iter();
 
         Some(match selection {
-            Selection::Some(cols) => fields
+            Projection::Some(cols) => fields
                 .filter_map(|x| {
                     if cols.contains(&x.name().as_str()) {
                         Some(x.name().clone())
@@ -74,7 +74,7 @@ impl ParquetChunk {
                     }
                 })
                 .collect(),
-            Selection::All => fields.map(|x| x.name().clone()).collect(),
+            Projection::All => fields.map(|x| x.name().clone()).collect(),
         })
     }
 

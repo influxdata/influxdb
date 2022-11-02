@@ -30,7 +30,7 @@ use iox_time::{Time, TimeProvider};
 use metric::{DurationHistogram, Metric};
 use observability_deps::tracing::{debug, trace, warn};
 use predicate::Predicate;
-use schema::{selection::Selection, sort::SortKey, Schema};
+use schema::{sort::SortKey, Projection, Schema};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     any::Any,
@@ -1094,7 +1094,7 @@ impl QueryChunk for IngesterChunk {
         &self,
         _ctx: IOxSessionContext,
         _predicate: &Predicate,
-        _columns: Selection<'_>,
+        _columns: Projection<'_>,
     ) -> Result<Option<StringSet>, DataFusionError> {
         // TODO maybe some special handling?
         Ok(None)
@@ -1783,7 +1783,7 @@ mod tests {
     }
 
     fn lp_to_record_batch(lp: &str) -> RecordBatch {
-        lp_to_mutable_batch(lp).1.to_arrow(Selection::All).unwrap()
+        lp_to_mutable_batch(lp).1.to_arrow(Projection::All).unwrap()
     }
 
     #[derive(Debug)]

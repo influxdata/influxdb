@@ -159,7 +159,7 @@ mod tests {
     use arrow_util::assert_batches_eq;
     use data_types::PartitionId;
     use mutable_batch_lp::lines_to_batches;
-    use schema::selection::Selection;
+    use schema::Projection;
 
     use super::*;
     use crate::test_util::{
@@ -182,7 +182,7 @@ mod tests {
             .unwrap()
             .get("cpu")
             .unwrap()
-            .to_arrow(Selection::All)
+            .to_arrow(Projection::All)
             .unwrap();
 
         let batch = QueryAdaptor::new(

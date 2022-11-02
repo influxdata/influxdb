@@ -135,7 +135,7 @@ mod tests {
 
     use arrow_util::assert_batches_eq;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
-    use schema::selection::Selection;
+    use schema::Projection;
 
     use super::*;
 
@@ -267,7 +267,7 @@ mod tests {
         // Generate the combined buffer from the original inputs to compare
         // against.
         mb1.extend_from(&mb2).unwrap();
-        let want = mb1.to_arrow(Selection::All).unwrap();
+        let want = mb1.to_arrow(Projection::All).unwrap();
 
         assert_eq!(&**snapshot, &want);
     }

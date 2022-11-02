@@ -2,7 +2,7 @@ use arrow_util::assert_batches_eq;
 use data_types::{PartitionTemplate, TemplatePart};
 use mutable_batch::{writer::Writer, MutableBatch, PartitionWrite, WritePayload};
 use mutable_batch_pb::{decode::write_table_batch, encode::encode_batch};
-use schema::selection::Selection;
+use schema::Projection;
 
 #[test]
 fn test_encode_decode() {
@@ -28,7 +28,7 @@ fn test_encode_decode() {
         "+-------+------+-------+-----+------+--------------------------------+-----+",
     ];
 
-    assert_batches_eq!(expected, &[batch.to_arrow(Selection::All).unwrap()]);
+    assert_batches_eq!(expected, &[batch.to_arrow(Projection::All).unwrap()]);
 
     let encoded = encode_batch("foo", 42, &batch);
     assert_eq!(encoded.table_id, 42);
@@ -36,7 +36,7 @@ fn test_encode_decode() {
     let mut batch = MutableBatch::new();
     write_table_batch(&mut batch, &encoded).unwrap();
 
-    assert_batches_eq!(expected, &[batch.to_arrow(Selection::All).unwrap()]);
+    assert_batches_eq!(expected, &[batch.to_arrow(Projection::All).unwrap()]);
 }
 
 // This test asserts columns containing no values do not prevent an encoded
@@ -154,7 +154,7 @@ fn test_encode_decode_null_columns_issue_4272() {
         "| 1 | 1970-01-01T00:00:00.000000160Z |",
         "+---+--------------------------------+",
     ];
-    assert_batches_eq!(expected, &[batch.to_arrow(Selection::All).unwrap()]);
+    assert_batches_eq!(expected, &[batch.to_arrow(Projection::All).unwrap()]);
 
     // And finally assert the "1970-07-05" round-trip
     let mut got = MutableBatch::default();
@@ -178,5 +178,5 @@ fn test_encode_decode_null_columns_issue_4272() {
         "| 1 | 1970-07-05T06:32:41.568756160Z |",
         "+---+--------------------------------+",
     ];
-    assert_batches_eq!(expected, &[batch.to_arrow(Selection::All).unwrap()]);
+    assert_batches_eq!(expected, &[batch.to_arrow(Projection::All).unwrap()]);
 }

@@ -24,7 +24,7 @@ use datafusion::{
 use datafusion_util::config::iox_session_config;
 use object_store::{DynObjectStore, ObjectMeta};
 use observability_deps::tracing::*;
-use schema::selection::{select_schema, Selection};
+use schema::Projection;
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -96,12 +96,13 @@ impl ParquetExecInput {
     pub async fn read_to_batches(
         &self,
         schema: SchemaRef,
-        selection: Selection<'_>,
+        projection: Projection<'_>,
         session_ctx: &SessionContext,
     ) -> Result<Vec<RecordBatch>, DataFusionError> {
         // Compute final (output) schema after selection
         let schema = Arc::new(
-            select_schema(selection, &schema)
+            projection
+                .project_schema(&schema)
                 .as_ref()
                 .clone()
                 .with_metadata(Default::default()),
@@ -328,7 +329,7 @@ mod tests {
         let batch = RecordBatch::try_from_iter([("a", to_string_array(&["value"]))]).unwrap();
         let schema = batch.schema();
 
-        assert_roundtrip(batch.clone(), Selection::All, schema, batch).await;
+        assert_roundtrip(batch.clone(), Projection::All, schema, batch).await;
     }
 
     #[tokio::test]
@@ -347,7 +348,7 @@ mod tests {
             ("c", to_string_array(&["foo"])),
         ])
         .unwrap();
-        assert_roundtrip(batch, Selection::Some(&["d", "c"]), schema, expected_batch).await;
+        assert_roundtrip(batch, Projection::Some(&["d", "c"]), schema, expected_batch).await;
     }
 
     #[tokio::test]
@@ -360,7 +361,7 @@ mod tests {
         let schema = batch.schema();
 
         let expected_batch = RecordBatch::try_from_iter([("b", to_int_array(&[1]))]).unwrap();
-        assert_roundtrip(batch, Selection::Some(&["b", "c"]), schema, expected_batch).await;
+        assert_roundtrip(batch, Projection::Some(&["b", "c"]), schema, expected_batch).await;
     }
 
     #[tokio::test]
@@ -376,7 +377,7 @@ mod tests {
         ])
         .unwrap();
         let schema = schema_batch.schema();
-        assert_roundtrip(file_batch, Selection::All, schema, schema_batch).await;
+        assert_roundtrip(file_batch, Projection::All, schema, schema_batch).await;
     }
 
     #[tokio::test]
@@ -402,7 +403,7 @@ mod tests {
             ("c", to_string_array(&["foo"])),
         ])
         .unwrap();
-        assert_roundtrip(batch, Selection::Some(&["d", "c"]), schema, expected_batch).await;
+        assert_roundtrip(batch, Projection::Some(&["d", "c"]), schema, expected_batch).await;
     }
 
     #[tokio::test]
@@ -465,7 +466,7 @@ mod tests {
                 .clone()
                 .with_metadata(HashMap::from([(String::from("foo"), String::from("bar"))])),
         );
-        download(&store, &meta, Selection::All, schema, file_size)
+        download(&store, &meta, Projection::All, schema, file_size)
             .await
             .unwrap();
     }
@@ -494,7 +495,7 @@ mod tests {
         // Serialize & upload the record batches.
         let (_iox_md, file_size) = upload(&store, &meta, batch).await;
 
-        download(&store, &meta, Selection::All, schema, file_size)
+        download(&store, &meta, Projection::All, schema, file_size)
             .await
             .unwrap();
     }
@@ -509,7 +510,7 @@ mod tests {
         let expected_batch =
             RecordBatch::try_from_iter([("a", to_string_array(&["value"]))]).unwrap();
         let schema = expected_batch.schema();
-        assert_roundtrip(file_batch, Selection::All, schema, expected_batch).await;
+        assert_roundtrip(file_batch, Projection::All, schema, expected_batch).await;
     }
 
     #[tokio::test]
@@ -527,7 +528,7 @@ mod tests {
         let schema = schema_batch.schema();
         let expected_batch =
             RecordBatch::try_from_iter([("a", to_string_array(&["value"]))]).unwrap();
-        assert_roundtrip(file_batch, Selection::Some(&["a"]), schema, expected_batch).await;
+        assert_roundtrip(file_batch, Projection::Some(&["a"]), schema, expected_batch).await;
     }
 
     fn to_string_array(strs: &[&str]) -> ArrayRef {
@@ -572,7 +573,7 @@ mod tests {
     async fn download<'a>(
         store: &ParquetStorage,
         meta: &IoxMetadata,
-        selection: Selection<'_>,
+        selection: Projection<'_>,
         expected_schema: SchemaRef,
         file_size: usize,
     ) -> Result<RecordBatch, DataFusionError> {
@@ -589,7 +590,7 @@ mod tests {
 
     async fn assert_roundtrip(
         upload_batch: RecordBatch,
-        selection: Selection<'_>,
+        selection: Projection<'_>,
         expected_schema: SchemaRef,
         expected_batch: RecordBatch,
     ) {
@@ -620,7 +621,7 @@ mod tests {
         let meta = meta();
         let (_iox_md, file_size) = upload(&store, &meta, persisted_batch).await;
 
-        let err = download(&store, &meta, Selection::All, expected_schema, file_size)
+        let err = download(&store, &meta, Projection::All, expected_schema, file_size)
             .await
             .unwrap_err();
 

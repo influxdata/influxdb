@@ -4,7 +4,7 @@ use data_types::ShardIndex;
 use generated_types::influxdata::iox::ingester::v1::GetWriteInfoResponse;
 use iox_query::util::create_basic_summary;
 use parking_lot::Mutex;
-use schema::selection::Selection;
+use schema::Projection;
 use schema::Schema as IOxSchema;
 use std::{any::Any, sync::Arc};
 use trace::span::Span;
@@ -43,10 +43,10 @@ impl IngesterConnection for MockIngesterConnection {
         // see if we want to do projection pushdown
         let mut prune_columns = true;
         let cols: Vec<&str> = columns.iter().map(|s| s.as_str()).collect();
-        let selection = Selection::Some(&cols);
+        let selection = Projection::Some(&cols);
         match selection {
-            Selection::All => prune_columns = false,
-            Selection::Some(val) => {
+            Projection::All => prune_columns = false,
+            Projection::Some(val) => {
                 if val.is_empty() {
                     prune_columns = false;
                 }

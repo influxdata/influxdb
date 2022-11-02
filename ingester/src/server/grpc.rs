@@ -481,7 +481,7 @@ mod tests {
     use data_types::PartitionId;
     use futures::StreamExt;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
-    use schema::selection::Selection;
+    use schema::Projection;
 
     use crate::querier_handler::PartitionStatus;
 
@@ -496,7 +496,7 @@ mod tests {
     async fn test_get_stream_all_types() {
         let batch = lp_to_mutable_batch("table z=1 0")
             .1
-            .to_arrow(Selection::All)
+            .to_arrow(Projection::All)
             .unwrap();
         let schema = batch.schema();
 
@@ -572,7 +572,7 @@ mod tests {
     async fn test_get_stream_dictionary_batches() {
         let batch = lp_to_mutable_batch("table,x=\"foo\",y=\"bar\" z=1 0")
             .1
-            .to_arrow(Selection::All)
+            .to_arrow(Projection::All)
             .unwrap();
 
         assert_get_stream(

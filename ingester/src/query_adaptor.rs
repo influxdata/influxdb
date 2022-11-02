@@ -14,7 +14,7 @@ use iox_query::{
 };
 use once_cell::sync::OnceCell;
 use predicate::Predicate;
-use schema::{merge::merge_record_batch_schemas, selection::Selection, sort::SortKey, Schema};
+use schema::{merge::merge_record_batch_schemas, sort::SortKey, Projection, Schema};
 use snafu::Snafu;
 
 use crate::data::table::TableName;
@@ -101,7 +101,7 @@ impl QueryAdaptor {
         }
     }
 
-    pub(crate) fn project_selection(&self, selection: Selection<'_>) -> Vec<RecordBatch> {
+    pub(crate) fn project_selection(&self, selection: Projection<'_>) -> Vec<RecordBatch> {
         // Project the column selection across all RecordBatch
         self.data
             .iter()
@@ -111,8 +111,8 @@ impl QueryAdaptor {
 
                 // Apply selection to in-memory batch
                 match selection {
-                    Selection::All => batch.clone(),
-                    Selection::Some(columns) => {
+                    Projection::All => batch.clone(),
+                    Projection::Some(columns) => {
                         let projection = columns
                             .iter()
                             .flat_map(|&column_name| {
@@ -203,7 +203,7 @@ impl QueryChunk for QueryAdaptor {
         &self,
         _ctx: IOxSessionContext,
         _predicate: &Predicate,
-        _columns: Selection<'_>,
+        _columns: Projection<'_>,
     ) -> Result<Option<StringSet>, DataFusionError> {
         Ok(None)
     }

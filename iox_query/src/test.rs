@@ -29,8 +29,8 @@ use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 use predicate::rpc_predicate::QueryDatabaseMeta;
 use schema::{
-    builder::SchemaBuilder, merge::SchemaMerger, selection::Selection, sort::SortKey,
-    InfluxColumnType, Schema, TIME_COLUMN_NAME,
+    builder::SchemaBuilder, merge::SchemaMerger, sort::SortKey, InfluxColumnType, Projection,
+    Schema, TIME_COLUMN_NAME,
 };
 use std::{any::Any, collections::BTreeMap, fmt, num::NonZeroU64, sync::Arc};
 use trace::ctx::SpanContext;
@@ -985,7 +985,7 @@ impl QueryChunk for TestChunk {
         &self,
         _ctx: IOxSessionContext,
         predicate: &Predicate,
-        selection: Selection<'_>,
+        selection: Projection<'_>,
     ) -> Result<Option<StringSet>, DataFusionError> {
         self.check_error()?;
 
@@ -994,8 +994,8 @@ impl QueryChunk for TestChunk {
 
         // only return columns specified in selection
         let column_names = match selection {
-            Selection::All => self.all_column_names(),
-            Selection::Some(cols) => self.specific_column_names_selection(cols),
+            Projection::All => self.all_column_names(),
+            Projection::Some(cols) => self.specific_column_names_selection(cols),
         };
 
         Ok(Some(column_names))

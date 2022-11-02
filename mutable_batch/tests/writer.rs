@@ -1,7 +1,7 @@
 use arrow_util::assert_batches_eq;
 use data_types::{StatValues, Statistics};
 use mutable_batch::{writer::Writer, MutableBatch, TimestampSummary};
-use schema::selection::Selection;
+use schema::Projection;
 use std::num::NonZeroU64;
 
 fn get_stats(batch: &MutableBatch) -> Vec<(&str, Statistics)> {
@@ -158,7 +158,7 @@ fn test_basic() {
         ),
     ];
 
-    assert_batches_eq!(expected_data, &[batch.to_arrow(Selection::All).unwrap()]);
+    assert_batches_eq!(expected_data, &[batch.to_arrow(Projection::All).unwrap()]);
     assert_eq!(stats, expected_stats);
 
     let mut writer = Writer::new(&mut batch, 4);
@@ -175,7 +175,7 @@ fn test_basic() {
     let stats: Vec<_> = get_stats(&batch);
 
     // Writer dropped, should not impact stats or data
-    assert_batches_eq!(expected_data, &[batch.to_arrow(Selection::All).unwrap()]);
+    assert_batches_eq!(expected_data, &[batch.to_arrow(Projection::All).unwrap()]);
     assert_eq!(stats, expected_stats);
 
     let err = Writer::new(&mut batch, 1)
@@ -208,7 +208,7 @@ fn test_basic() {
     let stats: Vec<_> = get_stats(&batch);
 
     // Writer not committed, should not impact stats or data
-    assert_batches_eq!(expected_data, &[batch.to_arrow(Selection::All).unwrap()]);
+    assert_batches_eq!(expected_data, &[batch.to_arrow(Projection::All).unwrap()]);
     assert_eq!(stats, expected_stats);
 
     let mut writer = Writer::new(&mut batch, 17);
@@ -330,7 +330,7 @@ fn test_basic() {
         ),
     ];
 
-    assert_batches_eq!(expected_data, &[batch.to_arrow(Selection::All).unwrap()]);
+    assert_batches_eq!(expected_data, &[batch.to_arrow(Projection::All).unwrap()]);
     assert_eq!(stats, expected_stats);
 
     let mut expected_timestamps = TimestampSummary::default();

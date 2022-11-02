@@ -12,7 +12,7 @@ use iox_query::{
 };
 use parquet_file::chunk::ParquetChunk;
 use predicate::{delete_predicate::tombstones_to_delete_predicates, Predicate};
-use schema::{merge::SchemaMerger, selection::Selection, sort::SortKey, Schema};
+use schema::{merge::SchemaMerger, sort::SortKey, Projection, Schema};
 use std::{any::Any, sync::Arc};
 use uuid::Uuid;
 
@@ -172,7 +172,7 @@ impl QueryChunk for QueryableParquetChunk {
         &self,
         _ctx: IOxSessionContext,
         _predicate: &Predicate,
-        _columns: Selection<'_>,
+        _columns: Projection<'_>,
     ) -> Result<Option<StringSet>, DataFusionError> {
         Ok(None)
     }

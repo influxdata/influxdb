@@ -18,7 +18,7 @@ use data_types::{IsNan, PartitionTemplate, StatValues, Statistics, TemplatePart}
 use hashbrown::HashSet;
 use mutable_batch::{writer::Writer, MutableBatch, PartitionWrite, WritePayload};
 use rand::prelude::*;
-use schema::selection::Selection;
+use schema::Projection;
 use std::{collections::BTreeMap, num::NonZeroU64, ops::Range, sync::Arc};
 
 fn make_rng() -> StdRng {
@@ -391,7 +391,7 @@ fn test_writer_fuzz() {
         expected.concat(&ret.filter(&ranges));
     }
 
-    let actual = batch.to_arrow(Selection::All).unwrap();
+    let actual = batch.to_arrow(Projection::All).unwrap();
 
     assert_eq!(
         arrow_util::display::pretty_format_batches(&[actual]).unwrap(),

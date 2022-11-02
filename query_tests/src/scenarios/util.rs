@@ -30,7 +30,7 @@ use querier::{
     IngesterConnectionImpl, IngesterFlightClient, IngesterFlightClientError,
     IngesterFlightClientQueryData, QuerierCatalogCache, QuerierNamespace,
 };
-use schema::selection::Selection;
+use schema::Projection;
 use sharder::JumpHash;
 use std::{
     cmp::Ordering,
@@ -816,7 +816,7 @@ impl MockIngester {
             let schema = mutable_batches
                 .get(&table.table.name)
                 .unwrap()
-                .schema(Selection::All)
+                .schema(Projection::All)
                 .unwrap();
 
             for (t, field) in schema.iter() {

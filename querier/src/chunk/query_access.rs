@@ -6,7 +6,7 @@ use iox_query::{
     QueryChunk, QueryChunkData, QueryChunkMeta,
 };
 use predicate::Predicate;
-use schema::{selection::Selection, sort::SortKey, Schema};
+use schema::{sort::SortKey, Projection, Schema};
 use std::{any::Any, sync::Arc};
 
 impl QueryChunkMeta for QuerierChunk {
@@ -52,7 +52,7 @@ impl QueryChunk for QuerierChunk {
         &self,
         mut ctx: IOxSessionContext,
         predicate: &Predicate,
-        columns: Selection<'_>,
+        columns: Projection<'_>,
     ) -> Result<Option<StringSet>, DataFusionError> {
         ctx.set_metadata("projection", format!("{}", columns));
         ctx.set_metadata("predicate", format!("{}", &predicate));

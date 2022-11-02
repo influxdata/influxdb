@@ -20,9 +20,8 @@ use observability_deps::tracing::{debug, trace};
 use parquet_file::storage::ParquetExecInput;
 use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate, PredicateMatch};
 use schema::{
-    selection::Selection,
     sort::{SortKey, SortKeyBuilder},
-    Schema, TIME_COLUMN_NAME,
+    Projection, Schema, TIME_COLUMN_NAME,
 };
 use std::{any::Any, collections::BTreeSet, fmt::Debug, iter::FromIterator, sync::Arc};
 
@@ -199,7 +198,7 @@ impl QueryChunkData {
         match self {
             Self::RecordBatches(batches) => batches,
             Self::Parquet(exec_input) => exec_input
-                .read_to_batches(schema.as_arrow(), Selection::All, session_ctx)
+                .read_to_batches(schema.as_arrow(), Projection::All, session_ctx)
                 .await
                 .unwrap(),
         }
@@ -240,7 +239,7 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
         &self,
         ctx: IOxSessionContext,
         predicate: &Predicate,
-        columns: Selection<'_>,
+        columns: Projection<'_>,
     ) -> Result<Option<StringSet>, DataFusionError>;
 
     /// Return a set of Strings containing the distinct values in the

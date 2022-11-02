@@ -437,7 +437,7 @@ fn pb_value_type(column: &str, values: &PbValues) -> Result<InfluxFieldType> {
 mod tests {
     use arrow_util::assert_batches_eq;
     use generated_types::influxdata::pbdata::v1::InternedStrings;
-    use schema::selection::Selection;
+    use schema::Projection;
 
     use super::*;
 
@@ -644,7 +644,7 @@ mod tests {
             "+-----+-----+------+------+--------------------------------+-----+",
         ];
 
-        assert_batches_eq!(expected, &[batch.to_arrow(Selection::All).unwrap()]);
+        assert_batches_eq!(expected, &[batch.to_arrow(Projection::All).unwrap()]);
 
         table_batch.columns.push(table_batch.columns[0].clone());
 
@@ -664,7 +664,7 @@ mod tests {
             .to_string();
         assert_eq!(err, "table batch must contain time column");
 
-        assert_batches_eq!(expected, &[batch.to_arrow(Selection::All).unwrap()]);
+        assert_batches_eq!(expected, &[batch.to_arrow(Projection::All).unwrap()]);
 
         // Nulls in time column -> error
         time.null_mask = vec![1];
@@ -675,7 +675,7 @@ mod tests {
             .to_string();
         assert_eq!(err, "time column must not contain nulls");
 
-        assert_batches_eq!(expected, &[batch.to_arrow(Selection::All).unwrap()]);
+        assert_batches_eq!(expected, &[batch.to_arrow(Projection::All).unwrap()]);
 
         // Missing values -> error
         table_batch.columns[0].values.take().unwrap();
@@ -685,7 +685,7 @@ mod tests {
             .to_string();
         assert_eq!(err, "column with no values: tag1");
 
-        assert_batches_eq!(expected, &[batch.to_arrow(Selection::All).unwrap()]);
+        assert_batches_eq!(expected, &[batch.to_arrow(Projection::All).unwrap()]);
 
         // No data -> error
         table_batch.columns[0].values = Some(PbValues {
@@ -704,7 +704,7 @@ mod tests {
             .to_string();
         assert_eq!(err, "column with no values: tag1");
 
-        assert_batches_eq!(expected, &[batch.to_arrow(Selection::All).unwrap()]);
+        assert_batches_eq!(expected, &[batch.to_arrow(Projection::All).unwrap()]);
     }
 
     #[test]
@@ -784,7 +784,7 @@ mod tests {
             "+----------+----+--------+-------+------+--------------------------------+",
         ];
 
-        assert_batches_eq!(expected, &[batch.to_arrow(Selection::All).unwrap()]);
+        assert_batches_eq!(expected, &[batch.to_arrow(Projection::All).unwrap()]);
 
         // Try to write 6 rows expecting an error
         let mut try_write = |other: PbColumn, expected_err: &str| {
@@ -807,7 +807,7 @@ mod tests {
                 .to_string();
 
             assert_eq!(err, expected_err);
-            assert_batches_eq!(expected, &[batch.to_arrow(Selection::All).unwrap()]);
+            assert_batches_eq!(expected, &[batch.to_arrow(Projection::All).unwrap()]);
         };
 
         try_write(
@@ -931,7 +931,7 @@ mod tests {
             "+-----+--------------------------------+",
         ];
 
-        assert_batches_eq!(expected, &[batch.to_arrow(Selection::All).unwrap()]);
+        assert_batches_eq!(expected, &[batch.to_arrow(Projection::All).unwrap()]);
     }
 
     #[test]
@@ -968,7 +968,7 @@ mod tests {
             "+--------------------------------+",
         ];
 
-        assert_batches_eq!(expected, &[batch.to_arrow(Selection::All).unwrap()]);
+        assert_batches_eq!(expected, &[batch.to_arrow(Projection::All).unwrap()]);
     }
 
     #[test]
@@ -1071,7 +1071,7 @@ mod tests {
             "+-------+-----+-----+-----+-----+-----+-----+-----+-----+--------------------------------+-----+",
         ];
 
-        assert_batches_eq!(expected, &[batch.to_arrow(Selection::All).unwrap()]);
+        assert_batches_eq!(expected, &[batch.to_arrow(Projection::All).unwrap()]);
 
         // we need at least one value though
         let table_batch = TableBatch {

@@ -31,9 +31,8 @@ use parquet_file::{
     storage::{ParquetStorage, StorageId},
 };
 use schema::{
-    selection::Selection,
     sort::{adjust_sort_key_columns, compute_sort_key, SortKey},
-    Schema,
+    Projection, Schema,
 };
 use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
@@ -392,7 +391,7 @@ impl TestTable {
             .parquet_exec_input()
             .read_to_batches(
                 chunk.schema().as_arrow(),
-                Selection::All,
+                Projection::All,
                 &chunk.store().test_df_context(),
             )
             .await
@@ -751,8 +750,8 @@ impl TestParquetFileBuilder {
     pub fn with_line_protocol(self, line_protocol: &str) -> Self {
         let (table, batch) = lp_to_mutable_batch(line_protocol);
 
-        let schema = batch.schema(Selection::All).unwrap();
-        let record_batch = batch.to_arrow(Selection::All).unwrap();
+        let schema = batch.schema(Projection::All).unwrap();
+        let record_batch = batch.to_arrow(Projection::All).unwrap();
 
         self.with_record_batch(record_batch)
             .with_table(table)

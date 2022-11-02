@@ -13,7 +13,7 @@ use router::{
     dml_handlers::{DmlHandler, SchemaValidator},
     namespace_cache::{MemoryNamespaceCache, ShardedCache},
 };
-use schema::selection::Selection;
+use schema::Projection;
 use tokio::runtime::Runtime;
 
 static NAMESPACE: Lazy<DatabaseName<'static>> = Lazy::new(|| "bananas".try_into().unwrap());
@@ -55,7 +55,7 @@ fn bench(group: &mut BenchmarkGroup<WallTime>, tables: usize, columns_per_table:
     let write = lp_to_writes(&generate_lp(tables, columns_per_table));
     let column_count = write
         .values()
-        .fold(0, |acc, b| acc + b.schema(Selection::All).unwrap().len());
+        .fold(0, |acc, b| acc + b.schema(Projection::All).unwrap().len());
 
     group.throughput(Throughput::Elements(column_count as _));
     group.bench_function(format!("{tables}x{columns_per_table}"), |b| {

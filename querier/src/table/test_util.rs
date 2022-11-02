@@ -8,7 +8,7 @@ use data_types::{ChunkId, SequenceNumber, ShardIndex};
 use iox_catalog::interface::get_schema_by_name;
 use iox_tests::util::{TestCatalog, TestPartition, TestShard, TestTable};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
-use schema::{selection::Selection, sort::SortKey, Schema};
+use schema::{sort::SortKey, Projection, Schema};
 use sharder::JumpHash;
 use std::sync::Arc;
 use tokio::runtime::Handle;
@@ -49,7 +49,7 @@ pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -
 
 /// Convert the line protocol in `lp `to a RecordBatch
 pub(crate) fn lp_to_record_batch(lp: &str) -> RecordBatch {
-    lp_to_mutable_batch(lp).1.to_arrow(Selection::All).unwrap()
+    lp_to_mutable_batch(lp).1.to_arrow(Projection::All).unwrap()
 }
 
 /// Helper for creating IngesterPartitions
