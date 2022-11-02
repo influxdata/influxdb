@@ -25,7 +25,7 @@ use rskafka::{
     client::{
         consumer::{StartOffset, StreamConsumerBuilder},
         error::{Error as RSKafkaError, ProtocolError},
-        partition::{OffsetAt, PartitionClient, UnknownTopicHandling},
+        partition::{Compression, OffsetAt, PartitionClient, UnknownTopicHandling},
         producer::{BatchProducer, BatchProducerBuilder},
         ClientBuilder,
     },
@@ -90,7 +90,8 @@ impl RSKafkaProducer {
                 );
 
                 let mut producer_builder =
-                    BatchProducerBuilder::new_with_client(Arc::new(partition_client));
+                    BatchProducerBuilder::new_with_client(Arc::new(partition_client))
+                        .with_compression(Compression::Zstd);
                 if let Some(linger) = producer_config.linger {
                     producer_builder = producer_builder.with_linger(linger);
                 }
