@@ -352,7 +352,7 @@ mod tests {
 
     #[test]
     fn test_dml_write_round_trip() {
-        let (data, ids) = lp_to_batches("platanos great=yes 100\nbananas greatness=1000 100");
+        let (data, ids) = lp_to_batches("platanos great=42 100\nbananas greatness=1000 100");
 
         let w = DmlWrite::new(
             "bananas",
@@ -388,11 +388,13 @@ mod tests {
         assert_eq!(w.table_count(), got.table_count());
         assert_eq!(w.min_timestamp(), got.min_timestamp());
         assert_eq!(w.max_timestamp(), got.max_timestamp());
-        assert_eq!(w.size(), got.size());
         assert!(got.table("bananas").is_some());
-        assert_eq!(
-            w.tables().map(|(name, _)| name).collect::<Vec<_>>(),
-            got.tables().map(|(name, _)| name).collect::<Vec<_>>(),
-        );
+
+        let mut a = w.tables().map(|(name, _)| name).collect::<Vec<_>>();
+        a.sort_unstable();
+
+        let mut b = got.tables().map(|(name, _)| name).collect::<Vec<_>>();
+        b.sort_unstable();
+        assert_eq!(a, b);
     }
 }
