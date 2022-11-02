@@ -1,3 +1,10 @@
+## v2.5.1 [2022-11-02]
+----------------------
+
+### Other
+
+1. [5b6fdbf](https://github.com/influxdata/influxdb/commit/5b6fdbf): Revert "fix: set limited permissions on package installs
+
 ## v2.5.0 [2022-11-01]
 ----------------------
 
