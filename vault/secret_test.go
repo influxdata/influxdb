@@ -17,7 +17,7 @@ func initSecretService(f influxdbtesting.SecretServiceFields, t *testing.T) (inf
 	token := "test"
 	ctx := context.Background()
 	vaultC, err := GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: ContainerRequest{
+		ContainerRequest: testcontainers.ContainerRequest{
 			Image: "docker.io/vault:latest",
 			ExposedPorts: []string{
 				"8200/tcp",
