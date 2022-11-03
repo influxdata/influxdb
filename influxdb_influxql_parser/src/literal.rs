@@ -249,15 +249,15 @@ fn single_duration(i: &str) -> ParseResult<&str, i64> {
         pair(
             integer,
             alt((
-                value(Nanosecond, tag("ns")),   // nanoseconds
-                value(Microsecond, tag("µs")), // microseconds
-                value(Microsecond, tag("us")),  // microseconds
-                value(Millisecond, tag("ms")),  // milliseconds
-                value(Second, tag("s")),        // seconds
-                value(Minute, tag("m")),        // minutes
-                value(Hour, tag("h")),          // hours
-                value(Day, tag("d")),           // days
-                value(Week, tag("w")),          // weeks
+                value(Nanosecond, tag("ns")),  // nanoseconds
+                value(Microsecond, tag("µ")), // microseconds
+                value(Microsecond, tag("u")),  // microseconds
+                value(Millisecond, tag("ms")), // milliseconds
+                value(Second, tag("s")),       // seconds
+                value(Minute, tag("m")),       // minutes
+                value(Hour, tag("h")),         // hours
+                value(Day, tag("d")),          // days
+                value(Week, tag("w")),         // weeks
             )),
         ),
         |(v, unit)| match unit {
@@ -410,10 +410,14 @@ mod test {
         let (_, got) = single_duration("38ns").unwrap();
         assert_eq!(got, 38);
 
-        let (_, got) = single_duration("22us").unwrap();
+        let (_, got) = single_duration("22u").unwrap();
         assert_eq!(got, 22 * NANOS_PER_MICRO);
 
-        let (_, got) = single_duration("7µs").unwrap();
+        let (rem, got) = single_duration("22us").unwrap();
+        assert_eq!(got, 22 * NANOS_PER_MICRO);
+        assert_eq!(rem, "s"); // prove that we ignore the trailing s
+
+        let (_, got) = single_duration("7µ").unwrap();
         assert_eq!(got, 7 * NANOS_PER_MICRO);
 
         let (_, got) = single_duration("15ms").unwrap();

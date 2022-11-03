@@ -7,8 +7,8 @@
 use crate::impl_tuple_clause;
 use crate::internal::{expect, ParseError, ParseResult};
 use nom::branch::alt;
-use nom::bytes::complete::{is_not, tag};
-use nom::character::complete::char;
+use nom::bytes::complete::{is_not, tag, take_till};
+use nom::character::complete::{anychar, char};
 use nom::combinator::{map, value, verify};
 use nom::error::Error;
 use nom::multi::fold_many0;
@@ -137,13 +137,24 @@ fn regex_literal(i: &str) -> ParseResult<&str, &str> {
 
     loop {
         // match everything except `\`, `/` or `\n`
-        let (_, match_i) = is_not("\\/\n")(remaining)?;
+        let (_, match_i) = take_till(|c| c == '\\' || c == '/' || c == '\n')(remaining)?;
         consumed = &i[..(consumed.len() + match_i.len())];
         remaining = &i[consumed.len()..];
+
+        // If we didn't consume anything, check whether it is a newline or regex delimiter,
+        // which signals we should leave this parser for outer processing.
+        if consumed.is_empty() {
+            is_not("/\n")(remaining)?;
+        }
 
         // Try and consume '\' followed by a '/'
         if let Ok((remaining_i, _)) = char::<_, Error<&str>>('\\')(remaining) {
             if char::<_, Error<&str>>('/')(remaining_i).is_ok() {
+                // If we didn't consume anything, but we found "\/" sequence,
+                // we need to return an error so the outer fold_many0 parser does not trigger
+                // an infinite recursion error.
+                anychar(consumed)?;
+
                 // We're escaping a '/' (a regex delimiter), so finish and let
                 // the outer parser match and unescape
                 return Ok((remaining, consumed));
@@ -200,6 +211,10 @@ mod test {
         // ascii
         let (_, got) = double_quoted_string(r#""quick draw""#).unwrap();
         assert_eq!(got, "quick draw");
+
+        // ascii
+        let (_, got) = double_quoted_string(r#""n.asks""#).unwrap();
+        assert_eq!(got, "n.asks");
 
         // unicode
         let (_, got) = double_quoted_string("\"quick draw\u{1f47d}\"").unwrap();
@@ -265,6 +280,9 @@ mod test {
         let (_, got) = single_quoted_string(r#"'\n\''"#).unwrap();
         assert_eq!(got, "\n'");
 
+        let (_, got) = single_quoted_string(r#"'\'hello\''"#).unwrap();
+        assert_eq!(got, "'hello'");
+
         // literal tab
         let (_, got) = single_quoted_string("'quick\tdraw'").unwrap();
         assert_eq!(got, "quick\tdraw");
@@ -300,12 +318,16 @@ mod test {
         assert_eq!(got, "hello".into());
 
         // handle escaped delimiters "\/"
-        let (_, got) = regex(r#"/this\/is\/a\/path/"#).unwrap();
-        assert_eq!(got, "this/is/a/path".into());
+        let (_, got) = regex(r#"/\/this\/is\/a\/path/"#).unwrap();
+        assert_eq!(got, "/this/is/a/path".into());
 
         // ignores any other possible escape sequence
         let (_, got) = regex(r#"/hello\n/"#).unwrap();
         assert_eq!(got, "hello\\n".into());
+
+        // can parse possible escape sequence at beginning of regex
+        let (_, got) = regex(r#"/\w.*/"#).unwrap();
+        assert_eq!(got, "\\w.*".into());
 
         // Empty regex
         let (i, got) = regex("//").unwrap();

@@ -12,7 +12,7 @@ use nom::bytes::complete::tag;
 use nom::character::complete::{char, multispace0};
 use nom::combinator::{cut, map, opt, value};
 use nom::multi::{many0, separated_list0};
-use nom::sequence::{delimited, pair, preceded, separated_pair, tuple};
+use nom::sequence::{delimited, pair, preceded, separated_pair, terminated, tuple};
 use std::fmt::{Display, Formatter, Write};
 
 /// An InfluxQL arithmetic expression.
@@ -316,11 +316,54 @@ where
     )(i)
 }
 
-/// Parse a variable reference, which is an identifier followed by an optional cast expression.
+/// Parse a segmented identifier
+///
+/// ```text
+/// segmented_identifier ::= identifier |
+///                          ( identifier "." identifier ) |
+///                          ( identifier "." identifier? "." identifier )
+/// ```
+fn segmented_identifier(i: &str) -> ParseResult<&str, Identifier> {
+    let (remaining, (opt_prefix, name)) = pair(
+        opt(alt((
+            // ident2 "." ident1 "."
+            map(
+                pair(
+                    terminated(identifier, tag(".")),
+                    terminated(identifier, tag(".")),
+                ),
+                |(ident2, ident1)| (Some(ident2), Some(ident1)),
+            ),
+            // identifier ".."
+            map(terminated(identifier, tag("..")), |ident2| {
+                (Some(ident2), None)
+            }),
+            // identifier "."
+            map(terminated(identifier, tag(".")), |ident1| {
+                (None, Some(ident1))
+            }),
+        ))),
+        identifier,
+    )(i)?;
+
+    Ok((
+        remaining,
+        match opt_prefix {
+            Some((None, Some(ident1))) => format!("{}.{}", ident1.0, name.0).into(),
+            Some((Some(ident2), None)) => format!("{}..{}", ident2.0, name.0).into(),
+            Some((Some(ident2), Some(ident1))) => {
+                format!("{}.{}.{}", ident2.0, ident1.0, name.0).into()
+            }
+            _ => name,
+        },
+    ))
+}
+
+/// Parse a variable reference, which is a segmented identifier followed by an optional cast expression.
 pub(crate) fn var_ref(i: &str) -> ParseResult<&str, Expr> {
     map(
         pair(
-            identifier,
+            segmented_identifier,
             opt(preceded(
                 tag("::"),
                 expect(
@@ -515,6 +558,19 @@ mod test {
         let (_, got) = var_ref("foo").unwrap();
         assert_eq!(got, var_ref!("foo"));
 
+        // Whilst this is parsed as a 3-part name, it is treated as a quoted string 🙄
+        // VarRefs are parsed as segmented identifiers
+        //
+        //   * https://github.com/influxdata/influxql/blob/7e7d61973256ffeef4b99edd0a89f18a9e52fa2d/parser.go#L2515-L2516
+        //
+        // and then the segments are joined as a single string
+        //
+        //   * https://github.com/influxdata/influxql/blob/7e7d61973256ffeef4b99edd0a89f18a9e52fa2d/parser.go#L2551
+        let (rem, got) = var_ref("db.rp.foo").unwrap();
+        assert_eq!(got, var_ref!("db.rp.foo"));
+        assert_eq!(format!("{}", got), r#""db.rp.foo""#);
+        assert_eq!(rem, "");
+
         // with cast operator
         let (_, got) = var_ref("foo::tag").unwrap();
         assert_eq!(got, var_ref!("foo", Tag));
@@ -537,6 +593,62 @@ mod test {
         // Various whitespace separators are supported between tokens
         let (got, _) = arithmetic_expression("foo\n | 1 \t + \n \t3").unwrap();
         assert!(got.is_empty())
+    }
+
+    #[test]
+    fn test_segmented_identifier() {
+        // Unquoted
+        let (rem, id) = segmented_identifier("part0").unwrap();
+        assert_eq!(rem, "");
+        assert_eq!(format!("{}", id), "part0");
+
+        // id.id
+        let (rem, id) = segmented_identifier("part1.part0").unwrap();
+        assert_eq!(rem, "");
+        assert_eq!(format!("{}", id), "\"part1.part0\"");
+
+        // id..id
+        let (rem, id) = segmented_identifier("part2..part0").unwrap();
+        assert_eq!(rem, "");
+        assert_eq!(format!("{}", id), "\"part2..part0\"");
+
+        // id.id.id
+        let (rem, id) = segmented_identifier("part2.part1.part0").unwrap();
+        assert_eq!(rem, "");
+        assert_eq!(format!("{}", id), "\"part2.part1.part0\"");
+
+        // "id"."id".id
+        let (rem, id) = segmented_identifier(r#""part 2"."part 1".part0"#).unwrap();
+        assert_eq!(rem, "");
+        assert_eq!(format!("{}", id), "\"part 2.part 1.part0\"");
+
+        // Only parses 3 segments
+        let (rem, id) = segmented_identifier("part2.part1.part0.foo").unwrap();
+        assert_eq!(rem, ".foo");
+        assert_eq!(format!("{}", id), "\"part2.part1.part0\"");
+
+        // Quoted
+        let (rem, id) = segmented_identifier("\"part0\"").unwrap();
+        assert_eq!(rem, "");
+        assert_eq!(format!("{}", id), "part0");
+
+        // Additional test cases, with compatibility proven via https://go.dev/play/p/k2150CJocVl
+
+        let (rem, id) = segmented_identifier(r#""part" 2"."part 1".part0"#).unwrap();
+        assert_eq!(rem, r#" 2"."part 1".part0"#);
+        assert_eq!(format!("{}", id), "part");
+
+        let (rem, id) = segmented_identifier(r#""part" 2."part 1".part0"#).unwrap();
+        assert_eq!(rem, r#" 2."part 1".part0"#);
+        assert_eq!(format!("{}", id), "part");
+
+        let (rem, id) = segmented_identifier(r#""part "2"."part 1".part0"#).unwrap();
+        assert_eq!(rem, r#"2"."part 1".part0"#);
+        assert_eq!(format!("{}", id), r#""part ""#);
+
+        let (rem, id) = segmented_identifier(r#""part ""2"."part 1".part0"#).unwrap();
+        assert_eq!(rem, r#""2"."part 1".part0"#);
+        assert_eq!(format!("{}", id), r#""part ""#);
     }
 
     #[test]
