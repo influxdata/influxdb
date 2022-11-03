@@ -494,6 +494,7 @@ mod tests {
             memory_budget_bytes: 10 * 1024 * 1024,
             min_num_rows_allocated_per_record_batch_to_datafusion_plan: 100,
             max_num_compacting_files: 20,
+            minutes_without_new_writes_to_be_cold: 10,
         };
         let compactor = Arc::new(Compactor::new(
             vec![shard1.shard.id, shard2.shard.id],

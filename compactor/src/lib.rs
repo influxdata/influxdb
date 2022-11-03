@@ -561,6 +561,7 @@ pub mod tests {
             memory_budget_bytes: budget,
             min_num_rows_allocated_per_record_batch_to_datafusion_plan: 2,
             max_num_compacting_files: 20,
+            minutes_without_new_writes_to_be_cold: 10,
         }
     }
 
@@ -939,6 +940,7 @@ pub mod tests {
             memory_budget_bytes: 100_000_000,
             min_num_rows_allocated_per_record_batch_to_datafusion_plan: 100,
             max_num_compacting_files: 20,
+            minutes_without_new_writes_to_be_cold: 10,
         };
 
         let metrics = Arc::new(metric::Registry::new());

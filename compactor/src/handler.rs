@@ -156,6 +156,9 @@ pub struct CompactorConfig {
     /// Due to limit in fan-in of datafusion plan, we need to limit the number of files to compact
     /// per partition.
     pub max_num_compacting_files: usize,
+
+    /// Minutes without any new data before a partition is considered cold
+    pub minutes_without_new_writes_to_be_cold: u64,
 }
 
 /// How long to pause before checking for more work again if there was
