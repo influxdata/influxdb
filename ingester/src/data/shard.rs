@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use data_types::{NamespaceId, ShardId, ShardIndex};
 use dml::DmlOperation;
-use iox_catalog::interface::Catalog;
 use metric::U64Counter;
 use parking_lot::RwLock;
 use write_summary::ShardProgress;
@@ -30,8 +29,8 @@ impl DoubleRef {
         let id = ns.namespace_id();
 
         let ns = Arc::new(ns);
-        self.by_name.insert(&name, Arc::clone(&ns));
-        self.by_id.insert(&id, Arc::clone(&ns));
+        self.by_name.insert(name, Arc::clone(&ns));
+        self.by_id.insert(id, Arc::clone(&ns));
         ns
     }
 
@@ -97,7 +96,6 @@ impl ShardData {
     pub(super) async fn buffer_operation(
         &self,
         dml_operation: DmlOperation,
-        catalog: &Arc<dyn Catalog>,
         lifecycle_handle: &dyn LifecycleHandle,
     ) -> Result<DmlApplyAction, super::Error> {
         let namespace_data = match self.namespace(&NamespaceName::from(dml_operation.namespace())) {
@@ -109,7 +107,7 @@ impl ShardData {
         };
 
         namespace_data
-            .buffer_operation(dml_operation, catalog, lifecycle_handle)
+            .buffer_operation(dml_operation, lifecycle_handle)
             .await
     }
 
@@ -183,6 +181,7 @@ mod tests {
     use std::sync::Arc;
 
     use data_types::{PartitionId, PartitionKey, ShardIndex};
+    use iox_catalog::interface::Catalog;
     use metric::{Attributes, Metric};
 
     use crate::{
@@ -243,7 +242,6 @@ mod tests {
                     0,
                     r#"bananas,city=Medford day="sun",temp=55 22"#,
                 )),
-                &catalog,
                 &MockLifecycleHandle::default(),
             )
             .await

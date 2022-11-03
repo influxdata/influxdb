@@ -185,7 +185,7 @@ impl IngesterData {
             .get(&shard_id)
             .context(ShardNotFoundSnafu { shard_id })?;
         shard_data
-            .buffer_operation(dml_operation, &self.catalog, lifecycle_handle)
+            .buffer_operation(dml_operation, lifecycle_handle)
             .await
     }
 
@@ -1393,7 +1393,7 @@ mod tests {
         // to 1 already, so it shouldn't be buffered and the buffer should
         // remain empty.
         let action = data
-            .buffer_operation(DmlOperation::Write(w1), &catalog, &manager.handle())
+            .buffer_operation(DmlOperation::Write(w1), &manager.handle())
             .await
             .unwrap();
         {
@@ -1414,7 +1414,7 @@ mod tests {
         assert_matches!(action, DmlApplyAction::Skipped);
 
         // w2 should be in the buffer
-        data.buffer_operation(DmlOperation::Write(w2), &catalog, &manager.handle())
+        data.buffer_operation(DmlOperation::Write(w2), &manager.handle())
             .await
             .unwrap();
 

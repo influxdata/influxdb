@@ -4,11 +4,9 @@ use std::{collections::HashMap, sync::Arc};
 
 use data_types::{NamespaceId, SequenceNumber, ShardId, TableId};
 use dml::DmlOperation;
-use iox_catalog::interface::Catalog;
 use metric::U64Counter;
 use observability_deps::tracing::warn;
 use parking_lot::RwLock;
-use snafu::ResultExt;
 use write_summary::ShardProgress;
 
 #[cfg(test)]
@@ -175,7 +173,6 @@ impl NamespaceData {
     pub(super) async fn buffer_operation(
         &self,
         dml_operation: DmlOperation,
-        catalog: &Arc<dyn Catalog>,
         lifecycle_handle: &dyn LifecycleHandle,
     ) -> Result<DmlApplyAction, super::Error> {
         let sequence_number = dml_operation
@@ -199,11 +196,11 @@ impl NamespaceData {
                 // Extract the partition key derived by the router.
                 let partition_key = write.partition_key().clone();
 
-                for (t, _, b) in write.into_tables() {
-                    let t = TableName::from(t);
-                    let table_data = match self.table_data(&t) {
+                for (table_name, table_id, b) in write.into_tables() {
+                    let table_name = TableName::from(table_name);
+                    let table_data = match self.table_data(&table_name) {
                         Some(t) => t,
-                        None => self.insert_table(&t, catalog).await?,
+                        None => self.insert_table(table_name, table_id).await?,
                     };
 
                     let action = table_data
@@ -262,24 +259,11 @@ impl NamespaceData {
     /// Inserts the table or returns it if it happens to be inserted by some other thread
     async fn insert_table(
         &self,
-        table_name: &TableName,
-        catalog: &Arc<dyn Catalog>,
+        table_name: TableName,
+        table_id: TableId,
     ) -> Result<Arc<TableData>, super::Error> {
-        let mut repos = catalog.repositories().await;
-
-        let table_id = repos
-            .tables()
-            .get_by_namespace_and_name(self.namespace_id, table_name)
-            .await
-            .context(super::CatalogSnafu)?
-            .ok_or_else(|| super::Error::TableNotFound {
-                table_name: table_name.to_string(),
-            })?
-            .id;
-
         let mut t = self.tables.write();
-
-        Ok(match t.by_name(table_name) {
+        Ok(match t.by_name(&table_name) {
             Some(v) => v,
             None => {
                 self.table_count.inc(1);
@@ -287,7 +271,7 @@ impl NamespaceData {
                 // Insert the table and then return a ref to it.
                 t.insert(TableData::new(
                     table_id,
-                    table_name.clone(),
+                    table_name,
                     self.shard_id,
                     self.namespace_id,
                     Arc::clone(&self.partition_provider),
@@ -367,6 +351,7 @@ mod tests {
     use std::sync::Arc;
 
     use data_types::{PartitionId, PartitionKey, ShardIndex};
+    use iox_catalog::interface::Catalog;
     use metric::{Attributes, Metric};
 
     use crate::{
@@ -430,7 +415,6 @@ mod tests {
                 0,
                 r#"bananas,city=Medford day="sun",temp=55 22"#,
             )),
-            &catalog,
             &MockLifecycleHandle::default(),
         )
         .await
