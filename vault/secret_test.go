@@ -10,24 +10,34 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/influxdata/influxdb/v2/vault"
-	testcontainer "github.com/testcontainers/testcontainers-go"
+	testcontainers "github.com/testcontainers/testcontainers-go"
 )
 
 func initSecretService(f influxdbtesting.SecretServiceFields, t *testing.T) (influxdb.SecretService, func()) {
 	token := "test"
 	ctx := context.Background()
-	vaultC, err := testcontainer.RunContainer(ctx, "vault", testcontainer.RequestContainer{
-		ExportedPort: []string{
-			"8200/tcp",
+	vaultC, err := GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: ContainerRequest{
+			Image: "docker.io/vault:latest",
+			ExposedPorts: []string{
+				"8200/tcp",
+			},
+			Cmd: fmt.Sprintf(`vault server -dev -dev-listen-address 0.0.0.0:8200 -dev-root-token-id=%s`, token),
 		},
-		Cmd: fmt.Sprintf(`vault server -dev -dev-listen-address 0.0.0.0:8200 -dev-root-token-id=%s`, token),
+		Started: true,
 	})
 	if err != nil {
-		t.Fatalf("failed to initialize vault testcontiner: %v", err)
+		t.Fatalf("failed to initialize vault container: %v", err)
 	}
-	ip, port, err := vaultC.GetHostEndpoint(ctx, "8200/tcp")
+
+	host, err := vaultC.Host(ctx)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("failed to get host from vault container: %v", err)
+	}
+
+	port, err := vaultC.MappedPort(ctx, "8200/tcp")
+	if err != nil {
+		t.Fatalf("failed to get exposed 8200 port from vault container: %v", err)
 	}
 
 	s, err := vault.NewSecretService()
@@ -35,7 +45,7 @@ func initSecretService(f influxdbtesting.SecretServiceFields, t *testing.T) (inf
 		t.Fatal(err)
 	}
 	s.Client.SetToken(token)
-	s.Client.SetAddress(fmt.Sprintf("http://%v:%v", ip, port))
+	s.Client.SetAddress(fmt.Sprintf("http://%v:%v", host, port.Int()))
 
 	for _, sec := range f.Secrets {
 		for k, v := range sec.Env {
