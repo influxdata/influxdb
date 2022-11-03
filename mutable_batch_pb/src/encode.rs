@@ -22,18 +22,12 @@ pub fn encode_write(db_name: &str, database_id: i64, write: &DmlWrite) -> Databa
                 //
                 // Once only IDs are pushed over the network this extra lookup
                 // can be removed.
-                //
-                // Safety: this code path is invoked only in the producer, and
-                // therefore accessing the table IDs is acceptable. See
-                // DmlWrite for context.
-                let table_id = unsafe {
-                    write.table_id(table_name).unwrap_or_else(|| {
-                        panic!(
-                            "no table ID mapping found for {} table {}",
-                            db_name, table_name
-                        )
-                    })
-                };
+                let table_id = write.table_id(table_name).unwrap_or_else(|| {
+                    panic!(
+                        "no table ID mapping found for {} table {}",
+                        db_name, table_name
+                    )
+                });
                 encode_batch(table_name, table_id.get(), batch)
             })
             .collect(),

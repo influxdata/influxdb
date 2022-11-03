@@ -199,7 +199,7 @@ impl NamespaceData {
                 // Extract the partition key derived by the router.
                 let partition_key = write.partition_key().clone();
 
-                for (t, b) in write.into_tables() {
+                for (t, _, b) in write.into_tables() {
                     let t = TableName::from(t);
                     let table_data = match self.table_data(&t) {
                         Some(t) => t,

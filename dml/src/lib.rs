@@ -166,7 +166,7 @@ impl DmlOperation {
     /// Marked unsafe because of the critical invariant; Kafka conumers MUST NOT
     /// utilise this method until this warning is removed. See [`DmlWrite`]
     /// docs.
-    pub unsafe fn namespace_id(&self) -> NamespaceId {
+    pub fn namespace_id(&self) -> NamespaceId {
         match self {
             Self::Write(w) => w.namespace_id(),
             Self::Delete(d) => d.namespace_id(),
@@ -191,40 +191,16 @@ impl From<DmlDelete> for DmlOperation {
 pub struct DmlWrite {
     /// The namespace being written to
     namespace: String,
+    namespace_id: NamespaceId,
     /// Writes to individual tables keyed by table name
     tables: HashMap<String, MutableBatch>,
+    table_ids: HashMap<String, TableId>,
     /// Write metadata
     meta: DmlMeta,
     min_timestamp: i64,
     max_timestamp: i64,
     /// The partition key derived for this write.
     partition_key: PartitionKey,
-
-    //                  !!!!!!! TRANSITION TIME !!!!!!!
-    //
-    // While implementing "sending IDs over Kafka" (#4880) there has to be a
-    // transition period where the producers (routers) populate the fields, but
-    // the consumers (ingesters) do not utilise them.
-    //
-    // This period of overlap is necessary to support a rolling deployment where
-    // the consumers MAY be deployed before the producers, or the producer code
-    // MAY be rolled back due to a defect. During this potential rollback
-    // window, all fields need to be populated to ensure both new and old
-    // versions of the code can process the enqueued messages.
-    //
-    // Because the consumers (ingesters) and the producers (routers) use the
-    // same common application-level type to represent writes (the DmlWrite), it
-    // has to support the producer pushing the IDs into the DmlWrite, but the
-    // consumer must not make use of them.
-    //
-    // In a follow-up PR, this consumer will be switched to make use of the
-    // TableIds, at which point the table map will change from the current
-    // `Table name -> Data` to `TableId -> Data`, and the second map can be
-    // removed from the DmlWrite.
-    #[allow(dead_code)]
-    namespace_id: NamespaceId,
-    // Used to resolve the table ID for a given table name during serialisation.
-    table_ids: HashMap<String, TableId>,
 }
 
 impl DmlWrite {
@@ -246,6 +222,8 @@ impl DmlWrite {
         meta: DmlMeta,
     ) -> Self {
         assert_ne!(tables.len(), 0);
+        // A simple (and incomplete) sanity check.
+        assert_eq!(tables.len(), table_ids.len());
 
         let mut stats = StatValues::new_empty();
         for (table_name, table) in &tables {
@@ -296,9 +274,19 @@ impl DmlWrite {
         self.tables.iter().map(|(k, v)| (k.as_str(), v))
     }
 
-    /// Moves the table names and mutable batches out of the map
-    pub fn into_tables(self) -> impl Iterator<Item = (String, MutableBatch)> {
-        self.tables.into_iter()
+    /// Consumes `self`, returning an iterator of the table data, name & ID
+    /// contained within it.
+    pub fn into_tables(self) -> impl Iterator<Item = (String, TableId, MutableBatch)> {
+        self.tables.into_iter().map(move |(name, data)| {
+            (
+                name.clone(),
+                *self
+                    .table_ids
+                    .get(&name)
+                    .expect("no table ID found for table"),
+                data,
+            )
+        })
     }
 
     /// Gets the write for a given table
@@ -348,24 +336,12 @@ impl DmlWrite {
     }
 
     /// Return the map of [`TableId`] to table names for this batch.
-    ///
-    /// # Safety
-    ///
-    /// Marked unsafe because of the critical invariant; Kafka conumers MUST NOT
-    /// utilise this method until this warning is removed. See [`DmlWrite`]
-    /// docs.
-    pub unsafe fn table_id(&self, name: &str) -> Option<TableId> {
+    pub fn table_id(&self, name: &str) -> Option<TableId> {
         self.table_ids.get(name).cloned()
     }
 
     /// Return the [`NamespaceId`] to which this [`DmlWrite`] should be applied.
-    ///
-    /// # Safety
-    ///
-    /// Marked unsafe because of the critical invariant; Kafka conumers MUST NOT
-    /// utilise this method until this warning is removed. See [`DmlWrite`]
-    /// docs.
-    pub unsafe fn namespace_id(&self) -> NamespaceId {
+    pub fn namespace_id(&self) -> NamespaceId {
         self.namespace_id
     }
 }
@@ -444,7 +420,7 @@ impl DmlDelete {
     /// Marked unsafe because of the critical invariant; Kafka conumers MUST NOT
     /// utilise this method until this warning is removed. See [`DmlWrite`]
     /// docs.
-    pub unsafe fn namespace_id(&self) -> NamespaceId {
+    pub fn namespace_id(&self) -> NamespaceId {
         self.namespace_id
     }
 }

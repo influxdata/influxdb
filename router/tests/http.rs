@@ -411,11 +411,11 @@ async fn test_write_propagate_ids() {
     assert_eq!(writes.len(), 1);
     assert_matches!(writes.as_slice(), [Ok(DmlOperation::Write(w))] => {
         assert_eq!(w.namespace(), "bananas_test");
-        assert_eq!(unsafe { w.namespace_id() } , ns.id);
+        assert_eq!(w.namespace_id(), ns.id);
         assert!(w.table("platanos").is_some());
 
         for (name, id) in ids {
-            assert_eq!(unsafe { w.table_id(name).unwrap() }, id);
+            assert_eq!(w.table_id(name).unwrap(), id);
         }
     });
 }
@@ -464,6 +464,6 @@ async fn test_delete_propagate_ids() {
     assert_eq!(writes.len(), 1);
     assert_matches!(writes.as_slice(), [Ok(DmlOperation::Delete(w))] => {
         assert_eq!(w.namespace(), "bananas_test");
-        assert_eq!(unsafe { w.namespace_id() } , ns.id);
+        assert_eq!(w.namespace_id(), ns.id);
     });
 }

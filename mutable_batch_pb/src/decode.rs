@@ -60,7 +60,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Decodes a [`DatabaseBatch`] to a map of [`MutableBatch`] keyed by table name
 pub fn decode_database_batch(
     database_batch: &DatabaseBatch,
-) -> Result<(HashMap<String, MutableBatch>, HashMap<i64, String>)> {
+) -> Result<(HashMap<String, MutableBatch>, HashMap<String, i64>)> {
     let mut name_to_data = HashMap::with_capacity(database_batch.table_batches.len());
     let mut id_to_name = HashMap::with_capacity(database_batch.table_batches.len());
 
@@ -70,7 +70,7 @@ pub fn decode_database_batch(
             .from_key(table_batch.table_name.as_str())
             .or_insert_with(|| (table_batch.table_name.clone(), MutableBatch::new()));
 
-        id_to_name.insert(table_batch.table_id, table_batch.table_name.clone());
+        id_to_name.insert(table_batch.table_name.clone(), table_batch.table_id);
 
         write_table_batch(batch, table_batch)?;
     }
