@@ -19,8 +19,8 @@ fn parquet_metrics_impl(plan: Arc<dyn ExecutionPlan>, output: &mut Vec<MetricsSe
     // <https://github.com/influxdata/influxdb_iox/issues/5897> is
     // completed
     if let Some(iox_read_node) = plan.as_any().downcast_ref::<IOxReadFilterNode>() {
-        for child in iox_read_node.parquet_execs() {
-            parquet_metrics_impl(child, output)
+        if let Some(metrics) = iox_read_node.metrics() {
+            output.push(metrics)
         }
     }
 

@@ -74,7 +74,7 @@ impl IOxReadFilterNode {
 
     // Meant for testing -- provide input to the inner parquet execs
     // that were created
-    pub fn parquet_execs(&self) -> Vec<Arc<ParquetExec>> {
+    fn parquet_execs(&self) -> Vec<Arc<ParquetExec>> {
         self.parquet_execs.lock().to_vec()
     }
 }
@@ -245,7 +245,18 @@ impl ExecutionPlan for IOxReadFilterNode {
     }
 
     fn metrics(&self) -> Option<MetricsSet> {
-        Some(self.metrics.clone_inner())
+        let mut metrics = self.metrics.clone_inner();
+
+        // copy all metrics from the child parquet_execs
+        for exec in self.parquet_execs() {
+            if let Some(parquet_metrics) = exec.metrics() {
+                for m in parquet_metrics.iter() {
+                    metrics.push(Arc::clone(m))
+                }
+            }
+        }
+
+        Some(metrics)
     }
 
     fn statistics(&self) -> Statistics {
