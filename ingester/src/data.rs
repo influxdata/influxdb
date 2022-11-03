@@ -1523,6 +1523,7 @@ mod tests {
         };
         let d1 = DmlDelete::new(
             "foo",
+            NamespaceId::new(42),
             predicate,
             Some(NonEmptyString::new("mem").unwrap()),
             DmlMeta::sequenced(

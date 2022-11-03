@@ -169,6 +169,7 @@ where
 
         let dml = DmlDelete::new(
             namespace,
+            namespace_id,
             predicate,
             NonEmptyString::new(table_name),
             DmlMeta::unsequenced(span_ctx),
