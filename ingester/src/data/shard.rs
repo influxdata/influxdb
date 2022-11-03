@@ -180,31 +180,27 @@ impl ShardData {
 mod tests {
     use std::sync::Arc;
 
-    use data_types::{PartitionId, PartitionKey, ShardIndex};
-    use iox_catalog::interface::Catalog;
+    use data_types::{PartitionId, PartitionKey, ShardIndex, TableId};
     use metric::{Attributes, Metric};
 
     use crate::{
         data::partition::{resolver::MockPartitionProvider, PartitionData, SortKeyState},
         lifecycle::mock_handle::MockLifecycleHandle,
-        test_util::{make_write_op, populate_catalog},
+        test_util::{make_write_op, TEST_TABLE},
     };
 
     use super::*;
 
     const SHARD_INDEX: ShardIndex = ShardIndex::new(24);
-    const TABLE_NAME: &str = "bananas";
+    const SHARD_ID: ShardId = ShardId::new(22);
+    const TABLE_NAME: &str = TEST_TABLE;
+    const TABLE_ID: TableId = TableId::new(44);
     const NAMESPACE_NAME: &str = "platanos";
+    const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
 
     #[tokio::test]
     async fn test_shard_double_ref() {
         let metrics = Arc::new(metric::Registry::default());
-        let catalog: Arc<dyn Catalog> =
-            Arc::new(iox_catalog::mem::MemCatalog::new(Arc::clone(&metrics)));
-
-        // Populate the catalog with the shard / namespace / table
-        let (shard_id, ns_id, table_id) =
-            populate_catalog(&*catalog, SHARD_INDEX, NAMESPACE_NAME, TABLE_NAME).await;
 
         // Configure the mock partition provider to return a partition for this
         // table ID.
@@ -212,9 +208,9 @@ mod tests {
             PartitionData::new(
                 PartitionId::new(0),
                 PartitionKey::from("banana-split"),
-                shard_id,
-                ns_id,
-                table_id,
+                SHARD_ID,
+                NAMESPACE_ID,
+                TABLE_ID,
                 TABLE_NAME.into(),
                 SortKeyState::Provided(None),
                 None,
@@ -223,14 +219,14 @@ mod tests {
 
         let shard = ShardData::new(
             SHARD_INDEX,
-            shard_id,
+            SHARD_ID,
             partition_provider,
             Arc::clone(&metrics),
         );
 
         // Assert the namespace does not contain the test data
         assert!(shard.namespace(&NAMESPACE_NAME.into()).is_none());
-        assert!(shard.namespace_by_id(ns_id).is_none());
+        assert!(shard.namespace_by_id(NAMESPACE_ID).is_none());
 
         // Write some test data
         shard
@@ -239,8 +235,10 @@ mod tests {
                     &PartitionKey::from("banana-split"),
                     SHARD_INDEX,
                     NAMESPACE_NAME,
+                    NAMESPACE_ID,
+                    TABLE_ID,
                     0,
-                    r#"bananas,city=Medford day="sun",temp=55 22"#,
+                    r#"test_table,city=Medford day="sun",temp=55 22"#,
                 )),
                 &MockLifecycleHandle::default(),
             )
@@ -249,7 +247,7 @@ mod tests {
 
         // Both forms of referencing the table should succeed
         assert!(shard.namespace(&NAMESPACE_NAME.into()).is_some());
-        assert!(shard.namespace_by_id(ns_id).is_some());
+        assert!(shard.namespace_by_id(NAMESPACE_ID).is_some());
 
         // And the table counter metric should increase
         let tables = metrics

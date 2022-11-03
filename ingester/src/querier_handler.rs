@@ -488,7 +488,7 @@ mod tests {
         // make 14 scenarios for ingester data
         let mut scenarios = vec![];
         for two_partitions in [false, true] {
-            let scenario = Arc::new(make_ingester_data(two_partitions).await);
+            let scenario = Arc::new(make_ingester_data(two_partitions).await.0);
             scenarios.push(scenario);
         }
 
