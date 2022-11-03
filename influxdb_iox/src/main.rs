@@ -31,6 +31,7 @@ mod commands {
     pub mod compactor;
     pub mod debug;
     pub mod import;
+    pub mod namespace;
     pub mod query;
     pub mod query_ingester;
     pub mod remote;
@@ -200,6 +201,9 @@ enum Command {
 
     /// Commands related to the bulk ingest of data
     Import(commands::import::Config),
+
+    /// Various commands for namespace manipulation
+    Namespace(commands::namespace::Config),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -345,6 +349,14 @@ fn main() -> Result<(), std::io::Error> {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 let connection = connection().await;
                 if let Err(e) = commands::import::command(connection, config).await {
+                    eprintln!("{}", e);
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Namespace(config)) => {
+                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
+                let connection = connection().await;
+                if let Err(e) = commands::namespace::command(connection, config).await {
                     eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }

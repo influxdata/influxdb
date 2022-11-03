@@ -15,7 +15,10 @@
 
 use std::time::Duration;
 
-use data_types::{DeletePredicate, NonEmptyString, PartitionKey, Sequence, StatValues, Statistics};
+use data_types::{
+    DeletePredicate, NamespaceId, NonEmptyString, PartitionKey, Sequence, StatValues, Statistics,
+    TableId,
+};
 use hashbrown::HashMap;
 use iox_time::{Time, TimeProvider};
 use mutable_batch::MutableBatch;
@@ -182,6 +185,32 @@ pub struct DmlWrite {
     max_timestamp: i64,
     /// The partition key derived for this write.
     partition_key: PartitionKey,
+
+    //                  !!!!!!! TRANSITION TIME !!!!!!!
+    //
+    // While implementing "sending IDs over Kafka" (#4880) there has to be a
+    // transition period where the producers (routers) populate the fields, but
+    // the consumers (ingesters) do not utilise them.
+    //
+    // This period of overlap is necessary to support a rolling deployment where
+    // the consumers MAY be deployed before the producers, or the producer code
+    // MAY be rolled back due to a defect. During this potential rollback
+    // window, all fields need to be populated to ensure both new and old
+    // versions of the code can process the enqueued messages.
+    //
+    // Because the consumers (ingesters) and the producers (routers) use the
+    // same common application-level type to represent writes (the DmlWrite), it
+    // has to support the producer pushing the IDs into the DmlWrite, but the
+    // consumer must not make use of them.
+    //
+    // In a follow-up PR, this consumer will be switched to make use of the
+    // TableIds, at which point the table map will change from the current
+    // `Table name -> Data` to `TableId -> Data`, and the second map can be
+    // removed from the DmlWrite.
+    #[allow(dead_code)]
+    namespace_id: NamespaceId,
+    // Used to resolve the table ID for a given table name during serialisation.
+    table_ids: HashMap<String, TableId>,
 }
 
 impl DmlWrite {
@@ -196,7 +225,9 @@ impl DmlWrite {
     /// - a MutableBatch lacks an i64 "time" column
     pub fn new(
         namespace: impl Into<String>,
+        namespace_id: NamespaceId,
         tables: HashMap<String, MutableBatch>,
+        table_ids: HashMap<String, TableId>,
         partition_key: PartitionKey,
         meta: DmlMeta,
     ) -> Self {
@@ -221,10 +252,12 @@ impl DmlWrite {
         Self {
             namespace: namespace.into(),
             tables,
+            table_ids,
             partition_key,
             meta,
             min_timestamp: stats.min.unwrap(),
             max_timestamp: stats.max.unwrap(),
+            namespace_id,
         }
     }
 
@@ -284,7 +317,13 @@ impl DmlWrite {
                 .iter()
                 .map(|(k, v)| std::mem::size_of_val(k) + k.capacity() + v.size())
                 .sum::<usize>()
+            + self
+                .table_ids
+                .keys()
+                .map(|k| std::mem::size_of_val(k) + k.capacity() + std::mem::size_of::<TableId>())
+                .sum::<usize>()
             + self.meta.size()
+            + std::mem::size_of::<NamespaceId>()
             + std::mem::size_of::<PartitionKey>()
             - std::mem::size_of::<DmlMeta>()
     }
@@ -292,6 +331,28 @@ impl DmlWrite {
     /// Return the partition key derived for this op.
     pub fn partition_key(&self) -> &PartitionKey {
         &self.partition_key
+    }
+
+    /// Return the map of [`TableId`] to table names for this batch.
+    ///
+    /// # Safety
+    ///
+    /// Marked unsafe because of the critical invariant; Kafka conumers MUST NOT
+    /// utilise this method until this warning is removed. See [`DmlWrite`]
+    /// docs.
+    pub unsafe fn table_id(&self, name: &str) -> Option<TableId> {
+        self.table_ids.get(name).cloned()
+    }
+
+    /// Return the [`NamespaceId`] to which this [`DmlWrite`] should be applied.
+    ///
+    /// # Safety
+    ///
+    /// Marked unsafe because of the critical invariant; Kafka conumers MUST NOT
+    /// utilise this method until this warning is removed. See [`DmlWrite`]
+    /// docs.
+    pub unsafe fn namespace_id(&self) -> NamespaceId {
+        self.namespace_id
     }
 }
 
@@ -363,7 +424,7 @@ impl DmlDelete {
 /// Test utilities
 pub mod test_util {
     use arrow_util::display::pretty_format_batches;
-    use schema::selection::Selection;
+    use schema::Projection;
 
     use super::*;
 
@@ -405,8 +466,8 @@ pub mod test_util {
             let b_batch = b.table(table_name).expect("table not found");
 
             assert_eq!(
-                pretty_format_batches(&[a_batch.to_arrow(Selection::All).unwrap()]).unwrap(),
-                pretty_format_batches(&[b_batch.to_arrow(Selection::All).unwrap()]).unwrap(),
+                pretty_format_batches(&[a_batch.to_arrow(Projection::All).unwrap()]).unwrap(),
+                pretty_format_batches(&[b_batch.to_arrow(Projection::All).unwrap()]).unwrap(),
                 "batches for table \"{}\" differ",
                 table_name
             );

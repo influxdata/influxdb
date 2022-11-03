@@ -6,24 +6,16 @@ use std::{any::Any, sync::Arc};
 use arrow::record_batch::RecordBatch;
 use arrow_util::util::ensure_schema;
 use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId, TableSummary};
-use datafusion::{
-    error::DataFusionError,
-    physical_plan::{
-        common::SizedRecordBatchStream,
-        metrics::{ExecutionPlanMetricsSet, MemTrackingMetrics},
-        SendableRecordBatchStream,
-    },
-};
+use datafusion::error::DataFusionError;
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
     util::{compute_timenanosecond_min_max, create_basic_summary},
-    QueryChunk, QueryChunkMeta,
+    QueryChunk, QueryChunkData, QueryChunkMeta,
 };
-use observability_deps::tracing::trace;
 use once_cell::sync::OnceCell;
 use predicate::Predicate;
-use schema::{merge::merge_record_batch_schemas, selection::Selection, sort::SortKey, Schema};
-use snafu::{ResultExt, Snafu};
+use schema::{merge::merge_record_batch_schemas, sort::SortKey, Projection, Schema};
+use snafu::Snafu;
 
 use crate::data::table::TableName;
 
@@ -109,7 +101,7 @@ impl QueryAdaptor {
         }
     }
 
-    pub(crate) fn project_selection(&self, selection: Selection<'_>) -> Vec<RecordBatch> {
+    pub(crate) fn project_selection(&self, selection: Projection<'_>) -> Vec<RecordBatch> {
         // Project the column selection across all RecordBatch
         self.data
             .iter()
@@ -119,8 +111,8 @@ impl QueryAdaptor {
 
                 // Apply selection to in-memory batch
                 match selection {
-                    Selection::All => batch.clone(),
-                    Selection::Some(columns) => {
+                    Projection::All => batch.clone(),
+                    Projection::Some(columns) => {
                         let projection = columns
                             .iter()
                             .flat_map(|&column_name| {
@@ -148,8 +140,8 @@ impl QueryAdaptor {
 }
 
 impl QueryChunkMeta for QueryAdaptor {
-    fn summary(&self) -> Option<Arc<TableSummary>> {
-        Some(Arc::clone(self.summary.get_or_init(|| {
+    fn summary(&self) -> Arc<TableSummary> {
+        Arc::clone(self.summary.get_or_init(|| {
             let ts_min_max = compute_timenanosecond_min_max(self.data.iter().map(|b| b.as_ref()))
                 .expect("Should have time range");
 
@@ -158,7 +150,7 @@ impl QueryChunkMeta for QueryAdaptor {
                 &self.schema(),
                 ts_min_max,
             ))
-        })))
+        }))
     }
 
     fn schema(&self) -> Arc<Schema> {
@@ -211,7 +203,7 @@ impl QueryChunk for QueryAdaptor {
         &self,
         _ctx: IOxSessionContext,
         _predicate: &Predicate,
-        _columns: Selection<'_>,
+        _columns: Projection<'_>,
     ) -> Result<Option<StringSet>, DataFusionError> {
         Ok(None)
     }
@@ -230,42 +222,15 @@ impl QueryChunk for QueryAdaptor {
         Ok(None)
     }
 
-    /// Provides access to raw `QueryChunk` data as an
-    /// asynchronous stream of `RecordBatch`es
-    fn read_filter(
-        &self,
-        mut ctx: IOxSessionContext,
-        _predicate: &Predicate,
-        selection: Selection<'_>,
-    ) -> Result<SendableRecordBatchStream, DataFusionError> {
-        ctx.set_metadata("storage", "ingester");
-        ctx.set_metadata("projection", format!("{}", selection));
-        trace!(?selection, "selection");
+    fn data(&self) -> QueryChunkData {
+        let schema = self.schema().as_arrow();
 
-        let schema = self
-            .schema()
-            .select(selection)
-            .context(SchemaSnafu)
-            .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-        // Apply the projection over all the data in self, ensuring each batch
-        // has the specified schema.
-        let batches = self
-            .project_selection(selection)
-            .into_iter()
-            .map(|batch| {
-                ensure_schema(&schema.as_arrow(), &batch)
-                    .context(ConcatBatchesSnafu {})
-                    .map(Arc::new)
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-        // Return stream of data
-        let dummy_metrics = ExecutionPlanMetricsSet::new();
-        let mem_metrics = MemTrackingMetrics::new(&dummy_metrics, 0);
-        let stream = SizedRecordBatchStream::new(schema.as_arrow(), batches, mem_metrics);
-        Ok(Box::pin(stream))
+        QueryChunkData::RecordBatches(
+            self.data
+                .iter()
+                .map(|b| ensure_schema(&schema, b).expect("schema handling broken"))
+                .collect(),
+        )
     }
 
     /// Returns chunk type

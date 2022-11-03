@@ -211,7 +211,7 @@ mod tests {
         };
 
         wrapper
-            .produce(vec![record.clone()], Compression::Snappy)
+            .produce(vec![record.clone()], Compression::Zstd)
             .await
             .expect("produce call should succeed");
 
@@ -261,7 +261,7 @@ mod tests {
                 .with_time_provider(Arc::clone(&clock));
 
         wrapper
-            .produce(Vec::new(), Compression::Snappy)
+            .produce(Vec::new(), Compression::Zstd)
             .await
             .expect_err("produce call should fail");
 

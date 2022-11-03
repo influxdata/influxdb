@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use arrow::record_batch::RecordBatch;
 use mutable_batch::MutableBatch;
-use schema::selection::Selection;
+use schema::Projection;
 
 /// A [`Buffer`] is an internal mutable buffer wrapper over a [`MutableBatch`]
 /// for the [`BufferState`] FSM.
@@ -42,7 +42,7 @@ impl Buffer {
     pub(super) fn snapshot(self) -> Option<Arc<RecordBatch>> {
         Some(Arc::new(
             self.buffer?
-                .to_arrow(Selection::All)
+                .to_arrow(Projection::All)
                 .expect("failed to snapshot buffer data"),
         ))
     }

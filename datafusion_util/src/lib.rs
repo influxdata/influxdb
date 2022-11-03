@@ -10,6 +10,7 @@
 //! [datafusion_optimizer::utils](https://docs.rs/datafusion-optimizer/13.0.0/datafusion_optimizer/utils/index.html)
 //! for expression manipulation functions.
 
+pub mod config;
 pub mod sender;
 pub mod watch;
 

@@ -4,39 +4,17 @@ use data_types::{
     ChunkId, ChunkOrder, CompactionLevel, DeletePredicate, PartitionId, SequenceNumber,
     TableSummary, Timestamp, Tombstone,
 };
-use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
+use datafusion::error::DataFusionError;
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
     util::create_basic_summary,
-    QueryChunk, QueryChunkMeta,
+    QueryChunk, QueryChunkData, QueryChunkMeta,
 };
-use observability_deps::tracing::trace;
 use parquet_file::chunk::ParquetChunk;
 use predicate::{delete_predicate::tombstones_to_delete_predicates, Predicate};
-use schema::{merge::SchemaMerger, selection::Selection, sort::SortKey, Schema};
-use snafu::{ResultExt, Snafu};
+use schema::{merge::SchemaMerger, sort::SortKey, Projection, Schema};
 use std::{any::Any, sync::Arc};
 use uuid::Uuid;
-
-#[derive(Debug, Snafu)]
-#[allow(missing_copy_implementations, missing_docs)]
-pub enum Error {
-    #[snafu(display("Failed to read parquet: {}", source))]
-    ReadParquet {
-        source: parquet_file::storage::ReadError,
-    },
-
-    #[snafu(display(
-        "Error reading IOx Metadata from Parquet IoxParquetMetadata: {}",
-        source
-    ))]
-    ReadParquetMeta {
-        source: parquet_file::storage::ReadError,
-    },
-}
-
-/// A specialized `Error` for Compactor's query errors
-pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// QueryableParquetChunk that implements QueryChunk and QueryMetaChunk for building query plan
 #[derive(Debug, Clone)]
@@ -134,8 +112,8 @@ impl QueryableParquetChunk {
 }
 
 impl QueryChunkMeta for QueryableParquetChunk {
-    fn summary(&self) -> Option<Arc<TableSummary>> {
-        Some(Arc::clone(&self.summary))
+    fn summary(&self) -> Arc<TableSummary> {
+        Arc::clone(&self.summary)
     }
 
     fn schema(&self) -> Arc<Schema> {
@@ -194,7 +172,7 @@ impl QueryChunk for QueryableParquetChunk {
         &self,
         _ctx: IOxSessionContext,
         _predicate: &Predicate,
-        _columns: Selection<'_>,
+        _columns: Projection<'_>,
     ) -> Result<Option<StringSet>, DataFusionError> {
         Ok(None)
     }
@@ -213,33 +191,8 @@ impl QueryChunk for QueryableParquetChunk {
         Ok(None)
     }
 
-    /// Provides access to raw `QueryChunk` data as an
-    /// asynchronous stream of `RecordBatch`es filtered by a *required*
-    /// predicate. Note that not all chunks can evaluate all types of
-    /// predicates and this function will return an error
-    /// if requested to evaluate with a predicate that is not supported
-    ///
-    /// This is the analog of the `TableProvider` in DataFusion
-    ///
-    /// The reason we can't simply use the `TableProvider` trait
-    /// directly is that the data for a particular Table lives in
-    /// several chunks within a partition, so there needs to be an
-    /// implementation of `TableProvider` that stitches together the
-    /// streams from several different `QueryChunk`s.
-    fn read_filter(
-        &self,
-        mut ctx: IOxSessionContext,
-        predicate: &Predicate,
-        selection: Selection<'_>,
-    ) -> Result<SendableRecordBatchStream, DataFusionError> {
-        ctx.set_metadata("storage", "compactor");
-        ctx.set_metadata("projection", format!("{}", selection));
-        trace!(?selection, "selection");
-
-        self.data
-            .read_filter(predicate, selection, ctx.inner())
-            .context(ReadParquetSnafu)
-            .map_err(|e| DataFusionError::External(Box::new(e)))
+    fn data(&self) -> QueryChunkData {
+        QueryChunkData::Parquet(self.data.parquet_exec_input())
     }
 
     /// Returns chunk type

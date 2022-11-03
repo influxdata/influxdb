@@ -1,7 +1,7 @@
 use arrow_util::assert_batches_eq;
 use mutable_batch::writer::Writer;
 use mutable_batch::MutableBatch;
-use schema::selection::Selection;
+use schema::Projection;
 
 #[test]
 fn test_new_column() {
@@ -23,7 +23,7 @@ fn test_new_column() {
         "+-------+",
     ];
 
-    assert_batches_eq!(expected, &[batch.to_arrow(Selection::All).unwrap()]);
+    assert_batches_eq!(expected, &[batch.to_arrow(Projection::All).unwrap()]);
 
     let mut writer = Writer::new(&mut batch, 1);
     writer
@@ -33,5 +33,5 @@ fn test_new_column() {
     std::mem::drop(writer);
 
     // Should not include tag1 column
-    assert_batches_eq!(expected, &[batch.to_arrow(Selection::All).unwrap()]);
+    assert_batches_eq!(expected, &[batch.to_arrow(Projection::All).unwrap()]);
 }

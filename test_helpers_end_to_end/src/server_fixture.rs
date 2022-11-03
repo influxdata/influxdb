@@ -1,10 +1,11 @@
 use assert_cmd::prelude::*;
 use futures::prelude::*;
 use influxdb_iox_client::connection::Connection;
-use observability_deps::tracing::info;
+use observability_deps::tracing::{info, warn};
 use std::{
     fmt::Debug,
     fs::OpenOptions,
+    ops::DerefMut,
     path::Path,
     process::{Child, Command},
     str,
@@ -611,6 +612,8 @@ impl Drop for TestServer {
             .try_lock()
             .expect("should be able to get a server process lock");
 
+        server_dead_inner(server_lock.deref_mut());
+
         kill_politely(&mut server_lock.child, Duration::from_secs(1));
 
         dump_log_to_stdout(
@@ -623,14 +626,18 @@ impl Drop for TestServer {
 /// returns true if the server process has exited (for any reason), and
 /// prints what happened to stdout
 async fn server_dead(server_process: &Mutex<Process>) -> bool {
-    match server_process.lock().await.child.try_wait() {
+    server_dead_inner(server_process.lock().await.deref_mut())
+}
+
+fn server_dead_inner(server_process: &mut Process) -> bool {
+    match server_process.child.try_wait() {
         Ok(None) => false,
         Ok(Some(status)) => {
-            info!("Server process exited: {}", status);
+            warn!("Server process exited: {}", status);
             true
         }
         Err(e) => {
-            info!("Error getting server process exit status: {}", e);
+            warn!("Error getting server process exit status: {}", e);
             true
         }
     }

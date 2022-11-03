@@ -1,7 +1,7 @@
 use arrow_util::assert_batches_eq;
 use data_types::{StatValues, Statistics};
 use mutable_batch::{writer::Writer, MutableBatch};
-use schema::selection::Selection;
+use schema::Projection;
 use std::{collections::BTreeMap, num::NonZeroU64};
 
 #[test]
@@ -56,7 +56,7 @@ fn test_extend() {
 
     writer.commit();
 
-    let a_before = a.to_arrow(Selection::All).unwrap();
+    let a_before = a.to_arrow(Projection::All).unwrap();
 
     a.extend_from(&b).unwrap();
 
@@ -90,7 +90,7 @@ fn test_extend() {
             "| v1   | v5   | 1970-01-01T00:00:00.000000012Z |",
             "+------+------+--------------------------------+",
         ],
-        &[b.to_arrow(Selection::All).unwrap()]
+        &[b.to_arrow(Projection::All).unwrap()]
     );
 
     assert_batches_eq!(
@@ -113,7 +113,7 @@ fn test_extend() {
             "| v1   |      | v5   | 1970-01-01T00:00:00.000000012Z |",
             "+------+------+------+--------------------------------+",
         ],
-        &[a.to_arrow(Selection::All).unwrap()]
+        &[a.to_arrow(Projection::All).unwrap()]
     );
 
     let stats: BTreeMap<_, _> = a.columns().map(|(k, v)| (k.as_str(), v.stats())).collect();

@@ -37,11 +37,14 @@ use snafu::{ResultExt, Snafu};
 
 mod adapter;
 mod deduplicate;
+mod metrics;
 pub mod overlap;
 mod physical;
 use self::overlap::group_potential_duplicates;
 pub use deduplicate::{DeduplicateExec, RecordBatchDeduplicator};
 pub(crate) use physical::IOxReadFilterNode;
+
+pub use metrics::parquet_metrics;
 
 #[derive(Debug, Snafu)]
 pub enum Error {

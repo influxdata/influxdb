@@ -95,6 +95,7 @@ impl<C: QuerierHandler + std::fmt::Debug + 'static> ServerType for QuerierServer
         );
         add_service!(builder, self.server.handler().schema_service());
         add_service!(builder, self.server.handler().catalog_service());
+        add_service!(builder, self.server.handler().object_store_service());
 
         serve_builder!(builder);
 
@@ -204,7 +205,11 @@ pub async fn create_querier_server_type(
         )
         .await?,
     );
-    let querier_handler = Arc::new(QuerierHandlerImpl::new(args.catalog, Arc::clone(&database)));
+    let querier_handler = Arc::new(QuerierHandlerImpl::new(
+        args.catalog,
+        Arc::clone(&database),
+        Arc::clone(&args.object_store),
+    ));
 
     let querier = QuerierServer::new(args.metric_registry, querier_handler);
     Ok(Arc::new(QuerierServerType::new(

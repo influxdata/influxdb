@@ -112,7 +112,7 @@ pub fn group_potential_duplicates(
 }
 
 fn timestamp_min_max(chunk: &dyn QueryChunk) -> Option<TimestampMinMax> {
-    chunk.summary().and_then(|summary| summary.time_range())
+    chunk.summary().time_range()
 }
 
 #[cfg(test)]

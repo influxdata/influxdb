@@ -514,7 +514,7 @@ mod tests {
 
     use assert_matches::assert_matches;
     use async_trait::async_trait;
-    use data_types::{DeletePredicate, Sequence, TimestampRange};
+    use data_types::{DeletePredicate, NamespaceId, Sequence, TableId, TimestampRange};
     use dml::{DmlDelete, DmlMeta, DmlWrite};
     use futures::stream::{self, BoxStream};
     use iox_time::{SystemProvider, Time};
@@ -539,6 +539,11 @@ mod tests {
     // Return a DmlWrite with the given namespace and a single table.
     fn make_write(name: impl Into<String>, write_time: u64) -> DmlWrite {
         let tables = lines_to_batches("bananas level=42 4242", 0).unwrap();
+        let ids = tables
+            .keys()
+            .enumerate()
+            .map(|(i, v)| (v.clone(), TableId::new(i as _)))
+            .collect();
         let sequence = DmlMeta::sequenced(
             Sequence::new(ShardIndex::new(1), SequenceNumber::new(2)),
             TEST_TIME
@@ -547,7 +552,14 @@ mod tests {
             None,
             42,
         );
-        DmlWrite::new(name, tables, "1970-01-01".into(), sequence)
+        DmlWrite::new(
+            name,
+            NamespaceId::new(42),
+            tables,
+            ids,
+            "1970-01-01".into(),
+            sequence,
+        )
     }
 
     // Return a DmlDelete with the given namespace.

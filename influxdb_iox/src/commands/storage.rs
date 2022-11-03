@@ -172,6 +172,7 @@ pub enum Format {
 #[derive(Debug, clap::Parser)]
 enum Command {
     MeasurementFields(MeasurementFields),
+    MeasurementTagKeys(MeasurementTagKeys),
     ReadFilter,
     ReadGroup(ReadGroup),
     ReadWindowAggregate(ReadWindowAggregate),
@@ -180,6 +181,12 @@ enum Command {
 
 #[derive(Debug, clap::Parser)]
 struct MeasurementFields {
+    #[clap(action)]
+    measurement: String,
+}
+
+#[derive(Debug, clap::Parser)]
+struct MeasurementTagKeys {
     #[clap(action)]
     measurement: String,
 }
@@ -266,6 +273,22 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         Command::MeasurementFields(m) => {
             let result = client
                 .measurement_fields(request::measurement_fields(
+                    source,
+                    m.measurement,
+                    config.start,
+                    config.stop,
+                    predicate,
+                ))
+                .await
+                .context(ServerSnafu)?;
+            match config.format {
+                Format::Pretty => response::pretty_print_strings(result).context(ResponseSnafu)?,
+                Format::Quiet => {}
+            }
+        }
+        Command::MeasurementTagKeys(m) => {
+            let result = client
+                .measurement_tag_keys(request::measurement_tag_keys(
                     source,
                     m.measurement,
                     config.start,

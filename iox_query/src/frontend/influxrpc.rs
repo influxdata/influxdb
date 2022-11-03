@@ -31,7 +31,7 @@ use query_functions::{
     make_window_bound_expr,
     selectors::{selector_first, selector_last, selector_max, selector_min, SelectorOutput},
 };
-use schema::{selection::Selection, InfluxColumnType, Schema, TIME_COLUMN_NAME};
+use schema::{InfluxColumnType, Projection, Schema, TIME_COLUMN_NAME};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::collections::HashSet as StdHashSet;
 use std::{cmp::Reverse, collections::BTreeSet, sync::Arc};
@@ -387,7 +387,7 @@ impl InfluxRpcPlanner {
                         .map(|f| f.name().as_str())
                         .collect::<Vec<&str>>();
 
-                    let selection = Selection::Some(&column_names);
+                    let selection = Projection::Some(&column_names);
 
                     // If there are delete predicates, we need to scan (or do full plan) the data to eliminate
                     // deleted data before getting tag keys

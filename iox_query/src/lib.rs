@@ -10,17 +10,18 @@
     clippy::dbg_macro
 )]
 
+use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use data_types::{ChunkId, ChunkOrder, DeletePredicate, InfluxDbType, PartitionId, TableSummary};
-use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
+use datafusion::{error::DataFusionError, prelude::SessionContext};
 use exec::{stringset::StringSet, IOxSessionContext};
 use hashbrown::HashMap;
 use observability_deps::tracing::{debug, trace};
+use parquet_file::storage::ParquetExecInput;
 use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate, PredicateMatch};
 use schema::{
-    selection::Selection,
     sort::{SortKey, SortKeyBuilder},
-    Schema, TIME_COLUMN_NAME,
+    Projection, Schema, TIME_COLUMN_NAME,
 };
 use std::{any::Any, collections::BTreeSet, fmt::Debug, iter::FromIterator, sync::Arc};
 
@@ -32,7 +33,6 @@ pub mod pruning;
 pub mod statistics;
 pub mod util;
 
-pub use exec::context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
 pub use frontend::common::ScanPlanBuilder;
 pub use query_functions::group_by::{Aggregate, WindowDuration};
 
@@ -40,7 +40,7 @@ pub use query_functions::group_by::{Aggregate, WindowDuration};
 /// metadata
 pub trait QueryChunkMeta {
     /// Return a summary of the data
-    fn summary(&self) -> Option<Arc<TableSummary>>;
+    fn summary(&self) -> Arc<TableSummary>;
 
     /// return a reference to the summary of the data held in this chunk
     fn schema(&self) -> Arc<Schema>;
@@ -174,6 +174,37 @@ pub trait QueryDatabase: QueryDatabaseMeta + Debug + Send + Sync {
     fn as_meta(&self) -> &dyn QueryDatabaseMeta;
 }
 
+/// Raw data of a [`QueryChunk`].
+#[derive(Debug)]
+pub enum QueryChunkData {
+    /// In-memory record batches.
+    ///
+    /// **IMPORTANT: All batches MUST have the schema that the [chunk reports](QueryChunkMeta::schema).**
+    RecordBatches(Vec<RecordBatch>),
+
+    /// Parquet file.
+    ///
+    /// See [`ParquetExecInput`] for details.
+    Parquet(ParquetExecInput),
+}
+
+impl QueryChunkData {
+    /// Read data into [`RecordBatch`]es. This is mostly meant for testing!
+    pub async fn read_to_batches(
+        self,
+        schema: Arc<Schema>,
+        session_ctx: &SessionContext,
+    ) -> Vec<RecordBatch> {
+        match self {
+            Self::RecordBatches(batches) => batches,
+            Self::Parquet(exec_input) => exec_input
+                .read_to_batches(schema.as_arrow(), Projection::All, session_ctx)
+                .await
+                .unwrap(),
+        }
+    }
+}
+
 /// Collection of data that shares the same partition key
 pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
     /// returns the Id of this chunk. Ids are unique within a
@@ -197,10 +228,7 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
         &self,
         predicate: &Predicate,
     ) -> Result<PredicateMatch, DataFusionError> {
-        Ok(self
-            .summary()
-            .map(|summary| predicate.apply_to_table_summary(&summary, self.schema().as_arrow()))
-            .unwrap_or(PredicateMatch::Unknown))
+        Ok(predicate.apply_to_table_summary(&self.summary(), self.schema().as_arrow()))
     }
 
     /// Returns a set of Strings with column names from the specified
@@ -211,7 +239,7 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
         &self,
         ctx: IOxSessionContext,
         predicate: &Predicate,
-        columns: Selection<'_>,
+        columns: Projection<'_>,
     ) -> Result<Option<StringSet>, DataFusionError>;
 
     /// Return a set of Strings containing the distinct values in the
@@ -226,25 +254,10 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
         predicate: &Predicate,
     ) -> Result<Option<StringSet>, DataFusionError>;
 
-    /// Provides access to raw `QueryChunk` data as an
-    /// asynchronous stream of `RecordBatch`es filtered by a *required*
-    /// predicate. Note that not all chunks can evaluate all types of
-    /// predicates and this function will return an error
-    /// if requested to evaluate with a predicate that is not supported
+    /// Provides access to raw [`QueryChunk`] data.
     ///
-    /// This is the analog of the `TableProvider` in DataFusion
-    ///
-    /// The reason we can't simply use the `TableProvider` trait
-    /// directly is that the data for a particular Table lives in
-    /// several chunks within a partition, so there needs to be an
-    /// implementation of `TableProvider` that stitches together the
-    /// streams from several different `QueryChunk`s.
-    fn read_filter(
-        &self,
-        ctx: IOxSessionContext,
-        predicate: &Predicate,
-        selection: Selection<'_>,
-    ) -> Result<SendableRecordBatchStream, DataFusionError>;
+    /// The engine assume that minimal work shall be performed to gather the `QueryChunkData`.
+    fn data(&self) -> QueryChunkData;
 
     /// Returns chunk type. Useful in tests and debug logs.
     fn chunk_type(&self) -> &str;
@@ -261,7 +274,7 @@ impl<P> QueryChunkMeta for Arc<P>
 where
     P: QueryChunkMeta,
 {
-    fn summary(&self) -> Option<Arc<TableSummary>> {
+    fn summary(&self) -> Arc<TableSummary> {
         self.as_ref().summary()
     }
 
@@ -290,7 +303,7 @@ where
 
 /// Implement ChunkMeta for Arc<dyn QueryChunk>
 impl QueryChunkMeta for Arc<dyn QueryChunk> {
-    fn summary(&self) -> Option<Arc<TableSummary>> {
+    fn summary(&self) -> Arc<TableSummary> {
         self.as_ref().summary()
     }
 
@@ -317,26 +330,32 @@ impl QueryChunkMeta for Arc<dyn QueryChunk> {
     }
 }
 
-/// return true if all the chunks include statistics
-pub fn chunks_have_stats<'a>(chunks: impl IntoIterator<Item = &'a Arc<dyn QueryChunk>>) -> bool {
+/// return true if all the chunks include distinct counts for all columns.
+pub fn chunks_have_distinct_counts<'a>(
+    chunks: impl IntoIterator<Item = &'a Arc<dyn QueryChunk>>,
+) -> bool {
     // If at least one of the provided chunk cannot provide stats,
     // do not need to compute potential duplicates. We will treat
     // as all of them have duplicates
-    chunks.into_iter().all(|c| c.summary().is_some())
+    chunks.into_iter().all(|chunk| {
+        chunk
+            .summary()
+            .columns
+            .iter()
+            .all(|col| col.stats.distinct_count().is_some())
+    })
 }
 
 pub fn compute_sort_key_for_chunks<'a>(
     schema: &Schema,
     chunks: impl Copy + IntoIterator<Item = &'a Arc<dyn QueryChunk>>,
 ) -> SortKey {
-    if !chunks_have_stats(chunks) {
+    if !chunks_have_distinct_counts(chunks) {
         // chunks have not enough stats, return its pk that is
         // sorted lexicographically but time column always last
         SortKey::from_columns(schema.primary_key())
     } else {
-        let summaries = chunks
-            .into_iter()
-            .map(|x| x.summary().expect("Chunk should have summary"));
+        let summaries = chunks.into_iter().map(|x| x.summary());
         compute_sort_key(summaries)
     }
 }

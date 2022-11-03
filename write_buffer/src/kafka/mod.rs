@@ -25,7 +25,7 @@ use rskafka::{
     client::{
         consumer::{StartOffset, StreamConsumerBuilder},
         error::{Error as RSKafkaError, ProtocolError},
-        partition::{OffsetAt, PartitionClient, UnknownTopicHandling},
+        partition::{Compression, OffsetAt, PartitionClient, UnknownTopicHandling},
         producer::{BatchProducer, BatchProducerBuilder},
         ClientBuilder,
     },
@@ -90,7 +90,8 @@ impl RSKafkaProducer {
                 );
 
                 let mut producer_builder =
-                    BatchProducerBuilder::new_with_client(Arc::new(partition_client));
+                    BatchProducerBuilder::new_with_client(Arc::new(partition_client))
+                        .with_compression(Compression::Zstd);
                 if let Some(linger) = producer_config.linger {
                     producer_builder = producer_builder.with_linger(linger);
                 }
@@ -430,7 +431,8 @@ async fn setup_topic(
     partitions: Option<Range<i32>>,
 ) -> Result<BTreeMap<ShardIndex, PartitionClient>> {
     let client_config = ClientConfig::try_from(connection_config)?;
-    let mut client_builder = ClientBuilder::new(vec![conn]);
+    let mut client_builder =
+        ClientBuilder::new(conn.split(',').map(|s| s.trim().to_owned()).collect());
     if let Some(client_id) = client_config.client_id {
         client_builder = client_builder.client_id(client_id);
     }
@@ -521,12 +523,12 @@ mod tests {
     use super::*;
     use crate::{
         core::test_utils::{
-            assert_span_context_eq_or_linked, perform_generic_tests, random_topic_name,
-            set_pop_first, TestAdapter, TestContext,
+            assert_span_context_eq_or_linked, lp_to_batches, perform_generic_tests,
+            random_topic_name, set_pop_first, TestAdapter, TestContext,
         },
         maybe_skip_kafka_integration,
     };
-    use data_types::{DeletePredicate, PartitionKey, TimestampRange};
+    use data_types::{DeletePredicate, NamespaceId, PartitionKey, TimestampRange};
     use dml::{test_util::assert_write_op_eq, DmlDelete, DmlWrite};
     use futures::{stream::FuturesUnordered, TryStreamExt};
     use iox_time::TimeProvider;
@@ -691,7 +693,7 @@ mod tests {
                     headers: Default::default(),
                     timestamp: rskafka::chrono::Utc::now(),
                 }],
-                Compression::NoCompression,
+                Compression::Zstd,
             )
             .await
             .unwrap();
@@ -834,10 +836,12 @@ mod tests {
         partition_key: impl Into<PartitionKey> + Send,
     ) -> DmlMeta {
         let span_ctx = SpanContext::new(Arc::clone(trace_collector) as Arc<_>);
-        let tables = mutable_batch_lp::lines_to_batches("table foo=1", 0).unwrap();
+        let (tables, names) = lp_to_batches("table foo=1");
         let write = DmlWrite::new(
             namespace,
+            NamespaceId::new(42),
             tables,
+            names,
             partition_key.into(),
             DmlMeta::unsequenced(Some(span_ctx)),
         );

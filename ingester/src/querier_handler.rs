@@ -10,7 +10,7 @@ use datafusion_util::MemoryStream;
 use futures::{Stream, StreamExt, TryStreamExt};
 use generated_types::ingester::IngesterQueryRequest;
 use observability_deps::tracing::debug;
-use schema::{merge::SchemaMerger, selection::Selection};
+use schema::{merge::SchemaMerger, Projection};
 use snafu::{ensure, Snafu};
 use trace::span::{Span, SpanRecorder};
 
@@ -344,9 +344,9 @@ pub async fn prepare_data_to_querier(
                         .map(String::as_str)
                         .collect::<Vec<_>>();
                     let selection = if columns.is_empty() {
-                        Selection::All
+                        Projection::All
                     } else {
-                        Selection::Some(columns.as_ref())
+                        Projection::Some(columns.as_ref())
                     };
 
                     let snapshots = batch.project_selection(selection).into_iter().map(|batch| {
@@ -666,6 +666,6 @@ mod tests {
     }
 
     fn lp_to_batch(lp: &str) -> RecordBatch {
-        lp_to_mutable_batch(lp).1.to_arrow(Selection::All).unwrap()
+        lp_to_mutable_batch(lp).1.to_arrow(Projection::All).unwrap()
     }
 }

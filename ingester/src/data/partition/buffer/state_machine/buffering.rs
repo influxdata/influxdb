@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use arrow::record_batch::RecordBatch;
 use mutable_batch::MutableBatch;
-use schema::selection::Selection;
+use schema::Projection;
 
 use crate::data::partition::buffer::{
     mutable_buffer::Buffer,
@@ -34,7 +34,7 @@ impl Queryable for Buffering {
     fn get_query_data(&self) -> Vec<Arc<RecordBatch>> {
         let data = self.buffer.buffer().map(|v| {
             Arc::new(
-                v.to_arrow(Selection::All)
+                v.to_arrow(Projection::All)
                     .expect("failed to snapshot buffer data"),
             )
         });

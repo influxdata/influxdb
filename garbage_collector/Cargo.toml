@@ -26,6 +26,6 @@ clap_blocks = { path = "../clap_blocks" }
 data_types = { path = "../data_types" }
 filetime = "0.2"
 metric = { path = "../metric" }
-once_cell = { version = "1.15.0", features = ["parking_lot"] }
+once_cell = { version = "1.16.0", features = ["parking_lot"] }
 parquet_file = { path = "../parquet_file" }
 tempfile = "3"

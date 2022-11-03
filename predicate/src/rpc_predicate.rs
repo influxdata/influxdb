@@ -11,7 +11,7 @@ use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::ExecutionProps;
 use datafusion::logical_expr::expr_rewriter::ExprRewritable;
 use datafusion::logical_expr::ExprSchemable;
-use datafusion::optimizer::expr_simplifier::{ExprSimplifier, SimplifyInfo};
+use datafusion::optimizer::simplify_expressions::{ExprSimplifier, SimplifyInfo};
 use datafusion::prelude::{lit, Column, Expr};
 use observability_deps::tracing::{debug, trace};
 use schema::Schema;

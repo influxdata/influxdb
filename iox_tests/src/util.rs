@@ -30,11 +30,9 @@ use parquet_file::{
     metadata::IoxMetadata,
     storage::{ParquetStorage, StorageId},
 };
-use predicate::Predicate;
 use schema::{
-    selection::Selection,
     sort::{adjust_sort_key_columns, compute_sort_key, SortKey},
-    Schema,
+    Projection, Schema,
 };
 use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
@@ -389,14 +387,13 @@ impl TestTable {
             Arc::new(schema),
             self.catalog.parquet_store.clone(),
         );
-        let rx = chunk
-            .read_filter(
-                &Predicate::default(),
-                Selection::All,
+        chunk
+            .parquet_exec_input()
+            .read_to_batches(
+                chunk.schema().as_arrow(),
+                Projection::All,
                 &chunk.store().test_df_context(),
             )
-            .unwrap();
-        datafusion::physical_plan::common::collect(rx)
             .await
             .unwrap()
     }
@@ -753,8 +750,8 @@ impl TestParquetFileBuilder {
     pub fn with_line_protocol(self, line_protocol: &str) -> Self {
         let (table, batch) = lp_to_mutable_batch(line_protocol);
 
-        let schema = batch.schema(Selection::All).unwrap();
-        let record_batch = batch.to_arrow(Selection::All).unwrap();
+        let schema = batch.schema(Projection::All).unwrap();
+        let record_batch = batch.to_arrow(Projection::All).unwrap();
 
         self.with_record_batch(record_batch)
             .with_table(table)

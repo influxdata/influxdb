@@ -1,7 +1,9 @@
 use std::{collections::BTreeSet, iter, string::String, sync::Arc};
 
 use assert_matches::assert_matches;
-use data_types::{ColumnType, PartitionTemplate, QueryPoolId, ShardIndex, TemplatePart, TopicId};
+use data_types::{
+    ColumnType, PartitionTemplate, QueryPoolId, ShardIndex, TableId, TemplatePart, TopicId,
+};
 use dml::DmlOperation;
 use hashbrown::HashMap;
 use hyper::{Body, Request, StatusCode};
@@ -50,7 +52,7 @@ type HttpDelegateStack = HttpDelegate<
             WriteSummaryAdapter<
                 FanOutAdaptor<
                     ShardedWriteBuffer<JumpHash<Arc<Shard>>>,
-                    Vec<Partitioned<HashMap<String, MutableBatch>>>,
+                    Vec<Partitioned<HashMap<TableId, (String, MutableBatch)>>>,
                 >,
             >,
         >,
@@ -116,13 +118,7 @@ impl TestContext {
             iox_catalog::INFINITE_RETENTION_POLICY.to_owned(),
         );
 
-        let delegate = HttpDelegate::new(
-            1024,
-            100,
-            namespace_resolver,
-            Arc::new(handler_stack),
-            &metrics,
-        );
+        let delegate = HttpDelegate::new(1024, 100, namespace_resolver, handler_stack, &metrics);
 
         Self {
             delegate,

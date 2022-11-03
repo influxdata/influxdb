@@ -25,7 +25,7 @@ use datafusion::{
     logical_expr::{
         expr_rewriter::ExprRewriter, BinaryExpr, ExprSchemable, LogicalPlan, LogicalPlanBuilder,
     },
-    optimizer::expr_simplifier::{ExprSimplifier, SimplifyContext},
+    optimizer::simplify_expressions::{ExprSimplifier, SimplifyContext},
     physical_expr::create_physical_expr,
     physical_plan::{
         expressions::{col as physical_col, PhysicalSortExpr},

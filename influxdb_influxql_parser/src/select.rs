@@ -774,6 +774,12 @@ mod test {
             select_statement("SELECT value FROM cpu WHERE time <= now()TZ('Australia/Hobart')")
                 .unwrap();
         assert_eq!(rem, "");
+
+        // segmented var ref identifiers
+        let (rem, _) =
+            select_statement(r#"SELECT LAST("n.usage_user") FROM cpu WHERE n.usage_user > 0"#)
+                .unwrap();
+        assert_eq!(rem, "");
     }
 
     #[test]
@@ -845,6 +851,16 @@ mod test {
             Field {
                 expr: call!("COUNT", var_ref!("foo")),
                 alias: Some("bar".into())
+            }
+        );
+
+        // Parse expression with an alias and no unnecessary whitespace
+        let (_, got) = Field::parse("LAST(\"n.asks\")").unwrap();
+        assert_eq!(
+            got,
+            Field {
+                expr: call!("LAST", var_ref!("n.asks")),
+                alias: None
             }
         );
 

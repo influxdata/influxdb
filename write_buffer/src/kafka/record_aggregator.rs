@@ -200,6 +200,7 @@ impl StatusDeaggregator for DmlMetaDeaggregator {
 mod tests {
     use std::sync::Arc;
 
+    use data_types::{NamespaceId, TableId};
     use dml::DmlWrite;
     use hashbrown::HashMap;
     use iox_time::MockProvider;
@@ -233,9 +234,15 @@ mod tests {
 
         let span = SpanContext::new(Arc::new(LogTraceCollector::new()));
 
+        let ids = [("table".to_string(), TableId::new(24))]
+            .into_iter()
+            .collect();
+
         DmlOperation::Write(DmlWrite::new(
             NAMESPACE.to_string(),
+            NamespaceId::new(42),
             m,
+            ids,
             "1970-01-01".into(),
             DmlMeta::unsequenced(Some(span)),
         ))

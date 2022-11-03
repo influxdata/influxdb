@@ -2,7 +2,6 @@ use futures::Future;
 use influxdb_iox_client::connection::Connection;
 use snafu::prelude::*;
 
-mod namespace;
 mod parquet_to_lp;
 mod print_cpu;
 mod schema;
@@ -13,10 +12,6 @@ pub enum Error {
     #[snafu(context(false))]
     #[snafu(display("Error in schema subcommand: {}", source))]
     Schema { source: schema::Error },
-
-    #[snafu(context(false))]
-    #[snafu(display("Error in namespace subcommand: {}", source))]
-    Namespace { source: namespace::Error },
 
     #[snafu(context(false))]
     #[snafu(display("Error in parquet_to_lp subcommand: {}", source))]
@@ -41,9 +36,6 @@ enum Command {
     /// Prints what CPU features are used by the compiler by default.
     PrintCpu,
 
-    /// Interrogate IOx namespaces
-    Namespace(namespace::Config),
-
     /// Interrogate the schema of a namespace
     Schema(schema::Config),
 
@@ -61,10 +53,6 @@ where
 {
     match config.command {
         Command::PrintCpu => print_cpu::main(),
-        Command::Namespace(config) => {
-            let connection = connection().await;
-            namespace::command(connection, config).await?
-        }
         Command::Schema(config) => {
             let connection = connection().await;
             schema::command(connection, config).await?

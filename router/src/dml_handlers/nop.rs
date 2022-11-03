@@ -43,11 +43,12 @@ where
     async fn delete(
         &self,
         namespace: &DatabaseName<'static>,
+        namespace_id: NamespaceId,
         table_name: &str,
         predicate: &DeletePredicate,
         _span_ctx: Option<SpanContext>,
     ) -> Result<(), Self::DeleteError> {
-        info!(%namespace, %table_name, ?predicate, "dropping delete operation");
+        info!(%namespace, %namespace_id, %table_name, ?predicate, "dropping delete operation");
         Ok(())
     }
 }

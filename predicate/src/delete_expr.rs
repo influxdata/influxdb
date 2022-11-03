@@ -20,6 +20,7 @@ pub(crate) fn expr_to_df(expr: DeleteExpr) -> Expr {
 }
 
 #[derive(Debug, Snafu)]
+#[allow(clippy::large_enum_variant)]
 pub enum DataFusionToExprError {
     #[snafu(display("unsupported expression: {:?}", expr))]
     UnsupportedExpression { expr: Expr },

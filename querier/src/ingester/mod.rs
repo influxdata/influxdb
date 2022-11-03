@@ -12,7 +12,6 @@ use data_types::{
     TableSummary, TimestampMinMax,
 };
 use datafusion::error::DataFusionError;
-use datafusion_util::MemoryStream;
 use futures::{stream::FuturesUnordered, TryStreamExt};
 use generated_types::{
     influxdata::iox::ingester::v1::GetWriteInfoResponse,
@@ -25,13 +24,13 @@ use influxdb_iox_client::flight::{
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
     util::{compute_timenanosecond_min_max, create_basic_summary},
-    QueryChunk, QueryChunkMeta,
+    QueryChunk, QueryChunkData, QueryChunkMeta,
 };
 use iox_time::{Time, TimeProvider};
 use metric::{DurationHistogram, Metric};
 use observability_deps::tracing::{debug, trace, warn};
 use predicate::Predicate;
-use schema::{selection::Selection, sort::SortKey, Schema};
+use schema::{sort::SortKey, Projection, Schema};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     any::Any,
@@ -1050,8 +1049,8 @@ impl IngesterChunk {
 }
 
 impl QueryChunkMeta for IngesterChunk {
-    fn summary(&self) -> Option<Arc<TableSummary>> {
-        Some(Arc::clone(&self.summary))
+    fn summary(&self) -> Arc<TableSummary> {
+        Arc::clone(&self.summary)
     }
 
     fn schema(&self) -> Arc<Schema> {
@@ -1095,7 +1094,7 @@ impl QueryChunk for IngesterChunk {
         &self,
         _ctx: IOxSessionContext,
         _predicate: &Predicate,
-        _columns: Selection<'_>,
+        _columns: Projection<'_>,
     ) -> Result<Option<StringSet>, DataFusionError> {
         // TODO maybe some special handling?
         Ok(None)
@@ -1111,30 +1110,8 @@ impl QueryChunk for IngesterChunk {
         Ok(None)
     }
 
-    fn read_filter(
-        &self,
-        _ctx: IOxSessionContext,
-        predicate: &Predicate,
-        selection: Selection<'_>,
-    ) -> Result<datafusion::physical_plan::SendableRecordBatchStream, DataFusionError> {
-        trace!(?predicate, ?selection, input_batches=?self.batches, "Reading data");
-
-        // Apply selection to in-memory batch
-        let batches = match self
-            .schema
-            .df_projection(selection)
-            .map_err(|e| DataFusionError::External(Box::new(e)))?
-        {
-            None => self.batches.clone(),
-            Some(projection) => self
-                .batches
-                .iter()
-                .map(|batch| batch.project(&projection))
-                .collect::<std::result::Result<Vec<_>, ArrowError>>()?,
-        };
-        trace!(?predicate, ?selection, output_batches=?batches, input_batches=?self.batches, "Reading data");
-
-        Ok(Box::pin(MemoryStream::new(batches)))
+    fn data(&self) -> QueryChunkData {
+        QueryChunkData::RecordBatches(self.batches.clone())
     }
 
     fn chunk_type(&self) -> &str {
@@ -1806,7 +1783,7 @@ mod tests {
     }
 
     fn lp_to_record_batch(lp: &str) -> RecordBatch {
-        lp_to_mutable_batch(lp).1.to_arrow(Selection::All).unwrap()
+        lp_to_mutable_batch(lp).1.to_arrow(Projection::All).unwrap()
     }
 
     #[derive(Debug)]

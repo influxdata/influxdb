@@ -7,7 +7,7 @@ use futures::stream;
 use influxdb2_client::models::WriteDataPoint;
 use mutable_batch_lp::lines_to_batches;
 use parquet_file::{metadata::IoxMetadata, serialize};
-use schema::selection::Selection;
+use schema::Projection;
 use snafu::{ensure, ResultExt, Snafu};
 #[cfg(test)]
 use std::{collections::BTreeMap, sync::Arc};
@@ -349,7 +349,7 @@ impl InnerPointsWriter {
 
                 for (measurement, batch) in batches_by_measurement {
                     let record_batch = batch
-                        .to_arrow(Selection::All)
+                        .to_arrow(Projection::All)
                         .context(ConvertToArrowSnafu)?;
                     let stream = Box::pin(MemoryStream::new(vec![record_batch]));
 

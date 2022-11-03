@@ -15,7 +15,6 @@ use arrow::datatypes::{
 use hashbrown::HashSet;
 
 use crate::sort::SortKey;
-use selection::Selection;
 use snafu::{OptionExt, Snafu};
 
 /// The name of the timestamp column in the InfluxDB datamodel
@@ -41,10 +40,11 @@ pub fn TIME_DATA_TYPE() -> ArrowDataType {
 pub mod builder;
 pub mod interner;
 pub mod merge;
-pub mod selection;
+mod projection;
 pub mod sort;
 
 pub use builder::SchemaBuilder;
+pub use projection::Projection;
 
 /// Database schema creation / validation errors.
 #[derive(Debug, Snafu)]
@@ -366,7 +366,7 @@ impl Schema {
     /// Returns a Schema that represents selecting some of the columns
     /// in this schema. An error is returned if the selection refers to
     /// columns that do not exist.
-    pub fn select(&self, selection: Selection<'_>) -> Result<Self> {
+    pub fn select(&self, selection: Projection<'_>) -> Result<Self> {
         Ok(match self.df_projection(selection)? {
             None => self.clone(),
             Some(indicies) => self.select_by_indices(&indicies),
@@ -404,10 +404,10 @@ impl Schema {
     ///
     /// * `None` means "all columns"
     /// * `Some(indicies)` means the subset
-    pub fn df_projection(&self, selection: Selection<'_>) -> Result<Option<Vec<usize>>> {
+    pub fn df_projection(&self, selection: Projection<'_>) -> Result<Option<Vec<usize>>> {
         Ok(match selection {
-            Selection::All => None,
-            Selection::Some(columns) => {
+            Projection::All => None,
+            Projection::Some(columns) => {
                 let projection = columns
                     .iter()
                     .map(|&column_name| {
@@ -440,7 +440,7 @@ impl Schema {
 
     /// Returns a Schema for a given (sub)set of named columns
     pub fn select_by_names(&self, selection: &[&str]) -> Result<Self> {
-        self.select(Selection::Some(selection))
+        self.select(Projection::Some(selection))
     }
 
     /// Return columns used for the "primary key" in this table.
@@ -1284,19 +1284,21 @@ mod test {
             .build()
             .unwrap();
 
-        assert_eq!(schema.df_projection(Selection::All).unwrap(), None);
+        assert_eq!(schema.df_projection(Projection::All).unwrap(), None);
         assert_eq!(
-            schema.df_projection(Selection::Some(&["the_tag"])).unwrap(),
+            schema
+                .df_projection(Projection::Some(&["the_tag"]))
+                .unwrap(),
             Some(vec![1])
         );
         assert_eq!(
             schema
-                .df_projection(Selection::Some(&["the_tag", "the_field"]))
+                .df_projection(Projection::Some(&["the_tag", "the_field"]))
                 .unwrap(),
             Some(vec![1, 0])
         );
 
-        let res = schema.df_projection(Selection::Some(&["the_tag", "unknown_field"]));
+        let res = schema.df_projection(Projection::Some(&["the_tag", "unknown_field"]));
         assert_eq!(
             res.unwrap_err().to_string(),
             "Column not found 'unknown_field'"

@@ -1,22 +1,29 @@
 //! Implementation of a DataFusion PhysicalPlan node across partition chunks
 
 use super::adapter::SchemaAdapterStream;
-use crate::{exec::IOxSessionContext, QueryChunk};
+use crate::{exec::IOxSessionContext, QueryChunk, QueryChunkData};
 use arrow::datatypes::SchemaRef;
 use data_types::TableSummary;
 use datafusion::{
+    datasource::listing::PartitionedFile,
     error::DataFusionError,
     execution::context::TaskContext,
     physical_plan::{
+        execute_stream,
         expressions::PhysicalSortExpr,
+        file_format::{FileScanConfig, ParquetExec},
+        memory::MemoryStream,
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet},
+        stream::RecordBatchStreamAdapter,
         DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream, Statistics,
     },
 };
+use futures::TryStreamExt;
 use observability_deps::tracing::trace;
+use parking_lot::Mutex;
 use predicate::Predicate;
-use schema::{selection::Selection, Schema};
-use std::{fmt, sync::Arc};
+use schema::Schema;
+use std::{collections::HashSet, fmt, sync::Arc};
 
 /// Implements the DataFusion physical plan interface
 #[derive(Debug)]
@@ -27,8 +34,17 @@ pub(crate) struct IOxReadFilterNode {
     iox_schema: Arc<Schema>,
     chunks: Vec<Arc<dyn QueryChunk>>,
     predicate: Predicate,
+
     /// Execution metrics
     metrics: ExecutionPlanMetricsSet,
+
+    /// remember all ParquetExecs created by this node so we can pass
+    /// along metrics.
+    ///
+    /// When we use ParquetExec directly (rather
+    /// than an IOxReadFilterNode) the metric will be directly
+    /// available: <https://github.com/influxdata/influxdb_iox/issues/5897>
+    parquet_execs: Mutex<Vec<Arc<ParquetExec>>>,
 
     // execution context used for tracing
     ctx: IOxSessionContext,
@@ -46,13 +62,20 @@ impl IOxReadFilterNode {
         predicate: Predicate,
     ) -> Self {
         Self {
-            ctx,
             table_name,
             iox_schema,
             chunks,
             predicate,
             metrics: ExecutionPlanMetricsSet::new(),
+            parquet_execs: Mutex::new(vec![]),
+            ctx,
         }
+    }
+
+    // Meant for testing -- provide input to the inner parquet execs
+    // that were created
+    fn parquet_execs(&self) -> Vec<Arc<ParquetExec>> {
+        self.parquet_execs.lock().to_vec()
     }
 }
 
@@ -95,6 +118,7 @@ impl ExecutionPlan for IOxReadFilterNode {
             iox_schema: Arc::clone(&self.iox_schema),
             chunks,
             predicate: self.predicate.clone(),
+            parquet_execs: Mutex::new(self.parquet_execs()),
             metrics: ExecutionPlanMetricsSet::new(),
         };
 
@@ -104,16 +128,13 @@ impl ExecutionPlan for IOxReadFilterNode {
     fn execute(
         &self,
         partition: usize,
-        _context: Arc<TaskContext>,
+        context: Arc<TaskContext>,
     ) -> datafusion::error::Result<SendableRecordBatchStream> {
         trace!(partition, "Start IOxReadFilterNode::execute");
 
         let baseline_metrics = BaselineMetrics::new(&self.metrics, partition);
-        let timer = baseline_metrics.elapsed_compute().timer();
 
         let schema = self.schema();
-        let fields = schema.fields();
-        let selection_cols = fields.iter().map(|f| f.name() as &str).collect::<Vec<_>>();
 
         let chunk = Arc::clone(&self.chunks[partition]);
 
@@ -125,32 +146,88 @@ impl ExecutionPlan for IOxReadFilterNode {
         // restrict the requested selection to the actual columns
         // available, and use SchemaAdapterStream to pad the rest of
         // the columns with NULLs if necessary
-        let selection_cols = restrict_selection(selection_cols, &chunk_table_schema);
-        let selection = Selection::Some(&selection_cols);
+        let final_output_column_names: HashSet<_> =
+            schema.fields().iter().map(|f| f.name()).collect();
+        let projection: Vec<_> = chunk_table_schema
+            .iter()
+            .enumerate()
+            .filter(|(_idx, (_t, field))| final_output_column_names.contains(field.name()))
+            .map(|(idx, _)| idx)
+            .collect();
+        let projection = (!((projection.len() == chunk_table_schema.len())
+            && (projection.iter().enumerate().all(|(a, b)| a == *b))))
+        .then_some(projection);
+        let incomplete_output_schema = projection
+            .as_ref()
+            .map(|projection| {
+                Arc::new(
+                    chunk_table_schema
+                        .as_arrow()
+                        .project(projection)
+                        .expect("projection broken"),
+                )
+            })
+            .unwrap_or_else(|| chunk_table_schema.as_arrow());
 
-        let stream = chunk
-            .read_filter(
-                self.ctx.child_ctx("chunk read_filter"),
-                &self.predicate,
-                selection,
-            )
-            .map_err(|e| {
-                DataFusionError::Execution(format!(
-                    "Error creating scan for table {} chunk {}: {}",
-                    self.table_name,
-                    chunk.id(),
-                    e
-                ))
-            })?;
+        let stream = match chunk.data() {
+            QueryChunkData::RecordBatches(batches) => {
+                let stream = Box::pin(MemoryStream::try_new(
+                    batches,
+                    incomplete_output_schema,
+                    projection,
+                )?);
+                let adapter = SchemaAdapterStream::try_new(stream, schema, baseline_metrics)
+                    .map_err(|e| DataFusionError::Internal(e.to_string()))?;
+                Box::pin(adapter) as SendableRecordBatchStream
+            }
+            QueryChunkData::Parquet(exec_input) => {
+                let base_config = FileScanConfig {
+                    object_store_url: exec_input.object_store_url,
+                    file_schema: Arc::clone(&schema),
+                    file_groups: vec![vec![PartitionedFile {
+                        object_meta: exec_input.object_meta,
+                        partition_values: vec![],
+                        range: None,
+                        extensions: None,
+                    }]],
+                    statistics: Statistics::default(),
+                    projection: None,
+                    limit: None,
+                    table_partition_cols: vec![],
+                    config_options: context.session_config().config_options(),
+                };
+                let delete_predicates: Vec<_> = chunk
+                    .delete_predicates()
+                    .iter()
+                    .map(|pred| Arc::new(pred.as_ref().clone().into()))
+                    .collect();
+                let predicate = self
+                    .predicate
+                    .clone()
+                    .with_delete_predicates(&delete_predicates);
+                let metadata_size_hint = None;
 
-        // all CPU time is now done, pass in baseline metrics to adapter
-        timer.done();
+                let exec = Arc::new(ParquetExec::new(
+                    base_config,
+                    predicate.filter_expr(),
+                    metadata_size_hint,
+                ));
 
-        let adapter = SchemaAdapterStream::try_new(stream, schema, baseline_metrics)
-            .map_err(|e| DataFusionError::Internal(e.to_string()))?;
+                self.parquet_execs.lock().push(Arc::clone(&exec));
+
+                let stream = RecordBatchStreamAdapter::new(
+                    schema,
+                    futures::stream::once(execute_stream(exec, context)).try_flatten(),
+                );
+
+                // Note: No SchemaAdapterStream required here because `ParquetExec` already creates NULL columns for us.
+
+                Box::pin(stream)
+            }
+        };
 
         trace!(partition, "End IOxReadFilterNode::execute");
-        Ok(Box::pin(adapter))
+        Ok(stream)
     }
 
     fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -168,23 +245,27 @@ impl ExecutionPlan for IOxReadFilterNode {
     }
 
     fn metrics(&self) -> Option<MetricsSet> {
-        Some(self.metrics.clone_inner())
+        let mut metrics = self.metrics.clone_inner();
+
+        // copy all metrics from the child parquet_execs
+        for exec in self.parquet_execs() {
+            if let Some(parquet_metrics) = exec.metrics() {
+                for m in parquet_metrics.iter() {
+                    metrics.push(Arc::clone(m))
+                }
+            }
+        }
+
+        Some(metrics)
     }
 
     fn statistics(&self) -> Statistics {
         let mut combined_summary_option: Option<TableSummary> = None;
         for chunk in &self.chunks {
             combined_summary_option = match combined_summary_option {
-                None => Some(
-                    chunk
-                        .summary()
-                        .expect("Chunk should have summary")
-                        .as_ref()
-                        .clone(),
-                ),
+                None => Some(chunk.summary().as_ref().clone()),
                 Some(mut combined_summary) => {
-                    combined_summary
-                        .update_from(&chunk.summary().expect("Chunk should have summary"));
+                    combined_summary.update_from(&chunk.summary());
                     Some(combined_summary)
                 }
             }
@@ -196,18 +277,4 @@ impl ExecutionPlan for IOxReadFilterNode {
             })
             .unwrap_or_default()
     }
-}
-
-/// Removes any columns that are not present in schema, returning a possibly
-/// restricted set of columns
-fn restrict_selection<'a>(
-    selection_cols: Vec<&'a str>,
-    chunk_table_schema: &'a Schema,
-) -> Vec<&'a str> {
-    let arrow_schema = chunk_table_schema.as_arrow();
-
-    selection_cols
-        .into_iter()
-        .filter(|col| arrow_schema.fields().iter().any(|f| f.name() == col))
-        .collect()
 }

@@ -312,7 +312,6 @@ impl QuerierTable {
                             },
                         ))
                     })
-                    .map(Some)
                     .collect();
 
                 // Prune on the most basic summary data (timestamps and column names) before trying to fully load the chunks
@@ -521,7 +520,7 @@ mod tests {
     use iox_query::exec::IOxSessionContext;
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
     use predicate::Predicate;
-    use schema::{builder::SchemaBuilder, selection::Selection, InfluxFieldType};
+    use schema::{builder::SchemaBuilder, InfluxFieldType};
     use std::sync::Arc;
     use test_helpers::maybe_start_logging;
     use trace::{span::SpanStatus, RingBufferTraceCollector};
@@ -712,8 +711,8 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(chunks.len(), 1);
-
         let chunk = &chunks[0];
+        assert_eq!(chunk.chunk_type(), "IngesterPartition");
 
         // verify chunk schema
         let schema = chunk.schema();
@@ -740,17 +739,9 @@ mod tests {
 
         // verify chunk data
         let batches = chunk
-            .read_filter(
-                IOxSessionContext::with_testing(),
-                &Default::default(),
-                Selection::All,
-            )
-            .unwrap()
-            .collect::<Vec<_>>()
-            .await
-            .into_iter()
-            .map(Result::unwrap)
-            .collect::<Vec<_>>();
+            .data()
+            .read_to_batches(chunk.schema(), IOxSessionContext::with_testing().inner())
+            .await;
         let expected = vec![
             "+-----+------+------+--------------------------------+",
             "| foo | tag1 | tag2 | time                           |",

@@ -6,6 +6,7 @@ use std::{io::Write, sync::Arc};
 
 use arrow::error::ArrowError;
 use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion_util::config::BATCH_SIZE;
 use futures::{pin_mut, TryStreamExt};
 use observability_deps::tracing::{debug, trace, warn};
 use parquet::{
@@ -20,6 +21,11 @@ use crate::metadata::{IoxMetadata, METADATA_KEY};
 
 /// Parquet row group write size
 pub const ROW_GROUP_WRITE_SIZE: usize = 1024 * 1024;
+
+/// ensure read and write work well together
+/// Skip clippy due to <https://github.com/rust-lang/rust-clippy/issues/8159>.
+#[allow(clippy::assertions_on_constants)]
+const _: () = assert!(ROW_GROUP_WRITE_SIZE % BATCH_SIZE == 0);
 
 /// [`RecordBatch`] to Parquet serialisation errors.
 ///

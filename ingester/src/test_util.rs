@@ -572,9 +572,17 @@ pub(crate) fn make_write_op(
     sequence_number: i64,
     lines: &str,
 ) -> DmlWrite {
+    let tables = lines_to_batches(lines, 0).unwrap();
+    let ids = tables
+        .keys()
+        .enumerate()
+        .map(|(i, v)| (v.clone(), TableId::new(i as _)))
+        .collect();
     DmlWrite::new(
         namespace.to_string(),
-        lines_to_batches(lines, 0).unwrap(),
+        NamespaceId::new(42),
+        tables,
+        ids,
         partition_key.clone(),
         DmlMeta::sequenced(
             Sequence {

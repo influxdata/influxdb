@@ -1,12 +1,10 @@
 use super::IngesterConnection;
-use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use data_types::ShardIndex;
-use futures::StreamExt;
 use generated_types::influxdata::iox::ingester::v1::GetWriteInfoResponse;
-use iox_query::{exec::IOxSessionContext, util::create_basic_summary, QueryChunk};
+use iox_query::util::create_basic_summary;
 use parking_lot::Mutex;
-use schema::selection::Selection;
+use schema::Projection;
 use schema::Schema as IOxSchema;
 use std::{any::Any, sync::Arc};
 use trace::span::Span;
@@ -38,17 +36,17 @@ impl IngesterConnection for MockIngesterConnection {
         _namespace_name: Arc<str>,
         _table_name: Arc<str>,
         columns: Vec<String>,
-        predicate: &predicate::Predicate,
+        _predicate: &predicate::Predicate,
         _expected_schema: Arc<schema::Schema>,
         _span: Option<Span>,
     ) -> super::Result<Vec<super::IngesterPartition>> {
         // see if we want to do projection pushdown
         let mut prune_columns = true;
         let cols: Vec<&str> = columns.iter().map(|s| s.as_str()).collect();
-        let selection = Selection::Some(&cols);
+        let selection = Projection::Some(&cols);
         match selection {
-            Selection::All => prune_columns = false,
-            Selection::Some(val) => {
+            Projection::All => prune_columns = false,
+            Projection::Some(val) => {
                 if val.is_empty() {
                     prune_columns = false;
                 }
@@ -77,14 +75,14 @@ impl IngesterConnection for MockIngesterConnection {
                     .chunks
                     .into_iter()
                     .map(|ic| async move {
-                        let mut batches: Vec<RecordBatch> = vec![];
-                        let mut stream = ic
-                            .read_filter(IOxSessionContext::with_testing(), predicate, selection)
-                            .expect("Error in read_filter");
-                        while let Some(b) = stream.next().await {
-                            let b = b.expect("Error in stream");
-                            batches.push(b)
-                        }
+                        let batches: Vec<_> = ic
+                            .batches
+                            .iter()
+                            .map(|batch| match ic.schema.df_projection(selection).unwrap() {
+                                Some(projection) => batch.project(&projection).unwrap(),
+                                None => batch.clone(),
+                            })
+                            .collect();
 
                         assert!(!batches.is_empty(), "Error: empty batches");
                         let new_schema = IOxSchema::try_from(batches[0].schema()).unwrap();

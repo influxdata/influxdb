@@ -2,7 +2,7 @@
 
 mod delete_predicate;
 
-use std::{str::Utf8Error, sync::Arc, time::Instant};
+use std::{str::Utf8Error, time::Instant};
 
 use bytes::{Bytes, BytesMut};
 use data_types::{org_and_bucket_to_database, OrgBucketMappingError};
@@ -229,7 +229,7 @@ pub struct HttpDelegate<D, N, T = SystemProvider> {
     max_request_bytes: usize,
     time_provider: T,
     namespace_resolver: N,
-    dml_handler: Arc<D>,
+    dml_handler: D,
 
     // A request limiter to restrict the number of simultaneous requests this
     // router services.
@@ -259,7 +259,7 @@ impl<D, N> HttpDelegate<D, N, SystemProvider> {
         max_request_bytes: usize,
         max_requests: usize,
         namespace_resolver: N,
-        dml_handler: Arc<D>,
+        dml_handler: D,
         metrics: &metric::Registry,
     ) -> Self {
         let write_metric_lines = metrics
@@ -458,9 +458,12 @@ where
             "routing delete"
         );
 
+        let namespace_id = self.namespace_resolver.get_namespace_id(&namespace).await?;
+
         self.dml_handler
             .delete(
                 &namespace,
+                namespace_id,
                 parsed_delete.table_name.as_str(),
                 &predicate,
                 span_ctx,
@@ -966,9 +969,10 @@ mod tests {
         body = r#"{"start":"2021-04-01T14:00:00Z","stop":"2021-04-02T14:00:00Z", "predicate":"_measurement=its_a_table and location=Boston"}"#.as_bytes(),
         dml_handler = [Ok(())],
         want_result = Ok(_),
-        want_dml_calls = [MockDmlHandlerCall::Delete{namespace, table, predicate}] => {
+        want_dml_calls = [MockDmlHandlerCall::Delete{namespace, namespace_id, table, predicate}] => {
             assert_eq!(table, "its_a_table");
             assert_eq!(namespace, "bananas_test");
+            assert_eq!(*namespace_id, NAMESPACE_ID);
             assert!(!predicate.exprs.is_empty());
         }
     );
@@ -1033,9 +1037,10 @@ mod tests {
         body = r#"{"start":"2021-04-01T14:00:00Z","stop":"2021-04-02T14:00:00Z", "predicate":"_measurement=its_a_table and location=Boston"}"#.as_bytes(),
         dml_handler = [Err(DmlError::DatabaseNotFound("bananas_test".to_string()))],
         want_result = Err(Error::DmlHandler(DmlError::DatabaseNotFound(_))),
-        want_dml_calls = [MockDmlHandlerCall::Delete{namespace, table, predicate}] => {
+        want_dml_calls = [MockDmlHandlerCall::Delete{namespace, namespace_id, table, predicate}] => {
             assert_eq!(table, "its_a_table");
             assert_eq!(namespace, "bananas_test");
+            assert_eq!(*namespace_id, NAMESPACE_ID);
             assert!(!predicate.exprs.is_empty());
         }
     );
@@ -1046,9 +1051,10 @@ mod tests {
         body = r#"{"start":"2021-04-01T14:00:00Z","stop":"2021-04-02T14:00:00Z", "predicate":"_measurement=its_a_table and location=Boston"}"#.as_bytes(),
         dml_handler = [Err(DmlError::Internal("💣".into()))],
         want_result = Err(Error::DmlHandler(DmlError::Internal(_))),
-        want_dml_calls = [MockDmlHandlerCall::Delete{namespace, table, predicate}] => {
+        want_dml_calls = [MockDmlHandlerCall::Delete{namespace, namespace_id, table, predicate}] => {
             assert_eq!(table, "its_a_table");
             assert_eq!(namespace, "bananas_test");
+            assert_eq!(*namespace_id, NAMESPACE_ID);
             assert!(!predicate.exprs.is_empty());
         }
     );

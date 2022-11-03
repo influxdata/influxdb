@@ -17,6 +17,7 @@
     clippy::dbg_macro
 )]
 
+mod arcmap;
 pub(crate) mod compact;
 pub mod data;
 pub mod handler;
