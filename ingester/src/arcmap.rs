@@ -153,6 +153,19 @@ where
         }
     }
 
+    /// Return a state snapshot of all the values in this [`ArcMap`] in
+    /// arbitrary order.
+    ///
+    /// # Concurrency
+    ///
+    /// The snapshot generation is serialised w.r.t concurrent calls to mutate
+    /// `self` (that is, a new entry may appear immediately after the snapshot
+    /// is generated). Calls to [`Self::values`] and other "read" methods
+    /// proceed in parallel.
+    pub(crate) fn values(&self) -> Vec<Arc<V>> {
+        self.map.read().values().map(Arc::clone).collect()
+    }
+
     fn compute_hash<Q: Hash + ?Sized>(&self, key: &Q) -> u64 {
         let mut state = self.hasher.build_hasher();
         key.hash(&mut state);
@@ -228,6 +241,23 @@ mod tests {
         let got = map.get_or_else(key, || Arc::new(13));
         assert_eq!(*got, 42);
         assert!(Arc::ptr_eq(&got, &other));
+    }
+
+    #[test]
+    fn test_values() {
+        let map = ArcMap::<usize, String>::default();
+
+        map.insert(&1, Arc::new("bananas".to_string()));
+        map.insert(&2, Arc::new("platanos".to_string()));
+
+        let mut got = map
+            .values()
+            .into_iter()
+            .map(|v| String::clone(&*v))
+            .collect::<Vec<_>>();
+        got.sort_unstable();
+
+        assert_eq!(got, &["bananas", "platanos"]);
     }
 
     #[test]
