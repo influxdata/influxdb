@@ -306,6 +306,7 @@ where
     async fn delete(
         &self,
         _namespace: &DatabaseName<'static>,
+        _namespace_id: NamespaceId,
         _table_name: &str,
         _predicate: &DeletePredicate,
         _span_ctx: Option<SpanContext>,
@@ -788,7 +789,7 @@ mod tests {
         let ns = DatabaseName::try_from(NAMESPACE).unwrap();
 
         handler
-            .delete(&ns, TABLE, &predicate, None)
+            .delete(&ns, NamespaceId::new(42), TABLE, &predicate, None)
             .await
             .expect("request should succeed");
 

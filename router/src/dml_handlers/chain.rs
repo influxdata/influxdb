@@ -79,17 +79,24 @@ where
     async fn delete(
         &self,
         namespace: &DatabaseName<'static>,
+        namespace_id: NamespaceId,
         table_name: &str,
         predicate: &DeletePredicate,
         span_ctx: Option<SpanContext>,
     ) -> Result<(), Self::DeleteError> {
         self.first
-            .delete(namespace, table_name, predicate, span_ctx.clone())
+            .delete(
+                namespace,
+                namespace_id,
+                table_name,
+                predicate,
+                span_ctx.clone(),
+            )
             .await
             .map_err(Into::into)?;
 
         self.second
-            .delete(namespace, table_name, predicate, span_ctx)
+            .delete(namespace, namespace_id, table_name, predicate, span_ctx)
             .await
             .map_err(Into::into)
     }

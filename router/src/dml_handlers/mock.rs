@@ -19,6 +19,7 @@ pub enum MockDmlHandlerCall<W> {
     },
     Delete {
         namespace: String,
+        namespace_id: NamespaceId,
         table: String,
         predicate: DeletePredicate,
     },
@@ -121,6 +122,7 @@ where
     async fn delete(
         &self,
         namespace: &DatabaseName<'static>,
+        namespace_id: NamespaceId,
         table_name: &str,
         predicate: &DeletePredicate,
         _span_ctx: Option<SpanContext>,
@@ -129,6 +131,7 @@ where
             self,
             MockDmlHandlerCall::Delete {
                 namespace: namespace.into(),
+                namespace_id,
                 table: table_name.to_owned(),
                 predicate: predicate.clone(),
             },

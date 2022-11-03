@@ -159,6 +159,7 @@ where
     async fn delete(
         &self,
         namespace: &DatabaseName<'static>,
+        namespace_id: NamespaceId,
         table_name: &str,
         predicate: &DeletePredicate,
         span_ctx: Option<SpanContext>,
@@ -176,7 +177,9 @@ where
         let iter = shards.into_iter().map(|s| {
             trace!(
                 shard_index=%s.shard_index(),
-                %table_name, %namespace,
+                %table_name,
+                %namespace,
+                %namespace_id,
                 "routing delete to shard"
             );
 
@@ -482,7 +485,7 @@ mod tests {
 
         // Call the ShardedWriteBuffer and drive the test
         let ns = DatabaseName::new("namespace").unwrap();
-        w.delete(&ns, TABLE, &predicate, None)
+        w.delete(&ns, NamespaceId::new(42), TABLE, &predicate, None)
             .await
             .expect("delete failed");
 
@@ -503,6 +506,7 @@ mod tests {
             .expect("write should have been successful");
         assert_matches!(got, DmlOperation::Delete(d) => {
             assert_eq!(d.table_name(), Some(TABLE));
+            assert_eq!(d.namespace(), &*ns);
             assert_eq!(*d.predicate(), predicate);
         });
     }
@@ -530,7 +534,7 @@ mod tests {
 
         // Call the ShardedWriteBuffer and drive the test
         let ns = DatabaseName::new("namespace").unwrap();
-        w.delete(&ns, "", &predicate, None)
+        w.delete(&ns, NamespaceId::new(42), "", &predicate, None)
             .await
             .expect("delete failed");
 
@@ -620,7 +624,7 @@ mod tests {
 
         // Call the ShardedWriteBuffer and drive the test
         let ns = DatabaseName::new("namespace").unwrap();
-        w.delete(&ns, TABLE, &predicate, None)
+        w.delete(&ns, NamespaceId::new(42), TABLE, &predicate, None)
             .await
             .expect("delete failed");
 
@@ -677,7 +681,7 @@ mod tests {
         // Call the ShardedWriteBuffer and drive the test
         let ns = DatabaseName::new("namespace").unwrap();
         let err = w
-            .delete(&ns, TABLE, &predicate, None)
+            .delete(&ns, NamespaceId::new(42), TABLE, &predicate, None)
             .await
             .expect_err("delete should fail");
         assert_matches!(err, ShardError::WriteBufferErrors{successes, errs} => {
