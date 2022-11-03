@@ -109,6 +109,7 @@ impl DmlHandler for Partitioner {
     async fn delete(
         &self,
         _namespace: &DatabaseName<'static>,
+        _namespace_id: NamespaceId,
         _table_name: &str,
         _predicate: &DeletePredicate,
         _span_ctx: Option<SpanContext>,

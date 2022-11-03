@@ -105,6 +105,7 @@ where
     async fn delete(
         &self,
         namespace: &DatabaseName<'static>,
+        namespace_id: NamespaceId,
         table_name: &str,
         predicate: &DeletePredicate,
         span_ctx: Option<SpanContext>,
@@ -116,7 +117,7 @@ where
 
         let res = self
             .inner
-            .delete(namespace, table_name, predicate, span_ctx)
+            .delete(namespace, namespace_id, table_name, predicate, span_ctx)
             .await;
 
         // Avoid exploding if time goes backwards - simply drop the measurement
@@ -256,7 +257,7 @@ mod tests {
         };
 
         decorator
-            .delete(&ns, "a table", &pred, Some(span))
+            .delete(&ns, NamespaceId::new(42), "a table", &pred, Some(span))
             .await
             .expect("inner handler configured to succeed");
 
@@ -284,7 +285,7 @@ mod tests {
         };
 
         decorator
-            .delete(&ns, "a table", &pred, Some(span))
+            .delete(&ns, NamespaceId::new(42), "a table", &pred, Some(span))
             .await
             .expect_err("inner handler configured to fail");
 
