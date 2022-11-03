@@ -1,0 +1,63 @@
+#!/bin/bash
+set -o errexit \
+    -o nounset \
+    -o pipefail
+
+path="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+
+terraform_init() {
+  pushd "${path}/tf" &>/dev/null
+
+  # Unfortunately, CircleCI doesn't offer any RPM based machine images.
+  # This is required to test the functionality of the systemd services.
+  # (systemd doesn't run within docker containers). This will spawn a
+  # CentOS 9 Stream EC2 instance in AWS.
+  terraform init
+  terraform apply                   \
+    -auto-approve                   \
+    -var "identifier=${CIRCLE_JOB}" \
+    -var "package_path=${1}"
+
+  popd &>/dev/null
+}
+
+terraform_free() {
+  pushd "${path}/tf" &>/dev/null
+
+  terraform destroy                 \
+    -auto-approve                   \
+    -var "identifier=${CIRCLE_JOB}" \
+    -var "package_path=${1}"
+
+  popd &>/dev/null
+}
+
+terraform_ip() {
+  pushd "${path}/tf" &>/dev/null
+
+  terraform output -raw node_ssh
+
+  popd &>/dev/null
+}
+
+package="$(realpath "${1}")"
+
+# This ensures that the associated resources within AWS are released
+# upon exit or when encountering an error. This is setup before the
+# call to "terraform apply" so even partially initialized resources
+# are released.
+# shellcheck disable=SC2064
+trap "terraform_free \"${package}\"" \
+  SIGINT  \
+  SIGTERM \
+  ERR     \
+  EXIT
+
+terraform_init "${package}"
+
+printf 'Setup complete! Testing %s... (this takes several minutes!)' "${1}"
+
+# Since terraform *just* created this instance, the host key is not
+# known. Therefore, we'll disable StrictHostKeyChecking so ssh does
+# not wait for user input.
+ssh -o 'StrictHostKeyChecking=no' "ec2-user@$(terraform_ip)" 'sudo ./validate rpm ./influxdb2.rpm'
