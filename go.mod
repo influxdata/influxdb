@@ -55,7 +55,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.6.1
 	github.com/stretchr/testify v1.8.0
-	github.com/testcontainers/testcontainers-go v0.0.0-20190108154635-47c0da630f72
+	github.com/testcontainers/testcontainers-go v0.15.0
 	github.com/tinylib/msgp v1.1.0
 	github.com/uber/jaeger-client-go v2.28.0+incompatible
 	github.com/xlab/treeprint v1.0.0
