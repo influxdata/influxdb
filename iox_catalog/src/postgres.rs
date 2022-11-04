@@ -959,6 +959,7 @@ WHERE table_id = $1;
         //
         // - <https://rcoh.svbtle.com/postgres-unique-constraints-can-cause-deadlock>
         // - <https://dba.stackexchange.com/a/195220/27897>
+        // - <https://github.com/influxdata/idpe/issues/16298>
         let out = sqlx::query_as::<_, Column>(
             r#"
 INSERT INTO column_name ( name, table_id, column_type )
