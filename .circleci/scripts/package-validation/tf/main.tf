@@ -7,6 +7,10 @@ terraform {
   }
 }
 
+variable "architecture" {
+  type = string
+}
+
 variable "identifier" {
   type = string
 }
@@ -23,10 +27,10 @@ data "aws_ami" "centos" {
   most_recent = true
 
   # This information is sourced from https://wiki.centos.org/Cloud/AWS
-  # and should pull the latest AWS-provided CentOS 7 image.
+  # and should pull the latest AWS-provided CentOS Stream 9 image.
   filter {
     name   = "name"
-    values = ["CentOS Stream 9 x86_64*"]
+    values = [format("CentOS Stream 9 %s*", var.architecture)]
   }
   filter {
     name   = "virtualization-type"
@@ -57,12 +61,12 @@ resource "aws_security_group" "influxdb_test_package_sg" {
 resource "aws_instance" "centos" {
   count                  = 1
   ami                    = data.aws_ami.centos.id
-  instance_type          = "t3.micro"
+  instance_type          = var.architecture == "x86_64" ? "t2.micro" : "c6g.medium"
   key_name               = "circleci-oss-test"
   vpc_security_group_ids = [aws_security_group.influxdb_test_package_sg.id]
 
   tags = {
-    Name = format("ci_%s_centos", var.identifier)
+    Name = format("circleci_%s_centos_%s", var.identifier, var.architecture)
   }
 
   provisioner "file" {

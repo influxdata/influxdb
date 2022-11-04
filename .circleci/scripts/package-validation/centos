@@ -3,6 +3,11 @@ set -o errexit \
     -o nounset \
     -o pipefail
 
+# $1 -> architecture
+# $2 -> package path
+arch="${1}"
+package="$(realpath "${2}")"
+
 path="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
 
 terraform_init() {
@@ -15,8 +20,9 @@ terraform_init() {
   terraform init
   terraform apply                   \
     -auto-approve                   \
-    -var "identifier=${CIRCLE_JOB}" \
-    -var "package_path=${1}"
+    -var "architecture=${1}"        \
+    -var "package_path=${2}"        \
+    -var "identifier=${CIRCLE_JOB}"
 
   popd &>/dev/null
 }
@@ -26,8 +32,9 @@ terraform_free() {
 
   terraform destroy                 \
     -auto-approve                   \
-    -var "identifier=${CIRCLE_JOB}" \
-    -var "package_path=${1}"
+    -var "architecture=${1}"        \
+    -var "package_path=${2}"        \
+    -var "identifier=${CIRCLE_JOB}"
 
   popd &>/dev/null
 }
@@ -40,20 +47,19 @@ terraform_ip() {
   popd &>/dev/null
 }
 
-package="$(realpath "${1}")"
 
 # This ensures that the associated resources within AWS are released
 # upon exit or when encountering an error. This is setup before the
 # call to "terraform apply" so even partially initialized resources
 # are released.
 # shellcheck disable=SC2064
-trap "terraform_free \"${package}\"" \
+trap "terraform_free \"${arch}\" \"${package}\"" \
   SIGINT  \
   SIGTERM \
   ERR     \
   EXIT
 
-terraform_init "${package}"
+terraform_init "${arch}" "${package}"
 
 printf 'Setup complete! Testing %s... (this takes several minutes!)' "${1}"
 
