@@ -111,8 +111,8 @@ elif [[ -f /etc/debian_version ]]; then
     # Moving these lines out of this if statement would make `rmp -V` fail after installation.
     chown -R -L influxdb:influxdb $LOG_DIR
     chown -R -L influxdb:influxdb $DATA_DIR
-    chmod 750 $LOG_DIR
-    chmod 750 $DATA_DIR
+    chmod 755 $LOG_DIR
+    chmod 755 $DATA_DIR
 
     # Debian/Ubuntu logic
     if command -v systemctl &>/dev/null; then
