@@ -53,6 +53,7 @@ pub mod generated_types {
 /// client
 ///     .delete(
 ///         "my_db",
+///         42,
 ///         "my_table",
 ///         pred,
 ///     )
