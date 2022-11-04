@@ -956,10 +956,17 @@ WHERE table_id = $1;
             v_column_type.push(c.column_type as i16);
         }
 
+        // The `ORDER BY` in this statement is important to avoid deadlocks during concurrent
+        // writes to the same IOx table that each add many new columns. See:
+        //
+        // - <https://rcoh.svbtle.com/postgres-unique-constraints-can-cause-deadlock>
+        // - <https://dba.stackexchange.com/a/195220/27897>
         let out = sqlx::query_as::<_, Column>(
             r#"
 INSERT INTO column_name ( name, table_id, column_type )
-SELECT name, $1, column_type FROM UNNEST($2, $3) as a(name, column_type)
+SELECT name, $1, column_type
+FROM UNNEST($2, $3) as a(name, column_type)
+ORDER BY name
 ON CONFLICT ON CONSTRAINT column_name_unique
 DO UPDATE SET name = column_name.name
 RETURNING *;
