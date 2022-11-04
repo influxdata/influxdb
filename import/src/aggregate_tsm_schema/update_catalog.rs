@@ -6,7 +6,7 @@ use data_types::{
     Partition, PartitionKey, QueryPoolId, ShardId, TableSchema, TopicId,
 };
 use influxdb_iox_client::connection::{Connection, GrpcConnection};
-use iox_catalog::interface::{get_schema_by_name, Catalog, ColumnUpsertRequest, RepoCollection};
+use iox_catalog::interface::{get_schema_by_name, Catalog, RepoCollection};
 use schema::{
     sort::{adjust_sort_key_columns, SortKey, SortKeyBuilder},
     InfluxColumnType, InfluxFieldType, TIME_COLUMN_NAME,
@@ -201,7 +201,7 @@ where
             }
         };
         // batch of columns to add into the schema at the end
-        let mut column_batch = Vec::default();
+        let mut column_batch = HashMap::new();
         // fields and tags are both columns; tag is a special type of column.
         // check that the schema has all these columns or update accordingly.
         for tag in measurement.tags.values() {
@@ -218,10 +218,7 @@ where
                 }
                 None => {
                     // column doesn't exist; add it
-                    column_batch.push(ColumnUpsertRequest {
-                        name: tag.name.as_str(),
-                        column_type: ColumnType::Tag,
-                    });
+                    column_batch.insert(tag.name.as_str(), ColumnType::Tag);
                 }
             }
         }
@@ -254,10 +251,7 @@ where
                 }
                 None => {
                     // column doesn't exist; add it
-                    column_batch.push(ColumnUpsertRequest {
-                        name: field.name.as_str(),
-                        column_type: ColumnType::from(influx_column_type),
-                    });
+                    column_batch.insert(field.name.as_str(), ColumnType::from(influx_column_type));
                 }
             }
         }
@@ -270,7 +264,7 @@ where
             // figure it's okay.
             repos
                 .columns()
-                .create_or_get_many_unchecked(table.id, &column_batch)
+                .create_or_get_many_unchecked(table.id, column_batch)
                 .await?;
         }
         // create a partition for every day in the date range.

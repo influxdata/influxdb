@@ -2,10 +2,10 @@
 
 use crate::{
     interface::{
-        self, sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnTypeMismatchSnafu,
-        ColumnUpsertRequest, Error, NamespaceRepo, ParquetFileRepo, PartitionRepo,
-        ProcessedTombstoneRepo, QueryPoolRepo, RepoCollection, Result, ShardRepo, TableRepo,
-        TombstoneRepo, TopicMetadataRepo, Transaction,
+        self, sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnTypeMismatchSnafu, Error,
+        NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo, QueryPoolRepo,
+        RepoCollection, Result, ShardRepo, TableRepo, TombstoneRepo, TopicMetadataRepo,
+        Transaction,
     },
     metrics::MetricDecorator,
     DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
@@ -28,8 +28,7 @@ use sqlx::{
     Acquire, ConnectOptions, Executor, Postgres, Row,
 };
 use sqlx_hotswap_pool::HotSwapPool;
-use std::str::FromStr;
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashMap, str::FromStr, sync::Arc, time::Duration};
 
 static MIGRATOR: Migrator = sqlx::migrate!();
 
@@ -947,14 +946,13 @@ WHERE table_id = $1;
     async fn create_or_get_many_unchecked(
         &mut self,
         table_id: TableId,
-        columns: &[ColumnUpsertRequest<'_>],
+        columns: HashMap<&str, ColumnType>,
     ) -> Result<Vec<Column>> {
-        let mut v_name = Vec::new();
-        let mut v_column_type = Vec::new();
-        for c in columns {
-            v_name.push(c.name.to_string());
-            v_column_type.push(c.column_type as i16);
-        }
+        let num_columns = columns.len();
+        let (v_name, v_column_type): (Vec<&str>, Vec<i16>) = columns
+            .iter()
+            .map(|(&name, &column_type)| (name, column_type as i16))
+            .unzip();
 
         // The `ORDER BY` in this statement is important to avoid deadlocks during concurrent
         // writes to the same IOx table that each add many new columns. See:
@@ -985,22 +983,21 @@ RETURNING *;
             }
         })?;
 
-        assert_eq!(columns.len(), out.len());
+        assert_eq!(num_columns, out.len());
 
-        out.into_iter()
-            .zip(v_column_type)
-            .map(|(existing, want)| {
-                ensure!(
-                    existing.column_type as i16 == want,
-                    ColumnTypeMismatchSnafu {
-                        name: existing.name,
-                        existing: existing.column_type,
-                        new: ColumnType::try_from(want).unwrap(),
-                    }
-                );
-                Ok(existing)
-            })
-            .collect()
+        for existing in &out {
+            let want = columns.get(existing.name.as_str()).unwrap();
+            ensure!(
+                existing.column_type == *want,
+                ColumnTypeMismatchSnafu {
+                    name: &existing.name,
+                    existing: existing.column_type,
+                    new: *want,
+                }
+            );
+        }
+
+        Ok(out)
     }
 
     async fn list_type_count_by_table_id(
@@ -2692,33 +2689,35 @@ mod tests {
                         .id;
 
                     $(
-                        let insert = [
-                            $(
-                                ColumnUpsertRequest {
-                                    name: $col_name,
-                                    column_type: $col_type,
-                                },
-                            )+
-                        ];
+                        let mut insert = HashMap::new();
+                        $(
+                            insert.insert($col_name, $col_type);
+                        )+
+
                         let got = postgres
                             .repositories()
                             .await
                             .columns()
-                            .create_or_get_many_unchecked(table_id, &insert)
+                            .create_or_get_many_unchecked(table_id, insert.clone())
                             .await;
 
                         // The returned columns MUST always match the requested
                         // column values if successful.
                         if let Ok(got) = &got {
                             assert_eq!(insert.len(), got.len());
-                            insert.iter().zip(got).for_each(|(req, got)| {
-                                assert_eq!(req.name, got.name);
+
+                            for got in got {
                                 assert_eq!(table_id, got.table_id);
+                                let requested_column_type = insert
+                                    .get(got.name.as_str())
+                                    .expect("Should have gotten back a column that was inserted");
                                 assert_eq!(
-                                    req.column_type,
-                                    ColumnType::try_from(got.column_type).expect("invalid column type")
+                                    *requested_column_type,
+                                    ColumnType::try_from(got.column_type)
+                                        .expect("invalid column type")
                                 );
-                            });
+                            }
+
                             assert_metric_hit(&metrics, "column_create_or_get_many_unchecked");
                         }
                     )+
@@ -2825,19 +2824,6 @@ mod tests {
                 assert_eq!(new, ColumnType::Bool);
             })
         }
-    );
-
-    // Issue one call containing a column specified twice, with differing types
-    // and observe an error different from the above test case.
-    test_column_create_or_get_many_unchecked!(
-        intra_request_type_conflict,
-        calls = {
-            [
-                "test1" => ColumnType::String,
-                "test1" => ColumnType::Bool,
-            ]
-        },
-        want = Err(Error::SqlxError{ .. })
     );
 
     #[tokio::test]

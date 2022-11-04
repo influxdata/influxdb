@@ -334,16 +334,6 @@ pub trait TableRepo: Send + Sync {
     async fn list(&mut self) -> Result<Vec<Table>>;
 }
 
-/// Parameters necessary to perform a batch insert of
-/// [`ColumnRepo::create_or_get()`] for one table (specified separately)
-#[derive(Debug)]
-pub struct ColumnUpsertRequest<'a> {
-    /// The name of the column.
-    pub name: &'a str,
-    /// The data type of the column.
-    pub column_type: ColumnType,
-}
-
 /// Functions for working with columns in the catalog
 #[async_trait]
 pub trait ColumnRepo: Send + Sync {
@@ -357,7 +347,7 @@ pub trait ColumnRepo: Send + Sync {
         column_type: ColumnType,
     ) -> Result<Column>;
 
-    /// Perform a bulk upsert of columns.
+    /// Perform a bulk upsert of columns specified by a map of column name to column type.
     ///
     /// Implementations make no guarantees as to the ordering or atomicity of
     /// the batch of column upsert operations - a batch upsert may partially
@@ -369,7 +359,7 @@ pub trait ColumnRepo: Send + Sync {
     async fn create_or_get_many_unchecked(
         &mut self,
         table_id: TableId,
-        columns: &[ColumnUpsertRequest<'_>],
+        columns: HashMap<&str, ColumnType>,
     ) -> Result<Vec<Column>>;
 
     /// Lists all columns in the passed in namespace id.
@@ -1264,21 +1254,12 @@ pub(crate) mod test_helpers {
         assert_eq!(list, want);
 
         // test create_or_get_many_unchecked, below column limit
+        let mut columns = HashMap::new();
+        columns.insert("column_test", ColumnType::Tag);
+        columns.insert("new_column", ColumnType::Tag);
         let table1_columns = repos
             .columns()
-            .create_or_get_many_unchecked(
-                table.id,
-                &[
-                    ColumnUpsertRequest {
-                        name: "column_test",
-                        column_type: ColumnType::Tag,
-                    },
-                    ColumnUpsertRequest {
-                        name: "new_column",
-                        column_type: ColumnType::Tag,
-                    },
-                ],
-            )
+            .create_or_get_many_unchecked(table.id, columns)
             .await
             .unwrap();
         let mut table1_column_names: Vec<_> = table1_columns.iter().map(|c| &c.name).collect();
@@ -1310,21 +1291,12 @@ pub(crate) mod test_helpers {
             .create_or_get("test_table_3", namespace.id)
             .await
             .unwrap();
+        let mut columns = HashMap::new();
+        columns.insert("apples", ColumnType::Tag);
+        columns.insert("oranges", ColumnType::Tag);
         let table3_columns = repos
             .columns()
-            .create_or_get_many_unchecked(
-                table3.id,
-                &[
-                    ColumnUpsertRequest {
-                        name: "apples",
-                        column_type: ColumnType::Tag,
-                    },
-                    ColumnUpsertRequest {
-                        name: "oranges",
-                        column_type: ColumnType::Tag,
-                    },
-                ],
-            )
+            .create_or_get_many_unchecked(table3.id, columns)
             .await
             .unwrap();
         let mut table3_column_names: Vec<_> = table3_columns.iter().map(|c| &c.name).collect();
