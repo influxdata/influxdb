@@ -83,9 +83,9 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
 
     config
         .compile_well_known_types()
-        .disable_comments(&[".google"])
+        .disable_comments([".google"])
         .extern_path(".google.protobuf", "::pbjson_types")
-        .btree_map(&[
+        .btree_map([
             ".influxdata.iox.ingester.v1.IngesterQueryResponseMetadata.unpersisted_partitions",
         ]);
 

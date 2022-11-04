@@ -1383,7 +1383,7 @@ WHERE id = $2;
         let flagged = sqlx::query(
             r#"
             UPDATE partition p
-            SET to_delete = $1 
+            SET to_delete = $1
             FROM table_name t, namespace n
             WHERE p.to_delete IS NULL AND
                   t.id = p.table_id AND
@@ -1393,7 +1393,7 @@ WHERE id = $2;
             RETURNING p.id;
             "#,
         )
-        .bind(&flagged_at) // $1
+        .bind(flagged_at) // $1
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })?;
