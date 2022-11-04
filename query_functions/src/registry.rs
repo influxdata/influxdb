@@ -51,5 +51,5 @@ impl FunctionRegistry for IOxFunctionRegistry {
 
 /// Return a reference to the global function registry
 pub(crate) fn instance() -> &'static IOxFunctionRegistry {
-    &*REGISTRY
+    &REGISTRY
 }

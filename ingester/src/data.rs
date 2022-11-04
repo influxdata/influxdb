@@ -1386,7 +1386,7 @@ mod tests {
             "foo".into(),
             shard.id,
             partition_provider,
-            &*metrics,
+            &metrics,
         );
 
         // w1 should be ignored because the per-partition replay offset is set

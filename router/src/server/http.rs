@@ -1252,7 +1252,7 @@ mod tests {
         // immediate drop of any subsequent requests.
         //
 
-        assert_metric_hit(&*metrics, "http_request_limit_rejected", Some(0));
+        assert_metric_hit(&metrics, "http_request_limit_rejected", Some(0));
 
         // Retain this tx handle for the second request and use it to prove the
         // request dropped before anything was read from the body - the request
@@ -1278,7 +1278,7 @@ mod tests {
         assert_matches!(err, Error::RequestLimit);
 
         // Ensure the "rejected requests" metric was incremented
-        assert_metric_hit(&*metrics, "http_request_limit_rejected", Some(1));
+        assert_metric_hit(&metrics, "http_request_limit_rejected", Some(1));
 
         // Prove the dropped request body is not being read:
         body_2_tx
@@ -1314,7 +1314,7 @@ mod tests {
             .expect("empty write should succeed");
 
         // And the request rejected metric must remain unchanged
-        assert_metric_hit(&*metrics, "http_request_limit_rejected", Some(1));
+        assert_metric_hit(&metrics, "http_request_limit_rejected", Some(1));
     }
 
     // The display text of Error gets passed through `ioxd_router::IoxHttpErrorAdaptor` then

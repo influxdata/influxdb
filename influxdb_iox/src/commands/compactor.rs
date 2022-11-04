@@ -81,7 +81,7 @@ pub async fn command(config: Config) -> Result<()> {
             let object_store: Arc<DynObjectStore> = Arc::new(ObjectStoreMetrics::new(
                 object_store,
                 Arc::clone(&time_provider),
-                &*metric_registry,
+                &metric_registry,
             ));
             let parquet_store = ParquetStorage::new(object_store, StorageId::from("iox"));
 

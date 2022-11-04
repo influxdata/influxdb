@@ -149,7 +149,7 @@ mod tests {
             actual_mapping
                 .clone()
                 .into_iter()
-                .map(|(idx, _id)| Shard::new(idx, Arc::clone(&write_buffer), &*metrics))
+                .map(|(idx, _id)| Shard::new(idx, Arc::clone(&write_buffer), &metrics))
                 .map(Arc::new),
         );
 

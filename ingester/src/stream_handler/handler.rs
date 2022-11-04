@@ -1081,7 +1081,7 @@ mod tests {
             "topic_name".to_string(),
             ShardIndex::new(42),
             ShardId::new(24),
-            &*metrics,
+            &metrics,
             false,
         );
 
@@ -1129,7 +1129,7 @@ mod tests {
             "topic_name".to_string(),
             ShardIndex::new(42),
             ShardId::new(24),
-            &*metrics,
+            &metrics,
             false,
         );
 

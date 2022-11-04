@@ -306,14 +306,14 @@ pub async fn all_scenarios_for_one_chunk(
         // Make delete predicates that happen when all chunks in their final stages
         let end_preds: Vec<Pred> = at_end_preds
             .iter()
-            .map(|p| Pred::new(*p, DeleteTime::end_for(chunk_stage)))
+            .map(|p| Pred::new(p, DeleteTime::end_for(chunk_stage)))
             .collect();
 
         for delete_time in delete_times {
             // make delete predicate with time it happens
             let mut preds: Vec<Pred> = chunk_stage_preds
                 .iter()
-                .map(|p| Pred::new(*p, delete_time))
+                .map(|p| Pred::new(p, delete_time))
                 .collect();
             // extend at-end predicates
             preds.extend(end_preds.clone());

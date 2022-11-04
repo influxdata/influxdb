@@ -104,7 +104,7 @@ pub async fn main(
     // lifetime of the program - this is actually a good thing, as it prevents
     // the panic handler from being removed while unwinding a panic (which in
     // turn, causes a panic - see #548)
-    let f = SendPanicsToTracing::new().with_metrics(&*metrics);
+    let f = SendPanicsToTracing::new().with_metrics(&metrics);
     std::mem::forget(f);
 
     // Register jemalloc metrics
