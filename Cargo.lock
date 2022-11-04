@@ -1129,12 +1129,10 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=2b08a43b82127ef144204e5999dd2730fa1c4756#2b08a43b82127ef144204e5999dd2730fa1c4756"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=761e1671bd3c4988d21a38bb19e50bdac6cfaa61#761e1671bd3c4988d21a38bb19e50bdac6cfaa61"
 dependencies = [
  "ahash 0.8.0",
  "arrow",
- "arrow-buffer",
- "arrow-schema",
  "async-compression",
  "async-trait",
  "bytes",
@@ -1149,7 +1147,6 @@ dependencies = [
  "flate2",
  "futures",
  "glob",
- "half 2.1.0",
  "hashbrown",
  "itertools",
  "lazy_static",
@@ -1176,7 +1173,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=2b08a43b82127ef144204e5999dd2730fa1c4756#2b08a43b82127ef144204e5999dd2730fa1c4756"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=761e1671bd3c4988d21a38bb19e50bdac6cfaa61#761e1671bd3c4988d21a38bb19e50bdac6cfaa61"
 dependencies = [
  "arrow",
  "chrono",
@@ -1189,7 +1186,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=2b08a43b82127ef144204e5999dd2730fa1c4756#2b08a43b82127ef144204e5999dd2730fa1c4756"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=761e1671bd3c4988d21a38bb19e50bdac6cfaa61#761e1671bd3c4988d21a38bb19e50bdac6cfaa61"
 dependencies = [
  "ahash 0.8.0",
  "arrow",
@@ -1201,7 +1198,7 @@ dependencies = [
 [[package]]
 name = "datafusion-optimizer"
 version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=2b08a43b82127ef144204e5999dd2730fa1c4756#2b08a43b82127ef144204e5999dd2730fa1c4756"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=761e1671bd3c4988d21a38bb19e50bdac6cfaa61#761e1671bd3c4988d21a38bb19e50bdac6cfaa61"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1216,32 +1213,37 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=2b08a43b82127ef144204e5999dd2730fa1c4756#2b08a43b82127ef144204e5999dd2730fa1c4756"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=761e1671bd3c4988d21a38bb19e50bdac6cfaa61#761e1671bd3c4988d21a38bb19e50bdac6cfaa61"
 dependencies = [
  "ahash 0.8.0",
  "arrow",
+ "arrow-buffer",
+ "arrow-schema",
  "blake2",
  "blake3",
  "chrono",
  "datafusion-common",
  "datafusion-expr",
  "datafusion-row",
+ "half 2.1.0",
  "hashbrown",
  "itertools",
  "lazy_static",
  "md-5",
+ "num-traits",
  "ordered-float 3.3.0",
  "paste",
  "rand",
  "regex",
  "sha2",
  "unicode-segmentation",
+ "uuid",
 ]
 
 [[package]]
 name = "datafusion-proto"
 version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=2b08a43b82127ef144204e5999dd2730fa1c4756#2b08a43b82127ef144204e5999dd2730fa1c4756"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=761e1671bd3c4988d21a38bb19e50bdac6cfaa61#761e1671bd3c4988d21a38bb19e50bdac6cfaa61"
 dependencies = [
  "arrow",
  "datafusion",
@@ -1255,7 +1257,7 @@ dependencies = [
 [[package]]
 name = "datafusion-row"
 version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=2b08a43b82127ef144204e5999dd2730fa1c4756#2b08a43b82127ef144204e5999dd2730fa1c4756"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=761e1671bd3c4988d21a38bb19e50bdac6cfaa61#761e1671bd3c4988d21a38bb19e50bdac6cfaa61"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1266,7 +1268,7 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=2b08a43b82127ef144204e5999dd2730fa1c4756#2b08a43b82127ef144204e5999dd2730fa1c4756"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=761e1671bd3c4988d21a38bb19e50bdac6cfaa61#761e1671bd3c4988d21a38bb19e50bdac6cfaa61"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1584,13 +1586,13 @@ dependencies = [
 
 [[package]]
 name = "futures-intrusive"
-version = "0.4.1"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b6bdbb8c5a42b2bb5ee8dd9dc2c7d73ce3e15d26dfe100fb347ffa3f58c672b"
+checksum = "a604f7a68fbf8103337523b1fadc8ade7361ee3f112f7c680ad179651616aed5"
 dependencies = [
  "futures-core",
  "lock_api",
- "parking_lot 0.12.1",
+ "parking_lot 0.11.2",
 ]
 
 [[package]]

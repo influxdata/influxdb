@@ -89,8 +89,7 @@ async fn sql_select_with_schema_merge() {
 
 #[tokio::test]
 async fn sql_select_with_schema_merge_nonexistent_column() {
-    let expected_error = "Schema error: No field named 'foo'. Valid fields are 'cpu.host', \
-    'cpu.region', 'cpu.system', 'cpu.time', 'cpu.user'.";
+    let expected_error = "Schema error: No field named 'foo'";
     run_sql_error_test_case(
         MultiChunkSchemaMerge {},
         "SELECT * from cpu where foo = 8",

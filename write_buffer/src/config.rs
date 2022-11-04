@@ -33,6 +33,7 @@ pub struct WriteBufferConnection {
     pub type_: String,
 
     /// Connection string, depends on [`type_`](Self::type_).
+    /// When Kafka type is selected, multiple bootstrap_broker can be separated by commas.
     pub connection: String,
 
     /// Special configs to be applied when establishing the connection.

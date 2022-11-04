@@ -134,7 +134,7 @@ impl Agent {
     /// called `batch_size` times before writing. Meant to be called in a `tokio::task`.
     pub async fn generate_all(
         &mut self,
-        mut points_writer: PointsWriter,
+        points_writer: Arc<PointsWriter>,
         batch_size: usize,
         counter: Arc<AtomicU64>,
     ) -> Result<usize> {

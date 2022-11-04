@@ -431,7 +431,8 @@ async fn setup_topic(
     partitions: Option<Range<i32>>,
 ) -> Result<BTreeMap<ShardIndex, PartitionClient>> {
     let client_config = ClientConfig::try_from(connection_config)?;
-    let mut client_builder = ClientBuilder::new(vec![conn]);
+    let mut client_builder =
+        ClientBuilder::new(conn.split(',').map(|s| s.trim().to_owned()).collect());
     if let Some(client_id) = client_config.client_id {
         client_builder = client_builder.client_id(client_id);
     }

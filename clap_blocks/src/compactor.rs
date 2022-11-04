@@ -166,6 +166,16 @@ macro_rules! gen_compactor_config {
                 action
             )]
             pub max_num_compacting_files: usize,
+
+            /// Number of minutes without a write to a partition before it is considered cold
+            /// and thus a candidate for compaction
+            #[clap(
+                long = "compaction-minutes-without-new-writes-to-be-cold",
+                env = "INFLUXDB_IOX_COMPACTION_MINUTES_WITHOUT_NEW_WRITE_TO_BE_COLD",
+                default_value = "480",
+                action
+            )]
+            pub minutes_without_new_writes_to_be_cold: u64,
         }
     };
 }
@@ -193,6 +203,7 @@ impl CompactorOnceConfig {
             min_num_rows_allocated_per_record_batch_to_datafusion_plan: self
                 .min_num_rows_allocated_per_record_batch_to_datafusion_plan,
             max_num_compacting_files: self.max_num_compacting_files,
+            minutes_without_new_writes_to_be_cold: self.minutes_without_new_writes_to_be_cold,
         }
     }
 }

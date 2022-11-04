@@ -275,14 +275,15 @@ impl Compactor {
                 ("partition_type", compaction_type.into()),
             ]);
 
-            let time_8_hours_ago = Timestamp::from(self.time_provider.hours_ago(8));
+            let minutes = self.config.minutes_without_new_writes_to_be_cold;
+            let time_in_the_past = Timestamp::from(self.time_provider.minutes_ago(minutes));
 
             let mut repos = self.catalog.repositories().await;
             let mut partitions = repos
                 .parquet_files()
                 .most_cold_files_partitions(
                     *shard_id,
-                    time_8_hours_ago,
+                    time_in_the_past,
                     max_num_partitions_per_shard,
                 )
                 .await
@@ -688,6 +689,7 @@ pub mod tests {
             memory_budget_bytes: 10 * 1024 * 1024,
             min_num_rows_allocated_per_record_batch_to_datafusion_plan: 100,
             max_num_compacting_files: 20,
+            minutes_without_new_writes_to_be_cold: 10,
         }
     }
 
@@ -776,7 +778,9 @@ pub mod tests {
 
         // Create a compactor
         let time_provider = Arc::new(SystemProvider::new());
-        let config = make_compactor_config();
+        let mut config = make_compactor_config();
+        // 8 hours to be cold
+        config.minutes_without_new_writes_to_be_cold = 8 * 60;
         let compactor = Compactor::new(
             vec![shard.id, another_shard.id],
             Arc::clone(&catalog.catalog),

@@ -199,7 +199,8 @@ agents = [{name = "foo", sampling_interval = "1s", count = 3}]
     group.bench_function("single agent with basic configuration", |b| {
         b.iter(|| {
             agent.reset_current_date_time(0);
-            let points_writer = points_writer.build_for_agent("foo", "foo", "foo").unwrap();
+            let points_writer =
+                Arc::new(points_writer.build_for_agent("foo", "foo", "foo").unwrap());
             let r = block_on(agent.generate_all(points_writer, 1, Arc::clone(&counter)));
             let n_points = r.expect("Could not generate data");
             assert_eq!(n_points, expected_points as usize);

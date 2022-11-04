@@ -10,14 +10,12 @@ use parquet_file::{metadata::IoxMetadata, serialize};
 use schema::Projection;
 use snafu::{ensure, ResultExt, Snafu};
 #[cfg(test)]
-use std::{
-    collections::BTreeMap,
-    sync::{Arc, Mutex},
-};
+use std::{collections::BTreeMap, sync::Arc};
 use std::{
     fs::{self, File, OpenOptions},
     io::{BufWriter, Write},
     path::{Path, PathBuf},
+    sync::Mutex,
 };
 
 /// Errors that may happen while writing points.
@@ -243,7 +241,7 @@ impl PointsWriterBuilder {
                     .open(&filename)
                     .context(CantOpenLineProtocolFileSnafu { filename })?;
 
-                let file = BufWriter::new(file);
+                let file = Mutex::new(BufWriter::new(file));
 
                 InnerPointsWriter::File { file }
             }
@@ -279,7 +277,7 @@ pub struct PointsWriter {
 impl PointsWriter {
     /// Write these points
     pub async fn write_points(
-        &mut self,
+        &self,
         points: impl Iterator<Item = LineToGenerate> + Send + Sync + 'static,
     ) -> Result<()> {
         self.inner_writer.write_points(points).await
@@ -294,7 +292,7 @@ enum InnerPointsWriter {
         bucket: String,
     },
     File {
-        file: BufWriter<File>,
+        file: Mutex<BufWriter<File>>,
     },
     ParquetFile {
         dir_path: PathBuf,
@@ -310,7 +308,7 @@ enum InnerPointsWriter {
 
 impl InnerPointsWriter {
     async fn write_points(
-        &mut self,
+        &self,
         points: impl Iterator<Item = LineToGenerate> + Send + Sync + 'static,
     ) -> Result<()> {
         match self {
@@ -326,6 +324,7 @@ impl InnerPointsWriter {
             }
             Self::File { file } => {
                 for point in points {
+                    let mut file = file.lock().expect("Should be able to get lock");
                     point
                         .write_data_point_to(&mut *file)
                         .context(CantWriteToLineProtocolFileSnafu)?;
@@ -389,7 +388,7 @@ impl InnerPointsWriter {
                 }
             }
             #[cfg(test)]
-            Self::Vec(ref mut vec) => {
+            Self::Vec(vec) => {
                 let vec_ref = Arc::clone(vec);
                 let mut vec = vec_ref.lock().expect("Should be able to get lock");
                 for point in points {

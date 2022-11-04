@@ -426,6 +426,7 @@ impl Config {
             memory_budget_bytes: 300_000,
             min_num_rows_allocated_per_record_batch_to_datafusion_plan: 100,
             max_num_compacting_files: 20,
+            minutes_without_new_writes_to_be_cold: 10,
         };
 
         let querier_config = QuerierConfig {
