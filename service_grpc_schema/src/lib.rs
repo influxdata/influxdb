@@ -3,7 +3,7 @@
 use std::{ops::DerefMut, sync::Arc};
 
 use generated_types::influxdata::iox::schema::v1::*;
-use iox_catalog::interface::{get_schema_by_name, Catalog};
+use iox_catalog::interface::{get_schema_by_name, update_namespace_retention, Catalog};
 use observability_deps::tracing::warn;
 use tonic::{Request, Response, Status};
 
@@ -37,6 +37,24 @@ impl schema_service_server::SchemaService for SchemaService {
             })
             .map(Arc::new)?;
         Ok(Response::new(schema_to_proto(schema)))
+    }
+
+    async fn update_namespace_retention(
+        &self,
+        request: Request<UpdateNamespaceRetentionRequest>,
+    ) -> Result<Response<UpdateNamespaceRetentionResponse>, Status> {
+        let mut repos = self.catalog.repositories().await;
+
+        let req = request.into_inner();
+        let namespace =
+            update_namespace_retention(&req.name, req.retention_hours, repos.deref_mut())
+                .await
+                .map_err(|e| {
+                    warn!(error=%e, %req.name, "failed to update namespace retention");
+                    Status::not_found(e.to_string())
+                })
+                .map(Arc::new)?;
+        Ok(Response::new(namespace_to_proto(namespace)))
     }
 }
 
@@ -74,6 +92,16 @@ fn schema_to_proto(schema: Arc<data_types::NamespaceSchema>) -> GetSchemaRespons
         }),
     };
     response
+}
+
+fn namespace_to_proto(namespace: Arc<data_types::Namespace>) -> UpdateNamespaceRetentionResponse {
+    UpdateNamespaceRetentionResponse {
+        namespace: Some(Namespace {
+            id: namespace.id.get(),
+            name: namespace.name.clone(),
+            retention_period_ns: namespace.retention_period_ns,
+        }),
+    }
 }
 
 #[cfg(test)]

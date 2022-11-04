@@ -8,7 +8,7 @@ use crate::{
         TombstoneRepo, TopicMetadataRepo, Transaction,
     },
     metrics::MetricDecorator,
-    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
+    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES, DEFAULT_RETENTION_PERIOD,
 };
 use async_trait::async_trait;
 use data_types::{
@@ -622,6 +622,7 @@ RETURNING *;
         // Ensure the column default values match the code values.
         debug_assert_eq!(rec.max_tables, DEFAULT_MAX_TABLES);
         debug_assert_eq!(rec.max_columns_per_table, DEFAULT_MAX_COLUMNS_PER_TABLE);
+        debug_assert_eq!(rec.retention_period_ns, DEFAULT_RETENTION_PERIOD);
 
         Ok(rec)
     }
@@ -719,6 +720,40 @@ RETURNING *;
         .bind(&name)
         .fetch_one(&mut self.inner)
         .await;
+
+        let namespace = rec.map_err(|e| match e {
+            sqlx::Error::RowNotFound => Error::NamespaceNotFoundByName {
+                name: name.to_string(),
+            },
+            _ => Error::SqlxError { source: e },
+        })?;
+
+        Ok(namespace)
+    }
+
+    async fn update_retention_period(
+        &mut self,
+        name: &str,
+        retention_hours: i64,
+    ) -> Result<Namespace> {
+        let rentenion_period_ns = retention_hours * 60 * 60 * 1_000_000_000;
+
+        let rec = if rentenion_period_ns == 0 {
+            sqlx::query_as::<_, Namespace>(
+                r#"UPDATE namespace SET retention_period_ns = NULL WHERE name = $1 RETURNING *;"#,
+            )
+            .bind(&name) // $1
+            .fetch_one(&mut self.inner)
+            .await
+        } else {
+            sqlx::query_as::<_, Namespace>(
+                r#"UPDATE namespace SET retention_period_ns = $1 WHERE name = $2 RETURNING *;"#,
+            )
+            .bind(&rentenion_period_ns) // $1
+            .bind(&name) // $2
+            .fetch_one(&mut self.inner)
+            .await
+        };
 
         let namespace = rec.map_err(|e| match e {
             sqlx::Error::RowNotFound => Error::NamespaceNotFoundByName {
