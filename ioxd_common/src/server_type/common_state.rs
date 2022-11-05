@@ -32,7 +32,7 @@ impl CommonServerState {
         use clap::Parser;
 
         Self::from_config(
-            RunConfig::try_parse_from(&["not_used"]).expect("default parsing should work"),
+            RunConfig::try_parse_from(["not_used"]).expect("default parsing should work"),
         )
         .expect("default configs should work")
     }

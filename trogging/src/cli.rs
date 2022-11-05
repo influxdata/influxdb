@@ -151,7 +151,7 @@ mod tests {
     #[ignore] // REVERT THIS WHEN REVERTING CIRCLECI LOGGING CONFIG
     #[test]
     fn test_log_verbose_count() {
-        let cfg = LoggingConfig::try_parse_from(&["cli"]).unwrap();
+        let cfg = LoggingConfig::try_parse_from(["cli"]).unwrap();
         assert_eq!(cfg.log_verbose_count, 0);
 
         assert_eq!(
@@ -163,7 +163,7 @@ WARN woo
             .trim_start(),
         );
 
-        let cfg = LoggingConfig::try_parse_from(&["cli", "-v"]).unwrap();
+        let cfg = LoggingConfig::try_parse_from(["cli", "-v"]).unwrap();
         assert_eq!(cfg.log_verbose_count, 1);
 
         assert_eq!(
@@ -176,7 +176,7 @@ INFO bar
             .trim_start(),
         );
 
-        let cfg = LoggingConfig::try_parse_from(&["cli", "-vv"]).unwrap();
+        let cfg = LoggingConfig::try_parse_from(["cli", "-vv"]).unwrap();
         assert_eq!(cfg.log_verbose_count, 2);
 
         assert_eq!(
@@ -190,7 +190,7 @@ DEBUG baz
             .trim_start(),
         );
 
-        let cfg = LoggingConfig::try_parse_from(&["cli", "-vvv"]).unwrap();
+        let cfg = LoggingConfig::try_parse_from(["cli", "-vvv"]).unwrap();
         assert_eq!(cfg.log_verbose_count, 3);
 
         assert_eq!(
@@ -208,7 +208,7 @@ TRACE trax
 
     #[test]
     fn test_custom_default_log_level() {
-        let cfg = LoggingConfig::try_parse_from(&["cli"]).unwrap();
+        let cfg = LoggingConfig::try_parse_from(["cli"]).unwrap();
 
         assert_eq!(
             simple_test(
@@ -226,7 +226,7 @@ DEBUG baz
             .trim_start(),
         );
 
-        let cfg = LoggingConfig::try_parse_from(&["cli", "--log-filter=info"]).unwrap();
+        let cfg = LoggingConfig::try_parse_from(["cli", "--log-filter=info"]).unwrap();
 
         assert_eq!(
             simple_test(

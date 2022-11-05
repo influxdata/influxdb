@@ -429,7 +429,7 @@ async fn new_pool(
                     dsn_file: &str,
                     pool: &HotSwapPool<Postgres>,
                 ) -> Result<Option<String>, sqlx::Error> {
-                    let new_dsn = std::fs::read_to_string(&dsn_file)?;
+                    let new_dsn = std::fs::read_to_string(dsn_file)?;
                     if new_dsn == current_dsn {
                         Ok(None)
                     } else {
@@ -533,7 +533,7 @@ DO UPDATE SET name = topic.name
 RETURNING *;
         "#,
         )
-        .bind(&name) // $1
+        .bind(name) // $1
         .fetch_one(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })?;
@@ -549,7 +549,7 @@ FROM topic
 WHERE name = $1;
         "#,
         )
-        .bind(&name) // $1
+        .bind(name) // $1
         .fetch_one(&mut self.inner)
         .await;
 
@@ -575,7 +575,7 @@ DO UPDATE SET name = query_pool.name
 RETURNING *;
         "#,
         )
-        .bind(&name) // $1
+        .bind(name) // $1
         .fetch_one(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })?;
@@ -600,8 +600,8 @@ VALUES ( $1, $2, $3, $4 )
 RETURNING *;
         "#,
         )
-        .bind(&name) // $1
-        .bind(&retention_duration) // $2
+        .bind(name) // $1
+        .bind(retention_duration) // $2
         .bind(topic_id) // $3
         .bind(query_pool_id) // $4
         .fetch_one(&mut self.inner)
@@ -648,7 +648,7 @@ FROM namespace
 WHERE id = $1;
         "#,
         )
-        .bind(&id) // $1
+        .bind(id) // $1
         .fetch_one(&mut self.inner)
         .await;
 
@@ -669,7 +669,7 @@ FROM namespace
 WHERE name = $1;
         "#,
         )
-        .bind(&name) // $1
+        .bind(name) // $1
         .fetch_one(&mut self.inner)
         .await;
 
@@ -691,8 +691,8 @@ WHERE name = $2
 RETURNING *;
         "#,
         )
-        .bind(&new_max)
-        .bind(&name)
+        .bind(new_max)
+        .bind(name)
         .fetch_one(&mut self.inner)
         .await;
 
@@ -715,8 +715,8 @@ WHERE name = $2
 RETURNING *;
         "#,
         )
-        .bind(&new_max)
-        .bind(&name)
+        .bind(new_max)
+        .bind(name)
         .fetch_one(&mut self.inner)
         .await;
 
@@ -741,15 +741,15 @@ RETURNING *;
             sqlx::query_as::<_, Namespace>(
                 r#"UPDATE namespace SET retention_period_ns = NULL WHERE name = $1 RETURNING *;"#,
             )
-            .bind(&name) // $1
+            .bind(name) // $1
             .fetch_one(&mut self.inner)
             .await
         } else {
             sqlx::query_as::<_, Namespace>(
                 r#"UPDATE namespace SET retention_period_ns = $1 WHERE name = $2 RETURNING *;"#,
             )
-            .bind(&rentenion_period_ns) // $1
-            .bind(&name) // $2
+            .bind(rentenion_period_ns) // $1
+            .bind(name) // $2
             .fetch_one(&mut self.inner)
             .await
         };
@@ -791,8 +791,8 @@ DO UPDATE SET name = table_name.name
 RETURNING *;
         "#,
         )
-        .bind(&name) // $1
-        .bind(&namespace_id) // $2
+        .bind(name) // $1
+        .bind(namespace_id) // $2
         .fetch_one(&mut self.inner)
         .await
         .map_err(|e| match e {
@@ -820,7 +820,7 @@ FROM table_name
 WHERE id = $1;
             "#,
         )
-        .bind(&table_id) // $1
+        .bind(table_id) // $1
         .fetch_one(&mut self.inner)
         .await;
 
@@ -845,8 +845,8 @@ FROM table_name
 WHERE namespace_id = $1 AND name = $2;
             "#,
         )
-        .bind(&namespace_id) // $1
-        .bind(&name) // $2
+        .bind(namespace_id) // $1
+        .bind(name) // $2
         .fetch_one(&mut self.inner)
         .await;
 
@@ -867,7 +867,7 @@ FROM table_name
 WHERE namespace_id = $1;
             "#,
         )
-        .bind(&namespace_id)
+        .bind(namespace_id)
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })?;
@@ -908,9 +908,9 @@ DO UPDATE SET name = column_name.name
 RETURNING *;
         "#,
         )
-        .bind(&name) // $1
-        .bind(&table_id) // $2
-        .bind(&column_type) // $3
+        .bind(name) // $1
+        .bind(table_id) // $2
+        .bind(column_type) // $3
         .fetch_one(&mut self.inner)
         .await
         .map_err(|e| match e {
@@ -946,7 +946,7 @@ INNER JOIN column_name on column_name.table_id = table_name.id
 WHERE table_name.namespace_id = $1;
             "#,
         )
-        .bind(&namespace_id)
+        .bind(namespace_id)
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })?;
@@ -961,7 +961,7 @@ SELECT * FROM column_name
 WHERE table_id = $1;
             "#,
         )
-        .bind(&table_id)
+        .bind(table_id)
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })?;
@@ -1006,7 +1006,7 @@ DO UPDATE SET name = column_name.name
 RETURNING *;
             "#,
         )
-        .bind(&table_id) // $1
+        .bind(table_id) // $1
         .bind(&v_name) // $2
         .bind(&v_column_type) // $3
         .fetch_all(&mut self.inner)
@@ -1045,7 +1045,7 @@ RETURNING *;
 select column_type as col_type, count(1) from column_name where table_id = $1 group by 1;
             "#,
         )
-        .bind(&table_id) // $1
+        .bind(table_id) // $1
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })
@@ -1070,8 +1070,8 @@ DO UPDATE SET topic_id = shard.topic_id
 RETURNING *;;
         "#,
         )
-        .bind(&topic.id) // $1
-        .bind(&shard_index) // $2
+        .bind(topic.id) // $1
+        .bind(shard_index) // $2
         .fetch_one(&mut self.inner)
         .await
         .map_err(|e| {
@@ -1119,7 +1119,7 @@ WHERE topic_id = $1
 
     async fn list_by_topic(&mut self, topic: &TopicMetadata) -> Result<Vec<Shard>> {
         sqlx::query_as::<_, Shard>(r#"SELECT * FROM shard WHERE topic_id = $1;"#)
-            .bind(&topic.id) // $1
+            .bind(topic.id) // $1
             .fetch_all(&mut self.inner)
             .await
             .map_err(|e| Error::SqlxError { source: e })
@@ -1137,8 +1137,8 @@ SET min_unpersisted_sequence_number = $1
 WHERE id = $2;
                 "#,
         )
-        .bind(&sequence_number.get()) // $1
-        .bind(&shard_id) // $2
+        .bind(sequence_number.get()) // $1
+        .bind(shard_id) // $2
         .execute(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })?;
@@ -1171,8 +1171,8 @@ RETURNING *;
         "#,
         )
         .bind(key) // $1
-        .bind(&shard_id) // $2
-        .bind(&table_id) // $3
+        .bind(shard_id) // $2
+        .bind(table_id) // $3
         .fetch_one(&mut self.inner)
         .await
         .map_err(|e| {
@@ -1197,7 +1197,7 @@ RETURNING *;
 
     async fn get_by_id(&mut self, partition_id: PartitionId) -> Result<Option<Partition>> {
         let rec = sqlx::query_as::<_, Partition>(r#"SELECT * FROM partition WHERE id = $1;"#)
-            .bind(&partition_id) // $1
+            .bind(partition_id) // $1
             .fetch_one(&mut self.inner)
             .await;
 
@@ -1212,7 +1212,7 @@ RETURNING *;
 
     async fn list_by_shard(&mut self, shard_id: ShardId) -> Result<Vec<Partition>> {
         sqlx::query_as::<_, Partition>(r#"SELECT * FROM partition WHERE shard_id = $1;"#)
-            .bind(&shard_id) // $1
+            .bind(shard_id) // $1
             .fetch_all(&mut self.inner)
             .await
             .map_err(|e| Error::SqlxError { source: e })
@@ -1227,7 +1227,7 @@ INNER JOIN partition on partition.table_id = table_name.id
 WHERE table_name.namespace_id = $1;
             "#,
         )
-        .bind(&namespace_id) // $1
+        .bind(namespace_id) // $1
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })
@@ -1241,7 +1241,7 @@ FROM partition
 WHERE table_id = $1;
             "#,
         )
-        .bind(&table_id) // $1
+        .bind(table_id) // $1
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })
@@ -1260,8 +1260,8 @@ WHERE id = $2
 RETURNING *;
         "#,
         )
-        .bind(&sort_key)
-        .bind(&partition_id)
+        .bind(sort_key)
+        .bind(partition_id)
         .fetch_one(&mut self.inner)
         .await;
 
@@ -1358,8 +1358,8 @@ SET persisted_sequence_number = $1
 WHERE id = $2;
                 "#,
         )
-        .bind(&sequence_number.get()) // $1
-        .bind(&partition_id) // $2
+        .bind(sequence_number.get()) // $1
+        .bind(partition_id) // $2
         .execute(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })?;
@@ -1425,11 +1425,11 @@ DO UPDATE SET table_id = tombstone.table_id
 RETURNING *;
         "#,
         )
-        .bind(&table_id) // $1
-        .bind(&shard_id) // $2
-        .bind(&sequence_number) // $3
-        .bind(&min_time) // $4
-        .bind(&max_time) // $5
+        .bind(table_id) // $1
+        .bind(shard_id) // $2
+        .bind(sequence_number) // $3
+        .bind(min_time) // $4
+        .bind(max_time) // $5
         .bind(predicate) // $6
         .fetch_one(&mut self.inner)
         .await
@@ -1479,7 +1479,7 @@ INNER JOIN tombstone on tombstone.table_id = table_name.id
 WHERE table_name.namespace_id = $1;
             "#,
         )
-        .bind(&namespace_id) // $1
+        .bind(namespace_id) // $1
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })
@@ -1494,7 +1494,7 @@ WHERE table_id = $1
 ORDER BY id;
             "#,
         )
-        .bind(&table_id) // $1
+        .bind(table_id) // $1
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })
@@ -1508,7 +1508,7 @@ FROM tombstone
 WHERE id = $1;
         "#,
         )
-        .bind(&id) // $1
+        .bind(id) // $1
         .fetch_one(&mut self.inner)
         .await;
 
@@ -1535,8 +1535,8 @@ WHERE shard_id = $1
 ORDER BY id;
             "#,
         )
-        .bind(&shard_id) // $1
-        .bind(&sequence_number) // $2
+        .bind(shard_id) // $1
+        .bind(sequence_number) // $2
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })
@@ -1594,11 +1594,11 @@ WHERE shard_id = $1
 ORDER BY id;
             "#,
         )
-        .bind(&shard_id) // $1
-        .bind(&table_id) // $2
-        .bind(&sequence_number) // $3
-        .bind(&min_time) // $4
-        .bind(&max_time) // $5
+        .bind(shard_id) // $1
+        .bind(table_id) // $2
+        .bind(sequence_number) // $3
+        .bind(min_time) // $4
+        .bind(max_time) // $5
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })
@@ -1666,8 +1666,8 @@ RETURNING *;
         let marked_at = Timestamp::from(self.time_provider.now());
 
         let _ = sqlx::query(r#"UPDATE parquet_file SET to_delete = $1 WHERE id = $2;"#)
-            .bind(&marked_at) // $1
-            .bind(&id) // $2
+            .bind(marked_at) // $1
+            .bind(id) // $2
             .execute(&mut self.inner)
             .await
             .map_err(|e| Error::SqlxError { source: e })?;
@@ -1689,7 +1689,7 @@ RETURNING *;
                 RETURNING parquet_file.id;
             "#,
         )
-        .bind(&flagged_at) // $1
+        .bind(flagged_at) // $1
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })?;
@@ -1716,8 +1716,8 @@ WHERE shard_id = $1
 ORDER BY id;
             "#,
         )
-        .bind(&shard_id) // $1
-        .bind(&sequence_number) // $2
+        .bind(shard_id) // $1
+        .bind(sequence_number) // $2
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })
@@ -1742,7 +1742,7 @@ WHERE table_name.namespace_id = $1
   AND parquet_file.to_delete IS NULL;
              "#,
         )
-        .bind(&namespace_id) // $1
+        .bind(namespace_id) // $1
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })
@@ -1760,7 +1760,7 @@ FROM parquet_file
 WHERE table_id = $1 AND to_delete IS NULL;
              "#,
         )
-        .bind(&table_id) // $1
+        .bind(table_id) // $1
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })
@@ -1774,7 +1774,7 @@ WHERE to_delete < $1
 RETURNING *;
              "#,
         )
-        .bind(&older_than) // $1
+        .bind(older_than) // $1
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })
@@ -1795,8 +1795,8 @@ WHERE id IN (SELECT id FROM parquet_file_ids)
 RETURNING id;
              "#,
         )
-        .bind(&older_than) // $1
-        .bind(&MAX_PARQUET_FILES_DELETED_ONCE) // $2
+        .bind(older_than) // $1
+        .bind(MAX_PARQUET_FILES_DELETED_ONCE) // $2
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })?;
@@ -1823,7 +1823,7 @@ WHERE parquet_file.shard_id = $1
   LIMIT 1000;
         "#,
         )
-        .bind(&shard_id) // $1
+        .bind(shard_id) // $1
         .bind(CompactionLevel::Initial) // $2
         .fetch_all(&mut self.inner)
         .await
@@ -1853,9 +1853,9 @@ WHERE parquet_file.shard_id = $1
       OR (parquet_file.min_time > $5 AND parquet_file.min_time <= $6));
         "#,
         )
-        .bind(&table_partition.shard_id) // $1
-        .bind(&table_partition.table_id) // $2
-        .bind(&table_partition.partition_id) // $3
+        .bind(table_partition.shard_id) // $1
+        .bind(table_partition.table_id) // $2
+        .bind(table_partition.partition_id) // $3
         .bind(CompactionLevel::FileNonOverlapped) // $4
         .bind(min_time) // $5
         .bind(max_time) // $6
@@ -1891,10 +1891,10 @@ ORDER BY 5 DESC
 LIMIT $4;
             "#,
         )
-        .bind(&shard_id) // $1
+        .bind(shard_id) // $1
         .bind(time_in_the_past) //$2
-        .bind(&min_num_files) // $3
-        .bind(&num_partitions) // $4
+        .bind(min_num_files) // $3
+        .bind(num_partitions) // $4
         .bind(CompactionLevel::Initial) // $5
         .fetch_all(&mut self.inner)
         .await
@@ -1930,9 +1930,9 @@ ORDER BY total_count DESC
 LIMIT $3;
             "#,
         )
-        .bind(&shard_id) // $1
+        .bind(shard_id) // $1
         .bind(time_in_the_past) // $2
-        .bind(&num_partitions) // $3
+        .bind(num_partitions) // $3
         .bind(CompactionLevel::Initial) // $4
         .bind(CompactionLevel::FileNonOverlapped) // $5
         .fetch_all(&mut self.inner)
@@ -1956,7 +1956,7 @@ WHERE parquet_file.partition_id = $1
   AND parquet_file.to_delete IS NULL;
         "#,
         )
-        .bind(&partition_id) // $1
+        .bind(partition_id) // $1
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })
@@ -1992,7 +1992,7 @@ RETURNING id;
         let read_result = sqlx::query_as::<_, Count>(
             r#"SELECT count(1) as count FROM parquet_file WHERE id = $1;"#,
         )
-        .bind(&id) // $1
+        .bind(id) // $1
         .fetch_one(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })?;
@@ -2031,8 +2031,8 @@ WHERE table_id = $1
   OR (parquet_file.min_time > $4 AND parquet_file.min_time <= $5));
             "#,
         )
-        .bind(&table_id) // $1
-        .bind(&shard_id) // $2
+        .bind(table_id) // $1
+        .bind(shard_id) // $2
         .bind(sequence_number) // $3
         .bind(min_time) // $4
         .bind(max_time) // $5
@@ -2063,8 +2063,8 @@ WHERE table_id = $1
   OR (parquet_file.min_time > $3 AND parquet_file.min_time <= $4));
             "#,
         )
-        .bind(&table_id) // $1
-        .bind(&shard_id) // $2
+        .bind(table_id) // $1
+        .bind(shard_id) // $2
         .bind(min_time) // $3
         .bind(max_time) // $4
         .bind(CompactionLevel::FileNonOverlapped) // $5
@@ -2090,7 +2090,7 @@ FROM parquet_file
 WHERE object_store_id = $1;
              "#,
         )
-        .bind(&object_store_id) // $1
+        .bind(object_store_id) // $1
         .fetch_one(&mut self.inner)
         .await;
 
@@ -2149,8 +2149,8 @@ WHERE parquet_file_id = $1
   AND tombstone_id = $2;
             "#,
         )
-        .bind(&parquet_file_id) // $1
-        .bind(&tombstone_id) // $2
+        .bind(parquet_file_id) // $1
+        .bind(tombstone_id) // $2
         .fetch_one(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })?;
@@ -2172,7 +2172,7 @@ WHERE parquet_file_id = $1
         let read_result = sqlx::query_as::<_, Count>(
             r#"SELECT count(1) as count FROM processed_tombstone WHERE tombstone_id = $1;"#,
         )
-        .bind(&tombstone_id) // $1
+        .bind(tombstone_id) // $1
         .fetch_one(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })?;

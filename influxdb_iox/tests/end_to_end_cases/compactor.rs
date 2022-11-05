@@ -45,7 +45,7 @@ async fn compactor_generate_zeroes_are_invalid() {
         .arg("--object-store")
         .arg("file")
         .arg("--data-dir")
-        .arg(&dir.path())
+        .arg(dir.path())
         .arg("--num-partitions")
         .arg("0")
         .arg("--num-files")
@@ -75,7 +75,7 @@ async fn compactor_generate_creates_files_and_catalog_entries() {
         .arg("--object-store")
         .arg("file")
         .arg("--data-dir")
-        .arg(&dir.path())
+        .arg(dir.path())
         .assert()
         .success();
 
@@ -97,7 +97,7 @@ async fn running_compactor_generate_twice_overwrites_existing_files() {
         .arg("--object-store")
         .arg("file")
         .arg("--data-dir")
-        .arg(&dir.path())
+        .arg(dir.path())
         .assert()
         .success();
 
@@ -119,7 +119,7 @@ async fn running_compactor_generate_twice_overwrites_existing_files() {
         .arg("--object-store")
         .arg("file")
         .arg("--data-dir")
-        .arg(&dir.path())
+        .arg(dir.path())
         .assert()
         .success();
 

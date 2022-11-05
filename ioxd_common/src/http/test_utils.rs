@@ -185,7 +185,7 @@ where
 
     let data = response.text().await.unwrap();
 
-    assert!(data.contains(&"\nmy_metric_total{tag=\"value\"} 20\n"));
+    assert!(data.contains("\nmy_metric_total{tag=\"value\"} 20\n"));
 
     let response = client
         .get(&format!("{}/nonexistent", test_server.url()))
@@ -204,10 +204,10 @@ where
     let data = response.text().await.unwrap();
 
     // Should include previous metrics scrape but not the current one
-    assert!(data.contains(&"\nhttp_requests_total{path=\"/metrics\",status=\"ok\"} 1\n"));
+    assert!(data.contains("\nhttp_requests_total{path=\"/metrics\",status=\"ok\"} 1\n"));
     // Should include 404 but not encode the path
-    assert!(!data.contains(&"nonexistent"));
-    assert!(data.contains(&"\nhttp_requests_total{status=\"client_error\"} 1\n"));
+    assert!(!data.contains("nonexistent"));
+    assert!(data.contains("\nhttp_requests_total{status=\"client_error\"} 1\n"));
 }
 
 /// Assert that tracing works.

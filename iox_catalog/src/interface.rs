@@ -932,15 +932,15 @@ pub(crate) mod test_helpers {
         test_list_schemas(Arc::clone(&catalog)).await;
 
         let metrics = catalog.metrics();
-        assert_metric_hit(&*metrics, "topic_create_or_get");
-        assert_metric_hit(&*metrics, "query_create_or_get");
-        assert_metric_hit(&*metrics, "namespace_create");
-        assert_metric_hit(&*metrics, "table_create_or_get");
-        assert_metric_hit(&*metrics, "column_create_or_get");
-        assert_metric_hit(&*metrics, "shard_create_or_get");
-        assert_metric_hit(&*metrics, "partition_create_or_get");
-        assert_metric_hit(&*metrics, "tombstone_create_or_get");
-        assert_metric_hit(&*metrics, "parquet_create");
+        assert_metric_hit(&metrics, "topic_create_or_get");
+        assert_metric_hit(&metrics, "query_create_or_get");
+        assert_metric_hit(&metrics, "namespace_create");
+        assert_metric_hit(&metrics, "table_create_or_get");
+        assert_metric_hit(&metrics, "column_create_or_get");
+        assert_metric_hit(&metrics, "shard_create_or_get");
+        assert_metric_hit(&metrics, "partition_create_or_get");
+        assert_metric_hit(&metrics, "tombstone_create_or_get");
+        assert_metric_hit(&metrics, "parquet_create");
     }
 
     async fn test_setup(catalog: Arc<dyn Catalog>) {

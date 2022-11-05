@@ -449,7 +449,7 @@ mod tests {
 
     #[test]
     fn default_object_store_is_memory() {
-        let config = ObjectStoreConfig::try_parse_from(&["server"]).unwrap();
+        let config = ObjectStoreConfig::try_parse_from(["server"]).unwrap();
 
         let object_store = make_object_store(&config).unwrap();
         assert_eq!(&object_store.to_string(), "InMemory")
@@ -458,7 +458,7 @@ mod tests {
     #[test]
     fn explicitly_set_object_store_to_memory() {
         let config =
-            ObjectStoreConfig::try_parse_from(&["server", "--object-store", "memory"]).unwrap();
+            ObjectStoreConfig::try_parse_from(["server", "--object-store", "memory"]).unwrap();
 
         let object_store = make_object_store(&config).unwrap();
         assert_eq!(&object_store.to_string(), "InMemory")
@@ -467,7 +467,7 @@ mod tests {
     #[test]
     #[cfg(feature = "aws")]
     fn valid_s3_config() {
-        let config = ObjectStoreConfig::try_parse_from(&[
+        let config = ObjectStoreConfig::try_parse_from([
             "server",
             "--object-store",
             "s3",
@@ -488,7 +488,7 @@ mod tests {
     #[cfg(feature = "aws")]
     fn s3_config_missing_params() {
         let mut config =
-            ObjectStoreConfig::try_parse_from(&["server", "--object-store", "s3"]).unwrap();
+            ObjectStoreConfig::try_parse_from(["server", "--object-store", "s3"]).unwrap();
 
         // clean out eventual leaks via env variables
         config.bucket = None;
@@ -504,7 +504,7 @@ mod tests {
     #[test]
     #[cfg(feature = "gcp")]
     fn valid_google_config() {
-        let config = ObjectStoreConfig::try_parse_from(&[
+        let config = ObjectStoreConfig::try_parse_from([
             "server",
             "--object-store",
             "google",
@@ -523,7 +523,7 @@ mod tests {
     #[cfg(feature = "gcp")]
     fn google_config_missing_params() {
         let mut config =
-            ObjectStoreConfig::try_parse_from(&["server", "--object-store", "google"]).unwrap();
+            ObjectStoreConfig::try_parse_from(["server", "--object-store", "google"]).unwrap();
 
         // clean out eventual leaks via env variables
         config.bucket = None;
@@ -540,7 +540,7 @@ mod tests {
     #[test]
     #[cfg(feature = "azure")]
     fn valid_azure_config() {
-        let config = ObjectStoreConfig::try_parse_from(&[
+        let config = ObjectStoreConfig::try_parse_from([
             "server",
             "--object-store",
             "azure",
@@ -561,7 +561,7 @@ mod tests {
     #[cfg(feature = "azure")]
     fn azure_config_missing_params() {
         let mut config =
-            ObjectStoreConfig::try_parse_from(&["server", "--object-store", "azure"]).unwrap();
+            ObjectStoreConfig::try_parse_from(["server", "--object-store", "azure"]).unwrap();
 
         // clean out eventual leaks via env variables
         config.bucket = None;
@@ -580,7 +580,7 @@ mod tests {
         let root = TempDir::new().unwrap();
         let root_path = root.path().to_str().unwrap();
 
-        let config = ObjectStoreConfig::try_parse_from(&[
+        let config = ObjectStoreConfig::try_parse_from([
             "server",
             "--object-store",
             "file",
@@ -604,7 +604,7 @@ mod tests {
         // actually present.
         env::remove_var("INFLUXDB_IOX_DB_DIR");
         let config =
-            ObjectStoreConfig::try_parse_from(&["server", "--object-store", "file"]).unwrap();
+            ObjectStoreConfig::try_parse_from(["server", "--object-store", "file"]).unwrap();
 
         let err = make_object_store(&config).unwrap_err().to_string();
 

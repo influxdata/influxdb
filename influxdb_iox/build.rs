@@ -16,7 +16,7 @@ fn get_git_hash() -> String {
         Ok(v) => v,
         Err(_) => {
             let output = Command::new("git")
-                .args(&["describe", "--always", "--dirty", "--abbrev=64"])
+                .args(["describe", "--always", "--dirty", "--abbrev=64"])
                 .output()
                 .expect("failed to execute git rev-parse to read the current git hash");
 

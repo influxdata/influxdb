@@ -18,7 +18,7 @@ async fn default_mode_is_run_all_in_one() {
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
-        .args(&["-v"])
+        .args(["-v"])
         // Do not attempt to connect to the real DB (object store, etc) if the
         // prod DSN is set - all other tests use TEST_INFLUXDB_IOX_CATALOG_DSN
         // but this one will use the real env if not cleared.
@@ -39,7 +39,7 @@ async fn default_run_mode_is_all_in_one() {
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
-        .args(&["run", "-v"])
+        .args(["run", "-v"])
         // This test is designed to assert the default running mode is using
         // in-memory state, so ensure that any outside config does not influence
         // this.
@@ -400,7 +400,7 @@ async fn write_and_query() {
                         .arg("-h")
                         .arg(&router_addr)
                         .arg("write")
-                        .arg(&namespace)
+                        .arg(namespace)
                         // raw line protocol ('h2o_temperature' measurement)
                         .arg("../test_fixtures/lineproto/air_and_water.lp")
                         // gzipped line protocol ('m0')
@@ -469,7 +469,7 @@ async fn query_error_handling() {
                         .arg("-h")
                         .arg(&querier_addr)
                         .arg("query")
-                        .arg(&namespace)
+                        .arg(namespace)
                         .arg("drop table this_table_doesnt_exist")
                         .assert()
                         .failure()
@@ -503,7 +503,7 @@ async fn wait_for_query_result(state: &mut StepTestState<'_>, query_sql: &str, e
             .arg("-h")
             .arg(&querier_addr)
             .arg("query")
-            .arg(&namespace)
+            .arg(namespace)
             .arg(query_sql)
             .assert();
 

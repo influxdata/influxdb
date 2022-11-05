@@ -644,7 +644,7 @@ async fn maybe_auto_create_directories(
             // A symlink target is resolved relative to the parent directory of
             // the link itself.
             let target = version
-                .strip_prefix(&root)
+                .strip_prefix(root)
                 .expect("symlink target not in root workspace");
 
             // symlink active->version

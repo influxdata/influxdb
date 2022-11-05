@@ -179,7 +179,7 @@ async fn slurp_file(file_name: PathBuf) -> Result<String> {
         Some(extension) if extension.to_string_lossy() == "gz" => {
             let mut lp_data = String::new();
             let reader =
-                BufReader::new(File::open(&file_name).context(ReadingFileSnafu { file_name })?);
+                BufReader::new(File::open(file_name).context(ReadingFileSnafu { file_name })?);
 
             flate2::read::GzDecoder::new(reader)
                 .read_to_string(&mut lp_data)
