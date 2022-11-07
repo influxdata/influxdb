@@ -11,7 +11,7 @@ use iox_query::{
 use schema::sort::{adjust_sort_key_columns, compute_sort_key, SortKey};
 use snafu::{ResultExt, Snafu};
 
-use crate::query_adaptor::QueryAdaptor;
+use crate::{data::table::TableName, query_adaptor::QueryAdaptor};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -90,6 +90,7 @@ impl std::fmt::Debug for CompactedStream {
 pub(crate) async fn compact_persisting_batch(
     executor: &Executor,
     sort_key: Option<SortKey>,
+    table_name: TableName,
     batch: QueryAdaptor,
 ) -> Result<CompactedStream> {
     assert!(!batch.record_batches().is_empty());
@@ -118,7 +119,7 @@ pub(crate) async fn compact_persisting_batch(
     };
 
     // Compact
-    let stream = compact(executor, Arc::new(batch), data_sort_key.clone()).await?;
+    let stream = compact(executor, table_name, Arc::new(batch), data_sort_key.clone()).await?;
 
     Ok(CompactedStream {
         stream,
@@ -130,13 +131,19 @@ pub(crate) async fn compact_persisting_batch(
 /// Compact a given batch without updating the sort key.
 pub(crate) async fn compact(
     executor: &Executor,
+    table_name: TableName,
     data: Arc<QueryAdaptor>,
     sort_key: SortKey,
 ) -> Result<SendableRecordBatchStream> {
     // Build logical plan for compaction
     let ctx = executor.new_context(ExecutorType::Reorg);
     let logical_plan = ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
-        .compact_plan(data.schema(), [data as Arc<dyn QueryChunk>], sort_key)
+        .compact_plan(
+            table_name.into(),
+            data.schema(),
+            [data as Arc<dyn QueryChunk>],
+            sort_key,
+        )
         .context(LogicalPlanSnafu {})?;
 
     // Build physical plan
@@ -185,11 +192,7 @@ mod tests {
             .to_arrow(Projection::All)
             .unwrap();
 
-        let batch = QueryAdaptor::new(
-            "test_table".into(),
-            PartitionId::new(1),
-            vec![Arc::new(batch)],
-        );
+        let batch = QueryAdaptor::new(PartitionId::new(1), vec![Arc::new(batch)]);
 
         // verify PK
         let schema = batch.schema();
@@ -200,7 +203,7 @@ mod tests {
         // compact
         let exc = Executor::new(1);
         let CompactedStream { stream, .. } =
-            compact_persisting_batch(&exc, Some(SortKey::empty()), batch)
+            compact_persisting_batch(&exc, Some(SortKey::empty()), "test_table".into(), batch)
                 .await
                 .unwrap();
 
@@ -224,7 +227,6 @@ mod tests {
     async fn test_compact_batch_on_one_record_batch_no_dupilcates() {
         // create input data
         let batch = QueryAdaptor::new(
-            "test_table".into(),
             PartitionId::new(1),
             create_one_record_batch_with_influxtype_no_duplicates().await,
         );
@@ -241,7 +243,7 @@ mod tests {
             stream,
             data_sort_key,
             catalog_sort_key_update,
-        } = compact_persisting_batch(&exc, Some(SortKey::empty()), batch)
+        } = compact_persisting_batch(&exc, Some(SortKey::empty()), "test_table".into(), batch)
             .await
             .unwrap();
 
@@ -274,7 +276,6 @@ mod tests {
     async fn test_compact_batch_no_sort_key() {
         // create input data
         let batch = QueryAdaptor::new(
-            "test_table".into(),
             PartitionId::new(1),
             create_batches_with_influxtype_different_cardinality().await,
         );
@@ -292,7 +293,7 @@ mod tests {
             stream,
             data_sort_key,
             catalog_sort_key_update,
-        } = compact_persisting_batch(&exc, Some(SortKey::empty()), batch)
+        } = compact_persisting_batch(&exc, Some(SortKey::empty()), "test_table".into(), batch)
             .await
             .unwrap();
 
@@ -329,7 +330,6 @@ mod tests {
     async fn test_compact_batch_with_specified_sort_key() {
         // create input data
         let batch = QueryAdaptor::new(
-            "test_table".into(),
             PartitionId::new(1),
             create_batches_with_influxtype_different_cardinality().await,
         );
@@ -351,6 +351,7 @@ mod tests {
         } = compact_persisting_batch(
             &exc,
             Some(SortKey::from_columns(["tag3", "tag1", "time"])),
+            "test_table".into(),
             batch,
         )
         .await
@@ -388,7 +389,6 @@ mod tests {
     async fn test_compact_batch_new_column_for_sort_key() {
         // create input data
         let batch = QueryAdaptor::new(
-            "test_table".into(),
             PartitionId::new(1),
             create_batches_with_influxtype_different_cardinality().await,
         );
@@ -408,9 +408,14 @@ mod tests {
             stream,
             data_sort_key,
             catalog_sort_key_update,
-        } = compact_persisting_batch(&exc, Some(SortKey::from_columns(["tag3", "time"])), batch)
-            .await
-            .unwrap();
+        } = compact_persisting_batch(
+            &exc,
+            Some(SortKey::from_columns(["tag3", "time"])),
+            "test_table".into(),
+            batch,
+        )
+        .await
+        .unwrap();
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
@@ -447,7 +452,6 @@ mod tests {
     async fn test_compact_batch_missing_column_for_sort_key() {
         // create input data
         let batch = QueryAdaptor::new(
-            "test_table".into(),
             PartitionId::new(1),
             create_batches_with_influxtype_different_cardinality().await,
         );
@@ -470,6 +474,7 @@ mod tests {
         } = compact_persisting_batch(
             &exc,
             Some(SortKey::from_columns(["tag3", "tag1", "tag4", "time"])),
+            "test_table".into(),
             batch,
         )
         .await
@@ -509,7 +514,6 @@ mod tests {
 
         // create input data
         let batch = QueryAdaptor::new(
-            "test_table".into(),
             PartitionId::new(1),
             create_one_row_record_batch_with_influxtype().await,
         );
@@ -526,7 +530,9 @@ mod tests {
 
         // compact
         let exc = Executor::new(1);
-        let stream = compact(&exc, Arc::new(batch), sort_key).await.unwrap();
+        let stream = compact(&exc, "test_table".into(), Arc::new(batch), sort_key)
+            .await
+            .unwrap();
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();
@@ -549,7 +555,6 @@ mod tests {
     async fn test_compact_one_batch_with_duplicates() {
         // create input data
         let batch = QueryAdaptor::new(
-            "test_table".into(),
             PartitionId::new(1),
             create_one_record_batch_with_influxtype_duplicates().await,
         );
@@ -566,7 +571,9 @@ mod tests {
 
         // compact
         let exc = Executor::new(1);
-        let stream = compact(&exc, Arc::new(batch), sort_key).await.unwrap();
+        let stream = compact(&exc, "test_table".into(), Arc::new(batch), sort_key)
+            .await
+            .unwrap();
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();
@@ -596,11 +603,7 @@ mod tests {
     #[tokio::test]
     async fn test_compact_many_batches_same_columns_with_duplicates() {
         // create many-batches input data
-        let batch = QueryAdaptor::new(
-            "test_table".into(),
-            PartitionId::new(1),
-            create_batches_with_influxtype().await,
-        );
+        let batch = QueryAdaptor::new(PartitionId::new(1), create_batches_with_influxtype().await);
 
         // verify PK
         let schema = batch.schema();
@@ -614,7 +617,9 @@ mod tests {
 
         // compact
         let exc = Executor::new(1);
-        let stream = compact(&exc, Arc::new(batch), sort_key).await.unwrap();
+        let stream = compact(&exc, "test_table".into(), Arc::new(batch), sort_key)
+            .await
+            .unwrap();
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();
@@ -642,7 +647,6 @@ mod tests {
     async fn test_compact_many_batches_different_columns_with_duplicates() {
         // create many-batches input data
         let batch = QueryAdaptor::new(
-            "test_table".into(),
             PartitionId::new(1),
             create_batches_with_influxtype_different_columns().await,
         );
@@ -659,7 +663,9 @@ mod tests {
 
         // compact
         let exc = Executor::new(1);
-        let stream = compact(&exc, Arc::new(batch), sort_key).await.unwrap();
+        let stream = compact(&exc, "test_table".into(), Arc::new(batch), sort_key)
+            .await
+            .unwrap();
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();
@@ -691,7 +697,6 @@ mod tests {
     async fn test_compact_many_batches_different_columns_different_order_with_duplicates() {
         // create many-batches input data
         let batch = QueryAdaptor::new(
-            "test_table".into(),
             PartitionId::new(1),
             create_batches_with_influxtype_different_columns_different_order().await,
         );
@@ -708,7 +713,9 @@ mod tests {
 
         // compact
         let exc = Executor::new(1);
-        let stream = compact(&exc, Arc::new(batch), sort_key).await.unwrap();
+        let stream = compact(&exc, "test_table".into(), Arc::new(batch), sort_key)
+            .await
+            .unwrap();
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();
@@ -743,7 +750,6 @@ mod tests {
     async fn test_compact_many_batches_same_columns_different_types() {
         // create many-batches input data
         let batch = QueryAdaptor::new(
-            "test_table".into(),
             PartitionId::new(1),
             create_batches_with_influxtype_same_columns_different_type().await,
         );

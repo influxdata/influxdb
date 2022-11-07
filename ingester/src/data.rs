@@ -369,7 +369,7 @@ impl Persister for IngesterData {
             stream: record_stream,
             catalog_sort_key_update,
             data_sort_key,
-        } = compact_persisting_batch(&self.exec, sort_key, batch)
+        } = compact_persisting_batch(&self.exec, sort_key, table_name.clone(), batch)
             .await
             .expect("unable to compact persisting batch");
 

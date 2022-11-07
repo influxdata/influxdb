@@ -131,9 +131,9 @@ pub struct ProviderBuilder {
 }
 
 impl ProviderBuilder {
-    pub fn new(table_name: impl AsRef<str>, schema: Arc<Schema>, ctx: IOxSessionContext) -> Self {
+    pub fn new(table_name: Arc<str>, schema: Arc<Schema>, ctx: IOxSessionContext) -> Self {
         Self {
-            table_name: Arc::from(table_name.as_ref()),
+            table_name,
             schema,
             chunks: Vec::new(),
             output_sort_key: None,

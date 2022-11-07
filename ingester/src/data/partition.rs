@@ -184,11 +184,7 @@ impl PartitionData {
         // is upheld by the FSM, which ensures only non-empty snapshots /
         // RecordBatch are generated. Because `data` contains at least one
         // RecordBatch, this invariant holds.
-        Some(QueryAdaptor::new(
-            self.table_name.clone(),
-            self.partition_id,
-            data,
-        ))
+        Some(QueryAdaptor::new(self.partition_id, data))
     }
 
     /// Return the range of [`SequenceNumber`] currently queryable by calling
@@ -289,11 +285,7 @@ impl PartitionData {
         let data = persisting.get_query_data();
         self.persisting = Some(persisting);
 
-        Some(QueryAdaptor::new(
-            self.table_name.clone(),
-            self.partition_id,
-            data,
-        ))
+        Some(QueryAdaptor::new(self.partition_id, data))
     }
 
     /// Mark this partition as having completed persistence up to, and
@@ -428,7 +420,6 @@ mod tests {
     };
     use datafusion_util::test_collect;
     use iox_catalog::interface::Catalog;
-    use iox_query::QueryChunk;
     use lazy_static::lazy_static;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 
@@ -497,7 +488,6 @@ mod tests {
         {
             let data = p.get_query_data().expect("should return data");
             assert_eq!(data.partition_id(), PARTITION_ID);
-            assert_eq!(data.table_name(), TABLE_NAME.to_string());
 
             let expected = [
                 "+--------+--------+----------+--------------------------------+",
@@ -544,7 +534,6 @@ mod tests {
         {
             let data = p.get_query_data().expect("should contain data");
             assert_eq!(data.partition_id(), PARTITION_ID);
-            assert_eq!(data.table_name(), TABLE_NAME.to_string());
 
             let expected = [
                 "+--------+--------+----------+--------------------------------+",
@@ -593,7 +582,6 @@ mod tests {
         let persisting_data = p.mark_persisting().expect("must contain existing data");
         // And validate the data being persisted.
         assert_eq!(persisting_data.partition_id(), PARTITION_ID);
-        assert_eq!(persisting_data.table_name(), TABLE_NAME.to_string());
         assert_eq!(persisting_data.record_batches().len(), 1);
         let expected = [
             "+--------+--------+----------+--------------------------------+",
@@ -639,7 +627,6 @@ mod tests {
         {
             let data = p.get_query_data().expect("must have data");
             assert_eq!(data.partition_id(), PARTITION_ID);
-            assert_eq!(data.table_name(), TABLE_NAME.to_string());
             assert_eq!(data.record_batches().len(), 2);
             let expected = [
                 "+--------+--------+----------+--------------------------------+",
@@ -713,7 +700,6 @@ mod tests {
         {
             let data = p.get_query_data().expect("must have data");
             assert_eq!(data.partition_id(), PARTITION_ID);
-            assert_eq!(data.table_name(), TABLE_NAME.to_string());
             assert_eq!(data.record_batches().len(), 1);
             let expected = [
                 "+--------+--------+---------+--------------------------------+",

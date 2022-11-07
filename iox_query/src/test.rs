@@ -925,6 +925,10 @@ impl TestChunk {
             .filter(|col| columns.contains(&col.as_str()))
             .collect()
     }
+
+    pub fn table_name(&self) -> &str {
+        &self.table_name
+    }
 }
 
 impl fmt::Display for TestChunk {
@@ -936,10 +940,6 @@ impl fmt::Display for TestChunk {
 impl QueryChunk for TestChunk {
     fn id(&self) -> ChunkId {
         self.id
-    }
-
-    fn table_name(&self) -> &str {
-        &self.table_name
     }
 
     fn may_contain_pk_duplicates(&self) -> bool {

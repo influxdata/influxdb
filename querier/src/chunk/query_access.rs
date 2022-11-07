@@ -40,10 +40,6 @@ impl QueryChunk for QuerierChunk {
         self.meta().chunk_id
     }
 
-    fn table_name(&self) -> &str {
-        self.meta().table_name.as_ref()
-    }
-
     fn may_contain_pk_duplicates(&self) -> bool {
         false
     }

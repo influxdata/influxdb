@@ -288,17 +288,25 @@ impl InfluxRpcPlanner {
         for (table_name, maybe_full_plan) in tables {
             match maybe_full_plan {
                 None => {
-                    builder.append_string(table_name);
+                    builder.append_string(table_name.to_string());
                 }
                 Some((predicate, chunks)) => {
                     let schema = database
                         .table_schema(table_name)
-                        .context(TableRemovedSnafu { table_name })?;
+                        .context(TableRemovedSnafu {
+                            table_name: table_name.as_ref(),
+                        })?;
 
                     let mut ctx = ctx.child_ctx("table name plan");
-                    ctx.set_metadata("table", table_name.to_owned());
+                    ctx.set_metadata("table", table_name.to_string());
 
-                    let plan = Self::table_name_plan(ctx, table_name, schema, predicate, chunks)?;
+                    let plan = Self::table_name_plan(
+                        ctx,
+                        Arc::clone(table_name),
+                        schema,
+                        predicate,
+                        chunks,
+                    )?;
                     builder = builder.append_other(plan.into());
                 }
             }
@@ -342,7 +350,9 @@ impl InfluxRpcPlanner {
                 builder = builder.append_other(
                     database
                         .table_schema(&table_name)
-                        .context(TableRemovedSnafu { table_name })?
+                        .context(TableRemovedSnafu {
+                            table_name: table_name.as_ref(),
+                        })?
                         .tags_iter()
                         .map(|f| f.name().clone())
                         .collect::<BTreeSet<_>>()
@@ -361,7 +371,7 @@ impl InfluxRpcPlanner {
         )
         .and_then(|(table_name, predicate, chunks)| {
             let mut ctx = ctx.child_ctx("table");
-            ctx.set_metadata("table", table_name.to_owned());
+            ctx.set_metadata("table", table_name.to_string());
 
             async move {
                 let mut chunks_full = vec![];
@@ -450,10 +460,12 @@ impl InfluxRpcPlanner {
 
                 let schema = database
                     .table_schema(table_name)
-                    .context(TableRemovedSnafu { table_name })?;
+                    .context(TableRemovedSnafu {
+                        table_name: table_name.as_ref(),
+                    })?;
 
                 let mut ctx = ctx.child_ctx("tag_keys_plan");
-                ctx.set_metadata("table", table_name.to_owned());
+                ctx.set_metadata("table", table_name.to_string());
 
                 let plan = self.tag_keys_plan(ctx, table_name, schema, predicate, chunks_full)?;
 
@@ -497,7 +509,7 @@ impl InfluxRpcPlanner {
             let schema = database
                 .table_schema(&table_name)
                 .context(TableRemovedSnafu {
-                    table_name: &table_name,
+                    table_name: table_name.as_ref(),
                 })?;
 
             // Skip this table if the tag_name is not a column in this table
@@ -572,7 +584,7 @@ impl InfluxRpcPlanner {
                 } else {
                     // try and get the list of values directly from metadata
                     let mut ctx = self.ctx.child_ctx("tag_values execution");
-                    ctx.set_metadata("table", table_name.to_owned());
+                    ctx.set_metadata("table", table_name.to_string());
 
                     let maybe_values = chunk
                         .column_values(ctx, tag_name, predicate)
@@ -618,12 +630,14 @@ impl InfluxRpcPlanner {
             if !chunks_full.is_empty() {
                 let schema = database
                     .table_schema(table_name)
-                    .context(TableRemovedSnafu { table_name })?;
+                    .context(TableRemovedSnafu {
+                        table_name: table_name.as_ref(),
+                    })?;
 
                 let mut ctx = ctx.child_ctx("scan_and_filter planning");
-                ctx.set_metadata("table", table_name.to_owned());
+                ctx.set_metadata("table", table_name.to_string());
 
-                let scan_and_filter = ScanPlanBuilder::new(schema, ctx)
+                let scan_and_filter = ScanPlanBuilder::new(Arc::clone(table_name), schema, ctx)
                     .with_chunks(chunks_full)
                     .with_predicate(predicate)
                     .build()?;
@@ -689,7 +703,9 @@ impl InfluxRpcPlanner {
             if predicate.is_empty() {
                 let schema = database
                     .table_schema(&table_name)
-                    .context(TableRemovedSnafu { table_name })?;
+                    .context(TableRemovedSnafu {
+                        table_name: table_name.as_ref(),
+                    })?;
                 let fields = schema.fields_iter().map(|f| Field {
                     name: f.name().clone(),
                     data_type: f.data_type().clone(),
@@ -708,9 +724,10 @@ impl InfluxRpcPlanner {
             database,
             &table_predicates_need_chunks,
             ctx,
-            |ctx, _table_name, predicate, chunks, schema| {
+            |ctx, table_name, predicate, chunks, schema| {
                 Self::field_columns_plan(
                     ctx.child_ctx("field_columns plan"),
+                    Arc::from(table_name),
                     schema,
                     predicate,
                     chunks,
@@ -905,11 +922,14 @@ impl InfluxRpcPlanner {
         predicate: &Predicate,
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<Option<StringSetPlan>> {
-        let scan_and_filter =
-            ScanPlanBuilder::new(schema, ctx.child_ctx("scan_and_filter planning"))
-                .with_predicate(predicate)
-                .with_chunks(chunks)
-                .build()?;
+        let scan_and_filter = ScanPlanBuilder::new(
+            Arc::from(table_name),
+            schema,
+            ctx.child_ctx("scan_and_filter planning"),
+        )
+        .with_predicate(predicate)
+        .with_chunks(chunks)
+        .build()?;
 
         // now, select only the tag columns
         let select_exprs = scan_and_filter
@@ -963,15 +983,19 @@ impl InfluxRpcPlanner {
     /// ```
     fn field_columns_plan(
         ctx: IOxSessionContext,
+        table_name: Arc<str>,
         schema: Arc<Schema>,
         predicate: &Predicate,
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<LogicalPlan> {
-        let scan_and_filter =
-            ScanPlanBuilder::new(schema, ctx.child_ctx("scan_and_filter planning"))
-                .with_predicate(predicate)
-                .with_chunks(chunks)
-                .build()?;
+        let scan_and_filter = ScanPlanBuilder::new(
+            table_name,
+            schema,
+            ctx.child_ctx("scan_and_filter planning"),
+        )
+        .with_predicate(predicate)
+        .with_chunks(chunks)
+        .build()?;
 
         // Selection of only fields and time
         let select_exprs = scan_and_filter
@@ -1015,17 +1039,20 @@ impl InfluxRpcPlanner {
     /// ```
     fn table_name_plan(
         ctx: IOxSessionContext,
-        table_name: &str,
+        table_name: Arc<str>,
         schema: Arc<Schema>,
         predicate: &Predicate,
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<LogicalPlan> {
         debug!(%table_name, "Creating table_name full plan");
-        let scan_and_filter =
-            ScanPlanBuilder::new(schema, ctx.child_ctx("scan_and_filter planning"))
-                .with_predicate(predicate)
-                .with_chunks(chunks)
-                .build()?;
+        let scan_and_filter = ScanPlanBuilder::new(
+            Arc::clone(&table_name),
+            schema,
+            ctx.child_ctx("scan_and_filter planning"),
+        )
+        .with_predicate(predicate)
+        .with_chunks(chunks)
+        .build()?;
 
         // Select only fields requested
         let select_exprs: Vec<_> = filtered_fields_iter(&scan_and_filter.schema(), predicate)
@@ -1040,7 +1067,7 @@ impl InfluxRpcPlanner {
             .context(BuildingPlanSnafu)?;
 
         // Add the final node that outputs the table name or not, depending
-        let plan = make_non_null_checker(table_name, plan);
+        let plan = make_non_null_checker(&table_name, plan);
 
         Ok(plan)
     }
@@ -1062,11 +1089,14 @@ impl InfluxRpcPlanner {
         predicate: &Predicate,
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<SeriesSetPlan> {
-        let scan_and_filter =
-            ScanPlanBuilder::new(schema, ctx.child_ctx("scan_and_filter planning"))
-                .with_predicate(predicate)
-                .with_chunks(chunks)
-                .build()?;
+        let scan_and_filter = ScanPlanBuilder::new(
+            Arc::from(table_name),
+            schema,
+            ctx.child_ctx("scan_and_filter planning"),
+        )
+        .with_predicate(predicate)
+        .with_chunks(chunks)
+        .build()?;
 
         let tags_and_timestamp: Vec<_> = scan_and_filter
             .schema()
@@ -1167,11 +1197,14 @@ impl InfluxRpcPlanner {
         agg: Aggregate,
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<SeriesSetPlan> {
-        let scan_and_filter =
-            ScanPlanBuilder::new(schema, ctx.child_ctx("scan_and_filter planning"))
-                .with_predicate(predicate)
-                .with_chunks(chunks)
-                .build()?;
+        let scan_and_filter = ScanPlanBuilder::new(
+            Arc::from(table_name),
+            schema,
+            ctx.child_ctx("scan_and_filter planning"),
+        )
+        .with_predicate(predicate)
+        .with_chunks(chunks)
+        .build()?;
 
         // order the tag columns so that the group keys come first (we
         // will group and
@@ -1275,11 +1308,14 @@ impl InfluxRpcPlanner {
         offset: WindowDuration,
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<SeriesSetPlan> {
-        let scan_and_filter =
-            ScanPlanBuilder::new(schema, ctx.child_ctx("scan_and_filter planning"))
-                .with_predicate(predicate)
-                .with_chunks(chunks)
-                .build()?;
+        let scan_and_filter = ScanPlanBuilder::new(
+            Arc::from(table_name),
+            schema,
+            ctx.child_ctx("scan_and_filter planning"),
+        )
+        .with_predicate(predicate)
+        .with_chunks(chunks)
+        .build()?;
 
         let schema = scan_and_filter.schema();
 
@@ -1341,13 +1377,13 @@ impl InfluxRpcPlanner {
 fn table_chunk_stream<'a>(
     database: Arc<dyn QueryDatabase>,
     need_fields: bool,
-    table_predicates: &'a [(String, Predicate)],
+    table_predicates: &'a [(Arc<str>, Predicate)],
     ctx: &'a IOxSessionContext,
-) -> impl Stream<Item = Result<(&'a str, &'a Predicate, Vec<Arc<dyn QueryChunk>>)>> + 'a {
+) -> impl Stream<Item = Result<(&'a Arc<str>, &'a Predicate, Vec<Arc<dyn QueryChunk>>)>> + 'a {
     futures::stream::iter(table_predicates)
         .map(move |(table_name, predicate)| {
             let mut ctx = ctx.child_ctx("table");
-            ctx.set_metadata("table", table_name.clone());
+            ctx.set_metadata("table", table_name.to_string());
 
             let database = Arc::clone(&database);
 
@@ -1368,9 +1404,11 @@ fn table_chunk_stream<'a>(
                         ctx.child_ctx("table chunks"),
                     )
                     .await
-                    .context(GettingChunksSnafu { table_name })?;
+                    .context(GettingChunksSnafu {
+                        table_name: table_name.as_ref(),
+                    })?;
 
-                Ok((table_name.as_str(), predicate, chunks))
+                Ok((table_name, predicate, chunks))
             }
         })
         .buffered(CONCURRENT_TABLE_JOBS)
@@ -1387,7 +1425,7 @@ fn table_chunk_stream<'a>(
 fn columns_in_predicates(
     need_fields: bool,
     table_schema: Arc<Schema>,
-    table_name: &String,
+    table_name: &str,
     predicate: &Predicate,
 ) -> Option<Vec<usize>> {
     let mut columns = StdHashSet::new();
@@ -1470,7 +1508,7 @@ fn columns_in_predicates(
 ///  invoked on the chunks for each table to produce a plan for each
 async fn create_plans<F, P>(
     database: Arc<dyn QueryDatabase>,
-    table_predicates: &[(String, Predicate)],
+    table_predicates: &[(Arc<str>, Predicate)],
     ctx: IOxSessionContext,
     f: F,
 ) -> Result<Vec<P>>
@@ -1496,11 +1534,11 @@ where
         // `.try_filter_map` requires some additional type annotations
         .try_filter_map(|(table_name, predicate, chunks)| async move {
             Ok((!chunks.is_empty()).then_some((table_name, predicate, chunks)))
-                as Result<Option<(&str, &Predicate, Vec<_>)>>
+                as Result<Option<(&Arc<str>, &Predicate, Vec<_>)>>
         })
         .and_then(|(table_name, predicate, chunks)| {
             let mut ctx = ctx.child_ctx("table");
-            ctx.set_metadata("table", table_name.to_owned());
+            ctx.set_metadata("table", table_name.to_string());
 
             let database = Arc::clone(&database);
             let f = f.clone();
@@ -1508,7 +1546,9 @@ where
             async move {
                 let schema = database
                     .table_schema(table_name)
-                    .context(TableRemovedSnafu { table_name })?;
+                    .context(TableRemovedSnafu {
+                        table_name: table_name.as_ref(),
+                    })?;
 
                 f(&ctx, table_name, predicate, chunks, schema)
             }
@@ -1919,45 +1959,25 @@ mod tests {
         // test 1: empty predicate without need_fields
         let predicate = Predicate::new();
         let need_fields = false;
-        let projection = columns_in_predicates(
-            need_fields,
-            Arc::clone(&schema),
-            &table.to_string(),
-            &predicate,
-        );
+        let projection = columns_in_predicates(need_fields, Arc::clone(&schema), table, &predicate);
         assert_eq!(projection, None);
 
         // test 2: empty predicate with need_fields
         let need_fields = true;
-        let projection = columns_in_predicates(
-            need_fields,
-            Arc::clone(&schema),
-            &table.to_string(),
-            &predicate,
-        );
+        let projection = columns_in_predicates(need_fields, Arc::clone(&schema), table, &predicate);
         assert_eq!(projection, None);
 
         // test 3: predicate on tag without need_fields
         let predicate = Predicate::new().with_expr(col("foo").eq(lit("some_thing")));
         let need_fields = false;
-        let projection = columns_in_predicates(
-            need_fields,
-            Arc::clone(&schema),
-            &table.to_string(),
-            &predicate,
-        )
-        .unwrap();
+        let projection =
+            columns_in_predicates(need_fields, Arc::clone(&schema), table, &predicate).unwrap();
         // return index of foo
         assert_eq!(projection, vec![1]);
 
         // test 4: predicate on tag with need_fields
         let need_fields = true;
-        let projection = columns_in_predicates(
-            need_fields,
-            Arc::clone(&schema),
-            &table.to_string(),
-            &predicate,
-        );
+        let projection = columns_in_predicates(need_fields, Arc::clone(&schema), table, &predicate);
         // return None means all fields
         assert_eq!(projection, None);
 
@@ -1966,26 +1986,16 @@ mod tests {
             .with_expr(col("foo").eq(lit("some_thing")))
             .with_field_columns(vec!["i64_field".to_string()]);
         let need_fields = false;
-        let mut projection = columns_in_predicates(
-            need_fields,
-            Arc::clone(&schema),
-            &table.to_string(),
-            &predicate,
-        )
-        .unwrap();
+        let mut projection =
+            columns_in_predicates(need_fields, Arc::clone(&schema), table, &predicate).unwrap();
         projection.sort();
         // return indexes of i64_field and foo
         assert_eq!(projection, vec![1, 2]);
 
         // test 6: predicate on tag with field_columns with need_fields
         let need_fields = true;
-        let mut projection = columns_in_predicates(
-            need_fields,
-            Arc::clone(&schema),
-            &table.to_string(),
-            &predicate,
-        )
-        .unwrap();
+        let mut projection =
+            columns_in_predicates(need_fields, Arc::clone(&schema), table, &predicate).unwrap();
         projection.sort();
         // return indexes of foo and index of i64_field
         assert_eq!(projection, vec![1, 2]);
@@ -1995,26 +2005,16 @@ mod tests {
             .with_expr(col("bar").eq(lit(1)).and(col("i64_field").eq(lit(1))))
             .with_field_columns(vec!["i64_field".to_string()]);
         let need_fields = false;
-        let mut projection = columns_in_predicates(
-            need_fields,
-            Arc::clone(&schema),
-            &table.to_string(),
-            &predicate,
-        )
-        .unwrap();
+        let mut projection =
+            columns_in_predicates(need_fields, Arc::clone(&schema), table, &predicate).unwrap();
         projection.sort();
         // return indexes of bard and i64_field
         assert_eq!(projection, vec![0, 2]);
 
         // test 7: predicate on tag and field with field_columns with need_fields
         let need_fields = true;
-        let mut projection = columns_in_predicates(
-            need_fields,
-            Arc::clone(&schema),
-            &table.to_string(),
-            &predicate,
-        )
-        .unwrap();
+        let mut projection =
+            columns_in_predicates(need_fields, Arc::clone(&schema), table, &predicate).unwrap();
         projection.sort();
         // return indexes of bard and i64_field
         assert_eq!(projection, vec![0, 2]);
@@ -2042,7 +2042,7 @@ mod tests {
         // predicate on a tag column `foo`
         let expr = col("foo").eq(lit("some_thing"));
         let predicate = Predicate::new().with_expr(expr);
-        let table_predicates = vec![("h2o".to_string(), predicate)];
+        let table_predicates = vec![(Arc::from("h2o"), predicate)];
 
         ////////////////////////////
         // Test 1: need_fields --> all columns will be selected
@@ -2055,7 +2055,7 @@ mod tests {
 
         assert!(!result.is_empty());
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].0, "h2o"); // table name
+        assert_eq!(result[0].0.as_ref(), "h2o"); // table name
         assert_eq!(result[0].2.len(), 1); // returned chunks
 
         // chunk schema includes  all 5 columns of the table because we asked it return all fileds (and implicit PK) even though the predicate is on `foo` only
@@ -2084,7 +2084,7 @@ mod tests {
 
         assert!(!result.is_empty());
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].0, "h2o"); // table name
+        assert_eq!(result[0].0.as_ref(), "h2o"); // table name
         assert_eq!(result[0].2.len(), 1); // returned chunks
 
         // chunk schema includes still includes everything (the test table implementation does NOT project chunks)
@@ -2119,7 +2119,7 @@ mod tests {
 
         // empty predicate
         let predicate = Predicate::new();
-        let table_predicates = vec![("h2o".to_string(), predicate)];
+        let table_predicates = vec![(Arc::from("h2o"), predicate)];
 
         /////////////
         // Test 1: empty predicate with need_fields
@@ -2131,7 +2131,7 @@ mod tests {
 
         assert!(!result.is_empty());
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].0, "h2o"); // table name
+        assert_eq!(result[0].0.as_ref(), "h2o"); // table name
         assert_eq!(result[0].2.len(), 1); // returned chunks
 
         // chunk schema includes  all 5 columns of the table because the preidcate is empty
@@ -2159,7 +2159,7 @@ mod tests {
 
         assert!(!result.is_empty());
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].0, "h2o"); // table name
+        assert_eq!(result[0].0.as_ref(), "h2o"); // table name
         assert_eq!(result[0].2.len(), 1); // returned chunks
 
         // chunk schema includes  all 5 columns of the table because the preidcate is empty
@@ -2189,7 +2189,7 @@ mod tests {
         // predicate on a tag column `foo`
         let expr = col("foo").eq(lit("some_thing"));
         let predicate = Predicate::new().with_expr(expr);
-        let table_predicates = vec![("h2o".to_string(), predicate)];
+        let table_predicates = vec![(Arc::from("h2o"), predicate)];
 
         let need_fields = false;
         let result = table_chunk_stream(test_db, need_fields, &table_predicates, &ctx)
@@ -2199,7 +2199,7 @@ mod tests {
 
         assert!(!result.is_empty());
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].0, "h2o"); // table name
+        assert_eq!(result[0].0.as_ref(), "h2o"); // table name
         assert_eq!(result[0].2.len(), 1); // returned chunks
 
         // Since no data, we do not do pushdown in the test chunk.
@@ -2240,7 +2240,7 @@ mod tests {
         // predicate on field column
         let expr = col("i64_field_2").eq(lit(10));
         let predicate = Predicate::new().with_expr(expr);
-        let table_predicates = vec![("h2o".to_string(), predicate)];
+        let table_predicates = vec![(Arc::from("h2o"), predicate)];
 
         let result = table_chunk_stream(test_db, need_fields, &table_predicates, &ctx)
             .try_collect::<Vec<_>>()
@@ -2249,7 +2249,7 @@ mod tests {
 
         assert!(!result.is_empty());
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].0, "h2o"); // table name
+        assert_eq!(result[0].0.as_ref(), "h2o"); // table name
         assert_eq!(result[0].2.len(), 1); // returned chunks
 
         // chunk schema includes everything (test table does NOT perform any projection)
@@ -2270,7 +2270,7 @@ mod tests {
         let predicate = Predicate::new()
             .with_expr(expr)
             .with_field_columns(vec!["i64_field".to_string()]);
-        let table_predicates = vec![("h2o".to_string(), predicate)];
+        let table_predicates = vec![(Arc::from("h2o"), predicate)];
 
         let test_db = Arc::new(TestDatabase::new(Arc::clone(&executor)));
         test_db.add_chunk("my_partition_key", Arc::clone(&chunk0));
@@ -2282,7 +2282,7 @@ mod tests {
 
         assert!(!result.is_empty());
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].0, "h2o"); // table name
+        assert_eq!(result[0].0.as_ref(), "h2o"); // table name
         assert_eq!(result[0].2.len(), 1); // returned chunks
 
         // chunk schema includes everything (test table does NOT perform any projection)
@@ -2319,7 +2319,7 @@ mod tests {
         // predicate on unknown column
         let expr = col("unknown_name").eq(lit(10));
         let predicate = Predicate::new().with_expr(expr);
-        let table_predicates = vec![("h2o".to_string(), predicate)];
+        let table_predicates = vec![(Arc::from("h2o"), predicate)];
 
         let need_fields = false;
         let result = table_chunk_stream(test_db, need_fields, &table_predicates, &ctx)
@@ -2329,7 +2329,7 @@ mod tests {
 
         assert!(!result.is_empty());
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].0, "h2o"); // table name
+        assert_eq!(result[0].0.as_ref(), "h2o"); // table name
         assert_eq!(result[0].2.len(), 1); // returned chunks
 
         // chunk schema includes all 5 columns since we hit the unknown columnd

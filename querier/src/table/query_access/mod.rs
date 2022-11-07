@@ -52,8 +52,11 @@ impl TableProvider for QuerierTable {
         // TODO: push down some predicates to catalog
         let iox_ctx = self.exec.new_context_from_df(ExecutorType::Query, ctx);
 
-        let mut builder =
-            ProviderBuilder::new(self.table_name(), Arc::clone(self.schema()), iox_ctx);
+        let mut builder = ProviderBuilder::new(
+            Arc::clone(self.table_name()),
+            Arc::clone(self.schema()),
+            iox_ctx,
+        );
 
         let pruning_predicate = filters
             .iter()

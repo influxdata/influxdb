@@ -74,6 +74,7 @@ impl ReorgPlanner {
     ///   (Scan chunks) <-- any needed deduplication happens here
     pub fn compact_plan<I>(
         &self,
+        table_name: Arc<str>,
         schema: Arc<Schema>,
         chunks: I,
         output_sort_key: SortKey,
@@ -81,11 +82,12 @@ impl ReorgPlanner {
     where
         I: IntoIterator<Item = Arc<dyn QueryChunk>>,
     {
-        let scan_plan = ScanPlanBuilder::new(schema, self.ctx.child_ctx("compact_plan"))
-            .with_chunks(chunks)
-            .with_output_sort_key(output_sort_key)
-            .build()
-            .context(BuildingScanSnafu)?;
+        let scan_plan =
+            ScanPlanBuilder::new(table_name, schema, self.ctx.child_ctx("compact_plan"))
+                .with_chunks(chunks)
+                .with_output_sort_key(output_sort_key)
+                .build()
+                .context(BuildingScanSnafu)?;
 
         let plan = scan_plan.plan_builder.build()?;
 
@@ -147,6 +149,7 @@ impl ReorgPlanner {
     /// ```
     pub fn split_plan<I>(
         &self,
+        table_name: Arc<str>,
         schema: Arc<Schema>,
         chunks: I,
         output_sort_key: SortKey,
@@ -160,7 +163,7 @@ impl ReorgPlanner {
             panic!("Split plan does not accept empty split_times");
         }
 
-        let scan_plan = ScanPlanBuilder::new(schema, self.ctx.child_ctx("split_plan"))
+        let scan_plan = ScanPlanBuilder::new(table_name, schema, self.ctx.child_ctx("split_plan"))
             .with_chunks(chunks)
             .with_output_sort_key(output_sort_key)
             .build()
@@ -279,7 +282,7 @@ mod test {
             .build();
 
         let compact_plan = ReorgPlanner::new(IOxSessionContext::with_testing())
-            .compact_plan(schema, chunks, sort_key)
+            .compact_plan(Arc::from("t"), schema, chunks, sort_key)
             .expect("created compact plan");
 
         let executor = Executor::new(1);
@@ -332,7 +335,7 @@ mod test {
 
         // split on 1000 should have timestamps 1000, 5000, and 7000
         let split_plan = ReorgPlanner::new(IOxSessionContext::with_testing())
-            .split_plan(schema, chunks, sort_key, vec![1000])
+            .split_plan(Arc::from("t"), schema, chunks, sort_key, vec![1000])
             .expect("created compact plan");
 
         let executor = Executor::new(1);
@@ -398,7 +401,7 @@ mod test {
 
         // split on 1000 and 7000
         let split_plan = ReorgPlanner::new(IOxSessionContext::with_testing())
-            .split_plan(schema, chunks, sort_key, vec![1000, 7000])
+            .split_plan(Arc::from("t"), schema, chunks, sort_key, vec![1000, 7000])
             .expect("created compact plan");
 
         let executor = Executor::new(1);
@@ -476,7 +479,7 @@ mod test {
 
         // split on 1000 and 7000
         let _split_plan = ReorgPlanner::new(IOxSessionContext::with_testing())
-            .split_plan(schema, chunks, sort_key, vec![]) // reason of panic: empty split_times
+            .split_plan(Arc::from("t"), schema, chunks, sort_key, vec![]) // reason of panic: empty split_times
             .expect("created compact plan");
     }
 
@@ -495,7 +498,7 @@ mod test {
 
         // split on 1000 and 7000
         let _split_plan = ReorgPlanner::new(IOxSessionContext::with_testing())
-            .split_plan(schema, chunks, sort_key, vec![1000, 500]) // reason of panic: split_times not in ascending order
+            .split_plan(Arc::from("t"), schema, chunks, sort_key, vec![1000, 500]) // reason of panic: split_times not in ascending order
             .expect("created compact plan");
     }
 }

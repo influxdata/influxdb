@@ -61,6 +61,12 @@ where
     }
 }
 
+impl From<TableName> for Arc<str> {
+    fn from(v: TableName) -> Self {
+        v.0
+    }
+}
+
 impl std::fmt::Display for TableName {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
