@@ -561,10 +561,8 @@ mod tests {
         let float_array: ArrayRef = Arc::new(Float64Array::from(vec![10.1, 20.1, 30.1, 40.1]));
         let bool_array: ArrayRef = Arc::new(BooleanArray::from(vec![true, false, true, false]));
 
-        let timestamp_array: ArrayRef = Arc::new(TimestampNanosecondArray::from_vec(
-            vec![1000, 2000, 3000, 4000],
-            None,
-        ));
+        let timestamp_array: ArrayRef =
+            Arc::new(TimestampNanosecondArray::from(vec![1000, 2000, 3000, 4000]));
 
         RecordBatch::try_from_iter_with_nullable(vec![
             ("string_field", string_array, true),

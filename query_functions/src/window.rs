@@ -265,26 +265,31 @@ impl TryFrom<EncodedWindowDuration> for WindowDuration {
 #[cfg(test)]
 mod tests {
     use arrow::array::TimestampNanosecondArray;
-    use schema::TIME_DATA_TIMEZONE;
 
     use super::*;
 
     #[test]
     fn test_window_bounds() {
-        let input: ArrayRef = Arc::new(TimestampNanosecondArray::from_opt_vec(
-            vec![Some(100), None, Some(200), Some(300), Some(400)],
-            TIME_DATA_TIMEZONE(),
-        ));
+        let input: ArrayRef = Arc::new(TimestampNanosecondArray::from(vec![
+            Some(100),
+            None,
+            Some(200),
+            Some(300),
+            Some(400),
+        ]));
 
         let every = WindowDuration::from_nanoseconds(200);
         let offset = WindowDuration::from_nanoseconds(50);
 
         let bounds_array = window_bounds(&input, every, offset);
 
-        let expected_array: ArrayRef = Arc::new(TimestampNanosecondArray::from_opt_vec(
-            vec![Some(250), None, Some(250), Some(450), Some(450)],
-            TIME_DATA_TIMEZONE(),
-        ));
+        let expected_array: ArrayRef = Arc::new(TimestampNanosecondArray::from(vec![
+            Some(250),
+            None,
+            Some(250),
+            Some(450),
+            Some(450),
+        ]));
 
         assert_eq!(
             &expected_array, &bounds_array,
