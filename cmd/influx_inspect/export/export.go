@@ -340,7 +340,7 @@ func (cmd *Command) exportTSMFile(tsmFilePath string, w io.Writer) error {
 	f, err := os.Open(tsmFilePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			fmt.Fprintf(w, "skipped missing file: %s", tsmFilePath)
+			fmt.Fprintf(cmd.Stderr, "skipped missing file: %s", tsmFilePath)
 			return nil
 		}
 		return err
@@ -408,7 +408,7 @@ func (cmd *Command) exportWALFile(walFilePath string, w io.Writer, warnDelete fu
 	f, err := os.Open(walFilePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			fmt.Fprintf(w, "skipped missing file: %s", walFilePath)
+			fmt.Fprintf(cmd.Stderr, "skipped missing file: %s", walFilePath)
 			return nil
 		}
 		return err
