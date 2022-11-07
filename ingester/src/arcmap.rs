@@ -65,7 +65,7 @@ where
     /// progressing in parallel. If the value for `key` must be initialised, all
     /// readers are blocked while `init` executes and the resulting `V` is
     /// memorised.
-    pub(crate) fn get_or_else<Q, F>(&self, key: &Q, init: F) -> Arc<V>
+    pub(crate) fn get_or_insert_with<Q, F>(&self, key: &Q, init: F) -> Arc<V>
     where
         Q: Hash + PartialEq<K> + ToOwned<Owned = K> + ?Sized,
         F: FnOnce() -> Arc<V>,
@@ -98,14 +98,14 @@ where
         }
     }
 
-    /// A convenience method over [`Self::get_or_else()`] that initialises `V`
-    /// to the default value when `key` has no entry.
+    /// A convenience method over [`Self::get_or_insert_with()`] that
+    /// initialises `V` to the default value when `key` has no entry.
     pub(crate) fn get_or_default<Q>(&self, key: &Q) -> Arc<V>
     where
         Q: Hash + PartialEq<K> + ToOwned<Owned = K> + ?Sized,
         V: Default,
     {
-        self.get_or_else(key, Default::default)
+        self.get_or_insert_with(key, Default::default)
     }
 
     /// A getter for `key` that returns an [`Arc`]-wrapped `V`, or [`None`] if
@@ -114,8 +114,8 @@ where
     /// # Concurrency
     ///
     /// This method is cheap, and multiple callers progress in parallel. Callers
-    /// are blocked by a call to [`Self::get_or_else()`] only when a `V` needs
-    /// to be initialised.
+    /// are blocked by a call to [`Self::get_or_insert_with()`] only when a `V`
+    /// needs to be initialised.
     pub(crate) fn get<Q>(&self, key: &Q) -> Option<Arc<V>>
     where
         K: Borrow<Q>,
@@ -191,7 +191,7 @@ mod tests {
         assert!(map.get(key).is_none());
 
         // Assert the value is initialised from the closure
-        let got: Arc<usize> = map.get_or_else(key, || Arc::new(42));
+        let got: Arc<usize> = map.get_or_insert_with(key, || Arc::new(42));
         assert_eq!(*got, 42);
 
         // Assert the same Arc is returned later.
@@ -206,12 +206,12 @@ mod tests {
         let key: &str = "bananas";
 
         // Assert the value is initialised from the closure
-        let got = map.get_or_else(key, || Arc::new(42));
+        let got = map.get_or_insert_with(key, || Arc::new(42));
         assert_eq!(*got, 42);
 
         // And subsequent calls observe the same value, regardless of the init
         // closure
-        let got = map.get_or_else(key, || Arc::new(13));
+        let got = map.get_or_insert_with(key, || Arc::new(13));
         assert_eq!(*got, 42);
 
         let got = map.get_or_default(key);
@@ -238,7 +238,7 @@ mod tests {
 
         // And subsequent calls observe the same value, regardless of the init
         // closure
-        let got = map.get_or_else(key, || Arc::new(13));
+        let got = map.get_or_insert_with(key, || Arc::new(13));
         assert_eq!(*got, 42);
         assert!(Arc::ptr_eq(&got, &other));
     }
@@ -298,7 +298,7 @@ mod tests {
                     // the racy-ness.
                     barrier.wait();
 
-                    let got = map.get_or_else(key, || {
+                    let got = map.get_or_insert_with(key, || {
                         init_count.fetch_add(1, Ordering::SeqCst);
                         Arc::new(i)
                     });
@@ -325,7 +325,7 @@ mod tests {
 
         // A non-copy value that is moved into the FnOnce
         let v = "bananas".to_owned();
-        let v = map.get_or_else("platanos", move || Arc::new(v));
+        let v = map.get_or_insert_with("platanos", move || Arc::new(v));
         assert_eq!(*v, "bananas")
     }
 }
