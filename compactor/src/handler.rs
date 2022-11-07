@@ -159,6 +159,14 @@ pub struct CompactorConfig {
 
     /// Minutes without any new data before a partition is considered cold
     pub minutes_without_new_writes_to_be_cold: u64,
+
+    /// When querying for partitions with data for hot compaction, how many hours to look
+    /// back for a first pass.
+    pub hot_compaction_hours_threshold_1: u64,
+
+    /// When querying for partitions with data for hot compaction, how many hours to look
+    /// back for a second pass if we found nothing in the first pass.
+    pub hot_compaction_hours_threshold_2: u64,
 }
 
 /// How long to pause before checking for more work again if there was
