@@ -84,6 +84,7 @@ func rewriteShowFieldKeyCardinalityStatement(stmt *influxql.ShowFieldKeyCardinal
 		},
 		Condition:  stmt.Condition,
 		Dimensions: stmt.Dimensions,
+		OmitTime:   true,
 		Sources: influxql.Sources{
 			&influxql.SubQuery{
 				Statement: &influxql.SelectStatement{
