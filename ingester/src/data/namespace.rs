@@ -151,7 +151,7 @@ impl NamespaceData {
     ) -> Self {
         let table_count = metrics
             .register_metric::<U64Counter>(
-                "ingester_tables_total",
+                "ingester_tables",
                 "Number of tables known to the ingester",
             )
             .recorder(&[]);
@@ -451,7 +451,7 @@ mod tests {
 
         // And the table counter metric should increase
         let tables = metrics
-            .get_instrument::<Metric<U64Counter>>("ingester_tables_total")
+            .get_instrument::<Metric<U64Counter>>("ingester_tables")
             .expect("failed to read metric")
             .get_observer(&Attributes::from([]))
             .expect("failed to get observer")

@@ -216,7 +216,7 @@ async fn test_write_ok() {
 
     assert_eq!(
         ctx.metrics()
-            .get_instrument::<Metric<U64Counter>>("http_write_lines_total")
+            .get_instrument::<Metric<U64Counter>>("http_write_lines")
             .expect("failed to read metric")
             .get_observer(&Attributes::from(&[]))
             .expect("failed to get observer")

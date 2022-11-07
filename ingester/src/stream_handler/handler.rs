@@ -109,7 +109,7 @@ impl<I, O> SequencedStreamHandler<I, O> {
         // Lifecycle-driven ingest pause duration
         let pause_duration = metrics
             .register_metric::<DurationCounter>(
-                "ingester_paused_duration_total",
+                "ingester_paused_duration",
                 "duration of time ingestion has been paused by the lifecycle manager",
             )
             .recorder(&[]);
