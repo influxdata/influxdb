@@ -17,7 +17,7 @@ data_types = { path = "../data_types" }
 datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }
 dml = { path = "../dml" }
-flatbuffers = "2.1.2"
+flatbuffers = "22.9.29"
 futures = "0.3"
 generated_types = { path = "../generated_types" }
 hashbrown = "0.12.3"

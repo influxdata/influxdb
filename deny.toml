@@ -11,11 +11,6 @@ ignore = [
     # why needed: used by `chrono`
     # upstream issue: https://github.com/chronotope/chrono/issues/553
     "RUSTSEC-2020-0071",
-
-    # title: Generated code can read and write out of bounds in safe code
-    # why needed: part of `arrow`
-    # upstream issue: https://github.com/google/flatbuffers/issues/6627
-    "RUSTSEC-2021-0122",
 ]
 git-fetch-with-cli = true
 
