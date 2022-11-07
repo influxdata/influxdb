@@ -211,9 +211,6 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
     /// particular partition.
     fn id(&self) -> ChunkId;
 
-    /// Returns the name of the table stored in this chunk
-    fn table_name(&self) -> &str;
-
     /// Returns true if the chunk may contain a duplicate "primary
     /// key" within itself
     fn may_contain_pk_duplicates(&self) -> bool;

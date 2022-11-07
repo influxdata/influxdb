@@ -225,6 +225,7 @@ pub fn decode(
 
                     Ok(DmlOperation::Delete(DmlDelete::new(
                         headers.namespace,
+                        NamespaceId::new(delete.database_id),
                         predicate,
                         NonEmptyString::new(delete.table_name),
                         meta,
@@ -254,6 +255,13 @@ pub fn encode_operation(
         }
         DmlOperation::Delete(delete) => Payload::Delete(DeletePayload {
             db_name: db_name.to_string(),
+            database_id: unsafe {
+                // Safety: this code path is only invoked in the Kafka producer, so
+                // it is safe to utilise the ID.
+                //
+                // See DmlWrite docs for context.
+                delete.namespace_id().get()
+            },
             table_name: delete
                 .table_name()
                 .map(ToString::to_string)

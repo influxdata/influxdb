@@ -17,7 +17,7 @@ license.workspace = true
 ### BEGIN HAKARI SECTION
 [dependencies]
 ahash-ca01ad9e24f5d932 = { package = "ahash", version = "0.7", features = ["std"] }
-arrow = { version = "25", features = ["comfy-table", "csv", "csv_crate", "dyn_cmp_dict", "flatbuffers", "ipc", "json", "prettyprint", "serde_json"] }
+arrow = { version = "26", features = ["comfy-table", "csv", "csv_crate", "dyn_cmp_dict", "flatbuffers", "ipc", "json", "prettyprint", "serde_json"] }
 base64 = { version = "0.13", features = ["std"] }
 bitflags = { version = "1" }
 byteorder = { version = "1", features = ["std"] }
@@ -25,17 +25,18 @@ bytes = { version = "1", features = ["std"] }
 chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "iana-time-zone", "serde", "std", "winapi"] }
 crossbeam-utils = { version = "0.8", features = ["std"] }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "761e1671bd3c4988d21a38bb19e50bdac6cfaa61", features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "dd081d64a2fba8574e63bdd0662c14aec5852b48", features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
 digest = { version = "0.10", features = ["alloc", "block-buffer", "core-api", "mac", "std", "subtle"] }
 either = { version = "1", features = ["use_std"] }
 fixedbitset = { version = "0.4", features = ["std"] }
-flatbuffers = { version = "2", features = ["thiserror"] }
+flatbuffers = { version = "22", features = ["thiserror"] }
 futures-channel = { version = "0.3", features = ["alloc", "futures-sink", "sink", "std"] }
 futures-core = { version = "0.3", features = ["alloc", "std"] }
 futures-io = { version = "0.3", features = ["std"] }
 futures-sink = { version = "0.3", features = ["alloc", "std"] }
 futures-task = { version = "0.3", default-features = false, features = ["alloc", "std"] }
 futures-util = { version = "0.3", features = ["alloc", "async-await", "async-await-macro", "channel", "futures-channel", "futures-io", "futures-macro", "futures-sink", "io", "memchr", "sink", "slab", "std"] }
+getrandom = { version = "0.2", default-features = false, features = ["std"] }
 hashbrown = { version = "0.12", features = ["ahash", "inline-more", "raw"] }
 indexmap = { version = "1", default-features = false, features = ["std"] }
 libc = { version = "0.2", features = ["extra_traits", "std"] }
@@ -49,7 +50,7 @@ num-traits = { version = "0.2", features = ["i128", "libm", "std"] }
 object_store = { version = "0.5", default-features = false, features = ["aws", "azure", "base64", "cloud", "gcp", "quick-xml", "rand", "reqwest", "ring", "rustls-pemfile", "serde", "serde_json"] }
 once_cell = { version = "1", features = ["alloc", "parking_lot", "parking_lot_core", "race", "std"] }
 parking_lot = { version = "0.12", features = ["arc_lock"] }
-parquet = { version = "25", features = ["arrow", "async", "base64", "brotli", "experimental", "flate2", "futures", "lz4", "snap", "tokio", "zstd"] }
+parquet = { version = "26", features = ["arrow", "async", "base64", "brotli", "experimental", "flate2", "futures", "lz4", "snap", "tokio", "zstd"] }
 predicates = { version = "2", features = ["diff", "difflib", "float-cmp", "normalize-line-endings", "regex"] }
 prost = { version = "0.11", features = ["prost-derive", "std"] }
 prost-types = { version = "0.11", features = ["std"] }
@@ -101,6 +102,7 @@ futures-io = { version = "0.3", features = ["std"] }
 futures-sink = { version = "0.3", features = ["alloc", "std"] }
 futures-task = { version = "0.3", default-features = false, features = ["alloc", "std"] }
 futures-util = { version = "0.3", features = ["alloc", "async-await", "async-await-macro", "channel", "futures-channel", "futures-io", "futures-macro", "futures-sink", "io", "memchr", "sink", "slab", "std"] }
+getrandom = { version = "0.2", default-features = false, features = ["std"] }
 hashbrown = { version = "0.12", features = ["ahash", "inline-more", "raw"] }
 heck = { version = "0.4", features = ["unicode", "unicode-segmentation"] }
 indexmap = { version = "1", default-features = false, features = ["std"] }
@@ -133,35 +135,28 @@ url = { version = "2" }
 uuid = { version = "1", features = ["getrandom", "rng", "std", "v4"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
-ahash-c38e5c1d305a1b54 = { package = "ahash", version = "0.8", features = ["getrandom", "runtime-rng", "std"] }
-getrandom = { version = "0.2", default-features = false, features = ["std"] }
+ahash-c38e5c1d305a1b54 = { package = "ahash", version = "0.8", default-features = false, features = ["compile-time-rng", "const-random", "getrandom", "runtime-rng"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
-getrandom = { version = "0.2", default-features = false, features = ["std"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 
 [target.x86_64-apple-darwin.dependencies]
-ahash-c38e5c1d305a1b54 = { package = "ahash", version = "0.8", features = ["getrandom", "runtime-rng", "std"] }
-getrandom = { version = "0.2", default-features = false, features = ["std"] }
+ahash-c38e5c1d305a1b54 = { package = "ahash", version = "0.8", default-features = false, features = ["compile-time-rng", "const-random", "getrandom", "runtime-rng"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 
 [target.x86_64-apple-darwin.build-dependencies]
-getrandom = { version = "0.2", default-features = false, features = ["std"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 
 [target.aarch64-apple-darwin.dependencies]
-ahash-c38e5c1d305a1b54 = { package = "ahash", version = "0.8", features = ["getrandom", "runtime-rng", "std"] }
-getrandom = { version = "0.2", default-features = false, features = ["std"] }
+ahash-c38e5c1d305a1b54 = { package = "ahash", version = "0.8", default-features = false, features = ["compile-time-rng", "const-random", "getrandom", "runtime-rng"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 
 [target.aarch64-apple-darwin.build-dependencies]
-getrandom = { version = "0.2", default-features = false, features = ["std"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 
 [target.x86_64-pc-windows-msvc.dependencies]
-ahash-c38e5c1d305a1b54 = { package = "ahash", version = "0.8", features = ["getrandom", "runtime-rng", "std"] }
-getrandom = { version = "0.2", default-features = false, features = ["std"] }
+ahash-c38e5c1d305a1b54 = { package = "ahash", version = "0.8", default-features = false, features = ["compile-time-rng", "const-random", "getrandom", "runtime-rng"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 scopeguard = { version = "1", features = ["use_std"] }
 tokio = { version = "1", default-features = false, features = ["winapi"] }
@@ -169,7 +164,6 @@ winapi = { version = "0.3", default-features = false, features = ["accctrl", "ac
 windows-sys = { version = "0.42", features = ["Win32", "Win32_Foundation", "Win32_Networking", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage", "Win32_Storage_FileSystem", "Win32_System", "Win32_System_IO", "Win32_System_LibraryLoader", "Win32_System_Pipes", "Win32_System_SystemServices", "Win32_System_WindowsProgramming"] }
 
 [target.x86_64-pc-windows-msvc.build-dependencies]
-getrandom = { version = "0.2", default-features = false, features = ["std"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 scopeguard = { version = "1", features = ["use_std"] }
 tokio = { version = "1", default-features = false, features = ["winapi"] }

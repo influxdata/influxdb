@@ -148,7 +148,6 @@ pub(crate) async fn compact_parquet_files(
             to_queryable_parquet_chunk(
                 file,
                 store.clone(),
-                partition.table.name.clone(),
                 &partition.table_schema,
                 partition.sort_key.clone(),
                 target_level,
@@ -204,7 +203,12 @@ pub(crate) async fn compact_parquet_files(
     let plan = if total_size <= small_cutoff_bytes {
         // Compact everything into one file
         ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
-            .compact_plan(Arc::clone(&merged_schema), query_chunks, sort_key.clone())
+            .compact_plan(
+                Arc::from(partition.table.name.clone()),
+                Arc::clone(&merged_schema),
+                query_chunks,
+                sort_key.clone(),
+            )
             .context(CompactLogicalPlanSnafu)?
     } else {
         let split_times = if small_cutoff_bytes < total_size && total_size <= large_cutoff_bytes {
@@ -226,12 +230,18 @@ pub(crate) async fn compact_parquet_files(
             // The split times might not have actually split anything, so in this case, compact
             // everything into one file
             ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
-                .compact_plan(Arc::clone(&merged_schema), query_chunks, sort_key.clone())
+                .compact_plan(
+                    Arc::from(partition.table.name.clone()),
+                    Arc::clone(&merged_schema),
+                    query_chunks,
+                    sort_key.clone(),
+                )
                 .context(CompactLogicalPlanSnafu)?
         } else {
             // split compact query plan
             ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
                 .split_plan(
+                    Arc::from(partition.table.name.clone()),
                     Arc::clone(&merged_schema),
                     query_chunks,
                     sort_key.clone(),
@@ -318,7 +328,6 @@ pub(crate) async fn compact_final_no_splits(
             to_queryable_parquet_chunk(
                 file,
                 store.clone(),
-                partition.table.name.clone(),
                 &partition.table_schema,
                 partition.sort_key.clone(),
                 target_level,
@@ -364,7 +373,12 @@ pub(crate) async fn compact_final_no_splits(
     let ctx = exec.new_context(ExecutorType::Reorg);
     // Compact everything into one file
     let plan = ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
-        .compact_plan(Arc::clone(&merged_schema), query_chunks, sort_key.clone())
+        .compact_plan(
+            Arc::from(partition.table.name.clone()),
+            Arc::clone(&merged_schema),
+            query_chunks,
+            sort_key.clone(),
+        )
         .context(CompactLogicalPlanSnafu)?;
 
     let compacted_parquet_files = compact_with_plan(
@@ -524,7 +538,6 @@ async fn compact_with_plan(
 fn to_queryable_parquet_chunk(
     file: CompactorParquetFile,
     store: ParquetStorage,
-    table_name: String,
     table_schema: &TableSchema,
     partition_sort_key: Option<SortKey>,
     target_level: CompactionLevel,
@@ -573,7 +586,6 @@ fn to_queryable_parquet_chunk(
     }
 
     QueryableParquetChunk::new(
-        table_name,
         file.partition_id,
         Arc::new(parquet_chunk),
         &[],

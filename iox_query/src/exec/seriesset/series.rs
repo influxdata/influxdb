@@ -465,8 +465,7 @@ mod tests {
 
     #[test]
     fn test_series_set_conversion_mixed_case_tags() {
-        let time1_array: ArrayRef =
-            Arc::new(TimestampNanosecondArray::from_vec(vec![1, 2, 3], None));
+        let time1_array: ArrayRef = Arc::new(TimestampNanosecondArray::from(vec![1, 2, 3]));
         let string1_array: ArrayRef = Arc::new(StringArray::from(vec!["foo", "bar", "baz"]));
 
         let batch = RecordBatch::try_from_iter(vec![
@@ -506,11 +505,9 @@ mod tests {
 
     #[test]
     fn test_series_set_conversion_different_time_columns() {
-        let time1_array: ArrayRef =
-            Arc::new(TimestampNanosecondArray::from_vec(vec![1, 2, 3], None));
+        let time1_array: ArrayRef = Arc::new(TimestampNanosecondArray::from(vec![1, 2, 3]));
         let string1_array: ArrayRef = Arc::new(StringArray::from(vec!["foo", "bar", "baz"]));
-        let time2_array: ArrayRef =
-            Arc::new(TimestampNanosecondArray::from_vec(vec![3, 4, 5], None));
+        let time2_array: ArrayRef = Arc::new(TimestampNanosecondArray::from(vec![3, 4, 5]));
         let string2_array: ArrayRef = Arc::new(StringArray::from(vec!["boo", "far", "faz"]));
 
         let batch = RecordBatch::try_from_iter(vec![
@@ -559,10 +556,8 @@ mod tests {
             Some(40.1),
         ]));
 
-        let timestamp_array: ArrayRef = Arc::new(TimestampNanosecondArray::from_vec(
-            vec![1000, 2000, 3000, 4000],
-            None,
-        ));
+        let timestamp_array: ArrayRef =
+            Arc::new(TimestampNanosecondArray::from(vec![1000, 2000, 3000, 4000]));
 
         let batch = RecordBatch::try_from_iter_with_nullable(vec![
             ("state", tag_array, true),
@@ -607,7 +602,7 @@ mod tests {
         let uint_array = UInt64Array::from(vec![None, Some(100)]);
         let bool_array = BooleanArray::from(vec![None, Some(true)]);
 
-        let timestamp_array = TimestampNanosecondArray::from_vec(vec![1000, 2000], None);
+        let timestamp_array = TimestampNanosecondArray::from(vec![1000, 2000]);
 
         let batch = RecordBatch::try_from_iter_with_nullable(vec![
             ("state", Arc::new(tag_array) as ArrayRef, true),
@@ -660,10 +655,8 @@ mod tests {
         let float_array: ArrayRef = Arc::new(Float64Array::from(vec![10.1, 20.1, 30.1, 40.1]));
         let bool_array: ArrayRef = Arc::new(BooleanArray::from(vec![true, false, true, false]));
 
-        let timestamp_array: ArrayRef = Arc::new(TimestampNanosecondArray::from_vec(
-            vec![1000, 2000, 3000, 4000],
-            None,
-        ));
+        let timestamp_array: ArrayRef =
+            Arc::new(TimestampNanosecondArray::from(vec![1000, 2000, 3000, 4000]));
 
         RecordBatch::try_from_iter_with_nullable(vec![
             ("string_field", string_array, true),

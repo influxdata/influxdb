@@ -158,6 +158,20 @@ impl DmlOperation {
             Self::Delete(d) => d.namespace(),
         }
     }
+
+    /// Namespace catalog ID associated with this operation
+    ///
+    /// # Safety
+    ///
+    /// Marked unsafe because of the critical invariant; Kafka conumers MUST NOT
+    /// utilise this method until this warning is removed. See [`DmlWrite`]
+    /// docs.
+    pub unsafe fn namespace_id(&self) -> NamespaceId {
+        match self {
+            Self::Write(w) => w.namespace_id(),
+            Self::Delete(d) => d.namespace_id(),
+        }
+    }
 }
 
 impl From<DmlWrite> for DmlOperation {
@@ -360,6 +374,7 @@ impl DmlWrite {
 #[derive(Debug, Clone, PartialEq)]
 pub struct DmlDelete {
     namespace: String,
+    namespace_id: NamespaceId,
     predicate: DeletePredicate,
     table_name: Option<NonEmptyString>,
     meta: DmlMeta,
@@ -369,12 +384,14 @@ impl DmlDelete {
     /// Create a new [`DmlDelete`]
     pub fn new(
         namespace: impl Into<String>,
+        namespace_id: NamespaceId,
         predicate: DeletePredicate,
         table_name: Option<NonEmptyString>,
         meta: DmlMeta,
     ) -> Self {
         Self {
             namespace: namespace.into(),
+            namespace_id,
             predicate,
             table_name,
             meta,
@@ -418,6 +435,17 @@ impl DmlDelete {
                 .unwrap_or_default()
             + self.meta.size()
             - std::mem::size_of::<DmlMeta>()
+    }
+
+    /// Return the [`NamespaceId`] to which this operation should be applied.
+    ///
+    /// # Safety
+    ///
+    /// Marked unsafe because of the critical invariant; Kafka conumers MUST NOT
+    /// utilise this method until this warning is removed. See [`DmlWrite`]
+    /// docs.
+    pub unsafe fn namespace_id(&self) -> NamespaceId {
+        self.namespace_id
     }
 }
 

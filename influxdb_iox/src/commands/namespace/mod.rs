@@ -3,6 +3,8 @@
 use influxdb_iox_client::{connection::Connection, namespace};
 use thiserror::Error;
 
+mod retention;
+
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
 pub enum Error {
@@ -25,17 +27,22 @@ pub struct Config {
 enum Command {
     /// Fetch namespaces
     List,
+
+    /// Update retention of an existing namespace
+    Retention(retention::Config),
 }
 
 pub async fn command(connection: Connection, config: Config) -> Result<(), Error> {
-    let mut client = namespace::Client::new(connection);
     match config.command {
         Command::List => {
+            let mut client = namespace::Client::new(connection);
             let namespaces = client.get_namespaces().await?;
             println!("{}", serde_json::to_string_pretty(&namespaces)?);
+        }
+        Command::Retention(config) => {
+            retention::command(connection, config).await?;
         } // Deliberately not adding _ => so the compiler will direct people here to impl new
           // commands
     }
-
     Ok(())
 }

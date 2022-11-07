@@ -112,6 +112,9 @@ mod tests {
     use parquet_file::storage::StorageId;
     use std::collections::HashMap;
 
+    const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1: u64 = 4;
+    const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2: u64 = 24;
+
     #[tokio::test]
     async fn test_compact_remaining_level_0_files_many_files() {
         test_helpers::maybe_start_logging();
@@ -701,6 +704,8 @@ mod tests {
             min_num_rows_allocated_per_record_batch_to_datafusion_plan: 1,
             max_num_compacting_files: 20,
             minutes_without_new_writes_to_be_cold: 10,
+            hot_compaction_hours_threshold_1: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
+            hot_compaction_hours_threshold_2: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
         }
     }
 

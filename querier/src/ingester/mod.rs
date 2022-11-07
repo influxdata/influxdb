@@ -476,7 +476,6 @@ async fn execute(
     // reconstruct partitions
     let mut decoder = IngesterStreamDecoder::new(
         ingester_address,
-        table_name,
         catalog_cache,
         expected_schema,
         span_recorder.child_span("IngesterStreamDecoder"),
@@ -497,7 +496,6 @@ struct IngesterStreamDecoder {
     current_partition: Option<IngesterPartition>,
     current_chunk: Option<(Schema, Vec<RecordBatch>)>,
     ingester_address: Arc<str>,
-    table_name: Arc<str>,
     catalog_cache: Arc<CatalogCache>,
     expected_schema: Arc<Schema>,
     span_recorder: SpanRecorder,
@@ -507,7 +505,6 @@ impl IngesterStreamDecoder {
     /// Create empty decoder.
     fn new(
         ingester_address: Arc<str>,
-        table_name: Arc<str>,
         catalog_cache: Arc<CatalogCache>,
         expected_schema: Arc<Schema>,
         span: Option<Span>,
@@ -517,7 +514,6 @@ impl IngesterStreamDecoder {
             current_partition: None,
             current_chunk: None,
             ingester_address,
-            table_name,
             catalog_cache,
             expected_schema,
             span_recorder: SpanRecorder::new(span),
@@ -612,7 +608,6 @@ impl IngesterStreamDecoder {
 
                 let partition = IngesterPartition::new(
                     Arc::clone(&self.ingester_address),
-                    Arc::clone(&self.table_name),
                     partition_id,
                     shard_id,
                     status.parquet_max_sequence_number.map(SequenceNumber::new),
@@ -866,7 +861,6 @@ async fn execute_get_write_infos(
 #[derive(Debug, Clone)]
 pub struct IngesterPartition {
     ingester: Arc<str>,
-    table_name: Arc<str>,
     partition_id: PartitionId,
     shard_id: ShardId,
 
@@ -889,7 +883,6 @@ impl IngesterPartition {
     /// `RecordBatches` into the correct types
     pub fn new(
         ingester: Arc<str>,
-        table_name: Arc<str>,
         partition_id: PartitionId,
         shard_id: ShardId,
         parquet_max_sequence_number: Option<SequenceNumber>,
@@ -898,7 +891,6 @@ impl IngesterPartition {
     ) -> Self {
         Self {
             ingester,
-            table_name,
             partition_id,
             shard_id,
             parquet_max_sequence_number,
@@ -943,7 +935,6 @@ impl IngesterPartition {
 
         let chunk = IngesterChunk {
             chunk_id,
-            table_name: Arc::clone(&self.table_name),
             partition_id: self.partition_id,
             schema: expected_schema,
             partition_sort_key: Arc::clone(&self.partition_sort_key),
@@ -1002,7 +993,6 @@ impl IngesterPartition {
 #[derive(Debug, Clone)]
 pub struct IngesterChunk {
     chunk_id: ChunkId,
-    table_name: Arc<str>,
     partition_id: PartitionId,
     schema: Arc<Schema>,
 
@@ -1079,10 +1069,6 @@ impl QueryChunkMeta for IngesterChunk {
 impl QueryChunk for IngesterChunk {
     fn id(&self) -> ChunkId {
         self.chunk_id
-    }
-
-    fn table_name(&self) -> &str {
-        self.table_name.as_ref()
     }
 
     fn may_contain_pk_duplicates(&self) -> bool {
@@ -1907,7 +1893,6 @@ mod tests {
             // Construct a partition and ensure it doesn't error
             let ingester_partition = IngesterPartition::new(
                 "ingester".into(),
-                "table".into(),
                 PartitionId::new(1),
                 ShardId::new(1),
                 parquet_max_sequence_number,
@@ -1941,7 +1926,6 @@ mod tests {
         let tombstone_max_sequence_number = None;
         let err = IngesterPartition::new(
             "ingester".into(),
-            "table".into(),
             PartitionId::new(1),
             ShardId::new(1),
             parquet_max_sequence_number,

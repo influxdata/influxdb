@@ -348,12 +348,7 @@ impl QuerierTable {
                     .map(|(cached_parquet_file, _keep)| async move {
                         let span = span_recorder.child_span("new_chunk");
                         self.chunk_adapter
-                            .new_chunk(
-                                Arc::clone(cached_table),
-                                Arc::clone(self.table_name()),
-                                cached_parquet_file,
-                                span,
-                            )
+                            .new_chunk(Arc::clone(cached_table), cached_parquet_file, span)
                             .await
                     })
                     .buffer_unordered(CONCURRENT_CHUNK_CREATION_JOBS)
@@ -694,7 +689,7 @@ mod tests {
         let schema = make_schema_two_fields_two_tags(&table).await;
 
         // let add a partion from the ingester
-        let builder = IngesterPartitionBuilder::new(&table, &schema, &shard, &partition)
+        let builder = IngesterPartitionBuilder::new(&schema, &shard, &partition)
             .with_lp(["table,tag1=val1,tag2=val2 foo=3,bar=4 11"]);
 
         let ingester_partition =
@@ -791,7 +786,7 @@ mod tests {
             .with_compaction_level(CompactionLevel::FileNonOverlapped);
         partition.create_parquet_file(builder).await;
 
-        let builder = IngesterPartitionBuilder::new(&table, &schema, &shard, &partition);
+        let builder = IngesterPartitionBuilder::new(&schema, &shard, &partition);
         let ingester_partition =
             builder.build_with_max_parquet_sequence_number(Some(SequenceNumber::new(1)));
 
@@ -870,8 +865,8 @@ mod tests {
 
         let ingester_chunk_id1 = u128::MAX - 1;
 
-        let builder1 = IngesterPartitionBuilder::new(&table, &schema, &shard, &partition1);
-        let builder2 = IngesterPartitionBuilder::new(&table, &schema, &shard, &partition2);
+        let builder1 = IngesterPartitionBuilder::new(&schema, &shard, &partition1);
+        let builder2 = IngesterPartitionBuilder::new(&schema, &shard, &partition2);
         let querier_table = TestQuerierTable::new(&catalog, &table)
             .await
             .with_ingester_partition(
@@ -962,8 +957,8 @@ mod tests {
                 .unwrap(),
         );
 
-        let builder1 = IngesterPartitionBuilder::new(&table, &schema, &shard, &partition1);
-        let builder2 = IngesterPartitionBuilder::new(&table, &schema, &shard, &partition2);
+        let builder1 = IngesterPartitionBuilder::new(&schema, &shard, &partition1);
+        let builder2 = IngesterPartitionBuilder::new(&schema, &shard, &partition2);
 
         let querier_table = TestQuerierTable::new(&catalog, &table)
             .await
@@ -1014,8 +1009,8 @@ mod tests {
         let partition = table.with_shard(&shard).create_partition("k").await;
         let schema = make_schema(&table).await;
 
-        let builder = IngesterPartitionBuilder::new(&table, &schema, &shard, &partition)
-            .with_lp(["table foo=1 1"]);
+        let builder =
+            IngesterPartitionBuilder::new(&schema, &shard, &partition).with_lp(["table foo=1 1"]);
 
         // Parquet file between with max sequence number 2
         let pf_builder = TestParquetFileBuilder::default()
@@ -1071,8 +1066,8 @@ mod tests {
         // Expect 1 chunk with with one delete predicate
         let querier_table = TestQuerierTable::new(&catalog, &table).await;
 
-        let builder = IngesterPartitionBuilder::new(&table, &schema, &shard, &partition)
-            .with_lp(["table foo=1 1"]);
+        let builder =
+            IngesterPartitionBuilder::new(&schema, &shard, &partition).with_lp(["table foo=1 1"]);
 
         // parquet file with max sequence number 1
         let pf_builder = TestParquetFileBuilder::default()

@@ -442,6 +442,8 @@ pub struct Namespace {
     /// never drop data).
     #[sqlx(default)]
     pub retention_duration: Option<String>,
+    /// The retention period in ns. None represents infinite duration (i.e. never drop data).
+    pub retention_period_ns: Option<i64>,
     /// The topic that writes to this namespace will land in
     pub topic_id: TopicId,
     /// The query pool assigned to answer queries for this namespace

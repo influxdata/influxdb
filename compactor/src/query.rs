@@ -21,7 +21,6 @@ use uuid::Uuid;
 pub struct QueryableParquetChunk {
     data: Arc<ParquetChunk>,                      // data of the parquet file
     delete_predicates: Vec<Arc<DeletePredicate>>, // converted from tombstones
-    table_name: String,                           // needed to build query plan
     partition_id: PartitionId,
     max_sequence_number: SequenceNumber,
     min_time: Timestamp,
@@ -47,7 +46,6 @@ impl QueryableParquetChunk {
     /// Initialize a QueryableParquetChunk
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        table_name: impl Into<String>,
         partition_id: PartitionId,
         data: Arc<ParquetChunk>,
         deletes: &[Tombstone],
@@ -68,7 +66,6 @@ impl QueryableParquetChunk {
         Self {
             data,
             delete_predicates,
-            table_name: table_name.into(),
             partition_id,
             max_sequence_number,
             min_time,
@@ -150,11 +147,6 @@ impl QueryChunk for QueryableParquetChunk {
         // When we need the order to split overlapped chunks, the ChunkOrder is already different.
         // ChunkId is used as tiebreaker does not matter much, so use the object store id
         self.object_store_id().into()
-    }
-
-    /// Returns the name of the table stored in this chunk
-    fn table_name(&self) -> &str {
-        &self.table_name
     }
 
     /// Returns true if the chunk may contain a duplicate "primary
@@ -272,7 +264,6 @@ mod tests {
         ));
 
         QueryableParquetChunk::new(
-            "table",
             partition.partition.id,
             parquet_chunk,
             &[],

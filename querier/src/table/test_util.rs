@@ -55,7 +55,6 @@ pub(crate) fn lp_to_record_batch(lp: &str) -> RecordBatch {
 /// Helper for creating IngesterPartitions
 #[derive(Debug, Clone)]
 pub(crate) struct IngesterPartitionBuilder {
-    table: Arc<TestTable>,
     schema: Arc<Schema>,
     shard: Arc<TestShard>,
     partition: Arc<TestPartition>,
@@ -70,13 +69,11 @@ pub(crate) struct IngesterPartitionBuilder {
 
 impl IngesterPartitionBuilder {
     pub(crate) fn new(
-        table: &Arc<TestTable>,
         schema: &Arc<Schema>,
         shard: &Arc<TestShard>,
         partition: &Arc<TestPartition>,
     ) -> Self {
         Self {
-            table: Arc::clone(table),
             schema: Arc::clone(schema),
             shard: Arc::clone(shard),
             partition: Arc::clone(partition),
@@ -120,7 +117,6 @@ impl IngesterPartitionBuilder {
 
         IngesterPartition::new(
             Arc::clone(&self.ingester_name),
-            Arc::from(self.table.table.name.as_str()),
             self.partition.partition.id,
             self.shard.shard.id,
             parquet_max_sequence_number,

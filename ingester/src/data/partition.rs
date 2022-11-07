@@ -6,6 +6,7 @@ use data_types::{NamespaceId, PartitionId, PartitionKey, SequenceNumber, ShardId
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
 use schema::sort::SortKey;
+use thiserror::Error;
 use write_summary::ShardProgress;
 
 use self::{
@@ -18,6 +19,18 @@ use super::{sequence_range::SequenceNumberRange, table::TableName};
 
 mod buffer;
 pub mod resolver;
+
+/// Errors that occur during DML operation buffering.
+#[derive(Debug, Error)]
+pub(crate) enum BufferError {
+    /// The op being applied has already been previously persisted.
+    #[error("skipped applying already persisted op")]
+    SkipPersisted,
+
+    /// An error occurred writing the data to the [`MutableBatch`].
+    #[error("failed to apply DML op: {0}")]
+    BufferError(#[from] mutable_batch::Error),
+}
 
 /// The load state of the [`SortKey`] for a given partition.
 #[derive(Debug, Clone)]
@@ -107,25 +120,35 @@ impl PartitionData {
     /// Buffer the given [`MutableBatch`] in memory, ordered by the specified
     /// [`SequenceNumber`].
     ///
+    /// This method returns [`BufferError::SkipPersisted`] if `sequence_number`
+    /// falls in the range of previously persisted data (where `sequence_number`
+    /// is strictly less than the value of
+    /// [`Self::max_persisted_sequence_number()`]).
+    ///
     /// # Panics
     ///
     /// This method panics if `sequence_number` is not strictly greater than
-    /// previous calls or the persisted maximum.
+    /// previous calls. This is not enforced for writes before the persist mark.
     pub(super) fn buffer_write(
         &mut self,
         mb: MutableBatch,
         sequence_number: SequenceNumber,
-    ) -> Result<(), super::Error> {
-        // Ensure that this write is strictly after any persisted ops.
+    ) -> Result<(), BufferError> {
+        // Skip any ops that have already been applied.
         if let Some(min) = self.max_persisted_sequence_number {
-            assert!(sequence_number > min, "monotonicity violation");
+            if sequence_number <= min {
+                trace!(
+                    shard_id=%self.shard_id,
+                    op_sequence_number=?sequence_number,
+                    "skipping already-persisted write"
+                );
+                return Err(BufferError::SkipPersisted);
+            }
         }
 
         // Buffer the write, which ensures monotonicity of writes within the
         // buffer itself.
-        self.buffer
-            .buffer_write(mb, sequence_number)
-            .map_err(|e| super::Error::BufferWrite { source: e })?;
+        self.buffer.buffer_write(mb, sequence_number)?;
 
         trace!(
             shard_id = %self.shard_id,
@@ -184,11 +207,7 @@ impl PartitionData {
         // is upheld by the FSM, which ensures only non-empty snapshots /
         // RecordBatch are generated. Because `data` contains at least one
         // RecordBatch, this invariant holds.
-        Some(QueryAdaptor::new(
-            self.table_name.clone(),
-            self.partition_id,
-            data,
-        ))
+        Some(QueryAdaptor::new(self.partition_id, data))
     }
 
     /// Return the range of [`SequenceNumber`] currently queryable by calling
@@ -289,11 +308,7 @@ impl PartitionData {
         let data = persisting.get_query_data();
         self.persisting = Some(persisting);
 
-        Some(QueryAdaptor::new(
-            self.table_name.clone(),
-            self.partition_id,
-            data,
-        ))
+        Some(QueryAdaptor::new(self.partition_id, data))
     }
 
     /// Mark this partition as having completed persistence up to, and
@@ -428,7 +443,6 @@ mod tests {
     };
     use datafusion_util::test_collect;
     use iox_catalog::interface::Catalog;
-    use iox_query::QueryChunk;
     use lazy_static::lazy_static;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 
@@ -497,7 +511,6 @@ mod tests {
         {
             let data = p.get_query_data().expect("should return data");
             assert_eq!(data.partition_id(), PARTITION_ID);
-            assert_eq!(data.table_name(), TABLE_NAME.to_string());
 
             let expected = [
                 "+--------+--------+----------+--------------------------------+",
@@ -544,7 +557,6 @@ mod tests {
         {
             let data = p.get_query_data().expect("should contain data");
             assert_eq!(data.partition_id(), PARTITION_ID);
-            assert_eq!(data.table_name(), TABLE_NAME.to_string());
 
             let expected = [
                 "+--------+--------+----------+--------------------------------+",
@@ -593,7 +605,6 @@ mod tests {
         let persisting_data = p.mark_persisting().expect("must contain existing data");
         // And validate the data being persisted.
         assert_eq!(persisting_data.partition_id(), PARTITION_ID);
-        assert_eq!(persisting_data.table_name(), TABLE_NAME.to_string());
         assert_eq!(persisting_data.record_batches().len(), 1);
         let expected = [
             "+--------+--------+----------+--------------------------------+",
@@ -639,7 +650,6 @@ mod tests {
         {
             let data = p.get_query_data().expect("must have data");
             assert_eq!(data.partition_id(), PARTITION_ID);
-            assert_eq!(data.table_name(), TABLE_NAME.to_string());
             assert_eq!(data.record_batches().len(), 2);
             let expected = [
                 "+--------+--------+----------+--------------------------------+",
@@ -713,7 +723,6 @@ mod tests {
         {
             let data = p.get_query_data().expect("must have data");
             assert_eq!(data.partition_id(), PARTITION_ID);
-            assert_eq!(data.table_name(), TABLE_NAME.to_string());
             assert_eq!(data.record_batches().len(), 1);
             let expected = [
                 "+--------+--------+---------+--------------------------------+",
@@ -1095,8 +1104,9 @@ mod tests {
 
     // As above, the sequence numbers are not tracked between buffer instances.
     //
-    // This ensures that a write after a batch is persisted is still required to
-    // be monotonic.
+    // This test ensures that a partition can tolerate replayed ops prior to the
+    // persist marker when first initialising. However once a partition has
+    // buffered beyond the persist marker, it cannot re-buffer ops after it.
     #[tokio::test]
     #[should_panic(expected = "monotonicity violation")]
     async fn test_non_monotonic_writes_after_persistence() {
@@ -1119,13 +1129,26 @@ mod tests {
         p.mark_persisted(SequenceNumber::new(42));
 
         // This should fail as the write "goes backwards".
-        p.buffer_write(mb, SequenceNumber::new(1))
+        let err = p
+            .buffer_write(mb.clone(), SequenceNumber::new(1))
+            .expect_err("out of order write should succeed");
+
+        // This assert ensures replay is tolerated, with the previously
+        // persisted ops skipping instead of being applied.
+        assert_matches!(err, BufferError::SkipPersisted);
+
+        // Until a write is accepted.
+        p.buffer_write(mb.clone(), SequenceNumber::new(100))
             .expect("out of order write should succeed");
+
+        // At which point a write between the persist marker and the maximum
+        // applied sequence number is a hard error.
+        let _ = p.buffer_write(mb, SequenceNumber::new(50));
     }
 
-    // As above, but with a pre-configured persist marker.
+    // As above, but with a pre-configured persist marker greater than the
+    // sequence number being wrote.
     #[tokio::test]
-    #[should_panic(expected = "monotonicity violation")]
     async fn test_non_monotonic_writes_persist_marker() {
         let mut p = PartitionData::new(
             PARTITION_ID,
@@ -1145,8 +1168,11 @@ mod tests {
         let mb = lp_to_mutable_batch(r#"bananas,city=London people=2,pigeons="millions" 10"#).1;
 
         // This should fail as the write "goes backwards".
-        p.buffer_write(mb, SequenceNumber::new(1))
-            .expect("out of order write should succeed");
+        let err = p
+            .buffer_write(mb, SequenceNumber::new(1))
+            .expect_err("out of order write should not succeed");
+
+        assert_matches!(err, BufferError::SkipPersisted);
     }
 
     // Restoring a persist marker is included in progress reports.

@@ -33,41 +33,31 @@ async fn run_table_schema_test_case<D>(
             table_name, selection
         );
 
-        // Make sure at least one table has data
-        let mut chunks_with_table = 0;
-
         let ctx = db.new_query_context(None);
         let chunks = db
             .chunks(table_name, &Default::default(), &None, ctx)
             .await
             .expect("error getting chunks");
         for chunk in chunks {
-            if chunk.table_name() == table_name {
-                chunks_with_table += 1;
-                let actual_schema = chunk.schema().select(selection).unwrap();
+            let actual_schema = chunk.schema().select(selection).unwrap();
 
-                assert_eq!(
-                    expected_schema,
-                    actual_schema,
-                    "Mismatch in chunk {}\nExpected:\n{:#?}\nActual:\n{:#?}\n",
-                    chunk.id(),
-                    expected_schema,
-                    actual_schema
-                );
+            assert_eq!(
+                expected_schema,
+                actual_schema,
+                "Mismatch in chunk {}\nExpected:\n{:#?}\nActual:\n{:#?}\n",
+                chunk.id(),
+                expected_schema,
+                actual_schema
+            );
 
-                // There are a few cases where we don't care about the sort key:
-                // - no "expected" value was provided which is interpreted as "don't care"; some
-                //   chunk representations are always sorted
-                // - the chunk is in some known-to-be-always-unsorted stage
-                if expected_sort_key.is_some() && !is_unsorted_chunk_type(chunk.as_ref()) {
-                    assert_eq!(chunk.sort_key(), expected_sort_key);
-                }
+            // There are a few cases where we don't care about the sort key:
+            // - no "expected" value was provided which is interpreted as "don't care"; some
+            //   chunk representations are always sorted
+            // - the chunk is in some known-to-be-always-unsorted stage
+            if expected_sort_key.is_some() && !is_unsorted_chunk_type(chunk.as_ref()) {
+                assert_eq!(chunk.sort_key(), expected_sort_key);
             }
         }
-        assert!(
-            chunks_with_table > 0,
-            "Expected at least one chunk to have data, but none did"
-        );
     }
 }
 

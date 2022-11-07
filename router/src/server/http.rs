@@ -264,31 +264,31 @@ impl<D, N> HttpDelegate<D, N, SystemProvider> {
     ) -> Self {
         let write_metric_lines = metrics
             .register_metric::<U64Counter>(
-                "http_write_lines_total",
+                "http_write_lines",
                 "cumulative number of line protocol lines successfully routed",
             )
             .recorder(&[]);
         let write_metric_fields = metrics
             .register_metric::<U64Counter>(
-                "http_write_fields_total",
+                "http_write_fields",
                 "cumulative number of line protocol fields successfully routed",
             )
             .recorder(&[]);
         let write_metric_tables = metrics
             .register_metric::<U64Counter>(
-                "http_write_tables_total",
+                "http_write_tables",
                 "cumulative number of tables in each write request",
             )
             .recorder(&[]);
         let write_metric_body_size = metrics
             .register_metric::<U64Counter>(
-                "http_write_body_bytes_total",
+                "http_write_body_bytes",
                 "cumulative byte size of successfully routed (decompressed) line protocol write requests",
             )
             .recorder(&[]);
         let delete_metric_body_size = metrics
             .register_metric::<U64Counter>(
-                "http_delete_body_bytes_total",
+                "http_delete_body_bytes",
                 "cumulative byte size of successfully routed (decompressed) delete requests",
             )
             .recorder(&[]);
@@ -667,12 +667,12 @@ mod tests {
                     if let Ok(v) = got {
                         assert_eq!(v.status(), StatusCode::NO_CONTENT);
                         if $uri.contains("/api/v2/write") {
-                            assert_metric_hit(&metrics, "http_write_lines_total", None);
-                            assert_metric_hit(&metrics, "http_write_fields_total", None);
-                            assert_metric_hit(&metrics, "http_write_tables_total", None);
-                            assert_metric_hit(&metrics, "http_write_body_bytes_total", Some($body.len() as _));
+                            assert_metric_hit(&metrics, "http_write_lines", None);
+                            assert_metric_hit(&metrics, "http_write_fields", None);
+                            assert_metric_hit(&metrics, "http_write_tables", None);
+                            assert_metric_hit(&metrics, "http_write_body_bytes", Some($body.len() as _));
                         } else {
-                            assert_metric_hit(&metrics, "http_delete_body_bytes_total", Some($body.len() as _));
+                            assert_metric_hit(&metrics, "http_delete_body_bytes", Some($body.len() as _));
                         }
                     }
 

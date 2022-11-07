@@ -176,6 +176,26 @@ macro_rules! gen_compactor_config {
                 action
             )]
             pub minutes_without_new_writes_to_be_cold: u64,
+
+            /// When querying for partitions with data for hot compaction, how many hours to look
+            /// back for a first pass.
+            #[clap(
+                long = "compaction-hot-partition-hours-threshold-1",
+                env = "INFLUXDB_IOX_COMPACTION_HOT_PARTITION_HOURS_THRESHOLD_1",
+                default_value = "4",
+                action
+            )]
+            pub hot_compaction_hours_threshold_1: u64,
+
+            /// When querying for partitions with data for hot compaction, how many hours to look
+            /// back for a second pass if we found nothing in the first pass.
+            #[clap(
+                long = "compaction-hot-partition-hours-threshold-2",
+                env = "INFLUXDB_IOX_COMPACTION_HOT_PARTITION_HOURS_THRESHOLD_2",
+                default_value = "24",
+                action
+            )]
+            pub hot_compaction_hours_threshold_2: u64,
         }
     };
 }
@@ -204,6 +224,8 @@ impl CompactorOnceConfig {
                 .min_num_rows_allocated_per_record_batch_to_datafusion_plan,
             max_num_compacting_files: self.max_num_compacting_files,
             minutes_without_new_writes_to_be_cold: self.minutes_without_new_writes_to_be_cold,
+            hot_compaction_hours_threshold_1: self.hot_compaction_hours_threshold_1,
+            hot_compaction_hours_threshold_2: self.hot_compaction_hours_threshold_2,
         }
     }
 }

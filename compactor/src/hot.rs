@@ -60,9 +60,10 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
 
 /// Return a list of the most recent highest ingested throughput partitions.
 /// The highest throughput partitions are prioritized as follows:
-///  1. If there are partitions with new ingested files within the last 4 hours, pick them.
+///  1. If there are partitions with new ingested files within the last 4 hours (the default, but
+///     configurable), pick them.
 ///  2. If no new ingested files in the last 4 hours, will look for partitions with new writes
-///     within the last 24 hours.
+///     within the last 24 hours (the default, but configurable).
 ///  3. If there are no ingested files within the last 24 hours, will look for partitions
 ///     with any new ingested files in the past.
 ///
@@ -84,7 +85,11 @@ pub(crate) async fn hot_partitions_to_compact(
 
     // Get the most recent highest ingested throughput partitions within the last 4 hours. If not,
     // increase to 24 hours.
-    let query_times = query_times(compactor.time_provider());
+    let query_times = query_times(
+        compactor.time_provider(),
+        compactor.config.hot_compaction_hours_threshold_1,
+        compactor.config.hot_compaction_hours_threshold_2,
+    );
 
     for &shard_id in &compactor.shards {
         let mut partitions = hot_partitions_for_shard(
@@ -191,8 +196,12 @@ async fn hot_partitions_for_shard(
     Ok(Vec::new())
 }
 
-fn query_times(time_provider: Arc<dyn TimeProvider>) -> Vec<(u64, Timestamp)> {
-    [4, 24]
+fn query_times(
+    time_provider: Arc<dyn TimeProvider>,
+    hours_threshold_1: u64,
+    hours_threshold_2: u64,
+) -> Vec<(u64, Timestamp)> {
+    [hours_threshold_1, hours_threshold_2]
         .iter()
         .map(|&num_hours| {
             (
@@ -212,6 +221,9 @@ mod tests {
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestShard, TestTable};
     use parquet_file::storage::{ParquetStorage, StorageId};
     use std::sync::Arc;
+
+    const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1: u64 = 4;
+    const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2: u64 = 24;
 
     struct TestSetup {
         catalog: Arc<TestCatalog>,
@@ -247,7 +259,11 @@ mod tests {
         let candidates = hot_partitions_for_shard(
             Arc::clone(&catalog.catalog),
             shard1.shard.id,
-            &query_times(catalog.time_provider()),
+            &query_times(
+                catalog.time_provider(),
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
+            ),
             1,
             1,
         )
@@ -271,7 +287,11 @@ mod tests {
         let candidates = hot_partitions_for_shard(
             Arc::clone(&catalog.catalog),
             shard1.shard.id,
-            &query_times(catalog.time_provider()),
+            &query_times(
+                catalog.time_provider(),
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
+            ),
             1,
             1,
         )
@@ -298,7 +318,11 @@ mod tests {
         let candidates = hot_partitions_for_shard(
             Arc::clone(&catalog.catalog),
             shard1.shard.id,
-            &query_times(catalog.time_provider()),
+            &query_times(
+                catalog.time_provider(),
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
+            ),
             1,
             1,
         )
@@ -326,7 +350,11 @@ mod tests {
         let candidates = hot_partitions_for_shard(
             Arc::clone(&catalog.catalog),
             shard1.shard.id,
-            &query_times(catalog.time_provider()),
+            &query_times(
+                catalog.time_provider(),
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
+            ),
             1,
             1,
         )
@@ -354,7 +382,11 @@ mod tests {
         let candidates = hot_partitions_for_shard(
             Arc::clone(&catalog.catalog),
             shard1.shard.id,
-            &query_times(catalog.time_provider()),
+            &query_times(
+                catalog.time_provider(),
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
+            ),
             1,
             1,
         )
@@ -382,7 +414,11 @@ mod tests {
         let candidates = hot_partitions_for_shard(
             Arc::clone(&catalog.catalog),
             shard1.shard.id,
-            &query_times(catalog.time_provider()),
+            &query_times(
+                catalog.time_provider(),
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
+            ),
             1,
             1,
         )
@@ -410,7 +446,11 @@ mod tests {
         let candidates = hot_partitions_for_shard(
             Arc::clone(&catalog.catalog),
             shard1.shard.id,
-            &query_times(catalog.time_provider()),
+            &query_times(
+                catalog.time_provider(),
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
+            ),
             1,
             1,
         )
@@ -447,7 +487,11 @@ mod tests {
         let candidates = hot_partitions_for_shard(
             Arc::clone(&catalog.catalog),
             shard1.shard.id,
-            &query_times(catalog.time_provider()),
+            &query_times(
+                catalog.time_provider(),
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
+            ),
             1,
             // Even if we ask for 2 partitions per shard, we'll only get the one partition with
             // writes within 4 hours
@@ -495,6 +539,8 @@ mod tests {
             min_num_rows_allocated_per_record_batch_to_datafusion_plan: 100,
             max_num_compacting_files: 20,
             minutes_without_new_writes_to_be_cold: 10,
+            hot_compaction_hours_threshold_1: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
+            hot_compaction_hours_threshold_2: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
         };
         let compactor = Arc::new(Compactor::new(
             vec![shard1.shard.id, shard2.shard.id],

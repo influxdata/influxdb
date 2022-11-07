@@ -17,8 +17,6 @@ use predicate::Predicate;
 use schema::{merge::merge_record_batch_schemas, sort::SortKey, Projection, Schema};
 use snafu::Snafu;
 
-use crate::data::table::TableName;
-
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -55,9 +53,6 @@ pub(crate) struct QueryAdaptor {
     /// interning the merged schema in [`Self::schema()`].
     data: Vec<Arc<RecordBatch>>,
 
-    /// The name of the table this data is part of.
-    table_name: TableName,
-
     /// The catalog ID of the partition the this data is part of.
     partition_id: PartitionId,
 
@@ -78,11 +73,7 @@ impl QueryAdaptor {
     ///
     /// This constructor panics if `data` contains no [`RecordBatch`], or all
     /// [`RecordBatch`] are empty.
-    pub(crate) fn new(
-        table_name: TableName,
-        partition_id: PartitionId,
-        data: Vec<Arc<RecordBatch>>,
-    ) -> Self {
+    pub(crate) fn new(partition_id: PartitionId, data: Vec<Arc<RecordBatch>>) -> Self {
         // There must always be at least one record batch and one row.
         //
         // This upholds an invariant that simplifies dealing with empty
@@ -91,7 +82,6 @@ impl QueryAdaptor {
 
         Self {
             data,
-            table_name,
             partition_id,
             // To return a value for debugging and make it consistent with ChunkId created in Compactor,
             // use Uuid for this. Draw this UUID during chunk generation so that it is stable during the whole query process.
@@ -180,11 +170,6 @@ impl QueryChunkMeta for QueryAdaptor {
 impl QueryChunk for QueryAdaptor {
     fn id(&self) -> ChunkId {
         self.id
-    }
-
-    /// Returns the name of the table stored in this chunk
-    fn table_name(&self) -> &str {
-        &self.table_name
     }
 
     /// Returns true if the chunk may contain a duplicate "primary key" within

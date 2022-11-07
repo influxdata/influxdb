@@ -9,7 +9,7 @@ use crate::{
         Transaction,
     },
     metrics::MetricDecorator,
-    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
+    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES, DEFAULT_RETENTION_PERIOD,
 };
 use async_trait::async_trait;
 use data_types::{
@@ -305,6 +305,7 @@ impl NamespaceRepo for MemTxn {
             retention_duration: Some(retention_duration.to_string()),
             max_tables: DEFAULT_MAX_TABLES,
             max_columns_per_table: DEFAULT_MAX_COLUMNS_PER_TABLE,
+            retention_period_ns: DEFAULT_RETENTION_PERIOD,
         };
         stage.namespaces.push(namespace);
         Ok(stage.namespaces.last().unwrap().clone())
@@ -346,6 +347,30 @@ impl NamespaceRepo for MemTxn {
         match stage.namespaces.iter_mut().find(|n| n.name == name) {
             Some(n) => {
                 n.max_columns_per_table = new_max;
+                Ok(n.clone())
+            }
+            None => Err(Error::NamespaceNotFoundByName {
+                name: name.to_string(),
+            }),
+        }
+    }
+
+    async fn update_retention_period(
+        &mut self,
+        name: &str,
+        retention_hours: i64,
+    ) -> Result<Namespace> {
+        let rentenion_period_ns = retention_hours * 60 * 60 * 1_000_000_000;
+        let retention = if rentenion_period_ns == 0 {
+            None
+        } else {
+            Some(rentenion_period_ns)
+        };
+
+        let stage = self.stage();
+        match stage.namespaces.iter_mut().find(|n| n.name == name) {
+            Some(n) => {
+                n.retention_period_ns = retention;
                 Ok(n.clone())
             }
             None => Err(Error::NamespaceNotFoundByName {
@@ -1097,6 +1122,34 @@ impl ParquetFileRepo for MemTxn {
         }
 
         Ok(())
+    }
+
+    async fn flag_for_delete_by_retention(&mut self) -> Result<Vec<ParquetFileId>> {
+        let now = Timestamp::from(self.time_provider.now());
+        let stage = self.stage();
+
+        Ok(stage
+            .parquet_files
+            .iter_mut()
+            .filter_map(|f| {
+                // table retention, if it exists, overrides namespace retention
+                // TODO - include check of table retention period once implemented
+                stage
+                    .namespaces
+                    .iter()
+                    .find(|n| n.id == f.namespace_id)
+                    .and_then(|ns| {
+                        ns.retention_period_ns.and_then(|rp| {
+                            if f.max_time < now - rp {
+                                f.to_delete = Some(now);
+                                Some(f.id)
+                            } else {
+                                None
+                            }
+                        })
+                    })
+            })
+            .collect())
     }
 
     async fn list_by_shard_greater_than(

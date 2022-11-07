@@ -1029,9 +1029,9 @@ mod tests {
 
         for (expected_table, (table, predicate)) in tables.table_names.iter().zip(table_predicates)
         {
-            assert_eq!(expected_table, &table);
+            assert_eq!(expected_table.as_str(), table.as_ref());
 
-            let expected_exprs = if table == "foo" {
+            let expected_exprs = if table.as_ref() == "foo" {
                 // "foo" != "foo" is optimized to false
                 vec![lit(false)]
             } else {

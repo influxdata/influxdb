@@ -154,7 +154,6 @@ impl ParquetFileWithTombstone {
     pub fn to_queryable_parquet_chunk(
         &self,
         store: ParquetStorage,
-        table_name: String,
         table_schema: &TableSchema,
         partition_sort_key: Option<SortKey>,
         target_level: CompactionLevel,
@@ -190,7 +189,6 @@ impl ParquetFileWithTombstone {
         );
 
         QueryableParquetChunk::new(
-            table_name,
             self.data.partition_id,
             Arc::new(parquet_chunk),
             &self.tombstones,

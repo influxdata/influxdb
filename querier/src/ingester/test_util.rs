@@ -91,7 +91,6 @@ impl IngesterConnection for MockIngesterConnection {
 
                         super::IngesterChunk {
                             chunk_id: ic.chunk_id,
-                            table_name: ic.table_name,
                             partition_id: ic.partition_id,
                             schema: Arc::new(new_schema.clone()),
                             partition_sort_key: ic.partition_sort_key,

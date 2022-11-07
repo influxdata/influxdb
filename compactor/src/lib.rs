@@ -448,6 +448,9 @@ pub mod tests {
         sync::{Arc, Mutex},
     };
 
+    const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1: u64 = 4;
+    const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2: u64 = 24;
+
     // In tests that are verifying successful compaction not affected by the memory budget, this
     // converts a `parquet_file_filtering::FilteredFiles` that has a `filter_result` of
     // `parquet_file_filtering::FilterResult::Proceed` into a `ReadyToCompact` and panics if it
@@ -562,6 +565,8 @@ pub mod tests {
             min_num_rows_allocated_per_record_batch_to_datafusion_plan: 2,
             max_num_compacting_files: 20,
             minutes_without_new_writes_to_be_cold: 10,
+            hot_compaction_hours_threshold_1: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
+            hot_compaction_hours_threshold_2: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
         }
     }
 
@@ -941,6 +946,8 @@ pub mod tests {
             min_num_rows_allocated_per_record_batch_to_datafusion_plan: 100,
             max_num_compacting_files: 20,
             minutes_without_new_writes_to_be_cold: 10,
+            hot_compaction_hours_threshold_1: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
+            hot_compaction_hours_threshold_2: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
         };
 
         let metrics = Arc::new(metric::Registry::new());

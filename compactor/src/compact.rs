@@ -258,7 +258,8 @@ impl Compactor {
     /// Return a list of partitions that:
     ///
     /// - Have not received any writes in 8 hours (determined by all level 0 and level 1 parquet
-    ///   files having a created_at time older than 8 hours ago)
+    ///   files having a created_at time older than 8 hours ago). Note that 8 is the default but
+    ///   it's configurable
     /// - Have some level 0 or level 1 parquet files that need to be upgraded or compacted
     /// - Sorted by the number of level 0 files + number of level 1 files descending
     pub async fn cold_partitions_to_compact(
@@ -559,6 +560,9 @@ pub mod tests {
     use parquet_file::storage::StorageId;
     use uuid::Uuid;
 
+    const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1: u64 = 4;
+    const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2: u64 = 24;
+
     impl PartitionCompactionCandidateWithInfo {
         pub(crate) async fn from_test_partition(test_partition: &TestPartition) -> Self {
             Self {
@@ -690,6 +694,8 @@ pub mod tests {
             min_num_rows_allocated_per_record_batch_to_datafusion_plan: 100,
             max_num_compacting_files: 20,
             minutes_without_new_writes_to_be_cold: 10,
+            hot_compaction_hours_threshold_1: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
+            hot_compaction_hours_threshold_2: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
         }
     }
 

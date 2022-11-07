@@ -109,7 +109,7 @@ impl InfluxRpcPredicate {
     pub fn table_predicates(
         &self,
         table_info: &dyn QueryDatabaseMeta,
-    ) -> DataFusionResult<Vec<(String, Predicate)>> {
+    ) -> DataFusionResult<Vec<(Arc<str>, Predicate)>> {
         let table_names = match &self.table_names {
             Some(table_names) => itertools::Either::Left(table_names.iter().cloned()),
             None => itertools::Either::Right(table_info.table_names().into_iter()),
@@ -129,7 +129,7 @@ impl InfluxRpcPredicate {
                         self.inner.clone()
                     }
                 };
-                Ok((table, predicate))
+                Ok((Arc::from(table), predicate))
             })
             .collect()
     }

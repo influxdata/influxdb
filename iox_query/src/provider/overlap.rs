@@ -286,7 +286,13 @@ mod test {
     fn to_string(groups: Vec<Vec<Arc<dyn QueryChunk>>>) -> Vec<String> {
         let mut s = vec![];
         for (idx, group) in groups.iter().enumerate() {
-            let names = group.iter().map(|c| c.table_name()).collect::<Vec<_>>();
+            let names = group
+                .iter()
+                .map(|c| {
+                    let c = c.as_any().downcast_ref::<TestChunk>().unwrap();
+                    c.table_name()
+                })
+                .collect::<Vec<_>>();
             s.push(format!("Group {}: [{}]", idx, names.join(", ")));
         }
         s

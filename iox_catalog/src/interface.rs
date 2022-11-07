@@ -295,6 +295,13 @@ pub trait NamespaceRepo: Send + Sync {
         query_pool_id: QueryPoolId,
     ) -> Result<Namespace>;
 
+    /// Update retention period for a namespace
+    async fn update_retention_period(
+        &mut self,
+        name: &str,
+        retention_hours: i64,
+    ) -> Result<Namespace>;
+
     /// List all namespaces.
     async fn list(&mut self) -> Result<Vec<Namespace>>;
 
@@ -539,6 +546,9 @@ pub trait ParquetFileRepo: Send + Sync {
     /// Flag the parquet file for deletion
     async fn flag_for_delete(&mut self, id: ParquetFileId) -> Result<()>;
 
+    /// Flag all parquet files for deletion that are older than their namespace's retention period.
+    async fn flag_for_delete_by_retention(&mut self) -> Result<Vec<ParquetFileId>>;
+
     /// Get all parquet files for a shard with a max_sequence_number greater than the
     /// one passed in. The ingester will use this on startup to see which files were persisted
     /// that are greater than its min_unpersisted_number so that it can discard any data in
@@ -708,6 +718,23 @@ where
     get_schema_internal(namespace, repos).await
 }
 
+/// Update retention for a namespace
+pub async fn update_namespace_retention<R>(
+    name: &str,
+    retention_hours: i64,
+    repos: &mut R,
+) -> Result<Namespace>
+where
+    R: RepoCollection + ?Sized,
+{
+    let namespace = repos
+        .namespaces()
+        .update_retention_period(name, retention_hours)
+        .await?;
+
+    Ok(namespace)
+}
+
 async fn get_schema_internal<R>(namespace: Namespace, repos: &mut R) -> Result<NamespaceSchema>
 where
     R: RepoCollection + ?Sized,
@@ -867,6 +894,7 @@ pub(crate) mod test_helpers {
 
     use super::*;
     use ::test_helpers::{assert_contains, tracing::TracingCapture};
+    use assert_matches::assert_matches;
     use data_types::{ColumnId, ColumnSet, CompactionLevel};
     use metric::{Attributes, DurationHistogram, Metric};
     use std::{
@@ -1026,6 +1054,25 @@ pub(crate) mod test_helpers {
             .await
             .expect("namespace should be updateable");
         assert_eq!(NEW_COLUMN_LIMIT, modified.max_columns_per_table);
+
+        const NEW_RETENTION_PERIOD: i64 = 5;
+        let modified = repos
+            .namespaces()
+            .update_retention_period(namespace_name, NEW_RETENTION_PERIOD)
+            .await
+            .expect("namespace should be updateable");
+        assert_eq!(
+            NEW_RETENTION_PERIOD as i64 * 60 * 60 * 1_000_000_000,
+            modified.retention_period_ns.unwrap()
+        );
+
+        const NEW_RETENTION_PERIOD_NULL: i64 = 0;
+        let modified = repos
+            .namespaces()
+            .update_retention_period(namespace_name, NEW_RETENTION_PERIOD_NULL)
+            .await
+            .expect("namespace should be updateable");
+        assert!(modified.retention_period_ns.is_none());
     }
 
     async fn test_table(catalog: Arc<dyn Catalog>) {
@@ -2246,7 +2293,11 @@ pub(crate) mod test_helpers {
             max_sequence_number: SequenceNumber::new(12),
             ..f2_params
         };
-        let f3 = repos.parquet_files().create(f3_params).await.unwrap();
+        let f3 = repos
+            .parquet_files()
+            .create(f3_params.clone())
+            .await
+            .unwrap();
         let files = repos
             .parquet_files()
             .list_by_namespace_not_to_delete(namespace2.id)
@@ -2449,6 +2500,70 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(ids.len(), 1);
+
+        // test retention-based flagging for deletion
+        // 1. with no retention period set on the ns, nothing should get flagged
+        let ids = repos
+            .parquet_files()
+            .flag_for_delete_by_retention()
+            .await
+            .unwrap();
+        assert_eq!(ids.len(), 0);
+        // 2. set ns retention period to one hour then create some files before and after and
+        //    ensure correct files get deleted
+        repos
+            .namespaces()
+            .update_retention_period(&namespace.name, 1) // 1 hour
+            .await
+            .unwrap();
+        let f4_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            max_time: Timestamp::new(
+                // a bit over an hour ago
+                (catalog.time_provider().now() - Duration::from_secs(60 * 65)).timestamp_nanos(),
+            ),
+            ..f3_params
+        };
+        let f4 = repos
+            .parquet_files()
+            .create(f4_params.clone())
+            .await
+            .unwrap();
+        let f5_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            max_time: Timestamp::new(
+                // a bit under an hour ago
+                (catalog.time_provider().now() - Duration::from_secs(60 * 55)).timestamp_nanos(),
+            ),
+            ..f4_params
+        };
+        let f5 = repos
+            .parquet_files()
+            .create(f5_params.clone())
+            .await
+            .unwrap();
+        let ids = repos
+            .parquet_files()
+            .flag_for_delete_by_retention()
+            .await
+            .unwrap();
+        assert!(ids.len() > 1); // it's also going to flag f1, f2 & f3 because they have low max
+                                // timestamps but i don't want this test to be brittle if those
+                                // values change so i'm not asserting len == 4
+        let f4 = repos
+            .parquet_files()
+            .get_by_object_store_id(f4.object_store_id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_matches!(f4.to_delete, Some(_)); // f4 is > 1hr old
+        let f5 = repos
+            .parquet_files()
+            .get_by_object_store_id(f5.object_store_id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_matches!(f5.to_delete, None); // f5 is < 1hr old
     }
 
     async fn test_parquet_file_compaction_level_0(catalog: Arc<dyn Catalog>) {

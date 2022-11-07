@@ -23,26 +23,26 @@ use crate::{data::DmlApplyAction, lifecycle::LifecycleHandle};
 #[derive(Debug, Default)]
 struct DoubleRef {
     // TODO(4880): this can be removed when IDs are sent over the wire.
-    by_name: HashMap<TableName, Arc<tokio::sync::RwLock<TableData>>>,
-    by_id: HashMap<TableId, Arc<tokio::sync::RwLock<TableData>>>,
+    by_name: HashMap<TableName, Arc<TableData>>,
+    by_id: HashMap<TableId, Arc<TableData>>,
 }
 
 impl DoubleRef {
-    fn insert(&mut self, t: TableData) -> Arc<tokio::sync::RwLock<TableData>> {
+    fn insert(&mut self, t: TableData) -> Arc<TableData> {
         let name = t.table_name().clone();
         let id = t.table_id();
 
-        let t = Arc::new(tokio::sync::RwLock::new(t));
+        let t = Arc::new(t);
         self.by_name.insert(name, Arc::clone(&t));
         self.by_id.insert(id, Arc::clone(&t));
         t
     }
 
-    fn by_name(&self, name: &TableName) -> Option<Arc<tokio::sync::RwLock<TableData>>> {
+    fn by_name(&self, name: &TableName) -> Option<Arc<TableData>> {
         self.by_name.get(name).map(Arc::clone)
     }
 
-    fn by_id(&self, id: TableId) -> Option<Arc<tokio::sync::RwLock<TableData>>> {
+    fn by_id(&self, id: TableId) -> Option<Arc<TableData>> {
         self.by_id.get(&id).map(Arc::clone)
     }
 }
@@ -151,7 +151,7 @@ impl NamespaceData {
     ) -> Self {
         let table_count = metrics
             .register_metric::<U64Counter>(
-                "ingester_tables_total",
+                "ingester_tables",
                 "Number of tables known to the ingester",
             )
             .recorder(&[]);
@@ -206,22 +206,19 @@ impl NamespaceData {
                         None => self.insert_table(&t, catalog).await?,
                     };
 
-                    {
-                        // lock scope
-                        let mut table_data = table_data.write().await;
-                        let action = table_data
-                            .buffer_table_write(
-                                sequence_number,
-                                b,
-                                partition_key.clone(),
-                                lifecycle_handle,
-                            )
-                            .await?;
-                        if let DmlApplyAction::Applied(should_pause) = action {
-                            pause_writes = pause_writes || should_pause;
-                            all_skipped = false;
-                        }
+                    let action = table_data
+                        .buffer_table_write(
+                            sequence_number,
+                            b,
+                            partition_key.clone(),
+                            lifecycle_handle,
+                        )
+                        .await?;
+                    if let DmlApplyAction::Applied(should_pause) = action {
+                        pause_writes = pause_writes || should_pause;
+                        all_skipped = false;
                     }
+
                     #[cfg(test)]
                     self.test_triggers.on_write().await;
                 }
@@ -251,19 +248,13 @@ impl NamespaceData {
     }
 
     /// Return the specified [`TableData`] if it exists.
-    pub(crate) fn table_data(
-        &self,
-        table_name: &TableName,
-    ) -> Option<Arc<tokio::sync::RwLock<TableData>>> {
+    pub(crate) fn table_data(&self, table_name: &TableName) -> Option<Arc<TableData>> {
         let t = self.tables.read();
         t.by_name(table_name)
     }
 
     /// Return the table data by ID.
-    pub(crate) fn table_id(
-        &self,
-        table_id: TableId,
-    ) -> Option<Arc<tokio::sync::RwLock<TableData>>> {
+    pub(crate) fn table_id(&self, table_id: TableId) -> Option<Arc<TableData>> {
         let t = self.tables.read();
         t.by_id(table_id)
     }
@@ -273,7 +264,7 @@ impl NamespaceData {
         &self,
         table_name: &TableName,
         catalog: &Arc<dyn Catalog>,
-    ) -> Result<Arc<tokio::sync::RwLock<TableData>>, super::Error> {
+    ) -> Result<Arc<TableData>, super::Error> {
         let mut repos = catalog.repositories().await;
 
         let table_id = repos
@@ -317,7 +308,7 @@ impl NamespaceData {
             .actively_buffering(*self.buffering_sequence_number.read());
 
         for table_data in tables {
-            progress = progress.combine(table_data.read().await.progress())
+            progress = progress.combine(table_data.progress())
         }
         progress
     }
@@ -451,7 +442,7 @@ mod tests {
 
         // And the table counter metric should increase
         let tables = metrics
-            .get_instrument::<Metric<U64Counter>>("ingester_tables_total")
+            .get_instrument::<Metric<U64Counter>>("ingester_tables")
             .expect("failed to read metric")
             .get_observer(&Attributes::from([]))
             .expect("failed to get observer")

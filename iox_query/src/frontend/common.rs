@@ -87,7 +87,7 @@ impl ScanPlan {
 #[derive(Debug)]
 pub struct ScanPlanBuilder<'a> {
     ctx: IOxSessionContext,
-    table_name: Option<String>,
+    table_name: Arc<str>,
     /// The schema of the resulting table (any chunks that don't have
     /// all the necessary columns will be extended appropriately)
     table_schema: Arc<Schema>,
@@ -100,10 +100,10 @@ pub struct ScanPlanBuilder<'a> {
 }
 
 impl<'a> ScanPlanBuilder<'a> {
-    pub fn new(table_schema: Arc<Schema>, ctx: IOxSessionContext) -> Self {
+    pub fn new(table_name: Arc<str>, table_schema: Arc<Schema>, ctx: IOxSessionContext) -> Self {
         Self {
             ctx,
-            table_name: None,
+            table_name,
             table_schema,
             chunks: vec![],
             output_sort_key: None,
@@ -155,13 +155,13 @@ impl<'a> ScanPlanBuilder<'a> {
 
         assert!(!chunks.is_empty(), "no chunks provided");
 
-        let table_name = table_name.unwrap_or_else(|| chunks[0].table_name().to_string());
-        let table_name = &table_name;
-
         // Prepare the plan for the table
-        let mut builder =
-            ProviderBuilder::new(table_name, table_schema, ctx.child_ctx("provider_builder"))
-                .with_enable_deduplication(deduplication);
+        let mut builder = ProviderBuilder::new(
+            Arc::clone(&table_name),
+            table_schema,
+            ctx.child_ctx("provider_builder"),
+        )
+        .with_enable_deduplication(deduplication);
 
         if let Some(output_sort_key) = output_sort_key {
             // Tell the scan of this provider to sort its output on the given sort_key
@@ -169,20 +169,12 @@ impl<'a> ScanPlanBuilder<'a> {
         }
 
         for chunk in chunks {
-            // check that it is consistent with this table_name
-            assert_eq!(
-                chunk.table_name(),
-                table_name,
-                "Chunk {} expected table mismatch",
-                chunk.id(),
-            );
-
             builder = builder.add_chunk(chunk);
         }
 
-        let provider = builder
-            .build()
-            .context(CreatingProviderSnafu { table_name })?;
+        let provider = builder.build().context(CreatingProviderSnafu {
+            table_name: table_name.as_ref(),
+        })?;
 
         let provider = Arc::new(provider);
         let source = provider_as_source(Arc::clone(&provider) as _);
@@ -191,8 +183,8 @@ impl<'a> ScanPlanBuilder<'a> {
         // later if possible)
         let projection = None;
 
-        let mut plan_builder =
-            LogicalPlanBuilder::scan(table_name, source, projection).context(BuildingPlanSnafu)?;
+        let mut plan_builder = LogicalPlanBuilder::scan(table_name.as_ref(), source, projection)
+            .context(BuildingPlanSnafu)?;
 
         // Use a filter node to add general predicates + timestamp
         // range, if any
@@ -202,9 +194,12 @@ impl<'a> ScanPlanBuilder<'a> {
                 let schema = provider.iox_schema();
                 trace!(%table_name, ?filter_expr, "Adding filter expr");
                 let mut rewriter = MissingColumnsToNull::new(&schema);
-                let filter_expr = filter_expr
-                    .rewrite(&mut rewriter)
-                    .context(RewritingFilterPredicateSnafu { table_name })?;
+                let filter_expr =
+                    filter_expr
+                        .rewrite(&mut rewriter)
+                        .context(RewritingFilterPredicateSnafu {
+                            table_name: table_name.as_ref(),
+                        })?;
 
                 trace!(?filter_expr, "Rewritten filter_expr");
 

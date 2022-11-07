@@ -25,9 +25,6 @@ pub struct ChunkMeta {
     /// The ID of the chunk
     chunk_id: ChunkId,
 
-    /// Table name
-    table_name: Arc<str>,
-
     /// Chunk order.
     order: ChunkOrder,
 
@@ -197,7 +194,6 @@ impl ChunkAdapter {
     pub async fn new_chunk(
         &self,
         cached_table: Arc<CachedTable>,
-        table_name: Arc<str>,
         parquet_file: Arc<ParquetFile>,
         span: Option<Span>,
     ) -> Option<QuerierChunk> {
@@ -205,7 +201,6 @@ impl ChunkAdapter {
         let parts = self
             .chunk_parts(
                 cached_table,
-                table_name,
                 Arc::clone(&parquet_file),
                 span_recorder.child_span("chunk_parts"),
             )
@@ -227,7 +222,6 @@ impl ChunkAdapter {
     async fn chunk_parts(
         &self,
         cached_table: Arc<CachedTable>,
-        table_name: Arc<str>,
         parquet_file: Arc<ParquetFile>,
         span: Option<Span>,
     ) -> Option<ChunkParts> {
@@ -309,7 +303,6 @@ impl ChunkAdapter {
         let meta = Arc::new(ChunkMeta {
             parquet_file_id: parquet_file.id,
             chunk_id,
-            table_name,
             order,
             sort_key: Some(sort_key),
             shard_id: parquet_file.shard_id,
@@ -461,7 +454,6 @@ pub mod tests {
             self.adapter
                 .new_chunk(
                     Arc::clone(cached_table),
-                    Arc::from("table"),
                     Arc::clone(&self.parquet_file),
                     None,
                 )

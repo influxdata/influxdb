@@ -858,6 +858,7 @@ mod tests {
         let span_ctx = SpanContext::new(Arc::clone(trace_collector) as Arc<_>);
         let op = DmlOperation::Delete(DmlDelete::new(
             namespace,
+            NamespaceId::new(42),
             DeletePredicate {
                 range: TimestampRange::new(0, 1),
                 exprs: vec![],
