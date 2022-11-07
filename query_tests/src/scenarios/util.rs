@@ -862,6 +862,7 @@ impl MockIngester {
         );
         DmlOperation::Delete(DmlDelete::new(
             self.ns.namespace.name.clone(),
+            self.ns.namespace.id,
             predicate,
             Some(NonEmptyString::new(delete_table_name).unwrap()),
             meta,
