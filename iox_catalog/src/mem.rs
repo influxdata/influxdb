@@ -3,10 +3,10 @@
 
 use crate::{
     interface::{
-        sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnTypeMismatchSnafu,
-        ColumnUpsertRequest, Error, NamespaceRepo, ParquetFileRepo, PartitionRepo,
-        ProcessedTombstoneRepo, QueryPoolRepo, RepoCollection, Result, ShardRepo, TableRepo,
-        TombstoneRepo, TopicMetadataRepo, Transaction,
+        sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnTypeMismatchSnafu, Error,
+        NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo, QueryPoolRepo,
+        RepoCollection, Result, ShardRepo, TableRepo, TombstoneRepo, TopicMetadataRepo,
+        Transaction,
     },
     metrics::MetricDecorator,
     DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES, DEFAULT_RETENTION_PERIOD,
@@ -552,7 +552,7 @@ impl ColumnRepo for MemTxn {
     async fn create_or_get_many_unchecked(
         &mut self,
         table_id: TableId,
-        columns: &[ColumnUpsertRequest<'_>],
+        columns: HashMap<&str, ColumnType>,
     ) -> Result<Vec<Column>> {
         // Explicitly NOT using `create_or_get` in this function: the Postgres catalog doesn't
         // check column limits when inserting many columns because it's complicated and expensive,
@@ -562,19 +562,19 @@ impl ColumnRepo for MemTxn {
 
         let out: Vec<_> = columns
             .iter()
-            .map(|column| {
+            .map(|(&column_name, &column_type)| {
                 match stage
                     .columns
                     .iter()
-                    .find(|t| t.name == column.name && t.table_id == table_id)
+                    .find(|t| t.name == column_name && t.table_id == table_id)
                 {
                     Some(c) => {
                         ensure!(
-                            column.column_type == c.column_type,
+                            column_type == c.column_type,
                             ColumnTypeMismatchSnafu {
-                                name: column.name,
+                                name: column_name,
                                 existing: c.column_type,
-                                new: column.column_type
+                                new: column_type
                             }
                         );
                         Ok(c.clone())
@@ -583,8 +583,8 @@ impl ColumnRepo for MemTxn {
                         let new_column = Column {
                             id: ColumnId::new(stage.columns.len() as i64 + 1),
                             table_id,
-                            name: column.name.to_string(),
-                            column_type: column.column_type,
+                            name: column_name.to_string(),
+                            column_type,
                         };
                         stage.columns.push(new_column);
                         Ok(stage.columns.last().unwrap().clone())
