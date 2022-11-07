@@ -1124,6 +1124,34 @@ impl ParquetFileRepo for MemTxn {
         Ok(())
     }
 
+    async fn flag_for_delete_by_retention(&mut self) -> Result<Vec<ParquetFileId>> {
+        let now = Timestamp::from(self.time_provider.now());
+        let stage = self.stage();
+
+        Ok(stage
+            .parquet_files
+            .iter_mut()
+            .filter_map(|f| {
+                // table retention, if it exists, overrides namespace retention
+                // TODO - include check of table retention period once implemented
+                stage
+                    .namespaces
+                    .iter()
+                    .find(|n| n.id == f.namespace_id)
+                    .and_then(|ns| {
+                        ns.retention_period_ns.and_then(|rp| {
+                            if f.max_time < now - rp {
+                                f.to_delete = Some(now);
+                                Some(f.id)
+                            } else {
+                                None
+                            }
+                        })
+                    })
+            })
+            .collect())
+    }
+
     async fn list_by_shard_greater_than(
         &mut self,
         shard_id: ShardId,

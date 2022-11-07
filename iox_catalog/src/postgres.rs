@@ -1646,6 +1646,28 @@ RETURNING *;
         Ok(())
     }
 
+    async fn flag_for_delete_by_retention(&mut self) -> Result<Vec<ParquetFileId>> {
+        let flagged_at = Timestamp::from(self.time_provider.now());
+        // TODO - include check of table retention period once implemented
+        let flagged = sqlx::query(
+            r#"
+                UPDATE parquet_file
+                SET to_delete = $1
+                FROM namespace
+                WHERE retention_period_ns IS NOT NULL
+                AND max_time < $1 - retention_period_ns
+                RETURNING parquet_file.id;
+            "#,
+        )
+        .bind(&flagged_at) // $1
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })?;
+
+        let flagged = flagged.into_iter().map(|row| row.get("id")).collect();
+        Ok(flagged)
+    }
+
     async fn list_by_shard_greater_than(
         &mut self,
         shard_id: ShardId,
