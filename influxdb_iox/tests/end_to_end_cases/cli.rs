@@ -570,6 +570,91 @@ async fn namespaces_cli() {
     .await
 }
 
+/// Test the namespace retention command
+#[tokio::test]
+async fn namespace_retention() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+    let mut cluster = MiniCluster::create_shared(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(String::from(
+                "my_awesome_table2,tag1=A,tag2=B val=42i 123456",
+            )),
+            // Set the retention period to 2 hours
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let addr = state.cluster().router().router_grpc_base().to_string();
+                    let namespace = state.cluster().namespace();
+                    let retention_period_hours = 2;
+                    let retention_period_ns =
+                        retention_period_hours as i64 * 60 * 60 * 1_000_000_000;
+
+                    // Validate the output of the namespace retention command
+                    //
+                    //     {
+                    //      "id": "1",
+                    //      "name": "0911430016317810_8303971312605107",
+                    //      "retentionPeriodNs": "7200000000000"
+                    //    }
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("namespace")
+                        .arg("retention")
+                        .arg("--retention-hours")
+                        .arg(retention_period_hours.to_string())
+                        .arg(&namespace)
+                        .assert()
+                        .success()
+                        .stdout(
+                            predicate::str::contains(namespace)
+                                .and(predicate::str::contains(&retention_period_ns.to_string())),
+                        );
+                }
+                .boxed()
+            })),
+            // set the retention period to null
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let addr = state.cluster().router().router_grpc_base().to_string();
+                    let namespace = state.cluster().namespace();
+                    let retention_period_hours = 0; // will be updated to null
+
+                    // Validate the output of the namespace retention command
+                    //
+                    //     {
+                    //      "id": "1",
+                    //      "name": "6699752880299094_1206270074309156"
+                    //    }
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("namespace")
+                        .arg("retention")
+                        .arg("--retention-hours")
+                        .arg(retention_period_hours.to_string())
+                        .arg(&namespace)
+                        .assert()
+                        .success()
+                        .stdout(
+                            predicate::str::contains(namespace)
+                                .and(predicate::str::contains("retentionPeriodNs".to_string()))
+                                .not(),
+                        );
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
 /// Test the query_ingester CLI command
 #[tokio::test]
 async fn query_ingester() {

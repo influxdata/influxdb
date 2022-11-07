@@ -194,6 +194,7 @@ decorate!(
     impl_trait = NamespaceRepo,
     methods = [
         "namespace_create" = create(&mut self, name: &str, retention_duration: &str, topic_id: TopicId, query_pool_id: QueryPoolId) -> Result<Namespace>;
+        "namespace_update_retention_period" = update_retention_period(&mut self, name: &str, retention_hours: i64) -> Result<Namespace>;
         "namespace_list" = list(&mut self) -> Result<Vec<Namespace>>;
         "namespace_get_by_id" = get_by_id(&mut self, id: NamespaceId) -> Result<Option<Namespace>>;
         "namespace_get_by_name" = get_by_name(&mut self, name: &str) -> Result<Option<Namespace>>;

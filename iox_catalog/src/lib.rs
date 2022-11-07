@@ -31,6 +31,8 @@ const TIME_COLUMN: &str = "time";
 pub const DEFAULT_MAX_TABLES: i32 = 10_000;
 /// Default per-table column count service protection limit.
 pub const DEFAULT_MAX_COLUMNS_PER_TABLE: i32 = 200;
+/// Default retention period for data in the catalog.
+pub const DEFAULT_RETENTION_PERIOD: Option<i64> = None;
 
 /// A string value representing an infinite retention policy.
 pub const INFINITE_RETENTION_POLICY: &str = "inf";

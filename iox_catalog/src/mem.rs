@@ -9,7 +9,7 @@ use crate::{
         TombstoneRepo, TopicMetadataRepo, Transaction,
     },
     metrics::MetricDecorator,
-    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
+    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES, DEFAULT_RETENTION_PERIOD,
 };
 use async_trait::async_trait;
 use data_types::{
@@ -305,6 +305,7 @@ impl NamespaceRepo for MemTxn {
             retention_duration: Some(retention_duration.to_string()),
             max_tables: DEFAULT_MAX_TABLES,
             max_columns_per_table: DEFAULT_MAX_COLUMNS_PER_TABLE,
+            retention_period_ns: DEFAULT_RETENTION_PERIOD,
         };
         stage.namespaces.push(namespace);
         Ok(stage.namespaces.last().unwrap().clone())
@@ -346,6 +347,30 @@ impl NamespaceRepo for MemTxn {
         match stage.namespaces.iter_mut().find(|n| n.name == name) {
             Some(n) => {
                 n.max_columns_per_table = new_max;
+                Ok(n.clone())
+            }
+            None => Err(Error::NamespaceNotFoundByName {
+                name: name.to_string(),
+            }),
+        }
+    }
+
+    async fn update_retention_period(
+        &mut self,
+        name: &str,
+        retention_hours: i64,
+    ) -> Result<Namespace> {
+        let rentenion_period_ns = retention_hours * 60 * 60 * 1_000_000_000;
+        let retention = if rentenion_period_ns == 0 {
+            None
+        } else {
+            Some(rentenion_period_ns)
+        };
+
+        let stage = self.stage();
+        match stage.namespaces.iter_mut().find(|n| n.name == name) {
+            Some(n) => {
+                n.retention_period_ns = retention;
                 Ok(n.clone())
             }
             None => Err(Error::NamespaceNotFoundByName {

@@ -295,6 +295,13 @@ pub trait NamespaceRepo: Send + Sync {
         query_pool_id: QueryPoolId,
     ) -> Result<Namespace>;
 
+    /// Update retention period for a namespace
+    async fn update_retention_period(
+        &mut self,
+        name: &str,
+        retention_hours: i64,
+    ) -> Result<Namespace>;
+
     /// List all namespaces.
     async fn list(&mut self) -> Result<Vec<Namespace>>;
 
@@ -718,6 +725,23 @@ where
     get_schema_internal(namespace, repos).await
 }
 
+/// Update retention for a namespace
+pub async fn update_namespace_retention<R>(
+    name: &str,
+    retention_hours: i64,
+    repos: &mut R,
+) -> Result<Namespace>
+where
+    R: RepoCollection + ?Sized,
+{
+    let namespace = repos
+        .namespaces()
+        .update_retention_period(name, retention_hours)
+        .await?;
+
+    Ok(namespace)
+}
+
 async fn get_schema_internal<R>(namespace: Namespace, repos: &mut R) -> Result<NamespaceSchema>
 where
     R: RepoCollection + ?Sized,
@@ -1036,6 +1060,25 @@ pub(crate) mod test_helpers {
             .await
             .expect("namespace should be updateable");
         assert_eq!(NEW_COLUMN_LIMIT, modified.max_columns_per_table);
+
+        const NEW_RETENTION_PERIOD: i64 = 5;
+        let modified = repos
+            .namespaces()
+            .update_retention_period(namespace_name, NEW_RETENTION_PERIOD)
+            .await
+            .expect("namespace should be updateable");
+        assert_eq!(
+            NEW_RETENTION_PERIOD as i64 * 60 * 60 * 1_000_000_000,
+            modified.retention_period_ns.unwrap()
+        );
+
+        const NEW_RETENTION_PERIOD_NULL: i64 = 0;
+        let modified = repos
+            .namespaces()
+            .update_retention_period(namespace_name, NEW_RETENTION_PERIOD_NULL)
+            .await
+            .expect("namespace should be updateable");
+        assert!(modified.retention_period_ns.is_none());
     }
 
     async fn test_table(catalog: Arc<dyn Catalog>) {
