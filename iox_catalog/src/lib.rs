@@ -176,7 +176,11 @@ where
             None => {
                 // The column does not exist in the cache, add it to the column
                 // batch to be bulk inserted later.
-                column_batch.insert(name.as_str(), ColumnType::from(col.influx_type()));
+                let old = column_batch.insert(name.as_str(), ColumnType::from(col.influx_type()));
+                assert!(
+                    old.is_none(),
+                    "duplicate column name `{name}` in new column batch shouldn't be possible"
+                );
             }
         }
     }

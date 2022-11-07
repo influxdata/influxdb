@@ -218,7 +218,12 @@ where
                 }
                 None => {
                     // column doesn't exist; add it
-                    column_batch.insert(tag.name.as_str(), ColumnType::Tag);
+                    let old = column_batch.insert(tag.name.as_str(), ColumnType::Tag);
+                    assert!(
+                        old.is_none(),
+                        "duplicate column name `{}` in new column batch shouldn't be possible",
+                        tag.name
+                    );
                 }
             }
         }
@@ -251,7 +256,13 @@ where
                 }
                 None => {
                     // column doesn't exist; add it
-                    column_batch.insert(field.name.as_str(), ColumnType::from(influx_column_type));
+                    let old = column_batch
+                        .insert(field.name.as_str(), ColumnType::from(influx_column_type));
+                    assert!(
+                        old.is_none(),
+                        "duplicate column name `{}` in new column batch shouldn't be possible",
+                        field.name
+                    );
                 }
             }
         }
