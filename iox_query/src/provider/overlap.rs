@@ -23,8 +23,8 @@ pub enum Error {
     ))]
     InternalPartialStatistics {
         column_name: String,
-        s1: Statistics,
-        s2: Statistics,
+        s1: Box<Statistics>,
+        s2: Box<Statistics>,
     },
 }
 
