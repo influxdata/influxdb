@@ -943,7 +943,7 @@ jobs:
           fingerprints:
             - "91:0a:5b:a7:f9:46:77:f3:5d:4a:cf:d2:44:c8:2c:5a"
       - run:
-          name: Validate RPM Package (x86_64)
+          name: Validate RPM Package
           command: |
             export AWS_ACCESS_KEY_ID=$TEST_AWS_ACCESS_KEY_ID
             export AWS_SECRET_ACCESS_KEY=$TEST_AWS_SECRET_ACCESS_KEY
