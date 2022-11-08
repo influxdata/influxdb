@@ -69,7 +69,8 @@ where
     /// memorised.
     pub(crate) fn get_or_insert_with<Q, F>(&self, key: &Q, init: F) -> Arc<V>
     where
-        Q: Hash + PartialEq<K> + ToOwned<Owned = K> + ?Sized,
+        K: Borrow<Q>,
+        Q: Hash + Eq + ToOwned<Owned = K> + ?Sized,
         F: FnOnce() -> Arc<V>,
     {
         // Memorise the hash outside of the lock.
@@ -109,7 +110,8 @@ where
     /// initialises `V` to the default value when `key` has no entry.
     pub(crate) fn get_or_default<Q>(&self, key: &Q) -> Arc<V>
     where
-        Q: Hash + PartialEq<K> + ToOwned<Owned = K> + ?Sized,
+        K: Borrow<Q>,
+        Q: Hash + Eq + ToOwned<Owned = K> + ?Sized,
         V: Default,
     {
         self.get_or_insert_with(key, Default::default)
@@ -126,7 +128,7 @@ where
     pub(crate) fn get<Q>(&self, key: &Q) -> Option<Arc<V>>
     where
         K: Borrow<Q>,
-        Q: Hash + PartialEq<K> + ?Sized,
+        Q: Hash + Eq + ?Sized,
     {
         let hash = self.compute_hash(key);
         self.map
@@ -141,11 +143,8 @@ where
     /// # Panics
     ///
     /// This method panics if a value already exists for `key`.
-    pub(crate) fn insert<Q>(&self, key: &Q, value: Arc<V>)
-    where
-        Q: Hash + PartialEq<K> + ToOwned<Owned = K> + ?Sized,
-    {
-        let hash = self.compute_hash(key);
+    pub(crate) fn insert(&self, key: K, value: Arc<V>) {
+        let hash = self.compute_hash(key.borrow());
 
         match self
             .map
@@ -155,7 +154,7 @@ where
         {
             RawEntryMut::Occupied(_) => panic!("inserting existing key into ArcMap"),
             RawEntryMut::Vacant(view) => {
-                view.insert_hashed_nocheck(hash, key.to_owned(), value);
+                view.insert_hashed_nocheck(hash, key, value);
             }
         }
     }
@@ -242,7 +241,7 @@ mod tests {
         assert!(map.get(key).is_none());
 
         // Assert the value is initialised from the closure
-        map.insert(key, Arc::new(42));
+        map.insert(key.to_owned(), Arc::new(42));
         let got = map.get(key).unwrap();
         assert_eq!(*got, 42);
 
@@ -262,8 +261,8 @@ mod tests {
     fn test_values() {
         let map = ArcMap::<usize, String>::default();
 
-        map.insert(&1, Arc::new("bananas".to_string()));
-        map.insert(&2, Arc::new("platanos".to_string()));
+        map.insert(1, Arc::new("bananas".to_string()));
+        map.insert(2, Arc::new("platanos".to_string()));
 
         let mut got = map
             .values()
@@ -281,8 +280,8 @@ mod tests {
         let map = ArcMap::<String, usize>::default();
 
         let key: &str = "bananas";
-        map.insert(key, Arc::new(42));
-        map.insert(key, Arc::new(42));
+        map.insert(key.to_owned(), Arc::new(42));
+        map.insert(key.to_owned(), Arc::new(42));
     }
 
     #[test]
@@ -341,7 +340,7 @@ mod tests {
             .map(|i| {
                 let refs = Arc::clone(&refs);
                 std::thread::spawn(move || {
-                    refs.insert(&i, Arc::new(i));
+                    refs.insert(i, Arc::new(i));
                 })
             })
             .collect::<Vec<_>>();
