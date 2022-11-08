@@ -84,7 +84,12 @@ where
         // This does NOT use an upgradable read lock, as readers waiting for an
         // upgradeable read lock block other readers wanting an upgradeable read
         // lock. If all readers do that, it's effectively an exclusive lock.
-        if let Some((_, v)) = self.map.read().raw_entry().from_hash(hash, |q| key == q) {
+        if let Some((_, v)) = self
+            .map
+            .read()
+            .raw_entry()
+            .from_hash(hash, Self::key_equal(key))
+        {
             return Arc::clone(v);
         }
 
@@ -92,7 +97,7 @@ where
         // is possible another thread initialised the value after the read check
         // above, but before this write lock was granted).
         let mut guard = self.map.write();
-        match guard.raw_entry_mut().from_hash(hash, |q| key == q) {
+        match guard.raw_entry_mut().from_hash(hash, Self::key_equal(key)) {
             RawEntryMut::Occupied(v) => Arc::clone(v.get()),
             RawEntryMut::Vacant(v) => {
                 Arc::clone(v.insert_hashed_nocheck(hash, key.to_owned(), init()).1)
@@ -127,7 +132,7 @@ where
         self.map
             .read()
             .raw_entry()
-            .from_hash(hash, |q| key == q)
+            .from_hash(hash, Self::key_equal(key))
             .map(|(_k, v)| Arc::clone(v))
     }
 
@@ -146,7 +151,7 @@ where
             .map
             .write()
             .raw_entry_mut()
-            .from_hash(hash, |q| key == q)
+            .from_hash(hash, Self::key_equal(&key))
         {
             RawEntryMut::Occupied(_) => panic!("inserting existing key into ArcMap"),
             RawEntryMut::Vacant(view) => {
@@ -172,6 +177,14 @@ where
         let mut state = self.hasher.build_hasher();
         key.hash(&mut state);
         state.finish()
+    }
+
+    fn key_equal<Q>(q: &Q) -> impl FnMut(&'_ K) -> bool + '_
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq,
+    {
+        move |k| q.eq(k.borrow())
     }
 }
 
@@ -354,5 +367,12 @@ mod tests {
         let v = "bananas".to_owned();
         let v = map.get_or_insert_with("platanos", move || Arc::new(v));
         assert_eq!(*v, "bananas")
+    }
+
+    #[test]
+    fn test_key_equal() {
+        let k = 42;
+        assert!(ArcMap::<_, ()>::key_equal(&k)(&k));
+        assert!(!ArcMap::<_, ()>::key_equal(&24)(&k));
     }
 }
