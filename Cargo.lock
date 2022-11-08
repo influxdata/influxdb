@@ -1889,7 +1889,7 @@ dependencies = [
  "bytes",
  "lazy_static",
  "libc",
- "pprof",
+ "pprof 0.10.1",
  "spin 0.9.4",
  "thiserror",
  "tikv-jemalloc-sys",
@@ -2541,7 +2541,7 @@ dependencies = [
  "metric_exporters",
  "observability_deps",
  "parking_lot 0.12.1",
- "pprof",
+ "pprof 0.11.0",
  "reqwest",
  "serde",
  "serde_json",
@@ -3663,7 +3663,32 @@ dependencies = [
  "prost-derive 0.10.1",
  "protobuf",
  "smallvec",
- "symbolic-demangle",
+ "symbolic-demangle 9.2.1",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
+name = "pprof"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e20150f965e0e4c925982b9356da71c84bcd56cb66ef4e894825837cbcf6613e"
+dependencies = [
+ "backtrace",
+ "cfg-if",
+ "findshlibs",
+ "inferno",
+ "libc",
+ "log",
+ "nix 0.24.2",
+ "once_cell",
+ "parking_lot 0.12.1",
+ "prost 0.11.2",
+ "prost-build 0.11.1",
+ "prost-derive 0.11.2",
+ "sha2",
+ "smallvec",
+ "symbolic-demangle 10.1.1",
  "tempfile",
  "thiserror",
 ]
@@ -4993,6 +5018,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "symbolic-common"
+version = "10.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac457d054f793cedfde6f32d21d692b8351cfec9084fefd0470c0373f6d799bc"
+dependencies = [
+ "debugid",
+ "memmap2",
+ "stable_deref_trait",
+ "uuid",
+]
+
+[[package]]
 name = "symbolic-demangle"
 version = "9.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5000,7 +5037,17 @@ checksum = "2b940a1fdbc72bb3369e38714efe6cd332dbbe46d093cf03d668b9ac390d1ad0"
 dependencies = [
  "cpp_demangle",
  "rustc-demangle",
- "symbolic-common",
+ "symbolic-common 9.2.1",
+]
+
+[[package]]
+name = "symbolic-demangle"
+version = "10.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48808b846eef84e0ac06365dc620f028ae632355e5dcffc007bf1b2bf5eab17b"
+dependencies = [
+ "rustc-demangle",
+ "symbolic-common 10.1.1",
 ]
 
 [[package]]

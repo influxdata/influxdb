@@ -19,7 +19,7 @@ observability_deps = { path = "../observability_deps" }
 # NOTE: we may not notice that we need the "backtrace-rs" feature if we also build with the heappy feature, which depends on backtrace-rs.
 # (honestly I thought that cargo dependencies were isolated on a per crate basis so I'm a bit surprised that pprof accidentally builds
 # successfully just because another crate happens to depend on backtrace-rs)
-pprof = { version = "0.10", default-features = false, features = ["flamegraph", "prost-codec"], optional = true }
+pprof = { version = "0.11", default-features = false, features = ["flamegraph", "prost-codec"], optional = true }
 service_grpc_testing = { path = "../service_grpc_testing" }
 trace = { path = "../trace" }
 trace_exporters = { path = "../trace_exporters" }
