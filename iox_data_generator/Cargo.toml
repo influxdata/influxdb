@@ -21,7 +21,7 @@ mutable_batch_lp = { path = "../mutable_batch_lp" }
 mutable_batch = { path = "../mutable_batch" }
 parquet_file = { path = "../parquet_file" }
 rand = { version = "0.8.3", features = ["small_rng"] }
-regex = "1.6"
+regex = "1.7"
 schema = { path = "../schema" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.87"
