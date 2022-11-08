@@ -316,6 +316,31 @@ mod tests {
         assert_eq!(init_count.load(Ordering::SeqCst), 1); // Number of init() calls
     }
 
+    #[test]
+    fn test_cross_thread_visibility() {
+        let refs = Arc::new(ArcMap::default());
+
+        const N_THREADS: i64 = 10;
+
+        let handles = (0..N_THREADS)
+            .map(|i| {
+                let refs = Arc::clone(&refs);
+                std::thread::spawn(move || {
+                    refs.insert(&i, Arc::new(i));
+                })
+            })
+            .collect::<Vec<_>>();
+
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        for i in 0..N_THREADS {
+            let v = refs.get(&i).unwrap();
+            assert_eq!(i, *v);
+        }
+    }
+
     // Assert values can be "moved" due to FnOnce being used, vs. Fn.
     //
     // This is a compile-time assertion more than a runtime test.
