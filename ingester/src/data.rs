@@ -265,46 +265,45 @@ impl Persister for IngesterData {
         let table_data = namespace.table_id(table_id).unwrap_or_else(|| {
             panic!("table {table_id} in namespace {namespace_id} not in shard {shard_id} state")
         });
-        // Assert various properties of the table to ensure the index is
-        // correct, out of an abundance of caution.
-        assert_eq!(table_data.shard_id(), shard_id);
-        assert_eq!(table_data.namespace_id(), namespace_id);
-        assert_eq!(table_data.table_id(), table_id);
-        let table_name = table_data.table_name().clone();
 
-        let partition = table_data.get_partition(partition_id).unwrap_or_else(|| {
-                panic!(
-                    "partition {partition_id} in table {table_id} in namespace {namespace_id} not in shard {shard_id} state"
-                )
-            });
-
+        let table_name;
         let partition_key;
         let sort_key;
         let last_persisted_sequence_number;
         let batch;
         let batch_sequence_number_range;
         {
-            // Acquire a write lock over the partition and extract all the
-            // necessary data.
-            let mut guard = partition.lock();
-
-            // Assert various properties of the partition to ensure the index is
+            let mut guard = table_data.write().await;
+            // Assert various properties of the table to ensure the index is
             // correct, out of an abundance of caution.
-            assert_eq!(guard.partition_id(), partition_id);
             assert_eq!(guard.shard_id(), shard_id);
             assert_eq!(guard.namespace_id(), namespace_id);
             assert_eq!(guard.table_id(), table_id);
-            assert_eq!(*guard.table_name(), table_name);
+            table_name = guard.table_name().clone();
 
-            partition_key = guard.partition_key().clone();
-            sort_key = guard.sort_key().clone();
-            last_persisted_sequence_number = guard.max_persisted_sequence_number();
+            let partition = guard.get_partition(partition_id).unwrap_or_else(|| {
+                panic!(
+                    "partition {partition_id} in table {table_id} in namespace {namespace_id} not in shard {shard_id} state"
+                )
+            });
+
+            // Assert various properties of the partition to ensure the index is
+            // correct, out of an abundance of caution.
+            assert_eq!(partition.partition_id(), partition_id);
+            assert_eq!(partition.shard_id(), shard_id);
+            assert_eq!(partition.namespace_id(), namespace_id);
+            assert_eq!(partition.table_id(), table_id);
+            assert_eq!(*partition.table_name(), table_name);
+
+            partition_key = partition.partition_key().clone();
+            sort_key = partition.sort_key().clone();
+            last_persisted_sequence_number = partition.max_persisted_sequence_number();
 
             // The sequence number MUST be read without releasing the write lock
             // to ensure a consistent snapshot of batch contents and batch
             // sequence number range.
-            batch = guard.mark_persisting();
-            batch_sequence_number_range = guard.sequence_number_range();
+            batch = partition.mark_persisting();
+            batch_sequence_number_range = partition.sequence_number_range();
         };
 
         // From this point on, the code MUST be infallible.
@@ -424,7 +423,12 @@ impl Persister for IngesterData {
                 .expect("retry forever");
 
             // Update the sort key in the partition cache.
-            partition.lock().update_sort_key(Some(new_sort_key.clone()));
+            table_data
+                .write()
+                .await
+                .get_partition(partition_id)
+                .unwrap()
+                .update_sort_key(Some(new_sort_key.clone()));
 
             debug!(
                 %object_store_id,
@@ -541,15 +545,18 @@ impl Persister for IngesterData {
         // This SHOULD cause the data to be dropped, but there MAY be ongoing
         // queries that currently hold a reference to the data. In either case,
         // the persisted data will be dropped "shortly".
-        partition
-            .lock()
+        table_data
+            .write()
+            .await
+            .get_partition(partition_id)
+            .unwrap()
             .mark_persisted(iox_metadata.max_sequence_number);
 
         // BUG: ongoing queries retain references to the persisting data,
         // preventing it from being dropped, but memory is released back to
         // lifecycle memory tracker when this fn returns.
         //
-        //  https://github.com/influxdata/influxdb_iox/issues/5805
+        //  https://github.com/influxdata/influxdb_iox/issues/5872
         //
         info!(
             %object_store_id,
@@ -806,12 +813,11 @@ mod tests {
             let n = sd.namespace(&"foo".into()).unwrap();
             let mem_table = n.table_data(&"mem".into()).unwrap();
             assert!(n.table_data(&"mem".into()).is_some());
+            let mem_table = mem_table.write().await;
             let p = mem_table
                 .get_partition_by_key(&"1970-01-01".into())
-                .unwrap()
-                .lock()
-                .partition_id();
-            (mem_table.table_id(), p)
+                .unwrap();
+            (mem_table.table_id(), p.partition_id())
         };
 
         data.persist(shard1.id, namespace.id, table_id, partition_id)
@@ -962,12 +968,13 @@ mod tests {
             let mem_table = n.table_data(&"mem".into()).unwrap();
             assert!(n.table_data(&"cpu".into()).is_some());
 
+            let mem_table = mem_table.write().await;
             table_id = mem_table.table_id();
 
             let p = mem_table
                 .get_partition_by_key(&"1970-01-01".into())
                 .unwrap();
-            partition_id = p.lock().partition_id();
+            partition_id = p.partition_id();
         }
         {
             // verify the partition doesn't have a sort key before any data has been persisted
@@ -1037,12 +1044,13 @@ mod tests {
             .unwrap()
             .table_id(table_id)
             .unwrap()
+            .write()
+            .await
             .get_partition(partition_id)
             .unwrap()
-            .lock()
             .sort_key()
-            .clone();
-        let cached_sort_key = cached_sort_key.get().await;
+            .get()
+            .await;
         assert_eq!(
             cached_sort_key,
             Some(SortKey::from_columns(partition.sort_key))
@@ -1093,9 +1101,10 @@ mod tests {
         // verify that the parquet_max_sequence_number got updated
         assert_eq!(
             mem_table
+                .write()
+                .await
                 .get_partition(partition_id)
                 .unwrap()
-                .lock()
                 .max_persisted_sequence_number(),
             Some(SequenceNumber::new(2))
         );
@@ -1397,16 +1406,15 @@ mod tests {
             .await
             .unwrap();
         {
-            let table = data.table_data(&"mem".into()).unwrap();
+            let table_data = data.table_data(&"mem".into()).unwrap();
+            let mut table = table_data.write().await;
             assert!(table
-                .partitions()
-                .into_iter()
-                .all(|p| p.lock().get_query_data().is_none()));
+                .partition_iter_mut()
+                .all(|p| p.get_query_data().is_none()));
             assert_eq!(
                 table
                     .get_partition_by_key(&"1970-01-01".into())
                     .unwrap()
-                    .lock()
                     .max_persisted_sequence_number(),
                 Some(SequenceNumber::new(1))
             );
@@ -1418,10 +1426,11 @@ mod tests {
             .await
             .unwrap();
 
-        let table = data.table_data(&"mem".into()).unwrap();
+        let table_data = data.table_data(&"mem".into()).unwrap();
+        let table = table_data.read().await;
         let partition = table.get_partition_by_key(&"1970-01-01".into()).unwrap();
         assert_eq!(
-            partition.lock().sequence_number_range().inclusive_min(),
+            partition.sequence_number_range().inclusive_min(),
             Some(SequenceNumber::new(2))
         );
 

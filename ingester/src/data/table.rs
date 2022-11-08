@@ -1,48 +1,47 @@
 //! Table level data buffer structures.
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use data_types::{NamespaceId, PartitionId, PartitionKey, SequenceNumber, ShardId, TableId};
 use mutable_batch::MutableBatch;
-use parking_lot::{Mutex, RwLock};
 use write_summary::ShardProgress;
 
 use super::{
     partition::{resolver::PartitionProvider, BufferError, PartitionData},
     DmlApplyAction,
 };
-use crate::{arcmap::ArcMap, lifecycle::LifecycleHandle};
+use crate::lifecycle::LifecycleHandle;
 
 /// A double-referenced map where [`PartitionData`] can be looked up by
 /// [`PartitionKey`], or ID.
 #[derive(Debug, Default)]
 struct DoubleRef {
     // TODO(4880): this can be removed when IDs are sent over the wire.
-    by_key: ArcMap<PartitionKey, Mutex<PartitionData>>,
-    by_id: ArcMap<PartitionId, Mutex<PartitionData>>,
+    by_key: HashMap<PartitionKey, PartitionData>,
+    by_id: HashMap<PartitionId, PartitionKey>,
 }
 
 impl DoubleRef {
-    /// Try to insert the provided [`PartitionData`].
-    ///
-    /// Note that the partition MAY have been inserted concurrently, and the
-    /// returned [`PartitionData`] MAY be a different instance for the same
-    /// underlying partition.
-    fn try_insert(&mut self, ns: PartitionData) -> Arc<Mutex<PartitionData>> {
+    fn insert(&mut self, ns: PartitionData) {
         let id = ns.partition_id();
         let key = ns.partition_key().clone();
 
-        let ns = Arc::new(Mutex::new(ns));
-        self.by_key.get_or_insert_with(&key, || Arc::clone(&ns));
-        self.by_id.get_or_insert_with(&id, || ns)
+        assert!(self.by_key.insert(key.clone(), ns).is_none());
+        assert!(self.by_id.insert(id, key).is_none());
     }
 
-    fn by_key(&self, key: &PartitionKey) -> Option<Arc<Mutex<PartitionData>>> {
+    #[cfg(test)]
+    fn by_key(&self, key: &PartitionKey) -> Option<&PartitionData> {
         self.by_key.get(key)
     }
 
-    fn by_id(&self, id: PartitionId) -> Option<Arc<Mutex<PartitionData>>> {
-        self.by_id.get(&id)
+    fn by_key_mut(&mut self, key: &PartitionKey) -> Option<&mut PartitionData> {
+        self.by_key.get_mut(key)
+    }
+
+    fn by_id_mut(&mut self, id: PartitionId) -> Option<&mut PartitionData> {
+        let key = self.by_id.get(&id)?.clone();
+        self.by_key_mut(&key)
     }
 }
 
@@ -103,7 +102,7 @@ pub(crate) struct TableData {
     partition_provider: Arc<dyn PartitionProvider>,
 
     // Map of partition key to its data
-    partition_data: RwLock<DoubleRef>,
+    partition_data: DoubleRef,
 }
 
 impl TableData {
@@ -137,14 +136,13 @@ impl TableData {
     // buffers the table write and returns true if the lifecycle manager indicates that
     // ingest should be paused.
     pub(super) async fn buffer_table_write(
-        &self,
+        &mut self,
         sequence_number: SequenceNumber,
         batch: MutableBatch,
         partition_key: PartitionKey,
         lifecycle_handle: &dyn LifecycleHandle,
     ) -> Result<DmlApplyAction, super::Error> {
-        let p = self.partition_data.read().by_key(&partition_key);
-        let partition_data = match p {
+        let partition_data = match self.partition_data.by_key.get_mut(&partition_key) {
             Some(p) => p,
             None => {
                 let p = self
@@ -158,25 +156,20 @@ impl TableData {
                     )
                     .await;
                 // Add the double-referenced partition to the map.
-                //
-                // This MAY return a different instance than `p` if another
-                // thread has already initialised the partition.
-                self.partition_data.write().try_insert(p)
+                self.partition_data.insert(p);
+                self.partition_data.by_key_mut(&partition_key).unwrap()
             }
         };
 
         let size = batch.size();
         let rows = batch.rows();
-        let partition_id = {
-            let mut p = partition_data.lock();
-            match p.buffer_write(batch, sequence_number) {
-                Ok(_) => p.partition_id(),
-                Err(BufferError::SkipPersisted) => return Ok(DmlApplyAction::Skipped),
-                Err(BufferError::BufferError(e)) => {
-                    return Err(super::Error::BufferWrite { source: e })
-                }
+        match partition_data.buffer_write(batch, sequence_number) {
+            Ok(_) => { /* continue below */ }
+            Err(BufferError::SkipPersisted) => return Ok(DmlApplyAction::Skipped),
+            Err(BufferError::BufferError(e)) => {
+                return Err(super::Error::BufferWrite { source: e })
             }
-        };
+        }
 
         // Record the write as having been buffered.
         //
@@ -184,7 +177,7 @@ impl TableData {
         // op may fail which would lead to a write being recorded, but not
         // applied.
         let should_pause = lifecycle_handle.log_write(
-            partition_id,
+            partition_data.partition_id(),
             self.shard_id,
             self.namespace_id,
             self.table_id,
@@ -202,17 +195,19 @@ impl TableData {
     ///
     /// The order of [`PartitionData`] in the iterator is arbitrary and should
     /// not be relied upon.
-    pub(crate) fn partitions(&self) -> Vec<Arc<Mutex<PartitionData>>> {
-        self.partition_data.read().by_key.values()
+    pub(crate) fn partition_iter_mut(
+        &mut self,
+    ) -> impl Iterator<Item = &mut PartitionData> + ExactSizeIterator {
+        self.partition_data.by_key.values_mut()
     }
 
     /// Return the [`PartitionData`] for the specified ID.
     #[allow(unused)]
     pub(crate) fn get_partition(
-        &self,
+        &mut self,
         partition_id: PartitionId,
-    ) -> Option<Arc<Mutex<PartitionData>>> {
-        self.partition_data.read().by_id(partition_id)
+    ) -> Option<&mut PartitionData> {
+        self.partition_data.by_id_mut(partition_id)
     }
 
     /// Return the [`PartitionData`] for the specified partition key.
@@ -220,19 +215,17 @@ impl TableData {
     pub(crate) fn get_partition_by_key(
         &self,
         partition_key: &PartitionKey,
-    ) -> Option<Arc<Mutex<PartitionData>>> {
-        self.partition_data.read().by_key(partition_key)
+    ) -> Option<&PartitionData> {
+        self.partition_data.by_key(partition_key)
     }
 
     /// Return progress from this Table
     pub(super) fn progress(&self) -> ShardProgress {
         self.partition_data
-            .read()
             .by_key
             .values()
-            .into_iter()
-            .fold(Default::default(), |progress, p| {
-                progress.combine(p.lock().progress())
+            .fold(Default::default(), |progress, partition_data| {
+                progress.combine(partition_data.progress())
             })
     }
 
@@ -310,7 +303,7 @@ mod tests {
             ),
         ));
 
-        let table = TableData::new(
+        let mut table = TableData::new(
             table_id,
             TABLE_NAME.into(),
             shard_id,
@@ -324,12 +317,8 @@ mod tests {
             .unwrap();
 
         // Assert the table does not contain the test partition
-        assert!(table
-            .partition_data
-            .read()
-            .by_key(&PARTITION_KEY.into())
-            .is_none());
-        assert!(table.partition_data.read().by_id(PARTITION_ID).is_none());
+        assert!(table.partition_data.by_key(&PARTITION_KEY.into()).is_none());
+        assert!(table.partition_data.by_id_mut(PARTITION_ID).is_none());
 
         // Write some test data
         let action = table
@@ -344,12 +333,8 @@ mod tests {
         assert_matches!(action, DmlApplyAction::Applied(false));
 
         // Referencing the partition should succeed
-        assert!(table
-            .partition_data
-            .read()
-            .by_key(&PARTITION_KEY.into())
-            .is_some());
-        assert!(table.partition_data.read().by_id(PARTITION_ID).is_some());
+        assert!(table.partition_data.by_key(&PARTITION_KEY.into()).is_some());
+        assert!(table.partition_data.by_id_mut(PARTITION_ID).is_some());
     }
 
     #[tokio::test]
@@ -377,7 +362,7 @@ mod tests {
             ),
         ));
 
-        let table = TableData::new(
+        let mut table = TableData::new(
             table_id,
             TABLE_NAME.into(),
             shard_id,
@@ -395,11 +380,7 @@ mod tests {
         let handle = MockLifecycleHandle::default();
 
         // Assert the table does not contain the test partition
-        assert!(table
-            .partition_data
-            .read()
-            .by_key(&PARTITION_KEY.into())
-            .is_none());
+        assert!(table.partition_data.by_key(&PARTITION_KEY.into()).is_none());
 
         // Write some test data
         let action = table
@@ -414,11 +395,7 @@ mod tests {
         assert_matches!(action, DmlApplyAction::Applied(false));
 
         // Referencing the partition should succeed
-        assert!(table
-            .partition_data
-            .read()
-            .by_key(&PARTITION_KEY.into())
-            .is_some());
+        assert!(table.partition_data.by_key(&PARTITION_KEY.into()).is_some());
 
         // And the lifecycle handle was called with the expected values
         assert_eq!(
