@@ -26,6 +26,7 @@ use std::fmt::{Debug, Display, Formatter};
 mod test_util;
 
 pub mod common;
+pub mod create;
 pub mod delete;
 pub mod drop;
 pub mod explain;

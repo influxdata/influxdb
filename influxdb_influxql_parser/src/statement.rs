@@ -1,5 +1,6 @@
 //! Types and parsers for an InfluxQL statement.
 
+use crate::create::{create_statement, CreateDatabaseStatement};
 use crate::delete::{delete_statement, DeleteStatement};
 use crate::drop::{drop_statement, DropMeasurementStatement};
 use crate::explain::{explain_statement, ExplainStatement};
@@ -18,6 +19,8 @@ use std::fmt::{Display, Formatter};
 /// An InfluxQL statement.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
+    /// Represents a `CREATE DATABASE` statement.
+    CreateDatabase(Box<CreateDatabaseStatement>),
     /// Represents a `DELETE` statement.
     Delete(Box<DeleteStatement>),
     /// Represents a `DROP MEASUREMENT` statement.
@@ -43,6 +46,7 @@ pub enum Statement {
 impl Display for Statement {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::CreateDatabase(s) => Display::fmt(s, f),
             Self::Delete(s) => Display::fmt(s, f),
             Self::DropMeasurement(s) => Display::fmt(s, f),
             Self::Explain(s) => Display::fmt(s, f),
@@ -64,6 +68,7 @@ pub fn statement(i: &str) -> ParseResult<&str, Statement> {
         map(drop_statement, |s| Statement::DropMeasurement(Box::new(s))),
         map(explain_statement, |s| Statement::Explain(Box::new(s))),
         map(select_statement, |s| Statement::Select(Box::new(s))),
+        create_statement,
         show_statement,
     ))(i)
 }
@@ -75,6 +80,10 @@ mod test {
     #[test]
     fn test_statement() {
         // Validate one of each statement parser is accepted and that all input is consumed
+
+        // create_statement combinator
+        let (got, _) = statement("CREATE DATABASE foo").unwrap();
+        assert_eq!(got, "");
 
         // delete_statement combinator
         let (got, _) = statement("DELETE FROM foo").unwrap();
