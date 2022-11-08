@@ -36,9 +36,11 @@ impl<K, V, S> std::ops::Deref for ArcMap<K, V, S> {
 
 impl<K, V> Default for ArcMap<K, V> {
     fn default() -> Self {
+        let map: HashMap<K, Arc<V>> = Default::default();
+        let hasher = map.hasher().clone();
         Self {
-            map: Default::default(),
-            hasher: Default::default(),
+            map: RwLock::new(map),
+            hasher,
         }
     }
 }
