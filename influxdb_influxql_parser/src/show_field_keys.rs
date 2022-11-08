@@ -2,12 +2,11 @@
 //!
 //! [sql]: https://docs.influxdata.com/influxdb/v1.8/query_language/explore-schema/#show-field-keys
 
-use crate::common::{limit_clause, offset_clause, LimitClause, OffsetClause};
+use crate::common::{limit_clause, offset_clause, ws1, LimitClause, OffsetClause};
 use crate::internal::{expect, ParseResult};
 use crate::keywords::keyword;
 use crate::show::{on_clause, OnClause};
 use crate::simple_from_clause::{show_from_clause, ShowFromClause};
-use nom::character::complete::multispace1;
 use nom::combinator::opt;
 use nom::sequence::{preceded, tuple};
 use std::fmt;
@@ -70,15 +69,15 @@ pub(crate) fn show_field_keys(i: &str) -> ParseResult<&str, ShowFieldKeysStateme
         ),
     ) = tuple((
         keyword("FIELD"),
-        multispace1,
+        ws1,
         expect(
             "invalid SHOW FIELD KEYS statement, expected KEYS",
             keyword("KEYS"),
         ),
-        opt(preceded(multispace1, on_clause)),
-        opt(preceded(multispace1, show_from_clause)),
-        opt(preceded(multispace1, limit_clause)),
-        opt(preceded(multispace1, offset_clause)),
+        opt(preceded(ws1, on_clause)),
+        opt(preceded(ws1, show_from_clause)),
+        opt(preceded(ws1, limit_clause)),
+        opt(preceded(ws1, offset_clause)),
     ))(i)?;
 
     Ok((

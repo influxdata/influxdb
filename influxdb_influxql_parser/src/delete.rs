@@ -2,12 +2,11 @@
 //!
 //! [sql]: https://docs.influxdata.com/influxdb/v1.8/query_language/manage-database/#delete-series-with-delete
 
-use crate::common::{where_clause, WhereClause};
+use crate::common::{where_clause, ws0, ws1, WhereClause};
 use crate::internal::{expect, ParseResult};
 use crate::keywords::keyword;
 use crate::simple_from_clause::{delete_from_clause, DeleteFromClause};
 use nom::branch::alt;
-use nom::character::complete::{multispace0, multispace1};
 use nom::combinator::{map, opt};
 use nom::sequence::{pair, preceded};
 use std::fmt::{Display, Formatter};
@@ -55,11 +54,11 @@ pub(crate) fn delete_statement(i: &str) -> ParseResult<&str, DeleteStatement> {
         expect(
             "invalid DELETE statement, expected FROM or WHERE",
             preceded(
-                multispace1,
+                ws1,
                 alt((
                     // delete ::= from_clause where_clause?
                     map(
-                        pair(delete_from_clause, opt(preceded(multispace0, where_clause))),
+                        pair(delete_from_clause, opt(preceded(ws0, where_clause))),
                         |(from, condition)| DeleteStatement::FromWhere { from, condition },
                     ),
                     // delete ::= where_clause

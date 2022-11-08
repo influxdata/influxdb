@@ -3,13 +3,12 @@
 //! [sql]: https://docs.influxdata.com/influxdb/v1.8/query_language/explore-schema/#show-tag-keys
 
 use crate::common::{
-    limit_clause, offset_clause, where_clause, LimitClause, OffsetClause, WhereClause,
+    limit_clause, offset_clause, where_clause, ws1, LimitClause, OffsetClause, WhereClause,
 };
 use crate::internal::ParseResult;
 use crate::keywords::keyword;
 use crate::show::{on_clause, OnClause};
 use crate::simple_from_clause::{show_from_clause, ShowFromClause};
-use nom::character::complete::multispace1;
 use nom::combinator::opt;
 use nom::sequence::{preceded, tuple};
 use std::fmt;
@@ -78,11 +77,11 @@ pub(crate) fn show_tag_keys(i: &str) -> ParseResult<&str, ShowTagKeysStatement> 
         ),
     ) = tuple((
         keyword("KEYS"),
-        opt(preceded(multispace1, on_clause)),
-        opt(preceded(multispace1, show_from_clause)),
-        opt(preceded(multispace1, where_clause)),
-        opt(preceded(multispace1, limit_clause)),
-        opt(preceded(multispace1, offset_clause)),
+        opt(preceded(ws1, on_clause)),
+        opt(preceded(ws1, show_from_clause)),
+        opt(preceded(ws1, where_clause)),
+        opt(preceded(ws1, limit_clause)),
+        opt(preceded(ws1, offset_clause)),
     ))(i)?;
 
     Ok((

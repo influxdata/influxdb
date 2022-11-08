@@ -4,11 +4,11 @@
 
 #![allow(dead_code)] // Temporary
 
+use crate::common::ws1;
 use crate::internal::{expect, ParseResult};
 use crate::keywords::keyword;
 use crate::select::{select_statement, SelectStatement};
 use nom::branch::alt;
-use nom::character::complete::multispace1;
 use nom::combinator::{map, opt, value};
 use nom::sequence::{preceded, tuple};
 use std::fmt::{Display, Formatter};
@@ -65,13 +65,10 @@ pub(crate) fn explain_statement(i: &str) -> ParseResult<&str, ExplainStatement> 
         tuple((
             keyword("EXPLAIN"),
             opt(preceded(
-                multispace1,
+                ws1,
                 alt((
                     map(
-                        preceded(
-                            keyword("ANALYZE"),
-                            opt(preceded(multispace1, keyword("VERBOSE"))),
-                        ),
+                        preceded(keyword("ANALYZE"), opt(preceded(ws1, keyword("VERBOSE")))),
                         |v| match v {
                             // If the optional combinator is Some, then it matched VERBOSE
                             Some(_) => ExplainOption::AnalyzeVerbose,
@@ -81,7 +78,7 @@ pub(crate) fn explain_statement(i: &str) -> ParseResult<&str, ExplainStatement> 
                     value(ExplainOption::Verbose, keyword("VERBOSE")),
                 )),
             )),
-            multispace1,
+            ws1,
             expect(
                 "invalid EXPLAIN statement, expected SELECT statement",
                 select_statement,

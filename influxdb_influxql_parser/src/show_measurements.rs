@@ -3,7 +3,7 @@
 //! [sql]: https://docs.influxdata.com/influxdb/v1.8/query_language/explore-schema/#show-measurements
 
 use crate::common::{
-    limit_clause, offset_clause, qualified_measurement_name, where_clause, LimitClause,
+    limit_clause, offset_clause, qualified_measurement_name, where_clause, ws0, ws1, LimitClause,
     OffsetClause, QualifiedMeasurementName, WhereClause,
 };
 use crate::identifier::{identifier, Identifier};
@@ -11,7 +11,6 @@ use crate::internal::{expect, ParseResult};
 use crate::keywords::keyword;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
-use nom::character::complete::{multispace0, multispace1};
 use nom::combinator::{map, opt, value};
 use nom::sequence::tuple;
 use nom::sequence::{pair, preceded, terminated};
@@ -48,7 +47,7 @@ impl fmt::Display for ExtendedOnClause {
 /// Parse the `ON` clause of the `SHOW MEASUREMENTS` statement.
 fn extended_on_clause(i: &str) -> ParseResult<&str, ExtendedOnClause> {
     preceded(
-        pair(keyword("ON"), multispace1),
+        pair(keyword("ON"), ws1),
         expect(
             "invalid ON clause, expected wildcard or identifier",
             alt((
@@ -146,23 +145,23 @@ fn with_measurement_clause(i: &str) -> ParseResult<&str, WithMeasurementClause> 
     preceded(
         tuple((
             keyword("WITH"),
-            multispace1,
+            ws1,
             expect(
                 "invalid WITH clause, expected MEASUREMENT",
                 keyword("MEASUREMENT"),
             ),
-            multispace0,
+            ws0,
         )),
         expect(
             "expected = or =~",
             alt((
                 map(
-                    preceded(pair(tag("=~"), multispace0), qualified_measurement_name),
+                    preceded(pair(tag("=~"), ws0), qualified_measurement_name),
                     WithMeasurementClause::Regex,
                 ),
                 map(
                     preceded(
-                        pair(tag("="), multispace0),
+                        pair(tag("="), ws0),
                         expect("expected measurement name", qualified_measurement_name),
                     ),
                     WithMeasurementClause::Equals,
@@ -186,11 +185,11 @@ pub(crate) fn show_measurements(i: &str) -> ParseResult<&str, ShowMeasurementsSt
         ),
     ) = tuple((
         keyword("MEASUREMENTS"),
-        opt(preceded(multispace1, extended_on_clause)),
-        opt(preceded(multispace1, with_measurement_clause)),
-        opt(preceded(multispace1, where_clause)),
-        opt(preceded(multispace1, limit_clause)),
-        opt(preceded(multispace1, offset_clause)),
+        opt(preceded(ws1, extended_on_clause)),
+        opt(preceded(ws1, with_measurement_clause)),
+        opt(preceded(ws1, where_clause)),
+        opt(preceded(ws1, limit_clause)),
+        opt(preceded(ws1, offset_clause)),
     ))(i)?;
 
     Ok((

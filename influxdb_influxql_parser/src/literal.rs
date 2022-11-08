@@ -1,12 +1,13 @@
 //! Types and parsers for literals.
 
+use crate::common::ws0;
 use crate::internal::{map_fail, ParseResult};
 use crate::keywords::keyword;
 use crate::string::{regex, single_quoted_string, Regex};
 use crate::{impl_tuple_clause, write_escaped};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
-use nom::character::complete::{char, digit0, digit1, multispace0};
+use nom::character::complete::{char, digit0, digit1};
 use nom::combinator::{map, opt, recognize, value};
 use nom::multi::fold_many1;
 use nom::sequence::{pair, preceded, separated_pair};
@@ -175,7 +176,7 @@ impl From<i64> for Number {
 pub(crate) fn number(i: &str) -> ParseResult<&str, Number> {
     let (remaining, sign) = opt(alt((char('-'), char('+'))))(i)?;
     preceded(
-        multispace0,
+        ws0,
         alt((
             map(float, move |v| {
                 Number::Float(v * if let Some('-') = sign { -1.0 } else { 1.0 })

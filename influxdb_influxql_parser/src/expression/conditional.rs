@@ -1,3 +1,4 @@
+use crate::common::ws0;
 use crate::expression::arithmetic::{
     arithmetic, call_expression, var_ref, ArithmeticParsers, Expr,
 };
@@ -7,7 +8,7 @@ use crate::literal::{literal_no_regex, literal_regex, Literal};
 use crate::parameter::parameter;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
-use nom::character::complete::{char, multispace0};
+use nom::character::complete::char;
 use nom::combinator::{map, value};
 use nom::multi::many0;
 use nom::sequence::{delimited, preceded, tuple};
@@ -98,11 +99,11 @@ impl From<Literal> for ConditionalExpression {
 /// Parse a parenthesis expression.
 fn parens(i: &str) -> ParseResult<&str, ConditionalExpression> {
     delimited(
-        preceded(multispace0, char('(')),
+        preceded(ws0, char('(')),
         map(conditional_expression, |e| {
             ConditionalExpression::Grouped(e.into())
         }),
-        preceded(multispace0, char(')')),
+        preceded(ws0, char(')')),
     )(i)
 }
 
@@ -120,7 +121,7 @@ fn conditional_regex(i: &str) -> ParseResult<&str, ConditionalExpression> {
     let (input, f1) = expr_or_group(i)?;
     let (input, exprs) = many0(tuple((
         preceded(
-            multispace0,
+            ws0,
             alt((
                 value(ConditionalOperator::EqRegex, tag("=~")),
                 value(ConditionalOperator::NotEqRegex, tag("!~")),
@@ -129,7 +130,7 @@ fn conditional_regex(i: &str) -> ParseResult<&str, ConditionalExpression> {
         map(
             expect(
                 "invalid conditional, expected regular expression",
-                preceded(multispace0, literal_regex),
+                preceded(ws0, literal_regex),
             ),
             From::from,
         ),
@@ -142,7 +143,7 @@ fn conditional(i: &str) -> ParseResult<&str, ConditionalExpression> {
     let (input, f1) = conditional_regex(i)?;
     let (input, exprs) = many0(tuple((
         preceded(
-            multispace0,
+            ws0,
             alt((
                 // try longest matches first
                 value(ConditionalOperator::LtEq, tag("<=")),
@@ -163,10 +164,7 @@ fn conditional(i: &str) -> ParseResult<&str, ConditionalExpression> {
 fn conjunction(i: &str) -> ParseResult<&str, ConditionalExpression> {
     let (input, f1) = conditional(i)?;
     let (input, exprs) = many0(tuple((
-        value(
-            ConditionalOperator::And,
-            preceded(multispace0, keyword("AND")),
-        ),
+        value(ConditionalOperator::And, preceded(ws0, keyword("AND"))),
         expect("invalid conditional expression", conditional),
     )))(input)?;
     Ok((input, reduce_expr(f1, exprs)))
@@ -176,10 +174,7 @@ fn conjunction(i: &str) -> ParseResult<&str, ConditionalExpression> {
 fn disjunction(i: &str) -> ParseResult<&str, ConditionalExpression> {
     let (input, f1) = conjunction(i)?;
     let (input, exprs) = many0(tuple((
-        value(
-            ConditionalOperator::Or,
-            preceded(multispace0, keyword("OR")),
-        ),
+        value(ConditionalOperator::Or, preceded(ws0, keyword("OR"))),
         expect("invalid conditional expression", conjunction),
     )))(input)?;
     Ok((input, reduce_expr(f1, exprs)))
@@ -226,7 +221,7 @@ impl ConditionalExpression {
 impl ArithmeticParsers for ConditionalExpression {
     fn operand(i: &str) -> ParseResult<&str, Expr> {
         preceded(
-            multispace0,
+            ws0,
             alt((
                 map(literal_no_regex, Expr::Literal),
                 Self::call,

@@ -8,11 +8,11 @@ use crate::literal::unsigned_integer;
 use crate::string::{regex, Regex};
 use core::fmt;
 use nom::branch::alt;
-use nom::bytes::complete::tag;
-use nom::character::complete::{char, multispace0, multispace1};
-use nom::combinator::{map, opt, value};
-use nom::multi::separated_list1;
-use nom::sequence::{pair, preceded, terminated};
+use nom::bytes::complete::{is_not, tag, take_until};
+use nom::character::complete::{char, multispace1};
+use nom::combinator::{map, opt, recognize, value};
+use nom::multi::{fold_many0, fold_many1, separated_list1};
+use nom::sequence::{delimited, pair, preceded, terminated};
 use std::fmt::{Display, Formatter};
 use std::ops::{Deref, DerefMut};
 
@@ -131,6 +131,54 @@ pub(crate) fn qualified_measurement_name(i: &str) -> ParseResult<&str, Qualified
     ))
 }
 
+/// Parse a SQL-style single-line comment
+fn comment_single_line(i: &str) -> ParseResult<&str, &str> {
+    recognize(pair(tag("--"), is_not("\n\r")))(i)
+}
+
+/// Parse a SQL-style inline comment, which can span multiple lines
+fn comment_inline(i: &str) -> ParseResult<&str, &str> {
+    recognize(delimited(
+        tag("/*"),
+        expect(
+            "invalid inline comment, missing closing */",
+            take_until("*/"),
+        ),
+        tag("*/"),
+    ))(i)
+}
+
+/// Repeats the embedded parser until it fails, discarding the results.
+///
+/// This parser is used as a non-allocating version of [`nom::multi::many0`].
+fn many0_<'a, A, F>(mut f: F) -> impl FnMut(&'a str) -> ParseResult<&'a str, ()>
+where
+    F: FnMut(&'a str) -> ParseResult<&'a str, A>,
+{
+    move |i| fold_many0(&mut f, || (), |_, _| ())(i)
+}
+
+/// Optionally consume all whitespace, single-line or inline comments
+pub(crate) fn ws0(i: &str) -> ParseResult<&str, ()> {
+    many0_(alt((multispace1, comment_single_line, comment_inline)))(i)
+}
+
+/// Runs the embedded parser until it fails, discarding the results.
+/// Fails if the embedded parser does not produce at least one result.
+///
+/// This parser is used as a non-allocating version of [`nom::multi::many1`].
+fn many1_<'a, A, F>(mut f: F) -> impl FnMut(&'a str) -> ParseResult<&'a str, ()>
+where
+    F: FnMut(&'a str) -> ParseResult<&'a str, A>,
+{
+    move |i| fold_many1(&mut f, || (), |_, _| ())(i)
+}
+
+/// Must consume either whitespace, single-line or inline comments
+pub(crate) fn ws1(i: &str) -> ParseResult<&str, ()> {
+    many1_(alt((multispace1, comment_single_line, comment_inline)))(i)
+}
+
 /// Implements common behaviour for u64 tuple-struct types
 #[macro_export]
 macro_rules! impl_tuple_clause {
@@ -179,7 +227,7 @@ impl Display for LimitClause {
 /// Parse a `LIMIT <n>` clause.
 pub(crate) fn limit_clause(i: &str) -> ParseResult<&str, LimitClause> {
     preceded(
-        pair(keyword("LIMIT"), multispace1),
+        pair(keyword("LIMIT"), ws1),
         expect(
             "invalid LIMIT clause, expected unsigned integer",
             map(unsigned_integer, LimitClause),
@@ -202,7 +250,7 @@ impl Display for OffsetClause {
 /// Parse an `OFFSET <n>` clause.
 pub(crate) fn offset_clause(i: &str) -> ParseResult<&str, OffsetClause> {
     preceded(
-        pair(keyword("OFFSET"), multispace1),
+        pair(keyword("OFFSET"), ws1),
         expect(
             "invalid OFFSET clause, expected unsigned integer",
             map(unsigned_integer, OffsetClause),
@@ -249,7 +297,7 @@ impl Display for WhereClause {
 /// Parse a `WHERE` clause.
 pub(crate) fn where_clause(i: &str) -> ParseResult<&str, WhereClause> {
     preceded(
-        pair(keyword("WHERE"), multispace0),
+        pair(keyword("WHERE"), ws0),
         map(conditional_expression, WhereClause),
     )(i)
 }
@@ -303,7 +351,7 @@ impl Display for OrderByClause {
 pub(crate) fn order_by_clause(i: &str) -> ParseResult<&str, OrderByClause> {
     let order = || {
         preceded(
-            multispace1,
+            ws1,
             alt((
                 value(OrderByClause::Ascending, keyword("ASC")),
                 value(OrderByClause::Descending, keyword("DESC")),
@@ -313,7 +361,7 @@ pub(crate) fn order_by_clause(i: &str) -> ParseResult<&str, OrderByClause> {
 
     preceded(
         // "ORDER" "BY"
-        pair(keyword("ORDER"), preceded(multispace1, keyword("BY"))),
+        pair(keyword("ORDER"), preceded(ws1, keyword("BY"))),
         expect(
             "invalid ORDER BY, expected ASC, DESC or TIME",
             alt((
@@ -323,7 +371,7 @@ pub(crate) fn order_by_clause(i: &str) -> ParseResult<&str, OrderByClause> {
                 map(
                     preceded(
                         preceded(
-                            multispace1,
+                            ws1,
                             verify("invalid ORDER BY, expected TIME column", identifier, |v| {
                                 Token(&v.0) == Token("time")
                             }),
@@ -390,10 +438,7 @@ impl<T: Parser> OneOrMore<T> {
             map(
                 expect(
                     msg,
-                    separated_list1(
-                        preceded(multispace0, char(',')),
-                        preceded(multispace0, T::parse),
-                    ),
+                    separated_list1(preceded(ws0, char(',')), preceded(ws0, T::parse)),
                 ),
                 Self::new,
             )(i)
@@ -404,7 +449,7 @@ impl<T: Parser> OneOrMore<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assert_expect_error;
+    use crate::{assert_error, assert_expect_error};
     use nom::character::complete::alphanumeric1;
 
     impl From<&str> for MeasurementName {
@@ -633,6 +678,9 @@ mod tests {
         // Without unnecessary whitespace
         where_clause("WHERE(foo = 'bar')").unwrap();
 
+        let (rem, _) = where_clause("WHERE/* a comment*/foo = 'bar'").unwrap();
+        assert_eq!(rem, "");
+
         // Fallible cases
         where_clause("WHERE foo = LIMIT 10").unwrap_err();
         where_clause("WHERE").unwrap_err();
@@ -692,5 +740,66 @@ mod tests {
 
         // should panic
         OneOrMoreString::new(vec![]);
+    }
+
+    #[test]
+    fn test_comment_single_line() {
+        // Comment to EOF
+        let (rem, _) = comment_single_line("-- this is a test").unwrap();
+        assert_eq!(rem, "");
+
+        // Comment to EOL
+        let (rem, _) = comment_single_line("-- this is a test\nmore text").unwrap();
+        assert_eq!(rem, "\nmore text");
+    }
+
+    #[test]
+    fn test_comment_inline() {
+        let (rem, _) = comment_inline("/* this is a test */").unwrap();
+        assert_eq!(rem, "");
+
+        let (rem, _) = comment_inline("/* this is a test*/more text").unwrap();
+        assert_eq!(rem, "more text");
+
+        let (rem, _) = comment_inline("/* this\nis a test*/more text").unwrap();
+        assert_eq!(rem, "more text");
+
+        // Ignores embedded /*
+        let (rem, _) = comment_inline("/* this /* is a test*/more text").unwrap();
+        assert_eq!(rem, "more text");
+
+        // Fallible cases
+
+        assert_expect_error!(
+            comment_inline("/* this is a test"),
+            "invalid inline comment, missing closing */"
+        );
+    }
+
+    #[test]
+    fn test_ws0() {
+        let (rem, _) = ws0("  -- this is a comment\n/* and some more*/  \t").unwrap();
+        assert_eq!(rem, "");
+
+        let (rem, _) = ws0("  -- this is a comment\n/* and some more*/  \tSELECT").unwrap();
+        assert_eq!(rem, "SELECT");
+
+        // no whitespace
+        let (rem, _) = ws0("SELECT").unwrap();
+        assert_eq!(rem, "SELECT");
+    }
+
+    #[test]
+    fn test_ws1() {
+        let (rem, _) = ws1("  -- this is a comment\n/* and some more*/  \t").unwrap();
+        assert_eq!(rem, "");
+
+        let (rem, _) = ws1("  -- this is a comment\n/* and some more*/  \tSELECT").unwrap();
+        assert_eq!(rem, "SELECT");
+
+        // Fallible cases
+
+        // Missing whitespace
+        assert_error!(ws1("SELECT"), Many1);
     }
 }

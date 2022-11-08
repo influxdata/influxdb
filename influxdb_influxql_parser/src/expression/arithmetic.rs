@@ -1,3 +1,4 @@
+use crate::common::ws0;
 use crate::identifier::unquoted_identifier;
 use crate::internal::{expect, ParseResult};
 use crate::keywords::keyword;
@@ -9,7 +10,7 @@ use crate::{
 };
 use nom::branch::alt;
 use nom::bytes::complete::tag;
-use nom::character::complete::{char, multispace0};
+use nom::character::complete::char;
 use nom::combinator::{cut, map, opt, value};
 use nom::multi::{many0, separated_list0};
 use nom::sequence::{delimited, pair, preceded, separated_pair, terminated, tuple};
@@ -263,7 +264,7 @@ where
     T: ArithmeticParsers,
 {
     let (i, op) = preceded(
-        multispace0,
+        ws0,
         alt((
             value(UnaryOperator::Plus, char('+')),
             value(UnaryOperator::Minus, char('-')),
@@ -281,9 +282,9 @@ where
     T: ArithmeticParsers,
 {
     delimited(
-        preceded(multispace0, char('(')),
+        preceded(ws0, char('(')),
         map(arithmetic::<T>, |e| Expr::Nested(e.into())),
-        preceded(multispace0, char(')')),
+        preceded(ws0, char(')')),
     )(i)
 }
 
@@ -300,16 +301,16 @@ where
                 alt((unquoted_identifier, keyword("DISTINCT"))),
                 &str::to_string,
             ),
-            multispace0,
+            ws0,
             delimited(
                 char('('),
                 alt((
                     // A single regular expression to match 0 or more field keys
-                    map(preceded(multispace0, literal_regex), |re| vec![re.into()]),
+                    map(preceded(ws0, literal_regex), |re| vec![re.into()]),
                     // A list of Expr, separated by commas
-                    separated_list0(preceded(multispace0, char(',')), arithmetic::<T>),
+                    separated_list0(preceded(ws0, char(',')), arithmetic::<T>),
                 )),
-                cut(preceded(multispace0, char(')'))),
+                cut(preceded(ws0, char(')'))),
             ),
         ),
         |(name, args)| Expr::Call { name, args },
@@ -403,7 +404,7 @@ where
     let (input, left) = factor::<T>(i)?;
     let (input, remaining) = many0(tuple((
         preceded(
-            multispace0,
+            ws0,
             alt((
                 value(BinaryOperator::Mul, char('*')),
                 value(BinaryOperator::Div, char('/')),
@@ -426,7 +427,7 @@ where
     let (input, left) = term::<T>(i)?;
     let (input, remaining) = many0(tuple((
         preceded(
-            multispace0,
+            ws0,
             alt((
                 value(BinaryOperator::Add, char('+')),
                 value(BinaryOperator::Sub, char('-')),
@@ -466,7 +467,7 @@ mod test {
     impl ArithmeticParsers for TestParsers {
         fn operand(i: &str) -> ParseResult<&str, Expr> {
             preceded(
-                multispace0,
+                ws0,
                 alt((
                     map(literal_no_regex, Expr::Literal),
                     var_ref,

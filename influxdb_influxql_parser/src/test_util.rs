@@ -8,6 +8,18 @@ macro_rules! assert_failure {
     };
 }
 
+/// Asserts that the result of a nom parser is an error and a [`nom::Err::Error`] of the specified
+/// [`nom::error::ErrorKind`].
+#[macro_export]
+macro_rules! assert_error {
+    ($RESULT:expr, $ERR:ident) => {
+        assert_matches::assert_matches!(
+            $RESULT.unwrap_err(),
+            nom::Err::Error($crate::internal::Error::Nom(_, nom::error::ErrorKind::$ERR))
+        );
+    };
+}
+
 /// Asserts that the result of a nom parser is an [`crate::internal::Error::Syntax`] and a [`nom::Err::Failure`].
 #[macro_export]
 macro_rules! assert_expect_error {

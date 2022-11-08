@@ -3,8 +3,8 @@
 //! [sql]: https://docs.influxdata.com/influxdb/v1.8/query_language/explore-data/#the-basic-select-statement
 
 use crate::common::{
-    limit_clause, offset_clause, order_by_clause, qualified_measurement_name, where_clause,
-    LimitClause, OffsetClause, OneOrMore, OrderByClause, Parser, QualifiedMeasurementName,
+    limit_clause, offset_clause, order_by_clause, qualified_measurement_name, where_clause, ws0,
+    ws1, LimitClause, OffsetClause, OneOrMore, OrderByClause, Parser, QualifiedMeasurementName,
     WhereClause,
 };
 use crate::expression::arithmetic::Expr::Wildcard;
@@ -22,7 +22,7 @@ use crate::string::{regex, single_quoted_string, Regex};
 use crate::{impl_tuple_clause, write_escaped};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
-use nom::character::complete::{char, multispace0, multispace1};
+use nom::character::complete::char;
 use nom::combinator::{map, opt, value};
 use nom::sequence::{delimited, pair, preceded, tuple};
 use std::fmt;
@@ -134,18 +134,18 @@ pub(crate) fn select_statement(i: &str) -> ParseResult<&str, SelectStatement> {
         ),
     ) = tuple((
         keyword("SELECT"),
-        multispace0,
+        ws0,
         field_list,
-        preceded(multispace0, from_clause),
-        opt(preceded(multispace0, where_clause)),
-        opt(preceded(multispace0, group_by_clause)),
-        opt(preceded(multispace0, fill_clause)),
-        opt(preceded(multispace0, order_by_clause)),
-        opt(preceded(multispace0, limit_clause)),
-        opt(preceded(multispace0, offset_clause)),
-        opt(preceded(multispace0, slimit_clause)),
-        opt(preceded(multispace0, soffset_clause)),
-        opt(preceded(multispace0, timezone_clause)),
+        preceded(ws0, from_clause),
+        opt(preceded(ws0, where_clause)),
+        opt(preceded(ws0, group_by_clause)),
+        opt(preceded(ws0, fill_clause)),
+        opt(preceded(ws0, order_by_clause)),
+        opt(preceded(ws0, limit_clause)),
+        opt(preceded(ws0, offset_clause)),
+        opt(preceded(ws0, slimit_clause)),
+        opt(preceded(ws0, soffset_clause)),
+        opt(preceded(ws0, timezone_clause)),
     ))(i)?;
 
     Ok((
@@ -191,9 +191,9 @@ impl Parser for MeasurementSelection {
             map(qualified_measurement_name, MeasurementSelection::Name),
             map(
                 delimited(
-                    preceded(multispace0, char('(')),
-                    preceded(multispace0, select_statement),
-                    preceded(multispace0, char(')')),
+                    preceded(ws0, char('(')),
+                    preceded(ws0, select_statement),
+                    preceded(ws0, char(')')),
                 ),
                 |s| Subquery(Box::new(s)),
             ),
@@ -216,7 +216,7 @@ impl Display for FromMeasurementClause {
 
 fn from_clause(i: &str) -> ParseResult<&str, FromMeasurementClause> {
     preceded(
-        pair(keyword("FROM"), multispace0),
+        pair(keyword("FROM"), ws0),
         FromMeasurementClause::separated_list1(
             "invalid FROM clause, expected identifier, regular expression or subquery",
         ),
@@ -243,7 +243,7 @@ impl ArithmeticParsers for TimeCallIntervalArgument {
     fn operand(i: &str) -> ParseResult<&str, Expr> {
         // Any literal
         preceded(
-            multispace0,
+            ws0,
             map(
                 alt((
                     map(duration, Literal::Duration),
@@ -274,7 +274,7 @@ impl TimeCallOffsetArgument {
 impl ArithmeticParsers for TimeCallOffsetArgument {
     fn operand(i: &str) -> ParseResult<&str, Expr> {
         preceded(
-            multispace0,
+            ws0,
             alt((
                 Self::now_call,
                 map(duration, |v| Expr::Literal(Literal::Duration(v))),
@@ -345,7 +345,7 @@ fn time_call_expression(i: &str) -> ParseResult<&str, Dimension> {
             delimited(
                 expect(
                     "invalid TIME call, expected 1 or 2 arguments",
-                    preceded(multispace0, char('(')),
+                    preceded(ws0, char('(')),
                 ),
                 pair(
                     expect(
@@ -353,14 +353,11 @@ fn time_call_expression(i: &str) -> ParseResult<&str, Dimension> {
                         arithmetic::<TimeCallIntervalArgument>,
                     ),
                     opt(preceded(
-                        preceded(multispace0, char(',')),
-                        preceded(multispace0, arithmetic::<TimeCallOffsetArgument>),
+                        preceded(ws0, char(',')),
+                        preceded(ws0, arithmetic::<TimeCallOffsetArgument>),
                     )),
                 ),
-                expect(
-                    "invalid TIME call, expected ')'",
-                    preceded(multispace0, char(')')),
-                ),
+                expect("invalid TIME call, expected ')'", preceded(ws0, char(')'))),
             ),
         ),
         |(interval, offset)| Dimension::Time { interval, offset },
@@ -376,9 +373,9 @@ fn group_by_clause(i: &str) -> ParseResult<&str, GroupByClause> {
     preceded(
         tuple((
             keyword("GROUP"),
-            multispace1,
+            ws1,
             expect("invalid GROUP BY clause, expected BY", keyword("BY")),
-            multispace1,
+            ws1,
         )),
         GroupByClause::separated_list1(
             "invalid GROUP BY clause, expected wildcard, TIME, identifier or regular expression",
@@ -453,7 +450,7 @@ impl Parser for Field {
             pair(
                 arithmetic::<FieldExpression>,
                 opt(preceded(
-                    delimited(multispace0, keyword("AS"), multispace1),
+                    delimited(ws0, keyword("AS"), ws1),
                     expect("invalid field alias, expected identifier", identifier),
                 )),
             ),
@@ -503,12 +500,12 @@ struct FieldExpression;
 impl ArithmeticParsers for FieldExpression {
     fn operand(i: &str) -> ParseResult<&str, Expr> {
         preceded(
-            multispace0,
+            ws0,
             alt((
                 // DISTINCT identifier
                 map(
                     preceded(
-                        pair(keyword("DISTINCT"), multispace1),
+                        pair(keyword("DISTINCT"), ws1),
                         expect(
                             "invalid DISTINCT expression, expected identifier",
                             identifier,
@@ -551,11 +548,11 @@ fn fill_clause(i: &str) -> ParseResult<&str, FillClause> {
     preceded(
         keyword("FILL"),
         delimited(
-            preceded(multispace0, char('(')),
+            preceded(ws0, char('(')),
             expect(
                 "invalid FILL option, expected NULL, NONE, PREVIOUS, LINEAR, or a number",
                 preceded(
-                    multispace0,
+                    ws0,
                     alt((
                         value(FillClause::Null, keyword("NULL")),
                         value(FillClause::None, keyword("NONE")),
@@ -565,7 +562,7 @@ fn fill_clause(i: &str) -> ParseResult<&str, FillClause> {
                     )),
                 ),
             ),
-            preceded(multispace0, char(')')),
+            preceded(ws0, char(')')),
         ),
     )(i)
 }
@@ -589,7 +586,7 @@ impl Display for SLimitClause {
 /// ```
 fn slimit_clause(i: &str) -> ParseResult<&str, SLimitClause> {
     preceded(
-        pair(keyword("SLIMIT"), multispace1),
+        pair(keyword("SLIMIT"), ws1),
         expect(
             "invalid SLIMIT clause, expected unsigned integer",
             map(unsigned_integer, SLimitClause),
@@ -616,7 +613,7 @@ impl Display for SOffsetClause {
 /// ```
 fn soffset_clause(i: &str) -> ParseResult<&str, SOffsetClause> {
     preceded(
-        pair(keyword("SOFFSET"), multispace1),
+        pair(keyword("SOFFSET"), ws1),
         expect(
             "invalid SLIMIT clause, expected unsigned integer",
             map(unsigned_integer, SOffsetClause),
@@ -647,12 +644,12 @@ fn timezone_clause(i: &str) -> ParseResult<&str, TimeZoneClause> {
     preceded(
         keyword("TZ"),
         delimited(
-            preceded(multispace0, char('(')),
+            preceded(ws0, char('(')),
             expect(
                 "invalid TZ clause, expected string",
-                preceded(multispace0, map(single_quoted_string, TimeZoneClause)),
+                preceded(ws0, map(single_quoted_string, TimeZoneClause)),
             ),
-            preceded(multispace0, char(')')),
+            preceded(ws0, char(')')),
         ),
     )(i)
 }

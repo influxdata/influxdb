@@ -25,6 +25,8 @@ fn keyword_follow_char(i: &str) -> ParseResult<&str, &str> {
         tag("\t"),
         tag(","),
         tag("="),
+        tag("/"), // possible comment
+        tag("-"), // possible comment
         eof,
         fail, // Return a failure if we reach the end of this alternation
     )))(i)

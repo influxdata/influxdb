@@ -14,10 +14,9 @@
     clippy::dbg_macro
 )]
 
-use crate::common::statement_terminator;
+use crate::common::{statement_terminator, ws0};
 use crate::internal::Error as InternalError;
 use crate::statement::{statement, Statement};
-use nom::character::complete::multispace0;
 use nom::combinator::eof;
 use nom::Offset;
 use std::fmt::{Debug, Display, Formatter};
@@ -75,9 +74,9 @@ pub fn parse_statements(input: &str) -> ParseResult {
 
     loop {
         // Consume whitespace from the input
-        i = match multispace0::<_, nom::error::Error<_>>(i) {
+        i = match ws0(i) {
             Ok((i1, _)) => i1,
-            _ => unreachable!("multispace0 is infallible"),
+            _ => unreachable!("ws0 is infallible"),
         };
 
         if eof::<_, nom::error::Error<_>>(i).is_ok() {
@@ -144,6 +143,34 @@ mod test {
             "SHOW MEASUREMENTS WITH MEASUREMENT = \";\""
         );
         assert_eq!(format!("{}", got[1]), "SHOW DATABASES");
+
+        // Parses a statement with a comment
+        let got = parse_statements(
+            "SELECT idle FROM cpu WHERE host = 'host1' --GROUP BY host fill(null)",
+        )
+        .unwrap();
+        assert_eq!(
+            format!("{}", got[0]),
+            "SELECT idle FROM cpu WHERE host = 'host1'"
+        );
+
+        // Parses multiple statements with a comment
+        let got = parse_statements(
+            "SELECT idle FROM cpu WHERE host = 'host1' --GROUP BY host fill(null)\nSHOW DATABASES",
+        )
+        .unwrap();
+        assert_eq!(
+            format!("{}", got[0]),
+            "SELECT idle FROM cpu WHERE host = 'host1'"
+        );
+        assert_eq!(format!("{}", got[1]), "SHOW DATABASES");
+
+        // Parses statement with inline comment
+        let got = parse_statements(r#"SELECT idle FROM cpu WHERE/* time > now() AND */host = 'host1' --GROUP BY host fill(null)"#).unwrap();
+        assert_eq!(
+            format!("{}", got[0]),
+            "SELECT idle FROM cpu WHERE host = 'host1'"
+        );
 
         // Returns error for invalid statement
         let got = parse_statements("BAD SQL").unwrap_err();

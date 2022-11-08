@@ -2,6 +2,7 @@
 //!
 //! [sql]: https://docs.influxdata.com/influxdb/v1.8/query_language/explore-schema/
 
+use crate::common::ws1;
 use crate::identifier::{identifier, Identifier};
 use crate::impl_tuple_clause;
 use crate::internal::{expect, ParseResult};
@@ -13,7 +14,6 @@ use crate::show_tag_keys::show_tag_keys;
 use crate::show_tag_values::show_tag_values;
 use crate::statement::Statement;
 use nom::branch::alt;
-use nom::character::complete::multispace1;
 use nom::combinator::{map, value};
 use nom::sequence::{pair, preceded};
 use std::fmt::{Display, Formatter};
@@ -21,7 +21,7 @@ use std::fmt::{Display, Formatter};
 /// Parse a SHOW statement.
 pub(crate) fn show_statement(i: &str) -> ParseResult<&str, Statement> {
     preceded(
-        pair(keyword("SHOW"), multispace1),
+        pair(keyword("SHOW"), ws1),
         expect(
             "invalid SHOW statement, expected DATABASES, FIELD, MEASUREMENTS, TAG, or RETENTION following SHOW",
             alt((
@@ -74,7 +74,7 @@ impl Display for OnClause {
 /// Parse an `ON` clause for statements such as `SHOW TAG KEYS` and `SHOW FIELD KEYS`.
 pub(crate) fn on_clause(i: &str) -> ParseResult<&str, OnClause> {
     preceded(
-        pair(keyword("ON"), multispace1),
+        pair(keyword("ON"), ws1),
         expect(
             "invalid ON clause, expected identifier",
             map(identifier, OnClause),
@@ -85,7 +85,7 @@ pub(crate) fn on_clause(i: &str) -> ParseResult<&str, OnClause> {
 /// Parse a `SHOW TAG (KEYS|VALUES)` statement.
 fn show_tag(i: &str) -> ParseResult<&str, Statement> {
     preceded(
-        pair(keyword("TAG"), multispace1),
+        pair(keyword("TAG"), ws1),
         expect(
             "invalid SHOW TAG statement, expected KEYS or VALUES",
             alt((

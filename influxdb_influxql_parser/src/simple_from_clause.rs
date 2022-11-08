@@ -1,12 +1,11 @@
 //! Types and parsers for the `FROM` clause common to `DELETE` or `SHOW` schema statements.
 
 use crate::common::{
-    qualified_measurement_name, MeasurementName, OneOrMore, Parser, QualifiedMeasurementName,
+    qualified_measurement_name, ws1, MeasurementName, OneOrMore, Parser, QualifiedMeasurementName,
 };
 use crate::identifier::{identifier, Identifier};
 use crate::internal::ParseResult;
 use crate::keywords::keyword;
-use nom::character::complete::multispace1;
 use nom::sequence::{pair, preceded};
 use std::fmt;
 use std::fmt::{Display, Formatter};
@@ -21,7 +20,7 @@ pub type FromMeasurementClause<U> = OneOrMore<U>;
 
 fn from_clause<T: Parser + fmt::Display>(i: &str) -> ParseResult<&str, FromMeasurementClause<T>> {
     preceded(
-        pair(keyword("FROM"), multispace1),
+        pair(keyword("FROM"), ws1),
         FromMeasurementClause::<T>::separated_list1(
             "invalid FROM clause, expected identifier or regular expression",
         ),

@@ -3,7 +3,8 @@
 //! [sql]: https://docs.influxdata.com/influxdb/v1.8/query_language/explore-schema/#show-tag-values
 
 use crate::common::{
-    limit_clause, offset_clause, where_clause, LimitClause, OffsetClause, OneOrMore, WhereClause,
+    limit_clause, offset_clause, where_clause, ws0, ws1, LimitClause, OffsetClause, OneOrMore,
+    WhereClause,
 };
 use crate::identifier::{identifier, Identifier};
 use crate::internal::{expect, ParseResult};
@@ -13,7 +14,7 @@ use crate::simple_from_clause::{show_from_clause, ShowFromClause};
 use crate::string::{regex, Regex};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
-use nom::character::complete::{char, multispace0, multispace1};
+use nom::character::complete::char;
 use nom::combinator::{map, opt};
 use nom::sequence::{delimited, preceded, tuple};
 use std::fmt;
@@ -89,15 +90,15 @@ pub(crate) fn show_tag_values(i: &str) -> ParseResult<&str, ShowTagValuesStateme
         ),
     ) = tuple((
         keyword("VALUES"),
-        opt(preceded(multispace1, on_clause)),
-        opt(preceded(multispace1, show_from_clause)),
+        opt(preceded(ws1, on_clause)),
+        opt(preceded(ws1, show_from_clause)),
         expect(
             "invalid SHOW TAG VALUES statement, expected WITH KEY clause",
-            preceded(multispace1, with_key_clause),
+            preceded(ws1, with_key_clause),
         ),
-        opt(preceded(multispace1, where_clause)),
-        opt(preceded(multispace1, limit_clause)),
-        opt(preceded(multispace1, offset_clause)),
+        opt(preceded(ws1, where_clause)),
+        opt(preceded(ws1, limit_clause)),
+        opt(preceded(ws1, offset_clause)),
     ))(i)?;
 
     Ok((
@@ -159,11 +160,11 @@ impl Display for WithKeyClause {
 /// Parse an identifier list, as expected by the `WITH KEY IN` clause.
 fn identifier_list(i: &str) -> ParseResult<&str, InList> {
     delimited(
-        preceded(multispace0, char('(')),
+        preceded(ws0, char('(')),
         InList::separated_list1("invalid IN clause, expected identifier"),
         expect(
             "invalid identifier list, expected ')'",
-            preceded(multispace0, char(')')),
+            preceded(ws0, char(')')),
         ),
     )(i)
 }
@@ -172,7 +173,7 @@ fn with_key_clause(i: &str) -> ParseResult<&str, WithKeyClause> {
     preceded(
         tuple((
             keyword("WITH"),
-            multispace1,
+            ws1,
             expect("invalid WITH KEY clause, expected KEY", keyword("KEY")),
         )),
         expect(
@@ -180,7 +181,7 @@ fn with_key_clause(i: &str) -> ParseResult<&str, WithKeyClause> {
             alt((
                 map(
                     preceded(
-                        delimited(multispace0, tag("=~"), multispace0),
+                        delimited(ws0, tag("=~"), ws0),
                         expect(
                             "invalid WITH KEY clause, expected regular expression following =~",
                             regex,
@@ -190,7 +191,7 @@ fn with_key_clause(i: &str) -> ParseResult<&str, WithKeyClause> {
                 ),
                 map(
                     preceded(
-                        delimited(multispace0, tag("!~"), multispace0),
+                        delimited(ws0, tag("!~"), ws0),
                         expect(
                             "invalid WITH KEY clause, expected regular expression following =!",
                             regex,
@@ -200,7 +201,7 @@ fn with_key_clause(i: &str) -> ParseResult<&str, WithKeyClause> {
                 ),
                 map(
                     preceded(
-                        delimited(multispace0, char('='), multispace0),
+                        delimited(ws0, char('='), ws0),
                         expect(
                             "invalid WITH KEY clause, expected identifier following =",
                             identifier,
@@ -210,7 +211,7 @@ fn with_key_clause(i: &str) -> ParseResult<&str, WithKeyClause> {
                 ),
                 map(
                     preceded(
-                        delimited(multispace0, tag("!="), multispace0),
+                        delimited(ws0, tag("!="), ws0),
                         expect(
                             "invalid WITH KEY clause, expected identifier following !=",
                             identifier,
@@ -220,7 +221,7 @@ fn with_key_clause(i: &str) -> ParseResult<&str, WithKeyClause> {
                 ),
                 map(
                     preceded(
-                        preceded(multispace1, tag("IN")),
+                        preceded(ws1, tag("IN")),
                         expect(
                             "invalid WITH KEY clause, expected identifier list following IN",
                             identifier_list,

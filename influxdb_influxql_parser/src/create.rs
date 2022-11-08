@@ -2,20 +2,20 @@
 //!
 //! [sql]: https://docs.influxdata.com/influxdb/v1.8/query_language/manage-database/#create-database
 
+use crate::common::ws1;
 use crate::identifier::{identifier, Identifier};
 use crate::internal::{expect, ParseResult};
 use crate::keywords::keyword;
 use crate::literal::{duration, unsigned_integer, Duration};
 use crate::statement::Statement;
 use nom::branch::alt;
-use nom::character::complete::multispace1;
 use nom::combinator::{map, opt, peek};
 use nom::sequence::{pair, preceded, tuple};
 use std::fmt::{Display, Formatter};
 
 pub(crate) fn create_statement(i: &str) -> ParseResult<&str, Statement> {
     preceded(
-        pair(keyword("CREATE"), multispace1),
+        pair(keyword("CREATE"), ws1),
         expect(
             "Invalid CREATE statement, expected DATABASE following CREATE",
             map(create_database, |s| Statement::CreateDatabase(Box::new(s))),
@@ -89,13 +89,13 @@ fn create_database(i: &str) -> ParseResult<&str, CreateDatabaseStatement> {
         ),
     ) = tuple((
         keyword("DATABASE"),
-        preceded(multispace1, identifier),
+        preceded(ws1, identifier),
         opt(tuple((
-            preceded(multispace1, keyword("WITH")),
+            preceded(ws1, keyword("WITH")),
             expect(
                 "invalid WITH clause, expected \"DURATION\", \"REPLICATION\", \"SHARD\" or \"NAME\"",
                 peek(preceded(
-                    multispace1,
+                    ws1,
                     alt((
                         keyword("DURATION"),
                         keyword("REPLICATION"),
@@ -105,37 +105,37 @@ fn create_database(i: &str) -> ParseResult<&str, CreateDatabaseStatement> {
                 )),
             ),
             opt(preceded(
-                preceded(multispace1, keyword("DURATION")),
+                preceded(ws1, keyword("DURATION")),
                 expect(
                     "invalid DURATION clause, expected duration",
-                    preceded(multispace1, duration),
+                    preceded(ws1, duration),
                 ),
             )),
             opt(preceded(
-                preceded(multispace1, keyword("REPLICATION")),
+                preceded(ws1, keyword("REPLICATION")),
                 expect(
                     "invalid REPLICATION clause, expected unsigned integer",
-                    preceded(multispace1, unsigned_integer),
+                    preceded(ws1, unsigned_integer),
                 ),
             )),
             opt(preceded(
                 pair(
-                    preceded(multispace1, keyword("SHARD")),
+                    preceded(ws1, keyword("SHARD")),
                     expect(
                         "invalid SHARD DURATION clause, expected \"DURATION\"",
-                        preceded(multispace1, keyword("DURATION")),
+                        preceded(ws1, keyword("DURATION")),
                     ),
                 ),
                 expect(
                     "invalid SHARD DURATION clause, expected duration",
-                    preceded(multispace1, duration),
+                    preceded(ws1, duration),
                 ),
             )),
             opt(preceded(
-                preceded(multispace1, keyword("NAME")),
+                preceded(ws1, keyword("NAME")),
                 expect(
                     "invalid NAME clause, expected identifier",
-                    preceded(multispace1, identifier),
+                    preceded(ws1, identifier),
                 ),
             )),
         ))),

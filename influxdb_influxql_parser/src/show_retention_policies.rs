@@ -2,10 +2,10 @@
 //!
 //! [sql]: https://docs.influxdata.com/influxdb/v1.8/query_language/explore-schema/#show-retention-policies
 
+use crate::common::ws1;
 use crate::internal::{expect, ParseResult};
 use crate::keywords::keyword;
 use crate::show::{on_clause, OnClause};
-use nom::character::complete::multispace1;
 use nom::combinator::opt;
 use nom::sequence::{preceded, tuple};
 use std::fmt::{Display, Formatter};
@@ -32,12 +32,12 @@ pub(crate) fn show_retention_policies(
 ) -> ParseResult<&str, ShowRetentionPoliciesStatement> {
     let (remaining, (_, _, _, database)) = tuple((
         keyword("RETENTION"),
-        multispace1,
+        ws1,
         expect(
             "invalid SHOW RETENTION POLICIES statement, expected POLICIES",
             keyword("POLICIES"),
         ),
-        opt(preceded(multispace1, on_clause)),
+        opt(preceded(ws1, on_clause)),
     ))(i)?;
 
     Ok((remaining, ShowRetentionPoliciesStatement { database }))
