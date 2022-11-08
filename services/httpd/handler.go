@@ -1082,6 +1082,10 @@ type Bucket struct {
 	UpdatedAt           time.Time `json:"updatedAt"`
 }
 
+type Buckets struct {
+	Buckets []Bucket `json:"buckets"`
+}
+
 func (h *Handler) servePostCreateBucketV2(w http.ResponseWriter, r *http.Request, user meta.User) {
 	var bs []byte
 	if r.ContentLength > 0 {
@@ -1457,7 +1461,8 @@ func findBucketIndex(dbs []meta.DatabaseInfo, db string, rp string) (dbIndex int
 }
 
 func (h *Handler) sendBuckets(w http.ResponseWriter, buckets []Bucket) {
-	b, err := json.Marshal(buckets)
+	bucketsObj := Buckets{buckets}
+	b, err := json.Marshal(bucketsObj)
 	if err != nil {
 		h.httpError(w, fmt.Sprintf("list buckets marshaling error: %s", err.Error()), http.StatusInternalServerError)
 		return
