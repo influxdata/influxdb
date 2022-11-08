@@ -30,9 +30,9 @@ dependencies = [
 
 [[package]]
 name = "ahash"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57e6e951cfbb2db8de1828d49073a113a29fd7117b1596caa781a258c7e38d72"
+checksum = "464b3811b747f8f7ebc8849c9c728c39f6ac98a055edad93baf9eb330e3f8f9d"
 dependencies = [
  "cfg-if",
  "const-random",
@@ -104,7 +104,7 @@ version = "26.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e24e2bcd431a4aa0ff003fdd2dc21c78cfb42f31459c89d2312c2746fe17a5ac"
 dependencies = [
- "ahash 0.8.0",
+ "ahash 0.8.1",
  "arrow-array",
  "arrow-buffer",
  "arrow-data",
@@ -133,7 +133,7 @@ version = "26.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c9044300874385f19e77cbf90911e239bd23630d8f23bb0f948f9067998a13b7"
 dependencies = [
- "ahash 0.8.0",
+ "ahash 0.8.1",
  "arrow-buffer",
  "arrow-data",
  "arrow-schema",
@@ -206,7 +206,7 @@ dependencies = [
 name = "arrow_util"
 version = "0.1.0"
 dependencies = [
- "ahash 0.8.0",
+ "ahash 0.8.1",
  "arrow",
  "arrow-flight",
  "chrono",
@@ -1157,7 +1157,7 @@ name = "datafusion"
 version = "13.0.0"
 source = "git+https://github.com/apache/arrow-datafusion.git?rev=dd081d64a2fba8574e63bdd0662c14aec5852b48#dd081d64a2fba8574e63bdd0662c14aec5852b48"
 dependencies = [
- "ahash 0.8.0",
+ "ahash 0.8.1",
  "arrow",
  "async-compression",
  "async-trait",
@@ -1214,7 +1214,7 @@ name = "datafusion-expr"
 version = "13.0.0"
 source = "git+https://github.com/apache/arrow-datafusion.git?rev=dd081d64a2fba8574e63bdd0662c14aec5852b48#dd081d64a2fba8574e63bdd0662c14aec5852b48"
 dependencies = [
- "ahash 0.8.0",
+ "ahash 0.8.1",
  "arrow",
  "datafusion-common",
  "log",
@@ -1241,7 +1241,7 @@ name = "datafusion-physical-expr"
 version = "13.0.0"
 source = "git+https://github.com/apache/arrow-datafusion.git?rev=dd081d64a2fba8574e63bdd0662c14aec5852b48#dd081d64a2fba8574e63bdd0662c14aec5852b48"
 dependencies = [
- "ahash 0.8.0",
+ "ahash 0.8.1",
  "arrow",
  "arrow-buffer",
  "arrow-schema",
@@ -1734,8 +1734,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c05aeb6a22b8f62540c194aac980f2115af067bfe15a0734d7277a768d396b31"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "wasi 0.11.0+wasi-snapshot-preview1",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -3426,7 +3428,7 @@ version = "26.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3bf8fa7ab6572791325a8595f55dc532dde88b996ae10a5ca8a2db746784ecc4"
 dependencies = [
- "ahash 0.8.0",
+ "ahash 0.8.1",
  "arrow",
  "base64",
  "brotli",
@@ -6026,7 +6028,7 @@ name = "workspace-hack"
 version = "0.1.0"
 dependencies = [
  "ahash 0.7.6",
- "ahash 0.8.0",
+ "ahash 0.8.1",
  "arrow",
  "base64",
  "bitflags",
