@@ -1,88 +1,91 @@
 -- Test Setup: OneMeasurementFourChunksWithDuplicatesWithIngester
 -- SQL: explain select time, state, city, min_temp, max_temp, area from h2o order by time, state, city;
-+---------------+---------------------------------------------------------------------------------------------------------------------------------------------+
-| plan_type     | plan                                                                                                                                        |
-+---------------+---------------------------------------------------------------------------------------------------------------------------------------------+
-| logical_plan  | Sort: h2o.time ASC NULLS LAST, h2o.state ASC NULLS LAST, h2o.city ASC NULLS LAST                                                            |
-|               |   Projection: h2o.time, h2o.state, h2o.city, h2o.min_temp, h2o.max_temp, h2o.area                                                           |
-|               |     TableScan: h2o projection=[area, city, max_temp, min_temp, state, time]                                                                 |
-| physical_plan | SortExec: [time@0 ASC NULLS LAST,state@1 ASC NULLS LAST,city@2 ASC NULLS LAST]                                                              |
-|               |   CoalescePartitionsExec                                                                                                                    |
-|               |     ProjectionExec: expr=[time@5 as time, state@4 as state, city@1 as city, min_temp@3 as min_temp, max_temp@2 as max_temp, area@0 as area] |
-|               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                      |
-|               |         UnionExec                                                                                                                           |
-|               |           DeduplicateExec: [state@4 ASC,city@1 ASC,time@5 ASC]                                                                              |
-|               |             SortPreservingMergeExec: [state@4 ASC,city@1 ASC,time@5 ASC]                                                                    |
-|               |               UnionExec                                                                                                                     |
-|               |                 IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                             |
-|               |                 IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                             |
-|               |           DeduplicateExec: [city@1 ASC,state@4 ASC,time@5 ASC]                                                                              |
-|               |             SortExec: [city@1 ASC,state@4 ASC,time@5 ASC]                                                                                   |
-|               |               IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                               |
-|               |           IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                                   |
-|               |                                                                                                                                             |
-+---------------+---------------------------------------------------------------------------------------------------------------------------------------------+
+-- Results After Normalizing UUIDs
++---------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| plan_type     | plan                                                                                                                                                                 |
++---------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| logical_plan  | Sort: h2o.time ASC NULLS LAST, h2o.state ASC NULLS LAST, h2o.city ASC NULLS LAST                                                                                     |
+|               |   Projection: h2o.time, h2o.state, h2o.city, h2o.min_temp, h2o.max_temp, h2o.area                                                                                    |
+|               |     TableScan: h2o projection=[area, city, max_temp, min_temp, state, time]                                                                                          |
+| physical_plan | SortExec: [time@0 ASC NULLS LAST,state@1 ASC NULLS LAST,city@2 ASC NULLS LAST]                                                                                       |
+|               |   CoalescePartitionsExec                                                                                                                                             |
+|               |     ProjectionExec: expr=[time@5 as time, state@4 as state, city@1 as city, min_temp@3 as min_temp, max_temp@2 as max_temp, area@0 as area]                          |
+|               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                                               |
+|               |         UnionExec                                                                                                                                                    |
+|               |           DeduplicateExec: [state@4 ASC,city@1 ASC,time@5 ASC]                                                                                                       |
+|               |             SortPreservingMergeExec: [state@4 ASC,city@1 ASC,time@5 ASC]                                                                                             |
+|               |               UnionExec                                                                                                                                              |
+|               |                 ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], projection=[area, city, max_temp, min_temp, state, time] |
+|               |                 ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet], projection=[area, city, max_temp, min_temp, state, time] |
+|               |           DeduplicateExec: [city@1 ASC,state@4 ASC,time@5 ASC]                                                                                                       |
+|               |             SortExec: [city@1 ASC,state@4 ASC,time@5 ASC]                                                                                                            |
+|               |               RecordBatchesExec: batches_groups=1 batches=1                                                                                                          |
+|               |           ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000002.parquet], projection=[area, city, max_temp, min_temp, state, time]       |
+|               |                                                                                                                                                                      |
++---------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 -- SQL: EXPLAIN select time, state, city, min_temp, max_temp, area from h2o;
-+---------------+-----------------------------------------------------------------------------------------------------------------------------------------+
-| plan_type     | plan                                                                                                                                    |
-+---------------+-----------------------------------------------------------------------------------------------------------------------------------------+
-| logical_plan  | Projection: h2o.time, h2o.state, h2o.city, h2o.min_temp, h2o.max_temp, h2o.area                                                         |
-|               |   TableScan: h2o projection=[area, city, max_temp, min_temp, state, time]                                                               |
-| physical_plan | ProjectionExec: expr=[time@5 as time, state@4 as state, city@1 as city, min_temp@3 as min_temp, max_temp@2 as max_temp, area@0 as area] |
-|               |   UnionExec                                                                                                                             |
-|               |     DeduplicateExec: [state@4 ASC,city@1 ASC,time@5 ASC]                                                                                |
-|               |       SortPreservingMergeExec: [state@4 ASC,city@1 ASC,time@5 ASC]                                                                      |
-|               |         UnionExec                                                                                                                       |
-|               |           IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                               |
-|               |           IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                               |
-|               |     DeduplicateExec: [city@1 ASC,state@4 ASC,time@5 ASC]                                                                                |
-|               |       SortExec: [city@1 ASC,state@4 ASC,time@5 ASC]                                                                                     |
-|               |         IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                                 |
-|               |     IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                                     |
-|               |                                                                                                                                         |
-+---------------+-----------------------------------------------------------------------------------------------------------------------------------------+
+-- Results After Normalizing UUIDs
++---------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| plan_type     | plan                                                                                                                                                           |
++---------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| logical_plan  | Projection: h2o.time, h2o.state, h2o.city, h2o.min_temp, h2o.max_temp, h2o.area                                                                                |
+|               |   TableScan: h2o projection=[area, city, max_temp, min_temp, state, time]                                                                                      |
+| physical_plan | ProjectionExec: expr=[time@5 as time, state@4 as state, city@1 as city, min_temp@3 as min_temp, max_temp@2 as max_temp, area@0 as area]                        |
+|               |   UnionExec                                                                                                                                                    |
+|               |     DeduplicateExec: [state@4 ASC,city@1 ASC,time@5 ASC]                                                                                                       |
+|               |       SortPreservingMergeExec: [state@4 ASC,city@1 ASC,time@5 ASC]                                                                                             |
+|               |         UnionExec                                                                                                                                              |
+|               |           ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], projection=[area, city, max_temp, min_temp, state, time] |
+|               |           ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet], projection=[area, city, max_temp, min_temp, state, time] |
+|               |     DeduplicateExec: [city@1 ASC,state@4 ASC,time@5 ASC]                                                                                                       |
+|               |       SortExec: [city@1 ASC,state@4 ASC,time@5 ASC]                                                                                                            |
+|               |         RecordBatchesExec: batches_groups=1 batches=1                                                                                                          |
+|               |     ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000002.parquet], projection=[area, city, max_temp, min_temp, state, time]       |
+|               |                                                                                                                                                                |
++---------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------+
 -- SQL: EXPLAIN select state as name from h2o UNION ALL select city as name from h2o;
-+---------------+---------------------------------------------------------------------------------+
-| plan_type     | plan                                                                            |
-+---------------+---------------------------------------------------------------------------------+
-| logical_plan  | Union                                                                           |
-|               |   Projection: h2o.state AS name                                                 |
-|               |     TableScan: h2o projection=[state]                                           |
-|               |   Projection: h2o.city AS name                                                  |
-|               |     TableScan: h2o projection=[city]                                            |
-| physical_plan | UnionExec                                                                       |
-|               |   ProjectionExec: expr=[state@0 as name]                                        |
-|               |     UnionExec                                                                   |
-|               |       ProjectionExec: expr=[state@1 as state]                                   |
-|               |         RepartitionExec: partitioning=RoundRobinBatch(4)                        |
-|               |           DeduplicateExec: [state@1 ASC,city@0 ASC,time@2 ASC]                  |
-|               |             SortPreservingMergeExec: [state@1 ASC,city@0 ASC,time@2 ASC]        |
-|               |               UnionExec                                                         |
-|               |                 IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate |
-|               |                 IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate |
-|               |       ProjectionExec: expr=[state@1 as state]                                   |
-|               |         RepartitionExec: partitioning=RoundRobinBatch(4)                        |
-|               |           DeduplicateExec: [city@0 ASC,state@1 ASC,time@2 ASC]                  |
-|               |             SortExec: [city@0 ASC,state@1 ASC,time@2 ASC]                       |
-|               |               IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate   |
-|               |       IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate           |
-|               |   ProjectionExec: expr=[city@0 as name]                                         |
-|               |     UnionExec                                                                   |
-|               |       ProjectionExec: expr=[city@0 as city]                                     |
-|               |         RepartitionExec: partitioning=RoundRobinBatch(4)                        |
-|               |           DeduplicateExec: [state@1 ASC,city@0 ASC,time@2 ASC]                  |
-|               |             SortPreservingMergeExec: [state@1 ASC,city@0 ASC,time@2 ASC]        |
-|               |               UnionExec                                                         |
-|               |                 IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate |
-|               |                 IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate |
-|               |       ProjectionExec: expr=[city@0 as city]                                     |
-|               |         RepartitionExec: partitioning=RoundRobinBatch(4)                        |
-|               |           DeduplicateExec: [city@0 ASC,state@1 ASC,time@2 ASC]                  |
-|               |             SortExec: [city@0 ASC,state@1 ASC,time@2 ASC]                       |
-|               |               IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate   |
-|               |       IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate           |
-|               |                                                                                 |
-+---------------+---------------------------------------------------------------------------------+
+-- Results After Normalizing UUIDs
++---------------+--------------------------------------------------------------------------------------------------------------------------------------------+
+| plan_type     | plan                                                                                                                                       |
++---------------+--------------------------------------------------------------------------------------------------------------------------------------------+
+| logical_plan  | Union                                                                                                                                      |
+|               |   Projection: h2o.state AS name                                                                                                            |
+|               |     TableScan: h2o projection=[state]                                                                                                      |
+|               |   Projection: h2o.city AS name                                                                                                             |
+|               |     TableScan: h2o projection=[city]                                                                                                       |
+| physical_plan | UnionExec                                                                                                                                  |
+|               |   ProjectionExec: expr=[state@0 as name]                                                                                                   |
+|               |     UnionExec                                                                                                                              |
+|               |       ProjectionExec: expr=[state@1 as state]                                                                                              |
+|               |         RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                   |
+|               |           DeduplicateExec: [state@1 ASC,city@0 ASC,time@2 ASC]                                                                             |
+|               |             SortPreservingMergeExec: [state@1 ASC,city@0 ASC,time@2 ASC]                                                                   |
+|               |               UnionExec                                                                                                                    |
+|               |                 ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], projection=[city, state, time] |
+|               |                 ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet], projection=[city, state, time] |
+|               |       ProjectionExec: expr=[state@1 as state]                                                                                              |
+|               |         RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                   |
+|               |           DeduplicateExec: [city@0 ASC,state@1 ASC,time@2 ASC]                                                                             |
+|               |             SortExec: [city@0 ASC,state@1 ASC,time@2 ASC]                                                                                  |
+|               |               RecordBatchesExec: batches_groups=1 batches=1                                                                                |
+|               |       ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000002.parquet], projection=[state]                       |
+|               |   ProjectionExec: expr=[city@0 as name]                                                                                                    |
+|               |     UnionExec                                                                                                                              |
+|               |       ProjectionExec: expr=[city@0 as city]                                                                                                |
+|               |         RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                   |
+|               |           DeduplicateExec: [state@1 ASC,city@0 ASC,time@2 ASC]                                                                             |
+|               |             SortPreservingMergeExec: [state@1 ASC,city@0 ASC,time@2 ASC]                                                                   |
+|               |               UnionExec                                                                                                                    |
+|               |                 ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], projection=[city, state, time] |
+|               |                 ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet], projection=[city, state, time] |
+|               |       ProjectionExec: expr=[city@0 as city]                                                                                                |
+|               |         RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                   |
+|               |           DeduplicateExec: [city@0 ASC,state@1 ASC,time@2 ASC]                                                                             |
+|               |             SortExec: [city@0 ASC,state@1 ASC,time@2 ASC]                                                                                  |
+|               |               RecordBatchesExec: batches_groups=1 batches=1                                                                                |
+|               |       ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000002.parquet], projection=[city]                        |
+|               |                                                                                                                                            |
++---------------+--------------------------------------------------------------------------------------------------------------------------------------------+
 -- SQL: select count(*) from h2o;
 +-----------------+
 | COUNT(UInt8(1)) |

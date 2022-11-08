@@ -19,7 +19,7 @@ mod test {
     use crate::{
         exec::{split::StreamSplitExec, Executor, ExecutorType, IOxSessionContext},
         frontend::reorg::ReorgPlanner,
-        provider::{DeduplicateExec, IOxReadFilterNode},
+        provider::{DeduplicateExec, RecordBatchesExec},
         test::TestChunk,
         QueryChunk, QueryChunkMeta, ScanPlanBuilder,
     };
@@ -255,7 +255,7 @@ mod test {
 
         // now validate metrics are good
         let extracted = extract_metrics(plan.as_ref(), |plan| {
-            plan.as_any().downcast_ref::<IOxReadFilterNode>().is_some()
+            plan.as_any().downcast_ref::<RecordBatchesExec>().is_some()
         })
         .unwrap();
 

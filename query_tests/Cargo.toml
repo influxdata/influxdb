@@ -29,10 +29,12 @@ once_cell = { version = "1.16.0", features = ["parking_lot"] }
 parquet_file = { version = "0.1.0", path = "../parquet_file" }
 predicate = { path = "../predicate" }
 querier = { path = "../querier" }
+regex = "1.7.0"
 schema = { path = "../schema" }
 sharder = { path = "../sharder" }
 tokio = { version = "1.21", features = ["macros", "parking_lot", "rt-multi-thread", "time"] }
 trace = { path = "../trace" }
+uuid = "1"
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]

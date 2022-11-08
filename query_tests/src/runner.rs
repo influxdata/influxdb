@@ -6,12 +6,15 @@ mod setup;
 use arrow::record_batch::RecordBatch;
 use arrow_util::{display::pretty_format_batches, test_util::sort_record_batch};
 use iox_query::frontend::sql::SqlQueryPlanner;
+use regex::{Captures, Regex};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
+    collections::HashMap,
     io::LineWriter,
     io::Write,
     path::{Path, PathBuf},
 };
+use uuid::Uuid;
 
 use self::{
     parse::{Query, TestQueries},
@@ -198,6 +201,9 @@ impl<W: Write> Runner<W> {
             if q.sorted_compare() {
                 output.push("-- Results After Sorting".into())
             }
+            if q.normalized_uuids() {
+                output.push("-- Results After Normalizing UUIDs".into())
+            }
 
             output.append(&mut self.run_query(q, db_setup.as_ref()).await?);
         }
@@ -290,12 +296,36 @@ impl<W: Write> Runner<W> {
                 results = vec![sort_record_batch(batch)];
             }
 
-            let current_results = pretty_format_batches(&results)
+            let mut current_results = pretty_format_batches(&results)
                 .unwrap()
                 .trim()
                 .lines()
                 .map(|s| s.to_string())
                 .collect::<Vec<_>>();
+
+            // normalize UUIDs, if requested
+            if query.normalized_uuids() {
+                let regex =
+                    Regex::new("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+                        .expect("UUID regex");
+                let mut seen: HashMap<String, u128> = HashMap::new();
+                current_results = current_results
+                    .into_iter()
+                    .map(|s| {
+                        regex
+                            .replace_all(&s, |s: &Captures| {
+                                let next = seen.len() as u128;
+                                Uuid::from_u128(
+                                    *seen
+                                        .entry(s.get(0).unwrap().as_str().to_owned())
+                                        .or_insert(next),
+                                )
+                                .to_string()
+                            })
+                            .to_string()
+                    })
+                    .collect();
+            }
 
             if !previous_results.is_empty() && previous_results != current_results {
                 let err = ScenarioMismatchSnafu {

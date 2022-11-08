@@ -40,7 +40,7 @@ pub async fn test_tracing_sql() {
     // "shallow" packet inspection and verify the UDP server got omething that had some expected
     // results (maybe we could eventually verify the payload here too)
     udp_capture
-        .wait_for(|m| m.to_string().contains("IOxReadFilterNode"))
+        .wait_for(|m| m.to_string().contains("RecordBatchesExec"))
         .await;
 
     // debugging assistance
@@ -94,7 +94,7 @@ pub async fn test_tracing_storage_api() {
     // "shallow" packet inspection and verify the UDP server got omething that had some expected
     // results (maybe we could eventually verify the payload here too)
     udp_capture
-        .wait_for(|m| m.to_string().contains("IOxReadFilterNode"))
+        .wait_for(|m| m.to_string().contains("RecordBatchesExec"))
         .await;
 
     // debugging assistance
@@ -142,7 +142,7 @@ pub async fn test_tracing_create_trace() {
     // "shallow" packet inspection and verify the UDP server got omething that had some expected
     // results (maybe we could eventually verify the payload here too)
     udp_capture
-        .wait_for(|m| m.to_string().contains("IOxReadFilterNode"))
+        .wait_for(|m| m.to_string().contains("RecordBatchesExec"))
         .await;
 
     // debugging assistance

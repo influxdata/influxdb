@@ -5,7 +5,6 @@ use datafusion::{
     physical_plan::{ColumnStatistics, Statistics as DFStatistics},
     scalar::ScalarValue,
 };
-use schema::Schema;
 
 /// Converts stats.min and an appropriate `ScalarValue`
 pub(crate) fn min_to_scalar(
@@ -50,13 +49,17 @@ pub(crate) fn max_to_scalar(
 }
 
 /// Creates a DataFusion `Statistics` object from an IOx `TableSummary`
-pub(crate) fn df_from_iox(schema: &Schema, summary: &TableSummary) -> DFStatistics {
+pub(crate) fn df_from_iox(
+    schema: &arrow::datatypes::Schema,
+    summary: &TableSummary,
+) -> DFStatistics {
     // reorder the column statistics so DF sees them in the same order
     // as the schema. Form map of field_name-->column_index
     let order_map = schema
+        .fields()
         .iter()
         .enumerate()
-        .map(|(i, (_, field))| (field.name(), i))
+        .map(|(i, field)| (field.name(), i))
         .collect::<hashbrown::HashMap<_, _>>();
 
     let mut columns: Vec<(&ColumnSummary, &usize)> = summary
@@ -181,7 +184,7 @@ mod test {
             is_exact: true,
         };
 
-        let actual = df_from_iox(&schema, &table_summary);
+        let actual = df_from_iox(schema.inner(), &table_summary);
         assert_nice_eq!(actual, expected);
 
         // test 1: columns in c1, c2 order in shcema (in c1, c2 in table_summary)
@@ -199,7 +202,7 @@ mod test {
             ..expected
         };
 
-        let actual = df_from_iox(&schema, &table_summary);
+        let actual = df_from_iox(schema.inner(), &table_summary);
         assert_nice_eq!(actual, expected);
     }
 
@@ -240,7 +243,7 @@ mod test {
             is_exact: true,
         };
 
-        let actual = df_from_iox(&schema, &table_summary);
+        let actual = df_from_iox(schema.inner(), &table_summary);
         assert_nice_eq!(actual, expected);
     }
 }

@@ -3986,6 +3986,7 @@ dependencies = [
  "pin-project",
  "predicate",
  "rand",
+ "regex",
  "schema",
  "service_common",
  "service_grpc_catalog",
@@ -4049,6 +4050,7 @@ dependencies = [
  "parquet_file",
  "predicate",
  "querier",
+ "regex",
  "schema",
  "sharder",
  "snafu",
@@ -4056,6 +4058,7 @@ dependencies = [
  "test_helpers",
  "tokio",
  "trace",
+ "uuid",
  "workspace-hack",
 ]
 

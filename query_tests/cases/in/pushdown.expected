@@ -13,15 +13,16 @@
 | 40000 | 5      | 1970-01-01T00:00:00.000000100Z | andover   |
 +-------+--------+--------------------------------+-----------+
 -- SQL: EXPLAIN SELECT * from restaurant;
-+---------------+---------------------------------------------------------------------------------------------+
-| plan_type     | plan                                                                                        |
-+---------------+---------------------------------------------------------------------------------------------+
-| logical_plan  | Projection: restaurant.count, restaurant.system, restaurant.time, restaurant.town           |
-|               |   TableScan: restaurant projection=[count, system, time, town]                              |
-| physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town] |
-|               |   IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate                    |
-|               |                                                                                             |
-+---------------+---------------------------------------------------------------------------------------------+
+-- Results After Normalizing UUIDs
++---------------+--------------------------------------------------------------------------------------------------------------------------------------+
+| plan_type     | plan                                                                                                                                 |
++---------------+--------------------------------------------------------------------------------------------------------------------------------------+
+| logical_plan  | Projection: restaurant.count, restaurant.system, restaurant.time, restaurant.town                                                    |
+|               |   TableScan: restaurant projection=[count, system, time, town]                                                                       |
+| physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                                          |
+|               |   ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], projection=[count, system, time, town] |
+|               |                                                                                                                                      |
++---------------+--------------------------------------------------------------------------------------------------------------------------------------+
 -- SQL: SELECT * from restaurant where count > 200;
 -- Results After Sorting
 +-------+--------+--------------------------------+-----------+
@@ -35,47 +36,50 @@
 | 40000 | 5      | 1970-01-01T00:00:00.000000100Z | andover   |
 +-------+--------+--------------------------------+-----------+
 -- SQL: EXPLAIN SELECT * from restaurant where count > 200;
-+---------------+----------------------------------------------------------------------------------------------------------------------------------+
-| plan_type     | plan                                                                                                                             |
-+---------------+----------------------------------------------------------------------------------------------------------------------------------+
-| logical_plan  | Projection: restaurant.count, restaurant.system, restaurant.time, restaurant.town                                                |
-|               |   Filter: CAST(restaurant.count AS Int64) > Int64(200)                                                                           |
-|               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[CAST(restaurant.count AS Int64) > Int64(200)] |
-| physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                                      |
-|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                    |
-|               |     FilterExec: CAST(count@0 AS Int64) > 200                                                                                     |
-|               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                           |
-|               |         IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate                                                   |
-|               |                                                                                                                                  |
-+---------------+----------------------------------------------------------------------------------------------------------------------------------+
+-- Results After Normalizing UUIDs
++---------------+--------------------------------------------------------------------------------------------------------------------------------------------+
+| plan_type     | plan                                                                                                                                       |
++---------------+--------------------------------------------------------------------------------------------------------------------------------------------+
+| logical_plan  | Projection: restaurant.count, restaurant.system, restaurant.time, restaurant.town                                                          |
+|               |   Filter: CAST(restaurant.count AS Int64) > Int64(200)                                                                                     |
+|               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[CAST(restaurant.count AS Int64) > Int64(200)]           |
+| physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                                                |
+|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                              |
+|               |     FilterExec: CAST(count@0 AS Int64) > 200                                                                                               |
+|               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                     |
+|               |         ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], projection=[count, system, time, town] |
+|               |                                                                                                                                            |
++---------------+--------------------------------------------------------------------------------------------------------------------------------------------+
 -- SQL: EXPLAIN SELECT * from restaurant where count > 200.0;
-+---------------+--------------------------------------------------------------------------------------------------------------------------------------+
-| plan_type     | plan                                                                                                                                 |
-+---------------+--------------------------------------------------------------------------------------------------------------------------------------+
-| logical_plan  | Projection: restaurant.count, restaurant.system, restaurant.time, restaurant.town                                                    |
-|               |   Filter: CAST(restaurant.count AS Float64) > Float64(200)                                                                           |
-|               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[CAST(restaurant.count AS Float64) > Float64(200)] |
-| physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                                          |
-|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                        |
-|               |     FilterExec: CAST(count@0 AS Float64) > 200                                                                                       |
-|               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                               |
-|               |         IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate                                                       |
-|               |                                                                                                                                      |
-+---------------+--------------------------------------------------------------------------------------------------------------------------------------+
+-- Results After Normalizing UUIDs
++---------------+--------------------------------------------------------------------------------------------------------------------------------------------+
+| plan_type     | plan                                                                                                                                       |
++---------------+--------------------------------------------------------------------------------------------------------------------------------------------+
+| logical_plan  | Projection: restaurant.count, restaurant.system, restaurant.time, restaurant.town                                                          |
+|               |   Filter: CAST(restaurant.count AS Float64) > Float64(200)                                                                                 |
+|               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[CAST(restaurant.count AS Float64) > Float64(200)]       |
+| physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                                                |
+|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                              |
+|               |     FilterExec: CAST(count@0 AS Float64) > 200                                                                                             |
+|               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                     |
+|               |         ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], projection=[count, system, time, town] |
+|               |                                                                                                                                            |
++---------------+--------------------------------------------------------------------------------------------------------------------------------------------+
 -- SQL: EXPLAIN SELECT * from restaurant where system > 4.0;
-+---------------+--------------------------------------------------------------------------------------------------------------------+
-| plan_type     | plan                                                                                                               |
-+---------------+--------------------------------------------------------------------------------------------------------------------+
-| logical_plan  | Projection: restaurant.count, restaurant.system, restaurant.time, restaurant.town                                  |
-|               |   Filter: restaurant.system > Float64(4)                                                                           |
-|               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[restaurant.system > Float64(4)] |
-| physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                        |
-|               |   CoalesceBatchesExec: target_batch_size=4096                                                                      |
-|               |     FilterExec: system@1 > 4                                                                                       |
-|               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                             |
-|               |         IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate exprs: [system > Float64(4)]        |
-|               |                                                                                                                    |
-+---------------+--------------------------------------------------------------------------------------------------------------------+
+-- Results After Normalizing UUIDs
++---------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| plan_type     | plan                                                                                                                                                                   |
++---------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| logical_plan  | Projection: restaurant.count, restaurant.system, restaurant.time, restaurant.town                                                                                      |
+|               |   Filter: restaurant.system > Float64(4)                                                                                                                               |
+|               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[restaurant.system > Float64(4)]                                                     |
+| physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                                                                            |
+|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                                                          |
+|               |     FilterExec: system@1 > 4                                                                                                                                           |
+|               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                                                 |
+|               |         ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], predicate=system_max@0 > 4, projection=[count, system, time, town] |
+|               |                                                                                                                                                                        |
++---------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 -- SQL: SELECT * from restaurant where count > 200 and town != 'tewsbury';
 -- Results After Sorting
 +-------+--------+--------------------------------+-----------+
@@ -88,19 +92,20 @@
 | 40000 | 5      | 1970-01-01T00:00:00.000000100Z | andover   |
 +-------+--------+--------------------------------+-----------+
 -- SQL: EXPLAIN SELECT * from restaurant where count > 200 and town != 'tewsbury';
-+---------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| plan_type     | plan                                                                                                                                                                                     |
-+---------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| logical_plan  | Projection: restaurant.count, restaurant.system, restaurant.time, restaurant.town                                                                                                        |
-|               |   Filter: CAST(restaurant.count AS Int64) > Int64(200) AND restaurant.town != Dictionary(Int32, Utf8("tewsbury"))                                                                        |
-|               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[CAST(restaurant.count AS Int64) > Int64(200), restaurant.town != Dictionary(Int32, Utf8("tewsbury"))] |
-| physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                                                                                              |
-|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                                                                            |
-|               |     FilterExec: CAST(count@0 AS Int64) > 200 AND town@3 != tewsbury                                                                                                                      |
-|               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                                                                   |
-|               |         IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate exprs: [town != Dictionary(Int32, Utf8("tewsbury"))]                                                      |
-|               |                                                                                                                                                                                          |
-+---------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+-- Results After Normalizing UUIDs
++---------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| plan_type     | plan                                                                                                                                                                                                   |
++---------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| logical_plan  | Projection: restaurant.count, restaurant.system, restaurant.time, restaurant.town                                                                                                                      |
+|               |   Filter: CAST(restaurant.count AS Int64) > Int64(200) AND restaurant.town != Dictionary(Int32, Utf8("tewsbury"))                                                                                      |
+|               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[CAST(restaurant.count AS Int64) > Int64(200), restaurant.town != Dictionary(Int32, Utf8("tewsbury"))]               |
+| physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                                                                                                            |
+|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                                                                                          |
+|               |     FilterExec: CAST(count@0 AS Int64) > 200 AND town@3 != tewsbury                                                                                                                                    |
+|               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                                                                                 |
+|               |         ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], predicate=town_min@0 != tewsbury OR tewsbury != town_max@1, projection=[count, system, time, town] |
+|               |                                                                                                                                                                                                        |
++---------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 -- SQL: SELECT * from restaurant where count > 200 and town != 'tewsbury' and (system =5 or town = 'lawrence');
 -- Results After Sorting
 +-------+--------+--------------------------------+-----------+
@@ -112,6 +117,7 @@
 | 40000 | 5      | 1970-01-01T00:00:00.000000100Z | andover   |
 +-------+--------+--------------------------------+-----------+
 -- SQL: EXPLAIN SELECT * from restaurant where count > 200 and town != 'tewsbury' and (system =5 or town = 'lawrence');
+-- Results After Normalizing UUIDs
 +---------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 | plan_type     | plan                                                                                                                                                                                                                                                                              |
 +---------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
@@ -122,7 +128,7 @@
 |               |   CoalesceBatchesExec: target_batch_size=4096                                                                                                                                                                                                                                     |
 |               |     FilterExec: CAST(count@0 AS Int64) > 200 AND town@3 != tewsbury AND system@1 = 5 OR town@3 = lawrence                                                                                                                                                                         |
 |               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                                                                                                                                                            |
-|               |         IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate exprs: [town != Dictionary(Int32, Utf8("tewsbury"))]                                                                                                                                               |
+|               |         ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], predicate=town_min@0 != tewsbury OR tewsbury != town_max@1, projection=[count, system, time, town]                                                                            |
 |               |                                                                                                                                                                                                                                                                                   |
 +---------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 -- SQL: SELECT * from restaurant where count > 200 and town != 'tewsbury' and (system =5 or town = 'lawrence') and count < 40000;
@@ -135,6 +141,7 @@
 | 872   | 6      | 1970-01-01T00:00:00.000000110Z | lawrence  |
 +-------+--------+--------------------------------+-----------+
 -- SQL: EXPLAIN SELECT * from restaurant where count > 200 and town != 'tewsbury' and (system =5 or town = 'lawrence') and count < 40000;
+-- Results After Normalizing UUIDs
 +---------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 | plan_type     | plan                                                                                                                                                                                                                                                                                                                                |
 +---------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
@@ -147,7 +154,7 @@
 |               |     FilterExec: CAST(restaurant.count AS Int64)restaurant.count@0 > 200 AND town@4 != tewsbury AND system@2 = 5 OR town@4 = lawrence AND CAST(restaurant.count AS Int64)restaurant.count@0 < 40000                                                                                                                                  |
 |               |       ProjectionExec: expr=[CAST(count@0 AS Int64) as CAST(restaurant.count AS Int64)restaurant.count, count@0 as count, system@1 as system, time@2 as time, town@3 as town]                                                                                                                                                        |
 |               |         RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                                                                                                                                                                                                            |
-|               |           IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate exprs: [town != Dictionary(Int32, Utf8("tewsbury"))]                                                                                                                                                                                               |
+|               |           ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], predicate=town_min@0 != tewsbury OR tewsbury != town_max@1, projection=[count, system, time, town]                                                                                                                            |
 |               |                                                                                                                                                                                                                                                                                                                                     |
 +---------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 -- SQL: SELECT * from restaurant where count > 200  and count < 40000;
@@ -162,6 +169,7 @@
 | 872   | 6      | 1970-01-01T00:00:00.000000110Z | lawrence  |
 +-------+--------+--------------------------------+-----------+
 -- SQL: EXPLAIN SELECT * from restaurant where count > 200  and count < 40000;
+-- Results After Normalizing UUIDs
 +---------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 | plan_type     | plan                                                                                                                                                                               |
 +---------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
@@ -174,7 +182,7 @@
 |               |     FilterExec: CAST(restaurant.count AS Int64)restaurant.count@0 > 200 AND CAST(restaurant.count AS Int64)restaurant.count@0 < 40000                                              |
 |               |       ProjectionExec: expr=[CAST(count@0 AS Int64) as CAST(restaurant.count AS Int64)restaurant.count, count@0 as count, system@1 as system, time@2 as time, town@3 as town]       |
 |               |         RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                                                           |
-|               |           IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate                                                                                                   |
+|               |           ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], projection=[count, system, time, town]                                       |
 |               |                                                                                                                                                                                    |
 +---------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 -- SQL: SELECT * from restaurant where system > 4.0 and system < 7.0;
@@ -190,19 +198,20 @@
 | 40000 | 5      | 1970-01-01T00:00:00.000000100Z | andover   |
 +-------+--------+--------------------------------+-----------+
 -- SQL: EXPLAIN SELECT * from restaurant where system > 4.0 and system < 7.0;
-+---------------+----------------------------------------------------------------------------------------------------------------------------------------------------+
-| plan_type     | plan                                                                                                                                               |
-+---------------+----------------------------------------------------------------------------------------------------------------------------------------------------+
-| logical_plan  | Projection: restaurant.count, restaurant.system, restaurant.time, restaurant.town                                                                  |
-|               |   Filter: restaurant.system > Float64(4) AND restaurant.system < Float64(7)                                                                        |
-|               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[restaurant.system > Float64(4), restaurant.system < Float64(7)] |
-| physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                                                        |
-|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                                      |
-|               |     FilterExec: system@1 > 4 AND system@1 < 7                                                                                                      |
-|               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                             |
-|               |         IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate exprs: [system > Float64(4), system < Float64(7)]                   |
-|               |                                                                                                                                                    |
-+---------------+----------------------------------------------------------------------------------------------------------------------------------------------------+
+-- Results After Normalizing UUIDs
++---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| plan_type     | plan                                                                                                                                                                                        |
++---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| logical_plan  | Projection: restaurant.count, restaurant.system, restaurant.time, restaurant.town                                                                                                           |
+|               |   Filter: restaurant.system > Float64(4) AND restaurant.system < Float64(7)                                                                                                                 |
+|               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[restaurant.system > Float64(4), restaurant.system < Float64(7)]                                          |
+| physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                                                                                                 |
+|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                                                                               |
+|               |     FilterExec: system@1 > 4 AND system@1 < 7                                                                                                                                               |
+|               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                                                                      |
+|               |         ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], predicate=system_max@0 > 4 AND system_min@1 < 7, projection=[count, system, time, town] |
+|               |                                                                                                                                                                                             |
++---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 -- SQL: SELECT * from restaurant where system > 5.0 and system < 7.0;
 -- Results After Sorting
 +-------+--------+--------------------------------+----------+
@@ -213,19 +222,20 @@
 | 872   | 6      | 1970-01-01T00:00:00.000000110Z | lawrence |
 +-------+--------+--------------------------------+----------+
 -- SQL: EXPLAIN SELECT * from restaurant where system > 5.0 and system < 7.0;
-+---------------+----------------------------------------------------------------------------------------------------------------------------------------------------+
-| plan_type     | plan                                                                                                                                               |
-+---------------+----------------------------------------------------------------------------------------------------------------------------------------------------+
-| logical_plan  | Projection: restaurant.count, restaurant.system, restaurant.time, restaurant.town                                                                  |
-|               |   Filter: restaurant.system > Float64(5) AND restaurant.system < Float64(7)                                                                        |
-|               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[restaurant.system > Float64(5), restaurant.system < Float64(7)] |
-| physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                                                        |
-|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                                      |
-|               |     FilterExec: system@1 > 5 AND system@1 < 7                                                                                                      |
-|               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                             |
-|               |         IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate exprs: [system > Float64(5), system < Float64(7)]                   |
-|               |                                                                                                                                                    |
-+---------------+----------------------------------------------------------------------------------------------------------------------------------------------------+
+-- Results After Normalizing UUIDs
++---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| plan_type     | plan                                                                                                                                                                                        |
++---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| logical_plan  | Projection: restaurant.count, restaurant.system, restaurant.time, restaurant.town                                                                                                           |
+|               |   Filter: restaurant.system > Float64(5) AND restaurant.system < Float64(7)                                                                                                                 |
+|               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[restaurant.system > Float64(5), restaurant.system < Float64(7)]                                          |
+| physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                                                                                                 |
+|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                                                                               |
+|               |     FilterExec: system@1 > 5 AND system@1 < 7                                                                                                                                               |
+|               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                                                                      |
+|               |         ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], predicate=system_max@0 > 5 AND system_min@1 < 7, projection=[count, system, time, town] |
+|               |                                                                                                                                                                                             |
++---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 -- SQL: SELECT * from restaurant where system > 5.0 and town != 'tewsbury' and 7.0 > system;
 -- Results After Sorting
 +-------+--------+--------------------------------+----------+
@@ -235,19 +245,20 @@
 | 872   | 6      | 1970-01-01T00:00:00.000000110Z | lawrence |
 +-------+--------+--------------------------------+----------+
 -- SQL: EXPLAIN SELECT * from restaurant where system > 5.0 and town != 'tewsbury' and 7.0 > system;
-+---------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| plan_type     | plan                                                                                                                                                                                                       |
-+---------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| logical_plan  | Projection: restaurant.count, restaurant.system, restaurant.time, restaurant.town                                                                                                                          |
-|               |   Filter: restaurant.system > Float64(5) AND restaurant.town != Dictionary(Int32, Utf8("tewsbury")) AND Float64(7) > restaurant.system                                                                     |
-|               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[restaurant.system > Float64(5), restaurant.town != Dictionary(Int32, Utf8("tewsbury")), Float64(7) > restaurant.system] |
-| physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                                                                                                                |
-|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                                                                                              |
-|               |     FilterExec: system@1 > 5 AND town@3 != tewsbury AND 7 > system@1                                                                                                                                       |
-|               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                                                                                     |
-|               |         IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate exprs: [system > Float64(5), town != Dictionary(Int32, Utf8("tewsbury")), Float64(7) > system]                              |
-|               |                                                                                                                                                                                                            |
-+---------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+-- Results After Normalizing UUIDs
++---------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| plan_type     | plan                                                                                                                                                                                                                                             |
++---------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| logical_plan  | Projection: restaurant.count, restaurant.system, restaurant.time, restaurant.town                                                                                                                                                                |
+|               |   Filter: restaurant.system > Float64(5) AND restaurant.town != Dictionary(Int32, Utf8("tewsbury")) AND Float64(7) > restaurant.system                                                                                                           |
+|               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[restaurant.system > Float64(5), restaurant.town != Dictionary(Int32, Utf8("tewsbury")), Float64(7) > restaurant.system]                                       |
+| physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                                                                                                                                                      |
+|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                                                                                                                                    |
+|               |     FilterExec: system@1 > 5 AND town@3 != tewsbury AND 7 > system@1                                                                                                                                                                             |
+|               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                                                                                                                           |
+|               |         ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], predicate=system_max@0 > 5 AND town_min@1 != tewsbury OR tewsbury != town_max@2 AND system_min@3 < 7, projection=[count, system, time, town] |
+|               |                                                                                                                                                                                                                                                  |
++---------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 -- SQL: SELECT * from restaurant where system > 5.0 and 'tewsbury' != town and system < 7.0 and (count = 632 or town = 'reading');
 -- Results After Sorting
 +-------+--------+--------------------------------+---------+
@@ -256,6 +267,7 @@
 | 632   | 6      | 1970-01-01T00:00:00.000000130Z | reading |
 +-------+--------+--------------------------------+---------+
 -- SQL: EXPLAIN SELECT * from restaurant where system > 5.0 and 'tewsbury' != town and system < 7.0 and (count = 632 or town = 'reading');
+-- Results After Normalizing UUIDs
 +---------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 | plan_type     | plan                                                                                                                                                                                                                                                                                                             |
 +---------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
@@ -266,7 +278,7 @@
 |               |   CoalesceBatchesExec: target_batch_size=4096                                                                                                                                                                                                                                                                    |
 |               |     FilterExec: system@1 > 5 AND tewsbury != town@3 AND system@1 < 7 AND CAST(count@0 AS Int64) = 632 OR town@3 = reading                                                                                                                                                                                        |
 |               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                                                                                                                                                                                           |
-|               |         IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate exprs: [system > Float64(5), Dictionary(Int32, Utf8("tewsbury")) != town, system < Float64(7)]                                                                                                                                    |
+|               |         ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], predicate=system_max@0 > 5 AND town_min@1 != tewsbury OR tewsbury != town_max@2 AND system_min@3 < 7, projection=[count, system, time, town]                                                                 |
 |               |                                                                                                                                                                                                                                                                                                                  |
 +---------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 -- SQL: SELECT * from restaurant where 5.0 < system and town != 'tewsbury' and system < 7.0 and (count = 632 or town = 'reading') and time > to_timestamp('1970-01-01T00:00:00.000000130+00:00');
@@ -274,6 +286,7 @@
 ++
 ++
 -- SQL: EXPLAIN SELECT * from restaurant where 5.0 < system and town != 'tewsbury' and system < 7.0 and (count = 632 or town = 'reading') and time > to_timestamp('1970-01-01T00:00:00.000000130+00:00');
+-- Results After Normalizing UUIDs
 +---------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 | plan_type     | plan                                                                                                                                                                                                                                                                                                                                                               |
 +---------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
@@ -284,7 +297,7 @@
 |               |   CoalesceBatchesExec: target_batch_size=4096                                                                                                                                                                                                                                                                                                                      |
 |               |     FilterExec: 5 < system@1 AND town@3 != tewsbury AND system@1 < 7 AND CAST(count@0 AS Int64) = 632 OR town@3 = reading AND time@2 > 130                                                                                                                                                                                                                         |
 |               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                                                                                                                                                                                                                                             |
-|               |         IOxReadFilterNode: table_name=restaurant, chunks=0 predicate=Predicate exprs: [Float64(5) < system, town != Dictionary(Int32, Utf8("tewsbury")), system < Float64(7), time > TimestampNanosecond(130, None)]                                                                                                                                               |
+|               |         EmptyExec: produce_one_row=false                                                                                                                                                                                                                                                                                                                           |
 |               |                                                                                                                                                                                                                                                                                                                                                                    |
 +---------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 -- SQL: SELECT * from restaurant where system > 5.0 and 'tewsbury' != town and system < 7.0 and town = 'reading';

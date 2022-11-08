@@ -51,4 +51,5 @@ assert_matches = "1.5"
 iox_tests = { path = "../iox_tests" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 object_store_metrics = { path = "../object_store_metrics" }
+regex = "1.7.0"
 test_helpers = { path = "../test_helpers" }
