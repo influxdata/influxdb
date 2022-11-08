@@ -311,11 +311,10 @@ pub async fn prepare_data_to_querier(
     // acquire locks and read table data in parallel
     let unpersisted_partitions: Vec<_> = futures::stream::iter(table_refs)
         .map(|table_data| async move {
+            let mut table_data = table_data.write().await;
             table_data
-                .partitions()
-                .into_iter()
+                .partition_iter_mut()
                 .map(|p| {
-                    let mut p = p.lock();
                     (
                         p.partition_id(),
                         p.get_query_data(),

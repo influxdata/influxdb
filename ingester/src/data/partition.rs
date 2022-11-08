@@ -6,7 +6,6 @@ use data_types::{NamespaceId, PartitionId, PartitionKey, SequenceNumber, ShardId
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
 use schema::sort::SortKey;
-use thiserror::Error;
 use write_summary::ShardProgress;
 
 use self::{
@@ -19,18 +18,6 @@ use super::{sequence_range::SequenceNumberRange, table::TableName};
 
 mod buffer;
 pub mod resolver;
-
-/// Errors that occur during DML operation buffering.
-#[derive(Debug, Error)]
-pub(crate) enum BufferError {
-    /// The op being applied has already been previously persisted.
-    #[error("skipped applying already persisted op")]
-    SkipPersisted,
-
-    /// An error occurred writing the data to the [`MutableBatch`].
-    #[error("failed to apply DML op: {0}")]
-    BufferError(#[from] mutable_batch::Error),
-}
 
 /// The load state of the [`SortKey`] for a given partition.
 #[derive(Debug, Clone)]
@@ -120,35 +107,25 @@ impl PartitionData {
     /// Buffer the given [`MutableBatch`] in memory, ordered by the specified
     /// [`SequenceNumber`].
     ///
-    /// This method returns [`BufferError::SkipPersisted`] if `sequence_number`
-    /// falls in the range of previously persisted data (where `sequence_number`
-    /// is strictly less than the value of
-    /// [`Self::max_persisted_sequence_number()`]).
-    ///
     /// # Panics
     ///
     /// This method panics if `sequence_number` is not strictly greater than
-    /// previous calls. This is not enforced for writes before the persist mark.
+    /// previous calls or the persisted maximum.
     pub(super) fn buffer_write(
         &mut self,
         mb: MutableBatch,
         sequence_number: SequenceNumber,
-    ) -> Result<(), BufferError> {
-        // Skip any ops that have already been applied.
+    ) -> Result<(), super::Error> {
+        // Ensure that this write is strictly after any persisted ops.
         if let Some(min) = self.max_persisted_sequence_number {
-            if sequence_number <= min {
-                trace!(
-                    shard_id=%self.shard_id,
-                    op_sequence_number=?sequence_number,
-                    "skipping already-persisted write"
-                );
-                return Err(BufferError::SkipPersisted);
-            }
+            assert!(sequence_number > min, "monotonicity violation");
         }
 
         // Buffer the write, which ensures monotonicity of writes within the
         // buffer itself.
-        self.buffer.buffer_write(mb, sequence_number)?;
+        self.buffer
+            .buffer_write(mb, sequence_number)
+            .map_err(|e| super::Error::BufferWrite { source: e })?;
 
         trace!(
             shard_id = %self.shard_id,
@@ -1104,9 +1081,8 @@ mod tests {
 
     // As above, the sequence numbers are not tracked between buffer instances.
     //
-    // This test ensures that a partition can tolerate replayed ops prior to the
-    // persist marker when first initialising. However once a partition has
-    // buffered beyond the persist marker, it cannot re-buffer ops after it.
+    // This ensures that a write after a batch is persisted is still required to
+    // be monotonic.
     #[tokio::test]
     #[should_panic(expected = "monotonicity violation")]
     async fn test_non_monotonic_writes_after_persistence() {
@@ -1129,26 +1105,13 @@ mod tests {
         p.mark_persisted(SequenceNumber::new(42));
 
         // This should fail as the write "goes backwards".
-        let err = p
-            .buffer_write(mb.clone(), SequenceNumber::new(1))
-            .expect_err("out of order write should succeed");
-
-        // This assert ensures replay is tolerated, with the previously
-        // persisted ops skipping instead of being applied.
-        assert_matches!(err, BufferError::SkipPersisted);
-
-        // Until a write is accepted.
-        p.buffer_write(mb.clone(), SequenceNumber::new(100))
+        p.buffer_write(mb, SequenceNumber::new(1))
             .expect("out of order write should succeed");
-
-        // At which point a write between the persist marker and the maximum
-        // applied sequence number is a hard error.
-        let _ = p.buffer_write(mb, SequenceNumber::new(50));
     }
 
-    // As above, but with a pre-configured persist marker greater than the
-    // sequence number being wrote.
+    // As above, but with a pre-configured persist marker.
     #[tokio::test]
+    #[should_panic(expected = "monotonicity violation")]
     async fn test_non_monotonic_writes_persist_marker() {
         let mut p = PartitionData::new(
             PARTITION_ID,
@@ -1168,11 +1131,8 @@ mod tests {
         let mb = lp_to_mutable_batch(r#"bananas,city=London people=2,pigeons="millions" 10"#).1;
 
         // This should fail as the write "goes backwards".
-        let err = p
-            .buffer_write(mb, SequenceNumber::new(1))
-            .expect_err("out of order write should not succeed");
-
-        assert_matches!(err, BufferError::SkipPersisted);
+        p.buffer_write(mb, SequenceNumber::new(1))
+            .expect("out of order write should succeed");
     }
 
     // Restoring a persist marker is included in progress reports.
