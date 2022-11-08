@@ -36,9 +36,15 @@ impl<K, V, S> std::ops::Deref for ArcMap<K, V, S> {
 
 impl<K, V> Default for ArcMap<K, V> {
     fn default() -> Self {
+        // The same hasher should be used by everything that hashes for a
+        // consistent result.
+        //
+        // See https://github.com/influxdata/influxdb_iox/pull/6086.
+        let map: HashMap<K, Arc<V>> = Default::default();
+        let hasher = map.hasher().clone();
         Self {
-            map: Default::default(),
-            hasher: Default::default(),
+            map: RwLock::new(map),
+            hasher,
         }
     }
 }
@@ -67,7 +73,8 @@ where
     /// memorised.
     pub(crate) fn get_or_insert_with<Q, F>(&self, key: &Q, init: F) -> Arc<V>
     where
-        Q: Hash + PartialEq<K> + ToOwned<Owned = K> + ?Sized,
+        K: Borrow<Q>,
+        Q: Hash + Eq + ToOwned<Owned = K> + ?Sized,
         F: FnOnce() -> Arc<V>,
     {
         // Memorise the hash outside of the lock.
@@ -82,7 +89,12 @@ where
         // This does NOT use an upgradable read lock, as readers waiting for an
         // upgradeable read lock block other readers wanting an upgradeable read
         // lock. If all readers do that, it's effectively an exclusive lock.
-        if let Some((_, v)) = self.map.read().raw_entry().from_hash(hash, |q| key == q) {
+        if let Some((_, v)) = self
+            .map
+            .read()
+            .raw_entry()
+            .from_hash(hash, Self::key_equal(key))
+        {
             return Arc::clone(v);
         }
 
@@ -90,7 +102,7 @@ where
         // is possible another thread initialised the value after the read check
         // above, but before this write lock was granted).
         let mut guard = self.map.write();
-        match guard.raw_entry_mut().from_hash(hash, |q| key == q) {
+        match guard.raw_entry_mut().from_hash(hash, Self::key_equal(key)) {
             RawEntryMut::Occupied(v) => Arc::clone(v.get()),
             RawEntryMut::Vacant(v) => {
                 Arc::clone(v.insert_hashed_nocheck(hash, key.to_owned(), init()).1)
@@ -102,7 +114,8 @@ where
     /// initialises `V` to the default value when `key` has no entry.
     pub(crate) fn get_or_default<Q>(&self, key: &Q) -> Arc<V>
     where
-        Q: Hash + PartialEq<K> + ToOwned<Owned = K> + ?Sized,
+        K: Borrow<Q>,
+        Q: Hash + Eq + ToOwned<Owned = K> + ?Sized,
         V: Default,
     {
         self.get_or_insert_with(key, Default::default)
@@ -119,13 +132,13 @@ where
     pub(crate) fn get<Q>(&self, key: &Q) -> Option<Arc<V>>
     where
         K: Borrow<Q>,
-        Q: Hash + PartialEq<K> + ?Sized,
+        Q: Hash + Eq + ?Sized,
     {
         let hash = self.compute_hash(key);
         self.map
             .read()
             .raw_entry()
-            .from_hash(hash, |q| key == q)
+            .from_hash(hash, Self::key_equal(key))
             .map(|(_k, v)| Arc::clone(v))
     }
 
@@ -134,21 +147,18 @@ where
     /// # Panics
     ///
     /// This method panics if a value already exists for `key`.
-    pub(crate) fn insert<Q>(&self, key: &Q, value: Arc<V>)
-    where
-        Q: Hash + PartialEq<K> + ToOwned<Owned = K> + ?Sized,
-    {
-        let hash = self.compute_hash(key);
+    pub(crate) fn insert(&self, key: K, value: Arc<V>) {
+        let hash = self.compute_hash(key.borrow());
 
         match self
             .map
             .write()
             .raw_entry_mut()
-            .from_hash(hash, |q| key == q)
+            .from_hash(hash, Self::key_equal(&key))
         {
             RawEntryMut::Occupied(_) => panic!("inserting existing key into ArcMap"),
             RawEntryMut::Vacant(view) => {
-                view.insert_hashed_nocheck(hash, key.to_owned(), value);
+                view.insert_hashed_nocheck(hash, key, value);
             }
         }
     }
@@ -166,10 +176,20 @@ where
         self.map.read().values().map(Arc::clone).collect()
     }
 
+    #[inline]
     fn compute_hash<Q: Hash + ?Sized>(&self, key: &Q) -> u64 {
         let mut state = self.hasher.build_hasher();
         key.hash(&mut state);
         state.finish()
+    }
+
+    #[inline]
+    fn key_equal<Q>(q: &Q) -> impl FnMut(&'_ K) -> bool + '_
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq,
+    {
+        move |k| q.eq(k.borrow())
     }
 }
 
@@ -227,7 +247,7 @@ mod tests {
         assert!(map.get(key).is_none());
 
         // Assert the value is initialised from the closure
-        map.insert(key, Arc::new(42));
+        map.insert(key.to_owned(), Arc::new(42));
         let got = map.get(key).unwrap();
         assert_eq!(*got, 42);
 
@@ -247,8 +267,8 @@ mod tests {
     fn test_values() {
         let map = ArcMap::<usize, String>::default();
 
-        map.insert(&1, Arc::new("bananas".to_string()));
-        map.insert(&2, Arc::new("platanos".to_string()));
+        map.insert(1, Arc::new("bananas".to_string()));
+        map.insert(2, Arc::new("platanos".to_string()));
 
         let mut got = map
             .values()
@@ -266,8 +286,8 @@ mod tests {
         let map = ArcMap::<String, usize>::default();
 
         let key: &str = "bananas";
-        map.insert(key, Arc::new(42));
-        map.insert(key, Arc::new(42));
+        map.insert(key.to_owned(), Arc::new(42));
+        map.insert(key.to_owned(), Arc::new(42));
     }
 
     #[test]
@@ -316,6 +336,31 @@ mod tests {
         assert_eq!(init_count.load(Ordering::SeqCst), 1); // Number of init() calls
     }
 
+    #[test]
+    fn test_cross_thread_visibility() {
+        let refs = Arc::new(ArcMap::default());
+
+        const N_THREADS: i64 = 10;
+
+        let handles = (0..N_THREADS)
+            .map(|i| {
+                let refs = Arc::clone(&refs);
+                std::thread::spawn(move || {
+                    refs.insert(i, Arc::new(i));
+                })
+            })
+            .collect::<Vec<_>>();
+
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        for i in 0..N_THREADS {
+            let v = refs.get(&i).unwrap();
+            assert_eq!(i, *v);
+        }
+    }
+
     // Assert values can be "moved" due to FnOnce being used, vs. Fn.
     //
     // This is a compile-time assertion more than a runtime test.
@@ -327,5 +372,12 @@ mod tests {
         let v = "bananas".to_owned();
         let v = map.get_or_insert_with("platanos", move || Arc::new(v));
         assert_eq!(*v, "bananas")
+    }
+
+    #[test]
+    fn test_key_equal() {
+        let k = 42;
+        assert!(ArcMap::<_, ()>::key_equal(&k)(&k));
+        assert!(!ArcMap::<_, ()>::key_equal(&24)(&k));
     }
 }
