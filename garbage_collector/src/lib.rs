@@ -20,6 +20,7 @@
 use crate::{
     objectstore::{checker as os_checker, deleter as os_deleter, lister as os_lister},
     parquetfile::deleter as pf_deleter,
+    retention::flagger as retention_flagger,
 };
 
 use clap::Parser;
@@ -34,8 +35,10 @@ use tokio_util::sync::CancellationToken;
 
 /// Logic for listing, checking and deleting files in object storage
 mod objectstore;
-/// Logic deleting parquet files from the catalog
+/// Logic for deleting parquet files from the catalog
 mod parquetfile;
+/// Logic for flagging parquet files for deletion based on retention settings
+mod retention;
 
 const BUFFER_SIZE: usize = 1000;
 
@@ -51,6 +54,7 @@ pub struct GarbageCollector {
     os_checker: tokio::task::JoinHandle<Result<(), os_checker::Error>>,
     os_deleter: tokio::task::JoinHandle<Result<(), os_deleter::Error>>,
     pf_deleter: tokio::task::JoinHandle<Result<(), pf_deleter::Error>>,
+    retention_flagger: tokio::task::JoinHandle<Result<(), retention_flagger::Error>>,
 }
 
 impl Debug for GarbageCollector {
@@ -74,6 +78,7 @@ impl GarbageCollector {
             parquetfile_cutoff_days = %format_duration(sub_config.parquetfile_cutoff).to_string(),
             objectstore_sleep_interval_minutes = %sub_config.objectstore_sleep_interval_minutes,
             parquetfile_sleep_interval_minutes = %sub_config.parquetfile_sleep_interval_minutes,
+            retention_sleep_interval_minutes = %sub_config.retention_sleep_interval_minutes,
             "GarbageCollector starting"
         );
 
@@ -118,9 +123,17 @@ impl GarbageCollector {
         // on the catalog then sleeps.
         let pf_deleter = tokio::spawn(pf_deleter::perform(
             shutdown.clone(),
-            catalog,
+            Arc::clone(&catalog),
             sub_config.parquetfile_cutoff,
             sub_config.parquetfile_sleep_interval_minutes,
+        ));
+
+        // Initialise the retention code, which is just one thread that calls
+        // flag_for_delete_by_retention() on the catalog then sleeps.
+        let retention_flagger = tokio::spawn(retention_flagger::perform(
+            shutdown.clone(),
+            catalog,
+            sub_config.retention_sleep_interval_minutes,
         ));
 
         Ok(Self {
@@ -129,6 +142,7 @@ impl GarbageCollector {
             os_checker,
             os_deleter,
             pf_deleter,
+            retention_flagger,
         })
     }
 
@@ -147,12 +161,19 @@ impl GarbageCollector {
             os_checker,
             os_deleter,
             pf_deleter,
+            retention_flagger,
             shutdown: _,
         } = self;
 
-        let (os_lister, os_checker, os_deleter, pf_deleter) =
-            futures::join!(os_lister, os_checker, os_deleter, pf_deleter);
+        let (os_lister, os_checker, os_deleter, pf_deleter, retention_flagger) = futures::join!(
+            os_lister,
+            os_checker,
+            os_deleter,
+            pf_deleter,
+            retention_flagger
+        );
 
+        retention_flagger.context(ParquetFileDeleterPanicSnafu)??;
         pf_deleter.context(ParquetFileDeleterPanicSnafu)??;
         os_deleter.context(ObjectStoreDeleterPanicSnafu)??;
         os_checker.context(ObjectStoreCheckerPanicSnafu)??;
@@ -240,6 +261,16 @@ pub struct SubConfig {
         env = "INFLUXDB_IOX_GC_PARQUETFILE_SLEEP_INTERVAL_MINUTES"
     )]
     parquetfile_sleep_interval_minutes: u64,
+
+    /// Number of minutes to sleep between iterations of the retention code.
+    /// Defaults to 35 minutes to reduce incidence of it running at the same time as the parquet
+    /// file deleter.
+    #[clap(
+        long,
+        default_value_t = 35,
+        env = "INFLUXDB_IOX_GC_RETENTION_SLEEP_INTERVAL_MINUTES"
+    )]
+    retention_sleep_interval_minutes: u64,
 }
 
 #[derive(Debug, Snafu)]
@@ -271,6 +302,12 @@ pub enum Error {
     ParquetFileDeleter { source: pf_deleter::Error },
     #[snafu(display("The parquet file deleter task panicked"))]
     ParquetFileDeleterPanic { source: tokio::task::JoinError },
+
+    #[snafu(display("The parquet file retention flagger task failed"))]
+    #[snafu(context(false))]
+    ParquetFileRetentionFlagger { source: retention_flagger::Error },
+    #[snafu(display("The parquet file retention flagger task panicked"))]
+    ParquetFileRetentionFlaggerPanic { source: tokio::task::JoinError },
 }
 
 #[allow(missing_docs)]

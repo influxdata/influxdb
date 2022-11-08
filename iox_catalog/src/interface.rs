@@ -2508,7 +2508,7 @@ pub(crate) mod test_helpers {
             .flag_for_delete_by_retention()
             .await
             .unwrap();
-        assert_eq!(ids.len(), 0);
+        assert!(ids.is_empty());
         // 2. set ns retention period to one hour then create some files before and after and
         //    ensure correct files get deleted
         repos
@@ -2564,6 +2564,15 @@ pub(crate) mod test_helpers {
             .unwrap()
             .unwrap();
         assert_matches!(f5.to_delete, None); // f5 is < 1hr old
+
+        // call flag_for_delete_by_retention() again and nothing should be flagged because they've
+        // already been flagged
+        let ids = repos
+            .parquet_files()
+            .flag_for_delete_by_retention()
+            .await
+            .unwrap();
+        assert!(ids.is_empty());
     }
 
     async fn test_parquet_file_compaction_level_0(catalog: Arc<dyn Catalog>) {
@@ -3761,7 +3770,11 @@ pub(crate) mod test_helpers {
             .list_by_partition_not_to_delete(partition.id)
             .await
             .unwrap();
-        assert_eq!(files, vec![parquet_file.clone(), level1_file.clone()]);
+        // not asserting against a vector literal to guard against flakiness due to uncertain
+        // ordering of SQL query in postgres impl
+        assert_eq!(files.len(), 2);
+        assert_matches!(files.iter().find(|f| f.id == parquet_file.id), Some(_));
+        assert_matches!(files.iter().find(|f| f.id == level1_file.id), Some(_));
     }
 
     async fn test_update_to_compaction_level_1(catalog: Arc<dyn Catalog>) {

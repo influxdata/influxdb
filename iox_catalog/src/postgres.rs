@@ -1660,6 +1660,7 @@ RETURNING *;
                 SET to_delete = $1
                 FROM namespace
                 WHERE retention_period_ns IS NOT NULL
+                AND to_delete IS NULL
                 AND max_time < $1 - retention_period_ns
                 RETURNING parquet_file.id;
             "#,

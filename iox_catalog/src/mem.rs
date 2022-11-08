@@ -1131,6 +1131,8 @@ impl ParquetFileRepo for MemTxn {
         Ok(stage
             .parquet_files
             .iter_mut()
+            // don't flag if already flagged for deletion
+            .filter(|f| f.to_delete.is_none())
             .filter_map(|f| {
                 // table retention, if it exists, overrides namespace retention
                 // TODO - include check of table retention period once implemented
