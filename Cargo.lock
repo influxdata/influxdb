@@ -1141,7 +1141,7 @@ dependencies = [
  "influxdb_line_protocol",
  "iox_time",
  "observability_deps",
- "ordered-float 3.3.0",
+ "ordered-float 3.4.0",
  "percent-encoding",
  "schema",
  "serde",
@@ -1179,7 +1179,7 @@ dependencies = [
  "log",
  "num_cpus",
  "object_store",
- "ordered-float 3.3.0",
+ "ordered-float 3.4.0",
  "parking_lot 0.12.1",
  "parquet",
  "paste",
@@ -1204,7 +1204,7 @@ dependencies = [
  "arrow",
  "chrono",
  "object_store",
- "ordered-float 3.3.0",
+ "ordered-float 3.4.0",
  "parquet",
  "sqlparser",
 ]
@@ -1257,7 +1257,7 @@ dependencies = [
  "lazy_static",
  "md-5",
  "num-traits",
- "ordered-float 3.3.0",
+ "ordered-float 3.4.0",
  "paste",
  "rand",
  "regex",
@@ -3335,9 +3335,9 @@ dependencies = [
 
 [[package]]
 name = "ordered-float"
-version = "3.3.0"
+version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f74e330193f90ec45e2b257fa3ef6df087784157ac1ad2c1e71c62837b03aa7"
+checksum = "d84eb1409416d254e4a9c8fa56cc24701755025b458f0fcd8e59e1f5f40c23bf"
 dependencies = [
  "num-traits",
 ]
