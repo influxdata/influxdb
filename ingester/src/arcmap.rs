@@ -172,12 +172,14 @@ where
         self.map.read().values().map(Arc::clone).collect()
     }
 
+    #[inline]
     fn compute_hash<Q: Hash + ?Sized>(&self, key: &Q) -> u64 {
         let mut state = self.hasher.build_hasher();
         key.hash(&mut state);
         state.finish()
     }
 
+    #[inline]
     fn key_equal<Q>(q: &Q) -> impl FnMut(&'_ K) -> bool + '_
     where
         K: Borrow<Q>,
