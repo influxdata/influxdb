@@ -36,6 +36,10 @@ impl<K, V, S> std::ops::Deref for ArcMap<K, V, S> {
 
 impl<K, V> Default for ArcMap<K, V> {
     fn default() -> Self {
+        // The same hasher should be used by everything that hashes for a
+        // consistent result.
+        //
+        // See https://github.com/influxdata/influxdb_iox/pull/6086.
         let map: HashMap<K, Arc<V>> = Default::default();
         let hasher = map.hasher().clone();
         Self {
