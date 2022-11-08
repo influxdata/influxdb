@@ -4,11 +4,9 @@ use std::{collections::HashMap, sync::Arc};
 
 use data_types::{NamespaceId, SequenceNumber, ShardId, TableId};
 use dml::DmlOperation;
-use iox_catalog::interface::Catalog;
 use metric::U64Counter;
 use observability_deps::tracing::warn;
 use parking_lot::RwLock;
-use snafu::ResultExt;
 use write_summary::ShardProgress;
 
 #[cfg(test)]
@@ -175,7 +173,6 @@ impl NamespaceData {
     pub(super) async fn buffer_operation(
         &self,
         dml_operation: DmlOperation,
-        catalog: &Arc<dyn Catalog>,
         lifecycle_handle: &dyn LifecycleHandle,
     ) -> Result<DmlApplyAction, super::Error> {
         let sequence_number = dml_operation
@@ -199,11 +196,11 @@ impl NamespaceData {
                 // Extract the partition key derived by the router.
                 let partition_key = write.partition_key().clone();
 
-                for (t, b) in write.into_tables() {
-                    let t = TableName::from(t);
-                    let table_data = match self.table_data(&t) {
+                for (table_name, table_id, b) in write.into_tables() {
+                    let table_name = TableName::from(table_name);
+                    let table_data = match self.table_data(&table_name) {
                         Some(t) => t,
-                        None => self.insert_table(&t, catalog).await?,
+                        None => self.insert_table(table_name, table_id).await?,
                     };
 
                     let action = table_data
@@ -262,24 +259,11 @@ impl NamespaceData {
     /// Inserts the table or returns it if it happens to be inserted by some other thread
     async fn insert_table(
         &self,
-        table_name: &TableName,
-        catalog: &Arc<dyn Catalog>,
+        table_name: TableName,
+        table_id: TableId,
     ) -> Result<Arc<TableData>, super::Error> {
-        let mut repos = catalog.repositories().await;
-
-        let table_id = repos
-            .tables()
-            .get_by_namespace_and_name(self.namespace_id, table_name)
-            .await
-            .context(super::CatalogSnafu)?
-            .ok_or_else(|| super::Error::TableNotFound {
-                table_name: table_name.to_string(),
-            })?
-            .id;
-
         let mut t = self.tables.write();
-
-        Ok(match t.by_name(table_name) {
+        Ok(match t.by_name(&table_name) {
             Some(v) => v,
             None => {
                 self.table_count.inc(1);
@@ -287,7 +271,7 @@ impl NamespaceData {
                 // Insert the table and then return a ref to it.
                 t.insert(TableData::new(
                     table_id,
-                    table_name.clone(),
+                    table_name,
                     self.shard_id,
                     self.namespace_id,
                     Arc::clone(&self.partition_provider),
@@ -372,24 +356,21 @@ mod tests {
     use crate::{
         data::partition::{resolver::MockPartitionProvider, PartitionData, SortKeyState},
         lifecycle::mock_handle::MockLifecycleHandle,
-        test_util::{make_write_op, populate_catalog},
+        test_util::{make_write_op, TEST_TABLE},
     };
 
     use super::*;
 
     const SHARD_INDEX: ShardIndex = ShardIndex::new(24);
-    const TABLE_NAME: &str = "bananas";
+    const SHARD_ID: ShardId = ShardId::new(22);
+    const TABLE_NAME: &str = TEST_TABLE;
+    const TABLE_ID: TableId = TableId::new(44);
     const NAMESPACE_NAME: &str = "platanos";
+    const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
 
     #[tokio::test]
     async fn test_namespace_double_ref() {
         let metrics = Arc::new(metric::Registry::default());
-        let catalog: Arc<dyn Catalog> =
-            Arc::new(iox_catalog::mem::MemCatalog::new(Arc::clone(&metrics)));
-
-        // Populate the catalog with the shard / namespace / table
-        let (shard_id, ns_id, table_id) =
-            populate_catalog(&*catalog, SHARD_INDEX, NAMESPACE_NAME, TABLE_NAME).await;
 
         // Configure the mock partition provider to return a partition for this
         // table ID.
@@ -397,9 +378,9 @@ mod tests {
             PartitionData::new(
                 PartitionId::new(0),
                 PartitionKey::from("banana-split"),
-                shard_id,
-                ns_id,
-                table_id,
+                SHARD_ID,
+                NAMESPACE_ID,
+                TABLE_ID,
                 TABLE_NAME.into(),
                 SortKeyState::Provided(None),
                 None,
@@ -407,9 +388,9 @@ mod tests {
         ));
 
         let ns = NamespaceData::new(
-            ns_id,
+            NAMESPACE_ID,
             NAMESPACE_NAME.into(),
-            shard_id,
+            SHARD_ID,
             partition_provider,
             &*metrics,
         );
@@ -419,7 +400,7 @@ mod tests {
 
         // Assert the namespace does not contain the test data
         assert!(ns.table_data(&TABLE_NAME.into()).is_none());
-        assert!(ns.table_id(table_id).is_none());
+        assert!(ns.table_id(TABLE_ID).is_none());
 
         // Write some test data
         ns.buffer_operation(
@@ -427,10 +408,11 @@ mod tests {
                 &PartitionKey::from("banana-split"),
                 SHARD_INDEX,
                 NAMESPACE_NAME,
+                NAMESPACE_ID,
+                TABLE_ID,
                 0,
-                r#"bananas,city=Medford day="sun",temp=55 22"#,
+                r#"test_table,city=Medford day="sun",temp=55 22"#,
             )),
-            &catalog,
             &MockLifecycleHandle::default(),
         )
         .await
@@ -438,7 +420,7 @@ mod tests {
 
         // Both forms of referencing the table should succeed
         assert!(ns.table_data(&TABLE_NAME.into()).is_some());
-        assert!(ns.table_id(table_id).is_some());
+        assert!(ns.table_id(TABLE_ID).is_some());
 
         // And the table counter metric should increase
         let tables = metrics

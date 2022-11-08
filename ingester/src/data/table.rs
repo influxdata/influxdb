@@ -262,8 +262,7 @@ mod tests {
     use std::sync::Arc;
 
     use assert_matches::assert_matches;
-    use data_types::{PartitionId, ShardIndex};
-    use iox_catalog::interface::Catalog;
+    use data_types::PartitionId;
     use mutable_batch::writer;
     use mutable_batch_lp::lines_to_batches;
     use schema::{InfluxColumnType, InfluxFieldType};
@@ -274,36 +273,28 @@ mod tests {
             Error,
         },
         lifecycle::mock_handle::{MockLifecycleCall, MockLifecycleHandle},
-        test_util::populate_catalog,
     };
 
     use super::*;
 
-    const SHARD_INDEX: ShardIndex = ShardIndex::new(24);
+    const SHARD_ID: ShardId = ShardId::new(22);
     const TABLE_NAME: &str = "bananas";
-    const NAMESPACE_NAME: &str = "platanos";
+    const TABLE_ID: TableId = TableId::new(44);
+    const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
     const PARTITION_KEY: &str = "platanos";
     const PARTITION_ID: PartitionId = PartitionId::new(0);
 
     #[tokio::test]
     async fn test_partition_double_ref() {
-        let metrics = Arc::new(metric::Registry::default());
-        let catalog: Arc<dyn Catalog> =
-            Arc::new(iox_catalog::mem::MemCatalog::new(Arc::clone(&metrics)));
-
-        // Populate the catalog with the shard / namespace / table
-        let (shard_id, ns_id, table_id) =
-            populate_catalog(&*catalog, SHARD_INDEX, NAMESPACE_NAME, TABLE_NAME).await;
-
         // Configure the mock partition provider to return a partition for this
         // table ID.
         let partition_provider = Arc::new(MockPartitionProvider::default().with_partition(
             PartitionData::new(
                 PARTITION_ID,
                 PARTITION_KEY.into(),
-                shard_id,
-                ns_id,
-                table_id,
+                SHARD_ID,
+                NAMESPACE_ID,
+                TABLE_ID,
                 TABLE_NAME.into(),
                 SortKeyState::Provided(None),
                 None,
@@ -311,10 +302,10 @@ mod tests {
         ));
 
         let table = TableData::new(
-            table_id,
+            TABLE_ID,
             TABLE_NAME.into(),
-            shard_id,
-            ns_id,
+            SHARD_ID,
+            NAMESPACE_ID,
             partition_provider,
         );
 
@@ -354,23 +345,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_bad_write_memory_counting() {
-        let metrics = Arc::new(metric::Registry::default());
-        let catalog: Arc<dyn Catalog> =
-            Arc::new(iox_catalog::mem::MemCatalog::new(Arc::clone(&metrics)));
-
-        // Populate the catalog with the shard / namespace / table
-        let (shard_id, ns_id, table_id) =
-            populate_catalog(&*catalog, SHARD_INDEX, NAMESPACE_NAME, TABLE_NAME).await;
-
         // Configure the mock partition provider to return a partition for this
         // table ID.
         let partition_provider = Arc::new(MockPartitionProvider::default().with_partition(
             PartitionData::new(
                 PARTITION_ID,
                 PARTITION_KEY.into(),
-                shard_id,
-                ns_id,
-                table_id,
+                SHARD_ID,
+                NAMESPACE_ID,
+                TABLE_ID,
                 TABLE_NAME.into(),
                 SortKeyState::Provided(None),
                 None,
@@ -378,10 +361,10 @@ mod tests {
         ));
 
         let table = TableData::new(
-            table_id,
+            TABLE_ID,
             TABLE_NAME.into(),
-            shard_id,
-            ns_id,
+            SHARD_ID,
+            NAMESPACE_ID,
             partition_provider,
         );
 
@@ -425,9 +408,9 @@ mod tests {
             handle.get_log_calls(),
             &[MockLifecycleCall {
                 partition_id: PARTITION_ID,
-                shard_id,
-                namespace_id: ns_id,
-                table_id,
+                shard_id: SHARD_ID,
+                namespace_id: NAMESPACE_ID,
+                table_id: TABLE_ID,
                 sequence_number: SequenceNumber::new(42),
                 bytes_written: 1131,
                 rows_written: 1,

@@ -448,7 +448,9 @@ pub(crate) const TEST_PARTITION_2: &str = "test+partition_2";
 
 /// This function produces one scenario but with the parameter combination (2*7),
 /// you will be able to produce 14 scenarios by calling it in 2 loops
-pub(crate) async fn make_ingester_data(two_partitions: bool) -> IngesterData {
+pub(crate) async fn make_ingester_data(
+    two_partitions: bool,
+) -> (IngesterData, NamespaceId, TableId) {
     // Whatever data because they won't be used in the tests
     let metrics: Arc<metric::Registry> = Default::default();
     let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
@@ -469,7 +471,7 @@ pub(crate) async fn make_ingester_data(two_partitions: bool) -> IngesterData {
 
     // Make data for one shard and two tables
     let shard_index = ShardIndex::new(1);
-    let (shard_id, _, _) =
+    let (shard_id, ns_id, table_id) =
         populate_catalog(&*catalog, shard_index, TEST_NAMESPACE, TEST_TABLE).await;
 
     let ingester = IngesterData::new(
@@ -477,13 +479,13 @@ pub(crate) async fn make_ingester_data(two_partitions: bool) -> IngesterData {
         Arc::clone(&catalog),
         [(shard_id, shard_index)],
         exec,
-        Arc::new(CatalogPartitionResolver::new(catalog)),
+        Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog))),
         backoff::BackoffConfig::default(),
         metrics,
     );
 
     // Make partitions per requested
-    let ops = make_partitions(two_partitions, shard_index);
+    let ops = make_partitions(two_partitions, shard_index, table_id, ns_id);
 
     // Apply all ops
     for op in ops {
@@ -493,11 +495,16 @@ pub(crate) async fn make_ingester_data(two_partitions: bool) -> IngesterData {
             .unwrap();
     }
 
-    ingester
+    (ingester, ns_id, table_id)
 }
 
 /// Make data for one or two partitions per requested
-pub(crate) fn make_partitions(two_partitions: bool, shard_index: ShardIndex) -> Vec<DmlOperation> {
+pub(crate) fn make_partitions(
+    two_partitions: bool,
+    shard_index: ShardIndex,
+    table_id: TableId,
+    ns_id: NamespaceId,
+) -> Vec<DmlOperation> {
     // In-memory data includes these rows but split between 4 groups go into
     // different batches of parittion 1 or partittion 2  as requeted
     // let expected = vec![
@@ -517,8 +524,12 @@ pub(crate) fn make_partitions(two_partitions: bool, shard_index: ShardIndex) -> 
 
     // ------------------------------------------
     // Build the first partition
-    let (mut ops, seq_num) =
-        make_first_partition_data(&PartitionKey::from(TEST_PARTITION_1), shard_index);
+    let (mut ops, seq_num) = make_first_partition_data(
+        &PartitionKey::from(TEST_PARTITION_1),
+        shard_index,
+        table_id,
+        ns_id,
+    );
 
     // ------------------------------------------
     // Build the second partition if asked
@@ -530,6 +541,8 @@ pub(crate) fn make_partitions(two_partitions: bool, shard_index: ShardIndex) -> 
             &PartitionKey::from(TEST_PARTITION_2),
             shard_index,
             TEST_NAMESPACE,
+            ns_id,
+            table_id,
             seq_num,
             r#"test_table,city=Medford day="sun",temp=55 22"#,
         )));
@@ -539,6 +552,8 @@ pub(crate) fn make_partitions(two_partitions: bool, shard_index: ShardIndex) -> 
             &PartitionKey::from(TEST_PARTITION_2),
             shard_index,
             TEST_NAMESPACE,
+            ns_id,
+            table_id,
             seq_num,
             r#"test_table,city=Reading day="mon",temp=58 40"#,
         )));
@@ -548,6 +563,8 @@ pub(crate) fn make_partitions(two_partitions: bool, shard_index: ShardIndex) -> 
             &PartitionKey::from(TEST_PARTITION_1),
             shard_index,
             TEST_NAMESPACE,
+            ns_id,
+            table_id,
             seq_num,
             r#"test_table,city=Medford day="sun",temp=55 22"#,
         )));
@@ -557,6 +574,8 @@ pub(crate) fn make_partitions(two_partitions: bool, shard_index: ShardIndex) -> 
             &PartitionKey::from(TEST_PARTITION_1),
             shard_index,
             TEST_NAMESPACE,
+            ns_id,
+            table_id,
             seq_num,
             r#"test_table,city=Reading day="mon",temp=58 40"#,
         )));
@@ -569,18 +588,19 @@ pub(crate) fn make_write_op(
     partition_key: &PartitionKey,
     shard_index: ShardIndex,
     namespace: &str,
+    namespace_id: NamespaceId,
+    table_id: TableId,
     sequence_number: i64,
     lines: &str,
 ) -> DmlWrite {
     let tables = lines_to_batches(lines, 0).unwrap();
-    let ids = tables
-        .keys()
-        .enumerate()
-        .map(|(i, v)| (v.clone(), TableId::new(i as _)))
-        .collect();
+    assert_eq!(tables.len(), 1);
+    assert!(tables.get(TEST_TABLE).is_some());
+
+    let ids = [(TEST_TABLE.into(), table_id)].into_iter().collect();
     DmlWrite::new(
         namespace.to_string(),
-        NamespaceId::new(42),
+        namespace_id,
         tables,
         ids,
         partition_key.clone(),
@@ -599,6 +619,8 @@ pub(crate) fn make_write_op(
 fn make_first_partition_data(
     partition_key: &PartitionKey,
     shard_index: ShardIndex,
+    table_id: TableId,
+    ns_id: NamespaceId,
 ) -> (Vec<DmlOperation>, SequenceNumber) {
     // In-memory data includes these rows but split between 3 groups go into
     // different batches of parittion p1
@@ -627,6 +649,8 @@ fn make_first_partition_data(
         partition_key,
         shard_index,
         TEST_NAMESPACE,
+        ns_id,
+        table_id,
         seq_num,
         r#"test_table,city=Boston day="sun",temp=60 36"#,
     )));
@@ -636,6 +660,8 @@ fn make_first_partition_data(
         partition_key,
         shard_index,
         TEST_NAMESPACE,
+        ns_id,
+        table_id,
         seq_num,
         r#"test_table,city=Andover day="tue",temp=56 30"#,
     )));
@@ -647,6 +673,8 @@ fn make_first_partition_data(
         partition_key,
         shard_index,
         TEST_NAMESPACE,
+        ns_id,
+        table_id,
         seq_num,
         r#"test_table,city=Andover day="mon" 46"#,
     )));
@@ -656,6 +684,8 @@ fn make_first_partition_data(
         partition_key,
         shard_index,
         TEST_NAMESPACE,
+        ns_id,
+        table_id,
         seq_num,
         r#"test_table,city=Medford day="wed" 26"#,
     )));
@@ -668,6 +698,8 @@ fn make_first_partition_data(
         partition_key,
         shard_index,
         TEST_NAMESPACE,
+        ns_id,
+        table_id,
         seq_num,
         r#"test_table,city=Boston day="mon" 38"#,
     )));
@@ -677,6 +709,8 @@ fn make_first_partition_data(
         partition_key,
         shard_index,
         TEST_NAMESPACE,
+        ns_id,
+        table_id,
         seq_num,
         r#"test_table,city=Wilmington day="mon" 35"#,
     )));

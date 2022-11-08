@@ -1,13 +1,11 @@
 //! Shard level data buffer structures.
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use data_types::{NamespaceId, ShardId, ShardIndex};
 use dml::DmlOperation;
-use iox_catalog::interface::Catalog;
 use metric::U64Counter;
 use parking_lot::RwLock;
-use snafu::{OptionExt, ResultExt};
 use write_summary::ShardProgress;
 
 use super::{
@@ -15,15 +13,15 @@ use super::{
     partition::resolver::PartitionProvider,
     DmlApplyAction,
 };
-use crate::lifecycle::LifecycleHandle;
+use crate::{arcmap::ArcMap, lifecycle::LifecycleHandle};
 
 /// A double-referenced map where [`NamespaceData`] can be looked up by name, or
 /// ID.
 #[derive(Debug, Default)]
 struct DoubleRef {
     // TODO(4880): this can be removed when IDs are sent over the wire.
-    by_name: HashMap<NamespaceName, Arc<NamespaceData>>,
-    by_id: HashMap<NamespaceId, Arc<NamespaceData>>,
+    by_name: ArcMap<NamespaceName, NamespaceData>,
+    by_id: ArcMap<NamespaceId, NamespaceData>,
 }
 
 impl DoubleRef {
@@ -37,11 +35,11 @@ impl DoubleRef {
     }
 
     fn by_name(&self, name: &NamespaceName) -> Option<Arc<NamespaceData>> {
-        self.by_name.get(name).map(Arc::clone)
+        self.by_name.get(name)
     }
 
     fn by_id(&self, id: NamespaceId) -> Option<Arc<NamespaceData>> {
-        self.by_id.get(&id).map(Arc::clone)
+        self.by_id.get(&id)
     }
 }
 
@@ -98,19 +96,18 @@ impl ShardData {
     pub(super) async fn buffer_operation(
         &self,
         dml_operation: DmlOperation,
-        catalog: &Arc<dyn Catalog>,
         lifecycle_handle: &dyn LifecycleHandle,
     ) -> Result<DmlApplyAction, super::Error> {
         let namespace_data = match self.namespace(&NamespaceName::from(dml_operation.namespace())) {
             Some(d) => d,
             None => {
-                self.insert_namespace(dml_operation.namespace(), &**catalog)
+                self.insert_namespace(dml_operation.namespace(), dml_operation.namespace_id())
                     .await?
             }
         };
 
         namespace_data
-            .buffer_operation(dml_operation, catalog, lifecycle_handle)
+            .buffer_operation(dml_operation, lifecycle_handle)
             .await
     }
 
@@ -135,17 +132,9 @@ impl ShardData {
     async fn insert_namespace(
         &self,
         namespace: &str,
-        catalog: &dyn Catalog,
+        namespace_id: NamespaceId,
     ) -> Result<Arc<NamespaceData>, super::Error> {
-        let mut repos = catalog.repositories().await;
-
         let ns_name = NamespaceName::from(namespace);
-        let namespace = repos
-            .namespaces()
-            .get_by_name(namespace)
-            .await
-            .context(super::CatalogSnafu)?
-            .context(super::NamespaceNotFoundSnafu { namespace })?;
 
         let mut n = self.namespaces.write();
 
@@ -158,7 +147,7 @@ impl ShardData {
                 n.insert(
                     ns_name.clone(),
                     NamespaceData::new(
-                        namespace.id,
+                        namespace_id,
                         ns_name,
                         self.shard_id,
                         Arc::clone(&self.partition_provider),
@@ -171,13 +160,7 @@ impl ShardData {
 
     /// Return the progress of this shard
     pub(super) async fn progress(&self) -> ShardProgress {
-        let namespaces: Vec<_> = self
-            .namespaces
-            .read()
-            .by_id
-            .values()
-            .map(Arc::clone)
-            .collect();
+        let namespaces: Vec<_> = self.namespaces.read().by_id.values();
 
         let mut progress = ShardProgress::new();
 
@@ -197,30 +180,27 @@ impl ShardData {
 mod tests {
     use std::sync::Arc;
 
-    use data_types::{PartitionId, PartitionKey, ShardIndex};
+    use data_types::{PartitionId, PartitionKey, ShardIndex, TableId};
     use metric::{Attributes, Metric};
 
     use crate::{
         data::partition::{resolver::MockPartitionProvider, PartitionData, SortKeyState},
         lifecycle::mock_handle::MockLifecycleHandle,
-        test_util::{make_write_op, populate_catalog},
+        test_util::{make_write_op, TEST_TABLE},
     };
 
     use super::*;
 
     const SHARD_INDEX: ShardIndex = ShardIndex::new(24);
-    const TABLE_NAME: &str = "bananas";
+    const SHARD_ID: ShardId = ShardId::new(22);
+    const TABLE_NAME: &str = TEST_TABLE;
+    const TABLE_ID: TableId = TableId::new(44);
     const NAMESPACE_NAME: &str = "platanos";
+    const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
 
     #[tokio::test]
     async fn test_shard_double_ref() {
         let metrics = Arc::new(metric::Registry::default());
-        let catalog: Arc<dyn Catalog> =
-            Arc::new(iox_catalog::mem::MemCatalog::new(Arc::clone(&metrics)));
-
-        // Populate the catalog with the shard / namespace / table
-        let (shard_id, ns_id, table_id) =
-            populate_catalog(&*catalog, SHARD_INDEX, NAMESPACE_NAME, TABLE_NAME).await;
 
         // Configure the mock partition provider to return a partition for this
         // table ID.
@@ -228,9 +208,9 @@ mod tests {
             PartitionData::new(
                 PartitionId::new(0),
                 PartitionKey::from("banana-split"),
-                shard_id,
-                ns_id,
-                table_id,
+                SHARD_ID,
+                NAMESPACE_ID,
+                TABLE_ID,
                 TABLE_NAME.into(),
                 SortKeyState::Provided(None),
                 None,
@@ -239,14 +219,14 @@ mod tests {
 
         let shard = ShardData::new(
             SHARD_INDEX,
-            shard_id,
+            SHARD_ID,
             partition_provider,
             Arc::clone(&metrics),
         );
 
         // Assert the namespace does not contain the test data
         assert!(shard.namespace(&NAMESPACE_NAME.into()).is_none());
-        assert!(shard.namespace_by_id(ns_id).is_none());
+        assert!(shard.namespace_by_id(NAMESPACE_ID).is_none());
 
         // Write some test data
         shard
@@ -255,10 +235,11 @@ mod tests {
                     &PartitionKey::from("banana-split"),
                     SHARD_INDEX,
                     NAMESPACE_NAME,
+                    NAMESPACE_ID,
+                    TABLE_ID,
                     0,
-                    r#"bananas,city=Medford day="sun",temp=55 22"#,
+                    r#"test_table,city=Medford day="sun",temp=55 22"#,
                 )),
-                &catalog,
                 &MockLifecycleHandle::default(),
             )
             .await
@@ -266,7 +247,7 @@ mod tests {
 
         // Both forms of referencing the table should succeed
         assert!(shard.namespace(&NAMESPACE_NAME.into()).is_some());
-        assert!(shard.namespace_by_id(ns_id).is_some());
+        assert!(shard.namespace_by_id(NAMESPACE_ID).is_some());
 
         // And the table counter metric should increase
         let tables = metrics

@@ -1,7 +1,7 @@
 //! Encode/Decode for messages
 
 use crate::core::WriteBufferError;
-use data_types::{NamespaceId, NonEmptyString, PartitionKey, Sequence};
+use data_types::{NamespaceId, NonEmptyString, PartitionKey, Sequence, TableId};
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use generated_types::{
     google::FromOptionalField,
@@ -10,7 +10,6 @@ use generated_types::{
         write_buffer::v1::{write_buffer_payload::Payload, WriteBufferPayload},
     },
 };
-use hashbrown::HashMap;
 use http::{HeaderMap, HeaderValue};
 use iox_time::Time;
 use mutable_batch_pb::decode::decode_database_batch;
@@ -188,7 +187,7 @@ pub fn decode(
 
             match payload {
                 Payload::Write(write) => {
-                    let (tables, _ids) = decode_database_batch(&write).map_err(|e| {
+                    let (tables, ids) = decode_database_batch(&write).map_err(|e| {
                         WriteBufferError::invalid_data(format!(
                             "failed to decode database batch: {}",
                             e
@@ -205,14 +204,9 @@ pub fn decode(
 
                     Ok(DmlOperation::Write(DmlWrite::new(
                         headers.namespace,
-                        // Decoding MUST NOT make use of the (potentially empty)
-                        // namespace ID during the Kafka wire format change transition period.
-                        NamespaceId::new(0),
+                        NamespaceId::new(write.database_id),
                         tables,
-                        // Decoding MUST NOT make use of the (potentially empty)
-                        // table IDs during the Kafka wire format change
-                        // transition period.
-                        HashMap::with_capacity(0),
+                        ids.into_iter().map(|(k, v)| (k, TableId::new(v))).collect(),
                         partition_key,
                         meta,
                     )))
@@ -244,24 +238,13 @@ pub fn encode_operation(
 ) -> Result<(), WriteBufferError> {
     let payload = match operation {
         DmlOperation::Write(write) => {
-            // Safety: this code path is only invoked in the Kafka producer, so
-            // it is safe to utilise the ID.
-            //
-            // See DmlWrite docs for context.
-            let namespace_id = unsafe { write.namespace_id().get() };
-
+            let namespace_id = write.namespace_id().get();
             let batch = mutable_batch_pb::encode::encode_write(db_name, namespace_id, write);
             Payload::Write(batch)
         }
         DmlOperation::Delete(delete) => Payload::Delete(DeletePayload {
             db_name: db_name.to_string(),
-            database_id: unsafe {
-                // Safety: this code path is only invoked in the Kafka producer, so
-                // it is safe to utilise the ID.
-                //
-                // See DmlWrite docs for context.
-                delete.namespace_id().get()
-            },
+            database_id: delete.namespace_id().get(),
             table_name: delete
                 .table_name()
                 .map(ToString::to_string)
@@ -393,16 +376,31 @@ mod tests {
         };
 
         assert_eq!(w.namespace(), got.namespace());
+        assert_eq!(w.namespace_id(), got.namespace_id());
         assert_eq!(w.table_count(), got.table_count());
         assert_eq!(w.min_timestamp(), got.min_timestamp());
         assert_eq!(w.max_timestamp(), got.max_timestamp());
         assert!(got.table("bananas").is_some());
 
+        // Validate the writes & table names all appear in the DML writes.
         let mut a = w.tables().map(|(name, _)| name).collect::<Vec<_>>();
         a.sort_unstable();
 
         let mut b = got.tables().map(|(name, _)| name).collect::<Vec<_>>();
         b.sort_unstable();
+        assert_eq!(a, b);
+
+        // Validate both DML writes contain the same mappings of name -> table
+        // ID.
+        let a = a
+            .into_iter()
+            .map(|name| w.table_id(name).expect("table ID map entry missing"))
+            .collect::<Vec<_>>();
+
+        let b = b
+            .into_iter()
+            .map(|name| got.table_id(name).expect("table ID map entry missing"))
+            .collect::<Vec<_>>();
         assert_eq!(a, b);
     }
 }
