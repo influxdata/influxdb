@@ -53,6 +53,22 @@ func TestRewriteStatement(t *testing.T) {
 			s:    `SELECT fieldKey, fieldType FROM mydb.myrp2._fieldKeys WHERE _name =~ /c.*/`,
 		},
 		{
+			stmt: "SHOW FIELD KEY CARDINALITY",
+			s:    "SELECT count(distinct(fieldKey)) AS count FROM (SELECT fieldKey, fieldType FROM _fieldKeys WHERE _name =~ /.+/)",
+		},
+		{
+			stmt: "SHOW FIELD KEY CARDINALITY ON db0",
+			s:    "SELECT count(distinct(fieldKey)) AS count FROM (SELECT fieldKey, fieldType FROM db0.._fieldKeys WHERE _name =~ /.+/)",
+		},
+		{
+			stmt: "SHOW FIELD KEY CARDINALITY ON db0 FROM /tsm1.*/",
+			s:    "SELECT count(distinct(fieldKey)) AS count FROM (SELECT fieldKey, fieldType FROM db0.._fieldKeys WHERE _name =~ /tsm1.*/)",
+		},
+		{
+			stmt: "SHOW FIELD KEY CARDINALITY ON db0 FROM /tsm1.*/ WHERE 1 = 1",
+			s:    "SELECT count(distinct(fieldKey)) AS count FROM (SELECT fieldKey, fieldType FROM db0.._fieldKeys WHERE _name =~ /tsm1.*/) WHERE 1 = 1",
+		},
+		{
 			stmt: `SHOW SERIES`,
 			s:    `SELECT "key" FROM _series`,
 		},

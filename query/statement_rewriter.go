@@ -69,7 +69,7 @@ func rewriteShowFieldKeyCardinalityStatement(stmt *influxql.ShowFieldKeyCardinal
 
 	return &influxql.SelectStatement{
 		Fields: []*influxql.Field{
-			&influxql.Field{
+			{
 				Expr: &influxql.Call{
 					Name: "count",
 					Args: []influxql.Expr{
@@ -85,6 +85,8 @@ func rewriteShowFieldKeyCardinalityStatement(stmt *influxql.ShowFieldKeyCardinal
 		Condition:  stmt.Condition,
 		Dimensions: stmt.Dimensions,
 		OmitTime:   true,
+		Offset:     stmt.Offset,
+		Limit:      stmt.Limit,
 		Sources: influxql.Sources{
 			&influxql.SubQuery{
 				Statement: &influxql.SelectStatement{
@@ -94,8 +96,6 @@ func rewriteShowFieldKeyCardinalityStatement(stmt *influxql.ShowFieldKeyCardinal
 					}),
 					Sources:    rewriteSources(stmt.Sources, "_fieldKeys", stmt.Database),
 					Condition:  rewriteSourcesCondition(stmt.Sources, nil),
-					Offset:     stmt.Offset,
-					Limit:      stmt.Limit,
 					OmitTime:   true,
 					Dedupe:     true,
 					IsRawQuery: true,

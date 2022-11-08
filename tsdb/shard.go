@@ -2316,6 +2316,17 @@ const (
 // NewFieldKeysIterator returns an iterator that can be iterated over to
 // retrieve field keys.
 func NewFieldKeysIterator(sh *Shard, opt query.IteratorOptions) (query.Iterator, error) {
+	const fieldKey = `fieldKey`
+	const fieldKeyType = `fieldType`
+	if len(opt.Aux) != 2 {
+		return nil, fmt.Errorf("wrong number of field arguments for Field Keys iterator. Expected 2, got %d", len(opt.Aux))
+	}
+	if opt.Aux[0].Val != fieldKey || opt.Aux[1].Val != fieldKeyType {
+		return nil,
+			fmt.Errorf("incorrect fields specified for Field Keys iterator: expected %s, got %s and expected %s, got %s",
+				fieldKey, opt.Aux[0].Val, fieldKeyType, opt.Aux[1].Val)
+	}
+
 	itr := &fieldKeysIterator{shard: sh}
 
 	index, err := sh.Index()
