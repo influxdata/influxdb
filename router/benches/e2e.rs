@@ -66,7 +66,7 @@ fn e2e_benchmarks(c: &mut Criterion) {
 
         let write_buffer = init_write_buffer(1);
         let schema_validator =
-            SchemaValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache), &*metrics);
+            SchemaValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache), &metrics);
         let partitioner = Partitioner::new(PartitionTemplate {
             parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],
         });

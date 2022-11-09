@@ -392,7 +392,7 @@ mod tests {
             NAMESPACE_NAME.into(),
             SHARD_ID,
             partition_provider,
-            &*metrics,
+            &metrics,
         );
 
         // Assert the namespace name was stored

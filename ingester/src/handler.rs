@@ -252,7 +252,7 @@ impl IngestHandlerImpl {
                 Arc::clone(&write_buffer),
                 shard.shard_index,
                 Duration::from_secs(10),
-                &*metric_registry,
+                &metric_registry,
             );
             // Wrap the IngesterData in a DmlSink adapter
             let sink = IngestSinkAdaptor::new(
@@ -266,7 +266,7 @@ impl IngestHandlerImpl {
                 watermark_fetcher,
                 topic_name.clone(),
                 shard.shard_index,
-                &*metric_registry,
+                &metric_registry,
             );
 
             // Spawn a task to stream in ops from the op_stream and push them
@@ -284,7 +284,7 @@ impl IngestHandlerImpl {
                         topic_name,
                         shard.shard_index,
                         shard.id,
-                        &*metric_registry,
+                        &metric_registry,
                         skip_to_oldest_available,
                     );
 

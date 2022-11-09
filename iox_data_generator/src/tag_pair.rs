@@ -21,7 +21,8 @@ pub enum Error {
     ))]
     CantCompileTemplate {
         tag_key: String,
-        source: handlebars::TemplateError,
+        #[snafu(source(from(handlebars::TemplateError, Box::new)))]
+        source: Box<handlebars::TemplateError>,
     },
 
     #[snafu(display(
@@ -31,7 +32,8 @@ pub enum Error {
     ))]
     CantRenderTemplate {
         tag_key: String,
-        source: handlebars::RenderError,
+        #[snafu(source(from(handlebars::RenderError, Box::new)))]
+        source: Box<handlebars::RenderError>,
     },
 }
 

@@ -369,6 +369,9 @@ impl TimeValues {
         }
     }
 
+    // Clippy suggests changing `if overlap_minutes == 0 { 1 } else { 0 }` to
+    // `usize::from(overlap_minutes == 0)`, but I think the original is clearer
+    #[allow(clippy::bool_to_int_with_if)]
     fn inner(
         full_range_start_minutes: usize,
         full_range_end_minutes: usize,

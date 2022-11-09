@@ -204,14 +204,14 @@ mod tests {
         let traces: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
         let span = SpanContext::new(Arc::clone(&traces));
 
-        let decorator = InstrumentationDecorator::new(HANDLER_NAME, &*metrics, handler);
+        let decorator = InstrumentationDecorator::new(HANDLER_NAME, &metrics, handler);
 
         decorator
             .write(&ns, NamespaceId::new(42), (), Some(span))
             .await
             .expect("inner handler configured to succeed");
 
-        assert_metric_hit(&*metrics, "dml_handler_write_duration", "success");
+        assert_metric_hit(&metrics, "dml_handler_write_duration", "success");
         assert_trace(traces, SpanStatus::Ok);
     }
 
@@ -227,7 +227,7 @@ mod tests {
         let traces: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
         let span = SpanContext::new(Arc::clone(&traces));
 
-        let decorator = InstrumentationDecorator::new(HANDLER_NAME, &*metrics, handler);
+        let decorator = InstrumentationDecorator::new(HANDLER_NAME, &metrics, handler);
 
         let err = decorator
             .write(&ns, NamespaceId::new(42), (), Some(span))
@@ -236,7 +236,7 @@ mod tests {
 
         assert_matches!(err, DmlError::DatabaseNotFound(_));
 
-        assert_metric_hit(&*metrics, "dml_handler_write_duration", "error");
+        assert_metric_hit(&metrics, "dml_handler_write_duration", "error");
         assert_trace(traces, SpanStatus::Err);
     }
 
@@ -249,7 +249,7 @@ mod tests {
         let traces: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
         let span = SpanContext::new(Arc::clone(&traces));
 
-        let decorator = InstrumentationDecorator::new(HANDLER_NAME, &*metrics, handler);
+        let decorator = InstrumentationDecorator::new(HANDLER_NAME, &metrics, handler);
 
         let pred = DeletePredicate {
             range: TimestampRange::new(1, 2),
@@ -261,7 +261,7 @@ mod tests {
             .await
             .expect("inner handler configured to succeed");
 
-        assert_metric_hit(&*metrics, "dml_handler_delete_duration", "success");
+        assert_metric_hit(&metrics, "dml_handler_delete_duration", "success");
         assert_trace(traces, SpanStatus::Ok);
     }
 
@@ -277,7 +277,7 @@ mod tests {
         let traces: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
         let span = SpanContext::new(Arc::clone(&traces));
 
-        let decorator = InstrumentationDecorator::new(HANDLER_NAME, &*metrics, handler);
+        let decorator = InstrumentationDecorator::new(HANDLER_NAME, &metrics, handler);
 
         let pred = DeletePredicate {
             range: TimestampRange::new(1, 2),
@@ -289,7 +289,7 @@ mod tests {
             .await
             .expect_err("inner handler configured to fail");
 
-        assert_metric_hit(&*metrics, "dml_handler_delete_duration", "error");
+        assert_metric_hit(&metrics, "dml_handler_delete_duration", "error");
         assert_trace(traces, SpanStatus::Err);
     }
 }

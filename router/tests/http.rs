@@ -94,7 +94,7 @@ impl TestContext {
         ));
 
         let schema_validator =
-            SchemaValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache), &*metrics);
+            SchemaValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache), &metrics);
         let partitioner = Partitioner::new(PartitionTemplate {
             parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],
         });
@@ -106,7 +106,7 @@ impl TestContext {
                     sharded_write_buffer,
                 )));
 
-        let handler_stack = InstrumentationDecorator::new("request", &*metrics, handler_stack);
+        let handler_stack = InstrumentationDecorator::new("request", &metrics, handler_stack);
 
         let namespace_resolver =
             NamespaceSchemaResolver::new(Arc::clone(&catalog), Arc::clone(&ns_cache));

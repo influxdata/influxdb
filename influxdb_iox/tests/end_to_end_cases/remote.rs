@@ -47,11 +47,11 @@ async fn remote_store_get_table() {
                         .arg("store")
                         .arg("get-table")
                         .arg(&namespace)
-                        .arg(&table_name)
+                        .arg(table_name)
                         .assert()
                         .success();
 
-                    let table_dir = dir.as_ref().join(&table_name);
+                    let table_dir = dir.as_ref().join(table_name);
 
                     // There should be a directory created that, by default, is named the same as
                     // the table
@@ -90,7 +90,7 @@ async fn remote_store_get_table() {
                         .arg(&custom_output_dir)
                         .arg(&namespace)
                         // This time ask for the table that only has one Parquet file
-                        .arg(&other_table_name)
+                        .arg(other_table_name)
                         .assert()
                         .success();
 
@@ -128,7 +128,7 @@ async fn remote_store_get_table() {
                         .arg("store")
                         .arg("get-table")
                         .arg("nacho-namespace")
-                        .arg(&table_name)
+                        .arg(table_name)
                         .assert()
                         .failure()
                         .stderr(predicate::str::contains(
@@ -146,7 +146,7 @@ async fn remote_store_get_table() {
                         .arg("-o")
                         .arg(&custom_output_dir)
                         .arg(&namespace)
-                        .arg(&other_table_name)
+                        .arg(other_table_name)
                         .assert()
                         .success()
                         .stdout(predicate::str::contains(format!(
@@ -167,7 +167,7 @@ async fn remote_store_get_table() {
                         .arg("-o")
                         .arg(&custom_output_dir)
                         .arg(&namespace)
-                        .arg(&other_table_name)
+                        .arg(other_table_name)
                         .assert()
                         .success()
                         .stdout(predicate::str::contains(format!(
@@ -196,11 +196,11 @@ async fn remote_store_get_table() {
                         .arg("store")
                         .arg("get-table")
                         .arg(&namespace)
-                        .arg(&table_name)
+                        .arg(table_name)
                         .assert()
                         .success();
 
-                    let table_dir = dir.as_ref().join(&table_name);
+                    let table_dir = dir.as_ref().join(table_name);
 
                     // There should be a directory created that, by default, is named the same as
                     // the table

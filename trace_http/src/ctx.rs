@@ -295,6 +295,7 @@ impl RequestLogContext {
 /// stream you're using.
 ///
 /// You may use [`TraceHeaderParser`] to parse the resulting value.
+#[allow(clippy::bool_to_int_with_if)] // if sampled 1 else 0 is clearer than i32::from(sampled) imo
 pub fn format_jaeger_trace_context(span_context: &SpanContext) -> String {
     let flags = if span_context.sampled { 1 } else { 0 };
 

@@ -199,7 +199,7 @@ mod tests {
             write_buffer,
             ShardIndex::new(0),
             Duration::from_millis(10),
-            &*metrics,
+            &metrics,
         );
 
         assert_eq!(fetcher.cached_watermark(), None);
@@ -232,7 +232,7 @@ mod tests {
             write_buffer,
             ShardIndex::new(0),
             Duration::from_millis(10),
-            &*metrics,
+            &metrics,
         );
 
         async {

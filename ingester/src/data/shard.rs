@@ -151,7 +151,7 @@ impl ShardData {
                         ns_name,
                         self.shard_id,
                         Arc::clone(&self.partition_provider),
-                        &*self.metrics,
+                        &self.metrics,
                     ),
                 )
             }

@@ -117,7 +117,7 @@ async fn test_decoded_iox_metadata() {
     println!("schema: {:#?}", schema);
 
     let col_summary = decoded
-        .read_statistics(&*schema)
+        .read_statistics(&schema)
         .expect("Invalid Statistics");
     assert_eq!(col_summary.len(), 3);
 
@@ -342,7 +342,7 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
     assert_eq!(field.name(), "time");
 
     let col_summary = decoded
-        .read_statistics(&*schema)
+        .read_statistics(&schema)
         .expect("Invalid Statistics");
     assert_eq!(col_summary.len(), num_cols);
 

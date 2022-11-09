@@ -464,7 +464,7 @@ impl IoxMetadata {
             .read_schema()
             .expect("failed to read encoded schema");
         let stats = decoded
-            .read_statistics(&*schema)
+            .read_statistics(&schema)
             .expect("invalid statistics");
         let columns: Vec<_> = stats.iter().map(|v| column_id_map(&v.name)).collect();
         let time_summary = stats
@@ -1098,7 +1098,7 @@ mod tests {
 
         // Try and access the IOx metadata that was embedded above (with the
         // SchemaBuilder)
-        let col_summary = decoded.read_statistics(&*schema).unwrap();
+        let col_summary = decoded.read_statistics(&schema).unwrap();
         assert!(!col_summary.is_empty());
     }
 

@@ -131,7 +131,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Schem
             let object_store: Arc<DynObjectStore> = Arc::new(ObjectStoreMetrics::new(
                 object_store,
                 time_provider,
-                &*metrics,
+                &metrics,
             ));
 
             let catalog = merge_config

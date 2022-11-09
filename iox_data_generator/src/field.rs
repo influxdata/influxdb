@@ -25,10 +25,16 @@ pub enum Error {
     CouldNotCreateFieldName { source: crate::substitution::Error },
 
     #[snafu(display("Could not compile string field template: {}", source))]
-    CouldNotCompileStringTemplate { source: handlebars::TemplateError },
+    CouldNotCompileStringTemplate {
+        #[snafu(source(from(handlebars::TemplateError, Box::new)))]
+        source: Box<handlebars::TemplateError>,
+    },
 
     #[snafu(display("Could not render string field template: {}", source))]
-    CouldNotRenderStringTemplate { source: handlebars::RenderError },
+    CouldNotRenderStringTemplate {
+        #[snafu(source(from(handlebars::RenderError, Box::new)))]
+        source: Box<handlebars::RenderError>,
+    },
 }
 
 /// Different field type generators

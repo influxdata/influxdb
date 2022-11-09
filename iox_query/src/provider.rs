@@ -731,7 +731,7 @@ impl Deduplicater {
         // At least one of the overlapped chunks are not sorted
         // Either Ingesting data or data sent from Ingester to Querier will
         // fall into this case
-        if chunks.iter().any(|c| c.sort_key() == None) {
+        if chunks.iter().any(|c| c.sort_key().is_none()) {
             debug!("At least one of the overlapped chunks are not sorted");
             return None;
         }

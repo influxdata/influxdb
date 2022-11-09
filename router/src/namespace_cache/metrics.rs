@@ -96,7 +96,7 @@ where
         schema: impl Into<Arc<NamespaceSchema>>,
     ) -> Option<Arc<NamespaceSchema>> {
         let schema = schema.into();
-        let stats = NamespaceStats::new(&*schema);
+        let stats = NamespaceStats::new(&schema);
 
         let t = self.time_provider.now();
         let res = self.inner.put_schema(namespace, schema);
@@ -109,7 +109,7 @@ where
 
                 // Figure out the difference between the new namespace and the
                 // evicted old namespace
-                let old_stats = NamespaceStats::new(&*v);
+                let old_stats = NamespaceStats::new(&v);
                 let table_count_diff = stats.table_count as i64 - old_stats.table_count as i64;
                 let column_count_diff = stats.column_count as i64 - old_stats.column_count as i64;
 

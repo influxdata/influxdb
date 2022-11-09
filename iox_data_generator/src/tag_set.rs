@@ -25,7 +25,8 @@ pub enum Error {
     #[snafu(display("Could not compile template `{}`, caused by:\n{}", template, source))]
     CantCompileTemplate {
         /// Underlying Handlebars error that caused this problem
-        source: handlebars::TemplateError,
+        #[snafu(source(from(handlebars::TemplateError, Box::new)))]
+        source: Box<handlebars::TemplateError>,
         /// Template that caused this problem
         template: String,
     },
@@ -34,7 +35,8 @@ pub enum Error {
     #[snafu(display("Could not render template `{}`, caused by:\n{}", template, source))]
     CantRenderTemplate {
         /// Underlying Handlebars error that caused this problem
-        source: handlebars::RenderError,
+        #[snafu(source(from(handlebars::RenderError, Box::new)))]
+        source: Box<handlebars::RenderError>,
         /// Template that caused this problem
         template: String,
     },

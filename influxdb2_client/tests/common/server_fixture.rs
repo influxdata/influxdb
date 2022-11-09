@@ -227,7 +227,7 @@ impl TestServer {
                 .arg("--pull")
                 .arg("always")
                 .arg("--detach")
-                .arg(&ci_image)
+                .arg(ci_image)
                 .arg("influxd")
                 .output()
                 .expect("starting of docker server process");

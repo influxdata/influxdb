@@ -105,7 +105,7 @@ pub async fn command(config: Config) -> Result<()> {
     let object_store: Arc<DynObjectStore> = Arc::new(ObjectStoreMetrics::new(
         object_store,
         time_provider,
-        &*metrics,
+        &metrics,
     ));
 
     let server_type = create_router_server_type(

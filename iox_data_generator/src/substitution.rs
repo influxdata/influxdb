@@ -25,14 +25,16 @@ pub enum Error {
         source
     ))]
     CantCompileTemplate {
-        source: handlebars::TemplateError,
+        #[snafu(source(from(handlebars::TemplateError, Box::new)))]
+        source: Box<handlebars::TemplateError>,
         template: String,
     },
 
     #[snafu(display("Could not render template {}, caused by: {}", name, source))]
     CantRenderTemplate {
         name: String,
-        source: handlebars::RenderError,
+        #[snafu(source(from(handlebars::RenderError, Box::new)))]
+        source: Box<handlebars::RenderError>,
     },
 
     #[snafu(display(
@@ -41,7 +43,8 @@ pub enum Error {
         source
     ))]
     CantPerformSubstitution {
-        source: handlebars::RenderError,
+        #[snafu(source(from(handlebars::RenderError, Box::new)))]
+        source: Box<handlebars::RenderError>,
         template: String,
     },
 }

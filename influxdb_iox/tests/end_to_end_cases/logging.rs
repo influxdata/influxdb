@@ -7,7 +7,7 @@ async fn test_logging() {
     // Testing with all-in-one mode because it has the least amount of setup needed.
     Command::cargo_bin("influxdb_iox")
         .unwrap()
-        .args(&["run", "all-in-one", "--log-filter", "info"])
+        .args(["run", "all-in-one", "--log-filter", "info"])
         .timeout(Duration::from_secs(2))
         .assert()
         .failure()
@@ -18,7 +18,7 @@ async fn test_logging() {
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
-        .args(&["run", "all-in-one", "--log-filter", "error"])
+        .args(["run", "all-in-one", "--log-filter", "error"])
         .timeout(Duration::from_secs(2))
         .assert()
         .failure()
