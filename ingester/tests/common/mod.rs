@@ -2,7 +2,7 @@ use std::{collections::HashMap, num::NonZeroU32, sync::Arc, time::Duration};
 
 use data_types::{
     Namespace, NamespaceSchema, PartitionKey, QueryPoolId, Sequence, SequenceNumber, ShardId,
-    ShardIndex, TopicId,
+    ShardIndex, TableId, TopicId,
 };
 use dml::{DmlMeta, DmlWrite};
 use futures::{stream::FuturesUnordered, StreamExt};
@@ -297,7 +297,7 @@ impl TestContext {
             namespace,
             namespace_id,
             lines_to_batches(lp, 0).unwrap(),
-            ids,
+            ids.clone(),
             partition_key,
             DmlMeta::sequenced(
                 Sequence::new(TEST_SHARD_INDEX, SequenceNumber::new(sequence_number)),
@@ -307,6 +307,25 @@ impl TestContext {
             ),
         ))
         .await
+    }
+
+    /// Return the [`TableId`] in the catalog for `name`, or panic.
+    pub async fn table_id(&self, namespace: &str, name: &str) -> TableId {
+        let namespace_id = self
+            .namespaces
+            .get(namespace)
+            .expect("namespace does not exist")
+            .id;
+
+        self.catalog
+            .repositories()
+            .await
+            .tables()
+            .get_by_namespace_and_name(namespace_id, name)
+            .await
+            .expect("query failed")
+            .expect("no table entry for the specified namespace/table name pair")
+            .id
     }
 
     /// Utilise the progress API to query for the current state of the test

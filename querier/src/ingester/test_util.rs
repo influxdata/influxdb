@@ -1,6 +1,8 @@
 use super::IngesterConnection;
 use async_trait::async_trait;
+use data_types::NamespaceId;
 use data_types::ShardIndex;
+use data_types::TableId;
 use generated_types::influxdata::iox::ingester::v1::GetWriteInfoResponse;
 use iox_query::util::create_basic_summary;
 use parking_lot::Mutex;
@@ -33,8 +35,8 @@ impl IngesterConnection for MockIngesterConnection {
     async fn partitions(
         &self,
         _shard_indexes: &[ShardIndex],
-        _namespace_name: Arc<str>,
-        _table_name: Arc<str>,
+        _namespace_id: NamespaceId,
+        _table_id: TableId,
         columns: Vec<String>,
         _predicate: &predicate::Predicate,
         _expected_schema: Arc<schema::Schema>,

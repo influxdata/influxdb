@@ -689,8 +689,15 @@ async fn query_ingester() {
                         .arg("-h")
                         .arg(&ingester_addr)
                         .arg("query-ingester")
-                        .arg(state.cluster().namespace())
-                        .arg("my_awesome_table2")
+                        .arg(state.cluster().namespace_id().await.get().to_string())
+                        .arg(
+                            state
+                                .cluster()
+                                .table_id("my_awesome_table2")
+                                .await
+                                .get()
+                                .to_string(),
+                        )
                         .assert()
                         .success()
                         .stdout(predicate::str::contains(&expected));
@@ -706,7 +713,7 @@ async fn query_ingester() {
                     // something like "wrong query protocol" or
                     // "invalid message" as the querier requires a
                     // different message format Ticket in the flight protocol
-                    let expected = "Unknown namespace: my_awesome_table2";
+                    let expected = "Unknown namespace: ";
 
                     // Validate that the error message contains a reasonable error
                     Command::cargo_bin("influxdb_iox")
@@ -714,8 +721,15 @@ async fn query_ingester() {
                         .arg("-h")
                         .arg(&querier_addr)
                         .arg("query-ingester")
-                        .arg(state.cluster().namespace())
-                        .arg("my_awesome_table2")
+                        .arg(state.cluster().namespace_id().await.get().to_string())
+                        .arg(
+                            state
+                                .cluster()
+                                .table_id("my_awesome_table2")
+                                .await
+                                .get()
+                                .to_string(),
+                        )
                         .assert()
                         .failure()
                         .stderr(predicate::str::contains(expected));
@@ -741,8 +755,15 @@ async fn query_ingester() {
                         .arg("-h")
                         .arg(&ingester_addr)
                         .arg("query-ingester")
-                        .arg(state.cluster().namespace())
-                        .arg("my_awesome_table2")
+                        .arg(state.cluster().namespace_id().await.get().to_string())
+                        .arg(
+                            state
+                                .cluster()
+                                .table_id("my_awesome_table2")
+                                .await
+                                .get()
+                                .to_string(),
+                        )
                         .arg("--columns")
                         .arg("tag1,val")
                         .assert()

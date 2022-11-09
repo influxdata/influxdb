@@ -3,10 +3,14 @@ use crate::{
     TestServer,
 };
 use assert_cmd::prelude::*;
+use data_types::{NamespaceId, TableId};
 use futures::{stream::FuturesOrdered, StreamExt};
 use http::Response;
 use hyper::Body;
-use influxdb_iox_client::connection::GrpcConnection;
+use influxdb_iox_client::{
+    connection::GrpcConnection,
+    schema::generated_types::{schema_service_client::SchemaServiceClient, GetSchemaRequest},
+};
 use observability_deps::tracing::{debug, info};
 use once_cell::sync::Lazy;
 use std::{
@@ -15,7 +19,7 @@ use std::{
     time::Instant,
 };
 use tempfile::NamedTempFile;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OnceCell};
 
 /// Structure that holds services and helpful accessors. Does not include compactor; that is always
 /// run separately on-demand in tests.
@@ -40,6 +44,7 @@ pub struct MiniCluster {
     org_id: String,
     bucket_id: String,
     namespace: String,
+    namespace_id: OnceCell<NamespaceId>,
 }
 
 impl MiniCluster {
@@ -81,6 +86,7 @@ impl MiniCluster {
             org_id,
             bucket_id,
             namespace,
+            namespace_id: Default::default(),
         }
     }
 
@@ -234,6 +240,60 @@ impl MiniCluster {
     /// Get a reference to the mini cluster's namespace.
     pub fn namespace(&self) -> &str {
         self.namespace.as_ref()
+    }
+
+    /// Get a reference to the mini cluster's namespace ID.
+    pub async fn namespace_id(&self) -> NamespaceId {
+        *self
+            .namespace_id
+            .get_or_init(|| async {
+                let c = self
+                    .router
+                    .as_ref()
+                    .expect("no router instance running")
+                    .router_grpc_connection()
+                    .into_grpc_connection();
+
+                let id = SchemaServiceClient::new(c)
+                    .get_schema(GetSchemaRequest {
+                        namespace: self.namespace().to_string(),
+                    })
+                    .await
+                    .expect("failed to query for namespace ID")
+                    .into_inner()
+                    .schema
+                    .unwrap()
+                    .id;
+
+                NamespaceId::new(id)
+            })
+            .await
+    }
+
+    /// Get a the table ID for the given table.
+    pub async fn table_id(&self, name: &str) -> TableId {
+        let c = self
+            .router
+            .as_ref()
+            .expect("no router instance running")
+            .router_grpc_connection()
+            .into_grpc_connection();
+
+        let id = SchemaServiceClient::new(c)
+            .get_schema(GetSchemaRequest {
+                namespace: self.namespace().to_string(),
+            })
+            .await
+            .expect("failed to query for namespace ID")
+            .into_inner()
+            .schema
+            .unwrap()
+            .tables
+            .get(name)
+            .expect("table not found")
+            .id;
+
+        TableId::new(id)
     }
 
     /// Writes the line protocol to the write_base/api/v2/write endpoint on the router into the

@@ -10,6 +10,7 @@ use arrow_flight::{
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
     HandshakeRequest, HandshakeResponse, IpcMessage, PutResult, SchemaAsIpc, SchemaResult, Ticket,
 };
+use data_types::{NamespaceId, TableId};
 use flatbuffers::FlatBufferBuilder;
 use futures::Stream;
 use generated_types::influxdata::iox::{
@@ -20,7 +21,7 @@ use generated_types::influxdata::iox::{
     },
 };
 use iox_catalog::interface::Catalog;
-use observability_deps::tracing::{debug, info, warn};
+use observability_deps::tracing::*;
 use pin_project::pin_project;
 use prost::Message;
 use service_grpc_catalog::CatalogService;
@@ -157,20 +158,17 @@ pub enum Error {
         source: Box<crate::querier_handler::Error>,
     },
 
-    #[snafu(display(
-        "No Namespace Data found for the given namespace name {}",
-        namespace_name,
-    ))]
-    NamespaceNotFound { namespace_name: String },
+    #[snafu(display("No Namespace Data found for the given namespace ID {}", namespace_id,))]
+    NamespaceNotFound { namespace_id: NamespaceId },
 
     #[snafu(display(
-        "No Table Data found for the given namespace name {}, table name {}",
-        namespace_name,
-        table_name
+        "No Table Data found for the given namespace ID {}, table ID {}",
+        namespace_id,
+        table_id
     ))]
     TableNotFound {
-        namespace_name: String,
-        table_name: String,
+        namespace_id: NamespaceId,
+        table_id: TableId,
     },
 
     #[snafu(display("Error while streaming query results: {}", source))]
@@ -192,9 +190,7 @@ impl From<Error> for tonic::Status {
             | Error::Query { .. }
             | Error::NamespaceNotFound { .. }
             | Error::TableNotFound { .. } => {
-                // TODO(edd): this should be `debug`. Keeping at info whilst IOx still in early
-                // development
-                info!(e=%err, msg)
+                debug!(e=%err, msg)
             }
             Error::QueryStream { .. } | Error::Serialization { .. } => {
                 warn!(e=%err, msg)
@@ -296,15 +292,15 @@ impl<I: IngestHandler + Send + Sync + 'static> Flight for FlightService<I> {
             .query(query_request, span_ctx.child_span("ingest handler query"))
             .await
             .map_err(|e| match e {
-                crate::querier_handler::Error::NamespaceNotFound { namespace_name } => {
-                    Error::NamespaceNotFound { namespace_name }
+                crate::querier_handler::Error::NamespaceNotFound { namespace_id } => {
+                    Error::NamespaceNotFound { namespace_id }
                 }
                 crate::querier_handler::Error::TableNotFound {
-                    namespace_name,
-                    table_name,
+                    namespace_id,
+                    table_id,
                 } => Error::TableNotFound {
-                    namespace_name,
-                    table_name,
+                    namespace_id,
+                    table_id,
                 },
                 _ => Error::Query {
                     source: Box::new(e),

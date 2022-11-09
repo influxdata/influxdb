@@ -68,8 +68,9 @@ impl QuerierNamespace {
             .map(|(table_name, cached_table)| {
                 let table = Arc::new(QuerierTable::new(QuerierTableArgs {
                     sharder: Arc::clone(&sharder),
+                    namespace_id: ns.id,
                     namespace_name: Arc::clone(&name),
-                    id: cached_table.id,
+                    table_id: cached_table.id,
                     table_name: Arc::clone(table_name),
                     schema: Arc::clone(&cached_table.schema),
                     ingester_connection: ingester_connection.clone(),

@@ -8,8 +8,8 @@ use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig, BackoffError};
 use client_util::connection;
 use data_types::{
-    ChunkId, ChunkOrder, IngesterMapping, PartitionId, SequenceNumber, ShardId, ShardIndex,
-    TableSummary, TimestampMinMax,
+    ChunkId, ChunkOrder, IngesterMapping, NamespaceId, PartitionId, SequenceNumber, ShardId,
+    ShardIndex, TableId, TableSummary, TimestampMinMax,
 };
 use datafusion::error::DataFusionError;
 use futures::{stream::FuturesUnordered, TryStreamExt};
@@ -172,8 +172,8 @@ pub trait IngesterConnection: std::fmt::Debug + Send + Sync + 'static {
     async fn partitions(
         &self,
         shard_indexes: &[ShardIndex],
-        namespace_name: Arc<str>,
-        table_name: Arc<str>,
+        namespace_id: NamespaceId,
+        table_id: TableId,
         columns: Vec<String>,
         predicate: &Predicate,
         expected_schema: Arc<Schema>,
@@ -294,8 +294,8 @@ impl<'a> Drop for ObserveIngesterRequest<'a> {
 
             debug!(
                 predicate=?self.request.predicate,
-                namespace=%self.request.namespace_name,
-                table_name=%self.request.table_name,
+                namespace_id=self.request.namespace_id.get(),
+                table_id=self.request.table_id.get(),
                 n_partitions=?ok_status.map(|s| s.n_partitions),
                 n_chunks=?ok_status.map(|s| s.n_chunks),
                 n_rows=?ok_status.map(|s| s.n_rows),
@@ -386,8 +386,8 @@ struct GetPartitionForIngester<'a> {
     flight_client: Arc<dyn FlightClient>,
     catalog_cache: Arc<CatalogCache>,
     ingester_address: Arc<str>,
-    namespace_name: Arc<str>,
-    table_name: Arc<str>,
+    namespace_id: NamespaceId,
+    table_id: TableId,
     columns: Vec<String>,
     predicate: &'a Predicate,
     expected_schema: Arc<Schema>,
@@ -402,16 +402,16 @@ async fn execute(
         flight_client,
         catalog_cache,
         ingester_address,
-        namespace_name,
-        table_name,
+        namespace_id,
+        table_id,
         columns,
         predicate,
         expected_schema,
     } = request;
 
     let ingester_query_request = IngesterQueryRequest {
-        namespace: namespace_name.to_string(),
-        table: table_name.to_string(),
+        namespace_id,
+        table_id,
         columns: columns.clone(),
         predicate: Some(predicate.clone()),
     };
@@ -430,9 +430,9 @@ async fn execute(
     {
         if status.code() == tonic::Code::NotFound {
             debug!(
-                ingester_address=ingester_address.as_ref(),
-                %namespace_name,
-                %table_name,
+                ingester_address = ingester_address.as_ref(),
+                namespace_id = namespace_id.get(),
+                table_id = table_id.get(),
                 "Ingester does not know namespace or table, skipping",
             );
             return Ok(vec![]);
@@ -447,8 +447,8 @@ async fn execute(
             warn!(
                 e=%e,
                 ingester_address=ingester_address.as_ref(),
-                namespace=namespace_name.as_ref(),
-                table=table_name.as_ref(),
+                namespace_id=namespace_id.get(),
+                table_id=table_id.get(),
                 columns=columns.join(",").as_str(),
                 predicate_str=%predicate,
                 predicate_binary=encode_predicate_as_base64(predicate).as_str(),
@@ -691,8 +691,8 @@ impl IngesterConnection for IngesterConnectionImpl {
     async fn partitions(
         &self,
         shard_indexes: &[ShardIndex],
-        namespace_name: Arc<str>,
-        table_name: Arc<str>,
+        namespace_id: NamespaceId,
+        table_id: TableId,
         columns: Vec<String>,
         predicate: &Predicate,
         expected_schema: Arc<Schema>,
@@ -714,8 +714,8 @@ impl IngesterConnection for IngesterConnectionImpl {
                 flight_client: Arc::clone(&self.flight_client),
                 catalog_cache: Arc::clone(&self.catalog_cache),
                 ingester_address: Arc::clone(&ingester_address),
-                namespace_name: Arc::clone(&namespace_name),
-                table_name: Arc::clone(&table_name),
+                namespace_id,
+                table_id,
                 columns: columns.clone(),
                 predicate,
                 expected_schema: Arc::clone(&expected_schema),
@@ -1738,16 +1738,14 @@ mod tests {
         shard_indexes: &[i32],
         span: Option<Span>,
     ) -> Result<Vec<IngesterPartition>, Error> {
-        let namespace = Arc::from("namespace");
-        let table = Arc::from("table");
         let columns = vec![String::from("col")];
         let schema = schema();
         let shard_indexes: Vec<_> = shard_indexes.iter().copied().map(ShardIndex::new).collect();
         ingester_conn
             .partitions(
                 &shard_indexes,
-                namespace,
-                table,
+                NamespaceId::new(1),
+                TableId::new(2),
                 columns,
                 &Predicate::default(),
                 schema,

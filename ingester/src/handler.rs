@@ -358,11 +358,13 @@ impl IngestHandler for IngestHandlerImpl {
         // TEMP(alamb): Log details about what was requested
         // temporarily so we can track down potentially "killer"
         // requests from the querier to ingester
-        info!(namespace=%request.namespace,
-              table=%request.table,
-              columns=?request.columns,
-              predicate=?request.predicate,
-              "Handling querier request");
+        info!(
+            namespace_id=%request.namespace_id,
+            table_id=%request.table_id,
+            columns=?request.columns,
+            predicate=?request.predicate,
+            "handling querier request"
+        );
 
         let t = self.time_provider.now();
         let request = Arc::new(request);
@@ -678,8 +680,8 @@ mod tests {
     async fn limits_concurrent_queries() {
         let (mut ingester, _, _) = ingester_test_setup(vec![], 0, true).await;
         let request = IngesterQueryRequest {
-            namespace: "foo".to_string(),
-            table: "cpu".to_string(),
+            namespace_id: NamespaceId::new(42),
+            table_id: TableId::new(24),
             columns: vec!["asdf".to_string()],
             predicate: None,
         };

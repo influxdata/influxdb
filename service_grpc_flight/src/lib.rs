@@ -8,7 +8,7 @@ use arrow_flight::{
 };
 use arrow_util::optimize::{optimize_record_batch, optimize_schema};
 use bytes::{Bytes, BytesMut};
-use data_types::{DatabaseName, DatabaseNameError};
+use data_types::DatabaseNameError;
 use datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
 use futures::{SinkExt, Stream, StreamExt};
 use generated_types::influxdata::iox::querier::v1 as proto;
@@ -172,10 +172,8 @@ where
         span_ctx: Option<SpanContext>,
         permit: InstrumentedAsyncOwnedSemaphorePermit,
         sql_query: String,
-        database_name: String,
+        database: String,
     ) -> Result<Response<TonicStream<FlightData>>, tonic::Status> {
-        let database = DatabaseName::new(&database_name).context(InvalidDatabaseNameSnafu)?;
-
         let db = self
             .server
             .db(&database, span_ctx.child_span("get namespace"))
@@ -190,14 +188,8 @@ where
             .await
             .context(PlanningSnafu)?;
 
-        let output = GetStream::new(
-            ctx,
-            physical_plan,
-            database_name,
-            query_completed_token,
-            permit,
-        )
-        .await?;
+        let output =
+            GetStream::new(ctx, physical_plan, database, query_completed_token, permit).await?;
 
         Ok(Response::new(Box::pin(output) as TonicStream<FlightData>))
     }

@@ -8,8 +8,12 @@ option go_package = "github.com/influxdata/iox/ingester/v1";
 // This type of message is Serialized as the Ticket value for the
 // Arrow Flight doGet request.
 message IngesterQueryRequest {
+  // Was table indexed via string (instead of via ID)
+  reserved "table";
+  reserved 1;
+
   // Table to search
-  string table = 1;
+  int64 table_id = 9;
 
   // Columns the query service is interested in
   repeated string columns = 2;
@@ -29,8 +33,12 @@ message IngesterQueryRequest {
   reserved "greater_than_sequence_number";
   reserved 6;
 
+  // Was namespace indexed as a string (instead of via ID)
+  reserved "namespace";
+  reserved 7;
+
   // Namespace to search
-  string namespace = 7;
+  int64 namespace_id = 10;
 
   // was used to only request data from a single sequencer ID
   reserved "sequencer_id";

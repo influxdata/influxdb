@@ -6,7 +6,7 @@ use crate::{
     ingester::{self, IngesterPartition},
     IngesterConnection,
 };
-use data_types::{ColumnId, PartitionId, ShardIndex, TableId, TimestampMinMax};
+use data_types::{ColumnId, NamespaceId, PartitionId, ShardIndex, TableId, TimestampMinMax};
 use datafusion::error::DataFusionError;
 use futures::{join, StreamExt};
 use iox_query::pruning::prune_summaries;
@@ -80,8 +80,9 @@ impl From<Error> for DataFusionError {
 /// Args to create a [`QuerierTable`].
 pub struct QuerierTableArgs {
     pub sharder: Arc<JumpHash<Arc<ShardIndex>>>,
+    pub namespace_id: NamespaceId,
     pub namespace_name: Arc<str>,
-    pub id: TableId,
+    pub table_id: TableId,
     pub table_name: Arc<str>,
     pub schema: Arc<Schema>,
     pub ingester_connection: Option<Arc<dyn IngesterConnection>>,
@@ -100,11 +101,14 @@ pub struct QuerierTable {
     /// Namespace the table is in
     namespace_name: Arc<str>,
 
+    /// Namespace ID for this table.
+    namespace_id: NamespaceId,
+
     /// Table name.
     table_name: Arc<str>,
 
     /// Table ID.
-    id: TableId,
+    table_id: TableId,
 
     /// Table schema.
     schema: Arc<Schema>,
@@ -133,8 +137,9 @@ impl QuerierTable {
     pub fn new(args: QuerierTableArgs) -> Self {
         let QuerierTableArgs {
             sharder,
+            namespace_id,
             namespace_name,
-            id,
+            table_id,
             table_name,
             schema,
             ingester_connection,
@@ -153,8 +158,9 @@ impl QuerierTable {
         Self {
             sharder,
             namespace_name,
+            namespace_id,
             table_name,
-            id,
+            table_id,
             schema,
             ingester_connection,
             chunk_adapter,
@@ -173,7 +179,7 @@ impl QuerierTable {
     /// Table ID.
     #[allow(dead_code)]
     pub fn id(&self) -> TableId {
-        self.id
+        self.table_id
     }
 
     /// Schema.
@@ -451,8 +457,8 @@ impl QuerierTable {
         let partitions_result = ingester_connection
             .partitions(
                 &shard_indexes,
-                Arc::clone(&self.namespace_name),
-                Arc::clone(&self.table_name),
+                self.namespace_id,
+                self.table_id,
                 columns,
                 predicate,
                 Arc::clone(&self.schema),
@@ -489,7 +495,7 @@ impl QuerierTable {
         self.chunk_adapter
             .catalog_cache()
             .parquet_file()
-            .expire(self.id)
+            .expire(self.table_id)
     }
 
     /// clear the tombstone cache
@@ -498,7 +504,7 @@ impl QuerierTable {
         self.chunk_adapter
             .catalog_cache()
             .tombstone()
-            .expire(self.id)
+            .expire(self.table_id)
     }
 }
 

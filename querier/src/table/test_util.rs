@@ -35,8 +35,9 @@ pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -
 
     QuerierTable::new(QuerierTableArgs {
         sharder: Arc::new(JumpHash::new((0..1).map(ShardIndex::new).map(Arc::new))),
+        namespace_id: table.namespace.namespace.id,
         namespace_name,
-        id: table.table.id,
+        table_id: table.table.id,
         table_name: table.table.name.clone().into(),
         schema,
         ingester_connection: Some(create_ingester_connection_for_testing()),

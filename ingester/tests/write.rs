@@ -15,7 +15,7 @@ use metric::{DurationHistogram, U64Counter, U64Gauge};
 async fn test_write_query() {
     let mut ctx = TestContext::new().await;
 
-    ctx.ensure_namespace("test_namespace").await;
+    let ns = ctx.ensure_namespace("test_namespace").await;
 
     // Initial write
     let partition_key = PartitionKey::from("1970-01-01");
@@ -52,8 +52,8 @@ async fn test_write_query() {
     // Perform a query to validate the actual data buffered.
     let data = ctx
         .query(IngesterQueryRequest {
-            namespace: "test_namespace".to_string(),
-            table: "bananas".to_string(),
+            namespace_id: ns.id,
+            table_id: ctx.table_id("test_namespace", "bananas").await,
             columns: vec![],
             predicate: None,
         })
@@ -129,7 +129,7 @@ async fn test_seek_on_init() {
 
     let partition_key = PartitionKey::from("1970-01-01");
 
-    ctx.ensure_namespace("test_namespace").await;
+    let ns = ctx.ensure_namespace("test_namespace").await;
     ctx.write_lp(
         "test_namespace",
         "bananas greatness=\"unbounded\" 10",
@@ -158,8 +158,8 @@ async fn test_seek_on_init() {
     // Assert the data in memory.
     let data = ctx
         .query(IngesterQueryRequest {
-            namespace: "test_namespace".to_string(),
-            table: "bananas".to_string(),
+            namespace_id: ns.id,
+            table_id: ctx.table_id("test_namespace", "bananas").await,
             columns: vec![],
             predicate: None,
         })
@@ -197,8 +197,8 @@ async fn test_seek_on_init() {
     // Assert the data in memory now contains only w2.
     let data = ctx
         .query(IngesterQueryRequest {
-            namespace: "test_namespace".to_string(),
-            table: "bananas".to_string(),
+            namespace_id: ns.id,
+            table_id: ctx.table_id("test_namespace", "bananas").await,
             columns: vec![],
             predicate: None,
         })
@@ -248,8 +248,8 @@ async fn test_skip_previously_applied_partition_ops() {
     // Assert the data in memory.
     let data = ctx
         .query(IngesterQueryRequest {
-            namespace: "test_namespace".to_string(),
-            table: "bananas".to_string(),
+            namespace_id: ns.id,
+            table_id: ctx.table_id("test_namespace", "bananas").await,
             columns: vec![],
             predicate: None,
         })
@@ -299,8 +299,8 @@ async fn test_skip_previously_applied_partition_ops() {
     // Assert the partition replay skipped the first write.
     let data = ctx
         .query(IngesterQueryRequest {
-            namespace: "test_namespace".to_string(),
-            table: "bananas".to_string(),
+            namespace_id: ns.id,
+            table_id: ctx.table_id("test_namespace", "bananas").await,
             columns: vec![],
             predicate: None,
         })
@@ -357,7 +357,7 @@ async fn test_seek_dropped_offset() {
     let mut ctx = TestContext::new().await;
 
     // Place a write into the write buffer so it is not empty.
-    ctx.ensure_namespace("test_namespace").await;
+    let ns = ctx.ensure_namespace("test_namespace").await;
 
     // A write at offset 42
     let w1 = ctx
@@ -387,8 +387,8 @@ async fn test_seek_dropped_offset() {
     // Assert the data in memory now contains only w2.
     let data = ctx
         .query(IngesterQueryRequest {
-            namespace: "test_namespace".to_string(),
-            table: "bananas".to_string(),
+            namespace_id: ns.id,
+            table_id: ctx.table_id("test_namespace", "bananas").await,
             columns: vec![],
             predicate: None,
         })

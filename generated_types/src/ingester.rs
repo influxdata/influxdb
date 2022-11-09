@@ -1,5 +1,5 @@
 use crate::{google::FieldViolation, influxdata::iox::ingester::v1 as proto};
-use data_types::TimestampRange;
+use data_types::{NamespaceId, TableId, TimestampRange};
 use datafusion::{common::DataFusionError, prelude::Expr};
 use datafusion_proto::bytes::Serializeable;
 use predicate::{Predicate, ValueExpr};
@@ -24,11 +24,14 @@ fn expr_from_bytes_violation(field: impl Into<String>, e: DataFusionError) -> Fi
 #[derive(Debug, PartialEq, Clone)]
 pub struct IngesterQueryRequest {
     /// namespace to search
-    pub namespace: String,
+    pub namespace_id: NamespaceId,
+
     /// Table to search
-    pub table: String,
+    pub table_id: TableId,
+
     /// Columns the query service is interested in
     pub columns: Vec<String>,
+
     /// Predicate for filtering
     pub predicate: Option<Predicate>,
 }
@@ -37,14 +40,14 @@ impl IngesterQueryRequest {
     /// Make a request to return data for a specified table for
     /// all shards an ingester is responsible for
     pub fn new(
-        namespace: String,
-        table: String,
+        namespace_id: NamespaceId,
+        table_id: TableId,
         columns: Vec<String>,
         predicate: Option<Predicate>,
     ) -> Self {
         Self {
-            namespace,
-            table,
+            namespace_id,
+            table_id,
             columns,
             predicate,
         }
@@ -56,15 +59,17 @@ impl TryFrom<proto::IngesterQueryRequest> for IngesterQueryRequest {
 
     fn try_from(proto: proto::IngesterQueryRequest) -> Result<Self, Self::Error> {
         let proto::IngesterQueryRequest {
-            namespace,
-            table,
+            namespace_id,
+            table_id,
             columns,
             predicate,
         } = proto;
 
+        let namespace_id = NamespaceId::new(namespace_id);
+        let table_id = TableId::new(table_id);
         let predicate = predicate.map(TryInto::try_into).transpose()?;
 
-        Ok(Self::new(namespace, table, columns, predicate))
+        Ok(Self::new(namespace_id, table_id, columns, predicate))
     }
 }
 
@@ -73,15 +78,15 @@ impl TryFrom<IngesterQueryRequest> for proto::IngesterQueryRequest {
 
     fn try_from(query: IngesterQueryRequest) -> Result<Self, Self::Error> {
         let IngesterQueryRequest {
-            namespace,
-            table,
+            namespace_id,
+            table_id,
             columns,
             predicate,
         } = query;
 
         Ok(Self {
-            namespace,
-            table,
+            namespace_id: namespace_id.get(),
+            table_id: table_id.get(),
             columns,
             predicate: predicate.map(TryInto::try_into).transpose()?,
         })
@@ -238,8 +243,8 @@ mod tests {
             .with_value_expr(col("_value").eq(lit("bar")).try_into().unwrap());
 
         let rust_query = IngesterQueryRequest::new(
-            "mydb".into(),
-            "cpu".into(),
+            NamespaceId::new(42),
+            TableId::new(1337),
             vec!["usage".into(), "time".into()],
             Some(rust_predicate),
         );

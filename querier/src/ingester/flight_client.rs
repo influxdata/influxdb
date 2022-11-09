@@ -213,6 +213,7 @@ impl CachedConnection {
 
 #[cfg(test)]
 mod tests {
+    use data_types::{NamespaceId, TableId};
     use datafusion::prelude::{col, lit};
     use predicate::Predicate;
 
@@ -236,8 +237,8 @@ mod tests {
                 let predicate = Predicate {exprs: vec![expr], ..Default::default()};
 
                 let request = IngesterQueryRequest {
-                    namespace: String::from("ns"),
-                    table: String::from("table"),
+                    namespace_id: NamespaceId::new(42),
+                    table_id: TableId::new(1337),
                     columns: vec![String::from("col1"), String::from("col2")],
                     predicate: Some(predicate),
                 };
