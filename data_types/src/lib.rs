@@ -1703,19 +1703,6 @@ pub enum InfluxDbType {
     Timestamp,
 }
 
-/// Address of the chunk within the catalog
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct PartitionAddr {
-    /// Database name
-    pub db_name: Arc<str>,
-
-    /// What table does the chunk belong to?
-    pub table_name: Arc<str>,
-
-    /// What partition does the chunk belong to?
-    pub partition_key: Arc<str>,
-}
-
 /// Summary statistics for a column.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct StatValues<T> {
