@@ -4295,6 +4295,7 @@ dependencies = [
  "generated_types",
  "hashbrown",
  "hyper",
+ "influxdb_line_protocol",
  "iox_catalog",
  "iox_tests",
  "iox_time",
