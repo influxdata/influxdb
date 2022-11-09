@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-//  Tests compacting a Cache snapshot into a single TSM file
+// Tests compacting a Cache snapshot into a single TSM file
 func TestCompactor_Snapshot(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
@@ -1086,6 +1086,14 @@ func TestCompactor_CompactFull_MaxKeys(t *testing.T) {
 	}
 }
 
+func newTSMKeyIterator(size int, fast bool, interrupt chan struct{}, readers ...*tsm1.TSMReader) (tsm1.KeyIterator, error) {
+	files := []string{}
+	for _, r := range readers {
+		files = append(files, r.Path())
+	}
+	return tsm1.NewTSMBatchKeyIterator(size, fast, 0, interrupt, files, readers...)
+}
+
 // Tests that a single TSM file can be read and iterated over
 func TestTSMKeyIterator_Single(t *testing.T) {
 	dir := MustTempDir()
@@ -1098,7 +1106,7 @@ func TestTSMKeyIterator_Single(t *testing.T) {
 
 	r := MustTSMReader(dir, 1, writes)
 
-	iter, err := tsm1.NewTSMKeyIterator(1, false, nil, r)
+	iter, err := newTSMKeyIterator(1, false, nil, r)
 	if err != nil {
 		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
 	}
@@ -1158,7 +1166,7 @@ func TestTSMKeyIterator_Duplicate(t *testing.T) {
 
 	r2 := MustTSMReader(dir, 2, writes2)
 
-	iter, err := tsm1.NewTSMKeyIterator(1, false, nil, r1, r2)
+	iter, err := newTSMKeyIterator(1, false, nil, r1, r2)
 	if err != nil {
 		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
 	}
@@ -1219,7 +1227,7 @@ func TestTSMKeyIterator_MultipleKeysDeleted(t *testing.T) {
 	r2 := MustTSMReader(dir, 2, points2)
 	r2.Delete([][]byte{[]byte("cpu,host=A#!~#count")})
 
-	iter, err := tsm1.NewTSMKeyIterator(1, false, nil, r1, r2)
+	iter, err := newTSMKeyIterator(1, false, nil, r1, r2)
 	if err != nil {
 		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
 	}
@@ -1300,7 +1308,7 @@ func TestTSMKeyIterator_SingleDeletes(t *testing.T) {
 		t.Fatal(e)
 	}
 
-	iter, err := tsm1.NewTSMKeyIterator(1, false, nil, r1)
+	iter, err := newTSMKeyIterator(1, false, nil, r1)
 	if err != nil {
 		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
 	}
@@ -1357,7 +1365,7 @@ func TestTSMKeyIterator_Abort(t *testing.T) {
 	r := MustTSMReader(dir, 1, writes)
 
 	intC := make(chan struct{})
-	iter, err := tsm1.NewTSMKeyIterator(1, false, intC, r)
+	iter, err := newTSMKeyIterator(1, false, intC, r)
 	if err != nil {
 		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
 	}

@@ -44,8 +44,8 @@ import (
 // to support adding templated data from the command line.
 // This can probably be worked into the upstream tmpl
 // but isn't at the moment.
-//go:generate go run ../../../_tools/tmpl -i -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store.gen.go
-//go:generate go run ../../../_tools/tmpl -i -d isArray=y -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store_array.gen.go
+//go:generate go run ../../../_tools/tmpl -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store.gen.go
+//go:generate go run ../../../_tools/tmpl -d isArray=y -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store_array.gen.go
 //go:generate tmpl -data=@encoding.gen.go.tmpldata encoding.gen.go.tmpl
 //go:generate tmpl -data=@compact.gen.go.tmpldata compact.gen.go.tmpl
 //go:generate tmpl -data=@reader.gen.go.tmpldata reader.gen.go.tmpl
