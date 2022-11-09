@@ -75,19 +75,33 @@ func rewriteShowFieldKeyCardinalityStatement(stmt *influxql.ShowFieldKeyCardinal
 					Args: []influxql.Expr{
 						&influxql.Call{
 							Name: "distinct",
-							Args: []influxql.Expr{&influxql.VarRef{Val: "_fieldKey"}},
+							Args: []influxql.Expr{&influxql.VarRef{Val: "fieldKey"}},
 						},
 					},
 				},
 				Alias: "count",
 			},
 		},
-		Sources:    rewriteSources2(stmt.Sources, stmt.Database),
 		Condition:  stmt.Condition,
 		Dimensions: stmt.Dimensions,
 		Offset:     stmt.Offset,
 		Limit:      stmt.Limit,
 		OmitTime:   true,
+		Sources: influxql.Sources{
+			&influxql.SubQuery{
+				Statement: &influxql.SelectStatement{
+					Fields: []*influxql.Field{
+						{Expr: &influxql.VarRef{Val: "fieldKey"}},
+						{Expr: &influxql.VarRef{Val: "fieldType"}},
+					},
+					Sources:    rewriteSources(stmt.Sources, "_fieldKeys", stmt.Database),
+					Condition:  rewriteSourcesCondition(stmt.Sources, nil),
+					OmitTime:   true,
+					Dedupe:     true,
+					IsRawQuery: true,
+				},
+			},
+		},
 	}, nil
 }
 
