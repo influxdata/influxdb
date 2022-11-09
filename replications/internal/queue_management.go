@@ -21,7 +21,7 @@ import (
 const (
 	scannerAdvanceInterval = 10 * time.Second
 	purgeInterval          = 60 * time.Second
-	defaultMaxAge          = 168 * time.Hour
+	defaultMaxAge          = 7 * 24 * time.Hour // 1 week
 )
 
 type remoteWriter interface {
