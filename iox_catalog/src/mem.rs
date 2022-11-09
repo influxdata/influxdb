@@ -12,6 +12,7 @@ use crate::{
     DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES, DEFAULT_RETENTION_PERIOD,
 };
 use async_trait::async_trait;
+use chrono::{DateTime, NaiveDate, Utc};
 use data_types::{
     Column, ColumnId, ColumnType, ColumnTypeCount, CompactionLevel, Namespace, NamespaceId,
     ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey,
@@ -19,7 +20,7 @@ use data_types::{
     ShardIndex, SkippedCompaction, Table, TableId, TablePartition, Timestamp, Tombstone,
     TombstoneId, TopicId, TopicMetadata,
 };
-use iox_time::{SystemProvider, TimeProvider};
+use iox_time::{SystemProvider, Time, TimeProvider};
 use observability_deps::tracing::warn;
 use snafu::ensure;
 use sqlx::types::Uuid;
@@ -766,6 +767,7 @@ impl PartitionRepo for MemTxn {
                         partition_key: key,
                         sort_key: vec![],
                         persisted_sequence_number: None,
+                        to_delete: None,
                     };
                     stage.partitions.push(p);
                     stage.partitions.last().unwrap()
@@ -929,6 +931,57 @@ impl PartitionRepo for MemTxn {
             .filter(|p| shards.contains(&p.shard_id))
             .take(n)
             .cloned()
+            .collect())
+    }
+
+    async fn flag_for_delete_by_retention(&mut self) -> Result<Vec<PartitionId>> {
+        let now = Timestamp::from(self.time_provider.now());
+        let stage = self.stage();
+
+        Ok(stage
+            .partitions
+            .iter_mut()
+            // don't flag if it is already flagged
+            .filter(|p| p.to_delete.is_none())
+            .filter_map(|p| {
+                stage
+                    .tables
+                    .iter()
+                    .find(|t| t.id == p.table_id)
+                    .and_then(|t| {
+                        stage
+                            .namespaces
+                            .iter()
+                            .find(|n| n.id == t.namespace_id)
+                            .and_then(|ns| {
+                                ns.retention_period_ns.and_then(|retention_ns| {
+                                    let partition_key_ns = NaiveDate::parse_from_str(
+                                        &p.partition_key.to_string(),
+                                        "%Y-%m-%d",
+                                    )
+                                    .ok()
+                                    .map(|naive_date| naive_date.and_hms(0, 0, 0))
+                                    .map(|naive_date_time| {
+                                        DateTime::<Utc>::from_utc(naive_date_time, Utc)
+                                    })
+                                    .map(|date_time_utc| {
+                                        Timestamp::from(Time::from_date_time(date_time_utc))
+                                    });
+
+                                    partition_key_ns.and_then(|partition_key_ns| {
+                                        // Partition_key_ns is the start of the day. Need to add a day to it so we compare end of the day
+                                        let day_ns = 24 * 60 * 60 * 1_000_000_000;
+                                        if partition_key_ns + day_ns < now - retention_ns {
+                                            p.to_delete = Some(now);
+                                            Some(p.id)
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                })
+                            })
+                    })
+            })
             .collect())
     }
 }

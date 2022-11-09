@@ -1377,6 +1377,30 @@ WHERE id = $2;
         .await
         .map_err(|e| Error::SqlxError { source: e })
     }
+
+    async fn flag_for_delete_by_retention(&mut self) -> Result<Vec<PartitionId>> {
+        let flagged_at = Timestamp::from(self.time_provider.now());
+        let flagged = sqlx::query(
+            r#"
+            UPDATE partition p
+            SET to_delete = $1 
+            FROM table_name t, namespace n
+            WHERE p.to_delete IS NULL AND
+                  t.id = p.table_id AND
+                  n.id = t.namespace_id AND
+                  n.retention_period_ns IS NOT NULL AND
+                  extract(epoch from (to_date(p.partition_key, 'YYYY-MM-DD') + interval '1 day')) * 1000000000 < $1 - n.retention_period_ns
+            RETURNING p.id;
+            "#,
+        )
+        .bind(&flagged_at) // $1
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })?;
+
+        let flagged = flagged.into_iter().map(|row| row.get("id")).collect();
+        Ok(flagged)
+    }
 }
 
 #[async_trait]

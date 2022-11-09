@@ -1322,6 +1322,7 @@ mod tests {
             persisted_sequence_number: None,
             partition_key: PartitionKey::from("2022-06-21"),
             sort_key: Vec::new(),
+            to_delete: None,
         };
         let sort_key = get_sort_key(&partition, &m).1.unwrap();
         let sort_key = sort_key.to_columns().collect::<Vec<_>>();
@@ -1370,6 +1371,7 @@ mod tests {
             partition_key: PartitionKey::from("2022-06-21"),
             // N.B. sort key is already what it will computed to; here we're testing the `adjust_sort_key_columns` code path
             sort_key: vec!["host".to_string(), "arch".to_string(), "time".to_string()],
+            to_delete: None,
         };
         // ensure sort key is unchanged
         let _maybe_updated_sk = get_sort_key(&partition, &m).1;
@@ -1417,6 +1419,7 @@ mod tests {
             partition_key: PartitionKey::from("2022-06-21"),
             // N.B. is missing host so will need updating
             sort_key: vec!["arch".to_string(), "time".to_string()],
+            to_delete: None,
         };
         let sort_key = get_sort_key(&partition, &m).1.unwrap();
         let sort_key = sort_key.to_columns().collect::<Vec<_>>();
@@ -1466,6 +1469,7 @@ mod tests {
             partition_key: PartitionKey::from("2022-06-21"),
             // N.B. is missing arch so will need updating
             sort_key: vec!["host".to_string(), "time".to_string()],
+            to_delete: None,
         };
         let sort_key = get_sort_key(&partition, &m).1.unwrap();
         let sort_key = sort_key.to_columns().collect::<Vec<_>>();
