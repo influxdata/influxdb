@@ -9,6 +9,9 @@ pub struct Query {
     /// If true, replace UUIDs with static placeholders.
     normalized_uuids: bool,
 
+    /// If true, normalize timings in queries by replacing them with static placeholders.
+    normalized_metrics: bool,
+
     /// The SQL string
     sql: String,
 }
@@ -19,6 +22,7 @@ impl Query {
         Self {
             sorted_compare: false,
             normalized_uuids: false,
+            normalized_metrics: false,
             sql,
         }
     }
@@ -41,6 +45,11 @@ impl Query {
     /// Get queries normalized UUID
     pub fn normalized_uuids(&self) -> bool {
         self.normalized_uuids
+    }
+
+    /// Use normalized timing values
+    pub fn normalized_metrics(&self) -> bool {
+        self.normalized_metrics
     }
 }
 
@@ -68,6 +77,10 @@ impl QueryBuilder {
 
     fn normalized_uuids(&mut self) {
         self.query.normalized_uuids = true;
+    }
+
+    fn normalize_metrics(&mut self) {
+        self.query.normalized_metrics = true;
     }
 
     fn is_empty(&self) -> bool {
@@ -113,6 +126,9 @@ impl TestQueries {
                         }
                         "uuid" => {
                             builder.normalized_uuids();
+                        }
+                        "metrics" => {
+                            builder.normalize_metrics();
                         }
                         _ => {}
                     }

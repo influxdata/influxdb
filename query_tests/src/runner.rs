@@ -204,6 +204,9 @@ impl<W: Write> Runner<W> {
             if q.normalized_uuids() {
                 output.push("-- Results After Normalizing UUIDs".into())
             }
+            if q.normalized_metrics() {
+                output.push("-- Results After Normalizing Metrics".into())
+            }
 
             output.append(&mut self.run_query(q, db_setup.as_ref()).await?);
         }
@@ -321,6 +324,60 @@ impl<W: Write> Runner<W> {
                                         .or_insert(next),
                                 )
                                 .to_string()
+                            })
+                            .to_string()
+                    })
+                    .collect();
+            }
+
+            // normalize metrics, if requested
+            if query.normalized_metrics() {
+                // Parse regex once and apply to all rows. See description around the `replace...` calls on why/how the
+                // regexes are used.
+                let regex_metrics = Regex::new(r#"metrics=\[([^\]]*)\]"#).expect("metrics regex");
+                let regex_timing = Regex::new(r#"[0-9]+(\.[0-9]+)?.s"#).expect("timing regex");
+                let regex_linesep = Regex::new(r#"[+-]{6,}"#).expect("linesep regex");
+                let regex_col = Regex::new(r#"\s+\|"#).expect("col regex");
+
+                current_results = current_results
+                    .into_iter()
+                    .map(|s| {
+                        // Replace timings with fixed value, e.g.:
+                        //
+                        //   `1s`     -> `1.234ms`
+                        //   `1.2ms`  -> `1.234ms`
+                        //   `10.2μs` -> `1.234ms`
+                        let s = regex_timing.replace_all(&s, "1.234ms");
+
+                        // Replace table row separators of flexible width with fixed with. This is required because the
+                        // original timing values may differ in "printed width", so the table cells have different
+                        // widths and hence the separators / borders. E.g.:
+                        //
+                        //   `+--+--+`     -> `----------`
+                        //   `+--+------+` -> `----------`
+                        //
+                        // Note that we're kinda inexact with our regex here, but it gets the job done.
+                        let s = regex_linesep.replace_all(&s, "----------");
+
+                        // Similar to the row separator issue above, the table columns are right-padded with spaces. Due
+                        // to the different "printed width" of the timing values, we need to normalize this padding as
+                        // well. E.g.:
+                        //
+                        //   `        |`  -> `    |`
+                        //   `         |` -> `    |`
+                        let s = regex_col.replace_all(&s, "    |");
+
+                        // Metrics are currently ordered by value (not by key), so different timings may reorder them.
+                        // We "parse" the list and normalize the sorting. E.g.:
+                        //
+                        // `metrics=[]`             => `metrics=[]`
+                        // `metrics=[foo=1, bar=2]` => `metrics=[bar=2, foo=1]`
+                        // `metrics=[foo=2, bar=1]` => `metrics=[bar=1, foo=2]`
+                        regex_metrics
+                            .replace_all(&s, |c: &Captures| {
+                                let mut metrics: Vec<_> = c[1].split(", ").collect();
+                                metrics.sort();
+                                format!("metrics=[{}]", metrics.join(", "))
                             })
                             .to_string()
                     })

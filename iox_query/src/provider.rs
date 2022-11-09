@@ -37,7 +37,6 @@ use snafu::{ResultExt, Snafu};
 
 mod adapter;
 mod deduplicate;
-mod metrics;
 pub mod overlap;
 mod physical;
 mod record_batch_exec;
@@ -47,8 +46,6 @@ pub(crate) use physical::chunks_to_physical_nodes;
 
 #[cfg(test)]
 pub(crate) use record_batch_exec::RecordBatchesExec;
-
-pub use metrics::parquet_metrics;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
