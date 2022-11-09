@@ -11,16 +11,25 @@ pub(crate) async fn perform(
     sleep_interval_minutes: u64,
 ) -> Result<()> {
     loop {
-        let flagged = catalog
+        let parquet_file_flagged = catalog
             .repositories()
             .await
             .parquet_files()
             .flag_for_delete_by_retention()
             .await
-            .context(FlaggingSnafu)?;
-        info!(flagged_count = %flagged.len(), "iox_catalog::flag_for_delete_by_retention()");
+            .context(ParquetFileFlaggingSnafu)?;
+        info!(parquet_file_flagged_count = %parquet_file_flagged.len(), "iox_catalog::parquet_file::flag_for_delete_by_retention()");
 
-        if flagged.is_empty() {
+        let partition_flagged = catalog
+            .repositories()
+            .await
+            .partitions()
+            .flag_for_delete_by_retention()
+            .await
+            .context(PartitionFlaggingSnafu)?;
+        info!(partition_flagged_count = %partition_flagged.len(), "iox_catalog::partition::flag_for_delete_by_retention()");
+
+        if parquet_file_flagged.is_empty() && partition_flagged.is_empty() {
             select! {
                 _ = shutdown.cancelled() => {
                     break
@@ -38,7 +47,12 @@ pub(crate) async fn perform(
 #[allow(missing_docs)]
 pub enum Error {
     #[snafu(display("Failed to flag parquet files for deletion by retention policy"))]
-    Flagging {
+    ParquetFileFlagging {
+        source: iox_catalog::interface::Error,
+    },
+
+    #[snafu(display("Failed to flag partitions for deletion by retention policy"))]
+    PartitionFlagging {
         source: iox_catalog::interface::Error,
     },
 }
