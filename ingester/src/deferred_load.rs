@@ -68,6 +68,73 @@ where
     }
 }
 
+impl<T> DeferredLoad<T> {
+    /// Provide a hint to the [`DeferredLoad`] that the value will be used soon.
+    ///
+    /// This allows the value to be materialised in the background, in parallel
+    /// while the caller is executing code that will eventually call
+    /// [`Self::get()`].
+    pub(crate) fn prefetch_now(&self) {
+        let mut state = self.value.lock();
+
+        // If the value has already resolved, this call is a NOP.
+        if let Some(State::Resolved(_)) = &*state {
+            return;
+        }
+
+        // Potentially transition the state, discarding the waker.
+        let (_, new_state) = self.get_load_waker(state.take().unwrap());
+        *state = Some(new_state);
+    }
+
+    /// Potentially transition `state`, returning the new state and the
+    /// [`Notify`] that will be signalled when loading the value completes.
+    ///
+    /// # Panics
+    ///
+    /// This method panics if `state` is [`State::Resolved`].
+    fn get_load_waker(&self, state: State<T>) -> (Arc<Notify>, State<T>) {
+        let waker = match state {
+            // This caller is the first to demand the value - wake the
+            // background task, initialise the notification mechanism and
+            // wait for the task to complete.
+            State::Unresolved(task_waker) => {
+                // Wake the running background task, ignoring any send error
+                // as the background task may have concurrently woken up due
+                // to the sleep timer and stopped listening on the waker
+                // channel.
+                let _ = task_waker.send(());
+
+                // Replace the state with a notification for this thread
+                // (and others that call get()) to wait on for the
+                // concurrent fetch to complete.
+                Arc::new(Notify::default())
+            }
+
+            // If the value is already being fetched, wait for the fetch to
+            // complete.
+            State::Loading(waker) => waker,
+
+            // This was checked above before take()-ing the state.
+            State::Resolved(_) => unreachable!(),
+        };
+
+        // Ensure any subsequent callers can subscribe to the completion
+        // event by transitioning to the loading state.
+        let state = State::Loading(Arc::clone(&waker));
+
+        // Whenever there is a waker for the caller, the background task
+        // MUST be running.
+        //
+        // This check happens before the state lock is released, ensuring
+        // the background task doesn't concurrently finish (it would be
+        // blocked waiting to update the state).
+        assert!(!self.handle.is_finished());
+
+        (waker, state)
+    }
+}
+
 impl<T> DeferredLoad<T>
 where
     T: Send + Sync + 'static,
@@ -179,42 +246,8 @@ where
             // If execution reaches here, this call will have to wait for the
             // value to be resolved, and potentially must wake the background
             // task to do so.
-            let waker = match state.take().unwrap() {
-                // This caller is the first to demand the value - wake the
-                // background task, initialise the notification mechanism and
-                // wait for the task to complete.
-                State::Unresolved(task_waker) => {
-                    // Wake the running background task, ignoring any send error
-                    // as the background task may have concurrently woken up due
-                    // to the sleep timer and stopped listening on the waker
-                    // channel.
-                    let _ = task_waker.send(());
-
-                    // Replace the state with a notification for this thread
-                    // (and others that call get()) to wait on for the
-                    // concurrent fetch to complete.
-                    Arc::new(Notify::default())
-                }
-
-                // If the value is already being fetched, wait for the fetch to
-                // complete.
-                State::Loading(waker) => waker,
-
-                // This was checked above before take()-ing the state.
-                State::Resolved(_) => unreachable!(),
-            };
-
-            // Ensure any subsequent callers can subscribe to the completion
-            // event.
-            *state = Some(State::Loading(Arc::clone(&waker)));
-
-            // Whenever there is a waker for the caller, the background task
-            // MUST be running.
-            //
-            // This check happens before the state lock is released, ensuring
-            // the background task doesn't concurrently finish (it would be
-            // blocked waiting to update the state).
-            assert!(!self.handle.is_finished());
+            let (waker, new_state) = self.get_load_waker(state.take().unwrap());
+            *state = Some(new_state);
 
             waker
         };
@@ -370,5 +403,57 @@ mod tests {
         // And await the demand call
         fut.as_mut().with_timeout_panic(TIMEOUT).await;
         assert_eq!(fut.as_mut().take_output(), Some(42));
+    }
+
+    #[tokio::test]
+    async fn test_prefetch_concurrent_demand() {
+        // This channel is used to signal the background load has begun.
+        let (signal_start, started) = oneshot::channel();
+
+        // This channel is used to block the background task from completing
+        // after the above channel has signalled it has begun.
+        let (allow_complete, can_complete) = oneshot::channel();
+
+        // Configure the background load to fire (practically) immediately but
+        // block waiting for rx to be unblocked.
+        //
+        // This allows the current thread time to issue a demand and wait on the
+        // result before the background load completes.
+        let d = Arc::new(DeferredLoad::new(LONG_LONG_TIME, async {
+            // Signal the background task has begun.
+            signal_start.send(()).expect("test task died");
+            // Wait for the test thread to issue the demand call and unblock
+            // this fn.
+            can_complete.await.expect("sender died");
+            42
+        }));
+
+        d.prefetch_now();
+
+        // Wait for the background task to begin.
+        started
+            .with_timeout_panic(Duration::from_secs(5))
+            .await
+            .expect("background task died");
+
+        // Issue a demand call
+        let fut = future::maybe_done(d.get());
+        pin_mut!(fut);
+        assert_eq!(fut.as_mut().take_output(), None);
+
+        // Unblock the background task.
+        allow_complete.send(()).expect("background task died");
+
+        // And await the demand call
+        fut.as_mut().await;
+        assert_eq!(fut.as_mut().take_output(), Some(42));
+    }
+
+    #[tokio::test]
+    async fn test_prefetch_already_loaded() {
+        let d = Arc::new(DeferredLoad::new(LONG_LONG_TIME, async { 42 }));
+
+        let _ = d.get().with_timeout_panic(TIMEOUT).await;
+        d.prefetch_now();
     }
 }
