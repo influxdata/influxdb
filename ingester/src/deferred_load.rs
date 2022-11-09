@@ -1,6 +1,6 @@
 //! Generic deferred execution of arbitrary [`Future`]'s.
 
-use std::{sync::Arc, time::Duration};
+use std::{fmt::Display, sync::Arc, time::Duration};
 
 use futures::Future;
 use observability_deps::tracing::*;
@@ -13,6 +13,11 @@ use tokio::{
     },
     task::JoinHandle,
 };
+
+/// [`UNRESOLVED_DISPLAY_STRING`] defines the string shown when invoking the
+/// [`Display`] implementation on a [`DeferredLoad`] that has not yet resolved
+/// the deferred value.
+pub(crate) const UNRESOLVED_DISPLAY_STRING: &str = "<unresolved>";
 
 /// The states of a [`DeferredLoad`] instance.
 #[derive(Debug)]
@@ -65,6 +70,18 @@ where
             .field("value", &self.value)
             .field("handle", &self.handle)
             .finish()
+    }
+}
+
+impl<T> Display for DeferredLoad<T>
+where
+    T: Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.value.lock().as_ref().unwrap() {
+            State::Unresolved(_) | State::Loading(_) => f.write_str(UNRESOLVED_DISPLAY_STRING),
+            State::Resolved(v) => v.fmt(f),
+        }
     }
 }
 
@@ -403,6 +420,41 @@ mod tests {
         // And await the demand call
         fut.as_mut().with_timeout_panic(TIMEOUT).await;
         assert_eq!(fut.as_mut().take_output(), Some(42));
+    }
+
+    #[tokio::test]
+    async fn test_display() {
+        // This channel is used to block the background task from completing
+        // after the above channel has signalled it has begun.
+        let (allow_complete, can_complete) = oneshot::channel();
+
+        // Configure the background load to fire (practically) immediately but
+        // block waiting for rx to be unblocked.
+        let d = Arc::new(DeferredLoad::new(Duration::from_millis(1), async {
+            // Wait for the test thread to issue the demand call and unblock
+            // this fn.
+            can_complete.await.expect("sender died");
+            42
+        }));
+
+        assert_eq!("<unresolved>", d.to_string());
+
+        // Issue a demand call
+        let fut = future::maybe_done(d.get());
+        pin_mut!(fut);
+        assert_eq!(fut.as_mut().take_output(), None);
+
+        assert_eq!("<unresolved>", d.to_string());
+
+        // Unblock the background task.
+        allow_complete.send(()).expect("background task died");
+
+        // And await the demand call
+        fut.as_mut().await;
+        assert_eq!(fut.as_mut().take_output(), Some(42));
+
+        // And assert Display is delegated to the resolved value
+        assert_eq!("42", d.to_string());
     }
 
     #[tokio::test]
