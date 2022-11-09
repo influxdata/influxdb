@@ -429,7 +429,7 @@ func (f *LogFile) TagValueIterator(name, key []byte) TagValueIterator {
 	if !ok {
 		return nil
 	}
-	return tk.TagValueIterator()
+	return tk.TagValueIteratorNoLock()
 }
 
 // DeleteTagKey adds a tombstone for a tag key to the log file.
@@ -1383,11 +1383,15 @@ func (tk *logTagKey) Deleted() bool { return tk.deleted }
 
 func (tk *logTagKey) TagValueIterator() TagValueIterator {
 	tk.f.mu.RLock()
+	defer tk.f.mu.RUnlock()
+	return tk.TagValueIteratorNoLock()
+}
+
+func (tk *logTagKey) TagValueIteratorNoLock() TagValueIterator {
 	a := make([]logTagValue, 0, len(tk.tagValues))
 	for _, v := range tk.tagValues {
 		a = append(a, v)
 	}
-	tk.f.mu.RUnlock()
 
 	return newLogTagValueIterator(a)
 }
