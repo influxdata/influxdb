@@ -447,7 +447,7 @@ func (qm *durableQueueManager) newReplicationQueue(id platform.ID, orgID platfor
 	if maxAgeSeconds < 0 {
 		maxAgeTime = defaultMaxAge
 	} else {
-		maxAgeTime = time.Duration(time.Duration(maxAgeSeconds) * time.Second)
+		maxAgeTime = time.Duration(maxAgeSeconds) * time.Second
 	}
 
 	return &replicationQueue{
