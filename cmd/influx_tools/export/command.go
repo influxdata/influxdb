@@ -17,6 +17,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx_tools/internal/format/line"
 	"github.com/influxdata/influxdb/cmd/influx_tools/internal/format/text"
 	"github.com/influxdata/influxdb/cmd/influx_tools/server"
+	errors2 "github.com/influxdata/influxdb/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -105,9 +106,7 @@ func (cmd *Command) Run(args []string) (err error) {
 	case "discard":
 		wr = format.Discard
 	}
-	defer func() {
-		err = wr.Close()
-	}()
+	defer errors2.Capture(&err, wr.Close)()
 
 	if cmd.conflicts != nil {
 		wr = format.NewConflictWriter(wr, line.NewWriter(cmd.conflicts))
