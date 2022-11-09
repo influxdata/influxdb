@@ -2212,18 +2212,18 @@ func TestHandler_ListBuckets(t *testing.T) {
 				t.Fatalf("incorrect error message, expected: %q, got: %q", ct.errMsg, errMsg)
 			}
 		} else {
-			var got []httpd.Bucket
+			var got httpd.Buckets
 			exp := getBuckets(ct.skip, ct.limit)
 
 			if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
 				t.Fatalf("unmarshaling buckets: %s", err.Error())
 			}
-			if len(exp) != len(got) {
-				t.Fatalf("expected %d buckets returned, got %d", len(exp), len(got))
+			if len(exp) != len(got.Buckets) {
+				t.Fatalf("expected %d buckets returned, got %d", len(exp), len(got.Buckets))
 			}
-			for i := 0; i < len(got); i++ {
-				if exp[i] != got[i].Name {
-					t.Fatalf("expected %q, got %q", exp[i], got[i].Name)
+			for i := 0; i < len(got.Buckets); i++ {
+				if exp[i] != got.Buckets[i].Name {
+					t.Fatalf("expected %q, got %q", exp[i], got.Buckets[i].Name)
 				}
 			}
 		}
