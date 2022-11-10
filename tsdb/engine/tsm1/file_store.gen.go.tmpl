@@ -1,10 +1,14 @@
 package tsm1
 
+{{$isArray := .D.isArray}}
+{{$isNotArray := not $isArray}}
+
+{{if $isArray -}}
 import (
 	"github.com/influxdata/influxdb/v2/tsdb"
 )
-{{$isArray := .D.isArray}}
-{{$isNotArray := not $isArray}}
+{{end}}
+
 {{range .In}}
 {{if $isArray -}}
 // Read{{.Name}}ArrayBlock reads the next block as a set of {{.name}} values.
