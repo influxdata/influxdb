@@ -263,7 +263,7 @@ pub async fn prepare_data_to_querier(
     let mut found_namespace = false;
 
     for (shard_id, shard_data) in ingest_data.shards() {
-        let namespace_data = match shard_data.namespace_by_id(request.namespace_id) {
+        let namespace_data = match shard_data.namespace(request.namespace_id) {
             Some(namespace_data) => {
                 trace!(
                     shard_id=%shard_id.get(),

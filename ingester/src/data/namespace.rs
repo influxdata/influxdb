@@ -1,5 +1,7 @@
 //! Namespace level data buffer structures.
 
+pub(crate) mod name_resolver;
+
 use std::{collections::HashMap, sync::Arc};
 
 use data_types::{NamespaceId, SequenceNumber, ShardId, TableId};
@@ -355,6 +357,7 @@ mod tests {
 
     use crate::{
         data::partition::{resolver::MockPartitionProvider, PartitionData, SortKeyState},
+        deferred_load,
         lifecycle::mock_handle::MockLifecycleHandle,
         test_util::{make_write_op, TEST_TABLE},
     };
@@ -396,7 +399,11 @@ mod tests {
         );
 
         // Assert the namespace name was stored
-        assert_eq!(ns.namespace_name().to_string(), NAMESPACE_NAME);
+        let name = ns.namespace_name().to_string();
+        assert!(
+            (name == NAMESPACE_NAME) || (name == deferred_load::UNRESOLVED_DISPLAY_STRING),
+            "unexpected namespace name: {name}"
+        );
 
         // Assert the namespace does not contain the test data
         assert!(ns.table_data(&TABLE_NAME.into()).is_none());
@@ -430,5 +437,10 @@ mod tests {
             .expect("failed to get observer")
             .fetch();
         assert_eq!(tables, 1);
+
+        // Ensure the deferred namespace name is loaded.
+        let name = ns.namespace_name().get().await;
+        assert_eq!(&**name, NAMESPACE_NAME);
+        assert_eq!(ns.namespace_name().to_string(), NAMESPACE_NAME);
     }
 }
