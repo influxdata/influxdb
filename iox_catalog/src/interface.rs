@@ -486,6 +486,14 @@ pub trait PartitionRepo: Send + Sync {
 
     /// Flag all partition for deletion that are older than their namespace's retention period.
     async fn flag_for_delete_by_retention(&mut self) -> Result<Vec<PartitionId>>;
+
+    /// Delete partitions that were marked to be deleted earlier than the specified time.
+    ///
+    /// Returns the deleted IDs only.
+    ///
+    /// This deletion is limited to a certain (backend-specific) number of files to avoid overlarge changes. The caller
+    /// MAY call this method again if the result was NOT empty.
+    async fn delete_old_ids_only(&mut self, older_than: Timestamp) -> Result<Vec<PartitionId>>;
 }
 
 /// Functions for working with tombstones in the catalog
@@ -1692,6 +1700,22 @@ pub(crate) mod test_helpers {
             .await
             .expect("should list most recent");
         assert_eq!(recent, recent2);
+
+        // verify that to_delete is initially set to null and the file does not get deleted
+        assert!(partition.to_delete.is_none());
+        let older_than = Timestamp::new(
+            (catalog.time_provider().now() + Duration::from_secs(100)).timestamp_nanos(),
+        );
+        let deleted_partitions = repos
+            .partitions()
+            .delete_old_ids_only(older_than)
+            .await
+            .unwrap();
+        assert!(deleted_partitions.is_empty());
+        assert_matches!(
+            repos.partitions().get_by_id(partition.id).await.unwrap(),
+            Some(_)
+        );
     }
 
     // This test must set partition key as a string of date "YYY-MM-DD"
@@ -1720,7 +1744,24 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
 
-        let mut created = BTreeMap::new();
+        // Create some partitions
+        let today = Utc::now();
+        let two_days_ago = today - chrono::Duration::days(2);
+        // date to string "YYYY-MM-DD"
+        let today_str = today.format("%Y-%m-%d").to_string();
+        let two_days_ago_str = two_days_ago.format("%Y-%m-%d").to_string();
+
+        let partition_today = repos
+            .partitions()
+            .create_or_get(today_str.into(), shard.id, table.id)
+            .await
+            .expect("failed to create partition");
+
+        let partition_two_days_ago = repos
+            .partitions()
+            .create_or_get(two_days_ago_str.clone().into(), shard.id, table.id)
+            .await
+            .expect("failed to create partition");
 
         // Test flagged for deletion
         // 1. No retention period set, nothing should be flagged for deletion
@@ -1738,25 +1779,6 @@ pub(crate) mod test_helpers {
             .update_retention_period(&namespace.name, 1) // 1 hour
             .await
             .unwrap();
-        let today = Utc::now();
-        let two_days_ago = today - chrono::Duration::days(2);
-        // date to string "YYYY-MM-DD"
-        let today_str = today.format("%Y-%m-%d").to_string();
-        let two_days_ago_str = two_days_ago.format("%Y-%m-%d").to_string();
-
-        let partition_today = repos
-            .partitions()
-            .create_or_get(today_str.into(), shard.id, table.id)
-            .await
-            .expect("failed to create partition");
-        created.insert(partition_today.id, partition_today.clone());
-
-        let partition_two_days_ago = repos
-            .partitions()
-            .create_or_get(two_days_ago_str.into(), shard.id, table.id)
-            .await
-            .expect("failed to create partition");
-        created.insert(partition_two_days_ago.id, partition_two_days_ago.clone());
         // Should have at least one partition deleted
         let ids = repos
             .partitions()
@@ -1776,6 +1798,79 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert!(ids.is_empty());
+
+        // verify that hard delete will only delete flagged partitions and nothing else
+        let now = Timestamp::new((catalog.time_provider().now()).timestamp_nanos());
+        let ids = repos.partitions().delete_old_ids_only(now).await.unwrap();
+        assert_eq!(ids.len(), 1);
+        let remaining = repos
+            .partitions()
+            .list_by_namespace(namespace.id)
+            .await
+            .expect("failed to list partitions")
+            .into_iter()
+            .map(|v| (v.id, v))
+            .collect::<HashMap<_, _>>();
+        assert!(!remaining.contains_key(&partition_two_days_ago.id));
+        assert!(!remaining.is_empty());
+        assert!(ids.contains(&partition_two_days_ago.id));
+
+        // Verify that we can't delete a partition that has files, but it doesn't error
+        // 1. recreate partition_two_days_ago (remember, retention is still set on the namespace!)
+        let partition_two_days_ago = repos
+            .partitions()
+            .create_or_get(two_days_ago_str.into(), shard.id, table.id)
+            .await
+            .expect("failed to create partition");
+        // 2. create a file in partition_two_days_ago
+        let parquet_file_params = ParquetFileParams {
+            shard_id: shard.id,
+            namespace_id: namespace.id,
+            table_id: partition_two_days_ago.table_id,
+            partition_id: partition_two_days_ago.id,
+            object_store_id: Uuid::new_v4(),
+            max_sequence_number: SequenceNumber::new(140),
+            min_time: Timestamp::new(1),
+            max_time: Timestamp::new(10),
+            file_size_bytes: 1337,
+            row_count: 0,
+            compaction_level: CompactionLevel::Initial,
+            created_at: Timestamp::new(1),
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+        };
+        let parquet_file = repos
+            .parquet_files()
+            .create(parquet_file_params.clone())
+            .await
+            .unwrap();
+        // 3. let the partition be flagged for deletion
+        let ids = repos
+            .partitions()
+            .flag_for_delete_by_retention()
+            .await
+            .unwrap();
+        assert_eq!(ids.len(), 1);
+        assert!(ids.contains(&partition_two_days_ago.id));
+        // 4. run the hard delete and verify that nothing was deleted
+        let ids = repos.partitions().delete_old_ids_only(now).await.unwrap();
+        assert!(ids.is_empty());
+        // 5. delete the parquet file because keeping it around makes later tests fail. this isn't
+        //    really part of the test
+        repos
+            .parquet_files()
+            .flag_for_delete(parquet_file.id)
+            .await
+            .unwrap();
+        let older_than = Timestamp::new(
+            (catalog.time_provider().now() + Duration::from_secs(100)).timestamp_nanos(),
+        );
+        let ids = repos
+            .parquet_files()
+            .delete_old_ids_only(older_than)
+            .await
+            .unwrap();
+        assert_eq!(ids.len(), 1);
+        assert!(ids.contains(&parquet_file.id));
 
         // Reset retention period to infinite so it won't affect following tests
         repos
@@ -2262,7 +2357,9 @@ pub(crate) mod test_helpers {
             .list_by_shard_greater_than(shard.id, SequenceNumber::new(1))
             .await
             .unwrap();
-        assert_eq!(vec![parquet_file.clone(), other_file.clone()], files);
+        assert_eq!(files.len(), 2);
+        assert_matches!(files.iter().find(|f| f.id == parquet_file.id), Some(_));
+        assert_matches!(files.iter().find(|f| f.id == other_file.id), Some(_));
         let files = repos
             .parquet_files()
             .list_by_shard_greater_than(shard.id, SequenceNumber::new(150))

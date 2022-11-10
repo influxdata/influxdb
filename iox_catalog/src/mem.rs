@@ -984,6 +984,20 @@ impl PartitionRepo for MemTxn {
             })
             .collect())
     }
+
+    async fn delete_old_ids_only(&mut self, older_than: Timestamp) -> Result<Vec<PartitionId>> {
+        let stage = self.stage();
+
+        let (delete, keep): (Vec<_>, Vec<_>) = stage.partitions.iter().cloned().partition(|p| {
+            matches!(p.to_delete, Some(marked_deleted) if marked_deleted < older_than)
+                && !stage.parquet_files.iter().any(|f| f.partition_id == p.id)
+        });
+
+        stage.partitions = keep;
+
+        let delete = delete.into_iter().map(|p| p.id).collect();
+        Ok(delete)
+    }
 }
 
 #[async_trait]
