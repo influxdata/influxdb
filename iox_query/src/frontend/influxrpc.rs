@@ -1927,7 +1927,7 @@ mod tests {
     use datafusion::prelude::{col, lit, lit_timestamp_nano};
     use datafusion_util::lit_dict;
     use futures::{future::BoxFuture, FutureExt};
-    use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
+    use predicate::{rpc_predicate::QueryNamespaceMeta, Predicate};
 
     use crate::{
         exec::{ExecutionContextProvider, Executor},

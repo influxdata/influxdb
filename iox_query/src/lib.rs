@@ -18,7 +18,7 @@ use exec::{stringset::StringSet, IOxSessionContext};
 use hashbrown::HashMap;
 use observability_deps::tracing::{debug, trace};
 use parquet_file::storage::ParquetExecInput;
-use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate, PredicateMatch};
+use predicate::{rpc_predicate::QueryNamespaceMeta, Predicate, PredicateMatch};
 use schema::{
     sort::{SortKey, SortKeyBuilder},
     Projection, Schema, TIME_COLUMN_NAME,
@@ -142,7 +142,7 @@ pub type QueryText = Box<dyn std::fmt::Display + Send + Sync>;
 /// Databases store data organized by partitions and each partition stores
 /// data in Chunks.
 #[async_trait]
-pub trait QueryDatabase: QueryDatabaseMeta + Debug + Send + Sync {
+pub trait QueryDatabase: QueryNamespaceMeta + Debug + Send + Sync {
     /// Returns a set of chunks within the partition with data that may match
     /// the provided predicate.
     ///
@@ -168,10 +168,10 @@ pub trait QueryDatabase: QueryDatabaseMeta + Debug + Send + Sync {
         query_text: QueryText,
     ) -> QueryCompletedToken;
 
-    /// Upcast to [`QueryDatabaseMeta`].
+    /// Upcast to [`QueryNamespaceMeta`].
     ///
     /// This is required until <https://github.com/rust-lang/rust/issues/65991> is fixed.
-    fn as_meta(&self) -> &dyn QueryDatabaseMeta;
+    fn as_meta(&self) -> &dyn QueryNamespaceMeta;
 }
 
 /// Raw data of a [`QueryChunk`].

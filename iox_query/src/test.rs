@@ -27,7 +27,7 @@ use datafusion::error::DataFusionError;
 use hashbrown::HashSet;
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
-use predicate::rpc_predicate::QueryDatabaseMeta;
+use predicate::rpc_predicate::QueryNamespaceMeta;
 use schema::{
     builder::SchemaBuilder, merge::SchemaMerger, sort::SortKey, InfluxColumnType, Projection,
     Schema, TIME_COLUMN_NAME,
@@ -137,12 +137,12 @@ impl QueryDatabase for TestDatabase {
         QueryCompletedToken::new(|_| {})
     }
 
-    fn as_meta(&self) -> &dyn QueryDatabaseMeta {
+    fn as_meta(&self) -> &dyn QueryNamespaceMeta {
         self
     }
 }
 
-impl QueryDatabaseMeta for TestDatabase {
+impl QueryNamespaceMeta for TestDatabase {
     fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {
         let mut merger = SchemaMerger::new();
         let mut found_one = false;

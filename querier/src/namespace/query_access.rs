@@ -19,12 +19,12 @@ use iox_query::{
     QueryChunk, QueryCompletedToken, QueryDatabase, QueryText,
 };
 use observability_deps::tracing::{debug, trace};
-use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
+use predicate::{rpc_predicate::QueryNamespaceMeta, Predicate};
 use schema::Schema;
 use std::{any::Any, collections::HashMap, sync::Arc};
 use trace::ctx::SpanContext;
 
-impl QueryDatabaseMeta for QuerierNamespace {
+impl QueryNamespaceMeta for QuerierNamespace {
     fn table_names(&self) -> Vec<String> {
         let mut names: Vec<_> = self.tables.keys().map(|s| s.to_string()).collect();
         names.sort();
@@ -94,7 +94,7 @@ impl QueryDatabase for QuerierNamespace {
         QueryCompletedToken::new(move |success| query_log.set_completed(entry, success))
     }
 
-    fn as_meta(&self) -> &dyn QueryDatabaseMeta {
+    fn as_meta(&self) -> &dyn QueryNamespaceMeta {
         self
     }
 }

@@ -108,7 +108,7 @@ impl InfluxRpcPredicate {
     /// Returns a list of (TableName, [`Predicate`])
     pub fn table_predicates(
         &self,
-        table_info: &dyn QueryDatabaseMeta,
+        table_info: &dyn QueryNamespaceMeta,
     ) -> DataFusionResult<Vec<(Arc<str>, Predicate)>> {
         let table_names = match &self.table_names {
             Some(table_names) => itertools::Either::Left(table_names.iter().cloned()),
@@ -146,8 +146,8 @@ impl InfluxRpcPredicate {
 }
 
 /// Information required to normalize predicates
-pub trait QueryDatabaseMeta {
-    /// Returns a list of table names in this DB
+pub trait QueryNamespaceMeta {
+    /// Returns a list of table names in this namespace
     fn table_names(&self) -> Vec<String>;
 
     /// Schema for a specific table if the table exists.
