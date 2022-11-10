@@ -100,9 +100,8 @@ pub async fn http_listener(addr: SocketAddr) -> Result<AddrIncoming> {
     Ok(listener)
 }
 
-/// Instantiates the gRPC and optional HTTP listeners and returns a
-/// Future that completes when these listeners, the Server, Databases,
-/// etc... have all exited or the frontend_shutdown token is called.
+/// Instantiates the gRPC and optional HTTP listeners and returns a `Future` that completes when
+/// the listeners have all exited or the `frontend_shutdown` token is called.
 pub async fn serve(
     common_state: CommonServerState,
     frontend_shutdown: CancellationToken,

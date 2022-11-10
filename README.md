@@ -235,7 +235,7 @@ See  [docs/testing.md] for more information
 
 Data can be written to InfluxDB IOx by sending [line protocol] format to the `/api/v2/write` endpoint or using the CLI.
 
-For example, assuming you are running in local mode, this command will send data in the `test_fixtures/lineproto/metrics.lp` file to the `company_sensors` database.
+For example, assuming you are running in local mode, this command will send data in the `test_fixtures/lineproto/metrics.lp` file to the `company_sensors` namespace.
 
 ```shell
 ./target/debug/influxdb_iox -vv write company_sensors test_fixtures/lineproto/metrics.lp --host http://localhost:8080
@@ -243,7 +243,7 @@ For example, assuming you are running in local mode, this command will send data
 
 Note that `--host http://localhost:8080` is required as the `/v2/api` endpoint is hosted on port `8080` while the default is the querier gRPC port `8082`.
 
-To query the data stored in the `company_sensors` database:
+To query the data stored in the `company_sensors` namespace:
 
 ```shell
 ./target/debug/influxdb_iox query company_sensors "SELECT * FROM cpu LIMIT 10"

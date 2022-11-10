@@ -110,7 +110,7 @@ where
         }
     }
 
-    /// Query the given database with the given SQL query, and return a [`PerformQuery`] instance
+    /// Query the given namespace with the given SQL query, and return a [`PerformQuery`] instance
     /// that streams low-level message results.
     pub async fn perform_query(&mut self, request: T) -> Result<PerformQuery<T::Response>, Error> {
         PerformQuery::<T::Response>::new(self, request).await

@@ -11,14 +11,15 @@ pub enum Error {
     ClientError(#[from] influxdb_iox_client::error::Error),
 }
 
-/// Write data into the specified database
+/// Update the specified namespace's data retention period
 #[derive(Debug, clap::Parser)]
 pub struct Config {
     /// The namespace to update the retention period for
     #[clap(action)]
     namespace: String,
 
-    /// Num of hours of the retention period of this namespace. Default is 0 representing infinite retention
+    /// Num of hours of the retention period of this namespace. Default is 0 representing infinite
+    /// retention
     #[clap(action, long, short = 'c', default_value = "0")]
     retention_hours: u32,
 }

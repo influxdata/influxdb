@@ -131,7 +131,7 @@ In this section, IOx specific SQL tables, commands, and extensions are documente
 
 ## System Tables
 
-In addition to the SQL standard `information_schema`, IOx contains several *system tables* that provide access to IOx specific information. The information in each system table is scoped to that particular database. Cross database queries are not possible due to the design of IOx's security model.
+In addition to the SQL standard `information_schema`, IOx contains several *system tables* that provide access to IOx specific information. The information in each system table is scoped to that particular namespace. Cross namespace queries are not possible due to the design of IOx's security model.
 
 ### `system.queries`
 `system.queries` contains information about queries run against this IOx instance

@@ -145,7 +145,7 @@ impl From<&DmlError> for StatusCode {
 }
 
 /// Errors returned when decoding the organisation / bucket information from a
-/// HTTP request and deriving the database name from it.
+/// HTTP request and deriving the namespace name from it.
 #[derive(Debug, Error)]
 pub enum OrgBucketError {
     /// The request contains no org/bucket destination information.
@@ -156,7 +156,7 @@ pub enum OrgBucketError {
     #[error("failed to deserialize org/bucket/precision in request: {0}")]
     DecodeFail(#[from] serde::de::value::Error),
 
-    /// The provided org/bucket could not be converted into a database name.
+    /// The provided org/bucket could not be converted into a namespace name.
     #[error(transparent)]
     MappingFail(#[from] OrgBucketMappingError),
 }

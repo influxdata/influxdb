@@ -46,7 +46,7 @@ pub mod sort;
 pub use builder::SchemaBuilder;
 pub use projection::Projection;
 
-/// Database schema creation / validation errors.
+/// Namespace schema creation / validation errors.
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display(

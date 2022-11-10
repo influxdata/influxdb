@@ -21,8 +21,7 @@ pub use low_level::{Client as LowLevelClient, PerformQuery as LowLevelPerformQue
 
 use self::low_level::LowLevelMessage;
 
-/// Error responses when querying an IOx database using the Arrow Flight gRPC
-/// API.
+/// Error responses when querying an IOx namespace using the Arrow Flight gRPC API.
 #[derive(Debug, Error)]
 pub enum Error {
     /// There were no FlightData messages returned when we expected to get one
@@ -124,7 +123,7 @@ impl Client {
         }
     }
 
-    /// Query the given database with the given SQL query, and return a
+    /// Query the given namespace with the given SQL query, and return a
     /// [`PerformQuery`] instance that streams Arrow `RecordBatch` results.
     pub async fn perform_query(&mut self, request: ReadInfo) -> Result<PerformQuery, Error> {
         PerformQuery::new(self, request).await

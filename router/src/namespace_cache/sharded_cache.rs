@@ -55,7 +55,7 @@ mod tests {
             .map(char::from)
             .collect::<String>()
             .try_into()
-            .expect("generated invalid random database name")
+            .expect("generated invalid random namespace name")
     }
 
     fn schema_with_id(id: i64) -> NamespaceSchema {

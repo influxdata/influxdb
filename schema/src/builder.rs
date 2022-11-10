@@ -5,7 +5,7 @@ use snafu::{ResultExt, Snafu};
 
 use super::{InfluxColumnType, InfluxFieldType, Schema, TIME_COLUMN_NAME};
 
-/// Database schema creation / validation errors.
+/// Namespace schema creation / validation errors.
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Error validating schema: {}", source))]

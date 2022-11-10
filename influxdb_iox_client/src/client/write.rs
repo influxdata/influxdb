@@ -101,7 +101,7 @@ impl Client {
     /// Write the [LineProtocol] formatted string in `lp_data` to
     /// namespace `namespace`.
     ///
-    /// Returns the number of bytes which were written to the database
+    /// Returns the number of bytes which were written to the namespace.
     ///
     /// [LineProtocol]: https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/#data-types-and-format
     pub async fn write_lp(
@@ -119,7 +119,7 @@ impl Client {
     /// individual lines (points) do not cross these strings
     ///
     /// Returns the number of bytes, in total, which were written to
-    /// the database
+    /// the namespace.
     ///
     /// [LineProtocol]: https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/#data-types-and-format
     pub async fn write_lp_stream(

@@ -47,7 +47,7 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Write data into the specified database
+/// Write data into the specified namespace
 #[derive(Debug, clap::Parser)]
 pub struct Config {
     /// If specified, restricts the maxium amount of line protocol

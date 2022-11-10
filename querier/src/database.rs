@@ -65,7 +65,7 @@ pub struct QuerierDatabase {
     ///
     /// This should be a 1-to-1 relation to the number of active queries.
     ///
-    /// If the same database is requested twice for different queries, it is counted twice.
+    /// If the same namespace is requested twice for different queries, it is counted twice.
     query_execution_semaphore: Arc<InstrumentedAsyncSemaphore>,
 
     /// Sharder to determine which ingesters to query for a particular table and namespace.
