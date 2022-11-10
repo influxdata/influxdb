@@ -483,9 +483,6 @@ pub trait PartitionRepo: Send + Sync {
 
     /// Return the N most recently created partitions for the specified shards.
     async fn most_recent_n(&mut self, n: usize, shards: &[ShardId]) -> Result<Vec<Partition>>;
-
-    /// Flag all partition for deletion that are older than their namespace's retention period.
-    async fn flag_for_delete_by_retention(&mut self) -> Result<Vec<PartitionId>>;
 }
 
 /// Functions for working with tombstones in the catalog
@@ -898,7 +895,6 @@ pub(crate) mod test_helpers {
     use super::*;
     use ::test_helpers::{assert_contains, tracing::TracingCapture};
     use assert_matches::assert_matches;
-    use chrono::Utc;
     use data_types::{ColumnId, ColumnSet, CompactionLevel};
     use metric::{Attributes, DurationHistogram, Metric};
     use std::{
@@ -916,7 +912,6 @@ pub(crate) mod test_helpers {
         test_column(Arc::clone(&catalog)).await;
         test_shards(Arc::clone(&catalog)).await;
         test_partition(Arc::clone(&catalog)).await;
-        test_partition_flag_for_delete(Arc::clone(&catalog)).await;
         test_tombstone(Arc::clone(&catalog)).await;
         test_tombstones_by_parquet_file(Arc::clone(&catalog)).await;
         test_parquet_file(Arc::clone(&catalog)).await;
@@ -1692,97 +1687,6 @@ pub(crate) mod test_helpers {
             .await
             .expect("should list most recent");
         assert_eq!(recent, recent2);
-    }
-
-    // This test must set partition key as a string of date "YYY-MM-DD"
-    async fn test_partition_flag_for_delete(catalog: Arc<dyn Catalog>) {
-        let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
-        let namespace = repos
-            .namespaces()
-            .create(
-                "namespace_partition_test_flag_for_delete",
-                "inf",
-                topic.id,
-                pool.id,
-            )
-            .await
-            .unwrap();
-        let table = repos
-            .tables()
-            .create_or_get("test_table", namespace.id)
-            .await
-            .unwrap();
-        let shard = repos
-            .shards()
-            .create_or_get(&topic, ShardIndex::new(1))
-            .await
-            .unwrap();
-
-        let mut created = BTreeMap::new();
-
-        // Test flagged for deletion
-        // 1. No retention period set, nothing should be flagged for deletion
-        let ids = repos
-            .partitions()
-            .flag_for_delete_by_retention()
-            .await
-            .unwrap();
-        assert!(ids.is_empty());
-        //
-        // 2. set ns retention period to one hour then create 2 partitions: today and 2 days ago
-        // today partition should not be flagged for deletion
-        repos
-            .namespaces()
-            .update_retention_period(&namespace.name, 1) // 1 hour
-            .await
-            .unwrap();
-        let today = Utc::now();
-        let two_days_ago = today - chrono::Duration::days(2);
-        // date to string "YYYY-MM-DD"
-        let today_str = today.format("%Y-%m-%d").to_string();
-        let two_days_ago_str = two_days_ago.format("%Y-%m-%d").to_string();
-
-        let partition_today = repos
-            .partitions()
-            .create_or_get(today_str.into(), shard.id, table.id)
-            .await
-            .expect("failed to create partition");
-        created.insert(partition_today.id, partition_today.clone());
-
-        let partition_two_days_ago = repos
-            .partitions()
-            .create_or_get(two_days_ago_str.into(), shard.id, table.id)
-            .await
-            .expect("failed to create partition");
-        created.insert(partition_two_days_ago.id, partition_two_days_ago.clone());
-        // Should have at least one partition deleted
-        let ids = repos
-            .partitions()
-            .flag_for_delete_by_retention()
-            .await
-            .unwrap();
-        assert!(!ids.is_empty());
-        // two_days_ago partition should be flagged for deletion
-        assert!(ids.contains(&partition_two_days_ago.id));
-        // today partition should not be flagged for deletion
-        assert!(!ids.contains(&partition_today.id));
-        //
-        // 3. flag for select again and should not get anything returned because the partitions are already flagged for deletion
-        let ids = repos
-            .partitions()
-            .flag_for_delete_by_retention()
-            .await
-            .unwrap();
-        assert!(ids.is_empty());
-
-        // Reset retention period to infinite so it won't affect following tests
-        repos
-            .namespaces()
-            .update_retention_period(&namespace.name, 0) // infinite
-            .await
-            .unwrap();
     }
 
     async fn test_tombstone(catalog: Arc<dyn Catalog>) {
@@ -2669,13 +2573,6 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert!(ids.is_empty());
-
-        // Reset retention period to infinite so it won't affect following tests
-        repos
-            .namespaces()
-            .update_retention_period(&namespace.name, 0) // infinite
-            .await
-            .unwrap();
     }
 
     async fn test_parquet_file_compaction_level_0(catalog: Arc<dyn Catalog>) {

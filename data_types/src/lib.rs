@@ -902,9 +902,6 @@ pub struct Partition {
     ///
     /// If [`None`] no data has been persisted for this partition.
     pub persisted_sequence_number: Option<SequenceNumber>,
-
-    /// When this file was marked for deletion
-    pub to_delete: Option<Timestamp>,
 }
 
 impl Partition {
