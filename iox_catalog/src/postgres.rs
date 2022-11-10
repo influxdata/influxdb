@@ -34,8 +34,6 @@ static MIGRATOR: Migrator = sqlx::migrate!();
 
 /// Maximum number of files deleted by [`ParquetFileRepo::delete_old_ids_only].
 const MAX_PARQUET_FILES_DELETED_ONCE: i64 = 1_000;
-/// Maximum number of files deleted by [`PartitionRepo::delete_old_ids_only].
-const MAX_PARTITIONS_DELETED_ONCE: i64 = 1_000;
 
 /// Postgres connection options.
 #[derive(Debug, Clone)]
@@ -1402,39 +1400,6 @@ WHERE id = $2;
 
         let flagged = flagged.into_iter().map(|row| row.get("id")).collect();
         Ok(flagged)
-    }
-
-    // note that there is no check to see if a partition has any parquet files. because of the FK
-    // constraint, Postgres won't let us delete a partition that has files. rather than run a query
-    // to count the files beforehand, or including a check for files in a where clause with a
-    // subquery, we just let it try to delete and fail, and we'll catch that error silently and the
-    // partition won't get deleted.
-    // recall that the use case for this is garbage collection, and if this happens it simply means
-    // that the GC hasn't yet cleaned up those files, but it will, and when it tries to delete the
-    // partition again later, it will work.
-    async fn delete_old_ids_only(&mut self, older_than: Timestamp) -> Result<Vec<PartitionId>> {
-        // see https://www.crunchydata.com/blog/simulating-update-or-delete-with-limit-in-postgres-ctes-to-the-rescue
-        let deleted = sqlx::query(
-            r#"
-DELETE FROM partition
-WHERE id IN (
-    SELECT p.id
-    FROM partition p
-    WHERE p.to_delete is not null and
-          p.to_delete < $1
-    LIMIT $2
-)
-RETURNING id;
-             "#,
-        )
-        .bind(older_than) // $1
-        .bind(MAX_PARTITIONS_DELETED_ONCE) // $2
-        .fetch_all(&mut self.inner)
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?;
-
-        let deleted = deleted.into_iter().map(|row| row.get("id")).collect();
-        Ok(deleted)
     }
 }
 
