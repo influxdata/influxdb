@@ -258,7 +258,12 @@ impl Persister for IngesterData {
             .get(&shard_id)
             .and_then(|s| s.namespace_by_id(namespace_id))
             .unwrap_or_else(|| panic!("namespace {namespace_id} not in shard {shard_id} state"));
+
+        // Begin resolving the load-deferred name concurrently if it is not
+        // already available.
         let namespace_name = namespace.namespace_name();
+        namespace_name.prefetch_now();
+
         // Assert the namespace ID matches the index key.
         assert_eq!(namespace.namespace_id(), namespace_id);
 
@@ -384,7 +389,7 @@ impl Persister for IngesterData {
             creation_timestamp: SystemProvider::new().now(),
             shard_id,
             namespace_id,
-            namespace_name: Arc::clone(&**namespace.namespace_name()),
+            namespace_name: Arc::clone(&*namespace.namespace_name().get().await),
             table_id,
             table_name: Arc::clone(&*table_name),
             partition_id,
@@ -621,6 +626,7 @@ mod tests {
     use super::*;
     use crate::{
         data::{namespace::NamespaceData, partition::resolver::CatalogPartitionResolver},
+        deferred_load::DeferredLoad,
         lifecycle::{LifecycleConfig, LifecycleManager},
     };
 
@@ -1383,7 +1389,7 @@ mod tests {
 
         let data = NamespaceData::new(
             namespace.id,
-            "foo".into(),
+            DeferredLoad::new(Duration::from_millis(1), async { "foo".into() }),
             shard.id,
             partition_provider,
             &metrics,

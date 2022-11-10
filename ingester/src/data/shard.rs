@@ -1,6 +1,6 @@
 //! Shard level data buffer structures.
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use data_types::{NamespaceId, ShardId, ShardIndex};
 use dml::DmlOperation;
@@ -13,7 +13,7 @@ use super::{
     partition::resolver::PartitionProvider,
     DmlApplyAction,
 };
-use crate::{arcmap::ArcMap, lifecycle::LifecycleHandle};
+use crate::{arcmap::ArcMap, deferred_load::DeferredLoad, lifecycle::LifecycleHandle};
 
 /// A double-referenced map where [`NamespaceData`] can be looked up by name, or
 /// ID.
@@ -148,7 +148,7 @@ impl ShardData {
                     ns_name.clone(),
                     NamespaceData::new(
                         namespace_id,
-                        ns_name,
+                        DeferredLoad::new(Duration::from_millis(1), async { ns_name }),
                         self.shard_id,
                         Arc::clone(&self.partition_provider),
                         &self.metrics,

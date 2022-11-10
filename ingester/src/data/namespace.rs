@@ -15,7 +15,7 @@ use super::{
     partition::resolver::PartitionProvider,
     table::{TableData, TableName},
 };
-use crate::{data::DmlApplyAction, lifecycle::LifecycleHandle};
+use crate::{data::DmlApplyAction, deferred_load::DeferredLoad, lifecycle::LifecycleHandle};
 
 /// A double-referenced map where [`TableData`] can be looked up by name, or ID.
 #[derive(Debug, Default)]
@@ -78,7 +78,7 @@ impl std::fmt::Display for NamespaceName {
 #[derive(Debug)]
 pub(crate) struct NamespaceData {
     namespace_id: NamespaceId,
-    namespace_name: NamespaceName,
+    namespace_name: DeferredLoad<NamespaceName>,
 
     /// The catalog ID of the shard this namespace is being populated from.
     shard_id: ShardId,
@@ -142,7 +142,7 @@ impl NamespaceData {
     /// Initialize new tables with default partition template of daily
     pub(super) fn new(
         namespace_id: NamespaceId,
-        namespace_name: NamespaceName,
+        namespace_name: DeferredLoad<NamespaceName>,
         shard_id: ShardId,
         partition_provider: Arc<dyn PartitionProvider>,
         metrics: &metric::Registry,
@@ -308,7 +308,7 @@ impl NamespaceData {
     }
 
     /// Returns the [`NamespaceName`] for this namespace.
-    pub(crate) fn namespace_name(&self) -> &NamespaceName {
+    pub(crate) fn namespace_name(&self) -> &DeferredLoad<NamespaceName> {
         &self.namespace_name
     }
 }
@@ -348,7 +348,7 @@ impl<'a> Drop for ScopedSequenceNumber<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{sync::Arc, time::Duration};
 
     use data_types::{PartitionId, PartitionKey, ShardIndex};
     use metric::{Attributes, Metric};
@@ -389,7 +389,7 @@ mod tests {
 
         let ns = NamespaceData::new(
             NAMESPACE_ID,
-            NAMESPACE_NAME.into(),
+            DeferredLoad::new(Duration::from_millis(1), async { NAMESPACE_NAME.into() }),
             SHARD_ID,
             partition_provider,
             &metrics,
