@@ -9,9 +9,12 @@ use iox_catalog::interface::Catalog;
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 
-use crate::data::{
-    partition::{resolver::DeferredSortKey, PartitionData, SortKeyState},
-    table::TableName,
+use crate::{
+    data::{
+        partition::{resolver::SortKeyResolver, PartitionData, SortKeyState},
+        table::TableName,
+    },
+    deferred_load::DeferredLoad,
 };
 
 use super::r#trait::PartitionProvider;
@@ -77,10 +80,10 @@ pub(crate) struct PartitionCache<T> {
     #[allow(clippy::type_complexity)]
     entries: Mutex<HashMap<PartitionKey, HashMap<ShardId, HashMap<TableId, Entry>>>>,
 
-    /// Data needed to construct the [`DeferredSortKey`] for cached entries.
+    /// Data needed to construct the [`SortKeyResolver`] for cached entries.
     catalog: Arc<dyn Catalog>,
     backoff_config: BackoffConfig,
-    /// The maximum amount of time a [`DeferredSortKey`] may wait until
+    /// The maximum amount of time a [`SortKeyResolver`] may wait until
     /// pre-fetching the sort key in the background.
     max_smear: Duration,
 }
@@ -92,7 +95,7 @@ impl<T> PartitionCache<T> {
     ///
     /// Any cache hit returns a [`PartitionData`] configured with a
     /// [`SortKeyState::Deferred`] for deferred key loading in the background.
-    /// The [`DeferredSortKey`] is initialised with the given `catalog`,
+    /// The [`SortKeyResolver`] is initialised with the given `catalog`,
     /// `backoff_config`, and `max_smear` maximal load wait duration.
     pub(crate) fn new<P>(
         inner: T,
@@ -199,6 +202,18 @@ where
 
         if let Some((key, cached)) = self.find(shard_id, table_id, &partition_key) {
             debug!(%table_id, %partition_key, "partition cache hit");
+
+            // Initialise a deferred resolver for the sort key.
+            let sort_key_resolver = DeferredLoad::new(
+                self.max_smear,
+                SortKeyResolver::new(
+                    cached.partition_id,
+                    Arc::clone(&__self.catalog),
+                    self.backoff_config.clone(),
+                )
+                .fetch(),
+            );
+
             // Use the returned partition key instead of the callers - this
             // allows the backing str memory to be reused across all partitions
             // using the same key!
@@ -209,12 +224,7 @@ where
                 namespace_id,
                 table_id,
                 table_name,
-                SortKeyState::Deferred(Arc::new(DeferredSortKey::new(
-                    cached.partition_id,
-                    self.max_smear,
-                    Arc::clone(&__self.catalog),
-                    self.backoff_config.clone(),
-                ))),
+                SortKeyState::Deferred(Arc::new(sort_key_resolver)),
                 cached.max_sequence_number,
             );
         }

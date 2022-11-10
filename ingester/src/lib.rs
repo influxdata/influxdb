@@ -29,5 +29,6 @@ pub(crate) mod query_adaptor;
 pub mod server;
 pub(crate) mod stream_handler;
 
+mod deferred_load;
 #[cfg(test)]
 pub(crate) mod test_util;

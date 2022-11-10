@@ -9,11 +9,8 @@ use schema::sort::SortKey;
 use thiserror::Error;
 use write_summary::ShardProgress;
 
-use self::{
-    buffer::{traits::Queryable, BufferState, DataBuffer, Persisting},
-    resolver::DeferredSortKey,
-};
-use crate::query_adaptor::QueryAdaptor;
+use self::buffer::{traits::Queryable, BufferState, DataBuffer, Persisting};
+use crate::{deferred_load::DeferredLoad, query_adaptor::QueryAdaptor};
 
 use super::{sequence_range::SequenceNumberRange, table::TableName};
 
@@ -37,8 +34,8 @@ pub(crate) enum BufferError {
 pub(crate) enum SortKeyState {
     /// The [`SortKey`] has not yet been fetched from the catalog, and will be
     /// lazy loaded (or loaded in the background) by a call to
-    /// [`DeferredSortKey::get()`].
-    Deferred(Arc<DeferredSortKey>),
+    /// [`DeferredLoad::get()`].
+    Deferred(Arc<DeferredLoad<Option<SortKey>>>),
     /// The sort key is known and specified.
     Provided(Option<SortKey>),
 }
@@ -446,7 +443,7 @@ mod tests {
     use lazy_static::lazy_static;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 
-    use crate::test_util::populate_catalog;
+    use crate::{data::partition::resolver::SortKeyResolver, test_util::populate_catalog};
 
     use super::*;
 
@@ -938,11 +935,10 @@ mod tests {
             .unwrap();
 
         // Read the just-created sort key (None)
-        let fetcher = Arc::new(DeferredSortKey::new(
-            partition_id,
+        let fetcher = Arc::new(DeferredLoad::new(
             Duration::from_nanos(1),
-            Arc::clone(&catalog),
-            backoff_config.clone(),
+            SortKeyResolver::new(partition_id, Arc::clone(&catalog), backoff_config.clone())
+                .fetch(),
         ));
 
         let starting_state = SortKeyState::Deferred(fetcher);
