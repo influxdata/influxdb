@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use data_types::{DatabaseName, NamespaceSchema};
+use data_types::{NamespaceName, NamespaceSchema};
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric, U64Gauge};
 
@@ -74,7 +74,7 @@ where
     T: NamespaceCache,
     P: TimeProvider,
 {
-    fn get_schema(&self, namespace: &DatabaseName<'_>) -> Option<Arc<NamespaceSchema>> {
+    fn get_schema(&self, namespace: &NamespaceName<'_>) -> Option<Arc<NamespaceSchema>> {
         let t = self.time_provider.now();
         let res = self.inner.get_schema(namespace);
 
@@ -92,7 +92,7 @@ where
 
     fn put_schema(
         &self,
-        namespace: DatabaseName<'static>,
+        namespace: NamespaceName<'static>,
         schema: impl Into<Arc<NamespaceSchema>>,
     ) -> Option<Arc<NamespaceSchema>> {
         let schema = schema.into();
@@ -224,7 +224,7 @@ mod tests {
 
     #[test]
     fn test_put() {
-        let ns = DatabaseName::new("test").expect("database name is valid");
+        let ns = NamespaceName::new("test").expect("database name is valid");
         let registry = metric::Registry::default();
         let cache = Arc::new(MemoryNamespaceCache::default());
         let cache = Arc::new(InstrumentedCache::new(cache, &registry));
@@ -356,7 +356,7 @@ mod tests {
         assert_eq!(cache.column_count.observe(), Observation::U64Gauge(11));
 
         // Add a new namespace
-        let ns = DatabaseName::new("another").expect("database name is valid");
+        let ns = NamespaceName::new("another").expect("database name is valid");
         let schema = new_schema(&[10, 12, 9]);
         assert!(cache.put_schema(ns.clone(), schema).is_none());
         assert_histogram_hit(

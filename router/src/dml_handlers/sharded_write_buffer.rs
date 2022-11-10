@@ -6,7 +6,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use data_types::{DatabaseName, DeletePredicate, NamespaceId, NonEmptyString, TableId};
+use data_types::{DeletePredicate, NamespaceId, NamespaceName, NonEmptyString, TableId};
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use futures::{stream::FuturesUnordered, StreamExt};
 use hashbrown::HashMap;
@@ -93,7 +93,7 @@ where
     /// Shard `writes` and dispatch the resultant DML operations.
     async fn write(
         &self,
-        namespace: &DatabaseName<'static>,
+        namespace: &NamespaceName<'static>,
         namespace_id: NamespaceId,
         writes: Self::WriteInput,
         span_ctx: Option<SpanContext>,
@@ -158,7 +158,7 @@ where
     /// Shard `predicate` and dispatch it to the appropriate shard.
     async fn delete(
         &self,
-        namespace: &DatabaseName<'static>,
+        namespace: &NamespaceName<'static>,
         namespace_id: NamespaceId,
         table_name: &str,
         predicate: &DeletePredicate,
@@ -299,7 +299,7 @@ mod tests {
         let w = ShardedWriteBuffer::new(Arc::clone(&sharder));
 
         // Call the ShardedWriteBuffer and drive the test
-        let ns = DatabaseName::new("bananas").unwrap();
+        let ns = NamespaceName::new("bananas").unwrap();
         w.write(&ns, NamespaceId::new(42), writes, None)
             .await
             .expect("write failed");
@@ -367,7 +367,7 @@ mod tests {
         let w = ShardedWriteBuffer::new(Arc::clone(&sharder));
 
         // Call the ShardedWriteBuffer and drive the test
-        let ns = DatabaseName::new("bananas").unwrap();
+        let ns = NamespaceName::new("bananas").unwrap();
         w.write(&ns, NamespaceId::new(42), writes, None)
             .await
             .expect("write failed");
@@ -445,7 +445,7 @@ mod tests {
         let w = ShardedWriteBuffer::new(Arc::clone(&sharder));
 
         // Call the ShardedWriteBuffer and drive the test
-        let ns = DatabaseName::new("bananas").unwrap();
+        let ns = NamespaceName::new("bananas").unwrap();
         let err = w
             .write(&ns, NamespaceId::new(42), writes, None)
             .await
@@ -485,7 +485,7 @@ mod tests {
         let w = ShardedWriteBuffer::new(Arc::clone(&sharder));
 
         // Call the ShardedWriteBuffer and drive the test
-        let ns = DatabaseName::new("namespace").unwrap();
+        let ns = NamespaceName::new("namespace").unwrap();
         w.delete(&ns, NamespaceId::new(42), TABLE, &predicate, None)
             .await
             .expect("delete failed");
@@ -534,7 +534,7 @@ mod tests {
         let w = ShardedWriteBuffer::new(Arc::clone(&sharder));
 
         // Call the ShardedWriteBuffer and drive the test
-        let ns = DatabaseName::new("namespace").unwrap();
+        let ns = NamespaceName::new("namespace").unwrap();
         w.delete(&ns, NamespaceId::new(42), "", &predicate, None)
             .await
             .expect("delete failed");
@@ -572,7 +572,7 @@ mod tests {
         fn shard(
             &self,
             _table: &str,
-            _namespace: &DatabaseName<'_>,
+            _namespace: &NamespaceName<'_>,
             _payload: &DeletePredicate,
         ) -> Self::Item {
             self.0.clone()
@@ -585,7 +585,7 @@ mod tests {
         fn shard(
             &self,
             _table: &str,
-            _namespace: &DatabaseName<'_>,
+            _namespace: &NamespaceName<'_>,
             _payload: &MutableBatch,
         ) -> Self::Item {
             unreachable!()
@@ -624,7 +624,7 @@ mod tests {
         let w = ShardedWriteBuffer::new(sharder);
 
         // Call the ShardedWriteBuffer and drive the test
-        let ns = DatabaseName::new("namespace").unwrap();
+        let ns = NamespaceName::new("namespace").unwrap();
         w.delete(&ns, NamespaceId::new(42), TABLE, &predicate, None)
             .await
             .expect("delete failed");
@@ -680,7 +680,7 @@ mod tests {
         let w = ShardedWriteBuffer::new(sharder);
 
         // Call the ShardedWriteBuffer and drive the test
-        let ns = DatabaseName::new("namespace").unwrap();
+        let ns = NamespaceName::new("namespace").unwrap();
         let err = w
             .delete(&ns, NamespaceId::new(42), TABLE, &predicate, None)
             .await

@@ -3,7 +3,7 @@
 mod delete_predicate;
 
 use bytes::{Bytes, BytesMut};
-use data_types::{org_and_bucket_to_database, OrgBucketMappingError};
+use data_types::{org_and_bucket_to_namespace, OrgBucketMappingError};
 use futures::StreamExt;
 use hashbrown::HashMap;
 use hyper::{header::CONTENT_ENCODING, Body, Method, Request, Response, StatusCode};
@@ -366,7 +366,7 @@ where
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
 
         let write_info = WriteInfo::try_from(&req)?;
-        let namespace = org_and_bucket_to_database(&write_info.org, &write_info.bucket)
+        let namespace = org_and_bucket_to_namespace(&write_info.org, &write_info.bucket)
             .map_err(OrgBucketError::MappingFail)?;
 
         trace!(
@@ -433,7 +433,7 @@ where
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
 
         let account = WriteInfo::try_from(&req)?;
-        let namespace = org_and_bucket_to_database(&account.org, &account.bucket)
+        let namespace = org_and_bucket_to_namespace(&account.org, &account.bucket)
             .map_err(OrgBucketError::MappingFail)?;
 
         trace!(org=%account.org, bucket=%account.bucket, %namespace, "processing delete request");
@@ -548,7 +548,7 @@ mod tests {
         namespace_resolver::mock::MockNamespaceResolver,
     };
     use assert_matches::assert_matches;
-    use data_types::{DatabaseNameError, NamespaceId};
+    use data_types::{NamespaceId, NamespaceNameError};
     use flate2::{write::GzEncoder, Compression};
     use hyper::header::HeaderValue;
     use metric::{Attributes, Metric};
@@ -1385,12 +1385,12 @@ mod tests {
 
         (
             InvalidOrgBucket({
-                let e = DatabaseNameError::LengthConstraint { name: "[too long name]".into() };
-                let e = OrgBucketMappingError::InvalidDatabaseName { source: e };
+                let e = NamespaceNameError::LengthConstraint { name: "[too long name]".into() };
+                let e = OrgBucketMappingError::InvalidNamespaceName { source: e };
                 OrgBucketError::MappingFail(e)
             }),
-            "Invalid database name: \
-             Database name [too long name] length must be between 1 and 64 characters",
+            "Invalid namespace name: \
+             Namespace name [too long name] length must be between 1 and 64 characters",
         ),
 
         (

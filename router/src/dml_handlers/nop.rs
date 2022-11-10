@@ -3,7 +3,7 @@
 use std::{fmt::Debug, marker::PhantomData};
 
 use async_trait::async_trait;
-use data_types::{DatabaseName, DeletePredicate, NamespaceId};
+use data_types::{DeletePredicate, NamespaceId, NamespaceName};
 use observability_deps::tracing::*;
 use trace::ctx::SpanContext;
 
@@ -31,7 +31,7 @@ where
 
     async fn write(
         &self,
-        namespace: &DatabaseName<'static>,
+        namespace: &NamespaceName<'static>,
         namespace_id: NamespaceId,
         batches: Self::WriteInput,
         _span_ctx: Option<SpanContext>,
@@ -42,7 +42,7 @@ where
 
     async fn delete(
         &self,
-        namespace: &DatabaseName<'static>,
+        namespace: &NamespaceName<'static>,
         namespace_id: NamespaceId,
         table_name: &str,
         predicate: &DeletePredicate,

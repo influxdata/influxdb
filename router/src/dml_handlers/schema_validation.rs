@@ -1,7 +1,7 @@
 use std::{ops::DerefMut, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{DatabaseName, DeletePredicate, NamespaceId, NamespaceSchema, TableId};
+use data_types::{DeletePredicate, NamespaceId, NamespaceName, NamespaceSchema, TableId};
 use hashbrown::HashMap;
 use iox_catalog::{
     interface::{get_schema_by_name, Catalog, Error as CatalogError},
@@ -168,7 +168,7 @@ where
     /// as a whole - calling this method has "all or nothing" semantics.
     async fn write(
         &self,
-        namespace: &DatabaseName<'static>,
+        namespace: &NamespaceName<'static>,
         namespace_id: NamespaceId,
         batches: Self::WriteInput,
         _span_ctx: Option<SpanContext>,
@@ -305,7 +305,7 @@ where
     /// on deletes.
     async fn delete(
         &self,
-        _namespace: &DatabaseName<'static>,
+        _namespace: &NamespaceName<'static>,
         _namespace_id: NamespaceId,
         _table_name: &str,
         _predicate: &DeletePredicate,
@@ -377,7 +377,7 @@ mod tests {
 
     use super::*;
 
-    static NAMESPACE: Lazy<DatabaseName<'static>> = Lazy::new(|| "bananas".try_into().unwrap());
+    static NAMESPACE: Lazy<NamespaceName<'static>> = Lazy::new(|| "bananas".try_into().unwrap());
 
     #[tokio::test]
     async fn validate_limits() {
@@ -609,7 +609,7 @@ mod tests {
             &metrics,
         );
 
-        let ns = DatabaseName::try_from("A_DIFFERENT_NAMESPACE").unwrap();
+        let ns = NamespaceName::try_from("A_DIFFERENT_NAMESPACE").unwrap();
 
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");
         let err = handler
@@ -786,7 +786,7 @@ mod tests {
             exprs: vec![],
         };
 
-        let ns = DatabaseName::try_from(NAMESPACE).unwrap();
+        let ns = NamespaceName::try_from(NAMESPACE).unwrap();
 
         handler
             .delete(&ns, NamespaceId::new(42), TABLE, &predicate, None)

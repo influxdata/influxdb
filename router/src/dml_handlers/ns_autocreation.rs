@@ -1,7 +1,7 @@
 use std::{fmt::Debug, marker::PhantomData, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{DatabaseName, DeletePredicate, QueryPoolId, TopicId};
+use data_types::{NamespaceName, DeletePredicate, QueryPoolId, TopicId};
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::*;
 use thiserror::Error;
@@ -78,7 +78,7 @@ where
     /// Write `batches` to `namespace`.
     async fn write(
         &self,
-        namespace: &'_ DatabaseName<'static>,
+        namespace: &'_ NamespaceName<'static>,
         batches: Self::WriteInput,
         _span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
@@ -121,7 +121,7 @@ where
     /// Delete the data specified in `delete`.
     async fn delete(
         &self,
-        _namespace: &DatabaseName<'static>,
+        _namespace: &NamespaceName<'static>,
         _table_name: &str,
         _predicate: &DeletePredicate,
         _span_ctx: Option<SpanContext>,
@@ -142,7 +142,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_hit() {
-        let ns = DatabaseName::try_from("bananas").unwrap();
+        let ns = NamespaceName::try_from("bananas").unwrap();
 
         // Prep the cache before the test to cause a hit
         let cache = Arc::new(MemoryNamespaceCache::default());
@@ -190,7 +190,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_miss() {
-        let ns = DatabaseName::try_from("bananas").unwrap();
+        let ns = NamespaceName::try_from("bananas").unwrap();
 
         let cache = Arc::new(MemoryNamespaceCache::default());
         let metrics = Arc::new(metric::Registry::new());

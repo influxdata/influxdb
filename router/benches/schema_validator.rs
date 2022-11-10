@@ -4,7 +4,7 @@ use criterion::{
     criterion_group, criterion_main, measurement::WallTime, BatchSize, BenchmarkGroup, Criterion,
     Throughput,
 };
-use data_types::{DatabaseName, NamespaceId};
+use data_types::{NamespaceId, NamespaceName};
 use hashbrown::HashMap;
 use iox_catalog::mem::MemCatalog;
 use mutable_batch::MutableBatch;
@@ -16,7 +16,7 @@ use router::{
 use schema::Projection;
 use tokio::runtime::Runtime;
 
-static NAMESPACE: Lazy<DatabaseName<'static>> = Lazy::new(|| "bananas".try_into().unwrap());
+static NAMESPACE: Lazy<NamespaceName<'static>> = Lazy::new(|| "bananas".try_into().unwrap());
 
 fn runtime() -> Runtime {
     tokio::runtime::Builder::new_current_thread()

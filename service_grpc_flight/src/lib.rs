@@ -8,7 +8,7 @@ use arrow_flight::{
 };
 use arrow_util::optimize::{optimize_record_batch, optimize_schema};
 use bytes::{Bytes, BytesMut};
-use data_types::DatabaseNameError;
+use data_types::NamespaceNameError;
 use datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
 use futures::{SinkExt, Stream, StreamExt};
 use generated_types::influxdata::iox::querier::v1 as proto;
@@ -58,7 +58,7 @@ pub enum Error {
     },
 
     #[snafu(display("Invalid database name: {}", source))]
-    InvalidDatabaseName { source: DatabaseNameError },
+    InvalidNamespaceName { source: NamespaceNameError },
 
     #[snafu(display("Failed to optimize record batch: {}", source))]
     Optimize { source: ArrowError },
@@ -86,7 +86,7 @@ impl From<Error> for tonic::Status {
             | Error::InvalidTicketLegacy { .. }
             | Error::InvalidQuery { .. }
             // TODO(edd): this should be `debug`. Keeping at info whilst IOx still in early development
-            | Error::InvalidDatabaseName { .. } => info!(e=%err, msg),
+            | Error::InvalidNamespaceName { .. } => info!(e=%err, msg),
             Error::Query { .. } => info!(e=%err, msg),
             Error::Optimize { .. }
             | Error::Planning { .. } | Error::Serialization { .. } => warn!(e=%err, msg),
@@ -106,7 +106,7 @@ impl Error {
             Self::InvalidTicket { .. }
             | Self::InvalidTicketLegacy { .. }
             | Self::InvalidQuery { .. }
-            | Self::InvalidDatabaseName { .. } => tonic::Code::InvalidArgument,
+            | Self::InvalidNamespaceName { .. } => tonic::Code::InvalidArgument,
             Self::Planning { source, .. } | Self::Query { source, .. } => {
                 datafusion_error_to_tonic_code(&source)
             }

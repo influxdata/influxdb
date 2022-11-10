@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use clap_blocks::write_buffer::WriteBufferConfig;
-use data_types::{DatabaseName, PartitionTemplate, TemplatePart};
+use data_types::{NamespaceName, PartitionTemplate, TemplatePart};
 use hashbrown::HashMap;
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
@@ -387,7 +387,7 @@ where
     iox_catalog::interface::list_schemas(catalog)
         .await?
         .for_each(|(ns, schema)| {
-            let name = DatabaseName::try_from(ns.name)
+            let name = NamespaceName::try_from(ns.name)
                 .expect("cannot convert existing namespace name to database name");
 
             cache.put_schema(name, schema);
@@ -434,7 +434,7 @@ mod tests {
             .await
             .expect("pre-warming failed");
 
-        let name = DatabaseName::new("test_ns").unwrap();
+        let name = NamespaceName::new("test_ns").unwrap();
         let got = cache.get_schema(&name).expect("should contain a schema");
 
         assert!(got.tables.get("name").is_some());

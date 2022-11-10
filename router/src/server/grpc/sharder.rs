@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use data_types::{DatabaseName, ShardId, ShardIndex, TopicMetadata};
+use data_types::{NamespaceName, ShardId, ShardIndex, TopicMetadata};
 use generated_types::influxdata::iox::sharder::v1::{
     shard_service_server, MapToShardRequest, MapToShardResponse,
 };
@@ -74,7 +74,7 @@ where
         let req = request.into_inner();
 
         // Validate the namespace.
-        let ns = DatabaseName::try_from(req.namespace_name)
+        let ns = NamespaceName::try_from(req.namespace_name)
             .map_err(|e| tonic::Status::invalid_argument(e.to_string()))?;
 
         // Map the (table, namespace) tuple to the Shard for it.

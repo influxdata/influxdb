@@ -1,4 +1,4 @@
-use data_types::DatabaseName;
+use data_types::NamespaceName;
 use std::{fmt::Debug, sync::Arc};
 
 /// A [`Sharder`] implementation is responsible for mapping an opaque payload
@@ -19,7 +19,7 @@ pub trait Sharder<P>: Debug + Send + Sync {
     type Item: Debug + Send + Sync;
 
     /// Map the specified `payload` to a shard.
-    fn shard(&self, table: &str, namespace: &DatabaseName<'_>, payload: &P) -> Self::Item;
+    fn shard(&self, table: &str, namespace: &NamespaceName<'_>, payload: &P) -> Self::Item;
 }
 
 impl<T, P> Sharder<P> for Arc<T>
@@ -28,7 +28,7 @@ where
 {
     type Item = T::Item;
 
-    fn shard(&self, table: &str, namespace: &DatabaseName<'_>, payload: &P) -> Self::Item {
+    fn shard(&self, table: &str, namespace: &NamespaceName<'_>, payload: &P) -> Self::Item {
         (**self).shard(table, namespace, payload)
     }
 }
@@ -48,7 +48,7 @@ mod tests {
 
         let _ = hasher.shard(
             "table",
-            &DatabaseName::try_from("namespace").unwrap(),
+            &NamespaceName::try_from("namespace").unwrap(),
             &MutableBatch::default(),
         );
     }

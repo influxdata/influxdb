@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use data_types::{
-    DatabaseName, DeletePredicate, NamespaceId, PartitionKey, PartitionTemplate, TableId,
+    DeletePredicate, NamespaceId, NamespaceName, PartitionKey, PartitionTemplate, TableId,
 };
 use hashbrown::HashMap;
 use mutable_batch::{MutableBatch, PartitionWrite, WritePayload};
@@ -72,7 +72,7 @@ impl DmlHandler for Partitioner {
     /// Partition the per-table [`MutableBatch`].
     async fn write(
         &self,
-        _namespace: &DatabaseName<'static>,
+        _namespace: &NamespaceName<'static>,
         _namespace_id: NamespaceId,
         batch: Self::WriteInput,
         _span_ctx: Option<SpanContext>,
@@ -108,7 +108,7 @@ impl DmlHandler for Partitioner {
     /// Pass the delete request through unmodified to the next handler.
     async fn delete(
         &self,
-        _namespace: &DatabaseName<'static>,
+        _namespace: &NamespaceName<'static>,
         _namespace_id: NamespaceId,
         _table_name: &str,
         _predicate: &DeletePredicate,
@@ -156,7 +156,7 @@ mod tests {
                     };
 
                     let partitioner = Partitioner::new(partition_template);
-                    let ns = DatabaseName::new("bananas").expect("valid db name");
+                    let ns = NamespaceName::new("bananas").expect("valid db name");
 
                     let writes = lp_to_writes($lp);
 

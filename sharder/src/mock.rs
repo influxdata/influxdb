@@ -1,5 +1,5 @@
 use super::Sharder;
-use data_types::{DatabaseName, DeletePredicate};
+use data_types::{DeletePredicate, NamespaceName};
 use mutable_batch::MutableBatch;
 use parking_lot::Mutex;
 use std::{collections::VecDeque, fmt::Debug, sync::Arc};
@@ -72,7 +72,7 @@ where
     fn shard(
         &self,
         table: &str,
-        namespace: &DatabaseName<'_>,
+        namespace: &NamespaceName<'_>,
         payload: &MutableBatch,
     ) -> Self::Item {
         let mut guard = self.0.lock();
@@ -97,7 +97,7 @@ where
     fn shard(
         &self,
         table: &str,
-        namespace: &DatabaseName<'_>,
+        namespace: &NamespaceName<'_>,
         payload: &DeletePredicate,
     ) -> Self::Item {
         let mut guard = self.0.lock();

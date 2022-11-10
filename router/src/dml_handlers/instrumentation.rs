@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use data_types::{DatabaseName, DeletePredicate, NamespaceId};
+use data_types::{DeletePredicate, NamespaceId, NamespaceName};
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
 use trace::{
@@ -67,7 +67,7 @@ where
     /// Call the inner `write` method and record the call latency.
     async fn write(
         &self,
-        namespace: &DatabaseName<'static>,
+        namespace: &NamespaceName<'static>,
         namespace_id: NamespaceId,
         input: Self::WriteInput,
         span_ctx: Option<SpanContext>,
@@ -104,7 +104,7 @@ where
     /// Call the inner `delete` method and record the call latency.
     async fn delete(
         &self,
-        namespace: &DatabaseName<'static>,
+        namespace: &NamespaceName<'static>,
         namespace_id: NamespaceId,
         table_name: &str,
         predicate: &DeletePredicate,

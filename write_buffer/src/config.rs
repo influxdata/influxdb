@@ -264,7 +264,7 @@ mod tests {
         core::test_utils::random_topic_name, maybe_skip_kafka_integration,
         mock::MockBufferSharedState,
     };
-    use data_types::DatabaseName;
+    use data_types::NamespaceName;
     use std::{convert::TryFrom, num::NonZeroU32};
     use tempfile::TempDir;
 
@@ -272,7 +272,7 @@ mod tests {
     async fn test_writing_file() {
         let root = TempDir::new().unwrap();
         let factory = factory();
-        let db_name = DatabaseName::try_from("foo").unwrap();
+        let db_name = NamespaceName::try_from("foo").unwrap();
         let cfg = WriteBufferConnection {
             type_: "file".to_string(),
             connection: root.path().display().to_string(),
@@ -291,7 +291,7 @@ mod tests {
     async fn test_reading_file() {
         let root = TempDir::new().unwrap();
         let factory = factory();
-        let db_name = DatabaseName::try_from("foo").unwrap();
+        let db_name = NamespaceName::try_from("foo").unwrap();
         let cfg = WriteBufferConnection {
             type_: "file".to_string(),
             connection: root.path().display().to_string(),
@@ -314,7 +314,7 @@ mod tests {
         let mock_name = "some_mock";
         factory.register_mock(mock_name.to_string(), state);
 
-        let db_name = DatabaseName::try_from(random_topic_name()).unwrap();
+        let db_name = NamespaceName::try_from(random_topic_name()).unwrap();
         let cfg = WriteBufferConnection {
             type_: "mock".to_string(),
             connection: mock_name.to_string(),
@@ -348,7 +348,7 @@ mod tests {
         let mock_name = "some_mock";
         factory.register_mock(mock_name.to_string(), state);
 
-        let db_name = DatabaseName::try_from(random_topic_name()).unwrap();
+        let db_name = NamespaceName::try_from(random_topic_name()).unwrap();
         let cfg = WriteBufferConnection {
             type_: "mock".to_string(),
             connection: mock_name.to_string(),
@@ -381,7 +381,7 @@ mod tests {
         let mock_name = "some_mock";
         factory.register_always_fail_mock(mock_name.to_string());
 
-        let db_name = DatabaseName::try_from(random_topic_name()).unwrap();
+        let db_name = NamespaceName::try_from(random_topic_name()).unwrap();
         let cfg = WriteBufferConnection {
             type_: "mock".to_string(),
             connection: mock_name.to_string(),
@@ -414,7 +414,7 @@ mod tests {
         let mock_name = "some_mock";
         factory.register_always_fail_mock(mock_name.to_string());
 
-        let db_name = DatabaseName::new("foo").unwrap();
+        let db_name = NamespaceName::new("foo").unwrap();
         let cfg = WriteBufferConnection {
             type_: "mock".to_string(),
             connection: mock_name.to_string(),
@@ -461,7 +461,7 @@ mod tests {
     async fn test_writing_kafka() {
         let conn = maybe_skip_kafka_integration!();
         let factory = factory();
-        let db_name = DatabaseName::try_from(random_topic_name()).unwrap();
+        let db_name = NamespaceName::try_from(random_topic_name()).unwrap();
         let cfg = WriteBufferConnection {
             type_: "kafka".to_string(),
             connection: conn,
@@ -481,7 +481,7 @@ mod tests {
         let conn = maybe_skip_kafka_integration!();
         let factory = factory();
 
-        let db_name = DatabaseName::try_from(random_topic_name()).unwrap();
+        let db_name = NamespaceName::try_from(random_topic_name()).unwrap();
         let cfg = WriteBufferConnection {
             type_: "kafka".to_string(),
             connection: conn,

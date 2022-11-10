@@ -1,7 +1,7 @@
 use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{DatabaseName, NamespaceId, QueryPoolId, TopicId};
+use data_types::{NamespaceId, NamespaceName, QueryPoolId, TopicId};
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::*;
 use thiserror::Error;
@@ -71,7 +71,7 @@ where
     /// cache, before passing the request through to the inner delegate.
     async fn get_namespace_id(
         &self,
-        namespace: &DatabaseName<'static>,
+        namespace: &NamespaceName<'static>,
     ) -> Result<NamespaceId, super::Error> {
         if self.cache.get_schema(namespace).is_none() {
             trace!(%namespace, "namespace auto-create cache miss");
@@ -124,7 +124,7 @@ mod tests {
     async fn test_cache_hit() {
         const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
 
-        let ns = DatabaseName::try_from("bananas").unwrap();
+        let ns = NamespaceName::try_from("bananas").unwrap();
 
         // Prep the cache before the test to cause a hit
         let cache = Arc::new(MemoryNamespaceCache::default());
@@ -174,7 +174,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_miss() {
-        let ns = DatabaseName::try_from("bananas").unwrap();
+        let ns = NamespaceName::try_from("bananas").unwrap();
 
         let cache = Arc::new(MemoryNamespaceCache::default());
         let metrics = Arc::new(metric::Registry::new());

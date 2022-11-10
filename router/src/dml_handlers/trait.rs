@@ -1,7 +1,7 @@
 use std::{error::Error, fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{DatabaseName, DeletePredicate, NamespaceId};
+use data_types::{DeletePredicate, NamespaceId, NamespaceName};
 use thiserror::Error;
 use trace::ctx::SpanContext;
 
@@ -58,7 +58,7 @@ pub trait DmlHandler: Debug + Send + Sync {
     /// Write `batches` to `namespace`.
     async fn write(
         &self,
-        namespace: &DatabaseName<'static>,
+        namespace: &NamespaceName<'static>,
         namespace_id: NamespaceId,
         input: Self::WriteInput,
         span_ctx: Option<SpanContext>,
@@ -67,7 +67,7 @@ pub trait DmlHandler: Debug + Send + Sync {
     /// Delete the data specified in `delete`.
     async fn delete(
         &self,
-        namespace: &DatabaseName<'static>,
+        namespace: &NamespaceName<'static>,
         namespace_id: NamespaceId,
         table_name: &str,
         predicate: &DeletePredicate,
@@ -87,7 +87,7 @@ where
 
     async fn write(
         &self,
-        namespace: &DatabaseName<'static>,
+        namespace: &NamespaceName<'static>,
         namespace_id: NamespaceId,
         input: Self::WriteInput,
         span_ctx: Option<SpanContext>,
@@ -100,7 +100,7 @@ where
     /// Delete the data specified in `delete`.
     async fn delete(
         &self,
-        namespace: &DatabaseName<'static>,
+        namespace: &NamespaceName<'static>,
         namespace_id: NamespaceId,
         table_name: &str,
         predicate: &DeletePredicate,

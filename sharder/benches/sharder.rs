@@ -3,7 +3,7 @@ use std::sync::Arc;
 use criterion::{
     criterion_group, criterion_main, measurement::WallTime, BenchmarkGroup, Criterion, Throughput,
 };
-use data_types::DatabaseName;
+use data_types::NamespaceName;
 use mutable_batch::MutableBatch;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use sharder::{JumpHash, Sharder};
@@ -25,28 +25,28 @@ fn sharder_benchmarks(c: &mut Criterion) {
         1_000,
         "basic 1k buckets",
         "table",
-        &DatabaseName::try_from("namespace").unwrap(),
+        &NamespaceName::try_from("namespace").unwrap(),
     );
     benchmark_sharder(
         &mut group,
         10_000,
         "basic 10k buckets",
         "table",
-        &DatabaseName::try_from("namespace").unwrap(),
+        &NamespaceName::try_from("namespace").unwrap(),
     );
     benchmark_sharder(
         &mut group,
         100_000,
         "basic 100k buckets",
         "table",
-        &DatabaseName::try_from("namespace").unwrap(),
+        &NamespaceName::try_from("namespace").unwrap(),
     );
     benchmark_sharder(
         &mut group,
         1_000_000,
         "basic 1M buckets",
         "table",
-        &DatabaseName::try_from("namespace").unwrap(),
+        &NamespaceName::try_from("namespace").unwrap(),
     );
 
     // benchmark sharder with random table name and namespace of length 16
@@ -55,7 +55,7 @@ fn sharder_benchmarks(c: &mut Criterion) {
         10_000,
         "random with key-length 16",
         get_random_string(16).as_str(),
-        &DatabaseName::try_from(get_random_string(16)).unwrap(),
+        &NamespaceName::try_from(get_random_string(16)).unwrap(),
     );
 
     // benchmark sharder with random table name and namespace of length 32
@@ -64,7 +64,7 @@ fn sharder_benchmarks(c: &mut Criterion) {
         10_000,
         "random with key-length 32",
         get_random_string(32).as_str(),
-        &DatabaseName::try_from(get_random_string(32)).unwrap(),
+        &NamespaceName::try_from(get_random_string(32)).unwrap(),
     );
 
     // benchmark sharder with random table name and namespace of length 64
@@ -73,7 +73,7 @@ fn sharder_benchmarks(c: &mut Criterion) {
         10_000,
         "random with key-length 64",
         get_random_string(64).as_str(),
-        &DatabaseName::try_from(get_random_string(64)).unwrap(),
+        &NamespaceName::try_from(get_random_string(64)).unwrap(),
     );
 
     group.finish();
@@ -84,7 +84,7 @@ fn benchmark_sharder(
     num_buckets: usize,
     bench_name: &str,
     table: &str,
-    namespace: &DatabaseName<'_>,
+    namespace: &NamespaceName<'_>,
 ) {
     let hasher = JumpHash::new((0..num_buckets).map(Arc::new));
     let batch = MutableBatch::default();

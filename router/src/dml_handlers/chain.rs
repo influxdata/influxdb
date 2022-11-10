@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use data_types::{DatabaseName, DeletePredicate, NamespaceId};
+use data_types::{DeletePredicate, NamespaceId, NamespaceName};
 use trace::ctx::SpanContext;
 
 use super::{DmlError, DmlHandler};
@@ -58,7 +58,7 @@ where
     /// Write `batches` to `namespace`.
     async fn write(
         &self,
-        namespace: &DatabaseName<'static>,
+        namespace: &NamespaceName<'static>,
         namespace_id: NamespaceId,
         input: Self::WriteInput,
         span_ctx: Option<SpanContext>,
@@ -78,7 +78,7 @@ where
     /// Delete the data specified in `delete`.
     async fn delete(
         &self,
-        namespace: &DatabaseName<'static>,
+        namespace: &NamespaceName<'static>,
         namespace_id: NamespaceId,
         table_name: &str,
         predicate: &DeletePredicate,

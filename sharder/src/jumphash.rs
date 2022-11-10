@@ -1,5 +1,5 @@
 use super::Sharder;
-use data_types::{DatabaseName, DeletePredicate};
+use data_types::{DeletePredicate, NamespaceName};
 use mutable_batch::MutableBatch;
 use siphasher::sip::SipHasher13;
 use std::{
@@ -127,7 +127,7 @@ where
     fn shard(
         &self,
         table: &str,
-        namespace: &DatabaseName<'_>,
+        namespace: &NamespaceName<'_>,
         _payload: &MutableBatch,
     ) -> Self::Item {
         // Because the MutableBatch is not (currently) used to derive the shard
@@ -149,7 +149,7 @@ where
     fn shard(
         &self,
         table: &str,
-        namespace: &DatabaseName<'_>,
+        namespace: &NamespaceName<'_>,
         _payload: &DeletePredicate,
     ) -> Self::Item {
         // A delete that does not specify a table is mapped to all shards.
@@ -172,7 +172,7 @@ where
 {
     type Item = Arc<T>;
 
-    fn shard(&self, table: &str, namespace: &DatabaseName<'_>, _payload: &()) -> Self::Item {
+    fn shard(&self, table: &str, namespace: &NamespaceName<'_>, _payload: &()) -> Self::Item {
         Arc::clone(self.shard_for_query(table, namespace.as_ref()))
     }
 }
@@ -230,24 +230,24 @@ mod tests {
 
         let a = hasher.shard(
             "table",
-            &DatabaseName::try_from("namespace").unwrap(),
+            &NamespaceName::try_from("namespace").unwrap(),
             &MutableBatch::default(),
         );
         let b = hasher.shard(
             "table",
-            &DatabaseName::try_from("namespace2").unwrap(),
+            &NamespaceName::try_from("namespace2").unwrap(),
             &MutableBatch::default(),
         );
         assert_ne!(a, b);
 
         let a = hasher.shard(
             "table",
-            &DatabaseName::try_from("namespace").unwrap(),
+            &NamespaceName::try_from("namespace").unwrap(),
             &MutableBatch::default(),
         );
         let b = hasher.shard(
             "table2",
-            &DatabaseName::try_from("namespace").unwrap(),
+            &NamespaceName::try_from("namespace").unwrap(),
             &MutableBatch::default(),
         );
         assert_ne!(a, b);
@@ -258,12 +258,12 @@ mod tests {
         // Assert payloads are ignored for this sharder
         let a = hasher.shard(
             "table",
-            &DatabaseName::try_from("namespace").unwrap(),
+            &NamespaceName::try_from("namespace").unwrap(),
             &MutableBatch::default(),
         );
         let b = hasher.shard(
             "table",
-            &DatabaseName::try_from("namespace").unwrap(),
+            &NamespaceName::try_from("namespace").unwrap(),
             &batch,
         );
         assert_eq!(a, b);
@@ -274,12 +274,12 @@ mod tests {
         let hasher = JumpHash::new((0..10_000).map(Arc::new));
         let a = hasher.shard(
             "a",
-            &DatabaseName::try_from("bc").unwrap(),
+            &NamespaceName::try_from("bc").unwrap(),
             &MutableBatch::default(),
         );
         let b = hasher.shard(
             "ab",
-            &DatabaseName::try_from("c").unwrap(),
+            &NamespaceName::try_from("c").unwrap(),
             &MutableBatch::default(),
         );
         assert_ne!(a, b);
@@ -300,7 +300,7 @@ mod tests {
     #[test]
     fn test_key_bucket_fixture() {
         let hasher = JumpHash::new((0..1_000).map(Arc::new));
-        let namespace = DatabaseName::try_from("bananas").unwrap();
+        let namespace = NamespaceName::try_from("bananas").unwrap();
 
         let mut batches = mutable_batch_lp::lines_to_batches("cpu a=1i", 42).unwrap();
         let batch = batches.remove("cpu").unwrap();
@@ -322,7 +322,7 @@ mod tests {
     #[test]
     fn test_distribution() {
         let hasher = JumpHash::new((0..100).map(Arc::new));
-        let namespace = DatabaseName::try_from("bananas").unwrap();
+        let namespace = NamespaceName::try_from("bananas").unwrap();
 
         let mut mapping = HashMap::<_, usize>::new();
 
@@ -347,7 +347,7 @@ mod tests {
 
     #[test]
     fn test_delete_with_table() {
-        let namespace = DatabaseName::try_from("bananas").unwrap();
+        let namespace = NamespaceName::try_from("bananas").unwrap();
 
         let hasher = JumpHash::new((0..10_000).map(Arc::new));
 
@@ -372,7 +372,7 @@ mod tests {
 
     #[test]
     fn test_delete_no_table_shards_to_all() {
-        let namespace = DatabaseName::try_from("bananas").unwrap();
+        let namespace = NamespaceName::try_from("bananas").unwrap();
 
         let shards = (0..10_000).map(Arc::new).collect::<Vec<_>>();
         let hasher = JumpHash::new(shards.clone());

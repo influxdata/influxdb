@@ -11,7 +11,7 @@ use crate::{
     input::GrpcInputs,
     StorageService,
 };
-use data_types::{org_and_bucket_to_database, DatabaseName};
+use data_types::{org_and_bucket_to_namespace, NamespaceName};
 use datafusion::error::DataFusionError;
 use futures::Stream;
 use generated_types::{
@@ -55,53 +55,53 @@ const MAX_READ_RESPONSE_SIZE: usize = 4194304 - 100_000; // 4MB - <wiggle room>
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Database not found: {}", db_name))]
-    DatabaseNotFound { db_name: String },
+    #[snafu(display("Namespace not found: {}", db_name))]
+    NamespaceNotFound { db_name: String },
 
-    #[snafu(display("Error listing tables in database '{}': {}", db_name, source))]
+    #[snafu(display("Error listing tables in namespace '{}': {}", db_name, source))]
     ListingTables {
         db_name: String,
         source: DataFusionError,
     },
 
-    #[snafu(display("Error listing columns in database '{}': {}", db_name, source))]
+    #[snafu(display("Error listing columns in namespace '{}': {}", db_name, source))]
     ListingColumns {
         db_name: String,
         source: DataFusionError,
     },
 
-    #[snafu(display("Error listing fields in database '{}': {}", db_name, source))]
+    #[snafu(display("Error listing fields in namespace '{}': {}", db_name, source))]
     ListingFields {
         db_name: String,
         source: DataFusionError,
     },
 
-    #[snafu(display("Error creating series plans for database '{}': {}", db_name, source))]
+    #[snafu(display("Error creating series plans for namespace '{}': {}", db_name, source))]
     PlanningFilteringSeries {
         db_name: String,
         source: DataFusionError,
     },
 
-    #[snafu(display("Error creating group plans for database '{}': {}", db_name, source))]
+    #[snafu(display("Error creating group plans for namespace '{}': {}", db_name, source))]
     PlanningGroupSeries {
         db_name: String,
         source: DataFusionError,
     },
 
-    #[snafu(display("Error running series plans for database '{}': {}", db_name, source))]
+    #[snafu(display("Error running series plans for namespace '{}': {}", db_name, source))]
     FilteringSeries {
         db_name: String,
         source: DataFusionError,
     },
 
-    #[snafu(display("Error running grouping plans for database '{}': {}", db_name, source))]
+    #[snafu(display("Error running grouping plans for namespace '{}': {}", db_name, source))]
     GroupingSeries {
         db_name: String,
         source: DataFusionError,
     },
 
     #[snafu(display(
-        "Can not retrieve tag values for '{}' in database '{}': {}",
+        "Can not retrieve tag values for '{}' in namespace '{}': {}",
         tag_name,
         db_name,
         source
@@ -195,7 +195,7 @@ impl Error {
         let msg = self.to_string();
 
         let code = match self {
-            Self::DatabaseNotFound { .. } => tonic::Code::NotFound,
+            Self::NamespaceNotFound { .. } => tonic::Code::NotFound,
             Self::ListingTables { source, .. }
             | Self::ListingColumns { source, .. }
             | Self::ListingFields { source, .. }
@@ -236,7 +236,7 @@ fn add_headers(metadata: &mut MetadataMap) {
     metadata.insert("storage-type", "iox".parse().unwrap());
 }
 
-/// Implements the protobuf defined Storage service for a DatabaseStore
+/// Implements the protobuf defined Storage service for a [`QueryDatabaseProvider`]
 #[tonic::async_trait]
 impl<T> Storage for StorageService<T>
 where
@@ -257,7 +257,7 @@ where
             .db_store
             .acquire_semaphore(span_ctx.child_span("query rate limit semaphore"))
             .await;
-        let db_name = get_database_name(&req)?;
+        let db_name = get_namespace_name(&req)?;
         info!(
             %db_name,
             ?req.range,
@@ -270,7 +270,7 @@ where
             .db_store
             .db(&db_name, span_ctx.child_span("get namespace"))
             .await
-            .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
+            .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
         let mut query_completed_token = db.record_query(&ctx, "read_filter", defer_json(&req));
@@ -304,7 +304,7 @@ where
             .acquire_semaphore(span_ctx.child_span("query rate limit semaphore"))
             .await;
 
-        let db_name = get_database_name(&req)?;
+        let db_name = get_namespace_name(&req)?;
 
         info!(
             %db_name,
@@ -321,7 +321,7 @@ where
             .db_store
             .db(&db_name, span_ctx.child_span("get namespace"))
             .await
-            .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
+            .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
         let mut query_completed_token = db.record_query(&ctx, "read_group", defer_json(&req));
@@ -385,7 +385,7 @@ where
             .acquire_semaphore(span_ctx.child_span("query rate limit semaphore"))
             .await;
 
-        let db_name = get_database_name(&req)?;
+        let db_name = get_namespace_name(&req)?;
         info!(
             %db_name,
             ?req.range,
@@ -402,7 +402,7 @@ where
             .db_store
             .db(&db_name, span_ctx.child_span("get namespace"))
             .await
-            .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
+            .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
         let mut query_completed_token =
@@ -466,7 +466,7 @@ where
             .acquire_semaphore(span_ctx.child_span("query rate limit semaphore"))
             .await;
 
-        let db_name = get_database_name(&req)?;
+        let db_name = get_namespace_name(&req)?;
         info!(
             %db_name,
             ?req.range,
@@ -479,7 +479,7 @@ where
             .db_store
             .db(&db_name, span_ctx.child_span("get namespace"))
             .await
-            .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
+            .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
         let mut query_completed_token = db.record_query(&ctx, "tag_keys", defer_json(&req));
@@ -530,7 +530,7 @@ where
             .acquire_semaphore(span_ctx.child_span("query rate limit semaphore"))
             .await;
 
-        let db_name = get_database_name(&req)?;
+        let db_name = get_namespace_name(&req)?;
         let tag_key = DecodedTagKey::try_from(req.tag_key.clone())
             .context(ConvertingTagKeyInTagValuesSnafu)?;
         info!(
@@ -546,7 +546,7 @@ where
             .db_store
             .db(&db_name, span_ctx.child_span("get namespace"))
             .await
-            .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
+            .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
         let mut query_completed_token = db.record_query(&ctx, "tag_values", defer_json(&req));
@@ -632,7 +632,7 @@ where
             .acquire_semaphore(span_ctx.child_span("query rate limit semaphore"))
             .await;
 
-        let db_name = get_database_name(&req)?;
+        let db_name = get_namespace_name(&req)?;
         info!(
             %db_name,
             ?req.measurement_patterns,
@@ -646,7 +646,7 @@ where
             .db_store
             .db(&db_name, span_ctx.child_span("get namespace"))
             .await
-            .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
+            .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
         let mut query_completed_token = db.record_query(
@@ -738,7 +738,7 @@ where
             .acquire_semaphore(span_ctx.child_span("query rate limit semaphore"))
             .await;
 
-        let db_name = get_database_name(&req)?;
+        let db_name = get_namespace_name(&req)?;
         info!(
             %db_name,
             ?req.range,
@@ -751,7 +751,7 @@ where
             .db_store
             .db(&db_name, span_ctx.child_span("get namespace"))
             .await
-            .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
+            .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
         let mut query_completed_token =
@@ -795,7 +795,7 @@ where
             .acquire_semaphore(span_ctx.child_span("query rate limit semaphore"))
             .await;
 
-        let db_name = get_database_name(&req)?;
+        let db_name = get_namespace_name(&req)?;
         info!(
             %db_name,
             ?req.range,
@@ -809,7 +809,7 @@ where
             .db_store
             .db(&db_name, span_ctx.child_span("get namespace"))
             .await
-            .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
+            .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
         let mut query_completed_token =
@@ -863,7 +863,7 @@ where
             .acquire_semaphore(span_ctx.child_span("query rate limit semaphore"))
             .await;
 
-        let db_name = get_database_name(&req)?;
+        let db_name = get_namespace_name(&req)?;
         info!(
             %db_name,
             ?req.range,
@@ -878,7 +878,7 @@ where
             .db_store
             .db(&db_name, span_ctx.child_span("get namespace"))
             .await
-            .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
+            .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
         let mut query_completed_token =
@@ -934,7 +934,7 @@ where
             .acquire_semaphore(span_ctx.child_span("query rate limit semaphore"))
             .await;
 
-        let db_name = get_database_name(&req)?;
+        let db_name = get_namespace_name(&req)?;
         info!(
             %db_name,
             ?req.range,
@@ -948,7 +948,7 @@ where
             .db_store
             .db(&db_name, span_ctx.child_span("get namespace"))
             .await
-            .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
+            .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
         let mut query_completed_token =
@@ -1003,8 +1003,8 @@ where
     }
 }
 
-fn get_database_name(input: &impl GrpcInputs) -> Result<DatabaseName<'static>, Status> {
-    org_and_bucket_to_database(input.org_id()?.to_string(), &input.bucket_name()?)
+fn get_namespace_name(input: &impl GrpcInputs) -> Result<NamespaceName<'static>, Status> {
+    org_and_bucket_to_namespace(input.org_id()?.to_string(), &input.bucket_name()?)
         .map_err(|e| Status::internal(e.to_string()))
 }
 
@@ -1017,7 +1017,7 @@ fn get_database_name(input: &impl GrpcInputs) -> Result<DatabaseName<'static>, S
 /// (optional) range
 async fn measurement_name_impl<D>(
     db: Arc<D>,
-    db_name: DatabaseName<'static>,
+    db_name: NamespaceName<'static>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
     ctx: &IOxSessionContext,
@@ -1060,7 +1060,7 @@ where
 /// predicates
 async fn tag_keys_impl<D>(
     db: Arc<D>,
-    db_name: DatabaseName<'static>,
+    db_name: NamespaceName<'static>,
     measurement: Option<String>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
@@ -1102,7 +1102,7 @@ where
 /// arbitratry predicates
 async fn tag_values_impl<D>(
     db: Arc<D>,
-    db_name: DatabaseName<'static>,
+    db_name: NamespaceName<'static>,
     tag_name: String,
     measurement: Option<String>,
     range: Option<TimestampRange>,
@@ -1150,7 +1150,7 @@ where
 /// filtering predicate and optionally scoped to one or more tag keys.
 async fn tag_values_grouped_by_measurement_and_tag_key_impl<D>(
     db: Arc<D>,
-    db_name: DatabaseName<'static>,
+    db_name: NamespaceName<'static>,
     req: TagValuesGroupedByMeasurementAndTagKeyRequest,
     ctx: &IOxSessionContext,
 ) -> Result<Vec<TagValuesResponse>, Error>
@@ -1224,7 +1224,7 @@ where
 /// Launch async tasks that materialises the result of executing read_filter.
 async fn read_filter_impl<D>(
     db: Arc<D>,
-    db_name: DatabaseName<'static>,
+    db_name: NamespaceName<'static>,
     req: ReadFilterRequest,
     ctx: &IOxSessionContext,
 ) -> Result<Vec<ReadResponse>, Error>
@@ -1269,7 +1269,7 @@ where
 /// Launch async tasks that send the result of executing read_group to `tx`
 async fn query_group_impl<D>(
     db: Arc<D>,
-    db_name: DatabaseName<'static>,
+    db_name: NamespaceName<'static>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
     gby_agg: GroupByAndAggregate,
@@ -1326,7 +1326,7 @@ where
 /// predicate
 async fn field_names_impl<D>(
     db: Arc<D>,
-    db_name: DatabaseName<'static>,
+    db_name: NamespaceName<'static>,
     measurement: Option<String>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
@@ -1366,7 +1366,7 @@ where
 /// a plan to scope and group multiple plans by measurement name.
 async fn materialise_measurement_names<D>(
     db: Arc<D>,
-    db_name: DatabaseName<'static>,
+    db_name: NamespaceName<'static>,
     measurement_exprs: Vec<LiteralOrRegex>,
     ctx: &IOxSessionContext,
 ) -> Result<BTreeSet<String>, Error>
@@ -1444,7 +1444,7 @@ where
 /// system table.
 async fn materialise_tag_keys<D>(
     db: Arc<D>,
-    db_name: DatabaseName<'static>,
+    db_name: NamespaceName<'static>,
     measurement_name: String,
     tag_key_predicate: tag_key_predicate::Value,
     ctx: &IOxSessionContext,
@@ -1834,7 +1834,7 @@ mod tests {
     }
 
     /// test the plumbing of the RPC layer for tag_keys -- specifically that
-    /// the right parameters are passed into the Database interface
+    /// the right parameters are passed into the Namespace interface
     /// and that the returned values are sent back via gRPC.
     #[tokio::test]
     async fn test_storage_rpc_tag_keys() {
@@ -1930,7 +1930,7 @@ mod tests {
     }
 
     /// test the plumbing of the RPC layer for measurement_tag_keys--
-    /// specifically that the right parameters are passed into the Database
+    /// specifically that the right parameters are passed into the Namespace
     /// interface and that the returned values are sent back via gRPC.
     #[tokio::test]
     async fn test_storage_rpc_measurement_tag_keys() {
@@ -2037,7 +2037,7 @@ mod tests {
     }
 
     /// test the plumbing of the RPC layer for tag_values -- specifically that
-    /// the right parameters are passed into the Database interface
+    /// the right parameters are passed into the Namespace interface
     /// and that the returned values are sent back via gRPC.
     #[tokio::test]
     async fn test_storage_rpc_tag_values() {
@@ -2566,7 +2566,7 @@ mod tests {
             tag_key: "the_tag_key".into(),
         };
 
-        // Note we don't set the column_names on the test database, so we expect an
+        // Note we don't set the column_names on the test namespace, so we expect an
         // error
         let response_string = fixture
             .storage_client
@@ -2779,7 +2779,7 @@ mod tests {
             ..Default::default()
         };
 
-        // Note we don't set the response on the test database, so we expect an error
+        // Note we don't set the response on the test namespace, so we expect an error
         let response = fixture.storage_client.read_filter(request).await;
         assert_contains!(response.unwrap_err().to_string(), "Sugar we are going down");
 
@@ -2853,7 +2853,7 @@ mod tests {
         let group = generated_types::read_group_request::Group::By as i32;
 
         // ---
-        // test error returned in database processing
+        // test error returned in namespace processing
         // ---
         let request = ReadGroupRequest {
             read_source: source.clone(),
@@ -2866,7 +2866,7 @@ mod tests {
             }),
         };
 
-        // Note we don't set the response on the test database, so we expect an error
+        // Note we don't set the response on the test namespace, so we expect an error
         let response_string = fixture
             .storage_client
             .read_group(request)
