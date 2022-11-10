@@ -30,7 +30,6 @@ use write_summary::ShardProgress;
 use crate::{
     data::{
         partition::resolver::{CatalogPartitionResolver, PartitionCache, PartitionProvider},
-        shard::ShardData,
         IngesterData,
     },
     lifecycle::{run_lifecycle_manager, LifecycleConfig, LifecycleManager},
@@ -177,20 +176,6 @@ impl IngestHandlerImpl {
             BackoffConfig::default(),
         );
         let partition_provider: Arc<dyn PartitionProvider> = Arc::new(partition_provider);
-
-        // build the initial ingester data state
-        let mut shards = BTreeMap::new();
-        for s in shard_states.values() {
-            shards.insert(
-                s.id,
-                ShardData::new(
-                    s.shard_index,
-                    s.id,
-                    Arc::clone(&partition_provider),
-                    Arc::clone(&metric_registry),
-                ),
-            );
-        }
 
         let data = Arc::new(IngesterData::new(
             object_store,
