@@ -30,7 +30,7 @@ impl SortKeyResolver {
 
     /// Fetch the [`SortKey`] from the [`Catalog`] for `partition_id`, retrying
     /// endlessly when errors occur.
-    pub async fn fetch(self) -> Option<SortKey> {
+    pub(crate) async fn fetch(self) -> Option<SortKey> {
         Backoff::new(&self.backoff_config)
             .retry_all_errors("fetch partition sort key", || async {
                 let s = self

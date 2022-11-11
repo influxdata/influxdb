@@ -8,7 +8,7 @@ use crate::data::{partition::PartitionData, table::TableName};
 /// An infallible resolver of [`PartitionData`] for the specified shard, table,
 /// and partition key, returning an initialised [`PartitionData`] buffer for it.
 #[async_trait]
-pub trait PartitionProvider: Send + Sync + Debug {
+pub(crate) trait PartitionProvider: Send + Sync + Debug {
     /// Return an initialised [`PartitionData`] for a given `(partition_key,
     /// shard_id, table_id)` tuple.
     ///

@@ -45,7 +45,7 @@ impl MockPartitionProvider {
     }
 
     /// Returns true if all mock values have been consumed.
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.partitions.lock().is_empty()
     }
 }

@@ -6,10 +6,10 @@ mod cache;
 pub(crate) use cache::*;
 
 mod r#trait;
-pub use r#trait::*;
+pub(crate) use r#trait::*;
 
 mod catalog;
-pub use catalog::*;
+pub(crate) use catalog::*;
 
 mod sort_key;
 pub(crate) use sort_key::*;
