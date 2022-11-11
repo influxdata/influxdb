@@ -17,6 +17,7 @@ license.workspace = true
 ### BEGIN HAKARI SECTION
 [dependencies]
 ahash-ca01ad9e24f5d932 = { package = "ahash", version = "0.7", features = ["std"] }
+ahash-c38e5c1d305a1b54 = { package = "ahash", version = "0.8", default-features = false, features = ["compile-time-rng", "const-random", "getrandom", "runtime-rng"] }
 arrow = { version = "26", features = ["comfy-table", "csv", "csv_crate", "dyn_cmp_dict", "flatbuffers", "ipc", "json", "prettyprint", "serde_json"] }
 base64 = { version = "0.13", features = ["std"] }
 bitflags = { version = "1" }
@@ -37,7 +38,7 @@ futures-sink = { version = "0.3", features = ["alloc", "std"] }
 futures-task = { version = "0.3", default-features = false, features = ["alloc", "std"] }
 futures-util = { version = "0.3", features = ["alloc", "async-await", "async-await-macro", "channel", "futures-channel", "futures-io", "futures-macro", "futures-sink", "io", "memchr", "sink", "slab", "std"] }
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
-hashbrown = { version = "0.13", features = ["ahash", "inline-more", "raw"] }
+hashbrown = { version = "0.12", features = ["ahash", "inline-more", "raw"] }
 indexmap = { version = "1", default-features = false, features = ["std"] }
 libc = { version = "0.2", features = ["extra_traits", "std"] }
 lock_api = { version = "0.4", default-features = false, features = ["arc_lock"] }
@@ -103,7 +104,7 @@ futures-sink = { version = "0.3", features = ["alloc", "std"] }
 futures-task = { version = "0.3", default-features = false, features = ["alloc", "std"] }
 futures-util = { version = "0.3", features = ["alloc", "async-await", "async-await-macro", "channel", "futures-channel", "futures-io", "futures-macro", "futures-sink", "io", "memchr", "sink", "slab", "std"] }
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
-hashbrown = { version = "0.13", features = ["ahash", "inline-more", "raw"] }
+hashbrown = { version = "0.12", features = ["ahash", "inline-more", "raw"] }
 heck = { version = "0.4", features = ["unicode", "unicode-segmentation"] }
 indexmap = { version = "1", default-features = false, features = ["std"] }
 libc = { version = "0.2", features = ["extra_traits", "std"] }
@@ -135,28 +136,24 @@ url = { version = "2" }
 uuid = { version = "1", features = ["getrandom", "rng", "std", "v4"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
-ahash-c38e5c1d305a1b54 = { package = "ahash", version = "0.8", default-features = false, features = ["compile-time-rng", "const-random", "getrandom", "runtime-rng"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 
 [target.x86_64-apple-darwin.dependencies]
-ahash-c38e5c1d305a1b54 = { package = "ahash", version = "0.8", default-features = false, features = ["compile-time-rng", "const-random", "getrandom", "runtime-rng"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 
 [target.x86_64-apple-darwin.build-dependencies]
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 
 [target.aarch64-apple-darwin.dependencies]
-ahash-c38e5c1d305a1b54 = { package = "ahash", version = "0.8", default-features = false, features = ["compile-time-rng", "const-random", "getrandom", "runtime-rng"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 
 [target.aarch64-apple-darwin.build-dependencies]
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 
 [target.x86_64-pc-windows-msvc.dependencies]
-ahash-c38e5c1d305a1b54 = { package = "ahash", version = "0.8", default-features = false, features = ["compile-time-rng", "const-random", "getrandom", "runtime-rng"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 scopeguard = { version = "1", features = ["use_std"] }
 tokio = { version = "1", default-features = false, features = ["winapi"] }

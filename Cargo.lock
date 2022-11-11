@@ -6058,7 +6058,7 @@ dependencies = [
  "futures-task",
  "futures-util",
  "getrandom",
- "hashbrown 0.13.1",
+ "hashbrown 0.12.3",
  "heck",
  "indexmap",
  "libc",
