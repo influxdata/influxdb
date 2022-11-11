@@ -66,6 +66,15 @@ const SORT_KEY_PRE_FETCH: Duration = Duration::from_secs(30);
 /// [`DeferredLoad`]: crate::deferred_load::DeferredLoad
 pub(crate) const NAMESPACE_NAME_PRE_FETCH: Duration = Duration::from_secs(60);
 
+/// The maximum duration of time between observing an initialising the
+/// [`TableData`] in response to observing an operation for a table, and
+/// fetching the string identifier for it in the background via a
+/// [`DeferredLoad`].
+///
+/// [`TableData`]: crate::data::table::TableData
+/// [`DeferredLoad`]: crate::deferred_load::DeferredLoad
+pub const TABLE_NAME_PRE_FETCH: Duration = Duration::from_secs(60);
+
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {
@@ -336,7 +345,7 @@ impl Persister for IngesterData {
         // Assert the namespace ID matches the index key.
         assert_eq!(namespace.namespace_id(), namespace_id);
 
-        let table_data = namespace.table_id(table_id).unwrap_or_else(|| {
+        let table_data = namespace.table(table_id).unwrap_or_else(|| {
             panic!("table {table_id} in namespace {namespace_id} not in shard {shard_id} state")
         });
         // Assert various properties of the table to ensure the index is
@@ -344,7 +353,11 @@ impl Persister for IngesterData {
         assert_eq!(table_data.shard_id(), shard_id);
         assert_eq!(table_data.namespace_id(), namespace_id);
         assert_eq!(table_data.table_id(), table_id);
-        let table_name = table_data.table_name().clone();
+
+        // Begin resolving the load-deferred name concurrently if it is not
+        // already available.
+        let table_name = Arc::clone(&table_data.table_name());
+        table_name.prefetch_now();
 
         let partition = table_data.get_partition(partition_id).unwrap_or_else(|| {
                 panic!(
@@ -368,7 +381,7 @@ impl Persister for IngesterData {
             assert_eq!(guard.shard_id(), shard_id);
             assert_eq!(guard.namespace_id(), namespace_id);
             assert_eq!(guard.table_id(), table_id);
-            assert_eq!(*guard.table_name(), table_name);
+            assert!(Arc::ptr_eq(&*guard.table_name(), &table_name));
 
             partition_key = guard.partition_key().clone();
             sort_key = guard.sort_key().clone();
@@ -438,6 +451,10 @@ impl Persister for IngesterData {
                 return;
             }
         };
+
+        // At this point, the table name is necessary, so demand it be resolved
+        // if it is not yet available.
+        let table_name = table_name.get().await;
 
         // Prepare the plan for CPU intensive work of compaction, de-duplication and sorting
         let CompactedStream {
@@ -888,17 +905,26 @@ mod tests {
         // limits)
         assert_matches!(action, DmlApplyAction::Applied(false));
 
-        let (table_id, partition_id) = {
+        let table_id = catalog
+            .repositories()
+            .await
+            .tables()
+            .get_by_namespace_and_name(namespace.id, "mem")
+            .await
+            .unwrap()
+            .unwrap()
+            .id;
+
+        let partition_id = {
             let sd = data.shards.get(&shard1.id).unwrap();
             let n = sd.namespace(namespace.id).unwrap();
-            let mem_table = n.table_data(&"mem".into()).unwrap();
-            assert!(n.table_data(&"mem".into()).is_some());
+            let mem_table = n.table(table_id).unwrap();
             let p = mem_table
                 .get_partition_by_key(&"1970-01-01".into())
                 .unwrap()
                 .lock()
                 .partition_id();
-            (mem_table.table_id(), p)
+            p
         };
 
         data.persist(shard1.id, namespace.id, table_id, partition_id)
@@ -1047,15 +1073,21 @@ mod tests {
             .with_buffered(SequenceNumber::new(2));
         assert_progress(&data, shard_index, expected_progress).await;
 
+        let table_id = catalog
+            .repositories()
+            .await
+            .tables()
+            .get_by_namespace_and_name(namespace.id, "mem")
+            .await
+            .unwrap()
+            .unwrap()
+            .id;
+
         let sd = data.shards.get(&shard1.id).unwrap();
         let n = sd.namespace(namespace.id).unwrap();
         let partition_id;
-        let table_id;
         {
-            let mem_table = n.table_data(&"mem".into()).unwrap();
-            assert!(n.table_data(&"cpu".into()).is_some());
-
-            table_id = mem_table.table_id();
+            let mem_table = n.table(table_id).unwrap();
 
             let p = mem_table
                 .get_partition_by_key(&"1970-01-01".into())
@@ -1128,7 +1160,7 @@ mod tests {
             .unwrap()
             .namespace(namespace.id)
             .unwrap()
-            .table_id(table_id)
+            .table(table_id)
             .unwrap()
             .get_partition(partition_id)
             .unwrap()
@@ -1181,7 +1213,7 @@ mod tests {
         // Only the < 500 KB bucket has a count
         assert_eq!(buckets_with_counts, &[500 * 1024]);
 
-        let mem_table = n.table_data(&"mem".into()).unwrap();
+        let mem_table = n.table(table_id).unwrap();
 
         // verify that the parquet_max_sequence_number got updated
         assert_eq!(
@@ -1496,7 +1528,7 @@ mod tests {
             .await
             .unwrap();
         {
-            let table = data.table_data(&"mem".into()).unwrap();
+            let table = data.table(table.id).unwrap();
             assert!(table
                 .partitions()
                 .into_iter()
@@ -1517,7 +1549,7 @@ mod tests {
             .await
             .unwrap();
 
-        let table = data.table_data(&"mem".into()).unwrap();
+        let table = data.table(table.id).unwrap();
         let partition = table.get_partition_by_key(&"1970-01-01".into()).unwrap();
         assert_eq!(
             partition.lock().sequence_number_range().inclusive_min(),

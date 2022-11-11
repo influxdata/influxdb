@@ -122,7 +122,7 @@ impl ShardData {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{sync::Arc, time::Duration};
 
     use data_types::{PartitionId, PartitionKey, ShardIndex, TableId};
     use metric::{Attributes, Metric};
@@ -131,7 +131,9 @@ mod tests {
         data::{
             namespace::name_resolver::mock::MockNamespaceNameProvider,
             partition::{resolver::MockPartitionProvider, PartitionData, SortKeyState},
+            table::TableName,
         },
+        deferred_load::DeferredLoad,
         lifecycle::mock_handle::MockLifecycleHandle,
         test_util::{make_write_op, TEST_TABLE},
     };
@@ -158,7 +160,9 @@ mod tests {
                 SHARD_ID,
                 NAMESPACE_ID,
                 TABLE_ID,
-                TABLE_NAME.into(),
+                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                    TableName::from(TABLE_NAME)
+                })),
                 SortKeyState::Provided(None),
                 None,
             ),

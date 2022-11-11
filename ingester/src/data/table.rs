@@ -11,7 +11,7 @@ use super::{
     partition::{resolver::PartitionProvider, BufferError, PartitionData},
     DmlApplyAction,
 };
-use crate::{arcmap::ArcMap, lifecycle::LifecycleHandle};
+use crate::{arcmap::ArcMap, deferred_load::DeferredLoad, lifecycle::LifecycleHandle};
 
 /// A double-referenced map where [`PartitionData`] can be looked up by
 /// [`PartitionKey`], or ID.
@@ -91,7 +91,7 @@ impl PartialEq<str> for TableName {
 #[derive(Debug)]
 pub(crate) struct TableData {
     table_id: TableId,
-    table_name: TableName,
+    table_name: Arc<DeferredLoad<TableName>>,
 
     /// The catalog ID of the shard & namespace this table is being populated
     /// from.
@@ -119,14 +119,14 @@ impl TableData {
     /// for the first time.
     pub(super) fn new(
         table_id: TableId,
-        table_name: TableName,
+        table_name: DeferredLoad<TableName>,
         shard_id: ShardId,
         namespace_id: NamespaceId,
         partition_provider: Arc<dyn PartitionProvider>,
     ) -> Self {
         Self {
             table_id,
-            table_name,
+            table_name: Arc::new(table_name),
             shard_id,
             namespace_id,
             partition_data: Default::default(),
@@ -154,7 +154,7 @@ impl TableData {
                         self.shard_id,
                         self.namespace_id,
                         self.table_id,
-                        self.table_name.clone(),
+                        Arc::clone(&self.table_name),
                     )
                     .await;
                 // Add the double-referenced partition to the map.
@@ -242,7 +242,7 @@ impl TableData {
     }
 
     /// Returns the name of this table.
-    pub(crate) fn table_name(&self) -> &TableName {
+    pub(crate) fn table_name(&self) -> &Arc<DeferredLoad<TableName>> {
         &self.table_name
     }
 
@@ -259,7 +259,7 @@ impl TableData {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{sync::Arc, time::Duration};
 
     use assert_matches::assert_matches;
     use data_types::PartitionId;
@@ -295,7 +295,9 @@ mod tests {
                 SHARD_ID,
                 NAMESPACE_ID,
                 TABLE_ID,
-                TABLE_NAME.into(),
+                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                    TableName::from(TABLE_NAME)
+                })),
                 SortKeyState::Provided(None),
                 None,
             ),
@@ -303,7 +305,9 @@ mod tests {
 
         let table = TableData::new(
             TABLE_ID,
-            TABLE_NAME.into(),
+            DeferredLoad::new(Duration::from_secs(1), async {
+                TableName::from(TABLE_NAME)
+            }),
             SHARD_ID,
             NAMESPACE_ID,
             partition_provider,
@@ -354,7 +358,9 @@ mod tests {
                 SHARD_ID,
                 NAMESPACE_ID,
                 TABLE_ID,
-                TABLE_NAME.into(),
+                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                    TableName::from(TABLE_NAME)
+                })),
                 SortKeyState::Provided(None),
                 None,
             ),
@@ -362,7 +368,9 @@ mod tests {
 
         let table = TableData::new(
             TABLE_ID,
-            TABLE_NAME.into(),
+            DeferredLoad::new(Duration::from_secs(1), async {
+                TableName::from(TABLE_NAME)
+            }),
             SHARD_ID,
             NAMESPACE_ID,
             partition_provider,

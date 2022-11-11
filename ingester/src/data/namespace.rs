@@ -2,7 +2,7 @@
 
 pub(crate) mod name_resolver;
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use data_types::{NamespaceId, SequenceNumber, ShardId, TableId};
 use dml::DmlOperation;
@@ -16,36 +16,11 @@ use super::triggers::TestTriggers;
 use super::{
     partition::resolver::PartitionProvider,
     table::{TableData, TableName},
+    TABLE_NAME_PRE_FETCH,
 };
-use crate::{data::DmlApplyAction, deferred_load::DeferredLoad, lifecycle::LifecycleHandle};
-
-/// A double-referenced map where [`TableData`] can be looked up by name, or ID.
-#[derive(Debug, Default)]
-struct DoubleRef {
-    // TODO(4880): this can be removed when IDs are sent over the wire.
-    by_name: HashMap<TableName, Arc<TableData>>,
-    by_id: HashMap<TableId, Arc<TableData>>,
-}
-
-impl DoubleRef {
-    fn insert(&mut self, t: TableData) -> Arc<TableData> {
-        let name = t.table_name().clone();
-        let id = t.table_id();
-
-        let t = Arc::new(t);
-        self.by_name.insert(name, Arc::clone(&t));
-        self.by_id.insert(id, Arc::clone(&t));
-        t
-    }
-
-    fn by_name(&self, name: &TableName) -> Option<Arc<TableData>> {
-        self.by_name.get(name).map(Arc::clone)
-    }
-
-    fn by_id(&self, id: TableId) -> Option<Arc<TableData>> {
-        self.by_id.get(&id).map(Arc::clone)
-    }
-}
+use crate::{
+    arcmap::ArcMap, data::DmlApplyAction, deferred_load::DeferredLoad, lifecycle::LifecycleHandle,
+};
 
 /// The string name / identifier of a Namespace.
 ///
@@ -85,7 +60,7 @@ pub(crate) struct NamespaceData {
     /// The catalog ID of the shard this namespace is being populated from.
     shard_id: ShardId,
 
-    tables: RwLock<DoubleRef>,
+    tables: ArcMap<TableId, TableData>,
     table_count: U64Counter,
 
     /// The resolver of `(shard_id, table_id, partition_key)` to
@@ -199,11 +174,20 @@ impl NamespaceData {
                 let partition_key = write.partition_key().clone();
 
                 for (table_name, table_id, b) in write.into_tables() {
-                    let table_name = TableName::from(table_name);
-                    let table_data = match self.table_data(&table_name) {
-                        Some(t) => t,
-                        None => self.insert_table(table_name, table_id).await?,
-                    };
+                    // Grab a reference to the table data, or insert a new
+                    // TableData for it.
+                    let table_data = self.tables.get_or_insert_with(&table_id, || {
+                        self.table_count.inc(1);
+                        Arc::new(TableData::new(
+                            table_id,
+                            DeferredLoad::new(TABLE_NAME_PRE_FETCH, async {
+                                TableName::from(table_name)
+                            }),
+                            self.shard_id,
+                            self.namespace_id,
+                            Arc::clone(&self.partition_provider),
+                        ))
+                    });
 
                     let action = table_data
                         .buffer_table_write(
@@ -246,45 +230,14 @@ impl NamespaceData {
         }
     }
 
-    /// Return the specified [`TableData`] if it exists.
-    pub(crate) fn table_data(&self, table_name: &TableName) -> Option<Arc<TableData>> {
-        let t = self.tables.read();
-        t.by_name(table_name)
-    }
-
     /// Return the table data by ID.
-    pub(crate) fn table_id(&self, table_id: TableId) -> Option<Arc<TableData>> {
-        let t = self.tables.read();
-        t.by_id(table_id)
-    }
-
-    /// Inserts the table or returns it if it happens to be inserted by some other thread
-    async fn insert_table(
-        &self,
-        table_name: TableName,
-        table_id: TableId,
-    ) -> Result<Arc<TableData>, super::Error> {
-        let mut t = self.tables.write();
-        Ok(match t.by_name(&table_name) {
-            Some(v) => v,
-            None => {
-                self.table_count.inc(1);
-
-                // Insert the table and then return a ref to it.
-                t.insert(TableData::new(
-                    table_id,
-                    table_name,
-                    self.shard_id,
-                    self.namespace_id,
-                    Arc::clone(&self.partition_provider),
-                ))
-            }
-        })
+    pub(crate) fn table(&self, table_id: TableId) -> Option<Arc<TableData>> {
+        self.tables.get(&table_id)
     }
 
     /// Return progress from this Namespace
     pub(super) async fn progress(&self) -> ShardProgress {
-        let tables: Vec<_> = self.tables.read().by_id.values().map(Arc::clone).collect();
+        let tables: Vec<_> = self.tables.values();
 
         // Consolidate progress across partitions.
         let mut progress = ShardProgress::new()
@@ -372,7 +325,7 @@ mod tests {
     const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
 
     #[tokio::test]
-    async fn test_namespace_double_ref() {
+    async fn test_namespace_init_table() {
         let metrics = Arc::new(metric::Registry::default());
 
         // Configure the mock partition provider to return a partition for this
@@ -384,7 +337,9 @@ mod tests {
                 SHARD_ID,
                 NAMESPACE_ID,
                 TABLE_ID,
-                TABLE_NAME.into(),
+                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                    TableName::from(TABLE_NAME)
+                })),
                 SortKeyState::Provided(None),
                 None,
             ),
@@ -406,8 +361,7 @@ mod tests {
         );
 
         // Assert the namespace does not contain the test data
-        assert!(ns.table_data(&TABLE_NAME.into()).is_none());
-        assert!(ns.table_id(TABLE_ID).is_none());
+        assert!(ns.table(TABLE_ID).is_none());
 
         // Write some test data
         ns.buffer_operation(
@@ -426,8 +380,7 @@ mod tests {
         .expect("buffer op should succeed");
 
         // Both forms of referencing the table should succeed
-        assert!(ns.table_data(&TABLE_NAME.into()).is_some());
-        assert!(ns.table_id(TABLE_ID).is_some());
+        assert!(ns.table(TABLE_ID).is_some());
 
         // And the table counter metric should increase
         let tables = metrics
