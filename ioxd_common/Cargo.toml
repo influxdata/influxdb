@@ -32,7 +32,7 @@ clap = { version = "4", features = ["derive", "env"] }
 chrono = { version = "0.4", default-features = false }
 flate2 = "1.0"
 futures = "0.3"
-hashbrown = "0.13"
+hashbrown = { workspace = true }
 http = "0.2.8"
 hyper = "0.14"
 log = "0.4"

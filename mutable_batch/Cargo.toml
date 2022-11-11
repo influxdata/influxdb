@@ -14,7 +14,7 @@ data_types = { path = "../data_types" }
 iox_time = { path = "../iox_time" }
 schema = { path = "../schema" }
 snafu = "0.7"
-hashbrown = "0.13"
+hashbrown = { workspace = true }
 itertools = "0.10"
 workspace-hack = { path = "../workspace-hack"}
 
