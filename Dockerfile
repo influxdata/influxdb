@@ -57,10 +57,9 @@ ENV PACKAGE=$PACKAGE
 COPY --from=build "/root/$PACKAGE" "/usr/bin/$PACKAGE"
 COPY docker/entrypoint.sh /usr/bin/entrypoint.sh
 
-ENV INFLUXDB_IOX_SERVER_MODE=database
 
 EXPOSE 8080 8082
 
 ENTRYPOINT ["/usr/bin/entrypoint.sh"]
 
-CMD ["run", "$INFLUXDB_IOX_SERVER_MODE"]
+CMD ["run"]
