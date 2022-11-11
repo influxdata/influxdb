@@ -8,7 +8,7 @@ license.workspace = true
 
 [dependencies]
 arrow = { workspace = true, features = ["prettyprint"] }
-hashbrown = "0.12"
+hashbrown = { workspace = true }
 indexmap = { version = "1.9", features = ["std"] }
 itertools = "0.10.5"
 observability_deps = { path = "../observability_deps" }

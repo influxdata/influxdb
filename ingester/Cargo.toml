@@ -20,7 +20,7 @@ dml = { path = "../dml" }
 flatbuffers = "22.9.29"
 futures = "0.3"
 generated_types = { path = "../generated_types" }
-hashbrown = "0.12.3"
+hashbrown = { workspace = true }
 hyper = "0.14"
 iox_catalog = { path = "../iox_catalog" }
 iox_query = { path = "../iox_query" }

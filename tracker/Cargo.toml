@@ -8,7 +8,7 @@ license.workspace = true
 
 [dependencies]
 futures = "0.3"
-hashbrown = "0.12"
+hashbrown = { workspace = true }
 lock_api = "0.4.9"
 metric = { path = "../metric" }
 observability_deps = { path = "../observability_deps" }

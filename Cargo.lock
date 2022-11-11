@@ -116,7 +116,7 @@ dependencies = [
  "csv",
  "flatbuffers",
  "half 2.1.0",
- "hashbrown",
+ "hashbrown 0.12.3",
  "indexmap",
  "lazy_static",
  "lexical-core",
@@ -139,7 +139,7 @@ dependencies = [
  "arrow-schema",
  "chrono",
  "half 2.1.0",
- "hashbrown",
+ "hashbrown 0.12.3",
  "num",
 ]
 
@@ -212,7 +212,7 @@ dependencies = [
  "chrono",
  "comfy-table",
  "datafusion",
- "hashbrown",
+ "hashbrown 0.13.1",
  "num-traits",
  "rand",
  "snafu",
@@ -1173,7 +1173,7 @@ dependencies = [
  "flate2",
  "futures",
  "glob",
- "hashbrown",
+ "hashbrown 0.12.3",
  "itertools",
  "lazy_static",
  "log",
@@ -1232,7 +1232,7 @@ dependencies = [
  "datafusion-common",
  "datafusion-expr",
  "datafusion-physical-expr",
- "hashbrown",
+ "hashbrown 0.12.3",
  "log",
 ]
 
@@ -1252,7 +1252,7 @@ dependencies = [
  "datafusion-expr",
  "datafusion-row",
  "half 2.1.0",
- "hashbrown",
+ "hashbrown 0.12.3",
  "itertools",
  "lazy_static",
  "md-5",
@@ -1375,7 +1375,7 @@ version = "0.1.0"
 dependencies = [
  "arrow_util",
  "data_types",
- "hashbrown",
+ "hashbrown 0.13.1",
  "iox_time",
  "mutable_batch",
  "schema",
@@ -1859,12 +1859,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "hashbrown"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "33ff8ae62cd3a9102e5637afc8452c55acf3844001bd5374e0b0bd7b6616c038"
+dependencies = [
+ "ahash 0.8.2",
+]
+
+[[package]]
 name = "hashlink"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "69fe1fcf8b4278d860ad0548329f892a3631fb63f82574df68275f34cdbe0ffa"
 dependencies = [
- "hashbrown",
+ "hashbrown 0.12.3",
 ]
 
 [[package]]
@@ -2101,7 +2110,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "10a35a97730320ffe8e2d410b5d3b69279b98d2c14bdb8b70ea89ecf7888d41e"
 dependencies = [
  "autocfg",
- "hashbrown",
+ "hashbrown 0.12.3",
 ]
 
 [[package]]
@@ -2174,7 +2183,7 @@ dependencies = [
  "futures",
  "futures-util",
  "generated_types",
- "hashbrown",
+ "hashbrown 0.13.1",
  "http",
  "humantime",
  "import",
@@ -2321,7 +2330,7 @@ dependencies = [
  "flatbuffers",
  "futures",
  "generated_types",
- "hashbrown",
+ "hashbrown 0.13.1",
  "hyper",
  "iox_catalog",
  "iox_query",
@@ -2466,7 +2475,7 @@ dependencies = [
  "datafusion_util",
  "executor",
  "futures",
- "hashbrown",
+ "hashbrown 0.13.1",
  "itertools",
  "object_store",
  "observability_deps",
@@ -2532,7 +2541,7 @@ dependencies = [
  "flate2",
  "futures",
  "generated_types",
- "hashbrown",
+ "hashbrown 0.13.1",
  "heappy",
  "http",
  "hyper",
@@ -2658,7 +2667,7 @@ dependencies = [
  "async-trait",
  "clap_blocks",
  "data_types",
- "hashbrown",
+ "hashbrown 0.13.1",
  "hyper",
  "iox_catalog",
  "ioxd_common",
@@ -3043,7 +3052,7 @@ dependencies = [
  "arrow_util",
  "chrono",
  "data_types",
- "hashbrown",
+ "hashbrown 0.13.1",
  "iox_time",
  "itertools",
  "rand",
@@ -3059,7 +3068,7 @@ dependencies = [
  "arrow_util",
  "assert_matches",
  "criterion",
- "hashbrown",
+ "hashbrown 0.13.1",
  "influxdb_line_protocol",
  "mutable_batch",
  "schema",
@@ -3075,7 +3084,7 @@ dependencies = [
  "data_types",
  "dml",
  "generated_types",
- "hashbrown",
+ "hashbrown 0.13.1",
  "mutable_batch",
  "mutable_batch_lp",
  "schema",
@@ -3434,7 +3443,7 @@ dependencies = [
  "chrono",
  "flate2",
  "futures",
- "hashbrown",
+ "hashbrown 0.12.3",
  "lz4",
  "num",
  "num-bigint",
@@ -4291,7 +4300,7 @@ dependencies = [
  "flate2",
  "futures",
  "generated_types",
- "hashbrown",
+ "hashbrown 0.13.1",
  "hyper",
  "influxdb_line_protocol",
  "iox_catalog",
@@ -4453,7 +4462,7 @@ name = "schema"
 version = "0.1.0"
 dependencies = [
  "arrow",
- "hashbrown",
+ "hashbrown 0.13.1",
  "indexmap",
  "itertools",
  "observability_deps",
@@ -4717,7 +4726,7 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "data_types",
- "hashbrown",
+ "hashbrown 0.13.1",
  "mutable_batch",
  "mutable_batch_lp",
  "parking_lot 0.12.1",
@@ -5531,7 +5540,7 @@ name = "trace_http"
 version = "0.1.0"
 dependencies = [
  "futures",
- "hashbrown",
+ "hashbrown 0.13.1",
  "http",
  "http-body",
  "itertools",
@@ -5637,7 +5646,7 @@ name = "tracker"
 version = "0.1.0"
 dependencies = [
  "futures",
- "hashbrown",
+ "hashbrown 0.13.1",
  "iox_time",
  "lock_api",
  "metric",
@@ -6049,7 +6058,7 @@ dependencies = [
  "futures-task",
  "futures-util",
  "getrandom",
- "hashbrown",
+ "hashbrown 0.12.3",
  "heck",
  "indexmap",
  "libc",
@@ -6114,7 +6123,7 @@ dependencies = [
  "dotenvy",
  "futures",
  "generated_types",
- "hashbrown",
+ "hashbrown 0.13.1",
  "http",
  "httparse",
  "iox_time",

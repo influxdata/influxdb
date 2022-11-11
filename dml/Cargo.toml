@@ -9,7 +9,7 @@ license.workspace = true
 [dependencies]
 arrow_util = { path = "../arrow_util" }
 data_types = { path = "../data_types" }
-hashbrown = "0.12"
+hashbrown = { workspace = true }
 mutable_batch = { path = "../mutable_batch" }
 schema = { path = "../schema" }
 iox_time = { path = "../iox_time" }

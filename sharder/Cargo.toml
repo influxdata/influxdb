@@ -14,7 +14,7 @@ workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
 criterion = { version = "0.4", default-features = false, features = ["async_tokio", "rayon"]}
-hashbrown = "0.12"
+hashbrown = { workspace = true }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 rand = "0.8.3"
 test_helpers = { path = "../test_helpers" }

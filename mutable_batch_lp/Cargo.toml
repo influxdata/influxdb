@@ -7,7 +7,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-hashbrown = "0.12"
+hashbrown = { workspace = true }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 mutable_batch = { path = "../mutable_batch" }
 schema = { path = "../schema" }

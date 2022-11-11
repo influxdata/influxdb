@@ -412,7 +412,7 @@ mod tests {
                 namespace_id: NAMESPACE_ID,
                 table_id: TABLE_ID,
                 sequence_number: SequenceNumber::new(42),
-                bytes_written: 1107,
+                bytes_written: 1075,
                 rows_written: 1,
             }]
         );

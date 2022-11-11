@@ -9,7 +9,7 @@ license.workspace = true
 [dependencies]
 trace = { path = "../trace" }
 futures = "0.3"
-hashbrown = "0.12"
+hashbrown = { workspace = true }
 http = "0.2"
 http-body = "0.4"
 itertools = "0.10"

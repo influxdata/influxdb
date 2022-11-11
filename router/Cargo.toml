@@ -13,7 +13,7 @@ dml = { path = "../dml" }
 flate2 = "1.0"
 futures = "0.3.25"
 generated_types = { path = "../generated_types" }
-hashbrown = "0.12"
+hashbrown = { workspace = true }
 hyper = "0.14"
 iox_catalog = { path = "../iox_catalog" }
 iox_time = { path = "../iox_time" }

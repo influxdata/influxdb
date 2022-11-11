@@ -17,6 +17,7 @@ license.workspace = true
 ### BEGIN HAKARI SECTION
 [dependencies]
 ahash-ca01ad9e24f5d932 = { package = "ahash", version = "0.7", features = ["std"] }
+ahash-c38e5c1d305a1b54 = { package = "ahash", version = "0.8", default-features = false, features = ["compile-time-rng", "const-random", "getrandom", "runtime-rng"] }
 arrow = { version = "26", features = ["comfy-table", "csv", "csv_crate", "dyn_cmp_dict", "flatbuffers", "ipc", "json", "prettyprint", "serde_json"] }
 base64 = { version = "0.13", features = ["std"] }
 bitflags = { version = "1" }
@@ -135,28 +136,24 @@ url = { version = "2" }
 uuid = { version = "1", features = ["getrandom", "rng", "std", "v4"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
-ahash-c38e5c1d305a1b54 = { package = "ahash", version = "0.8", default-features = false, features = ["compile-time-rng", "const-random", "getrandom", "runtime-rng"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 
 [target.x86_64-apple-darwin.dependencies]
-ahash-c38e5c1d305a1b54 = { package = "ahash", version = "0.8", default-features = false, features = ["compile-time-rng", "const-random", "getrandom", "runtime-rng"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 
 [target.x86_64-apple-darwin.build-dependencies]
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 
 [target.aarch64-apple-darwin.dependencies]
-ahash-c38e5c1d305a1b54 = { package = "ahash", version = "0.8", default-features = false, features = ["compile-time-rng", "const-random", "getrandom", "runtime-rng"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 
 [target.aarch64-apple-darwin.build-dependencies]
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 
 [target.x86_64-pc-windows-msvc.dependencies]
-ahash-c38e5c1d305a1b54 = { package = "ahash", version = "0.8", default-features = false, features = ["compile-time-rng", "const-random", "getrandom", "runtime-rng"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 scopeguard = { version = "1", features = ["use_std"] }
 tokio = { version = "1", default-features = false, features = ["winapi"] }

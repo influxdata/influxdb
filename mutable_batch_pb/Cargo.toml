@@ -10,7 +10,7 @@ license.workspace = true
 arrow_util = { path = "../arrow_util" }
 dml = { path = "../dml" }
 generated_types = { path = "../generated_types" }
-hashbrown = "0.12"
+hashbrown = { workspace = true }
 mutable_batch = { path = "../mutable_batch" }
 schema = { path = "../schema" }
 snafu = "0.7"
