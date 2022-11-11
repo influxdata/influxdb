@@ -46,7 +46,16 @@ use crate::{
 ///
 /// [`PartitionData`]: crate::data::partition::PartitionData
 /// [`SortKey`]: schema::sort::SortKey
-const SORT_KEY_PRE_FETCH: Duration = Duration::from_secs(30);
+pub(crate) const SORT_KEY_PRE_FETCH: Duration = Duration::from_secs(60);
+
+/// The maximum duration of time between observing an initialising the
+/// [`NamespaceData`] in response to observing an operation for a namespace, and
+/// fetching the string identifier for it in the background via a
+/// [`DeferredLoad`].
+///
+/// [`NamespaceData`]: crate::data::namespace::NamespaceData
+/// [`DeferredLoad`]: crate::deferred_load::DeferredLoad
+pub(crate) const NAMESPACE_NAME_PRE_FETCH: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]

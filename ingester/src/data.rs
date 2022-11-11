@@ -25,6 +25,7 @@ use write_summary::ShardProgress;
 
 use crate::{
     compact::{compact_persisting_batch, CompactedStream},
+    handler::NAMESPACE_NAME_PRE_FETCH,
     lifecycle::LifecycleHandle,
 };
 
@@ -36,7 +37,11 @@ pub(crate) mod table;
 
 pub(crate) use sequence_range::*;
 
-use self::{partition::resolver::PartitionProvider, shard::ShardData};
+use self::{
+    namespace::name_resolver::{NamespaceNameProvider, NamespaceNameResolver},
+    partition::resolver::PartitionProvider,
+    shard::ShardData,
+};
 
 #[cfg(test)]
 mod triggers;
@@ -127,6 +132,13 @@ impl IngesterData {
             },
         );
 
+        let namespace_name_provider: Arc<dyn NamespaceNameProvider> =
+            Arc::new(NamespaceNameResolver::new(
+                NAMESPACE_NAME_PRE_FETCH,
+                Arc::clone(&catalog),
+                backoff_config.clone(),
+            ));
+
         let shards = shards
             .into_iter()
             .map(|(id, index)| {
@@ -135,6 +147,7 @@ impl IngesterData {
                     ShardData::new(
                         index,
                         id,
+                        Arc::clone(&namespace_name_provider),
                         Arc::clone(&partition_provider),
                         Arc::clone(&metrics),
                     ),
@@ -256,9 +269,14 @@ impl Persister for IngesterData {
         let namespace = self
             .shards
             .get(&shard_id)
-            .and_then(|s| s.namespace_by_id(namespace_id))
+            .and_then(|s| s.namespace(namespace_id))
             .unwrap_or_else(|| panic!("namespace {namespace_id} not in shard {shard_id} state"));
+
+        // Begin resolving the load-deferred name concurrently if it is not
+        // already available.
         let namespace_name = namespace.namespace_name();
+        namespace_name.prefetch_now();
+
         // Assert the namespace ID matches the index key.
         assert_eq!(namespace.namespace_id(), namespace_id);
 
@@ -384,7 +402,7 @@ impl Persister for IngesterData {
             creation_timestamp: SystemProvider::new().now(),
             shard_id,
             namespace_id,
-            namespace_name: Arc::clone(&**namespace.namespace_name()),
+            namespace_name: Arc::clone(&*namespace.namespace_name().get().await),
             table_id,
             table_name: Arc::clone(&*table_name),
             partition_id,
@@ -621,6 +639,7 @@ mod tests {
     use super::*;
     use crate::{
         data::{namespace::NamespaceData, partition::resolver::CatalogPartitionResolver},
+        deferred_load::DeferredLoad,
         lifecycle::{LifecycleConfig, LifecycleManager},
     };
 
@@ -803,7 +822,7 @@ mod tests {
 
         let (table_id, partition_id) = {
             let sd = data.shards.get(&shard1.id).unwrap();
-            let n = sd.namespace(&"foo".into()).unwrap();
+            let n = sd.namespace(namespace.id).unwrap();
             let mem_table = n.table_data(&"mem".into()).unwrap();
             assert!(n.table_data(&"mem".into()).is_some());
             let p = mem_table
@@ -955,7 +974,7 @@ mod tests {
         assert_progress(&data, shard_index, expected_progress).await;
 
         let sd = data.shards.get(&shard1.id).unwrap();
-        let n = sd.namespace(&"foo".into()).unwrap();
+        let n = sd.namespace(namespace.id).unwrap();
         let partition_id;
         let table_id;
         {
@@ -1033,7 +1052,7 @@ mod tests {
         let cached_sort_key = data
             .shard(shard1.id)
             .unwrap()
-            .namespace_by_id(namespace.id)
+            .namespace(namespace.id)
             .unwrap()
             .table_id(table_id)
             .unwrap()
@@ -1213,7 +1232,7 @@ mod tests {
 
         // Get the namespace
         let sd = data.shards.get(&shard1.id).unwrap();
-        let n = sd.namespace(&"foo".into()).unwrap();
+        let n = sd.namespace(namespace.id).unwrap();
 
         let expected_progress = ShardProgress::new().with_buffered(SequenceNumber::new(1));
         assert_progress(&data, shard_index, expected_progress).await;
@@ -1383,7 +1402,7 @@ mod tests {
 
         let data = NamespaceData::new(
             namespace.id,
-            "foo".into(),
+            DeferredLoad::new(Duration::from_millis(1), async { "foo".into() }),
             shard.id,
             partition_provider,
             &metrics,

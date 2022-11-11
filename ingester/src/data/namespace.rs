@@ -1,5 +1,7 @@
 //! Namespace level data buffer structures.
 
+pub(crate) mod name_resolver;
+
 use std::{collections::HashMap, sync::Arc};
 
 use data_types::{NamespaceId, SequenceNumber, ShardId, TableId};
@@ -15,7 +17,7 @@ use super::{
     partition::resolver::PartitionProvider,
     table::{TableData, TableName},
 };
-use crate::{data::DmlApplyAction, lifecycle::LifecycleHandle};
+use crate::{data::DmlApplyAction, deferred_load::DeferredLoad, lifecycle::LifecycleHandle};
 
 /// A double-referenced map where [`TableData`] can be looked up by name, or ID.
 #[derive(Debug, Default)]
@@ -78,7 +80,7 @@ impl std::fmt::Display for NamespaceName {
 #[derive(Debug)]
 pub(crate) struct NamespaceData {
     namespace_id: NamespaceId,
-    namespace_name: NamespaceName,
+    namespace_name: DeferredLoad<NamespaceName>,
 
     /// The catalog ID of the shard this namespace is being populated from.
     shard_id: ShardId,
@@ -142,7 +144,7 @@ impl NamespaceData {
     /// Initialize new tables with default partition template of daily
     pub(super) fn new(
         namespace_id: NamespaceId,
-        namespace_name: NamespaceName,
+        namespace_name: DeferredLoad<NamespaceName>,
         shard_id: ShardId,
         partition_provider: Arc<dyn PartitionProvider>,
         metrics: &metric::Registry,
@@ -308,7 +310,7 @@ impl NamespaceData {
     }
 
     /// Returns the [`NamespaceName`] for this namespace.
-    pub(crate) fn namespace_name(&self) -> &NamespaceName {
+    pub(crate) fn namespace_name(&self) -> &DeferredLoad<NamespaceName> {
         &self.namespace_name
     }
 }
@@ -348,13 +350,14 @@ impl<'a> Drop for ScopedSequenceNumber<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{sync::Arc, time::Duration};
 
     use data_types::{PartitionId, PartitionKey, ShardIndex};
     use metric::{Attributes, Metric};
 
     use crate::{
         data::partition::{resolver::MockPartitionProvider, PartitionData, SortKeyState},
+        deferred_load,
         lifecycle::mock_handle::MockLifecycleHandle,
         test_util::{make_write_op, TEST_TABLE},
     };
@@ -389,14 +392,18 @@ mod tests {
 
         let ns = NamespaceData::new(
             NAMESPACE_ID,
-            NAMESPACE_NAME.into(),
+            DeferredLoad::new(Duration::from_millis(1), async { NAMESPACE_NAME.into() }),
             SHARD_ID,
             partition_provider,
             &metrics,
         );
 
         // Assert the namespace name was stored
-        assert_eq!(ns.namespace_name().to_string(), NAMESPACE_NAME);
+        let name = ns.namespace_name().to_string();
+        assert!(
+            (name == NAMESPACE_NAME) || (name == deferred_load::UNRESOLVED_DISPLAY_STRING),
+            "unexpected namespace name: {name}"
+        );
 
         // Assert the namespace does not contain the test data
         assert!(ns.table_data(&TABLE_NAME.into()).is_none());
@@ -430,5 +437,10 @@ mod tests {
             .expect("failed to get observer")
             .fetch();
         assert_eq!(tables, 1);
+
+        // Ensure the deferred namespace name is loaded.
+        let name = ns.namespace_name().get().await;
+        assert_eq!(&**name, NAMESPACE_NAME);
+        assert_eq!(ns.namespace_name().to_string(), NAMESPACE_NAME);
     }
 }

@@ -5,43 +5,14 @@ use std::sync::Arc;
 use data_types::{NamespaceId, ShardId, ShardIndex};
 use dml::DmlOperation;
 use metric::U64Counter;
-use parking_lot::RwLock;
 use write_summary::ShardProgress;
 
 use super::{
-    namespace::{NamespaceData, NamespaceName},
+    namespace::{name_resolver::NamespaceNameProvider, NamespaceData},
     partition::resolver::PartitionProvider,
     DmlApplyAction,
 };
 use crate::{arcmap::ArcMap, lifecycle::LifecycleHandle};
-
-/// A double-referenced map where [`NamespaceData`] can be looked up by name, or
-/// ID.
-#[derive(Debug, Default)]
-struct DoubleRef {
-    // TODO(4880): this can be removed when IDs are sent over the wire.
-    by_name: ArcMap<NamespaceName, NamespaceData>,
-    by_id: ArcMap<NamespaceId, NamespaceData>,
-}
-
-impl DoubleRef {
-    fn insert(&mut self, name: NamespaceName, ns: NamespaceData) -> Arc<NamespaceData> {
-        let id = ns.namespace_id();
-
-        let ns = Arc::new(ns);
-        self.by_name.insert(name, Arc::clone(&ns));
-        self.by_id.insert(id, Arc::clone(&ns));
-        ns
-    }
-
-    fn by_name(&self, name: &NamespaceName) -> Option<Arc<NamespaceData>> {
-        self.by_name.get(name)
-    }
-
-    fn by_id(&self, id: NamespaceId) -> Option<Arc<NamespaceData>> {
-        self.by_id.get(&id)
-    }
-}
 
 /// Data of a Shard
 #[derive(Debug)]
@@ -57,8 +28,17 @@ pub(crate) struct ShardData {
     /// [`PartitionData`]: super::partition::PartitionData
     partition_provider: Arc<dyn PartitionProvider>,
 
-    // New namespaces can come in at any time so we need to be able to add new ones
-    namespaces: RwLock<DoubleRef>,
+    /// A set of namespaces this [`ShardData`] instance has processed
+    /// [`DmlOperation`]'s for.
+    ///
+    /// The [`NamespaceNameProvider`] acts as a [`DeferredLoad`] constructor to
+    /// resolve the [`NamespaceName`] for new [`NamespaceData`] out of the hot
+    /// path.
+    ///
+    /// [`DeferredLoad`]: crate::deferred_load::DeferredLoad
+    /// [`NamespaceName`]: data_types::NamespaceName
+    namespaces: ArcMap<NamespaceId, NamespaceData>,
+    namespace_name_resolver: Arc<dyn NamespaceNameProvider>,
 
     metrics: Arc<metric::Registry>,
     namespace_count: U64Counter,
@@ -69,6 +49,7 @@ impl ShardData {
     pub(crate) fn new(
         shard_index: ShardIndex,
         shard_id: ShardId,
+        namespace_name_resolver: Arc<dyn NamespaceNameProvider>,
         partition_provider: Arc<dyn PartitionProvider>,
         metrics: Arc<metric::Registry>,
     ) -> Self {
@@ -83,28 +64,33 @@ impl ShardData {
             shard_index,
             shard_id,
             namespaces: Default::default(),
+            namespace_name_resolver,
             metrics,
             partition_provider,
             namespace_count,
         }
     }
 
-    /// Store the write or delete in the shard. Deletes will
-    /// be written into the catalog before getting stored in the buffer.
-    /// Any writes that create new IOx partitions will have those records
-    /// created in the catalog before putting into the buffer.
+    /// Buffer the provided [`DmlOperation`] into the ingester state.
     pub(super) async fn buffer_operation(
         &self,
         dml_operation: DmlOperation,
         lifecycle_handle: &dyn LifecycleHandle,
     ) -> Result<DmlApplyAction, super::Error> {
-        let namespace_data = match self.namespace(&NamespaceName::from(dml_operation.namespace())) {
-            Some(d) => d,
-            None => {
-                self.insert_namespace(dml_operation.namespace(), dml_operation.namespace_id())
-                    .await?
-            }
-        };
+        let namespace_id = dml_operation.namespace_id();
+        let namespace_data = self.namespaces.get_or_insert_with(&namespace_id, || {
+            // Increase the metric that records the number of namespaces
+            // buffered in this ingester instance.
+            self.namespace_count.inc(1);
+
+            Arc::new(NamespaceData::new(
+                namespace_id,
+                self.namespace_name_resolver.for_namespace(namespace_id),
+                self.shard_id,
+                Arc::clone(&self.partition_provider),
+                &self.metrics,
+            ))
+        });
 
         namespace_data
             .buffer_operation(dml_operation, lifecycle_handle)
@@ -112,55 +98,13 @@ impl ShardData {
     }
 
     /// Gets the namespace data out of the map
-    pub(crate) fn namespace(&self, namespace: &NamespaceName) -> Option<Arc<NamespaceData>> {
-        let n = self.namespaces.read();
-        n.by_name(namespace)
-    }
-
-    /// Gets the namespace data out of the map
-    pub(crate) fn namespace_by_id(&self, namespace_id: NamespaceId) -> Option<Arc<NamespaceData>> {
-        // TODO: this should be the default once IDs are pushed over the wire.
-        //
-        // At which point the map should be indexed by IDs, instead of namespace
-        // names.
-        let n = self.namespaces.read();
-        n.by_id(namespace_id)
-    }
-
-    /// Retrieves the namespace from the catalog and initializes an empty buffer, or
-    /// retrieves the buffer if some other caller gets it first
-    async fn insert_namespace(
-        &self,
-        namespace: &str,
-        namespace_id: NamespaceId,
-    ) -> Result<Arc<NamespaceData>, super::Error> {
-        let ns_name = NamespaceName::from(namespace);
-
-        let mut n = self.namespaces.write();
-
-        Ok(match n.by_name(&ns_name) {
-            Some(v) => v,
-            None => {
-                self.namespace_count.inc(1);
-
-                // Insert the table and then return a ref to it.
-                n.insert(
-                    ns_name.clone(),
-                    NamespaceData::new(
-                        namespace_id,
-                        ns_name,
-                        self.shard_id,
-                        Arc::clone(&self.partition_provider),
-                        &self.metrics,
-                    ),
-                )
-            }
-        })
+    pub(crate) fn namespace(&self, namespace_id: NamespaceId) -> Option<Arc<NamespaceData>> {
+        self.namespaces.get(&namespace_id)
     }
 
     /// Return the progress of this shard
     pub(super) async fn progress(&self) -> ShardProgress {
-        let namespaces: Vec<_> = self.namespaces.read().by_id.values();
+        let namespaces: Vec<_> = self.namespaces.values();
 
         let mut progress = ShardProgress::new();
 
@@ -184,7 +128,10 @@ mod tests {
     use metric::{Attributes, Metric};
 
     use crate::{
-        data::partition::{resolver::MockPartitionProvider, PartitionData, SortKeyState},
+        data::{
+            namespace::name_resolver::mock::MockNamespaceNameProvider,
+            partition::{resolver::MockPartitionProvider, PartitionData, SortKeyState},
+        },
         lifecycle::mock_handle::MockLifecycleHandle,
         test_util::{make_write_op, TEST_TABLE},
     };
@@ -199,7 +146,7 @@ mod tests {
     const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
 
     #[tokio::test]
-    async fn test_shard_double_ref() {
+    async fn test_shard_init_namespace() {
         let metrics = Arc::new(metric::Registry::default());
 
         // Configure the mock partition provider to return a partition for this
@@ -220,13 +167,13 @@ mod tests {
         let shard = ShardData::new(
             SHARD_INDEX,
             SHARD_ID,
+            Arc::new(MockNamespaceNameProvider::new(NAMESPACE_NAME)),
             partition_provider,
             Arc::clone(&metrics),
         );
 
         // Assert the namespace does not contain the test data
-        assert!(shard.namespace(&NAMESPACE_NAME.into()).is_none());
-        assert!(shard.namespace_by_id(NAMESPACE_ID).is_none());
+        assert!(shard.namespace(NAMESPACE_ID).is_none());
 
         // Write some test data
         shard
@@ -245,9 +192,7 @@ mod tests {
             .await
             .expect("buffer op should succeed");
 
-        // Both forms of referencing the table should succeed
-        assert!(shard.namespace(&NAMESPACE_NAME.into()).is_some());
-        assert!(shard.namespace_by_id(NAMESPACE_ID).is_some());
+        assert!(shard.namespace(NAMESPACE_ID).is_some());
 
         // And the table counter metric should increase
         let tables = metrics

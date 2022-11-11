@@ -7,7 +7,7 @@ use data_types::PartitionId;
 use iox_catalog::interface::Catalog;
 use schema::sort::SortKey;
 
-/// A resolver of [`SortKey`] from the catalog for a given partition.
+/// A resolver of [`SortKey`] from the catalog for a given [`PartitionId`].
 #[derive(Debug)]
 pub(crate) struct SortKeyResolver {
     partition_id: PartitionId,
