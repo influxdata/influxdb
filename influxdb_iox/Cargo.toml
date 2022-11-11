@@ -51,7 +51,7 @@ dotenvy = "0.15.6"
 futures = "0.3"
 futures-util = { version = "0.3" }
 flate2 = "1.0"
-hashbrown = "0.12"
+hashbrown = "0.13"
 http = "0.2.8"
 humantime = "2.1.0"
 itertools = "0.10.5"
