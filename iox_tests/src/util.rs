@@ -151,7 +151,7 @@ impl TestCatalog {
         let query_pool = repos.query_pools().create_or_get("pool").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create(name, "1y", topic.id, query_pool.id)
+            .create(name, topic.id, query_pool.id)
             .await
             .unwrap();
 

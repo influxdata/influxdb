@@ -730,12 +730,7 @@ pub(crate) async fn populate_catalog(
     let query_pool = c.query_pools().create_or_get("query-pool").await.unwrap();
     let ns_id = c
         .namespaces()
-        .create(
-            namespace,
-            iox_catalog::INFINITE_RETENTION_POLICY,
-            topic.id,
-            query_pool.id,
-        )
+        .create(namespace, topic.id, query_pool.id)
         .await
         .unwrap()
         .id;

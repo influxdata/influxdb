@@ -183,7 +183,6 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Schem
                 &merged_tsm_schema,
                 merge_config.write_buffer_config.topic(),
                 merge_config.query_pool_name.as_deref(),
-                merge_config.retention.as_deref(),
                 Arc::clone(&catalog),
                 connection.clone(),
             )

@@ -55,7 +55,6 @@ pub async fn update_iox_catalog<'a>(
     merged_tsm_schema: &'a AggregateTSMSchema,
     topic: &'a str,
     query_pool_name: Option<&'a str>,
-    retention: Option<&'a str>,
     catalog: Arc<dyn Catalog>,
     connection: Connection,
 ) -> Result<(), UpdateCatalogError> {
@@ -67,8 +66,8 @@ pub async fn update_iox_catalog<'a>(
         Ok(iox_schema) => iox_schema,
         Err(iox_catalog::interface::Error::NamespaceNotFoundByName { .. }) => {
             // Namespace has to be created; ensure the user provided the required parameters
-            let (query_pool_name, retention) = match (query_pool_name, retention) {
-                (Some(query_pool_name), Some(retention)) => (query_pool_name, retention),
+            let query_pool_name = match query_pool_name {
+                Some(query_pool_name) => query_pool_name,
                 _ => {
                     return Err(UpdateCatalogError::NamespaceCreationError("in order to create the namespace you must provide query_pool_name and retention args".to_string()));
                 }
@@ -78,7 +77,6 @@ pub async fn update_iox_catalog<'a>(
                 get_topic_id_and_query_id(repos.deref_mut(), topic, query_pool_name).await?;
             let _namespace = create_namespace(
                 namespace_name.as_str(),
-                retention,
                 topic_id,
                 query_id,
                 repos.deref_mut(),
@@ -138,7 +136,6 @@ where
 
 async fn create_namespace<R>(
     name: &str,
-    retention: &str,
     topic_id: TopicId,
     query_id: QueryPoolId,
     repos: &mut R,
@@ -146,11 +143,7 @@ async fn create_namespace<R>(
 where
     R: RepoCollection + ?Sized,
 {
-    match repos
-        .namespaces()
-        .create(name, retention, topic_id, query_id)
-        .await
-    {
+    match repos.namespaces().create(name, topic_id, query_id).await {
         Ok(ns) => Ok(ns),
         Err(iox_catalog::interface::Error::NameExists { .. }) => {
             // presumably it got created in the meantime?
@@ -532,7 +525,6 @@ mod tests {
             &agg_schema,
             "iox-shared",
             Some("iox-shared"),
-            Some("inf"),
             Arc::clone(&catalog),
             connection,
         )
@@ -598,7 +590,7 @@ mod tests {
         // create namespace, table and columns for weather measurement
         let namespace = txn
             .namespaces()
-            .create("1234_5678", "inf", TopicId::new(1), QueryPoolId::new(1))
+            .create("1234_5678", TopicId::new(1), QueryPoolId::new(1))
             .await
             .expect("namespace created");
         let mut table = txn
@@ -652,7 +644,6 @@ mod tests {
             &agg_schema,
             "iox-shared",
             Some("iox-shared"),
-            Some("inf"),
             Arc::clone(&catalog),
             connection,
         )
@@ -703,7 +694,7 @@ mod tests {
         // create namespace, table and columns for weather measurement
         let namespace = txn
             .namespaces()
-            .create("1234_5678", "inf", TopicId::new(1), QueryPoolId::new(1))
+            .create("1234_5678", TopicId::new(1), QueryPoolId::new(1))
             .await
             .expect("namespace created");
         let mut table = txn
@@ -750,7 +741,6 @@ mod tests {
             &agg_schema,
             "iox-shared",
             Some("iox-shared"),
-            Some("inf"),
             Arc::clone(&catalog),
             connection,
         )
@@ -784,7 +774,7 @@ mod tests {
         // create namespace, table and columns for weather measurement
         let namespace = txn
             .namespaces()
-            .create("1234_5678", "inf", TopicId::new(1), QueryPoolId::new(1))
+            .create("1234_5678", TopicId::new(1), QueryPoolId::new(1))
             .await
             .expect("namespace created");
         let mut table = txn
@@ -830,7 +820,6 @@ mod tests {
             &agg_schema,
             "iox-shared",
             Some("iox-shared"),
-            Some("inf"),
             Arc::clone(&catalog),
             connection,
         )
@@ -882,57 +871,6 @@ mod tests {
         let err = update_iox_catalog(
             &agg_schema,
             "iox-shared",
-            None,
-            Some("inf"),
-            Arc::clone(&catalog),
-            connection,
-        )
-        .await
-        .expect_err("should fail namespace creation");
-        assert_matches!(err, UpdateCatalogError::NamespaceCreationError(_));
-    }
-
-    #[tokio::test]
-    async fn needs_creating_but_missing_retention() {
-        // init a test catalog stack
-        let metrics = Arc::new(metric::Registry::default());
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-        catalog
-            .repositories()
-            .await
-            .topics()
-            .create_or_get("iox-shared")
-            .await
-            .expect("topic created");
-        let (connection, _join_handle, _requests) = create_test_shard_service(MapToShardResponse {
-            shard_id: 0,
-            shard_index: 0,
-        })
-        .await;
-
-        let json = r#"
-        {
-          "org_id": "1234",
-          "bucket_id": "5678",
-          "measurements": {
-            "cpu": {
-              "tags": [
-                { "name": "host", "values": ["server", "desktop"] }
-              ],
-             "fields": [
-                { "name": "usage", "types": ["Float"] }
-              ],
-              "earliest_time": "2022-01-01T00:00:00.00Z",
-              "latest_time": "2022-07-07T06:00:00.00Z"
-            }
-          }
-        }
-        "#;
-        let agg_schema: AggregateTSMSchema = json.try_into().unwrap();
-        let err = update_iox_catalog(
-            &agg_schema,
-            "iox-shared",
-            Some("iox-shared"),
             None,
             Arc::clone(&catalog),
             connection,
@@ -992,7 +930,6 @@ mod tests {
             &agg_schema,
             "iox-shared",
             Some("iox-shared"),
-            Some("inf"),
             Arc::clone(&catalog),
             connection,
         )

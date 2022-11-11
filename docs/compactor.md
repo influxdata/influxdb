@@ -202,19 +202,19 @@ WHERE partition.id = skipped_compactions.partition_id and partition.shard_id = s
 ORDER BY shard_index, table_id, partition_key, skipped_at;
 
 -- Number of files per level for top 50 partitions with most files of a specified day
-SELECT s.shard_index, pf.table_id, partition_id, partition_key,
-   count(case when to_delete is null then 1 end) total_not_deleted,
-   count(case when compaction_level=0 and to_delete is null then 1 end) num_l0,
-   count(case when compaction_level=1 and to_delete is null then 1 end) num_l1,
-   count(case when compaction_level=2 and to_delete is null then 1 end) num_l2 ,
-   count(case when compaction_level=0 and to_delete is not null then 1 end) deleted_num_l0,
-   count(case when compaction_level=1 and to_delete is not null then 1 end) deleted_num_l1,
-   count(case when compaction_level=2 and to_delete is not null then 1 end) deleted_num_l2
+SELECT s.shard_index, pf.table_id, pf.partition_id, p.partition_key,
+   count(case when pf.to_delete is null then 1 end) total_not_deleted,
+   count(case when pf.compaction_level=0 and pf.to_delete is null then 1 end) num_l0,
+   count(case when pf.compaction_level=1 and pf.to_delete is null then 1 end) num_l1,
+   count(case when pf.compaction_level=2 and pf.to_delete is null then 1 end) num_l2 ,
+   count(case when pf.compaction_level=0 and pf.to_delete is not null then 1 end) deleted_num_l0,
+   count(case when pf.compaction_level=1 and pf.to_delete is not null then 1 end) deleted_num_l1,
+   count(case when pf.compaction_level=2 and pf.to_delete is not null then 1 end) deleted_num_l2
 FROM parquet_file pf, partition p, shard s
 WHERE pf.partition_id = p.id AND pf.shard_id = s.id
-  AND partition_key = '2022-10-11'
-GROUP BY s.shard_index, pf.table_id, partition_id, partition_key
-ORDER BY count(case when to_delete is null then 1 end) DESC
+  AND p.partition_key = '2022-10-11'
+GROUP BY s.shard_index, pf.table_id, pf.partition_id, p.partition_key
+ORDER BY count(case when pf.to_delete is null then 1 end) DESC
 LIMIT 50;
 
 -- Partitions with level-0 files ingested within the last 4 hours

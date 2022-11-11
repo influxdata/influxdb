@@ -653,7 +653,7 @@ mod tests {
         let shard_index = ShardIndex::new(0);
         let namespace = repos
             .namespaces()
-            .create("foo", "inf", topic.id, query_pool.id)
+            .create("foo", topic.id, query_pool.id)
             .await
             .unwrap();
         let shard1 = repos
@@ -754,7 +754,7 @@ mod tests {
         let shard_index = ShardIndex::new(0);
         let namespace = repos
             .namespaces()
-            .create("foo", "inf", topic.id, query_pool.id)
+            .create("foo", topic.id, query_pool.id)
             .await
             .unwrap();
         let shard1 = repos
@@ -857,7 +857,7 @@ mod tests {
         let shard_index = ShardIndex::new(0);
         let namespace = repos
             .namespaces()
-            .create("foo", "inf", topic.id, query_pool.id)
+            .create("foo", topic.id, query_pool.id)
             .await
             .unwrap();
         let shard1 = repos
@@ -1137,7 +1137,7 @@ mod tests {
         let shard_index = ShardIndex::new(0);
         let namespace = repos
             .namespaces()
-            .create("foo", "inf", topic.id, query_pool.id)
+            .create("foo", topic.id, query_pool.id)
             .await
             .unwrap();
         let shard1 = repos
@@ -1279,7 +1279,7 @@ mod tests {
         let shard_index = ShardIndex::new(0);
         let namespace = repos
             .namespaces()
-            .create("foo", "inf", topic.id, query_pool.id)
+            .create("foo", topic.id, query_pool.id)
             .await
             .unwrap();
         let shard = repos
@@ -1459,7 +1459,7 @@ mod tests {
         let shard_index = ShardIndex::new(0);
         let namespace = repos
             .namespaces()
-            .create("foo", "inf", topic.id, query_pool.id)
+            .create("foo", topic.id, query_pool.id)
             .await
             .unwrap();
         let shard1 = repos

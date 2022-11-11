@@ -285,7 +285,6 @@ impl NamespaceRepo for MemTxn {
     async fn create(
         &mut self,
         name: &str,
-        retention_duration: &str,
         topic_id: TopicId,
         query_pool_id: QueryPoolId,
     ) -> Result<Namespace> {
@@ -302,7 +301,7 @@ impl NamespaceRepo for MemTxn {
             name: name.to_string(),
             topic_id,
             query_pool_id,
-            retention_duration: Some(retention_duration.to_string()),
+            retention_duration: Some("inf".to_string()), // temporary until the field retention_durantion is removed in the catalgo table in next PR
             max_tables: DEFAULT_MAX_TABLES,
             max_columns_per_table: DEFAULT_MAX_COLUMNS_PER_TABLE,
             retention_period_ns: DEFAULT_RETENTION_PERIOD,

@@ -607,7 +607,7 @@ async fn namespace_retention() {
                         .arg("retention")
                         .arg("--retention-hours")
                         .arg(retention_period_hours.to_string())
-                        .arg(&namespace)
+                        .arg(namespace)
                         .assert()
                         .success()
                         .stdout(
@@ -638,7 +638,7 @@ async fn namespace_retention() {
                         .arg("retention")
                         .arg("--retention-hours")
                         .arg(retention_period_hours.to_string())
-                        .arg(&namespace)
+                        .arg(namespace)
                         .assert()
                         .success()
                         .stdout(

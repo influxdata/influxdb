@@ -246,7 +246,7 @@ async fn load_schema(
 
     let namespace = match repos
         .namespaces()
-        .create(namespace, "inf", topic.id, query_pool.id)
+        .create(namespace, topic.id, query_pool.id)
         .await
     {
         Ok(n) => n,
@@ -527,7 +527,7 @@ mod tests {
                 .unwrap();
             namespace = repos
                 .namespaces()
-                .create("load_parquet_files", "", topic.id, query_pool.id)
+                .create("load_parquet_files", topic.id, query_pool.id)
                 .await
                 .unwrap();
             table = repos

@@ -224,7 +224,6 @@ mod tests {
             Namespace {
                 id: NamespaceId::new(1),
                 name: ns.to_string(),
-                retention_duration: Some("inf".to_owned()),
                 topic_id: TopicId::new(42),
                 query_pool_id: QueryPoolId::new(42),
                 max_tables: iox_catalog::DEFAULT_MAX_TABLES,
