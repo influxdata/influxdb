@@ -34,7 +34,7 @@ use iox_query::{
 };
 use observability_deps::tracing::{error, info, trace, warn};
 use pin_project::pin_project;
-use service_common::{datafusion_error_to_tonic_code, planner::Planner, QueryDatabaseProvider};
+use service_common::{datafusion_error_to_tonic_code, planner::Planner, QueryNamespaceProvider};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     collections::{BTreeSet, HashMap},
@@ -236,11 +236,11 @@ fn add_headers(metadata: &mut MetadataMap) {
     metadata.insert("storage-type", "iox".parse().unwrap());
 }
 
-/// Implements the protobuf defined Storage service for a [`QueryDatabaseProvider`]
+/// Implements the protobuf defined Storage service for a [`QueryNamespaceProvider`]
 #[tonic::async_trait]
 impl<T> Storage for StorageService<T>
 where
-    T: QueryDatabaseProvider + 'static,
+    T: QueryNamespaceProvider + 'static,
 {
     type ReadFilterStream =
         StreamWithPermit<futures::stream::Iter<std::vec::IntoIter<Result<ReadResponse, Status>>>>;

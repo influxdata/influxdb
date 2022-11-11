@@ -16,7 +16,7 @@ use tracker::InstrumentedAsyncOwnedSemaphorePermit;
 ///
 /// The query engine MUST ONLY use this trait to access the namespaces / catalogs.
 #[async_trait]
-pub trait QueryDatabaseProvider: std::fmt::Debug + Send + Sync + 'static {
+pub trait QueryNamespaceProvider: std::fmt::Debug + Send + Sync + 'static {
     /// Abstract namespace.
     type Db: ExecutionContextProvider + QueryNamespace;
 

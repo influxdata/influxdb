@@ -20,7 +20,7 @@ use observability_deps::tracing::{debug, info, warn};
 use pin_project::{pin_project, pinned_drop};
 use prost::Message;
 use serde::Deserialize;
-use service_common::{datafusion_error_to_tonic_code, planner::Planner, QueryDatabaseProvider};
+use service_common::{datafusion_error_to_tonic_code, planner::Planner, QueryNamespaceProvider};
 use snafu::{ResultExt, Snafu};
 use std::{fmt::Debug, pin::Pin, sync::Arc, task::Poll, time::Instant};
 use tokio::task::JoinHandle;
@@ -151,21 +151,21 @@ impl ReadInfo {
 #[derive(Debug)]
 struct FlightService<S>
 where
-    S: QueryDatabaseProvider,
+    S: QueryNamespaceProvider,
 {
     server: Arc<S>,
 }
 
 pub fn make_server<S>(server: Arc<S>) -> FlightServer<impl Flight>
 where
-    S: QueryDatabaseProvider,
+    S: QueryNamespaceProvider,
 {
     FlightServer::new(FlightService { server })
 }
 
 impl<S> FlightService<S>
 where
-    S: QueryDatabaseProvider,
+    S: QueryNamespaceProvider,
 {
     async fn run_query(
         &self,
@@ -198,7 +198,7 @@ where
 #[tonic::async_trait]
 impl<S> Flight for FlightService<S>
 where
-    S: QueryDatabaseProvider,
+    S: QueryNamespaceProvider,
 {
     type HandshakeStream = TonicStream<HandshakeResponse>;
     type ListFlightsStream = TonicStream<FlightInfo>;

@@ -9,7 +9,7 @@ use backoff::{Backoff, BackoffConfig};
 use data_types::{Namespace, ShardIndex};
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
-use service_common::QueryDatabaseProvider;
+use service_common::QueryNamespaceProvider;
 use sharder::JumpHash;
 use snafu::Snafu;
 use std::{collections::BTreeSet, sync::Arc};
@@ -79,7 +79,7 @@ pub struct QuerierDatabase {
 }
 
 #[async_trait]
-impl QueryDatabaseProvider for QuerierDatabase {
+impl QueryNamespaceProvider for QuerierDatabase {
     type Db = QuerierNamespace;
 
     async fn db(&self, name: &str, span: Option<Span>) -> Option<Arc<Self::Db>> {
