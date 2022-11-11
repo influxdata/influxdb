@@ -40,14 +40,14 @@ impl NamespaceNameResolver {
         backoff_config: BackoffConfig,
     ) -> NamespaceName {
         Backoff::new(&backoff_config)
-            .retry_all_errors("fetch partition sort key", || async {
+            .retry_all_errors("fetch namespace name", || async {
                 let s = catalog
                     .repositories()
                     .await
                     .namespaces()
                     .get_by_id(namespace_id)
                     .await?
-                    .expect("resolving sort key for non-existent partition")
+                    .expect("resolving namespace name for non-existent namespace id")
                     .name
                     .into();
 
