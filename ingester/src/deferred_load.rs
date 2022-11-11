@@ -100,7 +100,7 @@ impl<T> DeferredLoad<T> {
         }
 
         // Potentially transition the state, discarding the waker.
-        let (_, new_state) = self.get_load_waker(state.take().unwrap());
+        let (_waker, new_state) = self.get_load_waker(state.take().unwrap());
         *state = Some(new_state);
     }
 
