@@ -1,26 +1,23 @@
 pub(crate) mod request;
 pub(crate) mod response;
 
-use std::num::NonZeroU64;
-use std::time::Duration;
-
-use snafu::{ResultExt, Snafu};
-use tonic::Status;
-
 use generated_types::{
     aggregate::AggregateType, influxdata::platform::storage::read_group_request::Group, Predicate,
 };
 use influxdb_storage_client::{connection::Connection, Client, OrgAndBucket};
 use influxrpc_parser::predicate;
 use iox_time;
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
+use std::{num::NonZeroU64, time::Duration};
+use tonic::Status;
 
 #[derive(Debug, Snafu)]
 pub enum ParseError {
     #[snafu(display("unable to parse timestamp '{:?}'", t))]
     Timestamp { t: String },
 
-    #[snafu(display("unable to parse database name '{:?}'", db_name))]
-    DBName { db_name: String },
+    #[snafu(display("unable to parse namespace name '{:?}'", db_name))]
+    NamespaceName { db_name: String },
 
     #[snafu(display("unable to parse predicate: {:?}", source))]
     Predicate { source: predicate::Error },
@@ -55,9 +52,9 @@ pub struct Config {
     #[clap(subcommand)]
     command: Command,
 
-    /// The name of the database
+    /// The name of the namespace
     #[clap(
-        value_parser = parse_db_name,
+        value_parser = parse_namespace_name,
     )]
     db_name: OrgAndBucket,
 
@@ -121,31 +118,23 @@ fn parse_predicate(expr: &str) -> Result<Predicate, ParseError> {
     predicate::expr_to_rpc_predicate(expr).context(PredicateSnafu)
 }
 
-// Attempts to parse the database name into and org and bucket ID.
-fn parse_db_name(db_name: &str) -> Result<OrgAndBucket, ParseError> {
+// Attempts to parse the namespace name into and org and bucket ID.
+fn parse_namespace_name(db_name: &str) -> Result<OrgAndBucket, ParseError> {
     let parts = db_name.split('_').collect::<Vec<_>>();
-    if parts.len() != 2 {
-        return DBNameSnafu {
-            db_name: db_name.to_owned(),
-        }
-        .fail();
-    }
 
-    let org_id = usize::from_str_radix(parts[0], 16).map_err(|_| ParseError::DBName {
-        db_name: db_name.to_owned(),
-    })?;
+    ensure!(parts.len() == 2, NamespaceNameSnafu { db_name });
 
-    let bucket_id = usize::from_str_radix(parts[1], 16).map_err(|_| ParseError::DBName {
-        db_name: db_name.to_owned(),
-    })?;
+    let org_id = usize::from_str_radix(parts[0], 16)
+        .ok()
+        .context(NamespaceNameSnafu { db_name })?;
+
+    let bucket_id = usize::from_str_radix(parts[1], 16)
+        .ok()
+        .context(NamespaceNameSnafu { db_name })?;
 
     Ok(OrgAndBucket::new(
-        NonZeroU64::new(org_id as u64).ok_or_else(|| ParseError::DBName {
-            db_name: db_name.to_owned(),
-        })?,
-        NonZeroU64::new(bucket_id as u64).ok_or_else(|| ParseError::DBName {
-            db_name: db_name.to_owned(),
-        })?,
+        NonZeroU64::new(org_id as u64).context(NamespaceNameSnafu { db_name })?,
+        NonZeroU64::new(bucket_id as u64).context(NamespaceNameSnafu { db_name })?,
     ))
 }
 
