@@ -1,5 +1,5 @@
 use arrow_util::assert_batches_eq;
-use data_types::{PartitionTemplate, TemplatePart};
+use data_types::{PartitionKey, PartitionTemplate, TemplatePart};
 use mutable_batch::{writer::Writer, MutableBatch, PartitionWrite, WritePayload};
 use mutable_batch_pb::{decode::write_table_batch, encode::encode_batch};
 use schema::Projection;
@@ -135,7 +135,7 @@ fn test_encode_decode_null_columns_issue_4272() {
     // Round-trip the "1970-01-01" partition
     let mut got = MutableBatch::default();
     partitions
-        .remove(&"1970-01-01".into())
+        .remove::<PartitionKey>(&"1970-01-01".into())
         .expect("partition not found")
         .write_to_batch(&mut got)
         .expect("should write");
@@ -159,7 +159,7 @@ fn test_encode_decode_null_columns_issue_4272() {
     // And finally assert the "1970-07-05" round-trip
     let mut got = MutableBatch::default();
     partitions
-        .remove(&"1970-07-05".into())
+        .remove::<PartitionKey>(&"1970-07-05".into())
         .expect("partition not found")
         .write_to_batch(&mut got)
         .expect("should write");
