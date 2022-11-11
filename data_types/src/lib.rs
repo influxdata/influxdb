@@ -438,10 +438,7 @@ pub struct Namespace {
     pub id: NamespaceId,
     /// The unique name of the namespace
     pub name: String,
-    /// The retention duration as a string. 'inf' or not present represents infinite duration (i.e.
-    /// never drop data).
     #[sqlx(default)]
-    pub retention_duration: Option<String>,
     /// The retention period in ns. None represents infinite duration (i.e. never drop data).
     pub retention_period_ns: Option<i64>,
     /// The topic that writes to this namespace will land in
