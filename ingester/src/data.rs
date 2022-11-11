@@ -720,6 +720,7 @@ mod tests {
 
         let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
 
+        drop(repos); // test catalog deadlock
         let data = Arc::new(
             IngesterData::new(
                 Arc::clone(&object_store),
@@ -732,6 +733,8 @@ mod tests {
             .await
             .expect("failed to initialise ingester"),
         );
+
+        let mut repos = catalog.repositories().await;
 
         let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
@@ -824,6 +827,7 @@ mod tests {
 
         let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
 
+        drop(repos); // test catalog deadlock
         let data = Arc::new(
             IngesterData::new(
                 Arc::clone(&object_store),
@@ -836,6 +840,8 @@ mod tests {
             .await
             .expect("failed to initialise ingester"),
         );
+
+        let mut repos = catalog.repositories().await;
 
         let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
@@ -935,6 +941,7 @@ mod tests {
 
         let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
 
+        drop(repos); // test catalog deadlock
         let data = Arc::new(
             IngesterData::new(
                 Arc::clone(&object_store),
@@ -950,6 +957,8 @@ mod tests {
             .await
             .expect("failed to initialise ingester"),
         );
+
+        let mut repos = catalog.repositories().await;
 
         let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
@@ -1218,6 +1227,7 @@ mod tests {
 
         let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
 
+        drop(repos); // test catalog deadlock
         let data = Arc::new(
             IngesterData::new(
                 Arc::clone(&object_store),
@@ -1233,6 +1243,8 @@ mod tests {
             .await
             .expect("failed to initialise ingester"),
         );
+
+        let mut repos = catalog.repositories().await;
 
         let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
@@ -1539,6 +1551,7 @@ mod tests {
 
         let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
 
+        drop(repos); // test catalog deadlock
         let data = Arc::new(
             IngesterData::new(
                 Arc::clone(&object_store),
@@ -1551,6 +1564,8 @@ mod tests {
             .await
             .expect("failed to initialise ingester"),
         );
+
+        let mut repos = catalog.repositories().await;
 
         let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
