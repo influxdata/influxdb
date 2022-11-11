@@ -215,11 +215,11 @@ func NewHandler(c Config) *Handler {
 		},
 		Route{
 			"delete-bucket",
-			"DELETE", "/api/v2/buckets/:db/:rp", false, true, h.serveDeleteBucketV2,
+			"DELETE", "/api/v2/buckets/:dbrp", false, true, h.serveDeleteBucketV2,
 		},
 		Route{
 			"retrieve-bucket",
-			"GET", "/api/v2/buckets/:db/:rp", false, true, h.serveRetrieveBucketV2,
+			"GET", "/api/v2/buckets/:dbrp", false, true, h.serveRetrieveBucketV2,
 		},
 		Route{
 			"list-buckets",
@@ -227,43 +227,43 @@ func NewHandler(c Config) *Handler {
 		},
 		Route{
 			"update-bucket",
-			"PATCH", "/api/v2/buckets/:db/:rp", false, true, h.serveUpdateBucketV2,
+			"PATCH", "/api/v2/buckets/:dbrp", false, true, h.serveUpdateBucketV2,
 		},
 		Route{
 			"bucket-labels",
-			"GET", "/api/v2/buckets/:db/:rp/labels", false, true, h.serveLabelsNotAllowedV2,
+			"GET", "/api/v2/buckets/:dbrp/labels", false, true, h.serveLabelsNotAllowedV2,
 		},
 		Route{
 			"add-bucket-label",
-			"POST", "/api/v2/buckets/:db/:rp/labels", false, true, h.serveLabelsNotAllowedV2,
+			"POST", "/api/v2/buckets/:dbrp/labels", false, true, h.serveLabelsNotAllowedV2,
 		},
 		Route{
 			"delete-bucket-label",
-			"DELETE", "/api/v2/buckets/:db/:rp/labels/:labelID", false, true, h.serveLabelsNotAllowedV2,
+			"DELETE", "/api/v2/buckets/:dbrp/labels/:labelID", false, true, h.serveLabelsNotAllowedV2,
 		},
 		Route{
 			"bucket-members",
-			"GET", "/api/v2/buckets/:db/:rp/members", false, true, h.serveBucketMembersNotAllowedV2,
+			"GET", "/api/v2/buckets/:dbrp/members", false, true, h.serveBucketMembersNotAllowedV2,
 		},
 		Route{
 			"add-bucket-member",
-			"POST", "/api/v2/buckets/:db/:rp/members", false, true, h.serveBucketMembersNotAllowedV2,
+			"POST", "/api/v2/buckets/:dbrp/members", false, true, h.serveBucketMembersNotAllowedV2,
 		},
 		Route{
 			"delete-bucket-member",
-			"DELETE", "/api/v2/buckets/:db/:rp/members/:userID", false, true, h.serveBucketMembersNotAllowedV2,
+			"DELETE", "/api/v2/buckets/:dbrp/members/:userID", false, true, h.serveBucketMembersNotAllowedV2,
 		},
 		Route{
 			"bucket-owners",
-			"GET", "/api/v2/buckets/:db/:rp/owners", false, true, h.serveBucketOwnersNotAllowedV2,
+			"GET", "/api/v2/buckets/:dbrp/owners", false, true, h.serveBucketOwnersNotAllowedV2,
 		},
 		Route{
 			"add-bucket-owner",
-			"POST", "/api/v2/buckets/:db/:rp/owners", false, true, h.serveBucketOwnersNotAllowedV2,
+			"POST", "/api/v2/buckets/:dbrp/owners", false, true, h.serveBucketOwnersNotAllowedV2,
 		},
 		Route{
 			"delete-bucket-owner",
-			"DELETE", "/api/v2/buckets/:db/:rp/owners/:userID", false, true, h.serveBucketOwnersNotAllowedV2,
+			"DELETE", "/api/v2/buckets/:dbrp/owners/:userID", false, true, h.serveBucketOwnersNotAllowedV2,
 		},
 		Route{
 			"write", // Data-ingest route.
@@ -1166,27 +1166,52 @@ func (h *Handler) servePostCreateBucketV2(w http.ResponseWriter, r *http.Request
 			}
 		}
 	}
-
+	var rpi *meta.RetentionPolicyInfo
 	if dbi == nil {
-		if _, err = h.MetaClient.CreateDatabaseWithRetentionPolicy(db, &spec); err != nil {
+		if dbi, err = h.MetaClient.CreateDatabaseWithRetentionPolicy(db, &spec); err != nil {
 			h.httpError(w, fmt.Sprintf("buckets - cannot create bucket %q: %s", brd.Name, err.Error()), http.StatusBadRequest)
 			return
+		} else {
+			rpi = &dbi.RetentionPolicies[0]
 		}
+
 	} else {
-		if _, err = h.MetaClient.CreateRetentionPolicy(db, &spec, false); err != nil {
+		if rpi, err = h.MetaClient.CreateRetentionPolicy(db, &spec, false); err != nil {
 			h.httpError(w, fmt.Sprintf("buckets - cannot create bucket %q: %s", brd.Name, err.Error()), http.StatusBadRequest)
 			return
 		}
 	}
+	bucket := makeBucket(rpi, db)
+	b, err := json.Marshal(bucket)
+	if err != nil {
+		h.httpError(w, fmt.Sprintf("buckets - cannot marshal bucket %q: %s", brd.Name, err.Error()), http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+	w.Write(b)
+}
+
+// checkDbRp checks id for database/retention-policy format
+func (h *Handler) checkDbRp(w http.ResponseWriter, id string) (string, string, bool) {
+	db, rp, err := bucket2dbrp(id)
+	if err != nil {
+		h.httpError(w, fmt.Sprintf("bucket %q: %s", id, err.Error()), http.StatusBadRequest)
+		return "", "", false
+	} else if rp == "" {
+		h.httpError(w, fmt.Sprintf("bucket %q: illegal bucket id, empty retention policy", id), http.StatusBadRequest)
+		return "", "", false
+	}
+	return db, rp, true
 }
 
 // serveDeleteBucketV2 should do the same thing as coordinator/statement_executor.go/executeDropRetentionPolicyStatement
 // i.e., Store.DeleteRetentionPolicy and MetaClient.DropRetentionPolicy
 func (h *Handler) serveDeleteBucketV2(w http.ResponseWriter, r *http.Request, user meta.User) {
-	db := r.URL.Query().Get(":db")
-	rp := r.URL.Query().Get(":rp")
-	id := fmt.Sprintf("%s/%s", db, rp)
-
+	id := r.URL.Query().Get(":dbrp")
+	db, rp, ok := h.checkDbRp(w, id)
+	if !ok {
+		return
+	}
 	if h.Config.AuthEnabled {
 		if user == nil {
 			h.httpError(w, fmt.Sprintf("delete bucket - user is required to delete from database %q", db), http.StatusForbidden)
@@ -1215,17 +1240,19 @@ func (h *Handler) serveDeleteBucketV2(w http.ResponseWriter, r *http.Request, us
 
 func (h *Handler) serveUpdateBucketV2(w http.ResponseWriter, r *http.Request, user meta.User) {
 	var bs []byte
-	db := r.URL.Query().Get(":db")
-	rp := r.URL.Query().Get(":rp")
-	bucket := fmt.Sprintf("%s/%s", db, rp)
+	id := r.URL.Query().Get(":dbrp")
+	db, rp, ok := h.checkDbRp(w, id)
+	if !ok {
+		return
+	}
 	if h.Config.AuthEnabled {
 		if user == nil {
-			h.httpError(w, fmt.Sprintf("update bucket - user is required to update %q", bucket), http.StatusForbidden)
+			h.httpError(w, fmt.Sprintf("update bucket - user is required to update %q", id), http.StatusForbidden)
 			return
 		}
 		// This is the privilege required in the Enterprise authorization.
 		if err := h.QueryAuthorizer.AuthorizeCreateDatabase(user); err != nil {
-			h.httpError(w, fmt.Sprintf("update bucket - %q is not authorized to modify %q: %s", user.ID(), bucket, err.Error()), http.StatusForbidden)
+			h.httpError(w, fmt.Sprintf("update bucket - %q is not authorized to modify %q: %s", user.ID(), id, err.Error()), http.StatusForbidden)
 			return
 		}
 	}
@@ -1262,23 +1289,40 @@ func (h *Handler) serveUpdateBucketV2(w http.ResponseWriter, r *http.Request, us
 	}
 	rf := meta.DefaultRetentionPolicyReplicaN
 	m := &meta.RetentionPolicyUpdate{
-		Name:               &bu.Name,
+		Name:               &rp,
 		Duration:           &dur,
 		ReplicaN:           &rf,
 		ShardGroupDuration: &sgDur,
 	}
 
 	if err := h.MetaClient.UpdateRetentionPolicy(db, rp, m, false); err != nil {
-		h.httpError(w, fmt.Sprintf("update bucket %q: %s", bucket, err.Error()), http.StatusBadRequest)
+		h.httpError(w, fmt.Sprintf("update bucket %q: %s", id, err.Error()), http.StatusBadRequest)
 		return
 	}
+	rpi := &meta.RetentionPolicyInfo{
+		Name:               *m.Name,
+		ReplicaN:           *m.ReplicaN,
+		Duration:           *m.Duration,
+		ShardGroupDuration: *m.ShardGroupDuration,
+	}
+	bucket := makeBucket(rpi, db)
+	b, err := json.Marshal(bucket)
+	if err != nil {
+		h.httpError(w, fmt.Sprintf("buckets - cannot marshal bucket %q: %s", bucket.Name, err.Error()), http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write(b)
 }
 
 func (h *Handler) serveRetrieveBucketV2(w http.ResponseWriter, r *http.Request, user meta.User) {
 	// This is the API for returning a single bucket
 	// In V1, BucketID and BucketName are the same: "db/rp"
-	db := r.URL.Query().Get(":db")
-	rp := r.URL.Query().Get(":rp")
+	id := r.URL.Query().Get(":dbrp")
+	db, rp, ok := h.checkDbRp(w, id)
+	if !ok {
+		return
+	}
 	if h.Config.AuthEnabled {
 		if user == nil {
 			h.httpError(w, fmt.Sprintf("retrieve bucket - user is required for database %q", db), http.StatusForbidden)

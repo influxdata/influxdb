@@ -1891,7 +1891,7 @@ func TestHandler_CreateDeleteBuckets(t *testing.T) {
 			errMsg: `buckets - retention policy "/": invalid name`,
 		},
 		{
-			url:    "/api/v2/buckets/" + existingDb + "/" + goodRp,
+			url:    "/api/v2/buckets/" + existingDb + "%2f" + goodRp,
 			method: patchMethod,
 			body: httpd.BucketsBody{
 				BucketUpdate: httpd.BucketUpdate{
@@ -1912,7 +1912,7 @@ func TestHandler_CreateDeleteBuckets(t *testing.T) {
 			status: http.StatusNotFound,
 		},
 		{
-			url:    "/api/v2/buckets/baddb/" + goodRp,
+			url:    "/api/v2/buckets/baddb%2f" + goodRp,
 			method: deleteMethod,
 			status: http.StatusNotFound,
 			errMsg: `delete bucket - not found: "baddb/myrp"`,
@@ -1933,10 +1933,10 @@ func TestHandler_CreateDeleteBuckets(t *testing.T) {
 				Rp:         goodRp,
 				SchemaType: "implicit",
 			},
-			status: http.StatusOK,
+			status: http.StatusCreated,
 		},
 		{
-			url:    "/api/v2/buckets/" + existingDb + "/badrp",
+			url:    "/api/v2/buckets/" + existingDb + "%2fbadrp",
 			method: deleteMethod,
 			status: http.StatusNotFound,
 			errMsg: `delete bucket - not found: "mydb/badrp"`,
@@ -1957,10 +1957,10 @@ func TestHandler_CreateDeleteBuckets(t *testing.T) {
 				Rp:         goodRp,
 				SchemaType: "implicit",
 			},
-			status: http.StatusOK,
+			status: http.StatusCreated,
 		},
 		{
-			url:    "/api/v2/buckets/" + existingDb + "/" + goodRp,
+			url:    "/api/v2/buckets/" + existingDb + "%2f" + goodRp,
 			method: deleteMethod,
 			status: http.StatusOK,
 		},
@@ -2247,22 +2247,27 @@ func TestHandler_RetrieveBucket(t *testing.T) {
 			status: http.StatusNotFound,
 		},
 		{
-			url:    "/api/v2/buckets//rpTwo_1",
-			status: http.StatusNotFound,
+			url:    "/api/v2/buckets/%2frpTwo_1",
+			status: http.StatusBadRequest,
 			errMsg: `bucket "/rpTwo_1": bucket name "/rpTwo_1" is in db/rp form but has an empty database`,
 		},
 		{
-			url:    "/api/v2/buckets/dbFive/rpTwo_1",
+			url:    "/api/v2/buckets/dbOne%2f",
+			status: http.StatusBadRequest,
+			errMsg: `bucket "dbOne/": illegal bucket id, empty retention policy`,
+		},
+		{
+			url:    "/api/v2/buckets/dbFive%2frpTwo_1",
 			status: http.StatusNotFound,
 			errMsg: `bucket not found: "dbFive/rpTwo_1"`,
 		},
 		{
-			url:    "/api/v2/buckets/dbOne/rpTwo_1",
+			url:    "/api/v2/buckets/dbOne%2frpTwo_1",
 			status: http.StatusOK,
 			exp:    "dbOne/rpTwo_1",
 		},
 		{
-			url:    "/api/v2/buckets/dbOne/rpOne_2",
+			url:    "/api/v2/buckets/dbOne%2frpOne_2",
 			status: http.StatusNotFound,
 			errMsg: `bucket not found: "dbOne/rpOne_2"`,
 		},
@@ -2291,11 +2296,11 @@ func TestHandler_RetrieveBucket(t *testing.T) {
 		h.ServeHTTP(w, req)
 		var errMsg string
 		if w.Code != ct.status {
-			t.Fatalf("error, expected %d got %d: %s", ct.status, w.Code, errMsg)
+			t.Fatalf("error, test %s: expected %d got %d: %s", ct.url, ct.status, w.Code, errMsg)
 		} else if w.Code != http.StatusOK {
 			errMsg = w.Header().Get("X-InfluxDB-Error")
 			if errMsg != ct.errMsg {
-				t.Fatalf("incorrect error message, expected: %q, got: %q", ct.errMsg, errMsg)
+				t.Fatalf("incorrect error message, test %s: expected: %q, got: %q", ct.url, ct.errMsg, errMsg)
 			}
 		} else {
 			var got httpd.Bucket
@@ -2322,53 +2327,53 @@ func TestHandler_UnsupportedV2API(t *testing.T) {
 	tests := []*test{
 		{
 			method: "GET",
-			url:    "/api/v2/buckets/mydb/myrp/labels",
+			url:    "/api/v2/buckets/mydb%2fmyrp/labels",
 			status: http.StatusMethodNotAllowed,
 			errMsg: "bucket labels not supported in this version"},
 		{
 			method: "POST",
-			url:    "/api/v2/buckets/mydb/myrp/labels",
+			url:    "/api/v2/buckets/mydb%2fmyrp/labels",
 			status: http.StatusMethodNotAllowed,
 			errMsg: "bucket labels not supported in this version",
 		},
 		{
 			method: "DELETE",
-			url:    "/api/v2/buckets/mydb/myrp/labels/mylabel",
+			url:    "/api/v2/buckets/mydb%2fmyrp/labels/mylabel",
 			status: http.StatusMethodNotAllowed,
 			errMsg: "bucket labels not supported in this version"},
 		{
 			method: "GET",
-			url:    "/api/v2/buckets/mydb/myrp/members",
+			url:    "/api/v2/buckets/mydb%2fmyrp/members",
 			status: http.StatusMethodNotAllowed,
 			errMsg: "bucket members not supported in this version",
 		},
 		{
 			method: "POST",
-			url:    "/api/v2/buckets/mydb/myrp/members",
+			url:    "/api/v2/buckets/mydb%2fmyrp/members",
 			status: http.StatusMethodNotAllowed,
 			errMsg: "bucket members not supported in this version",
 		},
 		{
 			method: "DELETE",
-			url:    "/api/v2/buckets/mydb/myrp/members/amember",
+			url:    "/api/v2/buckets/mydb%2fmyrp/members/amember",
 			status: http.StatusMethodNotAllowed,
 			errMsg: "bucket members not supported in this version",
 		},
 		{
 			method: "GET",
-			url:    "/api/v2/buckets/mydb/myrp/owners",
+			url:    "/api/v2/buckets/mydb%2fmyrp/owners",
 			status: http.StatusMethodNotAllowed,
 			errMsg: "bucket owners not supported in this version",
 		},
 		{
 			method: "POST",
-			url:    "/api/v2/buckets/mydb/myrp/owners",
+			url:    "/api/v2/buckets/mydb%2fmyrp/owners",
 			status: http.StatusMethodNotAllowed,
 			errMsg: "bucket owners not supported in this version",
 		},
 		{
 			method: "DELETE",
-			url:    "/api/v2/buckets/mydb/myrp/owners/anowner",
+			url:    "/api/v2/buckets/mydb%2fmyrp/owners/anowner",
 			status: http.StatusMethodNotAllowed,
 			errMsg: "bucket owners not supported in this version",
 		},
