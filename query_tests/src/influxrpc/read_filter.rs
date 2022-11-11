@@ -64,7 +64,7 @@ async fn run_read_filter(
     let planner = InfluxRpcPlanner::new(ctx.child_ctx("planner"));
 
     let plan = planner
-        .read_filter(db.as_query_database_arc(), predicate)
+        .read_filter(db.as_query_namespace_arc(), predicate)
         .await
         .map_err(|e| e.to_string())?;
 

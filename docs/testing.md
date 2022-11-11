@@ -88,14 +88,14 @@ set.
 
 ### Configuration differences when running the tests
 
-When running `influxdb_iox run database`, you can pick one object store to use. When running the tests,
-you can run them against all the possible object stores. There's still only one
-`INFLUXDB_IOX_BUCKET` variable, though, so that will set the bucket name for all configured object
-stores. Use the same bucket name when setting up the different services.
+When running `influxdb_iox run`, you can pick one object store to use. When running the tests, you
+can run them against all the possible object stores. There's still only one `INFLUXDB_IOX_BUCKET`
+variable, though, so that will set the bucket name for all configured object stores. Use the same
+bucket name when setting up the different services.
 
 Other than possibly configuring multiple object stores, configuring the tests to use the object
 store services is the same as configuring the server to use an object store service. See the output
-of `influxdb_iox run database --help` for instructions.
+of `influxdb_iox run --help` for instructions.
 
 ## InfluxDB 2 Client
 

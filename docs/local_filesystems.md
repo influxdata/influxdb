@@ -18,6 +18,6 @@ The rationale for this assumption is to enable IOx to be operated in a container
 
 This configuration is used when running IOx on a "plain old server" operating at the edge as well as for local testing.
 
-In this configuration, IOx assumes the contents of the local file system are preserved at least as long as the life of the IOx Database and that external measures are taken to backup or otherwise manage this.
+In this configuration, IOx assumes the contents of the local file system are preserved at least as long as the life of the IOx instance and that external measures are taken to backup or otherwise manage this.
 
 In other words, unsurprisingly, when using the local filesystem as object storage, the durability of the data in IOx is tied to the durability of the filesystem.

@@ -224,7 +224,7 @@ mod tests {
 
     #[test]
     fn test_put() {
-        let ns = NamespaceName::new("test").expect("database name is valid");
+        let ns = NamespaceName::new("test").expect("namespace name is valid");
         let registry = metric::Registry::default();
         let cache = Arc::new(MemoryNamespaceCache::default());
         let cache = Arc::new(InstrumentedCache::new(cache, &registry));
@@ -356,7 +356,7 @@ mod tests {
         assert_eq!(cache.column_count.observe(), Observation::U64Gauge(11));
 
         // Add a new namespace
-        let ns = NamespaceName::new("another").expect("database name is valid");
+        let ns = NamespaceName::new("another").expect("namespace name is valid");
         let schema = new_schema(&[10, 12, 9]);
         assert!(cache.put_schema(ns.clone(), schema).is_none());
         assert_histogram_hit(

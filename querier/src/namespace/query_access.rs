@@ -16,15 +16,15 @@ use datafusion::{
 use datafusion_util::config::DEFAULT_SCHEMA;
 use iox_query::{
     exec::{ExecutionContextProvider, ExecutorType, IOxSessionContext},
-    QueryChunk, QueryCompletedToken, QueryDatabase, QueryText,
+    QueryChunk, QueryCompletedToken, QueryNamespace, QueryText,
 };
 use observability_deps::tracing::{debug, trace};
-use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
+use predicate::{rpc_predicate::QueryNamespaceMeta, Predicate};
 use schema::Schema;
 use std::{any::Any, collections::HashMap, sync::Arc};
 use trace::ctx::SpanContext;
 
-impl QueryDatabaseMeta for QuerierNamespace {
+impl QueryNamespaceMeta for QuerierNamespace {
     fn table_names(&self) -> Vec<String> {
         let mut names: Vec<_> = self.tables.keys().map(|s| s.to_string()).collect();
         names.sort();
@@ -37,7 +37,7 @@ impl QueryDatabaseMeta for QuerierNamespace {
 }
 
 #[async_trait]
-impl QueryDatabase for QuerierNamespace {
+impl QueryNamespace for QuerierNamespace {
     async fn chunks(
         &self,
         table_name: &str,
@@ -94,7 +94,7 @@ impl QueryDatabase for QuerierNamespace {
         QueryCompletedToken::new(move |success| query_log.set_completed(entry, success))
     }
 
-    fn as_meta(&self) -> &dyn QueryDatabaseMeta {
+    fn as_meta(&self) -> &dyn QueryNamespaceMeta {
         self
     }
 }

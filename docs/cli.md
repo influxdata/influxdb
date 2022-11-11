@@ -62,7 +62,7 @@ Connected to IOx Server
 Set output format format to pretty
 Ready for commands. (Hint: try 'help;')
 > use 26f7e5a4b7be365b_917b97a92e883afc;
-You are now in remote mode, querying database 26f7e5a4b7be365b_917b97a92e883afc
+You are now in remote mode, querying namespace 26f7e5a4b7be365b_917b97a92e883afc
 26f7e5a4b7be365b_917b97a92e883afc> select count(*) from cpu;
 +-----------------+
 | COUNT(UInt8(1)) |

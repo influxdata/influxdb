@@ -121,7 +121,7 @@ impl Error {
 impl From<&DmlError> for StatusCode {
     fn from(e: &DmlError) -> Self {
         match e {
-            DmlError::DatabaseNotFound(_) => StatusCode::NOT_FOUND,
+            DmlError::NamespaceNotFound(_) => StatusCode::NOT_FOUND,
 
             // Schema validation error cases
             DmlError::Schema(SchemaError::NamespaceLookup(_)) => {
@@ -145,7 +145,7 @@ impl From<&DmlError> for StatusCode {
 }
 
 /// Errors returned when decoding the organisation / bucket information from a
-/// HTTP request and deriving the database name from it.
+/// HTTP request and deriving the namespace name from it.
 #[derive(Debug, Error)]
 pub enum OrgBucketError {
     /// The request contains no org/bucket destination information.
@@ -156,7 +156,7 @@ pub enum OrgBucketError {
     #[error("failed to deserialize org/bucket/precision in request: {0}")]
     DecodeFail(#[from] serde::de::value::Error),
 
-    /// The provided org/bucket could not be converted into a database name.
+    /// The provided org/bucket could not be converted into a namespace name.
     #[error(transparent)]
     MappingFail(#[from] OrgBucketMappingError),
 }
@@ -921,8 +921,8 @@ mod tests {
         db_not_found,
         query_string = "?org=bananas&bucket=test",
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
-        dml_handler = [Err(DmlError::DatabaseNotFound("bananas_test".to_string()))],
-        want_result = Err(Error::DmlHandler(DmlError::DatabaseNotFound(_))),
+        dml_handler = [Err(DmlError::NamespaceNotFound("bananas_test".to_string()))],
+        want_result = Err(Error::DmlHandler(DmlError::NamespaceNotFound(_))),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, ..}] => {
             assert_eq!(namespace, "bananas_test");
         }
@@ -1038,8 +1038,8 @@ mod tests {
         db_not_found,
         query_string = "?org=bananas&bucket=test",
         body = r#"{"start":"2021-04-01T14:00:00Z","stop":"2021-04-02T14:00:00Z", "predicate":"_measurement=its_a_table and location=Boston"}"#.as_bytes(),
-        dml_handler = [Err(DmlError::DatabaseNotFound("bananas_test".to_string()))],
-        want_result = Err(Error::DmlHandler(DmlError::DatabaseNotFound(_))),
+        dml_handler = [Err(DmlError::NamespaceNotFound("bananas_test".to_string()))],
+        want_result = Err(Error::DmlHandler(DmlError::NamespaceNotFound(_))),
         want_dml_calls = [MockDmlHandlerCall::Delete{namespace, namespace_id, table, predicate}] => {
             assert_eq!(table, "its_a_table");
             assert_eq!(namespace, "bananas_test");
@@ -1487,8 +1487,8 @@ mod tests {
         ),
 
         (
-            DmlHandler(DmlError::DatabaseNotFound("[database name]".into())),
-            "dml handler error: database [database name] does not exist",
+            DmlHandler(DmlError::NamespaceNotFound("[namespace name]".into())),
+            "dml handler error: namespace [namespace name] does not exist",
         ),
 
         (

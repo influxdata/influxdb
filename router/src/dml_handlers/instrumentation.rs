@@ -220,7 +220,7 @@ mod tests {
         let ns = "platanos".try_into().unwrap();
         let handler = Arc::new(
             MockDmlHandler::default()
-                .with_write_return([Err(DmlError::DatabaseNotFound("nope".to_owned()))]),
+                .with_write_return([Err(DmlError::NamespaceNotFound("nope".to_owned()))]),
         );
 
         let metrics = Arc::new(metric::Registry::default());
@@ -234,7 +234,7 @@ mod tests {
             .await
             .expect_err("inner handler configured to fail");
 
-        assert_matches!(err, DmlError::DatabaseNotFound(_));
+        assert_matches!(err, DmlError::NamespaceNotFound(_));
 
         assert_metric_hit(&metrics, "dml_handler_write_duration", "error");
         assert_trace(traces, SpanStatus::Err);
@@ -270,7 +270,7 @@ mod tests {
         let ns = "platanos".try_into().unwrap();
         let handler = Arc::new(
             MockDmlHandler::<()>::default()
-                .with_delete_return([Err(DmlError::DatabaseNotFound("nope".to_owned()))]),
+                .with_delete_return([Err(DmlError::NamespaceNotFound("nope".to_owned()))]),
         );
 
         let metrics = Arc::new(metric::Registry::default());

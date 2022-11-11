@@ -26,7 +26,7 @@ pub use server_type::{AddAddrEnv, ServerType};
 pub use steps::{FCustom, Step, StepTest, StepTestState};
 pub use udp_listener::UdpCapture;
 
-/// Return a random string suitable for use as a database name
+/// Return a random string suitable for use as a namespace name
 pub fn rand_name() -> String {
     thread_rng()
         .sample_iter(&Alphanumeric)

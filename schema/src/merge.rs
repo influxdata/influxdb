@@ -9,7 +9,7 @@ use crate::interner::SchemaInterner;
 
 use super::{InfluxColumnType, Schema};
 
-/// Database schema creation / validation errors.
+/// Namespace schema creation / validation errors.
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("No schemas found when building merged schema"))]

@@ -30,7 +30,6 @@ pub struct NamespaceAutocreation<C, T> {
 
     topic_id: TopicId,
     query_id: QueryPoolId,
-    retention: String,
     _input: PhantomData<T>,
 }
 
@@ -165,7 +164,6 @@ mod tests {
             cache,
             TopicId::new(42),
             QueryPoolId::new(42),
-            "inf".to_owned(),
         );
 
         // Drive the code under test
@@ -201,7 +199,6 @@ mod tests {
             cache,
             TopicId::new(42),
             QueryPoolId::new(42),
-            "inf".to_owned(),
         );
 
         creator

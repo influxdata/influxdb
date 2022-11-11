@@ -387,7 +387,7 @@ where
         .await?
         .for_each(|(ns, schema)| {
             let name = NamespaceName::try_from(ns.name)
-                .expect("cannot convert existing namespace name to database name");
+                .expect("cannot convert existing namespace string to a `NamespaceName` instance");
 
             cache.put_schema(name, schema);
         });

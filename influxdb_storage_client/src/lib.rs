@@ -36,10 +36,9 @@ use ::generated_types::google::protobuf::*;
 use observability_deps::tracing::{debug, trace};
 use std::num::NonZeroU64;
 
-/// InfluxDB IOx deals with database names. The gRPC interface deals
-/// with org_id and bucket_id represented as 16 digit hex
-/// values. This struct manages creating the org_id, bucket_id,
-/// and database names to be consistent with the implementation
+/// InfluxDB IOx deals with namespace names. The gRPC interface deals with org_id and bucket_id
+/// represented as 16 digit hex values. This struct manages creating the org_id, bucket_id, and
+/// namespace names to be consistent with the implementation.
 #[derive(Debug, Clone)]
 pub struct OrgAndBucket {
     org_id: NonZeroU64,

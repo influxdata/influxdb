@@ -15,7 +15,7 @@ use datafusion::physical_plan::{
 };
 use futures::Stream;
 
-/// Database schema creation / validation errors.
+/// Schema creation / validation errors.
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
 pub enum Error {
