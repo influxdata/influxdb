@@ -290,7 +290,6 @@ pub trait NamespaceRepo: Send + Sync {
     async fn create(
         &mut self,
         name: &str,
-        retention_duration: &str,
         topic_id: TopicId,
         query_pool_id: QueryPoolId,
     ) -> Result<Namespace>;
@@ -977,7 +976,7 @@ pub(crate) mod test_helpers {
         let namespace_name = "test_namespace";
         let namespace = repos
             .namespaces()
-            .create(namespace_name, "inf", topic.id, pool.id)
+            .create(namespace_name, topic.id, pool.id)
             .await
             .unwrap();
         assert!(namespace.id > NamespaceId::new(0));
@@ -992,7 +991,7 @@ pub(crate) mod test_helpers {
 
         let conflict = repos
             .namespaces()
-            .create(namespace_name, "inf", topic.id, pool.id)
+            .create(namespace_name, topic.id, pool.id)
             .await;
         assert!(matches!(
             conflict.unwrap_err(),
@@ -1032,7 +1031,7 @@ pub(crate) mod test_helpers {
         let namespace2_name = "test_namespace2";
         let namespace2 = repos
             .namespaces()
-            .create(namespace2_name, "inf", topic.id, pool.id)
+            .create(namespace2_name, topic.id, pool.id)
             .await
             .unwrap();
         let mut namespaces = repos.namespaces().list().await.unwrap();
@@ -1081,7 +1080,7 @@ pub(crate) mod test_helpers {
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create("namespace_table_test", "inf", topic.id, pool.id)
+            .create("namespace_table_test", topic.id, pool.id)
             .await
             .unwrap();
 
@@ -1118,7 +1117,7 @@ pub(crate) mod test_helpers {
         // test we can create a table of the same name in a different namespace
         let namespace2 = repos
             .namespaces()
-            .create("two", "inf", topic.id, pool.id)
+            .create("two", topic.id, pool.id)
             .await
             .unwrap();
         assert_ne!(namespace, namespace2);
@@ -1209,7 +1208,7 @@ pub(crate) mod test_helpers {
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create("namespace_column_test", "inf", topic.id, pool.id)
+            .create("namespace_column_test", topic.id, pool.id)
             .await
             .unwrap();
         let table = repos
@@ -1420,7 +1419,7 @@ pub(crate) mod test_helpers {
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create("namespace_partition_test", "inf", topic.id, pool.id)
+            .create("namespace_partition_test", topic.id, pool.id)
             .await
             .unwrap();
         let table = repos
@@ -1498,7 +1497,7 @@ pub(crate) mod test_helpers {
         // test list_by_namespace
         let namespace2 = repos
             .namespaces()
-            .create("namespace_partition_test2", "inf", topic.id, pool.id)
+            .create("namespace_partition_test2", topic.id, pool.id)
             .await
             .unwrap();
         let table2 = repos
@@ -1695,7 +1694,7 @@ pub(crate) mod test_helpers {
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create("namespace_tombstone_test", "inf", topic.id, pool.id)
+            .create("namespace_tombstone_test", topic.id, pool.id)
             .await
             .unwrap();
         let table = repos
@@ -1779,7 +1778,7 @@ pub(crate) mod test_helpers {
         // test list_by_namespace
         let namespace2 = repos
             .namespaces()
-            .create("namespace_tombstone_test2", "inf", topic.id, pool.id)
+            .create("namespace_tombstone_test2", topic.id, pool.id)
             .await
             .unwrap();
         let table2 = repos
@@ -1860,7 +1859,6 @@ pub(crate) mod test_helpers {
             .namespaces()
             .create(
                 "namespace_tombstones_by_parquet_file_test",
-                "inf",
                 topic.id,
                 pool.id,
             )
@@ -2077,7 +2075,7 @@ pub(crate) mod test_helpers {
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create("namespace_parquet_file_test", "inf", topic.id, pool.id)
+            .create("namespace_parquet_file_test", topic.id, pool.id)
             .await
             .unwrap();
         let table = repos
@@ -2232,7 +2230,7 @@ pub(crate) mod test_helpers {
         // test list_by_namespace_not_to_delete
         let namespace2 = repos
             .namespaces()
-            .create("namespace_parquet_file_test1", "inf", topic.id, pool.id)
+            .create("namespace_parquet_file_test1", topic.id, pool.id)
             .await
             .unwrap();
         let table2 = repos
@@ -2583,7 +2581,6 @@ pub(crate) mod test_helpers {
             .namespaces()
             .create(
                 "namespace_parquet_file_compaction_level_0_test",
-                "inf",
                 topic.id,
                 pool.id,
             )
@@ -2701,7 +2698,6 @@ pub(crate) mod test_helpers {
             .namespaces()
             .create(
                 "namespace_parquet_file_compaction_level_1_test",
-                "inf",
                 topic.id,
                 pool.id,
             )
@@ -2922,12 +2918,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let namespace = repos
             .namespaces()
-            .create(
-                "test_most_level_0_files_partitions",
-                "inf",
-                topic.id,
-                pool.id,
-            )
+            .create("test_most_level_0_files_partitions", topic.id, pool.id)
             .await
             .unwrap();
         let table = repos
@@ -3381,7 +3372,6 @@ pub(crate) mod test_helpers {
             .namespaces()
             .create(
                 "test_recent_highest_throughput_partitions",
-                "inf",
                 topic.id,
                 pool.id,
             )
@@ -3672,7 +3662,6 @@ pub(crate) mod test_helpers {
             .namespaces()
             .create(
                 "namespace_parquet_file_test_list_by_partiton_not_to_delete",
-                "inf",
                 topic.id,
                 pool.id,
             )
@@ -3785,7 +3774,6 @@ pub(crate) mod test_helpers {
             .namespaces()
             .create(
                 "namespace_update_to_compaction_level_1_test",
-                "inf",
                 topic.id,
                 pool.id,
             )
@@ -3907,12 +3895,7 @@ pub(crate) mod test_helpers {
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create(
-                "namespace_processed_tombstone_test",
-                "inf",
-                topic.id,
-                pool.id,
-            )
+            .create("namespace_processed_tombstone_test", topic.id, pool.id)
             .await
             .unwrap();
         let table = repos
@@ -4152,7 +4135,7 @@ pub(crate) mod test_helpers {
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create(namespace_name, "inf", topic.id, pool.id)
+            .create(namespace_name, topic.id, pool.id)
             .await;
 
         let namespace = match namespace {

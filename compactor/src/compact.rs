@@ -711,12 +711,7 @@ pub mod tests {
         let pool = txn.query_pools().create_or_get("foo").await.unwrap();
         let namespace = txn
             .namespaces()
-            .create(
-                "namespace_hot_partitions_to_compact",
-                "inf",
-                topic.id,
-                pool.id,
-            )
+            .create("namespace_hot_partitions_to_compact", topic.id, pool.id)
             .await
             .unwrap();
         let table = txn

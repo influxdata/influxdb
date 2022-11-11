@@ -181,12 +181,7 @@ impl TestContext {
             .repositories()
             .await
             .namespaces()
-            .create(
-                name,
-                iox_catalog::INFINITE_RETENTION_POLICY,
-                self.topic_id,
-                self.query_id,
-            )
+            .create(name, self.topic_id, self.query_id)
             .await
             .expect("failed to create test namespace");
 

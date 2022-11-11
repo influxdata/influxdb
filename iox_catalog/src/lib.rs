@@ -36,8 +36,6 @@ pub const DEFAULT_MAX_COLUMNS_PER_TABLE: i32 = 200;
 pub const DEFAULT_RETENTION_PERIOD: Option<i64> = None;
 
 /// A string value representing an infinite retention policy.
-pub const INFINITE_RETENTION_POLICY: &str = "inf";
-
 pub mod interface;
 pub mod mem;
 pub mod metrics;
@@ -272,7 +270,7 @@ mod tests {
 
                     let namespace = txn
                         .namespaces()
-                        .create(NAMESPACE_NAME, "inf", topic.id, query_pool.id)
+                        .create(NAMESPACE_NAME, topic.id, query_pool.id)
                         .await
                         .unwrap();
 

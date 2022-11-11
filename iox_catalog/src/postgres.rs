@@ -589,21 +589,19 @@ impl NamespaceRepo for PostgresTxn {
     async fn create(
         &mut self,
         name: &str,
-        retention_duration: &str,
         topic_id: TopicId,
         query_pool_id: QueryPoolId,
     ) -> Result<Namespace> {
         let rec = sqlx::query_as::<_, Namespace>(
             r#"
-INSERT INTO namespace ( name, retention_duration, topic_id, query_pool_id )
-VALUES ( $1, $2, $3, $4 )
-RETURNING *;
-        "#,
+                INSERT INTO namespace ( name, topic_id, query_pool_id )
+                VALUES ( $1, $2, $3 )
+                RETURNING *;
+            "#,
         )
         .bind(name) // $1
-        .bind(retention_duration) // $2
-        .bind(topic_id) // $3
-        .bind(query_pool_id) // $4
+        .bind(topic_id) // $2
+        .bind(query_pool_id) // $3
         .fetch_one(&mut self.inner)
         .await
         .map_err(|e| {
@@ -2355,7 +2353,7 @@ mod tests {
             .repositories()
             .await
             .namespaces()
-            .create("ns", crate::INFINITE_RETENTION_POLICY, kafka.id, query.id)
+            .create("ns", kafka.id, query.id)
             .await
             .expect("namespace create failed")
             .id;
@@ -2431,7 +2429,7 @@ mod tests {
             .repositories()
             .await
             .namespaces()
-            .create("ns2", crate::INFINITE_RETENTION_POLICY, kafka.id, query.id)
+            .create("ns2", kafka.id, query.id)
             .await
             .expect("namespace create failed")
             .id;
@@ -2514,7 +2512,7 @@ mod tests {
             .repositories()
             .await
             .namespaces()
-            .create("ns4", crate::INFINITE_RETENTION_POLICY, kafka.id, query.id)
+            .create("ns4", kafka.id, query.id)
             .await
             .expect("namespace create failed")
             .id;
@@ -2573,7 +2571,7 @@ mod tests {
             .repositories()
             .await
             .namespaces()
-            .create("ns3", crate::INFINITE_RETENTION_POLICY, kafka.id, query.id)
+            .create("ns3", kafka.id, query.id)
             .await
             .expect("namespace create failed")
             .id;
@@ -2734,7 +2732,7 @@ mod tests {
                         .repositories()
                         .await
                         .namespaces()
-                        .create("ns4", crate::INFINITE_RETENTION_POLICY, kafka.id, query.id)
+                        .create("ns4", kafka.id, query.id)
                         .await
                         .expect("namespace create failed")
                         .id;
@@ -2916,7 +2914,7 @@ mod tests {
             .repositories()
             .await
             .namespaces()
-            .create("ns4", crate::INFINITE_RETENTION_POLICY, kafka.id, query.id)
+            .create("ns4", kafka.id, query.id)
             .await
             .expect("namespace create failed")
             .id;

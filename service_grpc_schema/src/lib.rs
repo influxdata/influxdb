@@ -123,7 +123,7 @@ mod tests {
             let pool = repos.query_pools().create_or_get("franz").await.unwrap();
             let namespace = repos
                 .namespaces()
-                .create("namespace_schema_test", "inf", topic.id, pool.id)
+                .create("namespace_schema_test", topic.id, pool.id)
                 .await
                 .unwrap();
             let table = repos

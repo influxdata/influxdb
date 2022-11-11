@@ -258,7 +258,6 @@ pub async fn create_router_server_type(
         Arc::clone(&catalog),
         topic_id,
         query_id,
-        iox_catalog::INFINITE_RETENTION_POLICY.to_owned(),
     );
     //
     ////////////////////////////////////////////////////////////////////////////
@@ -412,7 +411,7 @@ mod tests {
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create("test_ns", "inf", topic.id, pool.id)
+            .create("test_ns", topic.id, pool.id)
             .await
             .unwrap();
 

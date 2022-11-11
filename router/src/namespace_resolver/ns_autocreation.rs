@@ -30,7 +30,6 @@ pub struct NamespaceAutocreation<C, T> {
 
     topic_id: TopicId,
     query_id: QueryPoolId,
-    retention: String,
 }
 
 impl<C, T> NamespaceAutocreation<C, T> {
@@ -48,7 +47,6 @@ impl<C, T> NamespaceAutocreation<C, T> {
         catalog: Arc<dyn Catalog>,
         topic_id: TopicId,
         query_id: QueryPoolId,
-        retention: String,
     ) -> Self {
         Self {
             inner,
@@ -56,7 +54,6 @@ impl<C, T> NamespaceAutocreation<C, T> {
             catalog,
             topic_id,
             query_id,
-            retention,
         }
     }
 }
@@ -80,12 +77,7 @@ where
 
             match repos
                 .namespaces()
-                .create(
-                    namespace.as_str(),
-                    &self.retention,
-                    self.topic_id,
-                    self.query_id,
-                )
+                .create(namespace.as_str(), self.topic_id, self.query_id)
                 .await
             {
                 Ok(_) => {
@@ -148,7 +140,6 @@ mod tests {
             Arc::clone(&catalog),
             TopicId::new(42),
             QueryPoolId::new(42),
-            "inf".to_owned(),
         );
 
         // Drive the code under test
@@ -186,7 +177,6 @@ mod tests {
             Arc::clone(&catalog),
             TopicId::new(42),
             QueryPoolId::new(42),
-            "inf".to_owned(),
         );
 
         let created_id = creator
