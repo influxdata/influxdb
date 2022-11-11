@@ -104,8 +104,9 @@ impl<T> DeferredLoad<T> {
         *state = Some(new_state);
     }
 
-    /// Potentially transition `state`, returning the new state and the
-    /// [`Notify`] that will be signalled when loading the value completes.
+    /// Potentially transition `state`, returning the [`Notify`] that will be
+    /// signalled when loading the value completes, and the (potentially
+    /// changed) state.
     ///
     /// # Panics
     ///
