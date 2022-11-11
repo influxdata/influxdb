@@ -878,7 +878,7 @@ mod tests {
     use arrow::datatypes::DataType;
     use datafusion_util::lit_dict;
     use generated_types::node::Type as RPCNodeType;
-    use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
+    use predicate::{rpc_predicate::QueryNamespaceMeta, Predicate};
     use schema::{Schema, SchemaBuilder};
     use std::{collections::BTreeSet, sync::Arc};
 
@@ -895,7 +895,7 @@ mod tests {
         }
     }
 
-    impl QueryDatabaseMeta for Tables {
+    impl QueryNamespaceMeta for Tables {
         fn table_names(&self) -> Vec<String> {
             self.table_names.clone()
         }

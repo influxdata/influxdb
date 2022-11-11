@@ -115,9 +115,9 @@ Command are generally structured in the form:
     <type of object> <action> <arguments>
 
 For example, a command such as the following shows all actions
-    available for database chunks, including get and list.
+    available for namespaces, including `list` and `retention`.
 
-    influxdb_iox database chunk --help
+    influxdb_iox namespace --help
 "#
 )]
 struct Config {
@@ -184,13 +184,13 @@ enum Command {
     /// Various commands for compactor manipulation
     Compactor(Box<commands::compactor::Config>),
 
-    /// Interrogate internal database data
+    /// Interrogate internal data
     Debug(commands::debug::Config),
 
     /// Initiate a read request to the gRPC storage service.
     Storage(commands::storage::Config),
 
-    /// Write data into the specified database
+    /// Write data into the specified namespace
     Write(commands::write::Config),
 
     /// Query the data with SQL

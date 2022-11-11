@@ -2,7 +2,7 @@
 
 ## Background
 
-Observability context is how a component exposes metrics, traces, logs, panics, etc... in a way that places them in the context of the wider system. Most commonly this might be the database name, but might also be the table name, chunk ID, etc... Crucially this information may not be relevant to the component's primary function, e.g. if we never needed to observe `Db` it wouldn't need to know the database name at all, as only `Server` would need to know
+Observability context is how a component exposes metrics, traces, logs, panics, etc... in a way that places them in the context of the wider system. Most commonly this might be the namespace name, but might also be the table name, chunk ID, etc... Crucially this information may not be relevant to the component's primary function, e.g. if we never needed to observe `Db` it wouldn't need to know the namespace name at all, as only `Server` would need to know
 
 Broadly speaking there are 3 approaches to how to inject this context:
 
@@ -12,14 +12,13 @@ Broadly speaking there are 3 approaches to how to inject this context:
 
 Effectively the 3 trade-off between "polluting" the object or the callsites.
 
-To give a concrete example, from a purely logic perspective the catalog does not need to know the database name, only the path
-to the object store. However, it is helpful for logs, metrics, etc... to be in terms of database name.
+To give a concrete example, from a purely logic perspective the catalog does not need to know the namespace name, only the path to the object store. However, it is helpful for logs, metrics, etc... to be in terms of namespace name.
 
 The three approaches would therefore be
 
-1. Inject database name on construction onto the catalog object
-2. Inject metrics, logs, etc... wrappers that carry the database name context internally
-3. Inject database name at every call site, either explicitly passing it as an argument, or implicitly by wrapping in a span, mapping the returned error, etc...
+1. Inject namespace name on construction onto the catalog object
+2. Inject metrics, logs, etc... wrappers that carry the namespace name context internally
+3. Inject namespace name at every call site, either explicitly passing it as an argument, or implicitly by wrapping in a span, mapping the returned error, etc...
 
 ## Outcome
 

@@ -35,7 +35,7 @@ mod tests {
 
     #[test]
     fn test_put_get() {
-        let ns = NamespaceName::new("test").expect("database name is valid");
+        let ns = NamespaceName::new("test").expect("namespace name is valid");
         let cache = Arc::new(MemoryNamespaceCache::default());
 
         assert!(cache.get_schema(&ns).is_none());

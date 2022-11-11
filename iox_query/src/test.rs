@@ -1,5 +1,4 @@
-//! This module provides a reference implementation of
-//! [`QueryDatabase`] for use in testing.
+//! This module provides a reference implementation of [`QueryNamespace`] for use in testing.
 //!
 //! AKA it is a Mock
 
@@ -9,7 +8,7 @@ use crate::{
         ExecutionContextProvider, Executor, ExecutorType, IOxSessionContext,
     },
     Predicate, PredicateMatch, QueryChunk, QueryChunkData, QueryChunkMeta, QueryCompletedToken,
-    QueryDatabase, QueryText,
+    QueryNamespace, QueryText,
 };
 use arrow::{
     array::{
@@ -27,7 +26,7 @@ use datafusion::error::DataFusionError;
 use hashbrown::HashSet;
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
-use predicate::rpc_predicate::QueryDatabaseMeta;
+use predicate::rpc_predicate::QueryNamespaceMeta;
 use schema::{
     builder::SchemaBuilder, merge::SchemaMerger, sort::SortKey, InfluxColumnType, Projection,
     Schema, TIME_COLUMN_NAME,
@@ -100,7 +99,7 @@ impl TestDatabase {
 }
 
 #[async_trait]
-impl QueryDatabase for TestDatabase {
+impl QueryNamespace for TestDatabase {
     async fn chunks(
         &self,
         table_name: &str,
@@ -137,12 +136,12 @@ impl QueryDatabase for TestDatabase {
         QueryCompletedToken::new(|_| {})
     }
 
-    fn as_meta(&self) -> &dyn QueryDatabaseMeta {
+    fn as_meta(&self) -> &dyn QueryNamespaceMeta {
         self
     }
 }
 
-impl QueryDatabaseMeta for TestDatabase {
+impl QueryNamespaceMeta for TestDatabase {
     fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {
         let mut merger = SchemaMerger::new();
         let mut found_one = false;

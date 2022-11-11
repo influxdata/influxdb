@@ -11,9 +11,9 @@ use super::{partitioner::PartitionError, SchemaError, ShardError};
 /// processing.
 #[derive(Debug, Error)]
 pub enum DmlError {
-    /// The database specified by the caller does not exist.
-    #[error("database {0} does not exist")]
-    DatabaseNotFound(String),
+    /// The namespace specified by the caller does not exist.
+    #[error("namespace {0} does not exist")]
+    NamespaceNotFound(String),
 
     /// An error sharding the writes and pushing them to the write buffer.
     #[error(transparent)]

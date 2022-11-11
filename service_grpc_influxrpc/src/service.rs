@@ -1,5 +1,5 @@
 //! This module contains implementations for the storage gRPC service
-//! implemented in terms of the [`QueryDatabase`](iox_query::QueryDatabase).
+//! implemented in terms of the [`QueryNamespace`](iox_query::QueryNamespace).
 
 use super::{TAG_KEY_FIELD, TAG_KEY_MEASUREMENT};
 use crate::{
@@ -30,11 +30,11 @@ use iox_query::{
         fieldlist::FieldList, seriesset::converter::Error as SeriesSetError,
         ExecutionContextProvider, IOxSessionContext,
     },
-    QueryDatabase, QueryText,
+    QueryNamespace, QueryText,
 };
 use observability_deps::tracing::{error, info, trace, warn};
 use pin_project::pin_project;
-use service_common::{datafusion_error_to_tonic_code, planner::Planner, QueryDatabaseProvider};
+use service_common::{datafusion_error_to_tonic_code, planner::Planner, QueryNamespaceProvider};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     collections::{BTreeSet, HashMap},
@@ -236,11 +236,11 @@ fn add_headers(metadata: &mut MetadataMap) {
     metadata.insert("storage-type", "iox".parse().unwrap());
 }
 
-/// Implements the protobuf defined Storage service for a [`QueryDatabaseProvider`]
+/// Implements the protobuf defined Storage service for a [`QueryNamespaceProvider`]
 #[tonic::async_trait]
 impl<T> Storage for StorageService<T>
 where
-    T: QueryDatabaseProvider + 'static,
+    T: QueryNamespaceProvider + 'static,
 {
     type ReadFilterStream =
         StreamWithPermit<futures::stream::Iter<std::vec::IntoIter<Result<ReadResponse, Status>>>>;
@@ -1015,15 +1015,15 @@ fn get_namespace_name(input: &impl GrpcInputs) -> Result<NamespaceName<'static>,
 
 /// Gathers all measurement names that have data in the specified
 /// (optional) range
-async fn measurement_name_impl<D>(
-    db: Arc<D>,
+async fn measurement_name_impl<N>(
+    db: Arc<N>,
     db_name: NamespaceName<'static>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
     ctx: &IOxSessionContext,
 ) -> Result<StringValuesResponse>
 where
-    D: QueryDatabase + ExecutionContextProvider + 'static,
+    N: QueryNamespace + ExecutionContextProvider + 'static,
 {
     let rpc_predicate_string = format!("{:?}", rpc_predicate);
     let db_name = db_name.as_str();
@@ -1058,8 +1058,8 @@ where
 
 /// Return tag keys with optional measurement, timestamp and arbitrary
 /// predicates
-async fn tag_keys_impl<D>(
-    db: Arc<D>,
+async fn tag_keys_impl<N>(
+    db: Arc<N>,
     db_name: NamespaceName<'static>,
     measurement: Option<String>,
     range: Option<TimestampRange>,
@@ -1067,7 +1067,7 @@ async fn tag_keys_impl<D>(
     ctx: &IOxSessionContext,
 ) -> Result<StringValuesResponse>
 where
-    D: QueryDatabase + ExecutionContextProvider + 'static,
+    N: QueryNamespace + ExecutionContextProvider + 'static,
 {
     let rpc_predicate_string = format!("{:?}", rpc_predicate);
     let db_name = db_name.as_str();
@@ -1100,8 +1100,8 @@ where
 
 /// Return tag values for tag_name, with optional measurement, timestamp and
 /// arbitratry predicates
-async fn tag_values_impl<D>(
-    db: Arc<D>,
+async fn tag_values_impl<N>(
+    db: Arc<N>,
     db_name: NamespaceName<'static>,
     tag_name: String,
     measurement: Option<String>,
@@ -1110,7 +1110,7 @@ async fn tag_values_impl<D>(
     ctx: &IOxSessionContext,
 ) -> Result<StringValuesResponse>
 where
-    D: QueryDatabase + ExecutionContextProvider + 'static,
+    N: QueryNamespace + ExecutionContextProvider + 'static,
 {
     let rpc_predicate_string = format!("{:?}", rpc_predicate);
 
@@ -1148,14 +1148,14 @@ where
 
 /// Return tag values grouped by one or more measurements with optional
 /// filtering predicate and optionally scoped to one or more tag keys.
-async fn tag_values_grouped_by_measurement_and_tag_key_impl<D>(
-    db: Arc<D>,
+async fn tag_values_grouped_by_measurement_and_tag_key_impl<N>(
+    db: Arc<N>,
     db_name: NamespaceName<'static>,
     req: TagValuesGroupedByMeasurementAndTagKeyRequest,
     ctx: &IOxSessionContext,
 ) -> Result<Vec<TagValuesResponse>, Error>
 where
-    D: QueryDatabase + ExecutionContextProvider + 'static,
+    N: QueryNamespace + ExecutionContextProvider + 'static,
 {
     // Extract the tag key predicate.
     // See https://docs.influxdata.com/influxdb/v1.8/query_language/explore-schema/#show-tag-values
@@ -1222,14 +1222,14 @@ where
 }
 
 /// Launch async tasks that materialises the result of executing read_filter.
-async fn read_filter_impl<D>(
-    db: Arc<D>,
+async fn read_filter_impl<N>(
+    db: Arc<N>,
     db_name: NamespaceName<'static>,
     req: ReadFilterRequest,
     ctx: &IOxSessionContext,
 ) -> Result<Vec<ReadResponse>, Error>
 where
-    D: QueryDatabase + ExecutionContextProvider + 'static,
+    N: QueryNamespace + ExecutionContextProvider + 'static,
 {
     let db_name = db_name.as_str();
 
@@ -1267,8 +1267,8 @@ where
 }
 
 /// Launch async tasks that send the result of executing read_group to `tx`
-async fn query_group_impl<D>(
-    db: Arc<D>,
+async fn query_group_impl<N>(
+    db: Arc<N>,
     db_name: NamespaceName<'static>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
@@ -1277,7 +1277,7 @@ async fn query_group_impl<D>(
     ctx: &IOxSessionContext,
 ) -> Result<Vec<ReadResponse>, Error>
 where
-    D: QueryDatabase + ExecutionContextProvider + 'static,
+    N: QueryNamespace + ExecutionContextProvider + 'static,
 {
     let db_name = db_name.as_str();
 
@@ -1324,8 +1324,8 @@ where
 
 /// Return field names, restricted via optional measurement, timestamp and
 /// predicate
-async fn field_names_impl<D>(
-    db: Arc<D>,
+async fn field_names_impl<N>(
+    db: Arc<N>,
     db_name: NamespaceName<'static>,
     measurement: Option<String>,
     range: Option<TimestampRange>,
@@ -1333,7 +1333,7 @@ async fn field_names_impl<D>(
     ctx: &IOxSessionContext,
 ) -> Result<FieldList>
 where
-    D: QueryDatabase + ExecutionContextProvider + 'static,
+    N: QueryNamespace + ExecutionContextProvider + 'static,
 {
     let rpc_predicate_string = format!("{:?}", rpc_predicate);
 
@@ -1364,14 +1364,14 @@ where
 
 /// Materialises a collection of measurement names. Typically used as part of
 /// a plan to scope and group multiple plans by measurement name.
-async fn materialise_measurement_names<D>(
-    db: Arc<D>,
+async fn materialise_measurement_names<N>(
+    db: Arc<N>,
     db_name: NamespaceName<'static>,
     measurement_exprs: Vec<LiteralOrRegex>,
     ctx: &IOxSessionContext,
 ) -> Result<BTreeSet<String>, Error>
 where
-    D: QueryDatabase + ExecutionContextProvider + 'static,
+    N: QueryNamespace + ExecutionContextProvider + 'static,
 {
     use generated_types::{
         node::{Comparison, Type, Value},
@@ -1442,15 +1442,15 @@ where
 ///
 /// TODO(edd): this might be better represented as a plan against the `columns`
 /// system table.
-async fn materialise_tag_keys<D>(
-    db: Arc<D>,
+async fn materialise_tag_keys<N>(
+    db: Arc<N>,
     db_name: NamespaceName<'static>,
     measurement_name: String,
     tag_key_predicate: tag_key_predicate::Value,
     ctx: &IOxSessionContext,
 ) -> Result<BTreeSet<String>, Error>
 where
-    D: QueryDatabase + ExecutionContextProvider + 'static,
+    N: QueryNamespace + ExecutionContextProvider + 'static,
 {
     use generated_types::tag_key_predicate::Value;
 

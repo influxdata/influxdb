@@ -14,13 +14,13 @@ use futures::{SinkExt, Stream, StreamExt};
 use generated_types::influxdata::iox::querier::v1 as proto;
 use iox_query::{
     exec::{ExecutionContextProvider, IOxSessionContext},
-    QueryCompletedToken, QueryDatabase,
+    QueryCompletedToken, QueryNamespace,
 };
 use observability_deps::tracing::{debug, info, warn};
 use pin_project::{pin_project, pinned_drop};
 use prost::Message;
 use serde::Deserialize;
-use service_common::{datafusion_error_to_tonic_code, planner::Planner, QueryDatabaseProvider};
+use service_common::{datafusion_error_to_tonic_code, planner::Planner, QueryNamespaceProvider};
 use snafu::{ResultExt, Snafu};
 use std::{fmt::Debug, pin::Pin, sync::Arc, task::Poll, time::Instant};
 use tokio::task::JoinHandle;
@@ -44,20 +44,20 @@ pub enum Error {
         source: serde_json::Error,
     },
 
-    #[snafu(display("Database {} not found", database_name))]
-    DatabaseNotFound { database_name: String },
+    #[snafu(display("Namespace {} not found", namespace_name))]
+    NamespaceNotFound { namespace_name: String },
 
     #[snafu(display(
-        "Internal error reading points from database {}:  {}",
-        database_name,
+        "Internal error reading points from namespace {}: {}",
+        namespace_name,
         source
     ))]
     Query {
-        database_name: String,
+        namespace_name: String,
         source: DataFusionError,
     },
 
-    #[snafu(display("Invalid database name: {}", source))]
+    #[snafu(display("Invalid namespace name: {}", source))]
     InvalidNamespaceName { source: NamespaceNameError },
 
     #[snafu(display("Failed to optimize record batch: {}", source))]
@@ -81,7 +81,7 @@ impl From<Error> for tonic::Status {
         // logging is handled for any new error variants.
         let msg = "Error handling Flight gRPC request";
         match err {
-            Error::DatabaseNotFound { .. }
+            Error::NamespaceNotFound { .. }
             | Error::InvalidTicket { .. }
             | Error::InvalidTicketLegacy { .. }
             | Error::InvalidQuery { .. }
@@ -102,7 +102,7 @@ impl Error {
         let msg = self.to_string();
 
         let code = match self {
-            Self::DatabaseNotFound { .. } => tonic::Code::NotFound,
+            Self::NamespaceNotFound { .. } => tonic::Code::NotFound,
             Self::InvalidTicket { .. }
             | Self::InvalidTicketLegacy { .. }
             | Self::InvalidQuery { .. }
@@ -122,7 +122,7 @@ type TonicStream<T> = Pin<Box<dyn Stream<Item = Result<T, tonic::Status>> + Send
 #[derive(Deserialize, Debug)]
 /// Body of the `Ticket` serialized and sent to the do_get endpoint.
 struct ReadInfo {
-    database_name: String,
+    namespace_name: String,
     sql_query: String,
 }
 
@@ -141,7 +141,7 @@ impl ReadInfo {
             proto::ReadInfo::decode(Bytes::from(ticket.to_vec())).context(InvalidTicketSnafu {})?;
 
         Ok(Self {
-            database_name: read_info.namespace_name,
+            namespace_name: read_info.namespace_name,
             sql_query: read_info.sql_query,
         })
     }
@@ -151,34 +151,34 @@ impl ReadInfo {
 #[derive(Debug)]
 struct FlightService<S>
 where
-    S: QueryDatabaseProvider,
+    S: QueryNamespaceProvider,
 {
     server: Arc<S>,
 }
 
 pub fn make_server<S>(server: Arc<S>) -> FlightServer<impl Flight>
 where
-    S: QueryDatabaseProvider,
+    S: QueryNamespaceProvider,
 {
     FlightServer::new(FlightService { server })
 }
 
 impl<S> FlightService<S>
 where
-    S: QueryDatabaseProvider,
+    S: QueryNamespaceProvider,
 {
     async fn run_query(
         &self,
         span_ctx: Option<SpanContext>,
         permit: InstrumentedAsyncOwnedSemaphorePermit,
         sql_query: String,
-        database: String,
+        namespace: String,
     ) -> Result<Response<TonicStream<FlightData>>, tonic::Status> {
         let db = self
             .server
-            .db(&database, span_ctx.child_span("get namespace"))
+            .db(&namespace, span_ctx.child_span("get namespace"))
             .await
-            .ok_or_else(|| tonic::Status::not_found(format!("Unknown namespace: {database}")))?;
+            .ok_or_else(|| tonic::Status::not_found(format!("Unknown namespace: {namespace}")))?;
 
         let ctx = db.new_query_context(span_ctx);
         let query_completed_token = db.record_query(&ctx, "sql", Box::new(sql_query.clone()));
@@ -189,7 +189,7 @@ where
             .context(PlanningSnafu)?;
 
         let output =
-            GetStream::new(ctx, physical_plan, database, query_completed_token, permit).await?;
+            GetStream::new(ctx, physical_plan, namespace, query_completed_token, permit).await?;
 
         Ok(Response::new(Box::pin(output) as TonicStream<FlightData>))
     }
@@ -198,7 +198,7 @@ where
 #[tonic::async_trait]
 impl<S> Flight for FlightService<S>
 where
-    S: QueryDatabaseProvider,
+    S: QueryNamespaceProvider,
 {
     type HandshakeStream = TonicStream<HandshakeResponse>;
     type ListFlightsStream = TonicStream<FlightInfo>;
@@ -231,10 +231,10 @@ where
         });
 
         if let Err(e) = &read_info {
-            info!(%e, "Error decoding database and SQL query name from flight ticket");
+            info!(%e, "Error decoding namespace and SQL query name from flight ticket");
         };
         let ReadInfo {
-            database_name,
+            namespace_name,
             sql_query,
         } = read_info?;
 
@@ -245,17 +245,17 @@ where
 
         // Log after we acquire the permit and are about to start execution
         let start = Instant::now();
-        info!(db_name=%database_name, %sql_query, %trace, "Running SQL via flight do_get");
+        info!(%namespace_name, %sql_query, %trace, "Running SQL via flight do_get");
 
         let response = self
-            .run_query(span_ctx, permit, sql_query.clone(), database_name.clone())
+            .run_query(span_ctx, permit, sql_query.clone(), namespace_name.clone())
             .await;
 
         if let Err(e) = &response {
-            info!(db_name=%database_name, %sql_query, %trace, %e, "Error running SQL query");
+            info!(%namespace_name, %sql_query, %trace, %e, "Error running SQL query");
         } else {
             let elapsed = Instant::now() - start;
-            debug!(db_name=%database_name,%sql_query,%trace, ?elapsed, "Completed SQL query successfully");
+            debug!(%namespace_name,%sql_query,%trace, ?elapsed, "Completed SQL query successfully");
         }
         response
     }
@@ -330,7 +330,7 @@ impl GetStream {
     async fn new(
         ctx: IOxSessionContext,
         physical_plan: Arc<dyn ExecutionPlan>,
-        database_name: String,
+        namespace_name: String,
         mut query_completed_token: QueryCompletedToken,
         permit: InstrumentedAsyncOwnedSemaphorePermit,
     ) -> Result<Self, tonic::Status> {
@@ -354,7 +354,7 @@ impl GetStream {
             .execute_stream(Arc::clone(&physical_plan))
             .await
             .context(QuerySnafu {
-                database_name: &database_name,
+                namespace_name: &namespace_name,
             })?;
 
         let join_handle = tokio::spawn(async move {
@@ -399,7 +399,7 @@ impl GetStream {
                     Err(e) => {
                         // failure sending here is OK because we're cutting the stream anyways
                         tx.send(Err(Error::Query {
-                            database_name: database_name.clone(),
+                            namespace_name: namespace_name.clone(),
                             source: DataFusionError::ArrowError(e),
                         }
                         .into()))
@@ -495,7 +495,7 @@ mod tests {
             server: Arc::clone(&test_storage),
         };
         let ticket = Ticket {
-            ticket: br#"{"database_name": "my_db", "sql_query": "SELECT 1;"}"#.to_vec(),
+            ticket: br#"{"namespace_name": "my_db", "sql_query": "SELECT 1;"}"#.to_vec(),
         };
         let streaming_resp1 = service
             .do_get(tonic::Request::new(ticket.clone()))

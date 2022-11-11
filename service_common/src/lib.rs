@@ -7,20 +7,20 @@ pub mod test_util;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use iox_query::{exec::ExecutionContextProvider, QueryDatabase};
+use iox_query::{exec::ExecutionContextProvider, QueryNamespace};
 use trace::span::Span;
 use tracker::InstrumentedAsyncOwnedSemaphorePermit;
 
-/// Trait that allows the query engine (which includes flight and storage/InfluxRPC) to access a virtual set of
-/// databases.
+/// Trait that allows the query engine (which includes flight and storage/InfluxRPC) to access a
+/// virtual set of namespaces.
 ///
-/// The query engine MUST ONLY use this trait to access the databases / catalogs.
+/// The query engine MUST ONLY use this trait to access the namespaces / catalogs.
 #[async_trait]
-pub trait QueryDatabaseProvider: std::fmt::Debug + Send + Sync + 'static {
-    /// Abstract database.
-    type Db: ExecutionContextProvider + QueryDatabase;
+pub trait QueryNamespaceProvider: std::fmt::Debug + Send + Sync + 'static {
+    /// Abstract namespace.
+    type Db: ExecutionContextProvider + QueryNamespace;
 
-    /// Get database if it exists.
+    /// Get namespace if it exists.
     async fn db(&self, name: &str, span: Option<Span>) -> Option<Arc<Self::Db>>;
 
     /// Acquire concurrency-limiting sempahore

@@ -29,7 +29,7 @@ async fn run_table_names_test_case<D>(
         let planner = InfluxRpcPlanner::new(ctx.child_ctx("planner"));
 
         let plan = planner
-            .table_names(db.as_query_database_arc(), predicate.clone())
+            .table_names(db.as_query_namespace_arc(), predicate.clone())
             .await
             .expect("built plan successfully");
 

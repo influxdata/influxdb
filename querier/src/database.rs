@@ -9,7 +9,7 @@ use backoff::{Backoff, BackoffConfig};
 use data_types::{Namespace, ShardIndex};
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
-use service_common::QueryDatabaseProvider;
+use service_common::QueryNamespaceProvider;
 use sharder::JumpHash;
 use snafu::Snafu;
 use std::{collections::BTreeSet, sync::Arc};
@@ -65,7 +65,7 @@ pub struct QuerierDatabase {
     ///
     /// This should be a 1-to-1 relation to the number of active queries.
     ///
-    /// If the same database is requested twice for different queries, it is counted twice.
+    /// If the same namespace is requested twice for different queries, it is counted twice.
     query_execution_semaphore: Arc<InstrumentedAsyncSemaphore>,
 
     /// Sharder to determine which ingesters to query for a particular table and namespace.
@@ -79,7 +79,7 @@ pub struct QuerierDatabase {
 }
 
 #[async_trait]
-impl QueryDatabaseProvider for QuerierDatabase {
+impl QueryNamespaceProvider for QuerierDatabase {
     type Db = QuerierNamespace;
 
     async fn db(&self, name: &str, span: Option<Span>) -> Option<Arc<Self::Db>> {

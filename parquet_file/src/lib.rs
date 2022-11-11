@@ -24,7 +24,7 @@ use data_types::{NamespaceId, ParquetFile, PartitionId, ShardId, TableId};
 use object_store::path::Path;
 use uuid::Uuid;
 
-/// Location of a Parquet file within a database's object store.
+/// Location of a Parquet file within a namespace's object store.
 /// The exact format is an implementation detail and is subject to change.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct ParquetFilePath {

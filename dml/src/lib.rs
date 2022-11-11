@@ -186,7 +186,7 @@ impl From<DmlDelete> for DmlOperation {
     }
 }
 
-/// A collection of writes to potentially multiple tables within the same database
+/// A collection of writes to potentially multiple tables within the same namespace
 #[derive(Debug, Clone)]
 pub struct DmlWrite {
     /// The namespace being written to

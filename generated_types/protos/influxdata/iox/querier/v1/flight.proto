@@ -4,7 +4,7 @@ option go_package = "github.com/influxdata/iox/querier/v1";
 
 // Request body for ticket in "end-user to querier" flight requests.
 message ReadInfo {
-  // Namespace(/database) name.
+  // Namespace name.
   string namespace_name = 1;
 
   // SQL query.

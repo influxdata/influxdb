@@ -20,7 +20,7 @@ pub struct ParquetChunk {
     /// Schema that goes with this table's parquet file
     schema: Arc<Schema>,
 
-    /// Persists the parquet file within a database's relative path
+    /// Persists the parquet file within a namespace's relative path
     store: ParquetStorage,
 }
 

@@ -1,4 +1,4 @@
-//! Namespace within the whole database.
+//! Namespace within the whole catalog.
 
 use crate::{
     cache::{namespace::CachedNamespace, CatalogCache},
