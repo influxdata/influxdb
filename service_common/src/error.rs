@@ -1,6 +1,6 @@
 //! Routines for error handling
 
-use datafusion::error::DataFusionError;
+use datafusion::{arrow::error::ArrowError, error::DataFusionError};
 
 /// Converts a [`DataFusionError`] into the appropriate [`tonic::Code`]
 ///
@@ -21,7 +21,28 @@ use datafusion::error::DataFusionError;
 /// Basically because I wasn't sure they were all internal errors --
 /// for example, you can get an Arrow error if you try and divide a
 /// column by zero, depending on the data.
-pub fn datafusion_error_to_tonic_code(e: &DataFusionError) -> tonic::Code {
+pub fn datafusion_error_to_tonic_code(mut e: &DataFusionError) -> tonic::Code {
+    // traverse potential error chains
+    loop {
+        // traverse context chain without recursion
+        if let DataFusionError::Context(_msg, inner) = e {
+            e = inner;
+            continue;
+        }
+
+        // The Arrow error may itself contain a datafusion error again
+        // See https://github.com/apache/arrow-datafusion/issues/4172
+        if let DataFusionError::ArrowError(ArrowError::ExternalError(inner)) = e {
+            if let Some(inner) = inner.downcast_ref::<DataFusionError>() {
+                e = inner;
+                continue;
+            }
+        }
+
+        // no more traversal
+        break;
+    }
+
     match e {
         DataFusionError::ResourcesExhausted(_) => tonic::Code::ResourceExhausted,
         // Map as many as possible back into user visible (non internal) errors
@@ -55,10 +76,7 @@ pub fn datafusion_error_to_tonic_code(e: &DataFusionError) -> tonic::Code {
         // https://github.com/apache/arrow-datafusion/search?q=NotImplemented
         | DataFusionError::NotImplemented(_)
         | DataFusionError::Plan(_) => tonic::Code::InvalidArgument,
-        e @ DataFusionError::Context(_,_) => {
-            // traverse context chain without recursion
-            datafusion_error_to_tonic_code(leaf_error(e))
-        }
+        DataFusionError::Context(_,_) => unreachable!("handled in chain traversal above"),
         // Map as many as possible back into user visible
         // (non internal) errors and only treat the ones
         // the user likely can't do anything about as internal
@@ -73,15 +91,6 @@ pub fn datafusion_error_to_tonic_code(e: &DataFusionError) -> tonic::Code {
         // explicitly don't have a catchall here so any
         // newly added DataFusion error will raise a compiler error for us to address
     }
-}
-
-/// Returns a reference to the bottommost error in the chain
-fn leaf_error(inner: &DataFusionError) -> &DataFusionError {
-    let mut source = inner;
-    while let DataFusionError::Context(_msg, inner) = source {
-        source = inner;
-    }
-    source
 }
 
 #[cfg(test)]
