@@ -14,7 +14,7 @@ use futures::{SinkExt, Stream, StreamExt};
 use generated_types::influxdata::iox::querier::v1 as proto;
 use iox_query::{
     exec::{ExecutionContextProvider, IOxSessionContext},
-    QueryCompletedToken, QueryDatabase,
+    QueryCompletedToken, QueryNamespace,
 };
 use observability_deps::tracing::{debug, info, warn};
 use pin_project::{pin_project, pinned_drop};

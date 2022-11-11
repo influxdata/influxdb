@@ -1,5 +1,4 @@
-//! This module provides a reference implementation of
-//! [`QueryDatabase`] for use in testing.
+//! This module provides a reference implementation of [`QueryNamespace`] for use in testing.
 //!
 //! AKA it is a Mock
 
@@ -9,7 +8,7 @@ use crate::{
         ExecutionContextProvider, Executor, ExecutorType, IOxSessionContext,
     },
     Predicate, PredicateMatch, QueryChunk, QueryChunkData, QueryChunkMeta, QueryCompletedToken,
-    QueryDatabase, QueryText,
+    QueryNamespace, QueryText,
 };
 use arrow::{
     array::{
@@ -100,7 +99,7 @@ impl TestDatabase {
 }
 
 #[async_trait]
-impl QueryDatabase for TestDatabase {
+impl QueryNamespace for TestDatabase {
     async fn chunks(
         &self,
         table_name: &str,

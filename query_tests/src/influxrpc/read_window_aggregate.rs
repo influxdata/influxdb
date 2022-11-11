@@ -30,7 +30,7 @@ async fn run_read_window_aggregate_test_case<D>(
 
         let plan = planner
             .read_window_aggregate(
-                db.as_query_database_arc(),
+                db.as_query_namespace_arc(),
                 predicate.clone(),
                 agg,
                 every,

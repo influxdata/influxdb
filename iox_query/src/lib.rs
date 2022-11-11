@@ -89,7 +89,7 @@ pub trait QueryChunkMeta {
 }
 
 /// A `QueryCompletedToken` is returned by `record_query` implementations of
-/// a `QueryDatabase`. It is used to trigger side-effects (such as query timing)
+/// a `QueryNamespace`. It is used to trigger side-effects (such as query timing)
 /// on query completion.
 ///
 pub struct QueryCompletedToken {
@@ -136,22 +136,20 @@ impl Drop for QueryCompletedToken {
 /// This avoids storing potentially large strings
 pub type QueryText = Box<dyn std::fmt::Display + Send + Sync>;
 
-/// A `Database` is the main trait implemented by the IOx subsystems
-/// that store actual data.
+/// `QueryNamespace` is the main trait implemented by the IOx subsystems that store actual data.
 ///
-/// Databases store data organized by partitions and each partition stores
-/// data in Chunks.
+/// Namespaces store data organized by partitions and each partition stores data in Chunks.
 #[async_trait]
-pub trait QueryDatabase: QueryNamespaceMeta + Debug + Send + Sync {
-    /// Returns a set of chunks within the partition with data that may match
-    /// the provided predicate.
+pub trait QueryNamespace: QueryNamespaceMeta + Debug + Send + Sync {
+    /// Returns a set of chunks within the partition with data that may match the provided
+    /// predicate.
     ///
-    /// If possible, chunks which have no rows that can
-    /// possibly match the predicate may be omitted.
+    /// If possible, chunks which have no rows that can possibly match the predicate may be omitted.
     ///
-    /// If projection is None, returned chunks will include all columns of its original data. Otherwise,
-    /// returned chunks will include PK columns (tags and time) and columns specified in the projection. Projecting
-    /// chunks here is optional and a mere optimization. The query subsystem does NOT rely on it.
+    /// If projection is `None`, returned chunks will include all columns of its original data.
+    /// Otherwise, returned chunks will include PK columns (tags and time) and columns specified in
+    /// the projection. Projecting chunks here is optional and a mere optimization. The query
+    /// subsystem does NOT rely on it.
     async fn chunks(
         &self,
         table_name: &str,

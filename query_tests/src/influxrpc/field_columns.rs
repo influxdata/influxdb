@@ -32,7 +32,7 @@ async fn run_field_columns_test_case<D>(
         let planner = InfluxRpcPlanner::new(ctx.child_ctx("planner"));
 
         let plan = planner
-            .field_columns(db.as_query_database_arc(), predicate.clone())
+            .field_columns(db.as_query_namespace_arc(), predicate.clone())
             .await
             .expect("built plan successfully");
         let fields = ctx

@@ -16,7 +16,7 @@ use datafusion::{
 use datafusion_util::config::DEFAULT_SCHEMA;
 use iox_query::{
     exec::{ExecutionContextProvider, ExecutorType, IOxSessionContext},
-    QueryChunk, QueryCompletedToken, QueryDatabase, QueryText,
+    QueryChunk, QueryCompletedToken, QueryNamespace, QueryText,
 };
 use observability_deps::tracing::{debug, trace};
 use predicate::{rpc_predicate::QueryNamespaceMeta, Predicate};
@@ -37,7 +37,7 @@ impl QueryNamespaceMeta for QuerierNamespace {
 }
 
 #[async_trait]
-impl QueryDatabase for QuerierNamespace {
+impl QueryNamespace for QuerierNamespace {
     async fn chunks(
         &self,
         table_name: &str,

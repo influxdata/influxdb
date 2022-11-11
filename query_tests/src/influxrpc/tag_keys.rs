@@ -31,7 +31,7 @@ async fn run_tag_keys_test_case<D>(
         let planner = InfluxRpcPlanner::new(ctx.child_ctx("planner"));
 
         let plan = planner
-            .tag_keys(db.as_query_database_arc(), predicate.clone())
+            .tag_keys(db.as_query_namespace_arc(), predicate.clone())
             .await
             .expect("built plan successfully");
         let names = ctx
