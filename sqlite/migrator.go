@@ -70,6 +70,7 @@ func (m *Migrator) UpUntil(ctx context.Context, untilMigration int, source embed
 	var migrationsToDo int
 	if untilMigration < 1 {
 		migrationsToDo = len(knownMigrations[lastMigration:])
+		untilMigration = len(knownMigrations)
 	} else if untilMigration >= lastMigration {
 		migrationsToDo = len(knownMigrations[lastMigration:untilMigration])
 	} else {
