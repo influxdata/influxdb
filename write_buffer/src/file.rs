@@ -207,7 +207,6 @@ impl WriteBufferWriting for FileBufferProducer {
         let iox_headers = IoxHeaders::new(
             ContentType::Protobuf,
             operation.meta().span_context().cloned(),
-            operation.namespace().to_string(),
         );
 
         for (name, value) in iox_headers.headers() {

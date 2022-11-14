@@ -439,7 +439,7 @@ pub mod test_util {
 
     /// Asserts two writes are equal
     pub fn assert_writes_eq(a: &DmlWrite, b: &DmlWrite) {
-        assert_eq!(a.namespace, b.namespace);
+        assert_eq!(a.namespace_id, b.namespace_id);
         assert_eq!(a.partition_key(), b.partition_key());
 
         // Depending on what implementation is under test ( :( ) different
