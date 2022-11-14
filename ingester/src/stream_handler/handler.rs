@@ -575,12 +575,7 @@ mod tests {
             None,
             42,
         );
-        DmlDelete::new(
-            NamespaceId::new(namespace_id),
-            pred,
-            None,
-            sequence,
-        )
+        DmlDelete::new(NamespaceId::new(namespace_id), pred, None, sequence)
     }
 
     #[derive(Debug)]

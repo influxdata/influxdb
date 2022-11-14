@@ -541,7 +541,6 @@ pub(crate) fn make_partitions(
         ops.push(DmlOperation::Write(make_write_op(
             &PartitionKey::from(TEST_PARTITION_2),
             shard_index,
-            TEST_NAMESPACE,
             ns_id,
             table_id,
             seq_num,
@@ -552,7 +551,6 @@ pub(crate) fn make_partitions(
         ops.push(DmlOperation::Write(make_write_op(
             &PartitionKey::from(TEST_PARTITION_2),
             shard_index,
-            TEST_NAMESPACE,
             ns_id,
             table_id,
             seq_num,
@@ -563,7 +561,6 @@ pub(crate) fn make_partitions(
         ops.push(DmlOperation::Write(make_write_op(
             &PartitionKey::from(TEST_PARTITION_1),
             shard_index,
-            TEST_NAMESPACE,
             ns_id,
             table_id,
             seq_num,
@@ -574,7 +571,6 @@ pub(crate) fn make_partitions(
         ops.push(DmlOperation::Write(make_write_op(
             &PartitionKey::from(TEST_PARTITION_1),
             shard_index,
-            TEST_NAMESPACE,
             ns_id,
             table_id,
             seq_num,
@@ -588,7 +584,6 @@ pub(crate) fn make_partitions(
 pub(crate) fn make_write_op(
     partition_key: &PartitionKey,
     shard_index: ShardIndex,
-    _namespace: &str,
     namespace_id: NamespaceId,
     table_id: TableId,
     sequence_number: i64,
@@ -648,7 +643,6 @@ fn make_first_partition_data(
     out.push(DmlOperation::Write(make_write_op(
         partition_key,
         shard_index,
-        TEST_NAMESPACE,
         ns_id,
         table_id,
         seq_num,
@@ -659,7 +653,6 @@ fn make_first_partition_data(
     out.push(DmlOperation::Write(make_write_op(
         partition_key,
         shard_index,
-        TEST_NAMESPACE,
         ns_id,
         table_id,
         seq_num,
@@ -672,7 +665,6 @@ fn make_first_partition_data(
     out.push(DmlOperation::Write(make_write_op(
         partition_key,
         shard_index,
-        TEST_NAMESPACE,
         ns_id,
         table_id,
         seq_num,
@@ -683,7 +675,6 @@ fn make_first_partition_data(
     out.push(DmlOperation::Write(make_write_op(
         partition_key,
         shard_index,
-        TEST_NAMESPACE,
         ns_id,
         table_id,
         seq_num,
@@ -697,7 +688,6 @@ fn make_first_partition_data(
     out.push(DmlOperation::Write(make_write_op(
         partition_key,
         shard_index,
-        TEST_NAMESPACE,
         ns_id,
         table_id,
         seq_num,
@@ -708,7 +698,6 @@ fn make_first_partition_data(
     out.push(DmlOperation::Write(make_write_op(
         partition_key,
         shard_index,
-        TEST_NAMESPACE,
         ns_id,
         table_id,
         seq_num,
