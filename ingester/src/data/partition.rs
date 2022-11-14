@@ -73,8 +73,9 @@ pub struct PartitionData {
     shard_id: ShardId,
     namespace_id: NamespaceId,
     table_id: TableId,
-    /// The name of the table this partition is part of.
-    table_name: TableName,
+    /// The name of the table this partition is part of, potentially unresolved
+    /// / deferred.
+    table_name: Arc<DeferredLoad<TableName>>,
 
     /// A buffer for incoming writes.
     buffer: DataBuffer,
@@ -96,7 +97,7 @@ impl PartitionData {
         shard_id: ShardId,
         namespace_id: NamespaceId,
         table_id: TableId,
-        table_name: TableName,
+        table_name: Arc<DeferredLoad<TableName>>,
         sort_key: SortKeyState,
         max_persisted_sequence_number: Option<SequenceNumber>,
     ) -> Self {
@@ -385,7 +386,7 @@ impl PartitionData {
 
     /// Return the name of the table this [`PartitionData`] is buffering writes
     /// for.
-    pub(crate) fn table_name(&self) -> &TableName {
+    pub(crate) fn table_name(&self) -> &Arc<DeferredLoad<TableName>> {
         &self.table_name
     }
 
@@ -466,7 +467,9 @@ mod tests {
             ShardId::new(2),
             NamespaceId::new(3),
             TableId::new(4),
-            TABLE_NAME.clone(),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                TABLE_NAME.clone()
+            })),
             SortKeyState::Provided(None),
             None,
         );
@@ -585,7 +588,9 @@ mod tests {
             ShardId::new(2),
             NamespaceId::new(3),
             TableId::new(4),
-            TABLE_NAME.clone(),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                TABLE_NAME.clone()
+            })),
             SortKeyState::Provided(None),
             None,
         );
@@ -780,7 +785,9 @@ mod tests {
             ShardId::new(2),
             NamespaceId::new(3),
             TableId::new(4),
-            TABLE_NAME.clone(),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                TABLE_NAME.clone()
+            })),
             SortKeyState::Provided(None),
             None,
         );
@@ -893,7 +900,9 @@ mod tests {
             ShardId::new(1),
             NamespaceId::new(42),
             TableId::new(1),
-            "platanos".into(),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                TableName::from("platanos")
+            })),
             starting_state,
             None,
         );
@@ -949,7 +958,9 @@ mod tests {
             ShardId::new(1),
             NamespaceId::new(42),
             TableId::new(1),
-            "platanos".into(),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                TableName::from("platanos")
+            })),
             starting_state,
             None,
         );
@@ -971,7 +982,9 @@ mod tests {
             ShardId::new(2),
             NamespaceId::new(3),
             TableId::new(4),
-            TABLE_NAME.clone(),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                TABLE_NAME.clone()
+            })),
             SortKeyState::Provided(None),
             None,
         );
@@ -992,7 +1005,9 @@ mod tests {
             ShardId::new(2),
             NamespaceId::new(3),
             TableId::new(4),
-            TABLE_NAME.clone(),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                TABLE_NAME.clone()
+            })),
             SortKeyState::Provided(None),
             None,
         );
@@ -1008,7 +1023,9 @@ mod tests {
             ShardId::new(2),
             NamespaceId::new(3),
             TableId::new(4),
-            TABLE_NAME.clone(),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                TABLE_NAME.clone()
+            })),
             SortKeyState::Provided(None),
             None,
         );
@@ -1025,7 +1042,9 @@ mod tests {
             ShardId::new(2),
             NamespaceId::new(3),
             TableId::new(4),
-            TABLE_NAME.clone(),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                TABLE_NAME.clone()
+            })),
             SortKeyState::Provided(None),
             None,
         );
@@ -1050,7 +1069,9 @@ mod tests {
             ShardId::new(2),
             NamespaceId::new(3),
             TableId::new(4),
-            TABLE_NAME.clone(),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                TABLE_NAME.clone()
+            })),
             SortKeyState::Provided(None),
             None,
         );
@@ -1078,7 +1099,9 @@ mod tests {
             ShardId::new(2),
             NamespaceId::new(3),
             TableId::new(4),
-            TABLE_NAME.clone(),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                TABLE_NAME.clone()
+            })),
             SortKeyState::Provided(None),
             None,
         );
@@ -1112,7 +1135,9 @@ mod tests {
             ShardId::new(2),
             NamespaceId::new(3),
             TableId::new(4),
-            TABLE_NAME.clone(),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                TABLE_NAME.clone()
+            })),
             SortKeyState::Provided(None),
             None,
         );
@@ -1152,7 +1177,9 @@ mod tests {
             ShardId::new(2),
             NamespaceId::new(3),
             TableId::new(4),
-            TABLE_NAME.clone(),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                TABLE_NAME.clone()
+            })),
             SortKeyState::Provided(None),
             Some(SequenceNumber::new(42)),
         );
@@ -1180,7 +1207,9 @@ mod tests {
             ShardId::new(2),
             NamespaceId::new(3),
             TableId::new(4),
-            TABLE_NAME.clone(),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                TABLE_NAME.clone()
+            })),
             SortKeyState::Provided(None),
             Some(SequenceNumber::new(42)),
         );
@@ -1201,15 +1230,17 @@ mod tests {
 
     // Ensure an empty PartitionData does not panic due to constructing an empty
     // QueryAdaptor.
-    #[test]
-    fn test_empty_partition_no_queryadaptor_panic() {
+    #[tokio::test]
+    async fn test_empty_partition_no_queryadaptor_panic() {
         let mut p = PartitionData::new(
             PARTITION_ID,
             PARTITION_KEY.clone(),
             ShardId::new(2),
             NamespaceId::new(3),
             TableId::new(4),
-            TABLE_NAME.clone(),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                TABLE_NAME.clone()
+            })),
             SortKeyState::Provided(None),
             Some(SequenceNumber::new(42)),
         );

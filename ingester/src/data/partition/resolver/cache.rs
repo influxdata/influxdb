@@ -195,7 +195,7 @@ where
         shard_id: ShardId,
         namespace_id: NamespaceId,
         table_id: TableId,
-        table_name: TableName,
+        table_name: Arc<DeferredLoad<TableName>>,
     ) -> PartitionData {
         // Use the cached PartitionKey instead of the caller's partition_key,
         // instead preferring to reuse the already-shared Arc<str> in the cache.
@@ -277,7 +277,9 @@ mod tests {
             SHARD_ID,
             NAMESPACE_ID,
             TABLE_ID,
-            TABLE_NAME.into(),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                TableName::from(TABLE_NAME)
+            })),
             SortKeyState::Provided(None),
             None,
         );
@@ -290,14 +292,16 @@ mod tests {
                 SHARD_ID,
                 NAMESPACE_ID,
                 TABLE_ID,
-                TABLE_NAME.into(),
+                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                    TableName::from(TABLE_NAME)
+                })),
             )
             .await;
 
         assert_eq!(got.partition_id(), PARTITION_ID);
         assert_eq!(got.shard_id(), SHARD_ID);
         assert_eq!(got.table_id(), TABLE_ID);
-        assert_eq!(got.table_name(), TABLE_NAME);
+        assert_eq!(&**got.table_name().get().await, TABLE_NAME);
         assert!(cache.inner.is_empty());
     }
 
@@ -324,14 +328,16 @@ mod tests {
                 SHARD_ID,
                 NAMESPACE_ID,
                 TABLE_ID,
-                TABLE_NAME.into(),
+                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                    TableName::from(TABLE_NAME)
+                })),
             )
             .await;
 
         assert_eq!(got.partition_id(), PARTITION_ID);
         assert_eq!(got.shard_id(), SHARD_ID);
         assert_eq!(got.table_id(), TABLE_ID);
-        assert_eq!(got.table_name(), TABLE_NAME);
+        assert_eq!(&**got.table_name().get().await, TABLE_NAME);
         assert_eq!(*got.partition_key(), PartitionKey::from(PARTITION_KEY));
 
         // The cache should have been cleaned up as it was consumed.
@@ -356,7 +362,9 @@ mod tests {
             SHARD_ID,
             NAMESPACE_ID,
             TABLE_ID,
-            TABLE_NAME.into(),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                TableName::from(TABLE_NAME)
+            })),
             SortKeyState::Provided(None),
             None,
         ));
@@ -377,14 +385,16 @@ mod tests {
                 SHARD_ID,
                 NAMESPACE_ID,
                 TABLE_ID,
-                TABLE_NAME.into(),
+                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                    TableName::from(TABLE_NAME)
+                })),
             )
             .await;
 
         assert_eq!(got.partition_id(), other_key_id);
         assert_eq!(got.shard_id(), SHARD_ID);
         assert_eq!(got.table_id(), TABLE_ID);
-        assert_eq!(got.table_name(), TABLE_NAME);
+        assert_eq!(&**got.table_name().get().await, TABLE_NAME);
     }
 
     #[tokio::test]
@@ -396,7 +406,9 @@ mod tests {
             SHARD_ID,
             NAMESPACE_ID,
             other_table,
-            TABLE_NAME.into(),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                TableName::from(TABLE_NAME)
+            })),
             SortKeyState::Provided(None),
             None,
         ));
@@ -417,14 +429,16 @@ mod tests {
                 SHARD_ID,
                 NAMESPACE_ID,
                 other_table,
-                TABLE_NAME.into(),
+                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                    TableName::from(TABLE_NAME)
+                })),
             )
             .await;
 
         assert_eq!(got.partition_id(), PARTITION_ID);
         assert_eq!(got.shard_id(), SHARD_ID);
         assert_eq!(got.table_id(), other_table);
-        assert_eq!(got.table_name(), TABLE_NAME);
+        assert_eq!(&**got.table_name().get().await, TABLE_NAME);
     }
 
     #[tokio::test]
@@ -436,7 +450,9 @@ mod tests {
             other_shard,
             NAMESPACE_ID,
             TABLE_ID,
-            TABLE_NAME.into(),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                TableName::from(TABLE_NAME)
+            })),
             SortKeyState::Provided(None),
             None,
         ));
@@ -457,13 +473,15 @@ mod tests {
                 other_shard,
                 NAMESPACE_ID,
                 TABLE_ID,
-                TABLE_NAME.into(),
+                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                    TableName::from(TABLE_NAME)
+                })),
             )
             .await;
 
         assert_eq!(got.partition_id(), PARTITION_ID);
         assert_eq!(got.shard_id(), other_shard);
         assert_eq!(got.table_id(), TABLE_ID);
-        assert_eq!(got.table_name(), TABLE_NAME);
+        assert_eq!(&**got.table_name().get().await, TABLE_NAME);
     }
 }

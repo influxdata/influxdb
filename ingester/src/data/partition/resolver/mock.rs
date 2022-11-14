@@ -1,12 +1,15 @@
 //! A mock [`PartitionProvider`] to inject [`PartitionData`] for tests.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use data_types::{NamespaceId, PartitionKey, ShardId, TableId};
 use parking_lot::Mutex;
 
-use crate::data::{partition::PartitionData, table::TableName};
+use crate::{
+    data::{partition::PartitionData, table::TableName},
+    deferred_load::DeferredLoad,
+};
 
 use super::r#trait::PartitionProvider;
 
@@ -58,7 +61,7 @@ impl PartitionProvider for MockPartitionProvider {
         shard_id: ShardId,
         namespace_id: NamespaceId,
         table_id: TableId,
-        table_name: TableName,
+        table_name: Arc<DeferredLoad<TableName>>,
     ) -> PartitionData {
         let p = self
             .partitions

@@ -1,27 +1,27 @@
 use std::{sync::Arc, time::Duration};
 
 use backoff::{Backoff, BackoffConfig};
-use data_types::NamespaceId;
+use data_types::TableId;
 use iox_catalog::interface::Catalog;
 
 use crate::deferred_load::DeferredLoad;
 
-use super::NamespaceName;
+use super::TableName;
 
 /// An abstract provider of a [`DeferredLoad`] configured to fetch the
-/// [`NamespaceName`] of the specified [`NamespaceId`].
-pub(crate) trait NamespaceNameProvider: Send + Sync + std::fmt::Debug {
-    fn for_namespace(&self, id: NamespaceId) -> DeferredLoad<NamespaceName>;
+/// [`TableName`] of the specified [`TableId`].
+pub(crate) trait TableNameProvider: Send + Sync + std::fmt::Debug {
+    fn for_table(&self, id: TableId) -> DeferredLoad<TableName>;
 }
 
 #[derive(Debug)]
-pub(crate) struct NamespaceNameResolver {
+pub(crate) struct TableNameResolver {
     max_smear: Duration,
     catalog: Arc<dyn Catalog>,
     backoff_config: BackoffConfig,
 }
 
-impl NamespaceNameResolver {
+impl TableNameResolver {
     pub(crate) fn new(
         max_smear: Duration,
         catalog: Arc<dyn Catalog>,
@@ -34,22 +34,22 @@ impl NamespaceNameResolver {
         }
     }
 
-    /// Fetch the [`NamespaceName`] from the [`Catalog`] for specified
-    /// `namespace_id`, retrying endlessly when errors occur.
+    /// Fetch the [`TableName`] from the [`Catalog`] for specified
+    /// `table_id`, retrying endlessly when errors occur.
     pub(crate) async fn fetch(
-        namespace_id: NamespaceId,
+        table_id: TableId,
         catalog: Arc<dyn Catalog>,
         backoff_config: BackoffConfig,
-    ) -> NamespaceName {
+    ) -> TableName {
         Backoff::new(&backoff_config)
-            .retry_all_errors("fetch namespace name", || async {
+            .retry_all_errors("fetch table name", || async {
                 let s = catalog
                     .repositories()
                     .await
-                    .namespaces()
-                    .get_by_id(namespace_id)
+                    .tables()
+                    .get_by_id(table_id)
                     .await?
-                    .expect("resolving namespace name for non-existent namespace id")
+                    .expect("resolving table name for non-existent table id")
                     .name
                     .into();
 
@@ -60,8 +60,8 @@ impl NamespaceNameResolver {
     }
 }
 
-impl NamespaceNameProvider for NamespaceNameResolver {
-    fn for_namespace(&self, id: NamespaceId) -> DeferredLoad<NamespaceName> {
+impl TableNameProvider for TableNameResolver {
+    fn for_table(&self, id: TableId) -> DeferredLoad<TableName> {
         DeferredLoad::new(
             self.max_smear,
             Self::fetch(id, Arc::clone(&self.catalog), self.backoff_config.clone()),
@@ -74,24 +74,24 @@ pub(crate) mod mock {
     use super::*;
 
     #[derive(Debug)]
-    pub(crate) struct MockNamespaceNameProvider {
-        name: NamespaceName,
+    pub(crate) struct MockTableNameProvider {
+        name: TableName,
     }
 
-    impl MockNamespaceNameProvider {
-        pub(crate) fn new(name: impl Into<NamespaceName>) -> Self {
+    impl MockTableNameProvider {
+        pub(crate) fn new(name: impl Into<TableName>) -> Self {
             Self { name: name.into() }
         }
     }
 
-    impl Default for MockNamespaceNameProvider {
+    impl Default for MockTableNameProvider {
         fn default() -> Self {
             Self::new("bananas")
         }
     }
 
-    impl NamespaceNameProvider for MockNamespaceNameProvider {
-        fn for_namespace(&self, _id: NamespaceId) -> DeferredLoad<NamespaceName> {
+    impl TableNameProvider for MockTableNameProvider {
+        fn for_table(&self, _id: TableId) -> DeferredLoad<TableName> {
             let name = self.name.clone();
             DeferredLoad::new(Duration::from_secs(1), async { name })
         }
@@ -121,20 +121,20 @@ mod tests {
             Arc::new(iox_catalog::mem::MemCatalog::new(Arc::clone(&metrics)));
 
         // Populate the catalog with the shard / namespace / table
-        let (_shard_id, ns_id, _table_id) =
+        let (_shard_id, _ns_id, table_id) =
             populate_catalog(&*catalog, SHARD_INDEX, NAMESPACE_NAME, TABLE_NAME).await;
 
-        let fetcher = Arc::new(NamespaceNameResolver::new(
+        let fetcher = Arc::new(TableNameResolver::new(
             Duration::from_secs(10),
             Arc::clone(&catalog),
             backoff_config.clone(),
         ));
 
         let got = fetcher
-            .for_namespace(ns_id)
+            .for_table(table_id)
             .get()
             .with_timeout_panic(Duration::from_secs(5))
             .await;
-        assert_eq!(&**got, NAMESPACE_NAME);
+        assert_eq!(&**got, TABLE_NAME);
     }
 }

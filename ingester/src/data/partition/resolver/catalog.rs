@@ -9,9 +9,12 @@ use data_types::{NamespaceId, Partition, PartitionKey, ShardId, TableId};
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::debug;
 
-use crate::data::{
-    partition::{PartitionData, SortKeyState},
-    table::TableName,
+use crate::{
+    data::{
+        partition::{PartitionData, SortKeyState},
+        table::TableName,
+    },
+    deferred_load::DeferredLoad,
 };
 
 use super::r#trait::PartitionProvider;
@@ -58,7 +61,7 @@ impl PartitionProvider for CatalogPartitionResolver {
         shard_id: ShardId,
         namespace_id: NamespaceId,
         table_id: TableId,
-        table_name: TableName,
+        table_name: Arc<DeferredLoad<TableName>>,
     ) -> PartitionData {
         debug!(
             %partition_key,
@@ -89,7 +92,7 @@ impl PartitionProvider for CatalogPartitionResolver {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{sync::Arc, time::Duration};
 
     use assert_matches::assert_matches;
     use data_types::ShardIndex;
@@ -139,9 +142,15 @@ mod tests {
                 shard_id,
                 namespace_id,
                 table_id,
-                table_name.clone(),
+                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                    TableName::from(TABLE_NAME)
+                })),
             )
             .await;
+
+        // Ensure the table name is available.
+        let _ = got.table_name().get().await;
+
         assert_eq!(got.namespace_id(), namespace_id);
         assert_eq!(got.table_name().to_string(), table_name.to_string());
         assert_matches!(got.sort_key(), SortKeyState::Provided(None));

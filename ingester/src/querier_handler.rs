@@ -278,7 +278,7 @@ pub async fn prepare_data_to_querier(
             }
         };
 
-        if let Some(table_data) = namespace_data.table_id(request.table_id) {
+        if let Some(table_data) = namespace_data.table(request.table_id) {
             trace!(
                 shard_id=%shard_id.get(),
                 namespace_id=%request.namespace_id,
