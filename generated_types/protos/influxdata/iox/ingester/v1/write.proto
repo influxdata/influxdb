@@ -1,0 +1,15 @@
+syntax = "proto3";
+package influxdata.iox.ingester.v1;
+option go_package = "github.com/influxdata/iox/ingester/v1";
+
+import "influxdata/pbdata/v1/influxdb_pb_data_protocol.proto";
+
+service WriteService {
+  rpc Write(WriteRequest) returns (WriteResponse);
+}
+
+message WriteRequest {
+  influxdata.pbdata.v1.DatabaseBatch payload = 1;
+}
+
+message WriteResponse {}

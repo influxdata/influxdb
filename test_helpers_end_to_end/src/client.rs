@@ -1,7 +1,6 @@
 //! Client helpers for writing end to end ng tests
 use arrow::record_batch::RecordBatch;
 use futures::{stream::FuturesUnordered, StreamExt};
-use generated_types::influxdata::pbdata::v1::WriteResponse;
 use http::Response;
 use hyper::{Body, Client, Request};
 use influxdb_iox_client::{
@@ -44,18 +43,6 @@ pub fn get_write_token(response: &Response<Body>) -> String {
     let message = format!("no write token in {:?}", response);
     response
         .headers()
-        .get("X-IOx-Write-Token")
-        .expect(&message)
-        .to_str()
-        .expect("Value not a string")
-        .to_string()
-}
-
-/// Extracts the write token from the specified response (to the gRPC write API)
-pub fn get_write_token_from_grpc(response: &tonic::Response<WriteResponse>) -> String {
-    let message = format!("no write token in {:?}", response);
-    response
-        .metadata()
         .get("X-IOx-Write-Token")
         .expect(&message)
         .to_str()
