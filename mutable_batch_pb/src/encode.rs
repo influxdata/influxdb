@@ -12,7 +12,7 @@ use mutable_batch::MutableBatch;
 use schema::InfluxColumnType;
 
 /// Convert a [`DmlWrite`] to a [`DatabaseBatch`]
-pub fn encode_write(_db_name: &str, database_id: i64, write: &DmlWrite) -> DatabaseBatch {
+pub fn encode_write(database_id: i64, write: &DmlWrite) -> DatabaseBatch {
     DatabaseBatch {
         table_batches: write
             .tables()

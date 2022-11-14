@@ -214,7 +214,7 @@ pub fn encode_operation(
     let payload = match operation {
         DmlOperation::Write(write) => {
             let namespace_id = write.namespace_id().get();
-            let batch = mutable_batch_pb::encode::encode_write(db_name, namespace_id, write);
+            let batch = mutable_batch_pb::encode::encode_write(namespace_id, write);
             Payload::Write(batch)
         }
         DmlOperation::Delete(delete) => Payload::Delete(DeletePayload {
