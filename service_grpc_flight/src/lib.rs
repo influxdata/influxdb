@@ -127,6 +127,10 @@ struct ReadInfo {
 }
 
 impl ReadInfo {
+    /// The Go clients still use JSON tickets. See:
+    ///
+    /// - <https://github.com/influxdata/influxdb-iox-client-go/commit/2e7a3b0bd47caab7f1a31a1bbe0ff54aa9486b7b>
+    /// - <https://github.com/influxdata/influxdb-iox-client-go/commit/52f1a1b8d5bb8cc8dc2fe825f4da630ad0b9167c>
     fn decode_json(ticket: &[u8]) -> Result<Self> {
         let json_str = String::from_utf8(ticket.to_vec()).context(InvalidJsonTicketSnafu {})?;
 
@@ -466,6 +470,24 @@ mod tests {
     use tokio::pin;
 
     use super::*;
+
+    #[test]
+    fn json_ticket_decoding() {
+        // The Go clients still use JSON tickets. See:
+        //
+        // - <https://github.com/influxdata/influxdb-iox-client-go/commit/2e7a3b0bd47caab7f1a31a1bbe0ff54aa9486b7b>
+        // - <https://github.com/influxdata/influxdb-iox-client-go/commit/52f1a1b8d5bb8cc8dc2fe825f4da630ad0b9167c
+        //
+        // Do not change this test without having first changed what the Go clients are sending!
+        let ticket = Ticket {
+            ticket: br#"{"namespace_name": "my_db", "sql_query": "SELECT 1;"}"#.to_vec(),
+        };
+
+        let read_info = ReadInfo::decode_json(&ticket.ticket).unwrap();
+
+        assert_eq!(read_info.namespace_name, "my_db");
+        assert_eq!(read_info.sql_query, "SELECT 1;");
+    }
 
     #[tokio::test]
     async fn test_query_semaphore() {
