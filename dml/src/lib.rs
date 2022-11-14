@@ -160,12 +160,6 @@ impl DmlOperation {
     }
 
     /// Namespace catalog ID associated with this operation
-    ///
-    /// # Safety
-    ///
-    /// Marked unsafe because of the critical invariant; Kafka conumers MUST NOT
-    /// utilise this method until this warning is removed. See [`DmlWrite`]
-    /// docs.
     pub fn namespace_id(&self) -> NamespaceId {
         match self {
             Self::Write(w) => w.namespace_id(),
@@ -414,12 +408,6 @@ impl DmlDelete {
     }
 
     /// Return the [`NamespaceId`] to which this operation should be applied.
-    ///
-    /// # Safety
-    ///
-    /// Marked unsafe because of the critical invariant; Kafka conumers MUST NOT
-    /// utilise this method until this warning is removed. See [`DmlWrite`]
-    /// docs.
     pub fn namespace_id(&self) -> NamespaceId {
         self.namespace_id
     }
