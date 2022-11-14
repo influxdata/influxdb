@@ -1,8 +1,8 @@
 use std::{collections::HashMap, num::NonZeroU32, sync::Arc, time::Duration};
 
 use data_types::{
-    Namespace, NamespaceSchema, PartitionKey, QueryPoolId, Sequence, SequenceNumber, ShardId,
-    ShardIndex, TableId, TopicId,
+    Namespace, NamespaceId, NamespaceSchema, PartitionKey, QueryPoolId, Sequence, SequenceNumber,
+    ShardId, ShardIndex, TableId, TopicId,
 };
 use dml::{DmlMeta, DmlWrite};
 use futures::{stream::FuturesUnordered, StreamExt};
@@ -53,9 +53,9 @@ pub struct TestContext {
     topic_id: TopicId,
     shard_id: ShardId,
 
-    // A map of namespaces to schemas, also serving as the set of known
+    // A map of namespace IDs to schemas, also serving as the set of known
     // namespaces.
-    namespaces: HashMap<String, NamespaceSchema>,
+    namespaces: HashMap<NamespaceId, NamespaceSchema>,
 
     catalog: Arc<dyn Catalog>,
     object_store: Arc<DynObjectStore>,
@@ -188,7 +188,7 @@ impl TestContext {
         assert!(
             self.namespaces
                 .insert(
-                    name.to_owned(),
+                    ns.id,
                     NamespaceSchema::new(
                         ns.id,
                         self.topic_id,
@@ -219,7 +219,7 @@ impl TestContext {
     pub async fn enqueue_write(&mut self, op: DmlWrite) -> SequenceNumber {
         let schema = self
             .namespaces
-            .get_mut(op.namespace())
+            .get_mut(&op.namespace_id())
             .expect("namespace does not exist");
 
         // Pull the sequence number out of the op to return it back to the user
@@ -259,8 +259,13 @@ impl TestContext {
     ) -> SequenceNumber {
         // Resolve the namespace ID needed to construct the DML op
         let namespace_id = self
-            .namespaces
-            .get(namespace)
+            .catalog
+            .repositories()
+            .await
+            .namespaces()
+            .get_by_name(namespace)
+            .await
+            .expect("should be able to get namespace by name")
             .expect("namespace does not exist")
             .id;
 
@@ -307,8 +312,13 @@ impl TestContext {
     /// Return the [`TableId`] in the catalog for `name`, or panic.
     pub async fn table_id(&self, namespace: &str, name: &str) -> TableId {
         let namespace_id = self
-            .namespaces
-            .get(namespace)
+            .catalog
+            .repositories()
+            .await
+            .namespaces()
+            .get_by_name(namespace)
+            .await
+            .expect("should be able to get namespace by name")
             .expect("namespace does not exist")
             .id;
 
