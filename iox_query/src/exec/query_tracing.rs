@@ -369,11 +369,11 @@ mod tests {
     // children and time propagation
     #[test]
     fn children_and_timestamps() {
-        let ts1 = Utc.timestamp(1, 0);
-        let ts2 = Utc.timestamp(2, 0);
-        let ts3 = Utc.timestamp(3, 0);
-        let ts4 = Utc.timestamp(4, 0);
-        let ts5 = Utc.timestamp(5, 0);
+        let ts1 = Utc.timestamp_opt(1, 0).unwrap();
+        let ts2 = Utc.timestamp_opt(2, 0).unwrap();
+        let ts3 = Utc.timestamp_opt(3, 0).unwrap();
+        let ts4 = Utc.timestamp_opt(4, 0).unwrap();
+        let ts5 = Utc.timestamp_opt(5, 0).unwrap();
 
         let mut many_partition = MetricsSet::new();
         add_time_metrics(&mut many_partition, None, Some(ts2), Some(1));

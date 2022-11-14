@@ -767,7 +767,7 @@ mod tests {
 
         let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
-        let ignored_ts = Time::from_timestamp_millis(42);
+        let ignored_ts = Time::from_timestamp_millis(42).unwrap();
 
         let batch = lines_to_batches("mem foo=1 10", 0).unwrap();
         let w1 = DmlWrite::new(
@@ -883,7 +883,7 @@ mod tests {
             "1970-01-01".into(),
             DmlMeta::sequenced(
                 Sequence::new(ShardIndex::new(1), SequenceNumber::new(1)),
-                Time::from_timestamp_millis(42),
+                Time::from_timestamp_millis(42).unwrap(),
                 None,
                 50,
             ),
@@ -1000,7 +1000,7 @@ mod tests {
 
         let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
-        let ignored_ts = Time::from_timestamp_millis(42);
+        let ignored_ts = Time::from_timestamp_millis(42).unwrap();
 
         let batch = lines_to_batches("mem foo=1 10", 0).unwrap();
         let w1 = DmlWrite::new(
@@ -1292,7 +1292,7 @@ mod tests {
 
         let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
-        let ignored_ts = Time::from_timestamp_millis(42);
+        let ignored_ts = Time::from_timestamp_millis(42).unwrap();
 
         // write with sequence number 1
         let batch = lines_to_batches("mem foo=1 10", 0).unwrap();
@@ -1414,7 +1414,7 @@ mod tests {
 
         let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
-        let ignored_ts = Time::from_timestamp_millis(42);
+        let ignored_ts = Time::from_timestamp_millis(42).unwrap();
 
         let batch = lines_to_batches("mem foo=1 10", 0).unwrap();
         let w1 = DmlWrite::new(
@@ -1614,7 +1614,7 @@ mod tests {
 
         let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
-        let ignored_ts = Time::from_timestamp_millis(42);
+        let ignored_ts = Time::from_timestamp_millis(42).unwrap();
 
         let batch = lines_to_batches("mem foo=1 10", 0).unwrap();
         let w1 = DmlWrite::new(

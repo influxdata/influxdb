@@ -159,7 +159,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_metrics() {
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_millis(0)));
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_millis(0).unwrap()));
         let metric_registry = Arc::new(metric::Registry::new());
 
         let time_provider_captured = Arc::clone(&time_provider);

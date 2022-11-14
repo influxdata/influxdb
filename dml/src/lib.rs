@@ -496,7 +496,8 @@ pub mod test_util {
         let timestamp = m
             .producer_ts()
             .expect("no producer timestamp in de-aggregated metadata");
-        let timestamp = Time::from_timestamp_millis(timestamp.timestamp_millis());
+        let timestamp =
+            Time::from_timestamp_millis(timestamp.timestamp_millis()).expect("ts in range");
 
         DmlMeta::sequenced(
             *m.sequence().unwrap(),

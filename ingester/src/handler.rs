@@ -549,7 +549,7 @@ mod tests {
     async fn sequence_number_no_longer_exists() {
         maybe_start_logging();
 
-        let ingest_ts1 = Time::from_timestamp_millis(42);
+        let ingest_ts1 = Time::from_timestamp_millis(42).unwrap();
         let write_operations = vec![DmlWrite::new(
             "foo",
             NamespaceId::new(1),
@@ -577,7 +577,7 @@ mod tests {
     async fn sequence_number_after_watermark() {
         maybe_start_logging();
 
-        let ingest_ts1 = Time::from_timestamp_millis(42);
+        let ingest_ts1 = Time::from_timestamp_millis(42).unwrap();
         let write_operations = vec![DmlWrite::new(
             "foo",
             NamespaceId::new(1),
@@ -605,7 +605,7 @@ mod tests {
     async fn sequence_number_after_watermark_skip_to_oldest_available() {
         maybe_start_logging();
 
-        let ingest_ts1 = Time::from_timestamp_millis(42);
+        let ingest_ts1 = Time::from_timestamp_millis(42).unwrap();
         let write_operations = vec![DmlWrite::new(
             "foo",
             NamespaceId::new(1),

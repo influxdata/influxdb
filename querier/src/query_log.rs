@@ -168,7 +168,7 @@ mod test_super {
 
     #[test]
     fn test_query_log_entry_completed() {
-        let time_provider = MockProvider::new(Time::from_timestamp_millis(100));
+        let time_provider = MockProvider::new(Time::from_timestamp_millis(100).unwrap());
 
         let entry = Arc::new(QueryLogEntry::new(
             NamespaceId::new(1),
@@ -190,7 +190,7 @@ mod test_super {
         assert!(entry.success());
 
         // when the query completes some time in the future.
-        time_provider.set(Time::from_timestamp_millis(300));
+        time_provider.set(Time::from_timestamp_millis(300).unwrap());
         entry.set_completed(time_provider.now(), false);
         assert_eq!(
             entry.query_completed_duration(),

@@ -34,7 +34,11 @@ fn array_value_to_string(column: &ArrayRef, row: usize) -> Result<String> {
             const NANOS_IN_SEC: i64 = 1_000_000_000;
             let secs = ts_value / NANOS_IN_SEC;
             let nanos = (ts_value - (secs * NANOS_IN_SEC)) as u32;
-            let ts = NaiveDateTime::from_timestamp(secs, nanos);
+            let ts = NaiveDateTime::from_timestamp_opt(secs, nanos).ok_or_else(|| {
+                ArrowError::ExternalError(
+                    format!("Cannot process timestamp (secs={secs}, nanos={nanos})").into(),
+                )
+            })?;
             // treat as UTC
             let ts = DateTime::<Utc>::from_utc(ts, Utc);
             // convert to string in preferred influx format

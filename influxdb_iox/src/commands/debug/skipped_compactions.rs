@@ -15,6 +15,9 @@ pub enum Error {
 
     #[error("Client error: {0}")]
     Client(#[from] influxdb_iox_client::error::Error),
+
+    #[error("Invalid `skipped_at` timestamp: {0}s")]
+    InvalidTimestamp(i64),
 }
 
 /// Various commands for skipped compaction inspection
@@ -39,7 +42,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
     match config.command {
         Command::List => {
             let skipped_compactions = client.skipped_compactions().await?;
-            println!("{}", create_table(&skipped_compactions));
+            println!("{}", create_table(&skipped_compactions)?);
         }
 
         Command::Delete { partition_id } => {
@@ -51,7 +54,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
                 .map(std::slice::from_ref)
                 .unwrap_or_default();
 
-            println!("{}", create_table(deleted_skipped_compactions));
+            println!("{}", create_table(deleted_skipped_compactions)?);
         } // Deliberately not adding _ => so the compiler will direct people here to impl new
           // commands
     }
@@ -60,7 +63,8 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
 }
 
 /// Turn skipped compaction records into a table
-fn create_table(skipped_compactions: &[SkippedCompaction]) -> Table {
+#[allow(clippy::result_large_err)]
+fn create_table(skipped_compactions: &[SkippedCompaction]) -> Result<Table, Error> {
     let mut table = Table::new();
     table.load_preset("||--+-++|    ++++++");
 
@@ -79,7 +83,8 @@ fn create_table(skipped_compactions: &[SkippedCompaction]) -> Table {
     table.set_header(headers);
 
     for skipped_compaction in skipped_compactions {
-        let timestamp = Time::from_timestamp(skipped_compaction.skipped_at, 0);
+        let timestamp = Time::from_timestamp(skipped_compaction.skipped_at, 0)
+            .ok_or(Error::InvalidTimestamp(skipped_compaction.skipped_at))?;
 
         table.add_row(vec![
             Cell::new(skipped_compaction.partition_id.to_string()),
@@ -92,5 +97,5 @@ fn create_table(skipped_compactions: &[SkippedCompaction]) -> Table {
         ]);
     }
 
-    table
+    Ok(table)
 }
