@@ -15,8 +15,7 @@ use write_summary::ShardProgress;
 use super::triggers::TestTriggers;
 use super::{
     partition::resolver::PartitionProvider,
-    table::{name_resolver::TableNameProvider, TableData, TableName},
-    TABLE_NAME_PRE_FETCH,
+    table::{name_resolver::TableNameProvider, TableData},
 };
 use crate::{
     arcmap::ArcMap, data::DmlApplyAction, deferred_load::DeferredLoad, lifecycle::LifecycleHandle,
@@ -68,7 +67,6 @@ pub(crate) struct NamespaceData {
     ///
     /// [`TableName`]: crate::data::table::TableName
     tables: ArcMap<TableId, TableData>,
-    #[allow(unused)]
     table_name_resolver: Arc<dyn TableNameProvider>,
     /// The count of tables initialised in this Ingester so far, across all
     /// shards / namespaces.
@@ -186,16 +184,14 @@ impl NamespaceData {
                 // Extract the partition key derived by the router.
                 let partition_key = write.partition_key().clone();
 
-                for (table_name, table_id, b) in write.into_tables() {
+                for (_table_name, table_id, b) in write.into_tables() {
                     // Grab a reference to the table data, or insert a new
                     // TableData for it.
                     let table_data = self.tables.get_or_insert_with(&table_id, || {
                         self.table_count.inc(1);
                         Arc::new(TableData::new(
                             table_id,
-                            DeferredLoad::new(TABLE_NAME_PRE_FETCH, async {
-                                TableName::from(table_name)
-                            }),
+                            self.table_name_resolver.for_table(table_id),
                             self.shard_id,
                             self.namespace_id,
                             Arc::clone(&self.partition_provider),
@@ -324,7 +320,7 @@ mod tests {
     use crate::{
         data::{
             partition::{resolver::MockPartitionProvider, PartitionData, SortKeyState},
-            table::name_resolver::mock::MockTableNameProvider,
+            table::{name_resolver::mock::MockTableNameProvider, TableName},
         },
         deferred_load,
         lifecycle::mock_handle::MockLifecycleHandle,
