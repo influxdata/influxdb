@@ -829,7 +829,7 @@ mod tests {
     }
 
     async fn write(
-        namespace: &str,
+        _namespace: &str,
         producer: &RSKafkaProducer,
         trace_collector: &Arc<RingBufferTraceCollector>,
         shard_index: ShardIndex,
@@ -838,7 +838,6 @@ mod tests {
         let span_ctx = SpanContext::new(Arc::clone(trace_collector) as Arc<_>);
         let (tables, names) = lp_to_batches("table foo=1");
         let write = DmlWrite::new(
-            namespace,
             NamespaceId::new(42),
             tables,
             names,
@@ -850,14 +849,13 @@ mod tests {
     }
 
     async fn delete(
-        namespace: &str,
+        _namespace: &str,
         producer: &RSKafkaProducer,
         trace_collector: &Arc<RingBufferTraceCollector>,
         shard_index: ShardIndex,
     ) -> DmlMeta {
         let span_ctx = SpanContext::new(Arc::clone(trace_collector) as Arc<_>);
         let op = DmlOperation::Delete(DmlDelete::new(
-            namespace,
             NamespaceId::new(42),
             DeletePredicate {
                 range: TimestampRange::new(0, 1),

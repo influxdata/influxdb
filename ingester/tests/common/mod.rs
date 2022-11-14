@@ -294,7 +294,6 @@ impl TestContext {
             .await;
 
         self.enqueue_write(DmlWrite::new(
-            namespace,
             namespace_id,
             lines_to_batches(lp, 0).unwrap(),
             ids.clone(),

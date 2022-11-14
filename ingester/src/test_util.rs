@@ -588,7 +588,7 @@ pub(crate) fn make_partitions(
 pub(crate) fn make_write_op(
     partition_key: &PartitionKey,
     shard_index: ShardIndex,
-    namespace: &str,
+    _namespace: &str,
     namespace_id: NamespaceId,
     table_id: TableId,
     sequence_number: i64,
@@ -600,7 +600,6 @@ pub(crate) fn make_write_op(
 
     let ids = [(TEST_TABLE.into(), table_id)].into_iter().collect();
     DmlWrite::new(
-        namespace.to_string(),
         namespace_id,
         tables,
         ids,

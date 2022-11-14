@@ -199,7 +199,6 @@ impl DmlWrite {
     /// - a MutableBatch is empty
     /// - a MutableBatch lacks an i64 "time" column
     pub fn new(
-        _namespace: impl Into<String>,
         namespace_id: NamespaceId,
         tables: HashMap<String, MutableBatch>,
         table_ids: HashMap<String, TableId>,
@@ -337,7 +336,6 @@ pub struct DmlDelete {
 impl DmlDelete {
     /// Create a new [`DmlDelete`]
     pub fn new(
-        _namespace: impl Into<String>,
         namespace_id: NamespaceId,
         predicate: DeletePredicate,
         table_name: Option<NonEmptyString>,

@@ -553,7 +553,6 @@ mod tests {
             42,
         );
         DmlWrite::new(
-            "deprecated",
             NamespaceId::new(namespace_id),
             tables,
             ids,
@@ -577,7 +576,6 @@ mod tests {
             42,
         );
         DmlDelete::new(
-            "deprecated",
             NamespaceId::new(namespace_id),
             pred,
             None,

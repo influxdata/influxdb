@@ -835,7 +835,6 @@ impl MockIngester {
             0,
         );
         let op = DmlOperation::Write(DmlWrite::new(
-            self.ns.namespace.name.clone(),
             self.ns.namespace.id,
             mutable_batches,
             ids,
@@ -862,7 +861,6 @@ impl MockIngester {
             0,
         );
         DmlOperation::Delete(DmlDelete::new(
-            self.ns.namespace.name.clone(),
             self.ns.namespace.id,
             predicate,
             Some(NonEmptyString::new(delete_table_name).unwrap()),

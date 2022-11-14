@@ -278,7 +278,6 @@ mod tests {
             .map(|(i, v)| (v.clone(), TableId::new(i as _)))
             .collect();
         DmlWrite::new(
-            "bananas",
             NamespaceId::new(42),
             tables,
             ids,

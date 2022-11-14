@@ -392,7 +392,7 @@ pub mod test_utils {
 
     /// Writes line protocol and returns the [`DmlWrite`] that was written.
     pub async fn write(
-        namespace: &str,
+        _namespace: &str,
         writer: &impl WriteBufferWriting,
         lp: &str,
         shard_index: ShardIndex,
@@ -402,7 +402,6 @@ pub mod test_utils {
         let (tables, names) = lp_to_batches(lp);
 
         let write = DmlWrite::new(
-            namespace,
             NamespaceId::new(42),
             tables,
             names,
@@ -1251,7 +1250,6 @@ pub mod test_utils {
 
         let (tables, names) = lp_to_batches("upc user=1 100");
         let write = DmlWrite::new(
-            "foo",
             NamespaceId::new(42),
             tables,
             names,

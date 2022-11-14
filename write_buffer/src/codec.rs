@@ -178,7 +178,6 @@ pub fn decode(
                     };
 
                     Ok(DmlOperation::Write(DmlWrite::new(
-                        "deprecated",
                         NamespaceId::new(write.database_id),
                         tables,
                         ids.into_iter().map(|(k, v)| (k, TableId::new(v))).collect(),
@@ -193,7 +192,6 @@ pub fn decode(
                         .map_err(WriteBufferError::invalid_data)?;
 
                     Ok(DmlOperation::Delete(DmlDelete::new(
-                        "deprecated",
                         NamespaceId::new(delete.database_id),
                         predicate,
                         NonEmptyString::new(delete.table_name),
@@ -309,7 +307,6 @@ mod tests {
         let (data, ids) = lp_to_batches("platanos great=42 100\nbananas greatness=1000 100");
 
         let w = DmlWrite::new(
-            "bananas",
             NamespaceId::new(42),
             data,
             ids,

@@ -207,7 +207,6 @@ mod tests {
 
     use super::*;
 
-    const NAMESPACE: &str = "bananas";
     const SHARD_INDEX: ShardIndex = ShardIndex::new(42);
     const TIMESTAMP_MILLIS: i64 = 1659990497000;
 
@@ -233,7 +232,6 @@ mod tests {
             .collect();
 
         DmlOperation::Write(DmlWrite::new(
-            NAMESPACE.to_string(),
             NamespaceId::new(42),
             m,
             ids,

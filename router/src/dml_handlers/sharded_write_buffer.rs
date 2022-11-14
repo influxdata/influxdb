@@ -131,7 +131,6 @@ where
 
         let iter = collated.into_iter().map(|(shard, batch)| {
             let dml = DmlWrite::new(
-                namespace,
                 namespace_id,
                 batch,
                 table_ids.remove(&shard).unwrap(),
@@ -168,7 +167,6 @@ where
         let shards = self.sharder.shard(table_name, namespace, &predicate);
 
         let dml = DmlDelete::new(
-            namespace,
             namespace_id,
             predicate,
             NonEmptyString::new(table_name),

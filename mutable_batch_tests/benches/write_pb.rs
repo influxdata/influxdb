@@ -20,7 +20,6 @@ fn generate_pbdata_bytes() -> Vec<(String, (usize, Bytes))> {
                 .collect();
 
             let write = DmlWrite::new(
-                "test_db",
                 NamespaceId::new(42),
                 batches,
                 ids,
