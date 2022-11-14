@@ -35,8 +35,8 @@ pub enum Error {
     #[snafu(display("Invalid ticket. Error: {:?}", source))]
     InvalidTicket { source: prost::DecodeError },
 
-    #[snafu(display("Invalid legacy ticket. Error: {:?}", source))]
-    InvalidTicketLegacy { source: std::string::FromUtf8Error },
+    #[snafu(display("Invalid JSON ticket. Error: {:?}", source))]
+    InvalidJsonTicket { source: std::string::FromUtf8Error },
 
     #[snafu(display("Invalid query, could not parse '{}': {}", query, source))]
     InvalidQuery {
@@ -83,7 +83,7 @@ impl From<Error> for tonic::Status {
         match err {
             Error::NamespaceNotFound { .. }
             | Error::InvalidTicket { .. }
-            | Error::InvalidTicketLegacy { .. }
+            | Error::InvalidJsonTicket { .. }
             | Error::InvalidQuery { .. }
             // TODO(edd): this should be `debug`. Keeping at info whilst IOx still in early development
             | Error::InvalidNamespaceName { .. } => info!(e=%err, msg),
@@ -104,7 +104,7 @@ impl Error {
         let code = match self {
             Self::NamespaceNotFound { .. } => tonic::Code::NotFound,
             Self::InvalidTicket { .. }
-            | Self::InvalidTicketLegacy { .. }
+            | Self::InvalidJsonTicket { .. }
             | Self::InvalidQuery { .. }
             | Self::InvalidNamespaceName { .. } => tonic::Code::InvalidArgument,
             Self::Planning { source, .. } | Self::Query { source, .. } => {
@@ -127,8 +127,12 @@ struct ReadInfo {
 }
 
 impl ReadInfo {
+    /// The Go clients still use JSON tickets. See:
+    ///
+    /// - <https://github.com/influxdata/influxdb-iox-client-go/commit/2e7a3b0bd47caab7f1a31a1bbe0ff54aa9486b7b>
+    /// - <https://github.com/influxdata/influxdb-iox-client-go/commit/52f1a1b8d5bb8cc8dc2fe825f4da630ad0b9167c>
     fn decode_json(ticket: &[u8]) -> Result<Self> {
-        let json_str = String::from_utf8(ticket.to_vec()).context(InvalidTicketLegacySnafu {})?;
+        let json_str = String::from_utf8(ticket.to_vec()).context(InvalidJsonTicketSnafu {})?;
 
         let read_info: ReadInfo =
             serde_json::from_str(&json_str).context(InvalidQuerySnafu { query: &json_str })?;
@@ -226,7 +230,7 @@ where
 
         // decode ticket
         let read_info = ReadInfo::decode_protobuf(&ticket.ticket).or_else(|_e| {
-            // try legacy json
+            // try json
             ReadInfo::decode_json(&ticket.ticket)
         });
 
@@ -466,6 +470,24 @@ mod tests {
     use tokio::pin;
 
     use super::*;
+
+    #[test]
+    fn json_ticket_decoding() {
+        // The Go clients still use JSON tickets. See:
+        //
+        // - <https://github.com/influxdata/influxdb-iox-client-go/commit/2e7a3b0bd47caab7f1a31a1bbe0ff54aa9486b7b>
+        // - <https://github.com/influxdata/influxdb-iox-client-go/commit/52f1a1b8d5bb8cc8dc2fe825f4da630ad0b9167c
+        //
+        // Do not change this test without having first changed what the Go clients are sending!
+        let ticket = Ticket {
+            ticket: br#"{"namespace_name": "my_db", "sql_query": "SELECT 1;"}"#.to_vec(),
+        };
+
+        let read_info = ReadInfo::decode_json(&ticket.ticket).unwrap();
+
+        assert_eq!(read_info.namespace_name, "my_db");
+        assert_eq!(read_info.sql_query, "SELECT 1;");
+    }
 
     #[tokio::test]
     async fn test_query_semaphore() {
