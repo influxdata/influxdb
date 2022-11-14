@@ -117,10 +117,12 @@ func (s *Service) Open() (err error) {
 
 	s.Logger.Info("Started listening on UDP", zap.String("addr", s.config.BindAddress))
 
-	s.wg.Add(3)
+	s.wg.Add(2 + s.config.Writers)
 	go s.serve()
 	go s.parser()
-	go s.writer()
+	for i := 0; i < s.config.Writers; i++ {
+		go s.writer()
+	}
 
 	return nil
 }
