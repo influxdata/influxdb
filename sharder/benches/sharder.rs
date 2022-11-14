@@ -6,7 +6,7 @@ use criterion::{
 use data_types::NamespaceName;
 use mutable_batch::MutableBatch;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
-use sharder::{JumpHash, Sharder};
+use sharder::{JumpHash, RoundRobin, Sharder};
 
 fn get_random_string(length: usize) -> String {
     thread_rng()
@@ -16,83 +16,98 @@ fn get_random_string(length: usize) -> String {
         .collect()
 }
 
-fn sharder_benchmarks(c: &mut Criterion) {
-    let mut group = c.benchmark_group("sharder");
+fn sharder_benchmarks(mut c: &mut Criterion) {
+    benchmark_impl(&mut c, "jumphash", |num_buckets| {
+        JumpHash::new((0..num_buckets).map(Arc::new))
+    });
+
+    benchmark_impl(&mut c, "round_robin", |num_buckets| {
+        RoundRobin::new((0..num_buckets).map(Arc::new))
+    });
+}
+
+fn benchmark_impl<T, F>(c: &mut Criterion, name: &str, init: F)
+where
+    T: Sharder<MutableBatch>,
+    F: Fn(usize) -> T,
+{
+    let mut group = c.benchmark_group(name);
 
     // benchmark sharder with fixed table name and namespace, with varying number of buckets
-    benchmark_sharder(
+    benchmark_scenario(
         &mut group,
-        1_000,
         "basic 1k buckets",
         "table",
         &NamespaceName::try_from("namespace").unwrap(),
+        init(1_000),
     );
-    benchmark_sharder(
+    benchmark_scenario(
         &mut group,
-        10_000,
         "basic 10k buckets",
         "table",
         &NamespaceName::try_from("namespace").unwrap(),
+        init(10_000),
     );
-    benchmark_sharder(
+    benchmark_scenario(
         &mut group,
-        100_000,
         "basic 100k buckets",
         "table",
         &NamespaceName::try_from("namespace").unwrap(),
+        init(100_000),
     );
-    benchmark_sharder(
+    benchmark_scenario(
         &mut group,
-        1_000_000,
         "basic 1M buckets",
         "table",
         &NamespaceName::try_from("namespace").unwrap(),
+        init(1_000_000),
     );
 
     // benchmark sharder with random table name and namespace of length 16
-    benchmark_sharder(
+    benchmark_scenario(
         &mut group,
-        10_000,
         "random with key-length 16",
         get_random_string(16).as_str(),
         &NamespaceName::try_from(get_random_string(16)).unwrap(),
+        init(10_000),
     );
 
     // benchmark sharder with random table name and namespace of length 32
-    benchmark_sharder(
+    benchmark_scenario(
         &mut group,
-        10_000,
         "random with key-length 32",
         get_random_string(32).as_str(),
         &NamespaceName::try_from(get_random_string(32)).unwrap(),
+        init(10_000),
     );
 
     // benchmark sharder with random table name and namespace of length 64
-    benchmark_sharder(
+    benchmark_scenario(
         &mut group,
-        10_000,
         "random with key-length 64",
         get_random_string(64).as_str(),
         &NamespaceName::try_from(get_random_string(64)).unwrap(),
+        init(10_000),
     );
 
     group.finish();
 }
 
-fn benchmark_sharder(
+fn benchmark_scenario<T>(
     group: &mut BenchmarkGroup<WallTime>,
-    num_buckets: usize,
     bench_name: &str,
     table: &str,
     namespace: &NamespaceName<'_>,
-) {
-    let hasher = JumpHash::new((0..num_buckets).map(Arc::new));
+    sharder: T,
+) where
+    T: Sharder<MutableBatch>,
+{
     let batch = MutableBatch::default();
 
     group.throughput(Throughput::Elements(1));
     group.bench_function(bench_name, |b| {
         b.iter(|| {
-            hasher.shard(table, namespace, &batch);
+            sharder.shard(table, namespace, &batch);
         });
     });
 }
