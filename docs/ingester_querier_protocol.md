@@ -9,8 +9,8 @@ The `DoGet` ticket contains a [Protocol Buffer] message
 `influxdata.iox.ingester.v1.IngesterQueryRequest` (see our `generated_types` crate). This message
 contains:
 
-- **namespace:** The namespace of the query.
-- **table:** The table that we request.
+- **namespace ID:** The catalog namespace ID of the query.
+- **table ID:** The catalog table ID that we request.
 - **columns:** List of columns that the querier wants. If the ingester does NOT know about a
   specified column, it may just ignore that column (i.e. the resulting data is the intersection of
   the request and the ingester data).
