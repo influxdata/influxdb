@@ -12,9 +12,8 @@ use mutable_batch::MutableBatch;
 use schema::InfluxColumnType;
 
 /// Convert a [`DmlWrite`] to a [`DatabaseBatch`]
-pub fn encode_write(db_name: &str, database_id: i64, write: &DmlWrite) -> DatabaseBatch {
+pub fn encode_write(_db_name: &str, database_id: i64, write: &DmlWrite) -> DatabaseBatch {
     DatabaseBatch {
-        database_name: db_name.to_string(),
         table_batches: write
             .tables()
             .map(|(table_name, batch)| {
@@ -24,8 +23,8 @@ pub fn encode_write(db_name: &str, database_id: i64, write: &DmlWrite) -> Databa
                 // can be removed.
                 let table_id = write.table_id(table_name).unwrap_or_else(|| {
                     panic!(
-                        "no table ID mapping found for {} table {}",
-                        db_name, table_name
+                        "no table ID mapping found for namespace ID {} table {}",
+                        database_id, table_name
                     )
                 });
                 encode_batch(table_name, table_id.get(), batch)
