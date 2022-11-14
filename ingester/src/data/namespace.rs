@@ -15,7 +15,7 @@ use write_summary::ShardProgress;
 use super::triggers::TestTriggers;
 use super::{
     partition::resolver::PartitionProvider,
-    table::{TableData, TableName},
+    table::{name_resolver::TableNameProvider, TableData, TableName},
     TABLE_NAME_PRE_FETCH,
 };
 use crate::{
@@ -60,7 +60,18 @@ pub(crate) struct NamespaceData {
     /// The catalog ID of the shard this namespace is being populated from.
     shard_id: ShardId,
 
+    /// A set of tables this [`NamespaceData`] instance has processed
+    /// [`DmlOperation`]'s for.
+    ///
+    /// The [`TableNameProvider`] acts as a [`DeferredLoad`] constructor to
+    /// resolve the [`TableName`] for new [`TableData`] out of the hot path.
+    ///
+    /// [`TableName`]: crate::data::table::TableName
     tables: ArcMap<TableId, TableData>,
+    #[allow(unused)]
+    table_name_resolver: Arc<dyn TableNameProvider>,
+    /// The count of tables initialised in this Ingester so far, across all
+    /// shards / namespaces.
     table_count: U64Counter,
 
     /// The resolver of `(shard_id, table_id, partition_key)` to
@@ -120,6 +131,7 @@ impl NamespaceData {
     pub(super) fn new(
         namespace_id: NamespaceId,
         namespace_name: DeferredLoad<NamespaceName>,
+        table_name_resolver: Arc<dyn TableNameProvider>,
         shard_id: ShardId,
         partition_provider: Arc<dyn PartitionProvider>,
         metrics: &metric::Registry,
@@ -136,6 +148,7 @@ impl NamespaceData {
             namespace_name,
             shard_id,
             tables: Default::default(),
+            table_name_resolver,
             table_count,
             buffering_sequence_number: RwLock::new(None),
             partition_provider,
@@ -309,7 +322,10 @@ mod tests {
     use metric::{Attributes, Metric};
 
     use crate::{
-        data::partition::{resolver::MockPartitionProvider, PartitionData, SortKeyState},
+        data::{
+            partition::{resolver::MockPartitionProvider, PartitionData, SortKeyState},
+            table::name_resolver::mock::MockTableNameProvider,
+        },
         deferred_load,
         lifecycle::mock_handle::MockLifecycleHandle,
         test_util::{make_write_op, TEST_TABLE},
@@ -348,6 +364,7 @@ mod tests {
         let ns = NamespaceData::new(
             NAMESPACE_ID,
             DeferredLoad::new(Duration::from_millis(1), async { NAMESPACE_NAME.into() }),
+            Arc::new(MockTableNameProvider::new(TABLE_NAME)),
             SHARD_ID,
             partition_provider,
             &metrics,

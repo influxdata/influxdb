@@ -1,5 +1,7 @@
 //! Table level data buffer structures.
 
+pub(crate) mod name_resolver;
+
 use std::sync::Arc;
 
 use data_types::{NamespaceId, PartitionId, PartitionKey, SequenceNumber, ShardId, TableId};

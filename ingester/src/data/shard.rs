@@ -10,6 +10,7 @@ use write_summary::ShardProgress;
 use super::{
     namespace::{name_resolver::NamespaceNameProvider, NamespaceData},
     partition::resolver::PartitionProvider,
+    table::name_resolver::TableNameProvider,
     DmlApplyAction,
 };
 use crate::{arcmap::ArcMap, lifecycle::LifecycleHandle};
@@ -39,6 +40,12 @@ pub(crate) struct ShardData {
     /// [`NamespaceName`]: data_types::NamespaceName
     namespaces: ArcMap<NamespaceId, NamespaceData>,
     namespace_name_resolver: Arc<dyn NamespaceNameProvider>,
+    /// The [`TableName`] provider used by [`NamespaceData`] to initialise a
+    /// [`TableData`].
+    ///
+    /// [`TableName`]: crate::data::table::TableName
+    /// [`TableData`]: crate::data::table::TableData
+    table_name_resolver: Arc<dyn TableNameProvider>,
 
     metrics: Arc<metric::Registry>,
     namespace_count: U64Counter,
@@ -50,6 +57,7 @@ impl ShardData {
         shard_index: ShardIndex,
         shard_id: ShardId,
         namespace_name_resolver: Arc<dyn NamespaceNameProvider>,
+        table_name_resolver: Arc<dyn TableNameProvider>,
         partition_provider: Arc<dyn PartitionProvider>,
         metrics: Arc<metric::Registry>,
     ) -> Self {
@@ -65,6 +73,7 @@ impl ShardData {
             shard_id,
             namespaces: Default::default(),
             namespace_name_resolver,
+            table_name_resolver,
             metrics,
             partition_provider,
             namespace_count,
@@ -86,6 +95,7 @@ impl ShardData {
             Arc::new(NamespaceData::new(
                 namespace_id,
                 self.namespace_name_resolver.for_namespace(namespace_id),
+                Arc::clone(&self.table_name_resolver),
                 self.shard_id,
                 Arc::clone(&self.partition_provider),
                 &self.metrics,
@@ -131,7 +141,7 @@ mod tests {
         data::{
             namespace::name_resolver::mock::MockNamespaceNameProvider,
             partition::{resolver::MockPartitionProvider, PartitionData, SortKeyState},
-            table::TableName,
+            table::{name_resolver::mock::MockTableNameProvider, TableName},
         },
         deferred_load::DeferredLoad,
         lifecycle::mock_handle::MockLifecycleHandle,
@@ -172,6 +182,7 @@ mod tests {
             SHARD_INDEX,
             SHARD_ID,
             Arc::new(MockNamespaceNameProvider::new(NAMESPACE_NAME)),
+            Arc::new(MockTableNameProvider::new(TABLE_NAME)),
             partition_provider,
             Arc::clone(&metrics),
         );

@@ -72,7 +72,7 @@ mod tests {
             shard_id,
             namespace_id,
             table_id,
-            table_name.clone(),
+            Arc::clone(&table_name),
             SortKeyState::Provided(None),
             None,
         );

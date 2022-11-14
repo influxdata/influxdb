@@ -45,6 +45,7 @@ use self::{
     namespace::name_resolver::{NamespaceNameProvider, NamespaceNameResolver},
     partition::resolver::{CatalogPartitionResolver, PartitionCache, PartitionProvider},
     shard::ShardData,
+    table::name_resolver::{TableNameProvider, TableNameResolver},
 };
 
 #[cfg(test)]
@@ -204,6 +205,13 @@ impl IngesterData {
                 backoff_config.clone(),
             ));
 
+        // Initialise the deferred table name resolver.
+        let table_name_provider: Arc<dyn TableNameProvider> = Arc::new(TableNameResolver::new(
+            TABLE_NAME_PRE_FETCH,
+            Arc::clone(&catalog),
+            backoff_config.clone(),
+        ));
+
         let shards = shards
             .into_iter()
             .map(|(id, index)| {
@@ -213,6 +221,7 @@ impl IngesterData {
                         index,
                         id,
                         Arc::clone(&namespace_name_provider),
+                        Arc::clone(&table_name_provider),
                         Arc::clone(&partition_provider),
                         Arc::clone(&metrics),
                     ),
@@ -356,7 +365,7 @@ impl Persister for IngesterData {
 
         // Begin resolving the load-deferred name concurrently if it is not
         // already available.
-        let table_name = Arc::clone(&table_data.table_name());
+        let table_name = Arc::clone(table_data.table_name());
         table_name.prefetch_now();
 
         let partition = table_data.get_partition(partition_id).unwrap_or_else(|| {
@@ -381,7 +390,7 @@ impl Persister for IngesterData {
             assert_eq!(guard.shard_id(), shard_id);
             assert_eq!(guard.namespace_id(), namespace_id);
             assert_eq!(guard.table_id(), table_id);
-            assert!(Arc::ptr_eq(&*guard.table_name(), &table_name));
+            assert!(Arc::ptr_eq(guard.table_name(), &table_name));
 
             partition_key = guard.partition_key().clone();
             sort_key = guard.sort_key().clone();
@@ -711,7 +720,10 @@ mod tests {
 
     use super::*;
     use crate::{
-        data::{namespace::NamespaceData, partition::resolver::CatalogPartitionResolver},
+        data::{
+            namespace::NamespaceData, partition::resolver::CatalogPartitionResolver,
+            table::name_resolver::mock::MockTableNameProvider,
+        },
         deferred_load::DeferredLoad,
         lifecycle::{LifecycleConfig, LifecycleManager},
     };
@@ -1515,6 +1527,7 @@ mod tests {
         let data = NamespaceData::new(
             namespace.id,
             DeferredLoad::new(Duration::from_millis(1), async { "foo".into() }),
+            Arc::new(MockTableNameProvider::new(table.name)),
             shard.id,
             partition_provider,
             &metrics,
