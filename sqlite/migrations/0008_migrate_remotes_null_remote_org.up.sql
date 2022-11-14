@@ -1,5 +1,6 @@
 -- Removes the "NOT NULL" from remote_org_id
 ALTER TABLE remotes RENAME TO _remotes_old;
+DROP INDEX idx_remote_url_per_org;
 
 CREATE TABLE remotes (
     id VARCHAR(16) NOT NULL PRIMARY KEY,
@@ -28,7 +29,6 @@ INSERT INTO remotes (
     created_at,
     updated_at
 ) SELECT * FROM _remotes_old;
-DROP TABLE _remotes_old;
 -- Create indexes on lookup patterns we expect to be common
 CREATE INDEX idx_remote_url_per_org ON remotes (org_id, remote_url);
 
@@ -76,6 +76,7 @@ INSERT INTO replications (
     updated_at
 ) SELECT * FROM _replications_old;
 DROP TABLE _replications_old;
+DROP TABLE _remotes_old;
 
 -- Create indexes on lookup patterns we expect to be common
 CREATE INDEX idx_local_bucket_id_per_org ON replications (org_id, local_bucket_id);
