@@ -151,14 +151,6 @@ impl DmlOperation {
         }
     }
 
-    /// Namespace associated with this operation
-    pub fn namespace(&self) -> &str {
-        match self {
-            Self::Write(w) => w.namespace(),
-            Self::Delete(d) => d.namespace(),
-        }
-    }
-
     /// Namespace catalog ID associated with this operation
     pub fn namespace_id(&self) -> NamespaceId {
         match self {
@@ -184,7 +176,6 @@ impl From<DmlDelete> for DmlOperation {
 #[derive(Debug, Clone)]
 pub struct DmlWrite {
     /// The namespace being written to
-    namespace: String,
     namespace_id: NamespaceId,
     /// Writes to individual tables keyed by table name
     tables: HashMap<String, MutableBatch>,
@@ -208,7 +199,7 @@ impl DmlWrite {
     /// - a MutableBatch is empty
     /// - a MutableBatch lacks an i64 "time" column
     pub fn new(
-        namespace: impl Into<String>,
+        _namespace: impl Into<String>,
         namespace_id: NamespaceId,
         tables: HashMap<String, MutableBatch>,
         table_ids: HashMap<String, TableId>,
@@ -236,7 +227,6 @@ impl DmlWrite {
         }
 
         Self {
-            namespace: namespace.into(),
             tables,
             table_ids,
             partition_key,
@@ -245,11 +235,6 @@ impl DmlWrite {
             max_timestamp: stats.max.unwrap(),
             namespace_id,
         }
-    }
-
-    /// Namespace associated with this write
-    pub fn namespace(&self) -> &str {
-        &self.namespace
     }
 
     /// Metadata associated with this write
@@ -343,7 +328,6 @@ impl DmlWrite {
 /// A delete operation
 #[derive(Debug, Clone, PartialEq)]
 pub struct DmlDelete {
-    namespace: String,
     namespace_id: NamespaceId,
     predicate: DeletePredicate,
     table_name: Option<NonEmptyString>,
@@ -353,24 +337,18 @@ pub struct DmlDelete {
 impl DmlDelete {
     /// Create a new [`DmlDelete`]
     pub fn new(
-        namespace: impl Into<String>,
+        _namespace: impl Into<String>,
         namespace_id: NamespaceId,
         predicate: DeletePredicate,
         table_name: Option<NonEmptyString>,
         meta: DmlMeta,
     ) -> Self {
         Self {
-            namespace: namespace.into(),
             namespace_id,
             predicate,
             table_name,
             meta,
         }
-    }
-
-    /// Namespace associated with this delete
-    pub fn namespace(&self) -> &str {
-        &self.namespace
     }
 
     /// Returns the table_name for this delete

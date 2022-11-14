@@ -179,7 +179,6 @@ async fn test_write_ok() {
     let writes = ctx.write_buffer_state().get_messages(ShardIndex::new(0));
     assert_eq!(writes.len(), 1);
     assert_matches!(writes.as_slice(), [Ok(DmlOperation::Write(w))] => {
-        assert_eq!(w.namespace(), "bananas_test");
         assert!(w.table("platanos").is_some());
     });
 
@@ -406,7 +405,6 @@ async fn test_write_propagate_ids() {
     let writes = ctx.write_buffer_state().get_messages(ShardIndex::new(0));
     assert_eq!(writes.len(), 1);
     assert_matches!(writes.as_slice(), [Ok(DmlOperation::Write(w))] => {
-        assert_eq!(w.namespace(), "bananas_test");
         assert_eq!(w.namespace_id(), ns.id);
         assert!(w.table("platanos").is_some());
 
@@ -458,7 +456,6 @@ async fn test_delete_propagate_ids() {
     let writes = ctx.write_buffer_state().get_messages(ShardIndex::new(0));
     assert_eq!(writes.len(), 1);
     assert_matches!(writes.as_slice(), [Ok(DmlOperation::Delete(w))] => {
-        assert_eq!(w.namespace(), "bananas_test");
         assert_eq!(w.namespace_id(), ns.id);
     });
 }

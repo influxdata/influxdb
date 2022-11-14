@@ -509,7 +509,7 @@ mod tests {
             .expect("write should have been successful");
         assert_matches!(got, DmlOperation::Delete(d) => {
             assert_eq!(d.table_name(), Some(TABLE));
-            assert_eq!(d.namespace(), &*ns);
+            assert_eq!(d.namespace_id().get(), 42);
             assert_eq!(*d.predicate(), predicate);
         });
     }

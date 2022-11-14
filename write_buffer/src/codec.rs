@@ -332,13 +332,11 @@ mod tests {
         )
         .expect("failed to decode valid wire format");
 
-        assert_eq!("deprecated", got.namespace());
         let got = match got {
             DmlOperation::Write(w) => w,
             _ => panic!("wrong op type"),
         };
 
-        assert_eq!("deprecated", got.namespace());
         assert_eq!(w.namespace_id(), got.namespace_id());
         assert_eq!(w.table_count(), got.table_count());
         assert_eq!(w.min_timestamp(), got.min_timestamp());

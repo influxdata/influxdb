@@ -311,7 +311,7 @@ mod tests {
             .try_push(write.clone())
             .expect("aggregate call should succeed");
         match res {
-            TryPush::NoCapacity(res) => assert_eq!(res.namespace(), write.namespace()),
+            TryPush::NoCapacity(res) => assert_eq!(res.namespace_id(), write.namespace_id()),
             TryPush::Aggregated(_) => panic!("expected no capacity"),
         };
     }
