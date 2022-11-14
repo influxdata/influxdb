@@ -250,9 +250,9 @@ mod tests {
 
     #[test]
     fn test_record_aggregate() {
-        let clock = Arc::new(MockProvider::new(Time::from_timestamp_millis(
-            TIMESTAMP_MILLIS,
-        )));
+        let clock = Arc::new(MockProvider::new(
+            Time::from_timestamp_millis(TIMESTAMP_MILLIS).unwrap(),
+        ));
         let mut agg = RecordAggregator::new(SHARD_INDEX, usize::MAX, clock);
         let write = test_op();
 
@@ -304,7 +304,7 @@ mod tests {
         );
         assert_eq!(
             got.producer_ts().expect("no producer timestamp"),
-            Time::from_timestamp_millis(TIMESTAMP_MILLIS)
+            Time::from_timestamp_millis(TIMESTAMP_MILLIS).unwrap(),
         );
         assert_eq!(
             got.bytes_read().expect("no approx size"),
@@ -314,9 +314,9 @@ mod tests {
 
     #[test]
     fn test_record_aggregate_no_capacity() {
-        let clock = Arc::new(MockProvider::new(Time::from_timestamp_millis(
-            TIMESTAMP_MILLIS,
-        )));
+        let clock = Arc::new(MockProvider::new(
+            Time::from_timestamp_millis(TIMESTAMP_MILLIS).unwrap(),
+        ));
         let mut agg = RecordAggregator::new(SHARD_INDEX, usize::MIN, clock);
         let write = test_op();
 

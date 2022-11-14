@@ -817,14 +817,14 @@ mod tests {
     fn test_time_or_never_ord() {
         assert!(TimeOrNever::Never == TimeOrNever::Never);
         assert!(
-            TimeOrNever::Time(Time::from_timestamp_millis(1))
-                == TimeOrNever::Time(Time::from_timestamp_millis(1))
+            TimeOrNever::Time(Time::from_timestamp_millis(1).unwrap())
+                == TimeOrNever::Time(Time::from_timestamp_millis(1).unwrap())
         );
         assert!(
-            TimeOrNever::Time(Time::from_timestamp_millis(1))
-                < TimeOrNever::Time(Time::from_timestamp_millis(2))
+            TimeOrNever::Time(Time::from_timestamp_millis(1).unwrap())
+                < TimeOrNever::Time(Time::from_timestamp_millis(2).unwrap())
         );
-        assert!(TimeOrNever::Time(Time::from_timestamp_millis(1)) < TimeOrNever::Never);
+        assert!(TimeOrNever::Time(Time::from_timestamp_millis(1).unwrap()) < TimeOrNever::Never);
     }
 
     #[test]

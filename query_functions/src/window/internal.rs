@@ -145,7 +145,7 @@ fn timestamp_to_datetime(ts: i64) -> DateTime<Utc> {
     let nsec = ts % 1_000_000_000;
     // Note that nsec as u32 is safe here because modulo on a negative ts value
     //  still produces a positive remainder.
-    let datetime = NaiveDateTime::from_timestamp(secs, nsec as u32);
+    let datetime = NaiveDateTime::from_timestamp_opt(secs, nsec as u32).expect("ts in range");
     DateTime::from_utc(datetime, Utc)
 }
 
@@ -193,8 +193,9 @@ fn to_timestamp_nanos_utc(
     sec: u32,
     nano: u32,
 ) -> i64 {
-    let ndate = NaiveDate::from_ymd(year, month, day);
-    let ntime = NaiveTime::from_hms_nano(hour, min, sec, nano);
+    let ndate = NaiveDate::from_ymd_opt(year, month, day).expect("year-month-day in range");
+    let ntime =
+        NaiveTime::from_hms_nano_opt(hour, min, sec, nano).expect("hour-min-sec-nano in range");
     let ndatetime = NaiveDateTime::new(ndate, ntime);
 
     let datetime = DateTime::<Utc>::from_utc(ndatetime, Utc);

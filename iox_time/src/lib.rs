@@ -86,15 +86,15 @@ impl Time {
 
     /// Makes a new `DateTime` from the number of non-leap milliseconds
     /// since January 1, 1970 0:00:00 UTC (aka "UNIX timestamp").
-    pub fn from_timestamp_millis(millis: i64) -> Self {
-        Self(Utc.timestamp_millis(millis))
+    pub fn from_timestamp_millis(millis: i64) -> Option<Self> {
+        Utc.timestamp_millis_opt(millis).single().map(Self)
     }
 
     /// Makes a new `Time` from the number of non-leap seconds
     /// since January 1, 1970 0:00:00 UTC (aka "UNIX timestamp")
     /// and the number of nanoseconds since the last whole non-leap second.
-    pub fn from_timestamp(secs: i64, nanos: u32) -> Self {
-        Self(Utc.timestamp(secs, nanos))
+    pub fn from_timestamp(secs: i64, nanos: u32) -> Option<Self> {
+        Utc.timestamp_opt(secs, nanos).single().map(Self)
     }
 
     /// Makes a new `Time` from the provided [`DateTime<Utc>`]
@@ -413,7 +413,7 @@ mod test {
         handle.await.unwrap();
 
         // ==== sleep with `set` ====
-        provider.set(Time::from_timestamp_millis(100));
+        provider.set(Time::from_timestamp_millis(100).unwrap());
         let fut = provider.sleep(Duration::from_millis(100));
         let handle = tokio::task::spawn(async move {
             fut.await;
@@ -424,17 +424,17 @@ mod test {
         assert!(!handle.is_finished());
 
         // does not finish when time goes backwards
-        provider.set(Time::from_timestamp_millis(0));
+        provider.set(Time::from_timestamp_millis(0).unwrap());
         tokio::time::sleep(Duration::from_millis(200)).await;
         assert!(!handle.is_finished());
 
         // does not finish when time goes forward but not enough
-        provider.set(Time::from_timestamp_millis(150));
+        provider.set(Time::from_timestamp_millis(150).unwrap());
         tokio::time::sleep(Duration::from_millis(200)).await;
         assert!(!handle.is_finished());
 
         // finishes when time is set at least to the wait duration
-        provider.set(Time::from_timestamp_millis(200));
+        provider.set(Time::from_timestamp_millis(200).unwrap());
         handle.await.unwrap();
 
         // also finishes when "overshooting"
@@ -442,7 +442,7 @@ mod test {
         let handle = tokio::task::spawn(async move {
             fut.await;
         });
-        provider.set(Time::from_timestamp_millis(301));
+        provider.set(Time::from_timestamp_millis(301).unwrap());
         handle.await.unwrap();
     }
 
@@ -454,7 +454,7 @@ mod test {
         provider.sleep(Duration::from_secs(0)).await;
 
         // ==== sleep with `inc` ====
-        let fut = provider.sleep_until(Time::from_timestamp_millis(100));
+        let fut = provider.sleep_until(Time::from_timestamp_millis(100).unwrap());
         let handle = tokio::task::spawn(async move {
             fut.await;
         });
@@ -473,7 +473,7 @@ mod test {
         handle.await.unwrap();
 
         // finishes also when "overshooting" the duration
-        let fut = provider.sleep_until(Time::from_timestamp_millis(200));
+        let fut = provider.sleep_until(Time::from_timestamp_millis(200).unwrap());
         let handle = tokio::task::spawn(async move {
             fut.await;
         });
@@ -481,8 +481,8 @@ mod test {
         handle.await.unwrap();
 
         // ==== sleep with `set` ====
-        provider.set(Time::from_timestamp_millis(100));
-        let fut = provider.sleep_until(Time::from_timestamp_millis(200));
+        provider.set(Time::from_timestamp_millis(100).unwrap());
+        let fut = provider.sleep_until(Time::from_timestamp_millis(200).unwrap());
         let handle = tokio::task::spawn(async move {
             fut.await;
         });
@@ -492,25 +492,25 @@ mod test {
         assert!(!handle.is_finished());
 
         // does not finish when time goes backwards
-        provider.set(Time::from_timestamp_millis(0));
+        provider.set(Time::from_timestamp_millis(0).unwrap());
         tokio::time::sleep(Duration::from_millis(200)).await;
         assert!(!handle.is_finished());
 
         // does not finish when time goes forward but not enough
-        provider.set(Time::from_timestamp_millis(150));
+        provider.set(Time::from_timestamp_millis(150).unwrap());
         tokio::time::sleep(Duration::from_millis(200)).await;
         assert!(!handle.is_finished());
 
         // finishes when time is set at least to the wait duration
-        provider.set(Time::from_timestamp_millis(200));
+        provider.set(Time::from_timestamp_millis(200).unwrap());
         handle.await.unwrap();
 
         // also finishes when "overshooting"
-        let fut = provider.sleep_until(Time::from_timestamp_millis(300));
+        let fut = provider.sleep_until(Time::from_timestamp_millis(300).unwrap());
         let handle = tokio::task::spawn(async move {
             fut.await;
         });
-        provider.set(Time::from_timestamp_millis(301));
+        provider.set(Time::from_timestamp_millis(301).unwrap());
         handle.await.unwrap();
     }
 
@@ -527,14 +527,18 @@ mod test {
             assert_eq!(
                 time,
                 Time::from_timestamp(date_time.timestamp(), date_time.timestamp_subsec_nanos())
+                    .unwrap(),
             );
             assert_eq!(
                 time,
                 Time::from_timestamp_nanos(date_time.timestamp_nanos())
             );
             assert_eq!(
-                Time::from_timestamp_millis(date_time.timestamp_millis()),
-                Time::from_date_time(Utc.timestamp_millis(date_time.timestamp_millis()))
+                Time::from_timestamp_millis(date_time.timestamp_millis()).unwrap(),
+                Time::from_date_time(
+                    Utc.timestamp_millis_opt(date_time.timestamp_millis())
+                        .unwrap()
+                )
             );
 
             assert_eq!(time.timestamp_nanos(), date_time.timestamp_nanos());

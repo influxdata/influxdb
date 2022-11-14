@@ -971,7 +971,7 @@ pub mod test_utils {
         T: TestAdapter,
     {
         // Note: Roundtrips are only guaranteed for millisecond-precision
-        let t0 = Time::from_timestamp_millis(129);
+        let t0 = Time::from_timestamp_millis(129).unwrap();
         let time = Arc::new(iox_time::MockProvider::new(t0));
         let context = adapter
             .new_context_with_time(
@@ -1020,7 +1020,7 @@ pub mod test_utils {
         T: TestAdapter,
     {
         // Note: Roundtrips are only guaranteed for millisecond-precision
-        let t0 = Time::from_timestamp_millis(129);
+        let t0 = Time::from_timestamp_millis(129).unwrap();
         let time_provider = Arc::new(iox_time::MockProvider::new(t0));
         let context = adapter
             .new_context_with_time(

@@ -71,7 +71,7 @@ impl TestCatalog {
         let object_store = Arc::new(InMemory::new());
         let parquet_store =
             ParquetStorage::new(Arc::clone(&object_store) as _, StorageId::from("iox"));
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp(0, 0)));
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp(0, 0).unwrap()));
         let exec = Arc::new(Executor::new_with_config_and_executors(
             ExecutorConfig {
                 num_threads: exec.num_threads(),
@@ -944,7 +944,7 @@ impl TestTombstone {
 
 /// Return the current time
 pub fn now() -> Time {
-    Time::from_timestamp(0, 0)
+    Time::from_timestamp(0, 0).unwrap()
 }
 
 /// Sort arrow record batch into arrow record batch and sort key.

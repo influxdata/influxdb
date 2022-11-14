@@ -1000,7 +1000,7 @@ mod tests {
 
         let iox_metadata = IoxMetadata {
             object_store_id,
-            creation_timestamp: Time::from_timestamp(3234, 0),
+            creation_timestamp: Time::from_timestamp(3234, 0).unwrap(),
             namespace_id: NamespaceId::new(2),
             namespace_name: Arc::from("hi"),
             shard_id: ShardId::new(1),
