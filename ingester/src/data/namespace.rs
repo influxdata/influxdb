@@ -392,7 +392,7 @@ mod tests {
         .await
         .expect("buffer op should succeed");
 
-        // Both forms of referencing the table should succeed
+        // Referencing the table should succeed
         assert!(ns.table(TABLE_ID).is_some());
 
         // And the table counter metric should increase

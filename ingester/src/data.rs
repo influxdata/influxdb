@@ -67,7 +67,7 @@ const SORT_KEY_PRE_FETCH: Duration = Duration::from_secs(30);
 /// [`DeferredLoad`]: crate::deferred_load::DeferredLoad
 pub(crate) const NAMESPACE_NAME_PRE_FETCH: Duration = Duration::from_secs(60);
 
-/// The maximum duration of time between observing an initialising the
+/// The maximum duration of time between observing and initialising the
 /// [`TableData`] in response to observing an operation for a table, and
 /// fetching the string identifier for it in the background via a
 /// [`DeferredLoad`].
