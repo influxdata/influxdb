@@ -18,7 +18,7 @@ use mutable_batch_lp::lines_to_batches;
 use object_store::memory::InMemory;
 
 use crate::{
-    data::{partition::resolver::CatalogPartitionResolver, IngesterData},
+    data::IngesterData,
     lifecycle::{LifecycleConfig, LifecycleManager},
 };
 
@@ -479,10 +479,11 @@ pub(crate) async fn make_ingester_data(
         Arc::clone(&catalog),
         [(shard_id, shard_index)],
         exec,
-        Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog))),
         backoff::BackoffConfig::default(),
         metrics,
-    );
+    )
+    .await
+    .expect("failed to initialise ingester");
 
     // Make partitions per requested
     let ops = make_partitions(two_partitions, shard_index, table_id, ns_id);

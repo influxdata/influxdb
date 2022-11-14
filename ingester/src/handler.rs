@@ -28,10 +28,7 @@ use write_buffer::core::WriteBufferReading;
 use write_summary::ShardProgress;
 
 use crate::{
-    data::{
-        partition::resolver::{CatalogPartitionResolver, PartitionCache, PartitionProvider},
-        IngesterData,
-    },
+    data::IngesterData,
     lifecycle::{run_lifecycle_manager, LifecycleConfig, LifecycleManager},
     poison::PoisonCabinet,
     querier_handler::{prepare_data_to_querier, IngesterQueryResponse},
@@ -41,22 +38,6 @@ use crate::{
     },
 };
 
-/// The maximum duration of time between creating a [`PartitionData`] and its
-/// [`SortKey`] being fetched from the catalog.
-///
-/// [`PartitionData`]: crate::data::partition::PartitionData
-/// [`SortKey`]: schema::sort::SortKey
-pub(crate) const SORT_KEY_PRE_FETCH: Duration = Duration::from_secs(60);
-
-/// The maximum duration of time between observing an initialising the
-/// [`NamespaceData`] in response to observing an operation for a namespace, and
-/// fetching the string identifier for it in the background via a
-/// [`DeferredLoad`].
-///
-/// [`NamespaceData`]: crate::data::namespace::NamespaceData
-/// [`DeferredLoad`]: crate::deferred_load::DeferredLoad
-pub(crate) const NAMESPACE_NAME_PRE_FETCH: Duration = Duration::from_secs(60);
-
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {
@@ -64,10 +45,8 @@ pub enum Error {
     WriteBuffer {
         source: write_buffer::core::WriteBufferError,
     },
-    #[snafu(display("error populating partition cache from catalog: {}", source))]
-    PartitionCache {
-        source: iox_catalog::interface::Error,
-    },
+    #[snafu(display("error initialising ingester: {}", source))]
+    IngesterInit { source: crate::data::InitError },
 }
 
 /// A specialized `Error` for Catalog errors
@@ -160,41 +139,18 @@ impl IngestHandlerImpl {
         skip_to_oldest_available: bool,
         max_requests: usize,
     ) -> Result<Self> {
-        // Read the most recently created partitions for the shards this
-        // ingester instance will be consuming from.
-        //
-        // By caching these hot partitions overall catalog load after an
-        // ingester starts up is reduced, and the associated query latency is
-        // removed from the (blocking) ingest hot path.
-        let shard_ids = shard_states.iter().map(|(_, s)| s.id).collect::<Vec<_>>();
-        let recent_partitions = catalog
-            .repositories()
+        let data = Arc::new(
+            IngesterData::new(
+                object_store,
+                catalog,
+                shard_states.clone().into_iter().map(|(idx, s)| (s.id, idx)),
+                exec,
+                BackoffConfig::default(),
+                Arc::clone(&metric_registry),
+            )
             .await
-            .partitions()
-            .most_recent_n(10_000, &shard_ids)
-            .await
-            .context(PartitionCacheSnafu)?;
-
-        // Build the partition provider.
-        let partition_provider = CatalogPartitionResolver::new(Arc::clone(&catalog));
-        let partition_provider = PartitionCache::new(
-            partition_provider,
-            recent_partitions,
-            SORT_KEY_PRE_FETCH,
-            Arc::clone(&catalog),
-            BackoffConfig::default(),
+            .context(IngesterInitSnafu)?,
         );
-        let partition_provider: Arc<dyn PartitionProvider> = Arc::new(partition_provider);
-
-        let data = Arc::new(IngesterData::new(
-            object_store,
-            catalog,
-            shard_states.clone().into_iter().map(|(idx, s)| (s.id, idx)),
-            exec,
-            partition_provider,
-            BackoffConfig::default(),
-            Arc::clone(&metric_registry),
-        ));
 
         let ingester_data = Arc::clone(&data);
         let topic_name = topic.name.clone();

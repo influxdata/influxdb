@@ -14,9 +14,7 @@ use generated_types::{
 };
 use influxdb_iox_client::flight::{low_level::LowLevelMessage, Error as FlightError};
 use ingester::{
-    data::{
-        partition::resolver::CatalogPartitionResolver, DmlApplyAction, IngesterData, Persister,
-    },
+    data::{DmlApplyAction, IngesterData, Persister},
     lifecycle::mock_handle::MockLifecycleHandle,
     querier_handler::{prepare_data_to_querier, FlatIngesterQueryResponse, IngesterQueryResponse},
 };
@@ -658,15 +656,18 @@ impl MockIngester {
         let ns = catalog.create_namespace("test_db").await;
         let shard = ns.create_shard(1).await;
 
-        let ingester_data = Arc::new(IngesterData::new(
-            catalog.object_store(),
-            catalog.catalog(),
-            [(shard.shard.id, shard.shard.shard_index)],
-            catalog.exec(),
-            Arc::new(CatalogPartitionResolver::new(catalog.catalog())),
-            BackoffConfig::default(),
-            catalog.metric_registry(),
-        ));
+        let ingester_data = Arc::new(
+            IngesterData::new(
+                catalog.object_store(),
+                catalog.catalog(),
+                [(shard.shard.id, shard.shard.shard_index)],
+                catalog.exec(),
+                BackoffConfig::default(),
+                catalog.metric_registry(),
+            )
+            .await
+            .expect("failed to initialise ingester"),
+        );
 
         Self {
             catalog,

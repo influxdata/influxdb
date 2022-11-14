@@ -1,6 +1,10 @@
 //! Data for the lifecycle of the Ingester
 
-use std::{collections::BTreeMap, sync::Arc, time::Instant};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
@@ -20,12 +24,12 @@ use parquet_file::{
     storage::{ParquetStorage, StorageId},
 };
 use snafu::{OptionExt, Snafu};
+use thiserror::Error;
 use uuid::Uuid;
 use write_summary::ShardProgress;
 
 use crate::{
     compact::{compact_persisting_batch, CompactedStream},
-    handler::NAMESPACE_NAME_PRE_FETCH,
     lifecycle::LifecycleHandle,
 };
 
@@ -39,12 +43,28 @@ pub(crate) use sequence_range::*;
 
 use self::{
     namespace::name_resolver::{NamespaceNameProvider, NamespaceNameResolver},
-    partition::resolver::PartitionProvider,
+    partition::resolver::{CatalogPartitionResolver, PartitionCache, PartitionProvider},
     shard::ShardData,
 };
 
 #[cfg(test)]
 mod triggers;
+
+/// The maximum duration of time between creating a [`PartitionData`] and its
+/// [`SortKey`] being fetched from the catalog.
+///
+/// [`PartitionData`]: crate::data::partition::PartitionData
+/// [`SortKey`]: schema::sort::SortKey
+const SORT_KEY_PRE_FETCH: Duration = Duration::from_secs(30);
+
+/// The maximum duration of time between observing an initialising the
+/// [`NamespaceData`] in response to observing an operation for a namespace, and
+/// fetching the string identifier for it in the background via a
+/// [`DeferredLoad`].
+///
+/// [`NamespaceData`]: crate::data::namespace::NamespaceData
+/// [`DeferredLoad`]: crate::deferred_load::DeferredLoad
+pub(crate) const NAMESPACE_NAME_PRE_FETCH: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -76,6 +96,15 @@ pub enum Error {
     BufferWrite { source: mutable_batch::Error },
 }
 
+/// Errors that occur during initialisation of an [`IngesterData`].
+#[derive(Debug, Error)]
+pub enum InitError {
+    /// A catalog error occured while fetching the most recent partitions for
+    /// the internal cache.
+    #[error("failed to pre-warm partition cache: {0}")]
+    PreWarmPartitions(iox_catalog::interface::Error),
+}
+
 /// A specialized `Error` for Ingester Data errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -105,17 +134,16 @@ pub struct IngesterData {
 
 impl IngesterData {
     /// Create new instance.
-    pub fn new<T>(
+    pub async fn new<T>(
         object_store: Arc<DynObjectStore>,
         catalog: Arc<dyn Catalog>,
         shards: T,
         exec: Arc<Executor>,
-        partition_provider: Arc<dyn PartitionProvider>,
         backoff_config: BackoffConfig,
         metrics: Arc<metric::Registry>,
-    ) -> Self
+    ) -> Result<Self, InitError>
     where
-        T: IntoIterator<Item = (ShardId, ShardIndex)>,
+        T: IntoIterator<Item = (ShardId, ShardIndex)> + Send,
     {
         let persisted_file_size_bytes = metrics.register_metric_with_options(
             "ingester_persisted_file_size_bytes",
@@ -132,6 +160,34 @@ impl IngesterData {
             },
         );
 
+        // Read the most recently created partitions for the shards this
+        // ingester instance will be consuming from.
+        //
+        // By caching these hot partitions overall catalog load after an
+        // ingester starts up is reduced, and the associated query latency is
+        // removed from the (blocking) ingest hot path.
+        let shards = shards.into_iter().collect::<Vec<_>>();
+        let shard_ids = shards.iter().map(|(id, _)| *id).collect::<Vec<_>>();
+        let recent_partitions = catalog
+            .repositories()
+            .await
+            .partitions()
+            .most_recent_n(10_000, &shard_ids)
+            .await
+            .map_err(InitError::PreWarmPartitions)?;
+
+        // Build the partition provider.
+        let partition_provider = CatalogPartitionResolver::new(Arc::clone(&catalog));
+        let partition_provider = PartitionCache::new(
+            partition_provider,
+            recent_partitions,
+            SORT_KEY_PRE_FETCH,
+            Arc::clone(&catalog),
+            BackoffConfig::default(),
+        );
+        let partition_provider: Arc<dyn PartitionProvider> = Arc::new(partition_provider);
+
+        // Initialise the deferred namespace name resolver.
         let namespace_name_provider: Arc<dyn NamespaceNameProvider> =
             Arc::new(NamespaceNameResolver::new(
                 NAMESPACE_NAME_PRE_FETCH,
@@ -155,14 +211,14 @@ impl IngesterData {
             })
             .collect();
 
-        Self {
+        Ok(Self {
             store: ParquetStorage::new(object_store, StorageId::from("iox")),
             catalog,
             shards,
             exec,
             backoff_config,
             persisted_file_size_bytes,
-        }
+        })
     }
 
     /// Executor for running queries and compacting and persisting
@@ -664,15 +720,21 @@ mod tests {
 
         let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
 
-        let data = Arc::new(IngesterData::new(
-            Arc::clone(&object_store),
-            Arc::clone(&catalog),
-            [(shard1.id, shard_index)],
-            Arc::new(Executor::new(1)),
-            Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog))),
-            BackoffConfig::default(),
-            Arc::clone(&metrics),
-        ));
+        drop(repos); // test catalog deadlock
+        let data = Arc::new(
+            IngesterData::new(
+                Arc::clone(&object_store),
+                Arc::clone(&catalog),
+                [(shard1.id, shard_index)],
+                Arc::new(Executor::new(1)),
+                BackoffConfig::default(),
+                Arc::clone(&metrics),
+            )
+            .await
+            .expect("failed to initialise ingester"),
+        );
+
+        let mut repos = catalog.repositories().await;
 
         let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
@@ -765,15 +827,21 @@ mod tests {
 
         let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
 
-        let data = Arc::new(IngesterData::new(
-            Arc::clone(&object_store),
-            Arc::clone(&catalog),
-            [(shard1.id, shard1.shard_index)],
-            Arc::new(Executor::new(1)),
-            Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog))),
-            BackoffConfig::default(),
-            Arc::clone(&metrics),
-        ));
+        drop(repos); // test catalog deadlock
+        let data = Arc::new(
+            IngesterData::new(
+                Arc::clone(&object_store),
+                Arc::clone(&catalog),
+                [(shard1.id, shard1.shard_index)],
+                Arc::new(Executor::new(1)),
+                BackoffConfig::default(),
+                Arc::clone(&metrics),
+            )
+            .await
+            .expect("failed to initialise ingester"),
+        );
+
+        let mut repos = catalog.repositories().await;
 
         let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
@@ -873,18 +941,24 @@ mod tests {
 
         let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
 
-        let data = Arc::new(IngesterData::new(
-            Arc::clone(&object_store),
-            Arc::clone(&catalog),
-            [
-                (shard1.id, shard1.shard_index),
-                (shard2.id, shard2.shard_index),
-            ],
-            Arc::new(Executor::new(1)),
-            Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog))),
-            BackoffConfig::default(),
-            Arc::clone(&metrics),
-        ));
+        drop(repos); // test catalog deadlock
+        let data = Arc::new(
+            IngesterData::new(
+                Arc::clone(&object_store),
+                Arc::clone(&catalog),
+                [
+                    (shard1.id, shard1.shard_index),
+                    (shard2.id, shard2.shard_index),
+                ],
+                Arc::new(Executor::new(1)),
+                BackoffConfig::default(),
+                Arc::clone(&metrics),
+            )
+            .await
+            .expect("failed to initialise ingester"),
+        );
+
+        let mut repos = catalog.repositories().await;
 
         let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
@@ -1153,18 +1227,24 @@ mod tests {
 
         let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
 
-        let data = Arc::new(IngesterData::new(
-            Arc::clone(&object_store),
-            Arc::clone(&catalog),
-            [
-                (shard1.id, shard1.shard_index),
-                (shard2.id, shard2.shard_index),
-            ],
-            Arc::new(Executor::new(1)),
-            Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog))),
-            BackoffConfig::default(),
-            Arc::clone(&metrics),
-        ));
+        drop(repos); // test catalog deadlock
+        let data = Arc::new(
+            IngesterData::new(
+                Arc::clone(&object_store),
+                Arc::clone(&catalog),
+                [
+                    (shard1.id, shard1.shard_index),
+                    (shard2.id, shard2.shard_index),
+                ],
+                Arc::new(Executor::new(1)),
+                BackoffConfig::default(),
+                Arc::clone(&metrics),
+            )
+            .await
+            .expect("failed to initialise ingester"),
+        );
+
+        let mut repos = catalog.repositories().await;
 
         let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
@@ -1471,15 +1551,21 @@ mod tests {
 
         let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
 
-        let data = Arc::new(IngesterData::new(
-            Arc::clone(&object_store),
-            Arc::clone(&catalog),
-            [(shard1.id, shard_index)],
-            Arc::new(Executor::new(1)),
-            Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog))),
-            BackoffConfig::default(),
-            Arc::clone(&metrics),
-        ));
+        drop(repos); // test catalog deadlock
+        let data = Arc::new(
+            IngesterData::new(
+                Arc::clone(&object_store),
+                Arc::clone(&catalog),
+                [(shard1.id, shard_index)],
+                Arc::new(Executor::new(1)),
+                BackoffConfig::default(),
+                Arc::clone(&metrics),
+            )
+            .await
+            .expect("failed to initialise ingester"),
+        );
+
+        let mut repos = catalog.repositories().await;
 
         let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
