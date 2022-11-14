@@ -848,7 +848,6 @@ mod tests {
         let entry_4 = "upc,region=east user=4 400";
 
         let w1 = write(
-            &ctx.database_name,
             &writer,
             entry_1,
             shard_index,
@@ -857,7 +856,6 @@ mod tests {
         )
         .await;
         let w2 = write(
-            &ctx.database_name,
             &writer,
             entry_2,
             shard_index,
@@ -866,7 +864,6 @@ mod tests {
         )
         .await;
         let w3 = write(
-            &ctx.database_name,
             &writer,
             entry_3,
             shard_index,
@@ -875,7 +872,6 @@ mod tests {
         )
         .await;
         let w4 = write(
-            &ctx.database_name,
             &writer,
             entry_4,
             shard_index,
@@ -918,7 +914,6 @@ mod tests {
         let entry_2 = "upc,region=east user=2 200";
 
         let w1 = write(
-            &ctx.database_name,
             &writer,
             entry_1,
             shard_index,
@@ -927,7 +922,6 @@ mod tests {
         )
         .await;
         let w2 = write(
-            &ctx.database_name,
             &writer,
             entry_2,
             shard_index,

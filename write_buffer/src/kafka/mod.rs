@@ -698,7 +698,6 @@ mod tests {
             .await
             .unwrap();
         let w = crate::core::test_utils::write(
-            "namespace",
             &producer,
             "table foo=1 1",
             shard_index,
