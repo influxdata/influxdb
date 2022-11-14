@@ -207,7 +207,7 @@ pub fn decode(
 
 /// Encodes a [`DmlOperation`] as a protobuf [`WriteBufferPayload`]
 pub fn encode_operation(
-    db_name: &str,
+    _db_name: &str,
     operation: &DmlOperation,
     buf: &mut Vec<u8>,
 ) -> Result<(), WriteBufferError> {
@@ -218,7 +218,6 @@ pub fn encode_operation(
             Payload::Write(batch)
         }
         DmlOperation::Delete(delete) => Payload::Delete(DeletePayload {
-            db_name: db_name.to_string(),
             database_id: delete.namespace_id().get(),
             table_name: delete
                 .table_name()
