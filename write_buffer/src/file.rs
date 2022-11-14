@@ -154,7 +154,6 @@ pub const HEADER_TIME: &str = "last-modified";
 /// File-based write buffer writer.
 #[derive(Debug)]
 pub struct FileBufferProducer {
-    db_name: String,
     dirs: BTreeMap<ShardIndex, PathBuf>,
     time_provider: Arc<dyn TimeProvider>,
 }
@@ -170,7 +169,6 @@ impl FileBufferProducer {
         let root = root.join(database_name);
         let dirs = maybe_auto_create_directories(&root, creation_config).await?;
         Ok(Self {
-            db_name: database_name.to_string(),
             dirs,
             time_provider,
         })
@@ -215,7 +213,7 @@ impl WriteBufferWriting for FileBufferProducer {
 
         message.extend(b"\n");
 
-        crate::codec::encode_operation(&self.db_name, &operation, &mut message)?;
+        crate::codec::encode_operation(&operation, &mut message)?;
 
         // write data to scratchpad file in temp directory
         let temp_file = shard_path.join("temp").join(Uuid::new_v4().to_string());

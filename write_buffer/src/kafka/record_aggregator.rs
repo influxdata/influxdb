@@ -83,7 +83,7 @@ impl RecordAggregator {
         let headers = IoxHeaders::new(ContentType::Protobuf, op.meta().span_context().cloned());
 
         let mut buf = Vec::new();
-        crate::codec::encode_operation(op.namespace(), op, &mut buf)?;
+        crate::codec::encode_operation(op, &mut buf)?;
         buf.shrink_to_fit();
 
         let record = Record {

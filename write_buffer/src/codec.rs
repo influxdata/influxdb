@@ -207,7 +207,6 @@ pub fn decode(
 
 /// Encodes a [`DmlOperation`] as a protobuf [`WriteBufferPayload`]
 pub fn encode_operation(
-    _db_name: &str,
     operation: &DmlOperation,
     buf: &mut Vec<u8>,
 ) -> Result<(), WriteBufferError> {
@@ -319,7 +318,7 @@ mod tests {
         );
 
         let mut buf = Vec::new();
-        encode_operation("namespace", &DmlOperation::Write(w.clone()), &mut buf)
+        encode_operation(&DmlOperation::Write(w.clone()), &mut buf)
             .expect("should encode valid DmlWrite successfully");
 
         let time = SystemProvider::new().now();
