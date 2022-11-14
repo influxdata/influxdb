@@ -734,19 +734,19 @@ mod tests {
 
         let (w1_1, w1_2, w2_1, d1_1, d1_2, w1_3, w1_4, w2_2) = tokio::join!(
             // ns1: batch 1
-            write("ns1", &producer, &trace_collector, shard_index, "bananas"),
-            write("ns1", &producer, &trace_collector, shard_index, "bananas"),
+            write(&producer, &trace_collector, shard_index, "bananas"),
+            write(&producer, &trace_collector, shard_index, "bananas"),
             // ns2: batch 1, part A
-            write("ns2", &producer, &trace_collector, shard_index, "bananas"),
+            write(&producer, &trace_collector, shard_index, "bananas"),
             // ns1: batch 2
-            delete("ns1", &producer, &trace_collector, shard_index),
+            delete(&producer, &trace_collector, shard_index),
             // ns1: batch 3
-            delete("ns1", &producer, &trace_collector, shard_index),
+            delete(&producer, &trace_collector, shard_index),
             // ns1: batch 4
-            write("ns1", &producer, &trace_collector, shard_index, "bananas"),
-            write("ns1", &producer, &trace_collector, shard_index, "bananas"),
+            write(&producer, &trace_collector, shard_index, "bananas"),
+            write(&producer, &trace_collector, shard_index, "bananas"),
             // ns2: batch 1, part B
-            write("ns2", &producer, &trace_collector, shard_index, "bananas"),
+            write(&producer, &trace_collector, shard_index, "bananas"),
         );
 
         // ensure that write operations were NOT fused
@@ -828,7 +828,6 @@ mod tests {
     }
 
     async fn write(
-        _namespace: &str,
         producer: &RSKafkaProducer,
         trace_collector: &Arc<RingBufferTraceCollector>,
         shard_index: ShardIndex,
@@ -848,7 +847,6 @@ mod tests {
     }
 
     async fn delete(
-        _namespace: &str,
         producer: &RSKafkaProducer,
         trace_collector: &Arc<RingBufferTraceCollector>,
         shard_index: ShardIndex,
