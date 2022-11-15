@@ -28,9 +28,6 @@ pub const HEADER_CONTENT_TYPE: &str = "content-type";
 /// Message header for tracing context.
 pub const HEADER_TRACE_CONTEXT: &str = "uber-trace-id";
 
-/// Message header for namespace.
-pub const HEADER_NAMESPACE: &str = "iox-namespace";
-
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum ContentType {
     Protobuf,
@@ -41,20 +38,14 @@ pub enum ContentType {
 pub struct IoxHeaders {
     content_type: ContentType,
     span_context: Option<SpanContext>,
-    namespace: String,
 }
 
 impl IoxHeaders {
     /// Create new headers with sane default values and given span context.
-    pub fn new(
-        content_type: ContentType,
-        span_context: Option<SpanContext>,
-        namespace: String,
-    ) -> Self {
+    pub fn new(content_type: ContentType, span_context: Option<SpanContext>) -> Self {
         Self {
             content_type,
             span_context,
-            namespace,
         }
     }
 
@@ -65,7 +56,6 @@ impl IoxHeaders {
     ) -> Result<Self, WriteBufferError> {
         let mut span_context = None;
         let mut content_type = None;
-        let mut namespace = None;
 
         for (name, value) in headers {
             let name = name.as_ref();
@@ -110,15 +100,6 @@ impl IoxHeaders {
                     }
                 }
             }
-
-            if name.eq_ignore_ascii_case(HEADER_NAMESPACE) {
-                namespace = Some(String::from_utf8(value.as_ref().to_vec()).map_err(|e| {
-                    WriteBufferError::invalid_data(format!(
-                        "Error decoding namespace header: {}",
-                        e
-                    ))
-                })?);
-            }
         }
 
         let content_type =
@@ -127,7 +108,6 @@ impl IoxHeaders {
         Ok(Self {
             content_type,
             span_context,
-            namespace: namespace.unwrap_or_default(),
         })
     }
 
@@ -149,22 +129,17 @@ impl IoxHeaders {
             ContentType::Protobuf => CONTENT_TYPE_PROTOBUF.into(),
         };
 
-        std::iter::once((HEADER_CONTENT_TYPE, content_type))
-            .chain(
-                self.span_context
-                    .as_ref()
-                    .map(|ctx| {
-                        (
-                            HEADER_TRACE_CONTEXT,
-                            format_jaeger_trace_context(ctx).into(),
-                        )
-                    })
-                    .into_iter(),
-            )
-            .chain(std::iter::once((
-                HEADER_NAMESPACE,
-                self.namespace.clone().into(),
-            )))
+        std::iter::once((HEADER_CONTENT_TYPE, content_type)).chain(
+            self.span_context
+                .as_ref()
+                .map(|ctx| {
+                    (
+                        HEADER_TRACE_CONTEXT,
+                        format_jaeger_trace_context(ctx).into(),
+                    )
+                })
+                .into_iter(),
+        )
     }
 }
 
@@ -203,7 +178,6 @@ pub fn decode(
                     };
 
                     Ok(DmlOperation::Write(DmlWrite::new(
-                        headers.namespace,
                         NamespaceId::new(write.database_id),
                         tables,
                         ids.into_iter().map(|(k, v)| (k, TableId::new(v))).collect(),
@@ -218,7 +192,6 @@ pub fn decode(
                         .map_err(WriteBufferError::invalid_data)?;
 
                     Ok(DmlOperation::Delete(DmlDelete::new(
-                        headers.namespace,
                         NamespaceId::new(delete.database_id),
                         predicate,
                         NonEmptyString::new(delete.table_name),
@@ -232,18 +205,16 @@ pub fn decode(
 
 /// Encodes a [`DmlOperation`] as a protobuf [`WriteBufferPayload`]
 pub fn encode_operation(
-    db_name: &str,
     operation: &DmlOperation,
     buf: &mut Vec<u8>,
 ) -> Result<(), WriteBufferError> {
     let payload = match operation {
         DmlOperation::Write(write) => {
             let namespace_id = write.namespace_id().get();
-            let batch = mutable_batch_pb::encode::encode_write(db_name, namespace_id, write);
+            let batch = mutable_batch_pb::encode::encode_write(namespace_id, write);
             Payload::Write(batch)
         }
         DmlOperation::Delete(delete) => Payload::Delete(DeletePayload {
-            db_name: db_name.to_string(),
             database_id: delete.namespace_id().get(),
             table_name: delete
                 .table_name()
@@ -276,11 +247,7 @@ mod tests {
 
         let span_context_parent = SpanContext::new(Arc::clone(&collector));
         let span_context = span_context_parent.child("foo").ctx;
-        let iox_headers1 = IoxHeaders::new(
-            ContentType::Protobuf,
-            Some(span_context),
-            "namespace".to_owned(),
-        );
+        let iox_headers1 = IoxHeaders::new(ContentType::Protobuf, Some(span_context));
 
         let encoded: Vec<_> = iox_headers1
             .headers()
@@ -295,7 +262,6 @@ mod tests {
             iox_headers2.span_context.as_ref().unwrap(),
             vec![],
         );
-        assert_eq!(iox_headers1.namespace, iox_headers2.namespace);
     }
 
     #[test]
@@ -306,6 +272,7 @@ mod tests {
             ("conTent-Type", CONTENT_TYPE_PROTOBUF),
             ("uber-trace-id", "1:2:3:1"),
             ("uber-trace-ID", "5:6:7:1"),
+            // Namespace is no longer used; test that specifying it doesn't cause errors
             ("iOx-Namespace", "namespace"),
         ];
 
@@ -315,8 +282,6 @@ mod tests {
         let span_context = actual.span_context.unwrap();
         assert_eq!(span_context.trace_id.get(), 5);
         assert_eq!(span_context.span_id.get(), 6);
-
-        assert_eq!(actual.namespace, "namespace");
     }
 
     #[test]
@@ -325,11 +290,7 @@ mod tests {
 
         let span_context = SpanContext::new(Arc::clone(&collector));
 
-        let iox_headers1 = IoxHeaders::new(
-            ContentType::Protobuf,
-            Some(span_context),
-            "namespace".to_owned(),
-        );
+        let iox_headers1 = IoxHeaders::new(ContentType::Protobuf, Some(span_context));
 
         let encoded: Vec<_> = iox_headers1
             .headers()
@@ -346,7 +307,6 @@ mod tests {
         let (data, ids) = lp_to_batches("platanos great=42 100\nbananas greatness=1000 100");
 
         let w = DmlWrite::new(
-            "bananas",
             NamespaceId::new(42),
             data,
             ids,
@@ -355,27 +315,25 @@ mod tests {
         );
 
         let mut buf = Vec::new();
-        encode_operation("namespace", &DmlOperation::Write(w.clone()), &mut buf)
+        encode_operation(&DmlOperation::Write(w.clone()), &mut buf)
             .expect("should encode valid DmlWrite successfully");
 
         let time = SystemProvider::new().now();
 
         let got = decode(
             &buf,
-            IoxHeaders::new(ContentType::Protobuf, None, "bananas".into()),
+            IoxHeaders::new(ContentType::Protobuf, None),
             Sequence::new(ShardIndex::new(1), SequenceNumber::new(42)),
             time,
             424242,
         )
         .expect("failed to decode valid wire format");
 
-        assert_eq!(w.namespace(), got.namespace());
         let got = match got {
             DmlOperation::Write(w) => w,
             _ => panic!("wrong op type"),
         };
 
-        assert_eq!(w.namespace(), got.namespace());
         assert_eq!(w.namespace_id(), got.namespace_id());
         assert_eq!(w.table_count(), got.table_count());
         assert_eq!(w.min_timestamp(), got.min_timestamp());

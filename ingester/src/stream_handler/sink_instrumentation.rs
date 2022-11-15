@@ -277,14 +277,7 @@ mod tests {
             .enumerate()
             .map(|(i, v)| (v.clone(), TableId::new(i as _)))
             .collect();
-        DmlWrite::new(
-            "bananas",
-            NamespaceId::new(42),
-            tables,
-            ids,
-            "1970-01-01".into(),
-            meta,
-        )
+        DmlWrite::new(NamespaceId::new(42), tables, ids, "1970-01-01".into(), meta)
     }
 
     /// Extract the metric with the given name from `metrics`.

@@ -131,7 +131,6 @@ where
 
         let iter = collated.into_iter().map(|(shard, batch)| {
             let dml = DmlWrite::new(
-                namespace,
                 namespace_id,
                 batch,
                 table_ids.remove(&shard).unwrap(),
@@ -168,7 +167,6 @@ where
         let shards = self.sharder.shard(table_name, namespace, &predicate);
 
         let dml = DmlDelete::new(
-            namespace,
             namespace_id,
             predicate,
             NonEmptyString::new(table_name),
@@ -509,7 +507,7 @@ mod tests {
             .expect("write should have been successful");
         assert_matches!(got, DmlOperation::Delete(d) => {
             assert_eq!(d.table_name(), Some(TABLE));
-            assert_eq!(d.namespace(), &*ns);
+            assert_eq!(d.namespace_id().get(), 42);
             assert_eq!(*d.predicate(), predicate);
         });
     }

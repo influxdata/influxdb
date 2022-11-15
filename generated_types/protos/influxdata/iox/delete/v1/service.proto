@@ -35,8 +35,9 @@ message DeleteResponse {
 
 // A delete payload
 message DeletePayload {
-  // The name of the database
-  string db_name = 1;
+  // Was the name of the database / namespace.
+  reserved "db_name";
+  reserved 1;
 
   // The catalog ID for this database / namespace.
   int64 database_id = 4;

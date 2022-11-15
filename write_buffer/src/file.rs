@@ -154,7 +154,6 @@ pub const HEADER_TIME: &str = "last-modified";
 /// File-based write buffer writer.
 #[derive(Debug)]
 pub struct FileBufferProducer {
-    db_name: String,
     dirs: BTreeMap<ShardIndex, PathBuf>,
     time_provider: Arc<dyn TimeProvider>,
 }
@@ -170,7 +169,6 @@ impl FileBufferProducer {
         let root = root.join(database_name);
         let dirs = maybe_auto_create_directories(&root, creation_config).await?;
         Ok(Self {
-            db_name: database_name.to_string(),
             dirs,
             time_provider,
         })
@@ -207,7 +205,6 @@ impl WriteBufferWriting for FileBufferProducer {
         let iox_headers = IoxHeaders::new(
             ContentType::Protobuf,
             operation.meta().span_context().cloned(),
-            operation.namespace().to_string(),
         );
 
         for (name, value) in iox_headers.headers() {
@@ -216,7 +213,7 @@ impl WriteBufferWriting for FileBufferProducer {
 
         message.extend(b"\n");
 
-        crate::codec::encode_operation(&self.db_name, &operation, &mut message)?;
+        crate::codec::encode_operation(&operation, &mut message)?;
 
         // write data to scratchpad file in temp directory
         let temp_file = shard_path.join("temp").join(Uuid::new_v4().to_string());
@@ -851,7 +848,6 @@ mod tests {
         let entry_4 = "upc,region=east user=4 400";
 
         let w1 = write(
-            &ctx.database_name,
             &writer,
             entry_1,
             shard_index,
@@ -860,7 +856,6 @@ mod tests {
         )
         .await;
         let w2 = write(
-            &ctx.database_name,
             &writer,
             entry_2,
             shard_index,
@@ -869,7 +864,6 @@ mod tests {
         )
         .await;
         let w3 = write(
-            &ctx.database_name,
             &writer,
             entry_3,
             shard_index,
@@ -878,7 +872,6 @@ mod tests {
         )
         .await;
         let w4 = write(
-            &ctx.database_name,
             &writer,
             entry_4,
             shard_index,
@@ -921,7 +914,6 @@ mod tests {
         let entry_2 = "upc,region=east user=2 200";
 
         let w1 = write(
-            &ctx.database_name,
             &writer,
             entry_1,
             shard_index,
@@ -930,7 +922,6 @@ mod tests {
         )
         .await;
         let w2 = write(
-            &ctx.database_name,
             &writer,
             entry_2,
             shard_index,

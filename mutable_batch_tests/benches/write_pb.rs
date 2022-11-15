@@ -20,14 +20,13 @@ fn generate_pbdata_bytes() -> Vec<(String, (usize, Bytes))> {
                 .collect();
 
             let write = DmlWrite::new(
-                "test_db",
                 NamespaceId::new(42),
                 batches,
                 ids,
                 "bananas".into(),
                 Default::default(),
             );
-            let database_batch = mutable_batch_pb::encode::encode_write("db", 42, &write);
+            let database_batch = mutable_batch_pb::encode::encode_write(42, &write);
 
             let mut bytes = BytesMut::new();
             database_batch.encode(&mut bytes).unwrap();

@@ -178,7 +178,6 @@ impl MockBufferSharedState {
         let (tables, names) = lp_to_batches(lp);
         let meta = DmlMeta::sequenced(sequence, iox_time::Time::from_timestamp_nanos(0), None, 0);
         self.push_write(DmlWrite::new(
-            "foo",
             NamespaceId::new(42),
             tables,
             names,
@@ -905,7 +904,6 @@ mod tests {
 
         let (tables, names) = lp_to_batches("upc user=1 100");
         let operation = DmlOperation::Write(DmlWrite::new(
-            "test_db",
             NamespaceId::new(42),
             tables,
             names,

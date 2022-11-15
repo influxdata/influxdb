@@ -196,7 +196,6 @@ mod tests {
                 DmlOperation::Write(make_write_op(
                     &PartitionKey::from("banana-split"),
                     SHARD_INDEX,
-                    NAMESPACE_NAME,
                     NAMESPACE_ID,
                     TABLE_ID,
                     0,

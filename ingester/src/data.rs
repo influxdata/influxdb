@@ -771,7 +771,6 @@ mod tests {
 
         let batch = lines_to_batches("mem foo=1 10", 0).unwrap();
         let w1 = DmlWrite::new(
-            "foo",
             namespace.id,
             batch.clone(),
             build_id_map(repos.deref_mut(), namespace.id, &batch).await,
@@ -815,7 +814,6 @@ mod tests {
 
         let batch = lines_to_batches("mem foo=1 10", 0).unwrap();
         let w2 = DmlWrite::new(
-            "foo",
             namespace.id,
             batch.clone(),
             build_id_map(&mut *catalog.repositories().await, namespace.id, &batch).await,
@@ -876,7 +874,6 @@ mod tests {
 
         let batch = lines_to_batches("mem foo=1 10\nmem foo=1 11", 0).unwrap();
         let w1 = DmlWrite::new(
-            "foo",
             namespace.id,
             batch.clone(),
             build_id_map(repos.deref_mut(), namespace.id, &batch).await,
@@ -1004,7 +1001,6 @@ mod tests {
 
         let batch = lines_to_batches("mem foo=1 10", 0).unwrap();
         let w1 = DmlWrite::new(
-            "foo",
             namespace.id,
             batch.clone(),
             build_id_map(repos.deref_mut(), namespace.id, &batch).await,
@@ -1023,7 +1019,6 @@ mod tests {
 
         let batch = lines_to_batches("cpu foo=1 10", 1).unwrap();
         let w2 = DmlWrite::new(
-            "foo",
             namespace.id,
             batch.clone(),
             build_id_map(repos.deref_mut(), namespace.id, &batch).await,
@@ -1044,7 +1039,6 @@ mod tests {
         std::mem::drop(repos);
         let batch = lines_to_batches("mem foo=1 30", 2).unwrap();
         let w3 = DmlWrite::new(
-            "foo",
             namespace.id,
             batch.clone(),
             build_id_map(&mut *catalog.repositories().await, namespace.id, &batch).await,
@@ -1297,7 +1291,6 @@ mod tests {
         // write with sequence number 1
         let batch = lines_to_batches("mem foo=1 10", 0).unwrap();
         let w1 = DmlWrite::new(
-            "foo",
             namespace.id,
             batch.clone(),
             build_id_map(repos.deref_mut(), namespace.id, &batch).await,
@@ -1317,7 +1310,6 @@ mod tests {
         // write with sequence number 2
         let batch = lines_to_batches("mem foo=1 30\ncpu bar=1 20", 0).unwrap();
         let w2 = DmlWrite::new(
-            "foo",
             namespace.id,
             batch.clone(),
             build_id_map(repos.deref_mut(), namespace.id, &batch).await,
@@ -1418,7 +1410,6 @@ mod tests {
 
         let batch = lines_to_batches("mem foo=1 10", 0).unwrap();
         let w1 = DmlWrite::new(
-            "foo",
             namespace.id,
             batch.clone(),
             build_id_map(repos.deref_mut(), namespace.id, &batch).await,
@@ -1432,7 +1423,6 @@ mod tests {
         );
         let batch = lines_to_batches("mem foo=1 10", 0).unwrap();
         let w2 = DmlWrite::new(
-            "foo",
             namespace.id,
             batch.clone(),
             build_id_map(repos.deref_mut(), namespace.id, &batch).await,
@@ -1618,7 +1608,6 @@ mod tests {
 
         let batch = lines_to_batches("mem foo=1 10", 0).unwrap();
         let w1 = DmlWrite::new(
-            "foo",
             namespace.id,
             batch.clone(),
             build_id_map(repos.deref_mut(), namespace.id, &batch).await,
@@ -1663,7 +1652,6 @@ mod tests {
             exprs: vec![],
         };
         let d1 = DmlDelete::new(
-            "foo",
             NamespaceId::new(42),
             predicate,
             Some(NonEmptyString::new("mem").unwrap()),
