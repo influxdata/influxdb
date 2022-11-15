@@ -112,6 +112,7 @@ func (h *UserHandler) handlePutUserPassword(w http.ResponseWriter, r *http.Reque
 		h.api.Err(w, r, &errors.Error{
 			Msg: fmt.Sprintf("error decoding password reset request: %s", err),
 		})
+		return
 	}
 
 	param := chi.URLParam(r, "id")
@@ -120,6 +121,7 @@ func (h *UserHandler) handlePutUserPassword(w http.ResponseWriter, r *http.Reque
 		h.api.Err(w, r, &errors.Error{
 			Msg: "invalid user ID provided in route",
 		})
+		return
 	}
 	err = h.passwordSvc.CompareAndSetPassword(ctx, *userID, req.PasswordOld, req.PasswordNew)
 	if err != nil {
@@ -500,10 +502,12 @@ func (h *MeHandler) handleMe(w http.ResponseWriter, r *http.Request) {
 	userID, err := h.getUserID(ctx)
 	if err != nil {
 		h.api.Err(w, r, err)
+		return
 	}
 	user, err := h.userSvc.FindUserByID(ctx, *userID)
 	if err != nil {
 		h.api.Err(w, r, err)
+		return
 	}
 	h.api.Respond(w, r, http.StatusOK, newUserResponse(user))
 }
@@ -513,6 +517,7 @@ func (h *MeHandler) handlePutMePassword(w http.ResponseWriter, r *http.Request) 
 	userID, err := h.getUserID(ctx)
 	if err != nil {
 		h.api.Err(w, r, err)
+		return
 	}
 
 	req, err := decodePasswordResetRequest(r)
