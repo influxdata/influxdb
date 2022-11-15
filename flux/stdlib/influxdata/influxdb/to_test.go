@@ -26,27 +26,6 @@ func TestTo_Query(t *testing.T) {
 		{
 			Name: "from with database with range",
 			Raw:  `from(bucket:"mydb") |> to(bucket:"myotherdb/autogen")`,
-			Want: &flux.Spec{
-				Operations: []*flux.Operation{
-					{
-						ID: "from0",
-						Spec: &influxdb.FromOpSpec{
-							Bucket: influxdb.NameOrID{Name: "mydb"},
-						},
-					},
-					{
-						ID: "influx1x/toKind1",
-						Spec: &influxdb.ToOpSpec{
-							Bucket:            "myotherdb/autogen",
-							TimeColumn:        "_time",
-							MeasurementColumn: "_measurement",
-						},
-					},
-				},
-				Edges: []flux.Edge{
-					{Parent: "from0", Child: "influx1x/toKind1"},
-				},
-			},
 		},
 	}
 	for _, tc := range tests {

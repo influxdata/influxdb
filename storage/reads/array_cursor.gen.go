@@ -296,6 +296,8 @@ func (c *floatMultiShardArrayCursor) reset(cur cursors.FloatArrayCursor, itrs cu
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = newFloatFilterArrayCursor(cond)
+		} else {
+			c.filter.cond = cond
 		}
 		c.filter.reset(cur)
 		cur = c.filter
@@ -1299,6 +1301,8 @@ func (c *integerMultiShardArrayCursor) reset(cur cursors.IntegerArrayCursor, itr
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = newIntegerFilterArrayCursor(cond)
+		} else {
+			c.filter.cond = cond
 		}
 		c.filter.reset(cur)
 		cur = c.filter
@@ -2302,6 +2306,8 @@ func (c *unsignedMultiShardArrayCursor) reset(cur cursors.UnsignedArrayCursor, i
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = newUnsignedFilterArrayCursor(cond)
+		} else {
+			c.filter.cond = cond
 		}
 		c.filter.reset(cur)
 		cur = c.filter
@@ -3305,6 +3311,8 @@ func (c *stringMultiShardArrayCursor) reset(cur cursors.StringArrayCursor, itrs 
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = newStringFilterArrayCursor(cond)
+		} else {
+			c.filter.cond = cond
 		}
 		c.filter.reset(cur)
 		cur = c.filter
@@ -3730,6 +3738,8 @@ func (c *booleanMultiShardArrayCursor) reset(cur cursors.BooleanArrayCursor, itr
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = newBooleanFilterArrayCursor(cond)
+		} else {
+			c.filter.cond = cond
 		}
 		c.filter.reset(cur)
 		cur = c.filter
