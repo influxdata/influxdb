@@ -534,6 +534,44 @@ impl DbSetup for OneMeasurementFourChunksWithDuplicatesWithIngester {
     }
 }
 
+/// Setup with 20 parquet files, some with duplicated and some without
+/// duplicated tags. The idea here is to verify that merging them
+/// together produces the correct values
+#[derive(Debug)]
+pub struct TwentySortedParquetFiles {}
+#[async_trait]
+impl DbSetup for TwentySortedParquetFiles {
+    async fn make(&self) -> Vec<DbScenario> {
+        let lp_data: Vec<_> = (0..20)
+            .map(|i| {
+                if i % 2 == 0 {
+                    vec![
+                        format!("m,tag=A f=1 {}", 1000 - i), // unique in this chunk
+                        format!("m,tab=B f=2 {}", 1000 - i), // unique in this chunk (not plus i!)
+                    ]
+                } else {
+                    vec![
+                        format!("m,tag=A f=3 2001"), // duplicated across all chunks
+                    ]
+                }
+            })
+            .collect();
+
+        let partition_key = "1970-01-01T00";
+        let chunk_data: Vec<_> = lp_data
+            .iter()
+            .map(|lp_lines| ChunkData {
+                lp_lines: lp_lines.iter().map(|s| s.as_str()).collect(),
+                partition_key,
+                chunk_stage: Some(ChunkStage::Parquet),
+                ..Default::default()
+            })
+            .collect();
+
+        make_n_chunks_scenario(&chunk_data).await
+    }
+}
+
 #[derive(Debug)]
 pub struct OneMeasurementManyFields {}
 #[async_trait]

@@ -47,7 +47,7 @@ use trace::{
 // Structs, enums, and functions used to exhaust all test scenarios of chunk lifecycle
 // & when delete predicates are applied
 
-// STRUCTs & ENUMs
+/// Describes a Chunk that should be created for a test
 #[derive(Debug, Clone, Default)]
 pub struct ChunkData<'a, 'b> {
     /// Line protocol data of this chunk
