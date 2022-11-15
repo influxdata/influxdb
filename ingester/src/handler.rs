@@ -551,7 +551,6 @@ mod tests {
 
         let ingest_ts1 = Time::from_timestamp_millis(42).unwrap();
         let write_operations = vec![DmlWrite::new(
-            "foo",
             NamespaceId::new(1),
             lines_to_batches("cpu bar=2 20", 0).unwrap(),
             [("cpu".to_string(), TableId::new(1))].into_iter().collect(),
@@ -579,7 +578,6 @@ mod tests {
 
         let ingest_ts1 = Time::from_timestamp_millis(42).unwrap();
         let write_operations = vec![DmlWrite::new(
-            "foo",
             NamespaceId::new(1),
             lines_to_batches("cpu bar=2 20", 0).unwrap(),
             [("cpu".to_string(), TableId::new(1))].into_iter().collect(),
@@ -607,7 +605,6 @@ mod tests {
 
         let ingest_ts1 = Time::from_timestamp_millis(42).unwrap();
         let write_operations = vec![DmlWrite::new(
-            "foo",
             NamespaceId::new(1),
             lines_to_batches("cpu bar=2 20", 0).unwrap(),
             [("cpu".to_string(), TableId::new(1))].into_iter().collect(),

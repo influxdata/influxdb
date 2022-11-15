@@ -52,7 +52,6 @@ pub mod generated_types {
 /// };
 /// client
 ///     .delete(
-///         "my_db",
 ///         42,
 ///         "my_table",
 ///         pred,
@@ -77,18 +76,15 @@ impl Client {
     /// Delete data from a table on a specified predicate
     pub async fn delete(
         &mut self,
-        db_name: impl Into<String> + Send,
         database_id: i64,
         table_name: impl Into<String> + Send,
         predicate: Predicate,
     ) -> Result<(), Error> {
-        let db_name = db_name.into();
         let table_name = table_name.into();
 
         self.inner
             .delete(DeleteRequest {
                 payload: Some(DeletePayload {
-                    db_name,
                     database_id,
                     table_name,
                     predicate: Some(predicate),

@@ -698,7 +698,6 @@ mod tests {
             .await
             .unwrap();
         let w = crate::core::test_utils::write(
-            "namespace",
             &producer,
             "table foo=1 1",
             shard_index,
@@ -735,19 +734,19 @@ mod tests {
 
         let (w1_1, w1_2, w2_1, d1_1, d1_2, w1_3, w1_4, w2_2) = tokio::join!(
             // ns1: batch 1
-            write("ns1", &producer, &trace_collector, shard_index, "bananas"),
-            write("ns1", &producer, &trace_collector, shard_index, "bananas"),
+            write(&producer, &trace_collector, shard_index, "bananas"),
+            write(&producer, &trace_collector, shard_index, "bananas"),
             // ns2: batch 1, part A
-            write("ns2", &producer, &trace_collector, shard_index, "bananas"),
+            write(&producer, &trace_collector, shard_index, "bananas"),
             // ns1: batch 2
-            delete("ns1", &producer, &trace_collector, shard_index),
+            delete(&producer, &trace_collector, shard_index),
             // ns1: batch 3
-            delete("ns1", &producer, &trace_collector, shard_index),
+            delete(&producer, &trace_collector, shard_index),
             // ns1: batch 4
-            write("ns1", &producer, &trace_collector, shard_index, "bananas"),
-            write("ns1", &producer, &trace_collector, shard_index, "bananas"),
+            write(&producer, &trace_collector, shard_index, "bananas"),
+            write(&producer, &trace_collector, shard_index, "bananas"),
             // ns2: batch 1, part B
-            write("ns2", &producer, &trace_collector, shard_index, "bananas"),
+            write(&producer, &trace_collector, shard_index, "bananas"),
         );
 
         // ensure that write operations were NOT fused
@@ -829,7 +828,6 @@ mod tests {
     }
 
     async fn write(
-        namespace: &str,
         producer: &RSKafkaProducer,
         trace_collector: &Arc<RingBufferTraceCollector>,
         shard_index: ShardIndex,
@@ -838,7 +836,6 @@ mod tests {
         let span_ctx = SpanContext::new(Arc::clone(trace_collector) as Arc<_>);
         let (tables, names) = lp_to_batches("table foo=1");
         let write = DmlWrite::new(
-            namespace,
             NamespaceId::new(42),
             tables,
             names,
@@ -850,14 +847,12 @@ mod tests {
     }
 
     async fn delete(
-        namespace: &str,
         producer: &RSKafkaProducer,
         trace_collector: &Arc<RingBufferTraceCollector>,
         shard_index: ShardIndex,
     ) -> DmlMeta {
         let span_ctx = SpanContext::new(Arc::clone(trace_collector) as Arc<_>);
         let op = DmlOperation::Delete(DmlDelete::new(
-            namespace,
             NamespaceId::new(42),
             DeletePredicate {
                 range: TimestampRange::new(0, 1),
