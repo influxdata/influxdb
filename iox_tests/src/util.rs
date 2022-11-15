@@ -64,7 +64,13 @@ impl TestCatalog {
         Self::with_execs(exec, 1)
     }
 
-    /// Initialize with given executors.
+    /// Initialize with partitions
+    pub fn with_target_query_partitions(target_query_partitions: usize) -> Arc<Self> {
+        let exec = Arc::clone(&GLOBAL_EXEC);
+        Self::with_execs(exec, target_query_partitions)
+    }
+
+    /// Initialize with given executors and partitions
     pub fn with_execs(exec: Arc<DedicatedExecutors>, target_query_partitions: usize) -> Arc<Self> {
         let metric_registry = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metric_registry)));

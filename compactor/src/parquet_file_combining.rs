@@ -671,9 +671,10 @@ mod tests {
     use crate::parquet_file::CompactorParquetFile;
 
     use super::*;
-    use arrow_util::assert_batches_sorted_eq;
+    use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use data_types::{ColumnType, PartitionParam, ShardId};
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
+    use itertools::Itertools;
     use metric::U64HistogramOptions;
     use parquet_file::storage::StorageId;
     use test_helpers::assert_error;
@@ -827,6 +828,109 @@ mod tests {
         }
     }
 
+    /// Create data that is pre-sorted and deduplicated
+    async fn test_setup_for_sort() -> TestSetup {
+        // Ensure we have at least run at least partitions to test cross partition merging
+        let catalog = TestCatalog::with_target_query_partitions(2);
+        let ns = catalog.create_namespace("ns").await;
+        let shard = ns.create_shard(1).await;
+        let table = ns.create_table("table").await;
+        table.create_column("field_int", ColumnType::F64).await;
+        table.create_column("tag1", ColumnType::Tag).await;
+        table.create_column("time", ColumnType::Time).await;
+        let table_schema = table.catalog_schema().await;
+
+        let partition = table
+            .with_shard(&shard)
+            .create_partition("2022-07-13")
+            .await;
+
+        // The sort key comes from the catalog and should be the union of all tags the
+        // ingester has seen and the timestamp
+        let sort_key = SortKey::from_columns(["tag1", "time"]);
+        let partition = partition.update_sort_key(sort_key.clone()).await;
+
+        let candidate_partition = Arc::new(PartitionCompactionCandidateWithInfo {
+            table: Arc::new(table.table.clone()),
+            table_schema: Arc::new(table_schema),
+            column_type_counts: Vec::new(), // not relevant
+            namespace: Arc::new(ns.namespace.clone()),
+            candidate: PartitionParam {
+                partition_id: partition.partition.id,
+                shard_id: partition.partition.shard_id,
+                namespace_id: ns.namespace.id,
+                table_id: partition.partition.table_id,
+            },
+            sort_key: partition.partition.sort_key(),
+            partition_key: partition.partition.partition_key.clone(),
+        });
+
+        // file1: no overlaps
+        let lp = vec![
+            "table,tag1=A field_int=1 30000",
+            "table,tag1=B field_int=2 36000",
+        ]
+        .join("\n");
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp)
+            .with_max_seq(1) // This should be irrelevant because this is a level 1 file
+            .with_min_time(30000)
+            .with_max_time(36000)
+            .with_compaction_level(CompactionLevel::FileNonOverlapped); // Prev compaction
+        let file1 = partition.create_parquet_file(builder).await.into();
+
+        // file2: overlaps with file3 (same data)
+        let lp = vec![
+            "table,tag1=A field_int=1 37000",
+            "table,tag1=B field_int=2 38000",
+        ]
+        .join("\n");
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp)
+            .with_max_seq(1) // This should be irrelevant because this is a level 1 file
+            .with_min_time(37000)
+            .with_max_time(38000)
+            .with_compaction_level(CompactionLevel::FileNonOverlapped); // Prev compaction
+        let file2 = partition.create_parquet_file(builder).await.into();
+
+        // file3: overlaps with file 2 (same data)
+        let lp = vec![
+            "table,tag1=A field_int=1 37000",
+            "table,tag1=B field_int=2 38000",
+        ]
+        .join("\n");
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp)
+            .with_max_seq(1) // This should be irrelevant because this is a level 1 file
+            .with_min_time(37000)
+            .with_max_time(38000)
+            .with_compaction_level(CompactionLevel::FileNonOverlapped); // Prev compaction
+        let file3 = partition.create_parquet_file(builder).await.into();
+
+        // file 4: no  overlap with anything
+        let lp = vec![
+            "table,tag1=A field_int=1 40000",
+            "table,tag1=B field_int=2 41000",
+        ]
+        .join("\n");
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp)
+            .with_max_seq(1) // This should be irrelevant because this is a level 1 file
+            .with_min_time(40000)
+            .with_max_time(41000)
+            .with_compaction_level(CompactionLevel::FileNonOverlapped); // Prev compaction
+        let file4 = partition.create_parquet_file(builder).await.into();
+
+        let parquet_files = vec![file1, file2, file4, file3];
+
+        TestSetup {
+            catalog,
+            table,
+            candidate_partition,
+            parquet_files,
+        }
+    }
+
     fn metrics() -> Metric<U64Histogram> {
         let registry = Arc::new(metric::Registry::new());
         registry.register_metric_with_options(
@@ -847,6 +951,7 @@ mod tests {
     }
 
     #[tokio::test]
+    // Cover multiple sorted files and that merging does not lose any data accidenally
     async fn no_input_files_is_an_error() {
         test_helpers::maybe_start_logging();
 
@@ -947,6 +1052,74 @@ mod tests {
                 buckets_with_counts: vec![(BUCKET_500_KB, 1)],
             }
         );
+    }
+
+    #[tokio::test]
+    async fn many_sorted_files_do_not_lose_data() {
+        test_helpers::maybe_start_logging();
+
+        // try all permutations of the files to try and cover as many merge related issues as we can
+        let file_orders: Vec<Vec<_>> = (0..3).permutations(4).collect();
+
+        let expected = &[
+            "+-----------+------+-----------------------------+",
+            "| field_int | tag1 | time                        |",
+            "+-----------+------+-----------------------------+",
+            "| 1         | A    | 1970-01-01T00:00:00.000030Z |",
+            "| 1         | A    | 1970-01-01T00:00:00.000037Z |",
+            "| 1         | A    | 1970-01-01T00:00:00.000040Z |",
+            "| 2         | B    | 1970-01-01T00:00:00.000036Z |",
+            "| 2         | B    | 1970-01-01T00:00:00.000038Z |",
+            "| 2         | B    | 1970-01-01T00:00:00.000041Z |",
+            "+-----------+------+-----------------------------+",
+        ];
+
+        for order in file_orders {
+            println!("Testing order {:?}", order);
+
+            let TestSetup {
+                catalog,
+                table,
+                candidate_partition,
+                parquet_files,
+                ..
+            } = test_setup_for_sort().await;
+
+            // permute as requested
+            let parquet_files = order
+                .into_iter()
+                .map(|i| parquet_files[i].clone())
+                .collect();
+
+            compact_parquet_files(
+                parquet_files,
+                candidate_partition,
+                Arc::clone(&catalog.catalog),
+                ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
+                Arc::clone(&catalog.exec),
+                Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
+                &metrics(),
+                DEFAULT_MAX_DESIRED_FILE_SIZE_BYTES,
+                DEFAULT_PERCENTAGE_MAX_FILE_SIZE,
+                DEFAULT_SPLIT_PERCENTAGE,
+                CompactionLevel::Final,
+            )
+            .await
+            .unwrap();
+
+            // Should compacted them all together
+            let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
+            assert_eq!(files.len(), 1);
+            let file = files.pop().unwrap();
+
+            // ------------------------------------------------
+            // Verify the parquet file content
+
+            // Compacted file has all 6 rows (none are lost in the sort)
+            let batches = table.read_parquet_file(file).await;
+            // Ensure the data is sorted the same way
+            assert_batches_eq!(expected, &batches);
+        }
     }
 
     #[tokio::test]
