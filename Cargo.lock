@@ -647,9 +647,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.0.23"
+version = "4.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0eb41c13df48950b20eb4cd0eefa618819469df1bffc49d11e8487c4ba0037e5"
+checksum = "60494cedb60cb47462c0ff7be53de32c0e42a6fc2c772184554fa12bd9489c03"
 dependencies = [
  "atty",
  "bitflags",
@@ -664,7 +664,7 @@ dependencies = [
 name = "clap_blocks"
 version = "0.1.0"
 dependencies = [
- "clap 4.0.23",
+ "clap 4.0.24",
  "data_types",
  "futures",
  "humantime",
@@ -1673,7 +1673,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "chrono-english",
- "clap 4.0.23",
+ "clap 4.0.24",
  "clap_blocks",
  "data_types",
  "filetime",
@@ -2171,7 +2171,7 @@ dependencies = [
  "assert_cmd",
  "backtrace",
  "bytes",
- "clap 4.0.23",
+ "clap 4.0.24",
  "clap_blocks",
  "comfy-table",
  "compactor",
@@ -2368,9 +2368,9 @@ dependencies = [
 
 [[package]]
 name = "insta"
-version = "1.21.0"
+version = "1.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "581d4e3314cae4536e5d22ffd23189d4a374696c5ef733eadafae0ed273fd303"
+checksum = "ba1e75aa1530e7385af7b2685478dece08dafb9db3b4225c753286decea83bef"
 dependencies = [
  "console",
  "lazy_static",
@@ -2437,7 +2437,7 @@ dependencies = [
  "bytes",
  "chrono",
  "chrono-english",
- "clap 4.0.23",
+ "clap 4.0.24",
  "criterion",
  "datafusion_util",
  "futures",
@@ -2535,7 +2535,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "chrono",
- "clap 4.0.23",
+ "clap 4.0.24",
  "clap_blocks",
  "data_types",
  "flate2",
@@ -2691,7 +2691,7 @@ name = "ioxd_test"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "clap 4.0.23",
+ "clap 4.0.24",
  "hyper",
  "ioxd_common",
  "metric",
@@ -4747,9 +4747,9 @@ dependencies = [
 
 [[package]]
 name = "similar"
-version = "2.2.0"
+version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62ac7f900db32bf3fd12e0117dd3dc4da74bc52ebaac97f39668446d89694803"
+checksum = "420acb44afdae038210c99e69aae24109f32f15500aa708e81d46c9f29d55fcf"
 
 [[package]]
 name = "siphasher"
@@ -5534,7 +5534,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
- "clap 4.0.23",
+ "clap 4.0.24",
  "futures",
  "observability_deps",
  "snafu",
@@ -5673,7 +5673,7 @@ name = "trogging"
 version = "0.1.0"
 dependencies = [
  "atty",
- "clap 4.0.23",
+ "clap 4.0.24",
  "logfmt",
  "observability_deps",
  "regex",
@@ -5765,9 +5765,9 @@ checksum = "936e4b492acfd135421d8dca4b1aa80a7bfc26e702ef3af710e0752684df5372"
 
 [[package]]
 name = "uuid"
-version = "1.2.1"
+version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "feb41e78f93363bb2df8b0e86a2ca30eed7806ea16ea0c790d757cf93f79be83"
+checksum = "422ee0de9031b5b948b97a8fc04e3aa35230001a722ddd27943e0be31564ce4c"
 dependencies = [
  "getrandom",
 ]
