@@ -49,7 +49,8 @@ testcase bare_count {
 ,,0,23
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: -100y)
         |> count()
         |> keep(columns: ["_value"])
@@ -69,7 +70,8 @@ testcase bare_sum {
 ,,0,23938.0
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: -100y)
         |> sum()
         |> keep(columns: ["_value"])
@@ -89,7 +91,8 @@ testcase bare_mean {
 ,,0,1040.782608696
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: -100y)
         |> mean()
         |> keep(columns: ["_value"])
@@ -109,7 +112,8 @@ testcase bare_min {
 ,,0,2021-01-26T08:00:00Z,-1099,bank,pge_bill
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: -100y)
         |> min()
         |> keep(columns: ["_time", "_value", "_field", "_measurement"])
@@ -129,7 +133,8 @@ testcase bare_max {
 ,,0,2019-11-21T08:00:00Z,2187,bank,pge_bill
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: -100y)
         |> max()
         |> keep(columns: ["_time", "_value", "_field", "_measurement"])
@@ -149,7 +154,8 @@ testcase bare_first {
 ,,0,2019-04-11T07:00:00Z,0,bank,pge_bill
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: -100y)
         |> first()
         |> keep(columns: ["_time", "_value", "_field", "_measurement"])
@@ -169,7 +175,8 @@ testcase bare_last {
 ,,0,2021-01-26T08:00:00Z,-1099,bank,pge_bill
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: -100y)
         |> last()
         |> keep(columns: ["_time", "_value", "_field", "_measurement"])

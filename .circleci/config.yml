@@ -244,7 +244,7 @@ jobs:
   unit_test_race:
     docker:
       - image: quay.io/influxdb/cross-builder:<< pipeline.parameters.cross-container-tag >>
-    resource_class: large
+    resource_class: xlarge
     steps:
       - checkout
       - restore_cache:
@@ -257,7 +257,17 @@ jobs:
             set -x
             mkdir -p junit-race/
             export GORACE="halt_on_error=1"
-            gotestsum --junitfile junit-race/influxdb.junit.xml -- -race ./...
+            # "resource_class: xlarge" creates a Docker container with eight
+            # virtual cpu cores. However, applications like "nproc" return
+            # the host machine's core count (which in this case is 36).
+            # When less cores are available than advertised, the
+            # race-tests fail.
+            #
+            # We'll manually reduce the number of available cores to what
+            # is specified by the CircleCI documentation:
+            # https://circleci.com/product/features/resource-classes/
+            taskset -c 0-7 \
+              gotestsum --junitfile junit-race/influxdb.junit.xml -- -race ./...
           no_output_timeout: 1500s
       - store_test_results:
           path: junit-race/

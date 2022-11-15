@@ -24,7 +24,6 @@ type DatabasesOpSpec struct {
 func init() {
 	databasesSignature := runtime.MustLookupBuiltinType("influxdata/influxdb/v1", "databases")
 	runtime.ReplacePackageValue("influxdata/influxdb/v1", "databases", flux.MustValue(flux.FunctionValue(DatabasesKind, createDatabasesOpSpec, databasesSignature)))
-	flux.RegisterOpSpec(DatabasesKind, newDatabasesOp)
 	plan.RegisterProcedureSpec(DatabasesKind, newDatabasesProcedure, DatabasesKind)
 }
 

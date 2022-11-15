@@ -149,7 +149,7 @@ func (rule LocalBucketsRule) Name() string {
 }
 
 func (rule LocalBucketsRule) Pattern() plan.Pattern {
-	return plan.Pat(influxdb.BucketsKind)
+	return plan.MultiSuccessor(influxdb.BucketsKind)
 }
 
 func (rule LocalBucketsRule) Rewrite(ctx context.Context, node plan.Node) (plan.Node, bool, error) {

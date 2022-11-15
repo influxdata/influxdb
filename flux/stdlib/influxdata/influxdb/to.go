@@ -40,7 +40,6 @@ type ToOpSpec struct {
 func init() {
 	toSignature := runtime.MustLookupBuiltinType("influxdata/influxdb", influxdb.ToKind)
 	runtime.ReplacePackageValue("influxdata/influxdb", "to", flux.MustValue(flux.FunctionValueWithSideEffect(ToKind, createToOpSpec, toSignature)))
-	flux.RegisterOpSpec(ToKind, func() flux.OperationSpec { return &ToOpSpec{} })
 	plan.RegisterProcedureSpecWithSideEffect(ToKind, newToProcedure, ToKind)
 	execute.RegisterTransformation(ToKind, createToTransformation)
 }
@@ -279,7 +278,7 @@ func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
 	var fn *execute.RowMapPreparedFn
 	if t.fn != nil {
 		var err error
-		if fn, err = t.fn.Prepare(columns); err != nil {
+		if fn, err = t.fn.Prepare(t.Ctx, columns); err != nil {
 			return err
 		}
 	}
