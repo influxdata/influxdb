@@ -25,7 +25,7 @@ func (ft FieldTypes) MarshalText() (text []byte, err error) {
 	for f := range ft {
 		s = append(s, f)
 	}
-	return []byte(fmt.Sprintf("%s", strings.Join(s, ","))), nil
+	return []byte(strings.Join(s, ",")), nil
 }
 
 func (ft *FieldTypes) UnmarshalText(text []byte) error {
