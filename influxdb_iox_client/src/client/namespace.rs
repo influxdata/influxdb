@@ -3,6 +3,7 @@ use client_util::connection::GrpcConnection;
 use self::generated_types::{namespace_service_client::NamespaceServiceClient, *};
 use crate::connection::Connection;
 use crate::error::Error;
+use ::generated_types::google::OptionalField;
 
 /// Re-export generated_types
 pub mod generated_types {
@@ -28,5 +29,22 @@ impl Client {
         let response = self.inner.get_namespaces(GetNamespacesRequest {}).await?;
 
         Ok(response.into_inner().namespaces)
+    }
+
+    /// Update retention for a namespace
+    pub async fn update_namespace_retention(
+        &mut self,
+        namespace: &str,
+        retention_hours: i64,
+    ) -> Result<Namespace, Error> {
+        let response = self
+            .inner
+            .update_namespace_retention(UpdateNamespaceRetentionRequest {
+                name: namespace.to_string(),
+                retention_hours,
+            })
+            .await?;
+
+        Ok(response.into_inner().namespace.unwrap_field("namespace")?)
     }
 }
