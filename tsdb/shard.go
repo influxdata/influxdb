@@ -2523,7 +2523,7 @@ func (fscm *measurementFieldSetChangeMgr) loadFieldChangeSet(r io.Reader) (Field
 }
 
 func (fs *MeasurementFieldSet) ApplyChanges() error {
-	log, end := logger.NewOperation(context.TODO(), fs.changeMgr.logger, "failed loading changes", "field indices")
+	log, end := logger.NewOperation(context.TODO(), fs.changeMgr.logger, "loading changes", "field indices")
 	defer end()
 	changes, err := fs.changeMgr.loadAllFieldChanges(log)
 	if err != nil {
