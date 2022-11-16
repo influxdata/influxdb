@@ -123,6 +123,8 @@ impl ParquetExecInput {
             table_partition_cols: vec![],
             // TODO avoid this `copied_config` when config_options are directly available on context
             config_options: session_ctx.copied_config().config_options(),
+            // Parquet files ARE actually sorted but we don't care here since we just construct a `collect` plan.
+            output_ordering: None,
         };
         let exec = ParquetExec::new(base_config, None, None);
         let exec_schema = exec.schema();
