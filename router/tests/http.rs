@@ -163,6 +163,26 @@ impl TestContext {
     pub fn metrics(&self) -> &Registry {
         self.metrics.as_ref()
     }
+
+    /// Return the [`TableId`] in the catalog for `name` in `namespace`, or panic.
+    pub async fn table_id(&self, namespace: &str, name: &str) -> TableId {
+        let mut repos = self.catalog.repositories().await;
+        let namespace_id = repos
+            .namespaces()
+            .get_by_name(namespace)
+            .await
+            .expect("query failed")
+            .expect("namespace does not exist")
+            .id;
+
+        repos
+            .tables()
+            .get_by_namespace_and_name(namespace_id, name)
+            .await
+            .expect("query failed")
+            .expect("no table entry for the specified namespace/table name pair")
+            .id
+    }
 }
 
 impl Default for TestContext {
@@ -200,7 +220,8 @@ async fn test_write_ok() {
     let writes = ctx.write_buffer_state().get_messages(ShardIndex::new(0));
     assert_eq!(writes.len(), 1);
     assert_matches!(writes.as_slice(), [Ok(DmlOperation::Write(w))] => {
-        assert!(w.table("platanos").is_some());
+        let table_id = ctx.table_id("bananas_test", "platanos").await;
+        assert!(w.table(&table_id).is_some());
     });
 
     // Ensure the catalog saw the namespace creation
@@ -495,10 +516,9 @@ async fn test_write_propagate_ids() {
     assert_eq!(writes.len(), 1);
     assert_matches!(writes.as_slice(), [Ok(DmlOperation::Write(w))] => {
         assert_eq!(w.namespace_id(), ns.id);
-        assert!(w.table("platanos").is_some());
 
-        for (name, id) in ids {
-            assert_eq!(w.table_id(name).unwrap(), id);
+        for id in ids.values() {
+            assert!(w.table(id).is_some());
         }
     });
 }

@@ -103,8 +103,7 @@ where
 
         // Sets of maps collated by destination shard for batching/merging of
         // shard data.
-        let mut collated: HashMap<_, HashMap<String, MutableBatch>> = HashMap::new();
-        let mut table_ids: HashMap<_, HashMap<String, TableId>> = HashMap::new();
+        let mut collated: HashMap<_, HashMap<TableId, MutableBatch>> = HashMap::new();
 
         // Shard each entry in `writes` and collate them into one DML operation
         // per shard to maximise the size of each write, and therefore increase
@@ -115,13 +114,7 @@ where
             let existing = collated
                 .entry(Arc::clone(&shard))
                 .or_default()
-                .insert(table_name.clone(), batch);
-            assert!(existing.is_none());
-
-            let existing = table_ids
-                .entry(shard)
-                .or_default()
-                .insert(table_name.clone(), table_id);
+                .insert(table_id, batch);
             assert!(existing.is_none());
         }
 
@@ -129,7 +122,6 @@ where
             let dml = DmlWrite::new(
                 namespace_id,
                 batch,
-                table_ids.remove(&shard).unwrap(),
                 partition_key.clone(),
                 DmlMeta::unsequenced(span_ctx.clone()),
             );

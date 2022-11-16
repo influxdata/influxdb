@@ -395,18 +395,15 @@ impl<T> Drop for IngestHandlerImpl<T> {
 
 #[cfg(test)]
 mod tests {
-    use std::{num::NonZeroU32, ops::DerefMut};
-
-    use data_types::{Namespace, NamespaceId, NamespaceSchema, Sequence, SequenceNumber, TableId};
-    use dml::{DmlMeta, DmlWrite};
-    use iox_catalog::{mem::MemCatalog, validate_or_insert_schema};
-    use iox_time::Time;
-    use mutable_batch_lp::lines_to_batches;
+    use super::*;
+    use crate::test_util::make_write_op;
+    use data_types::{Namespace, NamespaceId, PartitionKey, SequenceNumber, TableId};
+    use dml::DmlWrite;
+    use iox_catalog::mem::MemCatalog;
     use object_store::memory::InMemory;
+    use std::num::NonZeroU32;
     use test_helpers::maybe_start_logging;
     use write_buffer::mock::{MockBufferForReading, MockBufferSharedState};
-
-    use super::*;
 
     #[tokio::test]
     async fn test_shutdown() {
@@ -498,19 +495,7 @@ mod tests {
 
         let write_buffer_state =
             MockBufferSharedState::empty_with_n_shards(NonZeroU32::try_from(1).unwrap());
-
-        let schema = NamespaceSchema::new(
-            namespace.id,
-            topic.id,
-            query_pool.id,
-            namespace.max_columns_per_table,
-            namespace.retention_period_ns,
-        );
         for write_operation in write_operations {
-            validate_or_insert_schema(write_operation.tables(), &schema, txn.deref_mut())
-                .await
-                .unwrap()
-                .unwrap();
             write_buffer_state.push_write(write_operation);
         }
         txn.commit().await.unwrap();
@@ -545,24 +530,36 @@ mod tests {
         (ingester, shard, namespace)
     }
 
+    fn dml_write(table_name: &str, sequence_number: i64) -> DmlWrite {
+        let partition_key = PartitionKey::from("1970-01-01");
+        let shard_index = ShardIndex::new(0);
+        let namespace_id = NamespaceId::new(1);
+        let table_id = TableId::new(1);
+        let timestamp = 42;
+
+        make_write_op(
+            &partition_key,
+            shard_index,
+            namespace_id,
+            table_name,
+            table_id,
+            sequence_number,
+            &format!(
+                "{} foo=1 {}\n{} foo=2 {}",
+                table_name,
+                timestamp,
+                table_name,
+                timestamp + 10
+            ),
+        )
+    }
+
     #[tokio::test]
     #[should_panic(expected = "JoinError::Panic")]
     async fn sequence_number_no_longer_exists() {
         maybe_start_logging();
 
-        let ingest_ts1 = Time::from_timestamp_millis(42).unwrap();
-        let write_operations = vec![DmlWrite::new(
-            NamespaceId::new(1),
-            lines_to_batches("cpu bar=2 20", 0).unwrap(),
-            [("cpu".to_string(), TableId::new(1))].into_iter().collect(),
-            "1970-01-01".into(),
-            DmlMeta::sequenced(
-                Sequence::new(ShardIndex::new(0), SequenceNumber::new(10)),
-                ingest_ts1,
-                None,
-                150,
-            ),
-        )];
+        let write_operations = vec![dml_write("cpu", 10)];
         let (ingester, _shard, _namespace) = ingester_test_setup(write_operations, 2, false).await;
 
         tokio::time::timeout(Duration::from_millis(1000), ingester.join())
@@ -577,19 +574,8 @@ mod tests {
     async fn sequence_number_after_watermark() {
         maybe_start_logging();
 
-        let ingest_ts1 = Time::from_timestamp_millis(42).unwrap();
-        let write_operations = vec![DmlWrite::new(
-            NamespaceId::new(1),
-            lines_to_batches("cpu bar=2 20", 0).unwrap(),
-            [("cpu".to_string(), TableId::new(1))].into_iter().collect(),
-            "1970-01-01".into(),
-            DmlMeta::sequenced(
-                Sequence::new(ShardIndex::new(0), SequenceNumber::new(2)),
-                ingest_ts1,
-                None,
-                150,
-            ),
-        )];
+        let write_operations = vec![dml_write("cpu", 2)];
+
         let (ingester, _shard, _namespace) = ingester_test_setup(write_operations, 10, false).await;
 
         tokio::time::timeout(Duration::from_millis(1100), ingester.join())
@@ -604,19 +590,8 @@ mod tests {
     async fn sequence_number_after_watermark_skip_to_oldest_available() {
         maybe_start_logging();
 
-        let ingest_ts1 = Time::from_timestamp_millis(42).unwrap();
-        let write_operations = vec![DmlWrite::new(
-            NamespaceId::new(1),
-            lines_to_batches("cpu bar=2 20", 0).unwrap(),
-            [("cpu".to_string(), TableId::new(1))].into_iter().collect(),
-            "1970-01-01".into(),
-            DmlMeta::sequenced(
-                Sequence::new(ShardIndex::new(0), SequenceNumber::new(2)),
-                ingest_ts1,
-                None,
-                150,
-            ),
-        )];
+        let write_operations = vec![dml_write("cpu", 2)];
+
         let (ingester, _shard, _namespace) = ingester_test_setup(write_operations, 10, true).await;
 
         tokio::time::timeout(Duration::from_millis(1100), ingester.join())

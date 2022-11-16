@@ -786,19 +786,21 @@ impl MockIngester {
         }
         let (mutable_batches, _stats) = converter.finish().unwrap();
 
-        // set up catalog
-        let tables = {
-            // sort names so that IDs are deterministic
-            let mut table_names: Vec<_> = mutable_batches.keys().cloned().collect();
-            table_names.sort();
+        // sort names so that IDs are deterministic
+        let mut table_names: Vec<_> = mutable_batches.keys().cloned().collect();
+        table_names.sort();
 
-            let mut tables = vec![];
-            for table_name in table_names {
-                let table = self.ns.create_table(&table_name).await;
-                tables.push(table);
-            }
-            tables
-        };
+        // set up catalog, map from catalog id to batch
+        let mut tables = Vec::with_capacity(table_names.len());
+        let mut batches_by_id = hashbrown::HashMap::with_capacity(table_names.len());
+
+        for table_name in table_names {
+            let table = self.ns.create_table(&table_name).await;
+            let table_id = table.table.id;
+            tables.push(table);
+            batches_by_id.insert(table_id, mutable_batches.get(&table_name).unwrap().clone());
+        }
+
         let mut partition_ids = vec![];
         for table in &tables {
             let partition = table
@@ -808,12 +810,7 @@ impl MockIngester {
             partition_ids.push(partition.partition.id);
         }
 
-        let ids = tables
-            .iter()
-            .map(|v| (v.table.name.clone(), v.table.id))
-            .collect();
-
-        for table in tables {
+        for table in &tables {
             let schema = mutable_batches
                 .get(&table.table.name)
                 .unwrap()
@@ -836,8 +833,7 @@ impl MockIngester {
         );
         let op = DmlOperation::Write(DmlWrite::new(
             self.ns.namespace.id,
-            mutable_batches,
-            ids,
+            batches_by_id,
             PartitionKey::from(partition_key),
             meta,
         ));

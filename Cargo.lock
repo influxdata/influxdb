@@ -4048,6 +4048,7 @@ dependencies = [
  "dml",
  "futures",
  "generated_types",
+ "hashbrown 0.13.1",
  "influxdb_iox_client",
  "ingester",
  "iox_catalog",

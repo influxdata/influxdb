@@ -12,7 +12,7 @@ use ingester::{
     lifecycle::LifecycleConfig,
     querier_handler::IngesterQueryResponse,
 };
-use iox_catalog::{interface::Catalog, mem::MemCatalog, validate_or_insert_schema};
+use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use iox_query::exec::Executor;
 use iox_time::TimeProvider;
 use metric::{Attributes, Metric, MetricObserver};
@@ -210,20 +210,17 @@ impl TestContext {
         ns
     }
 
-    /// Enqueue the specified `op` into the write buffer for the ingester to
-    /// consume.
+    /// Enqueue the specified `op` into the write buffer for the ingester to consume.
     ///
-    /// This call takes care of validating the schema of `op` and populating the
-    /// catalog with any new schema elements.
+    /// This call does NOT validate the schema of `op` or populate the catalog with any new schema
+    /// elements.
     ///
     /// # Panics
     ///
-    /// This method panics if the namespace for `op` does not exist, or the
-    /// schema is invalid or conflicts with the existing namespace schema.
+    /// This method panics if the namespace for `op` does not exist.
     #[track_caller]
     pub async fn enqueue_write(&mut self, op: DmlWrite) -> SequenceNumber {
-        let schema = self
-            .namespaces
+        self.namespaces
             .get_mut(&op.namespace_id())
             .expect("namespace does not exist");
 
@@ -234,17 +231,6 @@ impl TestContext {
             .sequence()
             .expect("write must be sequenced")
             .sequence_number;
-
-        // Perform schema validation, populating the catalog.
-        let mut repo = self.catalog.repositories().await;
-        if let Some(new) = validate_or_insert_schema(op.tables(), schema, repo.as_mut())
-            .await
-            .expect("failed schema validation for enqueuing write")
-        {
-            // Retain the updated schema.
-            debug!(?schema, "updated test context schema");
-            *schema = new;
-        }
 
         // Push the write into the write buffer.
         self.write_buffer_state.push_write(op);
@@ -274,24 +260,25 @@ impl TestContext {
             .expect("namespace does not exist")
             .id;
 
-        // Build the TableId -> TableName map, upserting the tables in the
+        let batches = lines_to_batches(lp, 0).unwrap();
+
+        // Build the TableId -> Batch map, upserting the tables into the catalog in the
         // process.
-        let ids = lines_to_batches(lp, 0)
-            .unwrap()
-            .keys()
-            .map(|v| {
+        let batches_by_ids = batches
+            .into_iter()
+            .map(|(table_name, batch)| {
                 let catalog = Arc::clone(&self.catalog);
                 async move {
                     let id = catalog
                         .repositories()
                         .await
                         .tables()
-                        .create_or_get(v, namespace_id)
+                        .create_or_get(&table_name, namespace_id)
                         .await
                         .expect("table should create OK")
                         .id;
 
-                    (v.clone(), id)
+                    (id, batch)
                 }
             })
             .collect::<FuturesUnordered<_>>()
@@ -300,8 +287,7 @@ impl TestContext {
 
         self.enqueue_write(DmlWrite::new(
             namespace_id,
-            lines_to_batches(lp, 0).unwrap(),
-            ids.clone(),
+            batches_by_ids,
             partition_key,
             DmlMeta::sequenced(
                 Sequence::new(TEST_SHARD_INDEX, SequenceNumber::new(sequence_number)),

@@ -371,23 +371,16 @@ pub mod test_utils {
         test_flush(&adapter).await;
     }
 
-    /// Parse the provided line-protocol and return both the table ID indexed
-    /// data map, and the table ID to table name map.
+    /// Parse the provided line-protocol and return the table ID indexed data map.
     ///
     /// Makes up the namespace ID & table IDs.
-    pub fn lp_to_batches(lp: &str) -> (HashMap<String, MutableBatch>, HashMap<String, TableId>) {
+    pub fn lp_to_batches(lp: &str) -> HashMap<TableId, MutableBatch> {
         mutable_batch_lp::lines_to_batches(lp, 0)
             .unwrap()
             .into_iter()
             .enumerate()
-            .map(|(idx, (name, data))| {
-                let idx = idx as i64;
-                let name_mapping = (name.clone(), data);
-                let id_mapping = (name, TableId::new(idx));
-
-                (name_mapping, id_mapping)
-            })
-            .unzip()
+            .map(|(idx, (_table_name, batch))| (TableId::new(idx as _), batch))
+            .collect()
     }
 
     /// Writes line protocol and returns the [`DmlWrite`] that was written.
@@ -398,12 +391,11 @@ pub mod test_utils {
         partition_key: PartitionKey,
         span_context: Option<&SpanContext>,
     ) -> DmlWrite {
-        let (tables, names) = lp_to_batches(lp);
+        let tables = lp_to_batches(lp);
 
         let write = DmlWrite::new(
             NamespaceId::new(42),
             tables,
-            names,
             partition_key,
             DmlMeta::unsequenced(span_context.cloned()),
         );
@@ -1219,11 +1211,10 @@ pub mod test_utils {
     {
         let context = adapter.new_context(NonZeroU32::try_from(1).unwrap()).await;
 
-        let (tables, names) = lp_to_batches("upc user=1 100");
+        let tables = lp_to_batches("upc user=1 100");
         let write = DmlWrite::new(
             NamespaceId::new(42),
             tables,
-            names,
             "bananas".into(),
             Default::default(),
         );

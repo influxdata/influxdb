@@ -177,9 +177,8 @@ impl From<DmlDelete> for DmlOperation {
 pub struct DmlWrite {
     /// The namespace being written to
     namespace_id: NamespaceId,
-    /// Writes to individual tables keyed by table name
-    tables: HashMap<String, MutableBatch>,
-    table_ids: HashMap<String, TableId>,
+    /// Writes to individual tables keyed by table ID
+    table_ids: HashMap<TableId, MutableBatch>,
     /// Write metadata
     meta: DmlMeta,
     min_timestamp: i64,
@@ -195,22 +194,19 @@ impl DmlWrite {
     ///
     /// Panics if
     ///
-    /// - `tables` is empty
+    /// - `table_ids` is empty
     /// - a MutableBatch is empty
     /// - a MutableBatch lacks an i64 "time" column
     pub fn new(
         namespace_id: NamespaceId,
-        tables: HashMap<String, MutableBatch>,
-        table_ids: HashMap<String, TableId>,
+        table_ids: HashMap<TableId, MutableBatch>,
         partition_key: PartitionKey,
         meta: DmlMeta,
     ) -> Self {
-        assert_ne!(tables.len(), 0);
-        // A simple (and incomplete) sanity check.
-        assert_eq!(tables.len(), table_ids.len());
+        assert_ne!(table_ids.len(), 0);
 
         let mut stats = StatValues::new_empty();
-        for (table_name, table) in &tables {
+        for (table_id, table) in &table_ids {
             match table
                 .column(schema::TIME_COLUMN_NAME)
                 .expect("time")
@@ -219,14 +215,13 @@ impl DmlWrite {
                 Statistics::I64(col_stats) => stats.update_from(&col_stats),
                 s => unreachable!(
                     "table \"{}\" has unexpected type for time column: {}",
-                    table_name,
+                    table_id,
                     s.type_name()
                 ),
             };
         }
 
         Self {
-            tables,
             table_ids,
             partition_key,
             meta,
@@ -248,33 +243,23 @@ impl DmlWrite {
 
     /// Returns an iterator over the per-table writes within this [`DmlWrite`]
     /// in no particular order
-    pub fn tables(&self) -> impl Iterator<Item = (&str, &MutableBatch)> + '_ {
-        self.tables.iter().map(|(k, v)| (k.as_str(), v))
+    pub fn tables(&self) -> impl Iterator<Item = (&TableId, &MutableBatch)> + '_ {
+        self.table_ids.iter()
     }
 
-    /// Consumes `self`, returning an iterator of the table data, name & ID
-    /// contained within it.
-    pub fn into_tables(self) -> impl Iterator<Item = (String, TableId, MutableBatch)> {
-        self.tables.into_iter().map(move |(name, data)| {
-            (
-                name.clone(),
-                *self
-                    .table_ids
-                    .get(&name)
-                    .expect("no table ID found for table"),
-                data,
-            )
-        })
+    /// Consumes `self`, returning an iterator of the table ID and data contained within it.
+    pub fn into_tables(self) -> impl Iterator<Item = (TableId, MutableBatch)> {
+        self.table_ids.into_iter()
     }
 
     /// Gets the write for a given table
-    pub fn table(&self, name: &str) -> Option<&MutableBatch> {
-        self.tables.get(name)
+    pub fn table(&self, id: &TableId) -> Option<&MutableBatch> {
+        self.table_ids.get(id)
     }
 
     /// Returns the number of tables within this write
     pub fn table_count(&self) -> usize {
-        self.tables.len()
+        self.table_ids.len()
     }
 
     /// Returns the minimum timestamp in the write
@@ -293,14 +278,9 @@ impl DmlWrite {
     pub fn size(&self) -> usize {
         std::mem::size_of::<Self>()
             + self
-                .tables
-                .iter()
-                .map(|(k, v)| std::mem::size_of_val(k) + k.capacity() + v.size())
-                .sum::<usize>()
-            + self
                 .table_ids
-                .keys()
-                .map(|k| std::mem::size_of_val(k) + k.capacity() + std::mem::size_of::<TableId>())
+                .values()
+                .map(|v| std::mem::size_of::<TableId>() + v.size())
                 .sum::<usize>()
             + self.meta.size()
             + std::mem::size_of::<NamespaceId>()
@@ -311,11 +291,6 @@ impl DmlWrite {
     /// Return the partition key derived for this op.
     pub fn partition_key(&self) -> &PartitionKey {
         &self.partition_key
-    }
-
-    /// Return the map of [`TableId`] to table names for this batch.
-    pub fn table_id(&self, name: &str) -> Option<TableId> {
-        self.table_ids.get(name).cloned()
     }
 
     /// Return the [`NamespaceId`] to which this [`DmlWrite`] should be applied.
@@ -430,14 +405,14 @@ pub mod test_util {
 
         assert_eq!(a.table_count(), b.table_count());
 
-        for (table_name, a_batch) in a.tables() {
-            let b_batch = b.table(table_name).expect("table not found");
+        for (table_id, a_batch) in a.tables() {
+            let b_batch = b.table(table_id).expect("table not found");
 
             assert_eq!(
                 pretty_format_batches(&[a_batch.to_arrow(Projection::All).unwrap()]).unwrap(),
                 pretty_format_batches(&[b_batch.to_arrow(Projection::All).unwrap()]).unwrap(),
                 "batches for table \"{}\" differ",
-                table_name
+                table_id
             );
         }
     }
