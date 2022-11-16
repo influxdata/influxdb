@@ -2340,6 +2340,7 @@ dependencies = [
  "metric",
  "mutable_batch",
  "mutable_batch_lp",
+ "mutable_batch_pb",
  "object_store",
  "observability_deps",
  "once_cell",

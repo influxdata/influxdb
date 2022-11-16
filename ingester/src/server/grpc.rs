@@ -1,6 +1,7 @@
 //! gRPC service implementations for `ingester`.
 
 mod query;
+mod rpc_write;
 mod write_info;
 
 use std::sync::{atomic::AtomicU64, Arc};
