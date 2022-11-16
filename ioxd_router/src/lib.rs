@@ -129,6 +129,7 @@ where
         add_service!(builder, self.server.grpc().catalog_service());
         add_service!(builder, self.server.grpc().object_store_service());
         add_service!(builder, self.server.grpc().shard_service());
+        add_service!(builder, self.server.grpc().namespace_service());
         serve_builder!(builder);
 
         Ok(())

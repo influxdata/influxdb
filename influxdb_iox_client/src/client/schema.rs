@@ -35,21 +35,4 @@ impl Client {
 
         Ok(response.into_inner().schema.unwrap_field("schema")?)
     }
-
-    /// Update retention for a namespace
-    pub async fn update_namespace_retention(
-        &mut self,
-        namespace: &str,
-        retention_hours: i64,
-    ) -> Result<Namespace, Error> {
-        let response = self
-            .inner
-            .update_namespace_retention(UpdateNamespaceRetentionRequest {
-                name: namespace.to_string(),
-                retention_hours,
-            })
-            .await?;
-
-        Ok(response.into_inner().namespace.unwrap_field("namespace")?)
-    }
 }

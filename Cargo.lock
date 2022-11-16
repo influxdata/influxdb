@@ -4335,6 +4335,7 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "service_grpc_catalog",
+ "service_grpc_namespace",
  "service_grpc_object_store",
  "service_grpc_schema",
  "sharder",
@@ -4655,6 +4656,21 @@ dependencies = [
  "trace",
  "trace_http",
  "tracker",
+ "workspace-hack",
+]
+
+[[package]]
+name = "service_grpc_namespace"
+version = "0.1.0"
+dependencies = [
+ "data_types",
+ "generated_types",
+ "iox_catalog",
+ "iox_tests",
+ "metric",
+ "observability_deps",
+ "tokio",
+ "tonic",
  "workspace-hack",
 ]
 
