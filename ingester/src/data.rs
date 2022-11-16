@@ -1,17 +1,14 @@
 //! Data for the lifecycle of the Ingester
 
-use std::{
-    collections::BTreeMap,
-    sync::Arc,
-    time::{Duration, Instant},
+use crate::{
+    compact::{compact_persisting_batch, CompactedStream},
+    lifecycle::LifecycleHandle,
 };
-
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
 use data_types::{
     CompactionLevel, NamespaceId, PartitionId, SequenceNumber, ShardId, ShardIndex, TableId,
 };
-
 use dml::DmlOperation;
 use iox_catalog::interface::{get_table_schema_by_id, Catalog};
 use iox_query::exec::Executor;
@@ -24,14 +21,14 @@ use parquet_file::{
     storage::{ParquetStorage, StorageId},
 };
 use snafu::{OptionExt, Snafu};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use thiserror::Error;
 use uuid::Uuid;
 use write_summary::ShardProgress;
-
-use crate::{
-    compact::{compact_persisting_batch, CompactedStream},
-    lifecycle::LifecycleHandle,
-};
 
 pub(crate) mod namespace;
 pub mod partition;
@@ -701,7 +698,8 @@ mod tests {
     use crate::lifecycle::{LifecycleConfig, LifecycleManager};
     use assert_matches::assert_matches;
     use data_types::{
-        DeletePredicate, NamespaceSchema, NonEmptyString, Sequence, Timestamp, TimestampRange,
+        DeletePredicate, Namespace, NamespaceSchema, NonEmptyString, Sequence, Shard, Timestamp,
+        TimestampRange,
     };
     use dml::{DmlDelete, DmlMeta, DmlWrite};
     use futures::TryStreamExt;
@@ -714,44 +712,95 @@ mod tests {
     use schema::sort::SortKey;
     use std::{ops::DerefMut, sync::Arc, time::Duration};
 
+    struct TestContext {
+        metrics: Arc<metric::Registry>,
+        catalog: Arc<dyn Catalog>,
+        object_store: Arc<DynObjectStore>,
+        namespace: Namespace,
+        schema: NamespaceSchema,
+        shard1: Shard,
+        shard2: Shard,
+        data: Arc<IngesterData>,
+    }
+
+    impl TestContext {
+        async fn new() -> Self {
+            let metrics = Arc::new(metric::Registry::new());
+            let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
+
+            let (namespace, schema, shard1, shard2) = {
+                let mut repos = catalog.repositories().await;
+
+                let topic = repos.topics().create_or_get("whatevs").await.unwrap();
+                let query_pool = repos.query_pools().create_or_get("whatevs").await.unwrap();
+
+                let namespace = repos
+                    .namespaces()
+                    .create("foo", topic.id, query_pool.id)
+                    .await
+                    .unwrap();
+                let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
+
+                let shard_index = ShardIndex::new(0);
+                let shard1 = repos
+                    .shards()
+                    .create_or_get(&topic, shard_index)
+                    .await
+                    .unwrap();
+
+                let shard2 = repos
+                    .shards()
+                    .create_or_get(&topic, shard_index)
+                    .await
+                    .unwrap();
+                (namespace, schema, shard1, shard2)
+            };
+
+            let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
+
+            let data = Arc::new(
+                IngesterData::new(
+                    Arc::clone(&object_store),
+                    Arc::clone(&catalog),
+                    [
+                        (shard1.id, shard1.shard_index),
+                        (shard2.id, shard2.shard_index),
+                    ],
+                    Arc::new(Executor::new(1)),
+                    BackoffConfig::default(),
+                    Arc::clone(&metrics),
+                )
+                .await
+                .expect("failed to initialise ingester"),
+            );
+
+            Self {
+                metrics,
+                catalog,
+                object_store,
+                namespace,
+                schema,
+                shard1,
+                shard2,
+                data,
+            }
+        }
+    }
+
     #[tokio::test]
     async fn buffer_write_updates_lifecycle_manager_indicates_pause() {
-        let metrics = Arc::new(metric::Registry::new());
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-        let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("whatevs").await.unwrap();
-        let query_pool = repos.query_pools().create_or_get("whatevs").await.unwrap();
-        let shard_index = ShardIndex::new(0);
-        let namespace = repos
-            .namespaces()
-            .create("foo", topic.id, query_pool.id)
-            .await
-            .unwrap();
-        let shard1 = repos
-            .shards()
-            .create_or_get(&topic, shard_index)
-            .await
-            .unwrap();
-
-        let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
-
-        drop(repos); // test catalog deadlock
-        let data = Arc::new(
-            IngesterData::new(
-                Arc::clone(&object_store),
-                Arc::clone(&catalog),
-                [(shard1.id, shard_index)],
-                Arc::new(Executor::new(1)),
-                BackoffConfig::default(),
-                Arc::clone(&metrics),
-            )
-            .await
-            .expect("failed to initialise ingester"),
-        );
+        test_helpers::maybe_start_logging();
+        let TestContext {
+            metrics,
+            catalog,
+            namespace,
+            schema,
+            shard1: shard,
+            data,
+            ..
+        } = TestContext::new().await;
 
         let mut repos = catalog.repositories().await;
-
-        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
         let ignored_ts = Time::from_timestamp_millis(42).unwrap();
 
@@ -789,11 +838,7 @@ mod tests {
             Arc::new(SystemProvider::new()),
         );
         let action = data
-            .buffer_operation(
-                shard1.id,
-                DmlOperation::Write(w1.clone()),
-                &manager.handle(),
-            )
+            .buffer_operation(shard.id, DmlOperation::Write(w1.clone()), &manager.handle())
             .await
             .unwrap();
         assert_matches!(action, DmlApplyAction::Applied(false));
@@ -813,7 +858,7 @@ mod tests {
         );
 
         let action = data
-            .buffer_operation(shard1.id, DmlOperation::Write(w2), &manager.handle())
+            .buffer_operation(shard.id, DmlOperation::Write(w2), &manager.handle())
             .await
             .unwrap();
         assert_matches!(action, DmlApplyAction::Applied(true));
@@ -821,42 +866,19 @@ mod tests {
 
     #[tokio::test]
     async fn persist_row_count_trigger() {
-        let metrics = Arc::new(metric::Registry::new());
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-        let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("whatevs").await.unwrap();
-        let query_pool = repos.query_pools().create_or_get("whatevs").await.unwrap();
-        let shard_index = ShardIndex::new(0);
-        let namespace = repos
-            .namespaces()
-            .create("foo", topic.id, query_pool.id)
-            .await
-            .unwrap();
-        let shard1 = repos
-            .shards()
-            .create_or_get(&topic, shard_index)
-            .await
-            .unwrap();
-
-        let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
-
-        drop(repos); // test catalog deadlock
-        let data = Arc::new(
-            IngesterData::new(
-                Arc::clone(&object_store),
-                Arc::clone(&catalog),
-                [(shard1.id, shard1.shard_index)],
-                Arc::new(Executor::new(1)),
-                BackoffConfig::default(),
-                Arc::clone(&metrics),
-            )
-            .await
-            .expect("failed to initialise ingester"),
-        );
+        test_helpers::maybe_start_logging();
+        let TestContext {
+            metrics,
+            catalog,
+            object_store,
+            namespace,
+            schema,
+            shard1: shard,
+            data,
+            ..
+        } = TestContext::new().await;
 
         let mut repos = catalog.repositories().await;
-
-        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
         let batch = lines_to_batches("mem foo=1 10\nmem foo=1 11", 0).unwrap();
         let w1 = DmlWrite::new(
@@ -893,7 +915,7 @@ mod tests {
         );
 
         let action = data
-            .buffer_operation(shard1.id, DmlOperation::Write(w1), &manager.handle())
+            .buffer_operation(shard.id, DmlOperation::Write(w1), &manager.handle())
             .await
             .unwrap();
         // Exceeding the row count doesn't pause ingest (like other partition
@@ -911,7 +933,7 @@ mod tests {
             .id;
 
         let partition_id = {
-            let sd = data.shards.get(&shard1.id).unwrap();
+            let sd = data.shards.get(&shard.id).unwrap();
             let n = sd.namespace(namespace.id).unwrap();
             let mem_table = n.table(table_id).unwrap();
             let p = mem_table
@@ -922,7 +944,7 @@ mod tests {
             p
         };
 
-        data.persist(shard1.id, namespace.id, table_id, partition_id)
+        data.persist(shard.id, namespace.id, table_id, partition_id)
             .await;
 
         // verify that a file got put into object store
@@ -938,50 +960,19 @@ mod tests {
 
     #[tokio::test]
     async fn persist() {
-        let metrics = Arc::new(metric::Registry::new());
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-        let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("whatevs").await.unwrap();
-        let query_pool = repos.query_pools().create_or_get("whatevs").await.unwrap();
-        let shard_index = ShardIndex::new(0);
-        let namespace = repos
-            .namespaces()
-            .create("foo", topic.id, query_pool.id)
-            .await
-            .unwrap();
-        let shard1 = repos
-            .shards()
-            .create_or_get(&topic, shard_index)
-            .await
-            .unwrap();
-        let shard2 = repos
-            .shards()
-            .create_or_get(&topic, shard_index)
-            .await
-            .unwrap();
-
-        let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
-
-        drop(repos); // test catalog deadlock
-        let data = Arc::new(
-            IngesterData::new(
-                Arc::clone(&object_store),
-                Arc::clone(&catalog),
-                [
-                    (shard1.id, shard1.shard_index),
-                    (shard2.id, shard2.shard_index),
-                ],
-                Arc::new(Executor::new(1)),
-                BackoffConfig::default(),
-                Arc::clone(&metrics),
-            )
-            .await
-            .expect("failed to initialise ingester"),
-        );
+        test_helpers::maybe_start_logging();
+        let TestContext {
+            metrics,
+            catalog,
+            object_store,
+            namespace,
+            schema,
+            shard1,
+            shard2,
+            data,
+        } = TestContext::new().await;
 
         let mut repos = catalog.repositories().await;
-
-        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
         let ignored_ts = Time::from_timestamp_millis(42).unwrap();
 
@@ -1063,7 +1054,7 @@ mod tests {
         let expected_progress = ShardProgress::new()
             .with_buffered(SequenceNumber::new(1))
             .with_buffered(SequenceNumber::new(2));
-        assert_progress(&data, shard_index, expected_progress).await;
+        assert_progress(&data, shard1.shard_index, expected_progress).await;
 
         let table_id = catalog
             .repositories()
@@ -1221,56 +1212,23 @@ mod tests {
         let expected_progress = ShardProgress::new()
             .with_buffered(SequenceNumber::new(1))
             .with_persisted(SequenceNumber::new(2));
-        assert_progress(&data, shard_index, expected_progress).await;
+        assert_progress(&data, shard1.shard_index, expected_progress).await;
     }
 
     #[tokio::test]
     async fn partial_write_progress() {
         test_helpers::maybe_start_logging();
-        let metrics = Arc::new(metric::Registry::new());
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-        let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("whatevs").await.unwrap();
-        let query_pool = repos.query_pools().create_or_get("whatevs").await.unwrap();
-        let shard_index = ShardIndex::new(0);
-        let namespace = repos
-            .namespaces()
-            .create("foo", topic.id, query_pool.id)
-            .await
-            .unwrap();
-        let shard1 = repos
-            .shards()
-            .create_or_get(&topic, shard_index)
-            .await
-            .unwrap();
-        let shard2 = repos
-            .shards()
-            .create_or_get(&topic, shard_index)
-            .await
-            .unwrap();
-
-        let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
-
-        drop(repos); // test catalog deadlock
-        let data = Arc::new(
-            IngesterData::new(
-                Arc::clone(&object_store),
-                Arc::clone(&catalog),
-                [
-                    (shard1.id, shard1.shard_index),
-                    (shard2.id, shard2.shard_index),
-                ],
-                Arc::new(Executor::new(1)),
-                BackoffConfig::default(),
-                Arc::clone(&metrics),
-            )
-            .await
-            .expect("failed to initialise ingester"),
-        );
+        let TestContext {
+            metrics,
+            catalog,
+            namespace,
+            schema,
+            shard1,
+            data,
+            ..
+        } = TestContext::new().await;
 
         let mut repos = catalog.repositories().await;
-
-        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
         let ignored_ts = Time::from_timestamp_millis(42).unwrap();
 
@@ -1337,7 +1295,7 @@ mod tests {
         let n = sd.namespace(namespace.id).unwrap();
 
         let expected_progress = ShardProgress::new().with_buffered(SequenceNumber::new(1));
-        assert_progress(&data, shard_index, expected_progress).await;
+        assert_progress(&data, shard1.shard_index, expected_progress).await;
 
         // configure the the namespace to wait after each insert.
         n.test_triggers.enable_pause_after_write().await;
@@ -1358,7 +1316,7 @@ mod tests {
         let expected_progress = ShardProgress::new()
             // sequence 2 hasn't been buffered yet
             .with_buffered(SequenceNumber::new(1));
-        assert_progress(&data, shard_index, expected_progress).await;
+        assert_progress(&data, shard1.shard_index, expected_progress).await;
 
         // allow the write to complete
         n.test_triggers.release_pause_after_write().await;
@@ -1368,7 +1326,7 @@ mod tests {
         let expected_progress = ShardProgress::new()
             .with_buffered(SequenceNumber::new(1))
             .with_buffered(SequenceNumber::new(2));
-        assert_progress(&data, shard_index, expected_progress).await;
+        assert_progress(&data, shard1.shard_index, expected_progress).await;
     }
 
     #[tokio::test]
