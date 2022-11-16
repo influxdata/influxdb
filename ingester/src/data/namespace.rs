@@ -328,8 +328,8 @@ mod tests {
     };
     use assert_matches::assert_matches;
     use data_types::{
-        ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, PartitionId,
-        PartitionKey, ShardIndex, Timestamp,
+        ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, PartitionId, PartitionKey,
+        ShardIndex, Timestamp,
     };
     use iox_catalog::{interface::Catalog, mem::MemCatalog};
     use iox_time::SystemProvider;
@@ -424,18 +424,11 @@ mod tests {
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
         let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("whatevs").await.unwrap();
-        let query_pool = repos.query_pools().create_or_get("whatevs").await.unwrap();
-        let namespace = repos
-            .namespaces()
-            .create("foo", topic.id, query_pool.id)
-            .await
-            .unwrap();
 
         let w1 = make_write_op(
             &PartitionKey::from("1970-01-01"),
             SHARD_INDEX,
-            namespace.id,
+            NAMESPACE_ID,
             TABLE_NAME,
             TABLE_ID,
             1,
@@ -444,7 +437,7 @@ mod tests {
         let w2 = make_write_op(
             &PartitionKey::from("1970-01-01"),
             SHARD_INDEX,
-            namespace.id,
+            NAMESPACE_ID,
             TABLE_NAME,
             TABLE_ID,
             2,
@@ -470,7 +463,7 @@ mod tests {
 
         let parquet_file_params = ParquetFileParams {
             shard_id: SHARD_ID,
-            namespace_id: namespace.id,
+            namespace_id: NAMESPACE_ID,
             table_id: TABLE_ID,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
@@ -521,7 +514,7 @@ mod tests {
         let partition_provider = Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog)));
 
         let data = NamespaceData::new(
-            namespace.id,
+            NAMESPACE_ID,
             DeferredLoad::new(Duration::from_millis(1), async { "foo".into() }),
             Arc::new(MockTableNameProvider::new(TABLE_NAME)),
             SHARD_ID,
