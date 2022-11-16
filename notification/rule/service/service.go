@@ -31,6 +31,13 @@ var (
 		Code: errors.EInvalid,
 		Msg:  "provided notification rule ID has invalid format",
 	}
+
+	// ErrNotificationRuleNameExists is used when notification rule
+	// with the specified name already exists.
+	ErrNotificationRuleNameExists = &errors.Error{
+		Code: errors.EConflict,
+		Msg:  "notification rule with specified name already exists",
+	}
 )
 
 // RuleService is an implementation of the influxdb CheckService
@@ -117,6 +124,10 @@ func (s *RuleService) CreateNotificationRule(ctx context.Context, nr influxdb.No
 	nr.SetOwnerID(userID)
 	nr.SetCreatedAt(now)
 	nr.SetUpdatedAt(now)
+
+	if err := s.nameConflict(ctx, nr); err != nil {
+		return err
+	}
 
 	// create backing task and set ID (in inactive state initially)
 	t, err := s.createNotificationTask(ctx, nr)
@@ -206,6 +217,10 @@ func (s *RuleService) UpdateNotificationRule(ctx context.Context, id platform.ID
 		return nil, err
 	}
 
+	if err := s.nameConflict(ctx, nr); err != nil {
+		return nil, err
+	}
+
 	_, err = s.updateNotificationTask(ctx, nr, pointer.String(string(nr.Status)))
 	if err != nil {
 		return nil, err
@@ -253,6 +268,9 @@ func (s *RuleService) PatchNotificationRule(ctx context.Context, id platform.ID,
 
 	if upd.Name != nil {
 		nr.SetName(*upd.Name)
+		if err := s.nameConflict(ctx, nr); err != nil {
+			return nil, err
+		}
 	}
 	if upd.Description != nil {
 		nr.SetDescription(*upd.Description)
@@ -496,5 +514,22 @@ func (s *RuleService) deleteNotificationRule(ctx context.Context, tx kv.Tx, r in
 		return InternalNotificationRuleStoreError(err)
 	}
 
+	return nil
+}
+
+func (s *RuleService) nameConflict(ctx context.Context, nr influxdb.NotificationRule) error {
+	orgID := nr.GetOrgID()
+	nrs, _, err := s.FindNotificationRules(ctx, influxdb.NotificationRuleFilter{OrgID: &orgID})
+	if err != nil {
+		return err
+	}
+
+	id := nr.GetID()
+	name := nr.GetName()
+	for _, r := range nrs {
+		if name == r.GetName() && id != r.GetID() {
+			return ErrNotificationRuleNameExists
+		}
+	}
 	return nil
 }
