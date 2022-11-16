@@ -83,6 +83,9 @@ pub use chain::*;
 mod fan_out;
 pub use fan_out::*;
 
+mod rpc_write;
+pub use rpc_write::*;
+
 mod write_summary;
 pub use self::write_summary::*;
 

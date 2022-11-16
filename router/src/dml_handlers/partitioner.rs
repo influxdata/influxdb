@@ -126,7 +126,7 @@ mod tests {
     use super::*;
 
     // Parse `lp` into a table-keyed MutableBatch map.
-    fn lp_to_writes(lp: &str) -> HashMap<TableId, (String, MutableBatch)> {
+    pub(crate) fn lp_to_writes(lp: &str) -> HashMap<TableId, (String, MutableBatch)> {
         let (writes, _) = mutable_batch_lp::lines_to_batches_stats(lp, 42)
             .expect("failed to build test writes from LP");
 
