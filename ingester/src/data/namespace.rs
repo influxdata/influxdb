@@ -328,22 +328,12 @@ mod tests {
     };
     use assert_matches::assert_matches;
     use data_types::{
-        ColumnId, ColumnSet, CompactionLevel, NamespaceSchema, ParquetFileParams, Sequence,
-        Timestamp,
+        ColumnId, ColumnSet, CompactionLevel, NamespaceSchema, ParquetFileParams, PartitionId,
+        PartitionKey, ShardIndex, Timestamp,
     };
-    use data_types::{PartitionId, PartitionKey, ShardIndex};
-    use dml::{DmlMeta, DmlWrite};
-    use hashbrown::HashMap;
-    use iox_catalog::{
-        interface::{Catalog, RepoCollection},
-        mem::MemCatalog,
-        validate_or_insert_schema,
-    };
-    use iox_time::{SystemProvider, Time};
-    use metric::{Attributes, Metric};
-    use metric::{MetricObserver, Observation};
-    use mutable_batch::MutableBatch;
-    use mutable_batch_lp::lines_to_batches;
+    use iox_catalog::{interface::Catalog, mem::MemCatalog, validate_or_insert_schema};
+    use iox_time::SystemProvider;
+    use metric::{Attributes, Metric, MetricObserver, Observation};
     use std::{ops::DerefMut, sync::Arc, time::Duration};
     use uuid::Uuid;
 
@@ -435,47 +425,28 @@ mod tests {
         let mut repos = catalog.repositories().await;
         let topic = repos.topics().create_or_get("whatevs").await.unwrap();
         let query_pool = repos.query_pools().create_or_get("whatevs").await.unwrap();
-        let shard_index = ShardIndex::new(0);
         let namespace = repos
             .namespaces()
             .create("foo", topic.id, query_pool.id)
             .await
             .unwrap();
-        let shard = repos
-            .shards()
-            .create_or_get(&topic, shard_index)
-            .await
-            .unwrap();
-
         let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
-        let ignored_ts = Time::from_timestamp_millis(42).unwrap();
-
-        let batch = lines_to_batches("mem foo=1 10", 0).unwrap();
-        let w1 = DmlWrite::new(
+        let w1 = make_write_op(
+            &PartitionKey::from("1970-01-01"),
+            SHARD_INDEX,
             namespace.id,
-            batch.clone(),
-            build_id_map(repos.deref_mut(), namespace.id, &batch).await,
-            "1970-01-01".into(),
-            DmlMeta::sequenced(
-                Sequence::new(ShardIndex::new(1), SequenceNumber::new(1)),
-                ignored_ts,
-                None,
-                50,
-            ),
+            TABLE_ID,
+            1,
+            "test_table foo=1 10",
         );
-        let batch = lines_to_batches("mem foo=1 10", 0).unwrap();
-        let w2 = DmlWrite::new(
+        let w2 = make_write_op(
+            &PartitionKey::from("1970-01-01"),
+            SHARD_INDEX,
             namespace.id,
-            batch.clone(),
-            build_id_map(repos.deref_mut(), namespace.id, &batch).await,
-            "1970-01-01".into(),
-            DmlMeta::sequenced(
-                Sequence::new(ShardIndex::new(1), SequenceNumber::new(2)),
-                ignored_ts,
-                None,
-                50,
-            ),
+            TABLE_ID,
+            2,
+            "test_table foo=1 10",
         );
 
         let _ = validate_or_insert_schema(w1.tables(), &schema, repos.deref_mut())
@@ -484,14 +455,9 @@ mod tests {
             .unwrap();
 
         // create some persisted state
-        let table = repos
-            .tables()
-            .create_or_get("mem", namespace.id)
-            .await
-            .unwrap();
         let partition = repos
             .partitions()
-            .create_or_get("1970-01-01".into(), shard.id, table.id)
+            .create_or_get("1970-01-01".into(), SHARD_ID, TABLE_ID)
             .await
             .unwrap();
         repos
@@ -501,14 +467,14 @@ mod tests {
             .unwrap();
         let partition2 = repos
             .partitions()
-            .create_or_get("1970-01-02".into(), shard.id, table.id)
+            .create_or_get("1970-01-02".into(), SHARD_ID, TABLE_ID)
             .await
             .unwrap();
 
         let parquet_file_params = ParquetFileParams {
-            shard_id: shard.id,
+            shard_id: SHARD_ID,
             namespace_id: namespace.id,
-            table_id: table.id,
+            table_id: TABLE_ID,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
             max_sequence_number: SequenceNumber::new(1),
@@ -560,8 +526,8 @@ mod tests {
         let data = NamespaceData::new(
             namespace.id,
             DeferredLoad::new(Duration::from_millis(1), async { "foo".into() }),
-            Arc::new(MockTableNameProvider::new(table.name)),
-            shard.id,
+            Arc::new(MockTableNameProvider::new(TABLE_NAME)),
+            SHARD_ID,
             partition_provider,
             &metrics,
         );
@@ -574,7 +540,7 @@ mod tests {
             .await
             .unwrap();
         {
-            let table = data.table(table.id).unwrap();
+            let table = data.table(TABLE_ID).unwrap();
             assert!(table
                 .partitions()
                 .into_iter()
@@ -595,7 +561,7 @@ mod tests {
             .await
             .unwrap();
 
-        let table = data.table(table.id).unwrap();
+        let table = data.table(TABLE_ID).unwrap();
         let partition = table.get_partition_by_key(&"1970-01-01".into()).unwrap();
         assert_eq!(
             partition.lock().sequence_number_range().inclusive_min(),
@@ -605,29 +571,5 @@ mod tests {
         assert_matches!(data.table_count().observe(), Observation::U64Counter(v) => {
             assert_eq!(v, 1, "unexpected table count metric value");
         });
-    }
-
-    pub async fn build_id_map<R>(
-        catalog: &mut R,
-        namespace_id: NamespaceId,
-        tables: &HashMap<String, MutableBatch>,
-    ) -> HashMap<String, TableId>
-    where
-        R: RepoCollection + ?Sized,
-    {
-        let mut ret = HashMap::with_capacity(tables.len());
-
-        for k in tables.keys() {
-            let id = catalog
-                .tables()
-                .create_or_get(k, namespace_id)
-                .await
-                .expect("table should create OK")
-                .id;
-
-            ret.insert(k.clone(), id);
-        }
-
-        ret
     }
 }
