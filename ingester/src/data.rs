@@ -697,36 +697,22 @@ pub enum DmlApplyAction {
 
 #[cfg(test)]
 mod tests {
-    use std::{ops::DerefMut, sync::Arc, time::Duration};
-
+    use super::*;
+    use crate::lifecycle::{LifecycleConfig, LifecycleManager};
     use assert_matches::assert_matches;
     use data_types::{
-        ColumnId, ColumnSet, CompactionLevel, DeletePredicate, NamespaceSchema, NonEmptyString,
-        ParquetFileParams, Sequence, Timestamp, TimestampRange,
+        DeletePredicate, NamespaceSchema, NonEmptyString, Sequence, Timestamp, TimestampRange,
     };
-
     use dml::{DmlDelete, DmlMeta, DmlWrite};
     use futures::TryStreamExt;
     use hashbrown::HashMap;
     use iox_catalog::{interface::RepoCollection, mem::MemCatalog, validate_or_insert_schema};
     use iox_time::Time;
-    use metric::{MetricObserver, Observation};
     use mutable_batch::MutableBatch;
     use mutable_batch_lp::lines_to_batches;
     use object_store::memory::InMemory;
-
     use schema::sort::SortKey;
-    use uuid::Uuid;
-
-    use super::*;
-    use crate::{
-        data::{
-            namespace::NamespaceData, partition::resolver::CatalogPartitionResolver,
-            table::name_resolver::mock::MockTableNameProvider,
-        },
-        deferred_load::DeferredLoad,
-        lifecycle::{LifecycleConfig, LifecycleManager},
-    };
+    use std::{ops::DerefMut, sync::Arc, time::Duration};
 
     #[tokio::test]
     async fn buffer_write_updates_lifecycle_manager_indicates_pause() {
@@ -1383,185 +1369,6 @@ mod tests {
             .with_buffered(SequenceNumber::new(1))
             .with_buffered(SequenceNumber::new(2));
         assert_progress(&data, shard_index, expected_progress).await;
-    }
-
-    #[tokio::test]
-    async fn buffer_operation_ignores_already_persisted_data() {
-        let metrics = Arc::new(metric::Registry::new());
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-        let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("whatevs").await.unwrap();
-        let query_pool = repos.query_pools().create_or_get("whatevs").await.unwrap();
-        let shard_index = ShardIndex::new(0);
-        let namespace = repos
-            .namespaces()
-            .create("foo", topic.id, query_pool.id)
-            .await
-            .unwrap();
-        let shard = repos
-            .shards()
-            .create_or_get(&topic, shard_index)
-            .await
-            .unwrap();
-
-        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
-
-        let ignored_ts = Time::from_timestamp_millis(42).unwrap();
-
-        let batch = lines_to_batches("mem foo=1 10", 0).unwrap();
-        let w1 = DmlWrite::new(
-            namespace.id,
-            batch.clone(),
-            build_id_map(repos.deref_mut(), namespace.id, &batch).await,
-            "1970-01-01".into(),
-            DmlMeta::sequenced(
-                Sequence::new(ShardIndex::new(1), SequenceNumber::new(1)),
-                ignored_ts,
-                None,
-                50,
-            ),
-        );
-        let batch = lines_to_batches("mem foo=1 10", 0).unwrap();
-        let w2 = DmlWrite::new(
-            namespace.id,
-            batch.clone(),
-            build_id_map(repos.deref_mut(), namespace.id, &batch).await,
-            "1970-01-01".into(),
-            DmlMeta::sequenced(
-                Sequence::new(ShardIndex::new(1), SequenceNumber::new(2)),
-                ignored_ts,
-                None,
-                50,
-            ),
-        );
-
-        let _ = validate_or_insert_schema(w1.tables(), &schema, repos.deref_mut())
-            .await
-            .unwrap()
-            .unwrap();
-
-        // create some persisted state
-        let table = repos
-            .tables()
-            .create_or_get("mem", namespace.id)
-            .await
-            .unwrap();
-        let partition = repos
-            .partitions()
-            .create_or_get("1970-01-01".into(), shard.id, table.id)
-            .await
-            .unwrap();
-        repos
-            .partitions()
-            .update_persisted_sequence_number(partition.id, SequenceNumber::new(1))
-            .await
-            .unwrap();
-        let partition2 = repos
-            .partitions()
-            .create_or_get("1970-01-02".into(), shard.id, table.id)
-            .await
-            .unwrap();
-
-        let parquet_file_params = ParquetFileParams {
-            shard_id: shard.id,
-            namespace_id: namespace.id,
-            table_id: table.id,
-            partition_id: partition.id,
-            object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(1),
-            min_time: Timestamp::new(1),
-            max_time: Timestamp::new(1),
-            file_size_bytes: 0,
-            row_count: 0,
-            compaction_level: CompactionLevel::Initial,
-            created_at: Timestamp::new(1),
-            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
-        };
-        repos
-            .parquet_files()
-            .create(parquet_file_params.clone())
-            .await
-            .unwrap();
-
-        // now create a parquet file in another partition with a much higher sequence persisted
-        // sequence number. We want to make sure that this doesn't cause our write in the other
-        // partition to get ignored.
-        let other_file_params = ParquetFileParams {
-            max_sequence_number: SequenceNumber::new(15),
-            object_store_id: Uuid::new_v4(),
-            partition_id: partition2.id,
-            ..parquet_file_params
-        };
-        repos
-            .parquet_files()
-            .create(other_file_params)
-            .await
-            .unwrap();
-        std::mem::drop(repos);
-
-        let manager = LifecycleManager::new(
-            LifecycleConfig::new(
-                1,
-                0,
-                0,
-                Duration::from_secs(1),
-                Duration::from_secs(1),
-                1000000,
-            ),
-            Arc::clone(&metrics),
-            Arc::new(SystemProvider::new()),
-        );
-
-        let partition_provider = Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog)));
-
-        let data = NamespaceData::new(
-            namespace.id,
-            DeferredLoad::new(Duration::from_millis(1), async { "foo".into() }),
-            Arc::new(MockTableNameProvider::new(table.name)),
-            shard.id,
-            partition_provider,
-            &metrics,
-        );
-
-        // w1 should be ignored because the per-partition replay offset is set
-        // to 1 already, so it shouldn't be buffered and the buffer should
-        // remain empty.
-        let action = data
-            .buffer_operation(DmlOperation::Write(w1), &manager.handle())
-            .await
-            .unwrap();
-        {
-            let table = data.table(table.id).unwrap();
-            assert!(table
-                .partitions()
-                .into_iter()
-                .all(|p| p.lock().get_query_data().is_none()));
-            assert_eq!(
-                table
-                    .get_partition_by_key(&"1970-01-01".into())
-                    .unwrap()
-                    .lock()
-                    .max_persisted_sequence_number(),
-                Some(SequenceNumber::new(1))
-            );
-        }
-        assert_matches!(action, DmlApplyAction::Skipped);
-
-        // w2 should be in the buffer
-        data.buffer_operation(DmlOperation::Write(w2), &manager.handle())
-            .await
-            .unwrap();
-
-        let table = data.table(table.id).unwrap();
-        let partition = table.get_partition_by_key(&"1970-01-01".into()).unwrap();
-        assert_eq!(
-            partition.lock().sequence_number_range().inclusive_min(),
-            Some(SequenceNumber::new(2))
-        );
-
-        assert_matches!(data.table_count().observe(), Observation::U64Counter(v) => {
-            assert_eq!(v, 1, "unexpected table count metric value");
-        });
     }
 
     #[tokio::test]
