@@ -146,7 +146,7 @@ where
     type WriteError = SchemaError;
     type DeleteError = SchemaError;
 
-    // Accepts a map of "TableName -> MutableBatch"
+    // Accepts a map of TableName -> MutableBatch
     type WriteInput = HashMap<String, MutableBatch>;
     // And returns a map of TableId -> (TableName, MutableBatch)
     type WriteOutput = HashMap<TableId, (String, MutableBatch)>;
@@ -287,7 +287,7 @@ where
             }
         };
 
-        // Map the "TableName -> Data" into "(TableName, TableId) -> Data" for
+        // Map the "TableName -> Data" into "TableId -> (TableName, Data)" for
         // downstream handlers.
         let batches = batches
             .into_iter()
