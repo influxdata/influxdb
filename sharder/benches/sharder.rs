@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    sync::{Arc, Barrier},
+    time::Instant,
+};
 
 use criterion::{
     criterion_group, criterion_main, measurement::WallTime, BenchmarkGroup, Criterion, Throughput,
@@ -16,12 +19,12 @@ fn get_random_string(length: usize) -> String {
         .collect()
 }
 
-fn sharder_benchmarks(mut c: &mut Criterion) {
-    benchmark_impl(&mut c, "jumphash", |num_buckets| {
+fn sharder_benchmarks(c: &mut Criterion) {
+    benchmark_impl(c, "jumphash", |num_buckets| {
         JumpHash::new((0..num_buckets).map(Arc::new))
     });
 
-    benchmark_impl(&mut c, "round_robin", |num_buckets| {
+    benchmark_impl(c, "round_robin", |num_buckets| {
         RoundRobin::new((0..num_buckets).map(Arc::new))
     });
 }
@@ -108,6 +111,47 @@ fn benchmark_scenario<T>(
     group.bench_function(bench_name, |b| {
         b.iter(|| {
             sharder.shard(table, namespace, &batch);
+        });
+    });
+
+    const N_THREADS: usize = 10;
+
+    // Run the same test with N contending threads.
+    //
+    // Note that this includes going through pointer indirection for each shard
+    // op due to the Arc.
+    let sharder = Arc::new(sharder);
+    group.bench_function(format!("{bench_name}_{N_THREADS}_threads"), |b| {
+        b.iter_custom(|iters| {
+            let sharder = Arc::clone(&sharder);
+            std::thread::scope(|s| {
+                let barrier = Arc::new(Barrier::new(N_THREADS));
+                // Spawn N-1 threads that wait for the last thread to spawn
+                for _ in 0..(N_THREADS - 1) {
+                    let sharder = Arc::clone(&sharder);
+                    let barrier = Arc::clone(&barrier);
+                    s.spawn(move || {
+                        let batch = MutableBatch::default();
+                        barrier.wait();
+                        for _ in 0..iters {
+                            sharder.shard(table, namespace, &batch);
+                        }
+                    });
+                }
+                // Spawn the Nth thread that performs the same sharding ops, but
+                // measures the duration of time taken.
+                s.spawn(move || {
+                    let batch = MutableBatch::default();
+                    barrier.wait();
+                    let start = Instant::now();
+                    for _ in 0..iters {
+                        sharder.shard(table, namespace, &batch);
+                    }
+                    start.elapsed()
+                })
+                .join()
+                .unwrap()
+            })
         });
     });
 }
