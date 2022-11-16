@@ -33,7 +33,7 @@ pub async fn command(
         retention_hours,
     } = config;
 
-    let mut client = influxdb_iox_client::schema::Client::new(connection);
+    let mut client = influxdb_iox_client::namespace::Client::new(connection);
     let namespace = client
         .update_namespace_retention(&namespace, retention_hours.try_into().unwrap())
         .await?;

@@ -1,0 +1,19 @@
+[package]
+name = "service_grpc_namespace"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+data_types = { path = "../data_types" }
+generated_types = { path = "../generated_types" }
+observability_deps = { path = "../observability_deps" }
+tonic = "0.8"
+iox_catalog = { path = "../iox_catalog" }
+workspace-hack = { path = "../workspace-hack"}
+
+[dev-dependencies]
+iox_tests = { path = "../iox_tests" }
+metric = { path = "../metric" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

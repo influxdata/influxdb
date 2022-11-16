@@ -6,11 +6,12 @@ use std::sync::Arc;
 
 use ::sharder::Sharder;
 use generated_types::influxdata::iox::{
-    catalog::v1::*, object_store::v1::*, schema::v1::*, sharder::v1::*,
+    catalog::v1::*, namespace::v1::*, object_store::v1::*, schema::v1::*, sharder::v1::*,
 };
 use iox_catalog::interface::Catalog;
 use object_store::DynObjectStore;
 use service_grpc_catalog::CatalogService;
+use service_grpc_namespace::NamespaceService;
 use service_grpc_object_store::ObjectStoreService;
 use service_grpc_schema::SchemaService;
 
@@ -86,5 +87,16 @@ where
         &self,
     ) -> shard_service_server::ShardServiceServer<impl shard_service_server::ShardService> {
         shard_service_server::ShardServiceServer::new(self.shard_service.clone())
+    }
+
+    /// Acquire a [`NamespaceService`] gRPC service implementation.
+    ///
+    /// [`NamespaceService`]: generated_types::influxdata::iox::namespace::v1::namespace_service_server::NamespaceService.
+    pub fn namespace_service(
+        &self,
+    ) -> namespace_service_server::NamespaceServiceServer<NamespaceService> {
+        namespace_service_server::NamespaceServiceServer::new(NamespaceService::new(Arc::clone(
+            &self.catalog,
+        )))
     }
 }

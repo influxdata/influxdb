@@ -1136,6 +1136,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "dashmap"
+version = "5.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "907076dfda823b0b36d2a1bb5f90c96660a5bbcd7729e10727f07858f22c4edc"
+dependencies = [
+ "cfg-if",
+ "hashbrown 0.12.3",
+ "lock_api",
+ "once_cell",
+ "parking_lot_core 0.9.4",
+]
+
+[[package]]
 name = "data_types"
 version = "0.1.0"
 dependencies = [
@@ -1155,8 +1168,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion"
-version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=dd081d64a2fba8574e63bdd0662c14aec5852b48#dd081d64a2fba8574e63bdd0662c14aec5852b48"
+version = "14.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=d2814c960168b45c4a0f5d7bbb72d9f412cb08bd#d2814c960168b45c4a0f5d7bbb72d9f412cb08bd"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
@@ -1165,6 +1178,7 @@ dependencies = [
  "bytes",
  "bzip2",
  "chrono",
+ "dashmap",
  "datafusion-common",
  "datafusion-expr",
  "datafusion-optimizer",
@@ -1180,7 +1194,6 @@ dependencies = [
  "log",
  "num_cpus",
  "object_store",
- "ordered-float 3.4.0",
  "parking_lot 0.12.1",
  "parquet",
  "paste",
@@ -1199,21 +1212,20 @@ dependencies = [
 
 [[package]]
 name = "datafusion-common"
-version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=dd081d64a2fba8574e63bdd0662c14aec5852b48#dd081d64a2fba8574e63bdd0662c14aec5852b48"
+version = "14.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=d2814c960168b45c4a0f5d7bbb72d9f412cb08bd#d2814c960168b45c4a0f5d7bbb72d9f412cb08bd"
 dependencies = [
  "arrow",
  "chrono",
  "object_store",
- "ordered-float 3.4.0",
  "parquet",
  "sqlparser 0.26.0",
 ]
 
 [[package]]
 name = "datafusion-expr"
-version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=dd081d64a2fba8574e63bdd0662c14aec5852b48#dd081d64a2fba8574e63bdd0662c14aec5852b48"
+version = "14.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=d2814c960168b45c4a0f5d7bbb72d9f412cb08bd#d2814c960168b45c4a0f5d7bbb72d9f412cb08bd"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
@@ -1224,8 +1236,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-optimizer"
-version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=dd081d64a2fba8574e63bdd0662c14aec5852b48#dd081d64a2fba8574e63bdd0662c14aec5852b48"
+version = "14.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=d2814c960168b45c4a0f5d7bbb72d9f412cb08bd#d2814c960168b45c4a0f5d7bbb72d9f412cb08bd"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1239,8 +1251,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-physical-expr"
-version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=dd081d64a2fba8574e63bdd0662c14aec5852b48#dd081d64a2fba8574e63bdd0662c14aec5852b48"
+version = "14.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=d2814c960168b45c4a0f5d7bbb72d9f412cb08bd#d2814c960168b45c4a0f5d7bbb72d9f412cb08bd"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
@@ -1258,7 +1270,6 @@ dependencies = [
  "lazy_static",
  "md-5",
  "num-traits",
- "ordered-float 3.4.0",
  "paste",
  "rand",
  "regex",
@@ -1269,8 +1280,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-proto"
-version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=dd081d64a2fba8574e63bdd0662c14aec5852b48#dd081d64a2fba8574e63bdd0662c14aec5852b48"
+version = "14.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=d2814c960168b45c4a0f5d7bbb72d9f412cb08bd#d2814c960168b45c4a0f5d7bbb72d9f412cb08bd"
 dependencies = [
  "arrow",
  "datafusion",
@@ -1283,8 +1294,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-row"
-version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=dd081d64a2fba8574e63bdd0662c14aec5852b48#dd081d64a2fba8574e63bdd0662c14aec5852b48"
+version = "14.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=d2814c960168b45c4a0f5d7bbb72d9f412cb08bd#d2814c960168b45c4a0f5d7bbb72d9f412cb08bd"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1294,8 +1305,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-sql"
-version = "13.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=dd081d64a2fba8574e63bdd0662c14aec5852b48#dd081d64a2fba8574e63bdd0662c14aec5852b48"
+version = "14.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=d2814c960168b45c4a0f5d7bbb72d9f412cb08bd#d2814c960168b45c4a0f5d7bbb72d9f412cb08bd"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -4324,6 +4335,7 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "service_grpc_catalog",
+ "service_grpc_namespace",
  "service_grpc_object_store",
  "service_grpc_schema",
  "sharder",
@@ -4644,6 +4656,21 @@ dependencies = [
  "trace",
  "trace_http",
  "tracker",
+ "workspace-hack",
+]
+
+[[package]]
+name = "service_grpc_namespace"
+version = "0.1.0"
+dependencies = [
+ "data_types",
+ "generated_types",
+ "iox_catalog",
+ "iox_tests",
+ "metric",
+ "observability_deps",
+ "tokio",
+ "tonic",
  "workspace-hack",
 ]
 

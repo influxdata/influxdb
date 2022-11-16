@@ -218,8 +218,8 @@ impl ExecutionPlan for NonNullCheckerExec {
         None
     }
 
-    fn required_child_distribution(&self) -> Distribution {
-        Distribution::UnspecifiedDistribution
+    fn required_input_distribution(&self) -> Vec<Distribution> {
+        vec![Distribution::UnspecifiedDistribution]
     }
 
     fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {

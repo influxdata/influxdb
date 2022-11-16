@@ -1,4 +1,9 @@
 //! NamespaceService gRPC implementation
+//!
+//! NOTE: this is present here in the querier to support a debug use-case that is handy in
+//! production, namely `kubectl exec`ing into the querier pod and using the REPL. the namespace API
+//! belongs in the router and has been moved there, but this is kept here in partial form to
+//! support `show namespaces` in the REPL.
 
 use data_types::Namespace;
 use generated_types::influxdata::iox::namespace::v1 as proto;
@@ -30,6 +35,7 @@ fn namespace_to_proto(namespace: Namespace) -> proto::Namespace {
     proto::Namespace {
         id: namespace.id.get(),
         name: namespace.name,
+        retention_period_ns: namespace.retention_period_ns,
     }
 }
 
@@ -48,6 +54,15 @@ impl proto::namespace_service_server::NamespaceService for NamespaceServiceImpl 
         Ok(tonic::Response::new(proto::GetNamespacesResponse {
             namespaces,
         }))
+    }
+
+    async fn update_namespace_retention(
+        &self,
+        _request: tonic::Request<proto::UpdateNamespaceRetentionRequest>,
+    ) -> Result<tonic::Response<proto::UpdateNamespaceRetentionResponse>, tonic::Status> {
+        Err(tonic::Status::unimplemented(
+            "use router instances to manage namespaces",
+        ))
     }
 }
 
@@ -134,10 +149,12 @@ mod tests {
                     proto::Namespace {
                         id: 1,
                         name: "namespace2".to_string(),
+                        retention_period_ns: None,
                     },
                     proto::Namespace {
                         id: 2,
                         name: "namespace1".to_string(),
+                        retention_period_ns: None,
                     },
                 ]
             }
