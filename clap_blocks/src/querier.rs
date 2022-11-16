@@ -228,6 +228,28 @@ pub struct QuerierConfig {
         action
     )]
     pub max_table_query_bytes: usize,
+
+    /// After how many ingester query errors should the querier enter circuit breaker mode?
+    ///
+    /// The querier normally contacts the ingester for any unpersisted data during query planning.
+    /// However, when the ingester can not be contacted for some reason, the querier will begin
+    /// returning results that do not include unpersisted data and enter "circuit breaker mode"
+    /// to avoid continually retrying the failing connection on subsequent queries.
+    ///
+    /// If circuits are open, the querier will NOT contact the ingester and no unpersisted data will be presented to the user.
+    ///
+    /// Circuits will switch to "half open" after some jittered timeout and the querier will try to use the ingester in
+    /// question again. If this succeeds, we are back to normal, otherwise it will back off exponentially before trying
+    /// again (and again ...).
+    ///
+    /// In a production environment the `ingester_circuit_state` metric should be monitored.
+    #[clap(
+        long = "ingester-circuit-breaker-threshold",
+        env = "INFLUXDB_IOX_INGESTER_CIRCUIT_BREAKER_THRESHOLD",
+        default_value = "10",
+        action
+    )]
+    pub ingester_circuit_breaker_threshold: u64,
 }
 
 impl QuerierConfig {

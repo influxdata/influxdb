@@ -439,6 +439,7 @@ impl Config {
             ram_pool_data_bytes: querier_ram_pool_data_bytes,
             max_concurrent_queries: querier_max_concurrent_queries,
             max_table_query_bytes: querier_max_table_query_bytes,
+            ingester_circuit_breaker_threshold: u64::MAX, // never for all-in-one-mode
         };
 
         SpecializedConfig {

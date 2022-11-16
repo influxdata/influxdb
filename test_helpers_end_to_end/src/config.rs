@@ -290,6 +290,14 @@ impl TestConfig {
         self.with_env("INFLUXDB_IOX_FLIGHT_DO_GET_PANIC", times.to_string())
     }
 
+    /// Configures querier->ingester connection circuit breaker threshold (number of consecutive errors)
+    pub fn with_querier_ingester_circuit_breaker_threshold(self, errors: u64) -> Self {
+        self.with_env(
+            "INFLUXDB_IOX_INGESTER_CIRCUIT_BREAKER_THRESHOLD",
+            errors.to_string(),
+        )
+    }
+
     /// Configure maximum per-table query bytes for the querier.
     pub fn with_querier_max_table_query_bytes(self, bytes: usize) -> Self {
         self.with_env("INFLUXDB_IOX_MAX_TABLE_QUERY_BYTES", bytes.to_string())

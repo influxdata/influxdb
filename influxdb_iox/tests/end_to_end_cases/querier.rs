@@ -1,8 +1,10 @@
 pub(crate) mod influxrpc;
 mod multi_ingester;
 
+use std::time::Duration;
+
 use arrow_util::assert_batches_sorted_eq;
-use assert_cmd::Command;
+use assert_cmd::{assert::Assert, Command};
 use futures::FutureExt;
 use predicates::prelude::*;
 use test_helpers::assert_contains;
@@ -223,7 +225,7 @@ async fn table_not_found_on_ingester() {
 }
 
 #[tokio::test]
-async fn ingester_panic() {
+async fn ingester_panic_1() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
@@ -282,33 +284,8 @@ async fn ingester_panic() {
                         "thread 'tokio-runtime-worker' panicked at 'Panicking in `do_get` for testing purposes.'"
                     );
 
-                    // find relevant log line for debugging
-                    let querier_logs =
-                        std::fs::read_to_string(state.cluster().querier().log_path().await)
-                            .unwrap();
-                    let log_line = querier_logs
-                        .split('\n')
-                        .find(|s| s.contains("Failed to perform ingester query"))
-                        .unwrap();
-                    let log_data: serde_json::Value = serde_json::from_str(log_line).unwrap();
-                    let log_data = log_data.as_object().unwrap();
-                    let log_data = log_data["fields"].as_object().unwrap();
-
-                    // query ingester using debug information
-                    let assert = Command::cargo_bin("influxdb_iox")
-                         .unwrap()
-                         .arg("-h")
-                         .arg(log_data["ingester_address"].as_str().unwrap())
-                         .arg("query-ingester")
-                         .arg(log_data["namespace_id"].as_u64().unwrap().to_string())
-                         .arg(log_data["table_id"].as_u64().unwrap().to_string())
-                         .arg("--columns")
-                         .arg(log_data["columns"].as_str().unwrap())
-                         .arg("--predicate-base64")
-                         .arg(log_data["predicate_binary"].as_str().unwrap())
-                         .assert();
-
                      // The debug query should work.
+                     let assert = repeat_ingester_request_based_on_querier_logs(state).await;
                      assert.success().stdout(
                          predicate::str::contains(
                              "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
@@ -317,6 +294,106 @@ async fn ingester_panic() {
                 }
                 .boxed()
             })),
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
+async fn ingester_panic_2() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let router_config = TestConfig::new_router(&database_url);
+    // can't use standard mini cluster here as we setup the querier to panic
+    let ingester_config = TestConfig::new_ingester(&router_config)
+        .with_ingester_flight_do_get_panic(10)
+        .with_ingester_persist_memory_threshold(2_000);
+    let querier_config = TestConfig::new_querier(&ingester_config)
+        .with_querier_ingester_circuit_breaker_threshold(2)
+        .with_json_logs();
+    let mut cluster = MiniCluster::new()
+        .with_router(router_config)
+        .await
+        .with_ingester(ingester_config)
+        .await
+        .with_querier(querier_config)
+        .await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{},tag=A val=1i 1\n\
+                 {},tag=B val=2i,trigger=\"{}\" 2",
+                table_name,
+                table_name,
+                "x".repeat(10_000),
+            )),
+            Step::WaitForPersisted,
+            Step::WriteLineProtocol(format!("{},tag=A val=3i 3", table_name)),
+            Step::WaitForReadable,
+            Step::AssertLastNotPersisted,
+            // circuit breaker will prevent ingester from being queried, so we only get the persisted data
+            Step::Query {
+                sql: format!("select tag,val,time from {} where tag='A'", table_name),
+                expected: vec![
+                    "+-----+-----+--------------------------------+",
+                    "| tag | val | time                           |",
+                    "+-----+-----+--------------------------------+",
+                    "| A   | 1   | 1970-01-01T00:00:00.000000001Z |",
+                    "+-----+-----+--------------------------------+",
+                ],
+            },
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    // "de-panic" the ingester
+                    for trail in 1.. {
+                        let assert = repeat_ingester_request_based_on_querier_logs(state).await;
+                        if assert.try_success().is_ok() {
+                            break;
+                        }
+                        assert!(trail < 20);
+                    }
+
+                    // wait for circuit breaker to close circuits again
+                    tokio::time::timeout(Duration::from_secs(10), async {
+                        loop {
+                            let sql =
+                                format!("select tag,val,time from {} where tag='A'", table_name);
+                            let batches = run_query(
+                                sql,
+                                state.cluster().namespace(),
+                                state.cluster().querier().querier_grpc_connection(),
+                            )
+                            .await;
+
+                            let n_lines = batches.iter().map(|b| b.num_rows()).sum::<usize>();
+                            if n_lines > 1 {
+                                let expected = [
+                                    "+-----+-----+--------------------------------+",
+                                    "| tag | val | time                           |",
+                                    "+-----+-----+--------------------------------+",
+                                    "| A   | 1   | 1970-01-01T00:00:00.000000001Z |",
+                                    "| A   | 3   | 1970-01-01T00:00:00.000000003Z |",
+                                    "+-----+-----+--------------------------------+",
+                                ];
+                                assert_batches_sorted_eq!(&expected, &batches);
+
+                                break;
+                            }
+                        }
+                    })
+                    .await
+                    .unwrap();
+                }
+                .boxed()
+            })),
+            Step::AssertLastNotPersisted,
         ],
     )
     .run()
@@ -638,4 +715,29 @@ impl ForcePersistenceSetup {
     pub fn super_long_string(&self) -> String {
         "x".repeat(10_000)
     }
+}
+
+async fn repeat_ingester_request_based_on_querier_logs(state: &StepTestState<'_>) -> Assert {
+    let querier_logs = std::fs::read_to_string(state.cluster().querier().log_path().await).unwrap();
+    let log_line = querier_logs
+        .split('\n')
+        .find(|s| s.contains("Failed to perform ingester query"))
+        .unwrap();
+    let log_data: serde_json::Value = serde_json::from_str(log_line).unwrap();
+    let log_data = log_data.as_object().unwrap();
+    let log_data = log_data["fields"].as_object().unwrap();
+
+    // query ingester using debug information
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("-h")
+        .arg(log_data["ingester_address"].as_str().unwrap())
+        .arg("query-ingester")
+        .arg(log_data["namespace_id"].as_u64().unwrap().to_string())
+        .arg(log_data["table_id"].as_u64().unwrap().to_string())
+        .arg("--columns")
+        .arg(log_data["columns"].as_str().unwrap())
+        .arg("--predicate-base64")
+        .arg(log_data["predicate_binary"].as_str().unwrap())
+        .assert()
 }

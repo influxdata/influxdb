@@ -80,6 +80,9 @@ pub enum Step {
     /// Assert that all previously written data is NOT persisted yet
     AssertNotPersisted,
 
+    /// Assert that last previously written data is NOT persisted yet.
+    AssertLastNotPersisted,
+
     /// Wait for all previously written data to be persisted
     WaitForPersisted,
 
@@ -198,6 +201,16 @@ impl<'a> StepTest<'a> {
                         assert!(!persisted);
                     }
                     info!("====Done checking all tokens not persisted");
+                }
+                Step::AssertLastNotPersisted => {
+                    info!("====Begin checking last tokens not persisted");
+                    let querier_grpc_connection =
+                        state.cluster().querier().querier_grpc_connection();
+                    let write_token = state.write_tokens.last().expect("No data written yet");
+                    let persisted =
+                        token_is_persisted(write_token, querier_grpc_connection.clone()).await;
+                    assert!(!persisted);
+                    info!("====Done checking last tokens not persisted");
                 }
                 Step::Compact => {
                     info!("====Begin running compaction");

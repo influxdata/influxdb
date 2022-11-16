@@ -444,6 +444,11 @@ impl LifecycleManager {
         // until we're under. It's ok if this is stale, it'll just get handled on the next pass
         // through.
         if total_bytes > self.config.persist_memory_threshold {
+            info!(
+                total_bytes,
+                persist_memory_threshold = self.config.persist_memory_threshold,
+                "process-wide memory threshold exceeded, force-persisting partitions",
+            );
             rest.sort_by(|a, b| b.bytes_written.cmp(&a.bytes_written));
 
             let mut remaining = vec![];

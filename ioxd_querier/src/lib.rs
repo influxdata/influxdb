@@ -191,6 +191,7 @@ pub async fn create_querier_server_type(
         IngesterAddresses::ByShardIndex(map) => Some(create_ingester_connections_by_shard(
             map,
             Arc::clone(&catalog_cache),
+            args.querier_config.ingester_circuit_breaker_threshold,
         )),
     };
 

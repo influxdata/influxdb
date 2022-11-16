@@ -1,4 +1,5 @@
 use self::{
+    circuit_breaker::CircuitBreakerFlightClient,
     flight_client::{Error as FlightClientError, FlightClient, FlightClientImpl, FlightError},
     test_util::MockIngesterConnection,
 };
@@ -40,6 +41,7 @@ use std::{
 };
 use trace::span::{Span, SpanRecorder};
 
+mod circuit_breaker;
 pub(crate) mod flight_client;
 pub(crate) mod test_util;
 
@@ -141,6 +143,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub fn create_ingester_connections_by_shard(
     shard_to_ingesters: HashMap<ShardIndex, IngesterMapping>,
     catalog_cache: Arc<CatalogCache>,
+    open_circuit_after_n_errors: u64,
 ) -> Arc<dyn IngesterConnection> {
     Arc::new(IngesterConnectionImpl::by_shard(
         shard_to_ingesters,
@@ -151,6 +154,7 @@ pub fn create_ingester_connections_by_shard(
             base: 3.0,
             deadline: Some(Duration::from_secs(10)),
         },
+        open_circuit_after_n_errors,
     ))
 }
 
@@ -338,10 +342,18 @@ impl IngesterConnectionImpl {
         shard_to_ingesters: HashMap<ShardIndex, IngesterMapping>,
         catalog_cache: Arc<CatalogCache>,
         backoff_config: BackoffConfig,
+        open_circuit_after_n_errors: u64,
     ) -> Self {
+        let flight_client = Arc::new(FlightClientImpl::new());
+        let flight_client = Arc::new(CircuitBreakerFlightClient::new(
+            flight_client,
+            catalog_cache.time_provider(),
+            catalog_cache.metric_registry(),
+            open_circuit_after_n_errors,
+        ));
         Self::by_shard_with_flight_client(
             shard_to_ingesters,
-            Arc::new(FlightClientImpl::new()),
+            flight_client,
             catalog_cache,
             backoff_config,
         )
@@ -424,11 +436,19 @@ async fn execute(
         )
         .await;
 
-    if let Err(FlightClientError::Flight {
-        source: FlightError::GrpcError(status),
-    }) = &query_res
-    {
-        if status.code() == tonic::Code::NotFound {
+    match &query_res {
+        Err(FlightClientError::CircuitBroken { .. }) => {
+            warn!(
+                ingester_address = ingester_address.as_ref(),
+                namespace_id = namespace_id.get(),
+                table_id = table_id.get(),
+                "Could not connect to ingester,  circuit broken",
+            );
+            return Ok(vec![]);
+        }
+        Err(FlightClientError::Flight {
+            source: FlightError::GrpcError(status),
+        }) if status.code() == tonic::Code::NotFound => {
             debug!(
                 ingester_address = ingester_address.as_ref(),
                 namespace_id = namespace_id.get(),
@@ -437,7 +457,9 @@ async fn execute(
             );
             return Ok(vec![]);
         }
+        _ => {}
     }
+
     let mut perform_query = query_res
         .context(RemoteQuerySnafu {
             ingester_address: ingester_address.as_ref(),

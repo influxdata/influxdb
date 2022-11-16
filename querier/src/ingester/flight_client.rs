@@ -34,6 +34,9 @@ pub enum Error {
 
     #[snafu(display("Failed to perform flight request: {}", source))]
     Flight { source: FlightError },
+
+    #[snafu(display("Can not contact ingester. Circuit broken: {}", ingester_address))]
+    CircuitBroken { ingester_address: String },
 }
 
 /// Abstract Flight client.
