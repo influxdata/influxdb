@@ -125,10 +125,6 @@ where
             assert!(existing.is_none());
         }
 
-        // This will be used in a future PR, and eliminated in a dead code pass
-        // by LLVM in the meantime.
-        let _ = table_ids;
-
         let iter = collated.into_iter().map(|(shard, batch)| {
             let dml = DmlWrite::new(
                 namespace_id,
