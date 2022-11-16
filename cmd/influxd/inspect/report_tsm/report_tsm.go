@@ -91,20 +91,20 @@ func (a *args) isShardDir(dir string) error {
 }
 
 func (a *args) Run(cmd *cobra.Command) error {
-	// Create the cardinality counter
-	newCounterFn := newHLLCounter
+	// Create the cardinality Counter
+	newCounterFn := NewHLLCounter
 	estTitle := " (est)"
 	if a.exact {
 		estTitle = ""
-		newCounterFn = newExactCounter
+		newCounterFn = NewExactCounter
 	}
 
 	totalSeries := newCounterFn()
-	tagCardinalities := map[string]counter{}
-	measCardinalities := map[string]counter{}
-	fieldCardinalities := map[string]counter{}
+	tagCardinalities := map[string]Counter{}
+	measCardinalities := map[string]Counter{}
+	fieldCardinalities := map[string]Counter{}
 
-	dbCardinalities := map[string]counter{}
+	dbCardinalities := map[string]Counter{}
 
 	start := time.Now()
 
@@ -233,13 +233,13 @@ type printArgs struct {
 	fileCount        int
 	minTime, maxTime int64
 	estTitle         string
-	totalSeries      counter
+	totalSeries      Counter
 	detailed         bool
 
-	tagCardinalities   map[string]counter
-	measCardinalities  map[string]counter
-	fieldCardinalities map[string]counter
-	dbCardinalities    map[string]counter
+	tagCardinalities   map[string]Counter
+	measCardinalities  map[string]Counter
+	fieldCardinalities map[string]Counter
+	dbCardinalities    map[string]Counter
 }
 
 func printSummary(cmd *cobra.Command, p printArgs) {
@@ -277,7 +277,7 @@ func printSummary(cmd *cobra.Command, p printArgs) {
 }
 
 // sortKeys is a quick helper to return the sorted set of a map's keys
-func sortKeys(vals map[string]counter) (keys []string) {
+func sortKeys(vals map[string]Counter) (keys []string) {
 	for k := range vals {
 		keys = append(keys, k)
 	}
@@ -335,14 +335,14 @@ func (a *args) walkShardDirs(root string, fn func(db, rp, id, path string) error
 	return nil
 }
 
-// counter abstracts a method of counting keys.
-type counter interface {
+// Counter abstracts a method of counting keys.
+type Counter interface {
 	Add(key []byte)
 	Count() uint64
 }
 
-// newHLLCounter returns an approximate counter using HyperLogLogs for cardinality estimation.
-func newHLLCounter() counter {
+// NewHLLCounter returns an approximate Counter using HyperLogLogs for cardinality estimation.
+func NewHLLCounter() Counter {
 	return hllpp.New()
 }
 
@@ -359,7 +359,7 @@ func (c *exactCounter) Count() uint64 {
 	return uint64(len(c.m))
 }
 
-func newExactCounter() counter {
+func NewExactCounter() Counter {
 	return &exactCounter{
 		m: make(map[string]struct{}),
 	}
