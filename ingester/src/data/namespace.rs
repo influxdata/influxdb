@@ -328,13 +328,13 @@ mod tests {
     };
     use assert_matches::assert_matches;
     use data_types::{
-        ColumnId, ColumnSet, CompactionLevel, NamespaceSchema, ParquetFileParams, PartitionId,
+        ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, PartitionId,
         PartitionKey, ShardIndex, Timestamp,
     };
-    use iox_catalog::{interface::Catalog, mem::MemCatalog, validate_or_insert_schema};
+    use iox_catalog::{interface::Catalog, mem::MemCatalog};
     use iox_time::SystemProvider;
     use metric::{Attributes, Metric, MetricObserver, Observation};
-    use std::{ops::DerefMut, sync::Arc, time::Duration};
+    use std::{sync::Arc, time::Duration};
     use uuid::Uuid;
 
     const SHARD_INDEX: ShardIndex = ShardIndex::new(24);
@@ -431,7 +431,6 @@ mod tests {
             .create("foo", topic.id, query_pool.id)
             .await
             .unwrap();
-        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100);
 
         let w1 = make_write_op(
             &PartitionKey::from("1970-01-01"),
@@ -451,11 +450,6 @@ mod tests {
             2,
             "test_table foo=1 10",
         );
-
-        let _ = validate_or_insert_schema(w1.tables(), &schema, repos.deref_mut())
-            .await
-            .unwrap()
-            .unwrap();
 
         // create some persisted state
         let partition = repos
