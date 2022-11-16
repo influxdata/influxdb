@@ -217,31 +217,10 @@ impl CachedConnection {
 #[cfg(test)]
 mod tests {
     use data_types::{NamespaceId, TableId};
-    use datafusion::prelude::{col, lit, when, Expr};
+    use datafusion::prelude::{col, lit};
     use predicate::Predicate;
 
     use super::*;
-
-    #[test]
-    fn serialize_deeply_nested_and() {
-        // we need more stack space so this doesn't overflow in dev builds
-        std::thread::Builder::new()
-            .stack_size(10_000_000)
-            .spawn(|| {
-                let n = 100;
-                println!("testing: {n}");
-
-                // build a deeply nested (a < 5) AND (a < 5) AND .... tree
-                let expr_base = col("a").lt(lit(5i32));
-                let expr = (0..n).fold(expr_base.clone(), |expr, _| expr.and(expr_base.clone()));
-
-                let (request, request2) = serialize_roundtrip(expr);
-                assert_eq!(request, request2);
-            })
-            .expect("spawning thread")
-            .join()
-            .expect("joining thread");
-    }
 
     #[test]
     fn serialize_deeply_nested_predicate() {
@@ -255,54 +234,28 @@ mod tests {
             for n in [1, 2, n_max] {
                 println!("testing: {n}");
 
+                let expr_base = col("a").lt(lit(5i32));
+                let expr = (0..n).fold(expr_base.clone(), |expr, _| expr.and(expr_base.clone()));
 
-                // build a deeply recursive nested expression:
-                //
-                // CASE
-                //  WHEN TRUE
-                //  THEN (WHEN ...)
-                // ELSE FALSE
-                //
-                let expr = (0..n).fold(lit(false), |expr, _|{
-                    when(lit(true), expr)
-                        .end()
-                        .unwrap()
-                });
+                let predicate = Predicate {exprs: vec![expr], ..Default::default()};
 
-                let (request1, request2) = serialize_roundtrip(expr);
+                let request = IngesterQueryRequest {
+                    namespace_id: NamespaceId::new(42),
+                    table_id: TableId::new(1337),
+                    columns: vec![String::from("col1"), String::from("col2")],
+                    predicate: Some(predicate),
+                };
 
-                // expect that the self preservation mechanism has
-                // kicked in and the predicate has been ignored.
+                let proto = serialize_ingester_query_request(request.clone()).expect("serialization");
+                let request2 = IngesterQueryRequest::try_from(proto).expect("deserialization");
+
                 if request2.predicate.is_none() {
                     assert!(n > 2, "not really deeply nested");
                     return;
-                } else {
-                    assert_eq!(request1, request2);
                 }
             }
 
             panic!("did not find a 'too deeply nested' expression, tested up to a depth of {n_max}")
         }).expect("spawning thread").join().expect("joining thread");
-    }
-
-    /// Creates a [`IngesterQueryRequest`] and round trips it through
-    /// serialization, returning both the original and the serialized
-    /// request
-    fn serialize_roundtrip(expr: Expr) -> (IngesterQueryRequest, IngesterQueryRequest) {
-        let predicate = Predicate {
-            exprs: vec![expr],
-            ..Default::default()
-        };
-
-        let request = IngesterQueryRequest {
-            namespace_id: NamespaceId::new(42),
-            table_id: TableId::new(1337),
-            columns: vec![String::from("col1"), String::from("col2")],
-            predicate: Some(predicate),
-        };
-
-        let proto = serialize_ingester_query_request(request.clone()).expect("serialization");
-        let request2 = IngesterQueryRequest::try_from(proto).expect("deserialization");
-        (request, request2)
     }
 }

@@ -1,9 +1,6 @@
 //! Implementation of a DataFusion PhysicalPlan node across partition chunks
 
-use crate::{
-    provider::record_batch_exec::RecordBatchesExec, util::arrow_sort_key_exprs, QueryChunk,
-    QueryChunkData,
-};
+use crate::{provider::record_batch_exec::RecordBatchesExec, QueryChunk, QueryChunkData};
 use arrow::{datatypes::SchemaRef, record_batch::RecordBatch};
 use data_types::TableSummary;
 use datafusion::{
@@ -18,64 +15,11 @@ use datafusion::{
 };
 use object_store::ObjectMeta;
 use predicate::Predicate;
-use schema::{sort::SortKey, Schema};
+use schema::Schema;
 use std::{
     collections::{hash_map::Entry, HashMap},
     sync::Arc,
 };
-
-/// Holds a list of chunks that all have the same "URL"
-#[derive(Debug)]
-struct ParquetChunkList {
-    object_store_url: ObjectStoreUrl,
-    object_metas: Vec<ObjectMeta>,
-    sort_key: Option<SortKey>,
-}
-
-impl ParquetChunkList {
-    fn new(object_store_url: ObjectStoreUrl, chunk: &dyn QueryChunk, meta: ObjectMeta) -> Self {
-        Self {
-            object_store_url,
-            object_metas: vec![meta],
-            sort_key: chunk.sort_key().cloned(),
-        }
-    }
-
-    /// Add the chunk to the list of files
-    fn add_parquet_file(&mut self, chunk: &dyn QueryChunk, meta: ObjectMeta) {
-        self.object_metas.push(meta);
-
-        self.sort_key = combine_sort_key(self.sort_key.take(), chunk.sort_key());
-    }
-}
-
-/// Combines the existing sort key with the sort key of the chunk,
-/// returning the new combined compatible sort key that describes both
-/// chunks.
-///
-/// If it is not possible to find a compatible sort key, None is
-/// returned signifying "unknown sort order"
-fn combine_sort_key(
-    existing_sort_key: Option<SortKey>,
-    chunk_sort_key: Option<&SortKey>,
-) -> Option<SortKey> {
-    if let (Some(existing_sort_key), Some(chunk_sort_key)) = (existing_sort_key, chunk_sort_key) {
-        let combined_sort_key = SortKey::try_merge_key(&existing_sort_key, chunk_sort_key);
-
-        // Avoid cloning the sort key when possible, as the sort key
-        // is likely to commonly be the same
-        match combined_sort_key {
-            Some(combined_sort_key) if combined_sort_key == &existing_sort_key => {
-                Some(existing_sort_key)
-            }
-            Some(combined_sort_key) => Some(combined_sort_key.clone()),
-            None => None,
-        }
-    } else {
-        // no existing sort key means the data wasn't consistently sorted so leave it alone
-        None
-    }
-}
 
 /// Place [chunk](QueryChunk)s into physical nodes.
 ///
@@ -108,7 +52,7 @@ pub fn chunks_to_physical_nodes(
     }
 
     let mut record_batch_chunks: Vec<(SchemaRef, Vec<RecordBatch>, Arc<TableSummary>)> = vec![];
-    let mut parquet_chunks: HashMap<String, ParquetChunkList> = HashMap::new();
+    let mut parquet_chunks: HashMap<String, (ObjectStoreUrl, Vec<ObjectMeta>)> = HashMap::new();
 
     for chunk in &chunks {
         match chunk.data() {
@@ -119,14 +63,12 @@ pub fn chunks_to_physical_nodes(
                 let url_str = parquet_input.object_store_url.as_str().to_owned();
                 match parquet_chunks.entry(url_str) {
                     Entry::Occupied(mut o) => {
-                        o.get_mut()
-                            .add_parquet_file(chunk.as_ref(), parquet_input.object_meta);
+                        o.get_mut().1.push(parquet_input.object_meta);
                     }
                     Entry::Vacant(v) => {
-                        v.insert(ParquetChunkList::new(
+                        v.insert((
                             parquet_input.object_store_url,
-                            chunk.as_ref(),
-                            parquet_input.object_meta,
+                            vec![parquet_input.object_meta],
                         ));
                     }
                 }
@@ -144,15 +86,9 @@ pub fn chunks_to_physical_nodes(
     let mut parquet_chunks: Vec<_> = parquet_chunks.into_iter().collect();
     parquet_chunks.sort_by_key(|(url_str, _)| url_str.clone());
     let target_partitions = context.session_config().target_partitions;
-    for (_url_str, chunk_list) in parquet_chunks {
-        let ParquetChunkList {
-            object_store_url,
-            object_metas,
-            sort_key,
-        } = chunk_list;
-
+    for (_url_str, (url, chunks)) in parquet_chunks {
         let file_groups = distribute(
-            object_metas.into_iter().map(|object_meta| PartitionedFile {
+            chunks.into_iter().map(|object_meta| PartitionedFile {
                 object_meta,
                 partition_values: vec![],
                 range: None,
@@ -160,26 +96,21 @@ pub fn chunks_to_physical_nodes(
             }),
             target_partitions,
         );
-
-        // Tell datafusion about the sort key, if any
-        let file_schema = iox_schema.as_arrow();
-        let output_ordering =
-            sort_key.map(|sort_key| arrow_sort_key_exprs(&sort_key, &file_schema));
-
         let base_config = FileScanConfig {
-            object_store_url,
-            file_schema,
+            object_store_url: url,
+            file_schema: iox_schema.as_arrow(),
             file_groups,
             statistics: Statistics::default(),
             projection: None,
             limit: None,
             table_partition_cols: vec![],
             config_options: context.session_config().config_options(),
-            output_ordering,
         };
-        let meta_size_hint = None;
-        let parquet_exec = ParquetExec::new(base_config, predicate.filter_expr(), meta_size_hint);
-        output_nodes.push(Arc::new(parquet_exec));
+        output_nodes.push(Arc::new(ParquetExec::new(
+            base_config,
+            predicate.filter_expr(),
+            None,
+        )));
     }
 
     assert!(!output_nodes.is_empty());
@@ -213,8 +144,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use schema::sort::SortKeyBuilder;
-
     use super::*;
 
     #[test]
@@ -226,51 +155,5 @@ mod tests {
         assert_eq!(distribute(0..3u8, 2), vec![vec![0, 2], vec![1]],);
 
         assert_eq!(distribute(0..3u8, 10), vec![vec![0], vec![1], vec![2]],);
-    }
-
-    #[test]
-    fn test_combine_sort_key() {
-        let skey_t1 = SortKeyBuilder::new()
-            .with_col("t1")
-            .with_col("time")
-            .build();
-
-        let skey_t1_t2 = SortKeyBuilder::new()
-            .with_col("t1")
-            .with_col("t2")
-            .with_col("time")
-            .build();
-
-        let skey_t2_t1 = SortKeyBuilder::new()
-            .with_col("t2")
-            .with_col("t1")
-            .with_col("time")
-            .build();
-
-        assert_eq!(combine_sort_key(None, None), None);
-        assert_eq!(combine_sort_key(Some(skey_t1.clone()), None), None);
-        assert_eq!(combine_sort_key(None, Some(&skey_t1)), None);
-
-        assert_eq!(
-            combine_sort_key(Some(skey_t1.clone()), Some(&skey_t1)),
-            Some(skey_t1.clone())
-        );
-
-        assert_eq!(
-            combine_sort_key(Some(skey_t1.clone()), Some(&skey_t1_t2)),
-            Some(skey_t1_t2.clone())
-        );
-
-        assert_eq!(
-            combine_sort_key(Some(skey_t1_t2.clone()), Some(&skey_t1)),
-            Some(skey_t1_t2.clone())
-        );
-
-        assert_eq!(
-            combine_sort_key(Some(skey_t2_t1.clone()), Some(&skey_t1)),
-            Some(skey_t2_t1.clone())
-        );
-
-        assert_eq!(combine_sort_key(Some(skey_t2_t1), Some(&skey_t1_t2)), None);
     }
 }
