@@ -125,10 +125,6 @@ func (s *RuleService) CreateNotificationRule(ctx context.Context, nr influxdb.No
 	nr.SetCreatedAt(now)
 	nr.SetUpdatedAt(now)
 
-	if err := s.nameConflict(ctx, nr); err != nil {
-		return err
-	}
-
 	// create backing task and set ID (in inactive state initially)
 	t, err := s.createNotificationTask(ctx, nr)
 	if err != nil {
@@ -217,10 +213,6 @@ func (s *RuleService) UpdateNotificationRule(ctx context.Context, id platform.ID
 		return nil, err
 	}
 
-	if err := s.nameConflict(ctx, nr); err != nil {
-		return nil, err
-	}
-
 	_, err = s.updateNotificationTask(ctx, nr, pointer.String(string(nr.Status)))
 	if err != nil {
 		return nil, err
@@ -268,9 +260,6 @@ func (s *RuleService) PatchNotificationRule(ctx context.Context, id platform.ID,
 
 	if upd.Name != nil {
 		nr.SetName(*upd.Name)
-		if err := s.nameConflict(ctx, nr); err != nil {
-			return nil, err
-		}
 	}
 	if upd.Description != nil {
 		nr.SetDescription(*upd.Description)
@@ -316,6 +305,10 @@ func (s *RuleService) PutNotificationRule(ctx context.Context, nr influxdb.Notif
 }
 
 func (s *RuleService) putNotificationRule(ctx context.Context, tx kv.Tx, nr influxdb.NotificationRule) error {
+	if err := s.nameConflict(ctx, tx, nr); err != nil {
+		return err
+	}
+
 	encodedID, _ := nr.GetID().Encode()
 
 	v, err := json.Marshal(nr)
@@ -517,13 +510,12 @@ func (s *RuleService) deleteNotificationRule(ctx context.Context, tx kv.Tx, r in
 	return nil
 }
 
-func (s *RuleService) nameConflict(ctx context.Context, nr influxdb.NotificationRule) error {
+func (s *RuleService) nameConflict(ctx context.Context, tx kv.Tx, nr influxdb.NotificationRule) error {
 	orgID := nr.GetOrgID()
-	nrs, _, err := s.FindNotificationRules(ctx, influxdb.NotificationRuleFilter{OrgID: &orgID})
+	nrs, _, err := s.findNotificationRules(ctx, tx, influxdb.NotificationRuleFilter{OrgID: &orgID})
 	if err != nil {
 		return err
 	}
-
 	id := nr.GetID()
 	name := nr.GetName()
 	for _, r := range nrs {
