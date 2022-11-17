@@ -312,22 +312,30 @@ impl<'a> Drop for ScopedSequenceNumber<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Arc, time::Duration};
-
-    use data_types::{PartitionId, PartitionKey, ShardIndex};
-    use metric::{Attributes, Metric};
-
+    use super::*;
     use crate::{
         data::{
-            partition::{resolver::MockPartitionProvider, PartitionData, SortKeyState},
+            namespace::NamespaceData,
+            partition::{
+                resolver::{CatalogPartitionResolver, MockPartitionProvider},
+                PartitionData, SortKeyState,
+            },
             table::{name_resolver::mock::MockTableNameProvider, TableName},
         },
-        deferred_load,
-        lifecycle::mock_handle::MockLifecycleHandle,
+        deferred_load::{self, DeferredLoad},
+        lifecycle::{mock_handle::MockLifecycleHandle, LifecycleConfig, LifecycleManager},
         test_util::{make_write_op, TEST_TABLE},
     };
-
-    use super::*;
+    use assert_matches::assert_matches;
+    use data_types::{
+        ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, PartitionId, PartitionKey,
+        ShardIndex, Timestamp,
+    };
+    use iox_catalog::{interface::Catalog, mem::MemCatalog};
+    use iox_time::SystemProvider;
+    use metric::{Attributes, Metric, MetricObserver, Observation};
+    use std::{sync::Arc, time::Duration};
+    use uuid::Uuid;
 
     const SHARD_INDEX: ShardIndex = ShardIndex::new(24);
     const SHARD_ID: ShardId = ShardId::new(22);
@@ -382,6 +390,7 @@ mod tests {
                 &PartitionKey::from("banana-split"),
                 SHARD_INDEX,
                 NAMESPACE_ID,
+                TABLE_NAME,
                 TABLE_ID,
                 0,
                 r#"test_table,city=Medford day="sun",temp=55 22"#,
@@ -407,5 +416,150 @@ mod tests {
         let name = ns.namespace_name().get().await;
         assert_eq!(&**name, NAMESPACE_NAME);
         assert_eq!(ns.namespace_name().to_string(), NAMESPACE_NAME);
+    }
+
+    #[tokio::test]
+    async fn buffer_operation_ignores_already_persisted_data() {
+        test_helpers::maybe_start_logging();
+        let metrics = Arc::new(metric::Registry::new());
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
+        let mut repos = catalog.repositories().await;
+
+        let w1 = make_write_op(
+            &PartitionKey::from("1970-01-01"),
+            SHARD_INDEX,
+            NAMESPACE_ID,
+            TABLE_NAME,
+            TABLE_ID,
+            1,
+            "test_table foo=1 10",
+        );
+        let w2 = make_write_op(
+            &PartitionKey::from("1970-01-01"),
+            SHARD_INDEX,
+            NAMESPACE_ID,
+            TABLE_NAME,
+            TABLE_ID,
+            2,
+            "test_table foo=1 10",
+        );
+
+        // create some persisted state
+        let partition = repos
+            .partitions()
+            .create_or_get("1970-01-01".into(), SHARD_ID, TABLE_ID)
+            .await
+            .unwrap();
+        repos
+            .partitions()
+            .update_persisted_sequence_number(partition.id, SequenceNumber::new(1))
+            .await
+            .unwrap();
+        let partition2 = repos
+            .partitions()
+            .create_or_get("1970-01-02".into(), SHARD_ID, TABLE_ID)
+            .await
+            .unwrap();
+
+        let parquet_file_params = ParquetFileParams {
+            shard_id: SHARD_ID,
+            namespace_id: NAMESPACE_ID,
+            table_id: TABLE_ID,
+            partition_id: partition.id,
+            object_store_id: Uuid::new_v4(),
+            max_sequence_number: SequenceNumber::new(1),
+            min_time: Timestamp::new(1),
+            max_time: Timestamp::new(1),
+            file_size_bytes: 0,
+            row_count: 0,
+            compaction_level: CompactionLevel::Initial,
+            created_at: Timestamp::new(1),
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+        };
+        repos
+            .parquet_files()
+            .create(parquet_file_params.clone())
+            .await
+            .unwrap();
+
+        // now create a parquet file in another partition with a much higher sequence persisted
+        // sequence number. We want to make sure that this doesn't cause our write in the other
+        // partition to get ignored.
+        let other_file_params = ParquetFileParams {
+            max_sequence_number: SequenceNumber::new(15),
+            object_store_id: Uuid::new_v4(),
+            partition_id: partition2.id,
+            ..parquet_file_params
+        };
+        repos
+            .parquet_files()
+            .create(other_file_params)
+            .await
+            .unwrap();
+        std::mem::drop(repos);
+
+        let manager = LifecycleManager::new(
+            LifecycleConfig::new(
+                1,
+                0,
+                0,
+                Duration::from_secs(1),
+                Duration::from_secs(1),
+                1000000,
+            ),
+            Arc::clone(&metrics),
+            Arc::new(SystemProvider::new()),
+        );
+
+        let partition_provider = Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog)));
+
+        let data = NamespaceData::new(
+            NAMESPACE_ID,
+            DeferredLoad::new(Duration::from_millis(1), async { "foo".into() }),
+            Arc::new(MockTableNameProvider::new(TABLE_NAME)),
+            SHARD_ID,
+            partition_provider,
+            &metrics,
+        );
+
+        // w1 should be ignored because the per-partition replay offset is set
+        // to 1 already, so it shouldn't be buffered and the buffer should
+        // remain empty.
+        let action = data
+            .buffer_operation(DmlOperation::Write(w1), &manager.handle())
+            .await
+            .unwrap();
+        {
+            let table = data.table(TABLE_ID).unwrap();
+            assert!(table
+                .partitions()
+                .into_iter()
+                .all(|p| p.lock().get_query_data().is_none()));
+            assert_eq!(
+                table
+                    .get_partition_by_key(&"1970-01-01".into())
+                    .unwrap()
+                    .lock()
+                    .max_persisted_sequence_number(),
+                Some(SequenceNumber::new(1))
+            );
+        }
+        assert_matches!(action, DmlApplyAction::Skipped);
+
+        // w2 should be in the buffer
+        data.buffer_operation(DmlOperation::Write(w2), &manager.handle())
+            .await
+            .unwrap();
+
+        let table = data.table(TABLE_ID).unwrap();
+        let partition = table.get_partition_by_key(&"1970-01-01".into()).unwrap();
+        assert_eq!(
+            partition.lock().sequence_number_range().inclusive_min(),
+            Some(SequenceNumber::new(2))
+        );
+
+        assert_matches!(data.table_count().observe(), Observation::U64Counter(v) => {
+            assert_eq!(v, 1, "unexpected table count metric value");
+        });
     }
 }
