@@ -6,6 +6,8 @@
     clippy::use_self,
     clippy::clone_on_ref_ptr
 )]
+// TEMP until everything is fleshed out
+#![allow(dead_code)]
 
 //! # WAL
 //!
@@ -13,22 +15,22 @@
 
 use async_trait::async_trait;
 use crc32fast::Hasher;
+use generated_types::influxdata::iox::delete::v1::DeletePayload;
+use generated_types::influxdata::pbdata::v1::DatabaseBatch;
+use serde::{Deserialize, Serialize};
+use serde_json;
 use snafu::{ensure, ResultExt, Snafu};
 use std::pin::Pin;
+use std::sync::Arc;
 use std::time::SystemTime;
 use std::{
     convert::TryFrom,
     io, mem, num,
     path::{Path, PathBuf},
 };
-use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::sync::RwLock;
 use uuid::Uuid;
-use serde_json;
-use serde::{Deserialize, Serialize};
-use generated_types::influxdata::pbdata::v1::DatabaseBatch;
-use generated_types::influxdata::iox::delete::v1::DeletePayload;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -139,7 +141,7 @@ pub enum Error {
 
     UnableToReadCreated {
         source: io::Error,
-    }
+    },
 }
 
 /// A specialized `Result` for Write Buffer-related errors
@@ -259,12 +261,14 @@ pub struct WriteSummary {
 }
 
 /// A Segment in a wal, which is a single file
+#[derive(Debug)]
 pub struct SegmentFile {
     id: Uuid,
     path: PathBuf,
     state: RwLock<SegmentFileInner>,
 }
 
+#[derive(Debug)]
 struct SegmentFileInner {
     f: tokio::fs::File,
     bytes_written: usize,
@@ -341,9 +345,7 @@ impl SegmentFile {
             .await
             .context(SegmentWriteSnafu)?;
 
-        let bytes_written = mem::size_of::<u32>()
-            + mem::size_of::<u32>()
-            + compressed_data.len();
+        let bytes_written = mem::size_of::<u32>() + mem::size_of::<u32>() + compressed_data.len();
         state.bytes_written += bytes_written;
 
         Ok(WriteSummary {
@@ -364,8 +366,12 @@ impl SegmentFile {
 
     async fn close(self) -> Result<ClosedSegment> {
         let state = self.state.write().await;
-        let metadata = state.f.metadata().await.context(UnableToReadFileMetadataSnafu)?;
-        Ok(ClosedSegment{
+        let metadata = state
+            .f
+            .metadata()
+            .await
+            .context(UnableToReadFileMetadataSnafu)?;
+        Ok(ClosedSegment {
             path: self.path,
             size: metadata.len(),
             created_at: metadata.created().context(UnableToReadCreatedSnafu)?,
@@ -390,7 +396,7 @@ impl SegmentFileReader {
         is_segment_stream(&mut f).await?;
         let id = read_id(&mut f).await?;
 
-        Ok(Self{f, id})
+        Ok(Self { f, id })
     }
 
     pub async fn next(&mut self) -> Result<Option<SegmentEntry>> {
@@ -419,7 +425,7 @@ impl SegmentFileReader {
 
 async fn file_to_entries(path: impl AsRef<Path>) -> Result<Vec<SegmentEntry>> {
     let path = path.as_ref().to_owned();
-    let mut f = tokio::fs::File::open(&path)
+    let f = tokio::fs::File::open(&path)
         .await
         .context(UnableToOpenFileSnafu { path })?;
 
@@ -452,7 +458,7 @@ async fn is_segment_stream(f: &mut Pin<Box<dyn AsyncRead>>) -> Result<()> {
     Ok(())
 }
 
-const UUID_BYTES_LEN:usize = 16;
+const UUID_BYTES_LEN: usize = 16;
 
 async fn read_id(f: &mut Pin<Box<dyn AsyncRead>>) -> Result<SegmentId> {
     let mut id_header = vec![0u8; UUID_BYTES_LEN];
@@ -505,10 +511,7 @@ async fn read_entry(f: &mut Pin<Box<dyn AsyncRead>>) -> Result<Option<SegmentEnt
         .decompress_vec(&compressed_data)
         .context(UnableToDecompressDataSnafu)?;
 
-    Ok(Some(SegmentEntry {
-        checksum,
-        data,
-    }))
+    Ok(Some(SegmentEntry { checksum, data }))
 }
 
 #[derive(Debug, Clone)]
@@ -518,6 +521,7 @@ pub struct ClosedSegment {
     created_at: SystemTime,
 }
 
+#[derive(Debug)]
 pub struct Wal {
     root: PathBuf,
     closed_segments: Vec<ClosedSegment>,
@@ -531,14 +535,23 @@ impl Wal {
             .await
             .context(UnableToCreateWalDirSnafu { path: &root })?;
 
-        let mut dir = tokio::fs::read_dir(&root).await.context(UnableToReadDirectoryContentsSnafu{path: &root})?;
+        let mut dir = tokio::fs::read_dir(&root)
+            .await
+            .context(UnableToReadDirectoryContentsSnafu { path: &root })?;
 
         let mut closed_segments = Vec::new();
 
-        while let Some(child) = dir.next_entry().await.context(UnableToReadDirectoryContentsSnafu{path: &root})? {
-            let metadata = child.metadata().await.context(UnableToReadFileMetadataSnafu)?;
+        while let Some(child) = dir
+            .next_entry()
+            .await
+            .context(UnableToReadDirectoryContentsSnafu { path: &root })?
+        {
+            let metadata = child
+                .metadata()
+                .await
+                .context(UnableToReadFileMetadataSnafu)?;
             if metadata.is_file() {
-                let segment = ClosedSegment{
+                let segment = ClosedSegment {
                     path: child.path(),
                     size: metadata.len(),
                     created_at: metadata.created().context(UnableToReadFileMetadataSnafu)?,
@@ -549,18 +562,21 @@ impl Wal {
 
         let open_segment = Arc::new(SegmentFile::new_writer(&root).await?);
 
-        Ok(Self { root, closed_segments, open_segment })
+        Ok(Self {
+            root,
+            closed_segments,
+            open_segment,
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use data_types::{NamespaceId, TableId};
     use dml::DmlWrite;
     use mutable_batch_lp::lines_to_batches;
     use mutable_batch_pb;
-    use data_types::{NamespaceId, TableId};
-
 
     #[tokio::test]
     async fn segment_file_write_and_read_entries() {
@@ -603,13 +619,19 @@ mod tests {
     #[tokio::test]
     async fn segment_file_write_and_read_ops() {
         let dir = test_helpers::tmp_dir().unwrap();
-        let mut segment = SegmentFile::new_writer(&dir).await.unwrap();
+        let segment = SegmentFile::new_writer(&dir).await.unwrap();
 
         let w1 = test_data("m1,t=foo v=1i 1");
         let w2 = test_data("m1,t=foo v=2i 2");
 
-        let op1 = SequencedWalOp{sequence_number: 0, op: WalOp::Write(w1)};
-        let op2 = SequencedWalOp{sequence_number: 1, op: WalOp::Write(w2)};
+        let op1 = SequencedWalOp {
+            sequence_number: 0,
+            op: WalOp::Write(w1),
+        };
+        let op2 = SequencedWalOp {
+            sequence_number: 1,
+            op: WalOp::Write(w2),
+        };
 
         let ops = vec![op1, op2];
         segment.write_ops(&ops).await.unwrap();
