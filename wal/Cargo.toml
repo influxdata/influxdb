@@ -23,6 +23,7 @@ tokio = { version = "1.21", features = ["macros", "fs", "io-util", "parking_lot"
 tokio-util = "0.7"
 observability_deps = { path = "../observability_deps" }
 uuid = "1.2"
+workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies] # In alphabetical order
 dml = {path = "../dml"}

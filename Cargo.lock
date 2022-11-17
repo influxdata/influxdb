@@ -5927,6 +5927,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "uuid",
+ "workspace-hack",
 ]
 
 [[package]]
