@@ -31,8 +31,11 @@ pub enum ParseError {
     #[snafu(display("error building response: {:?}", source))]
     ResponseError { source: response::Error },
 
-    #[snafu(display("value {:?} not supported for flag {:?}", value, flag))]
-    UnsupportedFlagValue { value: String, flag: String },
+    #[snafu(display(
+        "value {} not supported for format. Expected 'pretty' or 'quiet'",
+        value
+    ))]
+    UnsupportedFormat { value: String },
 
     #[snafu(display("unsupported aggregate type: '{:?}'", agg))]
     Aggregate { agg: String },
@@ -144,9 +147,8 @@ fn parse_format(format: &str) -> Result<Format, ParseError> {
         "pretty" => Ok(Format::Pretty),
         "quiet" => Ok(Format::Quiet),
         // TODO - raw frame format?
-        _ => Err(ParseError::UnsupportedFlagValue {
+        _ => Err(ParseError::UnsupportedFormat {
             value: format.to_owned(),
-            flag: "format".to_owned(),
         }),
     }
 }
