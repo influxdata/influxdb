@@ -15,21 +15,21 @@
 
 use async_trait::async_trait;
 use crc32fast::Hasher;
-use generated_types::influxdata::iox::delete::v1::DeletePayload;
-use generated_types::influxdata::pbdata::v1::DatabaseBatch;
+use generated_types::influxdata::{iox::delete::v1::DeletePayload, pbdata::v1::DatabaseBatch};
 use serde::{Deserialize, Serialize};
-use serde_json;
 use snafu::{ensure, ResultExt, Snafu};
-use std::pin::Pin;
-use std::sync::Arc;
-use std::time::SystemTime;
 use std::{
     convert::TryFrom,
     io, mem, num,
     path::{Path, PathBuf},
+    pin::Pin,
+    sync::Arc,
+    time::SystemTime,
 };
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
-use tokio::sync::RwLock;
+use tokio::{
+    io::{AsyncRead, AsyncReadExt, AsyncWriteExt},
+    sync::RwLock,
+};
 use uuid::Uuid;
 
 #[derive(Debug, Snafu)]
@@ -144,14 +144,14 @@ pub enum Error {
     },
 }
 
-/// A specialized `Result` for Write Buffer-related errors
+/// A specialized `Result` for WAL-related errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// SequenceNumber is a u64 monotonically increasing number provided by users of the wal for
+/// SequenceNumber is a u64 monotonically-increasing number provided by users of the WAL for
 /// their tracking purposes of data getting written into a segment.
 pub type SequenceNumber = u64;
 
-/// Segments are identified by a type 4 uuid
+/// Segments are identified by a type 4 UUID
 pub type SegmentId = Uuid;
 
 /// The first bytes written into a segment file to identify it and its version.
@@ -159,30 +159,17 @@ const FILE_TYPE_IDENTIFIER: &[u8] = b"INFLUXV3";
 /// File extension for segment files.
 const SEGMENT_FILE_EXTENSION: &str = "dat";
 
-/// Operation recorded in the Wal
-#[derive(Debug, Serialize, Deserialize)]
+/// Operation recorded in the WAL
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub enum WalOp {
     Write(DatabaseBatch),
     Delete(DeletePayload),
     Persist(PersistOp),
 }
 
-impl PartialEq for WalOp {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (WalOp::Write(l), WalOp::Write(r)) => l.eq(r),
-            (WalOp::Delete(l), WalOp::Delete(r)) => l.eq(r),
-            (WalOp::Persist(l), WalOp::Persist(r)) => l.eq(r),
-            _ => false,
-        }
-    }
-}
-
-impl Eq for WalOp {}
-
 /// Wal operation with a sequence number, which is used to inform read buffers when to evict data
 /// from the buffer
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct SequencedWalOp {
     pub sequence_number: SequenceNumber,
     pub op: WalOp,
