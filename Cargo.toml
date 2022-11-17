@@ -59,6 +59,7 @@ members = [
     "service_common",
     "service_grpc_influxrpc",
     "service_grpc_flight",
+    "service_grpc_namespace",
     "service_grpc_object_store",
     "service_grpc_catalog",
     "service_grpc_schema",

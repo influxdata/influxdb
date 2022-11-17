@@ -5,9 +5,6 @@ option go_package = "github.com/influxdata/iox/schema/v1";
 service SchemaService {
   // Get the schema for a namespace
   rpc GetSchema(GetSchemaRequest) returns (GetSchemaResponse);
-
-  // update retention period
-  rpc UpdateNamespaceRetention(UpdateNamespaceRetentionRequest) returns (UpdateNamespaceRetentionResponse);
 }
 
 message GetSchemaRequest {
@@ -62,27 +59,4 @@ message ColumnSchema {
         COLUMN_TYPE_TIME = 6;
         COLUMN_TYPE_TAG = 7;
     }
-}
-
-message UpdateNamespaceRetentionRequest {
-  // Name of the namespace to be set
-  string name = 1;
-
-  // Number of hours of the retention period
-  int64 retention_hours = 2;
-}
-
-message UpdateNamespaceRetentionResponse {
-  Namespace namespace = 1;
-}
-
-message Namespace {
-  // Namespace ID
-  int64 id = 1;
-
-  // Name of the Namespace
-  string name = 2;
-
-  // Retention period ns
-  optional int64 retention_period_ns = 3;
 }
