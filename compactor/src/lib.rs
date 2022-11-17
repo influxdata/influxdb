@@ -156,6 +156,33 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                 FilterResult::NothingToCompact => {
                     debug!(?partition_id, compaction_type, "nothing to compact");
                 }
+                FilterResult::OverLimitFileNum {
+                    num_files,
+                    budget_bytes,
+                } => {
+                    // We cannot compact this partition because its first set of overlapped files
+                    // are over the limit of file num
+                    warn!(
+                        ?partition_id,
+                        ?table_id,
+                        compaction_type,
+                        num_files,
+                        budget_bytes,
+                        file_num_limit = compactor.config.max_num_compacting_files,
+                        memory_budget_bytes = compactor.config.memory_budget_bytes,
+                        "skipped; over limit of number of files"
+                    );
+                    record_skipped_compaction(
+                        partition_id,
+                        Arc::clone(&compactor),
+                        "over limit of num_files",
+                        num_files,
+                        compactor.config.max_num_compacting_files,
+                        budget_bytes,
+                        compactor.config.memory_budget_bytes,
+                    )
+                    .await;
+                }
                 FilterResult::OverBudget {
                     budget_bytes: needed_bytes,
                     num_files,

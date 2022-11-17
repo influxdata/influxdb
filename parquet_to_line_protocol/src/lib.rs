@@ -213,7 +213,6 @@ impl ParquetFileReader {
             projection: None,
             limit: None,
             table_partition_cols: vec![],
-            output_ordering: None,
             config_options: ConfigOptions::new().into_shareable(),
         };
 

@@ -219,11 +219,8 @@ impl ExecutionPlan for DeduplicateExec {
         Ok(AdapterStream::adapt(self.schema(), rx, handle))
     }
 
-    fn required_input_distribution(&self) -> Vec<Distribution> {
-        // For now use a single input -- it might be helpful
-        // eventually to deduplicate in parallel by hash partitioning
-        // the inputs (based on sort keys)
-        vec![Distribution::SinglePartition]
+    fn required_child_distribution(&self) -> Distribution {
+        Distribution::SinglePartition
     }
 
     fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
