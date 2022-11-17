@@ -504,6 +504,7 @@ mod tests {
             topic.id,
             query_pool.id,
             namespace.max_columns_per_table,
+            namespace.retention_period_ns,
         );
         for write_operation in write_operations {
             validate_or_insert_schema(write_operation.tables(), &schema, txn.deref_mut())

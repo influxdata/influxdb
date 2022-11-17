@@ -19,7 +19,7 @@ use observability_deps::tracing::info;
 use router::{
     dml_handlers::{
         DmlHandler, DmlHandlerChainExt, FanOutAdaptor, InstrumentationDecorator, Partitioner,
-        SchemaValidator, ShardedWriteBuffer, WriteSummaryAdapter,
+        RetentionValidator, SchemaValidator, ShardedWriteBuffer, WriteSummaryAdapter,
     },
     namespace_cache::{
         metrics::InstrumentedCache, MemoryNamespaceCache, NamespaceCache, ShardedCache,
@@ -205,6 +205,11 @@ pub async fn create_router_server_type(
     let schema_validator =
         InstrumentationDecorator::new("schema_validator", &metrics, schema_validator);
 
+    // Add a retention validator into handler stack to reject data outside the retention period
+    let retention_validator = RetentionValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache));
+    let retention_validator =
+        InstrumentationDecorator::new("retention_validator", &metrics, retention_validator);
+
     // Add a write partitioner into the handler stack that splits by the date
     // portion of the write's timestamp.
     let partitioner = Partitioner::new(PartitionTemplate {
@@ -268,7 +273,8 @@ pub async fn create_router_server_type(
     // Build the chain of DML handlers that forms the request processing
     // pipeline, starting with the namespace creator (for testing purposes) and
     // write partitioner that yields a set of partitioned batches.
-    let handler_stack = schema_validator
+    let handler_stack = retention_validator
+        .and_then(schema_validator)
         .and_then(partitioner)
         // Once writes have been partitioned, they are processed in parallel.
         //

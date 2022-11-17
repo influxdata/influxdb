@@ -175,7 +175,11 @@ impl TestContext {
     ///
     /// Must not be called twice with the same `name`.
     #[track_caller]
-    pub async fn ensure_namespace(&mut self, name: &str) -> Namespace {
+    pub async fn ensure_namespace(
+        &mut self,
+        name: &str,
+        retention_period_ns: Option<i64>,
+    ) -> Namespace {
         let ns = self
             .catalog
             .repositories()
@@ -194,6 +198,7 @@ impl TestContext {
                         self.topic_id,
                         self.query_id,
                         iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE,
+                        retention_period_ns,
                     ),
                 )
                 .is_none(),

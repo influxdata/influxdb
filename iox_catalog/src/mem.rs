@@ -9,7 +9,7 @@ use crate::{
         Transaction,
     },
     metrics::MetricDecorator,
-    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES, DEFAULT_RETENTION_PERIOD,
+    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
 };
 use async_trait::async_trait;
 use data_types::{
@@ -30,6 +30,9 @@ use std::{
     sync::Arc,
 };
 use tokio::sync::{Mutex, OwnedMutexGuard};
+
+/// Mem catalog's default retention period: 1 hour
+pub const MEM_DEFAULT_RETENTION_PERIOD: Option<i64> = Some(3_600 * 1_000_000_000);
 
 /// In-memory catalog that implements the `RepoCollection` and individual repo traits from
 /// the catalog interface.
@@ -303,7 +306,7 @@ impl NamespaceRepo for MemTxn {
             query_pool_id,
             max_tables: DEFAULT_MAX_TABLES,
             max_columns_per_table: DEFAULT_MAX_COLUMNS_PER_TABLE,
-            retention_period_ns: DEFAULT_RETENTION_PERIOD,
+            retention_period_ns: MEM_DEFAULT_RETENTION_PERIOD,
         };
         stage.namespaces.push(namespace);
         Ok(stage.namespaces.last().unwrap().clone())

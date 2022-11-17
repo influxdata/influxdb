@@ -68,6 +68,9 @@ pub mod nop;
 mod sharded_write_buffer;
 pub use sharded_write_buffer::*;
 
+mod retention_validator;
+pub use retention_validator::*;
+
 mod partitioner;
 pub use partitioner::*;
 

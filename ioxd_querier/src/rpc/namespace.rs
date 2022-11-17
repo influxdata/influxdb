@@ -149,12 +149,12 @@ mod tests {
                     proto::Namespace {
                         id: 1,
                         name: "namespace2".to_string(),
-                        retention_period_ns: None,
+                        retention_period_ns: iox_catalog::mem::MEM_DEFAULT_RETENTION_PERIOD,
                     },
                     proto::Namespace {
                         id: 2,
                         name: "namespace1".to_string(),
-                        retention_period_ns: None,
+                        retention_period_ns: iox_catalog::mem::MEM_DEFAULT_RETENTION_PERIOD,
                     },
                 ]
             }

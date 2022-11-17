@@ -9,12 +9,14 @@ use futures::{stream::FuturesUnordered, StreamExt};
 use hashbrown::HashMap;
 use hyper::{Body, Request, StatusCode};
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
+use iox_time::{SystemProvider, TimeProvider};
 use metric::{Attributes, DurationHistogram, Metric, Registry, U64Counter};
 use mutable_batch::MutableBatch;
 use router::{
     dml_handlers::{
         Chain, DmlError, DmlHandlerChainExt, FanOutAdaptor, InstrumentationDecorator, Partitioned,
-        Partitioner, SchemaError, SchemaValidator, ShardedWriteBuffer, WriteSummaryAdapter,
+        Partitioner, RetentionError, RetentionValidator, SchemaError, SchemaValidator,
+        ShardedWriteBuffer, WriteSummaryAdapter,
     },
     namespace_cache::{MemoryNamespaceCache, ShardedCache},
     namespace_resolver::{NamespaceAutocreation, NamespaceSchemaResolver},
@@ -35,6 +37,10 @@ const TEST_TOPIC_ID: i64 = 1;
 /// handler stack for namespaces it has not yet observed.
 const TEST_QUERY_POOL_ID: i64 = 1;
 
+/// Default retention period assigned to a namespace
+/// This is the same as the default in the MemCatalog
+const TEST_RETENTPON_PERIOD_NS: Option<i64> = Some(3_600 * 1_000_000_000);
+
 pub struct TestContext {
     delegate: HttpDelegateStack,
     catalog: Arc<dyn Catalog>,
@@ -49,7 +55,13 @@ pub struct TestContext {
 type HttpDelegateStack = HttpDelegate<
     InstrumentationDecorator<
         Chain<
-            Chain<SchemaValidator<Arc<ShardedCache<Arc<MemoryNamespaceCache>>>>, Partitioner>,
+            Chain<
+                Chain<
+                    RetentionValidator<Arc<ShardedCache<Arc<MemoryNamespaceCache>>>>,
+                    SchemaValidator<Arc<ShardedCache<Arc<MemoryNamespaceCache>>>>,
+                >,
+                Partitioner,
+            >,
             WriteSummaryAdapter<
                 FanOutAdaptor<
                     ShardedWriteBuffer<JumpHash<Arc<Shard>>>,
@@ -95,18 +107,20 @@ impl TestContext {
             iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
         ));
 
+        let retention_validator =
+            RetentionValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache));
         let schema_validator =
             SchemaValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache), &metrics);
         let partitioner = Partitioner::new(PartitionTemplate {
             parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],
         });
 
-        let handler_stack =
-            schema_validator
-                .and_then(partitioner)
-                .and_then(WriteSummaryAdapter::new(FanOutAdaptor::new(
-                    sharded_write_buffer,
-                )));
+        let handler_stack = retention_validator
+            .and_then(schema_validator)
+            .and_then(partitioner)
+            .and_then(WriteSummaryAdapter::new(FanOutAdaptor::new(
+                sharded_write_buffer,
+            )));
 
         let handler_stack = InstrumentationDecorator::new("request", &metrics, handler_stack);
 
@@ -161,10 +175,17 @@ impl Default for TestContext {
 async fn test_write_ok() {
     let ctx = TestContext::new();
 
+    // Write data inside retention period
+    let now = SystemProvider::default()
+        .now()
+        .timestamp_nanos()
+        .to_string();
+    let lp = "platanos,tag1=A,tag2=B val=42i ".to_string() + &now;
+
     let request = Request::builder()
         .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
         .method("POST")
-        .body(Body::from("platanos,tag1=A,tag2=B val=42i 123456"))
+        .body(Body::from(lp))
         .expect("failed to construct HTTP request");
 
     let response = ctx
@@ -195,6 +216,7 @@ async fn test_write_ok() {
     assert_eq!(ns.name, "bananas_test");
     assert_eq!(ns.topic_id, TopicId::new(TEST_TOPIC_ID));
     assert_eq!(ns.query_pool_id, QueryPoolId::new(TEST_QUERY_POOL_ID));
+    assert_eq!(ns.retention_period_ns, TEST_RETENTPON_PERIOD_NS);
 
     // Ensure the metric instrumentation was hit
     let histogram = ctx
@@ -235,13 +257,53 @@ async fn test_write_ok() {
 }
 
 #[tokio::test]
-async fn test_schema_conflict() {
+async fn test_write_outside_retention_period() {
     let ctx = TestContext::new();
+
+    // Write data outside retention period into a new table
+    let two_hours_ago =
+        (SystemProvider::default().now().timestamp_nanos() - 2 * 3_600 * 1_000_000_000).to_string();
+    let lp = "apple,tag1=AAA,tag2=BBB val=422i ".to_string() + &two_hours_ago;
 
     let request = Request::builder()
         .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
         .method("POST")
-        .body(Body::from("platanos,tag1=A,tag2=B val=42i 123456"))
+        .body(Body::from(lp))
+        .expect("failed to construct HTTP request");
+
+    let err = ctx
+        .delegate()
+        .route(request)
+        .await
+        .expect_err("LP write request should fail");
+
+    assert_matches!(
+        &err,
+        router::server::http::Error::DmlHandler(
+            DmlError::Retention(
+                RetentionError::OutsideRetention(e))
+        ) => {
+            assert_eq!(e, "apple");
+        }
+    );
+    assert_eq!(err.as_status_code(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn test_schema_conflict() {
+    let ctx = TestContext::new();
+
+    // data inside the retention period
+    let now = SystemProvider::default()
+        .now()
+        .timestamp_nanos()
+        .to_string();
+    let lp = "platanos,tag1=A,tag2=B val=42i ".to_string() + &now;
+
+    let request = Request::builder()
+        .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
+        .method("POST")
+        .body(Body::from(lp))
         .expect("failed to construct HTTP request");
 
     let response = ctx
@@ -252,10 +314,16 @@ async fn test_schema_conflict() {
 
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
+    let now = SystemProvider::default()
+        .now()
+        .timestamp_nanos()
+        .to_string();
+    let lp = "platanos,tag1=A,tag2=B val=42.0 ".to_string() + &now;
+
     let request = Request::builder()
         .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
         .method("POST")
-        .body(Body::from("platanos,tag1=A,tag2=B val=42.0 123457"))
+        .body(Body::from(lp))
         .expect("failed to construct HTTP request");
 
     let err = ctx
@@ -291,11 +359,17 @@ async fn test_schema_conflict() {
 async fn test_schema_limit() {
     let ctx = TestContext::new();
 
+    let now = SystemProvider::default()
+        .now()
+        .timestamp_nanos()
+        .to_string();
+    let lp = "platanos,tag1=A,tag2=B val=42i ".to_string() + &now;
+
     // Drive the creation of the namespace
     let request = Request::builder()
         .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
         .method("POST")
-        .body(Body::from("platanos,tag1=A,tag2=B val=42i 123456"))
+        .body(Body::from(lp))
         .expect("failed to construct HTTP request");
     let response = ctx
         .delegate()
@@ -314,10 +388,16 @@ async fn test_schema_limit() {
         .expect("failed to update table limit");
 
     // Attempt to create another table
+    let now = SystemProvider::default()
+        .now()
+        .timestamp_nanos()
+        .to_string();
+    let lp = "platanos2,tag1=A,tag2=B val=42i ".to_string() + &now;
+
     let request = Request::builder()
         .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
         .method("POST")
-        .body(Body::from("platanos2,tag1=A,tag2=B val=42i 123456"))
+        .body(Body::from(lp))
         .expect("failed to construct HTTP request");
     let err = ctx
         .delegate()
@@ -379,18 +459,26 @@ async fn test_write_propagate_ids() {
         .collect::<HashMap<_, _>>()
         .await;
 
+    // data inside the retention period
+    let now = SystemProvider::default()
+        .now()
+        .timestamp_nanos()
+        .to_string();
+    let lp = format! {
+        "
+            platanos,tag1=A,tag2=B val=42i {}\n\
+            another,tag1=A,tag2=B val=42i {}\n\
+            test,tag1=A,tag2=B val=42i {}\n\
+            platanos,tag1=A,tag2=B val=42i {}\n\
+            table,tag1=A,tag2=B val=42i {}\n\
+        ", now, now, now, now, now
+
+    };
+
     let request = Request::builder()
         .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
         .method("POST")
-        .body(Body::from(
-            "\
-                platanos,tag1=A,tag2=B val=42i 123456\n\
-                another,tag1=A,tag2=B val=42i 123458\n\
-                test,tag1=A,tag2=B val=42i 123458\n\
-                platanos,tag1=A,tag2=B val=42i 123458\n\
-                table,tag1=A,tag2=B val=42i 123458\n\
-            ",
-        ))
+        .body(Body::from(lp))
         .expect("failed to construct HTTP request");
 
     let response = ctx

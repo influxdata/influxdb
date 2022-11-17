@@ -155,9 +155,15 @@ impl TestCatalog {
 
         let topic = repos.topics().create_or_get("topic").await.unwrap();
         let query_pool = repos.query_pools().create_or_get("pool").await.unwrap();
-        let namespace = repos
+        let _namespace = repos
             .namespaces()
             .create(name, topic.id, query_pool.id)
+            .await
+            .unwrap();
+
+        let namespace = repos
+            .namespaces()
+            .update_retention_period(name, 1)
             .await
             .unwrap();
 

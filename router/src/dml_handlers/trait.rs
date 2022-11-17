@@ -5,7 +5,9 @@ use data_types::{DeletePredicate, NamespaceId, NamespaceName};
 use thiserror::Error;
 use trace::ctx::SpanContext;
 
-use super::{partitioner::PartitionError, SchemaError, ShardError};
+use super::{
+    partitioner::PartitionError, retention_validator::RetentionError, SchemaError, ShardError,
+};
 
 /// Errors emitted by a [`DmlHandler`] implementation during DML request
 /// processing.
@@ -26,6 +28,10 @@ pub enum DmlError {
     /// An error partitioning the request.
     #[error(transparent)]
     Partition(#[from] PartitionError),
+
+    /// An error validate retention period
+    #[error(transparent)]
+    Retention(#[from] RetentionError),
 
     /// An unknown error occured while processing the DML request.
     #[error("internal dml handler error: {0}")]

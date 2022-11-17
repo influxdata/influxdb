@@ -22,7 +22,7 @@ use write_summary::WriteSummary;
 
 use self::delete_predicate::parse_http_delete_request;
 use crate::{
-    dml_handlers::{DmlError, DmlHandler, PartitionError, SchemaError},
+    dml_handlers::{DmlError, DmlHandler, PartitionError, RetentionError, SchemaError},
     namespace_resolver::NamespaceResolver,
 };
 
@@ -140,6 +140,10 @@ impl From<&DmlError> for StatusCode {
 
             DmlError::Internal(_) | DmlError::WriteBuffer(_) => StatusCode::INTERNAL_SERVER_ERROR,
             DmlError::Partition(PartitionError::BatchWrite(_)) => StatusCode::INTERNAL_SERVER_ERROR,
+            DmlError::Retention(RetentionError::NamespaceLookup(_)) => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+            DmlError::Retention(RetentionError::OutsideRetention(_)) => StatusCode::FORBIDDEN,
         }
     }
 }

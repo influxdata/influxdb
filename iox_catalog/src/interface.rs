@@ -747,6 +747,7 @@ where
         namespace.topic_id,
         namespace.query_pool_id,
         namespace.max_columns_per_table,
+        namespace.retention_period_ns,
     );
 
     let mut table_id_to_schema = BTreeMap::new();
@@ -878,8 +879,13 @@ pub async fn list_schemas(
         // was created, or have no tables/columns (and therefore have no entry
         // in "joined").
         .filter_map(move |v| {
-            let mut ns =
-                NamespaceSchema::new(v.id, v.topic_id, v.query_pool_id, v.max_columns_per_table);
+            let mut ns = NamespaceSchema::new(
+                v.id,
+                v.topic_id,
+                v.query_pool_id,
+                v.max_columns_per_table,
+                v.retention_period_ns,
+            );
             ns.tables = joined.remove(&v.id)?;
             Some((v, ns))
         });
@@ -2500,6 +2506,16 @@ pub(crate) mod test_helpers {
         assert_eq!(ids.len(), 1);
 
         // test retention-based flagging for deletion
+        // Since mem catalog has default retention 1 hour, let us first set it to 0 means infinite
+        let namespaces = repos.namespaces().list().await.expect("listing namespaces");
+        for namespace in namespaces {
+            repos
+                .namespaces()
+                .update_retention_period(&namespace.name, 0) // infinite
+                .await
+                .unwrap();
+        }
+
         // 1. with no retention period set on the ns, nothing should get flagged
         let ids = repos
             .parquet_files()
@@ -4156,6 +4172,7 @@ pub(crate) mod test_helpers {
             topic.id,
             pool.id,
             namespace.max_columns_per_table,
+            namespace.retention_period_ns,
         );
 
         let schema = validate_or_insert_schema(batches, &ns, repos)
