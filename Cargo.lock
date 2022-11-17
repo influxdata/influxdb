@@ -5903,6 +5903,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "wal"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "byteorder",
+ "bytes",
+ "crc32fast",
+ "data_types",
+ "dml",
+ "futures",
+ "generated_types",
+ "mutable_batch_lp",
+ "mutable_batch_pb",
+ "observability_deps",
+ "once_cell",
+ "regex",
+ "serde",
+ "serde_json",
+ "snafu",
+ "snap",
+ "test_helpers",
+ "tokio",
+ "tokio-util",
+ "uuid",
+]
+
+[[package]]
 name = "walkdir"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
