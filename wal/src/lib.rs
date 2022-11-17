@@ -154,7 +154,41 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub type SequenceNumber = u64;
 
 /// Segments are identified by a type 4 UUID
-pub type SegmentId = Uuid;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SegmentId(Uuid);
+
+#[allow(missing_docs)]
+impl SegmentId {
+    pub fn new() -> Self {
+        Self(Uuid::new_v4())
+    }
+
+    pub fn get(&self) -> Uuid {
+        self.0
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+}
+
+impl From<Uuid> for SegmentId {
+    fn from(uuid: Uuid) -> Self {
+        Self(uuid)
+    }
+}
+
+impl std::fmt::Display for SegmentId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl Default for SegmentId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// The first bytes written into a segment file to identify it and its version.
 const FILE_TYPE_IDENTIFIER: &[u8] = b"INFLUXV3";
@@ -245,7 +279,7 @@ impl SegmentWal for Wal {
     }
 
     async fn open_segment(&self) -> Arc<dyn Segment> {
-        todo!();
+        Arc::clone(&self.open_segment) as _
     }
 
     async fn delete_segment(&self, _id: SegmentId) -> Result<()> {
@@ -326,8 +360,8 @@ pub struct WriteSummary {
 
 /// A Segment in a WAL. One segment is stored in one file.
 #[derive(Debug)]
-pub struct SegmentFile {
-    id: Uuid, // todo: use SegmentId type
+struct SegmentFile {
+    id: SegmentId,
     path: PathBuf,
     state: RwLock<SegmentFileInner>, // todo: is this lock needed?
 }
@@ -341,7 +375,7 @@ struct SegmentFileInner {
 impl SegmentFile {
     async fn new_writer(path: impl AsRef<Path>) -> Result<Self> {
         let mut path = path.as_ref().to_owned();
-        let id = Uuid::new_v4();
+        let id = SegmentId::new();
         path.push(id.to_string());
         path.set_extension(SEGMENT_FILE_EXTENSION);
 
@@ -444,6 +478,24 @@ impl SegmentFile {
     }
 }
 
+#[async_trait]
+impl Segment for SegmentFile {
+    fn id(&self) -> SegmentId {
+        self.id
+    }
+
+    async fn write_op(&self, _op: &SequencedWalOp) -> Result<WriteSummary> {
+        // create a oneshot channel
+        // call inner write op with the op and the transmitter of the channel
+        // await the receiving end of the channel
+        todo!()
+    }
+
+    async fn reader(&self) -> Result<Box<dyn OpReader>> {
+        todo!()
+    }
+}
+
 struct SegmentFileReader {
     // todo: pin necessary?
     f: Pin<Box<dyn AsyncRead>>,
@@ -511,7 +563,8 @@ async fn read_id(f: &mut Pin<Box<dyn AsyncRead>>) -> Result<SegmentId> {
         .await
         .context(UnableToReadSegmentIdSnafu)?;
 
-    Ok(Uuid::from_slice(&id_header).expect("uuid bytes length should always be 16"))
+    let uuid = Uuid::from_slice(&id_header).expect("uuid bytes length should always be 16");
+    Ok(SegmentId::from(uuid))
 }
 
 async fn read_entry(f: &mut Pin<Box<dyn AsyncRead>>) -> Result<Option<SegmentEntry>> {
