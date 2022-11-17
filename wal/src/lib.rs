@@ -161,6 +161,98 @@ const FILE_TYPE_IDENTIFIER: &[u8] = b"INFLUXV3";
 /// File extension for segment files.
 const SEGMENT_FILE_EXTENSION: &str = "dat";
 
+#[derive(Debug)]
+pub struct Wal {
+    root: PathBuf,
+    closed_segments: Vec<ClosedSegment>,
+    open_segment: Arc<SegmentFile>,
+}
+
+impl Wal {
+    pub async fn new(root: impl AsRef<Path>) -> Result<Self> {
+        let root = root.as_ref();
+        tokio::fs::create_dir_all(root)
+            .await
+            .context(UnableToCreateWalDirSnafu { path: root })?;
+
+        let mut dir = tokio::fs::read_dir(root)
+            .await
+            .context(UnableToReadDirectoryContentsSnafu { path: root })?;
+
+        let mut closed_segments = Vec::new();
+
+        while let Some(child) = dir
+            .next_entry()
+            .await
+            .context(UnableToReadDirectoryContentsSnafu { path: root })?
+        {
+            let metadata = child
+                .metadata()
+                .await
+                .context(UnableToReadFileMetadataSnafu)?;
+            if metadata.is_file() {
+                let segment = ClosedSegment {
+                    path: child.path(),
+                    size: metadata.len(),
+                    created_at: metadata.created().context(UnableToReadFileMetadataSnafu)?,
+                };
+                closed_segments.push(segment);
+            }
+        }
+
+        let open_segment = Arc::new(SegmentFile::new_writer(root).await?);
+
+        Ok(Self {
+            root: root.to_owned(),
+            closed_segments,
+            open_segment,
+        })
+    }
+}
+
+/// Methods for working with segments (a WAL)
+#[async_trait]
+pub trait SegmentWal {
+    /// Closes the currently open segment and opens a new one, returning the closed segment details
+    /// and a handle to the newly opened segment
+    async fn rotate(&self) -> Result<(ClosedSegment, Arc<dyn Segment>)>;
+
+    /// Gets a list of the closed segments
+    fn closed_segments(&self) -> &[ClosedSegment];
+
+    /// Opens a reader for a given segment from the WAL
+    async fn reader_for_segment(&self, id: SegmentId) -> Result<Box<dyn OpReader>>;
+
+    /// Returns a handle to the open segment
+    async fn open_segment(&self) -> Arc<dyn Segment>;
+
+    /// Deletes the segment from storage
+    async fn delete_segment(&self, id: SegmentId) -> Result<()>;
+}
+
+#[async_trait]
+impl SegmentWal for Wal {
+    async fn rotate(&self) -> Result<(ClosedSegment, Arc<dyn Segment>)> {
+        todo!();
+    }
+
+    fn closed_segments(&self) -> &[ClosedSegment] {
+        &self.closed_segments
+    }
+
+    async fn reader_for_segment(&self, _id: SegmentId) -> Result<Box<dyn OpReader>> {
+        todo!()
+    }
+
+    async fn open_segment(&self) -> Arc<dyn Segment> {
+        todo!();
+    }
+
+    async fn delete_segment(&self, _id: SegmentId) -> Result<()> {
+        todo!();
+    }
+}
+
 /// Operation recorded in the WAL
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub enum WalOp {
@@ -210,26 +302,6 @@ pub trait Segment {
 
     /// Return a reader for the ops in the segment
     async fn reader(&self) -> Result<Box<dyn OpReader>>;
-}
-
-/// Methods for working with segments (a WAL)
-#[async_trait]
-pub trait SegmentWal {
-    /// Closes the currently open segment and opens a new one, returning the closed segment details
-    /// and a handle to the newly opened segment
-    async fn rotate() -> Result<(ClosedSegment, Arc<dyn Segment>)>;
-
-    /// Gets a list of the closed segments
-    async fn closed_segments() -> Vec<ClosedSegment>;
-
-    /// Opens a reader for a given segment from the WAL
-    async fn reader_for_segment(id: SegmentId) -> Result<Box<dyn OpReader>>;
-
-    /// Returns a handle to the open segment
-    async fn open_segment() -> Arc<dyn Segment>;
-
-    /// Deletes the segment from storage
-    async fn delete_segment(&self, id: SegmentId) -> Result<()>;
 }
 
 /// Data for a Segment entry
@@ -492,55 +564,6 @@ pub struct ClosedSegment {
     path: PathBuf,
     size: u64,
     created_at: SystemTime,
-}
-
-#[derive(Debug)]
-pub struct Wal {
-    root: PathBuf,
-    closed_segments: Vec<ClosedSegment>,
-    open_segment: Arc<SegmentFile>,
-}
-
-impl Wal {
-    pub async fn new(root: impl AsRef<Path>) -> Result<Self> {
-        let root = root.as_ref();
-        tokio::fs::create_dir_all(root)
-            .await
-            .context(UnableToCreateWalDirSnafu { path: root })?;
-
-        let mut dir = tokio::fs::read_dir(root)
-            .await
-            .context(UnableToReadDirectoryContentsSnafu { path: root })?;
-
-        let mut closed_segments = Vec::new();
-
-        while let Some(child) = dir
-            .next_entry()
-            .await
-            .context(UnableToReadDirectoryContentsSnafu { path: root })?
-        {
-            let metadata = child
-                .metadata()
-                .await
-                .context(UnableToReadFileMetadataSnafu)?;
-            if metadata.is_file() {
-                let segment = ClosedSegment {
-                    path: child.path(),
-                    size: metadata.len(),
-                    created_at: metadata.created().context(UnableToReadFileMetadataSnafu)?,
-                };
-                closed_segments.push(segment);
-            }
-        }
-
-        let open_segment = Arc::new(SegmentFile::new_writer(root).await?);
-
-        Ok(Self {
-            root: root.to_owned(),
-            closed_segments,
-            open_segment,
-        })
-    }
 }
 
 #[cfg(test)]
