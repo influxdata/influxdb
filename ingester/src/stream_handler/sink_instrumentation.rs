@@ -239,7 +239,7 @@ mod tests {
     use std::sync::Arc;
 
     use assert_matches::assert_matches;
-    use data_types::{NamespaceId, Sequence, SequenceNumber, TableId};
+    use data_types::{NamespaceId, Sequence, SequenceNumber, ShardId, TableId};
     use dml::{DmlMeta, DmlWrite};
     use iox_time::Time;
     use metric::{Metric, MetricObserver, Observation};
@@ -417,13 +417,13 @@ mod tests {
         let got = test(
             op,
             &metrics,
-            Err(crate::data::Error::NamespaceNotFound {
-                namespace: "bananas".to_string(),
+            Err(crate::data::Error::ShardNotFound {
+                shard_id: ShardId::new(42),
             }),
             Some(12345),
         )
         .await;
-        assert_matches!(got, Err(crate::data::Error::NamespaceNotFound { .. }));
+        assert_matches!(got, Err(crate::data::Error::ShardNotFound { .. }));
 
         // Validate the various write buffer metrics
         assert_matches!(

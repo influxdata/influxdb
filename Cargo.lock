@@ -647,9 +647,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.0.25"
+version = "4.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "389ca505fd2c00136e0d0cd34bcd8b6bd0b59d5779aab396054b716334230c1c"
+checksum = "2148adefda54e14492fb9bddcc600b4344c5d1a3123bd666dcb939c6f0e0e57e"
 dependencies = [
  "atty",
  "bitflags",
@@ -664,7 +664,7 @@ dependencies = [
 name = "clap_blocks"
 version = "0.1.0"
 dependencies = [
- "clap 4.0.25",
+ "clap 4.0.26",
  "data_types",
  "futures",
  "humantime",
@@ -1341,9 +1341,9 @@ checksum = "6184e33543162437515c2e2b48714794e37845ec9851711914eec9d308f6ebe8"
 
 [[package]]
 name = "digest"
-version = "0.10.5"
+version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adfbc57365a37acbd2ebf2b64d7e69bb766e2fea813521ed536f5d0520dcf86c"
+checksum = "8168378f4e5023e7218c89c891c0fd8ecdb5e5e4f18cb78f38cf245dd021e76f"
 dependencies = [
  "block-buffer",
  "crypto-common",
@@ -1674,7 +1674,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "chrono-english",
- "clap 4.0.25",
+ "clap 4.0.26",
  "clap_blocks",
  "data_types",
  "filetime",
@@ -2172,7 +2172,7 @@ dependencies = [
  "assert_cmd",
  "backtrace",
  "bytes",
- "clap 4.0.25",
+ "clap 4.0.26",
  "clap_blocks",
  "comfy-table",
  "compactor",
@@ -2438,7 +2438,7 @@ dependencies = [
  "bytes",
  "chrono",
  "chrono-english",
- "clap 4.0.25",
+ "clap 4.0.26",
  "criterion",
  "datafusion_util",
  "futures",
@@ -2536,7 +2536,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "chrono",
- "clap 4.0.25",
+ "clap 4.0.26",
  "clap_blocks",
  "data_types",
  "flate2",
@@ -2692,7 +2692,7 @@ name = "ioxd_test"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "clap 4.0.25",
+ "clap 4.0.26",
  "hyper",
  "ioxd_common",
  "metric",
@@ -4226,9 +4226,9 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.11.12"
+version = "0.11.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "431949c384f4e2ae07605ccaa56d1d9d2ecdb5cadd4f9577ccfab29f2e5149fc"
+checksum = "68cc60575865c7831548863cc02356512e3f1dc2f3f82cb837d7fc4cc8f3c97c"
 dependencies = [
  "base64",
  "bytes",
@@ -5551,7 +5551,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
- "clap 4.0.25",
+ "clap 4.0.26",
  "futures",
  "observability_deps",
  "snafu",
@@ -5690,7 +5690,7 @@ name = "trogging"
 version = "0.1.0"
 dependencies = [
  "atty",
- "clap 4.0.25",
+ "clap 4.0.26",
  "logfmt",
  "observability_deps",
  "regex",

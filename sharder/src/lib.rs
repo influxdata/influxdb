@@ -20,6 +20,9 @@
 mod r#trait;
 pub use r#trait::*;
 
+mod round_robin;
+pub use round_robin::*;
+
 mod jumphash;
 pub use jumphash::*;
 
