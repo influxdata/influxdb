@@ -1001,7 +1001,7 @@ mod tests {
             Ok(DmlOperation::Write(make_write(2222, 2)))
         ]],
         sink_rets = [
-            Err(crate::data::Error::NamespaceNotFound{namespace: "bananas".to_string() }),
+            Err(crate::data::Error::ShardNotFound{shard_id: ShardId::new(42)}),
             Ok(DmlApplyAction::Applied(true)),
         ],
         want_ttbr = 2,

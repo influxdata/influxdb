@@ -82,26 +82,6 @@ pub enum Error {
     #[snafu(display("Shard {} not found in data map", shard_id))]
     ShardNotFound { shard_id: ShardId },
 
-    #[snafu(display("Namespace {} not found in catalog", namespace))]
-    NamespaceNotFound { namespace: String },
-
-    #[snafu(display("Table {} not found in buffer", table_name))]
-    TableNotFound { table_name: String },
-
-    #[snafu(display("Error accessing catalog: {}", source))]
-    Catalog {
-        source: iox_catalog::interface::Error,
-    },
-
-    #[snafu(display("Snapshot error: {}", source))]
-    Snapshot { source: mutable_batch::Error },
-
-    #[snafu(display("Error while filtering columns from snapshot: {}", source))]
-    FilterColumn { source: arrow::error::ArrowError },
-
-    #[snafu(display("Error while copying buffer to snapshot: {}", source))]
-    BufferToSnapshot { source: mutable_batch::Error },
-
     #[snafu(display("Error adding to buffer in mutable batch: {}", source))]
     BufferWrite { source: mutable_batch::Error },
 }
