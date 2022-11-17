@@ -281,7 +281,7 @@ func testLoop(t *testing.T, detailed bool, exact bool, totalDepth int, tests []t
 
 	wg := sync.WaitGroup{}
 	tf := func() {
-		for i, _ := range tests {
+		for i := range tests {
 			seriesKey, field, _ := bytes.Cut(tests[i].key, []byte("#!~#"))
 			measurement, tags := models.ParseKey(seriesKey)
 			tree.Record(0, totalDepth, tests[i].db, tests[i].rp, measurement, tests[i].key, field, tags)

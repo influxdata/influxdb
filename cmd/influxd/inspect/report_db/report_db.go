@@ -25,10 +25,9 @@ type ReportDB struct {
 	Stderr io.Writer
 	Stdout io.Writer
 
-	dbPath     string
-	shardPaths map[uint64]string
-	exact      bool
-	detailed   bool
+	dbPath   string
+	exact    bool
+	detailed bool
 	// How many goroutines to dedicate to calculating cardinality.
 	concurrency int
 	// t, d, r, m for Total, Database, Retention Policy, Measurement
