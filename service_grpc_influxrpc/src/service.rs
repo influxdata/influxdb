@@ -15,8 +15,12 @@ use data_types::{org_and_bucket_to_namespace, NamespaceName};
 use datafusion::error::DataFusionError;
 use futures::Stream;
 use generated_types::{
-    google::protobuf::Empty, literal_or_regex::Value as RegexOrLiteralValue,
-    offsets_response::PartitionOffsetResponse, read_response::Frame, storage_server::Storage,
+    google::protobuf::{Any as ProtoAny, Empty},
+    influxdata::platform::errors::InfluxDbError,
+    literal_or_regex::Value as RegexOrLiteralValue,
+    offsets_response::PartitionOffsetResponse,
+    read_response::Frame,
+    storage_server::Storage,
     tag_key_predicate, CapabilitiesResponse, Capability, Int64ValuesResponse, LiteralOrRegex,
     MeasurementFieldsRequest, MeasurementFieldsResponse, MeasurementNamesRequest,
     MeasurementTagKeysRequest, MeasurementTagValuesRequest, OffsetsResponse, Predicate,
@@ -34,10 +38,12 @@ use iox_query::{
 };
 use observability_deps::tracing::{error, info, trace, warn};
 use pin_project::pin_project;
+use prost::{bytes::BytesMut, Message};
 use service_common::{datafusion_error_to_tonic_code, planner::Planner, QueryNamespaceProvider};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     collections::{BTreeSet, HashMap},
+    fmt::{Display, Formatter, Result as FmtResult},
     sync::Arc,
 };
 use tokio::sync::mpsc;
@@ -220,9 +226,104 @@ impl Error {
             Self::NotYetImplemented { .. } => tonic::Code::Unimplemented,
         };
 
-        let mut status = tonic::Status::new(code, msg);
-        add_headers(status.metadata_mut());
-        status
+        // InfluxRPC clients expect an instance of InfluxDbError
+        // (or another error type from platform.influxdata.errors)
+        // to appear in the `details` field of the gRPC status, which
+        // helps the client determine if the error should be
+        // displayed to users, is retryable, etc.
+        let influxdb_error = InfluxDbError {
+            code: InfluxCode::from(code).to_string(),
+            message: msg.clone(),
+            op: "iox/influxrpc".to_string(),
+            error: None,
+        };
+        let mut err_bytes = BytesMut::new();
+        match influxdb_error.encode(&mut err_bytes) {
+            Ok(()) => (),
+            Err(e) => {
+                error!(e=%e, "failed to serialized InfluxDBError");
+                return tonic::Status::unknown(format!(
+                    "failed to serialize InfluxDB error: {}",
+                    e
+                ));
+            }
+        }
+
+        let any_err = ProtoAny {
+            type_url: generated_types::protobuf_type_url(
+                "influxdata.platform.errors.InfluxDBError",
+            ),
+            value: err_bytes.freeze(),
+        };
+
+        let mut tonic_status = generated_types::google::encode_status(code, msg, any_err);
+        add_headers(tonic_status.metadata_mut());
+        tonic_status
+    }
+}
+
+/// These are the set of error codes that can appear in an InfluxDBError.
+/// Taken from here:
+/// <https://github.com/influxdata/idpe/blob/master/pkg/influxerror/errors.go>
+/// Disabling Clippy warning about variant names so that they can match what
+/// is in idpe.
+#[allow(clippy::enum_variant_names)]
+enum InfluxCode {
+    EInternal,
+    ENotFound,
+    EConflict,
+    EInvalid,
+    // EUnprocessableEntity,
+    // EEmptyValue,
+    EUnavailable,
+    // EForbidden,
+    // ETooManyRequests,
+    EUnauthorized,
+    // EMethodNotAllowed,
+    ETooLarge,
+    ENotImplemented,
+    // EUpstreamServer,
+    ERequestCanceled,
+}
+
+impl Display for InfluxCode {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        let str = match self {
+            InfluxCode::EInternal => "internal error",
+            InfluxCode::ENotFound => "not found",
+            InfluxCode::EConflict => "conflict",
+            InfluxCode::EInvalid => "invalid",
+            // InfluxCode::EUnprocessableEntity => "unprocessable entity",
+            // InfluxCode::EEmptyValue => "empty value",
+            InfluxCode::EUnavailable => "unavailable",
+            // InfluxCode::EForbidden => "forbidden",
+            // InfluxCode::ETooManyRequests => "too many requests",
+            InfluxCode::EUnauthorized => "unauthorized",
+            // InfluxCode::EMethodNotAllowed => "method not allowed",
+            InfluxCode::ETooLarge => "request too large",
+            InfluxCode::ENotImplemented => "not implemented",
+            // InfluxCode::EUpstreamServer => "upstream server",
+            InfluxCode::ERequestCanceled => "request canceled",
+        };
+        f.write_str(str)
+    }
+}
+
+impl From<tonic::Code> for InfluxCode {
+    fn from(tonic_code: tonic::Code) -> InfluxCode {
+        match tonic_code {
+            tonic::Code::Cancelled => InfluxCode::ERequestCanceled,
+            tonic::Code::InvalidArgument => InfluxCode::EInvalid,
+            tonic::Code::NotFound => InfluxCode::ENotFound,
+            tonic::Code::AlreadyExists => InfluxCode::EConflict,
+            tonic::Code::PermissionDenied => InfluxCode::EUnauthorized,
+            tonic::Code::ResourceExhausted => InfluxCode::ETooLarge,
+            tonic::Code::FailedPrecondition => InfluxCode::EInvalid,
+            tonic::Code::OutOfRange => InfluxCode::EInvalid,
+            tonic::Code::Unimplemented => InfluxCode::ENotImplemented,
+            tonic::Code::Unavailable => InfluxCode::EUnavailable,
+            _ => InfluxCode::EInternal,
+        }
     }
 }
 
@@ -1654,7 +1755,10 @@ mod tests {
     use datafusion::prelude::{col, Expr};
     use datafusion_util::lit_dict;
     use futures::Future;
-    use generated_types::{i_ox_testing_client::IOxTestingClient, tag_key_predicate::Value};
+    use generated_types::{
+        google::rpc::Status as GrpcStatus, i_ox_testing_client::IOxTestingClient,
+        tag_key_predicate::Value,
+    };
     use influxdb_storage_client::{
         connection::{Builder as ConnectionBuilder, Connection, GrpcConnection},
         generated_types::*,
@@ -3533,6 +3637,83 @@ mod tests {
 
         println!("Result is {:?}", response);
         assert_eq!(response.metadata().get("storage-type").unwrap(), "iox");
+    }
+
+    #[tokio::test]
+    async fn test_marshal_errors() {
+        test_helpers::maybe_start_logging();
+        // Start a test gRPC server on a randomally allocated port
+        let fixture = Fixture::new().await.expect("Connecting to test server");
+
+        let db_info = org_and_bucket();
+
+        // Add a chunk with a field
+        let chunk = TestChunk::new("TheMeasurement")
+            .with_time_column()
+            .with_string_field_column_with_stats("str", None, None)
+            .with_tag_column("state")
+            .with_one_row_of_data();
+
+        fixture
+            .test_storage
+            .db_or_create(db_info.db_name())
+            .await
+            .add_chunk("my_partition_key", Arc::new(chunk));
+
+        let mut storage_client = storage_client::StorageClient::new(
+            fixture.client_connection.clone().into_grpc_connection(),
+        );
+
+        let source = Some(StorageClient::read_source(&db_info, 1));
+
+        let request = ReadWindowAggregateRequest {
+            read_source: source.clone(),
+            range: Some(make_timestamp_range(1000, 2000)),
+            predicate: None,
+            window_every: 0,
+            offset: 0,
+            aggregate: vec![Aggregate {
+                r#type: aggregate::AggregateType::Mean as i32,
+            }],
+            window: Some(Window {
+                every: Some(Duration {
+                    nsecs: 1122,
+                    months: 0,
+                    negative: false,
+                }),
+                offset: Some(Duration {
+                    nsecs: 0,
+                    months: 4,
+                    negative: false,
+                }),
+            }),
+            tag_key_meta_names: TagKeyMetaNames::Text as i32,
+        };
+
+        let tonic_status = storage_client
+            .read_window_aggregate(request)
+            .await
+            .unwrap_err();
+        assert!(tonic_status
+            .message()
+            .contains("Avg does not support inputs of type Utf8"));
+        assert_eq!(tonic::Code::InvalidArgument, tonic_status.code());
+
+        let mut rpc_status = GrpcStatus::decode(tonic_status.details()).unwrap();
+        assert!(rpc_status
+            .message
+            .contains("Avg does not support inputs of type Utf8"));
+        assert_eq!(tonic::Code::InvalidArgument as i32, rpc_status.code);
+        assert_eq!(1, rpc_status.details.len());
+
+        let detail = rpc_status.details.pop().unwrap();
+        let influx_err = InfluxDbError::decode(detail.value).unwrap();
+        assert_eq!("invalid", influx_err.code);
+        assert!(influx_err
+            .message
+            .contains("Avg does not support inputs of type Utf8"));
+        assert_eq!("iox/influxrpc", influx_err.op);
+        assert_eq!(None, influx_err.error);
     }
 
     #[test]

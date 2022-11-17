@@ -45,6 +45,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
     let write_buffer_path = root.join("influxdata/iox/write_buffer/v1");
     let write_summary_path = root.join("influxdata/iox/write_summary/v1");
     let storage_path = root.join("influxdata/platform/storage");
+    let storage_errors_path = root.join("influxdata/platform/errors");
 
     let proto_files = vec![
         catalog_path.join("parquet_file.proto"),
@@ -73,6 +74,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         storage_path.join("source.proto"),
         storage_path.join("storage_common.proto"),
         storage_path.join("test.proto"),
+        storage_errors_path.join("errors.proto"),
     ];
 
     // Tell cargo to recompile if any of these proto files are changed
@@ -105,6 +107,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
             ".influxdata.iox",
             ".influxdata.pbdata",
             ".influxdata.platform.storage",
+            ".influxdata.platform.errors",
             ".google.longrunning",
             ".google.rpc",
         ])?;

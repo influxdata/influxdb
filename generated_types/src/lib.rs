@@ -35,6 +35,13 @@ pub mod influxdata {
                 }
             }
         }
+        pub mod errors {
+            include!(concat!(env!("OUT_DIR"), "/influxdata.platform.errors.rs"));
+            include!(concat!(
+                env!("OUT_DIR"),
+                "/influxdata.platform.errors.serde.rs"
+            ));
+        }
     }
 
     pub mod iox {

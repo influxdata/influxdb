@@ -95,7 +95,7 @@ impl From<prost::EncodeError> for EncodeError {
     }
 }
 
-fn encode_status(code: tonic::Code, message: String, details: Any) -> tonic::Status {
+pub fn encode_status(code: tonic::Code, message: String, details: Any) -> tonic::Status {
     let mut buffer = BytesMut::new();
 
     let status = rpc::Status {
