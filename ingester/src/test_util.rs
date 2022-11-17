@@ -542,6 +542,7 @@ pub(crate) fn make_partitions(
             &PartitionKey::from(TEST_PARTITION_2),
             shard_index,
             ns_id,
+            TEST_TABLE,
             table_id,
             seq_num,
             r#"test_table,city=Medford day="sun",temp=55 22"#,
@@ -552,6 +553,7 @@ pub(crate) fn make_partitions(
             &PartitionKey::from(TEST_PARTITION_2),
             shard_index,
             ns_id,
+            TEST_TABLE,
             table_id,
             seq_num,
             r#"test_table,city=Reading day="mon",temp=58 40"#,
@@ -562,6 +564,7 @@ pub(crate) fn make_partitions(
             &PartitionKey::from(TEST_PARTITION_1),
             shard_index,
             ns_id,
+            TEST_TABLE,
             table_id,
             seq_num,
             r#"test_table,city=Medford day="sun",temp=55 22"#,
@@ -572,6 +575,7 @@ pub(crate) fn make_partitions(
             &PartitionKey::from(TEST_PARTITION_1),
             shard_index,
             ns_id,
+            TEST_TABLE,
             table_id,
             seq_num,
             r#"test_table,city=Reading day="mon",temp=58 40"#,
@@ -585,15 +589,16 @@ pub(crate) fn make_write_op(
     partition_key: &PartitionKey,
     shard_index: ShardIndex,
     namespace_id: NamespaceId,
+    table_name: &str,
     table_id: TableId,
     sequence_number: i64,
     lines: &str,
 ) -> DmlWrite {
     let tables = lines_to_batches(lines, 0).unwrap();
     assert_eq!(tables.len(), 1);
-    assert!(tables.get(TEST_TABLE).is_some());
+    assert!(tables.get(table_name).is_some());
 
-    let ids = [(TEST_TABLE.into(), table_id)].into_iter().collect();
+    let ids = [(table_name.into(), table_id)].into_iter().collect();
     DmlWrite::new(
         namespace_id,
         tables,
@@ -644,6 +649,7 @@ fn make_first_partition_data(
         partition_key,
         shard_index,
         ns_id,
+        TEST_TABLE,
         table_id,
         seq_num,
         r#"test_table,city=Boston day="sun",temp=60 36"#,
@@ -654,6 +660,7 @@ fn make_first_partition_data(
         partition_key,
         shard_index,
         ns_id,
+        TEST_TABLE,
         table_id,
         seq_num,
         r#"test_table,city=Andover day="tue",temp=56 30"#,
@@ -666,6 +673,7 @@ fn make_first_partition_data(
         partition_key,
         shard_index,
         ns_id,
+        TEST_TABLE,
         table_id,
         seq_num,
         r#"test_table,city=Andover day="mon" 46"#,
@@ -676,6 +684,7 @@ fn make_first_partition_data(
         partition_key,
         shard_index,
         ns_id,
+        TEST_TABLE,
         table_id,
         seq_num,
         r#"test_table,city=Medford day="wed" 26"#,
@@ -689,6 +698,7 @@ fn make_first_partition_data(
         partition_key,
         shard_index,
         ns_id,
+        TEST_TABLE,
         table_id,
         seq_num,
         r#"test_table,city=Boston day="mon" 38"#,
@@ -699,6 +709,7 @@ fn make_first_partition_data(
         partition_key,
         shard_index,
         ns_id,
+        TEST_TABLE,
         table_id,
         seq_num,
         r#"test_table,city=Wilmington day="mon" 35"#,

@@ -197,6 +197,7 @@ mod tests {
                     &PartitionKey::from("banana-split"),
                     SHARD_INDEX,
                     NAMESPACE_ID,
+                    TABLE_NAME,
                     TABLE_ID,
                     0,
                     r#"test_table,city=Medford day="sun",temp=55 22"#,
