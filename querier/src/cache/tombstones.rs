@@ -226,7 +226,7 @@ mod tests {
     async fn test_tombstones() {
         let catalog = TestCatalog::new();
 
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
         let table1 = ns.create_table("table1").await;
         let shard1 = ns.create_shard(1).await;
 
@@ -251,7 +251,7 @@ mod tests {
     async fn test_multiple_tables() {
         let catalog = TestCatalog::new();
 
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
         let table1 = ns.create_table("table1").await;
         let shard1 = ns.create_shard(1).await;
         let table_and_shard1 = table1.with_shard(&shard1);
@@ -279,7 +279,7 @@ mod tests {
     async fn test_size() {
         let catalog = TestCatalog::new();
 
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
         let table1 = ns.create_table("table1").await;
         let shard1 = ns.create_shard(1).await;
 
@@ -326,7 +326,7 @@ mod tests {
         let sequence_number_2 = SequenceNumber::new(2);
         let sequence_number_10 = SequenceNumber::new(10);
 
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
         let table1 = ns.create_table("table1").await;
         let shard1 = ns.create_shard(1).await;
 
@@ -395,7 +395,7 @@ mod tests {
     async fn test_expore_empty() {
         let catalog = TestCatalog::new();
         let sequence_number_1 = SequenceNumber::new(1);
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
         let table1 = ns.create_table("table1").await;
         let shard1 = ns.create_shard(1).await;
 

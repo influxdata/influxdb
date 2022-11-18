@@ -288,8 +288,8 @@ mod tests {
     async fn test_schema() {
         let catalog = TestCatalog::new();
 
-        let ns1 = catalog.create_namespace("ns1").await;
-        let ns2 = catalog.create_namespace("ns2").await;
+        let ns1 = catalog.create_namespace_1hr_retention("ns1").await;
+        let ns2 = catalog.create_namespace_1hr_retention("ns2").await;
         assert_ne!(ns1.namespace.id, ns2.namespace.id);
 
         let table11 = ns1.create_table("table1").await;
@@ -443,7 +443,7 @@ mod tests {
         assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 2);
 
         // ========== table unknown ==========
-        let ns1 = catalog.create_namespace("ns1").await;
+        let ns1 = catalog.create_namespace_1hr_retention("ns1").await;
 
         assert!(cache
             .get(Arc::from("ns1"), &[("t1", &HashSet::from([]))], None)

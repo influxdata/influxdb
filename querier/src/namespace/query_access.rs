@@ -216,7 +216,7 @@ mod tests {
 
         let catalog = TestCatalog::new();
 
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
 
         let shard1 = ns.create_shard(1).await;
         let shard2 = ns.create_shard(2).await;
@@ -592,7 +592,7 @@ mod tests {
     async fn test_chunk_size_limit() {
         let catalog = TestCatalog::new();
 
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
         let table = ns.create_table("table").await;
         let shard = ns.create_shard(1).await;
         let partition = table.with_shard(&shard).create_partition("k").await;

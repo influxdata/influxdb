@@ -185,7 +185,7 @@ impl TestContext {
             .repositories()
             .await
             .namespaces()
-            .create(name, self.topic_id, self.query_id)
+            .create(name, None, self.topic_id, self.query_id)
             .await
             .expect("failed to create test namespace");
 

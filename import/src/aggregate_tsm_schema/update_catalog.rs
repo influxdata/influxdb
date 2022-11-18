@@ -143,7 +143,11 @@ async fn create_namespace<R>(
 where
     R: RepoCollection + ?Sized,
 {
-    match repos.namespaces().create(name, topic_id, query_id).await {
+    match repos
+        .namespaces()
+        .create(name, None, topic_id, query_id)
+        .await
+    {
         Ok(ns) => Ok(ns),
         Err(iox_catalog::interface::Error::NameExists { .. }) => {
             // presumably it got created in the meantime?
@@ -590,7 +594,7 @@ mod tests {
         // create namespace, table and columns for weather measurement
         let namespace = txn
             .namespaces()
-            .create("1234_5678", TopicId::new(1), QueryPoolId::new(1))
+            .create("1234_5678", None, TopicId::new(1), QueryPoolId::new(1))
             .await
             .expect("namespace created");
         let mut table = txn
@@ -694,7 +698,7 @@ mod tests {
         // create namespace, table and columns for weather measurement
         let namespace = txn
             .namespaces()
-            .create("1234_5678", TopicId::new(1), QueryPoolId::new(1))
+            .create("1234_5678", None, TopicId::new(1), QueryPoolId::new(1))
             .await
             .expect("namespace created");
         let mut table = txn
@@ -774,7 +778,7 @@ mod tests {
         // create namespace, table and columns for weather measurement
         let namespace = txn
             .namespaces()
-            .create("1234_5678", TopicId::new(1), QueryPoolId::new(1))
+            .create("1234_5678", None, TopicId::new(1), QueryPoolId::new(1))
             .await
             .expect("namespace created");
         let mut table = txn

@@ -147,7 +147,7 @@ mod tests {
     async fn test() {
         let catalog = TestCatalog::new();
 
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
         let table = ns.create_table("table").await;
         table.create_column("foo", ColumnType::F64).await;
         table.create_column("time", ColumnType::Time).await;

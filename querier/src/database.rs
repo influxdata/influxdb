@@ -318,7 +318,7 @@ mod tests {
         .await
         .unwrap();
 
-        catalog.create_namespace("ns1").await;
+        catalog.create_namespace_1hr_retention("ns1").await;
 
         assert!(db.namespace("ns1", None).await.is_some());
         assert!(db.namespace("ns2", None).await.is_none());
@@ -348,8 +348,8 @@ mod tests {
         .await
         .unwrap();
 
-        catalog.create_namespace("ns1").await;
-        catalog.create_namespace("ns2").await;
+        catalog.create_namespace_1hr_retention("ns1").await;
+        catalog.create_namespace_1hr_retention("ns2").await;
 
         let mut namespaces = db.namespaces().await;
         namespaces.sort_by_key(|ns| ns.name.clone());

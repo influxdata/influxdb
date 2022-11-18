@@ -56,6 +56,15 @@ impl proto::namespace_service_server::NamespaceService for NamespaceServiceImpl 
         }))
     }
 
+    async fn create_namespace(
+        &self,
+        _request: tonic::Request<proto::CreateNamespaceRequest>,
+    ) -> Result<tonic::Response<proto::CreateNamespaceResponse>, tonic::Status> {
+        Err(tonic::Status::unimplemented(
+            "use router instances to manage namespaces",
+        ))
+    }
+
     async fn update_namespace_retention(
         &self,
         _request: tonic::Request<proto::UpdateNamespaceRetentionRequest>,
@@ -73,6 +82,9 @@ mod tests {
     use iox_tests::util::TestCatalog;
     use querier::{create_ingester_connection_for_testing, QuerierCatalogCache};
     use tokio::runtime::Handle;
+
+    /// Common retention period value we'll use in tests
+    const TEST_RETENTION_PERIOD_NS: Option<i64> = Some(3_600 * 1_000_000_000);
 
     #[tokio::test]
     async fn test_get_namespaces_empty() {
@@ -138,8 +150,8 @@ mod tests {
         );
 
         let service = NamespaceServiceImpl::new(db);
-        catalog.create_namespace("namespace2").await;
-        catalog.create_namespace("namespace1").await;
+        catalog.create_namespace_1hr_retention("namespace2").await;
+        catalog.create_namespace_1hr_retention("namespace1").await;
 
         let namespaces = get_namespaces(&service).await;
         assert_eq!(
@@ -149,12 +161,12 @@ mod tests {
                     proto::Namespace {
                         id: 1,
                         name: "namespace2".to_string(),
-                        retention_period_ns: iox_catalog::mem::MEM_DEFAULT_RETENTION_PERIOD,
+                        retention_period_ns: TEST_RETENTION_PERIOD_NS,
                     },
                     proto::Namespace {
                         id: 2,
                         name: "namespace1".to_string(),
-                        retention_period_ns: iox_catalog::mem::MEM_DEFAULT_RETENTION_PERIOD,
+                        retention_period_ns: TEST_RETENTION_PERIOD_NS,
                     },
                 ]
             }

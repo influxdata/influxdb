@@ -10,7 +10,7 @@ pub mod generated_types {
     pub use generated_types::influxdata::iox::namespace::v1::*;
 }
 
-/// A basic client for fetching the Schema for a Namespace.
+/// A basic client for working with Namespaces.
 #[derive(Debug, Clone)]
 pub struct Client {
     inner: NamespaceServiceClient<GrpcConnection>,
@@ -31,17 +31,34 @@ impl Client {
         Ok(response.into_inner().namespaces)
     }
 
+    /// Create a namespace
+    pub async fn create_namespace(
+        &mut self,
+        namespace: &str,
+        retention_period_ns: Option<i64>,
+    ) -> Result<Namespace, Error> {
+        let response = self
+            .inner
+            .create_namespace(CreateNamespaceRequest {
+                name: namespace.to_string(),
+                retention_period_ns,
+            })
+            .await?;
+
+        Ok(response.into_inner().namespace.unwrap_field("namespace")?)
+    }
+
     /// Update retention for a namespace
     pub async fn update_namespace_retention(
         &mut self,
         namespace: &str,
-        retention_hours: i64,
+        retention_period_ns: Option<i64>,
     ) -> Result<Namespace, Error> {
         let response = self
             .inner
             .update_namespace_retention(UpdateNamespaceRetentionRequest {
                 name: namespace.to_string(),
-                retention_hours,
+                retention_period_ns,
             })
             .await?;
 

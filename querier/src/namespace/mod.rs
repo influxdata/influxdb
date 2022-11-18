@@ -150,7 +150,7 @@ mod tests {
     async fn test_sync_tables() {
         let catalog = TestCatalog::new();
 
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
 
         let qns = querier_namespace(&ns).await;
         assert_eq!(tables(&qns), Vec::<String>::new());
@@ -179,7 +179,7 @@ mod tests {
     async fn test_sync_schemas() {
         let catalog = TestCatalog::new();
 
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
         let table = ns.create_table("table").await;
 
         let qns = querier_namespace(&ns).await;

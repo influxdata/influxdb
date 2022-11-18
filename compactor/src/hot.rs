@@ -235,7 +235,9 @@ mod tests {
 
     async fn test_setup() -> TestSetup {
         let catalog = TestCatalog::new();
-        let namespace = catalog.create_namespace("namespace_hot_compaction").await;
+        let namespace = catalog
+            .create_namespace_1hr_retention("namespace_hot_compaction")
+            .await;
         let shard1 = namespace.create_shard(1).await;
         let table1 = namespace.create_table("test_table1").await;
         let shard2 = namespace.create_shard(2).await;

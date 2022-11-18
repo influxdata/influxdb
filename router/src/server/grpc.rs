@@ -5,6 +5,7 @@ pub mod sharder;
 use std::sync::Arc;
 
 use ::sharder::Sharder;
+use data_types::{QueryPoolId, TopicId};
 use generated_types::influxdata::iox::{
     catalog::v1::*, namespace::v1::*, object_store::v1::*, schema::v1::*, sharder::v1::*,
 };
@@ -21,6 +22,8 @@ use crate::shard::Shard;
 /// This type is responsible for managing all gRPC services exposed by `router`.
 #[derive(Debug)]
 pub struct GrpcDelegate<S> {
+    topic_id: TopicId,
+    query_pool_id: QueryPoolId,
     catalog: Arc<dyn Catalog>,
     object_store: Arc<DynObjectStore>,
     shard_service: ShardService<S>,
@@ -29,11 +32,15 @@ pub struct GrpcDelegate<S> {
 impl<S> GrpcDelegate<S> {
     /// Initialise a new gRPC handler, dispatching DML operations to `dml_handler`.
     pub fn new(
+        topic_id: TopicId,
+        query_pool_id: QueryPoolId,
         catalog: Arc<dyn Catalog>,
         object_store: Arc<DynObjectStore>,
         shard_service: ShardService<S>,
     ) -> Self {
         Self {
+            topic_id,
+            query_pool_id,
             catalog,
             object_store,
             shard_service,
@@ -95,8 +102,10 @@ where
     pub fn namespace_service(
         &self,
     ) -> namespace_service_server::NamespaceServiceServer<NamespaceService> {
-        namespace_service_server::NamespaceServiceServer::new(NamespaceService::new(Arc::clone(
-            &self.catalog,
-        )))
+        namespace_service_server::NamespaceServiceServer::new(NamespaceService::new(
+            Arc::clone(&self.catalog),
+            Some(self.topic_id),
+            Some(self.query_pool_id),
+        ))
     }
 }

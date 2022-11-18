@@ -270,7 +270,7 @@ mod tests {
 
                     let namespace = txn
                         .namespaces()
-                        .create(NAMESPACE_NAME, topic.id, query_pool.id)
+                        .create(NAMESPACE_NAME, None, topic.id, query_pool.id)
                         .await
                         .unwrap();
 

@@ -6,6 +6,9 @@ service NamespaceService {
   // Get all namespaces
   rpc GetNamespaces(GetNamespacesRequest) returns (GetNamespacesResponse);
 
+  // Create a namespace
+  rpc CreateNamespace(CreateNamespaceRequest) returns (CreateNamespaceResponse);
+
   // Update retention period
   rpc UpdateNamespaceRetention(UpdateNamespaceRetentionRequest) returns (UpdateNamespaceRetentionResponse);
 }
@@ -17,12 +20,24 @@ message GetNamespacesResponse {
   repeated Namespace namespaces = 1;
 }
 
+message CreateNamespaceRequest {
+  // Name of the namespace to be created
+  string name = 1;
+
+  // Retention period ns
+  optional int64 retention_period_ns = 2;
+}
+
+message CreateNamespaceResponse {
+  Namespace namespace = 1;
+}
+
 message UpdateNamespaceRetentionRequest {
   // Name of the namespace to be set
   string name = 1;
 
-  // Number of hours of the retention period
-  int64 retention_hours = 2;
+  // Retention period ns
+  optional int64 retention_period_ns = 2;
 }
 
 message UpdateNamespaceRetentionResponse {

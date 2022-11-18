@@ -708,7 +708,7 @@ mod tests {
 
     async fn test_setup() -> TestSetup {
         let catalog = TestCatalog::new();
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
         let shard = ns.create_shard(1).await;
         let table = ns.create_table("table").await;
         table.create_column("field_int", ColumnType::I64).await;
@@ -832,7 +832,7 @@ mod tests {
     async fn test_setup_for_sort() -> TestSetup {
         // Ensure we have at least run at least partitions to test cross partition merging
         let catalog = TestCatalog::with_target_query_partitions(2);
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
         let shard = ns.create_shard(1).await;
         let table = ns.create_table("table").await;
         table.create_column("field_int", ColumnType::F64).await;

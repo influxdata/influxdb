@@ -3,6 +3,7 @@
 use influxdb_iox_client::{connection::Connection, namespace};
 use thiserror::Error;
 
+mod create;
 mod retention;
 
 #[allow(clippy::enum_variant_names)]
@@ -25,6 +26,9 @@ pub struct Config {
 /// All possible subcommands for namespace
 #[derive(Debug, clap::Parser)]
 enum Command {
+    /// Create a new namespace
+    Create(create::Config),
+
     /// Fetch namespaces
     List,
 
@@ -34,6 +38,9 @@ enum Command {
 
 pub async fn command(connection: Connection, config: Config) -> Result<(), Error> {
     match config.command {
+        Command::Create(config) => {
+            create::command(connection, config).await?;
+        }
         Command::List => {
             let mut client = namespace::Client::new(connection);
             let namespaces = client.get_namespaces().await?;

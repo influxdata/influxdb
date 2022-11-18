@@ -273,7 +273,7 @@ mod tests {
     /// named [`NAMESPACE`].
     async fn test_setup() -> (Arc<TestCatalog>, Arc<TestNamespace>) {
         let catalog = TestCatalog::new();
-        let namespace = catalog.create_namespace(&NAMESPACE).await;
+        let namespace = catalog.create_namespace_1hr_retention(&NAMESPACE).await;
 
         (catalog, namespace)
     }

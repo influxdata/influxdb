@@ -719,7 +719,7 @@ mod tests {
 
                 let namespace = repos
                     .namespaces()
-                    .create("foo", topic.id, query_pool.id)
+                    .create("foo", None, topic.id, query_pool.id)
                     .await
                     .unwrap();
 

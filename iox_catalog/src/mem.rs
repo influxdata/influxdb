@@ -31,9 +31,6 @@ use std::{
 };
 use tokio::sync::{Mutex, OwnedMutexGuard};
 
-/// Mem catalog's default retention period: 1 hour
-pub const MEM_DEFAULT_RETENTION_PERIOD: Option<i64> = Some(3_600 * 1_000_000_000);
-
 /// In-memory catalog that implements the `RepoCollection` and individual repo traits from
 /// the catalog interface.
 pub struct MemCatalog {
@@ -288,6 +285,7 @@ impl NamespaceRepo for MemTxn {
     async fn create(
         &mut self,
         name: &str,
+        retention_period_ns: Option<i64>,
         topic_id: TopicId,
         query_pool_id: QueryPoolId,
     ) -> Result<Namespace> {
@@ -306,7 +304,7 @@ impl NamespaceRepo for MemTxn {
             query_pool_id,
             max_tables: DEFAULT_MAX_TABLES,
             max_columns_per_table: DEFAULT_MAX_COLUMNS_PER_TABLE,
-            retention_period_ns: MEM_DEFAULT_RETENTION_PERIOD,
+            retention_period_ns,
         };
         stage.namespaces.push(namespace);
         Ok(stage.namespaces.last().unwrap().clone())
@@ -359,19 +357,12 @@ impl NamespaceRepo for MemTxn {
     async fn update_retention_period(
         &mut self,
         name: &str,
-        retention_hours: i64,
+        retention_period_ns: Option<i64>,
     ) -> Result<Namespace> {
-        let rentenion_period_ns = retention_hours * 60 * 60 * 1_000_000_000;
-        let retention = if rentenion_period_ns == 0 {
-            None
-        } else {
-            Some(rentenion_period_ns)
-        };
-
         let stage = self.stage();
         match stage.namespaces.iter_mut().find(|n| n.name == name) {
             Some(n) => {
-                n.retention_period_ns = retention;
+                n.retention_period_ns = retention_period_ns;
                 Ok(n.clone())
             }
             None => Err(Error::NamespaceNotFoundByName {

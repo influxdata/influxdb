@@ -653,7 +653,7 @@ impl MockIngester {
     async fn new() -> Self {
         let exec = Arc::clone(&GLOBAL_EXEC);
         let catalog = TestCatalog::with_execs(exec, 4);
-        let ns = catalog.create_namespace("test_db").await;
+        let ns = catalog.create_namespace_1hr_retention("test_db").await;
         let shard = ns.create_shard(1).await;
 
         let ingester_data = Arc::new(

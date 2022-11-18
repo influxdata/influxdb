@@ -473,7 +473,7 @@ mod tests {
         let shard_index = ShardIndex::new(0);
         let namespace = txn
             .namespaces()
-            .create("foo", topic.id, query_pool.id)
+            .create("foo", None, topic.id, query_pool.id)
             .await
             .unwrap();
         let mut shard = txn

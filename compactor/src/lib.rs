@@ -584,7 +584,7 @@ pub mod tests {
     pub(crate) async fn test_setup(budget: u64) -> TestSetup {
         let catalog = TestCatalog::new();
         let namespace = catalog
-            .create_namespace("namespace_hot_partitions_to_compact")
+            .create_namespace_1hr_retention("namespace_hot_partitions_to_compact")
             .await;
         let shard = namespace.create_shard(1).await;
 
@@ -924,7 +924,7 @@ pub mod tests {
         ]
         .join("\n");
 
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
         let shard = ns.create_shard(1).await;
         let table = ns.create_table("table").await;
         table.create_column("field_int", ColumnType::I64).await;

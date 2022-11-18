@@ -146,7 +146,7 @@ mod tests {
 
     async fn test_setup() -> TestSetup {
         let catalog = TestCatalog::new();
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
         let shard = ns.create_shard(1).await;
         let another_shard = ns.create_shard(2).await;
         let table = ns.create_table("table").await;

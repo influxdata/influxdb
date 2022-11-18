@@ -1821,7 +1821,7 @@ mod tests {
             responses: [(&'static str, Result<MockQueryData, FlightClientError>); N],
         ) -> Self {
             let catalog = TestCatalog::new();
-            let ns = catalog.create_namespace("namespace").await;
+            let ns = catalog.create_namespace_1hr_retention("namespace").await;
             let table = ns.create_table("table").await;
 
             let s0 = ns.create_shard(0).await;

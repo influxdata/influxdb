@@ -114,7 +114,7 @@ mod tests {
             let q = repos.query_pools().create_or_get("platanos").await.unwrap();
             let ns = repos
                 .namespaces()
-                .create(TABLE_NAME, t.id, q.id)
+                .create(TABLE_NAME, None, t.id, q.id)
                 .await
                 .unwrap();
 

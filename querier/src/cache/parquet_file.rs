@@ -281,7 +281,7 @@ mod tests {
     #[tokio::test]
     async fn test_multiple_tables() {
         let catalog = TestCatalog::new();
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
 
         let (table1, partition1) = make_table_and_partition("table1", &ns).await;
         let (table2, partition2) = make_table_and_partition("table2", &ns).await;
@@ -480,7 +480,7 @@ mod tests {
 
     async fn make_catalog() -> (Arc<TestCatalog>, Arc<TestTable>, Arc<TestPartition>) {
         let catalog = TestCatalog::new();
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
 
         let (table, partition) = make_table_and_partition("table1", &ns).await;
         table.create_column("foo", ColumnType::F64).await;

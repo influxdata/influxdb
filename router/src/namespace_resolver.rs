@@ -168,7 +168,7 @@ mod tests {
             let query_pool = repos.query_pools().create_or_get("platanos").await.unwrap();
             repos
                 .namespaces()
-                .create(&ns, topic.id, query_pool.id)
+                .create(&ns, None, topic.id, query_pool.id)
                 .await
                 .expect("failed to setup catalog state");
         }

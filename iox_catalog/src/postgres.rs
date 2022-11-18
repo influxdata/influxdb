@@ -8,7 +8,7 @@ use crate::{
         Transaction,
     },
     metrics::MetricDecorator,
-    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES, DEFAULT_RETENTION_PERIOD,
+    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
 };
 use async_trait::async_trait;
 use data_types::{
@@ -589,22 +589,23 @@ impl NamespaceRepo for PostgresTxn {
     async fn create(
         &mut self,
         name: &str,
+        retention_period_ns: Option<i64>,
         topic_id: TopicId,
         query_pool_id: QueryPoolId,
     ) -> Result<Namespace> {
         let rec = sqlx::query_as::<_, Namespace>(
             r#"
-                INSERT INTO namespace ( name, topic_id, query_pool_id )
-                VALUES ( $1, $2, $3 )
+                INSERT INTO namespace ( name, topic_id, query_pool_id, retention_period_ns )
+                VALUES ( $1, $2, $3, $4 )
                 RETURNING *;
             "#,
         )
         .bind(name) // $1
         .bind(topic_id) // $2
         .bind(query_pool_id) // $3
-        .fetch_one(&mut self.inner)
-        .await
-        .map_err(|e| {
+        .bind(retention_period_ns); // $4
+
+        let rec = rec.fetch_one(&mut self.inner).await.map_err(|e| {
             if is_unique_violation(&e) {
                 Error::NameExists {
                     name: name.to_string(),
@@ -619,7 +620,6 @@ impl NamespaceRepo for PostgresTxn {
         // Ensure the column default values match the code values.
         debug_assert_eq!(rec.max_tables, DEFAULT_MAX_TABLES);
         debug_assert_eq!(rec.max_columns_per_table, DEFAULT_MAX_COLUMNS_PER_TABLE);
-        debug_assert_eq!(rec.retention_period_ns, DEFAULT_RETENTION_PERIOD);
 
         Ok(rec)
     }
@@ -731,26 +731,15 @@ RETURNING *;
     async fn update_retention_period(
         &mut self,
         name: &str,
-        retention_hours: i64,
+        retention_period_ns: Option<i64>,
     ) -> Result<Namespace> {
-        let rentenion_period_ns = retention_hours * 60 * 60 * 1_000_000_000;
-
-        let rec = if rentenion_period_ns == 0 {
-            sqlx::query_as::<_, Namespace>(
-                r#"UPDATE namespace SET retention_period_ns = NULL WHERE name = $1 RETURNING *;"#,
-            )
-            .bind(name) // $1
-            .fetch_one(&mut self.inner)
-            .await
-        } else {
-            sqlx::query_as::<_, Namespace>(
-                r#"UPDATE namespace SET retention_period_ns = $1 WHERE name = $2 RETURNING *;"#,
-            )
-            .bind(rentenion_period_ns) // $1
-            .bind(name) // $2
-            .fetch_one(&mut self.inner)
-            .await
-        };
+        let rec = sqlx::query_as::<_, Namespace>(
+            r#"UPDATE namespace SET retention_period_ns = $1 WHERE name = $2 RETURNING *;"#,
+        )
+        .bind(retention_period_ns) // $1
+        .bind(name) // $2
+        .fetch_one(&mut self.inner)
+        .await;
 
         let namespace = rec.map_err(|e| match e {
             sqlx::Error::RowNotFound => Error::NamespaceNotFoundByName {
@@ -2353,7 +2342,7 @@ mod tests {
             .repositories()
             .await
             .namespaces()
-            .create("ns", kafka.id, query.id)
+            .create("ns", None, kafka.id, query.id)
             .await
             .expect("namespace create failed")
             .id;
@@ -2429,7 +2418,7 @@ mod tests {
             .repositories()
             .await
             .namespaces()
-            .create("ns2", kafka.id, query.id)
+            .create("ns2", None, kafka.id, query.id)
             .await
             .expect("namespace create failed")
             .id;
@@ -2512,7 +2501,7 @@ mod tests {
             .repositories()
             .await
             .namespaces()
-            .create("ns4", kafka.id, query.id)
+            .create("ns4", None, kafka.id, query.id)
             .await
             .expect("namespace create failed")
             .id;
@@ -2571,7 +2560,7 @@ mod tests {
             .repositories()
             .await
             .namespaces()
-            .create("ns3", kafka.id, query.id)
+            .create("ns3", None, kafka.id, query.id)
             .await
             .expect("namespace create failed")
             .id;
@@ -2732,7 +2721,7 @@ mod tests {
                         .repositories()
                         .await
                         .namespaces()
-                        .create("ns4", kafka.id, query.id)
+                        .create("ns4", None, kafka.id, query.id)
                         .await
                         .expect("namespace create failed")
                         .id;
@@ -2914,7 +2903,7 @@ mod tests {
             .repositories()
             .await
             .namespaces()
-            .create("ns4", kafka.id, query.id)
+            .create("ns4", None, kafka.id, query.id)
             .await
             .expect("namespace create failed")
             .id;

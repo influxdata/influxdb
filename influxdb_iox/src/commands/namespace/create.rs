@@ -11,16 +11,22 @@ pub enum Error {
     ClientError(#[from] influxdb_iox_client::error::Error),
 }
 
-/// Update the specified namespace's data retention period
+/// Write data into the specified database
 #[derive(Debug, clap::Parser)]
 pub struct Config {
-    /// The namespace to update the retention period for
+    /// The namespace to to be created
     #[clap(action)]
     namespace: String,
 
-    /// Num of hours of the retention period of this namespace. Default is 0 representing
-    /// infinite retention
-    #[clap(action, long = "retention-hours", short = 'r', default_value = "0")]
+    /// Num of hours of the retention period of this namespace.
+    /// If not specified, an infinite retention period will be used.
+    #[clap(
+        action,
+        long = "retention-hours",
+        short = 'r',
+        env = "INFLUXDB_IOX_NAMESPACE_RETENTION_HOURS",
+        default_value = "0"
+    )]
     retention_hours: u32,
 }
 
@@ -33,6 +39,8 @@ pub async fn command(
         retention_hours,
     } = config;
 
+    let mut client = influxdb_iox_client::namespace::Client::new(connection);
+
     // retention_hours = 0 means infinite retention. Make it None/Null in the request.
     let retention: Option<i64> = if retention_hours == 0 {
         None
@@ -41,10 +49,7 @@ pub async fn command(
         // internally
         Some(retention_hours as i64 * 60 * 60 * 1_000_000_000)
     };
-    let mut client = influxdb_iox_client::namespace::Client::new(connection);
-    let namespace = client
-        .update_namespace_retention(&namespace, retention)
-        .await?;
+    let namespace = client.create_namespace(&namespace, retention).await?;
     println!("{}", serde_json::to_string_pretty(&namespace)?);
 
     Ok(())

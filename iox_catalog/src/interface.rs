@@ -287,9 +287,11 @@ pub trait QueryPoolRepo: Send + Sync {
 pub trait NamespaceRepo: Send + Sync {
     /// Creates the namespace in the catalog. If one by the same name already exists, an
     /// error is returned.
+    /// Specify `None` for `retention_period_ns` to get infinite retention.
     async fn create(
         &mut self,
         name: &str,
+        retention_period_ns: Option<i64>,
         topic_id: TopicId,
         query_pool_id: QueryPoolId,
     ) -> Result<Namespace>;
@@ -298,7 +300,7 @@ pub trait NamespaceRepo: Send + Sync {
     async fn update_retention_period(
         &mut self,
         name: &str,
-        retention_hours: i64,
+        retention_period_ns: Option<i64>,
     ) -> Result<Namespace>;
 
     /// List all namespaces.
@@ -717,23 +719,6 @@ where
     get_schema_internal(namespace, repos).await
 }
 
-/// Update retention for a namespace
-pub async fn update_namespace_retention<R>(
-    name: &str,
-    retention_hours: i64,
-    repos: &mut R,
-) -> Result<Namespace>
-where
-    R: RepoCollection + ?Sized,
-{
-    let namespace = repos
-        .namespaces()
-        .update_retention_period(name, retention_hours)
-        .await?;
-
-    Ok(namespace)
-}
-
 async fn get_schema_internal<R>(namespace: Namespace, repos: &mut R) -> Result<NamespaceSchema>
 where
     R: RepoCollection + ?Sized,
@@ -982,7 +967,7 @@ pub(crate) mod test_helpers {
         let namespace_name = "test_namespace";
         let namespace = repos
             .namespaces()
-            .create(namespace_name, topic.id, pool.id)
+            .create(namespace_name, None, topic.id, pool.id)
             .await
             .unwrap();
         assert!(namespace.id > NamespaceId::new(0));
@@ -997,7 +982,7 @@ pub(crate) mod test_helpers {
 
         let conflict = repos
             .namespaces()
-            .create(namespace_name, topic.id, pool.id)
+            .create(namespace_name, None, topic.id, pool.id)
             .await;
         assert!(matches!(
             conflict.unwrap_err(),
@@ -1037,7 +1022,7 @@ pub(crate) mod test_helpers {
         let namespace2_name = "test_namespace2";
         let namespace2 = repos
             .namespaces()
-            .create(namespace2_name, topic.id, pool.id)
+            .create(namespace2_name, None, topic.id, pool.id)
             .await
             .unwrap();
         let mut namespaces = repos.namespaces().list().await.unwrap();
@@ -1060,24 +1045,55 @@ pub(crate) mod test_helpers {
             .expect("namespace should be updateable");
         assert_eq!(NEW_COLUMN_LIMIT, modified.max_columns_per_table);
 
-        const NEW_RETENTION_PERIOD: i64 = 5;
+        const NEW_RETENTION_PERIOD_NS: i64 = 5 * 60 * 60 * 1000 * 1000 * 1000;
         let modified = repos
             .namespaces()
-            .update_retention_period(namespace_name, NEW_RETENTION_PERIOD)
+            .update_retention_period(namespace_name, Some(NEW_RETENTION_PERIOD_NS))
             .await
             .expect("namespace should be updateable");
         assert_eq!(
-            NEW_RETENTION_PERIOD as i64 * 60 * 60 * 1_000_000_000,
+            NEW_RETENTION_PERIOD_NS,
             modified.retention_period_ns.unwrap()
         );
 
-        const NEW_RETENTION_PERIOD_NULL: i64 = 0;
         let modified = repos
             .namespaces()
-            .update_retention_period(namespace_name, NEW_RETENTION_PERIOD_NULL)
+            .update_retention_period(namespace_name, None)
             .await
             .expect("namespace should be updateable");
         assert!(modified.retention_period_ns.is_none());
+
+        // create namespace with retention period NULL
+        let namespace3_name = "test_namespace3";
+        let namespace3 = repos
+            .namespaces()
+            .create(namespace3_name, None, topic.id, pool.id)
+            .await
+            .expect("namespace with NULL retention should be created");
+        assert!(namespace3.retention_period_ns.is_none());
+
+        // create namespace with retention period
+        let namespace4_name = "test_namespace4";
+        let namespace4 = repos
+            .namespaces()
+            .create(
+                namespace4_name,
+                Some(NEW_RETENTION_PERIOD_NS),
+                topic.id,
+                pool.id,
+            )
+            .await
+            .expect("namespace with 5-hour retention should be created");
+        assert_eq!(
+            NEW_RETENTION_PERIOD_NS,
+            namespace4.retention_period_ns.unwrap()
+        );
+        // reset retention period to NULL to avoid affecting later tests
+        repos
+            .namespaces()
+            .update_retention_period(namespace4_name, None)
+            .await
+            .expect("namespace should be updateable");
     }
 
     async fn test_table(catalog: Arc<dyn Catalog>) {
@@ -1086,7 +1102,7 @@ pub(crate) mod test_helpers {
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create("namespace_table_test", topic.id, pool.id)
+            .create("namespace_table_test", None, topic.id, pool.id)
             .await
             .unwrap();
 
@@ -1123,7 +1139,7 @@ pub(crate) mod test_helpers {
         // test we can create a table of the same name in a different namespace
         let namespace2 = repos
             .namespaces()
-            .create("two", topic.id, pool.id)
+            .create("two", None, topic.id, pool.id)
             .await
             .unwrap();
         assert_ne!(namespace, namespace2);
@@ -1214,7 +1230,7 @@ pub(crate) mod test_helpers {
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create("namespace_column_test", topic.id, pool.id)
+            .create("namespace_column_test", None, topic.id, pool.id)
             .await
             .unwrap();
         let table = repos
@@ -1425,7 +1441,7 @@ pub(crate) mod test_helpers {
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create("namespace_partition_test", topic.id, pool.id)
+            .create("namespace_partition_test", None, topic.id, pool.id)
             .await
             .unwrap();
         let table = repos
@@ -1503,7 +1519,7 @@ pub(crate) mod test_helpers {
         // test list_by_namespace
         let namespace2 = repos
             .namespaces()
-            .create("namespace_partition_test2", topic.id, pool.id)
+            .create("namespace_partition_test2", None, topic.id, pool.id)
             .await
             .unwrap();
         let table2 = repos
@@ -1700,7 +1716,7 @@ pub(crate) mod test_helpers {
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create("namespace_tombstone_test", topic.id, pool.id)
+            .create("namespace_tombstone_test", None, topic.id, pool.id)
             .await
             .unwrap();
         let table = repos
@@ -1784,7 +1800,7 @@ pub(crate) mod test_helpers {
         // test list_by_namespace
         let namespace2 = repos
             .namespaces()
-            .create("namespace_tombstone_test2", topic.id, pool.id)
+            .create("namespace_tombstone_test2", None, topic.id, pool.id)
             .await
             .unwrap();
         let table2 = repos
@@ -1865,6 +1881,7 @@ pub(crate) mod test_helpers {
             .namespaces()
             .create(
                 "namespace_tombstones_by_parquet_file_test",
+                None,
                 topic.id,
                 pool.id,
             )
@@ -2081,7 +2098,7 @@ pub(crate) mod test_helpers {
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create("namespace_parquet_file_test", topic.id, pool.id)
+            .create("namespace_parquet_file_test", None, topic.id, pool.id)
             .await
             .unwrap();
         let table = repos
@@ -2236,7 +2253,7 @@ pub(crate) mod test_helpers {
         // test list_by_namespace_not_to_delete
         let namespace2 = repos
             .namespaces()
-            .create("namespace_parquet_file_test1", topic.id, pool.id)
+            .create("namespace_parquet_file_test1", None, topic.id, pool.id)
             .await
             .unwrap();
         let table2 = repos
@@ -2511,7 +2528,7 @@ pub(crate) mod test_helpers {
         for namespace in namespaces {
             repos
                 .namespaces()
-                .update_retention_period(&namespace.name, 0) // infinite
+                .update_retention_period(&namespace.name, None) // infinite
                 .await
                 .unwrap();
         }
@@ -2527,7 +2544,7 @@ pub(crate) mod test_helpers {
         //    ensure correct files get deleted
         repos
             .namespaces()
-            .update_retention_period(&namespace.name, 1) // 1 hour
+            .update_retention_period(&namespace.name, Some(60 * 60 * 1_000_000_000)) // 1 hour
             .await
             .unwrap();
         let f4_params = ParquetFileParams {
@@ -2597,6 +2614,7 @@ pub(crate) mod test_helpers {
             .namespaces()
             .create(
                 "namespace_parquet_file_compaction_level_0_test",
+                None,
                 topic.id,
                 pool.id,
             )
@@ -2714,6 +2732,7 @@ pub(crate) mod test_helpers {
             .namespaces()
             .create(
                 "namespace_parquet_file_compaction_level_1_test",
+                None,
                 topic.id,
                 pool.id,
             )
@@ -2934,7 +2953,12 @@ pub(crate) mod test_helpers {
             .unwrap();
         let namespace = repos
             .namespaces()
-            .create("test_most_level_0_files_partitions", topic.id, pool.id)
+            .create(
+                "test_most_level_0_files_partitions",
+                None,
+                topic.id,
+                pool.id,
+            )
             .await
             .unwrap();
         let table = repos
@@ -3388,6 +3412,7 @@ pub(crate) mod test_helpers {
             .namespaces()
             .create(
                 "test_recent_highest_throughput_partitions",
+                None,
                 topic.id,
                 pool.id,
             )
@@ -3678,6 +3703,7 @@ pub(crate) mod test_helpers {
             .namespaces()
             .create(
                 "namespace_parquet_file_test_list_by_partiton_not_to_delete",
+                None,
                 topic.id,
                 pool.id,
             )
@@ -3790,6 +3816,7 @@ pub(crate) mod test_helpers {
             .namespaces()
             .create(
                 "namespace_update_to_compaction_level_1_test",
+                None,
                 topic.id,
                 pool.id,
             )
@@ -3911,7 +3938,12 @@ pub(crate) mod test_helpers {
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create("namespace_processed_tombstone_test", topic.id, pool.id)
+            .create(
+                "namespace_processed_tombstone_test",
+                None,
+                topic.id,
+                pool.id,
+            )
             .await
             .unwrap();
         let table = repos
@@ -4151,7 +4183,7 @@ pub(crate) mod test_helpers {
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create(namespace_name, topic.id, pool.id)
+            .create(namespace_name, None, topic.id, pool.id)
             .await;
 
         let namespace = match namespace {

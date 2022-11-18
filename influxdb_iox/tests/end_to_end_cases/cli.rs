@@ -649,6 +649,101 @@ async fn namespace_retention() {
                 }
                 .boxed()
             })),
+            // create a new namespace and set the retention period to 2 hours
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let addr = state.cluster().router().router_grpc_base().to_string();
+                    let namespace = "namespace_2";
+                    let retention_period_hours = 2;
+                    let retention_period_ns =
+                        retention_period_hours as i64 * 60 * 60 * 1_000_000_000;
+
+                    // Validate the output of the namespace retention command
+                    //
+                    //     {
+                    //      "id": "1",
+                    //      "name": "namespace_2",
+                    //      "retentionPeriodNs": "7200000000000"
+                    //    }
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("namespace")
+                        .arg("create")
+                        .arg("--retention-hours")
+                        .arg(retention_period_hours.to_string())
+                        .arg(namespace)
+                        .assert()
+                        .success()
+                        .stdout(
+                            predicate::str::contains(namespace)
+                                .and(predicate::str::contains(&retention_period_ns.to_string())),
+                        );
+                }
+                .boxed()
+            })),
+            // create a namespace without retention. 0 represeting null/infinite will be used
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let addr = state.cluster().router().router_grpc_base().to_string();
+                    let namespace = "namespace_3";
+
+                    // Validate the output of the namespace retention command
+                    //
+                    //     {
+                    //      "id": "1",
+                    //      "name": "namespace_3",
+                    //    }
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("namespace")
+                        .arg("create")
+                        .arg(namespace)
+                        .assert()
+                        .success()
+                        .stdout(
+                            predicate::str::contains(namespace)
+                                .and(predicate::str::contains("retentionPeriodNs".to_string()))
+                                .not(),
+                        );
+                }
+                .boxed()
+            })),
+            // create a namespace retention 0 represeting null/infinite will be used
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let addr = state.cluster().router().router_grpc_base().to_string();
+                    let namespace = "namespace_4";
+                    let retention_period_hours = 0;
+
+                    // Validate the output of the namespace retention command
+                    //
+                    //     {
+                    //      "id": "1",
+                    //      "name": "namespace_4",
+                    //    }
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("namespace")
+                        .arg("create")
+                        .arg("--retention-hours")
+                        .arg(retention_period_hours.to_string())
+                        .arg(namespace)
+                        .assert()
+                        .success()
+                        .stdout(
+                            predicate::str::contains(namespace)
+                                .and(predicate::str::contains("retentionPeriodNs".to_string()))
+                                .not(),
+                        );
+                }
+                .boxed()
+            })),
         ],
     )
     .run()

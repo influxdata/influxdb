@@ -194,7 +194,7 @@ mod tests {
                 .unwrap();
             let namespace = repos
                 .namespaces()
-                .create("catalog_partition_test", topic.id, pool.id)
+                .create("catalog_partition_test", None, topic.id, pool.id)
                 .await
                 .unwrap();
             let table = repos
@@ -271,7 +271,7 @@ mod tests {
                 .unwrap();
             let namespace = repos
                 .namespaces()
-                .create("catalog_partition_test", topic.id, pool.id)
+                .create("catalog_partition_test", None, topic.id, pool.id)
                 .await
                 .unwrap();
             let table = repos

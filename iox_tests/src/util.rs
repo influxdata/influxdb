@@ -41,6 +41,9 @@ use uuid::Uuid;
 static GLOBAL_EXEC: Lazy<Arc<DedicatedExecutors>> =
     Lazy::new(|| Arc::new(DedicatedExecutors::new(1)));
 
+/// Common retention period used throughout tests
+pub const TEST_RETENTION_PERIOD_NS: Option<i64> = Some(3_600 * 1_000_000_000);
+
 /// Catalog for tests
 #[derive(Debug)]
 #[allow(missing_docs)]
@@ -150,20 +153,17 @@ impl TestCatalog {
     }
 
     /// Create a namespace in the catalog
-    pub async fn create_namespace(self: &Arc<Self>, name: &str) -> Arc<TestNamespace> {
+    pub async fn create_namespace_1hr_retention(
+        self: &Arc<Self>,
+        name: &str,
+    ) -> Arc<TestNamespace> {
         let mut repos = self.catalog.repositories().await;
 
         let topic = repos.topics().create_or_get("topic").await.unwrap();
         let query_pool = repos.query_pools().create_or_get("pool").await.unwrap();
-        let _namespace = repos
-            .namespaces()
-            .create(name, topic.id, query_pool.id)
-            .await
-            .unwrap();
-
         let namespace = repos
             .namespaces()
-            .update_retention_period(name, 1)
+            .create(name, TEST_RETENTION_PERIOD_NS, topic.id, query_pool.id)
             .await
             .unwrap();
 

@@ -169,7 +169,7 @@ mod tests {
     async fn test_shard_id() {
         let catalog = TestCatalog::new();
 
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
         let t = ns.create_table("table").await;
         let s1 = ns.create_shard(1).await;
         let s2 = ns.create_shard(2).await;
@@ -212,7 +212,7 @@ mod tests {
     async fn test_sort_key() {
         let catalog = TestCatalog::new();
 
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
         let t = ns.create_table("table").await;
         let s1 = ns.create_shard(1).await;
         let s2 = ns.create_shard(2).await;
@@ -255,7 +255,7 @@ mod tests {
     async fn test_cache_sharing() {
         let catalog = TestCatalog::new();
 
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
         let t = ns.create_table("table").await;
         let s1 = ns.create_shard(1).await;
         let s2 = ns.create_shard(2).await;
@@ -304,7 +304,7 @@ mod tests {
     async fn test_expiration() {
         let catalog = TestCatalog::new();
 
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
         let t = ns.create_table("table").await;
         let s = ns.create_shard(1).await;
         let p = t.with_shard(&s).create_partition("k1").await;

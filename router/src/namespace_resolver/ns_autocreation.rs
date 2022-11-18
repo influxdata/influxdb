@@ -30,6 +30,7 @@ pub struct NamespaceAutocreation<C, T> {
 
     topic_id: TopicId,
     query_id: QueryPoolId,
+    retention_period_ns: Option<i64>,
 }
 
 impl<C, T> NamespaceAutocreation<C, T> {
@@ -47,6 +48,7 @@ impl<C, T> NamespaceAutocreation<C, T> {
         catalog: Arc<dyn Catalog>,
         topic_id: TopicId,
         query_id: QueryPoolId,
+        retention_period_ns: Option<i64>,
     ) -> Self {
         Self {
             inner,
@@ -54,6 +56,7 @@ impl<C, T> NamespaceAutocreation<C, T> {
             catalog,
             topic_id,
             query_id,
+            retention_period_ns,
         }
     }
 }
@@ -77,7 +80,12 @@ where
 
             match repos
                 .namespaces()
-                .create(namespace.as_str(), self.topic_id, self.query_id)
+                .create(
+                    namespace.as_str(),
+                    self.retention_period_ns,
+                    self.topic_id,
+                    self.query_id,
+                )
                 .await
             {
                 Ok(_) => {
@@ -112,6 +120,9 @@ mod tests {
         namespace_cache::MemoryNamespaceCache, namespace_resolver::mock::MockNamespaceResolver,
     };
 
+    /// Common retention period value we'll use in tests
+    const TEST_RETENTION_PERIOD_NS: Option<i64> = Some(3_600 * 1_000_000_000);
+
     #[tokio::test]
     async fn test_cache_hit() {
         const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
@@ -141,6 +152,7 @@ mod tests {
             Arc::clone(&catalog),
             TopicId::new(42),
             QueryPoolId::new(42),
+            TEST_RETENTION_PERIOD_NS,
         );
 
         // Drive the code under test
@@ -178,6 +190,7 @@ mod tests {
             Arc::clone(&catalog),
             TopicId::new(42),
             QueryPoolId::new(42),
+            TEST_RETENTION_PERIOD_NS,
         );
 
         let created_id = creator
@@ -205,7 +218,7 @@ mod tests {
                 query_pool_id: QueryPoolId::new(42),
                 max_tables: iox_catalog::DEFAULT_MAX_TABLES,
                 max_columns_per_table: iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE,
-                retention_period_ns: iox_catalog::mem::MEM_DEFAULT_RETENTION_PERIOD,
+                retention_period_ns: TEST_RETENTION_PERIOD_NS,
             }
         );
     }

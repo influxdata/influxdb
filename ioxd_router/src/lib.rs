@@ -264,6 +264,7 @@ pub async fn create_router_server_type(
         Arc::clone(&catalog),
         topic_id,
         query_id,
+        None,
     );
     //
     ////////////////////////////////////////////////////////////////////////////
@@ -302,7 +303,13 @@ pub async fn create_router_server_type(
         handler_stack,
         &metrics,
     );
-    let grpc = GrpcDelegate::new(schema_catalog, object_store, shard_service);
+    let grpc = GrpcDelegate::new(
+        topic_id,
+        query_id,
+        schema_catalog,
+        object_store,
+        shard_service,
+    );
 
     let router_server = RouterServer::new(http, grpc, metrics, common_state.trace_collector());
     let server_type = Arc::new(RouterServerType::new(router_server, common_state));
@@ -418,7 +425,7 @@ mod tests {
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create("test_ns", topic.id, pool.id)
+            .create("test_ns", None, topic.id, pool.id)
             .await
             .unwrap();
 

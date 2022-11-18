@@ -149,7 +149,7 @@ mod tests {
         let pool = txn.query_pools().create_or_get("foo").await.unwrap();
         let namespace = txn
             .namespaces()
-            .create("gc_leave_undeleted_files_alone", topic.id, pool.id)
+            .create("gc_leave_undeleted_files_alone", None, topic.id, pool.id)
             .await
             .unwrap();
         let table = txn
@@ -229,7 +229,7 @@ mod tests {
         let pool = txn.query_pools().create_or_get("foo").await.unwrap();
         let namespace = txn
             .namespaces()
-            .create("gc_leave_too_new_files_alone", topic.id, pool.id)
+            .create("gc_leave_too_new_files_alone", None, topic.id, pool.id)
             .await
             .unwrap();
         let table = txn
@@ -313,7 +313,7 @@ mod tests {
         let pool = txn.query_pools().create_or_get("foo").await.unwrap();
         let namespace = txn
             .namespaces()
-            .create("gc_remove_old_enough_files", topic.id, pool.id)
+            .create("gc_remove_old_enough_files", None, topic.id, pool.id)
             .await
             .unwrap();
         let table = txn

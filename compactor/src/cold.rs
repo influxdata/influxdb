@@ -164,7 +164,7 @@ mod tests {
         ]
         .join("\n");
 
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
         let shard = ns.create_shard(1).await;
         let table = ns.create_table("table").await;
         table.create_column("field_int", ColumnType::I64).await;
@@ -403,7 +403,7 @@ mod tests {
         ]
         .join("\n");
 
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
         let shard = ns.create_shard(1).await;
         let table = ns.create_table("table").await;
         table.create_column("field_int", ColumnType::I64).await;
@@ -631,7 +631,7 @@ mod tests {
         ]
         .join("\n");
 
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
         let shard = ns.create_shard(1).await;
         let table = ns.create_table("table").await;
         table.create_column("field_int", ColumnType::I64).await;
@@ -901,7 +901,7 @@ mod tests {
         ]
         .join("\n");
 
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
         let shard = ns.create_shard(1).await;
         let table = ns.create_table("table").await;
         table.create_column("field_int", ColumnType::I64).await;
@@ -1006,7 +1006,7 @@ mod tests {
         ]
         .join("\n");
 
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
         let shard = ns.create_shard(1).await;
         let table = ns.create_table("table").await;
         table.create_column("field_int", ColumnType::I64).await;
@@ -1146,7 +1146,7 @@ mod tests {
         ]
         .join("\n");
 
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
         let shard = ns.create_shard(1).await;
         let table = ns.create_table("table").await;
         table.create_column("field_int", ColumnType::I64).await;
@@ -1396,7 +1396,7 @@ mod tests {
         ]
         .join("\n");
 
-        let ns = catalog.create_namespace("ns").await;
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
         let shard = ns.create_shard(1).await;
         let table = ns.create_table("table").await;
         table.create_column("field_int", ColumnType::I64).await;

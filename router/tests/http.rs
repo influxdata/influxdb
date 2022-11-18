@@ -37,9 +37,8 @@ const TEST_TOPIC_ID: i64 = 1;
 /// handler stack for namespaces it has not yet observed.
 const TEST_QUERY_POOL_ID: i64 = 1;
 
-/// Default retention period assigned to a namespace
-/// This is the same as the default in the MemCatalog
-const TEST_RETENTPON_PERIOD_NS: Option<i64> = Some(3_600 * 1_000_000_000);
+/// Common retention period value we'll use in tests
+const TEST_RETENTION_PERIOD_NS: Option<i64> = Some(3_600 * 1_000_000_000);
 
 pub struct TestContext {
     delegate: HttpDelegateStack,
@@ -79,7 +78,7 @@ type HttpDelegateStack = HttpDelegate<
 /// A [`router`] stack configured with the various DML handlers using mock
 /// catalog / write buffer backends.
 impl TestContext {
-    pub fn new() -> Self {
+    pub fn new(ns_autocreate_retention_period_ns: Option<i64>) -> Self {
         let metrics = Arc::new(metric::Registry::default());
         let time = iox_time::MockProvider::new(
             iox_time::Time::from_timestamp_millis(668563200000).unwrap(),
@@ -132,6 +131,7 @@ impl TestContext {
             Arc::clone(&catalog),
             TopicId::new(TEST_TOPIC_ID),
             QueryPoolId::new(TEST_QUERY_POOL_ID),
+            ns_autocreate_retention_period_ns,
         );
 
         let delegate = HttpDelegate::new(1024, 100, namespace_resolver, handler_stack, &metrics);
@@ -167,13 +167,13 @@ impl TestContext {
 
 impl Default for TestContext {
     fn default() -> Self {
-        Self::new()
+        Self::new(None)
     }
 }
 
 #[tokio::test]
 async fn test_write_ok() {
-    let ctx = TestContext::new();
+    let ctx = TestContext::new(None);
 
     // Write data inside retention period
     let now = SystemProvider::default()
@@ -216,7 +216,7 @@ async fn test_write_ok() {
     assert_eq!(ns.name, "bananas_test");
     assert_eq!(ns.topic_id, TopicId::new(TEST_TOPIC_ID));
     assert_eq!(ns.query_pool_id, QueryPoolId::new(TEST_QUERY_POOL_ID));
-    assert_eq!(ns.retention_period_ns, TEST_RETENTPON_PERIOD_NS);
+    assert_eq!(ns.retention_period_ns, None);
 
     // Ensure the metric instrumentation was hit
     let histogram = ctx
@@ -258,7 +258,7 @@ async fn test_write_ok() {
 
 #[tokio::test]
 async fn test_write_outside_retention_period() {
-    let ctx = TestContext::new();
+    let ctx = TestContext::new(TEST_RETENTION_PERIOD_NS);
 
     // Write data outside retention period into a new table
     let two_hours_ago =
@@ -291,7 +291,7 @@ async fn test_write_outside_retention_period() {
 
 #[tokio::test]
 async fn test_schema_conflict() {
-    let ctx = TestContext::new();
+    let ctx = TestContext::new(None);
 
     // data inside the retention period
     let now = SystemProvider::default()
@@ -357,7 +357,7 @@ async fn test_schema_conflict() {
 
 #[tokio::test]
 async fn test_schema_limit() {
-    let ctx = TestContext::new();
+    let ctx = TestContext::new(None);
 
     let now = SystemProvider::default()
         .now()
@@ -423,7 +423,7 @@ async fn test_schema_limit() {
 
 #[tokio::test]
 async fn test_write_propagate_ids() {
-    let ctx = TestContext::new();
+    let ctx = TestContext::new(None);
 
     // Create the namespace and a set of tables.
     let ns = ctx
@@ -433,6 +433,7 @@ async fn test_write_propagate_ids() {
         .namespaces()
         .create(
             "bananas_test",
+            None,
             TopicId::new(TEST_TOPIC_ID),
             QueryPoolId::new(TEST_QUERY_POOL_ID),
         )
@@ -504,7 +505,7 @@ async fn test_write_propagate_ids() {
 
 #[tokio::test]
 async fn test_delete_propagate_ids() {
-    let ctx = TestContext::new();
+    let ctx = TestContext::new(None);
 
     // Create the namespace and a set of tables.
     let ns = ctx
@@ -514,6 +515,7 @@ async fn test_delete_propagate_ids() {
         .namespaces()
         .create(
             "bananas_test",
+            None,
             TopicId::new(TEST_TOPIC_ID),
             QueryPoolId::new(TEST_QUERY_POOL_ID),
         )
