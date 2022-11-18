@@ -32,6 +32,7 @@ use tokio::{
 };
 use uuid::Uuid;
 
+// TODO: Should have more variants / error types to avoid reusing these
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
 #[snafu(visibility(pub(crate)))]
@@ -191,6 +192,7 @@ impl Default for SegmentId {
 }
 
 /// The first bytes written into a segment file to identify it and its version.
+// TODO: What's the expected way of upgrading -- what happens when we need version 31?
 const FILE_TYPE_IDENTIFIER: &[u8] = b"INFLUXV3";
 /// File extension for segment files.
 const SEGMENT_FILE_EXTENSION: &str = "dat";
@@ -578,6 +580,7 @@ async fn read_entry(f: &mut Pin<Box<dyn AsyncRead>>) -> Result<Option<SegmentEnt
     let expected_len_us =
         usize::try_from(expected_len).expect("Only designed to run on 32-bit systems or higher");
     let mut compressed_data = Vec::with_capacity(expected_len_us);
+    // TODO: Is there a way to avoid reading everything into memory at once? Ditto for writing
     let actual_compressed_len = f
         .take(u64::from(expected_len))
         .read_to_end(&mut compressed_data)
