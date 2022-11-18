@@ -61,10 +61,7 @@ pub fn decode_database_batch(database_batch: &DatabaseBatch) -> Result<HashMap<i
     let mut id_to_data = HashMap::with_capacity(database_batch.table_batches.len());
 
     for table_batch in &database_batch.table_batches {
-        let (_, batch) = id_to_data
-            .raw_entry_mut()
-            .from_key(&table_batch.table_id)
-            .or_insert_with(|| (table_batch.table_id, MutableBatch::new()));
+        let batch = id_to_data.entry(table_batch.table_id).or_default();
 
         write_table_batch(batch, table_batch)?;
     }
