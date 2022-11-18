@@ -114,7 +114,7 @@ where
         let payload = request.into_inner().payload.ok_or(RpcError::NoPayload)?;
 
         let batches = decode_database_batch(&payload).map_err(RpcError::Decode)?;
-        let num_tables = batches.0.len();
+        let num_tables = batches.len();
         let namespace_id = NamespaceId::new(payload.database_id);
         let partition_key = PartitionKey::from(payload.partition_key);
 
@@ -135,11 +135,9 @@ where
         // Reconstruct the DML operation
         let op = DmlWrite::new(
             namespace_id,
-            batches.0,
             batches
-                .1
                 .into_iter()
-                .map(|(k, v)| (k, TableId::new(v)))
+                .map(|(k, v)| (TableId::new(k), v))
                 .collect(),
             partition_key,
             // The tracing context should be propagated over the RPC boundary.
@@ -220,7 +218,6 @@ mod tests {
                 database_id: NAMESPACE_ID.get(),
                 partition_key: PARTITION_KEY.to_string(),
                 table_batches: vec![TableBatch {
-                    table_name: "".to_string(),
                     table_id: 42,
                     columns: vec![Column {
                         column_name: "time".to_string(),
@@ -258,7 +255,6 @@ mod tests {
                 database_id: NAMESPACE_ID.get(),
                 partition_key: PARTITION_KEY.to_string(),
                 table_batches: vec![TableBatch {
-                    table_name: "".to_string(),
                     table_id: 42,
                     columns: vec![Column {
                         column_name: "time".to_string(),
@@ -318,7 +314,6 @@ mod tests {
                 database_id: NAMESPACE_ID.get(),
                 partition_key: PARTITION_KEY.to_string(),
                 table_batches: vec![TableBatch {
-                    table_name: "".to_string(),
                     table_id: 42,
                     columns: vec![Column {
                         column_name: "time".to_string(),
@@ -357,7 +352,6 @@ mod tests {
                     database_id: NAMESPACE_ID.get(),
                     partition_key: PARTITION_KEY.to_string(),
                     table_batches: vec![TableBatch {
-                        table_name: "".to_string(),
                         table_id: 42,
                         columns: vec![Column {
                             column_name: "time".to_string(),
