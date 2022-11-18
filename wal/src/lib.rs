@@ -571,16 +571,17 @@ mod blocking {
     use snafu::prelude::*;
     use std::{
         fs::File,
-        io::{self, Read},
+        io::{self, BufReader, Read},
         path::{Path, PathBuf},
     };
 
     pub struct SegmentFileReader<R>(R);
 
-    impl SegmentFileReader<File> {
+    impl SegmentFileReader<BufReader<File>> {
         pub fn from_path(path: impl AsRef<Path>) -> Result<Self> {
             let path = path.as_ref();
             let f = File::open(path).context(UnableToOpenFileSnafu { path })?;
+            let f = BufReader::new(f);
             Ok(Self::new(f))
         }
     }
