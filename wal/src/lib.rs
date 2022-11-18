@@ -17,17 +17,11 @@ use async_trait::async_trait;
 use crc32fast::Hasher;
 use generated_types::influxdata::{iox::delete::v1::DeletePayload, pbdata::v1::DatabaseBatch};
 use serde::{Deserialize, Serialize};
-use snafu::{ensure, ResultExt, Snafu};
-use std::{
-    convert::TryFrom,
-    io, mem, num,
-    path::{Path, PathBuf},
-    sync::Arc,
-    time::SystemTime,
-};
+use snafu::prelude::*;
+use std::{convert::TryFrom, io, mem, num, path::PathBuf, sync::Arc, time::SystemTime};
 use tokio::{
-    io::{AsyncRead, AsyncReadExt, AsyncWriteExt},
-    sync::RwLock,
+    io::AsyncWriteExt,
+    sync::{mpsc, oneshot, RwLock},
 };
 use uuid::Uuid;
 
@@ -48,32 +42,6 @@ pub enum Error {
 
     UnableToReadFileMetadata {
         source: io::Error,
-    },
-
-    UnableToReadSequenceNumber {
-        source: io::Error,
-    },
-
-    UnableToReadChecksum {
-        source: io::Error,
-    },
-
-    UnableToReadLength {
-        source: io::Error,
-    },
-
-    UnableToReadData {
-        source: io::Error,
-    },
-
-    LengthMismatch {
-        expected: usize,
-        actual: usize,
-    },
-
-    ChecksumMismatch {
-        expected: u32,
-        actual: u32,
     },
 
     ChunkSizeTooLarge {
@@ -106,28 +74,8 @@ pub enum Error {
         source: snap::Error,
     },
 
-    UnableToDecompressData {
-        source: snap::Error,
-    },
-
     UnableToSync {
         source: io::Error,
-    },
-
-    UnableToOpenFile {
-        source: io::Error,
-        path: PathBuf,
-    },
-
-    UnableToCreateFile {
-        source: io::Error,
-        path: PathBuf,
-    },
-
-    UnableToCopyFileContents {
-        source: io::Error,
-        src: PathBuf,
-        dst: PathBuf,
     },
 
     UnableToReadDirectoryContents {
@@ -135,12 +83,31 @@ pub enum Error {
         path: PathBuf,
     },
 
-    UnableToReadSegmentId {
+    UnableToReadCreated {
         source: io::Error,
     },
 
-    UnableToReadCreated {
-        source: io::Error,
+    UnableToOpenFile {
+        source: blocking::Error,
+        path: PathBuf,
+    },
+
+    UnableToSendRequestToReaderTask,
+
+    UnableToReceiveResponseFromSenderTask {
+        source: tokio::sync::oneshot::error::RecvError,
+    },
+
+    UnableToReadFileHeader {
+        source: blocking::Error,
+    },
+
+    UnableToReadEntries {
+        source: blocking::Error,
+    },
+
+    UnableToReadNextOps {
+        source: blocking::Error,
     },
 }
 
@@ -195,7 +162,8 @@ impl Default for SegmentId {
 
 /// The first bytes written into a segment file to identify it and its version.
 // TODO: What's the expected way of upgrading -- what happens when we need version 31?
-const FILE_TYPE_IDENTIFIER: &[u8] = b"INFLUXV3";
+type FileTypeIdentifier = [u8; 8];
+const FILE_TYPE_IDENTIFIER: &FileTypeIdentifier = b"INFLUXV3";
 /// File extension for segment files.
 const SEGMENT_FILE_EXTENSION: &str = "dat";
 
@@ -501,123 +469,238 @@ impl Segment for SegmentFile {
     }
 }
 
-struct SegmentFileReader<R> {
-    f: R,
+#[derive(Debug)]
+enum SegmentFileReaderRequest {
+    ReadHeader(oneshot::Sender<blocking::Result<(FileTypeIdentifier, uuid::Bytes)>>),
+
+    Entries(oneshot::Sender<blocking::Result<Vec<SegmentEntry>>>),
+
+    NextOps(oneshot::Sender<blocking::Result<Option<Vec<SequencedWalOp>>>>),
+}
+
+struct SegmentFileReader {
     id: SegmentId,
+    tx: mpsc::Sender<SegmentFileReaderRequest>,
+    task: tokio::task::JoinHandle<Result<()>>,
 }
 
-impl SegmentFileReader<tokio::fs::File> {
-    pub async fn from_path(path: impl AsRef<Path>) -> Result<Self> {
-        let path = path.as_ref();
-        let f = tokio::fs::File::open(path)
-            .await
-            .context(UnableToOpenFileSnafu { path })?;
-        Self::new(f).await
-    }
-}
+impl SegmentFileReader {
+    async fn from_path(path: impl Into<PathBuf>) -> Result<Self> {
+        let path = path.into();
 
-impl<R> SegmentFileReader<R>
-where
-    R: AsyncRead + Unpin,
-{
-    pub async fn new(mut f: R) -> Result<Self> {
-        Self::is_segment_stream(&mut f).await?;
-        let id = Self::read_id(&mut f).await?;
+        let (tx, rx) = mpsc::channel::<SegmentFileReaderRequest>(10);
+        let task = tokio::task::spawn_blocking(|| Self::task_main(rx, path));
 
-        Ok(Self { f, id })
-    }
-
-    async fn is_segment_stream(mut f: impl AsyncRead + Unpin) -> Result<()> {
-        let mut header = [0u8; FILE_TYPE_IDENTIFIER.len()];
-        f.read_exact(&mut header)
-            .await
-            .context(UnableToReadFileMetadataSnafu)?;
+        let (file_type, id) = Self::one_command(&tx, SegmentFileReaderRequest::ReadHeader)
+            .await?
+            .context(UnableToReadFileHeaderSnafu)?;
 
         ensure!(
-            header == FILE_TYPE_IDENTIFIER,
+            &file_type == FILE_TYPE_IDENTIFIER,
             SegmentFileIdentifierMismatchSnafu,
         );
+
+        let id = Uuid::from_bytes(id);
+        let id = SegmentId::from(id);
+
+        Ok(Self { id, tx, task })
+    }
+
+    fn task_main(mut rx: mpsc::Receiver<SegmentFileReaderRequest>, path: PathBuf) -> Result<()> {
+        let mut reader = blocking::SegmentFileReader::from_path(&path)
+            .context(UnableToOpenFileSnafu { path })?;
+
+        while let Some(req) = rx.blocking_recv() {
+            use SegmentFileReaderRequest::*;
+
+            // We don't care if we can't respond to the request.
+            match req {
+                ReadHeader(tx) => {
+                    tx.send(reader.read_header()).ok();
+                }
+
+                Entries(tx) => {
+                    tx.send(reader.entries()).ok();
+                }
+
+                NextOps(tx) => {
+                    tx.send(reader.next_ops()).ok();
+                }
+            };
+        }
 
         Ok(())
     }
 
-    async fn read_id(mut f: impl AsyncRead + Unpin) -> Result<SegmentId> {
-        const UUID_BYTES_LEN: usize = 16;
-
-        let mut id_header = [0u8; UUID_BYTES_LEN];
-        f.read_exact(&mut id_header)
+    async fn one_command<Req, Resp>(
+        tx: &mpsc::Sender<SegmentFileReaderRequest>,
+        req: Req,
+    ) -> Result<Resp>
+    where
+        Req: FnOnce(oneshot::Sender<Resp>) -> SegmentFileReaderRequest,
+    {
+        let (req_tx, req_rx) = oneshot::channel();
+        tx.send(req(req_tx))
             .await
-            .context(UnableToReadSegmentIdSnafu)?;
-
-        let uuid = Uuid::from_bytes(id_header);
-        Ok(SegmentId::from(uuid))
+            .ok()
+            .context(UnableToSendRequestToReaderTaskSnafu)?;
+        req_rx
+            .await
+            .context(UnableToReceiveResponseFromSenderTaskSnafu)
     }
 
-    pub async fn next(&mut self) -> Result<Option<SegmentEntry>> {
-        let checksum = match self.f.read_u32().await {
-            Err(ref e) if e.kind() == io::ErrorKind::UnexpectedEof => return Ok(None),
-            other => other.context(UnableToReadChecksumSnafu)?,
-        };
-
-        let expected_len = self.f.read_u32().await.context(UnableToReadLengthSnafu)?;
-        let expected_len_us = usize::try_from(expected_len)
-            .expect("Only designed to run on 32-bit systems or higher");
-        let mut compressed_data = Vec::with_capacity(expected_len_us);
-        // TODO: Is there a way to avoid reading everything into memory at once? Ditto for writing
-        let actual_compressed_len = (&mut self.f)
-            .take(u64::from(expected_len))
-            .read_to_end(&mut compressed_data)
-            .await
-            .context(UnableToReadDataSnafu)?;
-
-        ensure!(
-            expected_len_us == actual_compressed_len,
-            LengthMismatchSnafu {
-                expected: expected_len_us,
-                actual: actual_compressed_len
-            }
-        );
-
-        let mut hasher = Hasher::new();
-        hasher.update(&compressed_data);
-        let actual_checksum = hasher.finalize();
-
-        ensure!(
-            checksum == actual_checksum,
-            ChecksumMismatchSnafu {
-                expected: checksum,
-                actual: actual_checksum
-            }
-        );
-
-        // TODO: This (de)compression is a blocking operation and
-        //       shouldn't occur in an async task
-        let mut decoder = snap::raw::Decoder::new();
-        let data = decoder
-            .decompress_vec(&compressed_data)
-            .context(UnableToDecompressDataSnafu)?;
-
-        Ok(Some(SegmentEntry { checksum, data }))
-    }
-
+    // TODO: Should this return a stream instead of a big vector?
     async fn entries(&mut self) -> Result<Vec<SegmentEntry>> {
-        let mut entries = vec![];
-        while let Some(entry) = self.next().await? {
-            entries.push(entry);
-        }
-
-        Ok(entries)
+        Self::one_command(&self.tx, SegmentFileReaderRequest::Entries)
+            .await?
+            .context(UnableToReadEntriesSnafu)
     }
 
     async fn next_ops(&mut self) -> Result<Option<Vec<SequencedWalOp>>> {
-        if let Some(entry) = self.next().await? {
-            let decoded: Vec<_> = serde_json::from_slice(&entry.data).unwrap();
+        Self::one_command(&self.tx, SegmentFileReaderRequest::NextOps)
+            .await?
+            .context(UnableToReadNextOpsSnafu)
+    }
+}
 
-            return Ok(Some(decoded));
+mod blocking {
+    use super::{SegmentEntry, SequencedWalOp};
+    use crate::FileTypeIdentifier;
+    use byteorder::{BigEndian, ReadBytesExt};
+    use crc32fast::Hasher;
+    use snafu::prelude::*;
+    use std::{
+        fs::File,
+        io::{self, Read},
+        path::{Path, PathBuf},
+    };
+
+    pub struct SegmentFileReader<R>(R);
+
+    impl SegmentFileReader<File> {
+        pub fn from_path(path: impl AsRef<Path>) -> Result<Self> {
+            let path = path.as_ref();
+            let f = File::open(path).context(UnableToOpenFileSnafu { path })?;
+            Ok(Self::new(f))
+        }
+    }
+
+    impl<R> SegmentFileReader<R>
+    where
+        R: Read,
+    {
+        pub fn new(f: R) -> Self {
+            Self(f)
         }
 
-        Ok(None)
+        fn read_array<const N: usize>(&mut self) -> Result<[u8; N]> {
+            let mut data = [0u8; N];
+            self.0
+                .read_exact(&mut data)
+                .context(UnableToReadArraySnafu { length: N })?;
+            Ok(data)
+        }
+
+        pub fn read_header(&mut self) -> Result<(FileTypeIdentifier, uuid::Bytes)> {
+            Ok((self.read_array()?, self.read_array()?))
+        }
+
+        fn one_entry(&mut self) -> Result<Option<SegmentEntry>> {
+            let checksum = match self.0.read_u32::<BigEndian>() {
+                Err(ref e) if e.kind() == io::ErrorKind::UnexpectedEof => return Ok(None),
+                other => other.context(UnableToReadChecksumSnafu)?,
+            };
+
+            let expected_len = self
+                .0
+                .read_u32::<BigEndian>()
+                .context(UnableToReadLengthSnafu)?;
+            let expected_len_us = usize::try_from(expected_len)
+                .expect("Only designed to run on 32-bit systems or higher");
+            let mut compressed_data = Vec::with_capacity(expected_len_us);
+            // TODO: Is there a way to avoid reading everything into memory at once? Ditto for writing
+            let actual_compressed_len = (&mut self.0)
+                .take(u64::from(expected_len))
+                .read_to_end(&mut compressed_data)
+                .context(UnableToReadDataSnafu)?;
+
+            ensure!(
+                expected_len_us == actual_compressed_len,
+                LengthMismatchSnafu {
+                    expected: expected_len_us,
+                    actual: actual_compressed_len
+                }
+            );
+
+            let mut hasher = Hasher::new();
+            hasher.update(&compressed_data);
+            let actual_checksum = hasher.finalize();
+
+            ensure!(
+                checksum == actual_checksum,
+                ChecksumMismatchSnafu {
+                    expected: checksum,
+                    actual: actual_checksum
+                }
+            );
+
+            let mut decoder = snap::raw::Decoder::new();
+            let data = decoder
+                .decompress_vec(&compressed_data)
+                .context(UnableToDecompressDataSnafu)?;
+
+            Ok(Some(SegmentEntry { checksum, data }))
+        }
+
+        pub fn entries(&mut self) -> Result<Vec<SegmentEntry>> {
+            self.collect()
+        }
+
+        pub fn next_ops(&mut self) -> Result<Option<Vec<SequencedWalOp>>> {
+            if let Some(entry) = self.one_entry()? {
+                let decoded =
+                    serde_json::from_slice(&entry.data).context(UnableToDeserializeDataSnafu)?;
+
+                return Ok(Some(decoded));
+            }
+
+            Ok(None)
+        }
     }
+
+    impl<R> Iterator for SegmentFileReader<R>
+    where
+        R: io::Read,
+    {
+        type Item = Result<SegmentEntry>;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            self.one_entry().transpose()
+        }
+    }
+
+    #[derive(Debug, Snafu)]
+    pub enum Error {
+        UnableToOpenFile { source: io::Error, path: PathBuf },
+
+        UnableToReadArray { source: io::Error, length: usize },
+
+        UnableToReadChecksum { source: io::Error },
+
+        UnableToReadLength { source: io::Error },
+
+        UnableToReadData { source: io::Error },
+
+        LengthMismatch { expected: usize, actual: usize },
+
+        ChecksumMismatch { expected: u32, actual: u32 },
+
+        UnableToDecompressData { source: snap::Error },
+
+        UnableToDeserializeData { source: serde_json::Error },
+    }
+
+    pub type Result<T, E = Error> = std::result::Result<T, E>;
 }
 
 #[derive(Debug, Clone)]
