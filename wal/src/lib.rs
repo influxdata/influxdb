@@ -373,8 +373,8 @@ struct SegmentFileInner {
 }
 
 impl SegmentFile {
-    async fn new_writer(path: impl AsRef<Path>) -> Result<Self> {
-        let mut path = path.as_ref().to_owned();
+    async fn new_writer(path: impl Into<PathBuf>) -> Result<Self> {
+        let mut path = path.into();
         let id = SegmentId::new();
         path.push(id.to_string());
         path.set_extension(SEGMENT_FILE_EXTENSION);
@@ -629,7 +629,7 @@ mod tests {
     #[tokio::test]
     async fn segment_file_write_and_read_entries() {
         let dir = test_helpers::tmp_dir().unwrap();
-        let sf = SegmentFile::new_writer(&dir).await.unwrap();
+        let sf = SegmentFile::new_writer(dir.path()).await.unwrap();
 
         let data = b"whatevs";
         let write_summary = sf.write(data).await.unwrap();
@@ -667,7 +667,7 @@ mod tests {
     #[tokio::test]
     async fn segment_file_write_and_read_ops() {
         let dir = test_helpers::tmp_dir().unwrap();
-        let segment = SegmentFile::new_writer(&dir).await.unwrap();
+        let segment = SegmentFile::new_writer(dir.path()).await.unwrap();
 
         let w1 = test_data("m1,t=foo v=1i 1");
         let w2 = test_data("m1,t=foo v=2i 2");
