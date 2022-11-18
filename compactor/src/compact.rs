@@ -693,6 +693,7 @@ pub mod tests {
             memory_budget_bytes: 10 * 1024 * 1024,
             min_num_rows_allocated_per_record_batch_to_datafusion_plan: 100,
             max_num_compacting_files: 20,
+            max_num_compacting_files_first_in_partition: 40,
             minutes_without_new_writes_to_be_cold: 10,
             hot_compaction_hours_threshold_1: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
             hot_compaction_hours_threshold_2: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,

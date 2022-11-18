@@ -947,6 +947,8 @@ pub struct SkippedCompaction {
     pub num_files: i64,
     /// limit on num files
     pub limit_num_files: i64,
+    /// limit on num files for the first file in a partition
+    pub limit_num_files_first_in_partition: i64,
 }
 
 /// Data object for a tombstone.

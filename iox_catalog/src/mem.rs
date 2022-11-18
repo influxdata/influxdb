@@ -839,6 +839,7 @@ impl PartitionRepo for MemTxn {
         reason: &str,
         num_files: usize,
         limit_num_files: usize,
+        limit_num_files_first_in_partition: usize,
         estimated_bytes: u64,
         limit_bytes: u64,
     ) -> Result<()> {
@@ -856,6 +857,7 @@ impl PartitionRepo for MemTxn {
                 s.skipped_at = skipped_at;
                 s.num_files = num_files as i64;
                 s.limit_num_files = limit_num_files as i64;
+                s.limit_num_files_first_in_partition = limit_num_files_first_in_partition as i64;
                 s.estimated_bytes = estimated_bytes as i64;
                 s.limit_bytes = limit_bytes as i64;
             }
@@ -865,6 +867,7 @@ impl PartitionRepo for MemTxn {
                 skipped_at,
                 num_files: num_files as i64,
                 limit_num_files: limit_num_files as i64,
+                limit_num_files_first_in_partition: limit_num_files_first_in_partition as i64,
                 estimated_bytes: estimated_bytes as i64,
                 limit_bytes: limit_bytes as i64,
             }),

@@ -594,15 +594,15 @@ pub(crate) fn make_write_op(
     sequence_number: i64,
     lines: &str,
 ) -> DmlWrite {
-    let tables = lines_to_batches(lines, 0).unwrap();
-    assert_eq!(tables.len(), 1);
-    assert!(tables.get(table_name).is_some());
+    let mut tables_by_name = lines_to_batches(lines, 0).unwrap();
+    assert_eq!(tables_by_name.len(), 1);
 
-    let ids = [(table_name.into(), table_id)].into_iter().collect();
+    let tables_by_id = [(table_id, tables_by_name.remove(table_name).unwrap())]
+        .into_iter()
+        .collect();
     DmlWrite::new(
         namespace_id,
-        tables,
-        ids,
+        tables_by_id,
         partition_key.clone(),
         DmlMeta::sequenced(
             Sequence {

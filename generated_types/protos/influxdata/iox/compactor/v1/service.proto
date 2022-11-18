@@ -35,6 +35,10 @@ message SkippedCompaction {
   // compaction was skipped.
   int64 limit_num_files = 5;
 
+  // The compactor's limit on the number of files at the beginning of a partition at the time
+  // this copmaction was skipped
+  optional int64 limit_num_files_first_in_partition = 8;
+
   // The number of bytes of memory estimated to be needed to compact this partition at the time
   // this compaction was skipped.
   int64 estimated_bytes = 6;

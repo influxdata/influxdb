@@ -236,8 +236,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
+    use super::*;
+    use crate::stream_handler::{
+        mock_sink::MockDmlSink, mock_watermark_fetcher::MockWatermarkFetcher,
+    };
     use assert_matches::assert_matches;
     use data_types::{NamespaceId, Sequence, SequenceNumber, ShardId, TableId};
     use dml::{DmlMeta, DmlWrite};
@@ -245,12 +247,8 @@ mod tests {
     use metric::{Metric, MetricObserver, Observation};
     use mutable_batch_lp::lines_to_batches;
     use once_cell::sync::Lazy;
+    use std::sync::Arc;
     use trace::{ctx::SpanContext, span::SpanStatus, RingBufferTraceCollector, TraceCollector};
-
-    use super::*;
-    use crate::stream_handler::{
-        mock_sink::MockDmlSink, mock_watermark_fetcher::MockWatermarkFetcher,
-    };
 
     /// The shard index the [`SinkInstrumentation`] under test is configured to
     /// be observing for.
@@ -272,12 +270,18 @@ mod tests {
     /// Return a DmlWrite with the given metadata and a single table.
     fn make_write(meta: DmlMeta) -> DmlWrite {
         let tables = lines_to_batches("bananas level=42 4242", 0).unwrap();
-        let ids = tables
-            .keys()
+        let tables_by_ids = tables
+            .into_iter()
             .enumerate()
-            .map(|(i, v)| (v.clone(), TableId::new(i as _)))
+            .map(|(i, (_k, v))| (TableId::new(i as _), v))
             .collect();
-        DmlWrite::new(NamespaceId::new(42), tables, ids, "1970-01-01".into(), meta)
+
+        DmlWrite::new(
+            NamespaceId::new(42),
+            tables_by_ids,
+            "1970-01-01".into(),
+            meta,
+        )
     }
 
     /// Extract the metric with the given name from `metrics`.

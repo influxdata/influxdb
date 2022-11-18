@@ -56,6 +56,8 @@ pub(crate) fn filter_parquet_files(
     // stop considering level N files when the total files selected for compaction so far exceeds
     // this value
     max_num_files: usize,
+    // for the first file in a partition and its overlaps we have a separate max_num_files
+    max_num_files_first_in_partition: usize,
     // max desired output file size in bytes
     max_desired_file_size_bytes: u64,
     // Gauge for the number of Parquet file candidates
@@ -68,6 +70,7 @@ pub(crate) fn filter_parquet_files(
         level_n_plus_1,
         max_bytes,
         max_num_files,
+        max_num_files_first_in_partition,
         max_desired_file_size_bytes,
         parquet_file_candidate_gauge,
         parquet_file_candidate_bytes,
@@ -79,6 +82,7 @@ pub(crate) fn filter_parquet_files(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn filter_parquet_files_inner(
     // Level N files, sorted
     level_n: Vec<CompactorParquetFile>,
@@ -90,6 +94,8 @@ fn filter_parquet_files_inner(
     // stop considering level N files when the total files selected for compaction so far exceeds
     // this value
     max_num_files: usize,
+    // for the first file in a partition and its overlaps we have a separate max_num_files
+    max_num_files_first_in_partition: usize,
     // max desired output file size in bytes
     max_desired_file_size_bytes: u64,
     // Gauge for the number of Parquet file candidates
@@ -187,8 +193,16 @@ fn filter_parquet_files_inner(
         // Over limit of num files
         // At this stage files_to_return only includes LN+1 files. To get both returning LN+1 and
         // LN files, we need to consider both files_to_return and level_n_to_return
+        // The file limit only applies after the first file, because we want to avoid the situation
+        // where a file (and its overlapping files) will never get processed. In this scenario,
+        // however, we do not proceed to pick up any more files other than this first one (and its
+        // overlaps)
         if files_to_return.len() + level_n_to_return.len() + 1 /* LN file */ + overlaps.len()
             > max_num_files
+            && !(files_to_return.is_empty() && level_n_to_return.is_empty())
+            || (files_to_return.is_empty()
+                && level_n_to_return.is_empty()
+                && 1 /* LN file */ + overlaps.len() > max_num_files_first_in_partition)
         {
             if files_to_return.is_empty() && level_n_to_return.is_empty() {
                 // Cannot compact this partition because its first set of overlapped files
@@ -222,8 +236,10 @@ fn filter_parquet_files_inner(
             // Only compact the level 1 files under the desired file size
             break;
         } else {
-            // Still under budget and under limit of number of files.
-            // We do not add memory budget for output stream yet becasue it will change when we add
+            // Still under budget and under limit of number of files, OR
+            // it's the first LN file and it is under max_num_files_first_in_partition.
+            //
+            // We do not add memory budget for output stream yet because it will change when we add
             // more files
             total_estimated_budget += estimated_processing_file_bytes;
             ln_estimated_budget.push(ln_estimated_file_bytes);
@@ -517,6 +533,7 @@ mod tests {
             level_1,
             MEMORY_BUDGET,
             FILE_NUM_LIMIT,
+            FILE_NUM_LIMIT * 2,
             DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
@@ -540,6 +557,7 @@ mod tests {
             level_1,
             0,
             FILE_NUM_LIMIT,
+            FILE_NUM_LIMIT * 2,
             DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
@@ -570,6 +588,7 @@ mod tests {
             level_1,
             0,
             FILE_NUM_LIMIT,
+            FILE_NUM_LIMIT * 2,
             // output size smaller than input size to force return 2 output streams
             (file_size_bytes - 1) as u64,
             &files_metric,
@@ -601,6 +620,7 @@ mod tests {
             level_1,
             0,
             FILE_NUM_LIMIT,
+            FILE_NUM_LIMIT * 2,
             // max desired output size ~1/3 input size to force returning 3 output streams
             (file_size_bytes / 3 + 1) as u64,
             &files_metric,
@@ -631,6 +651,7 @@ mod tests {
             level_1,
             1000,
             FILE_NUM_LIMIT,
+            FILE_NUM_LIMIT * 2,
             DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
@@ -646,7 +667,7 @@ mod tests {
     }
 
     #[test]
-    fn file_num_0_returns_over_file_limit() {
+    fn file_num_0_over_file_limit_but_proceeds() {
         let level_0 = vec![ParquetFileBuilder::level_0().id(1).build()];
         let level_1 = vec![];
         let (files_metric, bytes_metric) = metrics();
@@ -659,28 +680,145 @@ mod tests {
             level_0,
             level_1,
             MEMORY_BUDGET,
-            0,
+            0, // note max file count is zero
+            1, // however we are not over the special limit for the first file in the partition
             DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
         );
 
+        // we will process this despite > max file count because it's the first
+        assert!(
+            matches!(
+                  &filter_result,
+              FilterResult::Proceed { files, budget_bytes }
+                  if files.len() == 1
+                      && files.clone().pop().unwrap().id().get() == 1
+                      && *budget_bytes == expected_estimated_budget
+            ),
+            "Match failed, got: {filter_result:?}"
+        );
+    }
+
+    #[test]
+    fn file_num_0_over_file_limit_for_first_in_partition() {
+        let level_0 = vec![
+            ParquetFileBuilder::level_0()
+                .id(1)
+                .min_time(200)
+                .max_time(300)
+                .build(),
+            // second file that shouldn't get picked up for processing
+            ParquetFileBuilder::level_0().id(2).build(),
+        ];
+        let level_1 = vec![
+            // all overlap the L0 file
+            ParquetFileBuilder::level_1()
+                .id(102)
+                .min_time(150)
+                .max_time(250)
+                .build(),
+            ParquetFileBuilder::level_1()
+                .id(103)
+                .min_time(250)
+                .max_time(350)
+                .build(),
+            ParquetFileBuilder::level_1()
+                .id(104)
+                .min_time(270)
+                .max_time(280)
+                .build(),
+        ];
+        let (files_metric, bytes_metric) = metrics();
+
+        let bytes_stored_4_files_in_memory = 4 * (2 * level_0[0].file_size_bytes()) as u64;
+        let expected_estimated_budget = bytes_stored_4_files_in_memory + 5 * ESTIMATED_STREAM_BYTES;
+
+        let filter_result = filter_parquet_files_inner(
+            level_0,
+            level_1,
+            MEMORY_BUDGET,
+            1, // this isn't a factor in this test
+            2, // we are over this limit for the first file in partition
+            DEFAULT_MAX_OUTPUT_SIZE,
+            &files_metric,
+            &bytes_metric,
+        );
+
+        // we will process this despite > max file count because it's the first
         assert_eq!(
             filter_result,
             FilterResult::OverLimitFileNum {
-                num_files: 1,
-                budget_bytes: expected_estimated_budget // one input stream, one output stream
+                num_files: 4,
+                budget_bytes: expected_estimated_budget,
             }
         );
     }
 
     #[test]
-    fn file_num_limit_1_return_over_file_limit() {
-        let level_0 = vec![ParquetFileBuilder::level_0()
-            .id(1)
-            .min_time(200)
-            .max_time(300)
-            .build()];
+    fn file_num_0_over_file_limit_but_proceeds_but_no_more() {
+        let level_0 = vec![
+            ParquetFileBuilder::level_0()
+                .id(1)
+                .min_time(200)
+                .max_time(300)
+                .build(),
+            // second file that shouldn't get picked up for processing
+            ParquetFileBuilder::level_0().id(2).build(),
+        ];
+        let level_1 = vec![
+            // overlaps with L0 id 1
+            ParquetFileBuilder::level_1()
+                .id(102)
+                .min_time(250)
+                .max_time(350)
+                .build(),
+        ];
+        let (files_metric, bytes_metric) = metrics();
+
+        let bytes_stored_2_files_in_memory = 2 * (2 * level_0[0].file_size_bytes()) as u64;
+        let expected_estimated_budget = bytes_stored_2_files_in_memory + 3 * ESTIMATED_STREAM_BYTES; // two input streams, one output stream
+
+        let filter_result = filter_parquet_files_inner(
+            level_0,
+            level_1,
+            MEMORY_BUDGET,
+            0, // note max file count is zero
+            2, // ...but given it's the first file in the partition we use this limit
+            DEFAULT_MAX_OUTPUT_SIZE,
+            &files_metric,
+            &bytes_metric,
+        );
+
+        // L0 file and its overlapping files get picked despite > max file count because it's the
+        // first file
+        assert!(
+            matches!(
+                  &filter_result,
+              FilterResult::Proceed { files, budget_bytes }
+                  if files.len() == 2
+                      // L0 file + its overlapping L1 file but not the next L0 file even though we
+                      // have the memory for it
+                      && files.iter().map(|f| f.id().get()).collect::<Vec<_>>() == [102, 1]
+                      && *budget_bytes == expected_estimated_budget
+            ),
+            "Match failed, got: {filter_result:?}"
+        );
+    }
+
+    #[test]
+    fn file_num_limit_1_over_file_limit_but_proceeds_but_no_more() {
+        // in this test it's the L1 file that pushes us over max file count, but it still proceeds
+        // because it overlaps the first L0 file
+        let level_0 = vec![
+            ParquetFileBuilder::level_0()
+                .id(1)
+                .min_time(200)
+                .max_time(300)
+                .build(),
+            // second file that shouldn't get picked up for processing
+            ParquetFileBuilder::level_0().id(2).build(),
+        ];
         let level_1 = vec![
             // Completely contains the level 0 times
             ParquetFileBuilder::level_1()
@@ -699,6 +837,114 @@ mod tests {
             level_1,
             MEMORY_BUDGET,
             1,
+            2,
+            DEFAULT_MAX_OUTPUT_SIZE,
+            &files_metric,
+            &bytes_metric,
+        );
+
+        assert!(
+            matches!(
+                  &filter_result,
+              FilterResult::Proceed { files, budget_bytes }
+                  if files.len() == 2
+                      && files.iter().map(|f| f.id().get()).collect::<Vec<_>>() == [102, 1]
+                      && *budget_bytes == expected_estimated_budget
+            ),
+            "Match failed, got: {filter_result:?}"
+        );
+    }
+
+    #[test]
+    fn file_num_limit_second_l1_over_file_limit_but_proceeds_but_no_more() {
+        // in this test it's a second L1 file that pushes us over max file count, but it still
+        // proceeds because it overlaps the first L0 file
+        let level_0 = vec![
+            ParquetFileBuilder::level_0()
+                .id(1)
+                .min_time(200)
+                .max_time(300)
+                .build(),
+            // second file that shouldn't get picked up for processing
+            ParquetFileBuilder::level_0().id(2).build(),
+        ];
+        let level_1 = vec![
+            // both overlap the L0 file
+            ParquetFileBuilder::level_1()
+                .id(102)
+                .min_time(150)
+                .max_time(250)
+                .build(),
+            ParquetFileBuilder::level_1()
+                .id(103)
+                .min_time(250)
+                .max_time(350)
+                .build(),
+        ];
+        let (files_metric, bytes_metric) = metrics();
+
+        let bytes_stored_3_files_in_memory = 3 * (2 * level_0[0].file_size_bytes()) as u64;
+        let expected_estimated_budget = bytes_stored_3_files_in_memory + 4 * ESTIMATED_STREAM_BYTES; // three input streams, one output stream
+
+        let filter_result = filter_parquet_files_inner(
+            level_0,
+            level_1,
+            MEMORY_BUDGET,
+            2,
+            3,
+            DEFAULT_MAX_OUTPUT_SIZE,
+            &files_metric,
+            &bytes_metric,
+        );
+
+        assert!(
+            matches!(
+                  &filter_result,
+              FilterResult::Proceed { files, budget_bytes }
+                  if files.len() == 3
+                      && files.iter().map(|f| f.id().get()).collect::<Vec<_>>() == [102, 103, 1]
+                      && *budget_bytes == expected_estimated_budget
+            ),
+            "Match failed, got: {filter_result:?}"
+        );
+    }
+
+    #[test]
+    fn file_num_limit_first_over_file_limit_but_insufficient_budget() {
+        // in this test the first file and its overlaps push us over the file limit, which usually
+        // means they're included anyway but in this case we don't have the memory budget
+        let level_0 = vec![ParquetFileBuilder::level_0()
+            .id(1)
+            .min_time(200)
+            .max_time(300)
+            .build()];
+        let level_1 = vec![
+            // both overlap the L0 file
+            ParquetFileBuilder::level_1()
+                .id(102)
+                .min_time(150)
+                .max_time(250)
+                .build(),
+            ParquetFileBuilder::level_1()
+                .id(103)
+                .min_time(250)
+                .max_time(350)
+                .build(),
+        ];
+        let (files_metric, bytes_metric) = metrics();
+
+        let bytes_stored_3_files_in_memory = 3 * (2 * level_0[0].file_size_bytes()) as u64;
+        let expected_estimated_budget = bytes_stored_3_files_in_memory + 4 * ESTIMATED_STREAM_BYTES; // three input streams, one output stream
+
+        let filter_result = filter_parquet_files_inner(
+            level_0,
+            level_1,
+            // enough for 2 files and one output stream
+            (ESTIMATED_STREAM_BYTES * 3) + (FILE_SIZE_BYTES as u64 * 2 * 2) + 1,
+            // max file count not a factor here
+            1,
+            // it's under the limit
+            3,
             DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
@@ -706,9 +952,9 @@ mod tests {
 
         assert_eq!(
             filter_result,
-            FilterResult::OverLimitFileNum {
-                num_files: 2,
-                budget_bytes: expected_estimated_budget
+            FilterResult::OverBudget {
+                budget_bytes: expected_estimated_budget,
+                num_files: 3
             }
         );
     }
@@ -766,6 +1012,7 @@ mod tests {
             level_1.clone(),
             MEMORY_BUDGET,
             2,
+            4,
             DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
@@ -789,6 +1036,7 @@ mod tests {
             level_1,
             MEMORY_BUDGET,
             2,
+            4,
             // max output size is just over 1/3 of (10 + 10) which is size of first L0 (id=1) and second L1 (id=102)
             8,
             &files_metric,
@@ -859,6 +1107,7 @@ mod tests {
             level_1,
             MEMORY_BUDGET,
             10,
+            20,
             DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
@@ -932,6 +1181,7 @@ mod tests {
             level_1,
             MEMORY_BUDGET,
             3,
+            6,
             DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
@@ -987,6 +1237,7 @@ mod tests {
             level_1,
             MEMORY_BUDGET,
             FILE_NUM_LIMIT,
+            FILE_NUM_LIMIT * 2,
             DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
@@ -1093,6 +1344,7 @@ mod tests {
             // enough for 3 files and one output stream
             (ESTIMATED_STREAM_BYTES * 4) + (FILE_SIZE_BYTES as u64 * 3 * 2) + 1,
             FILE_NUM_LIMIT,
+            FILE_NUM_LIMIT * 2,
             DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
@@ -1126,7 +1378,7 @@ mod tests {
             }
         );
 
-        // Test 2: increase udget to fit all files
+        // Test 2: increase budget to fit all files
         let (files_metric, bytes_metric) = metrics();
 
         let bytes_stored_6_files_in_memory = 6 * (2 * level_0[0].file_size_bytes()) as u64;
@@ -1139,6 +1391,7 @@ mod tests {
             // level 1 files get returned. Enough for 6 files/input streams and one output stream.
             (ESTIMATED_STREAM_BYTES * 7) + (FILE_SIZE_BYTES as u64 * 6 * 2) + 1,
             FILE_NUM_LIMIT,
+            FILE_NUM_LIMIT * 2,
             DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
@@ -1261,6 +1514,7 @@ mod tests {
             // enough for 3 files and one output stream
             (ESTIMATED_STREAM_BYTES * 4) + (FILE_SIZE_BYTES as u64 * 3 * 2) + 1,
             FILE_NUM_LIMIT,
+            FILE_NUM_LIMIT * 2,
             DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
@@ -1306,6 +1560,7 @@ mod tests {
             // level 2 files get returned. Enough for 3 files and one output stream.
             (ESTIMATED_STREAM_BYTES * 7) + (FILE_SIZE_BYTES as u64 * 6 * 2) + 1,
             FILE_NUM_LIMIT,
+            FILE_NUM_LIMIT * 2,
             DEFAULT_MAX_OUTPUT_SIZE,
             &files_metric,
             &bytes_metric,
@@ -1364,6 +1619,7 @@ mod tests {
             // enough to not limit based on this criteria
             (ESTIMATED_STREAM_BYTES * 4) + (FILE_SIZE_BYTES as u64 * 3 * 2) + 1,
             FILE_NUM_LIMIT,
+            FILE_NUM_LIMIT * 2,
             // Limit to only 1 of the 2 files based on file size
             FILE_SIZE_BYTES as u64 + 1,
             &files_metric,
@@ -1408,6 +1664,7 @@ mod tests {
             // enough to not limit based on this criteria
             (ESTIMATED_STREAM_BYTES * 4) + (FILE_SIZE_BYTES as u64 * 3 * 2) + 1,
             FILE_NUM_LIMIT,
+            FILE_NUM_LIMIT * 2,
             // Limit such that the first file is already over the limit
             FILE_SIZE_BYTES as u64 - 1,
             &files_metric,
@@ -1458,6 +1715,7 @@ mod tests {
             // Don't limit based on this criteria
             u64::MAX,
             FILE_NUM_LIMIT,
+            FILE_NUM_LIMIT * 2,
             // Limit to only 2 of the 3 files based on file size
             2 * FILE_SIZE_BYTES as u64 + 1,
             &files_metric,

@@ -13,16 +13,15 @@ fn generate_pbdata_bytes() -> Vec<(String, (usize, Bytes))> {
         .into_iter()
         .map(|(bench, lp)| {
             let batches = lines_to_batches(&lp, 0).unwrap();
-            let ids = batches
-                .keys()
+            let data = batches
+                .into_iter()
                 .enumerate()
-                .map(|(i, name)| (name.clone(), TableId::new(i as _)))
+                .map(|(idx, (_table_name, batch))| (TableId::new(idx as _), batch))
                 .collect();
 
             let write = DmlWrite::new(
                 NamespaceId::new(42),
-                batches,
-                ids,
+                data,
                 "bananas".into(),
                 Default::default(),
             );

@@ -11,6 +11,7 @@ impl From<SkippedCompaction> for proto::SkippedCompaction {
             limit_bytes,
             num_files,
             limit_num_files,
+            limit_num_files_first_in_partition,
         } = skipped_compaction;
 
         Self {
@@ -21,6 +22,7 @@ impl From<SkippedCompaction> for proto::SkippedCompaction {
             limit_bytes,
             num_files,
             limit_num_files,
+            limit_num_files_first_in_partition: Some(limit_num_files_first_in_partition),
         }
     }
 }

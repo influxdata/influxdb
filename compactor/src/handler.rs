@@ -157,6 +157,12 @@ pub struct CompactorConfig {
     /// per partition.
     pub max_num_compacting_files: usize,
 
+    /// Max number of files to compact for a partition in which the first file and its
+    /// overlaps push the file count limit over `max_num_compacting_files`.
+    /// It's a special case of `max_num_compacting_files` that's higher just for the first
+    /// file in a partition
+    pub max_num_compacting_files_first_in_partition: usize,
+
     /// Minutes without any new data before a partition is considered cold
     pub minutes_without_new_writes_to_be_cold: u64,
 
@@ -312,7 +318,15 @@ mod tests {
             let mut repos = compactor.catalog.repositories().await;
             repos
                 .partitions()
-                .record_skipped_compaction(partition.partition.id, "Not today", 3, 2, 100_000, 100)
+                .record_skipped_compaction(
+                    partition.partition.id,
+                    "Not today",
+                    3,
+                    2,
+                    4,
+                    100_000,
+                    100,
+                )
                 .await
                 .unwrap()
         }
@@ -348,7 +362,15 @@ mod tests {
             let mut repos = compactor.catalog.repositories().await;
             repos
                 .partitions()
-                .record_skipped_compaction(partition.partition.id, "Not today", 3, 2, 100_000, 100)
+                .record_skipped_compaction(
+                    partition.partition.id,
+                    "Not today",
+                    3,
+                    2,
+                    4,
+                    100_000,
+                    100,
+                )
                 .await
                 .unwrap();
         }

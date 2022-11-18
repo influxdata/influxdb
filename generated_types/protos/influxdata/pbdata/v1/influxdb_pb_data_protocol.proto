@@ -24,7 +24,9 @@ message DatabaseBatch {
 }
 
 message TableBatch {
-    string table_name = 1;
+    // Was the table name for this data.
+    reserved "table_name";
+    reserved 1;
 
     // The catalog ID for this table.
     int64 table_id = 4;
@@ -58,7 +60,6 @@ message PackedStrings {
     string values = 1;
     repeated uint32 offsets = 2;
 }
-
 
 // A dictionary containing a list of string values combined with a values array of
 // indexes into this dictionary

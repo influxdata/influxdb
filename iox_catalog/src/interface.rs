@@ -453,12 +453,14 @@ pub trait PartitionRepo: Send + Sync {
 
     /// Record an instance of a partition being selected for compaction but compaction was not
     /// completed for the specified reason.
+    #[allow(clippy::too_many_arguments)]
     async fn record_skipped_compaction(
         &mut self,
         partition_id: PartitionId,
         reason: &str,
         num_files: usize,
         limit_num_files: usize,
+        limit_num_files_first_in_partition: usize,
         estimated_bytes: u64,
         limit_bytes: u64,
     ) -> Result<()>;
@@ -1602,7 +1604,7 @@ pub(crate) mod test_helpers {
         );
         repos
             .partitions()
-            .record_skipped_compaction(other_partition.id, "I am le tired", 1, 2, 10, 20)
+            .record_skipped_compaction(other_partition.id, "I am le tired", 1, 2, 4, 10, 20)
             .await
             .unwrap();
         let skipped_compactions = repos.partitions().list_skipped_compactions().await.unwrap();
@@ -1619,7 +1621,7 @@ pub(crate) mod test_helpers {
         // again, but race conditions and all that)
         repos
             .partitions()
-            .record_skipped_compaction(other_partition.id, "I'm on fire", 11, 12, 110, 120)
+            .record_skipped_compaction(other_partition.id, "I'm on fire", 11, 12, 24, 110, 120)
             .await
             .unwrap();
         let skipped_compactions = repos.partitions().list_skipped_compactions().await.unwrap();
@@ -3203,7 +3205,15 @@ pub(crate) mod test_helpers {
         // The compactor skipped compacting partition_2
         repos
             .partitions()
-            .record_skipped_compaction(partition_2.id, "Not feeling up to it today", 1, 2, 10, 20)
+            .record_skipped_compaction(
+                partition_2.id,
+                "Not feeling up to it today",
+                1,
+                2,
+                4,
+                10,
+                20,
+            )
             .await
             .unwrap();
 
@@ -3676,7 +3686,7 @@ pub(crate) mod test_helpers {
         // The compactor skipped compacting another_partition
         repos
             .partitions()
-            .record_skipped_compaction(another_partition.id, "Secret reasons", 1, 2, 10, 20)
+            .record_skipped_compaction(another_partition.id, "Secret reasons", 1, 2, 4, 10, 20)
             .await
             .unwrap();
 

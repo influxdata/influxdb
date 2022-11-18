@@ -30,7 +30,7 @@ fn test_encode_decode() {
 
     assert_batches_eq!(expected, &[batch.to_arrow(Projection::All).unwrap()]);
 
-    let encoded = encode_batch("foo", 42, &batch);
+    let encoded = encode_batch(42, &batch);
     assert_eq!(encoded.table_id, 42);
 
     let mut batch = MutableBatch::new();
@@ -140,7 +140,7 @@ fn test_encode_decode_null_columns_issue_4272() {
         .write_to_batch(&mut got)
         .expect("should write");
 
-    let encoded = encode_batch("bananas", 24, &got);
+    let encoded = encode_batch(24, &got);
     assert_eq!(encoded.table_id, 24);
 
     let mut batch = MutableBatch::new();
@@ -164,7 +164,7 @@ fn test_encode_decode_null_columns_issue_4272() {
         .write_to_batch(&mut got)
         .expect("should write");
 
-    let encoded = encode_batch("bananas", 42, &got);
+    let encoded = encode_batch(42, &got);
     assert_eq!(encoded.table_id, 42);
 
     let mut batch = MutableBatch::new();
