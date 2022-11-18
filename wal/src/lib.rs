@@ -205,22 +205,22 @@ pub struct Wal {
 }
 
 impl Wal {
-    pub async fn new(root: impl AsRef<Path>) -> Result<Self> {
-        let root = root.as_ref();
-        tokio::fs::create_dir_all(root)
+    pub async fn new(root: impl Into<PathBuf>) -> Result<Self> {
+        let root = root.into();
+        tokio::fs::create_dir_all(&root)
             .await
-            .context(UnableToCreateWalDirSnafu { path: root })?;
+            .context(UnableToCreateWalDirSnafu { path: &root })?;
 
-        let mut dir = tokio::fs::read_dir(root)
+        let mut dir = tokio::fs::read_dir(&root)
             .await
-            .context(UnableToReadDirectoryContentsSnafu { path: root })?;
+            .context(UnableToReadDirectoryContentsSnafu { path: &root })?;
 
         let mut closed_segments = Vec::new();
 
         while let Some(child) = dir
             .next_entry()
             .await
-            .context(UnableToReadDirectoryContentsSnafu { path: root })?
+            .context(UnableToReadDirectoryContentsSnafu { path: &root })?
         {
             let metadata = child
                 .metadata()
@@ -236,10 +236,10 @@ impl Wal {
             }
         }
 
-        let open_segment = Arc::new(SegmentFile::new_writer(root).await?);
+        let open_segment = Arc::new(SegmentFile::new_writer(&root).await?);
 
         Ok(Self {
-            root: root.to_owned(),
+            root,
             closed_segments,
             open_segment,
         })

@@ -4,7 +4,7 @@ use wal::SegmentWal;
 async fn crud() {
     let dir = test_helpers::tmp_dir().unwrap();
 
-    let wal = wal::Wal::new(&dir).await.unwrap();
+    let wal = wal::Wal::new(dir.path()).await.unwrap();
 
     // Just-created WALs have no closed segments.
     assert!(
