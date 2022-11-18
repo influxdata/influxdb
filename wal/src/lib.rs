@@ -385,12 +385,13 @@ impl SegmentFile {
             .open(&path)
             .await
             .context(SegmentCreateSnafu)?;
-        let bytes_written = f
-            .write(FILE_TYPE_IDENTIFIER)
+        f.write_all(FILE_TYPE_IDENTIFIER)
             .await
             .context(SegmentWriteSnafu)?;
+        let bytes_written = FILE_TYPE_IDENTIFIER.len();
         let id_bytes = id.as_bytes();
-        let id_bytes_written = f.write(id_bytes).await.context(SegmentWriteSnafu)?;
+        f.write_all(id_bytes).await.context(SegmentWriteSnafu)?;
+        let id_bytes_written = id_bytes.len();
 
         f.sync_all().await.context(SegmentWriteSnafu)?;
 
