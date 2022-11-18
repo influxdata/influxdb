@@ -715,21 +715,19 @@ mod tests {
 
     fn test_data(lp: &str) -> DatabaseBatch {
         let batches = lines_to_batches(lp, 0).unwrap();
-        let ids = batches
-            .keys()
+        let batches = batches
+            .into_iter()
             .enumerate()
-            .map(|(i, name)| (name.clone(), TableId::new(i as _)))
+            .map(|(i, (_table_name, batch))| (TableId::new(i as _), batch))
             .collect();
 
         let write = DmlWrite::new(
-            "test_db",
             NamespaceId::new(42),
             batches,
-            ids,
             "bananas".into(),
             Default::default(),
         );
 
-        mutable_batch_pb::encode::encode_write("db", 42, &write)
+        mutable_batch_pb::encode::encode_write(42, &write)
     }
 }
