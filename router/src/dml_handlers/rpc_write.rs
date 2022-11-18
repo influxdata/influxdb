@@ -90,21 +90,16 @@ where
         // Extract the partition key & DML writes.
         let (partition_key, writes) = writes.into_parts();
 
-        // Extract the TableName -> Data map and TableName -> TableId map.
-        let (data, ids) = writes
+        // Drop the table names from the value tuple.
+        let writes = writes
             .into_iter()
-            .map(|(id, (name, data))| {
-                let name_data = (name.clone(), data);
-                let name_id = (name, id);
-                (name_data, name_id)
-            })
-            .unzip();
+            .map(|(id, (_name, data))| (id, data))
+            .collect();
 
         // Build the DmlWrite
         let op = DmlWrite::new(
             namespace_id,
-            data,
-            ids,
+            writes,
             partition_key.clone(),
             DmlMeta::unsequenced(span_ctx.clone()),
         );
@@ -161,7 +156,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{collections::HashSet, sync::Arc};
 
     use assert_matches::assert_matches;
     use data_types::PartitionKey;
@@ -228,13 +223,13 @@ mod tests {
         let got_tables = payload
             .table_batches
             .into_iter()
-            .map(|t| (t.table_id, t.table_name))
-            .collect::<HashMap<_, _>>();
+            .map(|t| t.table_id)
+            .collect::<HashSet<_>>();
 
         let want_tables = batches
             .into_iter()
-            .map(|(id, (name, _data))| (id.get(), name))
-            .collect::<HashMap<_, _>>();
+            .map(|(id, (_name, _data))| id.get())
+            .collect::<HashSet<_>>();
 
         assert_eq!(got_tables, want_tables);
     }
@@ -283,13 +278,13 @@ mod tests {
         let got_tables = payload
             .table_batches
             .into_iter()
-            .map(|t| (t.table_id, t.table_name))
-            .collect::<HashMap<_, _>>();
+            .map(|t| t.table_id)
+            .collect::<HashSet<_>>();
 
         let want_tables = batches
             .into_iter()
-            .map(|(id, (name, _data))| (id.get(), name))
-            .collect::<HashMap<_, _>>();
+            .map(|(id, (_name, _data))| id.get())
+            .collect::<HashSet<_>>();
 
         assert_eq!(got_tables, want_tables);
     }
