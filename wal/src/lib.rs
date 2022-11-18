@@ -18,7 +18,14 @@ use crc32fast::Hasher;
 use generated_types::influxdata::{iox::delete::v1::DeletePayload, pbdata::v1::DatabaseBatch};
 use serde::{Deserialize, Serialize};
 use snafu::prelude::*;
-use std::{convert::TryFrom, io, mem, num, path::PathBuf, sync::Arc, time::SystemTime};
+use std::{
+    convert::TryFrom,
+    io::{self, Write},
+    mem, num,
+    path::PathBuf,
+    sync::Arc,
+    time::SystemTime,
+};
 use tokio::{
     io::AsyncWriteExt,
     sync::{mpsc, oneshot, RwLock},
@@ -71,7 +78,7 @@ pub enum Error {
     },
 
     UnableToCompressData {
-        source: snap::Error,
+        source: io::Error,
     },
 
     UnableToSync {
@@ -384,10 +391,12 @@ impl SegmentFile {
             actual: uncompressed_len,
         })?;
 
-        let mut encoder = snap::raw::Encoder::new();
-        let compressed_data = encoder
-            .compress_vec(data)
-            .context(UnableToCompressDataSnafu)?;
+        // TODO: Can this code avoid keeping all intermediate data in memory?
+        // TODO: This code is blocking and should be run on a separate thread
+        // TODO: The snappy frame format has a built-in CRC32; should we just use that?
+        let mut encoder = snap::write::FrameEncoder::new(Vec::new());
+        encoder.write_all(data).context(UnableToCompressDataSnafu)?;
+        let compressed_data = encoder.into_inner().expect("cannot fail to flush to a Vec");
         let actual_compressed_len = compressed_data.len();
         let actual_compressed_len =
             u32::try_from(actual_compressed_len).context(ChunkSizeTooLargeSnafu {
@@ -569,6 +578,7 @@ mod blocking {
     use byteorder::{BigEndian, ReadBytesExt};
     use crc32fast::Hasher;
     use snafu::prelude::*;
+    use snap::read::FrameDecoder;
     use std::{
         fs::File,
         io::{self, BufReader, Read},
@@ -607,7 +617,7 @@ mod blocking {
         }
 
         fn one_entry(&mut self) -> Result<Option<SegmentEntry>> {
-            let checksum = match self.0.read_u32::<BigEndian>() {
+            let expected_checksum = match self.0.read_u32::<BigEndian>() {
                 Err(ref e) if e.kind() == io::ErrorKind::UnexpectedEof => return Ok(None),
                 other => other.context(UnableToReadChecksumSnafu)?,
             };
@@ -615,42 +625,40 @@ mod blocking {
             let expected_len = self
                 .0
                 .read_u32::<BigEndian>()
-                .context(UnableToReadLengthSnafu)?;
-            let expected_len_us = usize::try_from(expected_len)
-                .expect("Only designed to run on 32-bit systems or higher");
-            let mut compressed_data = Vec::with_capacity(expected_len_us);
-            // TODO: Is there a way to avoid reading everything into memory at once? Ditto for writing
-            let actual_compressed_len = (&mut self.0)
-                .take(u64::from(expected_len))
-                .read_to_end(&mut compressed_data)
+                .context(UnableToReadLengthSnafu)?
+                .into();
+
+            let compressed_read = self.0.by_ref().take(expected_len);
+            let hashing_read = CrcReader::new(compressed_read);
+            let mut decompressing_read = FrameDecoder::new(hashing_read);
+
+            let mut data = Vec::with_capacity(100);
+            decompressing_read
+                .read_to_end(&mut data)
                 .context(UnableToReadDataSnafu)?;
 
+            let (actual_compressed_len, actual_checksum) = decompressing_read.get_mut().checksum();
+
             ensure!(
-                expected_len_us == actual_compressed_len,
+                expected_len == actual_compressed_len,
                 LengthMismatchSnafu {
-                    expected: expected_len_us,
+                    expected: expected_len,
                     actual: actual_compressed_len
                 }
             );
 
-            let mut hasher = Hasher::new();
-            hasher.update(&compressed_data);
-            let actual_checksum = hasher.finalize();
-
             ensure!(
-                checksum == actual_checksum,
+                expected_checksum == actual_checksum,
                 ChecksumMismatchSnafu {
-                    expected: checksum,
+                    expected: expected_checksum,
                     actual: actual_checksum
                 }
             );
 
-            let mut decoder = snap::raw::Decoder::new();
-            let data = decoder
-                .decompress_vec(&compressed_data)
-                .context(UnableToDecompressDataSnafu)?;
-
-            Ok(Some(SegmentEntry { checksum, data }))
+            Ok(Some(SegmentEntry {
+                checksum: expected_checksum,
+                data,
+            }))
         }
 
         pub fn entries(&mut self) -> Result<Vec<SegmentEntry>> {
@@ -680,6 +688,47 @@ mod blocking {
         }
     }
 
+    struct CrcReader<R> {
+        inner: R,
+        hasher: Hasher,
+        bytes_seen: u64,
+    }
+
+    impl<R> CrcReader<R> {
+        fn new(inner: R) -> Self {
+            let hasher = Hasher::default();
+            Self {
+                inner,
+                hasher,
+                bytes_seen: 0,
+            }
+        }
+
+        fn checksum(&mut self) -> (u64, u32) {
+            // FIXME: If rust-snappy added an `into_inner`, we should
+            // take `self` by value
+            (
+                std::mem::take(&mut self.bytes_seen),
+                std::mem::take(&mut self.hasher).finalize(),
+            )
+        }
+    }
+
+    impl<R> Read for CrcReader<R>
+    where
+        R: Read,
+    {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            let len = self.inner.read(buf)?;
+            let len_u64 =
+                u64::try_from(len).expect("Only designed to run on 32-bit systems or higher");
+
+            self.bytes_seen += len_u64;
+            self.hasher.update(&buf[..len]);
+            Ok(len)
+        }
+    }
+
     #[derive(Debug, Snafu)]
     pub enum Error {
         UnableToOpenFile { source: io::Error, path: PathBuf },
@@ -692,7 +741,7 @@ mod blocking {
 
         UnableToReadData { source: io::Error },
 
-        LengthMismatch { expected: usize, actual: usize },
+        LengthMismatch { expected: u64, actual: u64 },
 
         ChecksumMismatch { expected: u32, actual: u32 },
 
