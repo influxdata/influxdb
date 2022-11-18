@@ -22,7 +22,9 @@ use write_summary::WriteSummary;
 
 use self::delete_predicate::parse_http_delete_request;
 use crate::{
-    dml_handlers::{DmlError, DmlHandler, PartitionError, RetentionError, SchemaError},
+    dml_handlers::{
+        DmlError, DmlHandler, PartitionError, RetentionError, RpcWriteError, SchemaError,
+    },
     namespace_resolver::NamespaceResolver,
 };
 
@@ -144,6 +146,9 @@ impl From<&DmlError> for StatusCode {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
             DmlError::Retention(RetentionError::OutsideRetention(_)) => StatusCode::FORBIDDEN,
+            DmlError::RpcWrite(RpcWriteError::Upstream(_)) => StatusCode::INTERNAL_SERVER_ERROR,
+            DmlError::RpcWrite(RpcWriteError::DeletesUnsupported) => StatusCode::NOT_IMPLEMENTED,
+            DmlError::RpcWrite(RpcWriteError::Timeout(_)) => StatusCode::GATEWAY_TIMEOUT,
         }
     }
 }
