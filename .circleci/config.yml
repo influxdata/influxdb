@@ -85,6 +85,16 @@ commands:
             - /usr/local/cargo/registry
           key: cargo-cache-{{ arch }}-{{ .Branch }}-{{ checksum "Cargo.lock" }}
 
+  login_to_gcloud:
+    steps:
+      - run:
+          name: Login to gcloud
+          command: |
+            echo "${GCLOUD_SERVICE_ACCOUNT_KEY}" >/tmp/gcloud.json
+            gcloud auth activate-service-account "${GCLOUD_SERVICE_ACCOUNT_EMAIL}" --key-file /tmp/gcloud.json --quiet
+            rm -f /tmp/gcloud.json
+            gcloud auth configure-docker us-docker.pkg.dev
+
 jobs:
   fmt:
     docker:
@@ -417,7 +427,7 @@ jobs:
 
   deploy_release:
     docker:
-      - image: cimg/base:2021.04
+      - image: cimg/gcp:2022.11.1
     steps:
       - setup_remote_docker:
           version: 19.03.13
@@ -425,10 +435,46 @@ jobs:
       - checkout
       - attach_workspace:
           at: /tmp/images
+      - login_to_gcloud
       - run:
           name: quay login
           command: |
             echo "$QUAY_INFLUXDB_IOX_PASS" | docker login quay.io --username $QUAY_INFLUXDB_IOX_USER --password-stdin
+      - run:
+          name: install skopeo
+          command: |
+            #!/bin/bash
+
+              set -eu -o pipefail
+
+              readonly attempts=5
+
+              install() {
+                # install skopeo via kubic on Ubuntu 20.04
+                if [ "$(sh -c '. /etc/os-release && echo $VERSION_ID')" = "20.04" ] ; then
+                  sudo sh -c '. /etc/os-release && echo "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/ /" >/etc/apt/sources.list.d/kubic-stable.list'
+                  sudo sh -c '. /etc/os-release && curl -L "https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/Release.key" | apt-key add -'
+                fi
+                sudo apt-get update
+                sudo apt-get -y install skopeo
+              }
+
+              # retry installing skopeo up to 5 times to avoid temporary networking issues
+              for attempt in $(seq 1 "${attempts}") ; do
+                # run installation, if successful, exit and return 0
+                if install ; then
+                  exit 0
+                else
+                  if [ "${attempt}" -ne ${attempts} ] ; then
+                    # if installing failed, wait for a bit and retry
+                    sleep $(( attempt * 5 ))
+                  else
+                    # if this was the last attempt, exit with an error
+                    echo >&2 "Failed to install skopeo"
+                    exit 1
+                  fi
+                fi
+              done
       - run:
           name: Upload images
           command: |
@@ -445,6 +491,12 @@ jobs:
             docker push quay.io/influxdb/iox_data_generator:"$COMMIT_SHA"
             docker push quay.io/influxdb/iox:"$BRANCH"
             docker push quay.io/influxdb/iox_data_generator:"$BRANCH"
+
+            # copy image to Google as well
+            skopeo copy docker://quay.io/influxdb/iox:${COMMIT_SHA} docker://us-docker.pkg.dev/influxdb2-artifacts/iox/iox:${COMMIT_SHA} --quiet
+            skopeo copy docker://quay.io/influxdb/iox:${BRANCH} docker://us-docker.pkg.dev/influxdb2-artifacts/iox/iox:${BRANCH} --quiet
+            skopeo copy docker://quay.io/influxdb/iox_data_generator:${COMMIT_SHA} docker://us-docker.pkg.dev/influxdb2-artifacts/iox/iox_data_generator:${COMMIT_SHA} --quiet
+            skopeo copy docker://quay.io/influxdb/iox_data_generator:${BRANCH} docker://us-docker.pkg.dev/influxdb2-artifacts/iox/iox_data_generator:${BRANCH} --quiet
 
             # for next step
             echo "export COMMIT_SHA=${COMMIT_SHA}" >> $BASH_ENV
