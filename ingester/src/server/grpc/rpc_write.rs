@@ -149,20 +149,20 @@ where
         );
 
         // Apply the DML op to the in-memory buffer.
-        let res = self
-            .sink
-            .apply(DmlOperation::Write(op))
-            .await
-            .map_err(RpcError::Apply)?;
-
-        // Assert that the write was not skipped due to having a non-monotonic
-        // sequence number. In this gRPC write model, there are no sequence
-        // numbers!
-        match res {
-            DmlApplyAction::Applied(_) => {
+        match self.sink.apply(DmlOperation::Write(op)).await {
+            Ok(DmlApplyAction::Applied(_)) => {
                 // Discard the lifecycle manager's "should_pause" hint.
             }
-            DmlApplyAction::Skipped => unreachable!(),
+            Ok(DmlApplyAction::Skipped) => {
+                // Assert that the write was not skipped due to having a non-monotonic
+                // sequence number. In this gRPC write model, there are no sequence
+                // numbers!
+                unreachable!()
+            }
+            Err(e) => {
+                error!(error=%e, "failed to apply DML op");
+                return Err(RpcError::Apply(e))?;
+            }
         }
 
         Ok(Response::new(proto::WriteResponse {}))
