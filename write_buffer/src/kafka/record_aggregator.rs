@@ -223,18 +223,13 @@ mod tests {
         writer.commit();
 
         let mut m = HashMap::default();
-        m.insert("table".to_string(), batch);
+        m.insert(TableId::new(24), batch);
 
         let span = SpanContext::new(Arc::new(LogTraceCollector::new()));
-
-        let ids = [("table".to_string(), TableId::new(24))]
-            .into_iter()
-            .collect();
 
         DmlOperation::Write(DmlWrite::new(
             NamespaceId::new(42),
             m,
-            ids,
             "1970-01-01".into(),
             DmlMeta::unsequenced(Some(span)),
         ))

@@ -175,12 +175,11 @@ impl MockBufferSharedState {
 
     /// Push line protocol data with placeholder values used for write metadata
     pub fn push_lp(&self, sequence: Sequence, lp: &str) {
-        let (tables, names) = lp_to_batches(lp);
+        let tables = lp_to_batches(lp);
         let meta = DmlMeta::sequenced(sequence, iox_time::Time::from_timestamp_nanos(0), None, 0);
         self.push_write(DmlWrite::new(
             NamespaceId::new(42),
             tables,
-            names,
             "test-partition".into(),
             meta,
         ))
@@ -902,11 +901,10 @@ mod tests {
     async fn test_always_error_write() {
         let writer = MockBufferForWritingThatAlwaysErrors {};
 
-        let (tables, names) = lp_to_batches("upc user=1 100");
+        let tables = lp_to_batches("upc user=1 100");
         let operation = DmlOperation::Write(DmlWrite::new(
             NamespaceId::new(42),
             tables,
-            names,
             "bananas".into(),
             Default::default(),
         ));

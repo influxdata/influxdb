@@ -1,21 +1,19 @@
 //! A handler of streamed ops from a write buffer.
 
-use std::{fmt::Debug, time::Duration};
-
+use super::DmlSink;
+use crate::{
+    data::DmlApplyAction,
+    lifecycle::{LifecycleHandle, LifecycleHandleImpl},
+};
 use data_types::{SequenceNumber, ShardId, ShardIndex};
 use dml::DmlOperation;
 use futures::{pin_mut, FutureExt, StreamExt};
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{Attributes, DurationCounter, DurationGauge, U64Counter};
 use observability_deps::tracing::*;
+use std::{fmt::Debug, time::Duration};
 use tokio_util::sync::CancellationToken;
 use write_buffer::core::{WriteBufferErrorKind, WriteBufferStreamHandler};
-
-use super::DmlSink;
-use crate::{
-    data::DmlApplyAction,
-    lifecycle::{LifecycleHandle, LifecycleHandleImpl},
-};
 
 /// When the [`LifecycleManager`] indicates that ingest should be paused because
 /// of memory pressure, the shard will loop, sleeping this long between
@@ -510,8 +508,11 @@ fn metric_attrs(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
+    use super::*;
+    use crate::{
+        lifecycle::{LifecycleConfig, LifecycleManager},
+        stream_handler::mock_sink::MockDmlSink,
+    };
     use assert_matches::assert_matches;
     use async_trait::async_trait;
     use data_types::{DeletePredicate, NamespaceId, Sequence, TableId, TimestampRange};
@@ -521,16 +522,11 @@ mod tests {
     use metric::Metric;
     use mutable_batch_lp::lines_to_batches;
     use once_cell::sync::Lazy;
+    use std::sync::Arc;
     use test_helpers::timeout::FutureTimeout;
     use tokio::sync::{mpsc, oneshot};
     use tokio_stream::wrappers::ReceiverStream;
     use write_buffer::core::WriteBufferError;
-
-    use super::*;
-    use crate::{
-        lifecycle::{LifecycleConfig, LifecycleManager},
-        stream_handler::mock_sink::MockDmlSink,
-    };
 
     static TEST_TIME: Lazy<Time> = Lazy::new(|| SystemProvider::default().now());
     static TEST_SHARD_INDEX: ShardIndex = ShardIndex::new(42);
@@ -539,10 +535,10 @@ mod tests {
     // Return a DmlWrite with the given namespace ID and a single table.
     fn make_write(namespace_id: i64, write_time: u64) -> DmlWrite {
         let tables = lines_to_batches("bananas level=42 4242", 0).unwrap();
-        let ids = tables
-            .keys()
+        let tables_by_ids = tables
+            .into_iter()
             .enumerate()
-            .map(|(i, v)| (v.clone(), TableId::new(i as _)))
+            .map(|(i, (_k, v))| (TableId::new(i as _), v))
             .collect();
         let sequence = DmlMeta::sequenced(
             Sequence::new(ShardIndex::new(1), SequenceNumber::new(2)),
@@ -554,8 +550,7 @@ mod tests {
         );
         DmlWrite::new(
             NamespaceId::new(namespace_id),
-            tables,
-            ids,
+            tables_by_ids,
             "1970-01-01".into(),
             sequence,
         )

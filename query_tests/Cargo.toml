@@ -17,6 +17,7 @@ datafusion_util = { path = "../datafusion_util" }
 dml = { path = "../dml" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }
+hashbrown = { workspace = true }
 influxdb_iox_client = { path = "../influxdb_iox_client" }
 ingester = { path = "../ingester" }
 iox_catalog = { path = "../iox_catalog" }

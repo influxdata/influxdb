@@ -834,11 +834,10 @@ mod tests {
         partition_key: impl Into<PartitionKey> + Send,
     ) -> DmlMeta {
         let span_ctx = SpanContext::new(Arc::clone(trace_collector) as Arc<_>);
-        let (tables, names) = lp_to_batches("table foo=1");
+        let tables = lp_to_batches("table foo=1");
         let write = DmlWrite::new(
             NamespaceId::new(42),
             tables,
-            names,
             partition_key.into(),
             DmlMeta::unsequenced(Some(span_ctx)),
         );

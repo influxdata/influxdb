@@ -184,7 +184,7 @@ impl NamespaceData {
                 // Extract the partition key derived by the router.
                 let partition_key = write.partition_key().clone();
 
-                for (_table_name, table_id, b) in write.into_tables() {
+                for (table_id, b) in write.into_tables() {
                     // Grab a reference to the table data, or insert a new
                     // TableData for it.
                     let table_data = self.tables.get_or_insert_with(&table_id, || {

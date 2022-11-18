@@ -162,7 +162,7 @@ pub fn decode(
 
             match payload {
                 Payload::Write(write) => {
-                    let (tables, ids) = decode_database_batch(&write).map_err(|e| {
+                    let tables = decode_database_batch(&write).map_err(|e| {
                         WriteBufferError::invalid_data(format!(
                             "failed to decode database batch: {}",
                             e
@@ -179,8 +179,10 @@ pub fn decode(
 
                     Ok(DmlOperation::Write(DmlWrite::new(
                         NamespaceId::new(write.database_id),
-                        tables,
-                        ids.into_iter().map(|(k, v)| (k, TableId::new(v))).collect(),
+                        tables
+                            .into_iter()
+                            .map(|(k, v)| (TableId::new(k), v))
+                            .collect(),
                         partition_key,
                         meta,
                     )))
@@ -304,12 +306,11 @@ mod tests {
 
     #[test]
     fn test_dml_write_round_trip() {
-        let (data, ids) = lp_to_batches("platanos great=42 100\nbananas greatness=1000 100");
+        let data = lp_to_batches("platanos great=42 100\nbananas greatness=1000 100");
 
         let w = DmlWrite::new(
             NamespaceId::new(42),
             data,
-            ids,
             PartitionKey::from("2022-01-01"),
             DmlMeta::default(),
         );
@@ -338,27 +339,13 @@ mod tests {
         assert_eq!(w.table_count(), got.table_count());
         assert_eq!(w.min_timestamp(), got.min_timestamp());
         assert_eq!(w.max_timestamp(), got.max_timestamp());
-        assert!(got.table("bananas").is_some());
 
-        // Validate the writes & table names all appear in the DML writes.
-        let mut a = w.tables().map(|(name, _)| name).collect::<Vec<_>>();
+        // Validate the table IDs all appear in the DML writes.
+        let mut a = w.tables().map(|(id, _)| id).collect::<Vec<_>>();
         a.sort_unstable();
 
-        let mut b = got.tables().map(|(name, _)| name).collect::<Vec<_>>();
+        let mut b = got.tables().map(|(id, _)| id).collect::<Vec<_>>();
         b.sort_unstable();
-        assert_eq!(a, b);
-
-        // Validate both DML writes contain the same mappings of name -> table
-        // ID.
-        let a = a
-            .into_iter()
-            .map(|name| w.table_id(name).expect("table ID map entry missing"))
-            .collect::<Vec<_>>();
-
-        let b = b
-            .into_iter()
-            .map(|name| got.table_id(name).expect("table ID map entry missing"))
-            .collect::<Vec<_>>();
         assert_eq!(a, b);
     }
 }

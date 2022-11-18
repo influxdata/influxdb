@@ -1,14 +1,13 @@
 //! Code to decode [`MutableBatch`] from pbdata protobuf
 
-use hashbrown::{HashMap, HashSet};
-use snafu::{ensure, OptionExt, ResultExt, Snafu};
-
 use generated_types::influxdata::pbdata::v1::{
     column::{SemanticType, Values as PbValues},
     Column as PbColumn, DatabaseBatch, PackedStrings, TableBatch,
 };
+use hashbrown::{HashMap, HashSet};
 use mutable_batch::{writer::Writer, MutableBatch};
 use schema::{InfluxColumnType, InfluxFieldType, TIME_COLUMN_NAME};
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 /// Error type for line protocol conversion
 #[derive(Debug, Snafu)]
@@ -57,24 +56,17 @@ pub enum Error {
 /// Result type for pbdata conversion
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Decodes a [`DatabaseBatch`] to a map of [`MutableBatch`] keyed by table name
-pub fn decode_database_batch(
-    database_batch: &DatabaseBatch,
-) -> Result<(HashMap<String, MutableBatch>, HashMap<String, i64>)> {
-    let mut name_to_data = HashMap::with_capacity(database_batch.table_batches.len());
-    let mut id_to_name = HashMap::with_capacity(database_batch.table_batches.len());
+/// Decodes a [`DatabaseBatch`] to a map of [`MutableBatch`] keyed by table ID
+pub fn decode_database_batch(database_batch: &DatabaseBatch) -> Result<HashMap<i64, MutableBatch>> {
+    let mut id_to_data = HashMap::with_capacity(database_batch.table_batches.len());
 
     for table_batch in &database_batch.table_batches {
-        let (_, batch) = name_to_data
-            .raw_entry_mut()
-            .from_key(table_batch.table_name.as_str())
-            .or_insert_with(|| (table_batch.table_name.clone(), MutableBatch::new()));
-
-        id_to_name.insert(table_batch.table_name.clone(), table_batch.table_id);
+        let batch = id_to_data.entry(table_batch.table_id).or_default();
 
         write_table_batch(batch, table_batch)?;
     }
-    Ok((name_to_data, id_to_name))
+
+    Ok(id_to_data)
 }
 
 /// Writes the provided [`TableBatch`] to a [`MutableBatch`] on error any changes made
@@ -591,7 +583,6 @@ mod tests {
     #[test]
     fn test_basic() {
         let mut table_batch = TableBatch {
-            table_name: "table".to_string(),
             columns: vec![
                 with_strings(
                     column("tag1", SemanticType::Tag),
@@ -710,7 +701,6 @@ mod tests {
     #[test]
     fn test_strings() {
         let table_batch = TableBatch {
-            table_name: "table".to_string(),
             columns: vec![
                 with_packed_strings(
                     column("tag1", SemanticType::Tag),
@@ -789,7 +779,6 @@ mod tests {
         // Try to write 6 rows expecting an error
         let mut try_write = |other: PbColumn, expected_err: &str| {
             let table_batch = TableBatch {
-                table_name: "table".to_string(),
                 columns: vec![
                     with_i64(
                         column("time", SemanticType::Time),
@@ -893,7 +882,6 @@ mod tests {
     fn test_optimization_trim_null_masks() {
         // See https://github.com/influxdata/influxdb-pb-data-protocol#optimization-1-trim-null-masks
         let table_batch = TableBatch {
-            table_name: "table".to_string(),
             columns: vec![
                 with_i64(
                     column("i64", SemanticType::Field),
@@ -938,7 +926,6 @@ mod tests {
     fn test_optimization_omit_null_masks() {
         // See https://github.com/influxdata/influxdb-pb-data-protocol#optimization-1b-omit-empty-null-masks
         let table_batch = TableBatch {
-            table_name: "table".to_string(),
             columns: vec![with_i64(
                 column("time", SemanticType::Time),
                 vec![1, 2, 3, 4, 5, 6, 7, 8, 9],
@@ -975,7 +962,6 @@ mod tests {
     fn test_optimization_trim_repeated_tail_values() {
         // See https://github.com/influxdata/influxdb-pb-data-protocol#optimization-2-trim-repeated-tail-values
         let table_batch = TableBatch {
-            table_name: "table".to_string(),
             columns: vec![
                 with_strings(
                     column("f_s", SemanticType::Field),
@@ -1075,7 +1061,6 @@ mod tests {
 
         // we need at least one value though
         let table_batch = TableBatch {
-            table_name: "table".to_string(),
             columns: vec![with_i64(column("time", SemanticType::Time), vec![], vec![])],
             row_count: 9,
             table_id: 42,

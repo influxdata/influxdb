@@ -760,10 +760,16 @@ mod tests {
                     namespace.id,
                     &table1,
                 );
-                validate_or_insert_schema(table1_write.tables(), &schema, repos.deref_mut())
-                    .await
-                    .unwrap()
-                    .unwrap();
+                validate_or_insert_schema(
+                    table1_write
+                        .tables()
+                        .map(|(_id, batch)| (table1.name.as_str(), batch)),
+                    &schema,
+                    repos.deref_mut(),
+                )
+                .await
+                .unwrap()
+                .unwrap();
 
                 let table2_write = Self::arbitrary_write_with_seq_num_at_time(
                     1,
@@ -773,10 +779,16 @@ mod tests {
                     namespace.id,
                     &table2,
                 );
-                validate_or_insert_schema(table2_write.tables(), &schema, repos.deref_mut())
-                    .await
-                    .unwrap()
-                    .unwrap();
+                validate_or_insert_schema(
+                    table2_write
+                        .tables()
+                        .map(|(_id, batch)| (table2.name.as_str(), batch)),
+                    &schema,
+                    repos.deref_mut(),
+                )
+                .await
+                .unwrap()
+                .unwrap();
 
                 (namespace, table1, table2, shard1, shard2)
             };
