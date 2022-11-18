@@ -136,6 +136,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                     level_n_plus_1,
                     remaining_budget_bytes,
                     compactor.config.max_num_compacting_files,
+                    compactor.config.max_num_compacting_files_first_in_partition,
                     compactor.config.max_desired_file_size_bytes,
                     &compactor.parquet_file_candidate_gauge,
                     &compactor.parquet_file_candidate_bytes,
@@ -169,6 +170,8 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                         num_files,
                         budget_bytes,
                         file_num_limit = compactor.config.max_num_compacting_files,
+                        file_num_limit_first_file =
+                            compactor.config.max_num_compacting_files_first_in_partition,
                         memory_budget_bytes = compactor.config.memory_budget_bytes,
                         "skipped; over limit of number of files"
                     );
@@ -178,6 +181,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                         "over limit of num_files",
                         num_files,
                         compactor.config.max_num_compacting_files,
+                        compactor.config.max_num_compacting_files_first_in_partition,
                         budget_bytes,
                         compactor.config.memory_budget_bytes,
                     )
@@ -202,6 +206,8 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                             memory_budget_bytes = compactor.config.memory_budget_bytes,
                             ?num_files,
                             limit_num_files = compactor.config.max_num_compacting_files,
+                            limit_num_files_first_in_partition =
+                                compactor.config.max_num_compacting_files_first_in_partition,
                             "skipped; over memory budget"
                         );
                         record_skipped_compaction(
@@ -210,6 +216,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                             "over memory budget",
                             num_files,
                             compactor.config.max_num_compacting_files,
+                            compactor.config.max_num_compacting_files_first_in_partition,
                             needed_bytes,
                             compactor.config.memory_budget_bytes,
                         )
@@ -263,12 +270,14 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn record_skipped_compaction(
     partition_id: PartitionId,
     compactor: Arc<Compactor>,
     reason: &str,
     num_files: usize,
     limit_num_files: usize,
+    limit_num_files_first_in_partition: usize,
     estimated_bytes: u64,
     limit_bytes: u64,
 ) {
@@ -280,6 +289,7 @@ async fn record_skipped_compaction(
             reason,
             num_files,
             limit_num_files,
+            limit_num_files_first_in_partition,
             estimated_bytes,
             limit_bytes,
         )
@@ -564,6 +574,7 @@ pub mod tests {
             memory_budget_bytes: budget,
             min_num_rows_allocated_per_record_batch_to_datafusion_plan: 2,
             max_num_compacting_files: 20,
+            max_num_compacting_files_first_in_partition: 40,
             minutes_without_new_writes_to_be_cold: 10,
             hot_compaction_hours_threshold_1: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
             hot_compaction_hours_threshold_2: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
@@ -945,6 +956,7 @@ pub mod tests {
             memory_budget_bytes: 100_000_000,
             min_num_rows_allocated_per_record_batch_to_datafusion_plan: 100,
             max_num_compacting_files: 20,
+            max_num_compacting_files_first_in_partition: 40,
             minutes_without_new_writes_to_be_cold: 10,
             hot_compaction_hours_threshold_1: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
             hot_compaction_hours_threshold_2: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
@@ -1068,6 +1080,7 @@ pub mod tests {
             level_1,
             compactor.config.memory_budget_bytes,
             compactor.config.max_num_compacting_files,
+            compactor.config.max_num_compacting_files_first_in_partition,
             compactor.config.max_desired_file_size_bytes,
             &compactor.parquet_file_candidate_gauge,
             &compactor.parquet_file_candidate_bytes,

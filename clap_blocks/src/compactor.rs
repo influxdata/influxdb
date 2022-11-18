@@ -167,6 +167,18 @@ macro_rules! gen_compactor_config {
             )]
             pub max_num_compacting_files: usize,
 
+            /// Max number of files to compact for a partition in which the first file and its
+            /// overlaps push the file count limit over `max_num_compacting_files`.
+            /// It's a special case of `max_num_compacting_files` that's higher just for the first
+            /// file in a partition
+            #[clap(
+                long = "compaction-max-num-compacting-files-first-in-partition",
+                env = "INFLUXDB_IOX_COMPACTION_MAX_COMPACTING_FILES_FIRST_IN_PARTITION",
+                default_value = "40",
+                action
+            )]
+            pub max_num_compacting_files_first_in_partition: usize,
+
             /// Number of minutes without a write to a partition before it is considered cold
             /// and thus a candidate for compaction
             #[clap(
@@ -223,6 +235,7 @@ impl CompactorOnceConfig {
             min_num_rows_allocated_per_record_batch_to_datafusion_plan: self
                 .min_num_rows_allocated_per_record_batch_to_datafusion_plan,
             max_num_compacting_files: self.max_num_compacting_files,
+            max_num_compacting_files_first_in_partition: self.max_num_compacting_files_first_in_partition,
             minutes_without_new_writes_to_be_cold: self.minutes_without_new_writes_to_be_cold,
             hot_compaction_hours_threshold_1: self.hot_compaction_hours_threshold_1,
             hot_compaction_hours_threshold_2: self.hot_compaction_hours_threshold_2,
