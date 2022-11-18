@@ -445,6 +445,8 @@ impl SegmentFile {
             .await
             .context(SegmentWriteSnafu)?;
 
+        // TODO: should there be a `sync_all` here?
+
         let bytes_written = mem::size_of::<u32>() + mem::size_of::<u32>() + compressed_data.len();
         state.bytes_written += bytes_written;
 
