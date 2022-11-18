@@ -22,7 +22,6 @@ use std::{
     convert::TryFrom,
     io, mem, num,
     path::{Path, PathBuf},
-    pin::Pin,
     sync::Arc,
     time::SystemTime,
 };
@@ -500,19 +499,16 @@ impl Segment for SegmentFile {
 }
 
 struct SegmentFileReader {
-    // todo: pin necessary?
-    f: Pin<Box<dyn AsyncRead>>,
+    f: tokio::fs::File,
     id: SegmentId,
 }
 
 impl SegmentFileReader {
     pub async fn new(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
-        let f = tokio::fs::File::open(path)
+        let mut f = tokio::fs::File::open(path)
             .await
             .context(UnableToOpenFileSnafu { path })?;
-
-        let mut f: Pin<Box<dyn AsyncRead>> = Box::pin(f);
 
         is_segment_stream(&mut f).await?;
         let id = read_id(&mut f).await?;
@@ -544,7 +540,7 @@ impl SegmentFileReader {
     }
 }
 
-async fn is_segment_stream(f: &mut Pin<Box<dyn AsyncRead>>) -> Result<()> {
+async fn is_segment_stream(mut f: impl AsyncRead + Unpin) -> Result<()> {
     let mut header = [0u8; FILE_TYPE_IDENTIFIER.len()];
     f.read_exact(&mut header)
         .await
@@ -560,7 +556,7 @@ async fn is_segment_stream(f: &mut Pin<Box<dyn AsyncRead>>) -> Result<()> {
 
 const UUID_BYTES_LEN: usize = 16;
 
-async fn read_id(f: &mut Pin<Box<dyn AsyncRead>>) -> Result<SegmentId> {
+async fn read_id(mut f: impl AsyncRead + Unpin) -> Result<SegmentId> {
     let mut id_header = [0u8; UUID_BYTES_LEN];
     f.read_exact(&mut id_header)
         .await
@@ -570,7 +566,7 @@ async fn read_id(f: &mut Pin<Box<dyn AsyncRead>>) -> Result<SegmentId> {
     Ok(SegmentId::from(uuid))
 }
 
-async fn read_entry(f: &mut Pin<Box<dyn AsyncRead>>) -> Result<Option<SegmentEntry>> {
+async fn read_entry(mut f: impl AsyncRead + Unpin) -> Result<Option<SegmentEntry>> {
     let checksum = match f.read_u32().await {
         Err(ref e) if e.kind() == io::ErrorKind::UnexpectedEof => return Ok(None),
         e => e.context(UnableToReadChecksumSnafu)?,
