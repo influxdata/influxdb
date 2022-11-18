@@ -23,7 +23,12 @@ use arrow::{
 use data_types::{InfluxDbType, TableSummary, TimestampRange};
 use datafusion::{
     error::DataFusionError,
-    logical_expr::{binary_expr, utils::expr_to_columns, BinaryExpr, Operator},
+    logical_expr::{
+        binary_expr,
+        expr_visitor::{ExprVisitable, ExpressionVisitor, Recursion},
+        utils::expr_to_columns,
+        BinaryExpr, Operator,
+    },
     optimizer::utils::split_conjunction,
     physical_optimizer::pruning::{PruningPredicate, PruningStatistics},
     prelude::{col, lit_timestamp_nano, Expr},
@@ -484,6 +489,54 @@ impl Predicate {
         self
     }
 
+    /// Remove any clauses of this predicate that can not be run before deduplication.
+    ///
+    /// See <https://github.com/influxdata/influxdb_iox/issues/6066> for more details.
+    ///
+    /// Only expressions that are row-based and refer to primary key columns (and constants)
+    /// can be evaluated prior to deduplication.
+    ///
+    /// If a predicate can filter out some but not all of the rows with
+    /// the same primary key, it may filter out the row that should have been updated
+    /// allowing the original through, producing incorrect results.
+    ///
+    /// Any predicate that operates solely on primary key columns will either pass or filter
+    /// all rows with that primary key and thus is safe to push through.
+    pub fn push_through_dedup(self, schema: &schema::Schema) -> Self {
+        let pk: HashSet<_> = schema.primary_key().into_iter().collect();
+
+        let exprs = self
+            .exprs
+            .iter()
+            .flat_map(split_conjunction)
+            .filter(|expr| {
+                let mut columns = HashSet::default();
+                if expr_to_columns(expr, &mut columns).is_err() {
+                    // bail out, do NOT include this weird expression
+                    return false;
+                }
+
+                // check if all columns are part of the primary key
+                if !columns.into_iter().all(|c| pk.contains(c.name.as_str())) {
+                    return false;
+                }
+
+                expr.accept(RowBasedVisitor::default())
+                    .expect("never fails")
+                    .row_based
+            })
+            .cloned()
+            .collect();
+
+        Self {
+            // can always push time range through de-dup because it is a primary keys set operation
+            range: self.range,
+            exprs,
+            field_columns: None,
+            value_expr: vec![],
+        }
+    }
+
     /// Adds only the expressions from `filters` that can be pushed down to
     /// execution engines.
     pub fn with_pushdown_exprs(mut self, filters: &[Expr]) -> Self {
@@ -587,12 +640,69 @@ impl From<ValueExpr> for Expr {
     }
 }
 
+/// Recursively walk an expression tree, checking if the expression is row-based.
+struct RowBasedVisitor {
+    row_based: bool,
+}
+
+impl Default for RowBasedVisitor {
+    fn default() -> Self {
+        Self { row_based: true }
+    }
+}
+
+impl ExpressionVisitor for RowBasedVisitor {
+    fn pre_visit(mut self, expr: &Expr) -> Result<Recursion<Self>, DataFusionError> {
+        match expr {
+            Expr::Alias(_, _)
+            | Expr::Between { .. }
+            | Expr::BinaryExpr { .. }
+            | Expr::Case { .. }
+            | Expr::Cast { .. }
+            | Expr::Column(_)
+            | Expr::Exists { .. }
+            | Expr::GetIndexedField { .. }
+            | Expr::ILike { .. }
+            | Expr::InList { .. }
+            | Expr::InSubquery { .. }
+            | Expr::IsFalse(_)
+            | Expr::IsNotFalse(_)
+            | Expr::IsNotNull(_)
+            | Expr::IsNotTrue(_)
+            | Expr::IsNotUnknown(_)
+            | Expr::IsNull(_)
+            | Expr::IsTrue(_)
+            | Expr::IsUnknown(_)
+            | Expr::Like { .. }
+            | Expr::Literal(_)
+            | Expr::Negative(_)
+            | Expr::Not(_)
+            | Expr::QualifiedWildcard { .. }
+            | Expr::ScalarFunction { .. }
+            | Expr::ScalarSubquery(_)
+            | Expr::ScalarUDF { .. }
+            | Expr::ScalarVariable(_, _)
+            | Expr::SimilarTo { .. }
+            | Expr::Sort { .. }
+            | Expr::TryCast { .. }
+            | Expr::Wildcard => Ok(Recursion::Continue(self)),
+            Expr::AggregateFunction { .. }
+            | Expr::AggregateUDF { .. }
+            | Expr::GroupingSet(_)
+            | Expr::WindowFunction { .. } => {
+                self.row_based = false;
+                Ok(Recursion::Stop(self))
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use arrow::datatypes::DataType as ArrowDataType;
     use data_types::{ColumnSummary, InfluxDbType, StatValues, MAX_NANO_TIME, MIN_NANO_TIME};
-    use datafusion::prelude::{col, lit};
+    use datafusion::prelude::{col, cube, lit};
     use schema::builder::SchemaBuilder;
     use test_helpers::maybe_start_logging;
 
@@ -932,6 +1042,122 @@ mod tests {
         assert_eq!(
             p.apply_to_table_summary(&summary, schema.as_arrow()),
             PredicateMatch::Zero,
+        );
+    }
+
+    #[test]
+    fn test_push_through_dedup() {
+        let schema = SchemaBuilder::default()
+            .tag("tag1")
+            .tag("tag2")
+            .field("field1", ArrowDataType::Float64)
+            .unwrap()
+            .field("field2", ArrowDataType::Float64)
+            .unwrap()
+            .timestamp()
+            .build()
+            .unwrap();
+
+        // no-op predicate
+        assert_eq!(
+            Predicate {
+                field_columns: None,
+                range: None,
+                exprs: vec![],
+                value_expr: vec![],
+            }
+            .push_through_dedup(&schema),
+            Predicate {
+                field_columns: None,
+                range: None,
+                exprs: vec![],
+                value_expr: vec![],
+            },
+        );
+
+        // simple case
+        assert_eq!(
+            Predicate {
+                field_columns: Some(BTreeSet::from([
+                    String::from("tag1"),
+                    String::from("field1"),
+                    String::from("time"),
+                ])),
+                range: Some(TimestampRange::new(42, 1337)),
+                exprs: vec![
+                    col("tag1").eq(lit("foo")),
+                    col("field1").eq(lit(1.0)), // filtered out
+                    col("time").eq(lit(1)),
+                ],
+                value_expr: vec![ValueExpr::try_from(col("_value").eq(lit(1.0))).unwrap()],
+            }
+            .push_through_dedup(&schema),
+            Predicate {
+                field_columns: None,
+                range: Some(TimestampRange::new(42, 1337)),
+                exprs: vec![col("tag1").eq(lit("foo")), col("time").eq(lit(1)),],
+                value_expr: vec![],
+            },
+        );
+
+        // disassemble AND
+        assert_eq!(
+            Predicate {
+                field_columns: None,
+                range: None,
+                exprs: vec![col("tag1")
+                    .eq(lit("foo"))
+                    .and(col("field1").eq(lit(1.0)))
+                    .and(col("time").eq(lit(1))),],
+                value_expr: vec![],
+            }
+            .push_through_dedup(&schema),
+            Predicate {
+                field_columns: None,
+                range: None,
+                exprs: vec![col("tag1").eq(lit("foo")), col("time").eq(lit(1)),],
+                value_expr: vec![],
+            },
+        );
+
+        // filter no-row operations
+        assert_eq!(
+            Predicate {
+                field_columns: None,
+                range: None,
+                exprs: vec![
+                    col("tag1").eq(lit("foo")),
+                    cube(vec![col("time").eq(lit(1))]),
+                ],
+                value_expr: vec![],
+            }
+            .push_through_dedup(&schema),
+            Predicate {
+                field_columns: None,
+                range: None,
+                exprs: vec![col("tag1").eq(lit("foo"))],
+                value_expr: vec![],
+            },
+        );
+
+        // do NOT disassemble OR
+        assert_eq!(
+            Predicate {
+                field_columns: None,
+                range: None,
+                exprs: vec![col("tag1")
+                    .eq(lit("foo"))
+                    .or(col("field1").eq(lit(1.0)))
+                    .or(col("time").eq(lit(1))),],
+                value_expr: vec![],
+            }
+            .push_through_dedup(&schema),
+            Predicate {
+                field_columns: None,
+                range: None,
+                exprs: vec![],
+                value_expr: vec![],
+            },
         );
     }
 }

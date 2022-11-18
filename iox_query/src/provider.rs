@@ -519,7 +519,7 @@ impl Deduplicater {
         table_name: Arc<str>,
         output_schema: Arc<Schema>,
         chunks: Vec<Arc<dyn QueryChunk>>,
-        predicate: Predicate,
+        mut predicate: Predicate,
         output_sort_key: Option<SortKey>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         // find overlapped chunks and put them into the right group
@@ -532,6 +532,14 @@ impl Deduplicater {
             // the chunks have neither overlaps nor duplicates
             if !self.deduplication {
                 debug!(%table_name, "Deduplication is disable. Build only one scan node for all of them.");
+
+                // If we do NOT run de-dup, then we also cannot apply all predicates because we have to assume that the
+                // output of this plan is later fed through de-dup. Currently (2022-11-16) this does not matter because
+                // selection is not used within the ingester, but it will become an issue once this is hooked up.
+                predicate = predicate.push_through_dedup(&Self::compute_chunks_schema(
+                    &chunks,
+                    &mut self.schema_interner,
+                ));
             }
             if chunks.no_duplicates() {
                 debug!(%table_name,  "All chunks neither overlap nor duplicate. Build only one scan node for all of them.");
@@ -824,6 +832,9 @@ impl Deduplicater {
         // Note that we may need to sort/deduplicate based on tag
         // columns which do not appear in the output
 
+        let predicate =
+            predicate.push_through_dedup(&Self::compute_chunks_schema(&chunks, schema_interner));
+
         // We need to sort chunks before creating the execution plan. For that, the chunk order is used. Since the order
         // only sorts overlapping chunks, we also use the chunk ID for deterministic outputs.
         let chunks = {
@@ -910,6 +921,11 @@ impl Deduplicater {
         output_sort_key: &SortKey,
         schema_interner: &mut SchemaInterner,
     ) -> Result<Arc<dyn ExecutionPlan>> {
+        // This will practically never matter because this can only happen for in-memory chunks which are currently
+        // backed by RecordBatches and these don't do anything with the predicate at all. However to prevent weird
+        // future issues, we still transform the predicate here. (@crepererum, 2022-11-16)
+        let predicate = predicate.push_through_dedup(&chunk.schema());
+
         let pk_schema = Self::compute_pk_schema(&[Arc::clone(&chunk)], schema_interner);
         let input_schema = Self::compute_input_schema(&output_schema, &pk_schema, schema_interner);
 
@@ -1318,6 +1334,19 @@ impl Deduplicater {
                         .expect("schema mismatch");
                 }
             }
+        }
+
+        schema_merger.build()
+    }
+
+    // Compute schema for all chunks
+    fn compute_chunks_schema<'a>(
+        chunks: impl IntoIterator<Item = &'a Arc<dyn QueryChunk>>,
+        schema_interner: &mut SchemaInterner,
+    ) -> Arc<Schema> {
+        let mut schema_merger = SchemaMerger::new().with_interner(schema_interner);
+        for chunk in chunks {
+            schema_merger = schema_merger.merge(&chunk.schema()).unwrap();
         }
 
         schema_merger.build()

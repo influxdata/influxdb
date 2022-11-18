@@ -1,0 +1,131 @@
+-- Test Setup: TwoChunksDedupWeirdnessParquet
+-- SQL: SELECT * FROM "table" ORDER BY tag;
++-----+-----+-----+----------------------+
+| bar | foo | tag | time                 |
++-----+-----+-----+----------------------+
+| 2   | 1   | A   | 1970-01-01T00:00:00Z |
+|     | 1   | B   | 1970-01-01T00:00:00Z |
++-----+-----+-----+----------------------+
+-- SQL: EXPLAIN SELECT * FROM "table" ORDER BY tag;
+-- Results After Normalizing UUIDs
++---------------+--------------------------------------------------------------------------------------------------------------------------------------------+
+| plan_type     | plan                                                                                                                                       |
++---------------+--------------------------------------------------------------------------------------------------------------------------------------------+
+| logical_plan  | Sort: table.tag ASC NULLS LAST                                                                                                             |
+|               |   Projection: table.bar, table.foo, table.tag, table.time                                                                                  |
+|               |     TableScan: table projection=[bar, foo, tag, time]                                                                                      |
+| physical_plan | SortExec: [tag@2 ASC NULLS LAST]                                                                                                           |
+|               |   CoalescePartitionsExec                                                                                                                   |
+|               |     ProjectionExec: expr=[bar@0 as bar, foo@1 as foo, tag@2 as tag, time@3 as time]                                                        |
+|               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                     |
+|               |         DeduplicateExec: [tag@2 ASC,time@3 ASC]                                                                                            |
+|               |           SortPreservingMergeExec: [tag@2 ASC,time@3 ASC]                                                                                  |
+|               |             UnionExec                                                                                                                      |
+|               |               ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], projection=[bar, foo, tag, time] |
+|               |               ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet], projection=[bar, foo, tag, time] |
+|               |                                                                                                                                            |
++---------------+--------------------------------------------------------------------------------------------------------------------------------------------+
+-- SQL: SELECT * FROM "table" WHERE tag='A';
++-----+-----+-----+----------------------+
+| bar | foo | tag | time                 |
++-----+-----+-----+----------------------+
+| 2   | 1   | A   | 1970-01-01T00:00:00Z |
++-----+-----+-----+----------------------+
+-- SQL: EXPLAIN SELECT * FROM "table" WHERE tag='A';
+-- Results After Normalizing UUIDs
++---------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| plan_type     | plan                                                                                                                                                                                    |
++---------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| logical_plan  | Projection: table.bar, table.foo, table.tag, table.time                                                                                                                                 |
+|               |   Filter: table.tag = Dictionary(Int32, Utf8("A"))                                                                                                                                      |
+|               |     TableScan: table projection=[bar, foo, tag, time], partial_filters=[table.tag = Dictionary(Int32, Utf8("A"))]                                                                       |
+| physical_plan | ProjectionExec: expr=[bar@0 as bar, foo@1 as foo, tag@2 as tag, time@3 as time]                                                                                                         |
+|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                                                                           |
+|               |     FilterExec: tag@2 = A                                                                                                                                                               |
+|               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                                                                  |
+|               |         DeduplicateExec: [tag@2 ASC,time@3 ASC]                                                                                                                                         |
+|               |           SortPreservingMergeExec: [tag@2 ASC,time@3 ASC]                                                                                                                               |
+|               |             UnionExec                                                                                                                                                                   |
+|               |               ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], predicate=tag_min@0 <= A AND A <= tag_max@1, projection=[bar, foo, tag, time] |
+|               |               ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet], predicate=tag_min@0 <= A AND A <= tag_max@1, projection=[bar, foo, tag, time] |
+|               |                                                                                                                                                                                         |
++---------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+-- SQL: SELECT * FROM "table" WHERE foo=1 AND bar=2;
++-----+-----+-----+----------------------+
+| bar | foo | tag | time                 |
++-----+-----+-----+----------------------+
+| 2   | 1   | A   | 1970-01-01T00:00:00Z |
++-----+-----+-----+----------------------+
+-- SQL: EXPLAIN SELECT * FROM "table" WHERE foo=1 AND bar=2;
+-- Results After Normalizing UUIDs
++---------------+--------------------------------------------------------------------------------------------------------------------------------------------+
+| plan_type     | plan                                                                                                                                       |
++---------------+--------------------------------------------------------------------------------------------------------------------------------------------+
+| logical_plan  | Projection: table.bar, table.foo, table.tag, table.time                                                                                    |
+|               |   Filter: table.foo = Float64(1) AND table.bar = Float64(2)                                                                                |
+|               |     TableScan: table projection=[bar, foo, tag, time], partial_filters=[table.foo = Float64(1), table.bar = Float64(2)]                    |
+| physical_plan | ProjectionExec: expr=[bar@0 as bar, foo@1 as foo, tag@2 as tag, time@3 as time]                                                            |
+|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                              |
+|               |     FilterExec: foo@1 = 1 AND bar@0 = 2                                                                                                    |
+|               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                     |
+|               |         DeduplicateExec: [tag@2 ASC,time@3 ASC]                                                                                            |
+|               |           SortPreservingMergeExec: [tag@2 ASC,time@3 ASC]                                                                                  |
+|               |             UnionExec                                                                                                                      |
+|               |               ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], projection=[bar, foo, tag, time] |
+|               |               ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet], projection=[bar, foo, tag, time] |
+|               |                                                                                                                                            |
++---------------+--------------------------------------------------------------------------------------------------------------------------------------------+
+-- SQL: SELECT * FROM "table" WHERE time=to_timestamp('1970-01-01T00:00:00.000000000+00:00') ORDER BY tag;
++-----+-----+-----+----------------------+
+| bar | foo | tag | time                 |
++-----+-----+-----+----------------------+
+| 2   | 1   | A   | 1970-01-01T00:00:00Z |
+|     | 1   | B   | 1970-01-01T00:00:00Z |
++-----+-----+-----+----------------------+
+-- SQL: EXPLAIN SELECT * FROM "table" WHERE time=to_timestamp('1970-01-01T00:00:00.000000000+00:00') ORDER BY tag;
+-- Results After Normalizing UUIDs
++---------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| plan_type     | plan                                                                                                                                                                                          |
++---------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| logical_plan  | Sort: table.tag ASC NULLS LAST                                                                                                                                                                |
+|               |   Projection: table.bar, table.foo, table.tag, table.time                                                                                                                                     |
+|               |     Filter: table.time = TimestampNanosecond(0, None)                                                                                                                                         |
+|               |       TableScan: table projection=[bar, foo, tag, time], partial_filters=[table.time = TimestampNanosecond(0, None)]                                                                          |
+| physical_plan | SortExec: [tag@2 ASC NULLS LAST]                                                                                                                                                              |
+|               |   CoalescePartitionsExec                                                                                                                                                                      |
+|               |     ProjectionExec: expr=[bar@0 as bar, foo@1 as foo, tag@2 as tag, time@3 as time]                                                                                                           |
+|               |       CoalesceBatchesExec: target_batch_size=4096                                                                                                                                             |
+|               |         FilterExec: time@3 = 0                                                                                                                                                                |
+|               |           RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                                                                    |
+|               |             DeduplicateExec: [tag@2 ASC,time@3 ASC]                                                                                                                                           |
+|               |               SortPreservingMergeExec: [tag@2 ASC,time@3 ASC]                                                                                                                                 |
+|               |                 UnionExec                                                                                                                                                                     |
+|               |                   ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], predicate=time_min@0 <= 0 AND 0 <= time_max@1, projection=[bar, foo, tag, time] |
+|               |                   ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet], predicate=time_min@0 <= 0 AND 0 <= time_max@1, projection=[bar, foo, tag, time] |
+|               |                                                                                                                                                                                               |
++---------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+-- SQL: SELECT * FROM "table" WHERE tag='A' AND foo=1 AND time=to_timestamp('1970-01-01T00:00:00.000000000+00:00');
++-----+-----+-----+----------------------+
+| bar | foo | tag | time                 |
++-----+-----+-----+----------------------+
+| 2   | 1   | A   | 1970-01-01T00:00:00Z |
++-----+-----+-----+----------------------+
+-- SQL: EXPLAIN SELECT * FROM "table" WHERE tag='A' AND foo=1 AND time=to_timestamp('1970-01-01T00:00:00.000000000+00:00');
+-- Results After Normalizing UUIDs
++---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| plan_type     | plan                                                                                                                                                                                                                            |
++---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| logical_plan  | Projection: table.bar, table.foo, table.tag, table.time                                                                                                                                                                         |
+|               |   Filter: table.tag = Dictionary(Int32, Utf8("A")) AND table.foo = Float64(1) AND table.time = TimestampNanosecond(0, None)                                                                                                     |
+|               |     TableScan: table projection=[bar, foo, tag, time], partial_filters=[table.tag = Dictionary(Int32, Utf8("A")), table.foo = Float64(1), table.time = TimestampNanosecond(0, None)]                                            |
+| physical_plan | ProjectionExec: expr=[bar@0 as bar, foo@1 as foo, tag@2 as tag, time@3 as time]                                                                                                                                                 |
+|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                                                                                                                   |
+|               |     FilterExec: tag@2 = A AND foo@1 = 1 AND time@3 = 0                                                                                                                                                                          |
+|               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                                                                                                          |
+|               |         DeduplicateExec: [tag@2 ASC,time@3 ASC]                                                                                                                                                                                 |
+|               |           SortPreservingMergeExec: [tag@2 ASC,time@3 ASC]                                                                                                                                                                       |
+|               |             UnionExec                                                                                                                                                                                                           |
+|               |               ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], predicate=tag_min@0 <= A AND A <= tag_max@1 AND time_min@2 <= 0 AND 0 <= time_max@3, projection=[bar, foo, tag, time] |
+|               |               ParquetExec: limit=None, partitions=[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet], predicate=tag_min@0 <= A AND A <= tag_max@1 AND time_min@2 <= 0 AND 0 <= time_max@3, projection=[bar, foo, tag, time] |
+|               |                                                                                                                                                                                                                                 |
++---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+

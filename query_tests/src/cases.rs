@@ -21,6 +21,38 @@ async fn test_cases_basic_sql() {
 }
 
 #[tokio::test]
+// Tests from "dedup_and_predicates_parquet.sql",
+async fn test_cases_dedup_and_predicates_parquet_sql() {
+    test_helpers::maybe_start_logging();
+
+    let input_path = Path::new("cases").join("in").join("dedup_and_predicates_parquet.sql");
+    let mut runner = Runner::new();
+    runner
+        .run(input_path)
+        .await
+        .expect("test failed");
+    runner
+        .flush()
+        .expect("flush worked");
+}
+
+#[tokio::test]
+// Tests from "dedup_and_predicates_parquet_ingester.sql",
+async fn test_cases_dedup_and_predicates_parquet_ingester_sql() {
+    test_helpers::maybe_start_logging();
+
+    let input_path = Path::new("cases").join("in").join("dedup_and_predicates_parquet_ingester.sql");
+    let mut runner = Runner::new();
+    runner
+        .run(input_path)
+        .await
+        .expect("test failed");
+    runner
+        .flush()
+        .expect("flush worked");
+}
+
+#[tokio::test]
 // Tests from "duplicates_ingester.sql",
 async fn test_cases_duplicates_ingester_sql() {
     test_helpers::maybe_start_logging();

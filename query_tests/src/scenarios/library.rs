@@ -1004,3 +1004,68 @@ impl DbSetup for PeriodsInNames {
         all_scenarios_for_one_chunk(vec![], vec![], lp, "measurement.one", partition_key).await
     }
 }
+
+/// This re-creates <https://github.com/influxdata/influxdb_iox/issues/6066>.
+///
+/// Namely it sets up two chunks to which certain filters MUST NOT be applied prior to deduplication.
+fn two_chunks_dedup_weirdness() -> Vec<ChunkData<'static, 'static>> {
+    let partition_key = "1970-01-01T00";
+
+    let lp_lines1 = vec!["table,tag=A foo=1,bar=1 0"];
+
+    let lp_lines2 = vec!["table,tag=A bar=2 0", "table,tag=B foo=1 0"];
+
+    vec![
+        ChunkData {
+            lp_lines: lp_lines1,
+            partition_key,
+            ..Default::default()
+        },
+        ChunkData {
+            lp_lines: lp_lines2,
+            partition_key,
+            ..Default::default()
+        },
+    ]
+}
+
+#[derive(Debug)]
+pub struct TwoChunksDedupWeirdnessParquet {}
+
+#[async_trait]
+impl DbSetup for TwoChunksDedupWeirdnessParquet {
+    async fn make(&self) -> Vec<DbScenario> {
+        let chunk_data: Vec<_> = two_chunks_dedup_weirdness()
+            .into_iter()
+            .map(|cd| ChunkData {
+                chunk_stage: Some(ChunkStage::Parquet),
+                ..cd
+            })
+            .collect();
+
+        make_n_chunks_scenario(&chunk_data).await
+    }
+}
+
+#[derive(Debug)]
+pub struct TwoChunksDedupWeirdnessParquetIngester {}
+
+#[async_trait]
+impl DbSetup for TwoChunksDedupWeirdnessParquetIngester {
+    async fn make(&self) -> Vec<DbScenario> {
+        let chunk_data = two_chunks_dedup_weirdness();
+        assert_eq!(chunk_data.len(), 2);
+
+        make_n_chunks_scenario(&[
+            ChunkData {
+                chunk_stage: Some(ChunkStage::Parquet),
+                ..chunk_data[0].clone()
+            },
+            ChunkData {
+                chunk_stage: Some(ChunkStage::Ingester),
+                ..chunk_data[1].clone()
+            },
+        ])
+        .await
+    }
+}
