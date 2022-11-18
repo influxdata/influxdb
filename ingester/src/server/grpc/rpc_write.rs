@@ -155,7 +155,7 @@ where
                 // Assert that the write was not skipped due to having a non-monotonic
                 // sequence number. In this gRPC write model, there are no sequence
                 // numbers!
-                unreachable!()
+                unreachable!("rpc write saw skipped op apply call")
             }
             Err(e) => {
                 error!(error=%e, "failed to apply DML op");
