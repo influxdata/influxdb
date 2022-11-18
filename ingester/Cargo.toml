@@ -50,6 +50,7 @@ uuid = { version = "1", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
 write_buffer = { path = "../write_buffer" }
 write_summary = { path = "../write_summary" }
+mutable_batch_pb = { version = "0.1.0", path = "../mutable_batch_pb" }
 
 [dev-dependencies]
 assert_matches = "1.5.0"
