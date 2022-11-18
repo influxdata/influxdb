@@ -114,11 +114,21 @@ func (tc *TypeConflictChecker) readFields() (Schema, error) {
 		if err != nil {
 			return fmt.Errorf("error walking file: %w", err)
 		}
+
+		if filepath.Base(path) == tsdb.FieldsChangeFile {
+			fmt.Printf("WARN: A %s file was encountered at %s. The database was not shutdown properly, results of this command may be incomplete\n",
+				tsdb.FieldsChangeFile,
+				path,
+			)
+			return nil
+		}
+
 		if filepath.Base(path) != "fields.idx" {
 			return nil
 		}
+
 		dirs := strings.Split(path, string(os.PathSeparator))
-		db := dirs[len(dirs)-4]
+		bucket := dirs[len(dirs)-4]
 		rp := dirs[len(dirs)-3]
 		fmt.Printf("Processing %s\n", path)
 
@@ -134,7 +144,7 @@ func (tc *TypeConflictChecker) readFields() (Schema, error) {
 		measurements := mfs.MeasurementNames()
 		for _, m := range measurements {
 			for f, typ := range mfs.FieldsByString(m).FieldSet() {
-				schema.AddField(db, rp, m, f, typ.String())
+				schema.AddField(bucket, rp, m, f, typ.String())
 			}
 		}
 
