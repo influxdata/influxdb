@@ -247,16 +247,11 @@ impl TableProvider for ChunkTableProvider {
         // This debug shows the self.arrow_schema() includes all columns in all chunks
         // which means the schema of all chunks are merged before invoking this scan
         debug!(schema=?self.arrow_schema(), "All chunks schema");
-        // However, the schema of each chunk is still in its original form which does not
-        // include the merged columns of other chunks. The code below (put in comments on purpose) proves it
-        // for chunk in chunks.clone() {
-        //     trace!("Schema of chunk {}: {:#?}", chunk.id(), chunk.schema());
-        // }
 
         // Note that `filters` don't actually need to be evaluated in
         // the scan for the plans to be correct, they are an extra
         // optimization for providers which can offer them
-        let predicate = Predicate::default().with_pushdown_exprs(filters);
+        let predicate = Predicate::default().with_exprs(filters.to_vec());
         let deduplicate = Deduplicater::new(self.ctx.child_ctx("deduplicator"))
             .enable_deduplication(self.deduplication());
 

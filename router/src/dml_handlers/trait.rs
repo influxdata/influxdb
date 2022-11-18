@@ -6,7 +6,8 @@ use thiserror::Error;
 use trace::ctx::SpanContext;
 
 use super::{
-    partitioner::PartitionError, retention_validator::RetentionError, SchemaError, ShardError,
+    partitioner::PartitionError, retention_validator::RetentionError, RpcWriteError, SchemaError,
+    ShardError,
 };
 
 /// Errors emitted by a [`DmlHandler`] implementation during DML request
@@ -20,6 +21,11 @@ pub enum DmlError {
     /// An error sharding the writes and pushing them to the write buffer.
     #[error(transparent)]
     WriteBuffer(#[from] ShardError),
+
+    /// An error pushing the request to a downstream ingester via a direct RPC
+    /// call.
+    #[error(transparent)]
+    RpcWrite(#[from] RpcWriteError),
 
     /// A schema validation failure.
     #[error(transparent)]
