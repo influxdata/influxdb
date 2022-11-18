@@ -570,9 +570,8 @@ async fn read_id(f: &mut Pin<Box<dyn AsyncRead>>) -> Result<SegmentId> {
 
 async fn read_entry(f: &mut Pin<Box<dyn AsyncRead>>) -> Result<Option<SegmentEntry>> {
     let checksum = match f.read_u32().await {
-        Ok(sn) => sn,
         Err(ref e) if e.kind() == io::ErrorKind::UnexpectedEof => return Ok(None),
-        Err(e) => return Err(Error::UnableToReadChecksum { source: e }),
+        e => e.context(UnableToReadChecksumSnafu)?,
     };
 
     let expected_len = f.read_u32().await.context(UnableToReadLengthSnafu)?;
