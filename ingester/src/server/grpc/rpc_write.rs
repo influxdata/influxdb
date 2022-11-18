@@ -124,6 +124,14 @@ where
             return Err(RpcError::NoTables)?;
         }
 
+        trace!(
+            remote_addr,
+            num_tables,
+            %namespace_id,
+            %partition_key,
+            "received rpc write"
+        );
+
         // Reconstruct the DML operation
         let op = DmlWrite::new(
             namespace_id,
@@ -133,19 +141,11 @@ where
                 .into_iter()
                 .map(|(k, v)| (k, TableId::new(v)))
                 .collect(),
-            partition_key.clone(),
+            partition_key,
             // The tracing context should be propagated over the RPC boundary.
             //
             // See https://github.com/influxdata/influxdb_iox/issues/6177
             DmlMeta::unsequenced(None),
-        );
-
-        trace!(
-            remote_addr,
-            num_tables,
-            %namespace_id,
-            %partition_key,
-            "received rpc write"
         );
 
         // Apply the DML op to the in-memory buffer.
