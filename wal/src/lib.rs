@@ -150,7 +150,10 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 // todo: change to newtypes
 /// SequenceNumber is a u64 monotonically-increasing number provided by users of the WAL for
 /// their tracking purposes of data getting written into a segment.
-// who enforces monotonicity? what happens if WAL receives a lower sequence number?
+// - who enforces monotonicity? what happens if WAL receives a lower sequence number?
+// - this isn't `data_types::SequenceNumber`, should it be or should this be a distinct type
+//   because this doesn't have anything to do with Kafka?
+// - errr what https://github.com/influxdata/influxdb_iox/blob/4d55efe6558eb09d1ba03a8a5cbfcf48a3425c83/ingester/src/server/grpc/rpc_write.rs#L156-L157
 pub type SequenceNumber = u64;
 
 /// Segments are identified by a type 4 UUID
@@ -488,11 +491,9 @@ impl Segment for SegmentFile {
         self.id
     }
 
-    async fn write_op(&self, _op: &SequencedWalOp) -> Result<WriteSummary> {
-        // create a oneshot channel
-        // call inner write op with the op and the transmitter of the channel
-        // await the receiving end of the channel
-        todo!()
+    // TODO: batching parallel calls to this to write many entries together
+    async fn write_op(&self, op: &SequencedWalOp) -> Result<WriteSummary> {
+        self.write_ops(std::slice::from_ref(op)).await
     }
 
     async fn reader(&self) -> Result<Box<dyn OpReader>> {

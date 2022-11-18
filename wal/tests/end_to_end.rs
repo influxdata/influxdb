@@ -1,4 +1,8 @@
-use wal::SegmentWal;
+use data_types::{NamespaceId, TableId};
+use dml::DmlWrite;
+use generated_types::influxdata::pbdata::v1::DatabaseBatch;
+use mutable_batch_lp::lines_to_batches;
+use wal::{SegmentWal, SequencedWalOp, WalOp};
 
 #[tokio::test]
 async fn crud() {
@@ -28,4 +32,37 @@ async fn crud() {
         files[0].file_name().unwrap().to_str().unwrap(),
         &format!("{open_segment_id}.dat")
     );
+
+    // Can write an entry to the open segment
+    let op = arbitrary_sequenced_wal_op();
+    let summary = open.write_op(&op).await.unwrap();
+    assert_eq!(summary.total_bytes, 373);
+}
+
+fn arbitrary_sequenced_wal_op() -> SequencedWalOp {
+    let w = test_data("m1,t=foo v=1i 1");
+    SequencedWalOp {
+        sequence_number: 42,
+        op: WalOp::Write(w),
+    }
+}
+
+fn test_data(lp: &str) -> DatabaseBatch {
+    let batches = lines_to_batches(lp, 0).unwrap();
+    let ids = batches
+        .keys()
+        .enumerate()
+        .map(|(i, name)| (name.clone(), TableId::new(i as _)))
+        .collect();
+
+    let write = DmlWrite::new(
+        "test_db",
+        NamespaceId::new(42),
+        batches,
+        ids,
+        "bananas".into(),
+        Default::default(),
+    );
+
+    mutable_batch_pb::encode::encode_write("db", 42, &write)
 }
