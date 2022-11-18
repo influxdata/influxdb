@@ -16,8 +16,8 @@ type RollupNode interface {
 	sync.Locker
 	report.Counter
 	Children() rollupNodeMap
-	RecordSeries(db, rp, ms string, key, field []byte, tags models.Tags)
-	Print(tw *tabwriter.Writer, printTags bool, db, rp, ms string) error
+	RecordSeries(bucket, rp, ms string, key, field []byte, tags models.Tags)
+	Print(tw *tabwriter.Writer, printTags bool, bucket, rp, ms string) error
 	isLeaf() bool
 	child(key string, isLeaf bool) NodeWrapper
 }
@@ -26,8 +26,8 @@ type NodeWrapper struct {
 	RollupNode
 }
 
-var detailedHeader = []string{"DB", "RP", "measurement", "series", "fields", "tag total", "tags"}
-var simpleHeader = []string{"DB", "RP", "measurement", "series"}
+var detailedHeader = []string{"bucket", "retention policy", "measurement", "series", "fields", "tag total", "tags"}
+var simpleHeader = []string{"bucket", "retention policy", "measurement", "series"}
 
 type RollupNodeFactory struct {
 	header   []string
@@ -129,19 +129,19 @@ func newSimpleNode(isLeaf bool, fn func() report.Counter) *simpleNode {
 	return s
 }
 
-func (s *simpleNode) RecordSeries(db, rp, _ string, key, _ []byte, _ models.Tags) {
+func (s *simpleNode) RecordSeries(bucket, rp, _ string, key, _ []byte, _ models.Tags) {
 	s.Lock()
 	defer s.Unlock()
-	s.recordSeriesNoLock(db, rp, key)
+	s.recordSeriesNoLock(bucket, rp, key)
 }
 
-func (s *simpleNode) recordSeriesNoLock(db, rp string, key []byte) {
-	s.Add([]byte(fmt.Sprintf("%s.%s.%s", db, rp, key)))
+func (s *simpleNode) recordSeriesNoLock(bucket, rp string, key []byte) {
+	s.Add([]byte(fmt.Sprintf("%s.%s.%s", bucket, rp, key)))
 }
 
-func (s *simpleNode) Print(tw *tabwriter.Writer, _ bool, db, rp, ms string) error {
+func (s *simpleNode) Print(tw *tabwriter.Writer, _ bool, bucket, rp, ms string) error {
 	_, err := fmt.Fprintf(tw, "%s\t%s\t%s\t%d\n",
-		db,
+		bucket,
 		rp,
 		ms,
 		s.Count())
@@ -170,15 +170,15 @@ func newDetailedNode(isLeaf bool, fn func() report.Counter) *detailedNode {
 	return d
 }
 
-func (d *detailedNode) RecordSeries(db, rp, ms string, key, field []byte, tags models.Tags) {
+func (d *detailedNode) RecordSeries(bucket, rp, ms string, key, field []byte, tags models.Tags) {
 	d.Lock()
 	defer d.Unlock()
-	d.simpleNode.recordSeriesNoLock(db, rp, key)
-	d.fields.Add([]byte(fmt.Sprintf("%s.%s.%s.%s", db, rp, ms, field)))
+	d.simpleNode.recordSeriesNoLock(bucket, rp, key)
+	d.fields.Add([]byte(fmt.Sprintf("%s.%s.%s.%s", bucket, rp, ms, field)))
 	for _, t := range tags {
 		// Add database, retention policy, and measurement
 		// to correctly aggregate in inner (non-leaf) nodes
-		canonTag := fmt.Sprintf("%s.%s.%s.%s", db, rp, ms, t.Key)
+		canonTag := fmt.Sprintf("%s.%s.%s.%s", bucket, rp, ms, t.Key)
 		tc, ok := d.tags[canonTag]
 		if !ok {
 			tc = nodeFactory.counter()
@@ -188,7 +188,7 @@ func (d *detailedNode) RecordSeries(db, rp, ms string, key, field []byte, tags m
 	}
 }
 
-func (d *detailedNode) Print(tw *tabwriter.Writer, printTags bool, db, rp, ms string) error {
+func (d *detailedNode) Print(tw *tabwriter.Writer, printTags bool, bucket, rp, ms string) error {
 	seriesN := d.Count()
 	fieldsN := d.fields.Count()
 	var tagKeys []string
@@ -205,7 +205,7 @@ func (d *detailedNode) Print(tw *tabwriter.Writer, printTags bool, db, rp, ms st
 		}
 	}
 	_, err := fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%d\t%d\t%s\n",
-		db,
+		bucket,
 		rp,
 		ms,
 		seriesN,
@@ -215,27 +215,27 @@ func (d *detailedNode) Print(tw *tabwriter.Writer, printTags bool, db, rp, ms st
 	return err
 }
 
-func (r *NodeWrapper) Record(depth, totalDepth int, db, rp, measurement string, key []byte, field []byte, tags models.Tags) {
-	r.RecordSeries(db, rp, measurement, key, field, tags)
+func (r *NodeWrapper) Record(depth, totalDepth int, bucket, rp, measurement string, key []byte, field []byte, tags models.Tags) {
+	r.RecordSeries(bucket, rp, measurement, key, field, tags)
 
 	switch depth {
 	case 2:
 		if depth < totalDepth {
 			// Create measurement level in tree
 			c := r.child(measurement, true)
-			c.RecordSeries(db, rp, measurement, key, field, tags)
+			c.RecordSeries(bucket, rp, measurement, key, field, tags)
 		}
 	case 1:
 		if depth < totalDepth {
 			// Create retention policy level in tree
 			c := r.child(rp, (depth+1) == totalDepth)
-			c.Record(depth+1, totalDepth, db, rp, measurement, key, field, tags)
+			c.Record(depth+1, totalDepth, bucket, rp, measurement, key, field, tags)
 		}
 	case 0:
 		if depth < totalDepth {
 			// Create database level in tree
-			c := r.child(db, (depth+1) == totalDepth)
-			c.Record(depth+1, totalDepth, db, rp, measurement, key, field, tags)
+			c := r.child(bucket, (depth+1) == totalDepth)
+			c.Record(depth+1, totalDepth, bucket, rp, measurement, key, field, tags)
 		}
 	default:
 	}

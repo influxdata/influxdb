@@ -76,7 +76,7 @@ func NewReportDBCommand(v *viper.Viper) (*cobra.Command, error) {
 		{
 			DestP:   &flags.rollup,
 			Flag:    "rollup",
-			Desc:    "rollup level - t: total, d: database, r: retention policy, m: measurement",
+			Desc:    "rollup level - t: total, b: bucket, r: retention policy, m: measurement",
 			Default: "m",
 		},
 	}
@@ -87,7 +87,7 @@ func NewReportDBCommand(v *viper.Viper) (*cobra.Command, error) {
 }
 
 func reportDBRunE(_ *cobra.Command, reportdb *ReportDB) error {
-	var legalRollups = map[string]int{"m": 3, "r": 2, "d": 1, "t": 0}
+	var legalRollups = map[string]int{"m": 3, "r": 2, "b": 1, "t": 0}
 	if reportdb.dbPath == "" {
 		return errors.New("path to database must be provided")
 	}
@@ -103,7 +103,7 @@ func reportDBRunE(_ *cobra.Command, reportdb *ReportDB) error {
 
 	g, ctx := errgroup.WithContext(context.Background())
 	g.SetLimit(reportdb.concurrency)
-	processTSM := func(db, rp, id, path string) error {
+	processTSM := func(bucket, rp, id, path string) error {
 		file, err := os.OpenFile(path, os.O_RDONLY, 0600)
 		if err != nil {
 			_, _ = fmt.Fprintf(reportdb.Stderr, "error: %s: %v. Skipping.\n", path, err)
@@ -130,19 +130,19 @@ func reportDBRunE(_ *cobra.Command, reportdb *ReportDB) error {
 				key, _ := reader.KeyAt(i)
 				seriesKey, field, _ := bytes.Cut(key, []byte("#!~#"))
 				measurement, tags := models.ParseKey(seriesKey)
-				totalsTree.Record(0, totalDepth, db, rp, measurement, key, field, tags)
+				totalsTree.Record(0, totalDepth, bucket, rp, measurement, key, field, tags)
 			}()
 		}
 		return nil
 	}
 	done := ctx.Done()
-	err := reporthelper.WalkShardDirs(reportdb.dbPath, func(db, rp, id, path string) error {
+	err := reporthelper.WalkShardDirs(reportdb.dbPath, func(bucket, rp, id, path string) error {
 		select {
 		case <-done:
 			return nil
 		default:
 			g.Go(func() error {
-				return processTSM(db, rp, id, path)
+				return processTSM(bucket, rp, id, path)
 			})
 			return nil
 		}
@@ -166,8 +166,8 @@ func reportDBRunE(_ *cobra.Command, reportdb *ReportDB) error {
 	if err = factory.PrintDivider(tw); err != nil {
 		return err
 	}
-	for d, db := range totalsTree.Children() {
-		for r, rp := range db.Children() {
+	for d, bucket := range totalsTree.Children() {
+		for r, rp := range bucket.Children() {
 			for m, measure := range rp.Children() {
 				err = measure.Print(tw, true, fmt.Sprintf("%q", d), fmt.Sprintf("%q", r), fmt.Sprintf("%q", m))
 				if err != nil {
@@ -178,7 +178,7 @@ func reportDBRunE(_ *cobra.Command, reportdb *ReportDB) error {
 				return err
 			}
 		}
-		if err = db.Print(tw, false, fmt.Sprintf("%q", d), "", ""); err != nil {
+		if err = bucket.Print(tw, false, fmt.Sprintf("%q", d), "", ""); err != nil {
 			return err
 		}
 	}
