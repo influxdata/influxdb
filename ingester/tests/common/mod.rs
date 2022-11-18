@@ -12,7 +12,7 @@ use ingester::{
     lifecycle::LifecycleConfig,
     querier_handler::IngesterQueryResponse,
 };
-use iox_catalog::{interface::Catalog, mem::MemCatalog};
+use iox_catalog::{interface::Catalog, mem::MemCatalog, validate_or_insert_schema};
 use iox_query::exec::Executor;
 use iox_time::TimeProvider;
 use metric::{Attributes, Metric, MetricObserver};
@@ -210,35 +210,6 @@ impl TestContext {
         ns
     }
 
-    /// Enqueue the specified `op` into the write buffer for the ingester to consume.
-    ///
-    /// This call does NOT validate the schema of `op` or populate the catalog with any new schema
-    /// elements.
-    ///
-    /// # Panics
-    ///
-    /// This method panics if the namespace for `op` does not exist.
-    #[track_caller]
-    pub async fn enqueue_write(&mut self, op: DmlWrite) -> SequenceNumber {
-        self.namespaces
-            .get_mut(&op.namespace_id())
-            .expect("namespace does not exist");
-
-        // Pull the sequence number out of the op to return it back to the user
-        // for simplicity.
-        let offset = op
-            .meta()
-            .sequence()
-            .expect("write must be sequenced")
-            .sequence_number;
-
-        // Push the write into the write buffer.
-        self.write_buffer_state.push_write(op);
-
-        debug!(?offset, "enqueued write in write buffer");
-        offset
-    }
-
     /// A helper wrapper over [`Self::enqueue_write()`] for line-protocol.
     #[track_caller]
     pub async fn write_lp(
@@ -260,7 +231,22 @@ impl TestContext {
             .expect("namespace does not exist")
             .id;
 
+        let schema = self
+            .namespaces
+            .get_mut(&namespace_id)
+            .expect("namespace does not exist");
+
         let batches = lines_to_batches(lp, 0).unwrap();
+
+        validate_or_insert_schema(
+            batches
+                .iter()
+                .map(|(table_name, batch)| (table_name.as_str(), batch)),
+            schema,
+            self.catalog.repositories().await.as_mut(),
+        )
+        .await
+        .expect("failed schema validation for enqueuing write");
 
         // Build the TableId -> Batch map, upserting the tables into the catalog in the
         // process.
@@ -285,7 +271,7 @@ impl TestContext {
             .collect::<hashbrown::HashMap<_, _>>()
             .await;
 
-        self.enqueue_write(DmlWrite::new(
+        let op = DmlWrite::new(
             namespace_id,
             batches_by_ids,
             partition_key,
@@ -295,8 +281,21 @@ impl TestContext {
                 None,
                 50,
             ),
-        ))
-        .await
+        );
+
+        // Pull the sequence number out of the op to return it back to the user
+        // for simplicity.
+        let offset = op
+            .meta()
+            .sequence()
+            .expect("write must be sequenced")
+            .sequence_number;
+
+        // Push the write into the write buffer.
+        self.write_buffer_state.push_write(op);
+
+        debug!(?offset, "enqueued write in write buffer");
+        offset
     }
 
     /// Return the [`TableId`] in the catalog for `name`, or panic.
