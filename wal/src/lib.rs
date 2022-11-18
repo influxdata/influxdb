@@ -498,26 +498,101 @@ impl Segment for SegmentFile {
     }
 }
 
-struct SegmentFileReader {
-    f: tokio::fs::File,
+struct SegmentFileReader<R> {
+    f: R,
     id: SegmentId,
 }
 
-impl SegmentFileReader {
-    pub async fn new(path: impl AsRef<Path>) -> Result<Self> {
+impl SegmentFileReader<tokio::fs::File> {
+    pub async fn from_path(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
-        let mut f = tokio::fs::File::open(path)
+        let f = tokio::fs::File::open(path)
             .await
             .context(UnableToOpenFileSnafu { path })?;
+        Self::new(f).await
+    }
+}
 
-        is_segment_stream(&mut f).await?;
-        let id = read_id(&mut f).await?;
+impl<R> SegmentFileReader<R>
+where
+    R: AsyncRead + Unpin,
+{
+    pub async fn new(mut f: R) -> Result<Self> {
+        Self::is_segment_stream(&mut f).await?;
+        let id = Self::read_id(&mut f).await?;
 
         Ok(Self { f, id })
     }
 
+    async fn is_segment_stream(mut f: impl AsyncRead + Unpin) -> Result<()> {
+        let mut header = [0u8; FILE_TYPE_IDENTIFIER.len()];
+        f.read_exact(&mut header)
+            .await
+            .context(UnableToReadFileMetadataSnafu)?;
+
+        ensure!(
+            header == FILE_TYPE_IDENTIFIER,
+            SegmentFileIdentifierMismatchSnafu,
+        );
+
+        Ok(())
+    }
+
+    async fn read_id(mut f: impl AsyncRead + Unpin) -> Result<SegmentId> {
+        const UUID_BYTES_LEN: usize = 16;
+
+        let mut id_header = [0u8; UUID_BYTES_LEN];
+        f.read_exact(&mut id_header)
+            .await
+            .context(UnableToReadSegmentIdSnafu)?;
+
+        let uuid = Uuid::from_bytes(id_header);
+        Ok(SegmentId::from(uuid))
+    }
+
     pub async fn next(&mut self) -> Result<Option<SegmentEntry>> {
-        read_entry(&mut self.f).await
+        let checksum = match self.f.read_u32().await {
+            Err(ref e) if e.kind() == io::ErrorKind::UnexpectedEof => return Ok(None),
+            e => e.context(UnableToReadChecksumSnafu)?,
+        };
+
+        let expected_len = self.f.read_u32().await.context(UnableToReadLengthSnafu)?;
+        let expected_len_us = usize::try_from(expected_len)
+            .expect("Only designed to run on 32-bit systems or higher");
+        let mut compressed_data = Vec::with_capacity(expected_len_us);
+        // TODO: Is there a way to avoid reading everything into memory at once? Ditto for writing
+        let actual_compressed_len = (&mut self.f)
+            .take(u64::from(expected_len))
+            .read_to_end(&mut compressed_data)
+            .await
+            .context(UnableToReadDataSnafu)?;
+
+        ensure!(
+            expected_len_us == actual_compressed_len,
+            LengthMismatchSnafu {
+                expected: expected_len_us,
+                actual: actual_compressed_len
+            }
+        );
+
+        let mut hasher = Hasher::new();
+        hasher.update(&compressed_data);
+        let actual_checksum = hasher.finalize();
+
+        ensure!(
+            checksum == actual_checksum,
+            ChecksumMismatchSnafu {
+                expected: checksum,
+                actual: actual_checksum
+            }
+        );
+
+        let mut decoder = snap::raw::Decoder::new();
+        let data = decoder
+            .decompress_vec(&compressed_data)
+            .context(UnableToDecompressDataSnafu)?;
+
+        Ok(Some(SegmentEntry { checksum, data }))
     }
 
     async fn entries(&mut self) -> Result<Vec<SegmentEntry>> {
@@ -530,7 +605,7 @@ impl SegmentFileReader {
     }
 
     async fn next_ops(&mut self) -> Result<Option<Vec<SequencedWalOp>>> {
-        if let Some(entry) = read_entry(&mut self.f).await? {
+        if let Some(entry) = self.next().await? {
             let decoded: Vec<_> = serde_json::from_slice(&entry.data).unwrap();
 
             return Ok(Some(decoded));
@@ -538,77 +613,6 @@ impl SegmentFileReader {
 
         Ok(None)
     }
-}
-
-async fn is_segment_stream(mut f: impl AsyncRead + Unpin) -> Result<()> {
-    let mut header = [0u8; FILE_TYPE_IDENTIFIER.len()];
-    f.read_exact(&mut header)
-        .await
-        .context(UnableToReadFileMetadataSnafu)?;
-
-    ensure!(
-        header == FILE_TYPE_IDENTIFIER,
-        SegmentFileIdentifierMismatchSnafu,
-    );
-
-    Ok(())
-}
-
-const UUID_BYTES_LEN: usize = 16;
-
-async fn read_id(mut f: impl AsyncRead + Unpin) -> Result<SegmentId> {
-    let mut id_header = [0u8; UUID_BYTES_LEN];
-    f.read_exact(&mut id_header)
-        .await
-        .context(UnableToReadSegmentIdSnafu)?;
-
-    let uuid = Uuid::from_bytes(id_header);
-    Ok(SegmentId::from(uuid))
-}
-
-async fn read_entry(mut f: impl AsyncRead + Unpin) -> Result<Option<SegmentEntry>> {
-    let checksum = match f.read_u32().await {
-        Err(ref e) if e.kind() == io::ErrorKind::UnexpectedEof => return Ok(None),
-        e => e.context(UnableToReadChecksumSnafu)?,
-    };
-
-    let expected_len = f.read_u32().await.context(UnableToReadLengthSnafu)?;
-    let expected_len_us =
-        usize::try_from(expected_len).expect("Only designed to run on 32-bit systems or higher");
-    let mut compressed_data = Vec::with_capacity(expected_len_us);
-    // TODO: Is there a way to avoid reading everything into memory at once? Ditto for writing
-    let actual_compressed_len = f
-        .take(u64::from(expected_len))
-        .read_to_end(&mut compressed_data)
-        .await
-        .context(UnableToReadDataSnafu)?;
-
-    ensure!(
-        expected_len_us == actual_compressed_len,
-        LengthMismatchSnafu {
-            expected: expected_len_us,
-            actual: actual_compressed_len
-        }
-    );
-
-    let mut hasher = Hasher::new();
-    hasher.update(&compressed_data);
-    let actual_checksum = hasher.finalize();
-
-    ensure!(
-        checksum == actual_checksum,
-        ChecksumMismatchSnafu {
-            expected: checksum,
-            actual: actual_checksum
-        }
-    );
-
-    let mut decoder = snap::raw::Decoder::new();
-    let data = decoder
-        .decompress_vec(&compressed_data)
-        .context(UnableToDecompressDataSnafu)?;
-
-    Ok(Some(SegmentEntry { checksum, data }))
 }
 
 #[derive(Debug, Clone)]
@@ -633,7 +637,7 @@ mod tests {
         let data = b"whatevs";
         let write_summary = sf.write(data).await.unwrap();
 
-        let mut reader = SegmentFileReader::new(&sf.path).await.unwrap();
+        let mut reader = SegmentFileReader::from_path(&sf.path).await.unwrap();
         let entries = reader.entries().await.unwrap();
         assert_eq!(
             &entries,
@@ -646,7 +650,7 @@ mod tests {
         let data2 = b"another";
         let summary2 = sf.write(data2).await.unwrap();
 
-        let mut reader = SegmentFileReader::new(&sf.path).await.unwrap();
+        let mut reader = SegmentFileReader::from_path(&sf.path).await.unwrap();
         let entries = reader.entries().await.unwrap();
         assert_eq!(
             &entries,
@@ -683,7 +687,7 @@ mod tests {
         let ops = vec![op1, op2];
         segment.write_ops(&ops).await.unwrap();
 
-        let mut reader = SegmentFileReader::new(&segment.path).await.unwrap();
+        let mut reader = SegmentFileReader::from_path(&segment.path).await.unwrap();
         let read_ops = reader.next_ops().await.unwrap().unwrap();
         assert_eq!(ops, read_ops);
     }
