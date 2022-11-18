@@ -559,12 +559,12 @@ async fn is_segment_stream(f: &mut Pin<Box<dyn AsyncRead>>) -> Result<()> {
 const UUID_BYTES_LEN: usize = 16;
 
 async fn read_id(f: &mut Pin<Box<dyn AsyncRead>>) -> Result<SegmentId> {
-    let mut id_header = vec![0u8; UUID_BYTES_LEN];
+    let mut id_header = [0u8; UUID_BYTES_LEN];
     f.read_exact(&mut id_header)
         .await
         .context(UnableToReadSegmentIdSnafu)?;
 
-    let uuid = Uuid::from_slice(&id_header).expect("uuid bytes length should always be 16");
+    let uuid = Uuid::from_bytes(id_header);
     Ok(SegmentId::from(uuid))
 }
 
