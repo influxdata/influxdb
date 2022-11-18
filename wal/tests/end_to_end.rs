@@ -1,6 +1,6 @@
 use data_types::{NamespaceId, TableId};
 use dml::DmlWrite;
-use generated_types::influxdata::pbdata::v1::DatabaseBatch;
+use generated_types::influxdata::pbdata::v1::{DatabaseBatch, TableBatch};
 use mutable_batch_lp::lines_to_batches;
 use wal::{SegmentWal, SequencedWalOp, WalOp};
 
@@ -36,7 +36,16 @@ async fn crud() {
     // Can write an entry to the open segment
     let op = arbitrary_sequenced_wal_op();
     let summary = open.write_op(&op).await.unwrap();
-    assert_eq!(summary.total_bytes, 373);
+    assert_eq!(summary.total_bytes, 357);
+    assert_eq!(summary.bytes_written, 333);
+    assert_eq!(summary.checksum, 3344987741);
+
+    // Can write another entry; total_bytes accumulates
+    let op = arbitrary_sequenced_wal_op();
+    let summary = open.write_op(&op).await.unwrap();
+    assert_eq!(summary.total_bytes, 690);
+    assert_eq!(summary.bytes_written, 333);
+    assert_eq!(summary.checksum, 3344987741);
 }
 
 fn arbitrary_sequenced_wal_op() -> SequencedWalOp {
@@ -62,5 +71,44 @@ fn test_data(lp: &str) -> DatabaseBatch {
         Default::default(),
     );
 
-    mutable_batch_pb::encode::encode_write(42, &write)
+    let database_batch = mutable_batch_pb::encode::encode_write(42, &write);
+
+    // `encode_write` returns tables and columns in an arbitrary order. Sort tables and columns
+    // to make tests deterministic.
+    let DatabaseBatch {
+        database_id,
+        partition_key,
+        table_batches,
+    } = database_batch;
+
+    let mut table_batches: Vec<_> = table_batches
+        .into_iter()
+        .map(|table_batch| {
+            let TableBatch {
+                table_id,
+                mut columns,
+                row_count,
+            } = table_batch;
+
+            columns.sort_by(|a, b| a.column_name.cmp(&b.column_name));
+
+            let table_batch = TableBatch {
+                table_id,
+                columns,
+                row_count,
+            };
+
+            table_batch
+        })
+        .collect();
+
+    table_batches.sort_by_key(|t| t.table_id);
+
+    let database_batch = DatabaseBatch {
+        database_id,
+        partition_key,
+        table_batches,
+    };
+
+    database_batch
 }
