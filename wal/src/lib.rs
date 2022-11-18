@@ -555,7 +555,7 @@ where
     pub async fn next(&mut self) -> Result<Option<SegmentEntry>> {
         let checksum = match self.f.read_u32().await {
             Err(ref e) if e.kind() == io::ErrorKind::UnexpectedEof => return Ok(None),
-            e => e.context(UnableToReadChecksumSnafu)?,
+            other => other.context(UnableToReadChecksumSnafu)?,
         };
 
         let expected_len = self.f.read_u32().await.context(UnableToReadLengthSnafu)?;
