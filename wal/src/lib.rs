@@ -589,6 +589,8 @@ where
             }
         );
 
+        // TODO: This (de)compression is a blocking operation and
+        //       shouldn't occur in an async task
         let mut decoder = snap::raw::Decoder::new();
         let data = decoder
             .decompress_vec(&compressed_data)
