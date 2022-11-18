@@ -543,14 +543,14 @@ impl SegmentFileReader {
 }
 
 async fn is_segment_stream(f: &mut Pin<Box<dyn AsyncRead>>) -> Result<()> {
-    let mut header = vec![0u8; FILE_TYPE_IDENTIFIER.len()];
+    let mut header = [0u8; FILE_TYPE_IDENTIFIER.len()];
     f.read_exact(&mut header)
         .await
         .context(UnableToReadFileMetadataSnafu)?;
 
     ensure!(
         header == FILE_TYPE_IDENTIFIER,
-        SegmentFileIdentifierMismatchSnafu {}
+        SegmentFileIdentifierMismatchSnafu,
     );
 
     Ok(())
