@@ -34,24 +34,52 @@ async fn crud() {
     );
 
     // Can write an entry to the open segment
-    let op = arbitrary_sequenced_wal_op();
+    let op = arbitrary_sequenced_wal_op(42);
     let summary = open.write_op(&op).await.unwrap();
-    assert_eq!(summary.total_bytes, 357);
-    assert_eq!(summary.bytes_written, 333);
-    assert_eq!(summary.checksum, 3344987741);
+    assert_eq!(summary.total_bytes, 375);
+    assert_eq!(summary.bytes_written, 351);
+    assert_eq!(summary.checksum, 3889934339);
 
     // Can write another entry; total_bytes accumulates
-    let op = arbitrary_sequenced_wal_op();
+    let op = arbitrary_sequenced_wal_op(43);
     let summary = open.write_op(&op).await.unwrap();
-    assert_eq!(summary.total_bytes, 690);
-    assert_eq!(summary.bytes_written, 333);
-    assert_eq!(summary.checksum, 3344987741);
+    assert_eq!(summary.total_bytes, 726);
+    assert_eq!(summary.bytes_written, 351);
+    assert_eq!(summary.checksum, 106073610);
+
+    // Still no closed segments
+    assert!(
+        wal.closed_segments().is_empty(),
+        "Expected empty closed segments; got {:?}",
+        wal.closed_segments()
+    );
+
+    // Can't read entries from the open segment; have to rotate first
+    let (closed_segment_details, _new_open) = wal.rotate().await.unwrap();
+    assert_eq!(closed_segment_details.size(), 0);
+    assert_eq!(closed_segment_details.id(), open_segment_id);
+
+    // There's one closed segment
+    let closed_segment_ids: Vec<_> = wal.closed_segments().iter().map(|c| c.id()).collect();
+    assert_eq!(closed_segment_ids, &[closed_segment_details.id()]);
+
+    // Can read the written entries from the closed segment
+    let mut reader = wal
+        .reader_for_segment(closed_segment_details.id())
+        .await
+        .unwrap();
+    let segments = reader.next().await.unwrap().unwrap();
+    assert_eq!(segments.len(), 2);
+    assert_eq!(segments[0].sequence_number, 42);
+    assert_eq!(segments[1].sequence_number, 43);
+
+    // Can delete a segment
 }
 
-fn arbitrary_sequenced_wal_op() -> SequencedWalOp {
+fn arbitrary_sequenced_wal_op(sequence_number: u64) -> SequencedWalOp {
     let w = test_data("m1,t=foo v=1i 1");
     SequencedWalOp {
-        sequence_number: 42,
+        sequence_number,
         op: WalOp::Write(w),
     }
 }

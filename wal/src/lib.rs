@@ -116,6 +116,11 @@ pub enum Error {
     UnableToReadNextOps {
         source: blocking::Error,
     },
+
+    InvalidUuid {
+        filename: String,
+        source: uuid::Error,
+    },
 }
 
 /// A specialized `Result` for WAL-related errors
@@ -204,7 +209,13 @@ impl Wal {
                 .await
                 .context(UnableToReadFileMetadataSnafu)?;
             if metadata.is_file() {
+                let child_path = child.path();
+                let filename = child_path.file_name().unwrap();
+                let filename = filename.to_str().unwrap();
                 let segment = ClosedSegment {
+                    id: Uuid::parse_str(filename)
+                        .context(InvalidUuidSnafu { filename })?
+                        .into(),
                     path: child.path(),
                     size: metadata.len(),
                     created_at: metadata.created().context(UnableToReadFileMetadataSnafu)?,
@@ -297,9 +308,9 @@ pub struct PersistOp {
 #[async_trait]
 pub trait OpReader {
     // get the next collection of ops. Since ops are batched into Segments, they come
-    // back as a collection. Each `SegmentEntry` will encode a `Vec<WalOps>`.
-    // todo: change to Result<Vec<WalOp>>, or a stream of `Vec<WalOps>`?
-    async fn next(&mut self) -> Result<Option<Vec<WalOp>>>;
+    // back as a collection. Each `SegmentEntry` will encode a `Vec<SequencedWalOp>`.
+    // todo: change to Result<Vec<SequencedWalOp>>, or a stream of `Vec<SequencedWalOp>`s?
+    async fn next(&mut self) -> Result<Option<Vec<SequencedWalOp>>>;
 }
 
 /// Methods for a `Segment`
@@ -455,6 +466,7 @@ impl SegmentFile {
             .await
             .context(UnableToReadFileMetadataSnafu)?;
         Ok(ClosedSegment {
+            id: self.id,
             path: self.path,
             size: metadata.len(),
             created_at: metadata.created().context(UnableToReadCreatedSnafu)?,
@@ -755,9 +767,20 @@ mod blocking {
 
 #[derive(Debug, Clone)]
 pub struct ClosedSegment {
+    id: SegmentId,
     path: PathBuf,
     size: u64,
     created_at: SystemTime,
+}
+
+impl ClosedSegment {
+    pub fn id(&self) -> SegmentId {
+        self.id
+    }
+
+    pub fn size(&self) -> u64 {
+        self.size
+    }
 }
 
 #[cfg(test)]
