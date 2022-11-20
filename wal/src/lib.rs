@@ -14,22 +14,11 @@
 //! This crate provides a local-disk WAL for the IOx ingestion pipeline.
 
 use async_trait::async_trait;
-use crc32fast::Hasher;
 use generated_types::influxdata::{iox::delete::v1::DeletePayload, pbdata::v1::DatabaseBatch};
 use serde::{Deserialize, Serialize};
 use snafu::prelude::*;
-use std::{
-    convert::TryFrom,
-    io::{self, Write},
-    mem, num,
-    path::PathBuf,
-    sync::Arc,
-    time::SystemTime,
-};
-use tokio::{
-    io::AsyncWriteExt,
-    sync::{mpsc, oneshot, RwLock},
-};
+use std::{io, path::PathBuf, time::SystemTime, slice};
+use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
 mod blocking;
@@ -39,23 +28,10 @@ mod blocking;
 #[allow(missing_copy_implementations, missing_docs)]
 #[snafu(visibility(pub(crate)))]
 pub enum Error {
-    SegmentCreate {
-        source: io::Error,
-    },
-
-    SegmentWrite {
-        source: io::Error,
-    },
-
     SegmentFileIdentifierMismatch {},
 
     UnableToReadFileMetadata {
         source: io::Error,
-    },
-
-    ChunkSizeTooLarge {
-        source: num::TryFromIntError,
-        actual: usize,
     },
 
     UnableToCreateWalDir {
@@ -79,10 +55,6 @@ pub enum Error {
         source: io::Error,
     },
 
-    UnableToCompressData {
-        source: io::Error,
-    },
-
     UnableToSync {
         source: io::Error,
     },
@@ -90,10 +62,6 @@ pub enum Error {
     UnableToReadDirectoryContents {
         source: io::Error,
         path: PathBuf,
-    },
-
-    UnableToReadCreated {
-        source: io::Error,
     },
 
     UnableToOpenFile {
@@ -174,6 +142,13 @@ impl Default for SegmentId {
     }
 }
 
+pub(crate) fn fnamex(dir: impl Into<PathBuf>, id: SegmentId) -> PathBuf {
+    let mut path = dir.into();
+    path.push(id.to_string());
+    path.set_extension(SEGMENT_FILE_EXTENSION);
+    path
+}
+
 /// The first bytes written into a segment file to identify it and its version.
 // TODO: What's the expected way of upgrading -- what happens when we need version 31?
 type FileTypeIdentifier = [u8; 8];
@@ -185,7 +160,7 @@ const SEGMENT_FILE_EXTENSION: &str = "dat";
 pub struct Wal {
     root: PathBuf,
     closed_segments: Vec<ClosedSegment>,
-    open_segment: Arc<SegmentFile>,
+    open_segment: SegmentFile,
 }
 
 impl Wal {
@@ -226,7 +201,7 @@ impl Wal {
             }
         }
 
-        let open_segment = Arc::new(SegmentFile::new_writer(&root).await?);
+        let open_segment = SegmentFile::new_in_directory(&root).await?;
 
         Ok(Self {
             root,
@@ -241,16 +216,16 @@ impl Wal {
 pub trait SegmentWal {
     /// Closes the currently open segment and opens a new one, returning the closed segment details
     /// and a handle to the newly opened segment
-    async fn rotate(&self) -> Result<(ClosedSegment, Arc<dyn Segment>)>;
+    async fn rotate(&mut self) -> Result<ClosedSegment>;
 
     /// Gets a list of the closed segments
     fn closed_segments(&self) -> &[ClosedSegment];
 
     /// Opens a reader for a given segment from the WAL
-    async fn reader_for_segment(&self, id: SegmentId) -> Result<Box<dyn OpReader>>;
+    async fn reader_for_segment(&self, id: SegmentId) -> Result<SegmentFileReader>;
 
     /// Returns a handle to the open segment
-    async fn open_segment(&self) -> Arc<dyn Segment>;
+    async fn open_segment(&self) -> Handle;
 
     /// Deletes the segment from storage
     async fn delete_segment(&self, id: SegmentId) -> Result<()>;
@@ -258,20 +233,23 @@ pub trait SegmentWal {
 
 #[async_trait]
 impl SegmentWal for Wal {
-    async fn rotate(&self) -> Result<(ClosedSegment, Arc<dyn Segment>)> {
-        todo!();
+    async fn rotate(&mut self) -> Result<ClosedSegment> {
+        let closed = self.open_segment.rotate().await?;
+        self.closed_segments.push(closed.clone());
+        Ok(closed)
     }
 
     fn closed_segments(&self) -> &[ClosedSegment] {
         &self.closed_segments
     }
 
-    async fn reader_for_segment(&self, _id: SegmentId) -> Result<Box<dyn OpReader>> {
-        todo!()
+    async fn reader_for_segment(&self, id: SegmentId) -> Result<SegmentFileReader> {
+        let path = fnamex(&self.root, id);
+        SegmentFileReader::from_path(path).await
     }
 
-    async fn open_segment(&self) -> Arc<dyn Segment> {
-        Arc::clone(&self.open_segment) as _
+    async fn open_segment(&self) -> Handle {
+        self.open_segment.handle()
     }
 
     async fn delete_segment(&self, _id: SegmentId) -> Result<()> {
@@ -350,104 +328,74 @@ pub struct WriteSummary {
     pub checksum: u32,
 }
 
+#[derive(Debug)]
+enum SegmentFileWriterRequest {
+    Write(oneshot::Sender<WriteSummary>, Vec<u8>), // todo Bytes
+    Rotate(oneshot::Sender<ClosedSegment>, ()),
+}
+
 /// A Segment in a WAL. One segment is stored in one file.
 #[derive(Debug)]
 struct SegmentFile {
-    id: SegmentId,
-    path: PathBuf,
-    state: RwLock<SegmentFileInner>, // todo: is this lock needed?
-}
-
-#[derive(Debug)]
-struct SegmentFileInner {
-    f: tokio::fs::File,
-    bytes_written: usize,
+    tx: mpsc::Sender<SegmentFileWriterRequest>,
+    task: tokio::task::JoinHandle<Result<()>>,
 }
 
 impl SegmentFile {
-    async fn new_writer(path: impl Into<PathBuf>) -> Result<Self> {
-        let mut path = path.into();
-        let id = SegmentId::new();
-        path.push(id.to_string());
-        path.set_extension(SEGMENT_FILE_EXTENSION);
+    async fn new_in_directory(dir: impl Into<PathBuf>) -> Result<Self> {
+        let dir = dir.into();
+        let (tx, rx) = mpsc::channel(10);
+        let task = tokio::task::spawn_blocking(|| Self::task_main(rx, dir));
+        Ok(Self { tx, task })
+    }
 
-        let mut f = tokio::fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .open(&path)
-            .await
-            .context(SegmentCreateSnafu)?;
-        f.write_all(FILE_TYPE_IDENTIFIER)
-            .await
-            .context(SegmentWriteSnafu)?;
-        let bytes_written = FILE_TYPE_IDENTIFIER.len();
-        let id_bytes = id.as_bytes();
-        f.write_all(id_bytes).await.context(SegmentWriteSnafu)?;
-        let id_bytes_written = id_bytes.len();
+    fn task_main(
+        mut rx: tokio::sync::mpsc::Receiver<SegmentFileWriterRequest>,
+        dir: PathBuf,
+    ) -> Result<()> {
+        let new_writ = || Ok(blocking::SegmentFileWriter::new_in_directory(&dir).unwrap());
+        let mut open_write = new_writ()?;
 
-        f.sync_all().await.context(SegmentWriteSnafu)?;
+        while let Some(req) = rx.blocking_recv() {
+            use SegmentFileWriterRequest::*;
 
-        Ok(Self {
-            id,
-            path,
-            state: RwLock::new(SegmentFileInner {
-                f,
-                bytes_written: bytes_written + id_bytes_written,
-            }),
-        })
+            match req {
+                Write(tx, data) => {
+                    let x = open_write.write(&data).unwrap();
+                    tx.send(x).unwrap();
+                }
+
+                Rotate(tx, ()) => {
+                    let old = std::mem::replace(&mut open_write, new_writ()?);
+                    let res = old.close().unwrap();
+                    tx.send(res).unwrap();
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn one_command<Req, Resp, Args>(
+        tx: &mpsc::Sender<SegmentFileWriterRequest>,
+        req: Req,
+        args: Args,
+    ) -> Result<Resp>
+    where
+        Req: FnOnce(oneshot::Sender<Resp>, Args) -> SegmentFileWriterRequest,
+    {
+        let (req_tx, req_rx) = oneshot::channel();
+
+        tx.send(req(req_tx, args)).await.unwrap();
+        Ok(req_rx.await.unwrap())
+    }
+
+    fn handle(&self) -> Handle {
+        Handle(self.tx.clone())
     }
 
     async fn write(&self, data: &[u8]) -> Result<WriteSummary> {
-        // Only designed to support chunks up to `u32::max` bytes long.
-        let uncompressed_len = data.len();
-        u32::try_from(uncompressed_len).context(ChunkSizeTooLargeSnafu {
-            actual: uncompressed_len,
-        })?;
-
-        // TODO: Can this code avoid keeping all intermediate data in memory?
-        // TODO: This code is blocking and should be run on a separate thread
-        // TODO: The snappy frame format has a built-in CRC32; should we just use that?
-        let mut encoder = snap::write::FrameEncoder::new(Vec::new());
-        encoder.write_all(data).context(UnableToCompressDataSnafu)?;
-        let compressed_data = encoder.into_inner().expect("cannot fail to flush to a Vec");
-        let actual_compressed_len = compressed_data.len();
-        let actual_compressed_len =
-            u32::try_from(actual_compressed_len).context(ChunkSizeTooLargeSnafu {
-                actual: actual_compressed_len,
-            })?;
-
-        let mut hasher = Hasher::new();
-        hasher.update(&compressed_data);
-        let checksum = hasher.finalize();
-
-        let mut state = self.state.write().await;
-
-        state
-            .f
-            .write_u32(checksum)
-            .await
-            .context(SegmentWriteSnafu)?;
-        state
-            .f
-            .write_u32(actual_compressed_len)
-            .await
-            .context(SegmentWriteSnafu)?;
-        state
-            .f
-            .write_all(&compressed_data)
-            .await
-            .context(SegmentWriteSnafu)?;
-
-        // TODO: should there be a `sync_all` here?
-
-        let bytes_written = mem::size_of::<u32>() + mem::size_of::<u32>() + compressed_data.len();
-        state.bytes_written += bytes_written;
-
-        Ok(WriteSummary {
-            checksum,
-            total_bytes: state.bytes_written,
-            bytes_written,
-        })
+        Self::one_command(&self.tx, SegmentFileWriterRequest::Write, data.to_vec()).await
     }
 
     async fn write_ops(&self, ops: &[SequencedWalOp]) -> Result<WriteSummary> {
@@ -456,39 +404,24 @@ impl SegmentFile {
         self.write(&encoded).await
     }
 
-    // async fn write_op(&self, op: &SequencedWalOp) -> Result<WriteSummary> {
-    //
-    // }
-
-    async fn close(self) -> Result<ClosedSegment> {
-        let state = self.state.write().await;
-        let metadata = state
-            .f
-            .metadata()
-            .await
-            .context(UnableToReadFileMetadataSnafu)?;
-        Ok(ClosedSegment {
-            id: self.id,
-            path: self.path,
-            size: metadata.len(),
-            created_at: metadata.created().context(UnableToReadCreatedSnafu)?,
-        })
+    async fn rotate(&self) -> Result<ClosedSegment> {
+        Self::one_command(&self.tx, SegmentFileWriterRequest::Rotate, ()).await
     }
 }
 
-#[async_trait]
-impl Segment for SegmentFile {
-    fn id(&self) -> SegmentId {
-        self.id
+#[derive(Debug)]
+pub struct Handle(mpsc::Sender<SegmentFileWriterRequest>);
+
+impl Handle {
+    async fn write(&self, data: &[u8]) -> Result<WriteSummary> {
+        SegmentFile::one_command(&self.0, SegmentFileWriterRequest::Write, data.to_vec()).await
     }
 
-    // TODO: batching parallel calls to this to write many entries together
-    async fn write_op(&self, op: &SequencedWalOp) -> Result<WriteSummary> {
-        self.write_ops(std::slice::from_ref(op)).await
-    }
-
-    async fn reader(&self) -> Result<Box<dyn OpReader>> {
-        todo!()
+    pub async fn write_op(&self, op: &SequencedWalOp) -> Result<WriteSummary> {
+        // todo: bincode instead of serde_json
+        let ops = slice::from_ref(op);
+        let encoded = serde_json::to_vec(&ops).unwrap();
+        self.write(&encoded).await
     }
 }
 
@@ -501,7 +434,7 @@ enum SegmentFileReaderRequest {
     NextOps(oneshot::Sender<blocking::ReaderResult<Option<Vec<SequencedWalOp>>>>),
 }
 
-struct SegmentFileReader {
+pub struct SegmentFileReader {
     id: SegmentId,
     tx: mpsc::Sender<SegmentFileReaderRequest>,
     task: tokio::task::JoinHandle<Result<()>>,
@@ -579,7 +512,7 @@ impl SegmentFileReader {
             .context(UnableToReadEntriesSnafu)
     }
 
-    async fn next_ops(&mut self) -> Result<Option<Vec<SequencedWalOp>>> {
+    pub async fn next_ops(&mut self) -> Result<Option<Vec<SequencedWalOp>>> {
         Self::one_command(&self.tx, SegmentFileReaderRequest::NextOps)
             .await?
             .context(UnableToReadNextOpsSnafu)
@@ -614,25 +547,17 @@ mod tests {
     #[tokio::test]
     async fn segment_file_write_and_read_entries() {
         let dir = test_helpers::tmp_dir().unwrap();
-        let sf = SegmentFile::new_writer(dir.path()).await.unwrap();
+        let sf = SegmentFile::new_in_directory(dir.path()).await.unwrap();
 
         let data = b"whatevs";
         let write_summary = sf.write(data).await.unwrap();
 
-        let mut reader = SegmentFileReader::from_path(&sf.path).await.unwrap();
-        let entries = reader.entries().await.unwrap();
-        assert_eq!(
-            &entries,
-            &[SegmentEntry {
-                checksum: write_summary.checksum,
-                data: data.to_vec(),
-            }]
-        );
-
         let data2 = b"another";
         let summary2 = sf.write(data2).await.unwrap();
 
-        let mut reader = SegmentFileReader::from_path(&sf.path).await.unwrap();
+        let closed = sf.rotate().await.unwrap();
+
+        let mut reader = SegmentFileReader::from_path(&closed.path).await.unwrap();
         let entries = reader.entries().await.unwrap();
         assert_eq!(
             &entries,
@@ -652,7 +577,7 @@ mod tests {
     #[tokio::test]
     async fn segment_file_write_and_read_ops() {
         let dir = test_helpers::tmp_dir().unwrap();
-        let segment = SegmentFile::new_writer(dir.path()).await.unwrap();
+        let segment = SegmentFile::new_in_directory(dir.path()).await.unwrap();
 
         let w1 = test_data("m1,t=foo v=1i 1");
         let w2 = test_data("m1,t=foo v=2i 2");
@@ -669,7 +594,9 @@ mod tests {
         let ops = vec![op1, op2];
         segment.write_ops(&ops).await.unwrap();
 
-        let mut reader = SegmentFileReader::from_path(&segment.path).await.unwrap();
+        let closed = segment.rotate().await.unwrap();
+
+        let mut reader = SegmentFileReader::from_path(&closed.path).await.unwrap();
         let read_ops = reader.next_ops().await.unwrap().unwrap();
         assert_eq!(ops, read_ops);
     }
