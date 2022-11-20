@@ -19,15 +19,15 @@ async fn crud() {
 
     // Creating a WAL creates a file in the directory for the open segment.
     let open = wal.open_segment().await;
-//    let open_segment_id = open.id();
-    let files: Vec<_> = dir
-        .path()
-        .read_dir()
-        .unwrap()
-        .flatten()
-        .map(|dir_entry| dir_entry.path())
-        .collect();
-    //assert_eq!(files.len(), 1);
+    // let open_segment_id = open.id();
+    // let files: Vec<_> = dir
+    //     .path()
+    //     .read_dir()
+    //     .unwrap()
+    //     .flatten()
+    //     .map(|dir_entry| dir_entry.path())
+    //     .collect();
+    // assert_eq!(files.len(), 1);
     // assert_eq!(
     //     files[0].file_name().unwrap().to_str().unwrap(),
     //     &format!("{open_segment_id}.dat")
@@ -57,7 +57,7 @@ async fn crud() {
     // Can't read entries from the open segment; have to rotate first
     let closed_segment_details = wal.rotate().await.unwrap();
     assert_eq!(closed_segment_details.size(), 726);
-//    assert_eq!(closed_segment_details.id(), open_segment_id);
+    //    assert_eq!(closed_segment_details.id(), open_segment_id);
 
     // There's one closed segment
     let closed_segment_ids: Vec<_> = wal.closed_segments().iter().map(|c| c.id()).collect();
@@ -123,23 +123,19 @@ fn test_data(lp: &str) -> DatabaseBatch {
 
             columns.sort_by(|a, b| a.column_name.cmp(&b.column_name));
 
-            let table_batch = TableBatch {
+            TableBatch {
                 table_id,
                 columns,
                 row_count,
-            };
-
-            table_batch
+            }
         })
         .collect();
 
     table_batches.sort_by_key(|t| t.table_id);
 
-    let database_batch = DatabaseBatch {
+    DatabaseBatch {
         database_id,
         partition_key,
         table_batches,
-    };
-
-    database_batch
+    }
 }

@@ -17,7 +17,7 @@ use async_trait::async_trait;
 use generated_types::influxdata::{iox::delete::v1::DeletePayload, pbdata::v1::DatabaseBatch};
 use serde::{Deserialize, Serialize};
 use snafu::prelude::*;
-use std::{io, path::PathBuf, time::SystemTime, slice};
+use std::{io, path::PathBuf, slice, time::SystemTime};
 use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
