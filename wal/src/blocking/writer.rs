@@ -9,14 +9,14 @@ use std::{
     path::PathBuf,
 };
 
-pub struct SegmentFileWriter {
+pub struct OpenSegmentFileWriter {
     id: SegmentId,
     path: PathBuf,
     f: File,
     bytes_written: usize,
 }
 
-impl SegmentFileWriter {
+impl OpenSegmentFileWriter {
     pub fn new_in_directory(dir: impl Into<PathBuf>) -> Result<Self> {
         let id = SegmentId::new();
         let path = crate::fnamex(dir, id);
