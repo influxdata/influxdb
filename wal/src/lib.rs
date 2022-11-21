@@ -174,6 +174,15 @@ pub struct Wal {
 }
 
 impl Wal {
+    /// Creates a `Wal` instance that manages files in the specified root directory.
+    /// # Constraints
+    ///
+    /// Creating multiple separate instances of this type using the same root path as the storage
+    /// location is not supported. Each instance needs to be the only logical owner of the files
+    /// within its root directory.
+    ///
+    /// Similarly, editing or deleting files within a `Wal`'s root directory via some other
+    /// mechanism is not supported.
     pub async fn new(root: impl Into<PathBuf>) -> Result<Self> {
         let root = root.into();
         tokio::fs::create_dir_all(&root)
@@ -220,15 +229,18 @@ impl Wal {
         })
     }
 
-    /// Returns a handle to the WAL to commit entries to the currently active segment.
+    /// Returns a handle to the WAL that enables commiting entries to the currently active segment.
     pub async fn write_handle(&self) -> WalWriter {
         self.open_segment.write_handle()
     }
 
+    /// Returns a handle to the WAL that enables listing and reading entries from closed segments.
     pub fn read_handle(&self) -> WalReader<'_> {
         WalReader(self)
     }
 
+    /// Returns a handle to the WAL that enables rotating the open segment and deleting closed
+    /// segments.
     pub async fn rotation_handle(&self) -> WalRotator<'_> {
         WalRotator(self)
     }
@@ -244,6 +256,7 @@ impl WalWriter {
             .await
     }
 
+    /// Writes one [`SequencedWalOp`] to disk and returns when it is durable.
     pub async fn write_op(&self, op: &SequencedWalOp) -> Result<WriteSummary> {
         // todo: bincode instead of serde_json
         let encoded = serde_json::to_vec(op).unwrap();
@@ -501,6 +514,7 @@ impl ClosedSegmentFileReader {
             .context(UnableToReadEntriesSnafu)
     }
 
+    /// Return the next [`SequencedWalOp`] from this reader, if any.
     pub async fn next_ops(&mut self) -> Result<Option<SequencedWalOp>> {
         Self::one_command(&self.tx, ClosedSegmentFileReaderRequest::NextOps)
             .await?
