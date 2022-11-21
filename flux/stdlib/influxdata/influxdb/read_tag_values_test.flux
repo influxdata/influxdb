@@ -72,7 +72,8 @@ testcase read_tag_values {
 ,,0,mnemosyne.local
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: 2018-01-01T00:00:00Z)
         |> filter(fn: (r) => true)
         |> keep(columns: ["host"])

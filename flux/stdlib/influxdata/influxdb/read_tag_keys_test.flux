@@ -76,7 +76,8 @@ testcase read_tag_keys {
 ,,0,region
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: -100y)
         |> filter(fn: (r) => true)
         |> keys()
