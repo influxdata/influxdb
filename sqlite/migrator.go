@@ -33,6 +33,13 @@ func (m *Migrator) SetBackupPath(path string) {
 }
 
 func (m *Migrator) Up(ctx context.Context, source embed.FS) error {
+	return m.UpUntil(ctx, -1, source)
+}
+
+// UpUntil migrates until a specific migration.
+// -1 or 0 will run all migrations, any other number will run up until that.
+// Returns no error untilMigration is less than the already run migrations.
+func (m *Migrator) UpUntil(ctx context.Context, untilMigration int, source embed.FS) error {
 	knownMigrations, err := source.ReadDir(".")
 	if err != nil {
 		return err
@@ -60,7 +67,16 @@ func (m *Migrator) Up(ctx context.Context, source embed.FS) error {
 		}
 	}
 
-	migrationsToDo := len(knownMigrations[lastMigration:])
+	var migrationsToDo int
+	if untilMigration < 1 {
+		migrationsToDo = len(knownMigrations[lastMigration:])
+		untilMigration = len(knownMigrations)
+	} else if untilMigration >= lastMigration {
+		migrationsToDo = len(knownMigrations[lastMigration:untilMigration])
+	} else {
+		return nil
+	}
+
 	if migrationsToDo == 0 {
 		return nil
 	}
@@ -85,7 +101,7 @@ func (m *Migrator) Up(ctx context.Context, source embed.FS) error {
 
 	m.log.Info("Bringing up metadata migrations", zap.Int("migration_count", migrationsToDo))
 
-	for _, f := range knownMigrations[lastMigration:] {
+	for _, f := range knownMigrations[lastMigration:untilMigration] {
 		n := f.Name()
 
 		m.log.Debug("Executing metadata migration", zap.String("migration_name", n))

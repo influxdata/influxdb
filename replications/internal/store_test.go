@@ -525,6 +525,39 @@ func TestMigrateDownFromReplicationsWithName(t *testing.T) {
 	require.Equal(t, platform.ID(10), rs.Replications[0].ID)
 }
 
+func TestMigrateUpToRemotesNullRemoteOrg(t *testing.T) {
+	sqlStore, clean := sqlite.NewTestStore(t)
+	logger := zaptest.NewLogger(t)
+	sqliteMigrator := sqlite.NewMigrator(sqlStore, logger)
+	require.NoError(t, sqliteMigrator.UpUntil(ctx, 7, migrations.AllUp))
+
+	// Make sure foreign-key checking is enabled.
+	_, err := sqlStore.DB.Exec("PRAGMA foreign_keys = ON;")
+	require.NoError(t, err)
+
+	testStore := NewStore(sqlStore)
+	defer clean(t)
+
+	insertRemote(t, testStore, replication.RemoteID)
+
+	req := createReq
+	req.RemoteBucketID = platform.ID(100)
+	_, err = testStore.CreateReplication(ctx, platform.ID(10), req)
+	require.NoError(t, err)
+
+	req.RemoteBucketID = platform.ID(0)
+	req.RemoteBucketName = "testbucket"
+	req.Name = "namedrepl"
+	_, err = testStore.CreateReplication(ctx, platform.ID(20), req)
+	require.NoError(t, err)
+
+	replications, err := testStore.ListReplications(context.Background(), influxdb.ReplicationListFilter{OrgID: replication.OrgID})
+	require.NoError(t, err)
+	require.Equal(t, 2, len(replications.Replications))
+
+	require.NoError(t, sqliteMigrator.UpUntil(ctx, 8, migrations.AllUp))
+}
+
 func TestGetFullHTTPConfig(t *testing.T) {
 	t.Parallel()
 

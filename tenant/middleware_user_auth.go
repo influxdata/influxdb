@@ -108,11 +108,17 @@ func (s *AuthedPasswordService) SetPassword(ctx context.Context, userID platform
 // ComparePassword checks if the password matches the password recorded.
 // Passwords that do not match return errors.
 func (s *AuthedPasswordService) ComparePassword(ctx context.Context, userID platform.ID, password string) error {
-	panic("not implemented")
+	if _, _, err := authorizer.AuthorizeWriteResource(ctx, influxdb.UsersResourceType, userID); err != nil {
+		return err
+	}
+	return s.s.ComparePassword(ctx, userID, password)
 }
 
 // CompareAndSetPassword checks the password and if they match
 // updates to the new password.
 func (s *AuthedPasswordService) CompareAndSetPassword(ctx context.Context, userID platform.ID, old string, new string) error {
-	panic("not implemented")
+	if _, _, err := authorizer.AuthorizeWriteResource(ctx, influxdb.UsersResourceType, userID); err != nil {
+		return err
+	}
+	return s.s.CompareAndSetPassword(ctx, userID, old, new)
 }
