@@ -314,7 +314,7 @@ pub trait Segment {
 #[derive(Debug, Eq, PartialEq)]
 pub struct SegmentEntry {
     /// The CRC checksum of the uncompressed data
-    pub checksum: u32,
+    checksum: u32,
     /// The uncompressed data
     pub data: Vec<u8>,
 }
@@ -327,7 +327,7 @@ pub struct WriteSummary {
     /// Number of bytes written to segment in this write
     pub bytes_written: usize,
     /// Checksum for the compressed data written to segment
-    pub checksum: u32,
+    checksum: u32,
 }
 
 #[derive(Debug)]

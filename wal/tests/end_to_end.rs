@@ -24,14 +24,12 @@ async fn crud() {
     let summary = open.write_op(&op).await.unwrap();
     assert_eq!(summary.total_bytes, 375);
     assert_eq!(summary.bytes_written, 351);
-    assert_eq!(summary.checksum, 3889934339);
 
     // Can write another entry; total_bytes accumulates
     let op = arbitrary_sequenced_wal_op(43);
     let summary = open.write_op(&op).await.unwrap();
     assert_eq!(summary.total_bytes, 726);
     assert_eq!(summary.bytes_written, 351);
-    assert_eq!(summary.checksum, 106073610);
 
     // Still no closed segments
     assert!(
