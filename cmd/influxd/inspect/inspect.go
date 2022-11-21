@@ -37,7 +37,7 @@ func NewCommand(v *viper.Viper) (*cobra.Command, error) {
 	}
 
 	reportDB, err := report_db.NewReportDBCommand(v)
-  if err != nil {
+	if err != nil {
 		return nil, err
 	}
 
