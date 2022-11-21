@@ -346,7 +346,8 @@ func (s *Service) handleConn(conn net.Conn) {
 
 // handleTelnetConn accepts OpenTSDB's telnet protocol.
 // Each telnet command consists of a line of the form:
-//   put sys.cpu.user 1356998400 42.5 host=webserver01 cpu=0
+//
+//	put sys.cpu.user 1356998400 42.5 host=webserver01 cpu=0
 func (s *Service) handleTelnetConn(conn net.Conn) {
 	defer conn.Close()
 	defer atomic.AddInt64(&s.stats.ActiveTelnetConnections, -1)
