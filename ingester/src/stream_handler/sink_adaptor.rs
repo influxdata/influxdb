@@ -38,7 +38,9 @@ impl IngestSinkAdaptor {
 
 #[async_trait]
 impl DmlSink for IngestSinkAdaptor {
-    async fn apply(&self, op: DmlOperation) -> Result<DmlApplyAction, crate::data::Error> {
+    type Error = crate::data::Error;
+
+    async fn apply(&self, op: DmlOperation) -> Result<DmlApplyAction, Self::Error> {
         self.ingest_data
             .buffer_operation(self.shard_id, op, &self.lifecycle_handle)
             .await

@@ -510,7 +510,7 @@ fn metric_attrs(
 mod tests {
     use super::*;
     use crate::{
-        dml_sink::mock_sink::MockDmlSink,
+        dml_sink::{mock_sink::MockDmlSink, DmlError},
         lifecycle::{LifecycleConfig, LifecycleManager},
     };
     use assert_matches::assert_matches;
@@ -996,7 +996,7 @@ mod tests {
             Ok(DmlOperation::Write(make_write(2222, 2)))
         ]],
         sink_rets = [
-            Err(crate::data::Error::ShardNotFound{shard_id: ShardId::new(42)}),
+            Err(DmlError::Data(crate::data::Error::ShardNotFound{shard_id: ShardId::new(42)})),
             Ok(DmlApplyAction::Applied(true)),
         ],
         want_ttbr = 2,

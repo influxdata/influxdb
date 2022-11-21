@@ -155,7 +155,9 @@ where
     T: DmlSink,
     P: TimeProvider,
 {
-    async fn apply(&self, op: DmlOperation) -> Result<DmlApplyAction, crate::data::Error> {
+    type Error = T::Error;
+
+    async fn apply(&self, op: DmlOperation) -> Result<DmlApplyAction, Self::Error> {
         let meta = op.meta();
 
         // Immediately increment the "bytes read" metric as it records the
@@ -236,7 +238,7 @@ where
 mod tests {
     use super::*;
     use crate::{
-        dml_sink::mock_sink::MockDmlSink,
+        dml_sink::{mock_sink::MockDmlSink, DmlError},
         stream_handler::mock_watermark_fetcher::MockWatermarkFetcher,
     };
     use assert_matches::assert_matches;
@@ -302,9 +304,9 @@ mod tests {
     async fn test(
         op: impl Into<DmlOperation> + Send,
         metrics: &metric::Registry,
-        with_sink_return: Result<DmlApplyAction, crate::data::Error>,
+        with_sink_return: Result<DmlApplyAction, DmlError>,
         with_fetcher_return: Option<i64>,
-    ) -> Result<DmlApplyAction, crate::data::Error> {
+    ) -> Result<DmlApplyAction, DmlError> {
         let op = op.into();
         let inner = MockDmlSink::default().with_apply_return([with_sink_return]);
         let instrumentation = SinkInstrumentation::new(
@@ -420,13 +422,16 @@ mod tests {
         let got = test(
             op,
             &metrics,
-            Err(crate::data::Error::ShardNotFound {
+            Err(DmlError::Data(crate::data::Error::ShardNotFound {
                 shard_id: ShardId::new(42),
-            }),
+            })),
             Some(12345),
         )
         .await;
-        assert_matches!(got, Err(crate::data::Error::ShardNotFound { .. }));
+        assert_matches!(
+            got,
+            Err(DmlError::Data(crate::data::Error::ShardNotFound { .. }))
+        );
 
         // Validate the various write buffer metrics
         assert_matches!(
