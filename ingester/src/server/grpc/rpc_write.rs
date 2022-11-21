@@ -9,7 +9,10 @@ use observability_deps::tracing::*;
 use thiserror::Error;
 use tonic::{Request, Response};
 
-use crate::{data::DmlApplyAction, dml_sink::DmlSink};
+use crate::{
+    data::DmlApplyAction,
+    dml_sink::{DmlError, DmlSink},
+};
 
 // A list of error states when handling an RPC write request.
 //
@@ -29,7 +32,7 @@ enum RpcError {
     Decode(mutable_batch_pb::decode::Error),
 
     #[error(transparent)]
-    Apply(crate::data::Error),
+    Apply(DmlError),
 }
 
 impl From<RpcError> for tonic::Status {
@@ -40,8 +43,10 @@ impl From<RpcError> for tonic::Status {
             RpcError::Decode(_) | RpcError::NoPayload | RpcError::NoTables => {
                 Self::invalid_argument(e.to_string())
             }
-            RpcError::Apply(Error::BufferWrite { source }) => map_write_error(source),
-            RpcError::Apply(Error::ShardNotFound { .. }) => {
+            RpcError::Apply(DmlError::Data(Error::BufferWrite { source })) => {
+                map_write_error(source)
+            }
+            RpcError::Apply(DmlError::Data(Error::ShardNotFound { .. })) => {
                 // This is not a reachable error state in the gRPC write model,
                 // and is enumerated here purely because of error conflation
                 // (one big error type instead of small, composable errors).
@@ -159,7 +164,7 @@ where
             }
             Err(e) => {
                 error!(error=%e, "failed to apply DML op");
-                return Err(RpcError::Apply(e))?;
+                return Err(RpcError::Apply(e.into()))?;
             }
         }
 
