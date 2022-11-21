@@ -1,10 +1,10 @@
 //! This module implements the `catalog topic` CLI subcommand
 
-use std::sync::Arc;
-
 use thiserror::Error;
 
 use clap_blocks::catalog_dsn::CatalogDsnConfig;
+
+use crate::process_info::setup_metric_registry;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
@@ -43,7 +43,7 @@ enum Command {
 pub async fn command(config: Config) -> Result<(), Error> {
     match config.command {
         Command::Update(update) => {
-            let metrics = Arc::new(metric::Registry::new());
+            let metrics = setup_metric_registry();
             let catalog = update.catalog_dsn.get_catalog("cli", metrics).await?;
             let mut repos = catalog.repositories().await;
             let topic = repos.topics().create_or_get(&update.db_name).await?;

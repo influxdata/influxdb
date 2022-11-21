@@ -17,15 +17,25 @@ pub async fn test_metrics() {
             Step::WaitForReadable,
             Step::VerifiedMetrics(Box::new(|_state, metrics| {
                 let metrics_lines: Vec<_> = metrics.trim().split('\n').collect();
+
                 let catalog_op_metrics_count = metrics_lines
                     .iter()
                     .filter(|x| x.starts_with("catalog_op_duration_seconds_bucket"))
                     .count();
-
                 assert!(
                     catalog_op_metrics_count >= 180,
                     "Expected at least 180 catalog op metrics, got: {}\n\n{}",
                     catalog_op_metrics_count,
+                    metrics
+                );
+
+                let process_metrics_count = metrics_lines
+                    .iter()
+                    .filter(|x| x.starts_with("process_start_time_seconds"))
+                    .count();
+                assert!(
+                    process_metrics_count >= 1,
+                    "Expected `process_start_time_seconds` metric but found none: \n\n{}",
                     metrics
                 );
             })),

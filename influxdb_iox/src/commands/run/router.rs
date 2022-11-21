@@ -1,5 +1,7 @@
 //! Implementation of command line option for running router
 
+use crate::process_info::setup_metric_registry;
+
 use super::main;
 use clap_blocks::object_store::make_object_store;
 use clap_blocks::{
@@ -92,7 +94,7 @@ pub struct Config {
 pub async fn command(config: Config) -> Result<()> {
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
     let time_provider = Arc::new(SystemProvider::new()) as Arc<dyn TimeProvider>;
-    let metrics = Arc::new(metric::Registry::default());
+    let metrics = setup_metric_registry();
 
     let catalog = config
         .catalog_dsn

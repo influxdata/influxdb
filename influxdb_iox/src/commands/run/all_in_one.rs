@@ -1,5 +1,7 @@
 //! Implementation of command line option for running all in one mode
 
+use crate::process_info::setup_metric_registry;
+
 use super::main;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig,
@@ -487,7 +489,7 @@ pub async fn command(config: Config) -> Result<()> {
         querier_config,
     } = config.specialize();
 
-    let metrics = Arc::new(metric::Registry::default());
+    let metrics = setup_metric_registry();
 
     let catalog = catalog_dsn
         .get_catalog("iox-all-in-one", Arc::clone(&metrics))

@@ -13,6 +13,8 @@ use observability_deps::tracing::*;
 use snafu::prelude::*;
 use std::sync::Arc;
 
+use crate::process_info::setup_metric_registry;
+
 use super::main;
 
 #[derive(Debug, clap::Parser)]
@@ -29,7 +31,7 @@ pub struct Config {
 
 pub async fn command(config: Config) -> Result<()> {
     let time_provider = Arc::new(SystemProvider::new());
-    let metric_registry: Arc<metric::Registry> = Default::default();
+    let metric_registry = setup_metric_registry();
 
     let catalog = config
         .catalog_dsn

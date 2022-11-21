@@ -12,6 +12,8 @@ use parquet_file::storage::{ParquetStorage, StorageId};
 use snafu::prelude::*;
 use std::{collections::HashMap, sync::Arc};
 
+use crate::process_info::setup_metric_registry;
+
 mod generate;
 
 #[derive(Debug, clap::Parser)]
@@ -70,7 +72,7 @@ pub async fn command(config: Config) -> Result<()> {
             let compactor_config = compactor_config.into_compactor_config();
 
             let time_provider = Arc::new(SystemProvider::new()) as Arc<dyn TimeProvider>;
-            let metric_registry: Arc<metric::Registry> = Default::default();
+            let metric_registry = setup_metric_registry();
             let catalog = catalog_dsn
                 .get_catalog("compactor", Arc::clone(&metric_registry))
                 .await?;

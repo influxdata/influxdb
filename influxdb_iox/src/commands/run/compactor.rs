@@ -18,6 +18,8 @@ use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
 use ioxd_common::Service;
 use ioxd_compactor::create_compactor_server_type;
 
+use crate::process_info::setup_metric_registry;
+
 use super::main;
 
 #[derive(Debug, Error)]
@@ -80,7 +82,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
 
     let time_provider = Arc::new(SystemProvider::new()) as Arc<dyn TimeProvider>;
-    let metric_registry: Arc<metric::Registry> = Default::default();
+    let metric_registry = setup_metric_registry();
     let catalog = config
         .catalog_dsn
         .get_catalog("compactor", Arc::clone(&metric_registry))

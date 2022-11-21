@@ -1,5 +1,7 @@
 //! Implementation of command line option for running the querier
 
+use crate::process_info::setup_metric_registry;
+
 use super::main;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig, object_store::make_object_store, querier::QuerierConfig,
@@ -72,7 +74,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
 
     let time_provider = Arc::new(SystemProvider::new()) as Arc<dyn TimeProvider>;
-    let metric_registry: Arc<metric::Registry> = Default::default();
+    let metric_registry = setup_metric_registry();
 
     let catalog = config
         .catalog_dsn

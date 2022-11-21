@@ -6,8 +6,9 @@ use clap_blocks::run_config::RunConfig;
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
 use ioxd_common::Service;
 use ioxd_test::{TestAction, TestServerType};
-use metric::Registry;
 use thiserror::Error;
+
+use crate::process_info::setup_metric_registry;
 
 use super::main;
 
@@ -55,17 +56,13 @@ pub struct Config {
 
 pub async fn command(config: Config) -> Result<()> {
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
+    let metrics = setup_metric_registry();
     let server_type = Arc::new(TestServerType::new(
-        Arc::new(Registry::new()),
+        Arc::clone(&metrics),
         common_state.trace_collector(),
         config.test_action,
     ));
 
     let services = vec![Service::create(server_type, common_state.run_config())];
-    Ok(main::main(
-        common_state,
-        services,
-        Arc::new(metric::Registry::default()),
-    )
-    .await?)
+    Ok(main::main(common_state, services, metrics).await?)
 }

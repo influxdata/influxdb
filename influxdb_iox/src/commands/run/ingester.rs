@@ -16,6 +16,8 @@ use observability_deps::tracing::*;
 use std::sync::Arc;
 use thiserror::Error;
 
+use crate::process_info::setup_metric_registry;
+
 use super::main;
 
 #[derive(Debug, Error)]
@@ -79,7 +81,7 @@ pub async fn command(config: Config) -> Result<()> {
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
 
     let time_provider = Arc::new(SystemProvider::new()) as Arc<dyn TimeProvider>;
-    let metric_registry: Arc<metric::Registry> = Default::default();
+    let metric_registry = setup_metric_registry();
 
     let catalog = config
         .catalog_dsn
