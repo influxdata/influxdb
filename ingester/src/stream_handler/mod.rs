@@ -16,17 +16,13 @@
 //! [`WriteBufferReading`]: write_buffer::core::WriteBufferReading
 //! [`LifecycleManager`]: crate::lifecycle::LifecycleManager
 //! [`LifecycleHandle::can_resume_ingest()`]: crate::lifecycle::LifecycleHandle::can_resume_ingest()
+//! [`DmlSink`]: crate::dml_sink::DmlSink
 
 pub(crate) mod handler;
 mod periodic_watermark_fetcher;
-mod sink;
 
-#[cfg(test)]
-pub mod mock_sink;
 #[cfg(test)]
 pub mod mock_watermark_fetcher;
 pub(crate) mod sink_adaptor;
 pub(crate) mod sink_instrumentation;
-
 pub(crate) use periodic_watermark_fetcher::*;
-pub(crate) use sink::*;

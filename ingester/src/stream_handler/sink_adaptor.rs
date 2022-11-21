@@ -6,9 +6,9 @@ use async_trait::async_trait;
 use data_types::ShardId;
 use dml::DmlOperation;
 
-use super::DmlSink;
 use crate::{
     data::{DmlApplyAction, IngesterData},
+    dml_sink::DmlSink,
     lifecycle::LifecycleHandleImpl,
 };
 

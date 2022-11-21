@@ -9,9 +9,7 @@ use iox_time::{SystemProvider, TimeProvider};
 use metric::{Attributes, DurationHistogram, U64Counter, U64Gauge};
 use trace::span::{SpanExt, SpanRecorder};
 
-use crate::data::DmlApplyAction;
-
-use super::DmlSink;
+use crate::{data::DmlApplyAction, dml_sink::DmlSink};
 
 /// A [`WatermarkFetcher`] abstracts a source of the write buffer high watermark
 /// (max known offset).
@@ -237,8 +235,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stream_handler::{
-        mock_sink::MockDmlSink, mock_watermark_fetcher::MockWatermarkFetcher,
+    use crate::{
+        dml_sink::mock_sink::MockDmlSink,
+        stream_handler::mock_watermark_fetcher::MockWatermarkFetcher,
     };
     use assert_matches::assert_matches;
     use data_types::{NamespaceId, Sequence, SequenceNumber, ShardId, TableId};

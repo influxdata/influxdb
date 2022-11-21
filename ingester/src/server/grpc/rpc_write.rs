@@ -9,7 +9,7 @@ use observability_deps::tracing::*;
 use thiserror::Error;
 use tonic::{Request, Response};
 
-use crate::{data::DmlApplyAction, stream_handler::DmlSink};
+use crate::{data::DmlApplyAction, dml_sink::DmlSink};
 
 // A list of error states when handling an RPC write request.
 //
@@ -177,7 +177,7 @@ mod tests {
         Column, DatabaseBatch, TableBatch,
     };
 
-    use crate::stream_handler::mock_sink::MockDmlSink;
+    use crate::dml_sink::mock_sink::MockDmlSink;
 
     use super::*;
 
