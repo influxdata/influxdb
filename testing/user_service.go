@@ -212,11 +212,25 @@ func CreateUser(
 						return MustIDBase16(userOneID)
 					},
 				},
+				Users: []*influxdb.User{
+					{
+						ID:     MustIDBase16(userOneID),
+						Name:   "user1",
+						Status: influxdb.Active,
+					},
+				},
 			},
 			args: args{
 				user: &influxdb.User{},
 			},
 			wants: wants{
+				users: []*influxdb.User{
+					{
+						ID:     MustIDBase16(userOneID),
+						Name:   "user1",
+						Status: influxdb.Active,
+					},
+				},
 				err: &errors.Error{
 					Code: errors.EInvalid,
 					Op:   influxdb.OpCreateUser,
