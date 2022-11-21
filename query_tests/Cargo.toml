@@ -33,7 +33,7 @@ querier = { path = "../querier" }
 regex = "1.7.0"
 schema = { path = "../schema" }
 sharder = { path = "../sharder" }
-tokio = { version = "1.21", features = ["macros", "parking_lot", "rt-multi-thread", "time"] }
+tokio = { version = "1.22", features = ["macros", "parking_lot", "rt-multi-thread", "time"] }
 trace = { path = "../trace" }
 uuid = "1"
 workspace-hack = { path = "../workspace-hack"}
