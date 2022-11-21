@@ -83,3 +83,7 @@ func (ts *Service) NewBucketHTTPHandler(log *zap.Logger, labelSvc influxdb.Label
 func (ts *Service) NewUserHTTPHandler(log *zap.Logger) *UserHandler {
 	return NewHTTPUserHandler(log.With(zap.String("handler", "user")), NewAuthedUserService(ts.UserService), NewAuthedPasswordService(ts.PasswordsService))
 }
+
+func (ts *Service) NewMeHTTPHandler(log *zap.Logger) *MeHandler {
+	return NewHTTPMeHandler(log.With(zap.String("handler", "user")), NewAuthedUserService(ts.UserService), NewAuthedPasswordService(ts.PasswordsService))
+}

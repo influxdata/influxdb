@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
@@ -67,20 +66,8 @@ func NewHTTPUserHandler(log *zap.Logger, userService influxdb.UserService, passw
 	return svr
 }
 
-type resourceHandler struct {
-	prefix string
-	*UserHandler
-}
-
-func (h *resourceHandler) Prefix() string {
-	return h.prefix
-}
-func (h *UserHandler) MeResourceHandler() *resourceHandler {
-	return &resourceHandler{prefix: prefixMe, UserHandler: h}
-}
-
-func (h *UserHandler) UserResourceHandler() *resourceHandler {
-	return &resourceHandler{prefix: prefixUsers, UserHandler: h}
+func (h *UserHandler) Prefix() string {
+	return prefixUsers
 }
 
 type passwordSetRequest struct {
@@ -117,10 +104,15 @@ func (h *UserHandler) handlePostUserPassword(w http.ResponseWriter, r *http.Requ
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *UserHandler) putPassword(ctx context.Context, w http.ResponseWriter, r *http.Request) (username string, err error) {
+// handlePutPassword is the HTTP handler for the PUT /api/v2/users/:id/password
+func (h *UserHandler) handlePutUserPassword(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	req, err := decodePasswordResetRequest(r)
 	if err != nil {
-		return "", err
+		h.api.Err(w, r, &errors.Error{
+			Msg: fmt.Sprintf("error decoding password reset request: %s", err),
+		})
+		return
 	}
 
 	param := chi.URLParam(r, "id")
@@ -131,18 +123,7 @@ func (h *UserHandler) putPassword(ctx context.Context, w http.ResponseWriter, r 
 		})
 		return
 	}
-
 	err = h.passwordSvc.CompareAndSetPassword(ctx, *userID, req.PasswordOld, req.PasswordNew)
-	if err != nil {
-		return "", err
-	}
-	return req.Username, nil
-}
-
-// handlePutPassword is the HTTP handler for the PUT /api/v2/users/:id/password
-func (h *UserHandler) handlePutUserPassword(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	_, err := h.putPassword(ctx, w, r)
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -218,27 +199,6 @@ func decodePostUserRequest(ctx context.Context, r *http.Request) (*postUserReque
 	return &postUserRequest{
 		User: b,
 	}, nil
-}
-
-// handleGetMe is the HTTP handler for the GET /api/v2/me.
-func (h *UserHandler) handleGetMe(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	a, err := icontext.GetAuthorizer(ctx)
-	if err != nil {
-		h.api.Err(w, r, err)
-		return
-	}
-
-	id := a.GetUserID()
-	user, err := h.userSvc.FindUserByID(ctx, id)
-
-	if err != nil {
-		h.api.Err(w, r, err)
-		return
-	}
-
-	h.api.Respond(w, r, http.StatusOK, newUserResponse(user))
 }
 
 // handleGetUser is the HTTP handler for the GET /api/v2/users/:id route.
@@ -388,13 +348,6 @@ func newUserResponse(u *influxdb.User) *influxdb.UserResponse {
 
 // handleGetUsers is the HTTP handler for the GET /api/v2/users route.
 func (h *UserHandler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
-	// because this is a mounted path in both the /users and the /me route
-	// we can get a me request through this handler
-	if strings.Contains(r.URL.Path, prefixMe) {
-		h.handleGetMe(w, r)
-		return
-	}
-
 	ctx := r.Context()
 	req, err := decodeGetUsersRequest(ctx, r)
 	if err != nil {
@@ -494,4 +447,91 @@ func decodePatchUserRequest(ctx context.Context, r *http.Request) (*patchUserReq
 		Update: upd,
 		UserID: i,
 	}, nil
+}
+
+// MeHandler represents an HTTP API handler for /me routes.
+type MeHandler struct {
+	chi.Router
+	api         *kithttp.API
+	log         *zap.Logger
+	userSvc     influxdb.UserService
+	passwordSvc influxdb.PasswordsService
+}
+
+func (h *MeHandler) Prefix() string {
+	return prefixMe
+}
+
+func NewHTTPMeHandler(log *zap.Logger, userService influxdb.UserService, passwordService influxdb.PasswordsService) *MeHandler {
+	svr := &MeHandler{
+		api:         kithttp.NewAPI(kithttp.WithLog(log)),
+		log:         log,
+		userSvc:     userService,
+		passwordSvc: passwordService,
+	}
+
+	r := chi.NewRouter()
+	r.Use(
+		middleware.Recoverer,
+		middleware.RequestID,
+		middleware.RealIP,
+	)
+
+	// RESTy routes for "articles" resource
+	r.Route("/", func(r chi.Router) {
+		r.Get("/", svr.handleMe)
+		r.Put("/password", svr.handlePutMePassword)
+	})
+
+	svr.Router = r
+	return svr
+}
+
+func (h *MeHandler) getUserID(ctx context.Context) (*platform.ID, error) {
+	a, err := icontext.GetAuthorizer(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	id := a.GetUserID()
+	return &id, nil
+}
+
+func (h *MeHandler) handleMe(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	userID, err := h.getUserID(ctx)
+	if err != nil {
+		h.api.Err(w, r, err)
+		return
+	}
+	user, err := h.userSvc.FindUserByID(ctx, *userID)
+	if err != nil {
+		h.api.Err(w, r, err)
+		return
+	}
+	h.api.Respond(w, r, http.StatusOK, newUserResponse(user))
+}
+
+func (h *MeHandler) handlePutMePassword(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	userID, err := h.getUserID(ctx)
+	if err != nil {
+		h.api.Err(w, r, err)
+		return
+	}
+
+	req, err := decodePasswordResetRequest(r)
+	if err != nil {
+		h.api.Err(w, r, &errors.Error{
+			Msg: fmt.Sprintf("error decoding password reset request: %s", err),
+		})
+	}
+
+	err = h.passwordSvc.CompareAndSetPassword(ctx, *userID, req.PasswordOld, req.PasswordNew)
+	if err != nil {
+		h.api.Err(w, r, err)
+		return
+	}
+	h.log.Debug("User password updated")
+	w.WriteHeader(http.StatusNoContent)
 }

@@ -787,6 +787,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	}
 
 	userHTTPServer := ts.NewUserHTTPHandler(m.log)
+	meHTTPServer := ts.NewMeHTTPHandler(m.log)
 	onboardHTTPServer := tenant.NewHTTPOnboardHandler(m.log, onboardSvc)
 
 	// feature flagging for new labels service
@@ -897,8 +898,8 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		http.WithResourceHandler(labelHandler),
 		http.WithResourceHandler(sessionHTTPServer.SignInResourceHandler()),
 		http.WithResourceHandler(sessionHTTPServer.SignOutResourceHandler()),
-		http.WithResourceHandler(userHTTPServer.MeResourceHandler()),
-		http.WithResourceHandler(userHTTPServer.UserResourceHandler()),
+		http.WithResourceHandler(userHTTPServer),
+		http.WithResourceHandler(meHTTPServer),
 		http.WithResourceHandler(orgHTTPServer),
 		http.WithResourceHandler(bucketHTTPServer),
 		http.WithResourceHandler(v1AuthHTTPServer),
