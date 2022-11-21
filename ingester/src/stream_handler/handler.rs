@@ -1,8 +1,8 @@
 //! A handler of streamed ops from a write buffer.
 
-use super::DmlSink;
 use crate::{
     data::DmlApplyAction,
+    dml_sink::DmlSink,
     lifecycle::{LifecycleHandle, LifecycleHandleImpl},
 };
 use data_types::{SequenceNumber, ShardId, ShardIndex};
@@ -510,8 +510,8 @@ fn metric_attrs(
 mod tests {
     use super::*;
     use crate::{
+        dml_sink::mock_sink::MockDmlSink,
         lifecycle::{LifecycleConfig, LifecycleManager},
-        stream_handler::mock_sink::MockDmlSink,
     };
     use assert_matches::assert_matches;
     use async_trait::async_trait;
