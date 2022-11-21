@@ -8,6 +8,7 @@ import (
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/dump_wal"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/export_index"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/export_lp"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/report_db"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/report_tsi"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect/report_tsm"
 	typecheck "github.com/influxdata/influxdb/v2/cmd/influxd/inspect/type_conflicts"
@@ -35,6 +36,11 @@ func NewCommand(v *viper.Viper) (*cobra.Command, error) {
 		return nil, err
 	}
 
+	reportDB, err := report_db.NewReportDBCommand(v)
+	if err != nil {
+		return nil, err
+	}
+
 	checkSchema, err := typecheck.NewCheckSchemaCommand(v)
 	if err != nil {
 		return nil, err
@@ -58,6 +64,7 @@ func NewCommand(v *viper.Viper) (*cobra.Command, error) {
 	base.AddCommand(verify_wal.NewVerifyWALCommand())
 	base.AddCommand(report_tsm.NewReportTSMCommand())
 	base.AddCommand(build_tsi.NewBuildTSICommand())
+	base.AddCommand(reportDB)
 	base.AddCommand(checkSchema)
 	base.AddCommand(mergeSchema)
 
