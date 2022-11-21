@@ -13,12 +13,11 @@
 //!
 //! This crate provides a local-disk WAL for the IOx ingestion pipeline.
 
-use async_trait::async_trait;
 use generated_types::influxdata::{iox::delete::v1::DeletePayload, pbdata::v1::DatabaseBatch};
 use serde::{Deserialize, Serialize};
 use snafu::prelude::*;
 use std::{io, path::PathBuf, slice, time::SystemTime};
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, RwLock};
 use uuid::Uuid;
 
 mod blocking;
@@ -158,10 +157,19 @@ const FILE_TYPE_IDENTIFIER: &FileTypeIdentifier = b"INFLUXV3";
 const SEGMENT_FILE_EXTENSION: &str = "dat";
 
 /// The main type representing one WAL for one ingester instance.
+///
+/// # Constraints
+///
+/// Creating multiple separate instances of this type using the same root path as the storage
+/// location is not supported. Each instance needs to be the only logical owner of the files within
+/// its root directory.
+///
+/// Similarly, editing or deleting files within a `Wal`'s root directory via some other mechanism
+/// is not supported.
 #[derive(Debug)]
 pub struct Wal {
     root: PathBuf,
-    closed_segments: Vec<ClosedSegment>,
+    closed_segments: RwLock<Vec<ClosedSegment>>,
     open_segment: OpenSegmentFile,
 }
 
@@ -207,54 +215,79 @@ impl Wal {
 
         Ok(Self {
             root,
-            closed_segments,
+            closed_segments: RwLock::new(closed_segments),
             open_segment,
         })
     }
-}
-
-/// Methods for working with segments (a WAL)
-#[async_trait]
-pub trait SegmentWal {
-    /// Closes the currently open segment and opens a new one, returning the closed segment details
-    /// and a handle to the newly opened segment
-    async fn rotate(&mut self) -> Result<ClosedSegment>;
-
-    /// Gets a list of the closed segments
-    fn closed_segments(&self) -> &[ClosedSegment];
-
-    /// Opens a reader for a given segment from the WAL
-    async fn reader_for_segment(&self, id: SegmentId) -> Result<ClosedSegmentFileReader>;
 
     /// Returns a handle to the WAL to commit entries to the currently active segment.
-    async fn write_handle(&self) -> OpenSegment;
+    pub async fn write_handle(&self) -> WalWriter {
+        self.open_segment.write_handle()
+    }
 
-    /// Deletes the segment from storage
-    async fn delete_segment(&self, id: SegmentId) -> Result<()>;
+    pub fn read_handle(&self) -> WalReader<'_> {
+        WalReader(self)
+    }
+
+    pub async fn rotation_handle(&self) -> WalRotator<'_> {
+        WalRotator(self)
+    }
 }
 
-#[async_trait]
-impl SegmentWal for Wal {
-    async fn rotate(&mut self) -> Result<ClosedSegment> {
-        let closed = self.open_segment.rotate().await?;
-        self.closed_segments.push(closed.clone());
+/// Handle to the one currently open segment for users of the WAL to send [`SequencedWalOp`]s to.
+#[derive(Debug)]
+pub struct WalWriter(mpsc::Sender<OpenSegmentFileWriterRequest>);
+
+impl WalWriter {
+    async fn write(&self, data: &[u8]) -> Result<WriteSummary> {
+        OpenSegmentFile::one_command(&self.0, OpenSegmentFileWriterRequest::Write, data.to_vec())
+            .await
+    }
+
+    pub async fn write_op(&self, op: &SequencedWalOp) -> Result<WriteSummary> {
+        // todo: bincode instead of serde_json
+        let ops = slice::from_ref(op);
+        let encoded = serde_json::to_vec(&ops).unwrap();
+        self.write(&encoded).await
+    }
+}
+
+/// Handle to list the closed segments and read [`SequencedWalOp`]s from them for replay.
+#[derive(Debug)]
+pub struct WalReader<'a>(&'a Wal);
+
+impl<'a> WalReader<'a> {
+    /// Gets a list of the closed segments
+    pub async fn closed_segments(&self) -> Vec<ClosedSegment> {
+        self.0.closed_segments.read().await.clone()
+    }
+
+    /// Opens a reader for a given segment from the WAL
+    pub async fn reader_for_segment(&self, id: SegmentId) -> Result<ClosedSegmentFileReader> {
+        let path = fnamex(&self.0.root, id);
+        ClosedSegmentFileReader::from_path(path).await
+    }
+}
+
+/// Handle to rotate open segments to closed and delete closed segments.
+#[derive(Debug)]
+pub struct WalRotator<'a>(&'a Wal);
+
+impl<'a> WalRotator<'a> {
+    /// Closes the currently open segment and opens a new one, returning the closed segment details.
+    pub async fn rotate(&self) -> Result<ClosedSegment> {
+        let closed = OpenSegmentFile::one_command(
+            &self.0.open_segment.tx.clone(),
+            OpenSegmentFileWriterRequest::Rotate,
+            (),
+        )
+        .await?;
+        self.0.closed_segments.write().await.push(closed.clone());
         Ok(closed)
     }
 
-    fn closed_segments(&self) -> &[ClosedSegment] {
-        &self.closed_segments
-    }
-
-    async fn reader_for_segment(&self, id: SegmentId) -> Result<ClosedSegmentFileReader> {
-        let path = fnamex(&self.root, id);
-        ClosedSegmentFileReader::from_path(path).await
-    }
-
-    async fn write_handle(&self) -> OpenSegment {
-        self.open_segment.handle()
-    }
-
-    async fn delete_segment(&self, _id: SegmentId) -> Result<()> {
+    /// Deletes the specified segment from disk.
+    pub async fn delete(&self, _id: SegmentId) -> Result<()> {
         todo!();
     }
 }
@@ -284,30 +317,6 @@ pub struct PersistOp {
     table_id: i64,
     partition_id: i64,
     parquet_file_uuid: String,
-}
-
-/// Methods for reading ops from a segment in a WAL
-#[async_trait]
-pub trait OpReader {
-    // get the next collection of ops. Since ops are batched into Segments, they come
-    // back as a collection. Each `SegmentEntry` will encode a `Vec<SequencedWalOp>`.
-    // todo: change to Result<Vec<SequencedWalOp>>, or a stream of `Vec<SequencedWalOp>`s?
-    async fn next(&mut self) -> Result<Option<Vec<SequencedWalOp>>>;
-}
-
-/// Methods for a `Segment`
-#[async_trait]
-pub trait Segment {
-    /// Get the id of the segment
-    fn id(&self) -> SegmentId;
-
-    /// Persist an operation into the segment. The `Segment` trait implementer is meant to be an
-    /// accumulator that will batch ops together, and `write_op` calls will return when the
-    /// collection has been persisted to the segment file.
-    async fn write_op(&self, op: &SequencedWalOp) -> Result<WriteSummary>;
-
-    /// Return a reader for the ops in the segment
-    async fn reader(&self) -> Result<Box<dyn OpReader>>;
 }
 
 /// Raw, uncompressed and unstructured data for a Segment entry with a checksum.
@@ -392,40 +401,12 @@ impl OpenSegmentFile {
         Ok(req_rx.await.unwrap())
     }
 
-    fn handle(&self) -> OpenSegment {
-        OpenSegment(self.tx.clone())
-    }
-
-    async fn write(&self, data: &[u8]) -> Result<WriteSummary> {
-        Self::one_command(&self.tx, OpenSegmentFileWriterRequest::Write, data.to_vec()).await
-    }
-
-    async fn write_ops(&self, ops: &[SequencedWalOp]) -> Result<WriteSummary> {
-        // todo: bincode instead of serde_json
-        let encoded = serde_json::to_vec(&ops).unwrap();
-        self.write(&encoded).await
+    fn write_handle(&self) -> WalWriter {
+        WalWriter(self.tx.clone())
     }
 
     async fn rotate(&self) -> Result<ClosedSegment> {
         Self::one_command(&self.tx, OpenSegmentFileWriterRequest::Rotate, ()).await
-    }
-}
-
-/// Handle to the one currently open segment for users of the WAL to send [`SequencedWalOp`]s to.
-#[derive(Debug)]
-pub struct OpenSegment(mpsc::Sender<OpenSegmentFileWriterRequest>);
-
-impl OpenSegment {
-    async fn write(&self, data: &[u8]) -> Result<WriteSummary> {
-        OpenSegmentFile::one_command(&self.0, OpenSegmentFileWriterRequest::Write, data.to_vec())
-            .await
-    }
-
-    pub async fn write_op(&self, op: &SequencedWalOp) -> Result<WriteSummary> {
-        // todo: bincode instead of serde_json
-        let ops = slice::from_ref(op);
-        let encoded = serde_json::to_vec(&ops).unwrap();
-        self.write(&encoded).await
     }
 }
 
@@ -559,12 +540,13 @@ mod tests {
     async fn segment_file_write_and_read_entries() {
         let dir = test_helpers::tmp_dir().unwrap();
         let sf = OpenSegmentFile::new_in_directory(dir.path()).await.unwrap();
+        let writer = sf.write_handle();
 
         let data = b"whatevs";
-        let write_summary = sf.write(data).await.unwrap();
+        let write_summary = writer.write(data).await.unwrap();
 
         let data2 = b"another";
-        let summary2 = sf.write(data2).await.unwrap();
+        let summary2 = writer.write(data2).await.unwrap();
 
         let closed = sf.rotate().await.unwrap();
 
@@ -591,6 +573,7 @@ mod tests {
     async fn segment_file_write_and_read_ops() {
         let dir = test_helpers::tmp_dir().unwrap();
         let segment = OpenSegmentFile::new_in_directory(dir.path()).await.unwrap();
+        let writer = segment.write_handle();
 
         let w1 = test_data("m1,t=foo v=1i 1");
         let w2 = test_data("m1,t=foo v=2i 2");
@@ -604,16 +587,19 @@ mod tests {
             op: WalOp::Write(w2),
         };
 
-        let ops = vec![op1, op2];
-        segment.write_ops(&ops).await.unwrap();
+        writer.write_op(&op1).await.unwrap();
+        writer.write_op(&op2).await.unwrap();
 
         let closed = segment.rotate().await.unwrap();
 
         let mut reader = ClosedSegmentFileReader::from_path(&closed.path)
             .await
             .unwrap();
-        let read_ops = reader.next_ops().await.unwrap().unwrap();
-        assert_eq!(ops, read_ops);
+        let read_op1 = reader.next_ops().await.unwrap().unwrap();
+        assert_eq!(vec![op1], read_op1);
+
+        let read_op2 = reader.next_ops().await.unwrap().unwrap();
+        assert_eq!(vec![op2], read_op2);
     }
 
     // test delete and persist ops

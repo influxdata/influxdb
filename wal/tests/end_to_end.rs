@@ -2,19 +2,21 @@ use data_types::{NamespaceId, TableId};
 use dml::DmlWrite;
 use generated_types::influxdata::pbdata::v1::{DatabaseBatch, TableBatch};
 use mutable_batch_lp::lines_to_batches;
-use wal::{SegmentWal, SequencedWalOp, WalOp};
+use wal::{SequencedWalOp, WalOp};
 
 #[tokio::test]
 async fn crud() {
     let dir = test_helpers::tmp_dir().unwrap();
 
-    let mut wal = wal::Wal::new(dir.path()).await.unwrap();
+    let wal = wal::Wal::new(dir.path()).await.unwrap();
+    let wal_reader = wal.read_handle();
 
     // Just-created WALs have no closed segments.
+    let closed = wal_reader.closed_segments().await;
     assert!(
-        wal.closed_segments().is_empty(),
+        closed.is_empty(),
         "Expected empty closed segments; got {:?}",
-        wal.closed_segments()
+        closed
     );
 
     let open = wal.write_handle().await;
@@ -32,23 +34,25 @@ async fn crud() {
     assert_eq!(summary.bytes_written, 351);
 
     // Still no closed segments
+    let closed = wal_reader.closed_segments().await;
     assert!(
-        wal.closed_segments().is_empty(),
+        closed.is_empty(),
         "Expected empty closed segments; got {:?}",
-        wal.closed_segments()
+        closed
     );
 
     // Can't read entries from the open segment; have to rotate first
-    let closed_segment_details = wal.rotate().await.unwrap();
+    let wal_rotator = wal.rotation_handle().await;
+    let closed_segment_details = wal_rotator.rotate().await.unwrap();
     assert_eq!(closed_segment_details.size(), 726);
-    //    assert_eq!(closed_segment_details.id(), open_segment_id);
 
     // There's one closed segment
-    let closed_segment_ids: Vec<_> = wal.closed_segments().iter().map(|c| c.id()).collect();
+    let closed = wal_reader.closed_segments().await;
+    let closed_segment_ids: Vec<_> = closed.iter().map(|c| c.id()).collect();
     assert_eq!(closed_segment_ids, &[closed_segment_details.id()]);
 
     // Can read the written entries from the closed segment
-    let mut reader = wal
+    let mut reader = wal_reader
         .reader_for_segment(closed_segment_details.id())
         .await
         .unwrap();
@@ -61,6 +65,7 @@ async fn crud() {
     assert_eq!(segments[0].sequence_number, 43);
 
     // Can delete a segment
+    // wal_rotator.delete()
 }
 
 fn arbitrary_sequenced_wal_op(sequence_number: u64) -> SequencedWalOp {
