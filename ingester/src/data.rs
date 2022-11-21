@@ -32,11 +32,8 @@ use write_summary::ShardProgress;
 
 pub(crate) mod namespace;
 pub mod partition;
-mod sequence_range;
 pub(crate) mod shard;
 pub(crate) mod table;
-
-pub(crate) use sequence_range::*;
 
 use self::{
     namespace::name_resolver::{NamespaceNameProvider, NamespaceNameResolver},
