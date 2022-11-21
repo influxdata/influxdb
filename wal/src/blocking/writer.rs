@@ -35,7 +35,7 @@ impl OpenSegmentFileWriter {
         f.write_all(id_bytes).context(SegmentWriteIdSnafu)?;
         let id_bytes_written = id_bytes.len();
 
-        f.sync_all().context(SegmentSyncHeaderSnafu)?;
+        f.sync_all().expect("fsync failure");
 
         let bytes_written = file_type_bytes_written + id_bytes_written;
 
@@ -79,7 +79,7 @@ impl OpenSegmentFileWriter {
             .write_all(&compressed_data)
             .context(SegmentWriteDataSnafu)?;
 
-        // TODO: should there be a `sync_all` here?
+        self.f.sync_all().expect("fsync failure");
 
         let bytes_written = mem::size_of_val(&checksum)
             + mem::size_of_val(&actual_compressed_len)
@@ -121,10 +121,6 @@ pub enum Error {
     },
 
     SegmentWriteId {
-        source: io::Error,
-    },
-
-    SegmentSyncHeader {
         source: io::Error,
     },
 
