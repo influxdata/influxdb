@@ -44,7 +44,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// row. This frees the caller of having to reason about empty [`QueryAdaptor`]
 /// instances yielding empty [`RecordBatch`].
 ///
-/// [`PartitionData`]: crate::data::partition::PartitionData
+/// [`PartitionData`]: crate::buffer_tree::partition::PartitionData
 #[derive(Debug, PartialEq, Clone)]
 pub(crate) struct QueryAdaptor {
     /// The snapshot data from a partition.

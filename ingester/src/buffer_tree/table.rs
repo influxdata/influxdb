@@ -9,11 +9,10 @@ use mutable_batch::MutableBatch;
 use parking_lot::{Mutex, RwLock};
 use write_summary::ShardProgress;
 
-use super::{
-    partition::{resolver::PartitionProvider, BufferError, PartitionData},
-    DmlApplyAction,
+use super::partition::{resolver::PartitionProvider, BufferError, PartitionData};
+use crate::{
+    arcmap::ArcMap, data::DmlApplyAction, deferred_load::DeferredLoad, lifecycle::LifecycleHandle,
 };
-use crate::{arcmap::ArcMap, deferred_load::DeferredLoad, lifecycle::LifecycleHandle};
 
 /// A double-referenced map where [`PartitionData`] can be looked up by
 /// [`PartitionKey`], or ID.
@@ -144,7 +143,7 @@ impl TableData {
         batch: MutableBatch,
         partition_key: PartitionKey,
         lifecycle_handle: &dyn LifecycleHandle,
-    ) -> Result<DmlApplyAction, super::Error> {
+    ) -> Result<DmlApplyAction, crate::data::Error> {
         let p = self.partition_data.read().by_key(&partition_key);
         let partition_data = match p {
             Some(p) => p,
@@ -175,7 +174,7 @@ impl TableData {
                 Ok(_) => p.partition_id(),
                 Err(BufferError::SkipPersisted) => return Ok(DmlApplyAction::Skipped),
                 Err(BufferError::BufferError(e)) => {
-                    return Err(super::Error::BufferWrite { source: e })
+                    return Err(crate::data::Error::BufferWrite { source: e })
                 }
             }
         };
@@ -239,7 +238,7 @@ impl TableData {
     }
 
     /// Returns the table ID for this partition.
-    pub(super) fn table_id(&self) -> TableId {
+    pub(crate) fn table_id(&self) -> TableId {
         self.table_id
     }
 
@@ -254,7 +253,7 @@ impl TableData {
     }
 
     /// Return the [`NamespaceId`] this table is a part of.
-    pub fn namespace_id(&self) -> NamespaceId {
+    pub(crate) fn namespace_id(&self) -> NamespaceId {
         self.namespace_id
     }
 }
@@ -270,10 +269,8 @@ mod tests {
     use schema::{InfluxColumnType, InfluxFieldType};
 
     use crate::{
-        data::{
-            partition::{resolver::MockPartitionProvider, PartitionData, SortKeyState},
-            Error,
-        },
+        buffer_tree::partition::{resolver::MockPartitionProvider, PartitionData, SortKeyState},
+        data::Error,
         lifecycle::mock_handle::{MockLifecycleCall, MockLifecycleHandle},
     };
 

@@ -10,7 +10,7 @@ use iox_catalog::interface::Catalog;
 use observability_deps::tracing::debug;
 
 use crate::{
-    data::{
+    buffer_tree::{
         partition::{PartitionData, SortKeyState},
         table::TableName,
     },

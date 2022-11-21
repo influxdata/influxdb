@@ -9,7 +9,7 @@ mod buffering;
 mod persisting;
 mod snapshot;
 
-pub(in crate::data::partition::buffer) use buffering::*;
+pub(in crate::buffer_tree::partition::buffer) use buffering::*;
 pub(crate) use persisting::*;
 
 use crate::sequence_range::SequenceNumberRange;

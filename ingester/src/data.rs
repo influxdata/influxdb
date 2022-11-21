@@ -1,6 +1,11 @@
 //! Data for the lifecycle of the Ingester
 
 use crate::{
+    buffer_tree::{
+        namespace::name_resolver::{NamespaceNameProvider, NamespaceNameResolver},
+        partition::resolver::{CatalogPartitionResolver, PartitionCache, PartitionProvider},
+        table::name_resolver::{TableNameProvider, TableNameResolver},
+    },
     compact::{compact_persisting_batch, CompactedStream},
     lifecycle::LifecycleHandle,
 };
@@ -30,25 +35,17 @@ use thiserror::Error;
 use uuid::Uuid;
 use write_summary::ShardProgress;
 
-pub(crate) mod namespace;
-pub mod partition;
-pub(crate) mod shard;
-pub(crate) mod table;
+use self::shard::ShardData;
 
-use self::{
-    namespace::name_resolver::{NamespaceNameProvider, NamespaceNameResolver},
-    partition::resolver::{CatalogPartitionResolver, PartitionCache, PartitionProvider},
-    shard::ShardData,
-    table::name_resolver::{TableNameProvider, TableNameResolver},
-};
+mod shard;
 
 #[cfg(test)]
-mod triggers;
+pub mod triggers;
 
 /// The maximum duration of time between creating a [`PartitionData`] and its
 /// [`SortKey`] being fetched from the catalog.
 ///
-/// [`PartitionData`]: crate::data::partition::PartitionData
+/// [`PartitionData`]: crate::buffer_tree::partition::PartitionData
 /// [`SortKey`]: schema::sort::SortKey
 const SORT_KEY_PRE_FETCH: Duration = Duration::from_secs(30);
 
@@ -57,7 +54,7 @@ const SORT_KEY_PRE_FETCH: Duration = Duration::from_secs(30);
 /// fetching the string identifier for it in the background via a
 /// [`DeferredLoad`].
 ///
-/// [`NamespaceData`]: crate::data::namespace::NamespaceData
+/// [`NamespaceData`]: crate::buffer_tree::namespace::NamespaceData
 /// [`DeferredLoad`]: crate::deferred_load::DeferredLoad
 pub(crate) const NAMESPACE_NAME_PRE_FETCH: Duration = Duration::from_secs(60);
 
@@ -66,7 +63,7 @@ pub(crate) const NAMESPACE_NAME_PRE_FETCH: Duration = Duration::from_secs(60);
 /// fetching the string identifier for it in the background via a
 /// [`DeferredLoad`].
 ///
-/// [`TableData`]: crate::data::table::TableData
+/// [`TableData`]: crate::buffer_tree::table::TableData
 /// [`DeferredLoad`]: crate::deferred_load::DeferredLoad
 pub const TABLE_NAME_PRE_FETCH: Duration = Duration::from_secs(60);
 

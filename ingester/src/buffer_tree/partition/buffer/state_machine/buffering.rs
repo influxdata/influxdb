@@ -6,7 +6,7 @@ use arrow::record_batch::RecordBatch;
 use mutable_batch::MutableBatch;
 use schema::Projection;
 
-use crate::data::partition::buffer::{
+use crate::buffer_tree::partition::buffer::{
     mutable_buffer::Buffer,
     traits::{Queryable, Writeable},
 };

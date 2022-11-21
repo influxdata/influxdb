@@ -7,7 +7,7 @@ use data_types::{NamespaceId, PartitionKey, ShardId, TableId};
 use parking_lot::Mutex;
 
 use crate::{
-    data::{partition::PartitionData, table::TableName},
+    buffer_tree::{partition::PartitionData, table::TableName},
     deferred_load::DeferredLoad,
 };
 

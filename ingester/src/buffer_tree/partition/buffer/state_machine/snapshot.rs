@@ -4,7 +4,9 @@ use std::sync::Arc;
 
 use arrow::record_batch::RecordBatch;
 
-use crate::data::partition::buffer::{state_machine::persisting::Persisting, traits::Queryable};
+use crate::buffer_tree::partition::buffer::{
+    state_machine::persisting::Persisting, traits::Queryable,
+};
 
 use super::BufferState;
 

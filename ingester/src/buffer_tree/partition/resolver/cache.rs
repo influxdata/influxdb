@@ -10,7 +10,7 @@ use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 
 use crate::{
-    data::{
+    buffer_tree::{
         partition::{resolver::SortKeyResolver, PartitionData, SortKeyState},
         table::TableName,
     },
@@ -242,7 +242,7 @@ where
 mod tests {
     use iox_catalog::mem::MemCatalog;
 
-    use crate::data::partition::resolver::MockPartitionProvider;
+    use crate::buffer_tree::partition::resolver::MockPartitionProvider;
 
     use super::*;
 

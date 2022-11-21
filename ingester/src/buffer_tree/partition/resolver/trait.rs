@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use data_types::{NamespaceId, PartitionKey, ShardId, TableId};
 
 use crate::{
-    data::{partition::PartitionData, table::TableName},
+    buffer_tree::{partition::PartitionData, table::TableName},
     deferred_load::DeferredLoad,
 };
 
@@ -52,7 +52,7 @@ mod tests {
 
     use data_types::PartitionId;
 
-    use crate::data::partition::{resolver::MockPartitionProvider, SortKeyState};
+    use crate::buffer_tree::partition::{resolver::MockPartitionProvider, SortKeyState};
 
     use super::*;
 
