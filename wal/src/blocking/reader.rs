@@ -9,9 +9,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub struct SegmentFileReader<R>(R);
+pub struct ClosedSegmentFileReader<R>(R);
 
-impl SegmentFileReader<BufReader<File>> {
+impl ClosedSegmentFileReader<BufReader<File>> {
     pub fn from_path(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
         let f = File::open(path).context(UnableToOpenFileSnafu { path })?;
@@ -20,7 +20,7 @@ impl SegmentFileReader<BufReader<File>> {
     }
 }
 
-impl<R> SegmentFileReader<R>
+impl<R> ClosedSegmentFileReader<R>
 where
     R: Read,
 {
@@ -101,7 +101,7 @@ where
     }
 }
 
-impl<R> Iterator for SegmentFileReader<R>
+impl<R> Iterator for ClosedSegmentFileReader<R>
 where
     R: io::Read,
 {
