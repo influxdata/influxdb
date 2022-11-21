@@ -17,21 +17,7 @@ async fn crud() {
         wal.closed_segments()
     );
 
-    // Creating a WAL creates a file in the directory for the open segment.
-    let open = wal.open_segment().await;
-    // let open_segment_id = open.id();
-    // let files: Vec<_> = dir
-    //     .path()
-    //     .read_dir()
-    //     .unwrap()
-    //     .flatten()
-    //     .map(|dir_entry| dir_entry.path())
-    //     .collect();
-    // assert_eq!(files.len(), 1);
-    // assert_eq!(
-    //     files[0].file_name().unwrap().to_str().unwrap(),
-    //     &format!("{open_segment_id}.dat")
-    // );
+    let open = wal.write_handle().await;
 
     // Can write an entry to the open segment
     let op = arbitrary_sequenced_wal_op(42);

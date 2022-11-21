@@ -142,6 +142,7 @@ impl Default for SegmentId {
     }
 }
 
+// TODO: find a better name
 pub(crate) fn fnamex(dir: impl Into<PathBuf>, id: SegmentId) -> PathBuf {
     let mut path = dir.into();
     path.push(id.to_string());
@@ -156,6 +157,7 @@ const FILE_TYPE_IDENTIFIER: &FileTypeIdentifier = b"INFLUXV3";
 /// File extension for segment files.
 const SEGMENT_FILE_EXTENSION: &str = "dat";
 
+/// The main type representing one WAL for one ingester instance.
 #[derive(Debug)]
 pub struct Wal {
     root: PathBuf,
@@ -224,8 +226,8 @@ pub trait SegmentWal {
     /// Opens a reader for a given segment from the WAL
     async fn reader_for_segment(&self, id: SegmentId) -> Result<SegmentFileReader>;
 
-    /// Returns a handle to the open segment
-    async fn open_segment(&self) -> Handle;
+    /// Returns a handle to the WAL to commit entries to the currently active segment.
+    async fn write_handle(&self) -> OpenSegment;
 
     /// Deletes the segment from storage
     async fn delete_segment(&self, id: SegmentId) -> Result<()>;
@@ -248,7 +250,7 @@ impl SegmentWal for Wal {
         SegmentFileReader::from_path(path).await
     }
 
-    async fn open_segment(&self) -> Handle {
+    async fn write_handle(&self) -> OpenSegment {
         self.open_segment.handle()
     }
 
@@ -308,7 +310,7 @@ pub trait Segment {
     async fn reader(&self) -> Result<Box<dyn OpReader>>;
 }
 
-/// Data for a Segment entry
+/// Raw, uncompressed and unstructured data for a Segment entry with a checksum.
 #[derive(Debug, Eq, PartialEq)]
 pub struct SegmentEntry {
     /// The CRC checksum of the uncompressed data
@@ -390,8 +392,8 @@ impl SegmentFile {
         Ok(req_rx.await.unwrap())
     }
 
-    fn handle(&self) -> Handle {
-        Handle(self.tx.clone())
+    fn handle(&self) -> OpenSegment {
+        OpenSegment(self.tx.clone())
     }
 
     async fn write(&self, data: &[u8]) -> Result<WriteSummary> {
@@ -409,10 +411,11 @@ impl SegmentFile {
     }
 }
 
+/// Handle to the one currently open segment for users of the WAL to send [`SequencedWalOp`]s to.
 #[derive(Debug)]
-pub struct Handle(mpsc::Sender<SegmentFileWriterRequest>);
+pub struct OpenSegment(mpsc::Sender<SegmentFileWriterRequest>);
 
-impl Handle {
+impl OpenSegment {
     async fn write(&self, data: &[u8]) -> Result<WriteSummary> {
         SegmentFile::one_command(&self.0, SegmentFileWriterRequest::Write, data.to_vec()).await
     }
@@ -434,6 +437,8 @@ enum SegmentFileReaderRequest {
     NextOps(oneshot::Sender<blocking::ReaderResult<Option<Vec<SequencedWalOp>>>>),
 }
 
+/// Enables reading a particular closed segment's entries.
+#[derive(Debug)]
 pub struct SegmentFileReader {
     id: SegmentId,
     tx: mpsc::Sender<SegmentFileReaderRequest>,
@@ -519,6 +524,8 @@ impl SegmentFileReader {
     }
 }
 
+/// Metadata for a WAL segment that is no longer accepting writes, but can be read for replay
+/// purposes.
 #[derive(Debug, Clone)]
 pub struct ClosedSegment {
     id: SegmentId,
