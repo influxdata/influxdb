@@ -99,6 +99,11 @@ pub enum Error {
         source: std::io::Error,
         path: PathBuf,
     },
+
+    OpenSegmentDirectory {
+        source: std::io::Error,
+        path: PathBuf,
+    },
 }
 
 /// A specialized `Result` for WAL-related errors
@@ -394,8 +399,13 @@ struct OpenSegmentFile {
 impl OpenSegmentFile {
     async fn new_in_directory(dir: impl Into<PathBuf>) -> Result<Self> {
         let dir = dir.into();
+        let dir_for_closure = dir.clone();
         let (tx, rx) = mpsc::channel(10);
-        let task = tokio::task::spawn_blocking(|| Self::task_main(rx, dir));
+        let task = tokio::task::spawn_blocking(move || Self::task_main(rx, dir_for_closure));
+        std::fs::File::open(&dir)
+            .context(OpenSegmentDirectorySnafu { path: dir })?
+            .sync_all()
+            .expect("fsync failure");
         Ok(Self { tx, task })
     }
 
