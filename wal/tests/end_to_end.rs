@@ -58,12 +58,20 @@ async fn crud() {
         .unwrap();
     let op = reader.next_ops().await.unwrap().unwrap();
     assert_eq!(op.sequence_number, 42);
-
     let op = reader.next_ops().await.unwrap().unwrap();
     assert_eq!(op.sequence_number, 43);
 
-    // Can delete a segment
-    // wal_rotator.delete()
+    // Can delete a segment, leaving no closed segments again
+    wal_rotator
+        .delete(closed_segment_details.id())
+        .await
+        .unwrap();
+    let closed = wal_reader.closed_segments().await;
+    assert!(
+        closed.is_empty(),
+        "Expected empty closed segments; got {:?}",
+        closed
+    );
 }
 
 fn arbitrary_sequenced_wal_op(sequence_number: u64) -> SequencedWalOp {
