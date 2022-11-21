@@ -8,7 +8,7 @@ license.workspace = true
 [dependencies] # In alphabetical order
 integer-encoding = "3.0.4"
 snafu = "0.7"
-snap = "1.0.0"
+snap = "1.1.0"
 observability_deps = { path = "../observability_deps" }
 workspace-hack = { path = "../workspace-hack"}
 
