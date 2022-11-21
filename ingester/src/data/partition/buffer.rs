@@ -4,14 +4,14 @@ use arrow::record_batch::RecordBatch;
 use data_types::SequenceNumber;
 use mutable_batch::MutableBatch;
 
-use crate::data::SequenceNumberRange;
-
 mod always_some;
 mod mutable_buffer;
 mod state_machine;
 pub(crate) mod traits;
 
 pub(crate) use state_machine::*;
+
+use crate::sequence_range::SequenceNumberRange;
 
 use self::{always_some::AlwaysSome, traits::Queryable};
 

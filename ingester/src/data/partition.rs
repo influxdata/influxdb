@@ -10,9 +10,11 @@ use thiserror::Error;
 use write_summary::ShardProgress;
 
 use self::buffer::{traits::Queryable, BufferState, DataBuffer, Persisting};
-use crate::{deferred_load::DeferredLoad, query_adaptor::QueryAdaptor};
+use crate::{
+    deferred_load::DeferredLoad, query_adaptor::QueryAdaptor, sequence_range::SequenceNumberRange,
+};
 
-use super::{sequence_range::SequenceNumberRange, table::TableName};
+use super::table::TableName;
 
 mod buffer;
 pub mod resolver;

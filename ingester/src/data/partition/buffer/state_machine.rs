@@ -12,7 +12,7 @@ mod snapshot;
 pub(in crate::data::partition::buffer) use buffering::*;
 pub(crate) use persisting::*;
 
-use crate::data::SequenceNumberRange;
+use crate::sequence_range::SequenceNumberRange;
 
 use super::traits::{Queryable, Writeable};
 
