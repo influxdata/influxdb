@@ -89,7 +89,7 @@ where
         self.collect()
     }
 
-    pub fn next_ops(&mut self) -> Result<Option<Vec<SequencedWalOp>>> {
+    pub fn next_ops(&mut self) -> Result<Option<SequencedWalOp>> {
         if let Some(entry) = self.one_entry()? {
             let decoded =
                 serde_json::from_slice(&entry.data).context(UnableToDeserializeDataSnafu)?;

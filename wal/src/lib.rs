@@ -16,7 +16,7 @@
 use generated_types::influxdata::{iox::delete::v1::DeletePayload, pbdata::v1::DatabaseBatch};
 use serde::{Deserialize, Serialize};
 use snafu::prelude::*;
-use std::{io, path::PathBuf, slice, time::SystemTime};
+use std::{io, path::PathBuf, time::SystemTime};
 use tokio::sync::{mpsc, oneshot, RwLock};
 use uuid::Uuid;
 
@@ -246,8 +246,7 @@ impl WalWriter {
 
     pub async fn write_op(&self, op: &SequencedWalOp) -> Result<WriteSummary> {
         // todo: bincode instead of serde_json
-        let ops = slice::from_ref(op);
-        let encoded = serde_json::to_vec(&ops).unwrap();
+        let encoded = serde_json::to_vec(op).unwrap();
         self.write(&encoded).await
     }
 }
@@ -416,7 +415,7 @@ enum ClosedSegmentFileReaderRequest {
 
     Entries(oneshot::Sender<blocking::ReaderResult<Vec<SegmentEntry>>>),
 
-    NextOps(oneshot::Sender<blocking::ReaderResult<Option<Vec<SequencedWalOp>>>>),
+    NextOps(oneshot::Sender<blocking::ReaderResult<Option<SequencedWalOp>>>),
 }
 
 /// Enables reading a particular closed segment's entries.
@@ -502,7 +501,7 @@ impl ClosedSegmentFileReader {
             .context(UnableToReadEntriesSnafu)
     }
 
-    pub async fn next_ops(&mut self) -> Result<Option<Vec<SequencedWalOp>>> {
+    pub async fn next_ops(&mut self) -> Result<Option<SequencedWalOp>> {
         Self::one_command(&self.tx, ClosedSegmentFileReaderRequest::NextOps)
             .await?
             .context(UnableToReadNextOpsSnafu)
@@ -596,10 +595,10 @@ mod tests {
             .await
             .unwrap();
         let read_op1 = reader.next_ops().await.unwrap().unwrap();
-        assert_eq!(vec![op1], read_op1);
+        assert_eq!(op1, read_op1);
 
         let read_op2 = reader.next_ops().await.unwrap().unwrap();
-        assert_eq!(vec![op2], read_op2);
+        assert_eq!(op2, read_op2);
     }
 
     // test delete and persist ops

@@ -24,14 +24,14 @@ async fn crud() {
     // Can write an entry to the open segment
     let op = arbitrary_sequenced_wal_op(42);
     let summary = open.write_op(&op).await.unwrap();
-    assert_eq!(summary.total_bytes, 375);
-    assert_eq!(summary.bytes_written, 351);
+    assert_eq!(summary.total_bytes, 374);
+    assert_eq!(summary.bytes_written, 350);
 
     // Can write another entry; total_bytes accumulates
     let op = arbitrary_sequenced_wal_op(43);
     let summary = open.write_op(&op).await.unwrap();
-    assert_eq!(summary.total_bytes, 726);
-    assert_eq!(summary.bytes_written, 351);
+    assert_eq!(summary.total_bytes, 724);
+    assert_eq!(summary.bytes_written, 350);
 
     // Still no closed segments
     let closed = wal_reader.closed_segments().await;
@@ -44,7 +44,7 @@ async fn crud() {
     // Can't read entries from the open segment; have to rotate first
     let wal_rotator = wal.rotation_handle().await;
     let closed_segment_details = wal_rotator.rotate().await.unwrap();
-    assert_eq!(closed_segment_details.size(), 726);
+    assert_eq!(closed_segment_details.size(), 724);
 
     // There's one closed segment
     let closed = wal_reader.closed_segments().await;
@@ -56,13 +56,11 @@ async fn crud() {
         .reader_for_segment(closed_segment_details.id())
         .await
         .unwrap();
-    let segments = reader.next_ops().await.unwrap().unwrap();
-    assert_eq!(segments.len(), 1);
-    assert_eq!(segments[0].sequence_number, 42);
+    let op = reader.next_ops().await.unwrap().unwrap();
+    assert_eq!(op.sequence_number, 42);
 
-    let segments = reader.next_ops().await.unwrap().unwrap();
-    assert_eq!(segments.len(), 1);
-    assert_eq!(segments[0].sequence_number, 43);
+    let op = reader.next_ops().await.unwrap().unwrap();
+    assert_eq!(op.sequence_number, 43);
 
     // Can delete a segment
     // wal_rotator.delete()
