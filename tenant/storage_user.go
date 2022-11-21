@@ -179,6 +179,10 @@ func (s *Store) CreateUser(ctx context.Context, tx kv.Tx, u *influxdb.User) erro
 		u.ID = s.IDGen.ID()
 	}
 
+	if u.Name == "" {
+		return ErrNameisEmpty
+	}
+
 	encodedID, err := u.ID.Encode()
 	if err != nil {
 		return InvalidUserIDError(err)

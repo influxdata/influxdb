@@ -204,6 +204,26 @@ func CreateUser(
 				},
 			},
 		},
+		{
+			name: "name cannot be empty",
+			fields: UserFields{
+				IDGenerator: &mock.IDGenerator{
+					IDFn: func() platform.ID {
+						return MustIDBase16(userOneID)
+					},
+				},
+			},
+			args: args{
+				user: &influxdb.User{},
+			},
+			wants: wants{
+				err: &errors.Error{
+					Code: errors.EInvalid,
+					Op:   influxdb.OpCreateUser,
+					Msg:  "name is empty",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
