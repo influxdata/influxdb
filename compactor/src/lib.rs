@@ -361,6 +361,14 @@ pub(crate) enum CompactOnePartitionError {
     },
 }
 
+impl From<parquet_file_combining::Error> for CompactOnePartitionError {
+    fn from(source: parquet_file_combining::Error) -> Self {
+        Self::Combining {
+            source: Box::new(source),
+        }
+    }
+}
+
 /// One compaction operation of one group of files.
 pub(crate) async fn compact_one_partition(
     compactor: &Compactor,
@@ -388,38 +396,32 @@ pub(crate) async fn compact_one_partition(
             .await
             .context(UpgradingSnafu)?;
     } else if split {
-        parquet_file_combining::compact_parquet_files(
-            files,
-            partition,
-            Arc::clone(&compactor.catalog),
-            compactor.store.clone(),
-            Arc::clone(&compactor.exec),
-            Arc::clone(&compactor.time_provider),
-            &compactor.compaction_input_file_bytes,
-            compactor.config.max_desired_file_size_bytes,
-            compactor.config.percentage_max_file_size,
-            compactor.config.split_percentage,
-            target_level,
-        )
-        .await
-        .map_err(|e| CompactOnePartitionError::Combining {
-            source: Box::new(e),
-        })?;
+        parquet_file_combining::CompactPlanBuilder::new(partition)
+            .with_files(files)
+            .with_catalog(Arc::clone(&compactor.catalog))
+            .with_store(compactor.store.clone())
+            .with_exec(Arc::clone(&compactor.exec))
+            .with_time_provider(Arc::clone(&compactor.time_provider))
+            .with_compaction_input_file_bytes(compactor.compaction_input_file_bytes.clone())
+            .with_max_desired_file_size_bytes(compactor.config.max_desired_file_size_bytes)
+            .with_percentage_max_file_size(compactor.config.percentage_max_file_size)
+            .with_split_percentage(compactor.config.split_percentage)
+            .with_target_level(target_level)
+            .build_with_splits()?
+            .compact_and_update_catalog()
+            .await?;
     } else {
-        parquet_file_combining::compact_final_no_splits(
-            files,
-            partition,
-            Arc::clone(&compactor.catalog),
-            compactor.store.clone(),
-            Arc::clone(&compactor.exec),
-            Arc::clone(&compactor.time_provider),
-            &compactor.compaction_input_file_bytes,
-            target_level,
-        )
-        .await
-        .map_err(|e| CompactOnePartitionError::Combining {
-            source: Box::new(e),
-        })?;
+        parquet_file_combining::CompactPlanBuilder::new(partition)
+            .with_files(files)
+            .with_catalog(Arc::clone(&compactor.catalog))
+            .with_store(compactor.store.clone())
+            .with_exec(Arc::clone(&compactor.exec))
+            .with_time_provider(Arc::clone(&compactor.time_provider))
+            .with_compaction_input_file_bytes(compactor.compaction_input_file_bytes.clone())
+            .with_target_level(target_level)
+            .build_no_splits()?
+            .compact_and_update_catalog()
+            .await?;
     }
 
     let attributes = Attributes::from([
