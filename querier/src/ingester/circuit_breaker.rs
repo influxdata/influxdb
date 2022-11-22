@@ -242,13 +242,14 @@ impl CircuitBreakerFlightClient {
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: Arc<Registry>,
         open_circuit_after_n_errors: u64,
+        backoff_config: BackoffConfig,
     ) -> Self {
         Self {
             inner,
             open_circuit_after_n_errors,
             time_provider,
             metric_registry,
-            backoff_config: BackoffConfig::default(),
+            backoff_config,
             circuits: Default::default(),
             rng_overwrite: None,
         }
@@ -1110,6 +1111,7 @@ mod tests {
                 Arc::clone(&time_provider) as _,
                 Arc::clone(&metric_registry),
                 2,
+                BackoffConfig::default(),
             );
 
             // set up "RNG" that always generates the maximum, so we can test things easier

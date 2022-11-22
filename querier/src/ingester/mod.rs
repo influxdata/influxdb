@@ -145,15 +145,27 @@ pub fn create_ingester_connections_by_shard(
     catalog_cache: Arc<CatalogCache>,
     open_circuit_after_n_errors: u64,
 ) -> Arc<dyn IngesterConnection> {
+    // This backoff config is used to retry requests for a specific table-scoped query.
+    let retry_backoff_config = BackoffConfig {
+        init_backoff: Duration::from_millis(100),
+        max_backoff: Duration::from_secs(1),
+        base: 3.0,
+        deadline: Some(Duration::from_secs(10)),
+    };
+
+    // This backoff config is used to half-open the circuit after it was opened. Circuits are ingester-scoped.
+    let circuit_breaker_backoff_config = BackoffConfig {
+        init_backoff: Duration::from_secs(1),
+        max_backoff: Duration::from_secs(60),
+        base: 3.0,
+        deadline: None,
+    };
+
     Arc::new(IngesterConnectionImpl::by_shard(
         shard_to_ingesters,
         catalog_cache,
-        BackoffConfig {
-            init_backoff: Duration::from_millis(100),
-            max_backoff: Duration::from_secs(1),
-            base: 3.0,
-            deadline: Some(Duration::from_secs(10)),
-        },
+        retry_backoff_config,
+        circuit_breaker_backoff_config,
         open_circuit_after_n_errors,
     ))
 }
@@ -341,7 +353,8 @@ impl IngesterConnectionImpl {
     pub fn by_shard(
         shard_to_ingesters: HashMap<ShardIndex, IngesterMapping>,
         catalog_cache: Arc<CatalogCache>,
-        backoff_config: BackoffConfig,
+        retry_backoff_config: BackoffConfig,
+        circuit_breaker_backoff_config: BackoffConfig,
         open_circuit_after_n_errors: u64,
     ) -> Self {
         let flight_client = Arc::new(FlightClientImpl::new());
@@ -350,12 +363,13 @@ impl IngesterConnectionImpl {
             catalog_cache.time_provider(),
             catalog_cache.metric_registry(),
             open_circuit_after_n_errors,
+            circuit_breaker_backoff_config,
         ));
         Self::by_shard_with_flight_client(
             shard_to_ingesters,
             flight_client,
             catalog_cache,
-            backoff_config,
+            retry_backoff_config,
         )
     }
 
