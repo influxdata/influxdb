@@ -10,11 +10,10 @@ use thiserror::Error;
 use write_summary::ShardProgress;
 
 use self::buffer::{traits::Queryable, BufferState, DataBuffer, Persisting};
+use super::table::TableName;
 use crate::{
     deferred_load::DeferredLoad, query_adaptor::QueryAdaptor, sequence_range::SequenceNumberRange,
 };
-
-use super::table::TableName;
 
 mod buffer;
 pub mod resolver;
@@ -446,9 +445,8 @@ mod tests {
     use lazy_static::lazy_static;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 
-    use crate::{buffer_tree::partition::resolver::SortKeyResolver, test_util::populate_catalog};
-
     use super::*;
+    use crate::{buffer_tree::partition::resolver::SortKeyResolver, test_util::populate_catalog};
 
     const PARTITION_ID: PartitionId = PartitionId::new(1);
 

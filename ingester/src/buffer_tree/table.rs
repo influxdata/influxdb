@@ -268,13 +268,12 @@ mod tests {
     use mutable_batch_lp::lines_to_batches;
     use schema::{InfluxColumnType, InfluxFieldType};
 
+    use super::*;
     use crate::{
         buffer_tree::partition::{resolver::MockPartitionProvider, PartitionData, SortKeyState},
         data::Error,
         lifecycle::mock_handle::{MockLifecycleCall, MockLifecycleHandle},
     };
-
-    use super::*;
 
     const SHARD_ID: ShardId = ShardId::new(22);
     const TABLE_NAME: &str = "bananas";

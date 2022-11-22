@@ -83,6 +83,7 @@ mod tests {
     use data_types::{PartitionId, PartitionKey, ShardIndex, TableId};
     use metric::{Attributes, Metric, U64Counter};
 
+    use super::*;
     use crate::{
         buffer_tree::{
             namespace::name_resolver::mock::MockNamespaceNameProvider,
@@ -93,8 +94,6 @@ mod tests {
         lifecycle::mock_handle::MockLifecycleHandle,
         test_util::{make_write_op, TEST_TABLE},
     };
-
-    use super::*;
 
     const SHARD_INDEX: ShardIndex = ShardIndex::new(24);
     const SHARD_ID: ShardId = ShardId::new(22);

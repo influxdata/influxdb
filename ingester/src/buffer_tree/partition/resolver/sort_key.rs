@@ -56,9 +56,8 @@ mod tests {
 
     use data_types::ShardIndex;
 
-    use crate::test_util::populate_catalog;
-
     use super::*;
+    use crate::test_util::populate_catalog;
 
     const SHARD_INDEX: ShardIndex = ShardIndex::new(24);
     const TABLE_NAME: &str = "bananas";

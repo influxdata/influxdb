@@ -4,9 +4,8 @@ use backoff::{Backoff, BackoffConfig};
 use data_types::NamespaceId;
 use iox_catalog::interface::Catalog;
 
-use crate::deferred_load::DeferredLoad;
-
 use super::NamespaceName;
+use crate::deferred_load::DeferredLoad;
 
 /// An abstract provider of a [`DeferredLoad`] configured to fetch the
 /// [`NamespaceName`] of the specified [`NamespaceId`].
@@ -105,9 +104,8 @@ mod tests {
     use data_types::ShardIndex;
     use test_helpers::timeout::FutureTimeout;
 
-    use crate::test_util::populate_catalog;
-
     use super::*;
+    use crate::test_util::populate_catalog;
 
     const SHARD_INDEX: ShardIndex = ShardIndex::new(24);
     const TABLE_NAME: &str = "bananas";

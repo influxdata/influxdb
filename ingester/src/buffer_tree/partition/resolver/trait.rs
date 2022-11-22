@@ -52,9 +52,8 @@ mod tests {
 
     use data_types::PartitionId;
 
-    use crate::buffer_tree::partition::{resolver::MockPartitionProvider, SortKeyState};
-
     use super::*;
+    use crate::buffer_tree::partition::{resolver::MockPartitionProvider, SortKeyState};
 
     #[tokio::test]
     async fn test_arc_impl() {

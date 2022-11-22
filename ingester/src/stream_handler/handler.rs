@@ -1,19 +1,21 @@
 //! A handler of streamed ops from a write buffer.
 
-use crate::{
-    data::DmlApplyAction,
-    dml_sink::DmlSink,
-    lifecycle::{LifecycleHandle, LifecycleHandleImpl},
-};
+use std::{fmt::Debug, time::Duration};
+
 use data_types::{SequenceNumber, ShardId, ShardIndex};
 use dml::DmlOperation;
 use futures::{pin_mut, FutureExt, StreamExt};
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{Attributes, DurationCounter, DurationGauge, U64Counter};
 use observability_deps::tracing::*;
-use std::{fmt::Debug, time::Duration};
 use tokio_util::sync::CancellationToken;
 use write_buffer::core::{WriteBufferErrorKind, WriteBufferStreamHandler};
+
+use crate::{
+    data::DmlApplyAction,
+    dml_sink::DmlSink,
+    lifecycle::{LifecycleHandle, LifecycleHandleImpl},
+};
 
 /// When the [`LifecycleManager`] indicates that ingest should be paused because
 /// of memory pressure, the shard will loop, sleeping this long between
@@ -508,11 +510,8 @@ fn metric_attrs(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{
-        dml_sink::{mock_sink::MockDmlSink, DmlError},
-        lifecycle::{LifecycleConfig, LifecycleManager},
-    };
+    use std::sync::Arc;
+
     use assert_matches::assert_matches;
     use async_trait::async_trait;
     use data_types::{DeletePredicate, NamespaceId, Sequence, TableId, TimestampRange};
@@ -522,11 +521,16 @@ mod tests {
     use metric::Metric;
     use mutable_batch_lp::lines_to_batches;
     use once_cell::sync::Lazy;
-    use std::sync::Arc;
     use test_helpers::timeout::FutureTimeout;
     use tokio::sync::{mpsc, oneshot};
     use tokio_stream::wrappers::ReceiverStream;
     use write_buffer::core::WriteBufferError;
+
+    use super::*;
+    use crate::{
+        dml_sink::{mock_sink::MockDmlSink, DmlError},
+        lifecycle::{LifecycleConfig, LifecycleManager},
+    };
 
     static TEST_TIME: Lazy<Time> = Lazy::new(|| SystemProvider::default().now());
     static TEST_SHARD_INDEX: ShardIndex = ShardIndex::new(42);

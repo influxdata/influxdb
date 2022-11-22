@@ -6,12 +6,11 @@ use arrow::record_batch::RecordBatch;
 use mutable_batch::MutableBatch;
 use schema::Projection;
 
+use super::{snapshot::Snapshot, BufferState, Transition};
 use crate::buffer_tree::partition::buffer::{
     mutable_buffer::Buffer,
     traits::{Queryable, Writeable},
 };
-
-use super::{snapshot::Snapshot, BufferState, Transition};
 
 /// The FSM starting ingest state - a mutable buffer collecting writes.
 #[derive(Debug, Default)]

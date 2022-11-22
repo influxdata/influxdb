@@ -9,6 +9,7 @@ use data_types::{NamespaceId, Partition, PartitionKey, ShardId, TableId};
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::debug;
 
+use super::r#trait::PartitionProvider;
 use crate::{
     buffer_tree::{
         partition::{PartitionData, SortKeyState},
@@ -16,8 +17,6 @@ use crate::{
     },
     deferred_load::DeferredLoad,
 };
-
-use super::r#trait::PartitionProvider;
 
 /// A [`PartitionProvider`] implementation that hits the [`Catalog`] to resolve
 /// the partition id and persist offset, returning an initialised

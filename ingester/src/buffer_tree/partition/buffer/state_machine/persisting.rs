@@ -4,9 +4,8 @@ use std::sync::Arc;
 
 use arrow::record_batch::RecordBatch;
 
-use crate::buffer_tree::partition::buffer::traits::Queryable;
-
 use super::BufferState;
+use crate::buffer_tree::partition::buffer::traits::Queryable;
 
 /// An immutable set of [`RecordBatch`] in the process of being persisted.
 #[derive(Debug)]

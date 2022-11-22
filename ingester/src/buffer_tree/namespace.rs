@@ -314,6 +314,18 @@ impl<'a> Drop for ScopedSequenceNumber<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::{sync::Arc, time::Duration};
+
+    use assert_matches::assert_matches;
+    use data_types::{
+        ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, PartitionId, PartitionKey,
+        ShardIndex, Timestamp,
+    };
+    use iox_catalog::{interface::Catalog, mem::MemCatalog};
+    use iox_time::SystemProvider;
+    use metric::{Attributes, Metric, MetricObserver, Observation};
+    use uuid::Uuid;
+
     use super::*;
     use crate::{
         buffer_tree::{
@@ -328,16 +340,6 @@ mod tests {
         lifecycle::{mock_handle::MockLifecycleHandle, LifecycleConfig, LifecycleManager},
         test_util::{make_write_op, TEST_TABLE},
     };
-    use assert_matches::assert_matches;
-    use data_types::{
-        ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, PartitionId, PartitionKey,
-        ShardIndex, Timestamp,
-    };
-    use iox_catalog::{interface::Catalog, mem::MemCatalog};
-    use iox_time::SystemProvider;
-    use metric::{Attributes, Metric, MetricObserver, Observation};
-    use std::{sync::Arc, time::Duration};
-    use uuid::Uuid;
 
     const SHARD_INDEX: ShardIndex = ShardIndex::new(24);
     const SHARD_ID: ShardId = ShardId::new(22);

@@ -5,13 +5,12 @@ use dml::DmlOperation;
 use metric::U64Counter;
 use write_summary::ShardProgress;
 
-use crate::{arcmap::ArcMap, data::DmlApplyAction, lifecycle::LifecycleHandle};
-
 use super::{
     namespace::{name_resolver::NamespaceNameProvider, NamespaceData},
     partition::resolver::PartitionProvider,
     table::name_resolver::TableNameProvider,
 };
+use crate::{arcmap::ArcMap, data::DmlApplyAction, lifecycle::LifecycleHandle};
 
 #[derive(Debug)]
 pub(crate) struct BufferTree {

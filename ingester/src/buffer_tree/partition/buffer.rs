@@ -11,9 +11,8 @@ pub(crate) mod traits;
 
 pub(crate) use state_machine::*;
 
-use crate::sequence_range::SequenceNumberRange;
-
 use self::{always_some::AlwaysSome, traits::Queryable};
+use crate::sequence_range::SequenceNumberRange;
 
 /// The current state of the [`BufferState`] state machine.
 ///
