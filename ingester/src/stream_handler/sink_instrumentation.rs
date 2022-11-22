@@ -236,11 +236,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{
-        dml_sink::{mock_sink::MockDmlSink, DmlError},
-        stream_handler::mock_watermark_fetcher::MockWatermarkFetcher,
-    };
+    use std::sync::Arc;
+
     use assert_matches::assert_matches;
     use data_types::{NamespaceId, Sequence, SequenceNumber, ShardId, TableId};
     use dml::{DmlMeta, DmlWrite};
@@ -248,8 +245,13 @@ mod tests {
     use metric::{Metric, MetricObserver, Observation};
     use mutable_batch_lp::lines_to_batches;
     use once_cell::sync::Lazy;
-    use std::sync::Arc;
     use trace::{ctx::SpanContext, span::SpanStatus, RingBufferTraceCollector, TraceCollector};
+
+    use super::*;
+    use crate::{
+        dml_sink::{mock_sink::MockDmlSink, DmlError},
+        stream_handler::mock_watermark_fetcher::MockWatermarkFetcher,
+    };
 
     /// The shard index the [`SinkInstrumentation`] under test is configured to
     /// be observing for.

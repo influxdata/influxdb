@@ -1,9 +1,11 @@
 //! Data for the lifecycle of the Ingester
 
-use crate::{
-    compact::{compact_persisting_batch, CompactedStream},
-    lifecycle::LifecycleHandle,
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+    time::{Duration, Instant},
 };
+
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
 use data_types::{
@@ -21,34 +23,30 @@ use parquet_file::{
     storage::{ParquetStorage, StorageId},
 };
 use snafu::{OptionExt, Snafu};
-use std::{
-    collections::BTreeMap,
-    sync::Arc,
-    time::{Duration, Instant},
-};
 use thiserror::Error;
 use uuid::Uuid;
 use write_summary::ShardProgress;
 
-pub(crate) mod namespace;
-pub mod partition;
-pub(crate) mod shard;
-pub(crate) mod table;
-
-use self::{
-    namespace::name_resolver::{NamespaceNameProvider, NamespaceNameResolver},
-    partition::resolver::{CatalogPartitionResolver, PartitionCache, PartitionProvider},
-    shard::ShardData,
-    table::name_resolver::{TableNameProvider, TableNameResolver},
+use self::shard::ShardData;
+use crate::{
+    buffer_tree::{
+        namespace::name_resolver::{NamespaceNameProvider, NamespaceNameResolver},
+        partition::resolver::{CatalogPartitionResolver, PartitionCache, PartitionProvider},
+        table::name_resolver::{TableNameProvider, TableNameResolver},
+    },
+    compact::{compact_persisting_batch, CompactedStream},
+    lifecycle::LifecycleHandle,
 };
 
+mod shard;
+
 #[cfg(test)]
-mod triggers;
+pub mod triggers;
 
 /// The maximum duration of time between creating a [`PartitionData`] and its
 /// [`SortKey`] being fetched from the catalog.
 ///
-/// [`PartitionData`]: crate::data::partition::PartitionData
+/// [`PartitionData`]: crate::buffer_tree::partition::PartitionData
 /// [`SortKey`]: schema::sort::SortKey
 const SORT_KEY_PRE_FETCH: Duration = Duration::from_secs(30);
 
@@ -57,7 +55,7 @@ const SORT_KEY_PRE_FETCH: Duration = Duration::from_secs(30);
 /// fetching the string identifier for it in the background via a
 /// [`DeferredLoad`].
 ///
-/// [`NamespaceData`]: crate::data::namespace::NamespaceData
+/// [`NamespaceData`]: crate::buffer_tree::namespace::NamespaceData
 /// [`DeferredLoad`]: crate::deferred_load::DeferredLoad
 pub(crate) const NAMESPACE_NAME_PRE_FETCH: Duration = Duration::from_secs(60);
 
@@ -66,7 +64,7 @@ pub(crate) const NAMESPACE_NAME_PRE_FETCH: Duration = Duration::from_secs(60);
 /// fetching the string identifier for it in the background via a
 /// [`DeferredLoad`].
 ///
-/// [`TableData`]: crate::data::table::TableData
+/// [`TableData`]: crate::buffer_tree::table::TableData
 /// [`DeferredLoad`]: crate::deferred_load::DeferredLoad
 pub const TABLE_NAME_PRE_FETCH: Duration = Duration::from_secs(60);
 
@@ -671,11 +669,8 @@ pub enum DmlApplyAction {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{
-        lifecycle::{LifecycleConfig, LifecycleManager},
-        test_util::make_write_op,
-    };
+    use std::{ops::DerefMut, sync::Arc, time::Duration};
+
     use assert_matches::assert_matches;
     use data_types::{
         DeletePredicate, Namespace, NamespaceSchema, NonEmptyString, PartitionKey, Sequence, Shard,
@@ -687,7 +682,12 @@ mod tests {
     use iox_time::Time;
     use object_store::memory::InMemory;
     use schema::sort::SortKey;
-    use std::{ops::DerefMut, sync::Arc, time::Duration};
+
+    use super::*;
+    use crate::{
+        lifecycle::{LifecycleConfig, LifecycleManager},
+        test_util::make_write_op,
+    };
 
     struct TestContext {
         metrics: Arc<metric::Registry>,

@@ -6,7 +6,6 @@ mod write_info;
 
 use std::sync::{atomic::AtomicU64, Arc};
 
-use crate::handler::IngestHandler;
 use arrow_flight::flight_service_server::{
     FlightService as Flight, FlightServiceServer as FlightServer,
 };
@@ -16,6 +15,8 @@ use generated_types::influxdata::iox::{
 };
 use iox_catalog::interface::Catalog;
 use service_grpc_catalog::CatalogService;
+
+use crate::handler::IngestHandler;
 
 /// This type is responsible for managing all gRPC services exposed by `ingester`.
 #[derive(Debug)]

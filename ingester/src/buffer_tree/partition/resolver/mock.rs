@@ -6,12 +6,11 @@ use async_trait::async_trait;
 use data_types::{NamespaceId, PartitionKey, ShardId, TableId};
 use parking_lot::Mutex;
 
+use super::r#trait::PartitionProvider;
 use crate::{
-    data::{partition::PartitionData, table::TableName},
+    buffer_tree::{partition::PartitionData, table::TableName},
     deferred_load::DeferredLoad,
 };
-
-use super::r#trait::PartitionProvider;
 
 /// A mock [`PartitionProvider`] for testing that returns pre-initialised
 /// [`PartitionData`] for configured `(key, shard, table)` triplets.

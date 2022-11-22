@@ -1,7 +1,12 @@
-use crate::{
-    handler::IngestHandler,
-    querier_handler::{FlatIngesterQueryResponse, FlatIngesterQueryResponseStream},
+use std::{
+    pin::Pin,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+    task::Poll,
 };
+
 use arrow::error::ArrowError;
 use arrow_flight::{
     flight_service_server::FlightService as Flight, Action, ActionType, Criteria, Empty,
@@ -16,16 +21,13 @@ use observability_deps::tracing::*;
 use pin_project::pin_project;
 use prost::Message;
 use snafu::{ResultExt, Snafu};
-use std::{
-    pin::Pin,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc,
-    },
-    task::Poll,
-};
 use tonic::{Request, Response, Streaming};
 use trace::{ctx::SpanContext, span::SpanExt};
+
+use crate::{
+    handler::IngestHandler,
+    querier_handler::{FlatIngesterQueryResponse, FlatIngesterQueryResponseStream},
+};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
@@ -375,9 +377,8 @@ mod tests {
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use schema::Projection;
 
-    use crate::querier_handler::{FlatIngesterQueryResponse, PartitionStatus};
-
     use super::*;
+    use crate::querier_handler::{FlatIngesterQueryResponse, PartitionStatus};
 
     #[tokio::test]
     async fn test_get_stream_empty() {

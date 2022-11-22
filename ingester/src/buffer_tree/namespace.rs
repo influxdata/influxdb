@@ -11,12 +11,12 @@ use observability_deps::tracing::warn;
 use parking_lot::RwLock;
 use write_summary::ShardProgress;
 
-#[cfg(test)]
-use super::triggers::TestTriggers;
 use super::{
     partition::resolver::PartitionProvider,
     table::{name_resolver::TableNameProvider, TableData},
 };
+#[cfg(test)]
+use crate::data::triggers::TestTriggers;
 use crate::{
     arcmap::ArcMap, data::DmlApplyAction, deferred_load::DeferredLoad, lifecycle::LifecycleHandle,
 };
@@ -65,7 +65,7 @@ pub(crate) struct NamespaceData {
     /// The [`TableNameProvider`] acts as a [`DeferredLoad`] constructor to
     /// resolve the [`TableName`] for new [`TableData`] out of the hot path.
     ///
-    /// [`TableName`]: crate::data::table::TableName
+    /// [`TableName`]: crate::buffer_tree::table::TableName
     tables: ArcMap<TableId, TableData>,
     table_name_resolver: Arc<dyn TableNameProvider>,
     /// The count of tables initialised in this Ingester so far, across all
@@ -126,7 +126,8 @@ pub(crate) struct NamespaceData {
 
 impl NamespaceData {
     /// Initialize new tables with default partition template of daily
-    pub(super) fn new(
+    // TODO(kafkaless): pub(super)
+    pub(crate) fn new(
         namespace_id: NamespaceId,
         namespace_name: DeferredLoad<NamespaceName>,
         table_name_resolver: Arc<dyn TableNameProvider>,
@@ -158,11 +159,11 @@ impl NamespaceData {
     /// Buffer the operation in the cache, adding any new partitions or delete tombstones to the
     /// catalog. Returns true if ingest should be paused due to memory limits set in the passed
     /// lifecycle manager.
-    pub(super) async fn buffer_operation(
+    pub(crate) async fn buffer_operation(
         &self,
         dml_operation: DmlOperation,
         lifecycle_handle: &dyn LifecycleHandle,
-    ) -> Result<DmlApplyAction, super::Error> {
+    ) -> Result<DmlApplyAction, crate::data::Error> {
         let sequence_number = dml_operation
             .meta()
             .sequence()
@@ -245,7 +246,8 @@ impl NamespaceData {
     }
 
     /// Return progress from this Namespace
-    pub(super) async fn progress(&self) -> ShardProgress {
+    // TODO(kafkaless): pub(super)
+    pub(crate) async fn progress(&self) -> ShardProgress {
         let tables: Vec<_> = self.tables.values();
 
         // Consolidate progress across partitions.
@@ -262,7 +264,7 @@ impl NamespaceData {
     }
 
     /// Return the [`NamespaceId`] this [`NamespaceData`] belongs to.
-    pub(super) fn namespace_id(&self) -> NamespaceId {
+    pub(crate) fn namespace_id(&self) -> NamespaceId {
         self.namespace_id
     }
 
@@ -312,9 +314,21 @@ impl<'a> Drop for ScopedSequenceNumber<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::{sync::Arc, time::Duration};
+
+    use assert_matches::assert_matches;
+    use data_types::{
+        ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, PartitionId, PartitionKey,
+        ShardIndex, Timestamp,
+    };
+    use iox_catalog::{interface::Catalog, mem::MemCatalog};
+    use iox_time::SystemProvider;
+    use metric::{Attributes, Metric, MetricObserver, Observation};
+    use uuid::Uuid;
+
     use super::*;
     use crate::{
-        data::{
+        buffer_tree::{
             namespace::NamespaceData,
             partition::{
                 resolver::{CatalogPartitionResolver, MockPartitionProvider},
@@ -326,16 +340,6 @@ mod tests {
         lifecycle::{mock_handle::MockLifecycleHandle, LifecycleConfig, LifecycleManager},
         test_util::{make_write_op, TEST_TABLE},
     };
-    use assert_matches::assert_matches;
-    use data_types::{
-        ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, PartitionId, PartitionKey,
-        ShardIndex, Timestamp,
-    };
-    use iox_catalog::{interface::Catalog, mem::MemCatalog};
-    use iox_time::SystemProvider;
-    use metric::{Attributes, Metric, MetricObserver, Observation};
-    use std::{sync::Arc, time::Duration};
-    use uuid::Uuid;
 
     const SHARD_INDEX: ShardIndex = ShardIndex::new(24);
     const SHARD_ID: ShardId = ShardId::new(22);

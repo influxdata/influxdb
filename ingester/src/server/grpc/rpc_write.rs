@@ -182,9 +182,8 @@ mod tests {
         Column, DatabaseBatch, TableBatch,
     };
 
-    use crate::dml_sink::mock_sink::MockDmlSink;
-
     use super::*;
+    use crate::dml_sink::mock_sink::MockDmlSink;
 
     const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
     const PARTITION_KEY: &str = "bananas";

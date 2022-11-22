@@ -395,15 +395,17 @@ impl<T> Drop for IngestHandlerImpl<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::test_util::make_write_op;
+    use std::num::NonZeroU32;
+
     use data_types::{Namespace, NamespaceId, PartitionKey, SequenceNumber, TableId};
     use dml::DmlWrite;
     use iox_catalog::mem::MemCatalog;
     use object_store::memory::InMemory;
-    use std::num::NonZeroU32;
     use test_helpers::maybe_start_logging;
     use write_buffer::mock::{MockBufferForReading, MockBufferSharedState};
+
+    use super::*;
+    use crate::test_util::make_write_op;
 
     #[tokio::test]
     async fn test_shutdown() {

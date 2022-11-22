@@ -4,9 +4,10 @@ use std::sync::Arc;
 
 use arrow::record_batch::RecordBatch;
 
-use crate::data::partition::buffer::{state_machine::persisting::Persisting, traits::Queryable};
-
 use super::BufferState;
+use crate::buffer_tree::partition::buffer::{
+    state_machine::persisting::Persisting, traits::Queryable,
+};
 
 /// An immutable, queryable FSM state containing at least one buffer snapshot.
 #[derive(Debug)]

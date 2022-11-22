@@ -9,15 +9,14 @@ use iox_catalog::interface::Catalog;
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 
+use super::r#trait::PartitionProvider;
 use crate::{
-    data::{
+    buffer_tree::{
         partition::{resolver::SortKeyResolver, PartitionData, SortKeyState},
         table::TableName,
     },
     deferred_load::DeferredLoad,
 };
-
-use super::r#trait::PartitionProvider;
 
 /// The data-carrying value of a `(shard_id, table_id, partition_key)` lookup.
 #[derive(Debug)]
@@ -242,9 +241,8 @@ where
 mod tests {
     use iox_catalog::mem::MemCatalog;
 
-    use crate::data::partition::resolver::MockPartitionProvider;
-
     use super::*;
+    use crate::buffer_tree::partition::resolver::MockPartitionProvider;
 
     const PARTITION_KEY: &str = "bananas";
     const PARTITION_ID: PartitionId = PartitionId::new(42);

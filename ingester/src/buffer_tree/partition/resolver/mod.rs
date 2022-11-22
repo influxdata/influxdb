@@ -1,6 +1,6 @@
 //! An abstract resolver of [`PartitionData`] for a given shard & table.
 //!
-//! [`PartitionData`]: crate::data::partition::PartitionData
+//! [`PartitionData`]: crate::buffer_tree::partition::PartitionData
 
 mod cache;
 pub(crate) use cache::*;

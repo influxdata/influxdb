@@ -11,7 +11,7 @@ use iox_query::{
 use schema::sort::{adjust_sort_key_columns, compute_sort_key, SortKey};
 use snafu::{ResultExt, Snafu};
 
-use crate::{data::table::TableName, query_adaptor::QueryAdaptor};
+use crate::{buffer_tree::table::TableName, query_adaptor::QueryAdaptor};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]

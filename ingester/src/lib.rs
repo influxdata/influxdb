@@ -18,6 +18,7 @@
 )]
 
 mod arcmap;
+mod buffer_tree;
 pub(crate) mod compact;
 pub mod data;
 mod deferred_load;

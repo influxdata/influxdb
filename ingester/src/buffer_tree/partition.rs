@@ -10,11 +10,10 @@ use thiserror::Error;
 use write_summary::ShardProgress;
 
 use self::buffer::{traits::Queryable, BufferState, DataBuffer, Persisting};
+use super::table::TableName;
 use crate::{
     deferred_load::DeferredLoad, query_adaptor::QueryAdaptor, sequence_range::SequenceNumberRange,
 };
-
-use super::table::TableName;
 
 mod buffer;
 pub mod resolver;
@@ -214,7 +213,7 @@ impl PartitionData {
     /// [`PartitionData::get_query_data()`].
     ///
     /// This includes buffered data, snapshots, and currently persisting data.
-    pub(super) fn sequence_number_range(&self) -> SequenceNumberRange {
+    pub(crate) fn sequence_number_range(&self) -> SequenceNumberRange {
         self.persisting
             .as_ref()
             .map(|v| v.sequence_number_range().clone())
@@ -223,7 +222,7 @@ impl PartitionData {
     }
 
     /// Return the progress from this Partition
-    pub(super) fn progress(&self) -> ShardProgress {
+    pub(crate) fn progress(&self) -> ShardProgress {
         let mut p = ShardProgress::default();
 
         let range = self.buffer.sequence_number_range();
@@ -275,7 +274,7 @@ impl PartitionData {
     /// operation. All calls to [`Self::mark_persisting()`] must be followed by
     /// a matching call to [`Self::mark_persisted()`] before a new persist can
     /// begin.
-    pub(super) fn mark_persisting(&mut self) -> Option<QueryAdaptor> {
+    pub(crate) fn mark_persisting(&mut self) -> Option<QueryAdaptor> {
         // Assert that there is at most one persist operation per partition
         // ongoing at any one time.
         //
@@ -321,7 +320,7 @@ impl PartitionData {
     /// This method panics if [`Self`] is not marked as undergoing a persist
     /// operation. All calls to [`Self::mark_persisted()`] must be preceded by a
     /// matching call to [`Self::mark_persisting()`].
-    pub(super) fn mark_persisted(&mut self, sequence_number: SequenceNumber) {
+    pub(crate) fn mark_persisted(&mut self, sequence_number: SequenceNumber) {
         // Assert there is a batch marked as persisting in self, that it has a
         // non-empty sequence number range, and that the persisted upper bound
         // matches the data in the batch being dropped.
@@ -446,9 +445,8 @@ mod tests {
     use lazy_static::lazy_static;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 
-    use crate::{data::partition::resolver::SortKeyResolver, test_util::populate_catalog};
-
     use super::*;
+    use crate::{buffer_tree::partition::resolver::SortKeyResolver, test_util::populate_catalog};
 
     const PARTITION_ID: PartitionId = PartitionId::new(1);
 

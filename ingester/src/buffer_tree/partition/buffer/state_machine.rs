@@ -9,12 +9,11 @@ mod buffering;
 mod persisting;
 mod snapshot;
 
-pub(in crate::data::partition::buffer) use buffering::*;
+pub(in crate::buffer_tree::partition::buffer) use buffering::*;
 pub(crate) use persisting::*;
 
-use crate::sequence_range::SequenceNumberRange;
-
 use super::traits::{Queryable, Writeable};
+use crate::sequence_range::SequenceNumberRange;
 
 /// A result type for fallible transitions.
 ///
@@ -130,12 +129,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use snapshot::*;
     use std::ops::Deref;
 
     use arrow_util::assert_batches_eq;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use schema::Projection;
+    use snapshot::*;
 
     use super::*;
 
