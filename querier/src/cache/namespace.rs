@@ -243,6 +243,7 @@ impl From<TableSchema> for CachedTable {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CachedNamespace {
     pub id: NamespaceId,
+    pub retention_period: Option<Duration>,
     pub tables: HashMap<Arc<str>, Arc<CachedTable>>,
 }
 
@@ -270,7 +271,14 @@ impl From<NamespaceSchema> for CachedNamespace {
             .collect();
         tables.shrink_to_fit();
 
-        Self { id: ns.id, tables }
+        let retention_period = ns
+            .retention_period_ns
+            .map(|retention| Duration::from_nanos(retention as u64));
+        Self {
+            id: ns.id,
+            retention_period,
+            tables,
+        }
     }
 }
 
@@ -317,8 +325,13 @@ mod tests {
             .get(Arc::from(String::from("ns1")), &[], None)
             .await
             .unwrap();
+        let retention_period = ns1
+            .namespace
+            .retention_period_ns
+            .map(|retention| Duration::from_nanos(retention as u64));
         let expected_ns_1 = CachedNamespace {
             id: ns1.namespace.id,
+            retention_period,
             tables: HashMap::from([
                 (
                     Arc::from("table1"),
@@ -367,8 +380,13 @@ mod tests {
             .get(Arc::from(String::from("ns2")), &[], None)
             .await
             .unwrap();
+        let retention_period = ns2
+            .namespace
+            .retention_period_ns
+            .map(|retention| Duration::from_nanos(retention as u64));
         let expected_ns_2 = CachedNamespace {
             id: ns2.namespace.id,
+            retention_period,
             tables: HashMap::from([(
                 Arc::from("table1"),
                 Arc::new(CachedTable {

@@ -2,7 +2,7 @@
 
 mod interface;
 
-use data_types::{CompactionLevel, PartitionId, ShardId, Tombstone, TombstoneId};
+use data_types::{CompactionLevel, DeletePredicate, PartitionId, ShardId, Tombstone, TombstoneId};
 use iox_query::QueryChunk;
 use observability_deps::tracing::debug;
 use schema::sort::SortKey;
@@ -56,6 +56,7 @@ impl Reconciler {
         &self,
         ingester_partitions: Vec<IngesterPartition>,
         tombstones: Vec<Arc<Tombstone>>,
+        retention_delete_pred: Option<DeletePredicate>,
         parquet_files: Vec<QuerierChunk>,
         span: Option<Span>,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, ReconcileError> {
@@ -64,6 +65,7 @@ impl Reconciler {
             .build_chunks_from_parquet(
                 &ingester_partitions,
                 tombstones,
+                retention_delete_pred,
                 parquet_files,
                 span_recorder.child_span("build_chunks_from_parquet"),
             )
@@ -87,6 +89,7 @@ impl Reconciler {
         &self,
         ingester_partitions: &[IngesterPartition],
         tombstones: Vec<Arc<Tombstone>>,
+        retention_delete_pred: Option<DeletePredicate>,
         parquet_files: Vec<QuerierChunk>,
         span: Option<Span>,
     ) -> Result<Vec<Box<dyn UpdatableQuerierChunk>>, ReconcileError> {
@@ -128,10 +131,18 @@ impl Reconciler {
         let mut chunks: Vec<Box<dyn UpdatableQuerierChunk>> =
             Vec::with_capacity(parquet_files.len() + ingester_partitions.len());
 
+        let retention_expr_len = usize::from(retention_delete_pred.is_some());
         for chunk in parquet_files.into_iter() {
-            let chunk = if let Some(tombstones) = tombstones_by_shard.get(&chunk.meta().shard_id())
-            {
-                let mut delete_predicates = Vec::with_capacity(tombstones.len());
+            let tombstones = tombstones_by_shard.get(&chunk.meta().shard_id());
+
+            let tombstones_len = if let Some(tombstones) = tombstones {
+                tombstones.len()
+            } else {
+                0
+            };
+            let mut delete_predicates = Vec::with_capacity(tombstones_len + retention_expr_len);
+
+            if let Some(tombstones) = tombstones {
                 for tombstone in tombstones {
                     // check conditions that don't need catalog access first to avoid unnecessary
                     // catalog load
@@ -186,10 +197,13 @@ impl Reconciler {
 
                     delete_predicates.push(Arc::clone(tombstone.delete_predicate()));
                 }
-                chunk.with_delete_predicates(delete_predicates)
-            } else {
-                chunk
-            };
+            }
+
+            if let Some(retention_delete_pred) = retention_delete_pred.clone() {
+                delete_predicates.push(Arc::new(retention_delete_pred));
+            }
+
+            let chunk = chunk.with_delete_predicates(delete_predicates);
 
             chunks.push(Box::new(chunk) as Box<dyn UpdatableQuerierChunk>);
         }

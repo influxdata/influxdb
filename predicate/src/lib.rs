@@ -442,6 +442,13 @@ impl Predicate {
         self
     }
 
+    /// Add an  exprestion "time >= retention_time"
+    pub fn with_retention(mut self, retention_time: i64) -> Self {
+        let expr = col(TIME_COLUMN_NAME).gt_eq(lit_timestamp_nano(retention_time));
+        self.exprs.push(expr);
+        self
+    }
+
     /// Adds an expression to the list of general purpose predicates
     pub fn with_expr(self, expr: Expr) -> Self {
         self.with_exprs([expr])

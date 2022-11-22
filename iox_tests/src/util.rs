@@ -152,10 +152,11 @@ impl TestCatalog {
         )
     }
 
-    /// Create a namespace in the catalog
-    pub async fn create_namespace_1hr_retention(
+    /// Create namespace with specified retention
+    pub async fn create_namespace_with_retention(
         self: &Arc<Self>,
         name: &str,
+        retention_period_ns: Option<i64>,
     ) -> Arc<TestNamespace> {
         let mut repos = self.catalog.repositories().await;
 
@@ -163,7 +164,7 @@ impl TestCatalog {
         let query_pool = repos.query_pools().create_or_get("pool").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create(name, TEST_RETENTION_PERIOD_NS, topic.id, query_pool.id)
+            .create(name, retention_period_ns, topic.id, query_pool.id)
             .await
             .unwrap();
 
@@ -173,6 +174,15 @@ impl TestCatalog {
             query_pool,
             namespace,
         })
+    }
+
+    /// Create a namespace in the catalog
+    pub async fn create_namespace_1hr_retention(
+        self: &Arc<Self>,
+        name: &str,
+    ) -> Arc<TestNamespace> {
+        self.create_namespace_with_retention(name, TEST_RETENTION_PERIOD_NS)
+            .await
     }
 
     /// return tombstones of a given table

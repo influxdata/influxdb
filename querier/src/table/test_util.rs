@@ -10,7 +10,7 @@ use iox_tests::util::{TestCatalog, TestPartition, TestShard, TestTable};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use schema::{sort::SortKey, Projection, Schema};
 use sharder::JumpHash;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use tokio::runtime::Handle;
 
 /// Create a [`QuerierTable`] for testing.
@@ -33,10 +33,16 @@ pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -
 
     let namespace_name = Arc::from(table.namespace.namespace.name.as_str());
 
+    let namespace_retention_period = table
+        .namespace
+        .namespace
+        .retention_period_ns
+        .map(|retention| Duration::from_nanos(retention as u64));
     QuerierTable::new(QuerierTableArgs {
         sharder: Arc::new(JumpHash::new((0..1).map(ShardIndex::new).map(Arc::new))),
         namespace_id: table.namespace.namespace.id,
         namespace_name,
+        namespace_retention_period,
         table_id: table.table.id,
         table_name: table.table.name.clone().into(),
         schema,

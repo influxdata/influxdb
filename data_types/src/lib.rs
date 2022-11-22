@@ -1317,6 +1317,20 @@ impl DeletePredicate {
     pub fn size(&self) -> usize {
         std::mem::size_of::<Self>() + self.exprs.iter().map(|expr| expr.size()).sum::<usize>()
     }
+
+    /// Return the delete predicate for data outside retention
+    /// We need to only retain time >= retention_time.
+    /// Thus we only need to set the range to MIN < time < retention_time
+    pub fn retention_delete_predicate(retention_time: i64) -> Self {
+        let range = TimestampRange {
+            start: i64::MIN,
+            end: retention_time,
+        };
+        Self {
+            range,
+            exprs: vec![],
+        }
+    }
 }
 
 /// Single expression to be used as parts of a predicate.

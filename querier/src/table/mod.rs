@@ -6,7 +6,9 @@ use crate::{
     ingester::{self, IngesterPartition},
     IngesterConnection,
 };
-use data_types::{ColumnId, NamespaceId, PartitionId, ShardIndex, TableId, TimestampMinMax};
+use data_types::{
+    ColumnId, DeletePredicate, NamespaceId, PartitionId, ShardIndex, TableId, TimestampMinMax,
+};
 use datafusion::error::DataFusionError;
 use futures::{join, StreamExt};
 use iox_query::pruning::prune_summaries;
@@ -18,6 +20,7 @@ use schema::Schema;
 use sharder::JumpHash;
 use snafu::{ResultExt, Snafu};
 use std::collections::HashSet;
+use std::time::Duration;
 use std::{
     collections::{hash_map::Entry, HashMap},
     sync::Arc,
@@ -82,6 +85,7 @@ pub struct QuerierTableArgs {
     pub sharder: Arc<JumpHash<Arc<ShardIndex>>>,
     pub namespace_id: NamespaceId,
     pub namespace_name: Arc<str>,
+    pub namespace_retention_period: Option<Duration>,
     pub table_id: TableId,
     pub table_name: Arc<str>,
     pub schema: Arc<Schema>,
@@ -103,6 +107,9 @@ pub struct QuerierTable {
 
     /// Namespace ID for this table.
     namespace_id: NamespaceId,
+
+    /// Namespace retenion
+    namespace_retention_period: Option<Duration>,
 
     /// Table name.
     table_name: Arc<str>,
@@ -139,6 +146,7 @@ impl QuerierTable {
             sharder,
             namespace_id,
             namespace_name,
+            namespace_retention_period,
             table_id,
             table_name,
             schema,
@@ -159,6 +167,7 @@ impl QuerierTable {
             sharder,
             namespace_name,
             namespace_id,
+            namespace_retention_period,
             table_name,
             table_id,
             schema,
@@ -224,6 +233,38 @@ impl QuerierTable {
             table_name=%self.table_name(),
             "Fetching all chunks"
         );
+
+        let (predicate_with_retention, retention_delete_pred) =
+            match self.namespace_retention_period {
+                // The retention is not fininte, add predicate to filter out data outside retention period
+                Some(retention_period) => {
+                    let retention_time_ns = self
+                        .chunk_adapter
+                        .catalog_cache()
+                        .time_provider()
+                        .now()
+                        .timestamp_nanos()
+                        - retention_period.as_nanos() as i64;
+
+                    // Add predicate to only keep chunks inside the retention period: time >= retention_period
+                    let predicate = Some(predicate.clone().with_retention(retention_time_ns));
+
+                    // Expression used to add to delete predicate to delete data older than retention period
+                    // time < retention_time
+                    let retention_delete_pred = Some(DeletePredicate::retention_delete_predicate(
+                        retention_time_ns,
+                    ));
+
+                    (predicate, retention_delete_pred)
+                }
+                // inifite retention, no need to add predicate
+                None => (None, None),
+            };
+        let predicate = if predicate_with_retention.is_some() {
+            predicate_with_retention.as_ref().unwrap()
+        } else {
+            predicate
+        };
 
         let catalog_cache = self.chunk_adapter.catalog_cache();
 
@@ -370,6 +411,7 @@ impl QuerierTable {
             .reconcile(
                 partitions,
                 tombstones.to_vec(),
+                retention_delete_pred,
                 parquet_files,
                 span_recorder.child_span("reconcile"),
             )
@@ -520,6 +562,7 @@ mod tests {
     use data_types::{ChunkId, ColumnType, CompactionLevel, SequenceNumber};
     use iox_query::exec::IOxSessionContext;
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
+    use iox_time::TimeProvider;
     use predicate::Predicate;
     use schema::{builder::SchemaBuilder, InfluxFieldType};
     use std::sync::Arc;
@@ -527,11 +570,103 @@ mod tests {
     use trace::{span::SpanStatus, RingBufferTraceCollector};
 
     #[tokio::test]
+    async fn test_prune_parquet_chunks_outside_retention() {
+        test_helpers::maybe_start_logging();
+
+        let catalog = TestCatalog::new();
+
+        // namespace with 1-hour retention policy
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
+        let inside_retention = catalog.time_provider.now().timestamp_nanos(); // now
+        let outside_retention =
+            inside_retention - Duration::from_secs(2 * 60 * 60).as_nanos() as i64; // 2 hours ago
+
+        let shard = ns.create_shard(1).await;
+        let table = ns.create_table("cpu").await;
+
+        table.create_column("host", ColumnType::Tag).await;
+        table.create_column("time", ColumnType::Time).await;
+        table.create_column("load", ColumnType::F64).await;
+
+        let partition = table.with_shard(&shard).create_partition("a").await;
+
+        let querier_table = TestQuerierTable::new(&catalog, &table).await;
+
+        // no parquet files yet
+        assert!(querier_table.chunks().await.unwrap().is_empty());
+
+        // C1: partially inside retention
+        let lp = format!(
+            "
+                cpu,host=a load=1 {}\n
+                cpu,host=aa load=11 {}\n
+            ",
+            inside_retention, outside_retention
+        );
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp)
+            .with_max_seq(1)
+            .with_min_time(outside_retention)
+            .with_max_time(inside_retention);
+        let file_partially_inside = partition.create_parquet_file(builder).await;
+
+        // C2: fully inside retention
+        let lp = format!(
+            "
+            cpu,host=b load=2 {}\n
+            cpu,host=bb load=21 {}\n
+            ",
+            inside_retention, inside_retention
+        );
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp)
+            .with_max_seq(2)
+            .with_min_time(inside_retention)
+            .with_max_time(inside_retention);
+        let file_fully_inside = partition.create_parquet_file(builder).await;
+
+        // C3: fully outside retention
+        let lp = format!(
+            "
+            cpu,host=z load=0 {}\n
+            cpu,host=zz load=01 {}\n
+            ",
+            outside_retention, outside_retention
+        );
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp)
+            .with_max_seq(3)
+            .with_min_time(outside_retention)
+            .with_max_time(outside_retention);
+        let _file_fully_outside = partition.create_parquet_file(builder).await;
+
+        // As we have now made new parquet files, force a cache refresh
+        querier_table.inner().clear_parquet_cache();
+        querier_table.inner().clear_tombstone_cache();
+
+        // Invoke chunks that will prune chunks fully outside retention C3
+        let mut chunks = querier_table.chunks().await.unwrap();
+        chunks.sort_by_key(|c| c.id());
+        assert_eq!(chunks.len(), 2);
+
+        // check IDs
+        assert_eq!(
+            chunks[0].id(),
+            ChunkId::new_test(file_partially_inside.parquet_file.id.get() as u128),
+        );
+        assert_eq!(
+            chunks[1].id(),
+            ChunkId::new_test(file_fully_inside.parquet_file.id.get() as u128),
+        );
+    }
+
+    #[tokio::test]
     async fn test_parquet_chunks() {
         maybe_start_logging();
         let catalog = TestCatalog::new();
 
-        let ns = catalog.create_namespace_1hr_retention("ns").await;
+        // Namespace with infinite retention policy
+        let ns = catalog.create_namespace_with_retention("ns", None).await;
 
         let table1 = ns.create_table("table1").await;
         let table2 = ns.create_table("table2").await;
@@ -808,7 +943,8 @@ mod tests {
     async fn test_state_reconcile() {
         maybe_start_logging();
         let catalog = TestCatalog::new();
-        let ns = catalog.create_namespace_1hr_retention("ns").await;
+        // infinite retention
+        let ns = catalog.create_namespace_with_retention("ns", None).await;
         let table = ns.create_table("table").await;
         let shard = ns.create_shard(1).await;
         let partition1 = table.with_shard(&shard).create_partition("k1").await;
@@ -1064,7 +1200,8 @@ mod tests {
     async fn test_tombstone_cache_refresh() {
         maybe_start_logging();
         let catalog = TestCatalog::new();
-        let ns = catalog.create_namespace_1hr_retention("ns").await;
+        // infinite retention
+        let ns = catalog.create_namespace_with_retention("ns", None).await;
         let table = ns.create_table("table1").await;
         let shard = ns.create_shard(1).await;
         let partition = table.with_shard(&shard).create_partition("k").await;
@@ -1117,6 +1254,46 @@ mod tests {
             .with_ingester_partition(ingester_partition);
 
         // second tombstone should be found
+        let deletes = num_deletes(querier_table.chunks().await.unwrap());
+        assert_eq!(&deletes, &[2, 0]);
+    }
+
+    #[tokio::test]
+    async fn test_tombstone_cache_refresh_with_retention() {
+        maybe_start_logging();
+        let catalog = TestCatalog::new();
+        // 1-hour retention
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
+        let table = ns.create_table("table1").await;
+        let shard = ns.create_shard(1).await;
+        let partition = table.with_shard(&shard).create_partition("k").await;
+        let schema = make_schema(&table).await;
+        // Expect 1 chunk with with one delete predicate
+        let querier_table = TestQuerierTable::new(&catalog, &table).await;
+
+        let builder =
+            IngesterPartitionBuilder::new(&schema, &shard, &partition).with_lp(["table foo=1 1"]);
+
+        // parquet file with max sequence number 1
+        let pf_builder = TestParquetFileBuilder::default()
+            .with_line_protocol("table1 foo=1 11")
+            .with_max_seq(1);
+        partition.create_parquet_file(pf_builder).await;
+
+        // tombstone with max sequence number 2
+        table
+            .with_shard(&shard)
+            .create_tombstone(2, 1, 100, "foo=1")
+            .await;
+
+        let max_parquet_sequence_number = Some(SequenceNumber::new(1));
+        let max_tombstone_sequence_number = Some(SequenceNumber::new(2));
+        let ingester_partition =
+            builder.build(max_parquet_sequence_number, max_tombstone_sequence_number);
+
+        let querier_table = querier_table.with_ingester_partition(ingester_partition);
+
+        // There must be two delete predicates: one from the tombstone, one from retention
         let deletes = num_deletes(querier_table.chunks().await.unwrap());
         assert_eq!(&deletes, &[2, 0]);
     }

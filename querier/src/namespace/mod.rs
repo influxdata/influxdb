@@ -70,6 +70,7 @@ impl QuerierNamespace {
                     sharder: Arc::clone(&sharder),
                     namespace_id: ns.id,
                     namespace_name: Arc::clone(&name),
+                    namespace_retention_period: ns.retention_period,
                     table_id: cached_table.id,
                     table_name: Arc::clone(table_name),
                     schema: Arc::clone(&cached_table.schema),
