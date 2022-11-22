@@ -3,7 +3,7 @@
 use std::{pin::Pin, sync::Arc};
 
 use arrow::{array::new_null_array, error::ArrowError, record_batch::RecordBatch};
-use arrow_util::optimize::{optimize_record_batch, optimize_schema};
+use arrow_util::optimize::{optimize_record_batch, optimize_schema, split_batch_for_grpc_response};
 use data_types::{NamespaceId, PartitionId, SequenceNumber, TableId};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::MemoryStream;
@@ -142,11 +142,22 @@ impl IngesterQueryResponse {
                                     })
                                 });
 
-                                let tail = snapshot.map(move |batch_res| match batch_res {
-                                    Ok(batch) => Ok(FlatIngesterQueryResponse::RecordBatch {
-                                        batch: optimize_record_batch(&batch, Arc::clone(&schema))?,
-                                    }),
-                                    Err(e) => Err(e),
+                                let tail = snapshot.flat_map(move |batch_res| match batch_res {
+                                    Ok(batch) => {
+                                        match optimize_record_batch(&batch, Arc::clone(&schema)) {
+                                            Ok(batch) => futures::stream::iter(
+                                                split_batch_for_grpc_response(batch),
+                                            )
+                                            .map(|batch| {
+                                                Ok(FlatIngesterQueryResponse::RecordBatch { batch })
+                                            })
+                                            .boxed(),
+                                            Err(e) => {
+                                                futures::stream::once(async { Err(e) }).boxed()
+                                            }
+                                        }
+                                    }
+                                    Err(e) => futures::stream::once(async { Err(e) }).boxed(),
                                 });
 
                                 head.chain(tail).boxed()

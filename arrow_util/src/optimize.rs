@@ -186,6 +186,43 @@ pub fn optimize_schema(schema: &Schema) -> Schema {
     Schema::new(fields)
 }
 
+/// The size to which we limit our [`RecordBatch`] payloads.
+///
+/// We will slice up the returned [`RecordBatch]s (preserving order) to only produce objects of approximately
+/// this size (there's a bit of additional encoding overhead on top of that, but that should be OK).
+///
+/// This would normally be 4MB, but the size calculation for the record batches is rather inexact, so we set it to 2MB.
+const MAX_GRPC_RESPONSE_BATCH_SIZE: usize = 2097152;
+
+/// Split [`RecordBatch`] so it hopefully fits into a gRPC response.
+///
+/// Max size is controlled by [`MAX_GRPC_RESPONSE_BATCH_SIZE`].
+///
+/// Data is zero-copy sliced into batches.
+pub fn split_batch_for_grpc_response(batch: RecordBatch) -> Vec<RecordBatch> {
+    let size = batch
+        .columns()
+        .iter()
+        .map(|col| col.get_array_memory_size())
+        .sum::<usize>();
+
+    let n_batches = (size / MAX_GRPC_RESPONSE_BATCH_SIZE
+        + usize::from(size % MAX_GRPC_RESPONSE_BATCH_SIZE != 0))
+    .max(1);
+    let rows_per_batch = batch.num_rows() / n_batches;
+    let mut out = Vec::with_capacity(n_batches + 1);
+
+    let mut offset = 0;
+    while offset < batch.num_rows() {
+        let length = (offset + rows_per_batch).min(batch.num_rows() - offset);
+        out.push(batch.slice(offset, length));
+
+        offset += length;
+    }
+
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -193,8 +230,9 @@ mod tests {
     use crate::assert_batches_eq;
     use arrow::array::{
         ArrayDataBuilder, DictionaryArray, Float64Array, Int32Array, StringArray, UInt32Array,
+        UInt8Array,
     };
-    use arrow::compute::concat;
+    use arrow::compute::{concat, concat_batches};
     use arrow_flight::utils::flight_data_to_arrow_batch;
     use datafusion::physical_plan::limit::truncate_batch;
     use std::iter::FromIterator;
@@ -500,5 +538,30 @@ mod tests {
             Some("foo"),
         ]);
         assert_eq!(array, &expected)
+    }
+
+    #[test]
+    fn test_split_batch_for_grpc_response() {
+        // no split
+        let c = UInt32Array::from(vec![1, 2, 3, 4, 5, 6]);
+        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(c) as ArrayRef)])
+            .expect("cannot create record batch");
+        let split = split_batch_for_grpc_response(batch.clone());
+        assert_eq!(split.len(), 1);
+        assert_eq!(batch, split[0]);
+
+        // split once
+        let n_rows = MAX_GRPC_RESPONSE_BATCH_SIZE + 1;
+        assert!(n_rows % 2 == 1, "should be an odd number");
+        let c = UInt8Array::from((0..n_rows).map(|i| (i % 256) as u8).collect::<Vec<_>>());
+        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(c) as ArrayRef)])
+            .expect("cannot create record batch");
+        let split = split_batch_for_grpc_response(batch.clone());
+        assert_eq!(split.len(), 2);
+        assert_eq!(
+            split.iter().map(|batch| batch.num_rows()).sum::<usize>(),
+            n_rows
+        );
+        assert_eq!(concat_batches(&batch.schema(), &split).unwrap(), batch);
     }
 }

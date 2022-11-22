@@ -6,7 +6,7 @@ use arrow_flight::{
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
     HandshakeRequest, HandshakeResponse, PutResult, SchemaAsIpc, SchemaResult, Ticket,
 };
-use arrow_util::optimize::{optimize_record_batch, optimize_schema};
+use arrow_util::optimize::{optimize_record_batch, optimize_schema, split_batch_for_grpc_response};
 use bytes::{Bytes, BytesMut};
 use data_types::NamespaceNameError;
 use datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
@@ -372,21 +372,23 @@ impl GetStream {
                     Ok(batch) => {
                         match optimize_record_batch(&batch, Arc::clone(&schema)) {
                             Ok(batch) => {
-                                let (flight_dictionaries, flight_batch) =
-                                    arrow_flight::utils::flight_data_from_arrow_batch(
-                                        &batch, &options,
-                                    );
+                                for batch in split_batch_for_grpc_response(batch) {
+                                    let (flight_dictionaries, flight_batch) =
+                                        arrow_flight::utils::flight_data_from_arrow_batch(
+                                            &batch, &options,
+                                        );
 
-                                for dict in flight_dictionaries {
-                                    if tx.send(Ok(dict)).await.is_err() {
+                                    for dict in flight_dictionaries {
+                                        if tx.send(Ok(dict)).await.is_err() {
+                                            // receiver is gone
+                                            return;
+                                        }
+                                    }
+
+                                    if tx.send(Ok(flight_batch)).await.is_err() {
                                         // receiver is gone
                                         return;
                                     }
-                                }
-
-                                if tx.send(Ok(flight_batch)).await.is_err() {
-                                    // receiver is gone
-                                    return;
                                 }
                             }
                             Err(e) => {
