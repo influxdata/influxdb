@@ -92,13 +92,25 @@ func (p *prometheusScraper) parse(r io.Reader, header http.Header, target influx
 			case dto.MetricType_SUMMARY:
 				// summary metric
 				fields = makeQuantiles(m)
-				fields["count"] = float64(m.GetSummary().GetSampleCount())
-				fields["sum"] = float64(m.GetSummary().GetSampleSum())
+				sc := float64(m.GetSummary().GetSampleCount())
+				ss := float64(m.GetSummary().GetSampleSum())
+				if !math.IsNaN(sc) {
+					fields["count"] = sc
+				}
+				if !math.IsNaN(ss) {
+					fields["sum"] = ss
+				}
 			case dto.MetricType_HISTOGRAM:
 				// histogram metric
 				fields = makeBuckets(m)
-				fields["count"] = float64(m.GetHistogram().GetSampleCount())
-				fields["sum"] = float64(m.GetHistogram().GetSampleSum())
+				sc := float64(m.GetHistogram().GetSampleCount())
+				ss := float64(m.GetHistogram().GetSampleSum())
+				if !math.IsNaN(sc) {
+					fields["count"] = sc
+				}
+				if !math.IsNaN(ss) {
+					fields["sum"] = ss
+				}
 			default:
 				// standard metric
 				fields = getNameAndValue(m)
