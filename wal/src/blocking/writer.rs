@@ -97,17 +97,15 @@ impl OpenSegmentFileWriter {
         let Self {
             id,
             path,
-            f,
             bytes_written,
+            ..
         } = self;
-        let metadata = f.metadata().context(UnableToReadFileMetadataSnafu)?;
         Ok(ClosedSegment {
             id,
             path,
             size: bytes_written
                 .try_into()
                 .expect("bytes_written did not fit in size type"),
-            created_at: metadata.created().context(UnableToReadCreatedSnafu)?,
         })
     }
 }

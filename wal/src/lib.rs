@@ -16,7 +16,7 @@
 use generated_types::influxdata::{iox::delete::v1::DeletePayload, pbdata::v1::DatabaseBatch};
 use serde::{Deserialize, Serialize};
 use snafu::prelude::*;
-use std::{collections::HashMap, io, path::PathBuf, time::SystemTime};
+use std::{collections::HashMap, io, path::PathBuf};
 use tokio::sync::{mpsc, oneshot, RwLock};
 use uuid::Uuid;
 
@@ -229,7 +229,6 @@ impl Wal {
                     id,
                     path: child.path(),
                     size: metadata.len(),
-                    created_at: metadata.created().context(UnableToReadFileMetadataSnafu)?,
                 };
                 closed_segments.insert(id, segment);
             }
@@ -566,7 +565,6 @@ pub struct ClosedSegment {
     id: SegmentId,
     path: PathBuf,
     size: u64,
-    created_at: SystemTime,
 }
 
 impl ClosedSegment {
