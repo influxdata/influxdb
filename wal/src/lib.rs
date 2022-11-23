@@ -643,7 +643,50 @@ mod tests {
 
     // read segment works even if last entry is truncated
 
-    // writes get batched
+    #[tokio::test]
+    async fn rotate_without_writes() {
+        let dir = test_helpers::tmp_dir().unwrap();
+
+        let wal = Wal::new(dir.path()).await.unwrap();
+        let wal_reader = wal.read_handle();
+
+        // Just-created WALs have no closed segments.
+        let closed = wal_reader.closed_segments().await;
+        assert!(
+            closed.is_empty(),
+            "Expected empty closed segments; got {:?}",
+            closed
+        );
+
+        // No writes, but rotating is totally fine
+        let wal_rotator = wal.rotation_handle().await;
+        let closed_segment_details = wal_rotator.rotate().await.unwrap();
+        assert_eq!(closed_segment_details.size(), 24);
+
+        // There's one closed segment
+        let closed = wal_reader.closed_segments().await;
+        let closed_segment_ids: Vec<_> = closed.iter().map(|c| c.id()).collect();
+        assert_eq!(closed_segment_ids, &[closed_segment_details.id()]);
+
+        // There aren't any entries in the closed segment because nothing was written
+        let mut reader = wal_reader
+            .reader_for_segment(closed_segment_details.id())
+            .await
+            .unwrap();
+        assert!(reader.next_ops().await.unwrap().is_none());
+
+        // Can delete an empty segment, leaving no closed segments again
+        wal_rotator
+            .delete(closed_segment_details.id())
+            .await
+            .unwrap();
+        let closed = wal_reader.closed_segments().await;
+        assert!(
+            closed.is_empty(),
+            "Expected empty closed segments; got {:?}",
+            closed
+        );
+    }
 
     fn test_data(lp: &str) -> DatabaseBatch {
         let batches = lines_to_batches(lp, 0).unwrap();
