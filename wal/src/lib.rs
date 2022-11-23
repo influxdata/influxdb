@@ -486,8 +486,6 @@ impl OpenSegmentFile {
 enum ClosedSegmentFileReaderRequest {
     ReadHeader(oneshot::Sender<blocking::ReaderResult<(FileTypeIdentifier, uuid::Bytes)>>),
 
-    Entries(oneshot::Sender<blocking::ReaderResult<Vec<SegmentEntry>>>),
-
     NextOps(oneshot::Sender<blocking::ReaderResult<Option<SequencedWalOp>>>),
 }
 
@@ -537,10 +535,6 @@ impl ClosedSegmentFileReader {
                     tx.send(reader.read_header()).ok();
                 }
 
-                Entries(tx) => {
-                    tx.send(reader.entries()).ok();
-                }
-
                 NextOps(tx) => {
                     tx.send(reader.next_ops()).ok();
                 }
@@ -565,13 +559,6 @@ impl ClosedSegmentFileReader {
         req_rx
             .await
             .context(UnableToReceiveResponseFromSenderTaskSnafu)
-    }
-
-    // TODO: Should this return a stream instead of a big vector?
-    async fn entries(&mut self) -> Result<Vec<SegmentEntry>> {
-        Self::one_command(&self.tx, ClosedSegmentFileReaderRequest::Entries)
-            .await?
-            .context(UnableToReadEntriesSnafu)
     }
 
     /// Return the next [`SequencedWalOp`] from this reader, if any.
@@ -608,39 +595,6 @@ mod tests {
     use dml::DmlWrite;
     use generated_types::influxdata::pbdata::v1::DatabaseBatch;
     use mutable_batch_lp::lines_to_batches;
-
-    #[tokio::test]
-    async fn segment_file_write_and_read_entries() {
-        let dir = test_helpers::tmp_dir().unwrap();
-        let sf = OpenSegmentFile::new_in_directory(dir.path()).await.unwrap();
-        let writer = sf.write_handle();
-
-        let data = b"whatevs";
-        let write_summary = writer.write(data).await.unwrap();
-
-        let data2 = b"another";
-        let summary2 = writer.write(data2).await.unwrap();
-
-        let closed = sf.rotate().await.unwrap();
-
-        let mut reader = ClosedSegmentFileReader::from_path(&closed.path)
-            .await
-            .unwrap();
-        let entries = reader.entries().await.unwrap();
-        assert_eq!(
-            &entries,
-            &[
-                SegmentEntry {
-                    checksum: write_summary.checksum,
-                    data: data.to_vec(),
-                },
-                SegmentEntry {
-                    checksum: summary2.checksum,
-                    data: data2.to_vec()
-                },
-            ]
-        );
-    }
 
     #[tokio::test]
     async fn segment_file_write_and_read_ops() {

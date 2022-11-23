@@ -87,10 +87,6 @@ where
         }))
     }
 
-    pub fn entries(&mut self) -> Result<Vec<SegmentEntry>> {
-        self.collect()
-    }
-
     pub fn next_ops(&mut self) -> Result<Option<SequencedWalOp>> {
         if let Some(entry) = self.one_entry()? {
             let decoded = ProtoSequencedWalOp::decode(&*entry.data)
@@ -102,17 +98,6 @@ where
         }
 
         Ok(None)
-    }
-}
-
-impl<R> Iterator for ClosedSegmentFileReader<R>
-where
-    R: io::Read,
-{
-    type Item = Result<SegmentEntry>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.one_entry().transpose()
     }
 }
 
