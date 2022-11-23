@@ -593,7 +593,10 @@ mod tests {
     use super::*;
     use data_types::{NamespaceId, TableId};
     use dml::DmlWrite;
-    use generated_types::influxdata::pbdata::v1::DatabaseBatch;
+    use generated_types::influxdata::{
+        iox::{delete::v1::DeletePayload, wal::v1::PersistOp},
+        pbdata::v1::DatabaseBatch,
+    };
     use mutable_batch_lp::lines_to_batches;
 
     #[tokio::test]
@@ -613,9 +616,19 @@ mod tests {
             sequence_number: SequenceNumberNg::new(1),
             op: WalOp::Write(w2),
         };
+        let op3 = SequencedWalOp {
+            sequence_number: SequenceNumberNg::new(2),
+            op: WalOp::Delete(test_delete()),
+        };
+        let op4 = SequencedWalOp {
+            sequence_number: SequenceNumberNg::new(2),
+            op: WalOp::Persist(test_persist()),
+        };
 
         writer.write_op(op1.clone()).await.unwrap();
         writer.write_op(op2.clone()).await.unwrap();
+        writer.write_op(op3.clone()).await.unwrap();
+        writer.write_op(op4.clone()).await.unwrap();
 
         let closed = segment.rotate().await.unwrap();
 
@@ -627,17 +640,15 @@ mod tests {
 
         let read_op2 = reader.next_ops().await.unwrap().unwrap();
         assert_eq!(op2, read_op2);
+
+        let read_op3 = reader.next_ops().await.unwrap().unwrap();
+        assert_eq!(op3, read_op3);
+
+        let read_op4 = reader.next_ops().await.unwrap().unwrap();
+        assert_eq!(op4, read_op4);
+
+        assert!(reader.next_ops().await.unwrap().is_none());
     }
-
-    // test delete and persist ops
-
-    // open wal and write and read ops from segment
-
-    // rotates wal to new segment
-
-    // open wal and get closed segments and read them
-
-    // delete segment
 
     // open wal with files that aren't segments (should log and skip)
 
@@ -704,5 +715,22 @@ mod tests {
         );
 
         mutable_batch_pb::encode::encode_write(42, &write)
+    }
+
+    fn test_delete() -> DeletePayload {
+        DeletePayload {
+            database_id: 42,
+            predicate: None,
+            table_name: "bananas".into(),
+        }
+    }
+
+    fn test_persist() -> PersistOp {
+        PersistOp {
+            namespace_id: 42,
+            parquet_file_uuid: "b4N4N4Z".into(),
+            partition_id: 43,
+            table_id: 44,
+        }
     }
 }
