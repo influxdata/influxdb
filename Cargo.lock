@@ -4143,6 +4143,7 @@ dependencies = [
  "iox_catalog",
  "iox_query",
  "iox_tests",
+ "iox_time",
  "itertools",
  "mutable_batch",
  "mutable_batch_lp",

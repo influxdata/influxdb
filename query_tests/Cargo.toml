@@ -23,6 +23,7 @@ ingester = { path = "../ingester" }
 iox_catalog = { path = "../iox_catalog" }
 iox_query = { path = "../iox_query" }
 iox_tests = { path = "../iox_tests" }
+iox_time = { path = "../iox_time" }
 itertools = "0.10"
 mutable_batch = { path = "../mutable_batch" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }

@@ -381,8 +381,14 @@ pub async fn make_two_chunk_scenarios(
     ])
     .await
 }
-
 pub async fn make_n_chunks_scenario(chunks: &[ChunkData<'_, '_>]) -> Vec<DbScenario> {
+    make_n_chunks_scenario_with_retention(chunks, None).await
+}
+
+pub async fn make_n_chunks_scenario_with_retention(
+    chunks: &[ChunkData<'_, '_>],
+    retention_period_ns: Option<i64>,
+) -> Vec<DbScenario> {
     let n_stages_unset = chunks
         .iter()
         .filter(|chunk| chunk.chunk_stage.is_none())
@@ -439,7 +445,7 @@ pub async fn make_n_chunks_scenario(chunks: &[ChunkData<'_, '_>]) -> Vec<DbScena
 
         // build scenario
         let mut scenario_name = format!("{} chunks:", chunks.len());
-        let mut mock_ingester = MockIngester::new().await;
+        let mut mock_ingester = MockIngester::new_with_retention(retention_period_ns).await;
 
         for chunk_data in chunks {
             let name = make_chunk(&mut mock_ingester, chunk_data).await;
@@ -651,10 +657,14 @@ static GLOBAL_EXEC: Lazy<Arc<DedicatedExecutors>> =
 impl MockIngester {
     /// Create new empty ingester.
     async fn new() -> Self {
+        Self::new_with_retention(None).await
+    }
+
+    async fn new_with_retention(retention_period_ns: Option<i64>) -> Self {
         let exec = Arc::clone(&GLOBAL_EXEC);
         let catalog = TestCatalog::with_execs(exec, 4);
         let ns = catalog
-            .create_namespace_with_retention("test_db", None)
+            .create_namespace_with_retention("test_db", retention_period_ns)
             .await;
         let shard = ns.create_shard(1).await;
 

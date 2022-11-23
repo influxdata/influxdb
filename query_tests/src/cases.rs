@@ -133,6 +133,22 @@ async fn test_cases_pushdown_sql() {
 }
 
 #[tokio::test]
+// Tests from "retention.sql",
+async fn test_cases_retention_sql() {
+    test_helpers::maybe_start_logging();
+
+    let input_path = Path::new("cases").join("in").join("retention.sql");
+    let mut runner = Runner::new();
+    runner
+        .run(input_path)
+        .await
+        .expect("test failed");
+    runner
+        .flush()
+        .expect("flush worked");
+}
+
+#[tokio::test]
 // Tests from "selectors.sql",
 async fn test_cases_selectors_sql() {
     test_helpers::maybe_start_logging();

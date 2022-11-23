@@ -1,12 +1,16 @@
 //! Library of test scenarios that can be used in query_tests
 
 use super::{
-    util::{all_scenarios_for_one_chunk, make_two_chunk_scenarios, ChunkStage},
+    util::{
+        all_scenarios_for_one_chunk, make_n_chunks_scenario_with_retention,
+        make_two_chunk_scenarios, ChunkStage,
+    },
     DbScenario, DbSetup,
 };
 use crate::scenarios::util::{make_n_chunks_scenario, ChunkData};
 use async_trait::async_trait;
 use iox_query::frontend::sql::SqlQueryPlanner;
+use iox_time::{MockProvider, Time, TimeProvider};
 
 #[derive(Debug)]
 pub struct MeasurementWithMaxTime {}
@@ -958,6 +962,59 @@ impl DbSetup for MeasurementForDefect2890 {
         ];
 
         all_scenarios_for_one_chunk(vec![], vec![], lp, "mm", partition_key).await
+    }
+}
+
+// Test data for retention policy
+#[derive(Debug)]
+pub struct ThreeChunksWithRetention {}
+#[async_trait]
+impl DbSetup for ThreeChunksWithRetention {
+    async fn make(&self) -> Vec<DbScenario> {
+        // Same time provider as the one used in n_chunks scenarios
+        let time_provider = MockProvider::new(Time::from_timestamp(0, 0).unwrap());
+        let retention_period_1_hour_ns = 3600 * 1_000_000_000;
+        let inside_retention = time_provider.now().timestamp_nanos(); // now
+        let outside_retention = inside_retention - retention_period_1_hour_ns - 10; // over one hour ago
+
+        let partition_key = "1970-01-01T00"; //"test_partition";
+
+        let l1 = format!("cpu,host=a load=1 {}", inside_retention);
+        let l2 = format!("cpu,host=aa load=11 {}", outside_retention);
+        let lp_partially_inside = vec![l1.as_str(), l2.as_str()];
+
+        let l3 = format!("cpu,host=b load=2 {}", inside_retention);
+        let l4 = format!("cpu,host=bb load=21 {}", inside_retention);
+        let lp_fully_inside = vec![l3.as_str(), l4.as_str()];
+
+        let l5 = format!("cpu,host=z load=3 {}", outside_retention);
+        let l6 = format!("cpu,host=zz load=31 {}", outside_retention);
+        let lp_fully_outside = vec![l5.as_str(), l6.as_str()];
+
+        let c_partially_inside = ChunkData {
+            lp_lines: lp_partially_inside,
+            partition_key,
+            chunk_stage: Some(ChunkStage::Parquet),
+            ..Default::default()
+        };
+        let c_fully_inside = ChunkData {
+            lp_lines: lp_fully_inside,
+            partition_key,
+            chunk_stage: Some(ChunkStage::Parquet),
+            ..Default::default()
+        };
+        let c_fully_outside = ChunkData {
+            lp_lines: lp_fully_outside,
+            partition_key,
+            chunk_stage: Some(ChunkStage::Parquet),
+            ..Default::default()
+        };
+
+        make_n_chunks_scenario_with_retention(
+            &[c_partially_inside, c_fully_inside, c_fully_outside],
+            Some(retention_period_1_hour_ns),
+        )
+        .await
     }
 }
 
