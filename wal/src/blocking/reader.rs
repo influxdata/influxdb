@@ -189,3 +189,233 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{SegmentId, FILE_TYPE_IDENTIFIER};
+    use byteorder::WriteBytesExt;
+    use std::io::Write;
+    use test_helpers::assert_error;
+
+    #[test]
+    fn successful_read_no_entries() {
+        let segment_file = FakeSegmentFile::new();
+
+        let data = segment_file.data();
+        let mut reader = ClosedSegmentFileReader::new(data.as_slice());
+
+        let (file_type_id, uuid) = reader.read_header().unwrap();
+        assert_eq!(&file_type_id, FILE_TYPE_IDENTIFIER);
+        assert_eq!(uuid, segment_file.id.as_bytes());
+
+        let entry = reader.one_entry().unwrap();
+        assert!(entry.is_none());
+    }
+
+    #[test]
+    fn successful_read_with_entries() {
+        let mut segment_file = FakeSegmentFile::new();
+        let entry_input_1 = FakeSegmentEntry::new(b"hello");
+        segment_file.add_entry(entry_input_1.clone());
+
+        let entry_input_2 = FakeSegmentEntry::new(b"goodbye");
+        segment_file.add_entry(entry_input_2.clone());
+
+        let data = segment_file.data();
+        let mut reader = ClosedSegmentFileReader::new(data.as_slice());
+
+        let (file_type_id, uuid) = reader.read_header().unwrap();
+        assert_eq!(&file_type_id, FILE_TYPE_IDENTIFIER);
+        assert_eq!(uuid, segment_file.id.as_bytes());
+
+        let entry_output_1 = reader.one_entry().unwrap().unwrap();
+        let expected_1 = SegmentEntry::from(&entry_input_1);
+        assert_eq!(entry_output_1.checksum, expected_1.checksum);
+        assert_eq!(entry_output_1.data, expected_1.data);
+
+        let entry_output_2 = reader.one_entry().unwrap().unwrap();
+        let expected_2 = SegmentEntry::from(&entry_input_2);
+        assert_eq!(entry_output_2.checksum, expected_2.checksum);
+        assert_eq!(entry_output_2.data, expected_2.data);
+
+        let entry = reader.one_entry().unwrap();
+        assert!(entry.is_none());
+    }
+
+    #[test]
+    fn unsuccessful_read_too_short_len() {
+        let mut segment_file = FakeSegmentFile::new();
+        let bad_entry_input = FakeSegmentEntry::new(b"hello");
+        let good_length = bad_entry_input.compressed_len();
+        let bad_entry_input = bad_entry_input.with_compressed_len(good_length - 1);
+        segment_file.add_entry(bad_entry_input);
+
+        let good_entry_input = FakeSegmentEntry::new(b"goodbye");
+        segment_file.add_entry(good_entry_input);
+
+        let data = segment_file.data();
+        let mut reader = ClosedSegmentFileReader::new(data.as_slice());
+
+        let (file_type_id, uuid) = reader.read_header().unwrap();
+        assert_eq!(&file_type_id, FILE_TYPE_IDENTIFIER);
+        assert_eq!(uuid, segment_file.id.as_bytes());
+
+        let read_fail = reader.one_entry();
+        assert_error!(read_fail, Error::UnableToReadData { .. });
+        // Trying to continue reading will fail as well, see:
+        // <https://github.com/influxdata/influxdb_iox/issues/6222>
+        assert_error!(reader.one_entry(), Error::UnableToReadData { .. });
+    }
+
+    #[test]
+    fn unsuccessful_read_too_long_len() {
+        let mut segment_file = FakeSegmentFile::new();
+        let bad_entry_input = FakeSegmentEntry::new(b"hello");
+        let good_length = bad_entry_input.compressed_len();
+        let bad_entry_input = bad_entry_input.with_compressed_len(good_length + 1);
+        segment_file.add_entry(bad_entry_input);
+
+        let good_entry_input = FakeSegmentEntry::new(b"goodbye");
+        segment_file.add_entry(good_entry_input);
+
+        let data = segment_file.data();
+        let mut reader = ClosedSegmentFileReader::new(data.as_slice());
+
+        let (file_type_id, uuid) = reader.read_header().unwrap();
+        assert_eq!(&file_type_id, FILE_TYPE_IDENTIFIER);
+        assert_eq!(uuid, segment_file.id.as_bytes());
+
+        let read_fail = reader.one_entry();
+        assert_error!(read_fail, Error::UnableToReadData { .. });
+        // Trying to continue reading will fail as well, see:
+        // <https://github.com/influxdata/influxdb_iox/issues/6222>
+        assert_error!(reader.one_entry(), Error::UnableToReadData { .. });
+    }
+
+    #[test]
+    fn unsuccessful_read_checksum_mismatch() {
+        let mut segment_file = FakeSegmentFile::new();
+        let bad_entry_input = FakeSegmentEntry::new(b"hello");
+        let good_checksum = bad_entry_input.checksum();
+        let bad_entry_input = bad_entry_input.with_checksum(good_checksum + 1);
+        segment_file.add_entry(bad_entry_input);
+
+        let good_entry_input = FakeSegmentEntry::new(b"goodbye");
+        segment_file.add_entry(good_entry_input.clone());
+
+        let data = segment_file.data();
+        let mut reader = ClosedSegmentFileReader::new(data.as_slice());
+
+        let (file_type_id, uuid) = reader.read_header().unwrap();
+        assert_eq!(&file_type_id, FILE_TYPE_IDENTIFIER);
+        assert_eq!(uuid, segment_file.id.as_bytes());
+
+        let read_fail = reader.one_entry();
+        assert_error!(read_fail, Error::ChecksumMismatch { .. });
+
+        // A bad checksum won't corrupt further entries
+        let entry_output_2 = reader.one_entry().unwrap().unwrap();
+        let expected_2 = SegmentEntry::from(&good_entry_input);
+        assert_eq!(entry_output_2.checksum, expected_2.checksum);
+        assert_eq!(entry_output_2.data, expected_2.data);
+
+        let entry = reader.one_entry().unwrap();
+        assert!(entry.is_none());
+    }
+
+    #[derive(Debug)]
+    struct FakeSegmentFile {
+        id: SegmentId,
+        entries: Vec<FakeSegmentEntry>,
+    }
+
+    impl FakeSegmentFile {
+        fn new() -> Self {
+            Self {
+                id: SegmentId::new(),
+                entries: Default::default(),
+            }
+        }
+
+        fn add_entry(&mut self, entry: FakeSegmentEntry) {
+            self.entries.push(entry);
+        }
+
+        fn data(&self) -> Vec<u8> {
+            let mut f = Vec::new();
+
+            f.write_all(FILE_TYPE_IDENTIFIER).unwrap();
+
+            let id_bytes = self.id.as_bytes();
+            f.write_all(id_bytes).unwrap();
+
+            for entry in &self.entries {
+                f.write_u32::<BigEndian>(entry.checksum()).unwrap();
+                f.write_u32::<BigEndian>(entry.compressed_len()).unwrap();
+                f.write_all(&entry.compressed_data()).unwrap();
+            }
+
+            f
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq)]
+    struct FakeSegmentEntry {
+        checksum: Option<u32>,
+        compressed_len: Option<u32>,
+        uncompressed_data: Vec<u8>,
+    }
+
+    impl FakeSegmentEntry {
+        fn new(data: &[u8]) -> Self {
+            Self {
+                checksum: None,
+                compressed_len: None,
+                uncompressed_data: data.to_vec(),
+            }
+        }
+
+        fn with_compressed_len(self, compressed_len: u32) -> Self {
+            Self {
+                compressed_len: Some(compressed_len),
+                ..self
+            }
+        }
+
+        fn with_checksum(self, checksum: u32) -> Self {
+            Self {
+                checksum: Some(checksum),
+                ..self
+            }
+        }
+
+        fn checksum(&self) -> u32 {
+            self.checksum.unwrap_or_else(|| {
+                let mut hasher = Hasher::new();
+                hasher.update(&self.compressed_data());
+                hasher.finalize()
+            })
+        }
+
+        fn compressed_data(&self) -> Vec<u8> {
+            let mut encoder = snap::write::FrameEncoder::new(Vec::new());
+            encoder.write_all(&self.uncompressed_data).unwrap();
+            encoder.into_inner().expect("cannot fail to flush to a Vec")
+        }
+
+        fn compressed_len(&self) -> u32 {
+            self.compressed_len
+                .unwrap_or_else(|| self.compressed_data().len() as u32)
+        }
+    }
+
+    impl From<&FakeSegmentEntry> for SegmentEntry {
+        fn from(fake: &FakeSegmentEntry) -> Self {
+            Self {
+                checksum: fake.checksum(),
+                data: fake.uncompressed_data.clone(),
+            }
+        }
+    }
+}
