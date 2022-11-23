@@ -19,7 +19,7 @@ pub struct OpenSegmentFileWriter {
 impl OpenSegmentFileWriter {
     pub fn new_in_directory(dir: impl Into<PathBuf>) -> Result<Self> {
         let id = SegmentId::new();
-        let path = crate::fnamex(dir, id);
+        let path = crate::build_segment_path(dir, id);
 
         let mut f = OpenOptions::new()
             .write(true)

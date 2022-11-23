@@ -156,7 +156,7 @@ impl Default for SegmentId {
 }
 
 // TODO: find a better name
-pub(crate) fn fnamex(dir: impl Into<PathBuf>, id: SegmentId) -> PathBuf {
+pub(crate) fn build_segment_path(dir: impl Into<PathBuf>, id: SegmentId) -> PathBuf {
     let mut path = dir.into();
     path.push(id.to_string());
     path.set_extension(SEGMENT_FILE_EXTENSION);
@@ -296,7 +296,7 @@ impl<'a> WalReader<'a> {
 
     /// Opens a reader for a given segment from the WAL
     pub async fn reader_for_segment(&self, id: SegmentId) -> Result<ClosedSegmentFileReader> {
-        let path = fnamex(&self.0.root, id);
+        let path = build_segment_path(&self.0.root, id);
         ClosedSegmentFileReader::from_path(path).await
     }
 }
