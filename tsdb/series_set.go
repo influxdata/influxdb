@@ -231,6 +231,15 @@ func (s *SeriesIDSet) CloneNoLock() *SeriesIDSet {
 	return new
 }
 
+// CloneCopyOnWriteContainers takes a write lock and copies any underlying state that may reference mmap'd memory
+//
+// This makes the SeriesIDSet safe to cache etc.
+func (s *SeriesIDSet) CloneCopyOnWriteContainers() {
+	s.Lock()
+	defer s.Unlock()
+	s.bitmap.CloneCopyOnWriteContainers()
+}
+
 // Iterator returns an iterator to the underlying bitmap.
 // This iterator is not protected by a lock.
 func (s *SeriesIDSet) Iterator() SeriesIDSetIterable {

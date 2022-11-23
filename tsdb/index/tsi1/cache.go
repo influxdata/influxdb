@@ -106,6 +106,7 @@ func (c *TagValueSeriesIDCache) Put(name, key, value []byte, ss *tsdb.SeriesIDSe
 
 	// Ensure our SeriesIDSet is go heap backed.
 	if ss != nil {
+		ss.CloneCopyOnWriteContainers()
 		ss = ss.Clone()
 	}
 
