@@ -1,8 +1,11 @@
 use data_types::{NamespaceId, TableId};
 use dml::DmlWrite;
-use generated_types::influxdata::pbdata::v1::{DatabaseBatch, TableBatch};
+use generated_types::influxdata::{
+    iox::wal::v1::sequenced_wal_op::Op as WalOp,
+    pbdata::v1::{DatabaseBatch, TableBatch},
+};
 use mutable_batch_lp::lines_to_batches;
-use wal::{SequenceNumberNg, SequencedWalOp, WalOp};
+use wal::{SequenceNumberNg, SequencedWalOp};
 
 #[tokio::test]
 async fn crud() {
@@ -23,15 +26,15 @@ async fn crud() {
 
     // Can write an entry to the open segment
     let op = arbitrary_sequenced_wal_op(42);
-    let summary = open.write_op(&op).await.unwrap();
-    assert_eq!(summary.total_bytes, 374);
-    assert_eq!(summary.bytes_written, 350);
+    let summary = open.write_op(op).await.unwrap();
+    assert_eq!(summary.total_bytes, 130);
+    assert_eq!(summary.bytes_written, 106);
 
     // Can write another entry; total_bytes accumulates
     let op = arbitrary_sequenced_wal_op(43);
-    let summary = open.write_op(&op).await.unwrap();
-    assert_eq!(summary.total_bytes, 724);
-    assert_eq!(summary.bytes_written, 350);
+    let summary = open.write_op(op).await.unwrap();
+    assert_eq!(summary.total_bytes, 236);
+    assert_eq!(summary.bytes_written, 106);
 
     // Still no closed segments
     let closed = wal_reader.closed_segments().await;
@@ -44,7 +47,7 @@ async fn crud() {
     // Can't read entries from the open segment; have to rotate first
     let wal_rotator = wal.rotation_handle().await;
     let closed_segment_details = wal_rotator.rotate().await.unwrap();
-    assert_eq!(closed_segment_details.size(), 724);
+    assert_eq!(closed_segment_details.size(), 236);
 
     // There's one closed segment
     let closed = wal_reader.closed_segments().await;

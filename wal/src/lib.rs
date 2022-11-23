@@ -13,7 +13,13 @@
 //!
 //! This crate provides a local-disk WAL for the IOx ingestion pipeline.
 
-use generated_types::influxdata::{iox::delete::v1::DeletePayload, pbdata::v1::DatabaseBatch};
+use generated_types::{
+    google::{FieldViolation, OptionalField},
+    influxdata::iox::wal::v1::{
+        sequenced_wal_op::Op as WalOp, SequencedWalOp as ProtoSequencedWalOp,
+    },
+};
+use prost::Message;
 use serde::{Deserialize, Serialize};
 use snafu::prelude::*;
 use std::{collections::HashMap, io, path::PathBuf};
@@ -278,9 +284,9 @@ impl WalWriter {
     }
 
     /// Writes one [`SequencedWalOp`] to disk and returns when it is durable.
-    pub async fn write_op(&self, op: &SequencedWalOp) -> Result<WriteSummary> {
-        // todo: bincode instead of serde_json
-        let encoded = serde_json::to_vec(op).unwrap();
+    pub async fn write_op(&self, op: SequencedWalOp) -> Result<WriteSummary> {
+        let proto = ProtoSequencedWalOp::from(op);
+        let encoded = proto.encode_to_vec();
         self.write(&encoded).await
     }
 }
@@ -342,31 +348,40 @@ impl<'a> WalRotator<'a> {
     }
 }
 
-/// Operation recorded in the WAL
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub enum WalOp {
-    Write(DatabaseBatch),
-    Delete(DeletePayload),
-    Persist(PersistOp),
-}
-
-/// WAL operation with a sequence number, which is used to inform read buffers when to evict data
-/// from the buffer
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct SequencedWalOp {
     pub sequence_number: SequenceNumberNg,
     pub op: WalOp,
 }
 
-/// Serializable and deserializable persist information that can be saved to the WAL. This is
-/// used during replay to evict data from memory.
-#[derive(Debug, Deserialize, Serialize, Eq, PartialEq)]
-pub struct PersistOp {
-    // todo: use data_types for these
-    namespace_id: i64,
-    table_id: i64,
-    partition_id: i64,
-    parquet_file_uuid: String,
+impl TryFrom<ProtoSequencedWalOp> for SequencedWalOp {
+    type Error = FieldViolation;
+
+    fn try_from(proto: ProtoSequencedWalOp) -> Result<Self, Self::Error> {
+        let ProtoSequencedWalOp {
+            sequence_number,
+            op,
+        } = proto;
+
+        Ok(Self {
+            sequence_number: SequenceNumberNg::new(sequence_number),
+            op: op.unwrap_field("op")?,
+        })
+    }
+}
+
+impl From<SequencedWalOp> for ProtoSequencedWalOp {
+    fn from(seq_op: SequencedWalOp) -> Self {
+        let SequencedWalOp {
+            sequence_number,
+            op,
+        } = seq_op;
+
+        Self {
+            sequence_number: sequence_number.get(),
+            op: Some(op),
+        }
+    }
 }
 
 /// Raw, uncompressed and unstructured data for a Segment entry with a checksum.
@@ -591,6 +606,7 @@ mod tests {
     use super::*;
     use data_types::{NamespaceId, TableId};
     use dml::DmlWrite;
+    use generated_types::influxdata::pbdata::v1::DatabaseBatch;
     use mutable_batch_lp::lines_to_batches;
 
     #[tokio::test]
@@ -644,8 +660,8 @@ mod tests {
             op: WalOp::Write(w2),
         };
 
-        writer.write_op(&op1).await.unwrap();
-        writer.write_op(&op2).await.unwrap();
+        writer.write_op(op1.clone()).await.unwrap();
+        writer.write_op(op2.clone()).await.unwrap();
 
         let closed = segment.rotate().await.unwrap();
 

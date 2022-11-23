@@ -1,6 +1,8 @@
 use crate::{FileTypeIdentifier, SegmentEntry, SequencedWalOp};
 use byteorder::{BigEndian, ReadBytesExt};
 use crc32fast::Hasher;
+use generated_types::influxdata::iox::wal::v1::SequencedWalOp as ProtoSequencedWalOp;
+use prost::Message;
 use snafu::prelude::*;
 use snap::read::FrameDecoder;
 use std::{
@@ -91,8 +93,10 @@ where
 
     pub fn next_ops(&mut self) -> Result<Option<SequencedWalOp>> {
         if let Some(entry) = self.one_entry()? {
-            let decoded =
-                serde_json::from_slice(&entry.data).context(UnableToDeserializeDataSnafu)?;
+            let decoded = ProtoSequencedWalOp::decode(&*entry.data)
+                .context(UnableToDeserializeDataSnafu)?
+                .try_into()
+                .context(InvalidMessageSnafu)?;
 
             return Ok(Some(decoded));
         }
@@ -154,23 +158,49 @@ where
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    UnableToOpenFile { source: io::Error, path: PathBuf },
+    UnableToOpenFile {
+        source: io::Error,
+        path: PathBuf,
+    },
 
-    UnableToReadArray { source: io::Error, length: usize },
+    UnableToReadArray {
+        source: io::Error,
+        length: usize,
+    },
 
-    UnableToReadChecksum { source: io::Error },
+    UnableToReadChecksum {
+        source: io::Error,
+    },
 
-    UnableToReadLength { source: io::Error },
+    UnableToReadLength {
+        source: io::Error,
+    },
 
-    UnableToReadData { source: io::Error },
+    UnableToReadData {
+        source: io::Error,
+    },
 
-    LengthMismatch { expected: u64, actual: u64 },
+    LengthMismatch {
+        expected: u64,
+        actual: u64,
+    },
 
-    ChecksumMismatch { expected: u32, actual: u32 },
+    ChecksumMismatch {
+        expected: u32,
+        actual: u32,
+    },
 
-    UnableToDecompressData { source: snap::Error },
+    UnableToDecompressData {
+        source: snap::Error,
+    },
 
-    UnableToDeserializeData { source: serde_json::Error },
+    UnableToDeserializeData {
+        source: prost::DecodeError,
+    },
+
+    InvalidMessage {
+        source: generated_types::google::FieldViolation,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
