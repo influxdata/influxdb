@@ -872,7 +872,6 @@ func (h *Handler) async(q *influxql.Query, results <-chan *query.Result) {
 // in the database URL query value.  It is encoded using a forward slash like
 // "database/retentionpolicy" and we should be able to simply split that string
 // on the forward slash.
-//
 func bucket2dbrp(bucket string) (string, string, error) {
 	// test for a slash in our bucket name.
 	switch idx := strings.IndexByte(bucket, '/'); idx {
@@ -2250,6 +2249,35 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 		first = false
 		fmt.Fprintf(w, "\"cmdline\": %s", val)
 	}
+
+	// We're going to print some kind of crypto data, we just
+	// need to find the proper source for it.
+	{
+		var jv map[string]interface{}
+		val := diags["crypto"]
+		if val != nil {
+			jv, err = parseCryptoDiagnostics(val)
+			if err != nil {
+				h.httpError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		} else {
+			jv = ossCryptoDiagnostics()
+		}
+
+		data, err := json.Marshal(jv)
+		if err != nil {
+			h.httpError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if !first {
+			fmt.Fprintln(w, ",")
+		}
+		first = false
+		fmt.Fprintf(w, "\"crypto\": %s", data)
+	}
+
 	if val := expvar.Get("memstats"); val != nil {
 		if !first {
 			fmt.Fprintln(w, ",")
@@ -2429,6 +2457,51 @@ func parseBuildInfo(d *diagnostics.Diagnostics) (map[string]interface{}, error) 
 		if len(d.Rows) < 1 || len(d.Rows[0]) <= ci {
 			return nil, fmt.Errorf("no data for column %q", key)
 		}
+		m[key] = d.Rows[0][ci]
+	}
+	return m, nil
+}
+
+// ossCryptoDiagnostics creates a default crypto diagnostics map that
+// can be marshaled into JSON for /debug/vars.
+func ossCryptoDiagnostics() map[string]interface{} {
+	return map[string]interface{}{
+		"ensureFIPS":     false,
+		"FIPS":           false,
+		"pmplementation": "Go",
+		"passwordHash":   "bcrypt",
+	}
+}
+
+// parseCryptoDiagnostics converts the crypto diagnostics into an appropriate
+// format for marshaling to JSON in the /debug/vars format.
+func parseCryptoDiagnostics(d *diagnostics.Diagnostics) (map[string]interface{}, error) {
+	m := map[string]interface{}{
+		"ensureFIPS":     false,
+		"FIPS":           false,
+		"implementation": "Go",
+		"passwordHash":   "bcrypt",
+	}
+
+	for key := range m {
+		// Find the associated column.
+		ci := -1
+		for i, col := range d.Columns {
+			if col == key {
+				ci = i
+				break
+			}
+		}
+
+		// Don't error out if we can't find the column or cell for a given key.
+		// There could still be useful information we gather.
+		if ci == -1 { // column not found
+			continue
+		}
+		if len(d.Rows) < 1 || len(d.Rows[0]) <= ci { // data cell not found
+			continue
+		}
+
 		m[key] = d.Rows[0][ci]
 	}
 	return m, nil
