@@ -85,6 +85,7 @@ pub enum Error {
 ///     flight::{
 ///         Client,
 ///         generated_types::ReadInfo,
+///         generated_types::read_info,
 ///     },
 /// };
 ///
@@ -99,6 +100,7 @@ pub enum Error {
 ///     .perform_query(ReadInfo {
 ///         namespace_name: "my_database".to_string(),
 ///         sql_query: "select * from cpu_load".to_string(),
+///         query_type: read_info::QueryType::Sql.into(),
 ///     })
 ///     .await
 ///     .expect("query request should work");

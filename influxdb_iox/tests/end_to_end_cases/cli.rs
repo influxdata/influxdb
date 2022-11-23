@@ -422,13 +422,15 @@ async fn write_and_query() {
                     wait_for_query_result(
                         state,
                         "SELECT * from h2o_temperature order by time desc limit 10",
+                        None,
                         "| 51.3           | coyote_creek | CA    | 55.1            | 1970-01-01T00:00:01.568756160Z |"
                     ).await;
 
-                    // data from 'read_filter.lp.gz'
+                    // data from 'read_filter.lp.gz', specific query language type
                     wait_for_query_result(
                         state,
                         "SELECT * from m0 order by time desc limit 10;",
+                        Some(QueryLanguage::Sql),
                         "| value1 | value9 | value9 | value49 | value0 | 2021-04-26T13:47:39.727574Z | 1  |"
                     ).await;
 
@@ -436,6 +438,7 @@ async fn write_and_query() {
                     wait_for_query_result(
                         state,
                         "SELECT * from cpu where cpu = 'cpu2' order by time desc limit 10",
+                        None,
                         "cpu2 | MacBook-Pro-8.hsd1.ma.comcast.net | 2022-09-30T12:55:00Z"
                     ).await;
                 }
@@ -486,9 +489,84 @@ async fn query_error_handling() {
     .await
 }
 
+/// Test error handling for the query CLI command for InfluxQL queries
+#[tokio::test]
+async fn influxql_error_handling() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let mut cluster = MiniCluster::create_shared(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol("this_table_does_exist,tag=A val=\"foo\" 1".into()),
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let querier_addr = state.cluster().querier().querier_grpc_base().to_string();
+                    let namespace = state.cluster().namespace();
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&querier_addr)
+                        .arg("query")
+                        .arg("--lang")
+                        .arg("influxql")
+                        .arg(namespace)
+                        .arg("CREATE DATABASE foo")
+                        .assert()
+                        .failure()
+                        .stderr(predicate::eq(
+                            "Error querying: Error while planning query: This feature is not implemented: CREATE DATABASE\n",
+                        ));
+                }
+                    .boxed()
+            })),
+        ],
+    )
+        .run()
+        .await
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Copy)]
+enum QueryLanguage {
+    Sql,
+    InfluxQL,
+}
+
+impl ToString for QueryLanguage {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Sql => "sql".to_string(),
+            Self::InfluxQL => "influxql".to_string(),
+        }
+    }
+}
+
+trait AddQueryLanguage {
+    /// Add the query language option to the receiver.
+    fn add_query_lang(&mut self, query_lang: Option<QueryLanguage>) -> &mut Self;
+}
+
+impl AddQueryLanguage for assert_cmd::Command {
+    fn add_query_lang(&mut self, query_lang: Option<QueryLanguage>) -> &mut Self {
+        match query_lang {
+            Some(lang) => self.arg("--lang").arg(lang.to_string()),
+            None => self,
+        }
+    }
+}
+
 /// Runs the specified query in a loop for up to 10 seconds, waiting
 /// for the specified output to appear
-async fn wait_for_query_result(state: &mut StepTestState<'_>, query_sql: &str, expected: &str) {
+async fn wait_for_query_result(
+    state: &mut StepTestState<'_>,
+    query_sql: &str,
+    query_lang: Option<QueryLanguage>,
+    expected: &str,
+) {
     let querier_addr = state.cluster().querier().querier_grpc_base().to_string();
     let namespace = state.cluster().namespace();
 
@@ -503,6 +581,7 @@ async fn wait_for_query_result(state: &mut StepTestState<'_>, query_sql: &str, e
             .arg("-h")
             .arg(&querier_addr)
             .arg("query")
+            .add_query_lang(query_lang)
             .arg(namespace)
             .arg(query_sql)
             .assert();

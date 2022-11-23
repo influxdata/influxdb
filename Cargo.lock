@@ -2481,6 +2481,7 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "arrow_util",
+ "assert_matches",
  "async-trait",
  "chrono",
  "data_types",
@@ -2489,6 +2490,7 @@ dependencies = [
  "executor",
  "futures",
  "hashbrown 0.13.1",
+ "influxdb_influxql_parser",
  "itertools",
  "object_store",
  "observability_deps",
@@ -4600,6 +4602,7 @@ dependencies = [
  "arrow",
  "arrow-flight",
  "arrow_util",
+ "assert_matches",
  "bytes",
  "data_types",
  "datafusion",

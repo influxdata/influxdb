@@ -1,4 +1,5 @@
 pub mod common;
+pub mod influxql;
 pub mod influxrpc;
 pub mod reorg;
 pub mod sql;

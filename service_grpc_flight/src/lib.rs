@@ -12,6 +12,7 @@ use data_types::NamespaceNameError;
 use datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
 use futures::{SinkExt, Stream, StreamExt};
 use generated_types::influxdata::iox::querier::v1 as proto;
+use generated_types::influxdata::iox::querier::v1::read_info::QueryType;
 use iox_query::{
     exec::{ExecutionContextProvider, IOxSessionContext},
     QueryCompletedToken, QueryNamespace,
@@ -22,7 +23,8 @@ use prost::Message;
 use serde::Deserialize;
 use service_common::{datafusion_error_to_tonic_code, planner::Planner, QueryNamespaceProvider};
 use snafu::{ResultExt, Snafu};
-use std::{fmt::Debug, pin::Pin, sync::Arc, task::Poll, time::Instant};
+use std::fmt::{Display, Formatter};
+use std::{fmt, fmt::Debug, pin::Pin, sync::Arc, task::Poll, time::Instant};
 use tokio::task::JoinHandle;
 use tonic::{Request, Response, Streaming};
 use trace::{ctx::SpanContext, span::SpanExt};
@@ -123,7 +125,22 @@ type TonicStream<T> = Pin<Box<dyn Stream<Item = Result<T, tonic::Status>> + Send
 /// Body of the `Ticket` serialized and sent to the do_get endpoint.
 struct ReadInfo {
     namespace_name: String,
-    sql_query: String,
+    query: Query,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+enum Query {
+    Sql(String),
+    InfluxQL(String),
+}
+
+impl Display for Query {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Sql(s) => fmt::Display::fmt(s, f),
+            Self::InfluxQL(s) => fmt::Display::fmt(s, f),
+        }
+    }
 }
 
 impl ReadInfo {
@@ -131,13 +148,25 @@ impl ReadInfo {
     ///
     /// - <https://github.com/influxdata/influxdb-iox-client-go/commit/2e7a3b0bd47caab7f1a31a1bbe0ff54aa9486b7b>
     /// - <https://github.com/influxdata/influxdb-iox-client-go/commit/52f1a1b8d5bb8cc8dc2fe825f4da630ad0b9167c>
+    ///
+    /// Go clients are unable to execute InfluxQL queries until the JSON structure is updated
+    /// accordingly.
     fn decode_json(ticket: &[u8]) -> Result<Self> {
         let json_str = String::from_utf8(ticket.to_vec()).context(InvalidJsonTicketSnafu {})?;
 
-        let read_info: ReadInfo =
+        #[derive(Deserialize, Debug)]
+        struct ReadInfoJson {
+            namespace_name: String,
+            sql_query: String,
+        }
+
+        let read_info: ReadInfoJson =
             serde_json::from_str(&json_str).context(InvalidQuerySnafu { query: &json_str })?;
 
-        Ok(read_info)
+        Ok(Self {
+            namespace_name: read_info.namespace_name,
+            query: Query::Sql(read_info.sql_query), // JSON is always SQL
+        })
     }
 
     fn decode_protobuf(ticket: &[u8]) -> Result<Self> {
@@ -145,8 +174,11 @@ impl ReadInfo {
             proto::ReadInfo::decode(Bytes::from(ticket.to_vec())).context(InvalidTicketSnafu {})?;
 
         Ok(Self {
-            namespace_name: read_info.namespace_name,
-            sql_query: read_info.sql_query,
+            namespace_name: read_info.namespace_name.clone(),
+            query: match read_info.query_type() {
+                QueryType::Unspecified | QueryType::Sql => Query::Sql(read_info.sql_query),
+                QueryType::InfluxQl => Query::InfluxQL(read_info.sql_query),
+            },
         })
     }
 }
@@ -175,7 +207,7 @@ where
         &self,
         span_ctx: Option<SpanContext>,
         permit: InstrumentedAsyncOwnedSemaphorePermit,
-        sql_query: String,
+        query: Query,
         namespace: String,
     ) -> Result<Response<TonicStream<FlightData>>, tonic::Status> {
         let db = self
@@ -185,12 +217,24 @@ where
             .ok_or_else(|| tonic::Status::not_found(format!("Unknown namespace: {namespace}")))?;
 
         let ctx = db.new_query_context(span_ctx);
-        let query_completed_token = db.record_query(&ctx, "sql", Box::new(sql_query.clone()));
-
-        let physical_plan = Planner::new(&ctx)
-            .sql(sql_query)
-            .await
-            .context(PlanningSnafu)?;
+        let (query_completed_token, physical_plan) = match query {
+            Query::Sql(sql_query) => {
+                let token = db.record_query(&ctx, "sql", Box::new(sql_query.clone()));
+                let plan = Planner::new(&ctx)
+                    .sql(sql_query)
+                    .await
+                    .context(PlanningSnafu)?;
+                (token, plan)
+            }
+            Query::InfluxQL(sql_query) => {
+                let token = db.record_query(&ctx, "influxql", Box::new(sql_query.clone()));
+                let plan = Planner::new(&ctx)
+                    .influxql(db, sql_query)
+                    .await
+                    .context(PlanningSnafu)?;
+                (token, plan)
+            }
+        };
 
         let output =
             GetStream::new(ctx, physical_plan, namespace, query_completed_token, permit).await?;
@@ -239,7 +283,7 @@ where
         };
         let ReadInfo {
             namespace_name,
-            sql_query,
+            query: sql_query,
         } = read_info?;
 
         let permit = self
@@ -466,7 +510,9 @@ impl Stream for GetStream {
 
 #[cfg(test)]
 mod tests {
+    use assert_matches::assert_matches;
     use futures::Future;
+    use generated_types::influxdata::iox::querier::v1::read_info::QueryType;
     use metric::{Attributes, Metric, U64Gauge};
     use service_common::test_util::TestDatabaseStore;
     use tokio::pin;
@@ -488,7 +534,72 @@ mod tests {
         let read_info = ReadInfo::decode_json(&ticket.ticket).unwrap();
 
         assert_eq!(read_info.namespace_name, "my_db");
-        assert_eq!(read_info.sql_query, "SELECT 1;");
+        assert_matches!(read_info.query, Query::Sql(query) => assert_eq!(query, "SELECT 1;"));
+    }
+
+    #[test]
+    fn test_read_info_decoding() {
+        let mut buf = Vec::with_capacity(1024);
+        proto::ReadInfo::encode(
+            &proto::ReadInfo {
+                namespace_name: "<foo>_<bar>".to_string(),
+                sql_query: "SELECT 1".to_string(),
+                query_type: QueryType::Unspecified.into(),
+            },
+            &mut buf,
+        )
+        .unwrap();
+
+        let ri = ReadInfo::decode_protobuf(&buf).unwrap();
+        assert_eq!(ri.namespace_name, "<foo>_<bar>");
+        assert_matches!(ri.query, Query::Sql(query) => assert_eq!(query, "SELECT 1"));
+
+        let mut buf = Vec::with_capacity(1024);
+        proto::ReadInfo::encode(
+            &proto::ReadInfo {
+                namespace_name: "<foo>_<bar>".to_string(),
+                sql_query: "SELECT 1".to_string(),
+                query_type: QueryType::Sql.into(),
+            },
+            &mut buf,
+        )
+        .unwrap();
+
+        let ri = ReadInfo::decode_protobuf(&buf).unwrap();
+        assert_eq!(ri.namespace_name, "<foo>_<bar>");
+        assert_matches!(ri.query, Query::Sql(query) => assert_eq!(query, "SELECT 1"));
+
+        let mut buf = Vec::with_capacity(1024);
+        proto::ReadInfo::encode(
+            &proto::ReadInfo {
+                namespace_name: "<foo>_<bar>".to_string(),
+                sql_query: "SELECT 1".to_string(),
+                query_type: QueryType::InfluxQl.into(),
+            },
+            &mut buf,
+        )
+        .unwrap();
+
+        let ri = ReadInfo::decode_protobuf(&buf).unwrap();
+        assert_eq!(ri.namespace_name, "<foo>_<bar>");
+        assert_matches!(ri.query, Query::InfluxQL(query) => assert_eq!(query, "SELECT 1"));
+
+        // Fallible
+        let mut buf = Vec::with_capacity(1024);
+        proto::ReadInfo::encode(
+            &proto::ReadInfo {
+                namespace_name: "<foo>_<bar>".to_string(),
+                sql_query: "SELECT 1".into(),
+                query_type: 3,
+            },
+            &mut buf,
+        )
+        .unwrap();
+
+        // Reverts to default (unspecified) for invalid query_type enumeration, and thus SQL
+        let ri = ReadInfo::decode_protobuf(&buf).unwrap();
+        assert_eq!(ri.namespace_name, "<foo>_<bar>");
+        assert_matches!(ri.query, Query::Sql(query) => assert_eq!(query, "SELECT 1"));
     }
 
     #[tokio::test]

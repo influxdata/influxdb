@@ -6,6 +6,7 @@ mod cli;
 mod compactor;
 mod debug;
 mod error;
+mod influxql;
 mod ingester;
 mod logging;
 mod metrics;

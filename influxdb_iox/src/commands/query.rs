@@ -1,6 +1,9 @@
 use influxdb_iox_client::{
     connection::Connection,
-    flight::{self, generated_types::ReadInfo},
+    flight::{
+        self,
+        generated_types::{read_info, ReadInfo},
+    },
     format::QueryOutputFormat,
 };
 use std::str::FromStr;
@@ -17,6 +20,13 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+#[derive(clap::ValueEnum, Clone, Debug, PartialEq)]
+#[clap(rename_all = "lower")]
+enum QueryLanguage {
+    Sql,
+    InfluxQL,
+}
+
 /// Query the data with SQL
 #[derive(Debug, clap::Parser)]
 pub struct Config {
@@ -31,14 +41,20 @@ pub struct Config {
     /// Optional format ('pretty', 'json', or 'csv')
     #[clap(short, long, default_value = "pretty", action)]
     format: String,
+
+    /// Query type used
+    #[clap(short = 'l', long = "lang", default_value = "sql")]
+    query_lang: QueryLanguage,
 }
 
 pub async fn command(connection: Connection, config: Config) -> Result<()> {
     let mut client = flight::Client::new(connection);
+
     let Config {
         namespace,
         format,
         query,
+        query_lang,
     } = config;
 
     let format = QueryOutputFormat::from_str(&format)?;
@@ -47,6 +63,11 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         .perform_query(ReadInfo {
             namespace_name: namespace,
             sql_query: query,
+            query_type: match query_lang {
+                QueryLanguage::Sql => read_info::QueryType::Sql,
+                QueryLanguage::InfluxQL => read_info::QueryType::InfluxQl,
+            }
+            .into(),
         })
         .await?;
 

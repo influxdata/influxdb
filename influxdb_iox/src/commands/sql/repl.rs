@@ -11,7 +11,9 @@ use snafu::{ResultExt, Snafu};
 use super::repl_command::ReplCommand;
 
 use influxdb_iox_client::{
-    connection::Connection, flight::generated_types::ReadInfo, format::QueryOutputFormat,
+    connection::Connection,
+    flight::generated_types::{read_info, ReadInfo},
+    format::QueryOutputFormat,
 };
 
 #[derive(Debug, Snafu)]
@@ -398,6 +400,7 @@ async fn scrape_query(
         .perform_query(ReadInfo {
             namespace_name: db_name.to_string(),
             sql_query: query.to_string(),
+            query_type: read_info::QueryType::Sql.into(),
         })
         .await
         .context(RunningRemoteQuerySnafu)?;

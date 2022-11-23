@@ -10,6 +10,7 @@ use iox_query::{
 };
 
 pub use datafusion::error::{DataFusionError as Error, Result};
+use iox_query::frontend::influxql::InfluxQLQueryPlanner;
 use predicate::rpc_predicate::InfluxRpcPredicate;
 
 /// Query planner that plans queries on a separate threadpool.
@@ -40,6 +41,22 @@ impl Planner {
 
         self.ctx
             .run(async move { planner.query(&query, &ctx).await })
+            .await
+    }
+
+    /// Plan an InfluxQL query against the data in `database`, and return a
+    /// DataFusion physical execution plan.
+    pub async fn influxql(
+        &self,
+        database: Arc<dyn QueryNamespace>,
+        query: impl Into<String> + Send,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        let planner = InfluxQLQueryPlanner::new();
+        let query = query.into();
+        let ctx = self.ctx.child_ctx("planner influxql");
+
+        self.ctx
+            .run(async move { planner.query(database, &query, &ctx).await })
             .await
     }
 

@@ -2,7 +2,7 @@ use arrow_util::assert_batches_sorted_eq;
 use http::StatusCode;
 use iox_time::{SystemProvider, TimeProvider};
 use test_helpers_end_to_end::{
-    get_write_token, maybe_skip_integration, rand_name, run_query, wait_for_persisted,
+    get_write_token, maybe_skip_integration, rand_name, run_sql, wait_for_persisted,
     write_to_router, ServerFixture, TestConfig,
 };
 
@@ -34,7 +34,7 @@ async fn smoke() {
 
     // run query
     let sql = format!("select * from {}", table_name);
-    let batches = run_query(sql, namespace, all_in_one.querier_grpc_connection()).await;
+    let batches = run_sql(sql, namespace, all_in_one.querier_grpc_connection()).await;
 
     let expected = [
         "+------+------+--------------------------------+-----+",
@@ -79,7 +79,7 @@ async fn ephemeral_mode() {
     // run query
     // do not select time becasue it changes every time
     let sql = format!("select tag1, tag2, val from {}", table_name);
-    let batches = run_query(sql, namespace, all_in_one.querier_grpc_connection()).await;
+    let batches = run_sql(sql, namespace, all_in_one.querier_grpc_connection()).await;
 
     let expected = [
         "+------+------+-----+",

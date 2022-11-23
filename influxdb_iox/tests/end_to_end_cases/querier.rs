@@ -9,8 +9,8 @@ use futures::FutureExt;
 use predicates::prelude::*;
 use test_helpers::assert_contains;
 use test_helpers_end_to_end::{
-    maybe_skip_integration, run_query, try_run_query, GrpcRequestBuilder, MiniCluster, Step,
-    StepTest, StepTestState, TestConfig,
+    maybe_skip_integration, run_sql, try_run_sql, GrpcRequestBuilder, MiniCluster, Step, StepTest,
+    StepTestState, TestConfig,
 };
 
 #[tokio::test]
@@ -260,7 +260,7 @@ async fn ingester_panic_1() {
                 async move {
                     // Ingester panics but querier will retry.
                     let sql = format!("select * from {} where tag2='B'", table_name);
-                    let batches = run_query(
+                    let batches = run_sql(
                         sql,
                         state.cluster().namespace(),
                         state.cluster().querier().querier_grpc_connection(),
@@ -365,7 +365,7 @@ async fn ingester_panic_2() {
                         loop {
                             let sql =
                                 format!("select tag,val,time from {} where tag='A'", table_name);
-                            let batches = run_query(
+                            let batches = run_sql(
                                 sql,
                                 state.cluster().namespace(),
                                 state.cluster().querier().querier_grpc_connection(),
@@ -616,7 +616,7 @@ async fn oom_protection() {
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 async move {
                     let sql = format!("select * from {}", table_name);
-                    let err = try_run_query(
+                    let err = try_run_sql(
                         sql,
                         state.cluster().namespace(),
                         state.cluster().querier().querier_grpc_connection(),

@@ -5,6 +5,7 @@ use http::Response;
 use hyper::{Body, Client, Request};
 use influxdb_iox_client::{
     connection::Connection,
+    flight::generated_types::read_info::QueryType,
     flight::generated_types::ReadInfo,
     write_info::generated_types::{merge_responses, GetWriteInfoResponse, ShardStatus},
 };
@@ -190,15 +191,14 @@ pub fn all_persisted(res: &GetWriteInfoResponse) -> bool {
 }
 
 /// Runs a query using the flight API on the specified connection.
-///
-/// This is similar ot [`run_query`] but does NOT unwrap the result.
 pub async fn try_run_query(
-    sql: impl Into<String>,
+    sql_query: impl Into<String>,
+    query_type: QueryType,
     namespace: impl Into<String>,
     querier_connection: Connection,
 ) -> Result<Vec<RecordBatch>, influxdb_iox_client::flight::Error> {
-    let namespace = namespace.into();
-    let sql = sql.into();
+    let sql_query = sql_query.into();
+    let namespace_name = namespace.into();
 
     let mut client = influxdb_iox_client::flight::Client::new(querier_connection);
 
@@ -207,23 +207,57 @@ pub async fn try_run_query(
 
     let mut response = client
         .perform_query(ReadInfo {
-            namespace_name: namespace,
-            sql_query: sql,
+            namespace_name,
+            sql_query,
+            query_type: query_type.into(),
         })
         .await?;
 
     response.collect().await
 }
 
-/// Runs a query using the flight API on the specified connection.
+/// Runs a SQL query using the flight API on the specified connection.
 ///
-/// Use [`try_run_query`] if you want to check the error manually.
-pub async fn run_query(
+/// This is similar ot [`run_sql`] but does NOT unwrap the result.
+pub async fn try_run_sql(
+    sql: impl Into<String>,
+    namespace: impl Into<String>,
+    querier_connection: Connection,
+) -> Result<Vec<RecordBatch>, influxdb_iox_client::flight::Error> {
+    try_run_query(sql, QueryType::Sql, namespace, querier_connection).await
+}
+
+/// Runs a SQL query using the flight API on the specified connection.
+///
+/// Use [`try_run_sql`] if you want to check the error manually.
+pub async fn run_sql(
     sql: impl Into<String>,
     namespace: impl Into<String>,
     querier_connection: Connection,
 ) -> Vec<RecordBatch> {
-    try_run_query(sql, namespace, querier_connection)
+    try_run_sql(sql, namespace, querier_connection)
+        .await
+        .expect("Error executing query")
+}
+
+/// Runs an InfluxQL query using the flight API on the specified connection.
+pub async fn try_run_influxql(
+    sql: impl Into<String>,
+    namespace: impl Into<String>,
+    querier_connection: Connection,
+) -> Result<Vec<RecordBatch>, influxdb_iox_client::flight::Error> {
+    try_run_query(sql, QueryType::InfluxQl, namespace, querier_connection).await
+}
+
+/// Runs an InfluxQL query using the flight API on the specified connection.
+///
+/// Use [`try_run_influxql`] if you want to check the error manually.
+pub async fn run_influxql(
+    sql: impl Into<String>,
+    namespace: impl Into<String>,
+    querier_connection: Connection,
+) -> Vec<RecordBatch> {
+    try_run_query(sql, QueryType::InfluxQl, namespace, querier_connection)
         .await
         .expect("Error executing query")
 }

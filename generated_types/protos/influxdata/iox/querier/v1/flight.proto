@@ -9,6 +9,17 @@ message ReadInfo {
 
   // SQL query.
   string sql_query = 2;
+
+  QueryType query_type = 3;
+
+  enum QueryType {
+    // An unspecified query type. IOx may choose how to interpret sql_query.
+    QUERY_TYPE_UNSPECIFIED = 0;
+    // SQL query.
+    QUERY_TYPE_SQL = 1;
+    // InfluxQL query.
+    QUERY_TYPE_INFLUX_QL = 2;
+  }
 }
 
 // Response in "end-user to querier" flight response.

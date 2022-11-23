@@ -25,6 +25,7 @@ datafusion_util = { path = "../datafusion_util" }
 executor = { path = "../executor"}
 futures = "0.3"
 hashbrown = { workspace = true }
+influxdb_influxql_parser = { path = "../influxdb_influxql_parser" }
 itertools = "0.10.5"
 object_store = "0.5.1"
 observability_deps = { path = "../observability_deps" }
@@ -41,3 +42,4 @@ workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }
+assert_matches = "1"
