@@ -47,6 +47,10 @@ impl OpenSegmentFileWriter {
         })
     }
 
+    pub fn id(&self) -> SegmentId {
+        self.id
+    }
+
     pub fn write(&mut self, data: &[u8]) -> Result<WriteSummary> {
         // Only designed to support chunks up to `u32::max` bytes long.
         let uncompressed_len = data.len();
