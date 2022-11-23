@@ -378,6 +378,8 @@ pub struct WriteSummary {
     pub total_bytes: usize,
     /// Number of bytes written to segment in this write
     pub bytes_written: usize,
+    /// Which segment file this entry was written to
+    pub segment_id: SegmentId,
     /// Checksum for the compressed data written to segment
     checksum: u32,
 }
