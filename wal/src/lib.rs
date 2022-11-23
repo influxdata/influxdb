@@ -109,14 +109,21 @@ pub enum Error {
 /// A specialized `Result` for WAL-related errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-// todo: change to newtypes
-/// SequenceNumber is a u64 monotonically-increasing number provided by users of the WAL for
-/// their tracking purposes of data getting written into a segment.
-// - who enforces monotonicity? what happens if WAL receives a lower sequence number?
-// - this isn't `data_types::SequenceNumber`, should it be or should this be a distinct type
-//   because this doesn't have anything to do with Kafka?
-// - errr what https://github.com/influxdata/influxdb_iox/blob/4d55efe6558eb09d1ba03a8a5cbfcf48a3425c83/ingester/src/server/grpc/rpc_write.rs#L156-L157
-pub type SequenceNumber = u64;
+/// `SequenceNumber` is metadata provided by users of the WAL for their tracking purposes of data
+/// getting written into a segment. No properties of `SequenceNumber` are verified in the WAL.
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Copy, Clone)]
+#[serde(transparent)]
+pub struct SequenceNumberNg(u64);
+
+#[allow(missing_docs)]
+impl SequenceNumberNg {
+    pub fn new(v: u64) -> Self {
+        Self(v)
+    }
+    pub fn get(&self) -> u64 {
+        self.0
+    }
+}
 
 /// Segments are identified by a type 4 UUID
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -347,7 +354,7 @@ pub enum WalOp {
 /// from the buffer
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct SequencedWalOp {
-    pub sequence_number: SequenceNumber,
+    pub sequence_number: SequenceNumberNg,
     pub op: WalOp,
 }
 
@@ -629,11 +636,11 @@ mod tests {
         let w2 = test_data("m1,t=foo v=2i 2");
 
         let op1 = SequencedWalOp {
-            sequence_number: 0,
+            sequence_number: SequenceNumberNg::new(0),
             op: WalOp::Write(w1),
         };
         let op2 = SequencedWalOp {
-            sequence_number: 1,
+            sequence_number: SequenceNumberNg::new(1),
             op: WalOp::Write(w2),
         };
 
