@@ -348,7 +348,7 @@ jobs:
             git fetch origin main
             # compare against only changes in this branch (not against
             # other stuff that may have been added to main since last merge)
-            MERGE_BASE=$(git merge-base origin/main $CIRCLE_BRANCH) sh -c 'buf breaking --against ".git#ref=$MERGE_BASE"'
+            MERGE_BASE=$(git merge-base origin/main $CIRCLE_BRANCH) sh -c 'buf breaking --against ".git#ref=$MERGE_BASE,depth=100"'
 
   # Lint docs
   docs-lint:

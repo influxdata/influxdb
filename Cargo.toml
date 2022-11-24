@@ -73,6 +73,7 @@ members = [
     "trace_http",
     "tracker",
     "trogging",
+    "wal",
     "workspace-hack",
     "write_buffer",
     "write_summary",
