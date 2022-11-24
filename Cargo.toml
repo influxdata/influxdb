@@ -25,6 +25,7 @@ members = [
     "influxdb2_client",
     "influxrpc_parser",
     "ingester",
+    "ingester2",
     "iox_catalog",
     "iox_data_generator",
     "garbage_collector",
