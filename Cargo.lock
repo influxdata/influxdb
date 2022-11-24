@@ -2485,6 +2485,7 @@ dependencies = [
  "tonic",
  "trace",
  "uuid",
+ "workspace-hack",
 ]
 
 [[package]]
