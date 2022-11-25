@@ -29,6 +29,11 @@ pub(crate) struct Buffering {
 /// [`Buffering`], and instead snapshots should be incrementally generated and
 /// compacted. See <https://github.com/influxdata/influxdb_iox/issues/5805> for
 /// context.
+///
+/// # Panics
+///
+/// This method panics if converting the buffered data (if any) into an Arrow
+/// [`RecordBatch`] fails (a non-transient error).
 impl Queryable for Buffering {
     fn get_query_data(&self) -> Vec<Arc<RecordBatch>> {
         let data = self.buffer.buffer().map(|v| {
