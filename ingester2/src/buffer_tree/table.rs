@@ -4,12 +4,22 @@ pub(crate) mod name_resolver;
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use data_types::{NamespaceId, PartitionId, PartitionKey, SequenceNumber, TableId};
+use datafusion_util::MemoryStream;
 use mutable_batch::MutableBatch;
 use parking_lot::{Mutex, RwLock};
+use schema::Projection;
+use trace::span::{Span, SpanRecorder};
 
 use super::partition::{resolver::PartitionProvider, PartitionData};
-use crate::{arcmap::ArcMap, deferred_load::DeferredLoad};
+use crate::{
+    arcmap::ArcMap,
+    deferred_load::DeferredLoad,
+    query::{
+        partition_response::PartitionResponse, response::PartitionStream, QueryError, QueryExec,
+    },
+};
 
 /// A double-referenced map where [`PartitionData`] can be looked up by
 /// [`PartitionKey`], or ID.
@@ -172,10 +182,7 @@ impl TableData {
     }
 
     /// Return the [`PartitionData`] for the specified ID.
-    pub(crate) fn get_partition(
-        &self,
-        partition_id: PartitionId,
-    ) -> Option<Arc<Mutex<PartitionData>>> {
+    pub(crate) fn partition(&self, partition_id: PartitionId) -> Option<Arc<Mutex<PartitionData>>> {
         self.partition_data.read().by_id(partition_id)
     }
 
@@ -200,6 +207,57 @@ impl TableData {
     /// Return the [`NamespaceId`] this table is a part of.
     pub(crate) fn namespace_id(&self) -> NamespaceId {
         self.namespace_id
+    }
+}
+
+#[async_trait]
+impl QueryExec for TableData {
+    type Response = PartitionStream;
+
+    async fn query_exec(
+        &self,
+        namespace_id: NamespaceId,
+        table_id: TableId,
+        columns: Vec<String>,
+        span: Option<Span>,
+    ) -> Result<Self::Response, QueryError> {
+        assert_eq!(self.table_id, table_id, "buffer tree index inconsistency");
+        assert_eq!(
+            self.namespace_id, namespace_id,
+            "buffer tree index inconsistency"
+        );
+
+        // Gather the partition data from all of the partitions in this table.
+        let partitions = self.partitions().into_iter().filter_map(move |p| {
+            let mut span = SpanRecorder::new(span.clone().map(|s| s.child("partition read")));
+
+            let (id, data) = {
+                let mut p = p.lock();
+                (p.partition_id(), p.get_query_data()?)
+            };
+            assert_eq!(id, data.partition_id());
+
+            // Project the data if necessary
+            let columns = columns.iter().map(String::as_str).collect::<Vec<_>>();
+            let selection = if columns.is_empty() {
+                Projection::All
+            } else {
+                Projection::Some(columns.as_ref())
+            };
+
+            let ret = PartitionResponse::new(
+                Box::pin(MemoryStream::new(
+                    data.project_selection(selection).into_iter().collect(),
+                )),
+                id,
+                None,
+            );
+
+            span.ok("read partition data");
+            Some(ret)
+        });
+
+        Ok(PartitionStream::new(futures::stream::iter(partitions)))
     }
 }
 
