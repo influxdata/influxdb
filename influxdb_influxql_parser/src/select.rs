@@ -450,7 +450,7 @@ impl Parser for Field {
             pair(
                 arithmetic::<FieldExpression>,
                 opt(preceded(
-                    delimited(ws0, keyword("AS"), ws1),
+                    preceded(ws0, keyword("AS")),
                     expect("invalid field alias, expected identifier", identifier),
                 )),
             ),
@@ -502,7 +502,7 @@ impl ArithmeticParsers for FieldExpression {
         preceded(
             ws0,
             alt((
-                // DISTINCT identifier
+                // distinct_expression ::= "DISTINCT" ws+ identifier
                 map(
                     preceded(
                         pair(keyword("DISTINCT"), ws1),

@@ -201,7 +201,7 @@ fn with_key_clause(i: &str) -> ParseResult<&str, WithKeyClause> {
                 ),
                 map(
                     preceded(
-                        delimited(ws0, char('='), ws0),
+                        preceded(ws0, char('=')),
                         expect(
                             "invalid WITH KEY clause, expected identifier following =",
                             identifier,
@@ -211,7 +211,7 @@ fn with_key_clause(i: &str) -> ParseResult<&str, WithKeyClause> {
                 ),
                 map(
                     preceded(
-                        delimited(ws0, tag("!="), ws0),
+                        preceded(ws0, tag("!=")),
                         expect(
                             "invalid WITH KEY clause, expected identifier following !=",
                             identifier,

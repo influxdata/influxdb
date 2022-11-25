@@ -74,7 +74,7 @@ impl Display for OnClause {
 /// Parse an `ON` clause for statements such as `SHOW TAG KEYS` and `SHOW FIELD KEYS`.
 pub(crate) fn on_clause(i: &str) -> ParseResult<&str, OnClause> {
     preceded(
-        pair(keyword("ON"), ws1),
+        keyword("ON"),
         expect(
             "invalid ON clause, expected identifier",
             map(identifier, OnClause),

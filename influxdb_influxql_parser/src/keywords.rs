@@ -269,6 +269,11 @@ mod test {
         assert_eq!(rem, "");
         assert_eq!(got, "or");
 
+        // Does not consume input that follows a keyword
+        let (rem, got) = or_keyword("or(a AND b)").unwrap();
+        assert_eq!(rem, "(a AND b)");
+        assert_eq!(got, "or");
+
         // Will fail because keyword `OR` in `ORDER` is not recognized, as is not terminated by a valid character
         let err = or_keyword("ORDER").unwrap_err();
         assert_matches!(err, nom::Err::Error(crate::internal::Error::Nom(_, kind)) if kind == nom::error::ErrorKind::Fail);

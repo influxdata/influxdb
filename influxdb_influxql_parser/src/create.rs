@@ -89,7 +89,7 @@ fn create_database(i: &str) -> ParseResult<&str, CreateDatabaseStatement> {
         ),
     ) = tuple((
         keyword("DATABASE"),
-        preceded(ws1, identifier),
+        identifier,
         opt(tuple((
             preceded(ws1, keyword("WITH")),
             expect(
@@ -135,7 +135,7 @@ fn create_database(i: &str) -> ParseResult<&str, CreateDatabaseStatement> {
                 preceded(ws1, keyword("NAME")),
                 expect(
                     "invalid NAME clause, expected identifier",
-                    preceded(ws1, identifier),
+                    identifier,
                 ),
             )),
         ))),
