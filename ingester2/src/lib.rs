@@ -21,6 +21,12 @@ use data_types::ShardId;
 /// various operations. This is a const value for these occasions.
 const TRANSITION_SHARD_ID: ShardId = ShardId::new(1);
 
+/// Ingester initialisation methods & types.
+///
+/// This module defines the public API boundary of the Ingester crate.
+mod init;
+pub use init::*;
+
 //
 // !!! PLEASE DO NOT EXPORT !!!
 //
@@ -41,6 +47,7 @@ mod dml_sink;
 mod query;
 mod query_adaptor;
 mod sequence_range;
+pub(crate) mod server;
 
 #[cfg(test)]
 mod test_util;
