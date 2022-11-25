@@ -4,7 +4,7 @@ use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
 use trace::span::Span;
 
-use super::{response::Response, QueryExec};
+use super::{response::QueryResponse, QueryExec};
 use crate::query::QueryError;
 
 /// An instrumentation decorator over a [`QueryExec`] implementation.
@@ -55,7 +55,7 @@ where
         table_id: TableId,
         columns: Vec<String>,
         span: Option<Span>,
-    ) -> Result<Response, QueryError> {
+    ) -> Result<QueryResponse, QueryError> {
         let t = self.time_provider.now();
 
         let res = self
@@ -121,7 +121,7 @@ mod tests {
         ok,
         inner = {
             let stream: PartitionStream = Box::pin(Box::new(futures::stream::iter([])));
-            MockQueryExec::default().with_result(Ok(Response::new(stream)))
+            MockQueryExec::default().with_result(Ok(QueryResponse::new(stream)))
         },
         want_metric_attr = [("result", "success")],
         want_ret = Ok(_)

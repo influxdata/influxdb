@@ -20,7 +20,7 @@ use tokio::sync::{Semaphore, TryAcquireError};
 use tonic::{Request, Response, Streaming};
 use trace::{ctx::SpanContext, span::SpanExt};
 
-use crate::query::{response::Response as QueryResponse, QueryError, QueryExec};
+use crate::query::{response::QueryResponse, QueryError, QueryExec};
 
 /// Error states for the query RPC handler.
 ///
