@@ -49,6 +49,7 @@ where
     T: QueryExec,
     P: TimeProvider,
 {
+    #[inline(always)]
     async fn query_exec(
         &self,
         namespace_id: NamespaceId,
