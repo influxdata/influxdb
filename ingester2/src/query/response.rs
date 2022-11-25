@@ -11,24 +11,33 @@ use futures::{Stream, StreamExt, TryStreamExt};
 use super::partition_response::PartitionResponse;
 
 /// Stream of partitions in this response.
-pub(crate) type PartitionStream =
-    Pin<Box<dyn Stream<Item = Result<PartitionResponse, ArrowError>> + Send>>;
+pub(crate) struct PartitionStream(
+    Pin<Box<dyn Stream<Item = Result<PartitionResponse, ArrowError>> + Send>>,
+);
+
+impl std::fmt::Debug for PartitionStream {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("PartitionStream").finish()
+    }
+}
+
+impl PartitionStream {
+    pub(crate) fn new<T>(s: T) -> Self
+    where
+        T: Stream<Item = Result<PartitionResponse, ArrowError>> + Send + 'static,
+    {
+        Self(s.boxed())
+    }
+}
 
 /// A response stream wrapper for ingester query requests.
 ///
 /// The data structure is constructed to allow lazy/streaming/pull-based data
-/// sourcing..
+/// sourcing.
+#[derive(Debug)]
 pub(crate) struct QueryResponse {
     /// Stream of partitions.
     partitions: PartitionStream,
-}
-
-impl std::fmt::Debug for QueryResponse {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Response")
-            .field("partitions", &"<PARTITION STREAM>")
-            .finish()
-    }
 }
 
 impl QueryResponse {
@@ -38,8 +47,10 @@ impl QueryResponse {
     }
 
     /// Return the stream of [`PartitionResponse`].
-    pub(crate) fn into_partition_stream(self) -> PartitionStream {
-        self.partitions
+    pub(crate) fn into_partition_stream(
+        self,
+    ) -> Pin<Box<dyn Stream<Item = Result<PartitionResponse, ArrowError>> + Send>> {
+        self.partitions.0
     }
 
     /// Reduce the [`QueryResponse`] to a set of [`RecordBatch`].

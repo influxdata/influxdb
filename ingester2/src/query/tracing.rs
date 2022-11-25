@@ -94,7 +94,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ok() {
-        let stream: PartitionStream = Box::pin(Box::new(futures::stream::iter([])));
+        let stream: PartitionStream = PartitionStream::new(futures::stream::iter([]));
         let mock = MockQueryExec::default().with_result(Ok(QueryResponse::new(stream)));
 
         let traces: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
