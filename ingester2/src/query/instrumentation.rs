@@ -4,7 +4,7 @@ use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
 use trace::span::Span;
 
-use super::{response::QueryResponse, QueryExec};
+use super::QueryExec;
 use crate::query::QueryError;
 
 /// An instrumentation decorator over a [`QueryExec`] implementation.
@@ -49,6 +49,8 @@ where
     T: QueryExec,
     P: TimeProvider,
 {
+    type Response = T::Response;
+
     #[inline(always)]
     async fn query_exec(
         &self,
@@ -56,7 +58,7 @@ where
         table_id: TableId,
         columns: Vec<String>,
         span: Option<Span>,
-    ) -> Result<QueryResponse, QueryError> {
+    ) -> Result<Self::Response, QueryError> {
         let t = self.time_provider.now();
 
         let res = self
@@ -83,7 +85,10 @@ mod tests {
     use metric::Attributes;
 
     use super::*;
-    use crate::query::{mock_query_exec::MockQueryExec, response::PartitionStream};
+    use crate::query::{
+        mock_query_exec::MockQueryExec,
+        response::{PartitionStream, QueryResponse},
+    };
 
     macro_rules! test_metric {
         (

@@ -19,13 +19,15 @@ impl MockQueryExec {
 
 #[async_trait]
 impl QueryExec for MockQueryExec {
+    type Response = QueryResponse;
+
     async fn query_exec(
         &self,
         _namespace_id: NamespaceId,
         _table_id: TableId,
         _columns: Vec<String>,
         _span: Option<Span>,
-    ) -> Result<QueryResponse, QueryError> {
+    ) -> Result<Self::Response, QueryError> {
         self.response
             .lock()
             .take()
