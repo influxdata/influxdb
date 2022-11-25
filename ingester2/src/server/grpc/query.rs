@@ -293,57 +293,50 @@ pub enum FlatIngesterQueryResponse {
 impl From<QueryResponse> for FlatIngesterQueryResponseStream {
     fn from(v: QueryResponse) -> Self {
         v.into_partition_stream()
-            .flat_map(|partition_res| match partition_res {
-                Ok(partition) => {
-                    let partition_id = partition.id();
-                    let max_seq = partition.max_persisted_sequence_number().map(|v| v.get());
-                    let head = futures::stream::once(async move {
-                        Ok(FlatIngesterQueryResponse::StartPartition {
-                            partition_id,
-                            status: PartitionStatus {
-                                parquet_max_sequence_number: max_seq,
-                            },
-                        })
+            .flat_map(|partition| {
+                let partition_id = partition.id();
+                let max_seq = partition.max_persisted_sequence_number().map(|v| v.get());
+                let head = futures::stream::once(async move {
+                    Ok(FlatIngesterQueryResponse::StartPartition {
+                        partition_id,
+                        status: PartitionStatus {
+                            parquet_max_sequence_number: max_seq,
+                        },
+                    })
+                });
+                let tail = partition
+                    .into_record_batch_stream()
+                    .flat_map(|snapshot_res| match snapshot_res {
+                        Ok(snapshot) => {
+                            let schema = Arc::new(optimize_schema(&snapshot.schema()));
+
+                            let schema_captured = Arc::clone(&schema);
+                            let head = futures::stream::once(async {
+                                Ok(FlatIngesterQueryResponse::StartSnapshot {
+                                    schema: schema_captured,
+                                })
+                            });
+
+                            // TODO: these optimize calls may be redundant
+                            //
+                            // See: https://github.com/apache/arrow-rs/issues/208
+                            let tail = match optimize_record_batch(&snapshot, Arc::clone(&schema)) {
+                                Ok(batch) => {
+                                    futures::stream::iter(split_batch_for_grpc_response(batch))
+                                        .map(|batch| {
+                                            Ok(FlatIngesterQueryResponse::RecordBatch { batch })
+                                        })
+                                        .boxed()
+                                }
+                                Err(e) => futures::stream::once(async { Err(e) }).boxed(),
+                            };
+
+                            head.chain(tail).boxed()
+                        }
+                        Err(e) => futures::stream::once(async { Err(e) }).boxed(),
                     });
-                    let tail = partition
-                        .into_record_batch_stream()
-                        .flat_map(|snapshot_res| match snapshot_res {
-                            Ok(snapshot) => {
-                                let schema = Arc::new(optimize_schema(&snapshot.schema()));
 
-                                let schema_captured = Arc::clone(&schema);
-                                let head = futures::stream::once(async {
-                                    Ok(FlatIngesterQueryResponse::StartSnapshot {
-                                        schema: schema_captured,
-                                    })
-                                });
-
-                                let tail = snapshot.flat_map(move |batch_res| match batch_res {
-                                    Ok(batch) => {
-                                        match optimize_record_batch(&batch, Arc::clone(&schema)) {
-                                            Ok(batch) => futures::stream::iter(
-                                                split_batch_for_grpc_response(batch),
-                                            )
-                                            .map(|batch| {
-                                                Ok(FlatIngesterQueryResponse::RecordBatch { batch })
-                                            })
-                                            .boxed(),
-                                            Err(e) => {
-                                                futures::stream::once(async { Err(e) }).boxed()
-                                            }
-                                        }
-                                    }
-                                    Err(e) => futures::stream::once(async { Err(e) }).boxed(),
-                                });
-
-                                head.chain(tail).boxed()
-                            }
-                            Err(e) => futures::stream::once(async { Err(e) }).boxed(),
-                        });
-
-                    head.chain(tail).boxed()
-                }
-                Err(e) => futures::stream::once(async { Err(e) }).boxed(),
+                head.chain(tail).boxed()
             })
             .boxed()
     }

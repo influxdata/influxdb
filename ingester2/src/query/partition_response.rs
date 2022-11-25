@@ -2,23 +2,13 @@
 //!
 //! [`QueryResponse`]: super::response::QueryResponse
 
-use std::pin::Pin;
-
-use arrow::error::ArrowError;
 use data_types::{PartitionId, SequenceNumber};
 use datafusion::physical_plan::SendableRecordBatchStream;
-use futures::Stream;
-
-/// Stream of [`RecordBatch`].
-///
-/// [`RecordBatch`]: arrow::record_batch::RecordBatch
-pub(crate) type RecordBatchStream =
-    Pin<Box<dyn Stream<Item = Result<SendableRecordBatchStream, ArrowError>> + Send>>;
 
 /// Response data for a single partition.
 pub(crate) struct PartitionResponse {
     /// Stream of snapshots.
-    batches: RecordBatchStream,
+    batches: SendableRecordBatchStream,
 
     /// Partition ID.
     id: PartitionId,
@@ -39,7 +29,7 @@ impl std::fmt::Debug for PartitionResponse {
 
 impl PartitionResponse {
     pub(crate) fn new(
-        batches: RecordBatchStream,
+        batches: SendableRecordBatchStream,
         id: PartitionId,
         max_persisted_sequence_number: Option<SequenceNumber>,
     ) -> Self {
@@ -58,7 +48,7 @@ impl PartitionResponse {
         self.max_persisted_sequence_number
     }
 
-    pub(crate) fn into_record_batch_stream(self) -> RecordBatchStream {
+    pub(crate) fn into_record_batch_stream(self) -> SendableRecordBatchStream {
         self.batches
     }
 }

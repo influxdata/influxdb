@@ -68,7 +68,10 @@ mod tests {
     use assert_matches::assert_matches;
     use trace::{ctx::SpanContext, span::SpanStatus, RingBufferTraceCollector, TraceCollector};
 
-    use crate::query::{mock_query_exec::MockQueryExec, response::PartitionStream};
+    use crate::query::{
+        mock_query_exec::MockQueryExec,
+        response::{PartitionStream, QueryResponse},
+    };
 
     use super::*;
 
