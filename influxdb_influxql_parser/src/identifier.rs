@@ -7,10 +7,12 @@
 //! * double quoted identifiers can contain [InfluxQL keywords][keywords]
 //! * unquoted identifiers must start with an upper or lowercase ASCII character or `_`
 //! * unquoted identifiers may contain only ASCII letters, decimal digits, and `_`
+//! * identifiers may be preceded by whitespace
 //!
 //! [identifier]: https://docs.influxdata.com/influxdb/v1.8/query_language/spec/#identifiers
 //! [keywords]: https://docs.influxdata.com/influxdb/v1.8/query_language/spec/#keywords
 
+use crate::common::ws0;
 use crate::internal::ParseResult;
 use crate::keywords::sql_keyword;
 use crate::string::double_quoted_string;
@@ -47,6 +49,13 @@ impl From<&str> for Identifier {
     }
 }
 
+impl Identifier {
+    /// Returns true if the identifier requires quotes.
+    pub fn requires_quotes(&self) -> bool {
+        nom::sequence::terminated(unquoted_identifier, nom::combinator::eof)(&self.0).is_err()
+    }
+}
+
 impl Display for Identifier {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write_quoted_string!(f, '"', self.0.as_str(), unquoted_identifier, '\n' => "\\n", '\\' => "\\\\", '"' => "\\\"");
@@ -55,12 +64,23 @@ impl Display for Identifier {
 }
 
 /// Parses an InfluxQL [Identifier].
+///
+/// EBNF for an identifier is approximately:
+///
+/// ```text
+/// identifier          ::= whitespace? ( quoted_identifier | unquoted_identifier )
+/// unquoted_identifier ::= [_a..zA..Z] [_a..zA..Z0..9]*
+/// quoted_identifier   ::= '"' [^"\n] '"'
+/// ```
 pub(crate) fn identifier(i: &str) -> ParseResult<&str, Identifier> {
-    // See: https://github.com/influxdata/influxql/blob/df51a45762be9c1b578f01718fa92d286a843fe9/scanner.go#L358-L362
-    alt((
-        map(unquoted_identifier, Into::into),
-        map(double_quoted_string, Into::into),
-    ))(i)
+    // See: https://github.com/influxdata/influxql/blob/7e7d61973256ffeef4b99edd0a89f18a9e52fa2d/parser.go#L432-L438
+    preceded(
+        ws0,
+        alt((
+            map(unquoted_identifier, Into::into),
+            map(double_quoted_string, Into::into),
+        )),
+    )(i)
 }
 
 #[cfg(test)]
@@ -101,6 +121,10 @@ mod test {
         // unquoted
         let (_, got) = identifier("quick_draw").unwrap();
         assert_eq!(got, "quick_draw".into());
+
+        // leading whitespace
+        let (_, got) = identifier("  quick_draw").unwrap();
+        assert_eq!(got, "quick_draw".into());
     }
 
     #[test]
@@ -112,5 +136,25 @@ mod test {
         // Identifier displays unquoted output
         let got = format!("{}", Identifier("quick_draw".into()));
         assert_eq!(got, "quick_draw");
+    }
+
+    #[test]
+    fn test_identifier_requires_quotes() {
+        // Following examples require quotes
+
+        // Quotes, spaces, non-ASCII
+        assert!(Identifier("quick\n\t\\\"'draw \u{1f47d}".into()).requires_quotes());
+        // non-ASCII
+        assert!(Identifier("quick_\u{1f47d}".into()).requires_quotes());
+        // starts with number
+        assert!(Identifier("0quick".into()).requires_quotes());
+
+        // Following examples do not require quotes
+
+        // starts with underscore
+        assert!(!Identifier("_quick".into()).requires_quotes());
+
+        // Only ASCII, non-space
+        assert!(!Identifier("quick_90".into()).requires_quotes());
     }
 }

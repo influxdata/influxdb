@@ -35,7 +35,7 @@ pub(crate) fn drop_statement(i: &str) -> ParseResult<&str, DropMeasurementStatem
 
 fn drop_measurement(i: &str) -> ParseResult<&str, DropMeasurementStatement> {
     preceded(
-        pair(keyword("MEASUREMENT"), ws1),
+        keyword("MEASUREMENT"),
         map(
             expect(
                 "invalid DROP MEASUREMENT statement, expected identifier",

@@ -427,6 +427,14 @@ impl<T> OneOrMore<T> {
     }
 }
 
+impl<T> Deref for OneOrMore<T> {
+    type Target = [T];
+
+    fn deref(&self) -> &Self::Target {
+        &self.contents
+    }
+}
+
 impl<T: Parser> OneOrMore<T> {
     /// Parse a list of one or more `T`, separated by commas.
     ///
@@ -555,6 +563,45 @@ mod tests {
                 name: Regex("diskio".into()),
             }
         );
+
+        // With whitespace
+        let (_, got) = qualified_measurement_name("\"telegraf\".. \"diskio\"").unwrap();
+        assert_eq!(
+            got,
+            QualifiedMeasurementName {
+                database: Some("telegraf".into()),
+                retention_policy: None,
+                name: Name("diskio".into()),
+            }
+        );
+
+        let (_, got) =
+            qualified_measurement_name("telegraf. /* a comment */  autogen. diskio").unwrap();
+        assert_eq!(
+            got,
+            QualifiedMeasurementName {
+                database: Some("telegraf".into()),
+                retention_policy: Some("autogen".into()),
+                name: Name("diskio".into()),
+            }
+        );
+
+        // Whitespace following identifier is not supported
+        let (rem, got) = qualified_measurement_name("telegraf . autogen. diskio").unwrap();
+        assert_eq!(rem, " . autogen. diskio");
+        assert_eq!(
+            got,
+            QualifiedMeasurementName {
+                database: None,
+                retention_policy: None,
+                name: Name("telegraf".into()),
+            }
+        );
+
+        // Fallible
+
+        // Whitespace preceding regex is not supported
+        qualified_measurement_name("telegraf.autogen. /diskio/").unwrap_err();
     }
 
     #[test]
@@ -722,6 +769,7 @@ mod tests {
         let (_, got) = OneOrMoreString::separated_list1("Expects one or more")("foo").unwrap();
         assert_eq!(got.len(), 1);
         assert_eq!(got.first(), "foo");
+        assert_eq!(*got, vec!["foo"]); // deref
         assert_eq!(format!("{}", got), "foo");
 
         let (_, got) =
@@ -729,6 +777,7 @@ mod tests {
         assert_eq!(got.len(), 3);
         assert_eq!(got.first(), "foo");
         assert_eq!(got.rest(), vec!["bar", "foobar"]);
+        assert_eq!(*got, vec!["foo", "bar", "foobar"]); // deref
         assert_eq!(format!("{}", got), "foo, bar, foobar");
 
         // Fallible cases
