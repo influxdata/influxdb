@@ -28,5 +28,5 @@ thiserror = "1.0.37"
 thrift = "0.16"
 tokio = { version = "1.22", features = ["macros", "parking_lot", "rt", "rt-multi-thread", "sync"] }
 uuid = { version = "1", features = ["v4"] }
-zstd = "0.11"
+zstd = "0.12"
 workspace-hack = { path = "../workspace-hack"}
