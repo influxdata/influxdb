@@ -7,12 +7,15 @@ license.workspace = true
 
 [dependencies]
 arrow = { workspace = true, features = ["prettyprint"] }
+arrow-flight = "27.0.0"
 arrow_util = { version = "0.1.0", path = "../arrow_util" }
 async-trait = "0.1.58"
 backoff = { version = "0.1.0", path = "../backoff" }
+bytes = "1.3.0"
 data_types = { version = "0.1.0", path = "../data_types" }
 datafusion.workspace = true
 dml = { version = "0.1.0", path = "../dml" }
+flatbuffers = "22"
 futures = "0.3.25"
 generated_types = { version = "0.1.0", path = "../generated_types" }
 hashbrown.workspace = true
@@ -26,7 +29,9 @@ object_store = "0.5.1"
 observability_deps = { version = "0.1.0", path = "../observability_deps" }
 once_cell = "1.16.0"
 parking_lot = "0.12.1"
+pin-project = "1.0.12"
 predicate = { version = "0.1.0", path = "../predicate" }
+prost = { version = "0.11.2", default-features = false, features = ["std"] }
 rand = "0.8.5"
 schema = { version = "0.1.0", path = "../schema" }
 service_grpc_catalog = { version = "0.1.0", path = "../service_grpc_catalog" }
