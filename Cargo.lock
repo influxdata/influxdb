@@ -2456,6 +2456,48 @@ dependencies = [
 ]
 
 [[package]]
+name = "ingester2"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "arrow_util",
+ "assert_matches",
+ "async-trait",
+ "backoff",
+ "data_types",
+ "datafusion",
+ "datafusion_util",
+ "dml",
+ "futures",
+ "generated_types",
+ "hashbrown 0.13.1",
+ "iox_catalog",
+ "iox_query",
+ "iox_time",
+ "lazy_static",
+ "metric",
+ "mutable_batch",
+ "mutable_batch_lp",
+ "mutable_batch_pb",
+ "object_store",
+ "observability_deps",
+ "once_cell",
+ "parking_lot 0.12.1",
+ "paste",
+ "predicate",
+ "rand",
+ "schema",
+ "service_grpc_catalog",
+ "test_helpers",
+ "thiserror",
+ "tokio",
+ "tonic",
+ "trace",
+ "uuid",
+ "workspace-hack",
+]
+
+[[package]]
 name = "insta"
 version = "1.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
