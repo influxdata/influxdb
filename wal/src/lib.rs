@@ -20,7 +20,6 @@ use generated_types::{
     },
 };
 use prost::Message;
-use serde::{Deserialize, Serialize};
 use snafu::prelude::*;
 use std::{collections::HashMap, io, path::PathBuf};
 use tokio::sync::{mpsc, oneshot, RwLock};
@@ -114,22 +113,6 @@ pub enum Error {
 
 /// A specialized `Result` for WAL-related errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
-
-/// `SequenceNumber` is metadata provided by users of the WAL for their tracking purposes of data
-/// getting written into a segment. No properties of `SequenceNumber` are verified in the WAL.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Copy, Clone)]
-#[serde(transparent)]
-pub struct SequenceNumberNg(u64);
-
-#[allow(missing_docs)]
-impl SequenceNumberNg {
-    pub fn new(v: u64) -> Self {
-        Self(v)
-    }
-    pub fn get(&self) -> u64 {
-        self.0
-    }
-}
 
 /// Segments are identified by a type 4 UUID
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -354,7 +337,7 @@ impl<'a> WalRotator<'a> {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct SequencedWalOp {
-    pub sequence_number: SequenceNumberNg,
+    pub sequence_number: u64,
     pub op: WalOp,
 }
 
@@ -368,7 +351,7 @@ impl TryFrom<ProtoSequencedWalOp> for SequencedWalOp {
         } = proto;
 
         Ok(Self {
-            sequence_number: SequenceNumberNg::new(sequence_number),
+            sequence_number,
             op: op.unwrap_field("op")?,
         })
     }
@@ -382,7 +365,7 @@ impl From<SequencedWalOp> for ProtoSequencedWalOp {
         } = seq_op;
 
         Self {
-            sequence_number: sequence_number.get(),
+            sequence_number,
             op: Some(op),
         }
     }
@@ -613,19 +596,19 @@ mod tests {
         let w2 = test_data("m1,t=foo v=2i 2");
 
         let op1 = SequencedWalOp {
-            sequence_number: SequenceNumberNg::new(0),
+            sequence_number: 0,
             op: WalOp::Write(w1),
         };
         let op2 = SequencedWalOp {
-            sequence_number: SequenceNumberNg::new(1),
+            sequence_number: 1,
             op: WalOp::Write(w2),
         };
         let op3 = SequencedWalOp {
-            sequence_number: SequenceNumberNg::new(2),
+            sequence_number: 2,
             op: WalOp::Delete(test_delete()),
         };
         let op4 = SequencedWalOp {
-            sequence_number: SequenceNumberNg::new(2),
+            sequence_number: 2,
             op: WalOp::Persist(test_persist()),
         };
 

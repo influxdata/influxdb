@@ -5,7 +5,7 @@ use generated_types::influxdata::{
     pbdata::v1::{DatabaseBatch, TableBatch},
 };
 use mutable_batch_lp::lines_to_batches;
-use wal::{SequenceNumberNg, SequencedWalOp};
+use wal::SequencedWalOp;
 
 #[tokio::test]
 async fn crud() {
@@ -60,9 +60,9 @@ async fn crud() {
         .await
         .unwrap();
     let op = reader.next_ops().await.unwrap().unwrap();
-    assert_eq!(op.sequence_number.get(), 42);
+    assert_eq!(op.sequence_number, 42);
     let op = reader.next_ops().await.unwrap().unwrap();
-    assert_eq!(op.sequence_number.get(), 43);
+    assert_eq!(op.sequence_number, 43);
 
     // Can delete a segment, leaving no closed segments again
     wal_rotator
@@ -111,7 +111,7 @@ async fn replay() {
 fn arbitrary_sequenced_wal_op(sequence_number: u64) -> SequencedWalOp {
     let w = test_data("m1,t=foo v=1i 1");
     SequencedWalOp {
-        sequence_number: SequenceNumberNg::new(sequence_number),
+        sequence_number,
         op: WalOp::Write(w),
     }
 }
