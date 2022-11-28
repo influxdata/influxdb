@@ -262,7 +262,7 @@ async fn list_tag_values_measurement_pred_and_or() {
         .with_expr(
             col("_measurement")
                 .eq(lit("o2"))
-                .or(col("temp").gt(lit(70.0))),
+                .or(col("_value").gt(lit(70.0))),
         );
     let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec!["Boston", "LA", "NYC"];

@@ -644,6 +644,25 @@ impl DbSetup for TwoMeasurementsMultiSeries {
     }
 }
 
+#[derive(Debug)]
+pub struct TwoMeasurementsMultiTagValue {}
+#[async_trait]
+impl DbSetup for TwoMeasurementsMultiTagValue {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "1970-01-01T00";
+
+        let lp_lines = vec![
+            "h2o,state=MA,city=Boston temp=70.4 100",
+            "h2o,state=MA,city=Lowell temp=75.4 100",
+            "h2o,state=CA,city=LA temp=90.0 200",
+            "o2,state=MA,city=Boston temp=50.4,reading=50 100",
+            "o2,state=KS,city=Topeka temp=60.4,reading=60 100",
+        ];
+
+        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "h2o", partition_key).await
+    }
+}
+
 pub struct MeasurementStatusCode {}
 #[async_trait]
 impl DbSetup for MeasurementStatusCode {
@@ -1124,5 +1143,19 @@ impl DbSetup for TwoChunksDedupWeirdnessParquetIngester {
             },
         ])
         .await
+    }
+}
+
+/// This recreates the test case for
+/// <https://github.com/influxdata/idpe/issues/16238>.
+pub struct StringFieldWithNumericValue {}
+#[async_trait]
+impl DbSetup for StringFieldWithNumericValue {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "2021-01-01T00";
+
+        let lp = vec!["m,tag0=foo fld=\"200\" 1000", "m,tag0=foo fld=\"404\" 1050"];
+
+        all_scenarios_for_one_chunk(vec![], vec![], lp, "m", partition_key).await
     }
 }

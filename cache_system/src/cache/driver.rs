@@ -1,6 +1,8 @@
 //! Main data structure, see [`CacheDriver`].
 
-use crate::{backend::CacheBackend, loader::Loader};
+use crate::{
+    backend::CacheBackend, cancellation_safe_future::CancellationSafeFuture, loader::Loader,
+};
 use async_trait::async_trait;
 use futures::{
     future::{BoxFuture, Shared},
@@ -8,7 +10,7 @@ use futures::{
 };
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
-use std::{collections::HashMap, fmt::Debug, sync::Arc};
+use std::{collections::HashMap, fmt::Debug, future::Future, sync::Arc};
 use tokio::{
     sync::oneshot::{error::RecvError, Sender},
     task::JoinHandle,
@@ -43,6 +45,97 @@ where
             loader,
         }
     }
+
+    fn start_new_query(
+        state: &mut CacheState<B>,
+        state_captured: Arc<Mutex<CacheState<B>>>,
+        loader: Arc<L>,
+        k: B::K,
+        extra: L::Extra,
+    ) -> (
+        CancellationSafeFuture<impl Future<Output = ()>>,
+        SharedReceiver<B::V>,
+    ) {
+        let (tx_main, rx_main) = tokio::sync::oneshot::channel();
+        let receiver = rx_main
+            .map_ok(|v| Arc::new(Mutex::new(v)))
+            .map_err(Arc::new)
+            .boxed()
+            .shared();
+        let (tx_set, rx_set) = tokio::sync::oneshot::channel();
+
+        // generate unique tag
+        let tag = state.tag_counter;
+        state.tag_counter += 1;
+
+        // need to wrap the query into a `CancellationSafeFuture` so that it doesn't get cancelled when
+        // this very request is cancelled
+        let join_handle_receiver = Arc::new(Mutex::new(None));
+        let k_captured = k.clone();
+        let fut = async move {
+            let loader_fut = async move {
+                let submitter = ResultSubmitter::new(state_captured, k_captured.clone(), tag);
+
+                // execute the loader
+                // If we panic here then `tx` will be dropped and the receivers will be
+                // notified.
+                let v = loader.load(k_captured, extra).await;
+
+                // remove "running" state and store result
+                let was_running = submitter.submit(v.clone());
+
+                if !was_running {
+                    // value was side-loaded, so we cannot populate `v`. Instead block this
+                    // execution branch and wait for `rx_set` to deliver the side-loaded
+                    // result.
+                    loop {
+                        tokio::task::yield_now().await;
+                    }
+                }
+
+                v
+            };
+
+            // prefer the side-loader
+            let v = futures::select_biased! {
+                maybe_v = rx_set.fuse() => {
+                    match maybe_v {
+                        Ok(v) => {
+                            // data get side-loaded via `Cache::set`. In this case, we do
+                            // NOT modify the state because there would be a lock-gap. The
+                            // `set` function will do that for us instead.
+                            v
+                        }
+                        Err(_) => {
+                            // sender side is gone, very likely the cache is shutting down
+                            debug!(
+                                "Sender for side-loading data into running query gone.",
+                            );
+                            return;
+                        }
+                    }
+                }
+                v = loader_fut.fuse() => v,
+            };
+
+            // broadcast result
+            // It's OK if the receiver side is gone. This might happen during shutdown
+            tx_main.send(v).ok();
+        };
+        let fut = CancellationSafeFuture::new(fut, Arc::clone(&join_handle_receiver));
+
+        state.running_queries.insert(
+            k,
+            RunningQuery {
+                recv: receiver.clone(),
+                set: tx_set,
+                join_handle: join_handle_receiver,
+                tag,
+            },
+        );
+
+        (fut, receiver)
+    }
 }
 
 #[async_trait]
@@ -63,7 +156,7 @@ where
     ) -> (Self::V, CacheGetStatus) {
         // place state locking into its own scope so it doesn't leak into the generator (async
         // function)
-        let (receiver, status) = {
+        let (fut, receiver, status) = {
             let mut state = self.state.lock();
 
             // check if the entry has already been cached
@@ -74,92 +167,28 @@ where
             // check if there is already a query for this key running
             if let Some(running_query) = state.running_queries.get(&k) {
                 (
+                    None,
                     running_query.recv.clone(),
                     CacheGetStatus::MissAlreadyLoading,
                 )
             } else {
                 // requires new query
-                let (tx_main, rx_main) = tokio::sync::oneshot::channel();
-                let receiver = rx_main
-                    .map_ok(|v| Arc::new(Mutex::new(v)))
-                    .map_err(Arc::new)
-                    .boxed()
-                    .shared();
-                let (tx_set, rx_set) = tokio::sync::oneshot::channel();
-
-                // generate unique tag
-                let tag = state.tag_counter;
-                state.tag_counter += 1;
-
-                // need to wrap the query into a tokio task so that it doesn't get cancelled when
-                // this very request is cancelled
-                let state_captured = Arc::clone(&self.state);
-                let loader = Arc::clone(&self.loader);
-                let k_captured = k.clone();
-                let handle = tokio::spawn(async move {
-                    let loader_fut = async move {
-                        let submitter =
-                            ResultSubmitter::new(state_captured, k_captured.clone(), tag);
-
-                        // execute the loader
-                        // If we panic here then `tx` will be dropped and the receivers will be
-                        // notified.
-                        let v = loader.load(k_captured, extra).await;
-
-                        // remove "running" state and store result
-                        let was_running = submitter.submit(v.clone());
-
-                        if !was_running {
-                            // value was side-loaded, so we cannot populate `v`. Instead block this
-                            // execution branch and wait for `rx_set` to deliver the side-loaded
-                            // result.
-                            loop {
-                                tokio::task::yield_now().await;
-                            }
-                        }
-
-                        v
-                    };
-
-                    // prefer the side-loader
-                    let v = futures::select_biased! {
-                        maybe_v = rx_set.fuse() => {
-                            match maybe_v {
-                                Ok(v) => {
-                                    // data get side-loaded via `Cache::set`. In this case, we do
-                                    // NOT modify the state because there would be a lock-gap. The
-                                    // `set` function will do that for us instead.
-                                    v
-                                }
-                                Err(_) => {
-                                    // sender side is gone, very likely the cache is shutting down
-                                    debug!(
-                                        "Sender for side-loading data into running query gone.",
-                                    );
-                                    return;
-                                }
-                            }
-                        }
-                        v = loader_fut.fuse() => v,
-                    };
-
-                    // broadcast result
-                    // It's OK if the receiver side is gone. This might happen during shutdown
-                    tx_main.send(v).ok();
-                });
-
-                state.running_queries.insert(
+                let (fut, receiver) = Self::start_new_query(
+                    &mut state,
+                    Arc::clone(&self.state),
+                    Arc::clone(&self.loader),
                     k,
-                    RunningQuery {
-                        recv: receiver.clone(),
-                        set: tx_set,
-                        join_handle: handle,
-                        tag,
-                    },
+                    extra,
                 );
-                (receiver, CacheGetStatus::Miss)
+                (Some(fut), receiver, CacheGetStatus::Miss)
             }
         };
+
+        // try to run the loader future in this very task context to avoid spawning tokio tasks (which adds latency and
+        // overhead)
+        if let Some(fut) = fut {
+            fut.await;
+        }
 
         let v = retrieve_from_shared(receiver).await;
 
@@ -201,7 +230,7 @@ where
         let maybe_join_handle = {
             let mut state = self.state.lock();
 
-            let maybe_join_handle = if let Some(running_query) = state.running_queries.remove(&k) {
+            let maybe_recv = if let Some(running_query) = state.running_queries.remove(&k) {
                 // it's OK when the receiver side is gone (likely panicked)
                 running_query.set.send(v.clone()).ok();
 
@@ -209,20 +238,20 @@ where
                 // backend, so we have to do that. The reason for not letting the task feed the
                 // side-loaded data back into `cached_entries` is that we would need to drop the
                 // state lock here before the task could acquire it, leading to a lock gap.
-                Some(running_query.join_handle)
+                Some(running_query.recv)
             } else {
                 None
             };
 
             state.cached_entries.set(k, v);
 
-            maybe_join_handle
+            maybe_recv
         };
 
         // drive running query (if any) to completion
-        if let Some(join_handle) = maybe_join_handle {
+        if let Some(recv) = maybe_join_handle {
             // we do not care if the query died (e.g. due to a panic)
-            join_handle.await.ok();
+            recv.await.ok();
         }
     }
 }
@@ -238,7 +267,10 @@ where
             // `Cache::get` borrows the `self`. If it is still in use, aborting the task will
             // cancel the contained future which in turn will drop the sender of the oneshot
             // channel. The receivers will be notified.
-            running_query.join_handle.abort();
+            let handle = running_query.join_handle.lock();
+            if let Some(handle) = handle.as_ref() {
+                handle.abort();
+            }
         }
     }
 }
@@ -357,7 +389,7 @@ struct RunningQuery<V> {
     /// A handle for the task that is currently executing the query.
     ///
     /// The handle can be used to abort the running query, e.g. when dropping the cache.
-    join_handle: JoinHandle<()>,
+    join_handle: Arc<Mutex<Option<JoinHandle<()>>>>,
 
     /// Tag so that queries for the same key (e.g. when starting, side-loading, starting again) can
     /// be told apart.
