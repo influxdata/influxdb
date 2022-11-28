@@ -9,6 +9,7 @@ use crate::{
     },
     expr::{self, DecodedTagKey, GroupByAndAggregate, InfluxRpcPredicateBuilder, Loggable},
     input::GrpcInputs,
+    response_chunking::ChunkReadResponses,
     StorageService,
 };
 use data_types::{org_and_bucket_to_namespace, NamespaceName};
@@ -19,7 +20,6 @@ use generated_types::{
     influxdata::platform::errors::InfluxDbError,
     literal_or_regex::Value as RegexOrLiteralValue,
     offsets_response::PartitionOffsetResponse,
-    read_response::Frame,
     storage_server::Storage,
     tag_key_predicate, CapabilitiesResponse, Capability, Int64ValuesResponse, LiteralOrRegex,
     MeasurementFieldsRequest, MeasurementFieldsResponse, MeasurementNamesRequest,
@@ -36,7 +36,7 @@ use iox_query::{
     },
     QueryNamespace, QueryText,
 };
-use observability_deps::tracing::{error, info, trace, warn};
+use observability_deps::tracing::{error, info, trace};
 use pin_project::pin_project;
 use prost::{bytes::BytesMut, Message};
 use service_common::{datafusion_error_to_tonic_code, planner::Planner, QueryNamespaceProvider};
@@ -343,8 +343,7 @@ impl<T> Storage for StorageService<T>
 where
     T: QueryNamespaceProvider + 'static,
 {
-    type ReadFilterStream =
-        StreamWithPermit<futures::stream::Iter<std::vec::IntoIter<Result<ReadResponse, Status>>>>;
+    type ReadFilterStream = StreamWithPermit<ChunkReadResponses>;
 
     async fn read_filter(
         &self,
@@ -377,8 +376,7 @@ where
         let mut query_completed_token = db.record_query(&ctx, "read_filter", defer_json(&req));
 
         let results = read_filter_impl(Arc::clone(&db), db_name, req, &ctx)
-            .await
-            .map(|responses| chunk_read_responses(responses, MAX_READ_RESPONSE_SIZE))?
+            .await?
             .into_iter()
             .map(Ok)
             .collect::<Vec<_>>();
@@ -387,11 +385,13 @@ where
             query_completed_token.set_success();
         }
 
-        make_response(futures::stream::iter(results), permit)
+        make_response(
+            ChunkReadResponses::new(futures::stream::iter(results), MAX_READ_RESPONSE_SIZE),
+            permit,
+        )
     }
 
-    type ReadGroupStream =
-        StreamWithPermit<futures::stream::Iter<std::vec::IntoIter<Result<ReadResponse, Status>>>>;
+    type ReadGroupStream = StreamWithPermit<ChunkReadResponses>;
 
     async fn read_group(
         &self,
@@ -458,7 +458,6 @@ where
             &ctx,
         )
         .await
-        .map(|responses| chunk_read_responses(responses, MAX_READ_RESPONSE_SIZE))
         .map_err(|e| e.into_status())?
         .into_iter()
         .map(Ok)
@@ -468,11 +467,13 @@ where
             query_completed_token.set_success();
         }
 
-        make_response(futures::stream::iter(results), permit)
+        make_response(
+            ChunkReadResponses::new(futures::stream::iter(results), MAX_READ_RESPONSE_SIZE),
+            permit,
+        )
     }
 
-    type ReadWindowAggregateStream =
-        StreamWithPermit<futures::stream::Iter<std::vec::IntoIter<Result<ReadResponse, Status>>>>;
+    type ReadWindowAggregateStream = StreamWithPermit<ChunkReadResponses>;
 
     async fn read_window_aggregate(
         &self,
@@ -538,7 +539,6 @@ where
             &ctx,
         )
         .await
-        .map(|responses| chunk_read_responses(responses, MAX_READ_RESPONSE_SIZE))
         .map_err(|e| e.into_status())?
         .into_iter()
         .map(Ok)
@@ -548,7 +548,10 @@ where
             query_completed_token.set_success();
         }
 
-        make_response(futures::stream::iter(results), permit)
+        make_response(
+            ChunkReadResponses::new(futures::stream::iter(results), MAX_READ_RESPONSE_SIZE),
+            permit,
+        )
     }
 
     type TagKeysStream = StreamWithPermit<ReceiverStream<Result<StringValuesResponse, Status>>>;
@@ -1694,58 +1697,6 @@ where
         let this = self.project();
         this.stream.poll_next(cx)
     }
-}
-
-/// Chunk given [`ReadResponse`]s -- while preserving the [`Frame`] order -- into responses that shall at max have the
-/// given size.
-///
-/// # Panic
-/// Panics if `size_limit` is 0.
-fn chunk_read_responses(responses: Vec<ReadResponse>, size_limit: usize) -> Vec<ReadResponse> {
-    assert!(size_limit > 0, "zero size limit");
-
-    let mut out = Vec::with_capacity(1);
-    let it = responses
-        .into_iter()
-        .flat_map(|response| response.frames.into_iter());
-
-    let mut frames = vec![];
-    let mut size = 0;
-    for frame in it {
-        let fsize = frame_size(&frame);
-
-        // flush?
-        if size + fsize > size_limit {
-            size = 0;
-            out.push(ReadResponse {
-                frames: std::mem::take(&mut frames),
-            });
-        }
-
-        if fsize > size_limit {
-            warn!(
-                frame_size = fsize,
-                size_limit, "Oversized frame in read response",
-            );
-        }
-        frames.push(frame);
-        size += fsize;
-    }
-
-    // final flush
-    if !frames.is_empty() {
-        out.push(ReadResponse { frames });
-    }
-
-    out
-}
-
-fn frame_size(frame: &Frame) -> usize {
-    frame
-        .data
-        .as_ref()
-        .map(|data| data.encoded_len())
-        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -3762,117 +3713,6 @@ mod tests {
             .contains("Avg does not support inputs of type Utf8"));
         assert_eq!("iox/influxrpc", influx_err.op);
         assert_eq!(None, influx_err.error);
-    }
-
-    #[test]
-    #[should_panic(expected = "zero size limit")]
-    fn test_chunk_read_responses_panics() {
-        chunk_read_responses(vec![], 0);
-    }
-
-    #[test]
-    fn test_chunk_read_responses_ok() {
-        use generated_types::influxdata::platform::storage::read_response::{
-            frame::Data, BooleanPointsFrame,
-        };
-
-        let frame1 = Frame {
-            data: Some(Data::BooleanPoints(BooleanPointsFrame {
-                timestamps: vec![1, 2, 3],
-                values: vec![false, true, false],
-            })),
-        };
-        let frame2 = Frame {
-            data: Some(Data::BooleanPoints(BooleanPointsFrame {
-                timestamps: vec![4],
-                values: vec![true],
-            })),
-        };
-        let fsize1 = frame_size(&frame1);
-        let fsize2 = frame_size(&frame2);
-
-        // no respones
-        assert_eq!(chunk_read_responses(vec![], 1), vec![],);
-
-        // no frames
-        assert_eq!(
-            chunk_read_responses(vec![ReadResponse { frames: vec![] }], 1),
-            vec![],
-        );
-
-        // split
-        assert_eq!(
-            chunk_read_responses(
-                vec![ReadResponse {
-                    frames: vec![
-                        frame1.clone(),
-                        frame1.clone(),
-                        frame2.clone(),
-                        frame2.clone(),
-                        frame1.clone(),
-                    ],
-                }],
-                fsize1 + fsize1 + fsize2,
-            ),
-            vec![
-                ReadResponse {
-                    frames: vec![frame1.clone(), frame1.clone(), frame2.clone()],
-                },
-                ReadResponse {
-                    frames: vec![frame2.clone(), frame1.clone()],
-                },
-            ],
-        );
-
-        // join
-        assert_eq!(
-            chunk_read_responses(
-                vec![
-                    ReadResponse {
-                        frames: vec![frame1.clone(), frame2.clone(),],
-                    },
-                    ReadResponse {
-                        frames: vec![frame2.clone(),],
-                    },
-                ],
-                fsize1 + fsize2 + fsize2,
-            ),
-            vec![ReadResponse {
-                frames: vec![frame1.clone(), frame2.clone(), frame2.clone()],
-            },],
-        );
-
-        // re-arrange
-        assert_eq!(
-            chunk_read_responses(
-                vec![
-                    ReadResponse {
-                        frames: vec![
-                            frame1.clone(),
-                            frame1.clone(),
-                            frame2.clone(),
-                            frame2.clone(),
-                            frame1.clone(),
-                        ],
-                    },
-                    ReadResponse {
-                        frames: vec![frame1.clone(), frame2.clone(),],
-                    },
-                ],
-                fsize1 + fsize1 + fsize2,
-            ),
-            vec![
-                ReadResponse {
-                    frames: vec![frame1.clone(), frame1.clone(), frame2.clone()],
-                },
-                ReadResponse {
-                    frames: vec![frame2.clone(), frame1.clone(), frame1],
-                },
-                ReadResponse {
-                    frames: vec![frame2],
-                },
-            ],
-        );
     }
 
     fn make_timestamp_range(start: i64, end: i64) -> TimestampRange {
