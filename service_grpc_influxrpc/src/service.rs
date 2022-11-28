@@ -2856,6 +2856,54 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_read_filter_field_as_tag() {
+        test_helpers::maybe_start_logging();
+        // Start a test gRPC server on a randomally allocated port
+        let mut fixture = Fixture::new().await.expect("Connecting to test server");
+
+        let db_info = org_and_bucket();
+
+        // Add a chunk with a field
+        let chunk = TestChunk::new("TheMeasurement")
+            .with_time_column()
+            .with_tag_column("state")
+            .with_string_field_column_with_stats("fff", None, None)
+            .with_one_row_of_data();
+
+        fixture
+            .test_storage
+            .db_or_create(db_info.db_name())
+            .await
+            .add_chunk("my_partition_key", Arc::new(chunk));
+
+        let source = Some(StorageClient::read_source(&db_info, 1));
+
+        // Create a tag predicate that happens to match the name
+        // of a field.
+        let request = ReadFilterRequest {
+            read_source: source.clone(),
+            range: None,
+            predicate: Some(make_tag_predicate("fff", "MA", node::Comparison::Equal)),
+            ..Default::default()
+        };
+
+        let frames = fixture
+            .storage_client
+            .read_filter(request.clone())
+            .await
+            .unwrap();
+
+        // should return no data because `fff` is not a tag, it is a field.
+        assert_eq!(
+            frames.len(),
+            0,
+            "unexpected frames returned by query_series"
+        );
+
+        grpc_request_metric_has_count(&fixture, "ReadFilter", "ok", 1);
+    }
+
+    #[tokio::test]
     async fn test_read_filter_error() {
         test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port

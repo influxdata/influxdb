@@ -3,14 +3,15 @@ use std::sync::Arc;
 
 #[cfg(test)]
 use crate::scenarios::{
-    DbScenario, DbSetup, EndToEndTest, TwoMeasurements, TwoMeasurementsManyFields,
+    DbScenario, DbSetup, EndToEndTest, StringFieldWithNumericValue, TwoMeasurements,
+    TwoMeasurementsManyFields,
 };
 use crate::{
     db::AbstractDb,
     influxrpc::util::run_series_set_plan_maybe_error,
     scenarios::{
         MeasurementStatusCode, MeasurementsForDefect2845, MeasurementsSortableTags, PeriodsInNames,
-        TwoMeasurementsMultiSeries,
+        TwoMeasurementsMultiSeries, TwoMeasurementsMultiTagValue,
     },
 };
 use datafusion::{
@@ -220,6 +221,26 @@ async fn test_read_filter_unknown_column_in_predicate() {
 }
 
 #[tokio::test]
+async fn test_read_filter_field_as_tag() {
+    // Columns in the RPC predicate must be treated as tags:
+    // https://github.com/influxdata/idpe/issues/16238
+    let predicate = Predicate::new().with_expr(make_empty_tag_ref_expr("fld").eq(lit("200")));
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+    // fld exists in the table, but only as a field, not a tag, so no data should be returned.
+    let expected_results = vec![];
+    run_read_filter_test_case(StringFieldWithNumericValue {}, predicate, expected_results).await;
+}
+
+#[tokio::test]
+async fn test_read_filter_field_as_tag_coerce_number() {
+    // Same as above except for the predicate compares to an integer literal.
+    let predicate = Predicate::new().with_expr(make_empty_tag_ref_expr("fld").eq(lit(200)));
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+    let expected_results = vec![];
+    run_read_filter_test_case(StringFieldWithNumericValue {}, predicate, expected_results).await;
+}
+
+#[tokio::test]
 async fn test_read_filter_data_filter() {
     // filter out one row in h20
     let predicate = Predicate::default()
@@ -390,19 +411,20 @@ async fn test_read_filter_data_pred_unsupported_in_scan() {
     // These predicates can't be pushed down into chunks, but they can
     // be evaluated by the general purpose DataFusion plan
 
-    // (STATE = 'CA') OR (READING > 0)
-    let predicate =
-        Predicate::default().with_expr(col("state").eq(lit("CA")).or(col("reading").gt(lit(0))));
+    // (STATE = 'CA') OR (CITY = 'Boston')
+    let predicate = Predicate::default()
+        .with_expr(col("state").eq(lit("CA")).or(col("city").eq(lit("Boston"))));
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     // Note these results include data from both o2 and h2o
     let expected_results = vec![
-        "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [200, 350], values: [90.0, 90.0]",
-        "Series tags={_field=reading, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.0, 51.0]",
-        "Series tags={_field=temp, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.4, 53.4]",
+        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [100], values: [70.4]",
+        "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [200], values: [90.0]",
+        "Series tags={_field=reading, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100], values: [50.0]",
+        "Series tags={_field=temp, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100], values: [50.4]",
     ];
 
-    run_read_filter_test_case(TwoMeasurementsMultiSeries {}, predicate, expected_results).await;
+    run_read_filter_test_case(TwoMeasurementsMultiTagValue {}, predicate, expected_results).await;
 }
 
 #[tokio::test]

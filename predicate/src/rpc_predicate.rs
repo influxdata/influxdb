@@ -18,7 +18,7 @@ use schema::Schema;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use self::column_rewrite::MissingColumnRewriter;
+use self::column_rewrite::MissingTagColumnRewriter;
 use self::field_rewrite::FieldProjectionRewriter;
 use self::measurement_rewrite::rewrite_measurement_references;
 use self::value_rewrite::rewrite_field_value_references;
@@ -192,7 +192,7 @@ fn normalize_predicate(
     let mut predicate = predicate.clone();
 
     let mut field_projections = FieldProjectionRewriter::new(Arc::clone(&schema));
-    let mut missing_columums = MissingColumnRewriter::new(Arc::clone(&schema));
+    let mut missing_tag_columns = MissingTagColumnRewriter::new(Arc::clone(&schema));
 
     let mut field_value_exprs = vec![];
 
@@ -219,8 +219,11 @@ fn normalize_predicate(
                 // the field column projection set.
                 .and_then(|e| field_projections.rewrite_field_exprs(e))
                 .map(|e| log_rewrite(e, "field_projections"))
-                // remove references to columns that don't exist in this schema
-                .and_then(|e| e.rewrite(&mut missing_columums))
+                // Any column references that exist in the RPC predicate must exist
+                // in the table's schema as tags. Replace any column references that
+                // do not exist, or that are not tags, with NULL.
+                // Field values always use `_value` as a name and are handled above.
+                .and_then(|e| e.rewrite(&mut missing_tag_columns))
                 .map(|e| log_rewrite(e, "missing_columums"))
                 // apply IOx specific rewrites (that unlock other simplifications)
                 .and_then(rewrite::rewrite)

@@ -1921,7 +1921,10 @@ fn cheap_chunk_first(mut chunks: Vec<Arc<dyn QueryChunk>>) -> Vec<Arc<dyn QueryC
 
 #[cfg(test)]
 mod tests {
-    use datafusion::prelude::{col, lit, lit_timestamp_nano};
+    use datafusion::{
+        common::ScalarValue,
+        prelude::{col, lit},
+    };
     use datafusion_util::lit_dict;
     use futures::{future::BoxFuture, FutureExt};
     use predicate::{rpc_predicate::QueryNamespaceMeta, Predicate};
@@ -2491,16 +2494,20 @@ mod tests {
         // more complicated _measurement predicates are translated
         //
         // https://github.com/influxdata/influxdb_iox/issues/3601
-        // (_measurement = 'foo' or measurement = 'h2o') AND time > 5
+        // (_measurement = 'foo' or measurement = 'h2o') AND foo = 'bar'
         let silly_predicate = Predicate::new().with_expr(
             col("_measurement")
                 .eq(lit("foo"))
                 .or(col("_measurement").eq(lit("h2o")))
-                .and(col("time").gt(lit_timestamp_nano(5))),
+                .and(col("foo").eq(lit("bar"))),
         );
 
-        // verify that the predicate was rewritten to time > 5
-        let expr = col("time").gt(lit_timestamp_nano(5));
+        // verify that the predicate was rewritten to foo = 'bar'
+        let dict = ScalarValue::Dictionary(
+            Box::new(DataType::Int32),
+            Box::new(ScalarValue::Utf8(Some("bar".to_string()))),
+        );
+        let expr = col("foo").eq(lit(dict));
 
         let expected_predicate = Predicate::new().with_expr(expr);
         run_test_with_predicate(&func, silly_predicate, expected_predicate).await;

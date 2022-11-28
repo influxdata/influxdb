@@ -4,31 +4,33 @@ use datafusion::{
     error::Result as DataFusionResult, logical_expr::expr_rewriter::ExprRewriter, prelude::*,
     scalar::ScalarValue,
 };
-use schema::Schema;
+use schema::{InfluxColumnType, Schema};
 
 /// Logic for rewriting expressions from influxrpc that reference non
-/// existent columns to NULL
+/// existent columns, or columns that are not tags, to NULL.
 #[derive(Debug)]
-pub(crate) struct MissingColumnRewriter {
+pub(crate) struct MissingTagColumnRewriter {
     /// The input schema
     schema: Arc<Schema>,
 }
 
-impl MissingColumnRewriter {
-    /// Create a new [`MissingColumnRewriter`] targeting the given schema
+impl MissingTagColumnRewriter {
+    /// Create a new [`MissingTagColumnRewriter`] targeting the given schema
     pub(crate) fn new(schema: Arc<Schema>) -> Self {
         Self { schema }
     }
 
-    fn column_exists(&self, col: &Column) -> DataFusionResult<bool> {
+    fn tag_column_exists(&self, col: &Column) -> DataFusionResult<bool> {
         // todo a real error here (rpc_predicates shouldn't have table/relation qualifiers)
         assert!(col.relation.is_none());
 
-        if self.schema.find_index_of(&col.name).is_some() {
-            Ok(true)
-        } else {
-            Ok(false)
-        }
+        let exists = self
+            .schema
+            .find_index_of(&col.name)
+            .map(|i| self.schema.field(i).0)
+            .map(|influx_column_type| influx_column_type == InfluxColumnType::Tag)
+            .unwrap_or(false);
+        Ok(exists)
     }
 }
 
@@ -36,10 +38,10 @@ fn lit_null() -> Expr {
     lit(ScalarValue::Utf8(None))
 }
 
-impl ExprRewriter for MissingColumnRewriter {
+impl ExprRewriter for MissingTagColumnRewriter {
     fn mutate(&mut self, expr: Expr) -> DataFusionResult<Expr> {
         Ok(match expr {
-            Expr::Column(col) if !self.column_exists(&col)? => lit_null(),
+            Expr::Column(col) if !self.tag_column_exists(&col)? => lit_null(),
             expr => expr,
         })
     }
@@ -58,8 +60,8 @@ mod tests {
         let expr = col("t1").eq(lit("foo"));
         assert_eq!(rewrite(expr.clone()), expr);
 
-        // f1 > 1.0
-        let expr = col("f1").gt(lit(1.0));
+        // t2 = "bar"
+        let expr = col("t2").eq(lit("bar"));
         assert_eq!(rewrite(expr.clone()), expr);
     }
 
@@ -87,15 +89,23 @@ mod tests {
         assert_eq!(rewrite(expr), expected);
     }
 
+    #[test]
+    fn column_is_field() {
+        let expr = col("f1").eq(lit(31));
+        let expected = lit_null().eq(lit(31));
+        assert_eq!(rewrite(expr), expected);
+    }
+
     fn rewrite(expr: Expr) -> Expr {
         let schema = SchemaBuilder::new()
             .tag("t1")
+            .tag("t2")
             .field("f1", DataType::Int64)
             .unwrap()
             .build()
             .unwrap();
 
-        let mut rewriter = MissingColumnRewriter::new(Arc::new(schema));
+        let mut rewriter = MissingTagColumnRewriter::new(Arc::new(schema));
         expr.rewrite(&mut rewriter).unwrap()
     }
 }
