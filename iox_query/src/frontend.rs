@@ -314,7 +314,7 @@ mod test {
             if !(self.pred)(plan) {
                 return Ok(true);
             }
-            let metrics = plan.metrics().unwrap().aggregate_by_partition();
+            let metrics = plan.metrics().unwrap().aggregate_by_name();
             let mut elapsed_compute: Option<metrics::Time> = None;
             let mut output_rows: Option<metrics::Count> = None;
             let mut start_timestamp: Option<metrics::Timestamp> = None;

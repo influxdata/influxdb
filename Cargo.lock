@@ -329,6 +329,7 @@ dependencies = [
  "memchr",
  "pin-project-lite",
  "tokio",
+ "xz2",
 ]
 
 [[package]]
@@ -1236,7 +1237,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "14.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ebb24c5bf46f2af362aebffba2012875b328e799#ebb24c5bf46f2af362aebffba2012875b328e799"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=a61615b2949bea9027eefe686613605e135780f2#a61615b2949bea9027eefe686613605e135780f2"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
@@ -1255,7 +1256,7 @@ dependencies = [
  "flate2",
  "futures",
  "glob",
- "hashbrown 0.12.3",
+ "hashbrown 0.13.1",
  "itertools",
  "lazy_static",
  "log",
@@ -1268,43 +1269,44 @@ dependencies = [
  "pin-project-lite",
  "rand",
  "smallvec",
- "sqlparser 0.26.0",
+ "sqlparser",
  "tempfile",
  "tokio",
  "tokio-stream",
  "tokio-util",
  "url",
  "uuid",
+ "xz2",
 ]
 
 [[package]]
 name = "datafusion-common"
 version = "14.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ebb24c5bf46f2af362aebffba2012875b328e799#ebb24c5bf46f2af362aebffba2012875b328e799"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=a61615b2949bea9027eefe686613605e135780f2#a61615b2949bea9027eefe686613605e135780f2"
 dependencies = [
  "arrow",
  "chrono",
  "object_store",
  "parquet",
- "sqlparser 0.26.0",
+ "sqlparser",
 ]
 
 [[package]]
 name = "datafusion-expr"
 version = "14.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ebb24c5bf46f2af362aebffba2012875b328e799#ebb24c5bf46f2af362aebffba2012875b328e799"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=a61615b2949bea9027eefe686613605e135780f2#a61615b2949bea9027eefe686613605e135780f2"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
  "datafusion-common",
  "log",
- "sqlparser 0.26.0",
+ "sqlparser",
 ]
 
 [[package]]
 name = "datafusion-optimizer"
 version = "14.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ebb24c5bf46f2af362aebffba2012875b328e799#ebb24c5bf46f2af362aebffba2012875b328e799"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=a61615b2949bea9027eefe686613605e135780f2#a61615b2949bea9027eefe686613605e135780f2"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1312,14 +1314,14 @@ dependencies = [
  "datafusion-common",
  "datafusion-expr",
  "datafusion-physical-expr",
- "hashbrown 0.12.3",
+ "hashbrown 0.13.1",
  "log",
 ]
 
 [[package]]
 name = "datafusion-physical-expr"
 version = "14.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ebb24c5bf46f2af362aebffba2012875b328e799#ebb24c5bf46f2af362aebffba2012875b328e799"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=a61615b2949bea9027eefe686613605e135780f2#a61615b2949bea9027eefe686613605e135780f2"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
@@ -1332,7 +1334,7 @@ dependencies = [
  "datafusion-expr",
  "datafusion-row",
  "half 2.1.0",
- "hashbrown 0.12.3",
+ "hashbrown 0.13.1",
  "itertools",
  "lazy_static",
  "md-5",
@@ -1348,7 +1350,7 @@ dependencies = [
 [[package]]
 name = "datafusion-proto"
 version = "14.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ebb24c5bf46f2af362aebffba2012875b328e799#ebb24c5bf46f2af362aebffba2012875b328e799"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=a61615b2949bea9027eefe686613605e135780f2#a61615b2949bea9027eefe686613605e135780f2"
 dependencies = [
  "arrow",
  "datafusion",
@@ -1362,7 +1364,7 @@ dependencies = [
 [[package]]
 name = "datafusion-row"
 version = "14.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ebb24c5bf46f2af362aebffba2012875b328e799#ebb24c5bf46f2af362aebffba2012875b328e799"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=a61615b2949bea9027eefe686613605e135780f2#a61615b2949bea9027eefe686613605e135780f2"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1373,12 +1375,12 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "14.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ebb24c5bf46f2af362aebffba2012875b328e799#ebb24c5bf46f2af362aebffba2012875b328e799"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=a61615b2949bea9027eefe686613605e135780f2#a61615b2949bea9027eefe686613605e135780f2"
 dependencies = [
  "arrow",
  "datafusion-common",
  "datafusion-expr",
- "sqlparser 0.26.0",
+ "sqlparser",
 ]
 
 [[package]]
@@ -2395,7 +2397,7 @@ version = "0.1.0"
 dependencies = [
  "generated_types",
  "snafu",
- "sqlparser 0.27.0",
+ "sqlparser",
  "workspace-hack",
 ]
 
@@ -3064,6 +3066,17 @@ checksum = "57d27b317e207b10f69f5e75494119e391a96f48861ae870d1da6edac98ca900"
 dependencies = [
  "cc",
  "libc",
+]
+
+[[package]]
+name = "lzma-sys"
+version = "0.1.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5fda04ab3764e6cde78b9974eec4f779acaba7c4e84b36eca3cf77c581b85d27"
+dependencies = [
+ "cc",
+ "libc",
+ "pkg-config",
 ]
 
 [[package]]
@@ -3903,7 +3916,7 @@ dependencies = [
  "query_functions",
  "schema",
  "snafu",
- "sqlparser 0.27.0",
+ "sqlparser",
  "test_helpers",
  "workspace-hack",
 ]
@@ -5050,15 +5063,6 @@ dependencies = [
  "itertools",
  "nom",
  "unicode_categories",
-]
-
-[[package]]
-name = "sqlparser"
-version = "0.26.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86be66ea0b2b22749cfa157d16e2e84bf793e626a3375f4d378dc289fa03affb"
-dependencies = [
- "log",
 ]
 
 [[package]]
@@ -6288,7 +6292,6 @@ dependencies = [
 name = "workspace-hack"
 version = "0.1.0"
 dependencies = [
- "ahash 0.7.6",
  "ahash 0.8.2",
  "arrow",
  "base64",
@@ -6304,6 +6307,7 @@ dependencies = [
  "either",
  "fixedbitset",
  "flatbuffers",
+ "flate2",
  "futures-channel",
  "futures-core",
  "futures-io",
@@ -6414,6 +6418,15 @@ dependencies = [
  "serde_json",
  "snafu",
  "workspace-hack",
+]
+
+[[package]]
+name = "xz2"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "388c44dc09d76f1536602ead6d325eb532f5c122f17782bd57fb47baeeb767e2"
+dependencies = [
+ "lzma-sys",
 ]
 
 [[package]]

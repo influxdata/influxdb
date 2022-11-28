@@ -225,6 +225,11 @@ macro_rules! make_first_selector {
 
                 Ok(())
             }
+
+            fn size(&self) -> usize {
+                // no nested types
+                std::mem::size_of_val(self)
+            }
         }
     };
 }
@@ -334,6 +339,11 @@ macro_rules! make_last_selector {
                 }
 
                 Ok(())
+            }
+
+            fn size(&self) -> usize {
+                // no nested types
+                std::mem::size_of_val(self)
             }
         }
     };
@@ -476,6 +486,11 @@ macro_rules! make_min_selector {
                 }
                 Ok(())
             }
+
+            fn size(&self) -> usize {
+                // no nested types
+                std::mem::size_of_val(self)
+            }
         }
     };
 }
@@ -592,6 +607,11 @@ macro_rules! make_max_selector {
                         .min(); // still use min
                 }
                 Ok(())
+            }
+
+            fn size(&self) -> usize {
+                // no nested types
+                std::mem::size_of_val(self)
             }
         }
     };

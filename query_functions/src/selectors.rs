@@ -393,6 +393,12 @@ trait Selector: Debug + Default + Send + Sync {
 
     /// Update this selector's state based on values in value_arr and time_arr
     fn update_batch(&mut self, value_arr: &ArrayRef, time_arr: &ArrayRef) -> DataFusionResult<()>;
+
+    /// Allocated size required for this selector, in bytes,
+    /// including `Self`.  Allocated means that for internal
+    /// containers such as `Vec`, the `capacity` should be used not
+    /// the `len`
+    fn size(&self) -> usize;
 }
 
 /// Describes which part of the selector to return: the timestamp or
@@ -525,6 +531,14 @@ where
     // between execution stages.
     fn state(&self) -> DataFusionResult<Vec<AggregateState>> {
         self.selector.datafusion_state()
+    }
+
+    /// Allocated size required for this accumulator, in bytes,
+    /// including `Self`.  Allocated means that for internal
+    /// containers such as `Vec`, the `capacity` should be used not
+    /// the `len`
+    fn size(&self) -> usize {
+        std::mem::size_of_val(self) - std::mem::size_of_val(&self.selector) + self.selector.size()
     }
 
     // Return the final value of this aggregator.

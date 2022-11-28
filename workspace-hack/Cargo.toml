@@ -16,8 +16,7 @@ license.workspace = true
 
 ### BEGIN HAKARI SECTION
 [dependencies]
-ahash-ca01ad9e24f5d932 = { package = "ahash", version = "0.7", features = ["std"] }
-ahash-c38e5c1d305a1b54 = { package = "ahash", version = "0.8", default-features = false, features = ["compile-time-rng", "const-random", "getrandom", "runtime-rng"] }
+ahash = { version = "0.8", default-features = false, features = ["compile-time-rng", "const-random", "getrandom", "runtime-rng"] }
 arrow = { version = "27", features = ["arrow-csv", "arrow-ipc", "arrow-json", "comfy-table", "csv", "dyn_cmp_dict", "ipc", "json", "prettyprint"] }
 base64 = { version = "0.13", features = ["std"] }
 bitflags = { version = "1" }
@@ -26,11 +25,12 @@ bytes = { version = "1", features = ["std"] }
 chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "iana-time-zone", "serde", "std", "winapi"] }
 crossbeam-utils = { version = "0.8", features = ["std"] }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "ebb24c5bf46f2af362aebffba2012875b328e799", features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "a61615b2949bea9027eefe686613605e135780f2", features = ["async-compression", "bzip2", "compression", "crypto_expressions", "flate2", "regex_expressions", "unicode_expressions", "xz2"] }
 digest = { version = "0.10", features = ["alloc", "block-buffer", "core-api", "mac", "std", "subtle"] }
 either = { version = "1", features = ["use_std"] }
 fixedbitset = { version = "0.4", features = ["std"] }
 flatbuffers = { version = "22", features = ["thiserror"] }
+flate2 = { version = "1", features = ["miniz_oxide", "rust_backend"] }
 futures-channel = { version = "0.3", features = ["alloc", "futures-sink", "sink", "std"] }
 futures-core = { version = "0.3", features = ["alloc", "std"] }
 futures-io = { version = "0.3", features = ["std"] }
@@ -39,7 +39,7 @@ futures-task = { version = "0.3", default-features = false, features = ["alloc",
 futures-util = { version = "0.3", features = ["alloc", "async-await", "async-await-macro", "channel", "futures-channel", "futures-io", "futures-macro", "futures-sink", "io", "memchr", "sink", "slab", "std"] }
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
 hashbrown-5ef9efb8ec2df382 = { package = "hashbrown", version = "0.12", features = ["ahash", "inline-more", "raw"] }
-hashbrown-594e8ee84c453af0 = { package = "hashbrown", version = "0.13", features = ["ahash", "inline-more"] }
+hashbrown-594e8ee84c453af0 = { package = "hashbrown", version = "0.13", features = ["ahash", "inline-more", "raw"] }
 indexmap = { version = "1", default-features = false, features = ["std"] }
 libc = { version = "0.2", features = ["extra_traits", "std"] }
 lock_api = { version = "0.4", default-features = false, features = ["arc_lock"] }
@@ -87,7 +87,6 @@ zstd-safe = { version = "5", default-features = false, features = ["arrays", "le
 zstd-sys = { version = "2", default-features = false, features = ["legacy", "std", "zdict_builder"] }
 
 [build-dependencies]
-ahash-ca01ad9e24f5d932 = { package = "ahash", version = "0.7", features = ["std"] }
 base64 = { version = "0.13", features = ["std"] }
 bitflags = { version = "1" }
 byteorder = { version = "1", features = ["std"] }
