@@ -17,6 +17,7 @@ use crate::{
         BufferTree,
     },
     server::grpc::GrpcDelegate,
+    timestamp_oracle::TimestampOracle,
     TRANSITION_SHARD_ID,
 };
 
@@ -146,5 +147,10 @@ pub async fn new(
         metrics,
     ));
 
-    Ok(GrpcDelegate::new(Arc::clone(&buffer), buffer))
+    // TODO: replay WAL into buffer
+    //
+    // TODO: recover next sequence number from WAL
+    let timestamp = Arc::new(TimestampOracle::new(0));
+
+    Ok(GrpcDelegate::new(Arc::clone(&buffer), buffer, timestamp))
 }

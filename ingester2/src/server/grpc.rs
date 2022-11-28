@@ -17,6 +17,7 @@ use crate::{
     dml_sink::DmlSink,
     init::IngesterRpcInterface,
     query::{response::QueryResponse, QueryExec},
+    timestamp_oracle::TimestampOracle,
 };
 
 use self::rpc_write::RpcWrite;
@@ -30,6 +31,7 @@ use self::rpc_write::RpcWrite;
 pub(crate) struct GrpcDelegate<D, Q> {
     dml_sink: Arc<D>,
     query_exec: Arc<Q>,
+    timestamp: Arc<TimestampOracle>,
 }
 
 impl<D, Q> GrpcDelegate<D, Q>
@@ -38,10 +40,15 @@ where
     Q: QueryExec<Response = QueryResponse> + 'static,
 {
     /// Initialise a new [`GrpcDelegate`].
-    pub(crate) fn new(dml_sink: Arc<D>, query_exec: Arc<Q>) -> Self {
+    pub(crate) fn new(
+        dml_sink: Arc<D>,
+        query_exec: Arc<Q>,
+        timestamp: Arc<TimestampOracle>,
+    ) -> Self {
         Self {
             dml_sink,
             query_exec,
+            timestamp,
         }
     }
 }
@@ -71,7 +78,10 @@ where
     ///
     /// [`WriteService`]: generated_types::influxdata::iox::catalog::v1::write_service_server::WriteService.
     fn write_service(&self) -> WriteServiceServer<Self::WriteHandler> {
-        WriteServiceServer::new(RpcWrite::new(Arc::clone(&self.dml_sink)))
+        WriteServiceServer::new(RpcWrite::new(
+            Arc::clone(&self.dml_sink),
+            Arc::clone(&self.timestamp),
+        ))
     }
 
     /// Return an Arrow [`FlightService`] gRPC implementation.

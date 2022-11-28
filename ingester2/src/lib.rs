@@ -15,11 +15,12 @@
     unreachable_pub
 )]
 
-use data_types::ShardId;
+use data_types::{ShardId, ShardIndex};
 
 /// During the testing of ingester2, the catalog will require a ShardId for
 /// various operations. This is a const value for these occasions.
 const TRANSITION_SHARD_ID: ShardId = ShardId::new(1);
+const TRANSITION_SHARD_INDEX: ShardIndex = ShardIndex::new(1);
 
 /// Ingester initialisation methods & types.
 ///
