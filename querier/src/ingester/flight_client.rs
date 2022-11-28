@@ -120,15 +120,42 @@ fn serialize_ingester_query_request(
 ) -> Result<proto::IngesterQueryRequest, Error> {
     match request.clone().try_into() {
         Ok(proto) => Ok(proto),
-        Err(e) if (e.field == "exprs") && (e.description.contains("recursion limit reached")) => {
-            warn!(
-                predicate=?request.predicate,
-                "Cannot serialize predicate due to recursion limit, stripping it",
-            );
-            request.predicate = None;
-            request.try_into().context(CreatingRequestSnafu)
+        Err(e) => {
+            match SerializeFailureReason::extract_from_description(&e.field, &e.description) {
+                Some(reason) => {
+                    warn!(
+                        predicate=?request.predicate,
+                        reason=?reason,
+                        "Cannot serialize predicate, stripping it",
+                    );
+                    request.predicate = None;
+                    request.try_into().context(CreatingRequestSnafu)
+                }
+                None => Err(Error::CreatingRequest { source: e }),
+            }
         }
-        Err(e) => Err(Error::CreatingRequest { source: e }),
+    }
+}
+
+#[derive(Debug)]
+enum SerializeFailureReason {
+    RecursionLimit,
+    NotSupported,
+}
+
+impl SerializeFailureReason {
+    fn extract_from_description(field: &str, description: &str) -> Option<Self> {
+        if field != "exprs" {
+            return None;
+        }
+
+        if description.contains("recursion limit reached") {
+            Some(Self::RecursionLimit)
+        } else if description.contains("not supported") {
+            Some(Self::NotSupported)
+        } else {
+            None
+        }
     }
 }
 
@@ -217,7 +244,10 @@ impl CachedConnection {
 #[cfg(test)]
 mod tests {
     use data_types::{NamespaceId, TableId};
-    use datafusion::prelude::{col, lit, when, Expr};
+    use datafusion::{
+        logical_expr::LogicalPlanBuilder,
+        prelude::{col, exists, lit, when, Expr},
+    };
     use predicate::Predicate;
 
     use super::*;
@@ -283,6 +313,17 @@ mod tests {
 
             panic!("did not find a 'too deeply nested' expression, tested up to a depth of {n_max}")
         }).expect("spawning thread").join().expect("joining thread");
+    }
+
+    #[test]
+    fn serialize_predicate_that_is_unsupported() {
+        // See https://github.com/influxdata/influxdb_iox/issues/6195
+
+        let subquery = Arc::new(LogicalPlanBuilder::empty(true).build().unwrap());
+        let expr = exists(subquery);
+
+        let (_request1, request2) = serialize_roundtrip(expr);
+        assert!(request2.predicate.is_none());
     }
 
     /// Creates a [`IngesterQueryRequest`] and round trips it through
