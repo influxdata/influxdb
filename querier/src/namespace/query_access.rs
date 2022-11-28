@@ -195,8 +195,6 @@ impl ExecutionContextProvider for QuerierNamespace {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use super::*;
     use crate::namespace::test_util::{
         clear_parquet_cache, querier_namespace, querier_namespace_with_limit,
@@ -207,7 +205,6 @@ mod tests {
     use datafusion::common::DataFusionError;
     use iox_query::frontend::sql::SqlQueryPlanner;
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder};
-    use iox_time::TimeProvider;
     use metric::{Observation, RawReporter};
     use regex::Regex;
     use snafu::{ResultExt, Snafu};
@@ -590,170 +587,6 @@ mod tests {
             ],
         )
             .await;
-    }
-
-    #[tokio::test]
-    async fn test_prune_chunks_outside_retention() {
-        test_helpers::maybe_start_logging();
-
-        let catalog = TestCatalog::new();
-
-        // namespace with 1-hour retention policy
-        let ns = catalog.create_namespace_1hr_retention("ns").await;
-        let inside_retention = catalog.time_provider.now().timestamp_nanos(); // now
-        let outside_retention =
-            inside_retention - Duration::from_secs(2 * 60 * 60).as_nanos() as i64; // 2 hours ago
-
-        let shard = ns.create_shard(1).await;
-        let table = ns.create_table("cpu").await;
-
-        table.create_column("host", ColumnType::Tag).await;
-        table.create_column("time", ColumnType::Time).await;
-        table.create_column("load", ColumnType::F64).await;
-
-        let partition = table.with_shard(&shard).create_partition("a").await;
-
-        // C1: partially inside retention
-        let lp = format!(
-            "
-                cpu,host=a load=1 {}\n
-                cpu,host=aa load=11 {}\n
-            ",
-            inside_retention, outside_retention
-        );
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol(&lp)
-            .with_max_seq(1)
-            .with_min_time(outside_retention)
-            .with_max_time(inside_retention);
-        partition.create_parquet_file(builder).await;
-
-        // C2: fully inside retention
-        let lp = format!(
-            "
-            cpu,host=b load=2 {}\n
-            cpu,host=bb load=21 {}\n
-            ",
-            inside_retention, inside_retention
-        );
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol(&lp)
-            .with_max_seq(2)
-            .with_min_time(inside_retention)
-            .with_max_time(inside_retention);
-        partition.create_parquet_file(builder).await;
-
-        // C3: fully outside retention
-        let lp = format!(
-            "
-            cpu,host=z load=3 {}\n
-            cpu,host=zz load=31 {}\n
-            ",
-            outside_retention, outside_retention
-        );
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol(&lp)
-            .with_max_seq(3)
-            .with_min_time(outside_retention)
-            .with_max_time(outside_retention);
-        partition.create_parquet_file(builder).await;
-
-        let querier_namespace = Arc::new(querier_namespace(&ns).await);
-
-        let traces = Arc::new(RingBufferTraceCollector::new(100));
-        let span_ctx = SpanContext::new(Arc::clone(&traces) as _);
-
-        assert_query_with_span_ctx(
-            &querier_namespace,
-            "SELECT * FROM cpu order by host, load, time",
-            &[
-                "+------+------+----------------------+",
-                "| host | load | time                 |",
-                "+------+------+----------------------+",
-                "| a    | 1    | 1970-01-01T00:00:00Z |",
-                "| b    | 2    | 1970-01-01T00:00:00Z |",
-                "| bb   | 21   | 1970-01-01T00:00:00Z |",
-                "+------+------+----------------------+",
-            ],
-            Some(span_ctx.clone()),
-        )
-        .await;
-
-        // Should see only see 2 chunks (2 ParquetExecs)
-        assert_explain(
-            &querier_namespace,
-            "EXPLAIN SELECT * FROM cpu order by host, load, time",
-            &[
-                "+---------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+",
-                "| plan_type     | plan                                                                                                                                                                                |",
-                "+---------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+",
-                "| logical_plan  | Sort: cpu.host ASC NULLS LAST, cpu.load ASC NULLS LAST, cpu.time ASC NULLS LAST                                                                                                     |",
-                "|               |   Projection: cpu.host, cpu.load, cpu.time                                                                                                                                          |",
-                "|               |     TableScan: cpu projection=[host, load, time]                                                                                                                                    |",
-                "| physical_plan | SortExec: [host@0 ASC NULLS LAST,load@1 ASC NULLS LAST,time@2 ASC NULLS LAST]                                                                                                       |",
-                "|               |   ProjectionExec: expr=[host@0 as host, load@1 as load, time@2 as time]                                                                                                             |",
-                "|               |     DeduplicateExec: [host@0 ASC,time@2 ASC]                                                                                                                                        |",
-                "|               |       SortPreservingMergeExec: [host@0 ASC,time@2 ASC]                                                                                                                              |",
-                "|               |         SortExec: [host@0 ASC,time@2 ASC]                                                                                                                                           |",
-                "|               |           UnionExec                                                                                                                                                                 |",
-                "|               |             CoalesceBatchesExec: target_batch_size=4096                                                                                                                             |",
-                "|               |               FilterExec: time@2 < -9223372036854775808 OR time@2 > -3600000000000                                                                                                  |",
-                "|               |                 ParquetExec: limit=None, partitions=[1/1/1/1/<uuid>.parquet], output_ordering=[host@0 ASC, time@2 ASC], projection=[host, load, time] |",
-                "|               |             CoalesceBatchesExec: target_batch_size=4096                                                                                                                             |",
-                "|               |               FilterExec: time@2 < -9223372036854775808 OR time@2 > -3600000000000                                                                                                  |",
-                "|               |                 ParquetExec: limit=None, partitions=[1/1/1/1/<uuid>.parquet], output_ordering=[host@0 ASC, time@2 ASC], projection=[host, load, time] |",
-                "|               |                                                                                                                                                                                     |",
-                "+---------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+",
-            ],
-        )
-            .await;
-
-        assert_query_with_span_ctx(
-            &querier_namespace,
-            "SELECT * FROM cpu WHERE host != 'b' ORDER BY host,time",
-            &[
-                "+------+------+----------------------+",
-                "| host | load | time                 |",
-                "+------+------+----------------------+",
-                "| a    | 1    | 1970-01-01T00:00:00Z |",
-                "| bb   | 21   | 1970-01-01T00:00:00Z |",
-                "+------+------+----------------------+",
-            ],
-            Some(span_ctx),
-        )
-        .await;
-
-        // Should see only see 2 chunks (2 ParquetExecs)
-        assert_explain(
-            &querier_namespace,
-            "EXPLAIN SELECT * FROM cpu WHERE host != 'b' ORDER BY host,time",
-            &[
-                "+---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+",
-                "| plan_type     | plan                                                                                                                                                                                                                                  |",
-                "+---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+",
-                "| logical_plan  | Sort: cpu.host ASC NULLS LAST, cpu.time ASC NULLS LAST                                                                                                                                                                                |",
-                "|               |   Projection: cpu.host, cpu.load, cpu.time                                                                                                                                                                                            |",
-                "|               |     Filter: cpu.host != Dictionary(Int32, Utf8(\"b\"))                                                                                                                                                                                  |",
-                "|               |       TableScan: cpu projection=[host, load, time], partial_filters=[cpu.host != Dictionary(Int32, Utf8(\"b\"))]                                                                                                                        |",
-                "| physical_plan | SortExec: [host@0 ASC NULLS LAST,time@2 ASC NULLS LAST]                                                                                                                                                                               |",
-                "|               |   ProjectionExec: expr=[host@0 as host, load@1 as load, time@2 as time]                                                                                                                                                               |",
-                "|               |     CoalesceBatchesExec: target_batch_size=4096                                                                                                                                                                                       |",
-                "|               |       FilterExec: host@0 != b                                                                                                                                                                                                         |",
-                "|               |         DeduplicateExec: [host@0 ASC,time@2 ASC]                                                                                                                                                                                      |",
-                "|               |           SortPreservingMergeExec: [host@0 ASC,time@2 ASC]                                                                                                                                                                            |",
-                "|               |             SortExec: [host@0 ASC,time@2 ASC]                                                                                                                                                                                         |",
-                "|               |               UnionExec                                                                                                                                                                                                               |",
-                "|               |                 CoalesceBatchesExec: target_batch_size=4096                                                                                                                                                                           |",
-                "|               |                   FilterExec: time@2 < -9223372036854775808 OR time@2 > -3600000000000                                                                                                                                                |",
-                "|               |                     ParquetExec: limit=None, partitions=[1/1/1/1/<uuid>.parquet], predicate=host_min@0 != b OR b != host_max@1, output_ordering=[host@0 ASC, time@2 ASC], projection=[host, load, time] |",
-                "|               |                 CoalesceBatchesExec: target_batch_size=4096                                                                                                                                                                           |",
-                "|               |                   FilterExec: time@2 < -9223372036854775808 OR time@2 > -3600000000000                                                                                                                                                |",
-                "|               |                     ParquetExec: limit=None, partitions=[1/1/1/1/<uuid>.parquet], predicate=host_min@0 != b OR b != host_max@1, output_ordering=[host@0 ASC, time@2 ASC], projection=[host, load, time] |",
-                "|               |                                                                                                                                                                                                                                       |",
-                "+---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+",
-            ],
-        )
-        .await;
     }
 
     #[tokio::test]

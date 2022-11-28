@@ -996,7 +996,7 @@ impl DbSetup for ThreeChunksWithRetention {
         let inside_retention = time_provider.now().timestamp_nanos(); // now
         let outside_retention = inside_retention - retention_period_1_hour_ns - 10; // over one hour ago
 
-        let partition_key = "1970-01-01T00"; //"test_partition";
+        let partition_key = "test_partition";
 
         let l1 = format!("cpu,host=a load=1 {}", inside_retention);
         let l2 = format!("cpu,host=aa load=11 {}", outside_retention);
