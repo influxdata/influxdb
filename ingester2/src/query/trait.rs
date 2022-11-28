@@ -5,7 +5,7 @@ use data_types::{NamespaceId, TableId};
 use thiserror::Error;
 use trace::span::Span;
 
-use super::response::Response;
+use super::response::QueryResponse;
 
 #[derive(Debug, Error)]
 #[allow(missing_copy_implementations)]
@@ -25,7 +25,7 @@ pub(crate) trait QueryExec: Send + Sync + Debug {
         table_id: TableId,
         columns: Vec<String>,
         span: Option<Span>,
-    ) -> Result<Response, QueryError>;
+    ) -> Result<QueryResponse, QueryError>;
 }
 
 #[async_trait]
@@ -39,7 +39,7 @@ where
         table_id: TableId,
         columns: Vec<String>,
         span: Option<Span>,
-    ) -> Result<Response, QueryError> {
+    ) -> Result<QueryResponse, QueryError> {
         self.deref()
             .query_exec(namespace_id, table_id, columns, span)
             .await

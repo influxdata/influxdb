@@ -9,6 +9,7 @@ pub(crate) mod response;
 
 pub(crate) mod exec;
 pub(crate) mod instrumentation;
+pub(crate) mod tracing;
 
 #[cfg(test)]
 pub(crate) mod mock_query_exec;

@@ -18,12 +18,12 @@ pub(crate) type PartitionStream =
 ///
 /// The data structure is constructed to allow lazy/streaming/pull-based data
 /// sourcing..
-pub(crate) struct Response {
+pub(crate) struct QueryResponse {
     /// Stream of partitions.
     partitions: PartitionStream,
 }
 
-impl std::fmt::Debug for Response {
+impl std::fmt::Debug for QueryResponse {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Response")
             .field("partitions", &"<PARTITION STREAM>")
@@ -31,7 +31,7 @@ impl std::fmt::Debug for Response {
     }
 }
 
-impl Response {
+impl QueryResponse {
     /// Make a response
     pub(crate) fn new(partitions: PartitionStream) -> Self {
         Self { partitions }
@@ -42,7 +42,7 @@ impl Response {
         self.partitions
     }
 
-    /// Reduce the [`Response`] to a set of [`RecordBatch`].
+    /// Reduce the [`QueryResponse`] to a set of [`RecordBatch`].
     pub(crate) async fn into_record_batches(self) -> Result<Vec<RecordBatch>, ArrowError> {
         self.into_partition_stream()
             .map_ok(|partition| {

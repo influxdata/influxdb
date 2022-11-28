@@ -1,6 +1,6 @@
-//! The per-partition data nested in a query [`Response`].
+//! The per-partition data nested in a query [`QueryResponse`].
 //!
-//! [`Response`]: super::response::Response
+//! [`QueryResponse`]: super::response::QueryResponse
 
 use std::pin::Pin;
 

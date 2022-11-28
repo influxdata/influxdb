@@ -3,15 +3,15 @@ use data_types::{NamespaceId, TableId};
 use parking_lot::Mutex;
 use trace::span::Span;
 
-use super::{response::Response, QueryError, QueryExec};
+use super::{response::QueryResponse, QueryError, QueryExec};
 
 #[derive(Debug, Default)]
 pub(crate) struct MockQueryExec {
-    response: Mutex<Option<Result<Response, QueryError>>>,
+    response: Mutex<Option<Result<QueryResponse, QueryError>>>,
 }
 
 impl MockQueryExec {
-    pub(crate) fn with_result(self, r: Result<Response, QueryError>) -> Self {
+    pub(crate) fn with_result(self, r: Result<QueryResponse, QueryError>) -> Self {
         *self.response.lock() = Some(r);
         self
     }
@@ -25,7 +25,7 @@ impl QueryExec for MockQueryExec {
         _table_id: TableId,
         _columns: Vec<String>,
         _span: Option<Span>,
-    ) -> Result<Response, QueryError> {
+    ) -> Result<QueryResponse, QueryError> {
         self.response
             .lock()
             .take()

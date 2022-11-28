@@ -4,7 +4,7 @@ use observability_deps::tracing::*;
 use trace::span::{Span, SpanRecorder};
 
 use super::{QueryError, QueryExec};
-use crate::query::response::Response;
+use crate::query::response::QueryResponse;
 
 #[derive(Debug)]
 pub(crate) struct QueryRunner;
@@ -23,7 +23,7 @@ impl QueryExec for QueryRunner {
         table_id: TableId,
         columns: Vec<String>,
         span: Option<Span>,
-    ) -> Result<Response, QueryError> {
+    ) -> Result<QueryResponse, QueryError> {
         let mut _span_recorder = SpanRecorder::new(span);
 
         info!(
