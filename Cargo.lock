@@ -2469,6 +2469,7 @@ dependencies = [
  "async-trait",
  "backoff",
  "bytes",
+ "crossbeam-utils",
  "data_types",
  "datafusion",
  "datafusion_util",

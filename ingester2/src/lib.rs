@@ -48,6 +48,7 @@ mod query;
 mod query_adaptor;
 mod sequence_range;
 pub(crate) mod server;
+mod timestamp_oracle;
 
 #[cfg(test)]
 mod test_util;

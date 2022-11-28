@@ -12,6 +12,7 @@ arrow_util = { version = "0.1.0", path = "../arrow_util" }
 async-trait = "0.1.58"
 backoff = { version = "0.1.0", path = "../backoff" }
 bytes = "1.3.0"
+crossbeam-utils = "0.8.14"
 data_types = { version = "0.1.0", path = "../data_types" }
 datafusion.workspace = true
 datafusion_util = { path = "../datafusion_util" }
