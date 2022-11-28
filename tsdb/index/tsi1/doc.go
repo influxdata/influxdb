@@ -1,9 +1,8 @@
 /*
-
 Package tsi1 provides a memory-mapped index implementation that supports
 high cardinality series.
 
-Overview
+# Overview
 
 The top-level object in tsi1 is the Index. It is the primary access point from
 the rest of the system. The Index is composed of LogFile and IndexFile objects.
@@ -17,8 +16,7 @@ Index files also contain series information, however, they are highly indexed
 so that reads can be performed quickly. Index files are built through a process
 called compaction where a log file or multiple index files are merged together.
 
-
-Operations
+# Operations
 
 The index can perform many tasks related to series, measurement, & tag data.
 All data is inserted by adding a series to the index. When adding a series,
@@ -34,8 +32,7 @@ as by measurement name, by tag value, or by using regular expressions. The
 index provides an API to iterate over subsets of series and perform set
 operations such as unions and intersections.
 
-
-Log File Layout
+# Log File Layout
 
 The write-ahead file that series initially are inserted into simply appends
 all new operations sequentially. It is simply composed of a series of log
@@ -61,15 +58,13 @@ name, the tag set, and a checksum.
 When the log file is replayed, if the checksum is incorrect or the entry is
 incomplete (because of a partially failed write) then the log is truncated.
 
-
-Index File Layout
+# Index File Layout
 
 The index file is composed of 3 main block types: one series block, one or more
 tag blocks, and one measurement block. At the end of the index file is a
 trailer that records metadata such as the offsets to these blocks.
 
-
-Series Block Layout
+# Series Block Layout
 
 The series block stores raw series keys in sorted order. It also provides hash
 indexes so that series can be looked up quickly. Hash indexes are inserted
@@ -111,8 +106,7 @@ a trailer which contains metadata about the block.
 	┃ └──────────────────────┘ ┃
 	┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
-
-Tag Block Layout
+# Tag Block Layout
 
 After the series block is one or more tag blocks. One of these blocks exists
 for every measurement in the index file. The block is structured as a sorted
@@ -159,8 +153,7 @@ that value. Series iterators can be built around a single tag key value or
 multiple iterators can be merged with set operators such as union or
 intersection.
 
-
-Measurement block
+# Measurement block
 
 The measurement block stores a sorted list of measurements, their associated
 series offsets, and the offset to their tag block. This allows all series for
@@ -188,8 +181,7 @@ measurements.
 	┃ └──────────────────────┘ ┃
 	┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
-
-Manifest file
+# Manifest file
 
 The index is simply an ordered set of log and index files. These files can be
 merged together or rewritten but their order must always be the same. This is
@@ -200,8 +192,7 @@ Whenever the set of active files is changed, a manifest file is written to
 track the set. The manifest specifies the ordering of files and, on startup,
 all files not in the manifest are removed from the index directory.
 
-
-Compacting index files
+# Compacting index files
 
 Compaction is the process of taking files and merging them together into a
 single file. There are two stages of compaction within TSI.
@@ -216,8 +207,7 @@ they are all merged together into a single index file and the old files are
 discarded. Because all blocks are written in sorted order, the new index file
 can be streamed and minimize memory use.
 
-
-Concurrency
+# Concurrency
 
 Index files are immutable so they do not require fine grained locks, however,
 compactions require that we track which files are in use so they are not
@@ -232,7 +222,5 @@ returns to zero.
 Besides the reference counting, there are no other locking mechanisms when
 reading or writing index files. Log files, however, do require a lock whenever
 they are accessed. This is another reason to minimize log file size.
-
-
 */
 package tsi1
