@@ -54,6 +54,7 @@ impl From<DmlError> for tonic::Status {
     fn from(e: DmlError) -> Self {
         match e {
             DmlError::Buffer(e) => map_write_error(e),
+            DmlError::Wal(_) => Self::internal(e.to_string()),
         }
     }
 }
