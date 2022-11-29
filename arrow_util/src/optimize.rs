@@ -234,7 +234,6 @@ mod tests {
     };
     use arrow::compute::{concat, concat_batches};
     use arrow_flight::utils::flight_data_to_arrow_batch;
-    use datafusion::physical_plan::limit::truncate_batch;
     use std::iter::FromIterator;
 
     #[test]
@@ -463,7 +462,7 @@ mod tests {
         let (_, baseline_flight_batch) =
             arrow_flight::utils::flight_data_from_arrow_batch(&batch, &options);
 
-        let big_batch = truncate_batch(&batch, batch.num_rows() - 1);
+        let big_batch = batch.slice(0, batch.num_rows() - 1);
         let optimized_big_batch =
             optimize_record_batch(&big_batch, Arc::clone(&schema)).expect("failed to optimize");
         let (_, optimized_big_flight_batch) =
@@ -474,7 +473,7 @@ mod tests {
             optimized_big_flight_batch.data_body.len()
         );
 
-        let small_batch = truncate_batch(&batch, 1);
+        let small_batch = batch.slice(0, 1);
         let optimized_small_batch =
             optimize_record_batch(&small_batch, Arc::clone(&schema)).expect("failed to optimize");
         let (_, optimized_small_flight_batch) =
