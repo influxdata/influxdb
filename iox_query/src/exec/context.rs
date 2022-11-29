@@ -44,6 +44,7 @@ use datafusion_util::config::{iox_session_config, DEFAULT_CATALOG};
 use executor::DedicatedExecutor;
 use futures::{Stream, StreamExt, TryStreamExt};
 use observability_deps::tracing::debug;
+use once_cell::sync::Lazy;
 use query_functions::selectors::register_selector_aggregates;
 use std::{convert::TryInto, fmt, sync::Arc};
 use trace::{
@@ -218,7 +219,7 @@ impl IOxSessionConfig {
 
         let maybe_span = self.span_ctx.child_span("Query Execution");
 
-        IOxSessionContext::new(inner, Some(self.exec), SpanRecorder::new(maybe_span))
+        IOxSessionContext::new(inner, self.exec, SpanRecorder::new(maybe_span))
     }
 }
 
@@ -237,13 +238,13 @@ impl IOxSessionConfig {
 pub struct IOxSessionContext {
     inner: SessionContext,
 
-    /// Optional dedicated executor for query execution.
+    /// Dedicated executor for query execution.
     ///
     /// DataFusion plans are "CPU" bound and thus can consume tokio
     /// executors threads for extended periods of time. We use a
     /// dedicated tokio runtime to run them so that other requests
     /// can be handled.
-    exec: Option<DedicatedExecutor>,
+    exec: DedicatedExecutor,
 
     /// Span context from which to create spans for this query
     recorder: SpanRecorder,
@@ -253,9 +254,15 @@ impl fmt::Debug for IOxSessionContext {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("IOxSessionContext")
             .field("inner", &"<DataFusion ExecutionContext>")
+            .field("exec", &self.exec)
+            .field("recorder", &self.recorder)
             .finish()
     }
 }
+
+/// [`DedicatedExecutor`] for testing purposes.
+static TESTING_EXECUTOR: Lazy<DedicatedExecutor> =
+    Lazy::new(|| DedicatedExecutor::new("testing", 1));
 
 impl IOxSessionContext {
     /// Constructor for testing.
@@ -265,7 +272,7 @@ impl IOxSessionContext {
     pub fn with_testing() -> Self {
         Self {
             inner: SessionContext::default(),
-            exec: None,
+            exec: TESTING_EXECUTOR.clone(),
             recorder: SpanRecorder::default(),
         }
     }
@@ -273,7 +280,7 @@ impl IOxSessionContext {
     /// Private constructor
     pub(crate) fn new(
         inner: SessionContext,
-        exec: Option<DedicatedExecutor>,
+        exec: DedicatedExecutor,
         recorder: SpanRecorder,
     ) -> Self {
         // attach span to DataFusion session
@@ -594,13 +601,10 @@ impl IOxSessionContext {
         Fut: std::future::Future<Output = Result<T>> + Send + 'static,
         T: Send + 'static,
     {
-        match &self.exec {
-            Some(exec) => exec
-                .spawn(fut)
-                .await
-                .unwrap_or_else(|e| Err(Error::Execution(format!("Join Error: {}", e)))),
-            None => unimplemented!("spawn onto current threadpool"),
-        }
+        self.exec
+            .spawn(fut)
+            .await
+            .unwrap_or_else(|e| Err(Error::Execution(format!("Join Error: {}", e))))
     }
 
     /// Returns a IOxSessionContext with a SpanRecorder that is a child of the current
@@ -629,7 +633,7 @@ impl IOxSessionContext {
 
     /// Number of currently active tasks.
     pub fn tasks(&self) -> usize {
-        self.exec.as_ref().map(|e| e.tasks()).unwrap_or_default()
+        self.exec.tasks()
     }
 }
 
