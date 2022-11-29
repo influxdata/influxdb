@@ -3,7 +3,9 @@
 use std::{pin::Pin, sync::Arc};
 
 use arrow::{array::new_null_array, error::ArrowError, record_batch::RecordBatch};
-use arrow_util::optimize::{optimize_record_batch, optimize_schema, split_batch_for_grpc_response};
+use arrow_util::optimize::{
+    prepare_batch_for_flight, prepare_schema_for_flight, split_batch_for_grpc_response,
+};
 use data_types::{NamespaceId, PartitionId, SequenceNumber, TableId};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::MemoryStream;
@@ -133,7 +135,8 @@ impl IngesterQueryResponse {
                         .snapshots
                         .flat_map(|snapshot_res| match snapshot_res {
                             Ok(snapshot) => {
-                                let schema = Arc::new(optimize_schema(&snapshot.schema()));
+                                let schema =
+                                    Arc::new(prepare_schema_for_flight(&snapshot.schema()));
 
                                 let schema_captured = Arc::clone(&schema);
                                 let head = futures::stream::once(async {
@@ -144,7 +147,8 @@ impl IngesterQueryResponse {
 
                                 let tail = snapshot.flat_map(move |batch_res| match batch_res {
                                     Ok(batch) => {
-                                        match optimize_record_batch(&batch, Arc::clone(&schema)) {
+                                        match prepare_batch_for_flight(&batch, Arc::clone(&schema))
+                                        {
                                             Ok(batch) => futures::stream::iter(
                                                 split_batch_for_grpc_response(batch),
                                             )

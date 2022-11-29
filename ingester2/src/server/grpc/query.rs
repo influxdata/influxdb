@@ -6,7 +6,9 @@ use arrow_flight::{
     FlightData, FlightDescriptor, FlightInfo, HandshakeRequest, HandshakeResponse, IpcMessage,
     PutResult, SchemaAsIpc, SchemaResult, Ticket,
 };
-use arrow_util::optimize::{optimize_record_batch, optimize_schema, split_batch_for_grpc_response};
+use arrow_util::optimize::{
+    prepare_batch_for_flight, prepare_schema_for_flight, split_batch_for_grpc_response,
+};
 use data_types::{NamespaceId, PartitionId, TableId};
 use flatbuffers::FlatBufferBuilder;
 use futures::{Stream, StreamExt};
@@ -308,7 +310,7 @@ impl From<QueryResponse> for FlatIngesterQueryResponseStream {
                     .into_record_batch_stream()
                     .flat_map(|snapshot_res| match snapshot_res {
                         Ok(snapshot) => {
-                            let schema = Arc::new(optimize_schema(&snapshot.schema()));
+                            let schema = Arc::new(prepare_schema_for_flight(&snapshot.schema()));
 
                             let schema_captured = Arc::clone(&schema);
                             let head = futures::stream::once(async {
@@ -317,19 +319,17 @@ impl From<QueryResponse> for FlatIngesterQueryResponseStream {
                                 })
                             });
 
-                            // TODO: these optimize calls may be redundant
-                            //
-                            // See: https://github.com/apache/arrow-rs/issues/208
-                            let tail = match optimize_record_batch(&snapshot, Arc::clone(&schema)) {
-                                Ok(batch) => {
-                                    futures::stream::iter(split_batch_for_grpc_response(batch))
-                                        .map(|batch| {
-                                            Ok(FlatIngesterQueryResponse::RecordBatch { batch })
-                                        })
-                                        .boxed()
-                                }
-                                Err(e) => futures::stream::once(async { Err(e) }).boxed(),
-                            };
+                            let tail =
+                                match prepare_batch_for_flight(&snapshot, Arc::clone(&schema)) {
+                                    Ok(batch) => {
+                                        futures::stream::iter(split_batch_for_grpc_response(batch))
+                                            .map(|batch| {
+                                                Ok(FlatIngesterQueryResponse::RecordBatch { batch })
+                                            })
+                                            .boxed()
+                                    }
+                                    Err(e) => futures::stream::once(async { Err(e) }).boxed(),
+                                };
 
                             head.chain(tail).boxed()
                         }

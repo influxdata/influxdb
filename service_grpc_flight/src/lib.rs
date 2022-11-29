@@ -6,7 +6,9 @@ use arrow_flight::{
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
     HandshakeRequest, HandshakeResponse, PutResult, SchemaAsIpc, SchemaResult, Ticket,
 };
-use arrow_util::optimize::{optimize_record_batch, optimize_schema, split_batch_for_grpc_response};
+use arrow_util::optimize::{
+    prepare_batch_for_flight, prepare_schema_for_flight, split_batch_for_grpc_response,
+};
 use bytes::{Bytes, BytesMut};
 use data_types::NamespaceNameError;
 use datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
@@ -386,7 +388,7 @@ impl GetStream {
         let (mut tx, rx) = futures::channel::mpsc::channel::<Result<FlightData, tonic::Status>>(1);
 
         // get schema
-        let schema = Arc::new(optimize_schema(&physical_plan.schema()));
+        let schema = Arc::new(prepare_schema_for_flight(&physical_plan.schema()));
 
         // setup stream
         let options = arrow::ipc::writer::IpcWriteOptions::default();
@@ -414,7 +416,7 @@ impl GetStream {
             while let Some(batch_or_err) = stream_record_batches.next().await {
                 match batch_or_err {
                     Ok(batch) => {
-                        match optimize_record_batch(&batch, Arc::clone(&schema)) {
+                        match prepare_batch_for_flight(&batch, Arc::clone(&schema)) {
                             Ok(batch) => {
                                 for batch in split_batch_for_grpc_response(batch) {
                                     let (flight_dictionaries, flight_batch) =
