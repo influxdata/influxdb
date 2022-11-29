@@ -549,7 +549,7 @@ impl ClosedSegmentFileReader {
     }
 
     /// Return the next [`SequencedWalOp`] from this reader, if any.
-    pub async fn next_ops(&mut self) -> Result<Option<SequencedWalOp>> {
+    pub async fn next_op(&mut self) -> Result<Option<SequencedWalOp>> {
         Self::one_command(&self.tx, ClosedSegmentFileReaderRequest::NextOps)
             .await?
             .context(UnableToReadNextOpsSnafu)
@@ -622,19 +622,19 @@ mod tests {
         let mut reader = ClosedSegmentFileReader::from_path(&closed.path)
             .await
             .unwrap();
-        let read_op1 = reader.next_ops().await.unwrap().unwrap();
+        let read_op1 = reader.next_op().await.unwrap().unwrap();
         assert_eq!(op1, read_op1);
 
-        let read_op2 = reader.next_ops().await.unwrap().unwrap();
+        let read_op2 = reader.next_op().await.unwrap().unwrap();
         assert_eq!(op2, read_op2);
 
-        let read_op3 = reader.next_ops().await.unwrap().unwrap();
+        let read_op3 = reader.next_op().await.unwrap().unwrap();
         assert_eq!(op3, read_op3);
 
-        let read_op4 = reader.next_ops().await.unwrap().unwrap();
+        let read_op4 = reader.next_op().await.unwrap().unwrap();
         assert_eq!(op4, read_op4);
 
-        assert!(reader.next_ops().await.unwrap().is_none());
+        assert!(reader.next_op().await.unwrap().is_none());
     }
 
     // open wal with files that aren't segments (should log and skip)
@@ -671,7 +671,7 @@ mod tests {
             .reader_for_segment(closed_segment_details.id())
             .await
             .unwrap();
-        assert!(reader.next_ops().await.unwrap().is_none());
+        assert!(reader.next_op().await.unwrap().is_none());
 
         // Can delete an empty segment, leaving no closed segments again
         wal_rotator

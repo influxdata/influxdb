@@ -59,9 +59,9 @@ async fn crud() {
         .reader_for_segment(closed_segment_details.id())
         .await
         .unwrap();
-    let op = reader.next_ops().await.unwrap().unwrap();
+    let op = reader.next_op().await.unwrap().unwrap();
     assert_eq!(op.sequence_number, 42);
-    let op = reader.next_ops().await.unwrap().unwrap();
+    let op = reader.next_op().await.unwrap().unwrap();
     assert_eq!(op.sequence_number, 43);
 
     // Can delete a segment, leaving no closed segments again
@@ -104,8 +104,8 @@ async fn replay() {
         .reader_for_segment(closed_segment_ids[0])
         .await
         .unwrap();
-    let op = reader.next_ops().await.unwrap().unwrap();
-    assert_eq!(op.sequence_number.get(), 42);
+    let op = reader.next_op().await.unwrap().unwrap();
+    assert_eq!(op.sequence_number, 42);
 }
 
 fn arbitrary_sequenced_wal_op(sequence_number: u64) -> SequencedWalOp {
