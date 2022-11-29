@@ -9,8 +9,12 @@ use arrow::{
     datatypes::{DataType, Int32Type},
     record_batch::RecordBatch,
 };
-use datafusion::physical_plan::{common::collect, SendableRecordBatchStream};
+use datafusion::{
+    error::DataFusionError,
+    physical_plan::{common::collect, SendableRecordBatchStream},
+};
 
+use futures::{Stream, StreamExt, TryStreamExt};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::sync::Arc;
 use tokio::sync::mpsc::error::SendError;
@@ -269,11 +273,25 @@ impl GroupGenerator {
     }
 
     /// groups the set of `series` into SeriesOrGroups
-    pub fn group(&self, series: Vec<Series>) -> Result<Vec<Either>> {
+    ///
+    /// TODO: make this truly stream-based
+    pub async fn group<S>(
+        &self,
+        series: S,
+    ) -> Result<impl Stream<Item = Result<Either, DataFusionError>>, DataFusionError>
+    where
+        S: Stream<Item = Result<Series, DataFusionError>> + Send,
+    {
         let mut series = series
-            .into_iter()
-            .map(|series| SortableSeries::try_new(series, &self.group_columns))
-            .collect::<Result<Vec<_>>>()?;
+            .map(|res| {
+                res.and_then(|series| {
+                    SortableSeries::try_new(series, &self.group_columns)
+                        .map_err(|e| DataFusionError::External(Box::new(e)))
+                })
+            })
+            .try_collect::<Vec<_>>()
+            .await
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
         // Potential optimization is to skip this sort if we are
         // grouping by a prefix of the tags for a single measurement
@@ -331,7 +349,7 @@ impl GroupGenerator {
             output.push(series.into())
         }
 
-        Ok(output)
+        Ok(futures::stream::iter(output).map(Ok))
     }
 }
 

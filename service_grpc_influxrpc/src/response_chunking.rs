@@ -6,7 +6,7 @@ use std::{
 use futures::{ready, stream::BoxStream, Stream, StreamExt};
 use generated_types::{read_response::Frame, ReadResponse};
 
-/// Chunk given [`ReadResponse`]s -- while preserving the [`Frame`] order -- into responses that shall at max have the
+/// Chunk given [`Frame`]s -- while preserving the order -- into [`ReadResponse`]s that shall at max have the
 /// given `size_limit`, in bytes.
 pub struct ChunkReadResponses {
     inner: BoxStream<'static, Result<Frame, tonic::Status>>,
@@ -24,21 +24,12 @@ impl ChunkReadResponses {
     /// Panics if `size_limit` is 0.
     pub fn new<S>(inner: S, size_limit: usize) -> Self
     where
-        S: Stream<Item = Result<ReadResponse, tonic::Status>> + Send + 'static,
+        S: Stream<Item = Result<Frame, tonic::Status>> + Send + 'static,
     {
         assert!(size_limit > 0, "zero size limit");
 
         Self {
-            inner: inner
-                .flat_map(|res| match res {
-                    Ok(read_response) => {
-                        futures::stream::iter(read_response.frames).map(Ok).boxed()
-                            as BoxStream<'static, Result<Frame, tonic::Status>>
-                    }
-                    Err(e) => futures::stream::once(async move { Err(e) }).boxed()
-                        as BoxStream<'static, Result<Frame, tonic::Status>>,
-                })
-                .boxed(),
+            inner: inner.boxed(),
             size_limit,
             finished: false,
             frames: Vec::default(),
@@ -150,30 +141,16 @@ mod tests {
             vec![],
         );
 
-        // no frames
-        assert_eq!(
-            ChunkReadResponses::new(
-                futures::stream::iter(vec![Ok(ReadResponse { frames: vec![] })]),
-                1
-            )
-            .try_collect::<Vec<_>>()
-            .await
-            .unwrap(),
-            vec![],
-        );
-
         // split
         assert_eq!(
             ChunkReadResponses::new(
-                futures::stream::iter(vec![Ok(ReadResponse {
-                    frames: vec![
-                        frame1.clone(),
-                        frame1.clone(),
-                        frame2.clone(),
-                        frame2.clone(),
-                        frame1.clone(),
-                    ],
-                })]),
+                futures::stream::iter([
+                    Ok(frame1.clone()),
+                    Ok(frame1.clone()),
+                    Ok(frame2.clone()),
+                    Ok(frame2.clone()),
+                    Ok(frame1.clone()),
+                ]),
                 fsize1 + fsize1 + fsize2,
             )
             .try_collect::<Vec<_>>()
@@ -189,17 +166,12 @@ mod tests {
             ],
         );
 
-        // join
+        // single response
         assert_eq!(
             ChunkReadResponses::new(
-                futures::stream::iter(vec![
-                    Ok(ReadResponse {
-                        frames: vec![frame1.clone(), frame2.clone(),],
-                    }),
-                    Ok(ReadResponse {
-                        frames: vec![frame2.clone(),],
-                    }),
-                ]),
+                futures::stream::iter(
+                    [Ok(frame1.clone()), Ok(frame2.clone()), Ok(frame2.clone()),]
+                ),
                 fsize1 + fsize2 + fsize2,
             )
             .try_collect::<Vec<_>>()
@@ -210,22 +182,17 @@ mod tests {
             },],
         );
 
-        // re-arrange
+        // multiple responses
         assert_eq!(
             ChunkReadResponses::new(
-                futures::stream::iter(vec![
-                    Ok(ReadResponse {
-                        frames: vec![
-                            frame1.clone(),
-                            frame1.clone(),
-                            frame2.clone(),
-                            frame2.clone(),
-                            frame1.clone(),
-                        ],
-                    }),
-                    Ok(ReadResponse {
-                        frames: vec![frame1.clone(), frame2.clone(),],
-                    }),
+                futures::stream::iter([
+                    Ok(frame1.clone()),
+                    Ok(frame1.clone()),
+                    Ok(frame2.clone()),
+                    Ok(frame2.clone()),
+                    Ok(frame1.clone()),
+                    Ok(frame1.clone()),
+                    Ok(frame2.clone()),
                 ]),
                 fsize1 + fsize1 + fsize2,
             )
@@ -259,22 +226,12 @@ mod tests {
         // split
         let res = ChunkReadResponses::new(
             futures::stream::iter(vec![
-                Ok(ReadResponse {
-                    frames: vec![frame.clone()],
-                }),
-                Ok(ReadResponse {
-                    frames: vec![frame.clone()],
-                }),
-                Ok(ReadResponse {
-                    frames: vec![frame.clone()],
-                }),
-                Ok(ReadResponse {
-                    frames: vec![frame.clone()],
-                }),
+                Ok(frame.clone()),
+                Ok(frame.clone()),
+                Ok(frame.clone()),
+                Ok(frame.clone()),
                 Err(tonic::Status::internal("foo")),
-                Ok(ReadResponse {
-                    frames: vec![frame.clone()],
-                }),
+                Ok(frame.clone()),
             ]),
             2 * fsize,
         )
@@ -319,14 +276,7 @@ mod tests {
 
         // split
         let res = ChunkReadResponses::new(
-            futures::stream::iter(vec![
-                Ok(ReadResponse {
-                    frames: vec![frame.clone()],
-                }),
-                Ok(ReadResponse {
-                    frames: vec![frame.clone()],
-                }),
-            ]),
+            futures::stream::iter([Ok(frame.clone()), Ok(frame.clone())]),
             1,
         )
         .collect::<Vec<_>>()

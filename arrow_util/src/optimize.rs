@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use arrow::array::{make_array, Array, ArrayRef, DictionaryArray, MutableArrayData, StringArray};
+use arrow::array::{Array, ArrayRef, DictionaryArray, StringArray};
 use arrow::datatypes::{DataType, Field, Int32Type, Schema, SchemaRef};
 use arrow::error::{ArrowError, Result};
 use arrow::record_batch::RecordBatch;
@@ -12,7 +12,8 @@ use crate::dictionary::StringDictionary;
 /// Takes a record batch and returns a new record batch with dictionaries
 /// optimized to contain no duplicate or unreferenced values
 ///
-/// Where the input dictionaries are sorted, the output dictionaries will also be
+/// Where the input dictionaries are sorted, the output dictionaries
+/// will also be
 pub fn optimize_dictionaries(batch: &RecordBatch) -> Result<RecordBatch> {
     let schema = batch.schema();
     let new_columns = batch
@@ -94,59 +95,6 @@ fn optimize_dict_col(
     Ok(Arc::new(new_dictionary.to_arrow(new_keys, nulls)))
 }
 
-/// Some batches are small slices of the underlying arrays.
-/// At this stage we only know the number of rows in the record batch
-/// and the sizes in bytes of the backing buffers of the column arrays.
-/// There is no straight-forward relationship between these two quantities,
-/// since some columns can host variable length data such as strings.
-///
-/// However we can apply a quick&dirty heuristic:
-/// if the backing buffer is two orders of magnitudes bigger
-/// than the number of rows in the result set, we assume
-/// that deep-copying the record batch is cheaper than the and transfer costs.
-///
-/// Possible improvements: take the type of the columns into consideration
-/// and perhaps sample a few element sizes (taking care of not doing more work
-/// than to always copying the results in the first place).
-///
-/// Or we just fix this upstream in
-/// arrow_flight::utils::flight_data_from_arrow_batch and re-encode the array
-/// into a smaller buffer while we have to copy stuff around anyway.
-///
-/// See rationale and discussions about future improvements on
-/// <https://github.com/influxdata/influxdb_iox/issues/1133>
-pub fn optimize_record_batch(batch: &RecordBatch, schema: SchemaRef) -> Result<RecordBatch> {
-    let max_buf_len = batch
-        .columns()
-        .iter()
-        .map(|a| a.get_array_memory_size())
-        .max()
-        .unwrap_or_default();
-
-    let columns: Result<Vec<_>> = batch
-        .columns()
-        .iter()
-        .map(|column| {
-            if matches!(column.data_type(), DataType::Dictionary(_, _)) {
-                hydrate_dictionary(column)
-            } else if max_buf_len > batch.num_rows() * 100 {
-                Ok(deep_clone_array(column))
-            } else {
-                Ok(Arc::clone(column))
-            }
-        })
-        .collect();
-
-    RecordBatch::try_new(schema, columns?)
-}
-
-fn deep_clone_array(array: &ArrayRef) -> ArrayRef {
-    let mut mutable = MutableArrayData::new(vec![array.data()], false, 0);
-    mutable.extend(0, 0, array.len());
-
-    make_array(mutable.freeze())
-}
-
 /// Hydrates a dictionary to its underlying type
 ///
 /// An IPC response, streaming or otherwise, defines its schema up front
@@ -156,7 +104,11 @@ fn deep_clone_array(array: &ArrayRef) -> ArrayRef {
 /// This requires identifying the different dictionaries in use, assigning
 /// them IDs, and sending new dictionaries, delta or otherwise, when needed
 ///
-/// This is tracked by #1318
+/// This is tracked by <https://github.com/influxdata/influxdb_iox/issues/1318>
+///
+/// See also:
+/// * <https://github.com/influxdata/influxdb_iox/issues/4275>
+/// * <https://github.com/apache/arrow-rs/issues/1206>
 ///
 /// For now we just hydrate the dictionaries to their underlying type
 fn hydrate_dictionary(array: &ArrayRef) -> Result<ArrayRef> {
@@ -166,9 +118,35 @@ fn hydrate_dictionary(array: &ArrayRef) -> Result<ArrayRef> {
     }
 }
 
+/// Prepares a RecordBatch for transport over the Arrow Flight protocol
+///
+/// This means:
+///
+/// 1. Hydrates any dictionaries to its underlying type. See
+/// hydrate_dictionary for more information.
+///
+pub fn prepare_batch_for_flight(batch: &RecordBatch, schema: SchemaRef) -> Result<RecordBatch> {
+    let columns: Result<Vec<_>> = batch
+        .columns()
+        .iter()
+        .map(|column| {
+            if matches!(column.data_type(), DataType::Dictionary(_, _)) {
+                hydrate_dictionary(column)
+            } else {
+                Ok(Arc::clone(column))
+            }
+        })
+        .collect();
+
+    RecordBatch::try_new(schema, columns?)
+}
+
+/// Prepare an arrow Schema for transport over the Arrow Flight protocol
+///
 /// Convert dictionary types to underlying types
+///
 /// See hydrate_dictionary for more information
-pub fn optimize_schema(schema: &Schema) -> Schema {
+pub fn prepare_schema_for_flight(schema: &Schema) -> Schema {
     let fields = schema
         .fields()
         .iter()
@@ -437,20 +415,6 @@ mod tests {
     }
 
     #[test]
-    fn test_deep_clone_array() {
-        let mut builder = UInt32Array::builder(1000);
-        builder.append_slice(&[1, 2, 3, 4, 5, 6]);
-        let array: ArrayRef = Arc::new(builder.finish());
-        assert_eq!(array.len(), 6);
-
-        let sliced = array.slice(0, 2);
-        assert_eq!(sliced.len(), 2);
-
-        let deep_cloned = deep_clone_array(&sliced);
-        assert!(sliced.data().get_array_memory_size() > deep_cloned.data().get_array_memory_size());
-    }
-
-    #[test]
     fn test_encode_flight_data() {
         let options = arrow::ipc::writer::IpcWriteOptions::default();
         let c1 = UInt32Array::from(vec![1, 2, 3, 4, 5, 6]);
@@ -464,7 +428,7 @@ mod tests {
 
         let big_batch = batch.slice(0, batch.num_rows() - 1);
         let optimized_big_batch =
-            optimize_record_batch(&big_batch, Arc::clone(&schema)).expect("failed to optimize");
+            prepare_batch_for_flight(&big_batch, Arc::clone(&schema)).expect("failed to optimize");
         let (_, optimized_big_flight_batch) =
             arrow_flight::utils::flight_data_from_arrow_batch(&optimized_big_batch, &options);
 
@@ -474,8 +438,8 @@ mod tests {
         );
 
         let small_batch = batch.slice(0, 1);
-        let optimized_small_batch =
-            optimize_record_batch(&small_batch, Arc::clone(&schema)).expect("failed to optimize");
+        let optimized_small_batch = prepare_batch_for_flight(&small_batch, Arc::clone(&schema))
+            .expect("failed to optimize");
         let (_, optimized_small_flight_batch) =
             arrow_flight::utils::flight_data_from_arrow_batch(&optimized_small_batch, &options);
 
@@ -505,9 +469,10 @@ mod tests {
                 .expect("cannot create record batch");
 
         let original_schema = batch.schema();
-        let optimized_schema = Arc::new(optimize_schema(&original_schema));
+        let optimized_schema = Arc::new(prepare_schema_for_flight(&original_schema));
 
-        let optimized_batch = optimize_record_batch(&batch, Arc::clone(&optimized_schema)).unwrap();
+        let optimized_batch =
+            prepare_batch_for_flight(&batch, Arc::clone(&optimized_schema)).unwrap();
 
         let (_, flight_data) =
             arrow_flight::utils::flight_data_from_arrow_batch(&optimized_batch, &options);

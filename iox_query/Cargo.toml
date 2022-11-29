@@ -29,6 +29,7 @@ influxdb_influxql_parser = { path = "../influxdb_influxql_parser" }
 itertools = "0.10.5"
 object_store = "0.5.1"
 observability_deps = { path = "../observability_deps" }
+once_cell = { version = "1.16.0", features = ["parking_lot"] }
 parking_lot = "0.12"
 parquet_file = { path = "../parquet_file" }
 query_functions = { path = "../query_functions"}

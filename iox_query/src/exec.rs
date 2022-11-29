@@ -166,7 +166,7 @@ impl Executor {
         let inner = SessionContext::with_state(state.clone());
         let exec = self.executor(executor_type).clone();
         let recorder = SpanRecorder::new(state.span_ctx().child_span("Query Execution"));
-        IOxSessionContext::new(inner, Some(exec), recorder)
+        IOxSessionContext::new(inner, exec, recorder)
     }
 
     /// Create a new execution context, suitable for executing a new query or system task
