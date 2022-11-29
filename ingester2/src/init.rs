@@ -1,4 +1,6 @@
-use std::{sync::Arc, time::Duration};
+mod wal_replay;
+
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use arrow_flight::flight_service_server::{FlightService, FlightServiceServer};
 use backoff::BackoffConfig;
@@ -8,6 +10,7 @@ use generated_types::influxdata::iox::{
 };
 use iox_catalog::interface::Catalog;
 use thiserror::Error;
+use wal::Wal;
 
 use crate::{
     buffer_tree::{
@@ -18,6 +21,7 @@ use crate::{
     },
     server::grpc::GrpcDelegate,
     timestamp_oracle::TimestampOracle,
+    wal::wal_sink::WalSink,
     TRANSITION_SHARD_ID,
 };
 
@@ -66,12 +70,32 @@ pub enum InitError {
     /// the internal cache.
     #[error("failed to pre-warm partition cache: {0}")]
     PreWarmPartitions(iox_catalog::interface::Error),
+
+    /// An error initialising the WAL.
+    #[error("failed to initialise write-ahead log: {0}")]
+    WalInit(#[from] wal::Error),
+
+    /// An error replaying the entries in the WAL.
+    #[error(transparent)]
+    WalReplay(Box<dyn std::error::Error>),
 }
 
 /// Initialise a new `ingester2` instance, returning the gRPC service handler
 /// implementations to be bound by the caller.
 ///
-/// # Deferred Loading for Persist Operations
+/// ## WAL Replay
+///
+/// Writes through an `ingester2` instance commit to a durable write-ahead log.
+///
+/// During initialisation of an `ingester2` instance, any files in
+/// `wal_directory` are read assuming they are redo log files from the
+/// write-ahead log.
+///
+/// These files are read and replayed fully before this function returns.
+///
+/// Any error during replay
+///
+/// ## Deferred Loading for Persist Operations
 ///
 /// Several items within the ingester's internal state are loaded only when
 /// needed at persist time; this includes string name identifiers of namespaces,
@@ -80,14 +104,14 @@ pub enum InitError {
 /// As an optimisation, these deferred loads occur in a background task before
 /// the persist action actually needs them, in order to both eliminate the
 /// latency of waiting for the value to be fetched, and to avoid persistence of
-/// large numbers of partitions operations causing large spike in catalog
+/// large numbers of partitions operations causing a large spike in catalog
 /// requests / load.
 ///
 /// These values are loaded a uniformly random duration of time between
 /// initialisation, and at most, `persist_background_fetch_time` duration of
 /// time later. By increasing this duration value the many loads are spread
-/// approximately uniformly over a longer period of time, decreasing the catalog
-/// load they cause.
+/// approximately uniformly over a longer period of time, decreasing the peak
+/// catalog load they cause.
 ///
 /// If the `persist_background_fetch_time` duration is too large, they will not
 /// have resolved in the background when a persist operation starts, and they
@@ -99,6 +123,7 @@ pub async fn new(
     catalog: Arc<dyn Catalog>,
     metrics: Arc<metric::Registry>,
     persist_background_fetch_time: Duration,
+    wal_directory: PathBuf,
 ) -> Result<impl IngesterRpcInterface, InitError> {
     // Initialise the deferred namespace name resolver.
     let namespace_name_provider: Arc<dyn NamespaceNameProvider> =
@@ -147,10 +172,40 @@ pub async fn new(
         metrics,
     ));
 
-    // TODO: replay WAL into buffer
+    // TODO: start hot-partition persist task before replaying the WAL
     //
-    // TODO: recover next sequence number from WAL
-    let timestamp = Arc::new(TimestampOracle::new(0));
+    // By starting the persist task first, the ingester can persist files during
+    // WAL replay if necessary. This could happen if the configuration of the
+    // ingester was changed to persist smaller partitions in-between executions
+    // (such as if the ingester was OOMing during WAL replay, and the
+    // configuration was changed to mitigate it.)
 
-    Ok(GrpcDelegate::new(Arc::clone(&buffer), buffer, timestamp))
+    // Initialise the WAL
+    let wal = Wal::new(wal_directory).await.map_err(InitError::WalInit)?;
+
+    // Replay the WAL log files, if any.
+    let max_sequence_number = wal_replay::replay(&wal, &buffer)
+        .await
+        .map_err(|e| InitError::WalReplay(e.into()))?;
+
+    // TODO: persist replayed ops, if any
+
+    // Build the chain of DmlSink that forms the write path.
+    let write_path = WalSink::new(Arc::clone(&buffer), wal.write_handle().await);
+
+    // TODO: start WAL rotator task
+
+    // Restore the highest sequence number from the WAL files, and default to 0
+    // if there were no files to replay.
+    //
+    // This means sequence numbers are reused across different instances of an
+    // ingester, but they are only used for internal ordering of operations at
+    // runtime.
+    let timestamp = Arc::new(TimestampOracle::new(
+        max_sequence_number
+            .map(|v| u64::try_from(v.get()).expect("sequence number overflow"))
+            .unwrap_or(0),
+    ));
+
+    Ok(GrpcDelegate::new(Arc::new(write_path), buffer, timestamp))
 }
