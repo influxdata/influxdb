@@ -241,7 +241,6 @@ mod tests {
 
             // Rotate the log file
             wal.rotation_handle()
-                .await
                 .rotate()
                 .await
                 .expect("failed to rotate WAL file");
