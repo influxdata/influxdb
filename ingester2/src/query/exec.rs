@@ -17,13 +17,15 @@ impl QueryRunner {
 
 #[async_trait]
 impl QueryExec for QueryRunner {
+    type Response = QueryResponse;
+
     async fn query_exec(
         &self,
         namespace_id: NamespaceId,
         table_id: TableId,
         columns: Vec<String>,
         span: Option<Span>,
-    ) -> Result<QueryResponse, QueryError> {
+    ) -> Result<Self::Response, QueryError> {
         let mut _span_recorder = SpanRecorder::new(span);
 
         info!(

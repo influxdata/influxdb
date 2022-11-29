@@ -9,12 +9,18 @@ use data_types::{NamespaceId, TableId};
 use dml::DmlOperation;
 use metric::U64Counter;
 use observability_deps::tracing::warn;
+use trace::span::Span;
 
 use super::{
     partition::resolver::PartitionProvider,
     table::{name_resolver::TableNameProvider, TableData},
 };
-use crate::{arcmap::ArcMap, deferred_load::DeferredLoad, dml_sink::DmlSink};
+use crate::{
+    arcmap::ArcMap,
+    deferred_load::DeferredLoad,
+    dml_sink::DmlSink,
+    query::{response::QueryResponse, tracing::QueryExecTracing, QueryError, QueryExec},
+};
 
 /// The string name / identifier of a Namespace.
 ///
@@ -106,11 +112,6 @@ impl NamespaceData {
         self.namespace_id
     }
 
-    #[cfg(test)]
-    pub(super) fn table_count(&self) -> &U64Counter {
-        &self.table_count
-    }
-
     /// Returns the [`NamespaceName`] for this namespace.
     pub(crate) fn namespace_name(&self) -> &DeferredLoad<NamespaceName> {
         &self.namespace_name
@@ -165,6 +166,37 @@ impl DmlSink for NamespaceData {
         }
 
         Ok(())
+    }
+}
+
+#[async_trait]
+impl QueryExec for NamespaceData {
+    type Response = QueryResponse;
+
+    async fn query_exec(
+        &self,
+        namespace_id: NamespaceId,
+        table_id: TableId,
+        columns: Vec<String>,
+        span: Option<Span>,
+    ) -> Result<Self::Response, QueryError> {
+        assert_eq!(
+            self.namespace_id, namespace_id,
+            "buffer tree index inconsistency"
+        );
+
+        // Extract the table if it exists.
+        let inner = self
+            .table(table_id)
+            .ok_or(QueryError::TableNotFound(namespace_id, table_id))?;
+
+        // Delegate query execution to the namespace, wrapping the execution in
+        // a tracing delegate to emit a child span.
+        Ok(QueryResponse::new(
+            QueryExecTracing::new(inner, "table")
+                .query_exec(namespace_id, table_id, columns, span)
+                .await?,
+        ))
     }
 }
 

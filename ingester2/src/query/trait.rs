@@ -5,8 +5,6 @@ use data_types::{NamespaceId, TableId};
 use thiserror::Error;
 use trace::span::Span;
 
-use super::response::QueryResponse;
-
 #[derive(Debug, Error)]
 #[allow(missing_copy_implementations)]
 pub(crate) enum QueryError {
@@ -19,13 +17,15 @@ pub(crate) enum QueryError {
 
 #[async_trait]
 pub(crate) trait QueryExec: Send + Sync + Debug {
+    type Response: Send + Debug;
+
     async fn query_exec(
         &self,
         namespace_id: NamespaceId,
         table_id: TableId,
         columns: Vec<String>,
         span: Option<Span>,
-    ) -> Result<QueryResponse, QueryError>;
+    ) -> Result<Self::Response, QueryError>;
 }
 
 #[async_trait]
@@ -33,13 +33,15 @@ impl<T> QueryExec for Arc<T>
 where
     T: QueryExec,
 {
+    type Response = T::Response;
+
     async fn query_exec(
         &self,
         namespace_id: NamespaceId,
         table_id: TableId,
         columns: Vec<String>,
         span: Option<Span>,
-    ) -> Result<QueryResponse, QueryError> {
+    ) -> Result<Self::Response, QueryError> {
         self.deref()
             .query_exec(namespace_id, table_id, columns, span)
             .await

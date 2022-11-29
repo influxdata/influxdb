@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use data_types::{NamespaceId, TableId};
 use trace::span::{Span, SpanRecorder};
 
-use super::{response::QueryResponse, QueryExec};
+use super::QueryExec;
 use crate::query::QueryError;
 
 /// An tracing decorator over a [`QueryExec`] implementation.
@@ -33,6 +33,8 @@ impl<T> QueryExec for QueryExecTracing<T>
 where
     T: QueryExec,
 {
+    type Response = T::Response;
+
     #[inline(always)]
     async fn query_exec(
         &self,
@@ -40,7 +42,7 @@ where
         table_id: TableId,
         columns: Vec<String>,
         span: Option<Span>,
-    ) -> Result<QueryResponse, QueryError> {
+    ) -> Result<Self::Response, QueryError> {
         let span = span.map(|s| s.child(self.name.clone()));
         let mut recorder = SpanRecorder::new(span.clone());
 

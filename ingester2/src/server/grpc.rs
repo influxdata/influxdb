@@ -13,7 +13,11 @@ use generated_types::influxdata::iox::{
 use iox_catalog::interface::Catalog;
 use service_grpc_catalog::CatalogService;
 
-use crate::{dml_sink::DmlSink, init::IngesterRpcInterface, query::QueryExec};
+use crate::{
+    dml_sink::DmlSink,
+    init::IngesterRpcInterface,
+    query::{response::QueryResponse, QueryExec},
+};
 
 use self::rpc_write::RpcWrite;
 
@@ -31,7 +35,7 @@ pub(crate) struct GrpcDelegate<D, Q> {
 impl<D, Q> GrpcDelegate<D, Q>
 where
     D: DmlSink + 'static,
-    Q: QueryExec + 'static,
+    Q: QueryExec<Response = QueryResponse> + 'static,
 {
     /// Initialise a new [`GrpcDelegate`].
     pub(crate) fn new(dml_sink: Arc<D>, query_exec: Arc<Q>) -> Self {
@@ -47,7 +51,7 @@ where
 impl<D, Q> IngesterRpcInterface for GrpcDelegate<D, Q>
 where
     D: DmlSink + 'static,
-    Q: QueryExec + 'static,
+    Q: QueryExec<Response = QueryResponse> + 'static,
 {
     type CatalogHandler = CatalogService;
     type WriteHandler = RpcWrite<Arc<D>>;

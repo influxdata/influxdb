@@ -135,7 +135,7 @@ type TonicStream<T> = Pin<Box<dyn Stream<Item = Result<T, tonic::Status>> + Send
 #[tonic::async_trait]
 impl<Q> Flight for FlightService<Q>
 where
-    Q: QueryExec + 'static,
+    Q: QueryExec<Response = QueryResponse> + 'static,
 {
     type HandshakeStream = TonicStream<HandshakeResponse>;
     type ListFlightsStream = TonicStream<FlightInfo>;
