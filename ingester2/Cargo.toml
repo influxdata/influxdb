@@ -37,7 +37,7 @@ schema = { version = "0.1.0", path = "../schema" }
 service_grpc_catalog = { version = "0.1.0", path = "../service_grpc_catalog" }
 thiserror = "1.0.37"
 tokio = { version = "1.22", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
-tonic = "0.8.2"
+tonic = "0.8.3"
 trace = { version = "0.1.0", path = "../trace" }
 uuid = "1.2.2"
 workspace-hack = { path = "../workspace-hack"}
