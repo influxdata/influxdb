@@ -44,6 +44,8 @@ We hold monthly Tech Talks that explain the project's technical underpinnings. Y
     * [Data Deduplication & Sort Key](dedup_and_sort.md)
     * Transactions and locks (to be written & linked)
 * [Thoughts on using multiple cores / thread pools](multi_core_tasks.md)
+* [Compactor](compactor.md)
+* [Data Rentention Policy](retention_policy.md)
 * [Query Engine Docs](../iox_query/README.md)
 * [Notes on the use of local filesystems](local_filesystems.md)
 * [Querier <> Ingester Query Protocol](ingester_querier_protocol.md)
