@@ -21,7 +21,7 @@ use crate::{
     },
     server::grpc::GrpcDelegate,
     timestamp_oracle::TimestampOracle,
-    wal::wal_sink::WalSink,
+    wal::{rotate_task::periodic_rotation, wal_sink::WalSink},
     TRANSITION_SHARD_ID,
 };
 
@@ -124,6 +124,7 @@ pub async fn new(
     metrics: Arc<metric::Registry>,
     persist_background_fetch_time: Duration,
     wal_directory: PathBuf,
+    wal_rotation_period: Duration,
 ) -> Result<impl IngesterRpcInterface, InitError> {
     // Initialise the deferred namespace name resolver.
     let namespace_name_provider: Arc<dyn NamespaceNameProvider> =
@@ -193,7 +194,8 @@ pub async fn new(
     // Build the chain of DmlSink that forms the write path.
     let write_path = WalSink::new(Arc::clone(&buffer), wal.write_handle().await);
 
-    // TODO: start WAL rotator task
+    // Spawn a background thread to periodically rotate the WAL segment file.
+    let _handle = tokio::spawn(periodic_rotation(wal, wal_rotation_period));
 
     // Restore the highest sequence number from the WAL files, and default to 0
     // if there were no files to replay.

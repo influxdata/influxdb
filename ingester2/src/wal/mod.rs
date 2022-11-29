@@ -4,5 +4,6 @@
 //! [`DmlSink`]: crate::dml_sink::DmlSink
 //! [`DmlOperation`]: dml::DmlOperation
 
+pub(crate) mod rotate_task;
 mod traits;
 pub(crate) mod wal_sink;
