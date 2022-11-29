@@ -4541,7 +4541,7 @@ dependencies = [
 [[package]]
 name = "rskafka"
 version = "0.3.0"
-source = "git+https://github.com/influxdata/rskafka.git?rev=8678dfe049de05415929ffec7c1be8921bb057f7#8678dfe049de05415929ffec7c1be8921bb057f7"
+source = "git+https://github.com/influxdata/rskafka.git?rev=abb2a28cff5ce39d186e814a0c5012267b9690a4#abb2a28cff5ce39d186e814a0c5012267b9690a4"
 dependencies = [
  "async-socks5",
  "async-trait",
@@ -4556,7 +4556,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "zstd 0.11.2+zstd.1.5.2",
+ "zstd 0.12.0+zstd.1.5.2",
 ]
 
 [[package]]
@@ -6367,8 +6367,6 @@ dependencies = [
  "uuid",
  "winapi",
  "windows-sys",
- "zstd 0.11.2+zstd.1.5.2",
- "zstd-safe 5.0.2+zstd.1.5.2",
  "zstd-sys",
 ]
 

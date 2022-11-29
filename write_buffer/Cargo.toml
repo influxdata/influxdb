@@ -24,7 +24,7 @@ observability_deps = { path = "../observability_deps" }
 parking_lot = "0.12"
 pin-project = "1.0"
 prost = "0.11"
-rskafka = { git = "https://github.com/influxdata/rskafka.git", rev="8678dfe049de05415929ffec7c1be8921bb057f7", default-features = false, features = ["compression-zstd", "transport-socks5"] }
+rskafka = { git = "https://github.com/influxdata/rskafka.git", rev="abb2a28cff5ce39d186e814a0c5012267b9690a4", default-features = false, features = ["compression-zstd", "transport-socks5"] }
 schema = { path = "../schema" }
 tokio = { version = "1.22", features = ["fs", "macros", "parking_lot", "rt", "sync", "time"] }
 tokio-util = "0.7.4"
