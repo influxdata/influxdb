@@ -486,20 +486,16 @@ impl IOxSessionContext {
                 data.extend(series);
             }
         }
+        let data = futures::stream::iter(data).map(Ok);
 
         // If we have group columns, sort the results, and create the
         // appropriate groups
-        let data = if let Some(group_columns) = group_columns {
+        if let Some(group_columns) = group_columns {
             let grouper = GroupGenerator::new(group_columns);
-            grouper
-                .group(data)
-                .map_err(|e| Error::Execution(format!("Error forming groups: {}", e)))
+            Ok(grouper.group(data).await?.boxed())
         } else {
-            let data = data.into_iter().map(|series| series.into()).collect();
-            Ok(data)
-        };
-
-        data.map(|data| futures::stream::iter(data).map(Ok).boxed())
+            Ok(data.map_ok(|series| series.into()).boxed())
+        }
     }
 
     /// Executes `plan` and return the resulting FieldList on the query executor
