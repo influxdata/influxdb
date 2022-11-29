@@ -9,12 +9,14 @@ use crate::{
     },
     expr::{self, DecodedTagKey, GroupByAndAggregate, InfluxRpcPredicateBuilder, Loggable},
     input::GrpcInputs,
+    permit::StreamWithPermit,
+    query_completed_token::QueryCompletedTokenStream,
     response_chunking::ChunkReadResponses,
     StorageService,
 };
 use data_types::{org_and_bucket_to_namespace, NamespaceName};
 use datafusion::error::DataFusionError;
-use futures::Stream;
+use futures::{stream::BoxStream, Stream, StreamExt};
 use generated_types::{
     google::protobuf::{Any as ProtoAny, Empty},
     influxdata::platform::errors::InfluxDbError,
@@ -34,10 +36,9 @@ use iox_query::{
         fieldlist::FieldList, seriesset::converter::Error as SeriesSetError,
         ExecutionContextProvider, IOxSessionContext,
     },
-    QueryNamespace, QueryText,
+    QueryCompletedToken, QueryNamespace, QueryText,
 };
 use observability_deps::tracing::{error, info, trace};
-use pin_project::pin_project;
 use prost::{bytes::BytesMut, Message};
 use service_common::{datafusion_error_to_tonic_code, planner::Planner, QueryNamespaceProvider};
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -46,9 +47,8 @@ use std::{
     fmt::{Display, Formatter, Result as FmtResult},
     sync::Arc,
 };
-use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-use tonic::{metadata::MetadataMap, Status};
+use tonic::{metadata::MetadataMap, Response, Status};
 use trace::{ctx::SpanContext, span::SpanExt};
 use trace_http::ctx::{RequestLogContext, RequestLogContextExt};
 use tracker::InstrumentedAsyncOwnedSemaphorePermit;
@@ -185,7 +185,7 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-impl From<Error> for tonic::Status {
+impl From<Error> for Status {
     /// Converts a result from the business logic into the appropriate tonic
     /// status
     fn from(err: Error) -> Self {
@@ -197,7 +197,7 @@ impl From<Error> for tonic::Status {
 impl Error {
     /// Converts a result from the business logic into the appropriate tonic
     /// status
-    fn into_status(self) -> tonic::Status {
+    fn into_status(self) -> Status {
         let msg = self.to_string();
 
         let code = match self {
@@ -242,10 +242,7 @@ impl Error {
             Ok(()) => (),
             Err(e) => {
                 error!(e=%e, "failed to serialized InfluxDBError");
-                return tonic::Status::unknown(format!(
-                    "failed to serialize InfluxDB error: {}",
-                    e
-                ));
+                return Status::unknown(format!("failed to serialize InfluxDB error: {}", e));
             }
         }
 
@@ -343,12 +340,13 @@ impl<T> Storage for StorageService<T>
 where
     T: QueryNamespaceProvider + 'static,
 {
-    type ReadFilterStream = StreamWithPermit<ChunkReadResponses>;
+    type ReadFilterStream =
+        StreamWithPermit<QueryCompletedTokenStream<ChunkReadResponses, ReadResponse, Status>>;
 
     async fn read_filter(
         &self,
         req: tonic::Request<ReadFilterRequest>,
-    ) -> Result<tonic::Response<Self::ReadFilterStream>, Status> {
+    ) -> Result<Response<Self::ReadFilterStream>, Status> {
         let external_span_ctx: Option<RequestLogContext> = req.extensions().get().cloned();
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
 
@@ -373,7 +371,7 @@ where
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
-        let mut query_completed_token = db.record_query(&ctx, "read_filter", defer_json(&req));
+        let query_completed_token = db.record_query(&ctx, "read_filter", defer_json(&req));
 
         let results = read_filter_impl(Arc::clone(&db), db_name, req, &ctx)
             .await?
@@ -381,22 +379,20 @@ where
             .map(Ok)
             .collect::<Vec<_>>();
 
-        if results.iter().all(|r| r.is_ok()) {
-            query_completed_token.set_success();
-        }
-
         make_response(
             ChunkReadResponses::new(futures::stream::iter(results), MAX_READ_RESPONSE_SIZE),
+            query_completed_token,
             permit,
         )
     }
 
-    type ReadGroupStream = StreamWithPermit<ChunkReadResponses>;
+    type ReadGroupStream =
+        StreamWithPermit<QueryCompletedTokenStream<ChunkReadResponses, ReadResponse, Status>>;
 
     async fn read_group(
         &self,
         req: tonic::Request<ReadGroupRequest>,
-    ) -> Result<tonic::Response<Self::ReadGroupStream>, Status> {
+    ) -> Result<Response<Self::ReadGroupStream>, Status> {
         let external_span_ctx: Option<RequestLogContext> = req.extensions().get().cloned();
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
         let req = req.into_inner();
@@ -425,7 +421,7 @@ where
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
-        let mut query_completed_token = db.record_query(&ctx, "read_group", defer_json(&req));
+        let query_completed_token = db.record_query(&ctx, "read_group", defer_json(&req));
 
         let ReadGroupRequest {
             read_source: _read_source,
@@ -463,22 +459,20 @@ where
         .map(Ok)
         .collect::<Vec<_>>();
 
-        if results.iter().all(|r| r.is_ok()) {
-            query_completed_token.set_success();
-        }
-
         make_response(
             ChunkReadResponses::new(futures::stream::iter(results), MAX_READ_RESPONSE_SIZE),
+            query_completed_token,
             permit,
         )
     }
 
-    type ReadWindowAggregateStream = StreamWithPermit<ChunkReadResponses>;
+    type ReadWindowAggregateStream =
+        StreamWithPermit<QueryCompletedTokenStream<ChunkReadResponses, ReadResponse, Status>>;
 
     async fn read_window_aggregate(
         &self,
         req: tonic::Request<ReadWindowAggregateRequest>,
-    ) -> Result<tonic::Response<Self::ReadGroupStream>, Status> {
+    ) -> Result<Response<Self::ReadGroupStream>, Status> {
         let external_span_ctx: Option<RequestLogContext> = req.extensions().get().cloned();
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
         let req = req.into_inner();
@@ -507,7 +501,7 @@ where
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
-        let mut query_completed_token =
+        let query_completed_token =
             db.record_query(&ctx, "read_window_aggregate", defer_json(&req));
 
         let ReadWindowAggregateRequest {
@@ -544,25 +538,27 @@ where
         .map(Ok)
         .collect::<Vec<_>>();
 
-        if results.iter().all(|r| r.is_ok()) {
-            query_completed_token.set_success();
-        }
-
         make_response(
             ChunkReadResponses::new(futures::stream::iter(results), MAX_READ_RESPONSE_SIZE),
+            query_completed_token,
             permit,
         )
     }
 
-    type TagKeysStream = StreamWithPermit<ReceiverStream<Result<StringValuesResponse, Status>>>;
+    type TagKeysStream = StreamWithPermit<
+        QueryCompletedTokenStream<
+            BoxStream<'static, Result<StringValuesResponse, Status>>,
+            StringValuesResponse,
+            Status,
+        >,
+    >;
 
     async fn tag_keys(
         &self,
         req: tonic::Request<TagKeysRequest>,
-    ) -> Result<tonic::Response<Self::TagKeysStream>, Status> {
+    ) -> Result<Response<Self::TagKeysStream>, Status> {
         let external_span_ctx: Option<RequestLogContext> = req.extensions().get().cloned();
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
-        let (tx, rx) = mpsc::channel(4);
 
         let req = req.into_inner();
         let permit = self
@@ -586,7 +582,7 @@ where
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
-        let mut query_completed_token = db.record_query(&ctx, "tag_keys", defer_json(&req));
+        let query_completed_token = db.record_query(&ctx, "tag_keys", defer_json(&req));
 
         let TagKeysRequest {
             tags_source: _tag_source,
@@ -607,26 +603,27 @@ where
         .await
         .map_err(|e| e.into_status());
 
-        if response.is_ok() {
-            query_completed_token.set_success();
-        }
-
-        tx.send(response)
-            .await
-            .expect("sending tag_keys response to server");
-
-        make_response(ReceiverStream::new(rx), permit)
+        make_response(
+            futures::stream::once(async move { response }).boxed(),
+            query_completed_token,
+            permit,
+        )
     }
 
-    type TagValuesStream = StreamWithPermit<ReceiverStream<Result<StringValuesResponse, Status>>>;
+    type TagValuesStream = StreamWithPermit<
+        QueryCompletedTokenStream<
+            BoxStream<'static, Result<StringValuesResponse, Status>>,
+            StringValuesResponse,
+            Status,
+        >,
+    >;
 
     async fn tag_values(
         &self,
         req: tonic::Request<TagValuesRequest>,
-    ) -> Result<tonic::Response<Self::TagValuesStream>, Status> {
+    ) -> Result<Response<Self::TagValuesStream>, Status> {
         let external_span_ctx: Option<RequestLogContext> = req.extensions().get().cloned();
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
-        let (tx, rx) = mpsc::channel(4);
 
         let req = req.into_inner();
         let permit = self
@@ -653,7 +650,7 @@ where
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
-        let mut query_completed_token = db.record_query(&ctx, "tag_values", defer_json(&req));
+        let query_completed_token = db.record_query(&ctx, "tag_values", defer_json(&req));
 
         let TagValuesRequest {
             tags_source: _tag_source,
@@ -708,25 +705,25 @@ where
 
         let response = response.map_err(|e| e.into_status());
 
-        if response.is_ok() {
-            query_completed_token.set_success();
-        }
-
-        tx.send(response)
-            .await
-            .expect("sending tag_values response to server");
-
-        make_response(ReceiverStream::new(rx), permit)
+        make_response(
+            futures::stream::once(async move { response }).boxed(),
+            query_completed_token,
+            permit,
+        )
     }
 
     type TagValuesGroupedByMeasurementAndTagKeyStream = StreamWithPermit<
-        futures::stream::Iter<std::vec::IntoIter<Result<TagValuesResponse, Status>>>,
+        QueryCompletedTokenStream<
+            futures::stream::Iter<std::vec::IntoIter<Result<TagValuesResponse, Status>>>,
+            TagValuesResponse,
+            Status,
+        >,
     >;
 
     async fn tag_values_grouped_by_measurement_and_tag_key(
         &self,
         req: tonic::Request<TagValuesGroupedByMeasurementAndTagKeyRequest>,
-    ) -> Result<tonic::Response<Self::TagValuesGroupedByMeasurementAndTagKeyStream>, Status> {
+    ) -> Result<Response<Self::TagValuesGroupedByMeasurementAndTagKeyStream>, Status> {
         let external_span_ctx: Option<RequestLogContext> = req.extensions().get().cloned();
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
 
@@ -753,7 +750,7 @@ where
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
-        let mut query_completed_token = db.record_query(
+        let query_completed_token = db.record_query(
             &ctx,
             "tag_values_grouped_by_measurement_and_tag_key",
             defer_json(&req),
@@ -767,11 +764,11 @@ where
                 .map(Ok)
                 .collect::<Vec<_>>();
 
-        if results.iter().all(|r| r.is_ok()) {
-            query_completed_token.set_success();
-        }
-
-        make_response(futures::stream::iter(results), permit)
+        make_response(
+            futures::stream::iter(results),
+            query_completed_token,
+            permit,
+        )
     }
 
     type ReadSeriesCardinalityStream = ReceiverStream<Result<Int64ValuesResponse, Status>>;
@@ -779,14 +776,14 @@ where
     async fn read_series_cardinality(
         &self,
         _req: tonic::Request<ReadSeriesCardinalityRequest>,
-    ) -> Result<tonic::Response<Self::ReadSeriesCardinalityStream>, Status> {
+    ) -> Result<Response<Self::ReadSeriesCardinalityStream>, Status> {
         unimplemented!("read_series_cardinality not yet implemented. https://github.com/influxdata/influxdb_iox/issues/447");
     }
 
     async fn capabilities(
         &self,
         _req: tonic::Request<Empty>,
-    ) -> Result<tonic::Response<CapabilitiesResponse>, Status> {
+    ) -> Result<Response<CapabilitiesResponse>, Status> {
         // Full list of go capabilities in
         // idpe/storage/read/capabilities.go (aka window aggregate /
         // pushdown)
@@ -822,19 +819,23 @@ where
             .collect::<HashMap<String, Capability>>();
 
         let caps = CapabilitiesResponse { caps };
-        Ok(tonic::Response::new(caps))
+        Ok(Response::new(caps))
     }
 
-    type MeasurementNamesStream =
-        StreamWithPermit<ReceiverStream<Result<StringValuesResponse, Status>>>;
+    type MeasurementNamesStream = StreamWithPermit<
+        QueryCompletedTokenStream<
+            BoxStream<'static, Result<StringValuesResponse, Status>>,
+            StringValuesResponse,
+            Status,
+        >,
+    >;
 
     async fn measurement_names(
         &self,
         req: tonic::Request<MeasurementNamesRequest>,
-    ) -> Result<tonic::Response<Self::MeasurementNamesStream>, Status> {
+    ) -> Result<Response<Self::MeasurementNamesStream>, Status> {
         let external_span_ctx: Option<RequestLogContext> = req.extensions().get().cloned();
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
-        let (tx, rx) = mpsc::channel(4);
 
         let req = req.into_inner();
         let permit = self
@@ -858,8 +859,7 @@ where
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
-        let mut query_completed_token =
-            db.record_query(&ctx, "measurement_names", defer_json(&req));
+        let query_completed_token = db.record_query(&ctx, "measurement_names", defer_json(&req));
 
         let MeasurementNamesRequest {
             source: _source,
@@ -871,27 +871,27 @@ where
             .await
             .map_err(|e| e.into_status());
 
-        if response.is_ok() {
-            query_completed_token.set_success();
-        }
-
-        tx.send(response)
-            .await
-            .expect("sending measurement names response to server");
-
-        make_response(ReceiverStream::new(rx), permit)
+        make_response(
+            futures::stream::once(async move { response }).boxed(),
+            query_completed_token,
+            permit,
+        )
     }
 
-    type MeasurementTagKeysStream =
-        StreamWithPermit<ReceiverStream<Result<StringValuesResponse, Status>>>;
+    type MeasurementTagKeysStream = StreamWithPermit<
+        QueryCompletedTokenStream<
+            BoxStream<'static, Result<StringValuesResponse, Status>>,
+            StringValuesResponse,
+            Status,
+        >,
+    >;
 
     async fn measurement_tag_keys(
         &self,
         req: tonic::Request<MeasurementTagKeysRequest>,
-    ) -> Result<tonic::Response<Self::MeasurementTagKeysStream>, Status> {
+    ) -> Result<Response<Self::MeasurementTagKeysStream>, Status> {
         let external_span_ctx: Option<RequestLogContext> = req.extensions().get().cloned();
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
-        let (tx, rx) = mpsc::channel(4);
 
         let req = req.into_inner();
         let permit = self
@@ -916,8 +916,7 @@ where
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
-        let mut query_completed_token =
-            db.record_query(&ctx, "measurement_tag_keys", defer_json(&req));
+        let query_completed_token = db.record_query(&ctx, "measurement_tag_keys", defer_json(&req));
 
         let MeasurementTagKeysRequest {
             source: _source,
@@ -939,27 +938,27 @@ where
         .await
         .map_err(|e| e.into_status());
 
-        if response.is_ok() {
-            query_completed_token.set_success();
-        }
-
-        tx.send(response)
-            .await
-            .expect("sending measurement_tag_keys response to server");
-
-        make_response(ReceiverStream::new(rx), permit)
+        make_response(
+            futures::stream::once(async move { response }).boxed(),
+            query_completed_token,
+            permit,
+        )
     }
 
-    type MeasurementTagValuesStream =
-        StreamWithPermit<ReceiverStream<Result<StringValuesResponse, Status>>>;
+    type MeasurementTagValuesStream = StreamWithPermit<
+        QueryCompletedTokenStream<
+            BoxStream<'static, Result<StringValuesResponse, Status>>,
+            StringValuesResponse,
+            Status,
+        >,
+    >;
 
     async fn measurement_tag_values(
         &self,
         req: tonic::Request<MeasurementTagValuesRequest>,
-    ) -> Result<tonic::Response<Self::MeasurementTagValuesStream>, Status> {
+    ) -> Result<Response<Self::MeasurementTagValuesStream>, Status> {
         let external_span_ctx: Option<RequestLogContext> = req.extensions().get().cloned();
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
-        let (tx, rx) = mpsc::channel(4);
 
         let req = req.into_inner();
         let permit = self
@@ -985,7 +984,7 @@ where
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
-        let mut query_completed_token =
+        let query_completed_token =
             db.record_query(&ctx, "measurement_tag_values", defer_json(&req));
 
         let MeasurementTagValuesRequest {
@@ -1010,27 +1009,27 @@ where
         .await
         .map_err(|e| e.into_status());
 
-        if response.is_ok() {
-            query_completed_token.set_success();
-        }
-
-        tx.send(response)
-            .await
-            .expect("sending measurement_tag_values response to server");
-
-        make_response(ReceiverStream::new(rx), permit)
+        make_response(
+            futures::stream::once(async move { response }).boxed(),
+            query_completed_token,
+            permit,
+        )
     }
 
-    type MeasurementFieldsStream =
-        StreamWithPermit<ReceiverStream<Result<MeasurementFieldsResponse, Status>>>;
+    type MeasurementFieldsStream = StreamWithPermit<
+        QueryCompletedTokenStream<
+            BoxStream<'static, Result<MeasurementFieldsResponse, Status>>,
+            MeasurementFieldsResponse,
+            Status,
+        >,
+    >;
 
     async fn measurement_fields(
         &self,
         req: tonic::Request<MeasurementFieldsRequest>,
-    ) -> Result<tonic::Response<Self::MeasurementFieldsStream>, Status> {
+    ) -> Result<Response<Self::MeasurementFieldsStream>, Status> {
         let external_span_ctx: Option<RequestLogContext> = req.extensions().get().cloned();
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
-        let (tx, rx) = mpsc::channel(4);
 
         let req = req.into_inner();
         let permit = self
@@ -1055,8 +1054,7 @@ where
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
-        let mut query_completed_token =
-            db.record_query(&ctx, "measurement_fields", defer_json(&req));
+        let query_completed_token = db.record_query(&ctx, "measurement_fields", defer_json(&req));
 
         let MeasurementFieldsRequest {
             source: _source,
@@ -1083,25 +1081,21 @@ where
         })
         .map_err(|e| e.into_status())?;
 
-        if response.is_ok() {
-            query_completed_token.set_success();
-        }
-
-        tx.send(response)
-            .await
-            .expect("sending measurement_fields response to server");
-
-        make_response(ReceiverStream::new(rx), permit)
+        make_response(
+            futures::stream::once(async move { response }).boxed(),
+            query_completed_token,
+            permit,
+        )
     }
 
     async fn offsets(
         &self,
         _req: tonic::Request<Empty>,
-    ) -> Result<tonic::Response<OffsetsResponse>, Status> {
+    ) -> Result<Response<OffsetsResponse>, Status> {
         // We present ourselves to the rest of IDPE as a single storage node with 1 partition.
         // (Returning offset 1 just in case offset 0 is interpreted by query nodes as being special)
         let the_partition = PartitionOffsetResponse { id: 0, offset: 1 };
-        Ok(tonic::Response::new(OffsetsResponse {
+        Ok(Response::new(OffsetsResponse {
             partitions: vec![the_partition],
         }))
     }
@@ -1660,43 +1654,21 @@ impl<T, E: std::fmt::Debug> ErrorLogger for Result<T, E> {
 }
 
 /// Return the stream of results as a gRPC (tonic) response
-pub fn make_response<S>(
+#[allow(clippy::type_complexity)]
+pub fn make_response<S, T, E>(
     stream: S,
+    token: QueryCompletedToken,
     permit: InstrumentedAsyncOwnedSemaphorePermit,
-) -> Result<tonic::Response<StreamWithPermit<S>>, tonic::Status> {
-    let mut response = tonic::Response::new(StreamWithPermit::new(stream, permit));
+) -> Result<Response<StreamWithPermit<QueryCompletedTokenStream<S, T, E>>>, Status>
+where
+    S: Stream<Item = Result<T, E>> + Unpin,
+{
+    let mut response = Response::new(StreamWithPermit::new(
+        QueryCompletedTokenStream::new(stream, token),
+        permit,
+    ));
     add_headers(response.metadata_mut());
     Ok(response)
-}
-
-/// Helper to keep a semaphore permit attached to a stream.
-#[pin_project]
-pub struct StreamWithPermit<S> {
-    #[pin]
-    stream: S,
-    #[allow(dead_code)]
-    permit: InstrumentedAsyncOwnedSemaphorePermit,
-}
-
-impl<S> StreamWithPermit<S> {
-    fn new(stream: S, permit: InstrumentedAsyncOwnedSemaphorePermit) -> Self {
-        Self { stream, permit }
-    }
-}
-
-impl<S> Stream for StreamWithPermit<S>
-where
-    S: Stream,
-{
-    type Item = S::Item;
-
-    fn poll_next(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
-        let this = self.project();
-        this.stream.poll_next(cx)
-    }
 }
 
 #[cfg(test)]
