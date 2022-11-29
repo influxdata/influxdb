@@ -63,6 +63,31 @@ pub trait IngesterRpcInterface: Send + Sync + std::fmt::Debug {
     ) -> FlightServiceServer<Self::FlightHandler>;
 }
 
+/// A RAII guard to clean up `ingester2` instance resources when dropped.
+#[must_use = "ingester stops when guard is dropped"]
+#[derive(Debug)]
+pub struct IngesterGuard<T> {
+    rpc: T,
+
+    /// The handle of the periodic WAL rotation task.
+    ///
+    /// Aborted on drop.
+    rotation_task: tokio::task::JoinHandle<()>,
+}
+
+impl<T> IngesterGuard<T> {
+    /// Obtain a handle to the gRPC handlers.
+    pub fn rpc(&self) -> &T {
+        &self.rpc
+    }
+}
+
+impl<T> Drop for IngesterGuard<T> {
+    fn drop(&mut self) {
+        self.rotation_task.abort();
+    }
+}
+
 /// Errors that occur during initialisation of an `ingester2` instance.
 #[derive(Debug, Error)]
 pub enum InitError {
@@ -125,7 +150,7 @@ pub async fn new(
     persist_background_fetch_time: Duration,
     wal_directory: PathBuf,
     wal_rotation_period: Duration,
-) -> Result<impl IngesterRpcInterface, InitError> {
+) -> Result<IngesterGuard<impl IngesterRpcInterface>, InitError> {
     // Initialise the deferred namespace name resolver.
     let namespace_name_provider: Arc<dyn NamespaceNameProvider> =
         Arc::new(NamespaceNameResolver::new(
@@ -195,7 +220,7 @@ pub async fn new(
     let write_path = WalSink::new(Arc::clone(&buffer), wal.write_handle().await);
 
     // Spawn a background thread to periodically rotate the WAL segment file.
-    let _handle = tokio::spawn(periodic_rotation(wal, wal_rotation_period));
+    let handle = tokio::spawn(periodic_rotation(wal, wal_rotation_period));
 
     // Restore the highest sequence number from the WAL files, and default to 0
     // if there were no files to replay.
@@ -209,5 +234,8 @@ pub async fn new(
             .unwrap_or(0),
     ));
 
-    Ok(GrpcDelegate::new(Arc::new(write_path), buffer, timestamp))
+    Ok(IngesterGuard {
+        rpc: GrpcDelegate::new(Arc::new(write_path), buffer, timestamp),
+        rotation_task: handle,
+    })
 }
