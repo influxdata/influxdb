@@ -4,8 +4,7 @@
 use super::{TAG_KEY_FIELD, TAG_KEY_MEASUREMENT};
 use crate::{
     data::{
-        fieldlist_to_measurement_fields_response, series_or_groups_to_read_response,
-        tag_keys_to_byte_vecs,
+        fieldlist_to_measurement_fields_response, series_or_groups_to_frames, tag_keys_to_byte_vecs,
     },
     expr::{self, DecodedTagKey, GroupByAndAggregate, InfluxRpcPredicateBuilder, Loggable},
     input::GrpcInputs,
@@ -16,12 +15,13 @@ use crate::{
 };
 use data_types::{org_and_bucket_to_namespace, NamespaceName};
 use datafusion::error::DataFusionError;
-use futures::{stream::BoxStream, Stream, StreamExt};
+use futures::{stream::BoxStream, Stream, StreamExt, TryStreamExt};
 use generated_types::{
     google::protobuf::{Any as ProtoAny, Empty},
     influxdata::platform::errors::InfluxDbError,
     literal_or_regex::Value as RegexOrLiteralValue,
     offsets_response::PartitionOffsetResponse,
+    read_response::Frame,
     storage_server::Storage,
     tag_key_predicate, CapabilitiesResponse, Capability, Int64ValuesResponse, LiteralOrRegex,
     MeasurementFieldsRequest, MeasurementFieldsResponse, MeasurementNamesRequest,
@@ -373,14 +373,12 @@ where
         let ctx = db.new_query_context(span_ctx);
         let query_completed_token = db.record_query(&ctx, "read_filter", defer_json(&req));
 
-        let results = read_filter_impl(Arc::clone(&db), db_name, req, &ctx)
+        let frames = read_filter_impl(Arc::clone(&db), db_name, req, &ctx)
             .await?
-            .into_iter()
-            .map(Ok)
-            .collect::<Vec<_>>();
+            .map_err(|e| e.into_status());
 
         make_response(
-            ChunkReadResponses::new(futures::stream::iter(results), MAX_READ_RESPONSE_SIZE),
+            ChunkReadResponses::new(frames, MAX_READ_RESPONSE_SIZE),
             query_completed_token,
             permit,
         )
@@ -444,7 +442,7 @@ where
         let gby_agg = expr::make_read_group_aggregate(aggregate, group, group_keys)
             .context(ConvertingReadGroupAggregateSnafu { aggregate_string })?;
 
-        let results = query_group_impl(
+        let frames = query_group_impl(
             Arc::clone(&db),
             db_name,
             range,
@@ -455,12 +453,10 @@ where
         )
         .await
         .map_err(|e| e.into_status())?
-        .into_iter()
-        .map(Ok)
-        .collect::<Vec<_>>();
+        .map_err(|e| e.into_status());
 
         make_response(
-            ChunkReadResponses::new(futures::stream::iter(results), MAX_READ_RESPONSE_SIZE),
+            ChunkReadResponses::new(frames, MAX_READ_RESPONSE_SIZE),
             query_completed_token,
             permit,
         )
@@ -523,7 +519,7 @@ where
         let gby_agg = expr::make_read_window_aggregate(aggregate, window_every, offset, window)
             .context(ConvertingWindowAggregateSnafu { aggregate_string })?;
 
-        let results = query_group_impl(
+        let frames = query_group_impl(
             Arc::clone(&db),
             db_name,
             range,
@@ -534,12 +530,10 @@ where
         )
         .await
         .map_err(|e| e.into_status())?
-        .into_iter()
-        .map(Ok)
-        .collect::<Vec<_>>();
+        .map_err(|e| e.into_status());
 
         make_response(
-            ChunkReadResponses::new(futures::stream::iter(results), MAX_READ_RESPONSE_SIZE),
+            ChunkReadResponses::new(frames, MAX_READ_RESPONSE_SIZE),
             query_completed_token,
             permit,
         )
@@ -1325,7 +1319,7 @@ async fn read_filter_impl<N>(
     db_name: NamespaceName<'static>,
     req: ReadFilterRequest,
     ctx: &IOxSessionContext,
-) -> Result<Vec<ReadResponse>, Error>
+) -> Result<impl Stream<Item = Result<Frame, Error>>, Error>
 where
     N: QueryNamespace + ExecutionContextProvider + 'static,
 {
@@ -1359,9 +1353,11 @@ where
         .log_if_error("Running series set plan")?;
 
     let emit_tag_keys_binary_format = req.tag_key_meta_names == TagKeyMetaNames::Binary as i32;
-    let response = series_or_groups_to_read_response(series_or_groups, emit_tag_keys_binary_format);
 
-    Ok(vec![response])
+    Ok(series_or_groups_to_frames(
+        futures::stream::iter(series_or_groups).map(Ok),
+        emit_tag_keys_binary_format,
+    ))
 }
 
 /// Launch async tasks that send the result of executing read_group to `tx`
@@ -1373,7 +1369,7 @@ async fn query_group_impl<N>(
     gby_agg: GroupByAndAggregate,
     tag_key_meta_names: TagKeyMetaNames,
     ctx: &IOxSessionContext,
-) -> Result<Vec<ReadResponse>, Error>
+) -> Result<impl Stream<Item = Result<Frame, Error>>>
 where
     N: QueryNamespace + ExecutionContextProvider + 'static,
 {
@@ -1415,9 +1411,11 @@ where
         .log_if_error("Running Grouped SeriesSet Plan")?;
 
     let tag_key_binary_format = tag_key_meta_names == TagKeyMetaNames::Binary;
-    let response = series_or_groups_to_read_response(series_or_groups, tag_key_binary_format);
 
-    Ok(vec![response])
+    Ok(series_or_groups_to_frames(
+        futures::stream::iter(series_or_groups).map(Ok),
+        tag_key_binary_format,
+    ))
 }
 
 /// Return field names, restricted via optional measurement, timestamp and
