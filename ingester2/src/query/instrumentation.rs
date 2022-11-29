@@ -121,7 +121,7 @@ mod tests {
     test_metric!(
         ok,
         inner = {
-            let stream: PartitionStream = Box::pin(Box::new(futures::stream::iter([])));
+            let stream: PartitionStream = PartitionStream::new(futures::stream::iter([]));
             MockQueryExec::default().with_result(Ok(QueryResponse::new(stream)))
         },
         want_metric_attr = [("result", "success")],

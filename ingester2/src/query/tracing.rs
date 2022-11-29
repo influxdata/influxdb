@@ -68,7 +68,10 @@ mod tests {
     use assert_matches::assert_matches;
     use trace::{ctx::SpanContext, span::SpanStatus, RingBufferTraceCollector, TraceCollector};
 
-    use crate::query::{mock_query_exec::MockQueryExec, response::PartitionStream};
+    use crate::query::{
+        mock_query_exec::MockQueryExec,
+        response::{PartitionStream, QueryResponse},
+    };
 
     use super::*;
 
@@ -94,7 +97,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ok() {
-        let stream: PartitionStream = Box::pin(Box::new(futures::stream::iter([])));
+        let stream: PartitionStream = PartitionStream::new(futures::stream::iter([]));
         let mock = MockQueryExec::default().with_result(Ok(QueryResponse::new(stream)));
 
         let traces: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));

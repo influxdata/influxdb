@@ -2,33 +2,39 @@
 //!
 //! [`QueryExec::query_exec()`]: super::QueryExec::query_exec()
 
-use std::{pin::Pin, sync::Arc};
+use std::pin::Pin;
 
 use arrow::{error::ArrowError, record_batch::RecordBatch};
-use arrow_util::optimize::{optimize_record_batch, optimize_schema};
-use futures::{Stream, StreamExt, TryStreamExt};
+use futures::{Stream, StreamExt};
 
 use super::partition_response::PartitionResponse;
 
 /// Stream of partitions in this response.
-pub(crate) type PartitionStream =
-    Pin<Box<dyn Stream<Item = Result<PartitionResponse, ArrowError>> + Send>>;
+pub(crate) struct PartitionStream(Pin<Box<dyn Stream<Item = PartitionResponse> + Send>>);
+
+impl std::fmt::Debug for PartitionStream {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("PartitionStream").finish()
+    }
+}
+
+impl PartitionStream {
+    pub(crate) fn new<T>(s: T) -> Self
+    where
+        T: Stream<Item = PartitionResponse> + Send + 'static,
+    {
+        Self(s.boxed())
+    }
+}
 
 /// A response stream wrapper for ingester query requests.
 ///
 /// The data structure is constructed to allow lazy/streaming/pull-based data
-/// sourcing..
+/// sourcing.
+#[derive(Debug)]
 pub(crate) struct QueryResponse {
     /// Stream of partitions.
     partitions: PartitionStream,
-}
-
-impl std::fmt::Debug for QueryResponse {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Response")
-            .field("partitions", &"<PARTITION STREAM>")
-            .finish()
-    }
 }
 
 impl QueryResponse {
@@ -38,25 +44,13 @@ impl QueryResponse {
     }
 
     /// Return the stream of [`PartitionResponse`].
-    pub(crate) fn into_partition_stream(self) -> PartitionStream {
-        self.partitions
+    pub(crate) fn into_partition_stream(self) -> impl Stream<Item = PartitionResponse> {
+        self.partitions.0
     }
 
-    /// Reduce the [`QueryResponse`] to a set of [`RecordBatch`].
-    pub(crate) async fn into_record_batches(self) -> Result<Vec<RecordBatch>, ArrowError> {
+    /// Reduce the [`QueryResponse`] to a stream of [`RecordBatch`].
+    pub(crate) fn into_record_batches(self) -> impl Stream<Item = Result<RecordBatch, ArrowError>> {
         self.into_partition_stream()
-            .map_ok(|partition| {
-                partition
-                    .into_record_batch_stream()
-                    .map_ok(|snapshot| {
-                        let schema = Arc::new(optimize_schema(&snapshot.schema()));
-                        snapshot
-                            .map(move |batch| optimize_record_batch(&batch?, Arc::clone(&schema)))
-                    })
-                    .try_flatten()
-            })
-            .try_flatten()
-            .try_collect()
-            .await
+            .flat_map(|partition| partition.into_record_batch_stream())
     }
 }
