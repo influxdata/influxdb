@@ -1346,16 +1346,23 @@ where
         .context(PlanningFilteringSeriesSnafu { db_name })?;
 
     // Execute the plans.
+    let db_name = db_name.to_owned();
     let series_or_groups = ctx
         .to_series_and_groups(series_plan)
         .await
-        .context(FilteringSeriesSnafu { db_name })
-        .log_if_error("Running series set plan")?;
+        .context(FilteringSeriesSnafu {
+            db_name: db_name.clone(),
+        })
+        .log_if_error("Running series set plan")?
+        .map_err(move |e| Error::FilteringSeries {
+            db_name: db_name.clone(),
+            source: e,
+        });
 
     let emit_tag_keys_binary_format = req.tag_key_meta_names == TagKeyMetaNames::Binary as i32;
 
     Ok(series_or_groups_to_frames(
-        futures::stream::iter(series_or_groups).map(Ok),
+        series_or_groups,
         emit_tag_keys_binary_format,
     ))
 }
@@ -1404,16 +1411,23 @@ where
     // if big queries are causing a significant latency in TTFB.
 
     // Execute the plans
+    let db_name = db_name.to_owned();
     let series_or_groups = ctx
         .to_series_and_groups(grouped_series_set_plan)
         .await
-        .context(GroupingSeriesSnafu { db_name })
-        .log_if_error("Running Grouped SeriesSet Plan")?;
+        .context(GroupingSeriesSnafu {
+            db_name: db_name.clone(),
+        })
+        .log_if_error("Running Grouped SeriesSet Plan")?
+        .map_err(move |e| Error::FilteringSeries {
+            db_name: db_name.clone(),
+            source: e,
+        });
 
     let tag_key_binary_format = tag_key_meta_names == TagKeyMetaNames::Binary;
 
     Ok(series_or_groups_to_frames(
-        futures::stream::iter(series_or_groups).map(Ok),
+        series_or_groups,
         tag_key_binary_format,
     ))
 }

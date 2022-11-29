@@ -42,7 +42,7 @@ use datafusion::{
 };
 use datafusion_util::config::{iox_session_config, DEFAULT_CATALOG};
 use executor::DedicatedExecutor;
-use futures::TryStreamExt;
+use futures::{Stream, StreamExt, TryStreamExt};
 use observability_deps::tracing::debug;
 use query_functions::selectors::register_selector_aggregates;
 use std::{convert::TryInto, fmt, sync::Arc};
@@ -409,14 +409,14 @@ impl IOxSessionContext {
     pub async fn to_series_and_groups(
         &self,
         series_set_plans: SeriesSetPlans,
-    ) -> Result<Vec<Either>> {
+    ) -> Result<impl Stream<Item = Result<Either>>> {
         let SeriesSetPlans {
             mut plans,
             group_columns,
         } = series_set_plans;
 
         if plans.is_empty() {
-            return Ok(vec![]);
+            return Ok(futures::stream::empty().boxed());
         }
 
         // sort plans by table (measurement) name
@@ -482,7 +482,7 @@ impl IOxSessionContext {
 
         // If we have group columns, sort the results, and create the
         // appropriate groups
-        if let Some(group_columns) = group_columns {
+        let data = if let Some(group_columns) = group_columns {
             let grouper = GroupGenerator::new(group_columns);
             grouper
                 .group(data)
@@ -490,7 +490,9 @@ impl IOxSessionContext {
         } else {
             let data = data.into_iter().map(|series| series.into()).collect();
             Ok(data)
-        }
+        };
+
+        data.map(|data| futures::stream::iter(data).map(Ok).boxed())
     }
 
     /// Executes `plan` and return the resulting FieldList on the query executor
