@@ -39,6 +39,8 @@ where
     async fn apply(&self, op: DmlOperation) -> Result<(), Self::Error> {
         // TODO: cancellation safety
         //
+        // See https://github.com/influxdata/influxdb_iox/issues/6281.
+        //
         // Once an item is in the WAL, it should be passed into the inner
         // DmlSink so that is becomes readable - failing to do this means writes
         // will randomly appear after replaying the WAL.
