@@ -22,7 +22,6 @@ snafu = "0.7"
 snap = "1.0.0"
 tokio = { version = "1.21", features = ["macros", "fs", "io-util", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tokio-util = "0.7"
-uuid = "1.2"
 workspace-hack = { path = "../workspace-hack" }
 
 [dev-dependencies] # In alphabetical order

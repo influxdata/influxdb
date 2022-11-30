@@ -1,4 +1,4 @@
-use crate::{FileTypeIdentifier, SegmentEntry, SequencedWalOp};
+use crate::{FileTypeIdentifier, SegmentEntry, SegmentIdBytes, SequencedWalOp};
 use byteorder::{BigEndian, ReadBytesExt};
 use crc32fast::Hasher;
 use generated_types::influxdata::iox::wal::v1::SequencedWalOp as ProtoSequencedWalOp;
@@ -38,7 +38,7 @@ where
         Ok(data)
     }
 
-    pub fn read_header(&mut self) -> Result<(FileTypeIdentifier, uuid::Bytes)> {
+    pub fn read_header(&mut self) -> Result<(FileTypeIdentifier, SegmentIdBytes)> {
         Ok((self.read_array()?, self.read_array()?))
     }
 
@@ -333,7 +333,7 @@ mod tests {
     impl FakeSegmentFile {
         fn new() -> Self {
             Self {
-                id: SegmentId::new(),
+                id: SegmentId::new(0),
                 entries: Default::default(),
             }
         }
@@ -348,7 +348,7 @@ mod tests {
             f.write_all(FILE_TYPE_IDENTIFIER).unwrap();
 
             let id_bytes = self.id.as_bytes();
-            f.write_all(id_bytes).unwrap();
+            f.write_all(&id_bytes).unwrap();
 
             for entry in &self.entries {
                 f.write_u32::<BigEndian>(entry.checksum()).unwrap();

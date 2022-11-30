@@ -21,9 +21,13 @@ use generated_types::{
 };
 use prost::Message;
 use snafu::prelude::*;
-use std::{collections::HashMap, io, path::PathBuf};
+use std::{
+    collections::BTreeMap,
+    io,
+    path::PathBuf,
+    sync::{atomic::AtomicU64, Arc},
+};
 use tokio::sync::{mpsc, oneshot, RwLock};
-use uuid::Uuid;
 
 mod blocking;
 
@@ -91,9 +95,9 @@ pub enum Error {
         source: blocking::ReaderError,
     },
 
-    InvalidUuid {
+    InvalidId {
         filename: String,
-        source: uuid::Error,
+        source: std::num::ParseIntError,
     },
 
     SegmentNotFound {
@@ -114,28 +118,29 @@ pub enum Error {
 /// A specialized `Result` for WAL-related errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Segments are identified by a type 4 UUID
+/// Segments are identified by a u64 that indicates file ordering
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SegmentId(Uuid);
+pub struct SegmentId(u64);
+
+pub type SegmentIdBytes = [u8; 8];
 
 #[allow(missing_docs)]
 impl SegmentId {
-    pub fn new() -> Self {
-        Self(Uuid::new_v4())
+    pub fn new(v: u64) -> Self {
+        Self(v)
     }
 
-    pub fn get(&self) -> Uuid {
+    pub fn get(&self) -> u64 {
         self.0
     }
 
-    pub fn as_bytes(&self) -> &[u8] {
-        self.0.as_bytes()
+    pub fn as_bytes(&self) -> SegmentIdBytes {
+        self.0.to_be_bytes()
     }
-}
 
-impl From<Uuid> for SegmentId {
-    fn from(uuid: Uuid) -> Self {
-        Self(uuid)
+    pub fn from_bytes(bytes: SegmentIdBytes) -> Self {
+        let v = u64::from_be_bytes(bytes);
+        Self::new(v)
     }
 }
 
@@ -145,13 +150,6 @@ impl std::fmt::Display for SegmentId {
     }
 }
 
-impl Default for SegmentId {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-// TODO: find a better name
 pub(crate) fn build_segment_path(dir: impl Into<PathBuf>, id: SegmentId) -> PathBuf {
     let mut path = dir.into();
     path.push(id.to_string());
@@ -179,8 +177,9 @@ const SEGMENT_FILE_EXTENSION: &str = "dat";
 #[derive(Debug)]
 pub struct Wal {
     root: PathBuf,
-    closed_segments: RwLock<HashMap<SegmentId, ClosedSegment>>,
+    closed_segments: RwLock<BTreeMap<SegmentId, ClosedSegment>>,
     open_segment: OpenSegmentFile,
+    next_id_source: Arc<AtomicU64>,
 }
 
 impl Wal {
@@ -203,7 +202,9 @@ impl Wal {
             .await
             .context(UnableToReadDirectoryContentsSnafu { path: &root })?;
 
-        let mut closed_segments = HashMap::new();
+        // Closed segments must be ordered by ID, which is the order they were written in and the
+        // order they should be replayed in.
+        let mut closed_segments = BTreeMap::new();
 
         while let Some(child) = dir
             .next_entry()
@@ -222,9 +223,7 @@ impl Wal {
                 let filename = filename
                     .to_str()
                     .expect("WAL files created by IOx should be named with valid UTF-8");
-                let id = Uuid::parse_str(filename)
-                    .context(InvalidUuidSnafu { filename })?
-                    .into();
+                let id = SegmentId::new(filename.parse().context(InvalidIdSnafu { filename })?);
                 let segment = ClosedSegment {
                     id,
                     path: child.path(),
@@ -234,12 +233,21 @@ impl Wal {
             }
         }
 
-        let open_segment = OpenSegmentFile::new_in_directory(&root).await?;
+        let next_id = closed_segments
+            .keys()
+            .last()
+            .copied()
+            .map(|id| id.get() + 1)
+            .unwrap_or(0);
+        let next_id_source = Arc::new(AtomicU64::new(next_id));
+        let open_segment =
+            OpenSegmentFile::new_in_directory(&root, Arc::clone(&next_id_source)).await?;
 
         Ok(Self {
             root,
             closed_segments: RwLock::new(closed_segments),
             open_segment,
+            next_id_source,
         })
     }
 
@@ -314,11 +322,16 @@ impl<'a> WalRotator<'a> {
             (),
         )
         .await?;
-        self.0
+        let previous_value = self
+            .0
             .closed_segments
             .write()
             .await
             .insert(closed.id, closed.clone());
+        assert!(
+            previous_value.is_none(),
+            "Should always add new closed segment entries, not replace"
+        );
         Ok(closed)
     }
 
@@ -407,11 +420,16 @@ struct OpenSegmentFile {
 }
 
 impl OpenSegmentFile {
-    async fn new_in_directory(dir: impl Into<PathBuf>) -> Result<Self> {
+    async fn new_in_directory(
+        dir: impl Into<PathBuf>,
+        next_id_source: Arc<AtomicU64>,
+    ) -> Result<Self> {
         let dir = dir.into();
         let dir_for_closure = dir.clone();
         let (tx, rx) = mpsc::channel(10);
-        let task = tokio::task::spawn_blocking(move || Self::task_main(rx, dir_for_closure));
+        let task = tokio::task::spawn_blocking(move || {
+            Self::task_main(rx, dir_for_closure, next_id_source)
+        });
         std::fs::File::open(&dir)
             .context(OpenSegmentDirectorySnafu { path: dir })?
             .sync_all()
@@ -422,8 +440,16 @@ impl OpenSegmentFile {
     fn task_main(
         mut rx: tokio::sync::mpsc::Receiver<OpenSegmentFileWriterRequest>,
         dir: PathBuf,
+        next_id_source: Arc<AtomicU64>,
     ) -> Result<()> {
-        let new_writ = || Ok(blocking::OpenSegmentFileWriter::new_in_directory(&dir).unwrap());
+        let new_writ =
+            || {
+                Ok(blocking::OpenSegmentFileWriter::new_in_directory(
+                    &dir,
+                    Arc::clone(&next_id_source),
+                )
+                .unwrap())
+            };
         let mut open_write = new_writ()?;
 
         while let Some(req) = rx.blocking_recv() {
@@ -471,7 +497,7 @@ impl OpenSegmentFile {
 
 #[derive(Debug)]
 enum ClosedSegmentFileReaderRequest {
-    ReadHeader(oneshot::Sender<blocking::ReaderResult<(FileTypeIdentifier, uuid::Bytes)>>),
+    ReadHeader(oneshot::Sender<blocking::ReaderResult<(FileTypeIdentifier, SegmentIdBytes)>>),
 
     NextOps(oneshot::Sender<blocking::ReaderResult<Option<SequencedWalOp>>>),
 }
@@ -500,8 +526,7 @@ impl ClosedSegmentFileReader {
             SegmentFileIdentifierMismatchSnafu,
         );
 
-        let id = Uuid::from_bytes(id);
-        let id = SegmentId::from(id);
+        let id = SegmentId::from_bytes(id);
 
         Ok(Self { id, tx, task })
     }
@@ -589,7 +614,10 @@ mod tests {
     #[tokio::test]
     async fn segment_file_write_and_read_ops() {
         let dir = test_helpers::tmp_dir().unwrap();
-        let segment = OpenSegmentFile::new_in_directory(dir.path()).await.unwrap();
+        let next_id_source = Arc::new(AtomicU64::new(0));
+        let segment = OpenSegmentFile::new_in_directory(dir.path(), next_id_source)
+            .await
+            .unwrap();
         let writer = segment.write_handle();
 
         let w1 = test_data("m1,t=foo v=1i 1");
@@ -659,7 +687,7 @@ mod tests {
         // No writes, but rotating is totally fine
         let wal_rotator = wal.rotation_handle().await;
         let closed_segment_details = wal_rotator.rotate().await.unwrap();
-        assert_eq!(closed_segment_details.size(), 24);
+        assert_eq!(closed_segment_details.size(), 16);
 
         // There's one closed segment
         let closed = wal_reader.closed_segments().await;

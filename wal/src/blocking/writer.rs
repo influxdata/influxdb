@@ -7,6 +7,10 @@ use std::{
     io::{self, Write},
     mem, num,
     path::PathBuf,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
 };
 
 pub struct OpenSegmentFileWriter {
@@ -17,8 +21,11 @@ pub struct OpenSegmentFileWriter {
 }
 
 impl OpenSegmentFileWriter {
-    pub fn new_in_directory(dir: impl Into<PathBuf>) -> Result<Self> {
-        let id = SegmentId::new();
+    pub fn new_in_directory(
+        dir: impl Into<PathBuf>,
+        next_id_source: Arc<AtomicU64>,
+    ) -> Result<Self> {
+        let id = SegmentId::new(next_id_source.fetch_add(1, Ordering::Relaxed));
         let path = crate::build_segment_path(dir, id);
 
         let mut f = OpenOptions::new()
@@ -32,7 +39,7 @@ impl OpenSegmentFileWriter {
         let file_type_bytes_written = FILE_TYPE_IDENTIFIER.len();
 
         let id_bytes = id.as_bytes();
-        f.write_all(id_bytes).context(SegmentWriteIdSnafu)?;
+        f.write_all(&id_bytes).context(SegmentWriteIdSnafu)?;
         let id_bytes_written = id_bytes.len();
 
         f.sync_all().expect("fsync failure");
