@@ -1,0 +1,9 @@
+[package]
+name = "ioxd_ingester2"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+workspace-hack = { path = "../workspace-hack"}
