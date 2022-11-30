@@ -1,11 +1,31 @@
 //! Command line options for running an ingester for a router using the RPC write path to talk to.
 
-use clap_blocks::run_config::RunConfig;
+use super::main;
+use crate::process_info::setup_metric_registry;
+use clap_blocks::{catalog_dsn::CatalogDsnConfig, run_config::RunConfig};
+use ioxd_common::{
+    server_type::{CommonServerState, CommonServerStateError},
+    Service,
+};
+use ioxd_ingester2::create_ingester_server_type;
 use observability_deps::tracing::*;
+use std::{path::PathBuf, sync::Arc};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum Error {}
+pub enum Error {
+    #[error("Run: {0}")]
+    Run(#[from] main::Error),
+
+    #[error("Invalid config: {0}")]
+    InvalidConfig(#[from] CommonServerStateError),
+
+    #[error("error initializing ingester2: {0}")]
+    Ingester(#[from] ioxd_ingester2::Error),
+
+    #[error("Catalog DSN error: {0}")]
+    CatalogDsn(#[from] clap_blocks::catalog_dsn::Error),
+}
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -26,10 +46,46 @@ Configuration is loaded from the following sources (highest precedence first):
 pub struct Config {
     #[clap(flatten)]
     pub(crate) run_config: RunConfig,
+
+    #[clap(flatten)]
+    pub(crate) catalog_dsn: CatalogDsnConfig,
+
+    /// Where this ingester instance should store its write-ahead log files. Each ingester instance
+    /// must have its own directory.
+    #[clap(long = "wal-directory", env = "INFLUXDB_IOX_WAL_DIRECTORY", action)]
+    wal_directory: PathBuf,
+
+    /// Sets how many concurrent requests the ingester will handle before rejecting
+    /// incoming requests.
+    #[clap(
+        long = "concurrent-request-limit",
+        env = "INFLUXDB_IOX_CONCURRENT_REQUEST_LIMIT",
+        default_value = "20",
+        action
+    )]
+    pub concurrent_request_limit: usize,
 }
 
-pub async fn command(_config: Config) -> Result<()> {
+pub async fn command(config: Config) -> Result<()> {
+    let common_state = CommonServerState::from_config(config.run_config.clone())?;
+    let metric_registry = setup_metric_registry();
+
+    let catalog = config
+        .catalog_dsn
+        .get_catalog("ingester", Arc::clone(&metric_registry))
+        .await?;
+
+    let server_type = create_ingester_server_type(
+        &common_state,
+        catalog,
+        Arc::clone(&metric_registry),
+        config.wal_directory,
+        config.concurrent_request_limit,
+    )
+    .await?;
+
     info!("starting ingester2");
 
-    Ok(())
+    let services = vec![Service::create(server_type, common_state.run_config())];
+    Ok(main::main(common_state, services, metric_registry).await?)
 }

@@ -2784,6 +2784,16 @@ dependencies = [
 name = "ioxd_ingester2"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "hyper",
+ "ingester2",
+ "iox_catalog",
+ "ioxd_common",
+ "metric",
+ "thiserror",
+ "tokio",
+ "tokio-util",
+ "trace",
  "workspace-hack",
 ]
 
