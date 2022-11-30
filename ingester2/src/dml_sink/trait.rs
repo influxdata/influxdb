@@ -11,6 +11,10 @@ pub(crate) enum DmlError {
     /// [`BufferTree`]: crate::buffer_tree::BufferTree
     #[error("failed to buffer op: {0}")]
     Buffer(#[from] mutable_batch::Error),
+
+    /// An error appending the [`DmlOperation`] to the write-ahead log.
+    #[error("wal commit failure: {0}")]
+    Wal(#[from] wal::Error),
 }
 
 /// A [`DmlSink`] handles [`DmlOperation`] instances in some abstract way.

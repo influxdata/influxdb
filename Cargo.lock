@@ -2497,12 +2497,14 @@ dependencies = [
  "rand",
  "schema",
  "service_grpc_catalog",
+ "tempfile",
  "test_helpers",
  "thiserror",
  "tokio",
  "tonic",
  "trace",
  "uuid",
+ "wal",
  "workspace-hack",
 ]
 

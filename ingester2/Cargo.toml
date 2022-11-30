@@ -42,6 +42,7 @@ tokio = { version = "1.22", features = ["macros", "parking_lot", "rt-multi-threa
 tonic = "0.8.3"
 trace = { version = "0.1.0", path = "../trace" }
 uuid = "1.2.2"
+wal = { version = "0.1.0", path = "../wal" }
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
@@ -50,4 +51,5 @@ datafusion_util = { path = "../datafusion_util" }
 lazy_static = "1.4.0"
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 paste = "1.0.9"
+tempfile = "3.3.0"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
