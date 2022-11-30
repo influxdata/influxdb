@@ -6024,7 +6024,6 @@ dependencies = [
  "test_helpers",
  "tokio",
  "tokio-util",
- "uuid",
  "workspace-hack",
 ]
 
