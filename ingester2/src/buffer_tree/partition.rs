@@ -9,9 +9,7 @@ use schema::sort::SortKey;
 
 use self::buffer::{traits::Queryable, BufferState, DataBuffer, Persisting};
 use super::table::TableName;
-use crate::{
-    deferred_load::DeferredLoad, query_adaptor::QueryAdaptor, sequence_range::SequenceNumberRange,
-};
+use crate::{deferred_load::DeferredLoad, query_adaptor::QueryAdaptor};
 
 mod buffer;
 pub(crate) mod resolver;
@@ -63,15 +61,11 @@ pub(crate) struct PartitionData {
     /// / deferred.
     table_name: Arc<DeferredLoad<TableName>>,
 
-    /// A buffer for incoming writes.
+    /// A [`DataBuffer`] for incoming writes.
     buffer: DataBuffer,
 
     /// The currently persisting [`DataBuffer`], if any.
     persisting: Option<BufferState<Persisting>>,
-
-    /// The max_persisted_sequence number for any parquet_file in this
-    /// partition.
-    max_persisted_sequence_number: Option<SequenceNumber>,
 }
 
 impl PartitionData {
@@ -84,7 +78,6 @@ impl PartitionData {
         table_id: TableId,
         table_name: Arc<DeferredLoad<TableName>>,
         sort_key: SortKeyState,
-        max_persisted_sequence_number: Option<SequenceNumber>,
     ) -> Self {
         Self {
             partition_id: id,
@@ -95,29 +88,16 @@ impl PartitionData {
             table_name,
             buffer: DataBuffer::default(),
             persisting: None,
-            max_persisted_sequence_number,
         }
     }
 
-    /// Buffer the given [`MutableBatch`] in memory, ordered by the specified
-    /// [`SequenceNumber`].
-    ///
-    /// # Panics
-    ///
-    /// This method panics if `sequence_number` is not strictly greater than
-    /// previous calls. This is not enforced for writes before the persist mark.
+    /// Buffer the given [`MutableBatch`] in memory.
     pub(super) fn buffer_write(
         &mut self,
         mb: MutableBatch,
         sequence_number: SequenceNumber,
     ) -> Result<(), mutable_batch::Error> {
-        // Skip any ops that have already been applied.
-        if let Some(min) = self.max_persisted_sequence_number {
-            assert!(sequence_number > min, "monotonicity violation");
-        }
-
-        // Buffer the write, which ensures monotonicity of writes within the
-        // buffer itself.
+        // Buffer the write.
         self.buffer.buffer_write(mb, sequence_number)?;
 
         trace!(
@@ -126,16 +106,14 @@ impl PartitionData {
             table_name = %self.table_name,
             partition_id = %self.partition_id,
             partition_key = %self.partition_key,
-            min_sequence_number=?self.buffer.sequence_number_range().inclusive_min(),
-            max_sequence_number=?self.buffer.sequence_number_range().inclusive_max(),
             "buffered write"
         );
 
         Ok(())
     }
 
-    /// Return all data for this partition, ordered by the [`SequenceNumber`]
-    /// from which it was buffered with.
+    /// Return all data for this partition, ordered by the calls to
+    /// [`PartitionData::buffer_write()`].
     pub(crate) fn get_query_data(&mut self) -> Option<QueryAdaptor> {
         // Extract the buffered data, if any.
         let buffered_data = self.buffer.get_query_data();
@@ -158,9 +136,6 @@ impl PartitionData {
             table_name = %self.table_name,
             partition_id = %self.partition_id,
             partition_key = %self.partition_key,
-            min_sequence_number=?self.buffer.sequence_number_range().inclusive_min(),
-            max_sequence_number=?self.buffer.sequence_number_range().inclusive_max(),
-            max_persisted=?self.max_persisted_sequence_number(),
             n_batches = data.len(),
             "read partition data"
         );
@@ -176,18 +151,6 @@ impl PartitionData {
         // RecordBatch are generated. Because `data` contains at least one
         // RecordBatch, this invariant holds.
         Some(QueryAdaptor::new(self.partition_id, data))
-    }
-
-    /// Return the range of [`SequenceNumber`] currently queryable by calling
-    /// [`PartitionData::get_query_data()`].
-    ///
-    /// This includes buffered data, snapshots, and currently persisting data.
-    pub(crate) fn sequence_number_range(&self) -> SequenceNumberRange {
-        self.persisting
-            .as_ref()
-            .map(|v| v.sequence_number_range().clone())
-            .unwrap_or_default()
-            .merge(self.buffer.sequence_number_range())
     }
 
     /// Snapshot and mark all buffered data as persisting.
@@ -226,9 +189,6 @@ impl PartitionData {
             table_name = %self.table_name,
             partition_id = %self.partition_id,
             partition_key = %self.partition_key,
-            current_max_persisted_sequence_number = ?self.max_persisted_sequence_number,
-            persisting_min_sequence_number = ?persisting.sequence_number_range().inclusive_min(),
-            persisting_max_sequence_number = ?persisting.sequence_number_range().inclusive_max(),
             "marking partition as persisting"
         );
 
@@ -238,78 +198,28 @@ impl PartitionData {
         Some(QueryAdaptor::new(self.partition_id, data))
     }
 
-    /// Mark this partition as having completed persistence up to, and
-    /// including, the specified [`SequenceNumber`].
+    /// Mark this partition as having completed persistence of the specified
+    /// `batch`.
     ///
-    /// All references to actively persisting are released.
+    /// All internal references to the data in `batch` are released.
     ///
     /// # Panics
     ///
     /// This method panics if [`Self`] is not marked as undergoing a persist
-    /// operation. All calls to [`Self::mark_persisted()`] must be preceded by a
-    /// matching call to [`Self::mark_persisting()`].
-    pub(crate) fn mark_persisted(&mut self, sequence_number: SequenceNumber) {
-        // Assert there is a batch marked as persisting in self, that it has a
-        // non-empty sequence number range, and that the persisted upper bound
-        // matches the data in the batch being dropped.
-        //
-        // TODO: once this has been deployed without issue (the assert does not
-        // fire), passing the sequence number is redundant and can be removed.
-        let persisting_max = self
-            .persisting
-            .as_ref()
-            .expect("must be a persisting batch when marking complete")
-            .sequence_number_range()
-            .inclusive_max()
-            .expect("persisting batch must contain sequence numbers");
-        assert_eq!(
-            persisting_max, sequence_number,
-            "marking {:?} as persisted but persisting batch max is {:?}",
-            sequence_number, persisting_max
-        );
+    /// operation, `batch` is not currently being persisted, or `batch` is
+    /// persisted out-of-order w.r.t other persisting batches. All calls to
+    /// [`Self::mark_persisted()`] must be preceded by a matching call to
+    /// [`Self::mark_persisting()`].
+    pub(crate) fn mark_persisted(&mut self, _batch: QueryAdaptor) {
+        // It is an invariant that partitions are persisted in order, as
+        // queriers consider writes in the object store as being strictly after
+        // writes returned from an ingester.
 
-        // Additionally assert the persisting batch is ordered strictly before
-        // the data in the buffer, if any.
-        //
-        // This asserts writes are monotonically applied.
-        if let Some(buffer_min) = self.buffer.sequence_number_range().inclusive_min() {
-            assert!(persisting_max < buffer_min, "monotonicity violation");
-        }
-
-        // It is an invariant that partitions are persisted in order so that
-        // both the per-partition watermarks are correctly advanced and
-        // accurate.
-        if let Some(last_persist) = self.max_persisted_sequence_number() {
-            assert!(
-                sequence_number > last_persist,
-                "out of order partition persistence, persisting {}, previously persisted {}",
-                sequence_number.get(),
-                last_persist.get(),
-            );
-        }
-
-        self.max_persisted_sequence_number = Some(sequence_number);
-        self.persisting = None;
-
-        debug!(
-            namespace_id = %self.namespace_id,
-            table_id = %self.table_id,
-            table_name = %self.table_name,
-            partition_id = %self.partition_id,
-            partition_key = %self.partition_key,
-            current_max_persisted_sequence_number = ?self.max_persisted_sequence_number,
-            "marking partition persistence complete"
-        );
+        unimplemented!();
     }
 
     pub(crate) fn partition_id(&self) -> PartitionId {
         self.partition_id
-    }
-
-    /// Return the [`SequenceNumber`] that forms the (inclusive) persistence
-    /// watermark for this partition.
-    pub(crate) fn max_persisted_sequence_number(&self) -> Option<SequenceNumber> {
-        self.max_persisted_sequence_number
     }
 
     /// Return the name of the table this [`PartitionData`] is buffering writes
@@ -392,15 +302,7 @@ mod tests {
                 TABLE_NAME.clone()
             })),
             SortKeyState::Provided(None),
-            None,
         );
-
-        // No writes should report no sequence offsets.
-        {
-            let range = p.sequence_number_range();
-            assert_eq!(range.inclusive_min(), None);
-            assert_eq!(range.inclusive_max(), None);
-        }
 
         // And no data should be returned when queried.
         assert!(p.get_query_data().is_none());
@@ -409,13 +311,6 @@ mod tests {
         let mb = lp_to_mutable_batch(r#"bananas,city=London people=2,pigeons="millions" 10"#).1;
         p.buffer_write(mb, SequenceNumber::new(1))
             .expect("write should succeed");
-
-        // The sequence range should now cover the single write.
-        {
-            let range = p.sequence_number_range();
-            assert_eq!(range.inclusive_min(), Some(SequenceNumber::new(1)));
-            assert_eq!(range.inclusive_max(), Some(SequenceNumber::new(1)));
-        }
 
         // The data should be readable.
         {
@@ -445,13 +340,6 @@ mod tests {
         let mb = lp_to_mutable_batch(r#"bananas,city=Madrid people=4,pigeons="none" 20"#).1;
         p.buffer_write(mb, SequenceNumber::new(2))
             .expect("write should succeed");
-
-        // The sequence range should now cover both writes.
-        {
-            let range = p.sequence_number_range();
-            assert_eq!(range.inclusive_min(), Some(SequenceNumber::new(1)));
-            assert_eq!(range.inclusive_max(), Some(SequenceNumber::new(2)));
-        }
 
         // And finally both writes should be readable.
         {
@@ -491,10 +379,8 @@ mod tests {
                 TABLE_NAME.clone()
             })),
             SortKeyState::Provided(None),
-            None,
         );
 
-        assert!(p.max_persisted_sequence_number().is_none());
         assert!(p.get_query_data().is_none());
 
         // Perform a single write.
@@ -523,16 +409,6 @@ mod tests {
                 .cloned()
                 .collect::<Vec<_>>()
         );
-
-        // The sequence range should now cover the single persisting write.
-        {
-            let range = p.sequence_number_range();
-            assert_eq!(range.inclusive_min(), Some(SequenceNumber::new(1)));
-            assert_eq!(range.inclusive_max(), Some(SequenceNumber::new(1)));
-        }
-
-        // And the max_persisted_sequence_number should not have changed.
-        assert!(p.max_persisted_sequence_number().is_none());
 
         // Buffer another write during an ongoing persist.
         let mb = lp_to_mutable_batch(r#"bananas,city=Madrid people=4,pigeons="none" 20"#).1;
@@ -563,33 +439,8 @@ mod tests {
             );
         }
 
-        // The sequence range should still cover both writes.
-        {
-            let range = p.sequence_number_range();
-            assert_eq!(range.inclusive_min(), Some(SequenceNumber::new(1)));
-            assert_eq!(range.inclusive_max(), Some(SequenceNumber::new(2)));
-        }
-
-        // And the max_persisted_sequence_number should not have changed.
-        assert!(p.max_persisted_sequence_number().is_none());
-
         // The persist now "completes".
-        p.mark_persisted(SequenceNumber::new(1));
-
-        // The sequence range should now cover only the second remaining
-        // buffered write.
-        {
-            let range = p.sequence_number_range();
-            assert_eq!(range.inclusive_min(), Some(SequenceNumber::new(2)));
-            assert_eq!(range.inclusive_max(), Some(SequenceNumber::new(2)));
-        }
-
-        // And the max_persisted_sequence_number should reflect the completed
-        // persist op.
-        assert_eq!(
-            p.max_persisted_sequence_number(),
-            Some(SequenceNumber::new(1))
-        );
+        p.mark_persisted(persisting_data);
 
         // Querying the buffer should now return only the second write.
         {
@@ -658,7 +509,6 @@ mod tests {
                 TABLE_NAME.clone()
             })),
             SortKeyState::Provided(None),
-            None,
         );
 
         // Perform the initial write.
@@ -701,21 +551,20 @@ mod tests {
         .await;
 
         // Begin persisting the data, moving the buffer to the persisting state.
-        {
-            let batches = p.mark_persisting().unwrap();
-            assert_eq!(batches.record_batches().len(), 1);
-            assert_deduped(
-                &[
-                    "+--------------------------------+---+",
-                    "| time                           | x |",
-                    "+--------------------------------+---+",
-                    "| 1970-01-01T00:00:00.000000042Z | 2 |",
-                    "+--------------------------------+---+",
-                ],
-                batches,
-            )
-            .await;
-        }
+
+        let persisting_data = p.mark_persisting().unwrap();
+        assert_eq!(persisting_data.record_batches().len(), 1);
+        assert_deduped(
+            &[
+                "+--------------------------------+---+",
+                "| time                           | x |",
+                "+--------------------------------+---+",
+                "| 1970-01-01T00:00:00.000000042Z | 2 |",
+                "+--------------------------------+---+",
+            ],
+            persisting_data.clone(),
+        )
+        .await;
 
         // Buffer another write, and generate a snapshot by querying it.
         let mb = lp_to_mutable_batch(r#"bananas x=3 42"#).1;
@@ -736,11 +585,7 @@ mod tests {
         .await;
 
         // Finish persisting.
-        p.mark_persisted(SequenceNumber::new(2));
-        assert_eq!(
-            p.max_persisted_sequence_number(),
-            Some(SequenceNumber::new(2))
-        );
+        p.mark_persisted(persisting_data);
 
         // And assert the correct value remains.
         assert_eq!(p.get_query_data().unwrap().record_batches().len(), 1);
@@ -772,7 +617,6 @@ mod tests {
                 TableName::from("platanos")
             })),
             starting_state,
-            None,
         );
 
         let want = Some(SortKey::from_columns(["banana", "platanos", "time"]));
@@ -829,7 +673,6 @@ mod tests {
                 TableName::from("platanos")
             })),
             starting_state,
-            None,
         );
 
         let want = Some(SortKey::from_columns(["banana", "platanos", "time"]));
@@ -841,7 +684,6 @@ mod tests {
 
     // Perform writes with non-monotonic sequence numbers.
     #[tokio::test]
-    #[should_panic(expected = "monotonicity violation")]
     async fn test_non_monotonic_writes() {
         let mut p = PartitionData::new(
             PARTITION_ID,
@@ -852,14 +694,37 @@ mod tests {
                 TABLE_NAME.clone()
             })),
             SortKeyState::Provided(None),
-            None,
         );
 
         // Perform out of order writes.
-        let mb = lp_to_mutable_batch(r#"bananas,city=London people=2,pigeons="millions" 10"#).1;
-        p.buffer_write(mb.clone(), SequenceNumber::new(2))
-            .expect("write should succeed");
-        let _ = p.buffer_write(mb, SequenceNumber::new(1));
+        p.buffer_write(
+            lp_to_mutable_batch(r#"bananas,city=London people=2,pigeons="millions" 10"#).1,
+            SequenceNumber::new(2),
+        )
+        .expect("write should succeed");
+        let _ = p.buffer_write(
+            lp_to_mutable_batch(r#"bananas,city=Madrid people=2,pigeons="none" 11"#).1,
+            SequenceNumber::new(1),
+        );
+
+        // Nothing should explode, data should be readable.
+        let data = p.get_query_data().unwrap();
+        assert_batches_eq!(
+            [
+                "+--------+--------+----------+--------------------------------+",
+                "| city   | people | pigeons  | time                           |",
+                "+--------+--------+----------+--------------------------------+",
+                "| London | 2      | millions | 1970-01-01T00:00:00.000000010Z |",
+                "| Madrid | 2      | none     | 1970-01-01T00:00:00.000000011Z |",
+                "+--------+--------+----------+--------------------------------+",
+            ],
+            &*data
+                .record_batches()
+                .iter()
+                .map(Deref::deref)
+                .cloned()
+                .collect::<Vec<_>>()
+        );
     }
 
     #[tokio::test]
@@ -874,10 +739,16 @@ mod tests {
                 TABLE_NAME.clone()
             })),
             SortKeyState::Provided(None),
-            None,
         );
 
-        p.mark_persisted(SequenceNumber::new(1));
+        // Write some data
+        let mb = lp_to_mutable_batch(r#"bananas,city=London people=2,pigeons="millions" 10"#).1;
+        p.buffer_write(mb, SequenceNumber::new(2))
+            .expect("write should succeed");
+
+        let not_persisting = p.get_query_data().unwrap();
+
+        p.mark_persisted(not_persisting);
     }
 
     #[tokio::test]
@@ -891,7 +762,6 @@ mod tests {
                 TABLE_NAME.clone()
             })),
             SortKeyState::Provided(None),
-            None,
         );
 
         assert!(p.mark_persisting().is_none());
@@ -909,7 +779,6 @@ mod tests {
                 TABLE_NAME.clone()
             })),
             SortKeyState::Provided(None),
-            None,
         );
 
         let mb = lp_to_mutable_batch(r#"bananas,city=London people=2,pigeons="millions" 10"#).1;
@@ -919,129 +788,6 @@ mod tests {
         assert!(p.mark_persisting().is_some());
 
         p.mark_persisting();
-    }
-
-    #[tokio::test]
-    #[should_panic(
-        expected = "marking SequenceNumber(42) as persisted but persisting batch max is SequenceNumber(2)"
-    )]
-    async fn test_mark_persisted_wrong_sequence_number() {
-        let mut p = PartitionData::new(
-            PARTITION_ID,
-            PARTITION_KEY.clone(),
-            NamespaceId::new(3),
-            TableId::new(4),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                TABLE_NAME.clone()
-            })),
-            SortKeyState::Provided(None),
-            None,
-        );
-
-        let mb = lp_to_mutable_batch(r#"bananas,city=London people=2,pigeons="millions" 10"#).1;
-        p.buffer_write(mb, SequenceNumber::new(2))
-            .expect("write should succeed");
-
-        assert!(p.mark_persisting().is_some());
-
-        p.mark_persisted(SequenceNumber::new(42));
-    }
-
-    // Because persisting moves the data out of the "hot" buffer, the sequence
-    // numbers are not validated as being monotonic (the new buffer has no
-    // sequence numbers to compare against).
-    //
-    // Instead this check is performed when marking the persist op as complete.
-    #[tokio::test]
-    #[should_panic(expected = "monotonicity violation")]
-    async fn test_non_monotonic_writes_with_persistence() {
-        let mut p = PartitionData::new(
-            PARTITION_ID,
-            PARTITION_KEY.clone(),
-            NamespaceId::new(3),
-            TableId::new(4),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                TABLE_NAME.clone()
-            })),
-            SortKeyState::Provided(None),
-            None,
-        );
-
-        let mb = lp_to_mutable_batch(r#"bananas,city=London people=2,pigeons="millions" 10"#).1;
-        p.buffer_write(mb.clone(), SequenceNumber::new(42))
-            .expect("write should succeed");
-
-        assert!(p.mark_persisting().is_some());
-
-        // This succeeds due to a new buffer being in place that cannot track
-        // previous sequence numbers.
-        p.buffer_write(mb, SequenceNumber::new(1))
-            .expect("out of order write should succeed");
-
-        // The assert on non-monotonic writes moves to here instead.
-        p.mark_persisted(SequenceNumber::new(42));
-    }
-
-    // As above, the sequence numbers are not tracked between buffer instances.
-    //
-    // This test ensures that a partition can tolerate replayed ops prior to the
-    // persist marker when first initialising. However once a partition has
-    // buffered beyond the persist marker, it cannot re-buffer ops after it.
-    #[tokio::test]
-    #[should_panic(expected = "monotonicity violation")]
-    async fn test_non_monotonic_writes_after_persistence() {
-        let mut p = PartitionData::new(
-            PARTITION_ID,
-            PARTITION_KEY.clone(),
-            NamespaceId::new(3),
-            TableId::new(4),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                TABLE_NAME.clone()
-            })),
-            SortKeyState::Provided(None),
-            None,
-        );
-
-        let mb = lp_to_mutable_batch(r#"bananas,city=London people=2,pigeons="millions" 10"#).1;
-        p.buffer_write(mb.clone(), SequenceNumber::new(42))
-            .expect("write should succeed");
-
-        assert!(p.mark_persisting().is_some());
-        p.mark_persisted(SequenceNumber::new(42));
-
-        // This should fail as the write "goes backwards".
-        let _err = p
-            .buffer_write(mb, SequenceNumber::new(1))
-            .expect_err("out of order write should succeed");
-    }
-
-    // As above, but with a pre-configured persist marker greater than the
-    // sequence number being wrote.
-    #[tokio::test]
-    #[should_panic(expected = "monotonicity violation")]
-    async fn test_non_monotonic_writes_persist_marker() {
-        let mut p = PartitionData::new(
-            PARTITION_ID,
-            PARTITION_KEY.clone(),
-            NamespaceId::new(3),
-            TableId::new(4),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                TABLE_NAME.clone()
-            })),
-            SortKeyState::Provided(None),
-            Some(SequenceNumber::new(42)),
-        );
-        assert_eq!(
-            p.max_persisted_sequence_number(),
-            Some(SequenceNumber::new(42))
-        );
-
-        let mb = lp_to_mutable_batch(r#"bananas,city=London people=2,pigeons="millions" 10"#).1;
-
-        // This should fail as the write "goes backwards".
-        let _err = p
-            .buffer_write(mb, SequenceNumber::new(1))
-            .expect_err("out of order write should not succeed");
     }
 
     // Ensure an empty PartitionData does not panic due to constructing an empty
@@ -1057,7 +803,6 @@ mod tests {
                 TABLE_NAME.clone()
             })),
             SortKeyState::Provided(None),
-            Some(SequenceNumber::new(42)),
         );
 
         assert!(p.get_query_data().is_none());

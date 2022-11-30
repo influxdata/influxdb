@@ -13,7 +13,6 @@ pub(in crate::buffer_tree::partition::buffer) use buffering::*;
 pub(crate) use persisting::*;
 
 use super::traits::{Queryable, Writeable};
-use crate::sequence_range::SequenceNumberRange;
 
 /// A result type for fallible transitions.
 ///
@@ -30,11 +29,8 @@ pub(crate) enum Transition<A, B> {
 
 impl<A, B> Transition<A, B> {
     /// A helper function to construct [`Self::Ok`] variants.
-    pub(super) fn ok(v: A, sequence_range: SequenceNumberRange) -> Self {
-        Self::Ok(BufferState {
-            state: v,
-            sequence_range,
-        })
+    pub(super) fn ok(v: A) -> Self {
+        Self::Ok(BufferState { state: v })
     }
 
     /// A helper function to construct [`Self::Unchanged`] variants.
@@ -71,7 +67,6 @@ impl<A, B> Transition<A, B> {
 #[derive(Debug)]
 pub(crate) struct BufferState<T> {
     state: T,
-    sequence_range: SequenceNumberRange,
 }
 
 impl BufferState<Buffering> {
@@ -79,14 +74,7 @@ impl BufferState<Buffering> {
     pub(super) fn new() -> Self {
         Self {
             state: Buffering::default(),
-            sequence_range: SequenceNumberRange::default(),
         }
-    }
-}
-
-impl<T> BufferState<T> {
-    pub(crate) fn sequence_number_range(&self) -> &SequenceNumberRange {
-        &self.sequence_range
     }
 }
 
@@ -105,10 +93,9 @@ where
     pub(crate) fn write(
         &mut self,
         batch: MutableBatch,
-        n: SequenceNumber,
+        _n: SequenceNumber,
     ) -> Result<(), mutable_batch::Error> {
         self.state.write(batch)?;
-        self.sequence_range.observe(n);
         Ok(())
     }
 }
@@ -142,10 +129,6 @@ mod tests {
     fn test_buffer_lifecycle() {
         // Initialise a buffer in the base state.
         let mut buffer: BufferState<Buffering> = BufferState::new();
-
-        // Validate the sequence number ranges are not populated.
-        assert!(buffer.sequence_number_range().inclusive_min().is_none());
-        assert!(buffer.sequence_number_range().inclusive_max().is_none());
 
         // Write some data to a buffer.
         buffer
@@ -219,16 +202,6 @@ mod tests {
 
         // Finally transition into the terminal persisting state.
         let buffer: BufferState<Persisting> = buffer.into_persisting();
-
-        // Validate the sequence number ranges were updated as writes occurred.
-        assert_eq!(
-            buffer.sequence_number_range().inclusive_min(),
-            Some(SequenceNumber::new(0))
-        );
-        assert_eq!(
-            buffer.sequence_number_range().inclusive_max(),
-            Some(SequenceNumber::new(1))
-        );
 
         // Extract the final buffered result
         let final_data = buffer.into_data();

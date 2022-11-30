@@ -77,7 +77,6 @@ mod deferred_load;
 mod dml_sink;
 mod query;
 mod query_adaptor;
-mod sequence_range;
 pub(crate) mod server;
 mod timestamp_oracle;
 mod wal;

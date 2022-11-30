@@ -240,7 +240,6 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
-                None,
             ),
         ));
 

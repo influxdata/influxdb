@@ -12,7 +12,6 @@ pub(crate) mod traits;
 pub(crate) use state_machine::*;
 
 use self::{always_some::AlwaysSome, traits::Queryable};
-use crate::sequence_range::SequenceNumberRange;
 
 /// The current state of the [`BufferState`] state machine.
 ///
@@ -32,16 +31,6 @@ impl Default for FsmState {
     }
 }
 
-impl FsmState {
-    /// Return the current range of writes in the [`BufferState`] state machine,
-    /// if any.
-    pub(crate) fn sequence_number_range(&self) -> &SequenceNumberRange {
-        match self {
-            Self::Buffering(v) => v.sequence_number_range(),
-        }
-    }
-}
-
 /// A helper wrapper over the [`BufferState`] FSM to abstract the caller from
 /// state transitions during reads and writes from the underlying buffer.
 #[derive(Debug, Default)]
@@ -49,19 +38,8 @@ impl FsmState {
 pub(crate) struct DataBuffer(AlwaysSome<FsmState>);
 
 impl DataBuffer {
-    /// Return the range of [`SequenceNumber`] currently queryable by calling
-    /// [`Self::get_query_data()`].
-    pub(crate) fn sequence_number_range(&self) -> &SequenceNumberRange {
-        self.0.sequence_number_range()
-    }
-
     /// Buffer the given [`MutableBatch`] in memory, ordered by the specified
     /// [`SequenceNumber`].
-    ///
-    /// # Panics
-    ///
-    /// This method panics if `sequence_number` is not strictly greater than
-    /// previous calls.
     pub(crate) fn buffer_write(
         &mut self,
         mb: MutableBatch,

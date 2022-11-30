@@ -74,7 +74,7 @@ impl BufferState<Buffering> {
             .expect("snapshot of non-empty buffer should succeed");
 
         // And transition to the WithSnapshot state.
-        Transition::ok(Snapshot::new(vec![snap]), self.sequence_range)
+        Transition::ok(Snapshot::new(vec![snap]))
     }
 }
 
