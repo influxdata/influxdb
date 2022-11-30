@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use clap_blocks::write_buffer::WriteBufferConfig;
+use clap_blocks::{router::RouterConfig, write_buffer::WriteBufferConfig};
 use data_types::{NamespaceName, PartitionTemplate, TemplatePart};
 use hashbrown::HashMap;
 use hyper::{Body, Request, Response};
@@ -171,8 +171,7 @@ pub async fn create_router_server_type(
     catalog: Arc<dyn Catalog>,
     object_store: Arc<DynObjectStore>,
     write_buffer_config: &WriteBufferConfig,
-    query_pool_name: &str,
-    request_limit: usize,
+    router_config: &RouterConfig,
 ) -> Result<Arc<dyn ServerType>> {
     // Initialise the sharded write buffer and instrument it with DML handler
     // metrics.
@@ -246,7 +245,7 @@ pub async fn create_router_server_type(
         .unwrap_or_else(|| panic!("no topic named {} in catalog", write_buffer_config.topic()));
     let query_id = txn
         .query_pools()
-        .create_or_get(query_pool_name)
+        .create_or_get(&router_config.query_pool_name)
         .await
         .map(|v| v.id)
         .unwrap_or_else(|e| {
@@ -264,7 +263,9 @@ pub async fn create_router_server_type(
         Arc::clone(&catalog),
         topic_id,
         query_id,
-        None,
+        router_config
+            .new_namespace_retention_hours
+            .map(|hours| hours as i64 * 60 * 60 * 1_000_000_000),
     );
     //
     ////////////////////////////////////////////////////////////////////////////
@@ -298,7 +299,7 @@ pub async fn create_router_server_type(
     // Initialise the API delegates
     let http = HttpDelegate::new(
         common_state.run_config().max_http_request_size,
-        request_limit,
+        router_config.http_request_limit,
         namespace_resolver,
         handler_stack,
         &metrics,

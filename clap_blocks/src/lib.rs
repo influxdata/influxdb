@@ -17,6 +17,7 @@ pub mod compactor;
 pub mod ingester;
 pub mod object_store;
 pub mod querier;
+pub mod router;
 pub mod run_config;
 pub mod socket_addr;
 pub mod write_buffer;

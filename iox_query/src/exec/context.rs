@@ -2,7 +2,9 @@
 //! DataFusion
 
 use super::{
-    non_null_checker::NonNullCheckerNode, seriesset::series::Either, split::StreamSplitNode,
+    non_null_checker::NonNullCheckerNode,
+    seriesset::{series::Either, SeriesSet},
+    split::StreamSplitNode,
 };
 use crate::{
     exec::{
@@ -430,11 +432,12 @@ impl IOxSessionContext {
         plans.sort_by(|a, b| a.table_name.cmp(&b.table_name));
 
         // Run the plans in parallel
-        let handles = plans
-            .into_iter()
-            .map(|plan| {
-                let ctx = self.child_ctx("to_series_set");
-                self.run(async move {
+        let ctx = self.child_ctx("to_series_set");
+        let exec = self.exec.clone();
+        let data = futures::stream::iter(plans)
+            .then(move |plan| {
+                let ctx = ctx.child_ctx("for plan");
+                Self::run_inner(exec.clone(), async move {
                     let SeriesSetPlan {
                         table_name,
                         plan,
@@ -448,7 +451,7 @@ impl IOxSessionContext {
 
                     let it = ctx.execute_stream(physical_plan).await?;
 
-                    SeriesSetConverter::default()
+                    let series_sets = SeriesSetConverter::default()
                         .convert(table_name, tag_columns, field_columns, it)
                         .await
                         .map_err(|e| {
@@ -456,20 +459,13 @@ impl IOxSessionContext {
                                 "Error executing series set conversion: {}",
                                 e
                             ))
-                        })
+                        })?;
+
+                    Ok(futures::stream::iter(series_sets).map(|x| Ok(x) as Result<_>))
                 })
             })
-            .collect::<Vec<_>>();
-
-        // join_all ensures that the results are consumed in the same order they
-        // were spawned maintaining the guarantee to return results ordered
-        // by table name and plan sort order.
-        let all_series_sets = futures::future::try_join_all(handles).await?;
-
-        // convert to series sets
-        let mut data: Vec<Series> = vec![];
-        for series_sets in all_series_sets {
-            for series_set in series_sets {
+            .try_flatten()
+            .try_filter_map(|series_set: SeriesSet| async move {
                 // If all timestamps of returned columns are nulls,
                 // there must be no data. We need to check this because
                 // aggregate (e.g. count, min, max) returns one row that are
@@ -477,16 +473,15 @@ impl IOxSessionContext {
                 // For influx read_group's series and group, we do not want to return 0
                 // for count either.
                 if series_set.is_timestamp_all_null() {
-                    continue;
+                    return Ok(None);
                 }
 
                 let series: Vec<Series> = series_set
                     .try_into()
                     .map_err(|e| Error::Execution(format!("Error converting to series: {}", e)))?;
-                data.extend(series);
-            }
-        }
-        let data = futures::stream::iter(data).map(Ok);
+                Ok(Some(futures::stream::iter(series).map(Ok)))
+            })
+            .try_flatten();
 
         // If we have group columns, sort the results, and create the
         // appropriate groups
@@ -597,8 +592,15 @@ impl IOxSessionContext {
         Fut: std::future::Future<Output = Result<T>> + Send + 'static,
         T: Send + 'static,
     {
-        self.exec
-            .spawn(fut)
+        Self::run_inner(self.exec.clone(), fut).await
+    }
+
+    pub async fn run_inner<Fut, T>(exec: DedicatedExecutor, fut: Fut) -> Result<T>
+    where
+        Fut: std::future::Future<Output = Result<T>> + Send + 'static,
+        T: Send + 'static,
+    {
+        exec.spawn(fut)
             .await
             .unwrap_or_else(|e| Err(Error::Execution(format!("Join Error: {}", e))))
     }

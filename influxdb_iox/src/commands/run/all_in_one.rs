@@ -9,6 +9,7 @@ use clap_blocks::{
     ingester::IngesterConfig,
     object_store::{make_object_store, ObjectStoreConfig},
     querier::{IngesterAddresses, QuerierConfig},
+    router::RouterConfig,
     run_config::RunConfig,
     socket_addr::SocketAddr,
     write_buffer::WriteBufferConfig,
@@ -412,6 +413,12 @@ impl Config {
             persist_partition_rows_max: 500_000,
         };
 
+        let router_config = RouterConfig {
+            query_pool_name: QUERY_POOL_NAME.to_string(),
+            http_request_limit: 1_000,
+            new_namespace_retention_hours: None, // infinite retention
+        };
+
         // create a CompactorConfig for the all in one server based on
         // settings from other configs. Can't use `#clap(flatten)` as the
         // parameters are redundant with ingester's
@@ -455,6 +462,7 @@ impl Config {
             catalog_dsn,
             write_buffer_config,
             ingester_config,
+            router_config,
             compactor_config,
             querier_config,
         }
@@ -472,6 +480,7 @@ struct SpecializedConfig {
     catalog_dsn: CatalogDsnConfig,
     write_buffer_config: WriteBufferConfig,
     ingester_config: IngesterConfig,
+    router_config: RouterConfig,
     compactor_config: CompactorConfig,
     querier_config: QuerierConfig,
 }
@@ -485,6 +494,7 @@ pub async fn command(config: Config) -> Result<()> {
         catalog_dsn,
         write_buffer_config,
         ingester_config,
+        router_config,
         compactor_config,
         querier_config,
     } = config.specialize();
@@ -539,8 +549,7 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&catalog),
         Arc::clone(&object_store),
         &write_buffer_config,
-        QUERY_POOL_NAME,
-        1_000, // max 1,000 concurrent HTTP requests
+        &router_config,
     )
     .await?;
 
