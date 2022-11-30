@@ -233,8 +233,12 @@ impl Wal {
                 .context(UnableToReadFileMetadataSnafu)?;
             if metadata.is_file() {
                 let child_path = child.path();
-                let filename = child_path.file_name().unwrap();
-                let filename = filename.to_str().unwrap();
+                let filename = child_path
+                    .file_stem()
+                    .expect("WAL files created by IOx should have a file stem");
+                let filename = filename
+                    .to_str()
+                    .expect("WAL files created by IOx should be named with valid UTF-8");
                 let id = Uuid::parse_str(filename)
                     .context(InvalidUuidSnafu { filename })?
                     .into();

@@ -77,6 +77,37 @@ async fn crud() {
     );
 }
 
+#[tokio::test]
+async fn replay() {
+    let dir = test_helpers::tmp_dir().unwrap();
+
+    // Create a WAL with an entry then drop the WAL
+    {
+        let wal = wal::Wal::new(dir.path()).await.unwrap();
+        let open = wal.write_handle().await;
+        let op = arbitrary_sequenced_wal_op(42);
+        open.write_op(op).await.unwrap();
+        let wal_rotator = wal.rotation_handle().await;
+        wal_rotator.rotate().await.unwrap();
+    }
+
+    // Create a new WAL instance with the same directory to replay from the files
+    let wal = wal::Wal::new(dir.path()).await.unwrap();
+    let wal_reader = wal.read_handle();
+
+    // There's one closed segment
+    let closed = wal_reader.closed_segments().await;
+    let closed_segment_ids: Vec<_> = closed.iter().map(|c| c.id()).collect();
+
+    // Can read the written entries from the closed segment
+    let mut reader = wal_reader
+        .reader_for_segment(closed_segment_ids[0])
+        .await
+        .unwrap();
+    let op = reader.next_ops().await.unwrap().unwrap();
+    assert_eq!(op.sequence_number.get(), 42);
+}
+
 fn arbitrary_sequenced_wal_op(sequence_number: u64) -> SequencedWalOp {
     let w = test_data("m1,t=foo v=1i 1");
     SequencedWalOp {
