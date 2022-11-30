@@ -28,7 +28,6 @@ use std::sync::Arc;
 
 use super::field::FieldIndexes;
 
-#[derive(Debug)]
 /// Information to map a slice of rows in a [`RecordBatch`] sorted by
 /// tags and timestamps to several timeseries that share the same
 /// tag keys and timestamps.
@@ -65,6 +64,7 @@ use super::field::FieldIndexes;
 /// NB: The heavy use of `Arc` is to avoid many duplicated Strings given
 /// the the fact that many SeriesSets share the same tag keys and
 /// table name.
+#[derive(Debug)]
 pub struct SeriesSet {
     /// The table name this series came from
     pub table_name: Arc<str>,
@@ -77,12 +77,6 @@ pub struct SeriesSet {
     /// would result in two distinct series being sent back, one for
     /// each field.
     pub field_indexes: FieldIndexes,
-
-    // The row in the record batch where the data starts (inclusive)
-    pub start_row: usize,
-
-    // The number of rows in the record batch that the data goes to
-    pub num_rows: usize,
 
     // The underlying record batch data
     pub batch: RecordBatch,
