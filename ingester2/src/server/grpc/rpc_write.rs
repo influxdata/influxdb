@@ -1,4 +1,6 @@
-use data_types::{NamespaceId, PartitionKey, TableId};
+use std::sync::Arc;
+
+use data_types::{NamespaceId, PartitionKey, Sequence, TableId};
 use dml::{DmlMeta, DmlOperation, DmlWrite};
 use generated_types::influxdata::iox::ingester::v1::{
     self as proto, write_service_server::WriteService,
@@ -9,7 +11,11 @@ use observability_deps::tracing::*;
 use thiserror::Error;
 use tonic::{Request, Response};
 
-use crate::dml_sink::{DmlError, DmlSink};
+use crate::{
+    dml_sink::{DmlError, DmlSink},
+    timestamp_oracle::TimestampOracle,
+    TRANSITION_SHARD_INDEX,
+};
 
 /// A list of error states when handling an RPC write request.
 ///
@@ -86,14 +92,15 @@ fn map_write_error(e: mutable_batch::Error) -> tonic::Status {
 #[derive(Debug)]
 pub(crate) struct RpcWrite<T> {
     sink: T,
+    timestamp: Arc<TimestampOracle>,
 }
 
 impl<T> RpcWrite<T> {
     /// Instantiate a new [`RpcWrite`] that pushes [`DmlOperation`] instances
     /// into `sink`.
     #[allow(dead_code)]
-    pub(crate) fn new(sink: T) -> Self {
-        Self { sink }
+    pub(crate) fn new(sink: T, timestamp: Arc<TimestampOracle>) -> Self {
+        Self { sink, timestamp }
     }
 }
 
@@ -142,10 +149,18 @@ where
                 .map(|(k, v)| (TableId::new(k), v))
                 .collect(),
             partition_key,
-            // The tracing context should be propagated over the RPC boundary.
-            //
-            // See https://github.com/influxdata/influxdb_iox/issues/6177
-            DmlMeta::unsequenced(None),
+            DmlMeta::sequenced(
+                Sequence {
+                    shard_index: TRANSITION_SHARD_INDEX, // TODO: remove this from DmlMeta
+                    sequence_number: self.timestamp.next(),
+                },
+                iox_time::Time::MAX, // TODO: remove this from DmlMeta
+                // The tracing context should be propagated over the RPC boundary.
+                //
+                // See https://github.com/influxdata/influxdb_iox/issues/6177
+                None,
+                42, // TODO: remove this from DmlMeta
+            ),
         );
 
         // Apply the DML op to the in-memory buffer.
@@ -191,7 +206,8 @@ mod tests {
                     let mock = Arc::new(
                         MockDmlSink::default().with_apply_return(vec![$sink_ret]),
                     );
-                    let handler = RpcWrite::new(Arc::clone(&mock));
+                    let timestamp = Arc::new(TimestampOracle::new(0));
+                    let handler = RpcWrite::new(Arc::clone(&mock), timestamp);
 
                     let ret = handler
                         .write(Request::new($request))
@@ -238,6 +254,7 @@ mod tests {
             assert_eq!(w.namespace_id(), NAMESPACE_ID);
             assert_eq!(w.table_count(), 1);
             assert_eq!(*w.partition_key(), PartitionKey::from(PARTITION_KEY));
+            assert_eq!(w.meta().sequence().unwrap().sequence_number.get(), 1);
         }
     );
 
@@ -294,4 +311,58 @@ mod tests {
         want_err = true,
         want_calls = []
     );
+
+    /// A property test asserting that writes that succeed earlier writes have
+    /// greater timestamps assigned.
+    #[tokio::test]
+    async fn test_rpc_write_ordered_timestamps() {
+        let mock = Arc::new(MockDmlSink::default().with_apply_return(vec![Ok(()), Ok(())]));
+        let timestamp = Arc::new(TimestampOracle::new(0));
+        let handler = RpcWrite::new(Arc::clone(&mock), timestamp);
+
+        let req = proto::WriteRequest {
+            payload: Some(DatabaseBatch {
+                database_id: NAMESPACE_ID.get(),
+                partition_key: PARTITION_KEY.to_string(),
+                table_batches: vec![TableBatch {
+                    table_id: 42,
+                    columns: vec![Column {
+                        column_name: "time".to_string(),
+                        semantic_type: SemanticType::Time.into(),
+                        values: Some(Values {
+                            i64_values: vec![4242],
+                            f64_values: vec![],
+                            u64_values: vec![],
+                            string_values: vec![],
+                            bool_values: vec![],
+                            bytes_values: vec![],
+                            packed_string_values: None,
+                            interned_string_values: None,
+                        }),
+                        null_mask: vec![0],
+                    }],
+                    row_count: 1,
+                }],
+            }),
+        };
+
+        handler
+            .write(Request::new(req.clone()))
+            .await
+            .expect("write should succeed");
+
+        handler
+            .write(Request::new(req))
+            .await
+            .expect("write should succeed");
+
+        assert_matches!(
+            *mock.get_calls(),
+            [DmlOperation::Write(ref w1), DmlOperation::Write(ref w2)] => {
+                let w1 = w1.meta().sequence().unwrap().sequence_number.get();
+                let w2 = w2.meta().sequence().unwrap().sequence_number.get();
+                assert!(w1 < w2);
+            }
+        );
+    }
 }
