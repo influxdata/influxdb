@@ -125,7 +125,7 @@ pub async fn new(
         .repositories()
         .await
         .partitions()
-        .most_recent_n(10_000, &[TRANSITION_SHARD_ID])
+        .most_recent_n(40_000, &[TRANSITION_SHARD_ID])
         .await
         .map_err(InitError::PreWarmPartitions)?;
 
