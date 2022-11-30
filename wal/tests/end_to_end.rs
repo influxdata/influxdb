@@ -81,7 +81,8 @@ async fn crud() {
 async fn replay() {
     let dir = test_helpers::tmp_dir().unwrap();
 
-    // Create a WAL with an entry then drop the WAL
+    // Create a WAL with an entry, rotate to close the segment, create another entry, then drop the
+    // WAL.
     {
         let wal = wal::Wal::new(dir.path()).await.unwrap();
         let open = wal.write_handle().await;
@@ -89,23 +90,35 @@ async fn replay() {
         open.write_op(op).await.unwrap();
         let wal_rotator = wal.rotation_handle().await;
         wal_rotator.rotate().await.unwrap();
+        let op = arbitrary_sequenced_wal_op(43);
+        open.write_op(op).await.unwrap();
     }
 
     // Create a new WAL instance with the same directory to replay from the files
     let wal = wal::Wal::new(dir.path()).await.unwrap();
     let wal_reader = wal.read_handle();
 
-    // There's one closed segment
+    // There's two closed segments -- one for the previously closed segment, one for the previously
+    // open segment. Replayed WALs treat all files as closed, because effectively they are.
     let closed = wal_reader.closed_segments().await;
     let closed_segment_ids: Vec<_> = closed.iter().map(|c| c.id()).collect();
+    assert_eq!(closed_segment_ids.len(), 2);
 
-    // Can read the written entries from the closed segment
+    // Can read the written entries from the previously closed segment
     let mut reader = wal_reader
         .reader_for_segment(closed_segment_ids[0])
         .await
         .unwrap();
     let op = reader.next_op().await.unwrap().unwrap();
     assert_eq!(op.sequence_number, 42);
+
+    // Can read the written entries from the previously open segment
+    let mut reader = wal_reader
+        .reader_for_segment(closed_segment_ids[1])
+        .await
+        .unwrap();
+    let op = reader.next_op().await.unwrap().unwrap();
+    assert_eq!(op.sequence_number, 43);
 }
 
 fn arbitrary_sequenced_wal_op(sequence_number: u64) -> SequencedWalOp {
