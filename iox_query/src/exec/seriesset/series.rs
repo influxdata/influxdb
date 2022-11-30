@@ -5,10 +5,10 @@ use std::{convert::TryFrom, fmt, sync::Arc};
 
 use arrow::{
     array::{
-        ArrayRef, BooleanArray, Float64Array, Int64Array, StringArray, TimestampNanosecondArray,
-        UInt64Array,
+        Array, ArrayRef, BooleanArray, Float64Array, Int64Array, StringArray,
+        TimestampNanosecondArray, UInt64Array,
     },
-    bitmap::Bitmap,
+    compute,
     datatypes::DataType as ArrowDataType,
 };
 use predicate::rpc_predicate::{FIELD_COLUMN_NAME, MEASUREMENT_COLUMN_NAME};
@@ -146,18 +146,14 @@ impl TryFrom<SeriesSet> for Vec<Series> {
 impl SeriesSet {
     /// Returns true if the array is entirely null between start_row and
     /// start_row+num_rows
-    fn is_all_null(arr: &ArrayRef, start_row: usize, num_rows: usize) -> bool {
-        let end_row = start_row + num_rows;
-        (start_row..end_row).all(|i| arr.is_null(i))
+    fn is_all_null(arr: &ArrayRef) -> bool {
+        arr.null_count() == arr.len()
     }
 
     pub fn is_timestamp_all_null(&self) -> bool {
-        let start_row = self.start_row;
-        let num_rows = self.num_rows;
-
         self.field_indexes.iter().all(|field_index| {
             let array = self.batch.column(field_index.timestamp_index);
-            Self::is_all_null(array, start_row, num_rows)
+            Self::is_all_null(array)
         })
     }
 
@@ -170,27 +166,23 @@ impl SeriesSet {
         let field = schema.field(index.value_index);
         let array = batch.column(index.value_index);
 
-        let start_row = self.start_row;
-        let num_rows = self.num_rows;
-
         // No values for this field are in the array so it does not
         // contribute to a series.
-        if field.is_nullable() && Self::is_all_null(array, start_row, num_rows) {
+        if field.is_nullable() && Self::is_all_null(array) {
             return Ok(None);
         }
 
         let tags = self.create_frame_tags(schema.field(index.value_index).name());
 
-        // Only take timestamps (and values) from the rows that have non
-        // null values for this field
-        let valid = array.data().null_bitmap();
-
-        let timestamps = batch
-            .column(index.timestamp_index)
-            .as_any()
-            .downcast_ref::<TimestampNanosecondArray>()
-            .unwrap()
-            .extract_values(start_row, num_rows, valid);
+        let timestamps = compute::nullif(
+            batch.column(index.timestamp_index),
+            &compute::is_null(array).expect("is_null"),
+        )
+        .expect("null handling")
+        .as_any()
+        .downcast_ref::<TimestampNanosecondArray>()
+        .unwrap()
+        .extract_values();
 
         let data = match array.data_type() {
             ArrowDataType::Utf8 => {
@@ -198,7 +190,7 @@ impl SeriesSet {
                     .as_any()
                     .downcast_ref::<StringArray>()
                     .unwrap()
-                    .extract_values(start_row, num_rows, valid);
+                    .extract_values();
                 Data::StringPoints { timestamps, values }
             }
             ArrowDataType::Float64 => {
@@ -206,7 +198,7 @@ impl SeriesSet {
                     .as_any()
                     .downcast_ref::<Float64Array>()
                     .unwrap()
-                    .extract_values(start_row, num_rows, valid);
+                    .extract_values();
 
                 Data::FloatPoints { timestamps, values }
             }
@@ -215,7 +207,7 @@ impl SeriesSet {
                     .as_any()
                     .downcast_ref::<Int64Array>()
                     .unwrap()
-                    .extract_values(start_row, num_rows, valid);
+                    .extract_values();
                 Data::IntegerPoints { timestamps, values }
             }
             ArrowDataType::UInt64 => {
@@ -223,7 +215,7 @@ impl SeriesSet {
                     .as_any()
                     .downcast_ref::<UInt64Array>()
                     .unwrap()
-                    .extract_values(start_row, num_rows, valid);
+                    .extract_values();
                 Data::UnsignedPoints { timestamps, values }
             }
             ArrowDataType::Boolean => {
@@ -231,7 +223,7 @@ impl SeriesSet {
                     .as_any()
                     .downcast_ref::<BooleanArray>()
                     .unwrap()
-                    .extract_values(start_row, num_rows, valid);
+                    .extract_values();
                 Data::BooleanPoints { timestamps, values }
             }
             _ => {
@@ -345,47 +337,23 @@ fn fmt_strings(f: &mut fmt::Formatter<'_>, strings: &[Arc<str>]) -> fmt::Result 
 }
 
 trait ExtractValues<T> {
-    /// Extracts num_rows of data starting from start_row as a vector,
+    /// Extracts rows as a vector,
     /// for all rows `i` where `valid[i]` is set
-    fn extract_values(&self, start_row: usize, num_rows: usize, valid: Option<&Bitmap>) -> Vec<T>;
+    fn extract_values(&self) -> Vec<T>;
 }
 
 /// Implements extract_values for a particular type of array that
 macro_rules! extract_values_impl {
     ($DATA_TYPE:ty) => {
-        fn extract_values(
-            &self,
-            start_row: usize,
-            num_rows: usize,
-            valid: Option<&Bitmap>,
-        ) -> Vec<$DATA_TYPE> {
-            let end_row = start_row + num_rows;
-            match valid {
-                Some(valid) => (start_row..end_row)
-                    .filter_map(|row| valid.is_set(row).then(|| self.value(row)))
-                    .collect(),
-                None => (start_row..end_row).map(|row| self.value(row)).collect(),
-            }
+        fn extract_values(&self) -> Vec<$DATA_TYPE> {
+            self.iter().flatten().collect()
         }
     };
 }
 
 impl ExtractValues<String> for StringArray {
-    fn extract_values(
-        &self,
-        start_row: usize,
-        num_rows: usize,
-        valid: Option<&Bitmap>,
-    ) -> Vec<String> {
-        let end_row = start_row + num_rows;
-        match valid {
-            Some(valid) => (start_row..end_row)
-                .filter_map(|row| valid.is_set(row).then(|| self.value(row).to_string()))
-                .collect(),
-            None => (start_row..end_row)
-                .map(|row| self.value(row).to_string())
-                .collect(),
-        }
+    fn extract_values(&self) -> Vec<String> {
+        self.iter().flatten().map(str::to_string).collect()
     }
 }
 
@@ -436,9 +404,7 @@ mod tests {
             table_name: Arc::from("the_table"),
             tags: vec![(Arc::from("tag1"), Arc::from("val1"))],
             field_indexes: FieldIndexes::from_timestamp_and_value_indexes(5, &[0, 1, 2, 3, 4]),
-            start_row: 1,
-            num_rows: 2,
-            batch: make_record_batch(),
+            batch: make_record_batch().slice(1, 2),
         };
 
         let series_strings = series_set_to_series_strings(series_set);
@@ -465,8 +431,8 @@ mod tests {
 
     #[test]
     fn test_series_set_conversion_mixed_case_tags() {
-        let time1_array: ArrayRef = Arc::new(TimestampNanosecondArray::from(vec![1, 2, 3]));
-        let string1_array: ArrayRef = Arc::new(StringArray::from(vec!["foo", "bar", "baz"]));
+        let time1_array: ArrayRef = Arc::new(TimestampNanosecondArray::from(vec![2, 3]));
+        let string1_array: ArrayRef = Arc::new(StringArray::from(vec!["bar", "baz"]));
 
         let batch = RecordBatch::try_from_iter(vec![
             ("time1", time1_array as ArrayRef),
@@ -482,8 +448,6 @@ mod tests {
             ],
             // field indexes are (value, time)
             field_indexes: FieldIndexes::from_slice(&[(1, 0)]),
-            start_row: 1,
-            num_rows: 2,
             batch,
         };
 
@@ -505,10 +469,10 @@ mod tests {
 
     #[test]
     fn test_series_set_conversion_different_time_columns() {
-        let time1_array: ArrayRef = Arc::new(TimestampNanosecondArray::from(vec![1, 2, 3]));
-        let string1_array: ArrayRef = Arc::new(StringArray::from(vec!["foo", "bar", "baz"]));
-        let time2_array: ArrayRef = Arc::new(TimestampNanosecondArray::from(vec![3, 4, 5]));
-        let string2_array: ArrayRef = Arc::new(StringArray::from(vec!["boo", "far", "faz"]));
+        let time1_array: ArrayRef = Arc::new(TimestampNanosecondArray::from(vec![2, 3]));
+        let string1_array: ArrayRef = Arc::new(StringArray::from(vec!["bar", "baz"]));
+        let time2_array: ArrayRef = Arc::new(TimestampNanosecondArray::from(vec![4, 5]));
+        let string2_array: ArrayRef = Arc::new(StringArray::from(vec!["far", "faz"]));
 
         let batch = RecordBatch::try_from_iter(vec![
             ("time1", time1_array as ArrayRef),
@@ -523,8 +487,6 @@ mod tests {
             tags: vec![(Arc::from("tag1"), Arc::from("val1"))],
             // field indexes are (value, time)
             field_indexes: FieldIndexes::from_slice(&[(3, 2), (1, 0)]),
-            start_row: 1,
-            num_rows: 2,
             batch,
         };
 
@@ -571,8 +533,6 @@ mod tests {
             table_name: Arc::from("the_table"),
             tags: vec![(Arc::from("state"), Arc::from("MA"))],
             field_indexes: FieldIndexes::from_timestamp_and_value_indexes(3, &[1, 2]),
-            start_row: 0,
-            num_rows: batch.num_rows(),
             batch,
         };
 
@@ -619,8 +579,6 @@ mod tests {
             table_name: Arc::from("the_table"),
             tags: vec![(Arc::from("state"), Arc::from("MA"))],
             field_indexes: FieldIndexes::from_timestamp_and_value_indexes(6, &[1, 2, 3, 4, 5]),
-            start_row: 0,
-            num_rows: batch.num_rows(),
             batch,
         };
 

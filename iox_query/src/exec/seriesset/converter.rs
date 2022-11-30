@@ -155,9 +155,7 @@ impl SeriesSetConverter {
                     table_name: Arc::clone(&table_name),
                     tags: Self::get_tag_keys(&batch, start_row, &tag_columns, &tag_indexes),
                     field_indexes: field_indexes.clone(),
-                    start_row,
-                    num_rows: (end_row - start_row),
-                    batch: batch.clone(),
+                    batch: batch.slice(start_row, end_row - start_row),
                 };
 
                 start_row = end_row;
@@ -451,7 +449,7 @@ mod tests {
     };
     use arrow_util::assert_batches_eq;
     use datafusion_util::{stream_from_batch, stream_from_batches, stream_from_schema};
-    use test_helpers::{str_pair_vec_to_vec, str_vec_to_arc_vec};
+    use test_helpers::str_vec_to_arc_vec;
 
     use super::*;
 
@@ -492,28 +490,21 @@ mod tests {
             let results = convert(table_name, &tag_columns, &field_columns, input).await;
 
             assert_eq!(results.len(), 1);
-            let series_set = &results[0];
 
-            assert_eq!(series_set.table_name.as_ref(), "foo");
-            assert!(series_set.tags.is_empty());
-            assert_eq!(
-                series_set.field_indexes,
-                FieldIndexes::from_timestamp_and_value_indexes(4, &[2])
+            assert_series_set(
+                &results[0],
+                "foo",
+                [],
+                FieldIndexes::from_timestamp_and_value_indexes(4, &[2]),
+                [
+                    "+-------+-------+-------------+-----------+------+",
+                    "| tag_a | tag_b | float_field | int_field | time |",
+                    "+-------+-------+-------------+-----------+------+",
+                    "| one   | ten   | 10          | 1         | 1000 |",
+                    "| one   | ten   | 10.1        | 2         | 2000 |",
+                    "+-------+-------+-------------+-----------+------+",
+                ],
             );
-            assert_eq!(series_set.start_row, 0);
-            assert_eq!(series_set.num_rows, 2);
-
-            // Test that the record batch made it through
-            let expected_data = vec![
-                "+-------+-------+-------------+-----------+------+",
-                "| tag_a | tag_b | float_field | int_field | time |",
-                "+-------+-------+-------------+-----------+------+",
-                "| one   | ten   | 10          | 1         | 1000 |",
-                "| one   | ten   | 10.1        | 2         | 2000 |",
-                "+-------+-------+-------------+-----------+------+",
-            ];
-
-            assert_batches_eq!(expected_data, &[series_set.batch.clone()]);
         }
     }
 
@@ -534,28 +525,21 @@ mod tests {
             let results = convert(table_name, &tag_columns, &field_columns, input).await;
 
             assert_eq!(results.len(), 1);
-            let series_set = &results[0];
 
-            assert_eq!(series_set.table_name.as_ref(), "foo");
-            assert!(series_set.tags.is_empty());
-            assert_eq!(
-                series_set.field_indexes,
-                FieldIndexes::from_timestamp_and_value_indexes(4, &[2])
+            assert_series_set(
+                &results[0],
+                "foo",
+                [],
+                FieldIndexes::from_timestamp_and_value_indexes(4, &[2]),
+                [
+                    "+-------+-------+-------------+-----------+------+",
+                    "| tag_a | tag_b | float_field | int_field | time |",
+                    "+-------+-------+-------------+-----------+------+",
+                    "| one   | ten   | 10          |           | 1000 |",
+                    "| one   | ten   | 10.1        |           | 2000 |",
+                    "+-------+-------+-------------+-----------+------+",
+                ],
             );
-            assert_eq!(series_set.start_row, 0);
-            assert_eq!(series_set.num_rows, 2);
-
-            // Test that the record batch made it through
-            let expected_data = vec![
-                "+-------+-------+-------------+-----------+------+",
-                "| tag_a | tag_b | float_field | int_field | time |",
-                "+-------+-------+-------------+-----------+------+",
-                "| one   | ten   | 10          |           | 1000 |",
-                "| one   | ten   | 10.1        |           | 2000 |",
-                "+-------+-------+-------------+-----------+------+",
-            ];
-
-            assert_batches_eq!(expected_data, &[series_set.batch.clone()]);
         }
     }
 
@@ -575,16 +559,21 @@ mod tests {
             let results = convert(table_name, &tag_columns, &field_columns, input).await;
 
             assert_eq!(results.len(), 1);
-            let series_set = &results[0];
 
-            assert_eq!(series_set.table_name.as_ref(), "bar");
-            assert_eq!(series_set.tags, str_pair_vec_to_vec(&[("tag_a", "one")]));
-            assert_eq!(
-                series_set.field_indexes,
-                FieldIndexes::from_timestamp_and_value_indexes(4, &[2])
+            assert_series_set(
+                &results[0],
+                "bar",
+                [("tag_a", "one")],
+                FieldIndexes::from_timestamp_and_value_indexes(4, &[2]),
+                [
+                    "+-------+-------+-------------+-----------+------+",
+                    "| tag_a | tag_b | float_field | int_field | time |",
+                    "+-------+-------+-------------+-----------+------+",
+                    "| one   | ten   | 10          | 1         | 1000 |",
+                    "| one   | ten   | 10.1        | 2         | 2000 |",
+                    "+-------+-------+-------------+-----------+------+",
+                ],
             );
-            assert_eq!(series_set.start_row, 0);
-            assert_eq!(series_set.num_rows, 2);
         }
     }
 
@@ -612,27 +601,36 @@ mod tests {
             let results = convert(table_name, &tag_columns, &field_columns, input).await;
 
             assert_eq!(results.len(), 2);
-            let series_set1 = &results[0];
 
-            assert_eq!(series_set1.table_name.as_ref(), "foo");
-            assert_eq!(series_set1.tags, str_pair_vec_to_vec(&[("tag_a", "one")]));
-            assert_eq!(
-                series_set1.field_indexes,
-                FieldIndexes::from_timestamp_and_value_indexes(4, &[3])
+            assert_series_set(
+                &results[0],
+                "foo",
+                [("tag_a", "one")],
+                FieldIndexes::from_timestamp_and_value_indexes(4, &[3]),
+                [
+                    "+-------+--------+-------------+-----------+------+",
+                    "| tag_a | tag_b  | float_field | int_field | time |",
+                    "+-------+--------+-------------+-----------+------+",
+                    "| one   | ten    | 10          | 1         | 1000 |",
+                    "| one   | ten    | 10.1        | 2         | 2000 |",
+                    "| one   | eleven | 10.1        | 3         | 3000 |",
+                    "+-------+--------+-------------+-----------+------+",
+                ],
             );
-            assert_eq!(series_set1.start_row, 0);
-            assert_eq!(series_set1.num_rows, 3);
-
-            let series_set2 = &results[1];
-
-            assert_eq!(series_set2.table_name.as_ref(), "foo");
-            assert_eq!(series_set2.tags, str_pair_vec_to_vec(&[("tag_a", "two")]));
-            assert_eq!(
-                series_set2.field_indexes,
-                FieldIndexes::from_timestamp_and_value_indexes(4, &[3])
+            assert_series_set(
+                &results[1],
+                "foo",
+                [("tag_a", "two")],
+                FieldIndexes::from_timestamp_and_value_indexes(4, &[3]),
+                [
+                    "+-------+--------+-------------+-----------+------+",
+                    "| tag_a | tag_b  | float_field | int_field | time |",
+                    "+-------+--------+-------------+-----------+------+",
+                    "| two   | eleven | 10.2        | 4         | 4000 |",
+                    "| two   | eleven | 10.3        | 5         | 5000 |",
+                    "+-------+--------+-------------+-----------+------+",
+                ],
             );
-            assert_eq!(series_set2.start_row, 3);
-            assert_eq!(series_set2.num_rows, 2);
         }
     }
 
@@ -661,35 +659,48 @@ mod tests {
             let results = convert(table_name, &tag_columns, &field_columns, input).await;
 
             assert_eq!(results.len(), 3);
-            let series_set1 = &results[0];
 
-            assert_eq!(series_set1.table_name.as_ref(), "foo");
-            assert_eq!(
-                series_set1.tags,
-                str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "ten")])
+            assert_series_set(
+                &results[0],
+                "foo",
+                [("tag_a", "one"), ("tag_b", "ten")],
+                FieldIndexes::from_timestamp_and_value_indexes(4, &[3]),
+                [
+                    "+-------+-------+-------------+-----------+------+",
+                    "| tag_a | tag_b | float_field | int_field | time |",
+                    "+-------+-------+-------------+-----------+------+",
+                    "| one   | ten   | 10          | 1         | 1000 |",
+                    "| one   | ten   | 10.1        | 2         | 2000 |",
+                    "+-------+-------+-------------+-----------+------+",
+                ],
             );
-            assert_eq!(series_set1.start_row, 0);
-            assert_eq!(series_set1.num_rows, 2);
-
-            let series_set2 = &results[1];
-
-            assert_eq!(series_set2.table_name.as_ref(), "foo");
-            assert_eq!(
-                series_set2.tags,
-                str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "eleven")])
+            assert_series_set(
+                &results[1],
+                "foo",
+                [("tag_a", "one"), ("tag_b", "eleven")],
+                FieldIndexes::from_timestamp_and_value_indexes(4, &[3]),
+                [
+                    "+-------+--------+-------------+-----------+------+",
+                    "| tag_a | tag_b  | float_field | int_field | time |",
+                    "+-------+--------+-------------+-----------+------+",
+                    "| one   | eleven | 10.1        | 3         | 3000 |",
+                    "+-------+--------+-------------+-----------+------+",
+                ],
             );
-            assert_eq!(series_set2.start_row, 2);
-            assert_eq!(series_set2.num_rows, 1);
-
-            let series_set3 = &results[2];
-
-            assert_eq!(series_set3.table_name.as_ref(), "foo");
-            assert_eq!(
-                series_set3.tags,
-                str_pair_vec_to_vec(&[("tag_a", "two"), ("tag_b", "eleven")])
+            assert_series_set(
+                &results[2],
+                "foo",
+                [("tag_a", "two"), ("tag_b", "eleven")],
+                FieldIndexes::from_timestamp_and_value_indexes(4, &[3]),
+                [
+                    "+-------+--------+-------------+-----------+------+",
+                    "| tag_a | tag_b  | float_field | int_field | time |",
+                    "+-------+--------+-------------+-----------+------+",
+                    "| two   | eleven | 10.2        | 4         | 4000 |",
+                    "| two   | eleven | 10.3        | 5         | 5000 |",
+                    "+-------+--------+-------------+-----------+------+",
+                ],
             );
-            assert_eq!(series_set3.start_row, 3);
-            assert_eq!(series_set3.num_rows, 2);
         }
     }
 
@@ -719,25 +730,34 @@ mod tests {
         let results = convert(table_name, &tag_columns, &field_columns, input).await;
 
         assert_eq!(results.len(), 2);
-        let series_set1 = &results[0];
 
-        assert_eq!(series_set1.table_name.as_ref(), "foo");
-        assert_eq!(
-            series_set1.tags,
-            str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "ten")])
+        assert_series_set(
+            &results[0],
+            "foo",
+            [("tag_a", "one"), ("tag_b", "ten")],
+            FieldIndexes::from_timestamp_and_value_indexes(4, &[3]),
+            [
+                "+-------+-------+-------------+-----------+-----------------------------+",
+                "| tag_a | tag_b | float_field | int_field | time                        |",
+                "+-------+-------+-------------+-----------+-----------------------------+",
+                "| one   | ten   | 10          | 1         | 1970-01-01T00:00:00.000001Z |",
+                "| one   | ten   | 10.1        | 2         | 1970-01-01T00:00:00.000002Z |",
+                "+-------+-------+-------------+-----------+-----------------------------+",
+            ],
         );
-        assert_eq!(series_set1.start_row, 0);
-        assert_eq!(series_set1.num_rows, 2);
-
-        let series_set2 = &results[1];
-
-        assert_eq!(series_set2.table_name.as_ref(), "foo");
-        assert_eq!(
-            series_set2.tags,
-            str_pair_vec_to_vec(&[("tag_a", "one")]) // note no value for tag_b, only one tag
+        assert_series_set(
+            &results[1],
+            "foo",
+            [("tag_a", "one")], // note no value for tag_b, only one tag
+            FieldIndexes::from_timestamp_and_value_indexes(4, &[3]),
+            [
+                "+-------+-------+-------------+-----------+-----------------------------+",
+                "| tag_a | tag_b | float_field | int_field | time                        |",
+                "+-------+-------+-------------+-----------+-----------------------------+",
+                "| one   |       | 10.1        | 3         | 1970-01-01T00:00:00.000003Z |",
+                "+-------+-------+-------------+-----------+-----------------------------+",
+            ],
         );
-        assert_eq!(series_set2.start_row, 2);
-        assert_eq!(series_set2.num_rows, 1);
     }
 
     /// Test helper: run conversion and return a Vec
@@ -826,5 +846,26 @@ mod tests {
                 stream_from_batches(batches[0].schema(), batches)
             })
             .collect()
+    }
+
+    fn assert_series_set<const N: usize, const M: usize>(
+        set: &SeriesSet,
+        table_name: &'static str,
+        tags: [(&'static str, &'static str); N],
+        field_indexes: FieldIndexes,
+        data: [&'static str; M],
+    ) {
+        assert_eq!(set.table_name.as_ref(), table_name);
+
+        let set_tags = set
+            .tags
+            .iter()
+            .map(|(a, b)| (a.as_ref(), b.as_ref()))
+            .collect::<Vec<_>>();
+        assert_eq!(set_tags.as_slice(), tags);
+
+        assert_eq!(set.field_indexes, field_indexes);
+
+        assert_batches_eq!(data, &[set.batch.clone()]);
     }
 }
