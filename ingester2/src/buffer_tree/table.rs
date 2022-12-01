@@ -184,6 +184,13 @@ impl TableData {
     ///
     /// The order of [`PartitionData`] in the iterator is arbitrary and should
     /// not be relied upon.
+    ///
+    /// # Snapshot
+    ///
+    /// The set of [`PartitionData`] returned is an atomic / point-in-time
+    /// snapshot of the set of [`PartitionData`] at the time this function is
+    /// invoked, but the data within them may change as they continue to buffer
+    /// DML operations.
     pub(crate) fn partitions(&self) -> Vec<Arc<Mutex<PartitionData>>> {
         self.partition_data.read().by_key.values()
     }
