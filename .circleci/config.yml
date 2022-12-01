@@ -65,6 +65,7 @@ nofork_filter: &nofork_filter
     branches:
       ignore: /pull\/[0-9]+/
 
+
 workflows:
   version: 2
   build:
@@ -133,6 +134,22 @@ workflows:
             exclude:
               - { os: darwin,  arch: arm64 }
               - { os: windows, arch: arm64 }
+      - check_package_deb_amd64:
+          requires:
+            - build-package-linux-amd64
+      - check_package_deb_arm64:
+          requires:
+            - build-package-linux-arm64
+      - check_package_rpm:
+          <<: *nofork_filter
+          name:
+            check_package_rpm-<< matrix.arch >>
+          matrix:
+            parameters:
+              arch: [ x86_64, aarch64 ]
+          requires:
+            - build-package-linux-amd64
+            - build-package-linux-arm64
       - test-downgrade:
           <<: *any_filter
           requires:
@@ -880,3 +897,54 @@ jobs:
           root: .
           paths:
             - changelog_artifacts
+
+  check_package_deb_amd64:
+    machine:
+      image: ubuntu-2204:current
+      resource_class: medium
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - run:
+          name: Validate Debian Package (AMD64)
+          command: |
+            sudo .circleci/scripts/package-validation/ubuntu \
+              /tmp/workspace/artifacts/influxdb2*-amd64.deb
+
+  check_package_deb_arm64:
+    machine:
+      image: ubuntu-2204:current
+      resource_class: arm.medium
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - run:
+          name: Validate Debian Package (ARM64)
+          command: |
+            sudo .circleci/scripts/package-validation/ubuntu \
+              /tmp/workspace/artifacts/influxdb2*-arm64.deb
+
+  check_package_rpm:
+    parameters:
+      arch:
+        type: string
+    executor: linux-amd64
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - run:
+          name: Install Dependencies
+          command: |
+            sudo snap install --classic terraform
+      - add_ssh_keys:
+          fingerprints:
+            - "91:0a:5b:a7:f9:46:77:f3:5d:4a:cf:d2:44:c8:2c:5a"
+      - run:
+          name: Validate RPM Package
+          command: |
+            export AWS_ACCESS_KEY_ID=$TEST_AWS_ACCESS_KEY_ID
+            export AWS_SECRET_ACCESS_KEY=$TEST_AWS_SECRET_ACCESS_KEY
+            .circleci/scripts/package-validation/centos << parameters.arch >> /tmp/workspace/artifacts/influxdb2*.<< parameters.arch >>.rpm
