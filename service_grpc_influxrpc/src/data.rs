@@ -275,7 +275,9 @@ mod tests {
             table_name: Arc::from("the_table"),
             tags: vec![(Arc::from("tag1"), Arc::from("val1"))],
             field_indexes: FieldIndexes::from_timestamp_and_value_indexes(5, &[0, 1, 2, 3, 4]),
-            batch: make_record_batch().slice(1, 2),
+            start_row: 1,
+            num_rows: 2,
+            batch: make_record_batch(),
         };
 
         let series: Vec<Series> = series_set
