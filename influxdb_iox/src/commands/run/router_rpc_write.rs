@@ -2,8 +2,8 @@
 use super::main;
 use crate::process_info::setup_metric_registry;
 use clap_blocks::{
-    catalog_dsn::CatalogDsnConfig, object_store::make_object_store, router_rpc_write::RouterRpcWriteConfig,
-    run_config::RunConfig,
+    catalog_dsn::CatalogDsnConfig, object_store::make_object_store,
+    router_rpc_write::RouterRpcWriteConfig, run_config::RunConfig,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use ioxd_common::{

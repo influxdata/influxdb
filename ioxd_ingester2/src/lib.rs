@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use clap_blocks::ingester2::Ingester2Config;
 use hyper::{Body, Request, Response};
 use ingester2::IngesterRpcInterface;
 use iox_catalog::interface::Catalog;
@@ -13,7 +14,6 @@ use ioxd_common::{
 use metric::Registry;
 use std::{
     fmt::{Debug, Display},
-    path::PathBuf,
     sync::Arc,
     time::Duration,
 };
@@ -140,14 +140,13 @@ pub async fn create_ingester_server_type(
     common_state: &CommonServerState,
     catalog: Arc<dyn Catalog>,
     metrics: Arc<Registry>,
-    wal_directory: PathBuf,
-    max_simultaneous_requests: usize,
+    ingester_config: &Ingester2Config,
 ) -> Result<Arc<dyn ServerType>> {
     let grpc = ingester2::new(
         catalog,
         Arc::clone(&metrics),
         PERSIST_BACKGROUND_FETCH_TIME,
-        wal_directory,
+        ingester_config.wal_directory.clone(),
     )
     .await?;
 
@@ -155,6 +154,6 @@ pub async fn create_ingester_server_type(
         grpc,
         metrics,
         common_state,
-        max_simultaneous_requests,
+        ingester_config.concurrent_request_limit,
     )))
 }

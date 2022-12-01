@@ -15,6 +15,7 @@
 pub mod catalog_dsn;
 pub mod compactor;
 pub mod ingester;
+pub mod ingester2;
 pub mod object_store;
 pub mod querier;
 pub mod router;

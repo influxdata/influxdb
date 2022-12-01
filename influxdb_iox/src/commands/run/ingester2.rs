@@ -2,14 +2,16 @@
 
 use super::main;
 use crate::process_info::setup_metric_registry;
-use clap_blocks::{catalog_dsn::CatalogDsnConfig, run_config::RunConfig};
+use clap_blocks::{
+    catalog_dsn::CatalogDsnConfig, ingester2::Ingester2Config, run_config::RunConfig,
+};
 use ioxd_common::{
     server_type::{CommonServerState, CommonServerStateError},
     Service,
 };
 use ioxd_ingester2::create_ingester_server_type;
 use observability_deps::tracing::*;
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -50,20 +52,8 @@ pub struct Config {
     #[clap(flatten)]
     pub(crate) catalog_dsn: CatalogDsnConfig,
 
-    /// Where this ingester instance should store its write-ahead log files. Each ingester instance
-    /// must have its own directory.
-    #[clap(long = "wal-directory", env = "INFLUXDB_IOX_WAL_DIRECTORY", action)]
-    wal_directory: PathBuf,
-
-    /// Sets how many concurrent requests the ingester will handle before rejecting
-    /// incoming requests.
-    #[clap(
-        long = "concurrent-request-limit",
-        env = "INFLUXDB_IOX_CONCURRENT_REQUEST_LIMIT",
-        default_value = "20",
-        action
-    )]
-    pub concurrent_request_limit: usize,
+    #[clap(flatten)]
+    pub(crate) ingester_config: Ingester2Config,
 }
 
 pub async fn command(config: Config) -> Result<()> {
@@ -79,8 +69,7 @@ pub async fn command(config: Config) -> Result<()> {
         &common_state,
         catalog,
         Arc::clone(&metric_registry),
-        config.wal_directory,
-        config.concurrent_request_limit,
+        &config.ingester_config,
     )
     .await?;
 
