@@ -2645,6 +2645,7 @@ func TestHandlerDebugVars(t *testing.T) {
 			h := NewHandler(false)
 			h.Monitor.StatisticsFn = func(_ map[string]string) ([]*monitor.Statistic, error) {
 				return stats(
+					stat("crypto", tags("FIPS", "ensureFIPS", "passwordHash", "implementation"), nil),
 					stat("database", tags("database", "foo"), nil),
 					stat("hh", tags("path", "/mnt/foo/bar"), nil),
 					stat("httpd", tags("bind", "127.0.0.1:8088", "proto", "https"), nil),
@@ -2656,7 +2657,7 @@ func TestHandlerDebugVars(t *testing.T) {
 			w := httptest.NewRecorder()
 			h.ServeHTTP(w, req)
 			got := keys(read(t, w.Body, Ignored...))
-			exp := []string{"database:foo", "hh:/mnt/foo/bar", "httpd:https:127.0.0.1:8088", "other", "shard:/mnt/foo:111"}
+			exp := []string{"crypto", "database:foo", "hh:/mnt/foo/bar", "httpd:https:127.0.0.1:8088", "other", "shard:/mnt/foo:111"}
 			if !cmp.Equal(got, exp) {
 				t.Errorf("unexpected keys; -got/+exp\n%s", cmp.Diff(got, exp))
 			}
@@ -2677,6 +2678,12 @@ func TestHandlerDebugVars(t *testing.T) {
 			h.ServeHTTP(w, req)
 			got := read(t, w.Body, Ignored...)
 			exp := map[string]interface{}{
+				"crypto": map[string]interface{}{
+					"FIPS":           false,
+					"ensureFIPS":     false,
+					"passwordHash":   "bcrypt",
+					"implementation": "Go",
+				},
 				"hh_processor": map[string]interface{}{
 					"name":   "hh_processor",
 					"tags":   map[string]interface{}{"db": "foo", "shardID": "10"},
