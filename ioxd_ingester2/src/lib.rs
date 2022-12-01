@@ -136,7 +136,6 @@ impl HttpApiErrorSource for IoxHttpError {
 }
 
 const PERSIST_BACKGROUND_FETCH_TIME: Duration = Duration::from_secs(30);
-const WAL_ROTATION_PERIOD: Duration = Duration::from_secs(5 * 60);
 
 /// Instantiate an ingester server type
 pub async fn create_ingester_server_type(
@@ -150,7 +149,7 @@ pub async fn create_ingester_server_type(
         Arc::clone(&metrics),
         PERSIST_BACKGROUND_FETCH_TIME,
         ingester_config.wal_directory.clone(),
-        WAL_ROTATION_PERIOD,
+        Duration::from_secs(ingester_config.wal_rotation_period_seconds),
     )
     .await?;
 

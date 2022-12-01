@@ -11,6 +11,15 @@ pub struct Ingester2Config {
     #[clap(long = "wal-directory", env = "INFLUXDB_IOX_WAL_DIRECTORY", action)]
     pub wal_directory: PathBuf,
 
+    /// The number of seconds between WAL file rotations.
+    #[clap(
+        long = "wal-rotation-period-seconds",
+        env = "INFLUXDB_IOX_WAL_ROTATION_PERIOD_SECONDS",
+        default_value = "300",
+        action
+    )]
+    pub wal_rotation_period_seconds: u64,
+
     /// Sets how many concurrent requests the ingester will handle before rejecting
     /// incoming requests.
     #[clap(
