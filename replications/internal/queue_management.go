@@ -315,6 +315,23 @@ func (qm *durableQueueManager) CurrentQueueSizes(ids []platform.ID) (map[platfor
 	return sizes, nil
 }
 
+//Returns the remaining number of bytes in Queue to be read:
+func (qm *durableQueueManager) RemainingQueueSizes(ids []platform.ID) (map[platform.ID]int64, error) {
+	qm.mutex.RLock()
+	defer qm.mutex.RUnlock()
+
+	sizes := make(map[platform.ID]int64, len(ids))
+
+	for _, id := range ids {
+		if _, exist := qm.replicationQueues[id]; !exist {
+			return nil, fmt.Errorf("durable queue not found for replication ID %q", id)
+		}
+		sizes[id] = qm.replicationQueues[id].queue.TotalBytes()
+	}
+
+	return sizes, nil
+}
+
 // StartReplicationQueues updates the durableQueueManager.replicationQueues map, fully removing any partially deleted
 // queues (present on disk, but not tracked in sqlite), opening all current queues, and logging info for each.
 func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[platform.ID]*influxdb.TrackedReplication) error {
