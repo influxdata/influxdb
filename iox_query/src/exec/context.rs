@@ -451,9 +451,17 @@ impl IOxSessionContext {
 
                     let it = ctx.execute_stream(physical_plan).await?;
 
-                    SeriesSetConverter::default()
+                    let series_sets = SeriesSetConverter::default()
                         .convert(table_name, tag_columns, field_columns, it)
                         .await
+                        .map_err(|e| {
+                            Error::Execution(format!(
+                                "Error executing series set conversion: {}",
+                                e
+                            ))
+                        })?;
+
+                    Ok(futures::stream::iter(series_sets).map(|x| Ok(x) as Result<_>))
                 })
             })
             .try_flatten()
