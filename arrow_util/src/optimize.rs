@@ -156,7 +156,7 @@ pub fn prepare_schema_for_flight(schema: &Schema) -> Schema {
                 value_type.as_ref().clone(),
                 field.is_nullable(),
             )
-            .with_metadata(field.metadata().clone()),
+            .with_metadata(field.metadata().cloned()),
             _ => field.clone(),
         })
         .collect();

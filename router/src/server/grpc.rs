@@ -19,6 +19,58 @@ use service_grpc_schema::SchemaService;
 use self::sharder::ShardService;
 use crate::shard::Shard;
 
+/// This type manages all gRPC services exposed by a `router` using the RPC write path.
+#[derive(Debug)]
+pub struct RpcWriteGrpcDelegate {
+    catalog: Arc<dyn Catalog>,
+    object_store: Arc<DynObjectStore>,
+}
+
+impl RpcWriteGrpcDelegate {
+    /// Create a new gRPC handler
+    pub fn new(catalog: Arc<dyn Catalog>, object_store: Arc<DynObjectStore>) -> Self {
+        Self {
+            catalog,
+            object_store,
+        }
+    }
+
+    /// Acquire a [`SchemaService`] gRPC service implementation.
+    ///
+    /// [`SchemaService`]: generated_types::influxdata::iox::schema::v1::schema_service_server::SchemaService.
+    pub fn schema_service(&self) -> schema_service_server::SchemaServiceServer<SchemaService> {
+        schema_service_server::SchemaServiceServer::new(SchemaService::new(Arc::clone(
+            &self.catalog,
+        )))
+    }
+
+    /// Acquire a [`CatalogService`] gRPC service implementation.
+    ///
+    /// [`CatalogService`]: generated_types::influxdata::iox::catalog::v1::catalog_service_server::CatalogService.
+    pub fn catalog_service(
+        &self,
+    ) -> catalog_service_server::CatalogServiceServer<impl catalog_service_server::CatalogService>
+    {
+        catalog_service_server::CatalogServiceServer::new(CatalogService::new(Arc::clone(
+            &self.catalog,
+        )))
+    }
+
+    /// Acquire a [`ObjectStoreService`] gRPC service implementation.
+    ///
+    /// [`ObjectStoreService`]: generated_types::influxdata::iox::object_store::v1::object_store_service_server::ObjectStoreService.
+    pub fn object_store_service(
+        &self,
+    ) -> object_store_service_server::ObjectStoreServiceServer<
+        impl object_store_service_server::ObjectStoreService,
+    > {
+        object_store_service_server::ObjectStoreServiceServer::new(ObjectStoreService::new(
+            Arc::clone(&self.catalog),
+            Arc::clone(&self.object_store),
+        ))
+    }
+}
+
 /// This type is responsible for managing all gRPC services exposed by `router`.
 #[derive(Debug)]
 pub struct GrpcDelegate<S> {

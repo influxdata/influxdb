@@ -29,3 +29,9 @@ thiserror = "1.0.37"
 tokio = { version = "1.22", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util = { version = "0.7.4" }
 workspace-hack = { path = "../workspace-hack"}
+
+[features]
+
+# Temporary feature to use the RPC write path instead of the write buffer during the transition
+# away from using Kafka.
+rpc_write = []

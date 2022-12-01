@@ -1,7 +1,7 @@
 //! This module contains the schema definition for IOx
 use std::{
     cmp::Ordering,
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     convert::{TryFrom, TryInto},
     fmt,
     mem::{size_of, size_of_val},
@@ -492,9 +492,12 @@ impl Schema {
                     field.name().capacity()
                         + field
                             .metadata()
-                            .iter()
-                            .map(|(k, v)| k.capacity() + v.capacity())
-                            .sum::<usize>()
+                            .map(|md| {
+                                md.iter()
+                                    .map(|(k, v)| k.capacity() + v.capacity())
+                                    .sum::<usize>()
+                            })
+                            .unwrap_or_default()
                 })
                 .sum::<usize>();
 
@@ -513,6 +516,8 @@ impl Schema {
 pub(crate) fn get_influx_type(field: &ArrowField) -> Result<InfluxColumnType, Option<String>> {
     let md = field
         .metadata()
+        .as_ref()
+        .ok_or(None)?
         .get(COLUMN_METADATA_KEY)
         .ok_or(None)?
         .as_str();
@@ -522,10 +527,10 @@ pub(crate) fn get_influx_type(field: &ArrowField) -> Result<InfluxColumnType, Op
 
 /// Sets the metadata for a field - replacing any existing metadata
 pub(crate) fn set_field_metadata(field: &mut ArrowField, column_type: InfluxColumnType) {
-    field.set_metadata(HashMap::from([(
+    field.set_metadata(Some(BTreeMap::from([(
         COLUMN_METADATA_KEY.to_string(),
         column_type.to_string(),
-    )]));
+    )])));
 }
 
 /// Field value types for InfluxDB 2.0 data model, as defined in
@@ -753,11 +758,11 @@ pub(crate) mod test_util {
         column_type: &str,
     ) -> ArrowField {
         let mut field = ArrowField::new(name, data_type, nullable);
-        field.set_metadata(
+        field.set_metadata(Some(
             vec![(COLUMN_METADATA_KEY.to_string(), column_type.to_string())]
                 .into_iter()
                 .collect(),
-        );
+        ));
         field
     }
 }
@@ -1360,6 +1365,6 @@ mod test {
             .unwrap();
 
         // this is mostly a smoke test
-        assert_eq!(schema.estimate_size(), 843);
+        assert_eq!(schema.estimate_size(), 795);
     }
 }

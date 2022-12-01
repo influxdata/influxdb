@@ -8,6 +8,8 @@ mod ingester;
 mod main;
 mod querier;
 mod router;
+#[cfg(feature = "rpc_write")]
+mod router_rpc_write;
 mod test;
 
 #[derive(Debug, Snafu)]
@@ -24,6 +26,10 @@ pub enum Error {
 
     #[snafu(display("Error in router subcommand: {}", source))]
     RouterError { source: router::Error },
+
+    #[cfg(feature = "rpc_write")]
+    #[snafu(display("Error in router-rpc-write subcommand: {}", source))]
+    RouterRpcWriteError { source: router_rpc_write::Error },
 
     #[snafu(display("Error in ingester subcommand: {}", source))]
     IngesterError { source: ingester::Error },
@@ -55,6 +61,8 @@ impl Config {
             Some(Command::GarbageCollector(config)) => config.run_config.logging_config(),
             Some(Command::Querier(config)) => config.run_config.logging_config(),
             Some(Command::Router(config)) => config.run_config.logging_config(),
+            #[cfg(feature = "rpc_write")]
+            Some(Command::RouterRpcWrite(config)) => config.run_config.logging_config(),
             Some(Command::Ingester(config)) => config.run_config.logging_config(),
             Some(Command::AllInOne(config)) => &config.logging_config,
             Some(Command::Test(config)) => config.run_config.logging_config(),
@@ -72,6 +80,10 @@ enum Command {
 
     /// Run the server in router mode
     Router(router::Config),
+
+    /// Run the server in router mode using the RPC write path.
+    #[cfg(feature = "rpc_write")]
+    RouterRpcWrite(router_rpc_write::Config),
 
     /// Run the server in ingester mode
     Ingester(ingester::Config),
@@ -99,6 +111,10 @@ pub async fn command(config: Config) -> Result<()> {
             .context(GarbageCollectorSnafu),
         Some(Command::Querier(config)) => querier::command(config).await.context(QuerierSnafu),
         Some(Command::Router(config)) => router::command(config).await.context(RouterSnafu),
+        #[cfg(feature = "rpc_write")]
+        Some(Command::RouterRpcWrite(config)) => router_rpc_write::command(config)
+            .await
+            .context(RouterRpcWriteSnafu),
         Some(Command::Ingester(config)) => ingester::command(config).await.context(IngesterSnafu),
         Some(Command::AllInOne(config)) => all_in_one::command(config).await.context(AllInOneSnafu),
         Some(Command::Test(config)) => test::command(config).await.context(TestSnafu),
