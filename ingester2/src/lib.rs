@@ -75,6 +75,7 @@ mod arcmap;
 mod buffer_tree;
 mod deferred_load;
 mod dml_sink;
+mod persist;
 mod query;
 mod query_adaptor;
 pub(crate) mod server;
