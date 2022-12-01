@@ -215,7 +215,11 @@ impl PartitionData {
         // queriers consider writes in the object store as being strictly after
         // writes returned from an ingester.
 
-        unimplemented!();
+        assert!(
+            self.persisting.is_some(),
+            "must be a persisting batch when marking complete"
+        );
+        self.persisting = None;
     }
 
     pub(crate) fn partition_id(&self) -> PartitionId {
