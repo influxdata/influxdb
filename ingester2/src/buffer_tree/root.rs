@@ -216,7 +216,6 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
-                None,
             ),
         ));
 
@@ -336,7 +335,6 @@ mod tests {
                 TableName::from(TABLE_NAME)
             })),
             SortKeyState::Provided(None),
-            None,
         )],
         writes = [make_write_op(
             &PartitionKey::from("p1"),
@@ -369,7 +367,6 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
-                None,
             ),
             PartitionData::new(
                 PartitionId::new(1),
@@ -380,7 +377,6 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
-                None,
             )
         ],
         writes = [
@@ -425,7 +421,6 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
-                None,
             ),
             PartitionData::new(
                 PartitionId::new(1),
@@ -436,7 +431,6 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
-                None,
             )
         ],
         writes = [
@@ -480,7 +474,6 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
-                None,
             ),
             PartitionData::new(
                 PartitionId::new(1),
@@ -491,7 +484,6 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
-                None,
             )
         ],
         writes = [
@@ -536,7 +528,6 @@ mod tests {
                 TableName::from(TABLE_NAME)
             })),
             SortKeyState::Provided(None),
-            None,
         )],
         writes = [
             make_write_op(
@@ -583,7 +574,6 @@ mod tests {
                         TableName::from(TABLE_NAME)
                     })),
                     SortKeyState::Provided(None),
-                    None,
                 ))
                 .with_partition(PartitionData::new(
                     PartitionId::new(0),
@@ -594,7 +584,6 @@ mod tests {
                         TableName::from(TABLE_NAME)
                     })),
                     SortKeyState::Provided(None),
-                    None,
                 )),
         );
 
@@ -668,7 +657,6 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
-                None,
             ),
         ));
 
@@ -748,7 +736,6 @@ mod tests {
                         TableName::from(TABLE_NAME)
                     })),
                     SortKeyState::Provided(None),
-                    None,
                 ))
                 .with_partition(PartitionData::new(
                     PartitionId::new(1),
@@ -759,7 +746,6 @@ mod tests {
                         TableName::from(TABLE_NAME)
                     })),
                     SortKeyState::Provided(None),
-                    None,
                 )),
         );
 

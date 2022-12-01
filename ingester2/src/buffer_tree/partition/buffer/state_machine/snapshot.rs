@@ -36,7 +36,6 @@ impl BufferState<Snapshot> {
         assert!(!self.state.snapshots.is_empty());
         BufferState {
             state: Persisting::new(self.state.snapshots),
-            sequence_range: self.sequence_range,
         }
     }
 }

@@ -16,13 +16,6 @@ use crate::{
     deferred_load::DeferredLoad,
 };
 
-/// The data-carrying value of a `(table_id, partition_key)` lookup.
-#[derive(Debug)]
-struct Entry {
-    partition_id: PartitionId,
-    max_sequence_number: Option<SequenceNumber>,
-}
-
 /// A read-through cache mapping `(table_id, partition_key)` tuples to
 /// `(partition_id, max_sequence_number)`.
 ///
@@ -39,10 +32,9 @@ struct Entry {
 ///   - Partition key: String (8 len + 8 cap + 8 ptr + data len) = 34 bytes
 ///   - TableId: 8 bytes
 ///   - PartitionId: 8 bytes
-///   - Optional sequence number: 16 bytes
 ///
-/// For a total of 66 bytes per entry - approx 15,887 entries can be held in 1MB
-/// of memory.
+/// For a total of 50 bytes per entry - approx 20,971 entries can be held in
+/// 1MiB of memory.
 ///
 /// Each cache hit _removes_ the entry from the cache - this eliminates the
 /// memory overhead for items that were hit. This is the expected (only valid!)
@@ -74,7 +66,7 @@ pub(crate) struct PartitionCache<T> {
     /// It's also likely a smaller N (more tables than partition keys) making it
     /// a faster search for cache misses.
     #[allow(clippy::type_complexity)]
-    entries: Mutex<HashMap<PartitionKey, HashMap<TableId, Entry>>>,
+    entries: Mutex<HashMap<PartitionKey, HashMap<TableId, PartitionId>>>,
 
     /// Data needed to construct the [`SortKeyResolver`] for cached entries.
     catalog: Arc<dyn Catalog>,
@@ -103,15 +95,12 @@ impl<T> PartitionCache<T> {
     where
         P: IntoIterator<Item = Partition>,
     {
-        let mut entries = HashMap::<PartitionKey, HashMap<TableId, Entry>>::new();
+        let mut entries = HashMap::<PartitionKey, HashMap<TableId, PartitionId>>::new();
         for p in partitions.into_iter() {
-            entries.entry(p.partition_key).or_default().insert(
-                p.table_id,
-                Entry {
-                    partition_id: p.id,
-                    max_sequence_number: p.persisted_sequence_number,
-                },
-            );
+            entries
+                .entry(p.partition_key)
+                .or_default()
+                .insert(p.table_id, p.id);
         }
 
         // Minimise the overhead of the maps.
@@ -135,7 +124,7 @@ impl<T> PartitionCache<T> {
         &self,
         table_id: TableId,
         partition_key: &PartitionKey,
-    ) -> Option<(PartitionKey, Entry)> {
+    ) -> Option<(PartitionKey, PartitionId)> {
         let mut entries = self.entries.lock();
 
         // Look up the partition key provided by the caller.
@@ -177,14 +166,14 @@ where
         // Use the cached PartitionKey instead of the caller's partition_key,
         // instead preferring to reuse the already-shared Arc<str> in the cache.
 
-        if let Some((key, cached)) = self.find(table_id, &partition_key) {
+        if let Some((key, partition_id)) = self.find(table_id, &partition_key) {
             debug!(%table_id, %partition_key, "partition cache hit");
 
             // Initialise a deferred resolver for the sort key.
             let sort_key_resolver = DeferredLoad::new(
                 self.max_smear,
                 SortKeyResolver::new(
-                    cached.partition_id,
+                    partition_id,
                     Arc::clone(&__self.catalog),
                     self.backoff_config.clone(),
                 )
@@ -195,13 +184,12 @@ where
             // allows the backing str memory to be reused across all partitions
             // using the same key!
             return PartitionData::new(
-                cached.partition_id,
+                partition_id,
                 key,
                 namespace_id,
                 table_id,
                 table_name,
                 SortKeyState::Deferred(Arc::new(sort_key_resolver)),
-                cached.max_sequence_number,
             );
         }
 
@@ -256,7 +244,6 @@ mod tests {
                 TableName::from(TABLE_NAME)
             })),
             SortKeyState::Provided(None),
-            None,
         );
         let inner = MockPartitionProvider::default().with_partition(data);
 
@@ -336,7 +323,6 @@ mod tests {
                 TableName::from(TABLE_NAME)
             })),
             SortKeyState::Provided(None),
-            None,
         ));
 
         let partition = Partition {
@@ -377,7 +363,6 @@ mod tests {
                 TableName::from(TABLE_NAME)
             })),
             SortKeyState::Provided(None),
-            None,
         ));
 
         let partition = Partition {

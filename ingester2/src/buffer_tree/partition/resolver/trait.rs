@@ -69,7 +69,6 @@ mod tests {
             table_id,
             Arc::clone(&table_name),
             SortKeyState::Provided(None),
-            None,
         );
 
         let mock = Arc::new(MockPartitionProvider::default().with_partition(data));
