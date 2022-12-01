@@ -12,6 +12,7 @@ use observability_deps::tracing::debug;
 use super::r#trait::PartitionProvider;
 use crate::{
     buffer_tree::{
+        namespace::NamespaceName,
         partition::{PartitionData, SortKeyState},
         table::TableName,
     },
@@ -58,6 +59,7 @@ impl PartitionProvider for CatalogPartitionResolver {
         &self,
         partition_key: PartitionKey,
         namespace_id: NamespaceId,
+        namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
         table_name: Arc<DeferredLoad<TableName>>,
     ) -> PartitionData {
@@ -81,6 +83,7 @@ impl PartitionProvider for CatalogPartitionResolver {
             // definitely has no other refs.
             partition_key,
             namespace_id,
+            namespace_name,
             table_id,
             table_name,
             SortKeyState::Provided(p.sort_key()),
@@ -99,6 +102,7 @@ mod tests {
     use crate::TRANSITION_SHARD_ID;
 
     const TABLE_NAME: &str = "bananas";
+    const NAMESPACE_NAME: &str = "ns-bananas";
     const PARTITION_KEY: &str = "platanos";
 
     #[tokio::test]
@@ -140,6 +144,9 @@ mod tests {
             .get_partition(
                 callers_partition_key.clone(),
                 namespace_id,
+                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                    NamespaceName::from(NAMESPACE_NAME)
+                })),
                 table_id,
                 Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                     TableName::from(TABLE_NAME)
