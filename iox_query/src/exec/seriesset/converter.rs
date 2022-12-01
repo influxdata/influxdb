@@ -6,17 +6,19 @@ use arrow::{
     self,
     array::{Array, BooleanArray, DictionaryArray, StringArray},
     compute,
-    datatypes::{DataType, Int32Type},
+    datatypes::{DataType, Int32Type, SchemaRef},
     record_batch::RecordBatch,
 };
-use datafusion::{
-    error::DataFusionError,
-    physical_plan::{common::collect, SendableRecordBatchStream},
-};
+use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 
-use futures::{Stream, StreamExt, TryStreamExt};
+use futures::{ready, Stream, StreamExt, TryStreamExt};
 use snafu::{OptionExt, Snafu};
-use std::sync::Arc;
+use std::{
+    collections::VecDeque,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+};
 
 use crate::exec::{
     field::{self, FieldColumns, FieldIndexes},
@@ -76,28 +78,6 @@ impl SeriesSetConverter {
 
         let schema = it.schema();
 
-        // for now, this logic only handles a single `RecordBatch` so
-        // concat data together.
-        //
-        // proper streaming support tracked by:
-        // https://github.com/influxdata/influxdb_iox/issues/4445
-        let batches = collect(it).await.map_err(|e| {
-            DataFusionError::Context(
-                "Error reading record batch while converting from SeriesSet".to_string(),
-                Box::new(e),
-            )
-        })?;
-
-        let batch = compute::concat_batches(&schema, &batches).map_err(|e| {
-            DataFusionError::Context(
-                "Error concatenating record batch while converting from SeriesSet".to_string(),
-                Box::new(DataFusionError::ArrowError(e)),
-            )
-        })?;
-        if batch.num_rows() == 0 {
-            return Ok(futures::stream::empty().boxed());
-        }
-
         let tag_indexes = FieldIndexes::names_to_indexes(&schema, &tag_columns).map_err(|e| {
             DataFusionError::Context(
                 "Internal field error while converting series set".to_string(),
@@ -112,17 +92,53 @@ impl SeriesSetConverter {
                 )
             })?;
 
-        // Algorithm: compute, via bitsets, the rows at which each
-        // tag column changes and thereby where the tagset
-        // changes. Emit a new SeriesSet at each such transition
+        Ok(SeriesSetConverterStream {
+            result_buffer: VecDeque::default(),
+            open_batches: Vec::default(),
+            need_new_batch: true,
+            we_finished: false,
+            schema,
+            it: Some(it),
+            tag_indexes,
+            field_indexes,
+            table_name,
+            tag_columns,
+        })
+    }
+
+    /// Returns the row indexes in `batch` where all of the values in the `tag_indexes` columns
+    /// take on a new value.
+    ///
+    /// For example:
+    ///
+    /// ```text
+    /// tags A, B
+    /// ```
+    ///
+    /// If the input is:
+    ///
+    /// A | B | C
+    /// - | - | -
+    /// 1 | 2 | x
+    /// 1 | 2 | y
+    /// 2 | 2 | z
+    /// 3 | 3 | q
+    /// 3 | 3 | r
+    ///
+    /// Then this function will return `[3, 4]`:
+    ///
+    /// - The row at index 3 has values for A and B (2,2) different than the previous row (1,2).
+    /// - Similarly the row at index 4 has values (3,3) which are different than (2,2).
+    /// - However, the row at index 5 has the same values (3,3) so is NOT a transition point
+    fn compute_changepoints(batch: &RecordBatch, tag_indexes: &[usize]) -> Vec<usize> {
         let tag_transitions = tag_indexes
             .iter()
-            .map(|&col| Self::compute_transitions(&batch, col))
+            .map(|&col| Self::compute_transitions(batch, col))
             .collect::<Vec<_>>();
 
         // no tag columns, emit a single tagset
-        let intersections: Vec<usize> = if tag_transitions.is_empty() {
-            vec![batch.num_rows()]
+        if tag_transitions.is_empty() {
+            vec![]
         } else {
             // OR bitsets together to to find all rows where the
             // keyset (values of the tag keys) changes
@@ -136,34 +152,8 @@ impl SeriesSetConverter {
                 .enumerate()
                 .filter(|(_idx, mask)| mask.unwrap_or(true))
                 .map(|(idx, _mask)| idx)
-                .chain(std::iter::once(batch.num_rows()))
                 .collect()
-        };
-
-        let mut start_row: usize = 0;
-
-        // create each series (since bitmap are not Send, we can't
-        // call await during the loop)
-
-        // emit each series
-        let series_sets: Vec<_> = intersections
-            .into_iter()
-            .map(|end_row| {
-                let series_set = SeriesSet {
-                    table_name: Arc::clone(&table_name),
-                    tags: Self::get_tag_keys(&batch, start_row, &tag_columns, &tag_indexes),
-                    field_indexes: field_indexes.clone(),
-                    start_row,
-                    num_rows: (end_row - start_row),
-                    batch: batch.clone(),
-                };
-
-                start_row = end_row;
-                series_set
-            })
-            .collect();
-
-        Ok(futures::stream::iter(series_sets).map(Ok).boxed())
+        }
     }
 
     /// returns a bitset with all row indexes where the value of the
@@ -256,6 +246,243 @@ impl SeriesSetConverter {
                 tag_value.map(|tag_value| (Arc::clone(column_name), Arc::from(tag_value.as_str())))
             })
             .collect()
+    }
+}
+
+struct SeriesSetConverterStream {
+    /// [`SeriesSet`]s that are ready to be emitted by this stream.
+    ///
+    /// These results must always be emitted before doing any additional work.
+    result_buffer: VecDeque<SeriesSet>,
+
+    /// Batches of data that have NO change point, i.e. they all belong to the same output set. However we have not yet
+    /// found the next change point (or the end of the stream) so we need to keep them.
+    ///
+    /// We keep a list of batches instead of a giant concatenated batch to avoid `O(n^2)` complexity due to repeated mem-copies.
+    open_batches: Vec<RecordBatch>,
+
+    /// If `true`, we need to pull a new batch of `it`.
+    need_new_batch: bool,
+
+    /// We (i.e. [`SeriesSetConverterStream`]) completed its work. However there might be data available in
+    /// [`result_buffer`](Self::result_buffer) which must be drained before returning `Ready(None)`.
+    we_finished: bool,
+
+    /// The schema of the input data.
+    schema: SchemaRef,
+
+    /// Indexes (within [`schema`](Self::schema)) of the tag columns.
+    tag_indexes: Vec<usize>,
+
+    /// Indexes (within [`schema`](Self::schema)) of the field columns.
+    field_indexes: FieldIndexes,
+
+    /// Name of the table we're operating on.
+    ///
+    /// This is required because this is part of the output [`SeriesSet`]s.
+    table_name: Arc<str>,
+
+    /// Name of the tag columns.
+    ///
+    /// This is kept in addition to [`tag_indexes`](Self::tag_indexes) because it is part of the output [`SeriesSet`]s.
+    tag_columns: Arc<Vec<Arc<str>>>,
+
+    /// Input data stream.
+    ///
+    ///
+    /// This may be `None` when the stream was fully drained. We need to remember that fact so we don't pull a
+    /// finished stream (which may panic).
+    it: Option<SendableRecordBatchStream>,
+}
+
+impl Stream for SeriesSetConverterStream {
+    type Item = Result<SeriesSet, DataFusionError>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = &mut *self;
+
+        loop {
+            // drain results
+            if let Some(sset) = this.result_buffer.pop_front() {
+                return Poll::Ready(Some(Ok(sset)));
+            }
+
+            // early exit
+            if this.we_finished {
+                return Poll::Ready(None);
+            }
+
+            // do we need more input data?
+            if this.need_new_batch {
+                loop {
+                    match ready!(this
+                        .it
+                        .as_mut()
+                        .expect("need new input but input stream is already drained")
+                        .poll_next_unpin(cx))
+                    {
+                        Some(Err(e)) => {
+                            return Poll::Ready(Some(Err(DataFusionError::ArrowError(e))));
+                        }
+                        Some(Ok(batch)) => {
+                            // skip empty batches (simplifies our code further down below because we can always assume that
+                            // there's at least one row in the batch)
+                            if batch.num_rows() == 0 {
+                                continue;
+                            }
+
+                            this.open_batches.push(batch)
+                        }
+                        None => {
+                            this.it = None;
+                        }
+                    }
+                    break;
+                }
+
+                this.need_new_batch = false;
+            }
+
+            // do we only have a single batch or do we "overflow" from the last batch?
+            let (batch_for_changepoints, extra_first_row) = match this.open_batches.len() {
+                0 => {
+                    assert!(
+                        this.it.is_none(),
+                        "We have no open batches left, so the input stream should be finished",
+                    );
+                    this.we_finished = true;
+                    return Poll::Ready(None);
+                }
+                1 => (
+                    this.open_batches.last().expect("checked length").clone(),
+                    false,
+                ),
+                _ => {
+                    // `open_batches` contains at least two batches. The last one was added just from the input stream.
+                    // The prev. one was the end of the "open" interval and all before that belong to the same output
+                    // set (because otherwise we would have flushed them earlier).
+                    let batch_last = &this.open_batches[this.open_batches.len() - 2];
+                    let batch_current = &this.open_batches[this.open_batches.len() - 1];
+                    assert!(batch_last.num_rows() > 0);
+
+                    let batch = match compute::concat_batches(
+                        &this.schema,
+                        &[
+                            batch_last.slice(batch_last.num_rows() - 1, 1),
+                            batch_current.clone(),
+                        ],
+                    ) {
+                        Ok(batch) => batch,
+                        Err(e) => {
+                            // internal state is broken, end this stream
+                            this.we_finished = true;
+                            return Poll::Ready(Some(Err(DataFusionError::ArrowError(e))));
+                        }
+                    };
+
+                    (batch, true)
+                }
+            };
+
+            // compute changepoints
+            let mut changepoints = SeriesSetConverter::compute_changepoints(
+                &batch_for_changepoints,
+                &this.tag_indexes,
+            );
+            if this.it.is_none() {
+                // need to finish last SeriesSet
+                changepoints.push(batch_for_changepoints.num_rows());
+            }
+            let prev_sizes = this.open_batches[..(this.open_batches.len() - 1)]
+                .iter()
+                .map(|b| b.num_rows())
+                .sum::<usize>();
+            let cp_delta = if extra_first_row {
+                prev_sizes
+                    .checked_sub(1)
+                    .expect("at least one non-empty prev. batch")
+            } else {
+                prev_sizes
+            };
+            let changepoints = changepoints
+                .into_iter()
+                .map(|x| x + cp_delta)
+                .collect::<Vec<_>>();
+
+            // already change to "needs data" before we start emission
+            this.need_new_batch = true;
+            if this.it.is_none() {
+                this.we_finished = true;
+            }
+
+            if !changepoints.is_empty() {
+                // `batch_for_changepoints` only contains the last batch and the last row of the prev. one. However we
+                // need to flush ALL rows in `open_batches` (and keep the ones after the last changepoint as a new open
+                // batch). So concat again.
+                let batch_for_flush =
+                    match compute::concat_batches(&this.schema, &this.open_batches) {
+                        Ok(batch) => batch,
+                        Err(e) => {
+                            // internal state is broken, end this stream
+                            this.we_finished = true;
+                            return Poll::Ready(Some(Err(DataFusionError::ArrowError(e))));
+                        }
+                    };
+
+                let last_cp = *changepoints.last().expect("checked length");
+                if last_cp == batch_for_flush.num_rows() {
+                    // fully drained open batches
+                    // This can ONLY happen when the input stream finished because `comput_changepoint` never returns
+                    // the last row as changepoint (so we must have manually added that above).
+                    assert!(
+                        this.it.is_none(),
+                        "Fully flushed all open batches but the input stream still has data?!"
+                    );
+                    this.open_batches.drain(..);
+                } else {
+                    // need to keep the open bit
+                    // do NOT use `batch` here because it contains data for all open batches, we just need the last one
+                    // (`slice` is zero-copy)
+                    let offset = last_cp.checked_sub(prev_sizes).expect("underflow");
+                    let last_batch = this.open_batches.last().expect("at least one batch");
+                    let last_batch = last_batch.slice(
+                        offset,
+                        last_batch
+                            .num_rows()
+                            .checked_sub(offset)
+                            .expect("underflow"),
+                    );
+                    this.open_batches.drain(..);
+                    this.open_batches.push(last_batch);
+                }
+
+                // emit each series
+                let mut start_row: usize = 0;
+                assert!(this.result_buffer.is_empty());
+                this.result_buffer = changepoints
+                    .into_iter()
+                    .map(|end_row| {
+                        let series_set = SeriesSet {
+                            table_name: Arc::clone(&this.table_name),
+                            tags: SeriesSetConverter::get_tag_keys(
+                                &batch_for_flush,
+                                start_row,
+                                &this.tag_columns,
+                                &this.tag_indexes,
+                            ),
+                            field_indexes: this.field_indexes.clone(),
+                            start_row,
+                            num_rows: (end_row - start_row),
+                            // batch clones are super cheap (in contrast to `slice` which has a way higher overhead!)
+                            batch: batch_for_flush.clone(),
+                        };
+
+                        start_row = end_row;
+                        series_set
+                    })
+                    .collect();
+            }
+        }
     }
 }
 
@@ -449,13 +676,14 @@ mod tests {
     };
     use arrow_util::assert_batches_eq;
     use datafusion_util::{stream_from_batch, stream_from_batches, stream_from_schema};
-    use test_helpers::{str_pair_vec_to_vec, str_vec_to_arc_vec};
+    use itertools::Itertools;
+    use test_helpers::str_vec_to_arc_vec;
 
     use super::*;
 
     #[tokio::test]
     async fn test_convert_empty() {
-        let schema = Arc::new(Schema::new(vec![]));
+        let schema = test_schema();
         let empty_iterator = stream_from_schema(schema);
 
         let table_name = "foo";
@@ -490,28 +718,21 @@ mod tests {
             let results = convert(table_name, &tag_columns, &field_columns, input).await;
 
             assert_eq!(results.len(), 1);
-            let series_set = &results[0];
 
-            assert_eq!(series_set.table_name.as_ref(), "foo");
-            assert!(series_set.tags.is_empty());
-            assert_eq!(
-                series_set.field_indexes,
-                FieldIndexes::from_timestamp_and_value_indexes(4, &[2])
+            assert_series_set(
+                &results[0],
+                "foo",
+                [],
+                FieldIndexes::from_timestamp_and_value_indexes(4, &[2]),
+                [
+                    "+-------+-------+-------------+-----------+------+",
+                    "| tag_a | tag_b | float_field | int_field | time |",
+                    "+-------+-------+-------------+-----------+------+",
+                    "| one   | ten   | 10          | 1         | 1000 |",
+                    "| one   | ten   | 10.1        | 2         | 2000 |",
+                    "+-------+-------+-------------+-----------+------+",
+                ],
             );
-            assert_eq!(series_set.start_row, 0);
-            assert_eq!(series_set.num_rows, 2);
-
-            // Test that the record batch made it through
-            let expected_data = vec![
-                "+-------+-------+-------------+-----------+------+",
-                "| tag_a | tag_b | float_field | int_field | time |",
-                "+-------+-------+-------------+-----------+------+",
-                "| one   | ten   | 10          | 1         | 1000 |",
-                "| one   | ten   | 10.1        | 2         | 2000 |",
-                "+-------+-------+-------------+-----------+------+",
-            ];
-
-            assert_batches_eq!(expected_data, &[series_set.batch.clone()]);
         }
     }
 
@@ -532,28 +753,21 @@ mod tests {
             let results = convert(table_name, &tag_columns, &field_columns, input).await;
 
             assert_eq!(results.len(), 1);
-            let series_set = &results[0];
 
-            assert_eq!(series_set.table_name.as_ref(), "foo");
-            assert!(series_set.tags.is_empty());
-            assert_eq!(
-                series_set.field_indexes,
-                FieldIndexes::from_timestamp_and_value_indexes(4, &[2])
+            assert_series_set(
+                &results[0],
+                "foo",
+                [],
+                FieldIndexes::from_timestamp_and_value_indexes(4, &[2]),
+                [
+                    "+-------+-------+-------------+-----------+------+",
+                    "| tag_a | tag_b | float_field | int_field | time |",
+                    "+-------+-------+-------------+-----------+------+",
+                    "| one   | ten   | 10          |           | 1000 |",
+                    "| one   | ten   | 10.1        |           | 2000 |",
+                    "+-------+-------+-------------+-----------+------+",
+                ],
             );
-            assert_eq!(series_set.start_row, 0);
-            assert_eq!(series_set.num_rows, 2);
-
-            // Test that the record batch made it through
-            let expected_data = vec![
-                "+-------+-------+-------------+-----------+------+",
-                "| tag_a | tag_b | float_field | int_field | time |",
-                "+-------+-------+-------------+-----------+------+",
-                "| one   | ten   | 10          |           | 1000 |",
-                "| one   | ten   | 10.1        |           | 2000 |",
-                "+-------+-------+-------------+-----------+------+",
-            ];
-
-            assert_batches_eq!(expected_data, &[series_set.batch.clone()]);
         }
     }
 
@@ -573,16 +787,63 @@ mod tests {
             let results = convert(table_name, &tag_columns, &field_columns, input).await;
 
             assert_eq!(results.len(), 1);
-            let series_set = &results[0];
 
-            assert_eq!(series_set.table_name.as_ref(), "bar");
-            assert_eq!(series_set.tags, str_pair_vec_to_vec(&[("tag_a", "one")]));
-            assert_eq!(
-                series_set.field_indexes,
-                FieldIndexes::from_timestamp_and_value_indexes(4, &[2])
+            assert_series_set(
+                &results[0],
+                "bar",
+                [("tag_a", "one")],
+                FieldIndexes::from_timestamp_and_value_indexes(4, &[2]),
+                [
+                    "+-------+-------+-------------+-----------+------+",
+                    "| tag_a | tag_b | float_field | int_field | time |",
+                    "+-------+-------+-------------+-----------+------+",
+                    "| one   | ten   | 10          | 1         | 1000 |",
+                    "| one   | ten   | 10.1        | 2         | 2000 |",
+                    "+-------+-------+-------------+-----------+------+",
+                ],
             );
-            assert_eq!(series_set.start_row, 0);
-            assert_eq!(series_set.num_rows, 2);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_convert_single_series_one_tag_more_rows() {
+        // single series
+        let schema = test_schema();
+        let inputs = parse_to_iterators(
+            schema,
+            &[
+                "one,ten,10.0,1,1000",
+                "one,ten,10.1,2,2000",
+                "one,ten,10.2,3,3000",
+            ],
+        );
+
+        for (i, input) in inputs.into_iter().enumerate() {
+            println!("Stream {}", i);
+
+            // test with one tag column, one series
+            let table_name = "bar";
+            let tag_columns = ["tag_a"];
+            let field_columns = ["float_field"];
+            let results = convert(table_name, &tag_columns, &field_columns, input).await;
+
+            assert_eq!(results.len(), 1);
+
+            assert_series_set(
+                &results[0],
+                "bar",
+                [("tag_a", "one")],
+                FieldIndexes::from_timestamp_and_value_indexes(4, &[2]),
+                [
+                    "+-------+-------+-------------+-----------+------+",
+                    "| tag_a | tag_b | float_field | int_field | time |",
+                    "+-------+-------+-------------+-----------+------+",
+                    "| one   | ten   | 10          | 1         | 1000 |",
+                    "| one   | ten   | 10.1        | 2         | 2000 |",
+                    "| one   | ten   | 10.2        | 3         | 3000 |",
+                    "+-------+-------+-------------+-----------+------+",
+                ],
+            );
         }
     }
 
@@ -610,27 +871,36 @@ mod tests {
             let results = convert(table_name, &tag_columns, &field_columns, input).await;
 
             assert_eq!(results.len(), 2);
-            let series_set1 = &results[0];
 
-            assert_eq!(series_set1.table_name.as_ref(), "foo");
-            assert_eq!(series_set1.tags, str_pair_vec_to_vec(&[("tag_a", "one")]));
-            assert_eq!(
-                series_set1.field_indexes,
-                FieldIndexes::from_timestamp_and_value_indexes(4, &[3])
+            assert_series_set(
+                &results[0],
+                "foo",
+                [("tag_a", "one")],
+                FieldIndexes::from_timestamp_and_value_indexes(4, &[3]),
+                [
+                    "+-------+--------+-------------+-----------+------+",
+                    "| tag_a | tag_b  | float_field | int_field | time |",
+                    "+-------+--------+-------------+-----------+------+",
+                    "| one   | ten    | 10          | 1         | 1000 |",
+                    "| one   | ten    | 10.1        | 2         | 2000 |",
+                    "| one   | eleven | 10.1        | 3         | 3000 |",
+                    "+-------+--------+-------------+-----------+------+",
+                ],
             );
-            assert_eq!(series_set1.start_row, 0);
-            assert_eq!(series_set1.num_rows, 3);
-
-            let series_set2 = &results[1];
-
-            assert_eq!(series_set2.table_name.as_ref(), "foo");
-            assert_eq!(series_set2.tags, str_pair_vec_to_vec(&[("tag_a", "two")]));
-            assert_eq!(
-                series_set2.field_indexes,
-                FieldIndexes::from_timestamp_and_value_indexes(4, &[3])
+            assert_series_set(
+                &results[1],
+                "foo",
+                [("tag_a", "two")],
+                FieldIndexes::from_timestamp_and_value_indexes(4, &[3]),
+                [
+                    "+-------+--------+-------------+-----------+------+",
+                    "| tag_a | tag_b  | float_field | int_field | time |",
+                    "+-------+--------+-------------+-----------+------+",
+                    "| two   | eleven | 10.2        | 4         | 4000 |",
+                    "| two   | eleven | 10.3        | 5         | 5000 |",
+                    "+-------+--------+-------------+-----------+------+",
+                ],
             );
-            assert_eq!(series_set2.start_row, 3);
-            assert_eq!(series_set2.num_rows, 2);
         }
     }
 
@@ -659,35 +929,48 @@ mod tests {
             let results = convert(table_name, &tag_columns, &field_columns, input).await;
 
             assert_eq!(results.len(), 3);
-            let series_set1 = &results[0];
 
-            assert_eq!(series_set1.table_name.as_ref(), "foo");
-            assert_eq!(
-                series_set1.tags,
-                str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "ten")])
+            assert_series_set(
+                &results[0],
+                "foo",
+                [("tag_a", "one"), ("tag_b", "ten")],
+                FieldIndexes::from_timestamp_and_value_indexes(4, &[3]),
+                [
+                    "+-------+-------+-------------+-----------+------+",
+                    "| tag_a | tag_b | float_field | int_field | time |",
+                    "+-------+-------+-------------+-----------+------+",
+                    "| one   | ten   | 10          | 1         | 1000 |",
+                    "| one   | ten   | 10.1        | 2         | 2000 |",
+                    "+-------+-------+-------------+-----------+------+",
+                ],
             );
-            assert_eq!(series_set1.start_row, 0);
-            assert_eq!(series_set1.num_rows, 2);
-
-            let series_set2 = &results[1];
-
-            assert_eq!(series_set2.table_name.as_ref(), "foo");
-            assert_eq!(
-                series_set2.tags,
-                str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "eleven")])
+            assert_series_set(
+                &results[1],
+                "foo",
+                [("tag_a", "one"), ("tag_b", "eleven")],
+                FieldIndexes::from_timestamp_and_value_indexes(4, &[3]),
+                [
+                    "+-------+--------+-------------+-----------+------+",
+                    "| tag_a | tag_b  | float_field | int_field | time |",
+                    "+-------+--------+-------------+-----------+------+",
+                    "| one   | eleven | 10.1        | 3         | 3000 |",
+                    "+-------+--------+-------------+-----------+------+",
+                ],
             );
-            assert_eq!(series_set2.start_row, 2);
-            assert_eq!(series_set2.num_rows, 1);
-
-            let series_set3 = &results[2];
-
-            assert_eq!(series_set3.table_name.as_ref(), "foo");
-            assert_eq!(
-                series_set3.tags,
-                str_pair_vec_to_vec(&[("tag_a", "two"), ("tag_b", "eleven")])
+            assert_series_set(
+                &results[2],
+                "foo",
+                [("tag_a", "two"), ("tag_b", "eleven")],
+                FieldIndexes::from_timestamp_and_value_indexes(4, &[3]),
+                [
+                    "+-------+--------+-------------+-----------+------+",
+                    "| tag_a | tag_b  | float_field | int_field | time |",
+                    "+-------+--------+-------------+-----------+------+",
+                    "| two   | eleven | 10.2        | 4         | 4000 |",
+                    "| two   | eleven | 10.3        | 5         | 5000 |",
+                    "+-------+--------+-------------+-----------+------+",
+                ],
             );
-            assert_eq!(series_set3.start_row, 3);
-            assert_eq!(series_set3.num_rows, 2);
         }
     }
 
@@ -717,25 +1000,34 @@ mod tests {
         let results = convert(table_name, &tag_columns, &field_columns, input).await;
 
         assert_eq!(results.len(), 2);
-        let series_set1 = &results[0];
 
-        assert_eq!(series_set1.table_name.as_ref(), "foo");
-        assert_eq!(
-            series_set1.tags,
-            str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "ten")])
+        assert_series_set(
+            &results[0],
+            "foo",
+            [("tag_a", "one"), ("tag_b", "ten")],
+            FieldIndexes::from_timestamp_and_value_indexes(4, &[3]),
+            [
+                "+-------+-------+-------------+-----------+-----------------------------+",
+                "| tag_a | tag_b | float_field | int_field | time                        |",
+                "+-------+-------+-------------+-----------+-----------------------------+",
+                "| one   | ten   | 10          | 1         | 1970-01-01T00:00:00.000001Z |",
+                "| one   | ten   | 10.1        | 2         | 1970-01-01T00:00:00.000002Z |",
+                "+-------+-------+-------------+-----------+-----------------------------+",
+            ],
         );
-        assert_eq!(series_set1.start_row, 0);
-        assert_eq!(series_set1.num_rows, 2);
-
-        let series_set2 = &results[1];
-
-        assert_eq!(series_set2.table_name.as_ref(), "foo");
-        assert_eq!(
-            series_set2.tags,
-            str_pair_vec_to_vec(&[("tag_a", "one")]) // note no value for tag_b, only one tag
+        assert_series_set(
+            &results[1],
+            "foo",
+            [("tag_a", "one")], // note no value for tag_b, only one tag
+            FieldIndexes::from_timestamp_and_value_indexes(4, &[3]),
+            [
+                "+-------+-------+-------------+-----------+-----------------------------+",
+                "| tag_a | tag_b | float_field | int_field | time                        |",
+                "+-------+-------+-------------+-----------+-----------------------------+",
+                "| one   |       | 10.1        | 3         | 1970-01-01T00:00:00.000003Z |",
+                "+-------+-------+-------------+-----------+-----------------------------+",
+            ],
         );
-        assert_eq!(series_set2.start_row, 2);
-        assert_eq!(series_set2.num_rows, 1);
     }
 
     /// Test helper: run conversion and return a Vec
@@ -763,6 +1055,10 @@ mod tests {
     /// Test helper: parses the csv content into a single record batch arrow
     /// arrays columnar ArrayRef according to the schema
     fn parse_to_record_batch(schema: SchemaRef, data: &str) -> RecordBatch {
+        if data.is_empty() {
+            return RecordBatch::new_empty(schema);
+        }
+
         let has_header = false;
         let delimiter = Some(b',');
         let batch_size = 1000;
@@ -807,25 +1103,350 @@ mod tests {
     /// Stream1: (line1), (line2), (line3)
     /// Stream2: (line1, line2), (line3)
     fn parse_to_iterators(schema: SchemaRef, lines: &[&str]) -> Vec<SendableRecordBatchStream> {
+        split_lines(lines)
+            .into_iter()
+            .map(|batches| {
+                let batches = batches
+                    .into_iter()
+                    .map(|chunk| Arc::new(parse_to_record_batch(Arc::clone(&schema), &chunk)))
+                    .collect::<Vec<_>>();
+
+                stream_from_batches(Arc::clone(&schema), batches)
+            })
+            .collect()
+    }
+
+    fn split_lines(lines: &[&str]) -> Vec<Vec<String>> {
         println!("** Input data:\n{:#?}\n\n", lines);
-        (1..lines.len())
-            .map(|chunk_size| {
-                println!("Chunk size {}", chunk_size);
-                // make record batches of each line
-                let batches: Vec<_> = lines
-                    .chunks(chunk_size)
-                    .map(|chunk| {
-                        let chunk = chunk.join("\n");
-                        println!("  Chunk data\n{}", chunk);
-                        parse_to_record_batch(Arc::clone(&schema), &chunk)
-                    })
-                    .map(Arc::new)
-                    .collect();
+        if lines.is_empty() {
+            return vec![vec![], vec![String::from("")]];
+        }
+
+        // potential split points for batches
+        // we keep each split point twice so we may also produce empty batches
+        let n_lines = lines.len();
+        let mut split_points = (0..=n_lines).chain(0..=n_lines).collect::<Vec<_>>();
+        split_points.sort();
+
+        let mut split_point_sets = split_points
+            .into_iter()
+            .powerset()
+            .map(|mut split_points| {
+                split_points.sort();
+
+                // ensure that "begin" and "end" are always split points
+                if split_points.first() != Some(&0) {
+                    split_points.insert(0, 0);
+                }
+                if split_points.last() != Some(&n_lines) {
+                    split_points.push(n_lines);
+                }
+
+                split_points
+            })
+            .collect::<Vec<_>>();
+        split_point_sets.sort();
+
+        let variants = split_point_sets
+            .into_iter()
+            .unique()
+            .map(|split_points| {
+                let batches = split_points
+                    .into_iter()
+                    .tuple_windows()
+                    .map(|(begin, end)| lines[begin..end].join("\n"))
+                    .collect::<Vec<_>>();
 
                 // stream from those batches
                 assert!(!batches.is_empty());
-                stream_from_batches(batches[0].schema(), batches)
+                batches
             })
-            .collect()
+            .collect::<Vec<_>>();
+
+        assert!(!variants.is_empty());
+        variants
+    }
+
+    #[test]
+    fn test_split_lines() {
+        assert_eq!(split_lines(&[]), vec![vec![], vec![String::from("")],],);
+
+        assert_eq!(
+            split_lines(&["foo"]),
+            vec![
+                vec![String::from(""), String::from("foo")],
+                vec![String::from(""), String::from("foo"), String::from("")],
+                vec![String::from("foo")],
+                vec![String::from("foo"), String::from("")],
+            ],
+        );
+
+        assert_eq!(
+            split_lines(&["foo", "bar"]),
+            vec![
+                vec![
+                    String::from(""),
+                    String::from("foo"),
+                    String::from(""),
+                    String::from("bar")
+                ],
+                vec![
+                    String::from(""),
+                    String::from("foo"),
+                    String::from(""),
+                    String::from("bar"),
+                    String::from("")
+                ],
+                vec![String::from(""), String::from("foo"), String::from("bar")],
+                vec![
+                    String::from(""),
+                    String::from("foo"),
+                    String::from("bar"),
+                    String::from("")
+                ],
+                vec![String::from(""), String::from("foo\nbar")],
+                vec![String::from(""), String::from("foo\nbar"), String::from("")],
+                vec![String::from("foo"), String::from(""), String::from("bar")],
+                vec![
+                    String::from("foo"),
+                    String::from(""),
+                    String::from("bar"),
+                    String::from("")
+                ],
+                vec![String::from("foo"), String::from("bar")],
+                vec![String::from("foo"), String::from("bar"), String::from("")],
+                vec![String::from("foo\nbar")],
+                vec![String::from("foo\nbar"), String::from("")],
+            ],
+        );
+
+        assert_eq!(
+            split_lines(&["foo", "bar", "xxx"]),
+            vec![
+                vec![
+                    String::from(""),
+                    String::from("foo"),
+                    String::from(""),
+                    String::from("bar"),
+                    String::from(""),
+                    String::from("xxx")
+                ],
+                vec![
+                    String::from(""),
+                    String::from("foo"),
+                    String::from(""),
+                    String::from("bar"),
+                    String::from(""),
+                    String::from("xxx"),
+                    String::from("")
+                ],
+                vec![
+                    String::from(""),
+                    String::from("foo"),
+                    String::from(""),
+                    String::from("bar"),
+                    String::from("xxx")
+                ],
+                vec![
+                    String::from(""),
+                    String::from("foo"),
+                    String::from(""),
+                    String::from("bar"),
+                    String::from("xxx"),
+                    String::from("")
+                ],
+                vec![
+                    String::from(""),
+                    String::from("foo"),
+                    String::from(""),
+                    String::from("bar\nxxx")
+                ],
+                vec![
+                    String::from(""),
+                    String::from("foo"),
+                    String::from(""),
+                    String::from("bar\nxxx"),
+                    String::from("")
+                ],
+                vec![
+                    String::from(""),
+                    String::from("foo"),
+                    String::from("bar"),
+                    String::from(""),
+                    String::from("xxx")
+                ],
+                vec![
+                    String::from(""),
+                    String::from("foo"),
+                    String::from("bar"),
+                    String::from(""),
+                    String::from("xxx"),
+                    String::from("")
+                ],
+                vec![
+                    String::from(""),
+                    String::from("foo"),
+                    String::from("bar"),
+                    String::from("xxx")
+                ],
+                vec![
+                    String::from(""),
+                    String::from("foo"),
+                    String::from("bar"),
+                    String::from("xxx"),
+                    String::from("")
+                ],
+                vec![
+                    String::from(""),
+                    String::from("foo"),
+                    String::from("bar\nxxx")
+                ],
+                vec![
+                    String::from(""),
+                    String::from("foo"),
+                    String::from("bar\nxxx"),
+                    String::from("")
+                ],
+                vec![
+                    String::from(""),
+                    String::from("foo\nbar"),
+                    String::from(""),
+                    String::from("xxx")
+                ],
+                vec![
+                    String::from(""),
+                    String::from("foo\nbar"),
+                    String::from(""),
+                    String::from("xxx"),
+                    String::from("")
+                ],
+                vec![
+                    String::from(""),
+                    String::from("foo\nbar"),
+                    String::from("xxx")
+                ],
+                vec![
+                    String::from(""),
+                    String::from("foo\nbar"),
+                    String::from("xxx"),
+                    String::from("")
+                ],
+                vec![String::from(""), String::from("foo\nbar\nxxx")],
+                vec![
+                    String::from(""),
+                    String::from("foo\nbar\nxxx"),
+                    String::from("")
+                ],
+                vec![
+                    String::from("foo"),
+                    String::from(""),
+                    String::from("bar"),
+                    String::from(""),
+                    String::from("xxx")
+                ],
+                vec![
+                    String::from("foo"),
+                    String::from(""),
+                    String::from("bar"),
+                    String::from(""),
+                    String::from("xxx"),
+                    String::from("")
+                ],
+                vec![
+                    String::from("foo"),
+                    String::from(""),
+                    String::from("bar"),
+                    String::from("xxx")
+                ],
+                vec![
+                    String::from("foo"),
+                    String::from(""),
+                    String::from("bar"),
+                    String::from("xxx"),
+                    String::from("")
+                ],
+                vec![
+                    String::from("foo"),
+                    String::from(""),
+                    String::from("bar\nxxx")
+                ],
+                vec![
+                    String::from("foo"),
+                    String::from(""),
+                    String::from("bar\nxxx"),
+                    String::from("")
+                ],
+                vec![
+                    String::from("foo"),
+                    String::from("bar"),
+                    String::from(""),
+                    String::from("xxx")
+                ],
+                vec![
+                    String::from("foo"),
+                    String::from("bar"),
+                    String::from(""),
+                    String::from("xxx"),
+                    String::from("")
+                ],
+                vec![
+                    String::from("foo"),
+                    String::from("bar"),
+                    String::from("xxx")
+                ],
+                vec![
+                    String::from("foo"),
+                    String::from("bar"),
+                    String::from("xxx"),
+                    String::from("")
+                ],
+                vec![String::from("foo"), String::from("bar\nxxx")],
+                vec![
+                    String::from("foo"),
+                    String::from("bar\nxxx"),
+                    String::from("")
+                ],
+                vec![
+                    String::from("foo\nbar"),
+                    String::from(""),
+                    String::from("xxx")
+                ],
+                vec![
+                    String::from("foo\nbar"),
+                    String::from(""),
+                    String::from("xxx"),
+                    String::from("")
+                ],
+                vec![String::from("foo\nbar"), String::from("xxx")],
+                vec![
+                    String::from("foo\nbar"),
+                    String::from("xxx"),
+                    String::from("")
+                ],
+                vec![String::from("foo\nbar\nxxx")],
+                vec![String::from("foo\nbar\nxxx"), String::from("")]
+            ]
+        );
+    }
+
+    fn assert_series_set<const N: usize, const M: usize>(
+        set: &SeriesSet,
+        table_name: &'static str,
+        tags: [(&'static str, &'static str); N],
+        field_indexes: FieldIndexes,
+        data: [&'static str; M],
+    ) {
+        assert_eq!(set.table_name.as_ref(), table_name);
+
+        let set_tags = set
+            .tags
+            .iter()
+            .map(|(a, b)| (a.as_ref(), b.as_ref()))
+            .collect::<Vec<_>>();
+        assert_eq!(set_tags.as_slice(), tags);
+
+        assert_eq!(set.field_indexes, field_indexes);
+
+        assert_batches_eq!(data, &[set.batch.slice(set.start_row, set.num_rows)]);
     }
 }

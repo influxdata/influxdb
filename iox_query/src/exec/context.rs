@@ -413,8 +413,6 @@ impl IOxSessionContext {
 
     /// Executes the SeriesSetPlans on the query executor, in
     /// parallel, producing series or groups
-    ///
-    /// TODO make this streaming rather than buffering the results
     pub async fn to_series_and_groups(
         &self,
         series_set_plans: SeriesSetPlans,
