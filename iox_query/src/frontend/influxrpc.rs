@@ -640,7 +640,7 @@ impl InfluxRpcPlanner {
                     .with_predicate(predicate)
                     .build()?;
 
-                let tag_name_is_not_null = Expr::Column(tag_name.into()).is_not_null();
+                let tag_name_is_not_null = tag_name.as_expr().is_not_null();
 
                 // TODO: optimize this to use "DISINCT" or do
                 // something more intelligent that simply fetching all
@@ -1431,10 +1431,7 @@ fn columns_in_predicates(
     match &predicate.field_columns {
         Some(field_columns) => {
             for field in field_columns {
-                columns.insert(Column {
-                    relation: None,
-                    name: (*field).clone(),
-                });
+                columns.insert(Column::from_name(field));
             }
         }
         None => {
