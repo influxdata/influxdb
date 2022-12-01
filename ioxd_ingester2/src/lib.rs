@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use clap_blocks::ingester2::Ingester2Config;
 use hyper::{Body, Request, Response};
-use ingester2::IngesterRpcInterface;
+use ingester2::{IngesterGuard, IngesterRpcInterface};
 use iox_catalog::interface::Catalog;
 use ioxd_common::{
     add_service,
@@ -30,7 +30,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 struct IngesterServerType<I: IngesterRpcInterface> {
-    server: I,
+    server: IngesterGuard<I>,
     shutdown: CancellationToken,
     metrics: Arc<Registry>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
@@ -39,7 +39,7 @@ struct IngesterServerType<I: IngesterRpcInterface> {
 
 impl<I: IngesterRpcInterface> IngesterServerType<I> {
     pub fn new(
-        server: I,
+        server: IngesterGuard<I>,
         metrics: Arc<Registry>,
         common_state: &CommonServerState,
         max_simultaneous_requests: usize,
@@ -84,11 +84,13 @@ impl<I: IngesterRpcInterface + Sync + Send + Debug + 'static> ServerType for Ing
     async fn server_grpc(self: Arc<Self>, builder_input: RpcBuilderInput) -> Result<(), RpcError> {
         let builder = setup_builder!(builder_input, self);
 
-        add_service!(builder, self.server.catalog_service());
-        add_service!(builder, self.server.write_service());
+        add_service!(builder, self.server.rpc().catalog_service());
+        add_service!(builder, self.server.rpc().write_service());
         add_service!(
             builder,
-            self.server.query_service(self.max_simultaneous_requests)
+            self.server
+                .rpc()
+                .query_service(self.max_simultaneous_requests)
         );
 
         serve_builder!(builder);
@@ -134,6 +136,7 @@ impl HttpApiErrorSource for IoxHttpError {
 }
 
 const PERSIST_BACKGROUND_FETCH_TIME: Duration = Duration::from_secs(30);
+const WAL_ROTATION_PERIOD: Duration = Duration::from_secs(5 * 60);
 
 /// Instantiate an ingester server type
 pub async fn create_ingester_server_type(
@@ -147,6 +150,7 @@ pub async fn create_ingester_server_type(
         Arc::clone(&metrics),
         PERSIST_BACKGROUND_FETCH_TIME,
         ingester_config.wal_directory.clone(),
+        WAL_ROTATION_PERIOD,
     )
     .await?;
 
