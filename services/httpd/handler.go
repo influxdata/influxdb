@@ -2468,7 +2468,7 @@ func ossCryptoDiagnostics() map[string]interface{} {
 	return map[string]interface{}{
 		"ensureFIPS":     false,
 		"FIPS":           false,
-		"pmplementation": "Go",
+		"implementation": "Go",
 		"passwordHash":   "bcrypt",
 	}
 }
