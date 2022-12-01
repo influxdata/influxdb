@@ -439,6 +439,7 @@ impl Config {
             minutes_without_new_writes_to_be_cold: 10,
             hot_compaction_hours_threshold_1: 4,
             hot_compaction_hours_threshold_2: 24,
+            max_parallel_partitions: 20,
         };
 
         let querier_config = QuerierConfig {
