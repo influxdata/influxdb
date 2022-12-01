@@ -35,7 +35,6 @@ install_deb() {
   # so no prompts stall the pipeline.
   export DEBIAN_FRONTEND=noninteractive
   apt-get update
-  apt-get upgrade -y
   # "apt-get install" should be used instead of "dpkg -i", because "dpkg"
   # does not resolve dependencies. "apt-get" requires that the package
   # path looks like a path (either fullpath or prefixed with "./").
