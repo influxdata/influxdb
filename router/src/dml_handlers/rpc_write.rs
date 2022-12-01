@@ -1,7 +1,6 @@
 mod client;
 
-use std::{fmt::Debug, time::Duration};
-
+use super::{DmlHandler, Partitioned};
 use async_trait::async_trait;
 use data_types::{DeletePredicate, NamespaceId, NamespaceName, TableId};
 use dml::{DmlMeta, DmlWrite};
@@ -13,11 +12,15 @@ use mutable_batch::MutableBatch;
 use mutable_batch_pb::encode::encode_write;
 use observability_deps::tracing::*;
 use sharder::RoundRobin;
+use std::{fmt::Debug, time::Duration};
 use thiserror::Error;
 use tonic::transport::Channel;
 use trace::ctx::SpanContext;
 
-use super::{DmlHandler, Partitioned};
+/// Create a client to the ingester's write service.
+pub fn write_service_client(ingester_addr: &str) -> WriteServiceClient<Channel> {
+    WriteServiceClient::new(Channel::builder(ingester_addr.parse().unwrap()).connect_lazy())
+}
 
 /// The bound on RPC request duration.
 ///
@@ -75,7 +78,7 @@ where
     C: client::WriteClient,
 {
     type WriteInput = Partitioned<HashMap<TableId, (String, MutableBatch)>>;
-    type WriteOutput = ();
+    type WriteOutput = Vec<DmlMeta>;
 
     type WriteError = RpcWriteError;
     type DeleteError = RpcWriteError;
@@ -132,7 +135,7 @@ where
             "dispatched write to ingester"
         );
 
-        Ok(())
+        Ok(vec![op.meta().clone()])
     }
 
     async fn delete(
@@ -206,7 +209,7 @@ mod tests {
                 None,
             )
             .await;
-        assert_matches!(got, Ok(()));
+        assert_matches!(got, Ok(_));
 
         // Inspect the resulting RPC call
         let call = {
@@ -261,7 +264,7 @@ mod tests {
                 None,
             )
             .await;
-        assert_matches!(got, Ok(()));
+        assert_matches!(got, Ok(_));
 
         // Ensure client 2 observed a write.
         let call = {

@@ -18,21 +18,22 @@ use object_store::DynObjectStore;
 use observability_deps::tracing::info;
 use router::{
     dml_handlers::{
-        DmlHandler, DmlHandlerChainExt, FanOutAdaptor, InstrumentationDecorator, Partitioner,
-        RetentionValidator, SchemaValidator, ShardedWriteBuffer, WriteSummaryAdapter,
+        write_service_client, DmlHandler, DmlHandlerChainExt, FanOutAdaptor,
+        InstrumentationDecorator, Partitioner, RetentionValidator, RpcWrite, SchemaValidator,
+        ShardedWriteBuffer, WriteSummaryAdapter,
     },
     namespace_cache::{
         metrics::InstrumentedCache, MemoryNamespaceCache, NamespaceCache, ShardedCache,
     },
     namespace_resolver::{NamespaceAutocreation, NamespaceResolver, NamespaceSchemaResolver},
     server::{
-        grpc::{sharder::ShardService, GrpcDelegate},
+        grpc::{sharder::ShardService, GrpcDelegate, RpcWriteGrpcDelegate},
         http::HttpDelegate,
-        RouterServer,
+        RouterServer, RpcWriteRouterServer,
     },
     shard::Shard,
 };
-use sharder::{JumpHash, Sharder};
+use sharder::{JumpHash, RoundRobin, Sharder};
 use std::{
     collections::BTreeSet,
     fmt::{Debug, Display},
@@ -144,6 +145,81 @@ where
     }
 }
 
+pub struct RpcWriteRouterServerType<D, N> {
+    server: RpcWriteRouterServer<D, N>,
+    shutdown: CancellationToken,
+    trace_collector: Option<Arc<dyn TraceCollector>>,
+}
+
+impl<D, N> RpcWriteRouterServerType<D, N> {
+    pub fn new(server: RpcWriteRouterServer<D, N>, common_state: &CommonServerState) -> Self {
+        Self {
+            server,
+            shutdown: CancellationToken::new(),
+            trace_collector: common_state.trace_collector(),
+        }
+    }
+}
+
+impl<D, N> std::fmt::Debug for RpcWriteRouterServerType<D, N> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "RpcWriteRouter")
+    }
+}
+
+#[async_trait]
+impl<D, N> ServerType for RpcWriteRouterServerType<D, N>
+where
+    D: DmlHandler<WriteInput = HashMap<String, MutableBatch>, WriteOutput = WriteSummary> + 'static,
+    N: NamespaceResolver + 'static,
+{
+    /// Return the [`metric::Registry`] used by the router.
+    fn metric_registry(&self) -> Arc<Registry> {
+        self.server.metric_registry()
+    }
+
+    /// Returns the trace collector for router traces.
+    fn trace_collector(&self) -> Option<Arc<dyn TraceCollector>> {
+        self.trace_collector.as_ref().map(Arc::clone)
+    }
+
+    /// Dispatches `req` to the router [`HttpDelegate`] delegate.
+    ///
+    /// [`HttpDelegate`]: router::server::http::HttpDelegate
+    async fn route_http_request(
+        &self,
+        req: Request<Body>,
+    ) -> Result<Response<Body>, Box<dyn HttpApiErrorSource>> {
+        self.server
+            .http()
+            .route(req)
+            .await
+            .map_err(IoxHttpErrorAdaptor)
+            .map_err(|e| Box::new(e) as _)
+    }
+
+    /// Registers the services exposed by the router [`RpcWriteGrpcDelegate`] delegate.
+    ///
+    /// [`RpcWriteGrpcDelegate`]: router::server::grpc::RpcWriteGrpcDelegate
+    async fn server_grpc(self: Arc<Self>, builder_input: RpcBuilderInput) -> Result<(), RpcError> {
+        let builder = setup_builder!(builder_input, self);
+        add_service!(builder, self.server.grpc().schema_service());
+        add_service!(builder, self.server.grpc().catalog_service());
+        add_service!(builder, self.server.grpc().object_store_service());
+        serve_builder!(builder);
+
+        Ok(())
+    }
+
+    async fn join(self: Arc<Self>) {
+        self.shutdown.cancelled().await;
+    }
+
+    fn shutdown(&self) {
+        self.shutdown.cancel();
+    }
+}
+
 /// This adaptor converts the `router` http error type into a type that
 /// satisfies the requirements of ioxd's runner framework, keeping the
 /// two decoupled.
@@ -164,26 +240,44 @@ impl HttpApiErrorSource for IoxHttpErrorAdaptor {
     }
 }
 
-/// Instantiate a router server
-pub async fn create_router_server_type(
+/// Instantiate a router server that uses the RPC write path
+// NOTE!!! This needs to be kept in sync with `create_router_server_type` until the
+// switch to the RPC write path/ingester2 is complete! See the numbered sections that annotate
+// where these two functions line up and where they diverge.
+#[allow(clippy::too_many_arguments)] // Some of these arguments should go away soon.
+pub async fn create_router_grpc_write_server_type(
     common_state: &CommonServerState,
     metrics: Arc<metric::Registry>,
     catalog: Arc<dyn Catalog>,
     object_store: Arc<DynObjectStore>,
-    write_buffer_config: &WriteBufferConfig,
-    router_config: &RouterConfig,
+    request_limit: usize,
+    ingester_addresses: &[String],
+    topic: &str,
+    query_pool_name: &str,
+    new_namespace_retention_hours: Option<u64>,
 ) -> Result<Arc<dyn ServerType>> {
-    // Initialise the sharded write buffer and instrument it with DML handler
-    // metrics.
-    let (write_buffer, sharder) = init_write_buffer(
-        write_buffer_config,
-        Arc::clone(&metrics),
-        common_state.trace_collector(),
-    )
-    .await?;
-    let write_buffer =
-        InstrumentationDecorator::new("sharded_write_buffer", &metrics, write_buffer);
+    // 1. START: Different Setup Per Router Path: this part is only relevant to using RPC write
+    //    path and should not be added to `create_router_server_type`.
 
+    // Initialise the DML handler that sends writes to the ingester using the RPC write path.
+    let rpc_writer = RpcWrite::new(RoundRobin::new(
+        ingester_addresses
+            .iter()
+            .map(|ingester_addr| write_service_client(ingester_addr)),
+    ));
+    let rpc_writer = InstrumentationDecorator::new("rpc_writer", &metrics, rpc_writer);
+    // 1. END
+
+    // 2. START: Similar Setup: Both router paths use:
+    //    a. Namespace cache
+    //    b. Schema validator
+    //    c. Retention validator
+    //    d. Write partitioner
+    //    e. Namespace resolver
+    //    f. Parallel writer
+    //    g. Handler stack
+
+    // a. Namespace cache
     // Initialise an instrumented namespace cache to be shared with the schema
     // validator, and namespace auto-creator that reports cache hit/miss/update
     // metrics.
@@ -198,17 +292,20 @@ pub async fn create_router_server_type(
         .await
         .expect("namespace cache pre-warming failed");
 
+    // b. Schema validator
     // Initialise and instrument the schema validator
     let schema_validator =
         SchemaValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache), &metrics);
     let schema_validator =
         InstrumentationDecorator::new("schema_validator", &metrics, schema_validator);
 
+    // c. Retention validator
     // Add a retention validator into handler stack to reject data outside the retention period
     let retention_validator = RetentionValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache));
     let retention_validator =
         InstrumentationDecorator::new("retention_validator", &metrics, retention_validator);
 
+    // d. Write partitioner
     // Add a write partitioner into the handler stack that splits by the date
     // portion of the write's timestamp.
     let partitioner = Partitioner::new(PartitionTemplate {
@@ -216,6 +313,7 @@ pub async fn create_router_server_type(
     });
     let partitioner = InstrumentationDecorator::new("partitioner", &metrics, partitioner);
 
+    // e. Namespace resolver
     // Initialise the Namespace ID lookup + cache
     let namespace_resolver =
         NamespaceSchemaResolver::new(Arc::clone(&catalog), Arc::clone(&ns_cache));
@@ -235,7 +333,172 @@ pub async fn create_router_server_type(
     // This code / auto-creation is for architecture testing purposes only - a
     // prod deployment would expect namespaces to be explicitly created and this
     // layer would be removed.
-    let schema_catalog = Arc::clone(&catalog);
+    let mut txn = catalog.start_transaction().await?;
+    let topic_id = txn
+        .topics()
+        .get_by_name(topic)
+        .await?
+        .map(|v| v.id)
+        .unwrap_or_else(|| panic!("no topic named {} in catalog", topic));
+    let query_id = txn
+        .query_pools()
+        .create_or_get(query_pool_name)
+        .await
+        .map(|v| v.id)
+        .unwrap_or_else(|e| panic!("failed to upsert query pool {} in catalog: {}", topic, e));
+    txn.commit().await?;
+
+    let namespace_resolver = NamespaceAutocreation::new(
+        namespace_resolver,
+        Arc::clone(&ns_cache),
+        Arc::clone(&catalog),
+        topic_id,
+        query_id,
+        new_namespace_retention_hours.map(|hours| hours as i64 * 60 * 60 * 1_000_000_000),
+    );
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    // f. Parallel writer (this function takes the rpc_writer as an argument)
+    let parallel_write = WriteSummaryAdapter::new(FanOutAdaptor::new(rpc_writer));
+
+    // g. Handler stack
+    // Build the chain of DML handlers that forms the request processing pipeline
+    let handler_stack = retention_validator
+        .and_then(schema_validator)
+        .and_then(partitioner)
+        // Once writes have been partitioned, they are processed in parallel.
+        //
+        // This block initialises a fan-out adaptor that parallelises partitioned
+        // writes into the handler chain it decorates (schema validation, and then
+        // into the ingester RPC), and instruments the parallelised
+        // operation.
+        .and_then(InstrumentationDecorator::new(
+            "parallel_write",
+            &metrics,
+            parallel_write,
+        ));
+
+    // Record the overall request handling latency
+    let handler_stack = InstrumentationDecorator::new("request", &metrics, handler_stack);
+
+    // 2. END
+
+    // 3. N/A: Shard mapping setup is only relevant to the write buffer router path
+
+    // 4. START: Initialize the HTTP API delegate, this is the same in both router paths
+    let http = HttpDelegate::new(
+        common_state.run_config().max_http_request_size,
+        request_limit,
+        namespace_resolver,
+        handler_stack,
+        &metrics,
+    );
+    // 4. END
+
+    // 5. START: Initialize the gRPC API delegate that creates the services relevant to the RPC
+    //    write router path and use it to create the relevant `RpcWriteRouterServer` and
+    //    `RpcWriteRouterServerType`.
+    let grpc = RpcWriteGrpcDelegate::new(catalog, object_store);
+
+    let router_server =
+        RpcWriteRouterServer::new(http, grpc, metrics, common_state.trace_collector());
+    let server_type = Arc::new(RpcWriteRouterServerType::new(router_server, common_state));
+    Ok(server_type)
+    // 5. END
+}
+
+/// Instantiate a router server
+// NOTE!!! This needs to be kept in sync with `create_router_grpc_write_server_type` until the
+// switch to the RPC write path/ingester2 is complete! See the numbered sections that annotate
+// where these two functions line up and where they diverge.
+pub async fn create_router_server_type(
+    common_state: &CommonServerState,
+    metrics: Arc<metric::Registry>,
+    catalog: Arc<dyn Catalog>,
+    object_store: Arc<DynObjectStore>,
+    write_buffer_config: &WriteBufferConfig,
+    router_config: &RouterConfig,
+) -> Result<Arc<dyn ServerType>> {
+    // 1. START: Different Setup Per Router Path: this part is only relevant to using a write
+    //    buffer and should not be added to `create_router_grpc_write_server_type`.
+
+    // Initialise the sharded write buffer and instrument it with DML handler metrics.
+    let (write_buffer, sharder) = init_write_buffer(
+        write_buffer_config,
+        Arc::clone(&metrics),
+        common_state.trace_collector(),
+    )
+    .await?;
+    let write_buffer =
+        InstrumentationDecorator::new("sharded_write_buffer", &metrics, write_buffer);
+    // 1. END
+
+    // 2. START: Similar Setup: Both router paths use:
+    //    a. Namespace cache
+    //    b. Schema validator
+    //    c. Retention validator
+    //    d. Write partitioner
+    //    e. Namespace resolver
+    //    f. Parallel writer
+    //    g. Handler stack
+
+    // a. Namespace cache
+    // Initialise an instrumented namespace cache to be shared with the schema
+    // validator, and namespace auto-creator that reports cache hit/miss/update
+    // metrics.
+    let ns_cache = Arc::new(InstrumentedCache::new(
+        Arc::new(ShardedCache::new(
+            std::iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
+        )),
+        &metrics,
+    ));
+
+    pre_warm_schema_cache(&ns_cache, &*catalog)
+        .await
+        .expect("namespace cache pre-warming failed");
+
+    // b. Schema validator
+    // Initialise and instrument the schema validator
+    let schema_validator =
+        SchemaValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache), &metrics);
+    let schema_validator =
+        InstrumentationDecorator::new("schema_validator", &metrics, schema_validator);
+
+    // c. Retention validator
+    // Add a retention validator into handler stack to reject data outside the retention period
+    let retention_validator = RetentionValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache));
+    let retention_validator =
+        InstrumentationDecorator::new("retention_validator", &metrics, retention_validator);
+
+    // d. Write partitioner
+    // Add a write partitioner into the handler stack that splits by the date
+    // portion of the write's timestamp.
+    let partitioner = Partitioner::new(PartitionTemplate {
+        parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],
+    });
+    let partitioner = InstrumentationDecorator::new("partitioner", &metrics, partitioner);
+
+    // e. Namespace resolver
+    // Initialise the Namespace ID lookup + cache
+    let namespace_resolver =
+        NamespaceSchemaResolver::new(Arc::clone(&catalog), Arc::clone(&ns_cache));
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    // THIS CODE IS FOR TESTING ONLY.
+    //
+    // The source of truth for the topics & query pools will be read from
+    // the DB, rather than CLI args for a prod deployment.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    // Look up the topic ID needed to populate namespace creation
+    // requests.
+    //
+    // This code / auto-creation is for architecture testing purposes only - a
+    // prod deployment would expect namespaces to be explicitly created and this
+    // layer would be removed.
     let mut txn = catalog.start_transaction().await?;
     let topic_id = txn
         .topics()
@@ -270,8 +533,10 @@ pub async fn create_router_server_type(
     //
     ////////////////////////////////////////////////////////////////////////////
 
+    // f. Parallel writer (this function takes the write buffer as an argument)
     let parallel_write = WriteSummaryAdapter::new(FanOutAdaptor::new(write_buffer));
 
+    // g. Handler stack
     // Build the chain of DML handlers that forms the request processing
     // pipeline, starting with the namespace creator (for testing purposes) and
     // write partitioner that yields a set of partitioned batches.
@@ -292,11 +557,15 @@ pub async fn create_router_server_type(
 
     // Record the overall request handling latency
     let handler_stack = InstrumentationDecorator::new("request", &metrics, handler_stack);
+    // 2. END
 
+    // 3. START: Shard mapping setup: Only relevant to the write buffer router path
     // Initialise the shard-mapping gRPC service.
-    let shard_service = init_shard_service(sharder, write_buffer_config, catalog).await?;
+    let shard_service =
+        init_shard_service(sharder, write_buffer_config, Arc::clone(&catalog)).await?;
+    // 3. END
 
-    // Initialise the API delegates
+    // 4. START: Initialize the HTTP API delegate, this is the same in both router paths
     let http = HttpDelegate::new(
         common_state.run_config().max_http_request_size,
         router_config.http_request_limit,
@@ -304,17 +573,17 @@ pub async fn create_router_server_type(
         handler_stack,
         &metrics,
     );
-    let grpc = GrpcDelegate::new(
-        topic_id,
-        query_id,
-        schema_catalog,
-        object_store,
-        shard_service,
-    );
+    // 4. END
+
+    // 5. START: Initialize the gRPC API delegate that creates the services relevant to the write
+    //    buffer router path and use it to create the relevant `RouterServer` and
+    //    `RouterServerType`.
+    let grpc = GrpcDelegate::new(topic_id, query_id, catalog, object_store, shard_service);
 
     let router_server = RouterServer::new(http, grpc, metrics, common_state.trace_collector());
     let server_type = Arc::new(RouterServerType::new(router_server, common_state));
     Ok(server_type)
+    // 5. END
 }
 
 /// Initialise the [`ShardedWriteBuffer`] with one shard per Kafka partition,

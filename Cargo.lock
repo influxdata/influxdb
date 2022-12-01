@@ -4486,6 +4486,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "bytes",
+ "client_util",
  "criterion",
  "data_types",
  "dml",
