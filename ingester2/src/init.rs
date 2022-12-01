@@ -222,7 +222,7 @@ pub async fn new(
 
     // Spawn the persist workers to compact partition data, convert it into
     // Parquet files, and upload them to object storage.
-    let (_handle, persist_actor) = PersistHandle::new(
+    let (persist_handle, persist_actor) = PersistHandle::new(
         persist_submission_queue_depth,
         persist_workers,
         persist_worker_queue_depth,
@@ -238,7 +238,12 @@ pub async fn new(
     let write_path = WalSink::new(Arc::clone(&buffer), wal.write_handle().await);
 
     // Spawn a background thread to periodically rotate the WAL segment file.
-    let handle = tokio::spawn(periodic_rotation(wal, wal_rotation_period));
+    let handle = tokio::spawn(periodic_rotation(
+        wal,
+        wal_rotation_period,
+        Arc::clone(&buffer),
+        persist_handle,
+    ));
 
     // Restore the highest sequence number from the WAL files, and default to 0
     // if there were no files to replay.
