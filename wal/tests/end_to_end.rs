@@ -45,7 +45,7 @@ async fn crud() {
     );
 
     // Can't read entries from the open segment; have to rotate first
-    let wal_rotator = wal.rotation_handle().await;
+    let wal_rotator = wal.rotation_handle();
     let closed_segment_details = wal_rotator.rotate().await.unwrap();
     assert_eq!(closed_segment_details.size(), 228);
 
@@ -88,7 +88,7 @@ async fn replay() {
         let open = wal.write_handle().await;
         let op = arbitrary_sequenced_wal_op(42);
         open.write_op(op).await.unwrap();
-        let wal_rotator = wal.rotation_handle().await;
+        let wal_rotator = wal.rotation_handle();
         wal_rotator.rotate().await.unwrap();
         let op = arbitrary_sequenced_wal_op(43);
         open.write_op(op).await.unwrap();
@@ -129,7 +129,7 @@ async fn ordering() {
     {
         let wal = wal::Wal::new(dir.path()).await.unwrap();
         let open = wal.write_handle().await;
-        let wal_rotator = wal.rotation_handle().await;
+        let wal_rotator = wal.rotation_handle();
 
         let op = arbitrary_sequenced_wal_op(42);
         open.write_op(op).await.unwrap();
@@ -146,7 +146,7 @@ async fn ordering() {
     // Create a new WAL instance with the same directory to replay from the files
     let wal = wal::Wal::new(dir.path()).await.unwrap();
     let wal_reader = wal.read_handle();
-    let wal_rotator = wal.rotation_handle().await;
+    let wal_rotator = wal.rotation_handle();
 
     // There are 3 segments (from the 2 closed and 1 open) and they're in the order they were
     // created

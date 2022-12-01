@@ -263,7 +263,7 @@ impl Wal {
 
     /// Returns a handle to the WAL that enables rotating the open segment and deleting closed
     /// segments.
-    pub async fn rotation_handle(&self) -> WalRotator<'_> {
+    pub fn rotation_handle(&self) -> WalRotator<'_> {
         WalRotator(self)
     }
 }
@@ -685,7 +685,7 @@ mod tests {
         );
 
         // No writes, but rotating is totally fine
-        let wal_rotator = wal.rotation_handle().await;
+        let wal_rotator = wal.rotation_handle();
         let closed_segment_details = wal_rotator.rotate().await.unwrap();
         assert_eq!(closed_segment_details.size(), 16);
 

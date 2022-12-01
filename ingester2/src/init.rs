@@ -21,7 +21,7 @@ use crate::{
     },
     server::grpc::GrpcDelegate,
     timestamp_oracle::TimestampOracle,
-    wal::wal_sink::WalSink,
+    wal::{rotate_task::periodic_rotation, wal_sink::WalSink},
     TRANSITION_SHARD_ID,
 };
 
@@ -61,6 +61,31 @@ pub trait IngesterRpcInterface: Send + Sync + std::fmt::Debug {
         max_simultaneous_requests: usize,
         metrics: &metric::Registry,
     ) -> FlightServiceServer<Self::FlightHandler>;
+}
+
+/// A RAII guard to clean up `ingester2` instance resources when dropped.
+#[must_use = "ingester stops when guard is dropped"]
+#[derive(Debug)]
+pub struct IngesterGuard<T> {
+    rpc: T,
+
+    /// The handle of the periodic WAL rotation task.
+    ///
+    /// Aborted on drop.
+    rotation_task: tokio::task::JoinHandle<()>,
+}
+
+impl<T> IngesterGuard<T> {
+    /// Obtain a handle to the gRPC handlers.
+    pub fn rpc(&self) -> &T {
+        &self.rpc
+    }
+}
+
+impl<T> Drop for IngesterGuard<T> {
+    fn drop(&mut self) {
+        self.rotation_task.abort();
+    }
 }
 
 /// Errors that occur during initialisation of an `ingester2` instance.
@@ -124,7 +149,8 @@ pub async fn new(
     metrics: Arc<metric::Registry>,
     persist_background_fetch_time: Duration,
     wal_directory: PathBuf,
-) -> Result<impl IngesterRpcInterface, InitError> {
+    wal_rotation_period: Duration,
+) -> Result<IngesterGuard<impl IngesterRpcInterface>, InitError> {
     // Initialise the deferred namespace name resolver.
     let namespace_name_provider: Arc<dyn NamespaceNameProvider> =
         Arc::new(NamespaceNameResolver::new(
@@ -193,7 +219,8 @@ pub async fn new(
     // Build the chain of DmlSink that forms the write path.
     let write_path = WalSink::new(Arc::clone(&buffer), wal.write_handle().await);
 
-    // TODO: start WAL rotator task
+    // Spawn a background thread to periodically rotate the WAL segment file.
+    let handle = tokio::spawn(periodic_rotation(wal, wal_rotation_period));
 
     // Restore the highest sequence number from the WAL files, and default to 0
     // if there were no files to replay.
@@ -207,5 +234,8 @@ pub async fn new(
             .unwrap_or(0),
     ));
 
-    Ok(GrpcDelegate::new(Arc::new(write_path), buffer, timestamp))
+    Ok(IngesterGuard {
+        rpc: GrpcDelegate::new(Arc::new(write_path), buffer, timestamp),
+        rotation_task: handle,
+    })
 }
