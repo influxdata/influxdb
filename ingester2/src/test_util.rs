@@ -1,9 +1,12 @@
+use std::collections::BTreeMap;
+
 use data_types::{
     NamespaceId, PartitionKey, Sequence, SequenceNumber, ShardId, ShardIndex, TableId,
 };
 use dml::{DmlMeta, DmlWrite};
 use iox_catalog::interface::Catalog;
 use mutable_batch_lp::lines_to_batches;
+use schema::Projection;
 
 /// Construct a [`DmlWrite`] with the specified parameters, for LP that contains
 /// a single table identified by `table_id`.
@@ -67,4 +70,34 @@ pub(crate) async fn populate_catalog(
     assert_eq!(shard_id, crate::TRANSITION_SHARD_ID);
 
     (shard_id, ns_id, table_id)
+}
+
+/// Assert `a` and `b` have identical metadata, and that when converting
+/// them to Arrow batches they produces identical output.
+#[track_caller]
+pub(crate) fn assert_dml_writes_eq(a: DmlWrite, b: DmlWrite) {
+    assert_eq!(a.namespace_id(), b.namespace_id(), "namespace");
+    assert_eq!(a.table_count(), b.table_count(), "table count");
+    assert_eq!(a.min_timestamp(), b.min_timestamp(), "min timestamp");
+    assert_eq!(a.max_timestamp(), b.max_timestamp(), "max timestamp");
+    assert_eq!(a.partition_key(), b.partition_key(), "partition key");
+
+    // Assert sequence numbers were reassigned
+    let seq_a = a.meta().sequence().map(|s| s.sequence_number);
+    let seq_b = b.meta().sequence().map(|s| s.sequence_number);
+    assert_eq!(seq_a, seq_b, "sequence numbers differ");
+
+    let a = a.into_tables().collect::<BTreeMap<_, _>>();
+    let b = b.into_tables().collect::<BTreeMap<_, _>>();
+
+    a.into_iter().zip(b.into_iter()).for_each(|(a, b)| {
+        assert_eq!(a.0, b.0, "table IDs differ - a table is missing!");
+        assert_eq!(
+            a.1.to_arrow(Projection::All)
+                .expect("failed projection for a"),
+            b.1.to_arrow(Projection::All)
+                .expect("failed projection for b"),
+            "table data differs"
+        );
+    })
 }
