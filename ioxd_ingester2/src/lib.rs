@@ -3,6 +3,7 @@ use clap_blocks::ingester2::Ingester2Config;
 use hyper::{Body, Request, Response};
 use ingester2::{IngesterGuard, IngesterRpcInterface};
 use iox_catalog::interface::Catalog;
+use iox_query::exec::Executor;
 use ioxd_common::{
     add_service,
     http::error::{HttpApiError, HttpApiErrorCode, HttpApiErrorSource},
@@ -12,6 +13,7 @@ use ioxd_common::{
     setup_builder,
 };
 use metric::Registry;
+use parquet_file::storage::ParquetStorage;
 use std::{
     fmt::{Debug, Display},
     sync::Arc,
@@ -143,6 +145,8 @@ pub async fn create_ingester_server_type(
     catalog: Arc<dyn Catalog>,
     metrics: Arc<Registry>,
     ingester_config: &Ingester2Config,
+    exec: Arc<Executor>,
+    object_store: ParquetStorage,
 ) -> Result<Arc<dyn ServerType>> {
     let grpc = ingester2::new(
         catalog,
@@ -150,6 +154,11 @@ pub async fn create_ingester_server_type(
         PERSIST_BACKGROUND_FETCH_TIME,
         ingester_config.wal_directory.clone(),
         Duration::from_secs(ingester_config.wal_rotation_period_seconds),
+        exec,
+        ingester_config.persist_submission_queue_depth,
+        ingester_config.persist_max_parallelism,
+        ingester_config.persist_worker_queue_depth,
+        object_store,
     )
     .await?;
 

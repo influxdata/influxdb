@@ -9,6 +9,8 @@ use generated_types::influxdata::iox::{
     ingester::v1::write_service_server::{WriteService, WriteServiceServer},
 };
 use iox_catalog::interface::Catalog;
+use iox_query::exec::Executor;
+use parquet_file::storage::ParquetStorage;
 use thiserror::Error;
 use wal::Wal;
 
@@ -19,6 +21,7 @@ use crate::{
         table::name_resolver::{TableNameProvider, TableNameResolver},
         BufferTree,
     },
+    persist::handle::PersistHandle,
     server::grpc::GrpcDelegate,
     timestamp_oracle::TimestampOracle,
     wal::{rotate_task::periodic_rotation, wal_sink::WalSink},
@@ -69,6 +72,7 @@ pub struct IngesterGuard<T> {
     ///
     /// Aborted on drop.
     rotation_task: tokio::task::JoinHandle<()>,
+    persist_task: tokio::task::JoinHandle<()>,
 }
 
 impl<T> IngesterGuard<T> {
@@ -140,12 +144,18 @@ pub enum InitError {
 /// value should be tuned to be slightly less than the interval between persist
 /// operations, but not so long that it causes catalog load spikes at persist
 /// time (which can be observed by the catalog instrumentation metrics).
+#[allow(clippy::too_many_arguments)]
 pub async fn new(
     catalog: Arc<dyn Catalog>,
     metrics: Arc<metric::Registry>,
     persist_background_fetch_time: Duration,
     wal_directory: PathBuf,
     wal_rotation_period: Duration,
+    persist_executor: Arc<Executor>,
+    persist_submission_queue_depth: usize,
+    persist_workers: usize,
+    persist_worker_queue_depth: usize,
+    object_store: ParquetStorage,
 ) -> Result<IngesterGuard<impl IngesterRpcInterface>, InitError> {
     // Initialise the deferred namespace name resolver.
     let namespace_name_provider: Arc<dyn NamespaceNameProvider> =
@@ -210,6 +220,18 @@ pub async fn new(
         .await
         .map_err(|e| InitError::WalReplay(e.into()))?;
 
+    // Spawn the persist workers to compact partition data, convert it into
+    // Parquet files, and upload them to object storage.
+    let (_handle, persist_actor) = PersistHandle::new(
+        persist_submission_queue_depth,
+        persist_workers,
+        persist_worker_queue_depth,
+        persist_executor,
+        object_store,
+        Arc::clone(&catalog),
+    );
+    let persist_task = tokio::spawn(persist_actor.run());
+
     // TODO: persist replayed ops, if any
 
     // Build the chain of DmlSink that forms the write path.
@@ -233,5 +255,6 @@ pub async fn new(
     Ok(IngesterGuard {
         rpc: GrpcDelegate::new(Arc::new(write_path), buffer, timestamp, catalog, metrics),
         rotation_task: handle,
+        persist_task,
     })
 }
