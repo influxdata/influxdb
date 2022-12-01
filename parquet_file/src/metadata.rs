@@ -115,7 +115,9 @@ use schema::{
 };
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{convert::TryInto, fmt::Debug, mem, sync::Arc};
-use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputProtocol};
+use thrift::protocol::{
+    TCompactInputProtocol, TCompactOutputProtocol, TOutputProtocol, TSerializable,
+};
 use uuid::Uuid;
 
 /// Current version for serialized metadata.
