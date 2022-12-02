@@ -15,7 +15,7 @@ use super::{namespace::NamespaceName, table::TableName};
 use crate::{deferred_load::DeferredLoad, query_adaptor::QueryAdaptor};
 
 mod buffer;
-mod persisting;
+pub(crate) mod persisting;
 pub(crate) mod resolver;
 
 /// The load state of the [`SortKey`] for a given partition.
