@@ -65,6 +65,10 @@ where
     // enforced within the buffer.
     let mut max_sequence = None;
     for (index, file) in files.into_iter().enumerate() {
+        // Map 0-based iter index to 1 based file count
+        let file_number = index + 1;
+
+        // Read the segment
         let reader = read_handle
             .reader_for_segment(file.id())
             .await
@@ -73,7 +77,7 @@ where
         // Emit a log entry so progress can be tracked (and a problematic file
         // be identified should an explosion happen during replay).
         info!(
-            file_number = index + 1, // map 0-based index to 1 based file count
+            file_number,
             n_files,
             file_id = %file.id(),
             size = file.size(),
@@ -81,8 +85,34 @@ where
         );
 
         // Replay this segment file
-        let seq = replay_file(reader, sink).await?;
-        max_sequence = max_sequence.max(seq);
+        match replay_file(reader, sink).await? {
+            v @ Some(_) => max_sequence = max_sequence.max(v),
+            None => {
+                // This file was empty and should be deleted.
+                warn!(
+                    file_number,
+                    n_files,
+                    file_id = %file.id(),
+                    size = file.size(),
+                    "dropping empty wal segment",
+                );
+
+                // TODO(dom:test): empty WAL replay
+
+                // A failure to delete an empty file should not prevent WAL
+                // replay from continuing.
+                if let Err(error) = wal.rotation_handle().delete(file.id()).await {
+                    error!(
+                        file_number,
+                        n_files,
+                        file_id = %file.id(),
+                        size = file.size(),
+                        %error,
+                        "error dropping empty wal segment",
+                    );
+                }
+            }
+        };
     }
 
     info!(
@@ -94,7 +124,7 @@ where
 }
 
 /// Replay the entries in `file`, applying them to `buffer`. Returns the highest
-/// sequence number observed in the file, if any (files may be empty).
+/// sequence number observed in the file, or [`None`] if the file was empty.
 async fn replay_file<T>(
     mut file: wal::ClosedSegmentFileReader,
     sink: &T,
