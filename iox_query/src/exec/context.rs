@@ -46,7 +46,6 @@ use datafusion_util::config::{iox_session_config, DEFAULT_CATALOG};
 use executor::DedicatedExecutor;
 use futures::{Stream, StreamExt, TryStreamExt};
 use observability_deps::tracing::debug;
-use once_cell::sync::Lazy;
 use query_functions::selectors::register_selector_aggregates;
 use std::{convert::TryInto, fmt, sync::Arc};
 use trace::{
@@ -262,10 +261,6 @@ impl fmt::Debug for IOxSessionContext {
     }
 }
 
-/// [`DedicatedExecutor`] for testing purposes.
-static TESTING_EXECUTOR: Lazy<DedicatedExecutor> =
-    Lazy::new(|| DedicatedExecutor::new("testing", 1));
-
 impl IOxSessionContext {
     /// Constructor for testing.
     ///
@@ -274,7 +269,7 @@ impl IOxSessionContext {
     pub fn with_testing() -> Self {
         Self {
             inner: SessionContext::default(),
-            exec: TESTING_EXECUTOR.clone(),
+            exec: DedicatedExecutor::new_testing(),
             recorder: SpanRecorder::default(),
         }
     }

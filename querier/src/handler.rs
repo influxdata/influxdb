@@ -196,7 +196,7 @@ mod tests {
             let object_store = Arc::new(InMemory::new()) as _;
 
             let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-            let exec = Arc::new(Executor::new(1));
+            let exec = Arc::new(Executor::new_testing());
             let catalog_cache = Arc::new(CatalogCache::new_testing(
                 Arc::clone(&catalog),
                 time_provider,
