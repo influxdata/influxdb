@@ -1,18 +1,15 @@
-//! Command line options for running a router using the RPC write path.
+//! Command line options for running an ingester for a router using the RPC write path to talk to.
+
 use super::main;
 use crate::process_info::setup_metric_registry;
 use clap_blocks::{
-    catalog_dsn::CatalogDsnConfig, object_store::make_object_store,
-    router_rpc_write::RouterRpcWriteConfig, run_config::RunConfig,
+    catalog_dsn::CatalogDsnConfig, ingester2::Ingester2Config, run_config::RunConfig,
 };
-use iox_time::{SystemProvider, TimeProvider};
 use ioxd_common::{
     server_type::{CommonServerState, CommonServerStateError},
     Service,
 };
-use ioxd_router::create_router_grpc_write_server_type;
-use object_store::DynObjectStore;
-use object_store_metrics::ObjectStoreMetrics;
+use ioxd_ingester2::create_ingester_server_type;
 use observability_deps::tracing::*;
 use std::sync::Arc;
 use thiserror::Error;
@@ -25,11 +22,8 @@ pub enum Error {
     #[error("Invalid config: {0}")]
     InvalidConfig(#[from] CommonServerStateError),
 
-    #[error("Cannot parse object store config: {0}")]
-    ObjectStoreParsing(#[from] clap_blocks::object_store::ParseError),
-
-    #[error("Creating router: {0}")]
-    Router(#[from] ioxd_router::Error),
+    #[error("error initializing ingester2: {0}")]
+    Ingester(#[from] ioxd_ingester2::Error),
 
     #[error("Catalog DSN error: {0}")]
     CatalogDsn(#[from] clap_blocks::catalog_dsn::Error),
@@ -40,12 +34,11 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, clap::Parser)]
 #[clap(
     name = "run",
-    about = "Runs in router mode using the RPC write path",
-    long_about = "Run the IOx router server.\n\nThe configuration options below can be \
+    about = "Runs in ingester mode",
+    long_about = "Run the IOx ingester server.\n\nThe configuration options below can be \
     set either with the command line flags or with the specified environment \
     variable. If there is a file named '.env' in the current working directory, \
     it is sourced before loading the configuration.
-
 Configuration is loaded from the following sources (highest precedence first):
         - command line arguments
         - user set environment variables
@@ -60,38 +53,28 @@ pub struct Config {
     pub(crate) catalog_dsn: CatalogDsnConfig,
 
     #[clap(flatten)]
-    pub(crate) router_config: RouterRpcWriteConfig,
+    pub(crate) ingester_config: Ingester2Config,
 }
 
 pub async fn command(config: Config) -> Result<()> {
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
-    let time_provider = Arc::new(SystemProvider::new()) as Arc<dyn TimeProvider>;
-    let metrics = setup_metric_registry();
+    let metric_registry = setup_metric_registry();
 
     let catalog = config
         .catalog_dsn
-        .get_catalog("router_rpc_write", Arc::clone(&metrics))
+        .get_catalog("ingester", Arc::clone(&metric_registry))
         .await?;
 
-    let object_store = make_object_store(config.run_config.object_store_config())
-        .map_err(Error::ObjectStoreParsing)?;
-    // Decorate the object store with a metric recorder.
-    let object_store: Arc<DynObjectStore> = Arc::new(ObjectStoreMetrics::new(
-        object_store,
-        time_provider,
-        &metrics,
-    ));
-
-    let server_type = create_router_grpc_write_server_type(
+    let server_type = create_ingester_server_type(
         &common_state,
-        Arc::clone(&metrics),
         catalog,
-        object_store,
-        &config.router_config,
+        Arc::clone(&metric_registry),
+        &config.ingester_config,
     )
     .await?;
 
-    info!("starting router_rpc_write");
+    info!("starting ingester2");
+
     let services = vec![Service::create(server_type, common_state.run_config())];
-    Ok(main::main(common_state, services, metrics).await?)
+    Ok(main::main(common_state, services, metric_registry).await?)
 }

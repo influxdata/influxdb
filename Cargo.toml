@@ -35,6 +35,7 @@ members = [
     "ioxd_common",
     "ioxd_compactor",
     "ioxd_ingester",
+    "ioxd_ingester2",
     "ioxd_garbage_collector",
     "ioxd_querier",
     "ioxd_router",

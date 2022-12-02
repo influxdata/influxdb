@@ -44,10 +44,7 @@ pub trait IngesterRpcInterface: Send + Sync + std::fmt::Debug {
 
     /// Acquire an opaque handle to the Ingester's [`CatalogService`] RPC
     /// handler implementation.
-    fn catalog_service(
-        &self,
-        catalog: Arc<dyn Catalog>,
-    ) -> CatalogServiceServer<Self::CatalogHandler>;
+    fn catalog_service(&self) -> CatalogServiceServer<Self::CatalogHandler>;
 
     /// Acquire an opaque handle to the Ingester's [`WriteService`] RPC
     /// handler implementation.
@@ -59,7 +56,6 @@ pub trait IngesterRpcInterface: Send + Sync + std::fmt::Debug {
     fn query_service(
         &self,
         max_simultaneous_requests: usize,
-        metrics: &metric::Registry,
     ) -> FlightServiceServer<Self::FlightHandler>;
 }
 
@@ -195,7 +191,7 @@ pub async fn new(
         namespace_name_provider,
         table_name_provider,
         partition_provider,
-        metrics,
+        Arc::clone(&metrics),
     ));
 
     // TODO: start hot-partition persist task before replaying the WAL
@@ -235,7 +231,7 @@ pub async fn new(
     ));
 
     Ok(IngesterGuard {
-        rpc: GrpcDelegate::new(Arc::new(write_path), buffer, timestamp),
+        rpc: GrpcDelegate::new(Arc::new(write_path), buffer, timestamp, catalog, metrics),
         rotation_task: handle,
     })
 }

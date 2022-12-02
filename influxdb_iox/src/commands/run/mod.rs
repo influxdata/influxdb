@@ -5,6 +5,8 @@ pub(crate) mod all_in_one;
 mod compactor;
 mod garbage_collector;
 mod ingester;
+#[cfg(feature = "rpc_write")]
+mod ingester2;
 mod main;
 mod querier;
 mod router;
@@ -33,6 +35,10 @@ pub enum Error {
 
     #[snafu(display("Error in ingester subcommand: {}", source))]
     IngesterError { source: ingester::Error },
+
+    #[cfg(feature = "rpc_write")]
+    #[snafu(display("Error in ingester2 subcommand: {}", source))]
+    Ingester2Error { source: ingester2::Error },
 
     #[snafu(display("Error in all in one subcommand: {}", source))]
     AllInOneError { source: all_in_one::Error },
@@ -64,6 +70,8 @@ impl Config {
             #[cfg(feature = "rpc_write")]
             Some(Command::RouterRpcWrite(config)) => config.run_config.logging_config(),
             Some(Command::Ingester(config)) => config.run_config.logging_config(),
+            #[cfg(feature = "rpc_write")]
+            Some(Command::Ingester2(config)) => config.run_config.logging_config(),
             Some(Command::AllInOne(config)) => &config.logging_config,
             Some(Command::Test(config)) => config.run_config.logging_config(),
         }
@@ -87,6 +95,10 @@ enum Command {
 
     /// Run the server in ingester mode
     Ingester(ingester::Config),
+
+    /// Run the server in ingester2 mode
+    #[cfg(feature = "rpc_write")]
+    Ingester2(ingester2::Config),
 
     /// Run the server in "all in one" mode (Default)
     AllInOne(all_in_one::Config),
@@ -116,6 +128,10 @@ pub async fn command(config: Config) -> Result<()> {
             .await
             .context(RouterRpcWriteSnafu),
         Some(Command::Ingester(config)) => ingester::command(config).await.context(IngesterSnafu),
+        #[cfg(feature = "rpc_write")]
+        Some(Command::Ingester2(config)) => {
+            ingester2::command(config).await.context(Ingester2Snafu)
+        }
         Some(Command::AllInOne(config)) => all_in_one::command(config).await.context(AllInOneSnafu),
         Some(Command::Test(config)) => test::command(config).await.context(TestSnafu),
     }

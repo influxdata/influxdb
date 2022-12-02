@@ -1,5 +1,7 @@
 use async_trait::async_trait;
-use clap_blocks::{router::RouterConfig, write_buffer::WriteBufferConfig};
+use clap_blocks::{
+    router::RouterConfig, router_rpc_write::RouterRpcWriteConfig, write_buffer::WriteBufferConfig,
+};
 use data_types::{NamespaceName, PartitionTemplate, TemplatePart};
 use hashbrown::HashMap;
 use hyper::{Body, Request, Response};
@@ -244,24 +246,20 @@ impl HttpApiErrorSource for IoxHttpErrorAdaptor {
 // NOTE!!! This needs to be kept in sync with `create_router_server_type` until the
 // switch to the RPC write path/ingester2 is complete! See the numbered sections that annotate
 // where these two functions line up and where they diverge.
-#[allow(clippy::too_many_arguments)] // Some of these arguments should go away soon.
 pub async fn create_router_grpc_write_server_type(
     common_state: &CommonServerState,
     metrics: Arc<metric::Registry>,
     catalog: Arc<dyn Catalog>,
     object_store: Arc<DynObjectStore>,
-    request_limit: usize,
-    ingester_addresses: &[String],
-    topic: &str,
-    query_pool_name: &str,
-    new_namespace_retention_hours: Option<u64>,
+    router_config: &RouterRpcWriteConfig,
 ) -> Result<Arc<dyn ServerType>> {
     // 1. START: Different Setup Per Router Path: this part is only relevant to using RPC write
     //    path and should not be added to `create_router_server_type`.
 
     // Initialise the DML handler that sends writes to the ingester using the RPC write path.
     let rpc_writer = RpcWrite::new(RoundRobin::new(
-        ingester_addresses
+        router_config
+            .ingester_addresses
             .iter()
             .map(|ingester_addr| write_service_client(ingester_addr)),
     ));
@@ -336,16 +334,21 @@ pub async fn create_router_grpc_write_server_type(
     let mut txn = catalog.start_transaction().await?;
     let topic_id = txn
         .topics()
-        .get_by_name(topic)
+        .get_by_name(&router_config.topic)
         .await?
         .map(|v| v.id)
-        .unwrap_or_else(|| panic!("no topic named {} in catalog", topic));
+        .unwrap_or_else(|| panic!("no topic named {} in catalog", router_config.topic));
     let query_id = txn
         .query_pools()
-        .create_or_get(query_pool_name)
+        .create_or_get(&router_config.query_pool_name)
         .await
         .map(|v| v.id)
-        .unwrap_or_else(|e| panic!("failed to upsert query pool {} in catalog: {}", topic, e));
+        .unwrap_or_else(|e| {
+            panic!(
+                "failed to upsert query pool {} in catalog: {}",
+                router_config.topic, e
+            )
+        });
     txn.commit().await?;
 
     let namespace_resolver = NamespaceAutocreation::new(
@@ -354,7 +357,9 @@ pub async fn create_router_grpc_write_server_type(
         Arc::clone(&catalog),
         topic_id,
         query_id,
-        new_namespace_retention_hours.map(|hours| hours as i64 * 60 * 60 * 1_000_000_000),
+        router_config
+            .new_namespace_retention_hours
+            .map(|hours| hours as i64 * 60 * 60 * 1_000_000_000),
     );
     //
     ////////////////////////////////////////////////////////////////////////////
@@ -389,7 +394,7 @@ pub async fn create_router_grpc_write_server_type(
     // 4. START: Initialize the HTTP API delegate, this is the same in both router paths
     let http = HttpDelegate::new(
         common_state.run_config().max_http_request_size,
-        request_limit,
+        router_config.http_request_limit,
         namespace_resolver,
         handler_stack,
         &metrics,
