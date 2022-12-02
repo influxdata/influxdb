@@ -2,9 +2,12 @@
 
 use std::{pin::Pin, sync::Arc};
 
-use arrow::{array::new_null_array, error::ArrowError, record_batch::RecordBatch};
-use arrow_util::optimize::{
-    prepare_batch_for_flight, prepare_schema_for_flight, split_batch_for_grpc_response,
+use arrow::{error::ArrowError, record_batch::RecordBatch};
+use arrow_util::{
+    optimize::{
+        prepare_batch_for_flight, prepare_schema_for_flight, split_batch_for_grpc_response,
+    },
+    test_util::equalize_batch_schemas,
 };
 use data_types::{NamespaceId, PartitionId, SequenceNumber, TableId};
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -12,7 +15,7 @@ use datafusion_util::MemoryStream;
 use futures::{Stream, StreamExt, TryStreamExt};
 use generated_types::ingester::IngesterQueryRequest;
 use observability_deps::tracing::*;
-use schema::{merge::SchemaMerger, Projection};
+use schema::Projection;
 use snafu::{ensure, Snafu};
 use trace::span::{Span, SpanRecorder};
 
@@ -187,7 +190,6 @@ impl IngesterQueryResponse {
     /// do not line up with the snapshot-scoped record batches.
     pub async fn into_record_batches(self) -> Vec<RecordBatch> {
         let mut snapshot_schema = None;
-        let mut schema_merger = SchemaMerger::new();
         let mut batches = vec![];
 
         let mut stream = self.flatten();
@@ -201,33 +203,13 @@ impl IngesterQueryResponse {
                 }
                 FlatIngesterQueryResponse::StartSnapshot { schema } => {
                     snapshot_schema = Some(Arc::clone(&schema));
-
-                    schema_merger = schema_merger
-                        .merge(&schema::Schema::try_from(schema).unwrap())
-                        .unwrap();
                 }
             }
         }
 
         assert!(!batches.is_empty());
 
-        // equalize schemas
-        let common_schema = schema_merger.build().as_arrow();
-        batches
-            .into_iter()
-            .map(|batch| {
-                let batch_schema = batch.schema();
-                let columns = common_schema
-                    .fields()
-                    .iter()
-                    .map(|field| match batch_schema.index_of(field.name()) {
-                        Ok(idx) => Arc::clone(batch.column(idx)),
-                        Err(_) => new_null_array(field.data_type(), batch.num_rows()),
-                    })
-                    .collect();
-                RecordBatch::try_new(Arc::clone(&common_schema), columns).unwrap()
-            })
-            .collect()
+        equalize_batch_schemas(batches).unwrap()
     }
 }
 

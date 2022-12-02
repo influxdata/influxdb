@@ -86,7 +86,16 @@ fn create_table(results: &[RecordBatch]) -> Result<Table> {
     }
     table.set_header(header);
 
-    for batch in results {
+    for (i, batch) in results.iter().enumerate() {
+        if batch.schema() != schema {
+            return Err(ArrowError::SchemaError(format!(
+                "Batches have different schemas:\n\nFirst:\n{}\n\nBatch {}:\n{}",
+                schema,
+                i + 1,
+                batch.schema()
+            )));
+        }
+
         for row in 0..batch.num_rows() {
             let mut cells = Vec::new();
             for col in 0..batch.num_columns() {
@@ -112,6 +121,7 @@ mod tests {
         },
         datatypes::Int32Type,
     };
+    use datafusion::common::assert_contains;
 
     #[test]
     fn test_formatting() {
@@ -181,5 +191,17 @@ mod tests {
             "Expected:\n\n{:#?}\nActual:\n\n{:#?}\n",
             expected, actual
         );
+    }
+
+    #[test]
+    fn test_pretty_format_batches_checks_schemas() {
+        let int64_array: ArrayRef = Arc::new([Some(2)].iter().collect::<Int64Array>());
+        let uint64_array: ArrayRef = Arc::new([Some(2)].iter().collect::<UInt64Array>());
+
+        let batch1 = RecordBatch::try_from_iter(vec![("col", int64_array)]).unwrap();
+        let batch2 = RecordBatch::try_from_iter(vec![("col", uint64_array)]).unwrap();
+
+        let err = pretty_format_batches(&[batch1, batch2]).unwrap_err();
+        assert_contains!(err.to_string(), "Batches have different schemas:");
     }
 }
