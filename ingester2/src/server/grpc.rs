@@ -32,6 +32,8 @@ pub(crate) struct GrpcDelegate<D, Q> {
     dml_sink: Arc<D>,
     query_exec: Arc<Q>,
     timestamp: Arc<TimestampOracle>,
+    catalog: Arc<dyn Catalog>,
+    metrics: Arc<metric::Registry>,
 }
 
 impl<D, Q> GrpcDelegate<D, Q>
@@ -44,11 +46,15 @@ where
         dml_sink: Arc<D>,
         query_exec: Arc<Q>,
         timestamp: Arc<TimestampOracle>,
+        catalog: Arc<dyn Catalog>,
+        metrics: Arc<metric::Registry>,
     ) -> Self {
         Self {
             dml_sink,
             query_exec,
             timestamp,
+            catalog,
+            metrics,
         }
     }
 }
@@ -67,11 +73,8 @@ where
     /// Acquire a [`CatalogService`] gRPC service implementation.
     ///
     /// [`CatalogService`]: generated_types::influxdata::iox::catalog::v1::catalog_service_server::CatalogService.
-    fn catalog_service(
-        &self,
-        catalog: Arc<dyn Catalog>,
-    ) -> CatalogServiceServer<Self::CatalogHandler> {
-        CatalogServiceServer::new(CatalogService::new(catalog))
+    fn catalog_service(&self) -> CatalogServiceServer<Self::CatalogHandler> {
+        CatalogServiceServer::new(CatalogService::new(Arc::clone(&self.catalog)))
     }
 
     /// Return a [`WriteService`] gRPC implementation.
@@ -90,12 +93,11 @@ where
     fn query_service(
         &self,
         max_simultaneous_requests: usize,
-        metrics: &metric::Registry,
     ) -> FlightServiceServer<Self::FlightHandler> {
         FlightServiceServer::new(query::FlightService::new(
             Arc::clone(&self.query_exec),
             max_simultaneous_requests,
-            metrics,
+            &self.metrics,
         ))
     }
 }

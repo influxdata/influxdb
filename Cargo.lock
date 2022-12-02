@@ -2292,6 +2292,7 @@ dependencies = [
  "ioxd_compactor",
  "ioxd_garbage_collector",
  "ioxd_ingester",
+ "ioxd_ingester2",
  "ioxd_querier",
  "ioxd_router",
  "ioxd_test",
@@ -2780,6 +2781,24 @@ dependencies = [
  "trace",
  "workspace-hack",
  "write_buffer",
+]
+
+[[package]]
+name = "ioxd_ingester2"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "clap_blocks",
+ "hyper",
+ "ingester2",
+ "iox_catalog",
+ "ioxd_common",
+ "metric",
+ "thiserror",
+ "tokio",
+ "tokio-util",
+ "trace",
+ "workspace-hack",
 ]
 
 [[package]]
