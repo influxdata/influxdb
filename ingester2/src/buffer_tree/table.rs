@@ -12,7 +12,10 @@ use parking_lot::{Mutex, RwLock};
 use schema::Projection;
 use trace::span::{Span, SpanRecorder};
 
-use super::partition::{resolver::PartitionProvider, PartitionData};
+use super::{
+    namespace::NamespaceName,
+    partition::{resolver::PartitionProvider, PartitionData},
+};
 use crate::{
     arcmap::ArcMap,
     deferred_load::DeferredLoad,
@@ -102,6 +105,7 @@ pub(crate) struct TableData {
 
     /// The catalog ID of the namespace this table is being populated from.
     namespace_id: NamespaceId,
+    namespace_name: Arc<DeferredLoad<NamespaceName>>,
 
     /// An abstract constructor of [`PartitionData`] instances for a given
     /// `(key, table)` tuple.
@@ -126,12 +130,14 @@ impl TableData {
         table_id: TableId,
         table_name: DeferredLoad<TableName>,
         namespace_id: NamespaceId,
+        namespace_name: Arc<DeferredLoad<NamespaceName>>,
         partition_provider: Arc<dyn PartitionProvider>,
     ) -> Self {
         Self {
             table_id,
             table_name: Arc::new(table_name),
             namespace_id,
+            namespace_name,
             partition_data: Default::default(),
             partition_provider,
         }
@@ -154,6 +160,7 @@ impl TableData {
                     .get_partition(
                         partition_key.clone(),
                         self.namespace_id,
+                        Arc::clone(&self.namespace_name),
                         self.table_id,
                         Arc::clone(&self.table_name),
                     )
@@ -288,6 +295,9 @@ mod tests {
                 PARTITION_ID,
                 PARTITION_KEY.into(),
                 NAMESPACE_ID,
+                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                    NamespaceName::from("platanos")
+                })),
                 TABLE_ID,
                 Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                     TableName::from(TABLE_NAME)
@@ -302,6 +312,9 @@ mod tests {
                 TableName::from(TABLE_NAME)
             }),
             NAMESPACE_ID,
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                NamespaceName::from("platanos")
+            })),
             partition_provider,
         );
 
