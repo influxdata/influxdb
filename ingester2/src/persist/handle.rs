@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
+use observability_deps::tracing::info;
 use parking_lot::Mutex;
 use parquet_file::storage::ParquetStorage;
 use thiserror::Error;
@@ -124,11 +125,20 @@ impl PersistHandle {
         submission_queue_depth: usize,
         n_workers: usize,
         worker_queue_depth: usize,
-        exec: Executor,
+        exec: Arc<Executor>,
         store: ParquetStorage,
         catalog: Arc<dyn Catalog>,
     ) -> (Self, PersistActor) {
         let (tx, rx) = mpsc::channel(submission_queue_depth);
+
+        // Log the important configuration parameters of the persist subsystem.
+        info!(
+            submission_queue_depth,
+            n_workers,
+            worker_queue_depth,
+            max_queued_tasks = submission_queue_depth + (n_workers * worker_queue_depth),
+            "initialised persist task"
+        );
 
         let actor = PersistActor::new(rx, exec, store, catalog, n_workers, worker_queue_depth);
 

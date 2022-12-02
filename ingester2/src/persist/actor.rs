@@ -43,7 +43,7 @@ impl Drop for PersistActor {
 impl PersistActor {
     pub(super) fn new(
         rx: mpsc::Receiver<PersistRequest>,
-        exec: Executor,
+        exec: Arc<Executor>,
         store: ParquetStorage,
         catalog: Arc<dyn Catalog>,
         workers: usize,
@@ -87,7 +87,7 @@ impl PersistActor {
 }
 
 pub(super) struct Inner {
-    pub(super) exec: Executor,
+    pub(super) exec: Arc<Executor>,
     pub(super) store: ParquetStorage,
     pub(super) catalog: Arc<dyn Catalog>,
 }

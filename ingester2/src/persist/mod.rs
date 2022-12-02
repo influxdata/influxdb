@@ -1,4 +1,4 @@
 mod actor;
 pub(super) mod compact;
 mod context;
-mod handle;
+pub(crate) mod handle;

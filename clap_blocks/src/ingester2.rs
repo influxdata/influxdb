@@ -29,4 +29,40 @@ pub struct Ingester2Config {
         action
     )]
     pub concurrent_query_limit: usize,
+
+    /// The maximum number of persist tasks that can run simultaneously.
+    #[clap(
+        long = "persist-max-parallelism",
+        env = "INFLUXDB_IOX_PERSIST_MAX_PARALLELISM",
+        default_value = "5",
+        action
+    )]
+    pub persist_max_parallelism: usize,
+
+    /// The maximum number of persist tasks that can be queued for each worker.
+    ///
+    /// Note that each partition is consistently hashed to the same worker -
+    /// this can cause uneven distribution of persist tasks across workers in
+    /// workloads with skewed / hot partitions.
+    #[clap(
+        long = "persist-worker-queue-depth",
+        env = "INFLUXDB_IOX_PERSIST_WORKER_QUEUE_DEPTH",
+        default_value = "10",
+        action
+    )]
+    pub persist_worker_queue_depth: usize,
+
+    /// The maximum number of persist tasks queued in the shared submission
+    /// queue. This is an advanced option, users should prefer
+    /// "--persist-worker-queue-depth".
+    ///
+    /// This queue provides a buffer for persist tasks before they are hashed to
+    /// a worker and enqueued for the worker to process.
+    #[clap(
+        long = "persist-submission-queue-depth",
+        env = "INFLUXDB_IOX_PERSIST_SUBMISSION_QUEUE_DEPTH",
+        default_value = "5",
+        action
+    )]
+    pub persist_submission_queue_depth: usize,
 }
