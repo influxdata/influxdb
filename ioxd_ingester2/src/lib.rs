@@ -34,7 +34,7 @@ struct IngesterServerType<I: IngesterRpcInterface> {
     shutdown: CancellationToken,
     metrics: Arc<Registry>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
-    max_simultaneous_requests: usize,
+    max_simultaneous_queries: usize,
 }
 
 impl<I: IngesterRpcInterface> IngesterServerType<I> {
@@ -42,14 +42,14 @@ impl<I: IngesterRpcInterface> IngesterServerType<I> {
         server: IngesterGuard<I>,
         metrics: Arc<Registry>,
         common_state: &CommonServerState,
-        max_simultaneous_requests: usize,
+        max_simultaneous_queries: usize,
     ) -> Self {
         Self {
             server,
             shutdown: CancellationToken::new(),
             metrics,
             trace_collector: common_state.trace_collector(),
-            max_simultaneous_requests,
+            max_simultaneous_queries,
         }
     }
 }
@@ -90,7 +90,7 @@ impl<I: IngesterRpcInterface + Sync + Send + Debug + 'static> ServerType for Ing
             builder,
             self.server
                 .rpc()
-                .query_service(self.max_simultaneous_requests)
+                .query_service(self.max_simultaneous_queries)
         );
 
         serve_builder!(builder);
@@ -157,6 +157,6 @@ pub async fn create_ingester_server_type(
         grpc,
         metrics,
         common_state,
-        ingester_config.concurrent_request_limit,
+        ingester_config.concurrent_query_limit,
     )))
 }

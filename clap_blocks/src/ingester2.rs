@@ -20,13 +20,13 @@ pub struct Ingester2Config {
     )]
     pub wal_rotation_period_seconds: u64,
 
-    /// Sets how many concurrent requests the ingester will handle before rejecting
-    /// incoming requests.
+    /// Sets how many queries the ingester will handle simultaneously before
+    /// rejecting further incoming requests.
     #[clap(
-        long = "concurrent-request-limit",
-        env = "INFLUXDB_IOX_CONCURRENT_REQUEST_LIMIT",
+        long = "concurrent-query-limit",
+        env = "INFLUXDB_IOX_CONCURRENT_QUERY_LIMIT",
         default_value = "20",
         action
     )]
-    pub concurrent_request_limit: usize,
+    pub concurrent_query_limit: usize,
 }
