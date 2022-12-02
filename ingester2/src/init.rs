@@ -232,8 +232,6 @@ pub async fn new(
     );
     let persist_task = tokio::spawn(persist_actor.run());
 
-    // TODO: persist replayed ops, if any
-
     // Build the chain of DmlSink that forms the write path.
     let write_path = WalSink::new(Arc::clone(&buffer), wal.write_handle().await);
 
