@@ -1,0 +1,11 @@
+---
+source: influxdb_influxql_parser/src/visit_mut.rs
+expression: "visit_statement!(\"SHOW TAG VALUES WITH KEY IN (host, region)\")"
+---
+- "pre_visit_statement: ShowTagValues(ShowTagValuesStatement { database: None, from: None, with_key: In(OneOrMore { contents: [Identifier(\"host\"), Identifier(\"region\")] }), condition: None, limit: None, offset: None })"
+- "pre_visit_show_tag_values_statement: ShowTagValuesStatement { database: None, from: None, with_key: In(OneOrMore { contents: [Identifier(\"host\"), Identifier(\"region\")] }), condition: None, limit: None, offset: None }"
+- "pre_visit_with_key_clause: In(OneOrMore { contents: [Identifier(\"host\"), Identifier(\"region\")] })"
+- "post_visit_with_key_clause: In(OneOrMore { contents: [Identifier(\"host\"), Identifier(\"region\")] })"
+- "post_visit_show_tag_values_statement: ShowTagValuesStatement { database: None, from: None, with_key: In(OneOrMore { contents: [Identifier(\"host\"), Identifier(\"region\")] }), condition: None, limit: None, offset: None }"
+- "post_visit_statement: ShowTagValues(ShowTagValuesStatement { database: None, from: None, with_key: In(OneOrMore { contents: [Identifier(\"host\"), Identifier(\"region\")] }), condition: None, limit: None, offset: None })"
+

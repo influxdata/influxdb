@@ -13,6 +13,7 @@
     clippy::dbg_macro
 )]
 
+use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use pin_project::{pin_project, pinned_drop};
 use std::{pin::Pin, sync::Arc};
@@ -100,6 +101,11 @@ impl<T> PinnedDrop for Job<T> {
 #[derive(Clone)]
 pub struct DedicatedExecutor {
     state: Arc<Mutex<State>>,
+
+    /// Used for testing.
+    ///
+    /// This will ignore explicit shutdown requests.
+    testing: bool,
 }
 
 /// Runs futures (and any `tasks` that are `tokio::task::spawned` by
@@ -150,6 +156,10 @@ impl std::fmt::Debug for DedicatedExecutor {
     }
 }
 
+/// [`DedicatedExecutor`] for testing purposes.
+static TESTING_EXECUTOR: Lazy<DedicatedExecutor> =
+    Lazy::new(|| DedicatedExecutor::new_inner("testing", 1, true));
+
 impl DedicatedExecutor {
     /// Creates a new `DedicatedExecutor` with a dedicated tokio
     /// executor that is separate from the threadpool created via
@@ -168,6 +178,10 @@ impl DedicatedExecutor {
     /// happens when a runtime is dropped from within an asynchronous
     /// context.', .../tokio-1.4.0/src/runtime/blocking/shutdown.rs:51:21
     pub fn new(thread_name: &str, num_threads: usize) -> Self {
+        Self::new_inner(thread_name, num_threads, false)
+    }
+
+    fn new_inner(thread_name: &str, num_threads: usize, testing: bool) -> Self {
         let thread_name = thread_name.to_string();
 
         let (tx_tasks, rx_tasks) = std::sync::mpsc::channel::<Task>();
@@ -215,7 +229,15 @@ impl DedicatedExecutor {
 
         Self {
             state: Arc::new(Mutex::new(state)),
+            testing,
         }
+    }
+
+    /// Create new executor for testing purposes.
+    ///
+    /// Internal state may be shared with other tests.
+    pub fn new_testing() -> Self {
+        TESTING_EXECUTOR.clone()
     }
 
     /// Runs the specified Future (and any tasks it spawns) on the
@@ -268,6 +290,10 @@ impl DedicatedExecutor {
 
     /// signals shutdown of this executor and any Clones
     pub fn shutdown(&self) {
+        if self.testing {
+            return;
+        }
+
         // hang up the channel which will cause the dedicated thread
         // to quit
         let mut state = self.state.lock();
@@ -287,6 +313,10 @@ impl DedicatedExecutor {
     /// [`join`](Self::join) manually during [`Drop`] or panics because this might lead to another panic, see
     /// <https://github.com/rust-lang/futures-rs/issues/2575>.
     pub async fn join(&self) {
+        if self.testing {
+            return;
+        }
+
         self.shutdown();
 
         // get handle mutex is held

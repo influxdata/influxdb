@@ -31,7 +31,7 @@ impl TestDatabaseStore {
         ));
         Self {
             databases: Mutex::new(BTreeMap::new()),
-            executor: Arc::new(Executor::new(1)),
+            executor: Arc::new(Executor::new_testing()),
             metric_registry,
             query_semaphore: Arc::new(semaphore_metrics.new_semaphore(semaphore_size)),
         }

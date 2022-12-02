@@ -1,0 +1,9 @@
+---
+source: influxdb_influxql_parser/src/visit_mut.rs
+expression: "visit_statement!(\"SHOW RETENTION POLICIES\")"
+---
+- "pre_visit_statement: ShowRetentionPolicies(ShowRetentionPoliciesStatement { database: None })"
+- "pre_visit_show_retention_policies_statement: ShowRetentionPoliciesStatement { database: None }"
+- "post_visit_show_retention_policies_statement: ShowRetentionPoliciesStatement { database: None }"
+- "post_visit_statement: ShowRetentionPolicies(ShowRetentionPoliciesStatement { database: None })"
+

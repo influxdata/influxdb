@@ -173,6 +173,12 @@ pub struct CompactorConfig {
     /// When querying for partitions with data for hot compaction, how many hours to look
     /// back for a second pass if we found nothing in the first pass.
     pub hot_compaction_hours_threshold_2: u64,
+
+    /// Max number of partitions that can be compacted in parallel at once
+    /// We use memory budget to estimate how many partitions can be compacted in parallel at once.
+    /// However, we do not want to have that number too large which will cause the high usage of CPU cores
+    /// and may also lead to inaccuracy of memory estimation. This number is to cap that.
+    pub max_parallel_partitions: u64,
 }
 
 /// How long to pause before checking for more work again if there was

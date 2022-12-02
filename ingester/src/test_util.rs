@@ -455,7 +455,7 @@ pub(crate) async fn make_ingester_data(
     let metrics: Arc<metric::Registry> = Default::default();
     let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
     let object_store = Arc::new(InMemory::new());
-    let exec = Arc::new(iox_query::exec::Executor::new(1));
+    let exec = Arc::new(iox_query::exec::Executor::new_testing());
     let lifecycle = LifecycleManager::new(
         LifecycleConfig::new(
             200_000_000,

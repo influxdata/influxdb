@@ -62,11 +62,17 @@ async fn watch_task<S>(
     let msg = match task_result {
         Err(join_err) => {
             debug!(e=%join_err, %description, "Error joining");
-            Some(format!("Join error for '{description}': {join_err}"))
+            Some(DataFusionError::Context(
+                format!("Join error for '{description}'"),
+                Box::new(DataFusionError::External(Box::new(join_err))),
+            ))
         }
         Ok(Err(e)) => {
             debug!(%e, %description, "Error in task itself");
-            Some(format!("Execution error for '{description}': {e}"))
+            Some(DataFusionError::Context(
+                format!("Execution error for '{description}'"),
+                Box::new(DataFusionError::ArrowError(e)),
+            ))
         }
         Ok(Ok(())) => {
             // successful
@@ -76,12 +82,13 @@ async fn watch_task<S>(
 
     // If there is a message to send down the channel, try and do so
     if let Some(e) = msg {
+        let e = Arc::new(e);
         for tx in tx {
             // try and tell the receiver something went
             // wrong. Note we ignore errors sending this message
             // as that means the receiver has already been
             // shutdown and no one cares anymore lol
-            let err: ArrowError = DataFusionError::Execution(e.clone()).into();
+            let err = ArrowError::ExternalError(Box::new(Arc::clone(&e)));
             if tx.send(Err(err)).await.is_err() {
                 debug!(%description, "receiver hung up");
             }

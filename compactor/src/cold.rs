@@ -114,6 +114,7 @@ mod tests {
 
     const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1: u64 = 4;
     const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2: u64 = 24;
+    const DEFAULT_MAX_PARALLEL_PARTITIONS: u64 = 20;
 
     #[tokio::test]
     async fn test_compact_remaining_level_0_files_many_files() {
@@ -710,6 +711,7 @@ mod tests {
             minutes_without_new_writes_to_be_cold: 10,
             hot_compaction_hours_threshold_1: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
             hot_compaction_hours_threshold_2: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
+            max_parallel_partitions: DEFAULT_MAX_PARALLEL_PARTITIONS,
         }
     }
 

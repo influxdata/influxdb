@@ -1,0 +1,11 @@
+---
+source: influxdb_influxql_parser/src/visit_mut.rs
+expression: "visit_statement!(\"SHOW TAG VALUES WITH KEY = host\")"
+---
+- "pre_visit_statement: ShowTagValues(ShowTagValuesStatement { database: None, from: None, with_key: Eq(Identifier(\"host\")), condition: None, limit: None, offset: None })"
+- "pre_visit_show_tag_values_statement: ShowTagValuesStatement { database: None, from: None, with_key: Eq(Identifier(\"host\")), condition: None, limit: None, offset: None }"
+- "pre_visit_with_key_clause: Eq(Identifier(\"host\"))"
+- "post_visit_with_key_clause: Eq(Identifier(\"host\"))"
+- "post_visit_show_tag_values_statement: ShowTagValuesStatement { database: None, from: None, with_key: Eq(Identifier(\"host\")), condition: None, limit: None, offset: None }"
+- "post_visit_statement: ShowTagValues(ShowTagValuesStatement { database: None, from: None, with_key: Eq(Identifier(\"host\")), condition: None, limit: None, offset: None })"
+

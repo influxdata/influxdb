@@ -2,8 +2,10 @@
 use std::sync::Arc;
 
 use arrow::{
-    array::{ArrayRef, StringArray},
+    array::{new_null_array, ArrayRef, StringArray},
     compute::kernels::sort::{lexsort, SortColumn, SortOptions},
+    datatypes::Schema,
+    error::ArrowError,
     record_batch::RecordBatch,
 };
 
@@ -130,4 +132,27 @@ where
                 .expect("error occurred during normalization")
         })
         .collect()
+}
+
+/// Equalize batch schemas by creating NULL columns.
+pub fn equalize_batch_schemas(batches: Vec<RecordBatch>) -> Result<Vec<RecordBatch>, ArrowError> {
+    let common_schema = Arc::new(Schema::try_merge(
+        batches.iter().map(|batch| batch.schema().as_ref().clone()),
+    )?);
+
+    Ok(batches
+        .into_iter()
+        .map(|batch| {
+            let batch_schema = batch.schema();
+            let columns = common_schema
+                .fields()
+                .iter()
+                .map(|field| match batch_schema.index_of(field.name()) {
+                    Ok(idx) => Arc::clone(batch.column(idx)),
+                    Err(_) => new_null_array(field.data_type(), batch.num_rows()),
+                })
+                .collect();
+            RecordBatch::try_new(Arc::clone(&common_schema), columns).unwrap()
+        })
+        .collect())
 }

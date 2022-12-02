@@ -46,7 +46,6 @@ use datafusion_util::config::{iox_session_config, DEFAULT_CATALOG};
 use executor::DedicatedExecutor;
 use futures::{Stream, StreamExt, TryStreamExt};
 use observability_deps::tracing::debug;
-use once_cell::sync::Lazy;
 use query_functions::selectors::register_selector_aggregates;
 use std::{convert::TryInto, fmt, sync::Arc};
 use trace::{
@@ -262,10 +261,6 @@ impl fmt::Debug for IOxSessionContext {
     }
 }
 
-/// [`DedicatedExecutor`] for testing purposes.
-static TESTING_EXECUTOR: Lazy<DedicatedExecutor> =
-    Lazy::new(|| DedicatedExecutor::new("testing", 1));
-
 impl IOxSessionContext {
     /// Constructor for testing.
     ///
@@ -274,7 +269,7 @@ impl IOxSessionContext {
     pub fn with_testing() -> Self {
         Self {
             inner: SessionContext::default(),
-            exec: TESTING_EXECUTOR.clone(),
+            exec: DedicatedExecutor::new_testing(),
             recorder: SpanRecorder::default(),
         }
     }
@@ -504,7 +499,10 @@ impl IOxSessionContext {
                             .await?
                             .into_fieldlist()
                             .map_err(|e| {
-                                Error::Execution(format!("Error converting to field list: {}", e))
+                                Error::Context(
+                                    "Error converting to field list".to_string(),
+                                    Box::new(Error::External(Box::new(e))),
+                                )
                             })?;
 
                     Ok(field_list)
@@ -527,9 +525,12 @@ impl IOxSessionContext {
         }
 
         // TODO: Stream this
-        results
-            .into_fieldlist()
-            .map_err(|e| Error::Execution(format!("Error converting to field list: {}", e)))
+        results.into_fieldlist().map_err(|e| {
+            Error::Context(
+                "Error converting to field list".to_string(),
+                Box::new(Error::External(Box::new(e))),
+            )
+        })
     }
 
     /// Executes this plan on the query pool, and returns the
@@ -542,7 +543,12 @@ impl IOxSessionContext {
                 .run_logical_plans(plans)
                 .await?
                 .into_stringset()
-                .map_err(|e| Error::Execution(format!("Error converting to stringset: {}", e))),
+                .map_err(|e| {
+                    Error::Context(
+                        "Error converting to stringset".to_string(),
+                        Box::new(Error::External(Box::new(e))),
+                    )
+                }),
         }
     }
 
@@ -590,9 +596,12 @@ impl IOxSessionContext {
         Fut: std::future::Future<Output = Result<T>> + Send + 'static,
         T: Send + 'static,
     {
-        exec.spawn(fut)
-            .await
-            .unwrap_or_else(|e| Err(Error::Execution(format!("Join Error: {}", e))))
+        exec.spawn(fut).await.unwrap_or_else(|e| {
+            Err(Error::Context(
+                "Join Error".to_string(),
+                Box::new(Error::External(Box::new(e))),
+            ))
+        })
     }
 
     /// Returns a IOxSessionContext with a SpanRecorder that is a child of the current

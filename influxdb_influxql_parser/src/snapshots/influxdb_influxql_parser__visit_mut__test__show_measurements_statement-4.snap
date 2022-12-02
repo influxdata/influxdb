@@ -1,0 +1,21 @@
+---
+source: influxdb_influxql_parser/src/visit_mut.rs
+expression: "visit_statement!(\"SHOW MEASUREMENTS WHERE host = 'west'\")"
+---
+- "pre_visit_statement: ShowMeasurements(ShowMeasurementsStatement { on: None, with_measurement: None, condition: Some(WhereClause(Binary { lhs: Expr(VarRef { name: Identifier(\"host\"), data_type: None }), op: Eq, rhs: Expr(Literal(String(\"west\"))) })), limit: None, offset: None })"
+- "pre_visit_show_measurements_statement: ShowMeasurementsStatement { on: None, with_measurement: None, condition: Some(WhereClause(Binary { lhs: Expr(VarRef { name: Identifier(\"host\"), data_type: None }), op: Eq, rhs: Expr(Literal(String(\"west\"))) })), limit: None, offset: None }"
+- "pre_visit_where_clause: WhereClause(Binary { lhs: Expr(VarRef { name: Identifier(\"host\"), data_type: None }), op: Eq, rhs: Expr(Literal(String(\"west\"))) })"
+- "pre_visit_conditional_expression: Binary { lhs: Expr(VarRef { name: Identifier(\"host\"), data_type: None }), op: Eq, rhs: Expr(Literal(String(\"west\"))) }"
+- "pre_visit_conditional_expression: Expr(VarRef { name: Identifier(\"host\"), data_type: None })"
+- "pre_visit_expr: VarRef { name: Identifier(\"host\"), data_type: None }"
+- "post_visit_expr: VarRef { name: Identifier(\"host\"), data_type: None }"
+- "post_visit_conditional_expression: Expr(VarRef { name: Identifier(\"host\"), data_type: None })"
+- "pre_visit_conditional_expression: Expr(Literal(String(\"west\")))"
+- "pre_visit_expr: Literal(String(\"west\"))"
+- "post_visit_expr: Literal(String(\"west\"))"
+- "post_visit_conditional_expression: Expr(Literal(String(\"west\")))"
+- "post_visit_conditional_expression: Binary { lhs: Expr(VarRef { name: Identifier(\"host\"), data_type: None }), op: Eq, rhs: Expr(Literal(String(\"west\"))) }"
+- "post_visit_where_clause: WhereClause(Binary { lhs: Expr(VarRef { name: Identifier(\"host\"), data_type: None }), op: Eq, rhs: Expr(Literal(String(\"west\"))) })"
+- "post_visit_show_measurements_statement: ShowMeasurementsStatement { on: None, with_measurement: None, condition: Some(WhereClause(Binary { lhs: Expr(VarRef { name: Identifier(\"host\"), data_type: None }), op: Eq, rhs: Expr(Literal(String(\"west\"))) })), limit: None, offset: None }"
+- "post_visit_statement: ShowMeasurements(ShowMeasurementsStatement { on: None, with_measurement: None, condition: Some(WhereClause(Binary { lhs: Expr(VarRef { name: Identifier(\"host\"), data_type: None }), op: Eq, rhs: Expr(Literal(String(\"west\"))) })), limit: None, offset: None })"
+

@@ -325,7 +325,7 @@ mod test {
         ];
 
         // executor has only 1 thread
-        let executor = Executor::new(1);
+        let executor = Executor::new_testing();
         for chunks in chunk_orders {
             let sort_key = SortKeyBuilder::with_capacity(2)
                 .with_col_opts("tag1", false, true)
@@ -356,8 +356,6 @@ mod test {
 
             assert_batches_eq!(&expected, &batches);
         }
-
-        executor.join().await;
     }
 
     #[tokio::test]
@@ -375,7 +373,7 @@ mod test {
             .compact_plan(Arc::from("t"), schema, chunks, sort_key)
             .expect("created compact plan");
 
-        let executor = Executor::new(1);
+        let executor = Executor::new_testing();
         let physical_plan = executor
             .new_context(ExecutorType::Reorg)
             .create_physical_plan(&compact_plan)
@@ -407,8 +405,6 @@ mod test {
         ];
 
         assert_batches_eq!(&expected, &batches);
-
-        executor.join().await;
     }
 
     #[tokio::test]
@@ -428,7 +424,7 @@ mod test {
             .split_plan(Arc::from("t"), schema, chunks, sort_key, vec![1000])
             .expect("created compact plan");
 
-        let executor = Executor::new(1);
+        let executor = Executor::new_testing();
         let physical_plan = executor
             .new_context(ExecutorType::Reorg)
             .create_physical_plan(&split_plan)
@@ -473,8 +469,6 @@ mod test {
         ];
 
         assert_batches_eq!(&expected, &batches1);
-
-        executor.join().await;
     }
 
     #[tokio::test]
@@ -494,7 +488,7 @@ mod test {
             .split_plan(Arc::from("t"), schema, chunks, sort_key, vec![1000, 7000])
             .expect("created compact plan");
 
-        let executor = Executor::new(1);
+        let executor = Executor::new_testing();
         let physical_plan = executor
             .new_context(ExecutorType::Reorg)
             .create_physical_plan(&split_plan)
@@ -550,8 +544,6 @@ mod test {
             "+-----------+------------+------+-----------------------------+",
         ];
         assert_batches_eq!(&expected, &batches2);
-
-        executor.join().await;
     }
 
     #[tokio::test]

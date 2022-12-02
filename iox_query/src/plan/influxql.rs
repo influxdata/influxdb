@@ -79,7 +79,7 @@ mod test {
                 .with_one_row_of_data(),
         );
         // index of columns in the above chunk: [bar, foo, i64_field, i64_field_2, time]
-        let executor = Arc::new(Executor::new(1));
+        let executor = Arc::new(Executor::new_testing());
         let ctx = executor.new_context(ExecutorType::Query);
         let test_db = Arc::new(TestDatabase::new(Arc::clone(&executor)));
         test_db.add_chunk("my_partition_key", Arc::clone(&chunk0));
