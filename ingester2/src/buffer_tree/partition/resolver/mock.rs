@@ -8,7 +8,7 @@ use parking_lot::Mutex;
 
 use super::r#trait::PartitionProvider;
 use crate::{
-    buffer_tree::{partition::PartitionData, table::TableName},
+    buffer_tree::{namespace::NamespaceName, partition::PartitionData, table::TableName},
     deferred_load::DeferredLoad,
 };
 
@@ -51,6 +51,7 @@ impl PartitionProvider for MockPartitionProvider {
         &self,
         partition_key: PartitionKey,
         namespace_id: NamespaceId,
+        namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
         table_name: Arc<DeferredLoad<TableName>>,
     ) -> PartitionData {
@@ -63,6 +64,7 @@ impl PartitionProvider for MockPartitionProvider {
             });
 
         assert_eq!(p.namespace_id(), namespace_id);
+        assert_eq!(p.namespace_name().to_string(), namespace_name.to_string());
         assert_eq!(p.table_name().to_string(), table_name.to_string());
         p
     }

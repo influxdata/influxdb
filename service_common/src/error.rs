@@ -1,6 +1,5 @@
 //! Routines for error handling
-
-use datafusion::{arrow::error::ArrowError, error::DataFusionError};
+use datafusion::error::DataFusionError;
 
 /// Converts a [`DataFusionError`] into the appropriate [`tonic::Code`]
 ///
@@ -21,27 +20,8 @@ use datafusion::{arrow::error::ArrowError, error::DataFusionError};
 /// Basically because I wasn't sure they were all internal errors --
 /// for example, you can get an Arrow error if you try and divide a
 /// column by zero, depending on the data.
-pub fn datafusion_error_to_tonic_code(mut e: &DataFusionError) -> tonic::Code {
-    // traverse potential error chains
-    loop {
-        // traverse context chain without recursion
-        if let DataFusionError::Context(_msg, inner) = e {
-            e = inner;
-            continue;
-        }
-
-        // The Arrow error may itself contain a datafusion error again
-        // See https://github.com/apache/arrow-datafusion/issues/4172
-        if let DataFusionError::ArrowError(ArrowError::ExternalError(inner)) = e {
-            if let Some(inner) = inner.downcast_ref::<DataFusionError>() {
-                e = inner;
-                continue;
-            }
-        }
-
-        // no more traversal
-        break;
-    }
+pub fn datafusion_error_to_tonic_code(e: &DataFusionError) -> tonic::Code {
+    let e = e.find_root();
 
     match e {
         DataFusionError::ResourcesExhausted(_) => tonic::Code::ResourceExhausted,
@@ -56,10 +36,6 @@ pub fn datafusion_error_to_tonic_code(mut e: &DataFusionError) -> tonic::Code {
         // Since we are not sure they are all internal errors we
         // classify them as InvalidArgument so the user has a chance
         // to see them
-        //
-        // Potential future TODO: we could inspect the error and
-        // decide.  e.g. For Box<dyn ...> we could downcast the type
-        // if IOx only puts a single concrete enum in there.
         | DataFusionError::Execution(_)
         | DataFusionError::ArrowError(_)
         | DataFusionError::ParquetError(_)
@@ -104,37 +80,36 @@ mod test {
         let s = "foo".to_string();
 
         // this is basically a second implementation of the translation table to help avoid mistakes
-        do_test(
+        do_transl_test(
             DataFusionError::ResourcesExhausted(s.clone()),
             tonic::Code::ResourceExhausted,
         );
 
         let e = ParserError::ParserError(s.clone());
-        do_test(DataFusionError::SQL(e), tonic::Code::InvalidArgument);
+        do_transl_test(DataFusionError::SQL(e), tonic::Code::InvalidArgument);
 
-        do_test(
+        do_transl_test(
             DataFusionError::NotImplemented(s.clone()),
             tonic::Code::InvalidArgument,
         );
-        do_test(
+        do_transl_test(
             DataFusionError::Plan(s.clone()),
             tonic::Code::InvalidArgument,
         );
 
-        do_test(DataFusionError::Internal(s), tonic::Code::Internal);
-    }
+        do_transl_test(DataFusionError::Internal(s), tonic::Code::Internal);
 
-    #[test]
-    fn test_error_context_traversal() {
-        let inner_error = DataFusionError::ResourcesExhausted("foo".to_string());
-
-        do_test(
-            DataFusionError::Context("it happened!".to_string(), Box::new(inner_error)),
+        // traversal
+        do_transl_test(
+            DataFusionError::Context(
+                "it happened!".to_string(),
+                Box::new(DataFusionError::ResourcesExhausted("foo".to_string())),
+            ),
             tonic::Code::ResourceExhausted,
         );
     }
 
-    fn do_test(e: DataFusionError, code: tonic::Code) {
+    fn do_transl_test(e: DataFusionError, code: tonic::Code) {
         assert_eq!(datafusion_error_to_tonic_code(&e), code);
     }
 }

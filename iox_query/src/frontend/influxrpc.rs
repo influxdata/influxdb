@@ -640,7 +640,7 @@ impl InfluxRpcPlanner {
                     .with_predicate(predicate)
                     .build()?;
 
-                let tag_name_is_not_null = Expr::Column(tag_name.into()).is_not_null();
+                let tag_name_is_not_null = tag_name.as_expr().is_not_null();
 
                 // TODO: optimize this to use "DISINCT" or do
                 // something more intelligent that simply fetching all
@@ -1431,10 +1431,7 @@ fn columns_in_predicates(
     match &predicate.field_columns {
         Some(field_columns) => {
             for field in field_columns {
-                columns.insert(Column {
-                    relation: None,
-                    name: (*field).clone(),
-                });
+                columns.insert(Column::from_name(field));
             }
         }
         None => {
@@ -1950,7 +1947,7 @@ mod tests {
                 .with_one_row_of_data(),
         );
         // index of columns in the above chunk: [bar, foo, i64_field, i64_field_2, time]
-        let executor = Arc::new(Executor::new(1));
+        let executor = Arc::new(Executor::new_testing());
         let test_db = Arc::new(TestDatabase::new(Arc::clone(&executor)));
         test_db.add_chunk("my_partition_key", Arc::clone(&chunk0));
         let table = "h2o";
@@ -2033,7 +2030,7 @@ mod tests {
                 .with_one_row_of_data(),
         );
 
-        let executor = Arc::new(Executor::new(1));
+        let executor = Arc::new(Executor::new_testing());
         let test_db = Arc::new(TestDatabase::new(Arc::clone(&executor)));
         test_db.add_chunk("my_partition_key", Arc::clone(&chunk0));
         let ctx = test_db.new_query_context(None);
@@ -2068,7 +2065,6 @@ mod tests {
         assert_eq!(chunk_schema.field(2).1.name(), "i64_field");
         assert_eq!(chunk_schema.field(3).1.name(), "i64_field_2");
         assert_eq!(chunk_schema.field(4).1.name(), TIME_COLUMN_NAME);
-        executor.join().await;
 
         ////////////////////////////
         // Test 2: no need_fields
@@ -2096,7 +2092,6 @@ mod tests {
         assert_eq!(chunk_schema.field(1).1.name(), "foo");
         assert_eq!(chunk_schema.field(2).1.name(), "i64_field");
         assert_eq!(chunk_schema.field(3).1.name(), "i64_field_2");
-        executor.join().await;
     }
 
     #[tokio::test]
@@ -2112,7 +2107,7 @@ mod tests {
                 .with_one_row_of_data(),
         );
 
-        let executor = Arc::new(Executor::new(1));
+        let executor = Arc::new(Executor::new_testing());
         let test_db = Arc::new(TestDatabase::new(Arc::clone(&executor)));
         test_db.add_chunk("my_partition_key", Arc::clone(&chunk0));
         let ctx = test_db.new_query_context(None);
@@ -2144,7 +2139,6 @@ mod tests {
         assert_eq!(chunk_schema.field(2).1.name(), "i64_field");
         assert_eq!(chunk_schema.field(3).1.name(), "i64_field_2");
         assert_eq!(chunk_schema.field(4).1.name(), TIME_COLUMN_NAME);
-        executor.join().await;
 
         /////////////
         // Test 2: empty predicate without need_fields
@@ -2166,7 +2160,6 @@ mod tests {
         let chunk = &result[0].2[0];
         let chunk_schema = (*chunk.schema()).clone();
         assert_eq!(chunk_schema.len(), 5);
-        executor.join().await;
     }
 
     #[tokio::test]
@@ -2181,7 +2174,7 @@ mod tests {
                 .with_time_column(), // no row added for this chunk on purpose
         );
 
-        let executor = Arc::new(Executor::new(1));
+        let executor = Arc::new(Executor::new_testing());
         let test_db = Arc::new(TestDatabase::new(Arc::clone(&executor)));
         test_db.add_chunk("my_partition_key", Arc::clone(&chunk0));
         let ctx = test_db.new_query_context(None);
@@ -2212,7 +2205,6 @@ mod tests {
         assert_eq!(chunk_schema.field(2).1.name(), "i64_field");
         assert_eq!(chunk_schema.field(3).1.name(), "i64_field_2");
         assert_eq!(chunk_schema.field(4).1.name(), TIME_COLUMN_NAME);
-        executor.join().await;
     }
 
     #[tokio::test]
@@ -2228,7 +2220,7 @@ mod tests {
                 .with_one_row_of_data(),
         );
 
-        let executor = Arc::new(Executor::new(1));
+        let executor = Arc::new(Executor::new_testing());
         let test_db = Arc::new(TestDatabase::new(Arc::clone(&executor)));
         test_db.add_chunk("my_partition_key", Arc::clone(&chunk0));
         let ctx = test_db.new_query_context(None);
@@ -2262,7 +2254,6 @@ mod tests {
         assert_eq!(chunk_schema.field(2).1.name(), "i64_field");
         assert_eq!(chunk_schema.field(3).1.name(), "i64_field_2");
         assert_eq!(chunk_schema.field(4).1.name(), TIME_COLUMN_NAME);
-        executor.join().await;
 
         /////////////
         // Test 2: predicate on tag `foo` and `field_columns` is not empty
@@ -2295,7 +2286,6 @@ mod tests {
         assert_eq!(chunk_schema.field(2).1.name(), "i64_field");
         assert_eq!(chunk_schema.field(3).1.name(), "i64_field_2");
         assert_eq!(chunk_schema.field(4).1.name(), TIME_COLUMN_NAME);
-        executor.join().await;
     }
 
     #[tokio::test]
@@ -2311,7 +2301,7 @@ mod tests {
                 .with_one_row_of_data(),
         );
 
-        let executor = Arc::new(Executor::new(1));
+        let executor = Arc::new(Executor::new_testing());
         let test_db = Arc::new(TestDatabase::new(Arc::clone(&executor)));
         test_db.add_chunk("my_partition_key", Arc::clone(&chunk0));
         let ctx = test_db.new_query_context(None);
@@ -2342,7 +2332,6 @@ mod tests {
         assert_eq!(chunk_schema.field(2).1.name(), "i64_field");
         assert_eq!(chunk_schema.field(3).1.name(), "i64_field_2");
         assert_eq!(chunk_schema.field(4).1.name(), TIME_COLUMN_NAME);
-        executor.join().await;
     }
 
     #[tokio::test]
@@ -2529,7 +2518,7 @@ mod tests {
                 .with_time_column(),
         );
 
-        let executor = Arc::new(Executor::new(1));
+        let executor = Arc::new(Executor::new_testing());
         let test_db = Arc::new(TestDatabase::new(Arc::clone(&executor)));
         test_db.add_chunk("my_partition_key", Arc::clone(&chunk0));
 
@@ -2545,7 +2534,5 @@ mod tests {
             "\nActual: {:?}\nExpected: {:?}",
             actual_predicate, expected_predicate
         );
-
-        executor.join().await;
     }
 }

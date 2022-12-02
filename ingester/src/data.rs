@@ -800,7 +800,7 @@ mod tests {
                         (shard1.id, shard1.shard_index),
                         (shard2.id, shard2.shard_index),
                     ],
-                    Arc::new(Executor::new(1)),
+                    Arc::new(Executor::new_testing()),
                     BackoffConfig::default(),
                     Arc::clone(&metrics),
                 )

@@ -10,6 +10,7 @@ use parking_lot::Mutex;
 use super::r#trait::PartitionProvider;
 use crate::{
     buffer_tree::{
+        namespace::NamespaceName,
         partition::{resolver::SortKeyResolver, PartitionData, SortKeyState},
         table::TableName,
     },
@@ -160,6 +161,7 @@ where
         &self,
         partition_key: PartitionKey,
         namespace_id: NamespaceId,
+        namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
         table_name: Arc<DeferredLoad<TableName>>,
     ) -> PartitionData {
@@ -187,6 +189,7 @@ where
                 partition_id,
                 key,
                 namespace_id,
+                namespace_name,
                 table_id,
                 table_name,
                 SortKeyState::Deferred(Arc::new(sort_key_resolver)),
@@ -197,7 +200,13 @@ where
 
         // Otherwise delegate to the catalog / inner impl.
         self.inner
-            .get_partition(partition_key, namespace_id, table_id, table_name)
+            .get_partition(
+                partition_key,
+                namespace_id,
+                namespace_name,
+                table_id,
+                table_name,
+            )
             .await
     }
 }
@@ -214,6 +223,7 @@ mod tests {
     const PARTITION_KEY: &str = "bananas";
     const PARTITION_ID: PartitionId = PartitionId::new(42);
     const NAMESPACE_ID: NamespaceId = NamespaceId::new(2);
+    const NAMESPACE_NAME: &str = "ns-bananas";
     const TABLE_ID: TableId = TableId::new(3);
     const TABLE_NAME: &str = "platanos";
 
@@ -239,6 +249,9 @@ mod tests {
             PARTITION_ID,
             PARTITION_KEY.into(),
             NAMESPACE_ID,
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                NamespaceName::from(NAMESPACE_NAME)
+            })),
             TABLE_ID,
             Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                 TableName::from(TABLE_NAME)
@@ -252,6 +265,9 @@ mod tests {
             .get_partition(
                 PARTITION_KEY.into(),
                 NAMESPACE_ID,
+                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                    NamespaceName::from(NAMESPACE_NAME)
+                })),
                 TABLE_ID,
                 Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                     TableName::from(TABLE_NAME)
@@ -262,6 +278,7 @@ mod tests {
         assert_eq!(got.partition_id(), PARTITION_ID);
         assert_eq!(got.table_id(), TABLE_ID);
         assert_eq!(&**got.table_name().get().await, TABLE_NAME);
+        assert_eq!(&**got.namespace_name().get().await, NAMESPACE_NAME);
         assert!(cache.inner.is_empty());
     }
 
@@ -286,6 +303,9 @@ mod tests {
             .get_partition(
                 callers_partition_key.clone(),
                 NAMESPACE_ID,
+                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                    NamespaceName::from(NAMESPACE_NAME)
+                })),
                 TABLE_ID,
                 Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                     TableName::from(TABLE_NAME)
@@ -296,6 +316,7 @@ mod tests {
         assert_eq!(got.partition_id(), PARTITION_ID);
         assert_eq!(got.table_id(), TABLE_ID);
         assert_eq!(&**got.table_name().get().await, TABLE_NAME);
+        assert_eq!(&**got.namespace_name().get().await, NAMESPACE_NAME);
         assert_eq!(*got.partition_key(), PartitionKey::from(PARTITION_KEY));
 
         // The cache should have been cleaned up as it was consumed.
@@ -318,6 +339,9 @@ mod tests {
             other_key_id,
             other_key.clone(),
             NAMESPACE_ID,
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                NamespaceName::from(NAMESPACE_NAME)
+            })),
             TABLE_ID,
             Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                 TableName::from(TABLE_NAME)
@@ -339,6 +363,9 @@ mod tests {
             .get_partition(
                 other_key.clone(),
                 NAMESPACE_ID,
+                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                    NamespaceName::from(NAMESPACE_NAME)
+                })),
                 TABLE_ID,
                 Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                     TableName::from(TABLE_NAME)
@@ -358,6 +385,9 @@ mod tests {
             PARTITION_ID,
             PARTITION_KEY.into(),
             NAMESPACE_ID,
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                NamespaceName::from(NAMESPACE_NAME)
+            })),
             other_table,
             Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                 TableName::from(TABLE_NAME)
@@ -379,6 +409,9 @@ mod tests {
             .get_partition(
                 PARTITION_KEY.into(),
                 NAMESPACE_ID,
+                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                    NamespaceName::from(NAMESPACE_NAME)
+                })),
                 other_table,
                 Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                     TableName::from(TABLE_NAME)

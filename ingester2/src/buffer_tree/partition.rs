@@ -8,7 +8,7 @@ use observability_deps::tracing::*;
 use schema::sort::SortKey;
 
 use self::buffer::{traits::Queryable, BufferState, DataBuffer, Persisting};
-use super::table::TableName;
+use super::{namespace::NamespaceName, table::TableName};
 use crate::{deferred_load::DeferredLoad, query_adaptor::QueryAdaptor};
 
 mod buffer;
@@ -54,8 +54,13 @@ pub(crate) struct PartitionData {
     /// fetch details.
     sort_key: SortKeyState,
 
-    /// The namespace & table IDs for this partition.
+    /// The namespace this partition is part of.
     namespace_id: NamespaceId,
+    /// The name of the namespace this partition is part of, potentially
+    /// unresolved / deferred.
+    namespace_name: Arc<DeferredLoad<NamespaceName>>,
+
+    /// The catalog ID for the table this partition is part of.
     table_id: TableId,
     /// The name of the table this partition is part of, potentially unresolved
     /// / deferred.
@@ -75,6 +80,7 @@ impl PartitionData {
         id: PartitionId,
         partition_key: PartitionKey,
         namespace_id: NamespaceId,
+        namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
         table_name: Arc<DeferredLoad<TableName>>,
         sort_key: SortKeyState,
@@ -84,6 +90,7 @@ impl PartitionData {
             partition_key,
             sort_key,
             namespace_id,
+            namespace_name,
             table_id,
             table_name,
             buffer: DataBuffer::default(),
@@ -247,6 +254,14 @@ impl PartitionData {
         self.namespace_id
     }
 
+    /// Return the [`NamespaceName`] this partition is a part of, potentially
+    /// deferred / not yet resolved.
+    ///
+    /// NOTE: this MAY involve querying the catalog with unbounded retries.
+    pub(crate) fn namespace_name(&self) -> &Arc<DeferredLoad<NamespaceName>> {
+        &self.namespace_name
+    }
+
     /// Return the [`SortKey`] for this partition.
     ///
     /// NOTE: this MAY involve querying the catalog with unbounded retries.
@@ -289,6 +304,7 @@ mod tests {
     lazy_static! {
         static ref PARTITION_KEY: PartitionKey = PartitionKey::from("platanos");
         static ref TABLE_NAME: TableName = TableName::from("bananas");
+        static ref NAMESPACE_NAME: NamespaceName = NamespaceName::from("namespace-bananas");
     }
 
     // Write some data and read it back from the buffer.
@@ -301,6 +317,9 @@ mod tests {
             PARTITION_ID,
             PARTITION_KEY.clone(),
             NamespaceId::new(3),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                NAMESPACE_NAME.clone()
+            })),
             TableId::new(4),
             Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                 TABLE_NAME.clone()
@@ -378,6 +397,9 @@ mod tests {
             PARTITION_ID,
             PARTITION_KEY.clone(),
             NamespaceId::new(3),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                NAMESPACE_NAME.clone()
+            })),
             TableId::new(4),
             Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                 TABLE_NAME.clone()
@@ -508,6 +530,9 @@ mod tests {
             PARTITION_ID,
             PARTITION_KEY.clone(),
             NamespaceId::new(3),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                NAMESPACE_NAME.clone()
+            })),
             TableId::new(4),
             Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                 TABLE_NAME.clone()
@@ -616,6 +641,9 @@ mod tests {
             PartitionId::new(1),
             "bananas".into(),
             NamespaceId::new(42),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                NAMESPACE_NAME.clone()
+            })),
             TableId::new(1),
             Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                 TableName::from("platanos")
@@ -672,6 +700,9 @@ mod tests {
             PartitionId::new(1),
             "bananas".into(),
             NamespaceId::new(42),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                NAMESPACE_NAME.clone()
+            })),
             TableId::new(1),
             Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                 TableName::from("platanos")
@@ -693,6 +724,9 @@ mod tests {
             PARTITION_ID,
             PARTITION_KEY.clone(),
             NamespaceId::new(3),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                NAMESPACE_NAME.clone()
+            })),
             TableId::new(4),
             Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                 TABLE_NAME.clone()
@@ -738,6 +772,9 @@ mod tests {
             PARTITION_ID,
             PARTITION_KEY.clone(),
             NamespaceId::new(3),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                NAMESPACE_NAME.clone()
+            })),
             TableId::new(4),
             Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                 TABLE_NAME.clone()
@@ -761,6 +798,9 @@ mod tests {
             PARTITION_ID,
             PARTITION_KEY.clone(),
             NamespaceId::new(3),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                NAMESPACE_NAME.clone()
+            })),
             TableId::new(4),
             Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                 TABLE_NAME.clone()
@@ -778,6 +818,9 @@ mod tests {
             PARTITION_ID,
             PARTITION_KEY.clone(),
             NamespaceId::new(3),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                NAMESPACE_NAME.clone()
+            })),
             TableId::new(4),
             Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                 TABLE_NAME.clone()
@@ -802,6 +845,9 @@ mod tests {
             PARTITION_ID,
             PARTITION_KEY.clone(),
             NamespaceId::new(3),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                NAMESPACE_NAME.clone()
+            })),
             TableId::new(4),
             Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                 TABLE_NAME.clone()

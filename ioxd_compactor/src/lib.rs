@@ -214,6 +214,7 @@ pub async fn build_compactor_from_config(
         minutes_without_new_writes_to_be_cold,
         hot_compaction_hours_threshold_1,
         hot_compaction_hours_threshold_2,
+        max_parallel_partitions,
         ..
     } = compactor_config;
 
@@ -231,6 +232,7 @@ pub async fn build_compactor_from_config(
         minutes_without_new_writes_to_be_cold,
         hot_compaction_hours_threshold_1,
         hot_compaction_hours_threshold_2,
+        max_parallel_partitions,
     };
 
     Ok(compactor::compact::Compactor::new(

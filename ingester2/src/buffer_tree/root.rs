@@ -186,7 +186,9 @@ mod tests {
     use super::*;
     use crate::{
         buffer_tree::{
-            namespace::{name_resolver::mock::MockNamespaceNameProvider, NamespaceData},
+            namespace::{
+                name_resolver::mock::MockNamespaceNameProvider, NamespaceData, NamespaceName,
+            },
             partition::{resolver::mock::MockPartitionProvider, PartitionData, SortKeyState},
             table::{name_resolver::mock::MockTableNameProvider, TableName},
         },
@@ -211,6 +213,9 @@ mod tests {
                 PartitionId::new(0),
                 PartitionKey::from("banana-split"),
                 NAMESPACE_ID,
+                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                    NamespaceName::from(NAMESPACE_NAME)
+                })),
                 TABLE_ID,
                 Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                     TableName::from(TABLE_NAME)
@@ -330,6 +335,9 @@ mod tests {
             PartitionId::new(0),
             PartitionKey::from("p1"),
             NAMESPACE_ID,
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                NamespaceName::from(NAMESPACE_NAME)
+            })),
             TABLE_ID,
             Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                 TableName::from(TABLE_NAME)
@@ -362,6 +370,9 @@ mod tests {
                 PartitionId::new(0),
                 PartitionKey::from("p1"),
                 NAMESPACE_ID,
+                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                    NamespaceName::from(NAMESPACE_NAME)
+                })),
                 TABLE_ID,
                 Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                     TableName::from(TABLE_NAME)
@@ -372,6 +383,9 @@ mod tests {
                 PartitionId::new(1),
                 PartitionKey::from("p2"),
                 NAMESPACE_ID,
+                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                    NamespaceName::from(NAMESPACE_NAME)
+                })),
                 TABLE_ID,
                 Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                     TableName::from(TABLE_NAME)
@@ -416,6 +430,9 @@ mod tests {
                 PartitionId::new(0),
                 PartitionKey::from("p1"),
                 NAMESPACE_ID,
+                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                    NamespaceName::from(NAMESPACE_NAME)
+                })),
                 TABLE_ID,
                 Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                     TableName::from(TABLE_NAME)
@@ -426,7 +443,10 @@ mod tests {
                 PartitionId::new(1),
                 PartitionKey::from("p2"),
                 NamespaceId::new(4321), // A different namespace ID.
-                TableId::new(1234),     // A different table ID.
+                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                    NamespaceName::from(NAMESPACE_NAME)
+                })),
+                TableId::new(1234), // A different table ID.
                 Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                     TableName::from(TABLE_NAME)
                 })),
@@ -469,6 +489,9 @@ mod tests {
                 PartitionId::new(0),
                 PartitionKey::from("p1"),
                 NAMESPACE_ID,
+                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                    NamespaceName::from(NAMESPACE_NAME)
+                })),
                 TABLE_ID,
                 Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                     TableName::from(TABLE_NAME)
@@ -479,6 +502,9 @@ mod tests {
                 PartitionId::new(1),
                 PartitionKey::from("p2"),
                 NAMESPACE_ID,
+                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                    NamespaceName::from(NAMESPACE_NAME)
+                })),
                 TableId::new(1234), // A different table ID.
                 Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                     TableName::from(TABLE_NAME)
@@ -523,6 +549,9 @@ mod tests {
             PartitionId::new(0),
             PartitionKey::from("p1"),
             NAMESPACE_ID,
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                NamespaceName::from(NAMESPACE_NAME)
+            })),
             TABLE_ID,
             Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                 TableName::from(TABLE_NAME)
@@ -569,6 +598,9 @@ mod tests {
                     PartitionId::new(0),
                     PartitionKey::from("p1"),
                     NAMESPACE_ID,
+                    Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                        NamespaceName::from(NAMESPACE_NAME)
+                    })),
                     TABLE_ID,
                     Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                         TableName::from(TABLE_NAME)
@@ -579,6 +611,9 @@ mod tests {
                     PartitionId::new(0),
                     PartitionKey::from("p2"),
                     NAMESPACE_ID,
+                    Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                        NamespaceName::from(NAMESPACE_NAME)
+                    })),
                     TABLE_ID,
                     Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                         TableName::from(TABLE_NAME)
@@ -652,6 +687,9 @@ mod tests {
                 PartitionId::new(0),
                 PartitionKey::from("p1"),
                 NAMESPACE_ID,
+                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                    NamespaceName::from(NAMESPACE_NAME)
+                })),
                 TABLE_ID,
                 Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                     TableName::from(TABLE_NAME)
@@ -731,6 +769,9 @@ mod tests {
                     PartitionId::new(0),
                     PartitionKey::from("p1"),
                     NAMESPACE_ID,
+                    Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                        NamespaceName::from(NAMESPACE_NAME)
+                    })),
                     TABLE_ID,
                     Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                         TableName::from(TABLE_NAME)
@@ -741,6 +782,9 @@ mod tests {
                     PartitionId::new(1),
                     PartitionKey::from("p2"),
                     NAMESPACE_ID,
+                    Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                        NamespaceName::from(NAMESPACE_NAME)
+                    })),
                     TABLE_ID,
                     Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                         TableName::from(TABLE_NAME)

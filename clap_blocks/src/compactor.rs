@@ -208,6 +208,18 @@ macro_rules! gen_compactor_config {
                 action
             )]
             pub hot_compaction_hours_threshold_2: u64,
+
+            /// Max number of partitions that can be compacted in parallel at once
+            /// We use memory budget to estimate how many partitions can be compacted in parallel at once. 
+            /// However, we do not want to have that number too large which will cause the high usage of CPU cores
+            /// and may also lead to inaccuracy of memory estimation. This number is to cap that.
+            #[clap(
+                long = "compaction-max-parallel-partitions",
+                env = "INFLUXDB_IOX_COMPACTION_MAX_PARALLEL_PARTITIONS",
+                default_value = "20",
+                action
+            )]
+            pub max_parallel_partitions: u64,
         }
     };
 }
@@ -239,6 +251,7 @@ impl CompactorOnceConfig {
             minutes_without_new_writes_to_be_cold: self.minutes_without_new_writes_to_be_cold,
             hot_compaction_hours_threshold_1: self.hot_compaction_hours_threshold_1,
             hot_compaction_hours_threshold_2: self.hot_compaction_hours_threshold_2,
+            max_parallel_partitions: self.max_parallel_partitions,
         }
     }
 }

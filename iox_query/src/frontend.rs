@@ -73,7 +73,7 @@ mod test {
         let logical_plan = scan_plan.plan_builder.build().unwrap();
 
         // Build physical plan
-        let executor = Executor::new(1);
+        let executor = Executor::new_testing();
         let physical_plan = executor
             .new_context(ExecutorType::Reorg)
             .create_physical_plan(&logical_plan)
@@ -123,7 +123,7 @@ mod test {
         let logical_plan = scan_plan.plan_builder.build().unwrap();
 
         // Build physical plan
-        let executor = Executor::new(1);
+        let executor = Executor::new_testing();
         let physical_plan = executor
             .new_context(ExecutorType::Reorg)
             .create_physical_plan(&logical_plan)
@@ -189,7 +189,7 @@ mod test {
         let logical_plan = scan_plan.plan_builder.build().unwrap();
 
         // Build physical plan
-        let executor = Executor::new(1);
+        let executor = Executor::new_testing();
         let physical_plan = executor
             .new_context(ExecutorType::Reorg)
             .create_physical_plan(&logical_plan)
@@ -233,7 +233,7 @@ mod test {
             .split_plan(Arc::from("t"), schema, chunks, sort_key, vec![1000])
             .expect("created compact plan");
 
-        let executor = Executor::new(1);
+        let executor = Executor::new_testing();
         let plan = executor
             .new_context(ExecutorType::Reorg)
             .create_physical_plan(&split_plan)
@@ -277,8 +277,6 @@ mod test {
         .unwrap();
 
         assert_extracted_metrics!(extracted, 8);
-
-        executor.join().await;
     }
 
     // Extracted baseline metrics for the specified operator

@@ -1,0 +1,15 @@
+---
+source: influxdb_influxql_parser/src/visit_mut.rs
+expression: "visit_statement!(\"SHOW MEASUREMENTS WITH MEASUREMENT = \\\"cpu\\\"\")"
+---
+- "pre_visit_statement: ShowMeasurements(ShowMeasurementsStatement { on: None, with_measurement: Some(Equals(QualifiedMeasurementName { database: None, retention_policy: None, name: Name(Identifier(\"cpu\")) })), condition: None, limit: None, offset: None })"
+- "pre_visit_show_measurements_statement: ShowMeasurementsStatement { on: None, with_measurement: Some(Equals(QualifiedMeasurementName { database: None, retention_policy: None, name: Name(Identifier(\"cpu\")) })), condition: None, limit: None, offset: None }"
+- "pre_visit_with_measurement_clause: Equals(QualifiedMeasurementName { database: None, retention_policy: None, name: Name(Identifier(\"cpu\")) })"
+- "pre_visit_qualified_measurement_name: QualifiedMeasurementName { database: None, retention_policy: None, name: Name(Identifier(\"cpu\")) }"
+- "pre_visit_measurement_name: Name(Identifier(\"cpu\"))"
+- "post_visit_measurement_name: Name(Identifier(\"cpu\"))"
+- "post_visit_qualified_measurement_name: QualifiedMeasurementName { database: None, retention_policy: None, name: Name(Identifier(\"cpu\")) }"
+- "post_visit_with_measurement_clause: Equals(QualifiedMeasurementName { database: None, retention_policy: None, name: Name(Identifier(\"cpu\")) })"
+- "post_visit_show_measurements_statement: ShowMeasurementsStatement { on: None, with_measurement: Some(Equals(QualifiedMeasurementName { database: None, retention_policy: None, name: Name(Identifier(\"cpu\")) })), condition: None, limit: None, offset: None }"
+- "post_visit_statement: ShowMeasurements(ShowMeasurementsStatement { on: None, with_measurement: Some(Equals(QualifiedMeasurementName { database: None, retention_policy: None, name: Name(Identifier(\"cpu\")) })), condition: None, limit: None, offset: None })"
+

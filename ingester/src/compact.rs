@@ -201,7 +201,7 @@ mod tests {
         assert_eq!(expected_pk, pk);
 
         // compact
-        let exc = Executor::new(1);
+        let exc = Executor::new_testing();
         let CompactedStream { stream, .. } =
             compact_persisting_batch(&exc, Some(SortKey::empty()), "test_table".into(), batch)
                 .await
@@ -238,7 +238,7 @@ mod tests {
         assert_eq!(expected_pk, pk);
 
         // compact
-        let exc = Executor::new(1);
+        let exc = Executor::new_testing();
         let CompactedStream {
             stream,
             data_sort_key,
@@ -286,7 +286,7 @@ mod tests {
         let expected_pk = vec!["tag1", "tag3", "time"];
         assert_eq!(expected_pk, pk);
 
-        let exc = Executor::new(1);
+        let exc = Executor::new_testing();
 
         // NO SORT KEY from the catalog here, first persisting batch
         let CompactedStream {
@@ -340,7 +340,7 @@ mod tests {
         let expected_pk = vec!["tag1", "tag3", "time"];
         assert_eq!(expected_pk, pk);
 
-        let exc = Executor::new(1);
+        let exc = Executor::new_testing();
 
         // SPECIFY A SORT KEY HERE to simulate a sort key being stored in the catalog
         // this is NOT what the computed sort key would be based on this data's cardinality
@@ -399,7 +399,7 @@ mod tests {
         let expected_pk = vec!["tag1", "tag3", "time"];
         assert_eq!(expected_pk, pk);
 
-        let exc = Executor::new(1);
+        let exc = Executor::new_testing();
 
         // SPECIFY A SORT KEY HERE to simulate a sort key being stored in the catalog
         // this is NOT what the computed sort key would be based on this data's cardinality
@@ -462,7 +462,7 @@ mod tests {
         let expected_pk = vec!["tag1", "tag3", "time"];
         assert_eq!(expected_pk, pk);
 
-        let exc = Executor::new(1);
+        let exc = Executor::new_testing();
 
         // SPECIFY A SORT KEY HERE to simulate a sort key being stored in the catalog
         // this is NOT what the computed sort key would be based on this data's cardinality
@@ -529,7 +529,7 @@ mod tests {
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "time"]));
 
         // compact
-        let exc = Executor::new(1);
+        let exc = Executor::new_testing();
         let stream = compact(&exc, "test_table".into(), Arc::new(batch), sort_key)
             .await
             .unwrap();
@@ -570,7 +570,7 @@ mod tests {
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "time"]));
 
         // compact
-        let exc = Executor::new(1);
+        let exc = Executor::new_testing();
         let stream = compact(&exc, "test_table".into(), Arc::new(batch), sort_key)
             .await
             .unwrap();
@@ -616,7 +616,7 @@ mod tests {
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "time"]));
 
         // compact
-        let exc = Executor::new(1);
+        let exc = Executor::new_testing();
         let stream = compact(&exc, "test_table".into(), Arc::new(batch), sort_key)
             .await
             .unwrap();
@@ -662,7 +662,7 @@ mod tests {
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "tag2", "time"]));
 
         // compact
-        let exc = Executor::new(1);
+        let exc = Executor::new_testing();
         let stream = compact(&exc, "test_table".into(), Arc::new(batch), sort_key)
             .await
             .unwrap();
@@ -712,7 +712,7 @@ mod tests {
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "tag2", "time"]));
 
         // compact
-        let exc = Executor::new(1);
+        let exc = Executor::new_testing();
         let stream = compact(&exc, "test_table".into(), Arc::new(batch), sort_key)
             .await
             .unwrap();

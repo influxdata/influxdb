@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use data_types::{NamespaceId, PartitionKey, TableId};
 
 use crate::{
-    buffer_tree::{partition::PartitionData, table::TableName},
+    buffer_tree::{namespace::NamespaceName, partition::PartitionData, table::TableName},
     deferred_load::DeferredLoad,
 };
 
@@ -21,6 +21,7 @@ pub(crate) trait PartitionProvider: Send + Sync + Debug {
         &self,
         partition_key: PartitionKey,
         namespace_id: NamespaceId,
+        namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
         table_name: Arc<DeferredLoad<TableName>>,
     ) -> PartitionData;
@@ -35,11 +36,18 @@ where
         &self,
         partition_key: PartitionKey,
         namespace_id: NamespaceId,
+        namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
         table_name: Arc<DeferredLoad<TableName>>,
     ) -> PartitionData {
         (**self)
-            .get_partition(partition_key, namespace_id, table_id, table_name)
+            .get_partition(
+                partition_key,
+                namespace_id,
+                namespace_name,
+                table_id,
+                table_name,
+            )
             .await
     }
 }
@@ -57,6 +65,9 @@ mod tests {
     async fn test_arc_impl() {
         let key = PartitionKey::from("bananas");
         let namespace_id = NamespaceId::new(1234);
+        let namespace_name = Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+            NamespaceName::from("ns-platanos")
+        }));
         let table_id = TableId::new(24);
         let table_name = Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
             TableName::from("platanos")
@@ -66,6 +77,7 @@ mod tests {
             partition,
             "bananas".into(),
             namespace_id,
+            Arc::clone(&namespace_name),
             table_id,
             Arc::clone(&table_name),
             SortKeyState::Provided(None),
@@ -74,10 +86,17 @@ mod tests {
         let mock = Arc::new(MockPartitionProvider::default().with_partition(data));
 
         let got = mock
-            .get_partition(key, namespace_id, table_id, Arc::clone(&table_name))
+            .get_partition(
+                key,
+                namespace_id,
+                Arc::clone(&namespace_name),
+                table_id,
+                Arc::clone(&table_name),
+            )
             .await;
         assert_eq!(got.partition_id(), partition);
         assert_eq!(got.namespace_id(), namespace_id);
+        assert_eq!(got.namespace_name().to_string(), namespace_name.to_string());
         assert_eq!(got.table_name().to_string(), table_name.to_string());
     }
 }

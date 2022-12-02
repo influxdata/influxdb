@@ -55,7 +55,7 @@ impl std::fmt::Display for NamespaceName {
 #[derive(Debug)]
 pub(crate) struct NamespaceData {
     namespace_id: NamespaceId,
-    namespace_name: DeferredLoad<NamespaceName>,
+    namespace_name: Arc<DeferredLoad<NamespaceName>>,
 
     /// A set of tables this [`NamespaceData`] instance has processed
     /// [`DmlOperation`]'s for.
@@ -94,7 +94,7 @@ impl NamespaceData {
 
         Self {
             namespace_id,
-            namespace_name,
+            namespace_name: Arc::new(namespace_name),
             tables: Default::default(),
             table_name_resolver,
             table_count,
@@ -143,6 +143,7 @@ impl DmlSink for NamespaceData {
                             table_id,
                             self.table_name_resolver.for_table(table_id),
                             self.namespace_id,
+                            Arc::clone(&self.namespace_name),
                             Arc::clone(&self.partition_provider),
                         ))
                     });
@@ -235,6 +236,9 @@ mod tests {
                 PartitionId::new(0),
                 PartitionKey::from("banana-split"),
                 NAMESPACE_ID,
+                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                    NamespaceName::from(NAMESPACE_NAME)
+                })),
                 TABLE_ID,
                 Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                     TableName::from(TABLE_NAME)

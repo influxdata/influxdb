@@ -521,7 +521,7 @@ mod tests {
             Arc::clone(&catalog),
             object_store,
             reading,
-            Arc::new(Executor::new(1)),
+            Arc::new(Executor::new_testing()),
             Arc::clone(&metrics),
             skip_to_oldest_available,
             1,

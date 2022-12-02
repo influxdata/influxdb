@@ -1,0 +1,21 @@
+---
+source: influxdb_influxql_parser/src/visit_mut.rs
+expression: "visit_statement!(\"DELETE WHERE 'foo bar' =~ /foo/\")"
+---
+- "pre_visit_statement: Delete(Where(WhereClause(Binary { lhs: Expr(Literal(String(\"foo bar\"))), op: EqRegex, rhs: Expr(Literal(Regex(Regex(\"foo\")))) })))"
+- "pre_visit_delete_statement: Where(WhereClause(Binary { lhs: Expr(Literal(String(\"foo bar\"))), op: EqRegex, rhs: Expr(Literal(Regex(Regex(\"foo\")))) }))"
+- "pre_visit_where_clause: WhereClause(Binary { lhs: Expr(Literal(String(\"foo bar\"))), op: EqRegex, rhs: Expr(Literal(Regex(Regex(\"foo\")))) })"
+- "pre_visit_conditional_expression: Binary { lhs: Expr(Literal(String(\"foo bar\"))), op: EqRegex, rhs: Expr(Literal(Regex(Regex(\"foo\")))) }"
+- "pre_visit_conditional_expression: Expr(Literal(String(\"foo bar\")))"
+- "pre_visit_expr: Literal(String(\"foo bar\"))"
+- "post_visit_expr: Literal(String(\"foo bar\"))"
+- "post_visit_conditional_expression: Expr(Literal(String(\"foo bar\")))"
+- "pre_visit_conditional_expression: Expr(Literal(Regex(Regex(\"foo\"))))"
+- "pre_visit_expr: Literal(Regex(Regex(\"foo\")))"
+- "post_visit_expr: Literal(Regex(Regex(\"foo\")))"
+- "post_visit_conditional_expression: Expr(Literal(Regex(Regex(\"foo\"))))"
+- "post_visit_conditional_expression: Binary { lhs: Expr(Literal(String(\"foo bar\"))), op: EqRegex, rhs: Expr(Literal(Regex(Regex(\"foo\")))) }"
+- "post_visit_where_clause: WhereClause(Binary { lhs: Expr(Literal(String(\"foo bar\"))), op: EqRegex, rhs: Expr(Literal(Regex(Regex(\"foo\")))) })"
+- "post_visit_delete_statement: Where(WhereClause(Binary { lhs: Expr(Literal(String(\"foo bar\"))), op: EqRegex, rhs: Expr(Literal(Regex(Regex(\"foo\")))) }))"
+- "post_visit_statement: Delete(Where(WhereClause(Binary { lhs: Expr(Literal(String(\"foo bar\"))), op: EqRegex, rhs: Expr(Literal(Regex(Regex(\"foo\")))) })))"
+
