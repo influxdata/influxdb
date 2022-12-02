@@ -116,6 +116,15 @@ impl NamespaceData {
     pub(crate) fn namespace_name(&self) -> &DeferredLoad<NamespaceName> {
         &self.namespace_name
     }
+
+    /// Obtain a snapshot of the tables within this [`NamespaceData`].
+    ///
+    /// NOTE: the snapshot is an atomic / point-in-time snapshot of the set of
+    /// [`NamespaceData`], but the tables (and partitions) within them may
+    /// change as they continue to buffer DML operations.
+    pub(super) fn tables(&self) -> Vec<Arc<TableData>> {
+        self.tables.values()
+    }
 }
 
 #[async_trait]
