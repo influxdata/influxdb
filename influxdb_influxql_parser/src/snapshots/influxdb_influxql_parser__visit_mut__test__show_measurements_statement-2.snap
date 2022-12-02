@@ -1,0 +1,11 @@
+---
+source: influxdb_influxql_parser/src/visit_mut.rs
+expression: "visit_statement!(\"SHOW MEASUREMENTS ON db.rp\")"
+---
+- "pre_visit_statement: ShowMeasurements(ShowMeasurementsStatement { on: Some(DatabaseRetentionPolicy(Identifier(\"db\"), Identifier(\"rp\"))), with_measurement: None, condition: None, limit: None, offset: None })"
+- "pre_visit_show_measurements_statement: ShowMeasurementsStatement { on: Some(DatabaseRetentionPolicy(Identifier(\"db\"), Identifier(\"rp\"))), with_measurement: None, condition: None, limit: None, offset: None }"
+- "pre_visit_extended_on_clause: DatabaseRetentionPolicy(Identifier(\"db\"), Identifier(\"rp\"))"
+- "post_visit_extended_on_clause: DatabaseRetentionPolicy(Identifier(\"db\"), Identifier(\"rp\"))"
+- "post_visit_show_measurements_statement: ShowMeasurementsStatement { on: Some(DatabaseRetentionPolicy(Identifier(\"db\"), Identifier(\"rp\"))), with_measurement: None, condition: None, limit: None, offset: None }"
+- "post_visit_statement: ShowMeasurements(ShowMeasurementsStatement { on: Some(DatabaseRetentionPolicy(Identifier(\"db\"), Identifier(\"rp\"))), with_measurement: None, condition: None, limit: None, offset: None })"
+

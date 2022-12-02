@@ -1,0 +1,17 @@
+---
+source: influxdb_influxql_parser/src/visit_mut.rs
+expression: "visit_statement!(\"SHOW FIELD KEYS ON telegraf FROM /cpu/\")"
+---
+- "pre_visit_statement: ShowFieldKeys(ShowFieldKeysStatement { database: Some(OnClause(Identifier(\"telegraf\"))), from: Some(OneOrMore { contents: [QualifiedMeasurementName { database: None, retention_policy: None, name: Regex(Regex(\"cpu\")) }] }), limit: None, offset: None })"
+- "pre_visit_show_field_keys_statement: ShowFieldKeysStatement { database: Some(OnClause(Identifier(\"telegraf\"))), from: Some(OneOrMore { contents: [QualifiedMeasurementName { database: None, retention_policy: None, name: Regex(Regex(\"cpu\")) }] }), limit: None, offset: None }"
+- "pre_visit_on_clause: OnClause(Identifier(\"telegraf\"))"
+- "pre_visit_on_clause: OnClause(Identifier(\"telegraf\"))"
+- "pre_visit_show_from_clause: OneOrMore { contents: [QualifiedMeasurementName { database: None, retention_policy: None, name: Regex(Regex(\"cpu\")) }] }"
+- "pre_visit_qualified_measurement_name: QualifiedMeasurementName { database: None, retention_policy: None, name: Regex(Regex(\"cpu\")) }"
+- "pre_visit_measurement_name: Regex(Regex(\"cpu\"))"
+- "post_visit_measurement_name: Regex(Regex(\"cpu\"))"
+- "post_visit_qualified_measurement_name: QualifiedMeasurementName { database: None, retention_policy: None, name: Regex(Regex(\"cpu\")) }"
+- "post_visit_show_from_clause: OneOrMore { contents: [QualifiedMeasurementName { database: None, retention_policy: None, name: Regex(Regex(\"cpu\")) }] }"
+- "post_visit_show_field_keys_statement: ShowFieldKeysStatement { database: Some(OnClause(Identifier(\"telegraf\"))), from: Some(OneOrMore { contents: [QualifiedMeasurementName { database: None, retention_policy: None, name: Regex(Regex(\"cpu\")) }] }), limit: None, offset: None }"
+- "post_visit_statement: ShowFieldKeys(ShowFieldKeysStatement { database: Some(OnClause(Identifier(\"telegraf\"))), from: Some(OneOrMore { contents: [QualifiedMeasurementName { database: None, retention_policy: None, name: Regex(Regex(\"cpu\")) }] }), limit: None, offset: None })"
+

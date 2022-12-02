@@ -21,6 +21,7 @@
 //! let vis = MyVisitor;
 //! statement.accept(vis);
 //! ```
+use self::Recursion::*;
 use crate::common::{
     LimitClause, MeasurementName, OffsetClause, OrderByClause, QualifiedMeasurementName,
     WhereClause,
@@ -45,7 +46,6 @@ use crate::show_tag_keys::ShowTagKeysStatement;
 use crate::show_tag_values::{ShowTagValuesStatement, WithKeyClause};
 use crate::simple_from_clause::{DeleteFromClause, ShowFromClause};
 use crate::statement::Statement;
-use crate::visit::Recursion::*;
 
 /// The result type for a [`Visitor`].
 pub type VisitorResult<T, E = &'static str> = Result<T, E>;
@@ -1168,6 +1168,8 @@ impl Visitable for OnClause {
 
 #[cfg(test)]
 mod test {
+    use super::Recursion::Continue;
+    use super::{Recursion, Visitable, Visitor, VisitorResult};
     use crate::common::{
         LimitClause, MeasurementName, OffsetClause, OrderByClause, QualifiedMeasurementName,
         WhereClause,
@@ -1191,8 +1193,6 @@ mod test {
     use crate::show_tag_values::{ShowTagValuesStatement, WithKeyClause};
     use crate::simple_from_clause::{DeleteFromClause, ShowFromClause};
     use crate::statement::{statement, Statement};
-    use crate::visit::Recursion::Continue;
-    use crate::visit::{Recursion, Visitable, Visitor, VisitorResult};
     use std::fmt::Debug;
 
     struct TestVisitor(Vec<String>);

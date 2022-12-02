@@ -46,6 +46,7 @@ pub mod simple_from_clause;
 pub mod statement;
 pub mod string;
 pub mod visit;
+pub mod visit_mut;
 
 /// A error returned when parsing an InfluxQL query using
 /// [`parse_statements`] fails.

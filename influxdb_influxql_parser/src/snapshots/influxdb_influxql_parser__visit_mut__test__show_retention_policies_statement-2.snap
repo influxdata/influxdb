@@ -1,0 +1,11 @@
+---
+source: influxdb_influxql_parser/src/visit_mut.rs
+expression: "visit_statement!(\"SHOW RETENTION POLICIES ON telegraf\")"
+---
+- "pre_visit_statement: ShowRetentionPolicies(ShowRetentionPoliciesStatement { database: Some(OnClause(Identifier(\"telegraf\"))) })"
+- "pre_visit_show_retention_policies_statement: ShowRetentionPoliciesStatement { database: Some(OnClause(Identifier(\"telegraf\"))) }"
+- "pre_visit_on_clause: OnClause(Identifier(\"telegraf\"))"
+- "pre_visit_on_clause: OnClause(Identifier(\"telegraf\"))"
+- "post_visit_show_retention_policies_statement: ShowRetentionPoliciesStatement { database: Some(OnClause(Identifier(\"telegraf\"))) }"
+- "post_visit_statement: ShowRetentionPolicies(ShowRetentionPoliciesStatement { database: Some(OnClause(Identifier(\"telegraf\"))) })"
+
