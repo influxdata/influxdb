@@ -255,14 +255,13 @@ pub async fn create_router_grpc_write_server_type(
 ) -> Result<Arc<dyn ServerType>> {
     // 1. START: Different Setup Per Router Path: this part is only relevant to using RPC write
     //    path and should not be added to `create_router_server_type`.
+    let mut ingester_clients = Vec::with_capacity(router_config.ingester_addresses.len());
+    for ingester_addr in &router_config.ingester_addresses {
+        ingester_clients.push(write_service_client(ingester_addr).await);
+    }
 
     // Initialise the DML handler that sends writes to the ingester using the RPC write path.
-    let rpc_writer = RpcWrite::new(RoundRobin::new(
-        router_config
-            .ingester_addresses
-            .iter()
-            .map(|ingester_addr| write_service_client(ingester_addr)),
-    ));
+    let rpc_writer = RpcWrite::new(RoundRobin::new(ingester_clients));
     let rpc_writer = InstrumentationDecorator::new("rpc_writer", &metrics, rpc_writer);
     // 1. END
 

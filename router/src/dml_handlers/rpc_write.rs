@@ -14,12 +14,17 @@ use observability_deps::tracing::*;
 use sharder::RoundRobin;
 use std::{fmt::Debug, time::Duration};
 use thiserror::Error;
-use tonic::transport::Channel;
 use trace::ctx::SpanContext;
 
 /// Create a client to the ingester's write service.
-pub fn write_service_client(ingester_addr: &str) -> WriteServiceClient<Channel> {
-    WriteServiceClient::new(Channel::builder(ingester_addr.parse().unwrap()).connect_lazy())
+pub async fn write_service_client(
+    ingester_addr: &str,
+) -> WriteServiceClient<client_util::connection::GrpcConnection> {
+    let connection = client_util::connection::Builder::default()
+        .build(format!("http://{}", ingester_addr))
+        .await
+        .unwrap_or_else(|e| panic!("failed to connect to server {ingester_addr}: {e}"));
+    WriteServiceClient::new(connection.into_grpc_connection())
 }
 
 /// The bound on RPC request duration.
@@ -44,7 +49,7 @@ pub enum RpcWriteError {
 }
 
 /// A convenience alias for the generated gRPC client.
-type GrpcClient = WriteServiceClient<Channel>;
+type GrpcClient = WriteServiceClient<client_util::connection::GrpcConnection>;
 
 /// An [`RpcWrite`] handler submits a write directly to an Ingester via the
 /// [gRPC write service].

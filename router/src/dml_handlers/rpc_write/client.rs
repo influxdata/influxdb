@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use generated_types::influxdata::iox::ingester::v1::{
     write_service_client::WriteServiceClient, WriteRequest,
 };
-use tonic::transport::Channel;
 
 use super::RpcWriteError;
 
@@ -15,7 +14,7 @@ pub(super) trait WriteClient: Send + Sync + std::fmt::Debug {
 
 /// An implementation of [`WriteClient`] for the tonic gRPC client.
 #[async_trait]
-impl WriteClient for WriteServiceClient<Channel> {
+impl WriteClient for WriteServiceClient<client_util::connection::GrpcConnection> {
     async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteError> {
         WriteServiceClient::write(&mut self.clone(), op).await?;
         Ok(())
