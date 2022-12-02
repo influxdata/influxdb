@@ -14,6 +14,7 @@ use schema::Projection;
 /// # Panics
 ///
 /// This method panics if `lines` contains data for more than one table.
+#[track_caller]
 pub(crate) fn make_write_op(
     partition_key: &PartitionKey,
     namespace_id: NamespaceId,
@@ -22,12 +23,22 @@ pub(crate) fn make_write_op(
     sequence_number: i64,
     lines: &str,
 ) -> DmlWrite {
-    let mut tables_by_name = lines_to_batches(lines, 0).unwrap();
-    assert_eq!(tables_by_name.len(), 1);
+    let mut tables_by_name = lines_to_batches(lines, 0).expect("invalid LP");
+    assert_eq!(
+        tables_by_name.len(),
+        1,
+        "make_write_op only supports 1 table in the LP"
+    );
 
-    let tables_by_id = [(table_id, tables_by_name.remove(table_name).unwrap())]
-        .into_iter()
-        .collect();
+    let tables_by_id = [(
+        table_id,
+        tables_by_name
+            .remove(table_name)
+            .expect("table_name does not exist in LP"),
+    )]
+    .into_iter()
+    .collect();
+
     DmlWrite::new(
         namespace_id,
         tables_by_id,
