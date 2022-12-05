@@ -2476,12 +2476,8 @@ func ossCryptoDiagnostics() map[string]interface{} {
 // parseCryptoDiagnostics converts the crypto diagnostics into an appropriate
 // format for marshaling to JSON in the /debug/vars format.
 func parseCryptoDiagnostics(d *diagnostics.Diagnostics) (map[string]interface{}, error) {
-	m := map[string]interface{}{
-		"ensureFIPS":     false,
-		"FIPS":           false,
-		"implementation": "Go",
-		"passwordHash":   "bcrypt",
-	}
+	// No defaults (eg ossCryptoDiagnostics) to avoid lying if values are missing
+	m := make(map[string]interface{})
 
 	for key := range m {
 		// Find the associated column.
