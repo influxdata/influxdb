@@ -51,6 +51,18 @@ pub struct QuerierConfig {
     )]
     pub num_query_threads: Option<usize>,
 
+    /// Size of memory pool used during query exec, in bytes.
+    ///
+    /// If queries attempt to allocate more than this many bytes
+    /// during execution, they will error with "ResourcesExhausted".
+    #[clap(
+        long = "exec-mem-pool-bytes",
+        env = "INFLUXDB_IOX_EXEC_MEM_POOL_BYTES",
+        default_value = "8589934592",  // 8GB
+        action
+    )]
+    pub exec_mem_pool_bytes: usize,
+
     /// Path to a JSON file containing a Shard index to ingesters gRPC mapping. For example:
     ///
     /// ```json
@@ -216,19 +228,6 @@ pub struct QuerierConfig {
     )]
     pub max_concurrent_queries: usize,
 
-    /// Maximum bytes to scan for a table in a query (estimated).
-    ///
-    /// If IOx estimates that it will scan more than this many bytes
-    /// in a query, the query will error. This protects against potentially unbounded
-    /// memory growth leading to OOMs in certain pathological queries.
-    #[clap(
-        long = "max-table-query-bytes",
-        env = "INFLUXDB_IOX_MAX_TABLE_QUERY_BYTES",
-        default_value = "1073741824",  // 1 GB
-        action
-    )]
-    pub max_table_query_bytes: usize,
-
     /// After how many ingester query errors should the querier enter circuit breaker mode?
     ///
     /// The querier normally contacts the ingester for any unpersisted data during query planning.
@@ -297,12 +296,6 @@ impl QuerierConfig {
     /// Number of queries allowed to run concurrently
     pub fn max_concurrent_queries(&self) -> usize {
         self.max_concurrent_queries
-    }
-
-    /// Query will error if it estimated that a single table will provide more
-    /// than this many bytes.
-    pub fn max_table_query_bytes(&self) -> usize {
-        self.max_table_query_bytes
     }
 }
 

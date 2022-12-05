@@ -1,7 +1,7 @@
 //! Command line options for running an ingester for a router using the RPC write path to talk to.
 
 use super::main;
-use crate::process_info::setup_metric_registry;
+use crate::process_info::{setup_metric_registry, USIZE_MAX};
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig, ingester2::Ingester2Config, object_store::make_object_store,
     run_config::RunConfig,
@@ -70,6 +70,15 @@ pub struct Config {
         action
     )]
     pub exec_thread_count: usize,
+
+    /// Size of memory pool used during query exec, in bytes.
+    #[clap(
+        long = "exec-mem-pool-bytes",
+        env = "INFLUXDB_IOX_EXEC_MEM_POOL_BYTES",
+        default_value = &USIZE_MAX[..],
+        action
+    )]
+    exec_mem_pool_bytes: usize,
 }
 
 pub async fn command(config: Config) -> Result<()> {
@@ -81,7 +90,10 @@ pub async fn command(config: Config) -> Result<()> {
         .get_catalog("ingester", Arc::clone(&metric_registry))
         .await?;
 
-    let exec = Arc::new(Executor::new(config.exec_thread_count));
+    let exec = Arc::new(Executor::new(
+        config.exec_thread_count,
+        config.exec_mem_pool_bytes,
+    ));
     let object_store = make_object_store(config.run_config.object_store_config())
         .map_err(Error::ObjectStoreParsing)?;
 

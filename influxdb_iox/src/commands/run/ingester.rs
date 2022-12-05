@@ -16,7 +16,7 @@ use observability_deps::tracing::*;
 use std::sync::Arc;
 use thiserror::Error;
 
-use crate::process_info::setup_metric_registry;
+use crate::process_info::{setup_metric_registry, USIZE_MAX};
 
 use super::main;
 
@@ -75,6 +75,15 @@ pub struct Config {
         action
     )]
     pub query_exec_thread_count: usize,
+
+    /// Size of memory pool used during query exec, in bytes.
+    #[clap(
+        long = "exec-mem-pool-bytes",
+        env = "INFLUXDB_IOX_EXEC_MEM_POOL_BYTES",
+        default_value = &USIZE_MAX[..],
+        action
+    )]
+    pub exec_mem_pool_bytes: usize,
 }
 
 pub async fn command(config: Config) -> Result<()> {
@@ -98,7 +107,10 @@ pub async fn command(config: Config) -> Result<()> {
         &metric_registry,
     ));
 
-    let exec = Arc::new(Executor::new(config.query_exec_thread_count));
+    let exec = Arc::new(Executor::new(
+        config.query_exec_thread_count,
+        config.exec_mem_pool_bytes,
+    ));
     let server_type = create_ingester_server_type(
         &common_state,
         Arc::clone(&metric_registry),

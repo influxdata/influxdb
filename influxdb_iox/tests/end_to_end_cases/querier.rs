@@ -6,6 +6,7 @@ use std::time::Duration;
 use arrow_util::assert_batches_sorted_eq;
 use assert_cmd::{assert::Assert, Command};
 use futures::FutureExt;
+use generated_types::{aggregate::AggregateType, read_group_request::Group};
 use predicates::prelude::*;
 use test_helpers::assert_contains;
 use test_helpers_end_to_end::{
@@ -596,8 +597,7 @@ async fn oom_protection() {
     // Set up the cluster  ====================================
     let router_config = TestConfig::new_router(&database_url);
     let ingester_config = TestConfig::new_ingester(&router_config);
-    let querier_config =
-        TestConfig::new_querier(&ingester_config).with_querier_max_table_query_bytes(1);
+    let querier_config = TestConfig::new_querier(&ingester_config).with_querier_mem_pool_bytes(1);
     let mut cluster = MiniCluster::new()
         .with_router(router_config)
         .await
@@ -615,9 +615,12 @@ async fn oom_protection() {
             // SQL query
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 async move {
-                    let sql = format!("select * from {}", table_name);
+                    let sql = format!(
+                        "select tag1, sum(val) as val from {} group by tag1",
+                        table_name
+                    );
                     let err = try_run_sql(
-                        sql,
+                        &sql,
                         state.cluster().namespace(),
                         state.cluster().querier().querier_grpc_connection(),
                     )
@@ -635,6 +638,14 @@ async fn oom_protection() {
                     } else {
                         panic!("Not a gRPC error: {err}");
                     }
+
+                    // EXPLAIN should work though
+                    run_sql(
+                        format!("EXPLAIN {sql}"),
+                        state.cluster().namespace(),
+                        state.cluster().querier().querier_grpc_connection(),
+                    )
+                    .await;
                 }
                 .boxed()
             })),
@@ -643,12 +654,15 @@ async fn oom_protection() {
                 async move {
                     let mut storage_client = state.cluster().querier_storage_client();
 
-                    let read_filter_request = GrpcRequestBuilder::new()
+                    let read_group_request = GrpcRequestBuilder::new()
                         .source(state.cluster())
-                        .build_read_filter();
+                        .aggregate_type(AggregateType::Sum)
+                        .group(Group::By)
+                        .group_keys(["tag1"])
+                        .build_read_group();
 
                     let status = storage_client
-                        .read_filter(read_filter_request)
+                        .read_group(read_group_request)
                         .await
                         .unwrap_err();
                     assert_eq!(

@@ -963,7 +963,6 @@ impl MockIngester {
             catalog.exec(),
             Some(ingester_connection),
             sharder,
-            usize::MAX,
         ))
     }
 }

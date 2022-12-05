@@ -77,16 +77,6 @@ pub enum Error {
 
     #[snafu(display("Internal error: Can not group chunks '{}'", source,))]
     InternalChunkGrouping { source: self::overlap::Error },
-
-    #[snafu(display(
-    "Query would scan at least {} bytes, more than configured maximum {} bytes. Try adjusting your compactor settings or increasing the per query memory limit.",
-    actual_bytes,
-    limit_bytes,
-    ))]
-    TooMuchData {
-        actual_bytes: usize,
-        limit_bytes: usize,
-    },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 

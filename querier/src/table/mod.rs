@@ -72,12 +72,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 impl From<Error> for DataFusionError {
     fn from(err: Error) -> Self {
-        match err {
-            Error::ChunkPruning {
-                source: err @ provider::Error::TooMuchData { .. },
-            } => Self::ResourcesExhausted(err.to_string()),
-            _ => Self::External(Box::new(err) as _),
-        }
+        Self::External(Box::new(err) as _)
     }
 }
 
@@ -93,7 +88,6 @@ pub struct QuerierTableArgs {
     pub ingester_connection: Option<Arc<dyn IngesterConnection>>,
     pub chunk_adapter: Arc<ChunkAdapter>,
     pub exec: Arc<Executor>,
-    pub max_query_bytes: usize,
     pub prune_metrics: Arc<PruneMetrics>,
 }
 
@@ -133,9 +127,6 @@ pub struct QuerierTable {
     /// Executor for queries.
     exec: Arc<Executor>,
 
-    /// Max combined chunk size for all chunks returned to the query subsystem.
-    max_query_bytes: usize,
-
     /// Metrics for chunk pruning.
     prune_metrics: Arc<PruneMetrics>,
 }
@@ -154,7 +145,6 @@ impl QuerierTable {
             ingester_connection,
             chunk_adapter,
             exec,
-            max_query_bytes,
             prune_metrics,
         } = args;
 
@@ -176,7 +166,6 @@ impl QuerierTable {
             chunk_adapter,
             reconciler,
             exec,
-            max_query_bytes,
             prune_metrics,
         }
     }
@@ -430,10 +419,9 @@ impl QuerierTable {
 
     /// Get a chunk pruner that can be used to prune chunks retrieved via [`chunks`](Self::chunks)
     pub fn chunk_pruner(&self) -> Arc<dyn ChunkPruner> {
-        Arc::new(QuerierTableChunkPruner::new(
-            self.max_query_bytes,
-            Arc::clone(&self.prune_metrics),
-        ))
+        Arc::new(QuerierTableChunkPruner::new(Arc::clone(
+            &self.prune_metrics,
+        )))
     }
 
     /// Get partitions from ingesters.

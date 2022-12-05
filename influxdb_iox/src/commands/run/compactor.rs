@@ -18,7 +18,7 @@ use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
 use ioxd_common::Service;
 use ioxd_compactor::create_compactor_server_type;
 
-use crate::process_info::setup_metric_registry;
+use crate::process_info::{setup_metric_registry, USIZE_MAX};
 
 use super::main;
 
@@ -76,6 +76,15 @@ pub struct Config {
         action
     )]
     pub query_exec_thread_count: usize,
+
+    /// Size of memory pool used during query exec, in bytes.
+    #[clap(
+        long = "exec-mem-pool-bytes",
+        env = "INFLUXDB_IOX_EXEC_MEM_POOL_BYTES",
+        default_value = &USIZE_MAX[..],
+        action
+    )]
+    pub exec_mem_pool_bytes: usize,
 }
 
 pub async fn command(config: Config) -> Result<(), Error> {
@@ -107,6 +116,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
             parquet_store.id(),
             Arc::clone(parquet_store.object_store()),
         )]),
+        mem_pool_size: config.exec_mem_pool_bytes,
     }));
     let time_provider = Arc::new(SystemProvider::new());
 

@@ -95,13 +95,12 @@ impl TableProvider for QuerierTable {
 
 #[derive(Debug)]
 pub struct QuerierTableChunkPruner {
-    max_bytes: usize,
     metrics: Arc<PruneMetrics>,
 }
 
 impl QuerierTableChunkPruner {
-    pub fn new(max_bytes: usize, metrics: Arc<PruneMetrics>) -> Self {
-        Self { max_bytes, metrics }
+    pub fn new(metrics: Arc<PruneMetrics>) -> Self {
+        Self { metrics }
     }
 }
 
@@ -139,17 +138,6 @@ impl ChunkPruner for QuerierTableChunkPruner {
                 chunks
             }
         };
-
-        let estimated_bytes = chunks
-            .iter()
-            .map(|chunk| chunk_estimate_size(chunk.as_ref()))
-            .sum::<usize>();
-        if estimated_bytes > self.max_bytes {
-            return Err(ProviderError::TooMuchData {
-                actual_bytes: estimated_bytes,
-                limit_bytes: self.max_bytes,
-            });
-        }
 
         Ok(chunks)
     }

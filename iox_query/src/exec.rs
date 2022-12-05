@@ -21,6 +21,7 @@ use datafusion::{
     self,
     execution::{
         context::SessionState,
+        disk_manager::DiskManagerConfig,
         runtime_env::{RuntimeConfig, RuntimeEnv},
     },
     logical_expr::{expr_rewriter::normalize_col, Extension},
@@ -44,6 +45,9 @@ pub struct ExecutorConfig {
 
     /// Object stores
     pub object_stores: HashMap<StorageId, Arc<DynObjectStore>>,
+
+    /// Memory pool size in bytes.
+    pub mem_pool_size: usize,
 }
 
 #[derive(Debug)]
@@ -86,9 +90,6 @@ impl DedicatedExecutors {
 
 /// Handles executing DataFusion plans, and marshalling the results into rust
 /// native structures.
-///
-/// TODO: Have a resource manager that would limit how many plans are
-/// running, based on a policy
 #[derive(Debug)]
 pub struct Executor {
     /// Executors
@@ -114,11 +115,12 @@ pub enum ExecutorType {
 impl Executor {
     /// Creates a new executor with a two dedicated thread pools, each
     /// with num_threads
-    pub fn new(num_threads: usize) -> Self {
+    pub fn new(num_threads: usize, mem_pool_size: usize) -> Self {
         Self::new_with_config(ExecutorConfig {
             num_threads,
             target_query_partitions: num_threads,
             object_stores: HashMap::default(),
+            mem_pool_size,
         })
     }
 
@@ -134,6 +136,7 @@ impl Executor {
             num_threads: 1,
             target_query_partitions: 1,
             object_stores: HashMap::default(),
+            mem_pool_size: 1024 * 1024 * 1024, // 1GB
         };
         let executors = Arc::new(DedicatedExecutors::new_testing());
         Self::new_with_config_and_executors(config, executors)
@@ -151,7 +154,9 @@ impl Executor {
     ) -> Self {
         assert_eq!(config.num_threads, executors.num_threads);
 
-        let runtime_config = RuntimeConfig::new();
+        let runtime_config = RuntimeConfig::new()
+            .with_disk_manager(DiskManagerConfig::Disabled)
+            .with_memory_limit(config.mem_pool_size, 1.0);
 
         for (id, store) in &config.object_stores {
             runtime_config

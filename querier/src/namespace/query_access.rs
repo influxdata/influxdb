@@ -196,9 +196,7 @@ impl ExecutionContextProvider for QuerierNamespace {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::namespace::test_util::{
-        clear_parquet_cache, querier_namespace, querier_namespace_with_limit,
-    };
+    use crate::namespace::test_util::{clear_parquet_cache, querier_namespace};
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_sorted_eq;
     use data_types::ColumnType;
@@ -587,53 +585,6 @@ mod tests {
             ],
         )
             .await;
-    }
-
-    #[tokio::test]
-    async fn test_chunk_size_limit() {
-        let catalog = TestCatalog::new();
-
-        let ns = catalog.create_namespace_1hr_retention("ns").await;
-        let table = ns.create_table("table").await;
-        let shard = ns.create_shard(1).await;
-        let partition = table.with_shard(&shard).create_partition("k").await;
-
-        table.create_column("time", ColumnType::Time).await;
-        table.create_column("foo", ColumnType::F64).await;
-
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol("table foo=1 11")
-            .with_max_seq(2)
-            .with_min_time(11)
-            .with_max_time(11);
-        let file1 = partition.create_parquet_file(builder).await;
-
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol("table foo=2 22")
-            .with_max_seq(4)
-            .with_min_time(22)
-            .with_max_time(22);
-        let file2 = partition.create_parquet_file(builder).await;
-
-        let total_size =
-            (file1.parquet_file.file_size_bytes + file2.parquet_file.file_size_bytes) as usize;
-
-        // querying right at the total size works (i.e. the limit is INCLUSIVE)
-        let querier_namespace = Arc::new(querier_namespace_with_limit(&ns, total_size).await);
-        run_res(&querier_namespace, "SELECT * FROM \"table\"", None)
-            .await
-            .unwrap();
-
-        // check that limit is enforced
-        let limit = total_size - 1;
-        let querier_namespace = Arc::new(querier_namespace_with_limit(&ns, limit).await);
-        let err = run_res(&querier_namespace, "SELECT * FROM \"table\"", None)
-            .await
-            .unwrap_err();
-        assert_eq!(
-            err.to_string(),
-            format!("Cannot build plan: Resources exhausted: Query would scan at least {total_size} bytes, more than configured maximum {limit} bytes. Try adjusting your compactor settings or increasing the per query memory limit."),
-        );
     }
 
     async fn assert_query(

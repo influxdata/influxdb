@@ -99,7 +99,10 @@ pub async fn command(config: Config) -> Result<(), Error> {
     let ingester_addresses = config.querier_config.ingester_addresses()?;
     info!(?ingester_addresses, "using ingester addresses");
 
-    let exec = Arc::new(Executor::new(num_threads));
+    let exec = Arc::new(Executor::new(
+        num_threads,
+        config.querier_config.exec_mem_pool_bytes,
+    ));
 
     let server_type = create_querier_server_type(QuerierServerTypeArgs {
         common_state: &common_state,
