@@ -458,7 +458,8 @@ impl OpenSegmentFile {
             match req {
                 Write(tx, data) => {
                     let x = open_write.write(&data).unwrap();
-                    tx.send(x).unwrap();
+                    // Ignore send errors - the caller may have disconnected.
+                    let _ = tx.send(x);
                 }
 
                 Rotate(tx, ()) => {
