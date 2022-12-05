@@ -2827,6 +2827,7 @@ dependencies = [
  "parquet_file",
  "querier",
  "router",
+ "service_common",
  "service_grpc_flight",
  "service_grpc_influxrpc",
  "sharder",

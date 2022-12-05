@@ -7,12 +7,12 @@
 
 use data_types::Namespace;
 use generated_types::influxdata::iox::namespace::v1 as proto;
-use querier::QuerierDatabase;
+use querier::Database;
 use std::sync::Arc;
 
 /// Acquire a [`NamespaceService`](proto::namespace_service_server::NamespaceService) gRPC service implementation.
-pub fn namespace_service(
-    server: Arc<QuerierDatabase>,
+pub fn namespace_service<S: Database + Send + Sync + 'static>(
+    server: Arc<S>,
 ) -> proto::namespace_service_server::NamespaceServiceServer<
     impl proto::namespace_service_server::NamespaceService,
 > {
@@ -20,12 +20,12 @@ pub fn namespace_service(
 }
 
 #[derive(Debug)]
-struct NamespaceServiceImpl {
-    server: Arc<QuerierDatabase>,
+struct NamespaceServiceImpl<S> {
+    server: Arc<S>,
 }
 
-impl NamespaceServiceImpl {
-    pub fn new(server: Arc<QuerierDatabase>) -> Self {
+impl<S> NamespaceServiceImpl<S> {
+    pub fn new(server: Arc<S>) -> Self {
         Self { server }
     }
 }
@@ -40,7 +40,9 @@ fn namespace_to_proto(namespace: Namespace) -> proto::Namespace {
 }
 
 #[tonic::async_trait]
-impl proto::namespace_service_server::NamespaceService for NamespaceServiceImpl {
+impl<S: Database + Send + Sync + 'static> proto::namespace_service_server::NamespaceService
+    for NamespaceServiceImpl<S>
+{
     async fn get_namespaces(
         &self,
         _request: tonic::Request<proto::GetNamespacesRequest>,

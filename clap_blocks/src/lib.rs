@@ -18,6 +18,7 @@ pub mod ingester;
 pub mod ingester2;
 pub mod object_store;
 pub mod querier;
+pub mod querier_rpc_write;
 pub mod router;
 pub mod router_rpc_write;
 pub mod run_config;

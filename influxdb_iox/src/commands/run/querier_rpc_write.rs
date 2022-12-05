@@ -1,0 +1,119 @@
+//! Command line options for running the querier using the RPC write path.
+
+use super::main;
+use crate::process_info::setup_metric_registry;
+use clap_blocks::{
+    catalog_dsn::CatalogDsnConfig, object_store::make_object_store,
+    querier_rpc_write::QuerierRpcWriteConfig, run_config::RunConfig,
+};
+use iox_query::exec::Executor;
+use iox_time::{SystemProvider, TimeProvider};
+use ioxd_common::{
+    server_type::{CommonServerState, CommonServerStateError},
+    Service,
+};
+use ioxd_querier::{create_querier_grpc_write_server_type, QuerierRpcWriteServerTypeArgs};
+use object_store::DynObjectStore;
+use object_store_metrics::ObjectStoreMetrics;
+use observability_deps::tracing::*;
+use std::sync::Arc;
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("Run: {0}")]
+    Run(#[from] main::Error),
+
+    #[error("Invalid config: {0}")]
+    InvalidConfigCommon(#[from] CommonServerStateError),
+
+    #[error("Catalog error: {0}")]
+    Catalog(#[from] iox_catalog::interface::Error),
+
+    #[error("Catalog DSN error: {0}")]
+    CatalogDsn(#[from] clap_blocks::catalog_dsn::Error),
+
+    #[error("Cannot parse object store config: {0}")]
+    ObjectStoreParsing(#[from] clap_blocks::object_store::ParseError),
+
+    #[error("Querier error: {0}")]
+    Querier(#[from] ioxd_querier::Error),
+}
+
+#[derive(Debug, clap::Parser)]
+#[clap(
+    name = "run",
+    about = "Runs in querier mode using the RPC write path",
+    long_about = "Run the IOx querier server.\n\nThe configuration options below can be \
+    set either with the command line flags or with the specified environment \
+    variable. If there is a file named '.env' in the current working directory, \
+    it is sourced before loading the configuration.
+
+Configuration is loaded from the following sources (highest precedence first):
+        - command line arguments
+        - user set environment variables
+        - .env file contents
+        - pre-configured default values"
+)]
+pub struct Config {
+    #[clap(flatten)]
+    pub(crate) run_config: RunConfig,
+
+    #[clap(flatten)]
+    pub(crate) catalog_dsn: CatalogDsnConfig,
+
+    #[clap(flatten)]
+    pub(crate) querier_config: QuerierRpcWriteConfig,
+}
+
+pub async fn command(config: Config) -> Result<(), Error> {
+    let common_state = CommonServerState::from_config(config.run_config.clone())?;
+
+    let time_provider = Arc::new(SystemProvider::new()) as Arc<dyn TimeProvider>;
+    let metric_registry = setup_metric_registry();
+
+    let catalog = config
+        .catalog_dsn
+        .get_catalog("querier_rpc_write", Arc::clone(&metric_registry))
+        .await?;
+
+    let object_store = make_object_store(config.run_config.object_store_config())
+        .map_err(Error::ObjectStoreParsing)?;
+    // Decorate the object store with a metric recorder.
+    let object_store: Arc<DynObjectStore> = Arc::new(ObjectStoreMetrics::new(
+        object_store,
+        Arc::clone(&time_provider),
+        &metric_registry,
+    ));
+
+    let time_provider = Arc::new(SystemProvider::new());
+
+    let num_threads = config
+        .querier_config
+        .num_query_threads
+        .unwrap_or_else(num_cpus::get);
+    info!(%num_threads, "using specified number of threads per thread pool");
+
+    info!(ingester_addresses=?config.querier_config.ingester_addresses, "using ingester addresses");
+
+    let exec = Arc::new(Executor::new(
+        num_threads,
+        config.querier_config.exec_mem_pool_bytes,
+    ));
+
+    let server_type = create_querier_grpc_write_server_type(QuerierRpcWriteServerTypeArgs {
+        common_state: &common_state,
+        metric_registry: Arc::clone(&metric_registry),
+        catalog,
+        object_store,
+        exec,
+        time_provider,
+        querier_config: config.querier_config,
+    })
+    .await?;
+
+    info!("starting querier");
+
+    let services = vec![Service::create(server_type, common_state.run_config())];
+    Ok(main::main(common_state, services, metric_registry).await?)
+}

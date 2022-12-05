@@ -58,7 +58,7 @@ impl QuerierNamespace {
         exec: Arc<Executor>,
         ingester_connection: Option<Arc<dyn IngesterConnection>>,
         query_log: Arc<QueryLog>,
-        sharder: Arc<JumpHash<Arc<ShardIndex>>>,
+        sharder: Option<Arc<JumpHash<Arc<ShardIndex>>>>,
         prune_metrics: Arc<PruneMetrics>,
     ) -> Self {
         let tables: HashMap<_, _> = ns
@@ -66,7 +66,7 @@ impl QuerierNamespace {
             .iter()
             .map(|(table_name, cached_table)| {
                 let table = Arc::new(QuerierTable::new(QuerierTableArgs {
-                    sharder: Arc::clone(&sharder),
+                    sharder: sharder.clone(),
                     namespace_id: ns.id,
                     namespace_name: Arc::clone(&name),
                     namespace_retention_period: ns.retention_period,
@@ -118,7 +118,7 @@ impl QuerierNamespace {
             exec,
             ingester_connection,
             query_log,
-            sharder,
+            Some(sharder),
             prune_metrics,
         )
     }

@@ -22,7 +22,7 @@ use thiserror::Error;
 use tokio::task::{JoinError, JoinHandle};
 use tokio_util::sync::CancellationToken;
 
-use crate::{database::QuerierDatabase, poison::PoisonCabinet};
+use crate::{database::Database, poison::PoisonCabinet};
 
 #[derive(Debug, Error)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -65,7 +65,7 @@ pub struct QuerierHandlerImpl {
     catalog: Arc<dyn Catalog>,
 
     /// Database that handles query operation
-    database: Arc<QuerierDatabase>,
+    database: Arc<dyn Database>,
 
     /// The object store
     object_store: Arc<dyn ObjectStore>,
@@ -85,7 +85,7 @@ impl QuerierHandlerImpl {
     /// Initialize the Querier
     pub fn new(
         catalog: Arc<dyn Catalog>,
-        database: Arc<QuerierDatabase>,
+        database: Arc<dyn Database>,
         object_store: Arc<dyn ObjectStore>,
     ) -> Self {
         let shutdown = CancellationToken::new();
