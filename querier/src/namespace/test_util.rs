@@ -12,14 +12,6 @@ use tokio::runtime::Handle;
 
 /// Create [`QuerierNamespace`] for testing.
 pub async fn querier_namespace(ns: &Arc<TestNamespace>) -> QuerierNamespace {
-    querier_namespace_with_limit(ns, usize::MAX).await
-}
-
-/// Create [`QuerierNamespace`] for testing with chunk limits.
-pub async fn querier_namespace_with_limit(
-    ns: &Arc<TestNamespace>,
-    max_table_query_bytes: usize,
-) -> QuerierNamespace {
     let mut repos = ns.catalog.catalog.repositories().await;
     let schema = get_schema_by_name(&ns.namespace.name, repos.as_mut())
         .await
@@ -57,7 +49,6 @@ pub async fn querier_namespace_with_limit(
         ns.catalog.exec(),
         Some(create_ingester_connection_for_testing()),
         sharder,
-        max_table_query_bytes,
     )
 }
 

@@ -49,7 +49,6 @@ pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -
         ingester_connection: Some(create_ingester_connection_for_testing()),
         chunk_adapter,
         exec: catalog.exec(),
-        max_query_bytes: usize::MAX,
         prune_metrics: Arc::new(PruneMetrics::new(&catalog.metric_registry())),
     })
 }

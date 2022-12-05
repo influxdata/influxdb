@@ -314,18 +314,14 @@ pub struct Config {
     )]
     pub querier_max_concurrent_queries: usize,
 
-    /// Maximum bytes to scan for a table in a query (estimated).
-    ///
-    /// If IOx estimates that it will scan more than this many bytes
-    /// in a query, the query will error. This protects against potentially unbounded
-    /// memory growth leading to OOMs in certain pathological queries.
+    /// Size of memory pool used during query exec, in bytes.
     #[clap(
-        long = "querier-max-table-query-bytes",
-        env = "INFLUXDB_IOX_QUERIER_MAX_TABLE_QUERY_BYTES",
-        default_value = "1073741824",  // 1 GB
+        long = "exec-mem-pool-bytes",
+        env = "INFLUXDB_IOX_EXEC_MEM_POOL_BYTES",
+        default_value = "8589934592",  // 8GB
         action
     )]
-    pub querier_max_table_query_bytes: usize,
+    pub exec_mem_pool_bytes: usize,
 }
 
 impl Config {
@@ -350,7 +346,7 @@ impl Config {
             querier_ram_pool_metadata_bytes,
             querier_ram_pool_data_bytes,
             querier_max_concurrent_queries,
-            querier_max_table_query_bytes,
+            exec_mem_pool_bytes,
         } = self;
 
         let database_directory = object_store_config.database_directory.clone();
@@ -449,7 +445,7 @@ impl Config {
             ram_pool_metadata_bytes: querier_ram_pool_metadata_bytes,
             ram_pool_data_bytes: querier_ram_pool_data_bytes,
             max_concurrent_queries: querier_max_concurrent_queries,
-            max_table_query_bytes: querier_max_table_query_bytes,
+            exec_mem_pool_bytes,
             ingester_circuit_breaker_threshold: u64::MAX, // never for all-in-one-mode
         };
 
@@ -541,6 +537,7 @@ pub async fn command(config: Config) -> Result<()> {
             parquet_store.id(),
             Arc::clone(parquet_store.object_store()),
         )]),
+        mem_pool_size: querier_config.exec_mem_pool_bytes,
     }));
 
     info!("starting router");

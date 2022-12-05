@@ -299,8 +299,8 @@ impl TestConfig {
     }
 
     /// Configure maximum per-table query bytes for the querier.
-    pub fn with_querier_max_table_query_bytes(self, bytes: usize) -> Self {
-        self.with_env("INFLUXDB_IOX_MAX_TABLE_QUERY_BYTES", bytes.to_string())
+    pub fn with_querier_mem_pool_bytes(self, bytes: usize) -> Self {
+        self.with_env("INFLUXDB_IOX_EXEC_MEM_POOL_BYTES", bytes.to_string())
     }
 
     /// Changes the log to JSON for easier parsing.

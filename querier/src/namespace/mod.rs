@@ -59,7 +59,6 @@ impl QuerierNamespace {
         ingester_connection: Option<Arc<dyn IngesterConnection>>,
         query_log: Arc<QueryLog>,
         sharder: Arc<JumpHash<Arc<ShardIndex>>>,
-        max_table_query_bytes: usize,
         prune_metrics: Arc<PruneMetrics>,
     ) -> Self {
         let tables: HashMap<_, _> = ns
@@ -77,7 +76,6 @@ impl QuerierNamespace {
                     ingester_connection: ingester_connection.clone(),
                     chunk_adapter: Arc::clone(&chunk_adapter),
                     exec: Arc::clone(&exec),
-                    max_query_bytes: max_table_query_bytes,
                     prune_metrics: Arc::clone(&prune_metrics),
                 }));
 
@@ -107,7 +105,6 @@ impl QuerierNamespace {
         exec: Arc<Executor>,
         ingester_connection: Option<Arc<dyn IngesterConnection>>,
         sharder: Arc<JumpHash<Arc<ShardIndex>>>,
-        max_table_query_bytes: usize,
     ) -> Self {
         let time_provider = catalog_cache.time_provider();
         let chunk_adapter = Arc::new(ChunkAdapter::new(catalog_cache, metric_registry));
@@ -122,7 +119,6 @@ impl QuerierNamespace {
             ingester_connection,
             query_log,
             sharder,
-            max_table_query_bytes,
             prune_metrics,
         )
     }
