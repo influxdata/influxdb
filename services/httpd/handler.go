@@ -44,6 +44,8 @@ import (
 	"go.uber.org/zap"
 )
 
+var ErrDiagnosticsValueMissing = errors.New("expected diagnostic value missing")
+
 const (
 	// DefaultChunkSize specifies the maximum number of points that will
 	// be read before sending results back to the engine.
@@ -2249,6 +2251,40 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 		first = false
 		fmt.Fprintf(w, "\"cmdline\": %s", val)
 	}
+
+	// We're going to print some kind of crypto data, we just
+	// need to find the proper source for it.
+	{
+		var jv map[string]interface{}
+		val := diags["crypto"]
+		if val != nil {
+			jv, err = parseCryptoDiagnostics(val)
+			if err != nil {
+				if errors.Is(err, ErrDiagnosticsValueMissing) {
+					// log missing values, but don't error out
+					h.Logger.Warn(err.Error())
+				} else {
+					h.httpError(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+			}
+		} else {
+			jv = ossCryptoDiagnostics()
+		}
+
+		data, err := json.Marshal(jv)
+		if err != nil {
+			h.httpError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if !first {
+			fmt.Fprintln(w, ",")
+		}
+		first = false
+		fmt.Fprintf(w, "\"crypto\": %s", data)
+	}
+
 	if val := expvar.Get("memstats"); val != nil {
 		if !first {
 			fmt.Fprintln(w, ",")
@@ -2429,6 +2465,55 @@ func parseBuildInfo(d *diagnostics.Diagnostics) (map[string]interface{}, error) 
 			return nil, fmt.Errorf("no data for column %q", key)
 		}
 		m[key] = d.Rows[0][ci]
+	}
+	return m, nil
+}
+
+// ossCryptoDiagnostics creates a default crypto diagnostics map that
+// can be marshaled into JSON for /debug/vars.
+func ossCryptoDiagnostics() map[string]interface{} {
+	return map[string]interface{}{
+		"ensureFIPS":     false,
+		"FIPS":           false,
+		"implementation": "Go",
+		"passwordHash":   "bcrypt",
+	}
+}
+
+// parseCryptoDiagnostics converts the crypto diagnostics into an appropriate
+// format for marshaling to JSON in the /debug/vars format.
+func parseCryptoDiagnostics(d *diagnostics.Diagnostics) (map[string]interface{}, error) {
+	// We use ossCryptoDiagnostics as a template for columns we need to pull from d.
+	// If the column is missing from d, we will nil out the value in m to avoid lying
+	// about a value to the user and making troubleshooting harder.
+	m := ossCryptoDiagnostics()
+	var missing []string
+
+	for key := range m {
+		// Find the associated column.
+		ci := -1
+		for i, col := range d.Columns {
+			if col == key {
+				ci = i
+				break
+			}
+		}
+
+		// Don't error out if we can't find the column or cell for a given key, just nil
+		// out the value in m. There could still be other useful information we gather.
+		// Column not found or data cell not found
+		if ci == -1 || len(d.Rows) < 1 || len(d.Rows[0]) <= ci {
+			m[key] = nil
+			missing = append(missing, key)
+			continue
+		}
+
+		m[key] = d.Rows[0][ci]
+	}
+
+	if len(missing) > 0 {
+		// If you're getting this error, you probably need to update enterprise.
+		return m, fmt.Errorf("parseCryptoDiagnostics: missing %s: %w", strings.Join(missing, ","), ErrDiagnosticsValueMissing)
 	}
 	return m, nil
 }
