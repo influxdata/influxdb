@@ -27,7 +27,7 @@ futures = "0.3"
 hashbrown = { workspace = true }
 influxdb_influxql_parser = { path = "../influxdb_influxql_parser" }
 itertools = "0.10.5"
-object_store = "0.5.1"
+object_store = "0.5.2"
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.12"
 parquet_file = { path = "../parquet_file" }

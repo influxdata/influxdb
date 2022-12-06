@@ -13,7 +13,7 @@ futures = "0.3"
 generated_types = { path = "../generated_types" }
 influxdb_iox_client = { path = "../influxdb_iox_client" }
 iox_catalog = { path = "../iox_catalog" }
-object_store = { version = "0.5.1", features = ["aws"] }
+object_store = { version = "0.5.2", features = ["aws"] }
 observability_deps = { path = "../observability_deps" }
 schema = { path = "../schema" }
 serde = { version = "1.0", features = ["derive"] }

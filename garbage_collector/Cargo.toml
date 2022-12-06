@@ -13,7 +13,7 @@ data_types = { path = "../data_types" }
 futures = "0.3"
 humantime = "2.1.0"
 iox_catalog = { path = "../iox_catalog" }
-object_store = { version = "0.5.1" }
+object_store = { version = "0.5.2" }
 observability_deps = { path = "../observability_deps" }
 snafu = "0.7"
 tokio = { version = "1", features = ["macros", "rt", "sync"] }
