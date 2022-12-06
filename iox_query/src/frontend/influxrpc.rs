@@ -25,7 +25,13 @@ use datafusion_util::AsExpr;
 use futures::{Stream, StreamExt, TryStreamExt};
 use hashbrown::HashSet;
 use observability_deps::tracing::{debug, trace, warn};
-use predicate::{rpc_predicate::InfluxRpcPredicate, Predicate, PredicateMatch};
+use predicate::{
+    rpc_predicate::{
+        InfluxRpcPredicate, FIELD_COLUMN_NAME, GROUP_KEY_SPECIAL_START, GROUP_KEY_SPECIAL_STOP,
+        MEASUREMENT_COLUMN_NAME,
+    },
+    Predicate, PredicateMatch,
+};
 use query_functions::{
     group_by::{Aggregate, WindowDuration},
     make_window_bound_expr,
@@ -104,13 +110,13 @@ pub enum Error {
     DuplicateGroupColumn { column_name: String },
 
     #[snafu(display(
-        "Group column '{}' not found in tag columns: {}",
+        "Group column '{}' not found in tag columns: {:?}",
         column_name,
         all_tag_column_names
     ))]
     GroupColumnNotFound {
         column_name: String,
-        all_tag_column_names: String,
+        all_tag_column_names: Vec<String>,
     },
 
     #[snafu(display("Error creating aggregate expression:  {}", source))]
@@ -160,12 +166,12 @@ impl Error {
             | Self::CastingAggregates { source, .. } => {
                 DataFusionError::Context(format!("{method}: {msg}"), Box::new(source))
             }
-            e @ (Self::CreatingStringSet { .. }
-            | Self::TableRemoved { .. }
+            Self::TableRemoved { .. }
             | Self::InvalidTagColumn { .. }
-            | Self::InternalInvalidTagType { .. }
             | Self::DuplicateGroupColumn { .. }
-            | Self::GroupColumnNotFound { .. }
+            | Self::GroupColumnNotFound { .. } => DataFusionError::Plan(msg),
+            e @ (Self::CreatingStringSet { .. }
+            | Self::InternalInvalidTagType { .. }
             | Self::CreatingAggregates { .. }
             | Self::CreatingScan { .. }
             | Self::InternalUnexpectedNoneAggregate {}
@@ -822,36 +828,78 @@ impl InfluxRpcPlanner {
             .table_predicates(namespace.as_meta())
             .context(CreatingPredicatesSnafu)?;
 
-        let plans = create_plans(
-            namespace,
-            &table_predicates,
-            ctx,
-            |ctx, table_name, predicate, chunks, schema| match agg {
-                Aggregate::None => Self::read_filter_plan(
-                    ctx.child_ctx("read_filter plan"),
-                    table_name,
-                    Arc::clone(&schema),
-                    predicate,
-                    chunks,
-                ),
-                _ => Self::read_group_plan(
-                    ctx.child_ctx("read_group plan"),
-                    table_name,
-                    schema,
-                    predicate,
-                    agg,
-                    chunks,
-                ),
-            },
-        )
-        .await?;
-
         // Note always group (which will resort the frames)
         // by tag, even if there are 0 columns
         let group_columns = group_columns
             .iter()
             .map(|s| Arc::from(s.as_ref()))
-            .collect();
+            .collect::<Vec<Arc<str>>>();
+        let mut group_columns_set: HashSet<Arc<str>> = HashSet::with_capacity(group_columns.len());
+        for group_col in &group_columns {
+            match group_columns_set.entry(Arc::clone(group_col)) {
+                hashbrown::hash_set::Entry::Occupied(_) => {
+                    return Err(Error::DuplicateGroupColumn {
+                        column_name: group_col.to_string(),
+                    });
+                }
+                hashbrown::hash_set::Entry::Vacant(v) => {
+                    v.insert();
+                }
+            }
+        }
+
+        let plans = create_plans(
+            namespace,
+            &table_predicates,
+            ctx,
+            |ctx, table_name, predicate, chunks, schema| {
+                // check group_columns for unknown columns
+                let known_tags_vec = schema
+                    .tags_iter()
+                    .map(|f| f.name().clone())
+                    .collect::<Vec<_>>();
+                let known_tags_set = known_tags_vec
+                    .iter()
+                    .map(|s| s.as_str())
+                    .collect::<HashSet<_>>();
+                for group_col in &group_columns {
+                    if (group_col.as_ref() == FIELD_COLUMN_NAME)
+                        || (group_col.as_ref() == MEASUREMENT_COLUMN_NAME)
+                        || (group_col.as_ref() == GROUP_KEY_SPECIAL_START)
+                        || (group_col.as_ref() == GROUP_KEY_SPECIAL_STOP)
+                    {
+                        continue;
+                    }
+
+                    ensure!(
+                        known_tags_set.contains(group_col.as_ref()),
+                        GroupColumnNotFoundSnafu {
+                            column_name: group_col.as_ref(),
+                            all_tag_column_names: known_tags_vec.clone(),
+                        }
+                    );
+                }
+
+                match agg {
+                    Aggregate::None => Self::read_filter_plan(
+                        ctx.child_ctx("read_filter plan"),
+                        table_name,
+                        Arc::clone(&schema),
+                        predicate,
+                        chunks,
+                    ),
+                    _ => Self::read_group_plan(
+                        ctx.child_ctx("read_group plan"),
+                        table_name,
+                        schema,
+                        predicate,
+                        agg,
+                        chunks,
+                    ),
+                }
+            },
+        )
+        .await?;
 
         Ok(SeriesSetPlans::new(plans).grouped_by(group_columns))
     }

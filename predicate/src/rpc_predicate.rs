@@ -57,6 +57,24 @@ pub const FIELD_COLUMN_NAME: &str = "_field";
 /// into multiple expressions (one for each field column).
 pub const VALUE_COLUMN_NAME: &str = "_value";
 
+/// Special group key for `read_group` requests.
+///
+/// Treat these specially and use `""` as a placeholder value (instead of a real column) to mirror what TSM does.
+/// See <https://github.com/influxdata/influxdb_iox/issues/2693#issuecomment-947695442>
+/// for more details.
+///
+/// See also [`GROUP_KEY_SPECIAL_STOP`].
+pub const GROUP_KEY_SPECIAL_START: &str = "_start";
+
+/// Special group key for `read_group` requests.
+///
+/// Treat these specially and use `""` as a placeholder value (instead of a real column) to mirror what TSM does.
+/// See <https://github.com/influxdata/influxdb_iox/issues/2693#issuecomment-947695442>
+/// for more details.
+///
+/// See also [`GROUP_KEY_SPECIAL_START`].
+pub const GROUP_KEY_SPECIAL_STOP: &str = "_stop";
+
 /// [`InfluxRpcPredicate`] implements the semantics of the InfluxDB
 /// Storage gRPC and handles mapping details such as `_field` and
 /// `_measurement` predicates into the corresponding IOx structures.

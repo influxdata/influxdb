@@ -12,6 +12,7 @@ use arrow::{
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 
 use futures::{ready, Stream, StreamExt, TryStreamExt};
+use predicate::rpc_predicate::{GROUP_KEY_SPECIAL_START, GROUP_KEY_SPECIAL_STOP};
 use snafu::{OptionExt, Snafu};
 use std::{
     collections::VecDeque,
@@ -515,8 +516,7 @@ impl GroupGenerator {
                 })
             })
             .try_collect::<Vec<_>>()
-            .await
-            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+            .await?;
 
         // Potential optimization is to skip this sort if we are
         // grouping by a prefix of the tags for a single measurement
@@ -638,7 +638,9 @@ impl SortableSeries {
                         // treat these specially and use value "" to mirror what TSM does
                         // see https://github.com/influxdata/influxdb_iox/issues/2693#issuecomment-947695442
                         // for more details
-                        if col.as_ref() == "_start" || col.as_ref() == "_stop" {
+                        if col.as_ref() == GROUP_KEY_SPECIAL_START
+                            || col.as_ref() == GROUP_KEY_SPECIAL_STOP
+                        {
                             Some(Arc::from(""))
                         } else {
                             None

@@ -207,6 +207,90 @@ async fn test_read_group_periods() {
     .await
 }
 
+#[tokio::test]
+async fn test_group_key_not_found() {
+    do_test_invalid_group_key(InvalidGroupKey::ColNotFound).await;
+}
+
+#[tokio::test]
+async fn test_not_a_tag() {
+    do_test_invalid_group_key(InvalidGroupKey::NotATag).await;
+}
+
+#[tokio::test]
+async fn test_duplicate_group_keys() {
+    do_test_invalid_group_key(InvalidGroupKey::DuplicateKeys).await;
+}
+
+#[tokio::test]
+async fn test_group_by_time() {
+    do_test_invalid_group_key(InvalidGroupKey::Time).await;
+}
+
+enum InvalidGroupKey {
+    ColNotFound,
+    NotATag,
+    DuplicateKeys,
+    Time,
+}
+
+async fn do_test_invalid_group_key(variant: InvalidGroupKey) {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol("measurement,tag=foo field=1 1000".to_string()),
+            Step::WaitForReadable,
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let grpc_connection = state
+                        .cluster()
+                        .querier()
+                        .querier_grpc_connection()
+                        .into_grpc_connection();
+                    let mut storage_client = StorageClient::new(grpc_connection);
+
+                    let group_keys = match variant {
+                        InvalidGroupKey::ColNotFound => ["tag", "unknown_tag"],
+                        InvalidGroupKey::NotATag => ["tag", "field"],
+                        InvalidGroupKey::DuplicateKeys => ["tag", "tag"],
+                        InvalidGroupKey::Time => ["tag", "time"],
+                    };
+
+                    let read_group_request = GrpcRequestBuilder::new()
+                        .timestamp_range(0, 2000)
+                        .field_predicate("field")
+                        .group_keys(group_keys)
+                        .group(Group::By)
+                        .aggregate_type(AggregateType::Last)
+                        .source(state.cluster())
+                        .build_read_group();
+
+                    let status = storage_client
+                        .read_group(read_group_request)
+                        .await
+                        .unwrap_err();
+                    assert_eq!(
+                        status.code(),
+                        tonic::Code::InvalidArgument,
+                        "Wrong status code: {}\n\nStatus:\n{}",
+                        status.code(),
+                        status,
+                    );
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
 /// Sends the specified line protocol to a server, runs a read_grou
 /// gRPC request, and compares it against expected frames
 async fn do_read_group_test(
