@@ -2616,6 +2616,12 @@ func TestHandlerDebugVars(t *testing.T) {
 		return res
 	}
 
+	newDiagFn := func(d map[string]*diagnostics.Diagnostics) func() (map[string]*diagnostics.Diagnostics, error) {
+		return func() (map[string]*diagnostics.Diagnostics, error) {
+			return d, nil
+		}
+	}
+
 	var Ignored = []string{"memstats", "cmdline"}
 	read := func(t *testing.T, b *bytes.Buffer, del ...string) map[string]interface{} {
 		t.Helper()
@@ -2645,7 +2651,6 @@ func TestHandlerDebugVars(t *testing.T) {
 			h := NewHandler(false)
 			h.Monitor.StatisticsFn = func(_ map[string]string) ([]*monitor.Statistic, error) {
 				return stats(
-					stat("crypto", tags("FIPS", "ensureFIPS", "passwordHash", "implementation"), nil),
 					stat("database", tags("database", "foo"), nil),
 					stat("hh", tags("path", "/mnt/foo/bar"), nil),
 					stat("httpd", tags("bind", "127.0.0.1:8088", "proto", "https"), nil),
@@ -2653,6 +2658,7 @@ func TestHandlerDebugVars(t *testing.T) {
 					stat("shard", tags("path", "/mnt/foo", "id", "111"), nil),
 				)
 			}
+			h.Monitor.DiagnosticsFn = newDiagFn(map[string]*diagnostics.Diagnostics{})
 			req := MustNewRequest("GET", "/debug/vars", nil)
 			w := httptest.NewRecorder()
 			h.ServeHTTP(w, req)
@@ -2664,6 +2670,7 @@ func TestHandlerDebugVars(t *testing.T) {
 		})
 
 		t.Run("generates numbered keys for collisions", func(t *testing.T) {
+			// This also implicitly tests the case where no `crypto` diagnostics are not set by application.
 			h := NewHandler(false)
 			h.Monitor.StatisticsFn = func(_ map[string]string) ([]*monitor.Statistic, error) {
 				return stats(
@@ -2710,6 +2717,35 @@ func TestHandlerDebugVars(t *testing.T) {
 			}
 		})
 	})
+
+	t.Run("checks crypto diagnostic handling", func(t *testing.T) {
+		h := NewHandler(false)
+		// intentionally leave out "ensureFIPS" to test that code path
+		h.Monitor.DiagnosticsFn = newDiagFn(
+			map[string]*diagnostics.Diagnostics{
+				"crypto": diagnostics.RowFromMap(map[string]interface{}{
+					"FIPS":           true,
+					"passwordHash":   "pbkdf2-sha256",
+					"implementation": "BoringCrypto",
+				}),
+			})
+		req := MustNewRequest("GET", "/debug/vars", nil)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		got := read(t, w.Body, Ignored...)
+		exp := map[string]interface{}{
+			"crypto": map[string]interface{}{
+				"FIPS":           true,
+				"ensureFIPS":     nil,
+				"passwordHash":   "pbkdf2-sha256",
+				"implementation": "BoringCrypto",
+			},
+		}
+		if !cmp.Equal(got, exp) {
+			t.Errorf("unexpected keys; -got/+exp\n%s", cmp.Diff(got, exp))
+		}
+	})
+
 }
 
 // NewHandler represents a test wrapper for httpd.Handler.

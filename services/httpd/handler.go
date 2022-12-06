@@ -44,6 +44,8 @@ import (
 	"go.uber.org/zap"
 )
 
+var ErrDiagnosticsValueMissing = errors.New("expected diagnostic value missing")
+
 const (
 	// DefaultChunkSize specifies the maximum number of points that will
 	// be read before sending results back to the engine.
@@ -2258,8 +2260,13 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 		if val != nil {
 			jv, err = parseCryptoDiagnostics(val)
 			if err != nil {
-				h.httpError(w, err.Error(), http.StatusInternalServerError)
-				return
+				if errors.Is(err, ErrDiagnosticsValueMissing) {
+					// log missing values, but don't error out
+					h.Logger.Warn(err.Error())
+				} else {
+					h.httpError(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
 			}
 		} else {
 			jv = ossCryptoDiagnostics()
@@ -2476,8 +2483,11 @@ func ossCryptoDiagnostics() map[string]interface{} {
 // parseCryptoDiagnostics converts the crypto diagnostics into an appropriate
 // format for marshaling to JSON in the /debug/vars format.
 func parseCryptoDiagnostics(d *diagnostics.Diagnostics) (map[string]interface{}, error) {
-	// No defaults (eg ossCryptoDiagnostics) to avoid lying if values are missing
-	m := make(map[string]interface{})
+	// We use ossCryptoDiagnostics as a template for columns we need to pull from d.
+	// If the column is missing from d, we will nil out the value in m to avoid lying
+	// about a value to the user and making troubleshooting harder.
+	m := ossCryptoDiagnostics()
+	var missing []string
 
 	for key := range m {
 		// Find the associated column.
@@ -2489,16 +2499,21 @@ func parseCryptoDiagnostics(d *diagnostics.Diagnostics) (map[string]interface{},
 			}
 		}
 
-		// Don't error out if we can't find the column or cell for a given key.
-		// There could still be useful information we gather.
-		if ci == -1 { // column not found
-			continue
-		}
-		if len(d.Rows) < 1 || len(d.Rows[0]) <= ci { // data cell not found
+		// Don't error out if we can't find the column or cell for a given key, just nil
+		// out the value in m. There could still be other useful information we gather.
+		// Column not found or data cell not found
+		if ci == -1 || len(d.Rows) < 1 || len(d.Rows[0]) <= ci {
+			m[key] = nil
+			missing = append(missing, key)
 			continue
 		}
 
 		m[key] = d.Rows[0][ci]
+	}
+
+	if len(missing) > 0 {
+		// If you're getting this error, you probably need to update enterprise.
+		return m, fmt.Errorf("parseCryptoDiagnostics: missing %s: %w", strings.Join(missing, ","), ErrDiagnosticsValueMissing)
 	}
 	return m, nil
 }
