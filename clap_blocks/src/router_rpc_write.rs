@@ -57,14 +57,4 @@ pub struct RouterRpcWriteConfig {
         action
     )]
     pub query_pool_name: String,
-
-    /// Retention period to use when auto-creating namespaces.
-    /// For infinite retention, leave this unset and it will default to `None`.
-    /// Setting it to zero will not make it infinite.
-    #[clap(
-        long = "new-namespace-retention-hours",
-        env = "INFLUXDB_IOX_NEW_NAMESPACE_RETENTION_HOURS",
-        action
-    )]
-    pub new_namespace_retention_hours: Option<u64>,
 }

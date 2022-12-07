@@ -114,6 +114,10 @@ impl Error {
                 StatusCode::UNSUPPORTED_MEDIA_TYPE
             }
             Error::DmlHandler(err) => StatusCode::from(err),
+            // Error from the namespace resolver is 4xx if autocreation is disabled, 5xx otherwise
+            Error::NamespaceResolver(crate::namespace_resolver::Error::Create(
+                crate::namespace_resolver::ns_autocreation::NamespaceCreationError::Reject(_),
+            )) => StatusCode::BAD_REQUEST,
             Error::NamespaceResolver(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Error::RequestLimit => StatusCode::SERVICE_UNAVAILABLE,
         }

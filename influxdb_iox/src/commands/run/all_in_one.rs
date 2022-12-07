@@ -413,6 +413,7 @@ impl Config {
             query_pool_name: QUERY_POOL_NAME.to_string(),
             http_request_limit: 1_000,
             new_namespace_retention_hours: None, // infinite retention
+            namespace_autocreation_enabled: true,
         };
 
         // create a CompactorConfig for the all in one server based on

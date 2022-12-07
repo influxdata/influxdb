@@ -9,12 +9,27 @@ use thiserror::Error;
 use super::NamespaceResolver;
 use crate::namespace_cache::NamespaceCache;
 
+/// What to do when the namespace doesn't exist
+#[derive(Debug)]
+pub enum MissingNamespaceAction {
+    /// Automatically create the namespace using the given retention period.
+    AutoCreate(Option<i64>),
+
+    /// Reject the write.
+    Reject,
+}
+
 /// An error auto-creating the request namespace.
 #[derive(Debug, Error)]
 pub enum NamespaceCreationError {
     /// An error returned from a namespace creation request.
     #[error("failed to create namespace: {0}")]
     Create(iox_catalog::interface::Error),
+
+    /// The write is to be rejected because the namespace doesn't exist and auto-creation is
+    /// disabled.
+    #[error("rejecting write due to non-existing namespace: {0}")]
+    Reject(String),
 }
 
 /// A layer to populate the [`Catalog`] with all the namespaces the router
@@ -30,7 +45,7 @@ pub struct NamespaceAutocreation<C, T> {
 
     topic_id: TopicId,
     query_id: QueryPoolId,
-    retention_period_ns: Option<i64>,
+    action: MissingNamespaceAction,
 }
 
 impl<C, T> NamespaceAutocreation<C, T> {
@@ -48,7 +63,7 @@ impl<C, T> NamespaceAutocreation<C, T> {
         catalog: Arc<dyn Catalog>,
         topic_id: TopicId,
         query_id: QueryPoolId,
-        retention_period_ns: Option<i64>,
+        action: MissingNamespaceAction,
     ) -> Self {
         Self {
             inner,
@@ -56,7 +71,7 @@ impl<C, T> NamespaceAutocreation<C, T> {
             catalog,
             topic_id,
             query_id,
-            retention_period_ns,
+            action,
         }
     }
 }
@@ -74,32 +89,40 @@ where
         namespace: &NamespaceName<'static>,
     ) -> Result<NamespaceId, super::Error> {
         if self.cache.get_schema(namespace).is_none() {
-            trace!(%namespace, "namespace auto-create cache miss");
+            trace!(%namespace, "namespace not found in cache");
 
             let mut repos = self.catalog.repositories().await;
 
-            match repos
-                .namespaces()
-                .create(
-                    namespace.as_str(),
-                    self.retention_period_ns,
-                    self.topic_id,
-                    self.query_id,
-                )
-                .await
-            {
-                Ok(_) => {
-                    debug!(%namespace, "created namespace");
+            match self.action {
+                MissingNamespaceAction::Reject => {
+                    debug!(%namespace, "namespace not in catalog and autocreation disabled");
+                    return Err(NamespaceCreationError::Reject(namespace.into()).into());
                 }
-                Err(iox_catalog::interface::Error::NameExists { .. }) => {
-                    // Either the cache has not yet converged to include this
-                    // namespace, or another thread raced populating the catalog
-                    // and beat this thread to it.
-                    debug!(%namespace, "spurious namespace create failed");
-                }
-                Err(e) => {
-                    error!(error=%e, %namespace, "failed to auto-create namespace");
-                    return Err(NamespaceCreationError::Create(e).into());
+                MissingNamespaceAction::AutoCreate(retention_period_ns) => {
+                    match repos
+                        .namespaces()
+                        .create(
+                            namespace.as_str(),
+                            retention_period_ns,
+                            self.topic_id,
+                            self.query_id,
+                        )
+                        .await
+                    {
+                        Ok(_) => {
+                            debug!(%namespace, "created namespace");
+                        }
+                        Err(iox_catalog::interface::Error::NameExists { .. }) => {
+                            // Either the cache has not yet converged to include this
+                            // namespace, or another thread raced populating the catalog
+                            // and beat this thread to it.
+                            debug!(%namespace, "spurious namespace create failed");
+                        }
+                        Err(e) => {
+                            error!(error=%e, %namespace, "failed to auto-create namespace");
+                            return Err(NamespaceCreationError::Create(e).into());
+                        }
+                    }
                 }
             }
         }
@@ -112,6 +135,7 @@ where
 mod tests {
     use std::sync::Arc;
 
+    use assert_matches::assert_matches;
     use data_types::{Namespace, NamespaceId, NamespaceSchema};
     use iox_catalog::mem::MemCatalog;
 
@@ -152,7 +176,7 @@ mod tests {
             Arc::clone(&catalog),
             TopicId::new(42),
             QueryPoolId::new(42),
-            TEST_RETENTION_PERIOD_NS,
+            MissingNamespaceAction::AutoCreate(TEST_RETENTION_PERIOD_NS),
         );
 
         // Drive the code under test
@@ -190,7 +214,7 @@ mod tests {
             Arc::clone(&catalog),
             TopicId::new(42),
             QueryPoolId::new(42),
-            TEST_RETENTION_PERIOD_NS,
+            MissingNamespaceAction::AutoCreate(TEST_RETENTION_PERIOD_NS),
         );
 
         let created_id = creator
@@ -221,5 +245,35 @@ mod tests {
                 retention_period_ns: TEST_RETENTION_PERIOD_NS,
             }
         );
+    }
+
+    #[tokio::test]
+    async fn test_reject() {
+        let ns = NamespaceName::try_from("bananas").unwrap();
+
+        let cache = Arc::new(MemoryNamespaceCache::default());
+        let metrics = Arc::new(metric::Registry::new());
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
+
+        let creator = NamespaceAutocreation::new(
+            MockNamespaceResolver::default().with_mapping(ns.clone(), NamespaceId::new(1)),
+            cache,
+            Arc::clone(&catalog),
+            TopicId::new(42),
+            QueryPoolId::new(42),
+            MissingNamespaceAction::Reject,
+        );
+
+        // It should not autocreate because we specified "rejection" behaviour, above
+        assert_matches!(
+            creator.get_namespace_id(&ns).await,
+            Err(crate::namespace_resolver::Error::Create(
+                NamespaceCreationError::Reject(_ns)
+            ))
+        );
+
+        // Make double-sure it wasn't created in the catalog
+        let mut repos = catalog.repositories().await;
+        assert_matches!(repos.namespaces().get_by_name(ns.as_str()).await, Ok(None));
     }
 }
