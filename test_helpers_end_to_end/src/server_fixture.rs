@@ -1,4 +1,3 @@
-use assert_cmd::prelude::*;
 use futures::prelude::*;
 use influxdb_iox_client::connection::Connection;
 use observability_deps::tracing::{info, warn};
@@ -7,7 +6,7 @@ use std::{
     fs::OpenOptions,
     ops::DerefMut,
     path::Path,
-    process::{Child, Command},
+    process::Child,
     str,
     sync::{Arc, Weak},
     time::Duration,
@@ -340,7 +339,11 @@ impl TestServer {
         // Build the command
         // This will inherit environment from the test runner
         // in particular `LOG_FILTER`
-        let mut command = Command::cargo_bin("influxdb_iox").unwrap();
+        let mut command = escargot::CargoBuild::new()
+            .bin("influxdb_iox")
+            .run()
+            .unwrap()
+            .command();
         let mut command = command
             .arg("run")
             .arg(run_command)
