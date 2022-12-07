@@ -25,13 +25,10 @@ mod table;
 mod tombstone;
 
 pub use cache::CatalogCache as QuerierCatalogCache;
-pub use database::{
-    Database, Error as QuerierDatabaseError, QuerierDatabase, QuerierRpcWriteDatabase,
-};
+pub use database::{Error as QuerierDatabaseError, QuerierDatabase};
 pub use handler::{QuerierHandler, QuerierHandlerImpl};
 pub use ingester::{
-    create_ingester2_connection, create_ingester_connection_for_testing,
-    create_ingester_connections_by_shard,
+    create_ingester_connection_for_testing, create_ingester_connections,
     flight_client::{
         Error as IngesterFlightClientError, FlightClient as IngesterFlightClient,
         QueryData as IngesterFlightClientQueryData,

@@ -1,8 +1,5 @@
 use async_trait::async_trait;
-use clap_blocks::{
-    querier::{IngesterAddresses, QuerierConfig},
-    querier_rpc_write::QuerierRpcWriteConfig,
-};
+use clap_blocks::querier::{IngesterAddresses, QuerierConfig};
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
 use iox_query::exec::{Executor, ExecutorType};
@@ -18,11 +15,9 @@ use ioxd_common::{
 use metric::Registry;
 use object_store::DynObjectStore;
 use querier::{
-    create_ingester2_connection, create_ingester_connections_by_shard, Database,
-    QuerierCatalogCache, QuerierDatabase, QuerierHandler, QuerierHandlerImpl,
-    QuerierRpcWriteDatabase, QuerierServer,
+    create_ingester_connections, QuerierCatalogCache, QuerierDatabase, QuerierHandler,
+    QuerierHandlerImpl, QuerierServer,
 };
-use service_common::QueryNamespaceProvider;
 use std::{
     fmt::{Debug, Display},
     sync::Arc,
@@ -33,24 +28,22 @@ use trace::TraceCollector;
 
 mod rpc;
 
-pub struct QuerierServerType<C: QuerierHandler, D: Database + QueryNamespaceProvider> {
-    database: Arc<D>,
+pub struct QuerierServerType<C: QuerierHandler> {
+    database: Arc<QuerierDatabase>,
     server: QuerierServer<C>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
 }
 
-impl<C: QuerierHandler, D: Database + QueryNamespaceProvider> std::fmt::Debug
-    for QuerierServerType<C, D>
-{
+impl<C: QuerierHandler> std::fmt::Debug for QuerierServerType<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Querier")
     }
 }
 
-impl<C: QuerierHandler, D: Database + QueryNamespaceProvider> QuerierServerType<C, D> {
+impl<C: QuerierHandler> QuerierServerType<C> {
     pub fn new(
         server: QuerierServer<C>,
-        database: Arc<D>,
+        database: Arc<QuerierDatabase>,
         common_state: &CommonServerState,
     ) -> Self {
         Self {
@@ -62,9 +55,7 @@ impl<C: QuerierHandler, D: Database + QueryNamespaceProvider> QuerierServerType<
 }
 
 #[async_trait]
-impl<C: QuerierHandler + std::fmt::Debug + 'static, D: Database + QueryNamespaceProvider> ServerType
-    for QuerierServerType<C, D>
-{
+impl<C: QuerierHandler + std::fmt::Debug + 'static> ServerType for QuerierServerType<C> {
     /// Return the [`metric::Registry`] used by the compactor.
     fn metric_registry(&self) -> Arc<Registry> {
         self.server.metric_registry()
@@ -148,18 +139,6 @@ impl HttpApiErrorSource for IoxHttpError {
     }
 }
 
-/// Arguments required to create a [`ServerType`] for the querier using the RPC write path.
-#[derive(Debug)]
-pub struct QuerierRpcWriteServerTypeArgs<'a> {
-    pub common_state: &'a CommonServerState,
-    pub metric_registry: Arc<metric::Registry>,
-    pub catalog: Arc<dyn Catalog>,
-    pub object_store: Arc<DynObjectStore>,
-    pub exec: Arc<Executor>,
-    pub time_provider: Arc<dyn TimeProvider>,
-    pub querier_config: QuerierRpcWriteConfig,
-}
-
 /// Arguments required to create a [`ServerType`] for the querier.
 #[derive(Debug)]
 pub struct QuerierServerTypeArgs<'a> {
@@ -177,64 +156,6 @@ pub struct QuerierServerTypeArgs<'a> {
 pub enum Error {
     #[error("querier error: {0}")]
     Querier(#[from] querier::QuerierDatabaseError),
-}
-
-/// Instantiate a querier server that uses the RPC write path
-pub async fn create_querier_grpc_write_server_type(
-    args: QuerierRpcWriteServerTypeArgs<'_>,
-) -> Result<Arc<dyn ServerType>, Error> {
-    let catalog_cache = Arc::new(QuerierCatalogCache::new(
-        Arc::clone(&args.catalog),
-        args.time_provider,
-        Arc::clone(&args.metric_registry),
-        Arc::clone(&args.object_store),
-        args.querier_config.ram_pool_metadata_bytes,
-        args.querier_config.ram_pool_data_bytes,
-        &Handle::current(),
-    ));
-
-    // register cached object store with the execution context
-    let parquet_store = catalog_cache.parquet_store();
-    let existing = args
-        .exec
-        .new_context(ExecutorType::Query)
-        .inner()
-        .runtime_env()
-        .register_object_store(
-            "iox",
-            parquet_store.id(),
-            Arc::clone(parquet_store.object_store()),
-        );
-    assert!(existing.is_none());
-
-    let ingester_connection = create_ingester2_connection(
-        &args.querier_config.ingester_addresses,
-        Arc::clone(&catalog_cache),
-        args.querier_config.ingester_circuit_breaker_threshold,
-    );
-
-    let database = Arc::new(
-        QuerierRpcWriteDatabase::new(
-            catalog_cache,
-            Arc::clone(&args.metric_registry),
-            args.exec,
-            ingester_connection,
-            args.querier_config.max_concurrent_queries,
-        )
-        .await?,
-    );
-    let querier_handler = Arc::new(QuerierHandlerImpl::new(
-        args.catalog,
-        Arc::clone(&database) as _,
-        Arc::clone(&args.object_store),
-    ));
-
-    let querier = QuerierServer::new(args.metric_registry, querier_handler);
-    Ok(Arc::new(QuerierServerType::new(
-        querier,
-        database,
-        args.common_state,
-    )))
 }
 
 /// Instantiate a querier server
@@ -267,8 +188,15 @@ pub async fn create_querier_server_type(
 
     let ingester_connection = match args.ingester_addresses {
         IngesterAddresses::None => None,
-        IngesterAddresses::ByShardIndex(map) => Some(create_ingester_connections_by_shard(
-            map,
+        IngesterAddresses::ByShardIndex(map) => Some(create_ingester_connections(
+            Some(map),
+            None,
+            Arc::clone(&catalog_cache),
+            args.querier_config.ingester_circuit_breaker_threshold,
+        )),
+        IngesterAddresses::List(list) => Some(create_ingester_connections(
+            None,
+            Some(list),
             Arc::clone(&catalog_cache),
             args.querier_config.ingester_circuit_breaker_threshold,
         )),
@@ -281,12 +209,13 @@ pub async fn create_querier_server_type(
             args.exec,
             ingester_connection,
             args.querier_config.max_concurrent_queries(),
+            args.querier_config.rpc_write(),
         )
         .await?,
     );
     let querier_handler = Arc::new(QuerierHandlerImpl::new(
         args.catalog,
-        Arc::clone(&database) as _,
+        Arc::clone(&database),
         Arc::clone(&args.object_store),
     ));
 

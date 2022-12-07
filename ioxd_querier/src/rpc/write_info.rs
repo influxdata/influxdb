@@ -4,29 +4,29 @@ use generated_types::influxdata::iox::ingester::v1::{
     self as proto,
     write_info_service_server::{WriteInfoService, WriteInfoServiceServer},
 };
-use querier::Database;
+use querier::QuerierDatabase;
 use std::sync::Arc;
 
 /// Acquire a [`WriteInfoService`] gRPC service implementation.
-pub fn write_info_service<S: Database + Send + Sync + 'static>(
-    server: Arc<S>,
+pub fn write_info_service(
+    server: Arc<QuerierDatabase>,
 ) -> WriteInfoServiceServer<impl WriteInfoService> {
     WriteInfoServiceServer::new(QuerierWriteInfoServiceImpl::new(server))
 }
 
 #[derive(Debug)]
-struct QuerierWriteInfoServiceImpl<S> {
-    server: Arc<S>,
+struct QuerierWriteInfoServiceImpl {
+    server: Arc<QuerierDatabase>,
 }
 
-impl<S> QuerierWriteInfoServiceImpl<S> {
-    pub fn new(server: Arc<S>) -> Self {
+impl QuerierWriteInfoServiceImpl {
+    pub fn new(server: Arc<QuerierDatabase>) -> Self {
         Self { server }
     }
 }
 
 #[tonic::async_trait]
-impl<S: Database + Send + Sync + 'static> WriteInfoService for QuerierWriteInfoServiceImpl<S> {
+impl WriteInfoService for QuerierWriteInfoServiceImpl {
     async fn get_write_info(
         &self,
         request: tonic::Request<proto::GetWriteInfoRequest>,

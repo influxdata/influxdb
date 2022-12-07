@@ -96,6 +96,12 @@ pub async fn command(config: Config) -> Result<(), Error> {
     let num_threads = num_query_threads.unwrap_or_else(num_cpus::get);
     info!(%num_threads, "using specified number of threads per thread pool");
 
+    if config.querier_config.rpc_write() {
+        info!("using the RPC write path");
+    } else {
+        info!("using the write buffer path");
+    }
+
     let ingester_addresses = config.querier_config.ingester_addresses()?;
     info!(?ingester_addresses, "using ingester addresses");
 

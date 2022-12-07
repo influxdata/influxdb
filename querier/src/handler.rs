@@ -22,7 +22,7 @@ use thiserror::Error;
 use tokio::task::{JoinError, JoinHandle};
 use tokio_util::sync::CancellationToken;
 
-use crate::{database::Database, poison::PoisonCabinet};
+use crate::{database::QuerierDatabase, poison::PoisonCabinet};
 
 #[derive(Debug, Error)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -65,7 +65,7 @@ pub struct QuerierHandlerImpl {
     catalog: Arc<dyn Catalog>,
 
     /// Database that handles query operation
-    database: Arc<dyn Database>,
+    database: Arc<QuerierDatabase>,
 
     /// The object store
     object_store: Arc<dyn ObjectStore>,
@@ -85,7 +85,7 @@ impl QuerierHandlerImpl {
     /// Initialize the Querier
     pub fn new(
         catalog: Arc<dyn Catalog>,
-        database: Arc<dyn Database>,
+        database: Arc<QuerierDatabase>,
         object_store: Arc<dyn ObjectStore>,
     ) -> Self {
         let shutdown = CancellationToken::new();
@@ -159,7 +159,7 @@ impl Drop for QuerierHandlerImpl {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{cache::CatalogCache, create_ingester_connection_for_testing, QuerierDatabase};
+    use crate::{cache::CatalogCache, create_ingester_connection_for_testing};
     use data_types::ShardIndex;
     use iox_catalog::mem::MemCatalog;
     use iox_query::exec::Executor;
@@ -224,6 +224,7 @@ mod tests {
                     exec,
                     Some(create_ingester_connection_for_testing()),
                     QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
+                    false,
                 )
                 .await
                 .unwrap(),

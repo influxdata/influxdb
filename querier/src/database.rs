@@ -12,7 +12,7 @@ use iox_query::exec::Executor;
 use service_common::QueryNamespaceProvider;
 use sharder::JumpHash;
 use snafu::Snafu;
-use std::{collections::BTreeSet, fmt::Debug, sync::Arc};
+use std::{collections::BTreeSet, sync::Arc};
 use trace::span::{Span, SpanRecorder};
 use tracker::{
     AsyncSemaphoreMetrics, InstrumentedAsyncOwnedSemaphorePermit, InstrumentedAsyncSemaphore,
@@ -32,19 +32,6 @@ pub enum Error {
     },
     #[snafu(display("No shards loaded"))]
     NoShards,
-}
-
-/// Shared Querier Database behavior whether using the RPC write path or not
-#[async_trait]
-pub trait Database: Debug + Send + Sync + 'static {
-    /// Executor access
-    fn exec(&self) -> &Executor;
-
-    /// Return all namespaces this querier knows about
-    async fn namespaces(&self) -> Vec<Namespace>;
-
-    /// Return connection to ingester(s) to get and aggregate information from them
-    fn ingester_connection(&self) -> Option<Arc<dyn IngesterConnection>>;
 }
 
 /// Database for the querier.
@@ -82,7 +69,8 @@ pub struct QuerierDatabase {
     query_execution_semaphore: Arc<InstrumentedAsyncSemaphore>,
 
     /// Sharder to determine which ingesters to query for a particular table and namespace.
-    sharder: Arc<JumpHash<Arc<ShardIndex>>>,
+    /// Only relevant when using the write buffer; will be None if using RPC write ingesters.
+    sharder: Option<Arc<JumpHash<Arc<ShardIndex>>>>,
 
     /// Chunk prune metrics.
     prune_metrics: Arc<PruneMetrics>,
@@ -104,27 +92,6 @@ impl QueryNamespaceProvider for QuerierDatabase {
     }
 }
 
-#[async_trait]
-impl Database for QuerierDatabase {
-    fn exec(&self) -> &Executor {
-        &self.exec
-    }
-
-    async fn namespaces(&self) -> Vec<Namespace> {
-        let catalog = &self.catalog_cache.catalog();
-        Backoff::new(&self.backoff_config)
-            .retry_all_errors("listing namespaces", || async {
-                catalog.repositories().await.namespaces().list().await
-            })
-            .await
-            .expect("retry forever")
-    }
-
-    fn ingester_connection(&self) -> Option<Arc<dyn IngesterConnection>> {
-        self.ingester_connection.clone()
-    }
-}
-
 impl QuerierDatabase {
     /// The maximum value for `max_concurrent_queries` that is allowed.
     ///
@@ -140,6 +107,7 @@ impl QuerierDatabase {
         exec: Arc<Executor>,
         ingester_connection: Option<Arc<dyn IngesterConnection>>,
         max_concurrent_queries: usize,
+        rpc_write: bool,
     ) -> Result<Self, Error> {
         assert!(
             max_concurrent_queries <= Self::MAX_CONCURRENT_QUERIES_MAX,
@@ -162,9 +130,13 @@ impl QuerierDatabase {
         let query_execution_semaphore =
             Arc::new(semaphore_metrics.new_semaphore(max_concurrent_queries));
 
-        let sharder = Arc::new(
-            create_sharder(catalog_cache.catalog().as_ref(), backoff_config.clone()).await?,
-        );
+        let sharder = if rpc_write {
+            None
+        } else {
+            Some(Arc::new(
+                create_sharder(catalog_cache.catalog().as_ref(), backoff_config.clone()).await?,
+            ))
+        };
 
         let prune_metrics = Arc::new(PruneMetrics::new(&metric_registry));
 
@@ -206,9 +178,30 @@ impl QuerierDatabase {
             Arc::clone(&self.exec),
             self.ingester_connection.clone(),
             Arc::clone(&self.query_log),
-            Some(Arc::clone(&self.sharder)),
+            self.sharder.clone(),
             Arc::clone(&self.prune_metrics),
         )))
+    }
+
+    /// Return all namespaces this querier knows about
+    pub async fn namespaces(&self) -> Vec<Namespace> {
+        let catalog = &self.catalog_cache.catalog();
+        Backoff::new(&self.backoff_config)
+            .retry_all_errors("listing namespaces", || async {
+                catalog.repositories().await.namespaces().list().await
+            })
+            .await
+            .expect("retry forever")
+    }
+
+    /// Return connection to ingester(s) to get and aggregate information from them
+    pub fn ingester_connection(&self) -> Option<Arc<dyn IngesterConnection>> {
+        self.ingester_connection.clone()
+    }
+
+    /// Executor
+    pub(crate) fn exec(&self) -> &Executor {
+        &self.exec
     }
 }
 
@@ -241,163 +234,6 @@ pub async fn create_sharder(
     Ok(JumpHash::new(shard_indexes.into_iter().map(Arc::new)))
 }
 
-/// Database for the querier using the RPC write path.
-///
-/// Contains all namespaces.
-#[derive(Debug)]
-pub struct QuerierRpcWriteDatabase {
-    /// Backoff config for IO operations.
-    backoff_config: BackoffConfig,
-
-    /// Catalog cache.
-    catalog_cache: Arc<CatalogCache>,
-
-    /// Adapter to create chunks.
-    chunk_adapter: Arc<ChunkAdapter>,
-
-    /// Metric registry
-    #[allow(dead_code)]
-    metric_registry: Arc<metric::Registry>,
-
-    /// Executor for queries.
-    exec: Arc<Executor>,
-
-    /// Connection to ingester(s)
-    ingester_connection: Option<Arc<dyn IngesterConnection>>,
-
-    /// Query log.
-    query_log: Arc<QueryLog>,
-
-    /// Semaphore that limits the number of namespaces in used at the time by the query subsystem.
-    ///
-    /// This should be a 1-to-1 relation to the number of active queries.
-    ///
-    /// If the same namespace is requested twice for different queries, it is counted twice.
-    query_execution_semaphore: Arc<InstrumentedAsyncSemaphore>,
-
-    /// Chunk prune metrics.
-    prune_metrics: Arc<PruneMetrics>,
-}
-
-impl QuerierRpcWriteDatabase {
-    /// The maximum value for `max_concurrent_queries` that is allowed.
-    ///
-    /// This limit exists because [`tokio::sync::Semaphore`] has an internal limit and semaphore
-    /// creation beyond that will panic. The tokio limit is not exposed though so we pick a
-    /// reasonable but smaller number.
-    pub const MAX_CONCURRENT_QUERIES_MAX: usize = u16::MAX as usize;
-
-    /// Create new database.
-    pub async fn new(
-        catalog_cache: Arc<CatalogCache>,
-        metric_registry: Arc<metric::Registry>,
-        exec: Arc<Executor>,
-        ingester_connection: Option<Arc<dyn IngesterConnection>>,
-        max_concurrent_queries: usize,
-    ) -> Result<Self, Error> {
-        assert!(
-            max_concurrent_queries <= Self::MAX_CONCURRENT_QUERIES_MAX,
-            "`max_concurrent_queries` ({}) > `max_concurrent_queries_MAX` ({})",
-            max_concurrent_queries,
-            Self::MAX_CONCURRENT_QUERIES_MAX,
-        );
-
-        let backoff_config = BackoffConfig::default();
-
-        let chunk_adapter = Arc::new(ChunkAdapter::new(
-            Arc::clone(&catalog_cache),
-            Arc::clone(&metric_registry),
-        ));
-        let query_log = Arc::new(QueryLog::new(QUERY_LOG_SIZE, catalog_cache.time_provider()));
-        let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(
-            &metric_registry,
-            &[("semaphore", "query_execution")],
-        ));
-        let query_execution_semaphore =
-            Arc::new(semaphore_metrics.new_semaphore(max_concurrent_queries));
-
-        let prune_metrics = Arc::new(PruneMetrics::new(&metric_registry));
-
-        Ok(Self {
-            backoff_config,
-            catalog_cache,
-            chunk_adapter,
-            metric_registry,
-            exec,
-            ingester_connection,
-            query_log,
-            query_execution_semaphore,
-            prune_metrics,
-        })
-    }
-
-    /// Get namespace if it exists.
-    ///
-    /// This will await the internal namespace semaphore. Existence of namespaces is checked AFTER
-    /// a semaphore permit was acquired since this lowers the chance that we obtain stale data.
-    pub async fn namespace(&self, name: &str, span: Option<Span>) -> Option<Arc<QuerierNamespace>> {
-        let span_recorder = SpanRecorder::new(span);
-        let name = Arc::from(name.to_owned());
-        let ns = self
-            .catalog_cache
-            .namespace()
-            .get(
-                Arc::clone(&name),
-                // we have no specific need for any tables or columns at this point, so nothing to cover
-                &[],
-                span_recorder.child_span("cache GET namespace schema"),
-            )
-            .await?;
-        Some(Arc::new(QuerierNamespace::new(
-            Arc::clone(&self.chunk_adapter),
-            ns,
-            name,
-            Arc::clone(&self.exec),
-            self.ingester_connection.clone(),
-            Arc::clone(&self.query_log),
-            None,
-            Arc::clone(&self.prune_metrics),
-        )))
-    }
-}
-
-#[async_trait]
-impl Database for QuerierRpcWriteDatabase {
-    fn exec(&self) -> &Executor {
-        &self.exec
-    }
-
-    async fn namespaces(&self) -> Vec<Namespace> {
-        let catalog = &self.catalog_cache.catalog();
-        Backoff::new(&self.backoff_config)
-            .retry_all_errors("listing namespaces", || async {
-                catalog.repositories().await.namespaces().list().await
-            })
-            .await
-            .expect("retry forever")
-    }
-
-    fn ingester_connection(&self) -> Option<Arc<dyn IngesterConnection>> {
-        self.ingester_connection.clone()
-    }
-}
-
-#[async_trait]
-impl QueryNamespaceProvider for QuerierRpcWriteDatabase {
-    type Db = QuerierNamespace;
-
-    async fn db(&self, name: &str, span: Option<Span>) -> Option<Arc<Self::Db>> {
-        self.namespace(name, span).await
-    }
-
-    async fn acquire_semaphore(&self, span: Option<Span>) -> InstrumentedAsyncOwnedSemaphorePermit {
-        Arc::clone(&self.query_execution_semaphore)
-            .acquire_owned(span)
-            .await
-            .expect("Semaphore should not be closed by anyone")
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -426,6 +262,7 @@ mod tests {
             catalog.exec(),
             Some(create_ingester_connection_for_testing()),
             QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX.saturating_add(1),
+            false,
         )
         .await
         .unwrap();
@@ -450,6 +287,7 @@ mod tests {
                 catalog.exec(),
                 Some(create_ingester_connection_for_testing()),
                 QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
+                false,
             )
             .await,
             Error::NoShards
@@ -475,6 +313,7 @@ mod tests {
             catalog.exec(),
             Some(create_ingester_connection_for_testing()),
             QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
+            false,
         )
         .await
         .unwrap();
@@ -504,6 +343,7 @@ mod tests {
             catalog.exec(),
             Some(create_ingester_connection_for_testing()),
             QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
+            false,
         )
         .await
         .unwrap();

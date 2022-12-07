@@ -17,7 +17,6 @@ object_store = "0.5.2"
 querier = { path = "../querier" }
 iox_query = { path = "../iox_query" }
 router = { path = "../router" }
-service_common = { path = "../service_common" }
 service_grpc_flight = { path = "../service_grpc_flight" }
 service_grpc_influxrpc = { path = "../service_grpc_influxrpc" }
 sharder = { path = "../sharder" }

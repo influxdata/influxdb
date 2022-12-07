@@ -9,8 +9,6 @@ mod ingester;
 mod ingester2;
 mod main;
 mod querier;
-#[cfg(feature = "rpc_write")]
-mod querier_rpc_write;
 mod router;
 #[cfg(feature = "rpc_write")]
 mod router_rpc_write;
@@ -27,10 +25,6 @@ pub enum Error {
 
     #[snafu(display("Error in querier subcommand: {}", source))]
     QuerierError { source: querier::Error },
-
-    #[cfg(feature = "rpc_write")]
-    #[snafu(display("Error in querier-rpc-write subcommand: {}", source))]
-    QuerierRpcWriteError { source: querier_rpc_write::Error },
 
     #[snafu(display("Error in router subcommand: {}", source))]
     RouterError { source: router::Error },
@@ -72,8 +66,6 @@ impl Config {
             Some(Command::Compactor(config)) => config.run_config.logging_config(),
             Some(Command::GarbageCollector(config)) => config.run_config.logging_config(),
             Some(Command::Querier(config)) => config.run_config.logging_config(),
-            #[cfg(feature = "rpc_write")]
-            Some(Command::QuerierRpcWrite(config)) => config.run_config.logging_config(),
             Some(Command::Router(config)) => config.run_config.logging_config(),
             #[cfg(feature = "rpc_write")]
             Some(Command::RouterRpcWrite(config)) => config.run_config.logging_config(),
@@ -93,10 +85,6 @@ enum Command {
 
     /// Run the server in querier mode
     Querier(querier::Config),
-
-    /// Run the server in querier mode using the RPC write path.
-    #[cfg(feature = "rpc_write")]
-    QuerierRpcWrite(querier_rpc_write::Config),
 
     /// Run the server in router mode
     Router(router::Config),
@@ -134,10 +122,6 @@ pub async fn command(config: Config) -> Result<()> {
             .await
             .context(GarbageCollectorSnafu),
         Some(Command::Querier(config)) => querier::command(config).await.context(QuerierSnafu),
-        #[cfg(feature = "rpc_write")]
-        Some(Command::QuerierRpcWrite(config)) => querier_rpc_write::command(config)
-            .await
-            .context(QuerierRpcWriteSnafu),
         Some(Command::Router(config)) => router::command(config).await.context(RouterSnafu),
         #[cfg(feature = "rpc_write")]
         Some(Command::RouterRpcWrite(config)) => router_rpc_write::command(config)

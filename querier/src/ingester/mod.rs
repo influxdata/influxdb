@@ -139,9 +139,10 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Create a new set of connections given a map of shard indexes to Ingester configurations
-pub fn create_ingester_connections_by_shard(
-    shard_to_ingesters: HashMap<ShardIndex, IngesterMapping>,
+/// Create a new set of connections given ingester configurations
+pub fn create_ingester_connections(
+    shard_to_ingesters: Option<HashMap<ShardIndex, IngesterMapping>>,
+    ingester_addresses: Option<Vec<Arc<str>>>,
     catalog_cache: Arc<CatalogCache>,
     open_circuit_after_n_errors: u64,
 ) -> Arc<dyn IngesterConnection> {
@@ -161,49 +162,29 @@ pub fn create_ingester_connections_by_shard(
         deadline: None,
     };
 
-    Arc::new(IngesterConnectionImpl::by_shard(
-        shard_to_ingesters,
-        catalog_cache,
-        retry_backoff_config,
-        circuit_breaker_backoff_config,
-        open_circuit_after_n_errors,
-    ))
-}
-
-/// Create a new set of connections to ingester2 instances
-pub fn create_ingester2_connection(
-    ingester_addrs: &[String],
-    catalog_cache: Arc<CatalogCache>,
-    open_circuit_after_n_errors: u64,
-) -> Option<Arc<dyn IngesterConnection>> {
-    if ingester_addrs.is_empty() {
-        return None;
+    // Exactly one of `shard_to_ingesters` or `ingester_addreses` must be specified.
+    // `shard_to_ingesters` uses the Kafka write buffer path.
+    // `ingester_addresses` uses the RPC write path.
+    match (shard_to_ingesters, ingester_addresses) {
+        (None, None) => panic!("Neither shard_to_ingesters nor ingester_addresses was specified!"),
+        (Some(_), Some(_)) => {
+            panic!("Both shard_to_ingesters and ingester_addresses were specified!")
+        }
+        (Some(shard_to_ingesters), None) => Arc::new(IngesterConnectionImpl::by_shard(
+            shard_to_ingesters,
+            catalog_cache,
+            retry_backoff_config,
+            circuit_breaker_backoff_config,
+            open_circuit_after_n_errors,
+        )),
+        (None, Some(ingester_addresses)) => Arc::new(IngesterConnectionImpl::by_addrs(
+            ingester_addresses,
+            catalog_cache,
+            retry_backoff_config,
+            circuit_breaker_backoff_config,
+            open_circuit_after_n_errors,
+        )),
     }
-
-    // This backoff config is used to retry requests for a specific table-scoped query.
-    let retry_backoff_config = BackoffConfig {
-        init_backoff: Duration::from_millis(100),
-        max_backoff: Duration::from_secs(1),
-        base: 3.0,
-        deadline: Some(Duration::from_secs(10)),
-    };
-
-    // This backoff config is used to half-open the circuit after it was opened. Circuits are
-    // ingester-scoped.
-    let circuit_breaker_backoff_config = BackoffConfig {
-        init_backoff: Duration::from_secs(1),
-        max_backoff: Duration::from_secs(60),
-        base: 3.0,
-        deadline: None,
-    };
-
-    Some(Arc::new(IngesterRpcWriteConnection::new(
-        ingester_addrs,
-        catalog_cache,
-        retry_backoff_config,
-        circuit_breaker_backoff_config,
-        open_circuit_after_n_errors,
-    )))
 }
 
 /// Create a new ingester suitable for testing
@@ -440,21 +421,10 @@ impl IngesterConnectionImpl {
             backoff_config,
         }
     }
-}
 
-/// Ingester connection that communicates with ingester2 instances that support the RPC write path.
-#[derive(Debug)]
-pub struct IngesterRpcWriteConnection {
-    ingester_addresses: Vec<Arc<str>>,
-    flight_client: Arc<dyn FlightClient>,
-    catalog_cache: Arc<CatalogCache>,
-    metrics: Arc<IngesterConnectionMetrics>,
-    backoff_config: BackoffConfig,
-}
-
-impl IngesterRpcWriteConnection {
-    fn new(
-        ingester_addrs: &[String],
+    /// Create a new set of connections given a list of ingester2 addresses.
+    pub fn by_addrs(
+        ingester_addresses: Vec<Arc<str>>,
         catalog_cache: Arc<CatalogCache>,
         backoff_config: BackoffConfig,
         circuit_breaker_backoff_config: BackoffConfig,
@@ -473,126 +443,13 @@ impl IngesterRpcWriteConnection {
         let metrics = Arc::new(IngesterConnectionMetrics::new(&metric_registry));
 
         Self {
-            ingester_addresses: ingester_addrs.iter().map(|s| s.as_str().into()).collect(),
+            shard_to_ingesters: HashMap::new(),
+            unique_ingester_addresses: ingester_addresses.into_iter().collect(),
             flight_client,
             catalog_cache,
             metrics,
             backoff_config,
         }
-    }
-}
-
-#[async_trait]
-impl IngesterConnection for IngesterRpcWriteConnection {
-    /// Retrieve chunks from the ingester for the particular table, shard, and predicate
-    async fn partitions(
-        &self,
-        // Shard indexes aren't relevant for the RPC write path. This should always be `None`, but
-        // regardless, this implementation ignores the value. When the RPC write path is the only
-        // implementation, this parameter can be removed.
-        _shard_indexes: Option<Vec<ShardIndex>>,
-        namespace_id: NamespaceId,
-        table_id: TableId,
-        columns: Vec<String>,
-        predicate: &Predicate,
-        expected_schema: Arc<Schema>,
-        span: Option<Span>,
-    ) -> Result<Vec<IngesterPartition>> {
-        let mut span_recorder = SpanRecorder::new(span);
-
-        let metrics = Arc::clone(&self.metrics);
-
-        let measured_ingester_request = |ingester_address: Arc<str>| {
-            let metrics = Arc::clone(&metrics);
-            let request = GetPartitionForIngester {
-                flight_client: Arc::clone(&self.flight_client),
-                catalog_cache: Arc::clone(&self.catalog_cache),
-                ingester_address: Arc::clone(&ingester_address),
-                namespace_id,
-                table_id,
-                columns: columns.clone(),
-                predicate,
-                expected_schema: Arc::clone(&expected_schema),
-            };
-
-            let backoff_config = self.backoff_config.clone();
-
-            // wrap `execute` into an additional future so that we can measure the request time
-            // INFO: create the measurement structure outside of the async block so cancellation is
-            // always measured
-            let measure_me = ObserveIngesterRequest::new(request.clone(), metrics, &span_recorder);
-            async move {
-                let span_recorder = measure_me
-                    .span_recorder()
-                    .child("ingester request (retry block)");
-
-                let res = Backoff::new(&backoff_config)
-                    .retry_all_errors("ingester request", move || {
-                        let request = request.clone();
-                        let span_recorder = span_recorder.child("ingester request (single try)");
-
-                        async move { execute(request, &span_recorder).await }
-                    })
-                    .await;
-
-                match &res {
-                    Ok(partitions) => {
-                        let mut status = IngesterResponseOk::default();
-                        for p in partitions {
-                            status.n_partitions += 1;
-                            for c in p.chunks() {
-                                status.n_chunks += 1;
-                                status.n_rows += c.rows();
-                            }
-                        }
-
-                        measure_me.set_ok(status);
-                    }
-                    Err(_) => measure_me.set_err(),
-                }
-
-                res
-            }
-        };
-
-        let mut ingester_partitions: Vec<IngesterPartition> = self
-            .ingester_addresses
-            .iter()
-            .cloned()
-            .map(move |ingester_address| measured_ingester_request(ingester_address))
-            .collect::<FuturesUnordered<_>>()
-            .try_collect::<Vec<_>>()
-            .await
-            .map_err(|e| {
-                span_recorder.error("failed");
-                match e {
-                    BackoffError::DeadlineExceeded { source, .. } => source,
-                }
-            })?
-            // We have a Vec<Vec<..>> flatten to Vec<_>
-            .into_iter()
-            .flatten()
-            .collect();
-
-        ingester_partitions.sort_by_key(|p| p.partition_id);
-        span_recorder.ok("done");
-        Ok(ingester_partitions)
-    }
-
-    async fn get_write_info(&self, write_token: &str) -> Result<GetWriteInfoResponse> {
-        let responses = self
-            .ingester_addresses
-            .iter()
-            .map(|ingester_address| execute_get_write_infos(ingester_address, write_token))
-            .collect::<FuturesUnordered<_>>()
-            .try_collect::<Vec<_>>()
-            .await?;
-
-        Ok(merge_responses(responses))
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self as &dyn Any
     }
 }
 
@@ -924,13 +781,49 @@ impl IngesterConnection for IngesterConnectionImpl {
         expected_schema: Arc<Schema>,
         span: Option<Span>,
     ) -> Result<Vec<IngesterPartition>> {
-        // If no shard indexes are specified, no ingester addresses can be found. This is a
-        // configuration problem somewhere.
-        let shard_indexes = shard_indexes.expect("A `shard_indexes` list must be specified");
-        assert!(
-            !shard_indexes.is_empty(),
-            "Called `IngesterConnection.partitions` with an empty `shard_indexes` list",
-        );
+        let relevant_ingester_addresses = match shard_indexes {
+            // If shard indexes is None, we're using the RPC write path, and all ingesters should
+            // be queried.
+            None => self.unique_ingester_addresses.clone(),
+            // If shard indexes is Some([]), no ingester addresses can be found. This is a
+            // configuration problem somewhwere.
+            Some(shard_indexes) if shard_indexes.is_empty() => {
+                panic!("Called `IngesterConnection.partitions` with an empty `shard_indexes` list");
+            }
+            // Otherwise, we're using the write buffer and need to look up the ingesters to contact
+            // by their shard index.
+            Some(shard_indexes) => {
+                // Look up the ingesters needed for the shard. Collect into a HashSet to avoid making
+                // multiple requests to the same ingester if that ingester is responsible for multiple
+                // shard_indexes relevant to this query.
+                let mut relevant_ingester_addresses = HashSet::new();
+
+                for shard_index in &shard_indexes {
+                    match self.shard_to_ingesters.get(shard_index) {
+                        None => {
+                            return NoIngesterFoundForShardSnafu {
+                                shard_index: *shard_index,
+                            }
+                            .fail()
+                        }
+                        Some(mapping) => match mapping {
+                            IngesterMapping::Addr(addr) => {
+                                relevant_ingester_addresses.insert(Arc::clone(addr));
+                            }
+                            IngesterMapping::Ignore => (),
+                            IngesterMapping::NotMapped => {
+                                return ShardNotMappedSnafu {
+                                    shard_index: *shard_index,
+                                }
+                                .fail()
+                            }
+                        },
+                    }
+                }
+                relevant_ingester_addresses
+            }
+        };
+
         let mut span_recorder = SpanRecorder::new(span);
 
         let metrics = Arc::clone(&self.metrics);
@@ -987,34 +880,6 @@ impl IngesterConnection for IngesterConnectionImpl {
                 res
             }
         };
-
-        // Look up the ingesters needed for the shard. Collect into a HashSet to avoid making
-        // multiple requests to the same ingester if that ingester is responsible for multiple
-        // shard_indexes relevant to this query.
-        let mut relevant_ingester_addresses = HashSet::new();
-
-        for shard_index in &shard_indexes {
-            match self.shard_to_ingesters.get(shard_index) {
-                None => {
-                    return NoIngesterFoundForShardSnafu {
-                        shard_index: *shard_index,
-                    }
-                    .fail()
-                }
-                Some(mapping) => match mapping {
-                    IngesterMapping::Addr(addr) => {
-                        relevant_ingester_addresses.insert(Arc::clone(addr));
-                    }
-                    IngesterMapping::Ignore => (),
-                    IngesterMapping::NotMapped => {
-                        return ShardNotMappedSnafu {
-                            shard_index: *shard_index,
-                        }
-                        .fail()
-                    }
-                },
-            }
-        }
 
         let mut ingester_partitions: Vec<IngesterPartition> = relevant_ingester_addresses
             .into_iter()

@@ -7,12 +7,12 @@
 
 use data_types::Namespace;
 use generated_types::influxdata::iox::namespace::v1 as proto;
-use querier::Database;
+use querier::QuerierDatabase;
 use std::sync::Arc;
 
 /// Acquire a [`NamespaceService`](proto::namespace_service_server::NamespaceService) gRPC service implementation.
-pub fn namespace_service<S: Database + Send + Sync + 'static>(
-    server: Arc<S>,
+pub fn namespace_service(
+    server: Arc<QuerierDatabase>,
 ) -> proto::namespace_service_server::NamespaceServiceServer<
     impl proto::namespace_service_server::NamespaceService,
 > {
@@ -20,12 +20,12 @@ pub fn namespace_service<S: Database + Send + Sync + 'static>(
 }
 
 #[derive(Debug)]
-struct NamespaceServiceImpl<S> {
-    server: Arc<S>,
+struct NamespaceServiceImpl {
+    server: Arc<QuerierDatabase>,
 }
 
-impl<S> NamespaceServiceImpl<S> {
-    pub fn new(server: Arc<S>) -> Self {
+impl NamespaceServiceImpl {
+    pub fn new(server: Arc<QuerierDatabase>) -> Self {
         Self { server }
     }
 }
@@ -40,9 +40,7 @@ fn namespace_to_proto(namespace: Namespace) -> proto::Namespace {
 }
 
 #[tonic::async_trait]
-impl<S: Database + Send + Sync + 'static> proto::namespace_service_server::NamespaceService
-    for NamespaceServiceImpl<S>
-{
+impl proto::namespace_service_server::NamespaceService for NamespaceServiceImpl {
     async fn get_namespaces(
         &self,
         _request: tonic::Request<proto::GetNamespacesRequest>,
@@ -82,7 +80,7 @@ mod tests {
     use super::*;
     use generated_types::influxdata::iox::namespace::v1::namespace_service_server::NamespaceService;
     use iox_tests::util::TestCatalog;
-    use querier::{create_ingester_connection_for_testing, QuerierCatalogCache, QuerierDatabase};
+    use querier::{create_ingester_connection_for_testing, QuerierCatalogCache};
     use tokio::runtime::Handle;
 
     /// Common retention period value we'll use in tests
@@ -109,6 +107,7 @@ mod tests {
                 catalog.exec(),
                 Some(create_ingester_connection_for_testing()),
                 QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
+                false,
             )
             .await
             .unwrap(),
@@ -144,6 +143,7 @@ mod tests {
                 catalog.exec(),
                 Some(create_ingester_connection_for_testing()),
                 QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
+                false,
             )
             .await
             .unwrap(),
@@ -173,9 +173,7 @@ mod tests {
         );
     }
 
-    async fn get_namespaces<S: Database + Send + Sync + 'static>(
-        service: &NamespaceServiceImpl<S>,
-    ) -> proto::GetNamespacesResponse {
+    async fn get_namespaces(service: &NamespaceServiceImpl) -> proto::GetNamespacesResponse {
         let request = proto::GetNamespacesRequest {};
 
         let mut namespaces = service
