@@ -82,7 +82,7 @@ mod tests {
     use super::*;
     use generated_types::influxdata::iox::namespace::v1::namespace_service_server::NamespaceService;
     use iox_tests::util::TestCatalog;
-    use querier::{create_ingester_connection_for_testing, QuerierCatalogCache};
+    use querier::{create_ingester_connection_for_testing, QuerierCatalogCache, QuerierDatabase};
     use tokio::runtime::Handle;
 
     /// Common retention period value we'll use in tests
@@ -173,7 +173,9 @@ mod tests {
         );
     }
 
-    async fn get_namespaces(service: &NamespaceServiceImpl) -> proto::GetNamespacesResponse {
+    async fn get_namespaces<S: Database + Send + Sync + 'static>(
+        service: &NamespaceServiceImpl<S>,
+    ) -> proto::GetNamespacesResponse {
         let request = proto::GetNamespacesRequest {};
 
         let mut namespaces = service

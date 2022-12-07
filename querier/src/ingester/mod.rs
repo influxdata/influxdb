@@ -1970,7 +1970,7 @@ mod tests {
         let shard_indexes: Vec<_> = shard_indexes.iter().copied().map(ShardIndex::new).collect();
         ingester_conn
             .partitions(
-                &shard_indexes,
+                Some(shard_indexes),
                 NamespaceId::new(1),
                 TableId::new(2),
                 columns,

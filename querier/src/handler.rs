@@ -159,7 +159,7 @@ impl Drop for QuerierHandlerImpl {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{cache::CatalogCache, create_ingester_connection_for_testing};
+    use crate::{cache::CatalogCache, create_ingester_connection_for_testing, QuerierDatabase};
     use data_types::ShardIndex;
     use iox_catalog::mem::MemCatalog;
     use iox_query::exec::Executor;
