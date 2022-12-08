@@ -1,6 +1,6 @@
 use crate::{
-    get_write_token, run_sql, token_is_persisted, try_run_influxql, try_run_sql,
-    wait_for_persisted, wait_for_readable, MiniCluster,
+    check_flight_error, get_write_token, run_sql, token_is_persisted, try_run_influxql,
+    try_run_sql, wait_for_persisted, wait_for_readable, MiniCluster,
 };
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_sorted_eq;
@@ -156,25 +156,6 @@ impl<'a> StepTest<'a> {
             write_tokens: vec![],
         };
 
-        fn check_flight_error(
-            err: influxdb_iox_client::flight::Error,
-            expected_error_code: tonic::Code,
-            expected_message: String,
-        ) {
-            if let influxdb_iox_client::flight::Error::GrpcError(status) = err {
-                assert_eq!(
-                    status.code(),
-                    expected_error_code,
-                    "Wrong status code: {}\n\nStatus:\n{}",
-                    status.code(),
-                    status,
-                );
-                assert_eq!(status.message(), expected_message);
-            } else {
-                panic!("Not a gRPC error: {err}");
-            }
-        }
-
         for (i, step) in steps.into_iter().enumerate() {
             info!("**** Begin step {} *****", i);
             match step {
@@ -271,7 +252,7 @@ impl<'a> StepTest<'a> {
                     .await
                     .unwrap_err();
 
-                    check_flight_error(err, expected_error_code, expected_message);
+                    check_flight_error(err, expected_error_code, Some(&expected_message));
 
                     info!("====Done running");
                 }
@@ -305,7 +286,7 @@ impl<'a> StepTest<'a> {
                     .await
                     .unwrap_err();
 
-                    check_flight_error(err, expected_error_code, expected_message);
+                    check_flight_error(err, expected_error_code, Some(&expected_message));
 
                     info!("====Done running");
                 }

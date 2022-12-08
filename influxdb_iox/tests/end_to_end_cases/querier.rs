@@ -5,13 +5,15 @@ use std::time::Duration;
 
 use arrow_util::assert_batches_sorted_eq;
 use assert_cmd::{assert::Assert, Command};
-use futures::FutureExt;
-use generated_types::{aggregate::AggregateType, read_group_request::Group};
+use futures::{FutureExt, TryStreamExt};
+use generated_types::{
+    aggregate::AggregateType, read_group_request::Group, read_response::frame::Data,
+};
 use predicates::prelude::*;
 use test_helpers::assert_contains;
 use test_helpers_end_to_end::{
-    maybe_skip_integration, run_sql, try_run_sql, GrpcRequestBuilder, MiniCluster, Step, StepTest,
-    StepTestState, TestConfig,
+    check_flight_error, check_tonic_status, maybe_skip_integration, run_sql, try_run_sql,
+    GrpcRequestBuilder, MiniCluster, Step, StepTest, StepTestState, TestConfig,
 };
 
 #[tokio::test]
@@ -588,6 +590,90 @@ async fn unsupported_sql_returns_error() {
 }
 
 #[tokio::test]
+async fn table_or_namespace_not_found() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol("this_table_does_exist,tag=A val=\"foo\" 1".into()),
+            // SQL: table
+            // Result: InvalidArgument
+            Step::QueryExpectingError {
+                sql: "select * from not_a_table;".into(),
+                expected_error_code: tonic::Code::InvalidArgument,
+                expected_message: "Error while planning query: Error during planning: table 'public.iox.not_a_table' not found"
+                    .into(),
+            },
+            // SQL: namespace
+            // Result: NotFound
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let err = try_run_sql(
+                        "select * from this_table_does_exist;",
+                        format!("{}_suffix", state.cluster().namespace()),
+                        state.cluster().querier().querier_grpc_connection(),
+                    )
+                    .await
+                    .unwrap_err();
+                    check_flight_error(err, tonic::Code::NotFound, None);
+                }
+                .boxed()
+            })),
+            // InfluxRPC: table
+            // Result: empty stream
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut storage_client = state.cluster().querier_storage_client();
+
+                    let read_filter_request = GrpcRequestBuilder::new()
+                        .source(state.cluster())
+                        .measurement_predicate("this_table_does_not_exist")
+                        .build_read_filter();
+
+                    let read_response = storage_client
+                        .read_filter(read_filter_request)
+                        .await
+                        .unwrap();
+                    let responses: Vec<_> = read_response.into_inner().try_collect().await.unwrap();
+                    let frames: Vec<Data> = responses
+                        .into_iter()
+                        .flat_map(|r| r.frames)
+                        .flat_map(|f| f.data)
+                        .collect();
+                    assert_eq!(frames, vec![]);
+                }
+                .boxed()
+            })),
+            // InfluxRPC: namespace
+            // Result: NotFound
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut storage_client = state.cluster().querier_storage_client();
+
+                    let read_filter_request = GrpcRequestBuilder::new()
+                        .explicit_source("1111111111111111", "1111111111111111")
+                        .build_read_filter();
+
+                    let status = storage_client
+                        .read_filter(read_filter_request)
+                        .await
+                        .unwrap_err();
+                    check_tonic_status(status, tonic::Code::NotFound, None);
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
 async fn oom_protection() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
@@ -626,18 +712,7 @@ async fn oom_protection() {
                     )
                     .await
                     .unwrap_err();
-
-                    if let influxdb_iox_client::flight::Error::GrpcError(status) = err {
-                        assert_eq!(
-                            status.code(),
-                            tonic::Code::ResourceExhausted,
-                            "Wrong status code: {}\n\nStatus:\n{}",
-                            status.code(),
-                            status,
-                        );
-                    } else {
-                        panic!("Not a gRPC error: {err}");
-                    }
+                    check_flight_error(err, tonic::Code::ResourceExhausted, None);
 
                     // EXPLAIN should work though
                     run_sql(
@@ -665,13 +740,7 @@ async fn oom_protection() {
                         .read_group(read_group_request)
                         .await
                         .unwrap_err();
-                    assert_eq!(
-                        status.code(),
-                        tonic::Code::ResourceExhausted,
-                        "Wrong status code: {}\n\nStatus:\n{}",
-                        status.code(),
-                        status,
-                    );
+                    check_tonic_status(status, tonic::Code::ResourceExhausted, None);
                 }
                 .boxed()
             })),
