@@ -245,9 +245,13 @@ impl QueryExec for TableData {
         let partitions = self.partitions().into_iter().filter_map(move |p| {
             let mut span = SpanRecorder::new(span.clone().map(|s| s.child("partition read")));
 
-            let (id, data) = {
+            let (id, completed_persistence_count, data) = {
                 let mut p = p.lock();
-                (p.partition_id(), p.get_query_data()?)
+                (
+                    p.partition_id(),
+                    p.completed_persistence_count(),
+                    p.get_query_data()?,
+                )
             };
             assert_eq!(id, data.partition_id());
 
@@ -265,6 +269,7 @@ impl QueryExec for TableData {
                 )),
                 id,
                 None,
+                completed_persistence_count,
             );
 
             span.ok("read partition data");

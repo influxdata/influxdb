@@ -1845,7 +1845,9 @@ mod tests {
             IngesterQueryResponseMetadata {
                 partition_id,
                 status,
+                // These fields are only used in ingester2.
                 ingester_uuid: String::new(),
+                completed_persistence_count: 0,
             },
         ))
     }

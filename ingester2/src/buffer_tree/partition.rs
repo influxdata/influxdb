@@ -85,6 +85,10 @@ pub(crate) struct PartitionData {
     /// The number of persist operations started over the lifetime of this
     /// [`PartitionData`].
     started_persistence_count: BatchIdent,
+
+    /// The number of persist operations completed over the lifetime of this
+    /// [`PartitionData`].
+    completed_persistence_count: u64,
 }
 
 impl PartitionData {
@@ -110,6 +114,7 @@ impl PartitionData {
             buffer: DataBuffer::default(),
             persisting: VecDeque::with_capacity(1),
             started_persistence_count: BatchIdent::default(),
+            completed_persistence_count: 0,
         }
     }
 
@@ -250,6 +255,8 @@ impl PartitionData {
             "out-of-order persist notification received"
         );
 
+        self.completed_persistence_count += 1;
+
         debug!(
             namespace_id = %self.namespace_id,
             table_id = %self.table_id,
@@ -263,6 +270,11 @@ impl PartitionData {
 
     pub(crate) fn partition_id(&self) -> PartitionId {
         self.partition_id
+    }
+
+    /// Return the count of persisted Parquet files for this partition by this ingester instance.
+    pub(crate) fn completed_persistence_count(&self) -> u64 {
+        self.completed_persistence_count
     }
 
     /// Return the name of the table this [`PartitionData`] is buffering writes
@@ -446,8 +458,9 @@ mod tests {
         p.buffer_write(mb, SequenceNumber::new(1))
             .expect("write should succeed");
 
-        // Ensure the batch ident is increased after a persist call.
+        // Ensure the batch ident hasn't been increased yet.
         assert_eq!(p.started_persistence_count.get(), 0);
+        assert_eq!(p.completed_persistence_count, 0);
 
         // Begin persisting the partition.
         let persisting_data = p.mark_persisting().expect("must contain existing data");
@@ -471,8 +484,10 @@ mod tests {
                 .collect::<Vec<_>>()
         );
 
-        // Ensure the batch ident is increased after a persist call.
+        // Ensure the started batch ident is increased after a persist call, but not the completed
+        // batch ident.
         assert_eq!(p.started_persistence_count.get(), 1);
+        assert_eq!(p.completed_persistence_count, 0);
         // And the batch is correctly identified
         assert_eq!(persisting_data.batch_ident().get(), 1);
 
@@ -508,8 +523,10 @@ mod tests {
         // The persist now "completes".
         p.mark_persisted(persisting_data);
 
-        // Ensure the batch ident is increased after a persist call.
+        // Ensure the started batch ident isn't increased when a persist completes, but the
+        // completed count is increased.
         assert_eq!(p.started_persistence_count.get(), 1);
+        assert_eq!(p.completed_persistence_count, 1);
 
         // Querying the buffer should now return only the second write.
         {

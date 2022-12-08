@@ -55,6 +55,7 @@ async fn ingester_flight_api() {
                 parquet_max_sequence_number: None,
             }),
             ingester_uuid: String::new(),
+            completed_persistence_count: 0,
         },
     );
 
