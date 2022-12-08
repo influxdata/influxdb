@@ -2,7 +2,7 @@
 use super::main;
 use crate::process_info::setup_metric_registry;
 use clap_blocks::{
-    catalog_dsn::CatalogDsnConfig, object_store::make_object_store, router::RouterConfig,
+    catalog_dsn::CatalogDsnConfig, object_store::make_object_store,
     router_rpc_write::RouterRpcWriteConfig, run_config::RunConfig,
 };
 use iox_time::{SystemProvider, TimeProvider};
@@ -60,10 +60,7 @@ pub struct Config {
     pub(crate) catalog_dsn: CatalogDsnConfig,
 
     #[clap(flatten)]
-    pub(crate) router_config: RouterConfig,
-
-    #[clap(flatten)]
-    pub(crate) router_rpc_write_config: RouterRpcWriteConfig,
+    pub(crate) router_config: RouterRpcWriteConfig,
 }
 
 pub async fn command(config: Config) -> Result<()> {
@@ -91,7 +88,6 @@ pub async fn command(config: Config) -> Result<()> {
         catalog,
         object_store,
         &config.router_config,
-        &config.router_rpc_write_config,
     )
     .await?;
 

@@ -253,13 +253,12 @@ pub async fn create_router_grpc_write_server_type(
     metrics: Arc<metric::Registry>,
     catalog: Arc<dyn Catalog>,
     object_store: Arc<DynObjectStore>,
-    router_config: &RouterConfig,
-    router_rpc_write_config: &RouterRpcWriteConfig,
+    router_config: &RouterRpcWriteConfig,
 ) -> Result<Arc<dyn ServerType>> {
     // 1. START: Different Setup Per Router Path: this part is only relevant to using RPC write
     //    path and should not be added to `create_router_server_type`.
-    let mut ingester_clients = Vec::with_capacity(router_rpc_write_config.ingester_addresses.len());
-    for ingester_addr in &router_rpc_write_config.ingester_addresses {
+    let mut ingester_clients = Vec::with_capacity(router_config.ingester_addresses.len());
+    for ingester_addr in &router_config.ingester_addresses {
         ingester_clients.push(write_service_client(ingester_addr).await);
     }
 
@@ -336,24 +335,19 @@ pub async fn create_router_grpc_write_server_type(
     let mut txn = catalog.start_transaction().await?;
     let topic_id = txn
         .topics()
-        .get_by_name(&router_rpc_write_config.topic)
+        .get_by_name(&router_config.topic)
         .await?
         .map(|v| v.id)
-        .unwrap_or_else(|| {
-            panic!(
-                "no topic named {} in catalog",
-                router_rpc_write_config.topic
-            )
-        });
+        .unwrap_or_else(|| panic!("no topic named {} in catalog", router_config.topic));
     let query_id = txn
         .query_pools()
-        .create_or_get(&router_rpc_write_config.query_pool_name)
+        .create_or_get(&router_config.query_pool_name)
         .await
         .map(|v| v.id)
         .unwrap_or_else(|e| {
             panic!(
                 "failed to upsert query pool {} in catalog: {}",
-                router_rpc_write_config.topic, e
+                router_config.query_pool_name, e
             )
         });
     txn.commit().await?;
