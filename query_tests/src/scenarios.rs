@@ -66,6 +66,7 @@ pub fn get_all_setups() -> &'static HashMap<String, Arc<dyn DbSetup>> {
             register_setup!(ManyFieldsSeveralChunks),
             register_setup!(TwoChunksMissingColumns),
             register_setup!(AllTypes),
+            register_setup!(PeriodsInNames),
             register_setup!(TwoChunksDedupWeirdnessParquet),
             register_setup!(TwoChunksDedupWeirdnessParquetIngester),
             register_setup!(ThreeChunksWithRetention),

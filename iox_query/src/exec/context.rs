@@ -32,6 +32,7 @@ use datafusion::{
     execution::{
         context::{QueryPlanner, SessionState, TaskContext},
         runtime_env::RuntimeEnv,
+        MemoryManager,
     },
     logical_expr::{LogicalPlan, UserDefinedLogicalNode},
     physical_plan::{
@@ -411,6 +412,7 @@ impl IOxSessionContext {
     pub async fn to_series_and_groups(
         &self,
         series_set_plans: SeriesSetPlans,
+        memory_manager: Arc<MemoryManager>,
     ) -> Result<impl Stream<Item = Result<Either>>> {
         let SeriesSetPlans {
             mut plans,
@@ -471,7 +473,7 @@ impl IOxSessionContext {
         // If we have group columns, sort the results, and create the
         // appropriate groups
         if let Some(group_columns) = group_columns {
-            let grouper = GroupGenerator::new(group_columns);
+            let grouper = GroupGenerator::new(group_columns, memory_manager);
             Ok(grouper.group(data).await?.boxed())
         } else {
             Ok(data.map_ok(|series| series.into()).boxed())

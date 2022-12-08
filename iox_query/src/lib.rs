@@ -154,7 +154,7 @@ pub trait QueryNamespace: QueryNamespaceMeta + Debug + Send + Sync {
         &self,
         table_name: &str,
         predicate: &Predicate,
-        projection: &Option<Vec<usize>>,
+        projection: Option<&Vec<usize>>,
         ctx: IOxSessionContext,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError>;
 

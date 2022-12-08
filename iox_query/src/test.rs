@@ -104,7 +104,7 @@ impl QueryNamespace for TestDatabase {
         &self,
         table_name: &str,
         predicate: &Predicate,
-        _projection: &Option<Vec<usize>>,
+        _projection: Option<&Vec<usize>>,
         _ctx: IOxSessionContext,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         // save last predicate

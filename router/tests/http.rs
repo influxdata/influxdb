@@ -19,7 +19,7 @@ use router::{
         ShardedWriteBuffer, WriteSummaryAdapter,
     },
     namespace_cache::{MemoryNamespaceCache, ShardedCache},
-    namespace_resolver::{NamespaceAutocreation, NamespaceSchemaResolver},
+    namespace_resolver::{MissingNamespaceAction, NamespaceAutocreation, NamespaceSchemaResolver},
     server::http::HttpDelegate,
     shard::Shard,
 };
@@ -78,7 +78,7 @@ type HttpDelegateStack = HttpDelegate<
 /// A [`router`] stack configured with the various DML handlers using mock
 /// catalog / write buffer backends.
 impl TestContext {
-    pub fn new(ns_autocreate_retention_period_ns: Option<i64>) -> Self {
+    pub fn new(autocreate_ns: bool, ns_autocreate_retention_period_ns: Option<i64>) -> Self {
         let metrics = Arc::new(metric::Registry::default());
         let time = iox_time::MockProvider::new(
             iox_time::Time::from_timestamp_millis(668563200000).unwrap(),
@@ -131,7 +131,13 @@ impl TestContext {
             Arc::clone(&catalog),
             TopicId::new(TEST_TOPIC_ID),
             QueryPoolId::new(TEST_QUERY_POOL_ID),
-            ns_autocreate_retention_period_ns,
+            {
+                if autocreate_ns {
+                    MissingNamespaceAction::AutoCreate(ns_autocreate_retention_period_ns)
+                } else {
+                    MissingNamespaceAction::Reject
+                }
+            },
         );
 
         let delegate = HttpDelegate::new(1024, 100, namespace_resolver, handler_stack, &metrics);
@@ -187,13 +193,13 @@ impl TestContext {
 
 impl Default for TestContext {
     fn default() -> Self {
-        Self::new(None)
+        Self::new(true, None)
     }
 }
 
 #[tokio::test]
 async fn test_write_ok() {
-    let ctx = TestContext::new(None);
+    let ctx = TestContext::new(true, None);
 
     // Write data inside retention period
     let now = SystemProvider::default()
@@ -279,7 +285,7 @@ async fn test_write_ok() {
 
 #[tokio::test]
 async fn test_write_outside_retention_period() {
-    let ctx = TestContext::new(TEST_RETENTION_PERIOD_NS);
+    let ctx = TestContext::new(true, TEST_RETENTION_PERIOD_NS);
 
     // Write data outside retention period into a new table
     let two_hours_ago =
@@ -312,7 +318,7 @@ async fn test_write_outside_retention_period() {
 
 #[tokio::test]
 async fn test_schema_conflict() {
-    let ctx = TestContext::new(None);
+    let ctx = TestContext::new(true, None);
 
     // data inside the retention period
     let now = SystemProvider::default()
@@ -377,8 +383,41 @@ async fn test_schema_conflict() {
 }
 
 #[tokio::test]
+async fn test_rejected_ns() {
+    let ctx = TestContext::new(false, None);
+
+    let now = SystemProvider::default()
+        .now()
+        .timestamp_nanos()
+        .to_string();
+    let lp = "platanos,tag1=A,tag2=B val=42i ".to_string() + &now;
+
+    let request = Request::builder()
+        .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
+        .method("POST")
+        .body(Body::from(lp))
+        .expect("failed to construct HTTP request");
+
+    let err = ctx
+        .delegate()
+        .route(request)
+        .await
+        .expect_err("should error");
+    assert_matches!(
+        err,
+        router::server::http::Error::NamespaceResolver(
+            // can't check the type of the create error without making ns_autocreation public, but
+            // not worth it just for this test, as the correct error is asserted in unit tests in
+            // that module. here it's just important that the write fails.
+            router::namespace_resolver::Error::Create(_)
+        )
+    );
+    assert_eq!(err.as_status_code(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
 async fn test_schema_limit() {
-    let ctx = TestContext::new(None);
+    let ctx = TestContext::new(true, None);
 
     let now = SystemProvider::default()
         .now()
@@ -444,7 +483,7 @@ async fn test_schema_limit() {
 
 #[tokio::test]
 async fn test_write_propagate_ids() {
-    let ctx = TestContext::new(None);
+    let ctx = TestContext::new(true, None);
 
     // Create the namespace and a set of tables.
     let ns = ctx
@@ -525,7 +564,7 @@ async fn test_write_propagate_ids() {
 
 #[tokio::test]
 async fn test_delete_propagate_ids() {
-    let ctx = TestContext::new(None);
+    let ctx = TestContext::new(true, None);
 
     // Create the namespace and a set of tables.
     let ns = ctx

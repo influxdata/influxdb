@@ -194,7 +194,7 @@ impl QuerierTable {
         &self,
         predicate: &Predicate,
         span: Option<Span>,
-        projection: &Option<Vec<usize>>,
+        projection: Option<&Vec<usize>>,
     ) -> Result<Vec<Arc<dyn QueryChunk>>> {
         let mut span_recorder = SpanRecorder::new(span);
         match self
@@ -216,7 +216,7 @@ impl QuerierTable {
         &self,
         predicate: &Predicate,
         span_recorder: &SpanRecorder,
-        projection: &Option<Vec<usize>>,
+        projection: Option<&Vec<usize>>,
     ) -> Result<Vec<Arc<dyn QueryChunk>>> {
         debug!(
             ?predicate,
@@ -331,6 +331,10 @@ impl QuerierTable {
         // create parquet files
         let parquet_files: Vec<_> = match cached_table {
             Some(cached_table) => {
+                // use nested scope because we span many child scopes here and it's easier to
+                // aggregate / collapse in the UI
+                let span_recorder = span_recorder.child("parquet chunks");
+
                 let basic_summaries: Vec<_> = parquet_files
                     .files
                     .iter()
@@ -377,11 +381,14 @@ impl QuerierTable {
                         let keep = *keep;
                         async move { keep }
                     })
-                    .map(|(cached_parquet_file, _keep)| async move {
-                        let span = span_recorder.child_span("new_chunk");
-                        self.chunk_adapter
-                            .new_chunk(Arc::clone(cached_table), cached_parquet_file, span)
-                            .await
+                    .map(|(cached_parquet_file, _keep)| {
+                        let span_recorder = &span_recorder;
+                        async move {
+                            let span = span_recorder.child_span("new_chunk");
+                            self.chunk_adapter
+                                .new_chunk(Arc::clone(cached_table), cached_parquet_file, span)
+                                .await
+                        }
                     })
                     .buffer_unordered(CONCURRENT_CHUNK_CREATION_JOBS)
                     .filter_map(|x| async { x })
@@ -430,7 +437,7 @@ impl QuerierTable {
         &self,
         predicate: &Predicate,
         span: Option<Span>,
-        projection: &Option<Vec<usize>>,
+        projection: Option<&Vec<usize>>,
     ) -> Result<Vec<IngesterPartition>> {
         let mut span_recorder = SpanRecorder::new(span);
 
@@ -465,7 +472,7 @@ impl QuerierTable {
         ingester_connection: Arc<dyn IngesterConnection>,
         predicate: &Predicate,
         span_recorder: &SpanRecorder,
-        projection: &Option<Vec<usize>>,
+        projection: Option<&Vec<usize>>,
     ) -> Result<Vec<IngesterPartition>> {
         // If the projection is provided, use it. Otherwise, use all columns of the table
         // The provided projection should include all columns needed by the query
@@ -828,7 +835,7 @@ mod tests {
         // Expect one chunk from the ingester
         let pred = Predicate::new().with_range(0, 100);
         let chunks = querier_table
-            .chunks_with_predicate_and_projection(&pred, &Some(vec![1])) // only select `foo` column
+            .chunks_with_predicate_and_projection(&pred, Some(&vec![1])) // only select `foo` column
             .await
             .unwrap();
         assert_eq!(chunks.len(), 1);
@@ -1371,14 +1378,14 @@ mod tests {
             &self,
             pred: &Predicate,
         ) -> Result<Vec<Arc<dyn QueryChunk>>> {
-            self.chunks_with_predicate_and_projection(pred, &None).await
+            self.chunks_with_predicate_and_projection(pred, None).await
         }
 
         /// Invokes querier_table.chunks modeling the ingester sending the partitions in this table
         async fn chunks_with_predicate_and_projection(
             &self,
             pred: &Predicate,
-            projection: &Option<Vec<usize>>,
+            projection: Option<&Vec<usize>>,
         ) -> Result<Vec<Arc<dyn QueryChunk>>> {
             self.querier_table
                 .ingester_connection

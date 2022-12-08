@@ -101,7 +101,7 @@ where
     async fn scan(
         &self,
         _ctx: &SessionState,
-        projection: &Option<Vec<usize>>,
+        projection: Option<&Vec<usize>>,
         // It would be cool to push projection and limit down
         _filters: &[Expr],
         _limit: Option<usize>,
@@ -114,7 +114,7 @@ where
 
         Ok(Arc::new(SystemTableExecutionPlan {
             table: Arc::clone(&self.table),
-            projection: projection.clone(),
+            projection: projection.cloned(),
             projected_schema,
         }))
     }

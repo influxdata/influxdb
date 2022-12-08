@@ -166,7 +166,7 @@ pub fn chunks_to_physical_nodes(
     }
     let mut parquet_chunks: Vec<_> = parquet_chunks.into_iter().collect();
     parquet_chunks.sort_by_key(|(url_str, _)| url_str.clone());
-    let target_partitions = context.session_config().target_partitions;
+    let target_partitions = context.session_config().target_partitions();
     for (_url_str, chunk_list) in parquet_chunks {
         let ParquetChunkList {
             object_store_url,

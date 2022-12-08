@@ -26,7 +26,7 @@ pub fn iox_session_config() -> SessionConfig {
         // Enable parquet predicate pushdown optimization
         .set_bool(OPT_PARQUET_PUSHDOWN_FILTERS, true)
         .set_bool(OPT_PARQUET_REORDER_FILTERS, true)
-        .create_default_catalog_and_schema(true)
+        .with_create_default_catalog_and_schema(true)
         .with_information_schema(true)
         .with_default_catalog_and_schema(DEFAULT_CATALOG, DEFAULT_SCHEMA)
 }

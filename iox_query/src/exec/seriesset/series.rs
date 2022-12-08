@@ -28,10 +28,17 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// A name=value pair used to represent a series's tag
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Tag {
     pub key: Arc<str>,
     pub value: Arc<str>,
+}
+
+impl Tag {
+    /// Memory usage in bytes, including `self`.
+    pub fn size(&self) -> usize {
+        std::mem::size_of_val(self) + self.key.len() + self.value.len()
+    }
 }
 
 impl fmt::Display for Tag {
@@ -41,7 +48,7 @@ impl fmt::Display for Tag {
 }
 
 /// Represents a single logical TimeSeries
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Series {
     /// key = value pairs that define this series
     /// (including the _measurement and _field that correspond to table name and column name)
@@ -49,6 +56,21 @@ pub struct Series {
 
     /// The raw data for this series
     pub data: Data,
+}
+
+impl Series {
+    /// Memory usage in bytes, including `self`.
+    pub fn size(&self) -> usize {
+        std::mem::size_of_val(self)
+            + (std::mem::size_of::<Tag>() * self.tags.capacity())
+            + self
+                .tags
+                .iter()
+                .map(|tag| tag.size() - std::mem::size_of_val(tag))
+                .sum::<usize>()
+            + self.data.size()
+            - std::mem::size_of_val(&self.data)
+    }
 }
 
 impl fmt::Display for Series {
@@ -95,6 +117,95 @@ pub enum Data {
         timestamps: Vec<i64>,
         values: Vec<String>,
     },
+}
+
+impl Data {
+    /// Memory usage in bytes, including `self`.
+    pub fn size(&self) -> usize {
+        std::mem::size_of_val(self)
+            + match self {
+                Self::FloatPoints { timestamps, values } => {
+                    primitive_vec_size(timestamps) + primitive_vec_size(values)
+                }
+                Self::IntegerPoints { timestamps, values } => {
+                    primitive_vec_size(timestamps) + primitive_vec_size(values)
+                }
+                Self::UnsignedPoints { timestamps, values } => {
+                    primitive_vec_size(timestamps) + primitive_vec_size(values)
+                }
+                Self::BooleanPoints { timestamps, values } => {
+                    primitive_vec_size(timestamps) + primitive_vec_size(values)
+                }
+                Self::StringPoints { timestamps, values } => {
+                    primitive_vec_size(timestamps) + primitive_vec_size(values)
+                }
+            }
+    }
+}
+
+impl PartialEq for Data {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                Self::FloatPoints {
+                    timestamps: l_timestamps,
+                    values: l_values,
+                },
+                Self::FloatPoints {
+                    timestamps: r_timestamps,
+                    values: r_values,
+                },
+            ) => l_timestamps == r_timestamps && l_values == r_values,
+            (
+                Self::IntegerPoints {
+                    timestamps: l_timestamps,
+                    values: l_values,
+                },
+                Self::IntegerPoints {
+                    timestamps: r_timestamps,
+                    values: r_values,
+                },
+            ) => l_timestamps == r_timestamps && l_values == r_values,
+            (
+                Self::UnsignedPoints {
+                    timestamps: l_timestamps,
+                    values: l_values,
+                },
+                Self::UnsignedPoints {
+                    timestamps: r_timestamps,
+                    values: r_values,
+                },
+            ) => l_timestamps == r_timestamps && l_values == r_values,
+            (
+                Self::BooleanPoints {
+                    timestamps: l_timestamps,
+                    values: l_values,
+                },
+                Self::BooleanPoints {
+                    timestamps: r_timestamps,
+                    values: r_values,
+                },
+            ) => l_timestamps == r_timestamps && l_values == r_values,
+            (
+                Self::StringPoints {
+                    timestamps: l_timestamps,
+                    values: l_values,
+                },
+                Self::StringPoints {
+                    timestamps: r_timestamps,
+                    values: r_values,
+                },
+            ) => l_timestamps == r_timestamps && l_values == r_values,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for Data {}
+
+/// Returns size of given vector of primitive types in bytes, EXCLUDING `vec` itself.
+fn primitive_vec_size<T>(vec: &Vec<T>) -> usize {
+    std::mem::size_of::<T>() * vec.capacity()
 }
 
 impl fmt::Display for Data {
@@ -174,7 +285,7 @@ impl SeriesSet {
 
         let tags = self.create_frame_tags(schema.field(index.value_index).name());
 
-        let timestamps = compute::nullif(
+        let mut timestamps = compute::nullif(
             batch.column(index.timestamp_index),
             &compute::is_null(array).expect("is_null"),
         )
@@ -183,47 +294,57 @@ impl SeriesSet {
         .downcast_ref::<TimestampNanosecondArray>()
         .unwrap()
         .extract_values();
+        timestamps.shrink_to_fit();
 
         let data = match array.data_type() {
             ArrowDataType::Utf8 => {
-                let values = array
+                let mut values = array
                     .as_any()
                     .downcast_ref::<StringArray>()
                     .unwrap()
                     .extract_values();
+                values.shrink_to_fit();
+
                 Data::StringPoints { timestamps, values }
             }
             ArrowDataType::Float64 => {
-                let values = array
+                let mut values = array
                     .as_any()
                     .downcast_ref::<Float64Array>()
                     .unwrap()
                     .extract_values();
+                values.shrink_to_fit();
 
                 Data::FloatPoints { timestamps, values }
             }
             ArrowDataType::Int64 => {
-                let values = array
+                let mut values = array
                     .as_any()
                     .downcast_ref::<Int64Array>()
                     .unwrap()
                     .extract_values();
+                values.shrink_to_fit();
+
                 Data::IntegerPoints { timestamps, values }
             }
             ArrowDataType::UInt64 => {
-                let values = array
+                let mut values = array
                     .as_any()
                     .downcast_ref::<UInt64Array>()
                     .unwrap()
                     .extract_values();
+                values.shrink_to_fit();
+
                 Data::UnsignedPoints { timestamps, values }
             }
             ArrowDataType::Boolean => {
-                let values = array
+                let mut values = array
                     .as_any()
                     .downcast_ref::<BooleanArray>()
                     .unwrap()
                     .extract_values();
+                values.shrink_to_fit();
+
                 Data::BooleanPoints { timestamps, values }
             }
             _ => {
@@ -270,7 +391,7 @@ impl SeriesSet {
 }
 
 /// Represents a group of `Series`
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Group {
     /// Contains *ALL* tag keys (not just those used for grouping)
     pub tag_keys: Vec<Arc<str>>,
@@ -297,7 +418,7 @@ impl fmt::Display for Group {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Either {
     Series(Series),
     Group(Group),

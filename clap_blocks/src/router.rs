@@ -33,10 +33,21 @@ pub struct RouterConfig {
     /// Retention period to use when auto-creating namespaces.
     /// For infinite retention, leave this unset and it will default to `None`.
     /// Setting it to zero will not make it infinite.
+    /// Ignored if namespace-autocreation-enabled is set to false.
     #[clap(
         long = "new-namespace-retention-hours",
         env = "INFLUXDB_IOX_NEW_NAMESPACE_RETENTION_HOURS",
         action
     )]
     pub new_namespace_retention_hours: Option<u64>,
+
+    /// When writing data to a non-existant namespace, should the router auto-create the namespace
+    /// or reject the write? Set to false to disable namespace autocreation.
+    #[clap(
+        long = "namespace-autocreation-enabled",
+        env = "INFLUXDB_IOX_NAMESPACE_AUTOCREATION_ENABLED",
+        default_value = "true",
+        action
+    )]
+    pub namespace_autocreation_enabled: bool,
 }

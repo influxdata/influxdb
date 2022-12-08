@@ -12,7 +12,7 @@ use thiserror::Error;
 use crate::namespace_cache::NamespaceCache;
 
 pub mod mock;
-mod ns_autocreation;
+pub(crate) mod ns_autocreation;
 pub use ns_autocreation::*;
 
 /// Error states encountered during [`NamespaceId`] lookup.
