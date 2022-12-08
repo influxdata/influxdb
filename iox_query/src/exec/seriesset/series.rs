@@ -28,7 +28,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// A name=value pair used to represent a series's tag
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Tag {
     pub key: Arc<str>,
     pub value: Arc<str>,
@@ -48,7 +48,7 @@ impl fmt::Display for Tag {
 }
 
 /// Represents a single logical TimeSeries
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Series {
     /// key = value pairs that define this series
     /// (including the _measurement and _field that correspond to table name and column name)
@@ -142,6 +142,66 @@ impl Data {
             }
     }
 }
+
+impl PartialEq for Data {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                Self::FloatPoints {
+                    timestamps: l_timestamps,
+                    values: l_values,
+                },
+                Self::FloatPoints {
+                    timestamps: r_timestamps,
+                    values: r_values,
+                },
+            ) => l_timestamps == r_timestamps && l_values == r_values,
+            (
+                Self::IntegerPoints {
+                    timestamps: l_timestamps,
+                    values: l_values,
+                },
+                Self::IntegerPoints {
+                    timestamps: r_timestamps,
+                    values: r_values,
+                },
+            ) => l_timestamps == r_timestamps && l_values == r_values,
+            (
+                Self::UnsignedPoints {
+                    timestamps: l_timestamps,
+                    values: l_values,
+                },
+                Self::UnsignedPoints {
+                    timestamps: r_timestamps,
+                    values: r_values,
+                },
+            ) => l_timestamps == r_timestamps && l_values == r_values,
+            (
+                Self::BooleanPoints {
+                    timestamps: l_timestamps,
+                    values: l_values,
+                },
+                Self::BooleanPoints {
+                    timestamps: r_timestamps,
+                    values: r_values,
+                },
+            ) => l_timestamps == r_timestamps && l_values == r_values,
+            (
+                Self::StringPoints {
+                    timestamps: l_timestamps,
+                    values: l_values,
+                },
+                Self::StringPoints {
+                    timestamps: r_timestamps,
+                    values: r_values,
+                },
+            ) => l_timestamps == r_timestamps && l_values == r_values,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for Data {}
 
 /// Returns size of given vector of primitive types in bytes, EXCLUDING `vec` itself.
 fn primitive_vec_size<T>(vec: &Vec<T>) -> usize {
@@ -331,7 +391,7 @@ impl SeriesSet {
 }
 
 /// Represents a group of `Series`
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Group {
     /// Contains *ALL* tag keys (not just those used for grouping)
     pub tag_keys: Vec<Arc<str>>,
@@ -358,7 +418,7 @@ impl fmt::Display for Group {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Either {
     Series(Series),
     Group(Group),
