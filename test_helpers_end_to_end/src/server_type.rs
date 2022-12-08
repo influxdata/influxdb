@@ -4,7 +4,9 @@ use super::addrs::BindAddresses;
 pub enum ServerType {
     AllInOne,
     Ingester,
+    IngesterRpcWrite,
     Router,
+    RouterRpcWrite,
     Querier,
     Compactor,
 }
@@ -15,7 +17,9 @@ impl ServerType {
         match self {
             Self::AllInOne => "all-in-one",
             Self::Ingester => "ingester",
+            Self::IngesterRpcWrite => "ingester2",
             Self::Router => "router",
+            Self::RouterRpcWrite => "router-rpc-write",
             Self::Querier => "querier",
             Self::Compactor => "compactor",
         }
@@ -73,6 +77,16 @@ fn addr_envs(server_type: ServerType, addrs: &BindAddresses) -> Vec<(&'static st
                 addrs.ingester_grpc_api().bind_addr().to_string(),
             ),
         ],
+        ServerType::IngesterRpcWrite => vec![
+            (
+                "INFLUXDB_IOX_BIND_ADDR",
+                addrs.router_http_api().bind_addr().to_string(),
+            ),
+            (
+                "INFLUXDB_IOX_GRPC_BIND_ADDR",
+                addrs.ingester_grpc_api().bind_addr().to_string(),
+            ),
+        ],
         ServerType::Router => vec![
             (
                 "INFLUXDB_IOX_BIND_ADDR",
@@ -81,6 +95,20 @@ fn addr_envs(server_type: ServerType, addrs: &BindAddresses) -> Vec<(&'static st
             (
                 "INFLUXDB_IOX_GRPC_BIND_ADDR",
                 addrs.router_grpc_api().bind_addr().to_string(),
+            ),
+        ],
+        ServerType::RouterRpcWrite => vec![
+            (
+                "INFLUXDB_IOX_BIND_ADDR",
+                addrs.router_http_api().bind_addr().to_string(),
+            ),
+            (
+                "INFLUXDB_IOX_GRPC_BIND_ADDR",
+                addrs.router_grpc_api().bind_addr().to_string(),
+            ),
+            (
+                "INFLUXDB_IOX_INGESTER_ADDRESSES",
+                addrs.ingester_grpc_api().bind_addr().to_string(),
             ),
         ],
         ServerType::Querier => vec![

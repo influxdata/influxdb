@@ -152,6 +152,18 @@ impl MiniCluster {
             .with_compactor_config(compactor_config)
     }
 
+    pub async fn create_non_shared_rpc_write(database_url: String) -> Self {
+        let ingester_config = TestConfig::new_ingester_rpc_write(&database_url);
+        let router_config = TestConfig::new_router_rpc_write(&ingester_config);
+
+        // Set up the cluster  ====================================
+        Self::new()
+            .with_ingester(ingester_config)
+            .await
+            .with_router(router_config)
+            .await
+    }
+
     /// Create an all-(minus compactor)-in-one server with the specified configuration
     pub async fn create_all_in_one(test_config: TestConfig) -> Self {
         Self::new()

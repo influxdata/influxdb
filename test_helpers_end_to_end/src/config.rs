@@ -29,6 +29,9 @@ pub struct TestConfig {
     /// Object store directory, if needed.
     object_store_dir: Option<Arc<TempDir>>,
 
+    /// WAL directory, if needed.
+    wal_dir: Option<Arc<TempDir>>,
+
     /// Which ports this server should use
     addrs: Arc<BindAddresses>,
 }
@@ -49,6 +52,7 @@ impl TestConfig {
             catalog_schema_name: catalog_schema_name.into(),
             write_buffer_dir: None,
             object_store_dir: None,
+            wal_dir: None,
             addrs: Arc::new(BindAddresses::default()),
         }
     }
@@ -61,6 +65,26 @@ impl TestConfig {
             .with_new_object_store()
     }
 
+    /// Create a minimal router configuration sharing configuration with the ingester config
+    pub fn new_router_rpc_write(ingester_config: &TestConfig) -> Self {
+        assert_eq!(ingester_config.server_type(), ServerType::IngesterRpcWrite);
+
+        Self::new(
+            ServerType::RouterRpcWrite,
+            ingester_config.dsn().to_owned(),
+            ingester_config.catalog_schema_name(),
+        )
+        .with_existing_object_store(ingester_config)
+        .with_env(
+            "INFLUXDB_IOX_INGESTER_ADDRESSES",
+            ingester_config
+                .addrs()
+                .ingester_grpc_api()
+                .bind_addr()
+                .as_ref(),
+        )
+    }
+
     /// Create a minimal ingester configuration, using the dsn and
     /// write buffer configuration from other
     pub fn new_ingester(other: &TestConfig) -> Self {
@@ -71,6 +95,19 @@ impl TestConfig {
         )
         .with_existing_write_buffer(other)
         .with_existing_object_store(other)
+        .with_default_ingester_options()
+    }
+
+    /// Create a minimal ingester configuration, using the dsn configuration from other
+    pub fn new_ingester_rpc_write(dsn: impl Into<String>) -> Self {
+        let dsn = Some(dsn.into());
+        Self::new(
+            ServerType::IngesterRpcWrite,
+            dsn,
+            random_catalog_schema_name(),
+        )
+        .with_new_object_store()
+        .with_new_wal()
         .with_default_ingester_options()
     }
 
@@ -267,9 +304,18 @@ impl TestConfig {
         self
     }
 
-    /// Configures a new objct store
+    /// Configures a new WAL
+    pub fn with_new_wal(mut self) -> Self {
+        let tmpdir = TempDir::new().expect("cannot create tmp dir");
+
+        let wal_string = tmpdir.path().display().to_string();
+        self.wal_dir = Some(Arc::new(tmpdir));
+        self.with_env("INFLUXDB_IOX_WAL_DIRECTORY", &wal_string)
+    }
+
+    /// Configures a new object store
     pub fn with_new_object_store(mut self) -> Self {
-        let tmpdir = TempDir::new().expect("can not create tmp dir");
+        let tmpdir = TempDir::new().expect("cannot create tmp dir");
 
         let object_store_string = tmpdir.path().display().to_string();
         self.object_store_dir = Some(Arc::new(tmpdir));
