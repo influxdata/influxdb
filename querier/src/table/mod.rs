@@ -330,6 +330,10 @@ impl QuerierTable {
         // create parquet files
         let parquet_files: Vec<_> = match cached_table {
             Some(cached_table) => {
+                // use nested scope because we span many child scopes here and it's easier to
+                // aggregate / collapse in the UI
+                let span_recorder = span_recorder.child("parquet chunks");
+
                 let basic_summaries: Vec<_> = parquet_files
                     .files
                     .iter()
@@ -376,11 +380,14 @@ impl QuerierTable {
                         let keep = *keep;
                         async move { keep }
                     })
-                    .map(|(cached_parquet_file, _keep)| async move {
-                        let span = span_recorder.child_span("new_chunk");
-                        self.chunk_adapter
-                            .new_chunk(Arc::clone(cached_table), cached_parquet_file, span)
-                            .await
+                    .map(|(cached_parquet_file, _keep)| {
+                        let span_recorder = &span_recorder;
+                        async move {
+                            let span = span_recorder.child_span("new_chunk");
+                            self.chunk_adapter
+                                .new_chunk(Arc::clone(cached_table), cached_parquet_file, span)
+                                .await
+                        }
                     })
                     .buffer_unordered(CONCURRENT_CHUNK_CREATION_JOBS)
                     .filter_map(|x| async { x })
