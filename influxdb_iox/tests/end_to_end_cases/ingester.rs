@@ -88,6 +88,7 @@ async fn ingester_flight_api() {
     });
 }
 
+#[cfg(feature = "rpc_write")]
 #[tokio::test]
 async fn ingester2_flight_api() {
     test_helpers::maybe_start_logging();
