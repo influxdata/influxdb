@@ -220,11 +220,7 @@ pub struct QuerierConfig {
     /// "http://10.10.10.1:8083,http://10.10.10.2:8083"
     ///
     /// for multiple addresses.
-    #[clap(
-        long = "ingester-addresses",
-        env = "INFLUXDB_IOX_INGESTER_ADDRESSES",
-        required = true
-    )]
+    #[clap(long = "ingester-addresses", env = "INFLUXDB_IOX_INGESTER_ADDRESSES")]
     #[cfg(feature = "rpc_write")]
     pub ingester_addresses: Vec<String>,
 
