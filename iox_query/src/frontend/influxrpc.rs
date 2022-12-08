@@ -1445,7 +1445,7 @@ fn table_chunk_stream<'a>(
                     .chunks(
                         table_name,
                         predicate,
-                        &projection,
+                        projection.as_ref(),
                         ctx.child_ctx("table chunks"),
                     )
                     .await

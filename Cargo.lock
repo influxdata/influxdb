@@ -1237,8 +1237,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion"
-version = "14.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=799dd747152f6574638a844986b8ea8470d3f4d6#799dd747152f6574638a844986b8ea8470d3f4d6"
+version = "15.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=fbadebb894672f61327a30f77cda2ee88a343b2a#fbadebb894672f61327a30f77cda2ee88a343b2a"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
@@ -1270,6 +1270,7 @@ dependencies = [
  "pin-project-lite",
  "rand",
  "smallvec",
+ "sqllogictest",
  "sqlparser 0.27.0",
  "tempfile",
  "tokio",
@@ -1282,8 +1283,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-common"
-version = "14.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=799dd747152f6574638a844986b8ea8470d3f4d6#799dd747152f6574638a844986b8ea8470d3f4d6"
+version = "15.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=fbadebb894672f61327a30f77cda2ee88a343b2a#fbadebb894672f61327a30f77cda2ee88a343b2a"
 dependencies = [
  "arrow",
  "chrono",
@@ -1294,8 +1295,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-expr"
-version = "14.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=799dd747152f6574638a844986b8ea8470d3f4d6#799dd747152f6574638a844986b8ea8470d3f4d6"
+version = "15.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=fbadebb894672f61327a30f77cda2ee88a343b2a#fbadebb894672f61327a30f77cda2ee88a343b2a"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
@@ -1306,8 +1307,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-optimizer"
-version = "14.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=799dd747152f6574638a844986b8ea8470d3f4d6#799dd747152f6574638a844986b8ea8470d3f4d6"
+version = "15.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=fbadebb894672f61327a30f77cda2ee88a343b2a#fbadebb894672f61327a30f77cda2ee88a343b2a"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1321,8 +1322,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-physical-expr"
-version = "14.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=799dd747152f6574638a844986b8ea8470d3f4d6#799dd747152f6574638a844986b8ea8470d3f4d6"
+version = "15.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=fbadebb894672f61327a30f77cda2ee88a343b2a#fbadebb894672f61327a30f77cda2ee88a343b2a"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
@@ -1350,8 +1351,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-proto"
-version = "14.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=799dd747152f6574638a844986b8ea8470d3f4d6#799dd747152f6574638a844986b8ea8470d3f4d6"
+version = "15.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=fbadebb894672f61327a30f77cda2ee88a343b2a#fbadebb894672f61327a30f77cda2ee88a343b2a"
 dependencies = [
  "arrow",
  "chrono",
@@ -1367,8 +1368,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-row"
-version = "14.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=799dd747152f6574638a844986b8ea8470d3f4d6#799dd747152f6574638a844986b8ea8470d3f4d6"
+version = "15.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=fbadebb894672f61327a30f77cda2ee88a343b2a#fbadebb894672f61327a30f77cda2ee88a343b2a"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1378,10 +1379,10 @@ dependencies = [
 
 [[package]]
 name = "datafusion-sql"
-version = "14.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=799dd747152f6574638a844986b8ea8470d3f4d6#799dd747152f6574638a844986b8ea8470d3f4d6"
+version = "15.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=fbadebb894672f61327a30f77cda2ee88a343b2a#fbadebb894672f61327a30f77cda2ee88a343b2a"
 dependencies = [
- "arrow",
+ "arrow-schema",
  "datafusion-common",
  "datafusion-expr",
  "sqlparser 0.27.0",
@@ -1416,6 +1417,12 @@ name = "diff"
 version = "0.1.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56254986775e3233ffa9c4d7d3faaf6d36a2c09d30b20687e9f88bc8bafc16c8"
+
+[[package]]
+name = "difference"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "524cbf6897b527295dff137cec09ecf3a05f4fddffd7dfcd1585403449e74198"
 
 [[package]]
 name = "difflib"
@@ -3018,6 +3025,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "348108ab3fba42ec82ff6e9564fc4ca0247bdccdc68dd8af9764bbc79c3c8ffb"
 
 [[package]]
+name = "libtest-mimic"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7b603516767d1ab23d0de09d023e62966c3322f7148297c35cf3d97aa8b37fa"
+dependencies = [
+ "clap 4.0.29",
+ "termcolor",
+ "threadpool",
+]
+
+[[package]]
 name = "link-cplusplus"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3707,6 +3725,7 @@ name = "parquet_to_line_protocol"
 version = "0.1.0"
 dependencies = [
  "datafusion",
+ "datafusion_util",
  "futures",
  "influxdb_line_protocol",
  "mutable_batch",
@@ -5076,6 +5095,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "sqllogictest"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba41e01d229d7725401de371e323851f82d839d68732a06162405362b60852fe"
+dependencies = [
+ "async-trait",
+ "difference",
+ "futures",
+ "glob",
+ "humantime",
+ "itertools",
+ "libtest-mimic",
+ "regex",
+ "tempfile",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "sqlparser"
 version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6327,6 +6365,7 @@ dependencies = [
  "bytes",
  "cc",
  "chrono",
+ "clap 4.0.29",
  "crossbeam-utils",
  "crypto-common",
  "datafusion",
@@ -6346,7 +6385,6 @@ dependencies = [
  "hashbrown 0.13.1",
  "heck",
  "indexmap",
- "io-lifetimes",
  "libc",
  "lock_api",
  "log",

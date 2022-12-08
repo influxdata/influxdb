@@ -193,7 +193,7 @@ impl QuerierTable {
         &self,
         predicate: &Predicate,
         span: Option<Span>,
-        projection: &Option<Vec<usize>>,
+        projection: Option<&Vec<usize>>,
     ) -> Result<Vec<Arc<dyn QueryChunk>>> {
         let mut span_recorder = SpanRecorder::new(span);
         match self
@@ -215,7 +215,7 @@ impl QuerierTable {
         &self,
         predicate: &Predicate,
         span_recorder: &SpanRecorder,
-        projection: &Option<Vec<usize>>,
+        projection: Option<&Vec<usize>>,
     ) -> Result<Vec<Arc<dyn QueryChunk>>> {
         debug!(
             ?predicate,
@@ -429,7 +429,7 @@ impl QuerierTable {
         &self,
         predicate: &Predicate,
         span: Option<Span>,
-        projection: &Option<Vec<usize>>,
+        projection: Option<&Vec<usize>>,
     ) -> Result<Vec<IngesterPartition>> {
         let mut span_recorder = SpanRecorder::new(span);
 
@@ -464,7 +464,7 @@ impl QuerierTable {
         ingester_connection: Arc<dyn IngesterConnection>,
         predicate: &Predicate,
         span_recorder: &SpanRecorder,
-        projection: &Option<Vec<usize>>,
+        projection: Option<&Vec<usize>>,
     ) -> Result<Vec<IngesterPartition>> {
         // If the projection is provided, use it. Otherwise, use all columns of the table
         // The provided projection should include all columns needed by the query
@@ -826,7 +826,7 @@ mod tests {
         // Expect one chunk from the ingester
         let pred = Predicate::new().with_range(0, 100);
         let chunks = querier_table
-            .chunks_with_predicate_and_projection(&pred, &Some(vec![1])) // only select `foo` column
+            .chunks_with_predicate_and_projection(&pred, Some(&vec![1])) // only select `foo` column
             .await
             .unwrap();
         assert_eq!(chunks.len(), 1);
@@ -1369,14 +1369,14 @@ mod tests {
             &self,
             pred: &Predicate,
         ) -> Result<Vec<Arc<dyn QueryChunk>>> {
-            self.chunks_with_predicate_and_projection(pred, &None).await
+            self.chunks_with_predicate_and_projection(pred, None).await
         }
 
         /// Invokes querier_table.chunks modeling the ingester sending the partitions in this table
         async fn chunks_with_predicate_and_projection(
             &self,
             pred: &Predicate,
-            projection: &Option<Vec<usize>>,
+            projection: Option<&Vec<usize>>,
         ) -> Result<Vec<Arc<dyn QueryChunk>>> {
             self.querier_table
                 .ingester_connection

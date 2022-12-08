@@ -2,7 +2,6 @@
 
 use datafusion::{
     arrow::datatypes::SchemaRef as ArrowSchemaRef,
-    config::ConfigOptions,
     datasource::{
         file_format::{parquet::ParquetFormat, FileFormat},
         listing::PartitionedFile,
@@ -16,6 +15,7 @@ use datafusion::{
     },
     prelude::{SessionConfig, SessionContext},
 };
+use datafusion_util::config::iox_session_config;
 use futures::StreamExt;
 use object_store::{
     local::LocalFileSystem, path::Path as ObjectStorePath, ObjectMeta, ObjectStore,
@@ -162,9 +162,8 @@ pub struct ParquetFileReader {
     /// Parquet file metadata
     schema: ArrowSchemaRef,
 
-    /// number of rows to read in each batch (can pick small to
-    /// increase parallelism). Defaults to 1000
-    batch_size: usize,
+    /// DataFusion configuration, such as the target batchsize, etc
+    session_config: SessionConfig,
 }
 
 impl ParquetFileReader {
@@ -174,8 +173,11 @@ impl ParquetFileReader {
         object_store_url: ObjectStoreUrl,
         object_meta: ObjectMeta,
     ) -> Result<Self, Error> {
+        let session_config = iox_session_config();
+
         // Keep metadata so we can find the measurement name
-        let format = ParquetFormat::default().with_skip_metadata(false);
+        let format =
+            ParquetFormat::new(session_config.config_options()).with_skip_metadata(Some(false));
 
         // Use datafusion parquet reader to read the metadata from the
         // file.
@@ -189,7 +191,7 @@ impl ParquetFileReader {
             object_store_url,
             object_meta,
             schema,
-            batch_size: 1000,
+            session_config,
         })
     }
 
@@ -214,15 +216,14 @@ impl ParquetFileReader {
             limit: None,
             table_partition_cols: vec![],
             output_ordering: None,
-            config_options: ConfigOptions::new().into_shareable(),
+            config_options: self.session_config.config_options(),
         };
 
         // set up enough datafusion context to do the real read session
         let predicate = None;
         let metadata_size_hint = None;
         let exec = ParquetExec::new(base_config, predicate, metadata_size_hint);
-        let session_config = SessionConfig::new().with_batch_size(self.batch_size);
-        let session_ctx = SessionContext::with_config(session_config);
+        let session_ctx = SessionContext::with_config(self.session_config.clone());
 
         let object_store = Arc::clone(&self.object_store);
         let task_ctx = Arc::new(TaskContext::from(&session_ctx));

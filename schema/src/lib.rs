@@ -375,7 +375,7 @@ impl Schema {
 
     /// Return names of the columns of given indexes with all PK columns (tags and time)
     /// If the columns are not provided, return all columns
-    pub fn select_given_and_pk_columns(&self, cols: &Option<Vec<usize>>) -> Vec<String> {
+    pub fn select_given_and_pk_columns(&self, cols: Option<&Vec<usize>>) -> Vec<String> {
         match cols {
             Some(cols) => {
                 let mut columns = cols

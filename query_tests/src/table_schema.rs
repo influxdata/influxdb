@@ -35,7 +35,7 @@ async fn run_table_schema_test_case<D>(
 
         let ctx = db.new_query_context(None);
         let chunks = db
-            .chunks(table_name, &Default::default(), &None, ctx)
+            .chunks(table_name, &Default::default(), None, ctx)
             .await
             .expect("error getting chunks");
         for chunk in chunks {
