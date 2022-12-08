@@ -39,7 +39,9 @@ pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -
         .retention_period_ns
         .map(|retention| Duration::from_nanos(retention as u64));
     QuerierTable::new(QuerierTableArgs {
-        sharder: Arc::new(JumpHash::new((0..1).map(ShardIndex::new).map(Arc::new))),
+        sharder: Some(Arc::new(JumpHash::new(
+            (0..1).map(ShardIndex::new).map(Arc::new),
+        ))),
         namespace_id: table.namespace.namespace.id,
         namespace_name,
         namespace_retention_period,

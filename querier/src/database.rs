@@ -69,7 +69,8 @@ pub struct QuerierDatabase {
     query_execution_semaphore: Arc<InstrumentedAsyncSemaphore>,
 
     /// Sharder to determine which ingesters to query for a particular table and namespace.
-    sharder: Arc<JumpHash<Arc<ShardIndex>>>,
+    /// Only relevant when using the write buffer; will be None if using RPC write ingesters.
+    sharder: Option<Arc<JumpHash<Arc<ShardIndex>>>>,
 
     /// Chunk prune metrics.
     prune_metrics: Arc<PruneMetrics>,
@@ -106,6 +107,7 @@ impl QuerierDatabase {
         exec: Arc<Executor>,
         ingester_connection: Option<Arc<dyn IngesterConnection>>,
         max_concurrent_queries: usize,
+        rpc_write: bool,
     ) -> Result<Self, Error> {
         assert!(
             max_concurrent_queries <= Self::MAX_CONCURRENT_QUERIES_MAX,
@@ -128,9 +130,13 @@ impl QuerierDatabase {
         let query_execution_semaphore =
             Arc::new(semaphore_metrics.new_semaphore(max_concurrent_queries));
 
-        let sharder = Arc::new(
-            create_sharder(catalog_cache.catalog().as_ref(), backoff_config.clone()).await?,
-        );
+        let sharder = if rpc_write {
+            None
+        } else {
+            Some(Arc::new(
+                create_sharder(catalog_cache.catalog().as_ref(), backoff_config.clone()).await?,
+            ))
+        };
 
         let prune_metrics = Arc::new(PruneMetrics::new(&metric_registry));
 
@@ -172,7 +178,7 @@ impl QuerierDatabase {
             Arc::clone(&self.exec),
             self.ingester_connection.clone(),
             Arc::clone(&self.query_log),
-            Arc::clone(&self.sharder),
+            self.sharder.clone(),
             Arc::clone(&self.prune_metrics),
         )))
     }
@@ -256,6 +262,7 @@ mod tests {
             catalog.exec(),
             Some(create_ingester_connection_for_testing()),
             QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX.saturating_add(1),
+            false,
         )
         .await
         .unwrap();
@@ -280,6 +287,7 @@ mod tests {
                 catalog.exec(),
                 Some(create_ingester_connection_for_testing()),
                 QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
+                false,
             )
             .await,
             Error::NoShards
@@ -305,6 +313,7 @@ mod tests {
             catalog.exec(),
             Some(create_ingester_connection_for_testing()),
             QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
+            false,
         )
         .await
         .unwrap();
@@ -334,6 +343,7 @@ mod tests {
             catalog.exec(),
             Some(create_ingester_connection_for_testing()),
             QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
+            false,
         )
         .await
         .unwrap();

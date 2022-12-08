@@ -34,7 +34,7 @@ impl MockIngesterConnection {
 impl IngesterConnection for MockIngesterConnection {
     async fn partitions(
         &self,
-        _shard_indexes: &[ShardIndex],
+        _shard_indexes: Option<Vec<ShardIndex>>,
         _namespace_id: NamespaceId,
         _table_id: TableId,
         columns: Vec<String>,

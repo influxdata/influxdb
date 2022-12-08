@@ -15,7 +15,7 @@ use ioxd_common::{
 use metric::Registry;
 use object_store::DynObjectStore;
 use querier::{
-    create_ingester_connections_by_shard, QuerierCatalogCache, QuerierDatabase, QuerierHandler,
+    create_ingester_connections, QuerierCatalogCache, QuerierDatabase, QuerierHandler,
     QuerierHandlerImpl, QuerierServer,
 };
 use std::{
@@ -188,8 +188,15 @@ pub async fn create_querier_server_type(
 
     let ingester_connection = match args.ingester_addresses {
         IngesterAddresses::None => None,
-        IngesterAddresses::ByShardIndex(map) => Some(create_ingester_connections_by_shard(
-            map,
+        IngesterAddresses::ByShardIndex(map) => Some(create_ingester_connections(
+            Some(map),
+            None,
+            Arc::clone(&catalog_cache),
+            args.querier_config.ingester_circuit_breaker_threshold,
+        )),
+        IngesterAddresses::List(list) => Some(create_ingester_connections(
+            None,
+            Some(list),
             Arc::clone(&catalog_cache),
             args.querier_config.ingester_circuit_breaker_threshold,
         )),
@@ -202,6 +209,7 @@ pub async fn create_querier_server_type(
             args.exec,
             ingester_connection,
             args.querier_config.max_concurrent_queries(),
+            args.querier_config.rpc_write(),
         )
         .await?,
     );

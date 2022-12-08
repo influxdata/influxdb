@@ -1,8 +1,14 @@
 //! Querier-related configs.
 use data_types::{IngesterMapping, ShardIndex};
+use snafu::Snafu;
+use std::{collections::HashMap, io, path::PathBuf, sync::Arc};
+
+#[cfg(not(feature = "rpc_write"))]
 use serde::Deserialize;
-use snafu::{ResultExt, Snafu};
-use std::{collections::HashMap, fs, io, path::PathBuf, sync::Arc};
+#[cfg(not(feature = "rpc_write"))]
+use snafu::ResultExt;
+#[cfg(not(feature = "rpc_write"))]
+use std::fs;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
@@ -19,6 +25,7 @@ pub enum Error {
         ingesters,
         shards,
     ))]
+    #[cfg(not(feature = "rpc_write"))]
     IgnoreAllRequiresEmptyConfig {
         ingesters: HashMap<Arc<str>, Arc<IngesterConfig>>,
         shards: HashMap<ShardIndex, ShardConfig>,
@@ -130,6 +137,7 @@ pub struct QuerierConfig {
         env = "INFLUXDB_IOX_SHARD_TO_INGESTERS_FILE",
         action
     )]
+    #[cfg(not(feature = "rpc_write"))]
     pub shard_to_ingesters_file: Option<PathBuf>,
 
     /// JSON containing a Shard index to ingesters gRPC mapping. For example:
@@ -199,7 +207,26 @@ pub struct QuerierConfig {
         env = "INFLUXDB_IOX_SHARD_TO_INGESTERS",
         action
     )]
+    #[cfg(not(feature = "rpc_write"))]
     pub shard_to_ingesters: Option<String>,
+
+    /// gRPC address for the router to talk with the ingesters. For
+    /// example:
+    ///
+    /// "http://127.0.0.1:8083"
+    ///
+    /// or
+    ///
+    /// "http://10.10.10.1:8083,http://10.10.10.2:8083"
+    ///
+    /// for multiple addresses.
+    #[clap(
+        long = "ingester-addresses",
+        env = "INFLUXDB_IOX_INGESTER_ADDRESSES",
+        required = true
+    )]
+    #[cfg(feature = "rpc_write")]
+    pub ingester_addresses: Vec<String>,
 
     /// Size of the RAM cache used to store catalog metadata information in bytes.
     #[clap(
@@ -261,6 +288,7 @@ impl QuerierConfig {
     /// Return the querier config's ingester addresses. If `--shard-to-ingesters-file` is used to
     /// specify a JSON file containing shard to ingester address mappings, this returns `Err` if
     /// there are any problems reading, deserializing, or interpreting the file.
+    #[cfg(not(feature = "rpc_write"))]
     pub fn ingester_addresses(&self) -> Result<IngesterAddresses, Error> {
         if let Some(file) = &self.shard_to_ingesters_file {
             let contents =
@@ -283,6 +311,24 @@ impl QuerierConfig {
         }
     }
 
+    /// Return the querier config's ingester addresses.
+    // When we have switched to using the RPC write path and remove the rpc_write feature, this
+    // method can be changed to be infallible as clap will handle failure to parse the list of
+    // strings.
+    #[cfg(feature = "rpc_write")]
+    pub fn ingester_addresses(&self) -> Result<IngesterAddresses, Error> {
+        if self.ingester_addresses.is_empty() {
+            Ok(IngesterAddresses::None)
+        } else {
+            Ok(IngesterAddresses::List(
+                self.ingester_addresses
+                    .iter()
+                    .map(|s| s.as_str().into())
+                    .collect(),
+            ))
+        }
+    }
+
     /// Size of the RAM cache pool for metadata in bytes.
     pub fn ram_pool_metadata_bytes(&self) -> usize {
         self.ram_pool_metadata_bytes
@@ -297,8 +343,21 @@ impl QuerierConfig {
     pub fn max_concurrent_queries(&self) -> usize {
         self.max_concurrent_queries
     }
+
+    /// Whether the querier is contacting ingesters that use the RPC write path or not.
+    #[cfg(feature = "rpc_write")]
+    pub fn rpc_write(&self) -> bool {
+        true
+    }
+
+    /// Whether the querier is contacting ingesters that use the RPC write path or not.
+    #[cfg(not(feature = "rpc_write"))]
+    pub fn rpc_write(&self) -> bool {
+        false
+    }
 }
 
+#[cfg(not(feature = "rpc_write"))]
 fn deserialize_shard_ingester_map(
     contents: &str,
 ) -> Result<HashMap<ShardIndex, IngesterMapping>, Error> {
@@ -375,12 +434,16 @@ pub enum IngesterAddresses {
     /// A mapping from shard index to ingesters.
     ByShardIndex(HashMap<ShardIndex, IngesterMapping>),
 
+    /// A list of ingester2 addresses.
+    List(Vec<Arc<str>>),
+
     /// No connections, meaning only persisted data should be used.
     None,
 }
 
 #[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[cfg(not(feature = "rpc_write"))]
 struct IngestersConfig {
     #[serde(default)]
     ignore_all: bool,
@@ -392,6 +455,7 @@ struct IngestersConfig {
 
 /// Ingester config.
 #[derive(Debug, Deserialize)]
+#[cfg(not(feature = "rpc_write"))]
 pub struct IngesterConfig {
     addr: Option<Arc<str>>,
     #[serde(default)]
@@ -400,6 +464,7 @@ pub struct IngesterConfig {
 
 /// Shard config.
 #[derive(Debug, Deserialize)]
+#[cfg(not(feature = "rpc_write"))]
 pub struct ShardConfig {
     ingester: Option<Arc<str>>,
     #[serde(default)]
@@ -407,6 +472,7 @@ pub struct ShardConfig {
 }
 
 #[cfg(test)]
+#[cfg(not(feature = "rpc_write"))] // These tests won't be relevant after the switch to rpc_write.
 mod tests {
     use super::*;
     use clap::Parser;

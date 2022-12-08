@@ -78,7 +78,7 @@ impl From<Error> for DataFusionError {
 
 /// Args to create a [`QuerierTable`].
 pub struct QuerierTableArgs {
-    pub sharder: Arc<JumpHash<Arc<ShardIndex>>>,
+    pub sharder: Option<Arc<JumpHash<Arc<ShardIndex>>>>,
     pub namespace_id: NamespaceId,
     pub namespace_name: Arc<str>,
     pub namespace_retention_period: Option<Duration>,
@@ -94,8 +94,9 @@ pub struct QuerierTableArgs {
 /// Table representation for the querier.
 #[derive(Debug)]
 pub struct QuerierTable {
-    /// Sharder to query for which shards are responsible for the table's data
-    sharder: Arc<JumpHash<Arc<ShardIndex>>>,
+    /// Sharder to query for which shards are responsible for the table's data. If not specified,
+    /// query all ingesters.
+    sharder: Option<Arc<JumpHash<Arc<ShardIndex>>>>,
 
     /// Namespace the table is in
     namespace_name: Arc<str>,
@@ -481,14 +482,15 @@ impl QuerierTable {
         // determine which ingester(s) to query.
         // Currently, the sharder will only return one shard index per table, but in the
         // near future, the sharder might return more than one shard index for one table.
-        let shard_indexes = vec![**self
+        let shard_indexes = self
             .sharder
-            .shard_for_query(&self.table_name, &self.namespace_name)];
+            .as_ref()
+            .map(|sharder| vec![**sharder.shard_for_query(&self.table_name, &self.namespace_name)]);
 
         // get any chunks from the ingester(s)
         let partitions_result = ingester_connection
             .partitions(
-                &shard_indexes,
+                shard_indexes,
                 self.namespace_id,
                 self.table_id,
                 columns,
