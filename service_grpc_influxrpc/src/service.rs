@@ -1348,7 +1348,10 @@ where
     // Execute the plans.
     let db_name = db_name.to_owned();
     let series_or_groups = ctx
-        .to_series_and_groups(series_plan)
+        .to_series_and_groups(
+            series_plan,
+            Arc::clone(&ctx.inner().runtime_env().memory_manager),
+        )
         .await
         .context(FilteringSeriesSnafu {
             db_name: db_name.clone(),
@@ -1413,7 +1416,10 @@ where
     // Execute the plans
     let db_name = db_name.to_owned();
     let series_or_groups = ctx
-        .to_series_and_groups(grouped_series_set_plan)
+        .to_series_and_groups(
+            grouped_series_set_plan,
+            Arc::clone(&ctx.inner().runtime_env().memory_manager),
+        )
         .await
         .context(GroupingSeriesSnafu {
             db_name: db_name.clone(),
