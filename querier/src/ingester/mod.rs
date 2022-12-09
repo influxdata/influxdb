@@ -154,7 +154,8 @@ pub fn create_ingester_connections(
         deadline: Some(Duration::from_secs(10)),
     };
 
-    // This backoff config is used to half-open the circuit after it was opened. Circuits are ingester-scoped.
+    // This backoff config is used to half-open the circuit after it was opened. Circuits are
+    // ingester-scoped.
     let circuit_breaker_backoff_config = BackoffConfig {
         init_backoff: Duration::from_secs(1),
         max_backoff: Duration::from_secs(60),
@@ -192,8 +193,7 @@ pub fn create_ingester_connection_for_testing() -> Arc<dyn IngesterConnection> {
     Arc::new(MockIngesterConnection::new())
 }
 
-/// Handles communicating with the ingester(s) to retrieve
-/// data that is not yet persisted
+/// Handles communicating with the ingester(s) to retrieve data that is not yet persisted
 #[async_trait]
 pub trait IngesterConnection: std::fmt::Debug + Send + Sync + 'static {
     /// Returns all partitions ingester(s) know about for the specified table.
@@ -261,8 +261,8 @@ struct IngesterResponseOk {
 
 /// Helper to observe a single ingester request.
 ///
-/// Use [`set_ok`](Self::set_ok) or [`set_err`](Self::set_err) if an ingester result was observered. Otherwise the
-/// request will count as "cancelled".
+/// Use [`set_ok`](Self::set_ok) or [`set_err`](Self::set_err) if an ingester result was
+/// observered. Otherwise the request will count as "cancelled".
 struct ObserveIngesterRequest<'a> {
     res: Option<Result<IngesterResponseOk, ()>>,
     t_start: Time,
@@ -500,7 +500,7 @@ async fn execute(
                 ingester_address = ingester_address.as_ref(),
                 namespace_id = namespace_id.get(),
                 table_id = cached_table.id.get(),
-                "Could not connect to ingester,  circuit broken",
+                "Could not connect to ingester, circuit broken",
             );
             return Ok(vec![]);
         }
@@ -540,7 +540,8 @@ async fn execute(
         })?;
 
     // collect data from IO stream
-    // Drain data from ingester so we don't block the ingester while performing catalog IO or CPU computations
+    // Drain data from ingester so we don't block the ingester while performing catalog IO or CPU
+    // computations
     let mut messages = vec![];
     while let Some(data) = perform_query
         .next()
@@ -569,8 +570,8 @@ async fn execute(
 
 /// Helper to disassemble the data from the ingester Apache Flight arrow stream.
 ///
-/// This should be used AFTER the stream was drained because we will perform some catalog IO and this should likely not
-/// block the ingester.
+/// This should be used AFTER the stream was drained because we will perform some catalog IO and
+/// this should likely not block the ingester.
 struct IngesterStreamDecoder {
     finished_partitions: HashMap<PartitionId, IngesterPartition>,
     current_partition: Option<IngesterPartition>,
@@ -600,7 +601,7 @@ impl IngesterStreamDecoder {
         }
     }
 
-    /// FLush current chunk, if any.
+    /// Flush current chunk, if any.
     fn flush_chunk(&mut self) -> Result<()> {
         if let Some((schema, batches)) = self.current_chunk.take() {
             let current_partition = self
@@ -614,7 +615,7 @@ impl IngesterStreamDecoder {
         Ok(())
     }
 
-    /// FLush current partition, if any.
+    /// Flush current partition, if any.
     ///
     /// This will also flush the current chunk.
     async fn flush_partition(&mut self) -> Result<()> {
@@ -692,8 +693,9 @@ impl IngesterStreamDecoder {
                     )
                     .await;
 
-                // Use a temporary empty partition sort key. We are going to fetch this AFTER we know all chunks because
-                // then we are able to detect all relevant primary key columns that the sort key must cover.
+                // Use a temporary empty partition sort key. We are going to fetch this AFTER we
+                // know all chunks because then we are able to detect all relevant primary key
+                // columns that the sort key must cover.
                 let partition_sort_key = None;
 
                 let partition = IngesterPartition::new(
@@ -715,8 +717,9 @@ impl IngesterStreamDecoder {
                     }
                 );
 
-                // don't use the transmitted arrow schema to construct the IOx schema because some metadata might be
-                // missing. Instead select the right columns from the expected schema.
+                // don't use the transmitted arrow schema to construct the IOx schema because some
+                // metadata might be missing. Instead select the right columns from the expected
+                // schema.
                 let column_names: Vec<_> =
                     schema.fields().iter().map(|f| f.name().as_str()).collect();
                 let schema = self
@@ -800,9 +803,9 @@ impl IngesterConnection for IngesterConnectionImpl {
             // Otherwise, we're using the write buffer and need to look up the ingesters to contact
             // by their shard index.
             Some(shard_indexes) => {
-                // Look up the ingesters needed for the shard. Collect into a HashSet to avoid making
-                // multiple requests to the same ingester if that ingester is responsible for multiple
-                // shard_indexes relevant to this query.
+                // Look up the ingesters needed for the shard. Collect into a HashSet to avoid
+                // making multiple requests to the same ingester if that ingester is responsible
+                // for multiple shard_indexes relevant to this query.
                 let mut relevant_ingester_addresses = HashSet::new();
 
                 for shard_index in &shard_indexes {
