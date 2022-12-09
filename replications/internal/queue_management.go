@@ -158,6 +158,7 @@ func (rq *replicationQueue) run() {
 	for {
 		select {
 		case <-rq.done: // end the goroutine when done is messaged
+			rq.logger.Debug("Replication Queue closing...")
 			return
 		case <-rq.receive: // run the scanner on data append
 			// Receive channel has a buffer to prevent a potential race condition where rq.SendWrite has reached EOF and will
@@ -167,17 +168,26 @@ func (rq *replicationQueue) run() {
 			// that rq.SendWrite will be called again in this situation and not leave data in the queue. Outside of this
 			// specific scenario, the buffer might result in an extra call to rq.SendWrite that will immediately return on
 			// EOF.
+			rq.logger.Debug("Replication Queue received, calling sendWrite()")
 			retryTime := sendWrite()
 			if !retry.Stop() {
 				<-retry.C
 			}
 			retry.Reset(retryTime)
 		case <-retry.C:
+			rq.logger.Debug("Replication Queue attempt retry, calling sendWrite()")
 			retryTime := sendWrite()
 			retry.Reset(retryTime)
+			rq.logger.Debug("Replication Queue", zap.Duration("newRetryTime", retryTime))
 		case <-purgeTicker.C:
+			rq.logger.Debug("Replication Queue", zap.Duration("purgeTicker", rq.maxAge))
 			if rq.maxAge != 0 {
-				rq.queue.PurgeOlderThan(time.Now().Add(-rq.maxAge))
+				olderThan := time.Now().Add(-rq.maxAge)
+				rq.logger.Debug("Replication Queue purging", zap.Time("olderThan", olderThan))
+				err := rq.queue.PurgeOlderThan(olderThan)
+				if err != nil {
+					rq.logger.Error("error purging queue", zap.Error(err))
+				}
 			}
 		}
 	}
@@ -228,6 +238,8 @@ func (rq *replicationQueue) SendWrite() (waitForRetry time.Duration, shouldRetry
 			rq.logger.Error("Error in replication stream", zap.Error(err), zap.Int("retries", rq.failedWrites))
 			return waitForRetry, true
 		}
+
+		rq.logger.Debug("Replication Queue", zap.Int64("sizeOnDisk", rq.queue.DiskUsage()), zap.Int64("remainingBytesToUpload", rq.queue.TotalBytes()))
 
 		// a successful write resets the number of failed write attempts to zero
 		rq.failedWrites = 0
