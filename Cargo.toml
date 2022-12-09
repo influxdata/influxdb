@@ -143,3 +143,8 @@ opt-level = 3
 
 [profile.dev.package.similar]
 opt-level = 3
+
+[patch.crates-io]
+# remove and bump object_store dep version once this revision is released.
+# patch for https://github.com/influxdata/idpe/issues/16611
+object_store = { git = 'https://github.com/apache/arrow-rs.git', rev = "f5c165acc0e6cc4b34e0eaea006aab7e5bd28d66", package = "object_store" }
