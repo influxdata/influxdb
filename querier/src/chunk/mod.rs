@@ -227,7 +227,7 @@ impl ChunkAdapter {
     ) -> Option<ChunkParts> {
         let span_recorder = SpanRecorder::new(span);
 
-        let parquet_file_cols: HashMap<&str, ColumnId> = parquet_file
+        let parquet_file_cols: HashMap<ColumnId, &str> = parquet_file
             .column_set
             .iter()
             .map(|id| {
@@ -236,16 +236,15 @@ impl ChunkAdapter {
                     .get(id)
                     .expect("catalog has all columns")
                     .as_ref();
-                (name, *id)
+                (*id, name)
             })
             .collect();
 
         // relevant_pk_columns is everything from the primary key for the table, that is actually in this parquet file
         let relevant_pk_columns: Vec<_> = cached_table
-            .schema
-            .primary_key()
-            .into_iter()
-            .filter(|c| parquet_file_cols.contains_key(*c))
+            .primary_key_column_ids
+            .iter()
+            .filter_map(|c| parquet_file_cols.get(c).copied())
             .collect();
         let partition_sort_key = self
             .catalog_cache
@@ -271,12 +270,10 @@ impl ChunkAdapter {
         // NOTE: The schema that we calculate here may have a different column order than the actual parquet file. This
         //       is OK because the IOx parquet reader can deal with that (see #4921).
         let column_ids: Vec<_> = cached_table
-            .schema
-            .iter()
-            .filter_map(|(_, field)| {
-                let name = field.name();
-                parquet_file_cols.get(name.as_str()).copied()
-            })
+            .column_id_map
+            .keys()
+            .filter(|id| parquet_file_cols.contains_key(id))
+            .copied()
             .collect();
         let schema = self
             .catalog_cache

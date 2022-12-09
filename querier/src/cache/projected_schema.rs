@@ -212,16 +212,35 @@ mod tests {
             id: table_id_1,
             schema: Arc::clone(&table_schema_a),
             column_id_map: column_id_map_a.clone(),
+            primary_key_column_ids: vec![
+                ColumnId::new(1),
+                ColumnId::new(2),
+                ColumnId::new(3),
+                ColumnId::new(4),
+            ],
         });
         let table_1b = Arc::new(CachedTable {
             id: table_id_1,
             schema: Arc::clone(&table_schema_b),
             column_id_map: column_id_map_b.clone(),
+            primary_key_column_ids: vec![
+                ColumnId::new(1),
+                ColumnId::new(2),
+                ColumnId::new(3),
+                ColumnId::new(4),
+            ],
         });
         let table_2a = Arc::new(CachedTable {
             id: table_id_2,
             schema: Arc::clone(&table_schema_a),
             column_id_map: column_id_map_a.clone(),
+            primary_key_column_ids: vec![
+                ColumnId::new(1),
+                ColumnId::new(2),
+                ColumnId::new(3),
+                ColumnId::new(4),
+                ColumnId::new(5),
+            ],
         });
 
         // initial request
