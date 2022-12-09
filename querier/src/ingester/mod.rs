@@ -40,6 +40,7 @@ use std::{
     time::Duration,
 };
 use trace::span::{Span, SpanRecorder};
+use uuid::Uuid;
 
 mod circuit_breaker;
 pub(crate) mod flight_client;
@@ -135,6 +136,12 @@ pub enum Error {
         "Shard index {shard_index} was neither mapped to an ingester nor marked ignore"
     ))]
     ShardNotMapped { shard_index: ShardIndex },
+
+    #[snafu(display("Could not parse `{ingester_uuid}` as a UUID: {source}"))]
+    IngesterUuid {
+        ingester_uuid: String,
+        source: uuid::Error,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -698,10 +705,23 @@ impl IngesterStreamDecoder {
                 // columns that the sort key must cover.
                 let partition_sort_key = None;
 
+                let ingester_uuid = if md.ingester_uuid.is_empty() {
+                    // Using the write buffer path, no UUID specified
+                    None
+                } else {
+                    Some(
+                        Uuid::parse_str(&md.ingester_uuid).context(IngesterUuidSnafu {
+                            ingester_uuid: md.ingester_uuid,
+                        })?,
+                    )
+                };
+
                 let partition = IngesterPartition::new(
                     Arc::clone(&self.ingester_address),
+                    ingester_uuid,
                     partition_id,
                     shard_id,
+                    md.completed_persistence_count,
                     status.parquet_max_sequence_number.map(SequenceNumber::new),
                     None,
                     partition_sort_key,
@@ -962,8 +982,20 @@ async fn execute_get_write_infos(
 #[derive(Debug, Clone)]
 pub struct IngesterPartition {
     ingester: Arc<str>,
+
+    /// If using ingester2/rpc write path, the ingester UUID will be present and will identify
+    /// whether this ingester has restarted since the last time it was queried or not.
+    ///
+    /// When we fully switch over to always using the RPC write path, the `Option` in this type can
+    /// be removed.
+    ingester_uuid: Option<Uuid>,
+
     partition_id: PartitionId,
     shard_id: ShardId,
+
+    /// If using ingester2/rpc write path, this will be the number of Parquet files this ingester
+    /// UUID has persisted for this partition.
+    completed_persistence_count: u64,
 
     /// Maximum sequence number of parquet files the ingester has
     /// persisted for this partition
@@ -982,18 +1014,23 @@ pub struct IngesterPartition {
 impl IngesterPartition {
     /// Creates a new IngesterPartition, translating the passed
     /// `RecordBatches` into the correct types
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         ingester: Arc<str>,
+        ingester_uuid: Option<Uuid>,
         partition_id: PartitionId,
         shard_id: ShardId,
+        completed_persistence_count: u64,
         parquet_max_sequence_number: Option<SequenceNumber>,
         tombstone_max_sequence_number: Option<SequenceNumber>,
         partition_sort_key: Option<Arc<SortKey>>,
     ) -> Self {
         Self {
             ingester,
+            ingester_uuid,
             partition_id,
             shard_id,
+            completed_persistence_count,
             parquet_max_sequence_number,
             tombstone_max_sequence_number,
             partition_sort_key,
@@ -1416,6 +1453,11 @@ mod tests {
         assert_eq!(p.parquet_max_sequence_number, None);
         assert_eq!(p.tombstone_max_sequence_number, None);
         assert_eq!(p.chunks.len(), 0);
+
+        // When using the write buffer path, there should never be a UUID present and the
+        // completed_persistence_count should always be 0.
+        assert!(p.ingester_uuid.is_none());
+        assert_eq!(p.completed_persistence_count, 0);
     }
 
     #[tokio::test]
@@ -1646,6 +1688,137 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn ingester2_rpc_write_path_expects_valid_uuid() {
+        let mock_flight_client = Arc::new(
+            MockFlightClient::new([(
+                "addr1",
+                Ok(MockQueryData {
+                    results: vec![ingester2_metadata(
+                        1,
+                        Some(PartitionStatus {
+                            parquet_max_sequence_number: Some(11),
+                        }),
+                        "not-a-valid-uuid",
+                        42,
+                    )],
+                }),
+            )])
+            .await,
+        );
+        let ingester_conn = mock_flight_client.ingester_conn().await;
+        let columns = vec![String::from("col")];
+        let err = ingester_conn
+            .partitions(
+                None,
+                NamespaceId::new(1),
+                cached_table(),
+                columns,
+                &Predicate::default(),
+                None,
+            )
+            .await
+            .unwrap_err();
+
+        assert_matches!(err, Error::IngesterUuid { .. });
+    }
+
+    #[tokio::test]
+    async fn ingester2_uuid_completed_persistence_count() {
+        let ingester_uuid1 = Uuid::new_v4();
+        let ingester_uuid2 = Uuid::new_v4();
+
+        let mock_flight_client = Arc::new(
+            MockFlightClient::new([
+                (
+                    "addr1",
+                    Ok(MockQueryData {
+                        results: vec![
+                            ingester2_metadata(
+                                1,
+                                Some(PartitionStatus {
+                                    parquet_max_sequence_number: Some(11),
+                                }),
+                                ingester_uuid1.to_string(),
+                                0,
+                            ),
+                            ingester2_metadata(
+                                2,
+                                Some(PartitionStatus {
+                                    parquet_max_sequence_number: Some(21),
+                                }),
+                                ingester_uuid1.to_string(),
+                                42,
+                            ),
+                        ],
+                    }),
+                ),
+                (
+                    "addr2",
+                    Ok(MockQueryData {
+                        results: vec![ingester2_metadata(
+                            3,
+                            Some(PartitionStatus {
+                                parquet_max_sequence_number: Some(31),
+                            }),
+                            ingester_uuid2.to_string(),
+                            9000,
+                        )],
+                    }),
+                ),
+            ])
+            .await,
+        );
+        let ingester_conn = mock_flight_client.ingester_conn().await;
+        let columns = vec![String::from("col")];
+        let partitions = ingester_conn
+            .partitions(
+                None,
+                NamespaceId::new(1),
+                cached_table(),
+                columns,
+                &Predicate::default(),
+                None,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(partitions.len(), 3);
+
+        let p1 = &partitions[0];
+        assert_eq!(p1.ingester_uuid.unwrap(), ingester_uuid1);
+        assert_eq!(p1.completed_persistence_count, 0);
+        assert_eq!(p1.partition_id.get(), 1);
+        assert_eq!(p1.shard_id.get(), 1);
+        assert_eq!(
+            p1.parquet_max_sequence_number,
+            Some(SequenceNumber::new(11))
+        );
+        assert_eq!(p1.tombstone_max_sequence_number, None);
+
+        let p2 = &partitions[1];
+        assert_eq!(p2.ingester_uuid.unwrap(), ingester_uuid1);
+        assert_eq!(p2.completed_persistence_count, 42);
+        assert_eq!(p2.partition_id.get(), 2);
+        assert_eq!(p2.shard_id.get(), 1);
+        assert_eq!(
+            p2.parquet_max_sequence_number,
+            Some(SequenceNumber::new(21))
+        );
+        assert_eq!(p2.tombstone_max_sequence_number, None);
+
+        let p3 = &partitions[2];
+        assert_eq!(p3.ingester_uuid.unwrap(), ingester_uuid2);
+        assert_eq!(p3.completed_persistence_count, 9000);
+        assert_eq!(p3.partition_id.get(), 3);
+        assert_eq!(p3.shard_id.get(), 2);
+        assert_eq!(
+            p3.parquet_max_sequence_number,
+            Some(SequenceNumber::new(31))
+        );
+        assert_eq!(p3.tombstone_max_sequence_number, None);
+    }
+
+    #[tokio::test]
     async fn test_ingester_metrics_and_tracing() {
         let mock_flight_client = Arc::new(
             MockFlightClient::new([
@@ -1855,6 +2028,23 @@ mod tests {
         ))
     }
 
+    fn ingester2_metadata(
+        partition_id: i64,
+        status: Option<PartitionStatus>,
+        ingester_uuid: impl Into<String>,
+        completed_persistence_count: u64,
+    ) -> MockFlightResult {
+        Ok((
+            LowLevelMessage::None,
+            IngesterQueryResponseMetadata {
+                partition_id,
+                status,
+                ingester_uuid: ingester_uuid.into(),
+                completed_persistence_count,
+            },
+        ))
+    }
+
     #[derive(Debug)]
     struct MockQueryData {
         results: Vec<MockFlightResult>,
@@ -1976,8 +2166,10 @@ mod tests {
             // Construct a partition and ensure it doesn't error
             let ingester_partition = IngesterPartition::new(
                 "ingester".into(),
+                None,
                 PartitionId::new(1),
                 ShardId::new(1),
+                0,
                 parquet_max_sequence_number,
                 tombstone_max_sequence_number,
                 None,
@@ -2009,8 +2201,10 @@ mod tests {
         let tombstone_max_sequence_number = None;
         let err = IngesterPartition::new(
             "ingester".into(),
+            None,
             PartitionId::new(1),
             ShardId::new(1),
+            0,
             parquet_max_sequence_number,
             tombstone_max_sequence_number,
             None,
