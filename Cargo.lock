@@ -5812,6 +5812,7 @@ dependencies = [
  "chrono",
  "clap 4.0.29",
  "futures",
+ "iox_time",
  "observability_deps",
  "snafu",
  "thrift",
