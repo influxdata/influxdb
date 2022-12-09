@@ -1392,16 +1392,12 @@ mod tests {
             MockFlightClient::new([(
                 "addr1",
                 Ok(MockQueryData {
-                    results: vec![Ok((
-                        LowLevelMessage::None,
-                        IngesterQueryResponseMetadata {
-                            partition_id: 1,
-                            status: Some(PartitionStatus {
-                                parquet_max_sequence_number: None,
-                            }),
-                            ingester_uuid: String::new(),
-                        },
-                    ))],
+                    results: vec![metadata(
+                        1,
+                        Some(PartitionStatus {
+                            parquet_max_sequence_number: None,
+                        }),
+                    )],
                 }),
             )])
             .await,
@@ -1425,14 +1421,7 @@ mod tests {
             MockFlightClient::new([(
                 "addr1",
                 Ok(MockQueryData {
-                    results: vec![Ok((
-                        LowLevelMessage::None,
-                        IngesterQueryResponseMetadata {
-                            partition_id: 1,
-                            status: None,
-                            ingester_uuid: String::new(),
-                        },
-                    ))],
+                    results: vec![metadata(1, None)],
                 }),
             )])
             .await,
@@ -1449,36 +1438,24 @@ mod tests {
                 "addr1",
                 Ok(MockQueryData {
                     results: vec![
-                        Ok((
-                            LowLevelMessage::None,
-                            IngesterQueryResponseMetadata {
-                                partition_id: 1,
-                                status: Some(PartitionStatus {
-                                    parquet_max_sequence_number: None,
-                                }),
-                                ingester_uuid: String::new(),
-                            },
-                        )),
-                        Ok((
-                            LowLevelMessage::None,
-                            IngesterQueryResponseMetadata {
-                                partition_id: 2,
-                                status: Some(PartitionStatus {
-                                    parquet_max_sequence_number: None,
-                                }),
-                                ingester_uuid: String::new(),
-                            },
-                        )),
-                        Ok((
-                            LowLevelMessage::None,
-                            IngesterQueryResponseMetadata {
-                                partition_id: 1,
-                                status: Some(PartitionStatus {
-                                    parquet_max_sequence_number: None,
-                                }),
-                                ingester_uuid: String::new(),
-                            },
-                        )),
+                        metadata(
+                            1,
+                            Some(PartitionStatus {
+                                parquet_max_sequence_number: None,
+                            }),
+                        ),
+                        metadata(
+                            2,
+                            Some(PartitionStatus {
+                                parquet_max_sequence_number: None,
+                            }),
+                        ),
+                        metadata(
+                            1,
+                            Some(PartitionStatus {
+                                parquet_max_sequence_number: None,
+                            }),
+                        ),
                     ],
                 }),
             )])
@@ -1549,16 +1526,12 @@ mod tests {
                     "addr1",
                     Ok(MockQueryData {
                         results: vec![
-                            Ok((
-                                LowLevelMessage::None,
-                                IngesterQueryResponseMetadata {
-                                    partition_id: 1,
-                                    status: Some(PartitionStatus {
-                                        parquet_max_sequence_number: Some(11),
-                                    }),
-                                    ingester_uuid: String::new(),
-                                },
-                            )),
+                            metadata(
+                                1,
+                                Some(PartitionStatus {
+                                    parquet_max_sequence_number: Some(11),
+                                }),
+                            ),
                             Ok((
                                 LowLevelMessage::Schema(Arc::clone(&schema_1_1)),
                                 IngesterQueryResponseMetadata::default(),
@@ -1579,16 +1552,12 @@ mod tests {
                                 LowLevelMessage::RecordBatch(record_batch_1_2),
                                 IngesterQueryResponseMetadata::default(),
                             )),
-                            Ok((
-                                LowLevelMessage::None,
-                                IngesterQueryResponseMetadata {
-                                    partition_id: 2,
-                                    status: Some(PartitionStatus {
-                                        parquet_max_sequence_number: Some(21),
-                                    }),
-                                    ingester_uuid: String::new(),
-                                },
-                            )),
+                            metadata(
+                                2,
+                                Some(PartitionStatus {
+                                    parquet_max_sequence_number: Some(21),
+                                }),
+                            ),
                             Ok((
                                 LowLevelMessage::Schema(Arc::clone(&schema_2_1)),
                                 IngesterQueryResponseMetadata::default(),
@@ -1604,16 +1573,12 @@ mod tests {
                     "addr2",
                     Ok(MockQueryData {
                         results: vec![
-                            Ok((
-                                LowLevelMessage::None,
-                                IngesterQueryResponseMetadata {
-                                    partition_id: 3,
-                                    status: Some(PartitionStatus {
-                                        parquet_max_sequence_number: Some(31),
-                                    }),
-                                    ingester_uuid: String::new(),
-                                },
-                            )),
+                            metadata(
+                                3,
+                                Some(PartitionStatus {
+                                    parquet_max_sequence_number: Some(31),
+                                }),
+                            ),
                             Ok((
                                 LowLevelMessage::Schema(Arc::clone(&schema_3_1)),
                                 IngesterQueryResponseMetadata::default(),
@@ -1784,16 +1749,12 @@ mod tests {
                     "addr1",
                     Ok(MockQueryData {
                         results: vec![
-                            Ok((
-                                LowLevelMessage::None,
-                                IngesterQueryResponseMetadata {
-                                    partition_id: 1,
-                                    status: Some(PartitionStatus {
-                                        parquet_max_sequence_number: Some(11),
-                                    }),
-                                    ingester_uuid: String::new(),
-                                },
-                            )),
+                            metadata(
+                                1,
+                                Some(PartitionStatus {
+                                    parquet_max_sequence_number: Some(11),
+                                }),
+                            ),
                             Ok((
                                 LowLevelMessage::Schema(Arc::clone(&schema_1_1)),
                                 IngesterQueryResponseMetadata::default(),
@@ -1876,9 +1837,22 @@ mod tests {
         lp_to_mutable_batch(lp).1.to_arrow(Projection::All).unwrap()
     }
 
+    type MockFlightResult = Result<(LowLevelMessage, IngesterQueryResponseMetadata), FlightError>;
+
+    fn metadata(partition_id: i64, status: Option<PartitionStatus>) -> MockFlightResult {
+        Ok((
+            LowLevelMessage::None,
+            IngesterQueryResponseMetadata {
+                partition_id,
+                status,
+                ingester_uuid: String::new(),
+            },
+        ))
+    }
+
     #[derive(Debug)]
     struct MockQueryData {
-        results: Vec<Result<(LowLevelMessage, IngesterQueryResponseMetadata), FlightError>>,
+        results: Vec<MockFlightResult>,
     }
 
     #[async_trait]
