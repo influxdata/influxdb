@@ -1103,12 +1103,20 @@ impl IngesterPartition {
         &self.ingester
     }
 
+    pub(crate) fn ingester_uuid(&self) -> Option<Uuid> {
+        self.ingester_uuid
+    }
+
     pub(crate) fn partition_id(&self) -> PartitionId {
         self.partition_id
     }
 
     pub(crate) fn shard_id(&self) -> ShardId {
         self.shard_id
+    }
+
+    pub(crate) fn completed_persistence_count(&self) -> u64 {
+        self.completed_persistence_count
     }
 
     pub(crate) fn parquet_max_sequence_number(&self) -> Option<SequenceNumber> {

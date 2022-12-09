@@ -27,6 +27,7 @@ use std::{
     sync::Arc,
 };
 use trace::span::{Span, SpanRecorder};
+use uuid::Uuid;
 
 pub use self::query_access::metrics::PruneMetrics;
 
@@ -95,7 +96,7 @@ pub struct QuerierTableArgs {
 #[derive(Debug)]
 pub struct QuerierTable {
     /// Sharder to query for which shards are responsible for the table's data. If not specified,
-    /// query all ingesters.
+    /// query all ingesters because we're using the RPC write path.
     sharder: Option<Arc<JumpHash<Arc<ShardIndex>>>>,
 
     /// Namespace the table is in
@@ -254,6 +255,7 @@ impl QuerierTable {
             catalog_cache.parquet_file().get(
                 self.id(),
                 None,
+                None,
                 span_recorder.child_span("cache GET parquet_file (pre-warm")
             ),
             catalog_cache.tombstone().get(
@@ -266,15 +268,34 @@ impl QuerierTable {
         // handle errors / cache refresh
         let partitions = partitions?;
 
-        // determine max parquet sequence number for cache invalidation
-        let max_parquet_sequence_number = partitions
-            .iter()
-            .flat_map(|p| p.parquet_max_sequence_number())
-            .max();
+        // determine max parquet sequence number for cache invalidation, if using the write buffer
+        // path.
+        let max_parquet_sequence_number = if self.rpc_write() {
+            None
+        } else {
+            partitions
+                .iter()
+                .flat_map(|p| p.parquet_max_sequence_number())
+                .max()
+        };
         let max_tombstone_sequence_number = partitions
             .iter()
             .flat_map(|p| p.tombstone_max_sequence_number())
             .max();
+
+        // If using the RPC write path, determine number of persisted parquet files per ingester
+        // UUID seen in the ingester query responses for cache invalidation. If this is an empty
+        // HashMap, then there are no results from the ingesters.
+        let persisted_file_counts_by_ingester_uuid = if self.rpc_write() {
+            Some(collect_persisted_file_counts(
+                partitions.len(),
+                partitions
+                    .iter()
+                    .map(|p| (p.ingester_uuid(), p.completed_persistence_count())),
+            ))
+        } else {
+            None
+        };
 
         debug!(
             namespace=%self.namespace_name,
@@ -290,7 +311,8 @@ impl QuerierTable {
             catalog_cache.parquet_file().get(
                 self.id(),
                 max_parquet_sequence_number,
-                span_recorder.child_span("cache GET parquet_file")
+                persisted_file_counts_by_ingester_uuid,
+                span_recorder.child_span("cache GET parquet_file"),
             ),
             catalog_cache.tombstone().get(
                 self.id(),
@@ -521,6 +543,12 @@ impl QuerierTable {
         Ok(partitions)
     }
 
+    /// Whether we're using the RPC write path or not. Write buffer mode will always specify a
+    /// sharder; the RPC write path never will.
+    fn rpc_write(&self) -> bool {
+        self.sharder.is_none()
+    }
+
     /// clear the parquet file cache
     #[cfg(test)]
     fn clear_parquet_cache(&self) {
@@ -538,6 +566,26 @@ impl QuerierTable {
             .tombstone()
             .expire(self.table_id)
     }
+}
+
+// Given metadata from a list of ingester request [`PartitionData`]s, sum the total completed
+// persistence counts for each ingester UUID so that the Parquet file cache can see if it knows
+// about a different set of ingester UUIDs or a different number of persisted Parquet files and
+// therefore needs to refresh its view of the catalog.
+fn collect_persisted_file_counts(
+    capacity: usize,
+    partitions: impl Iterator<Item = (Option<Uuid>, u64)>,
+) -> HashMap<Uuid, u64> {
+    partitions.fold(
+        HashMap::with_capacity(capacity),
+        |mut map, (uuid, count)| {
+            if let Some(uuid) = uuid {
+                let sum = map.entry(uuid).or_default();
+                *sum += count;
+            }
+            map
+        },
+    )
 }
 
 #[cfg(test)]
@@ -558,6 +606,29 @@ mod tests {
     use std::sync::Arc;
     use test_helpers::maybe_start_logging;
     use trace::{span::SpanStatus, RingBufferTraceCollector};
+
+    #[test]
+    fn sum_up_persisted_file_counts() {
+        let output = collect_persisted_file_counts(0, std::iter::empty());
+        assert!(
+            output.is_empty(),
+            "Expected output to be empty, instead was: {output:?}"
+        );
+
+        // If there's no UUIDs, don't count anything
+        let input = [(None, 10)];
+        let output = collect_persisted_file_counts(input.len(), input.into_iter());
+        assert!(
+            output.is_empty(),
+            "Expected output to be empty, instead was: {output:?}"
+        );
+
+        let uuid = Uuid::new_v4();
+        let input = [(Some(uuid), 20), (Some(uuid), 22), (None, 10)];
+        let output = collect_persisted_file_counts(input.len(), input.into_iter());
+        assert_eq!(output.len(), 1);
+        assert_eq!(*output.get(&uuid).unwrap(), 42);
+    }
 
     #[tokio::test]
     async fn test_prune_parquet_chunks_outside_retention() {

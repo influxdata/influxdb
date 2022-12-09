@@ -18,6 +18,7 @@ use observability_deps::tracing::debug;
 use snafu::{ResultExt, Snafu};
 use std::{collections::HashMap, mem, sync::Arc};
 use trace::span::Span;
+use uuid::Uuid;
 
 use super::ram::RamSize;
 
@@ -199,6 +200,7 @@ impl ParquetFileCache {
         &self,
         table_id: TableId,
         max_parquet_sequence_number: Option<SequenceNumber>,
+        _persisted_file_counts_by_ingester_uuid: Option<HashMap<Uuid, u64>>,
         span: Option<Span>,
     ) -> Arc<CachedParquetFiles> {
         self.remove_if_handle
@@ -266,15 +268,15 @@ mod tests {
         let tfile = partition.create_parquet_file(builder).await;
 
         let cache = make_cache(&catalog);
-        let cached_files = cache.get(table.table.id, None, None).await.vec();
+        let cached_files = cache.get(table.table.id, None, None, None).await.vec();
 
         assert_eq!(cached_files.len(), 1);
         let expected_parquet_file = &tfile.parquet_file;
         assert_eq!(cached_files[0].as_ref(), expected_parquet_file);
 
-        // validate a second request doens't result in a catalog request
+        // validate a second request doesn't result in a catalog request
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
-        cache.get(table.table.id, None, None).await;
+        cache.get(table.table.id, None, None, None).await;
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
     }
 
@@ -293,12 +295,12 @@ mod tests {
 
         let cache = make_cache(&catalog);
 
-        let cached_files = cache.get(table1.table.id, None, None).await.vec();
+        let cached_files = cache.get(table1.table.id, None, None, None).await.vec();
         assert_eq!(cached_files.len(), 1);
         let expected_parquet_file = &tfile1.parquet_file;
         assert_eq!(cached_files[0].as_ref(), expected_parquet_file);
 
-        let cached_files = cache.get(table2.table.id, None, None).await.vec();
+        let cached_files = cache.get(table2.table.id, None, None, None).await.vec();
         assert_eq!(cached_files.len(), 1);
         let expected_parquet_file = &tfile2.parquet_file;
         assert_eq!(cached_files[0].as_ref(), expected_parquet_file);
@@ -314,7 +316,7 @@ mod tests {
         let different_catalog = TestCatalog::new();
         let cache = make_cache(&different_catalog);
 
-        let cached_files = cache.get(table.table.id, None, None).await.vec();
+        let cached_files = cache.get(table.table.id, None, None, None).await.vec();
         assert!(cached_files.is_empty());
     }
 
@@ -330,14 +332,14 @@ mod tests {
         assert!(single_file_size < two_file_size);
 
         let cache = make_cache(&catalog);
-        let cached_files = cache.get(table_id, None, None).await;
+        let cached_files = cache.get(table_id, None, None, None).await;
         assert_eq!(cached_files.size(), single_file_size);
 
         // add a second file, and force the cache to find it
         let builder = TestParquetFileBuilder::default().with_line_protocol(TABLE1_LINE_PROTOCOL);
         partition.create_parquet_file(builder).await;
         cache.expire(table_id);
-        let cached_files = cache.get(table_id, None, None).await;
+        let cached_files = cache.get(table_id, None, None, None).await;
         assert_eq!(cached_files.size(), two_file_size);
     }
 
@@ -366,7 +368,7 @@ mod tests {
         let cache = make_cache(&catalog);
         let table_id = table.table.id;
         assert_eq!(
-            cache.get(table_id, None, None).await.ids(),
+            cache.get(table_id, None, None, None).await.ids(),
             ids(&[&tfile1_2, &tfile1_3])
         );
 
@@ -375,7 +377,7 @@ mod tests {
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
         assert_eq!(
             cache
-                .get(table_id, Some(sequence_number_2), None)
+                .get(table_id, Some(sequence_number_2), None, None)
                 .await
                 .ids(),
             ids(&[&tfile1_2, &tfile1_3])
@@ -385,7 +387,7 @@ mod tests {
         // simulate request with no sequence number
         // should not expire anything
         assert_eq!(
-            cache.get(table_id, None, None).await.ids(),
+            cache.get(table_id, None, None, None).await.ids(),
             ids(&[&tfile1_2, &tfile1_3])
         );
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
@@ -399,7 +401,7 @@ mod tests {
         let tfile1_10 = partition.create_parquet_file(builder).await;
         // cache doesn't have tfile1_10
         assert_eq!(
-            cache.get(table_id, None, None).await.ids(),
+            cache.get(table_id, None, None, None).await.ids(),
             ids(&[&tfile1_2, &tfile1_3])
         );
 
@@ -407,7 +409,7 @@ mod tests {
         // now cache has tfile!_10 (yay!)
         assert_eq!(
             cache
-                .get(table_id, Some(sequence_number_10), None)
+                .get(table_id, Some(sequence_number_10), None, None)
                 .await
                 .ids(),
             ids(&[&tfile1_2, &tfile1_3, &tfile1_10])
@@ -421,16 +423,16 @@ mod tests {
         let cache = make_cache(&catalog);
         let table_id = table.table.id;
 
-        // no parquet files, sould be none
-        assert!(cache.get(table_id, None, None).await.files.is_empty());
+        // no parquet files, should be none
+        assert!(cache.get(table_id, None, None, None).await.files.is_empty());
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // second request should be cached
-        assert!(cache.get(table_id, None, None).await.files.is_empty());
+        assert!(cache.get(table_id, None, None, None).await.files.is_empty());
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // Calls to expire if there is no known persisted file, should still be cached
-        assert!(cache.get(table_id, None, None).await.files.is_empty());
+        assert!(cache.get(table_id, None, None, None).await.files.is_empty());
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // make a new parquet file
@@ -443,13 +445,13 @@ mod tests {
         let tfile = partition.create_parquet_file(builder).await;
 
         // cache is stale
-        assert!(cache.get(table_id, None, None).await.files.is_empty());
+        assert!(cache.get(table_id, None, None, None).await.files.is_empty());
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // Now call to expire with knowledge of new file, will cause a cache refresh
         assert_eq!(
             cache
-                .get(table_id, Some(sequence_number_1), None)
+                .get(table_id, Some(sequence_number_1), None, None)
                 .await
                 .ids(),
             ids(&[&tfile])
