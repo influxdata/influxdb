@@ -247,9 +247,6 @@ impl ChunkAdapter {
                 span_recorder.child_span("cache GET partition sort key"),
             )
             .await
-            .map(|sort_key| Arc::clone(&sort_key.sort_key));
-        let partition_sort_key_ref = partition_sort_key.as_ref();
-        let partition_sort_key_ref = partition_sort_key_ref
             .expect("partition sort key should be set when a parquet file exists");
 
         // NOTE: Because we've looked up the sort key AFTER the namespace schema, it may contain columns for which we
@@ -271,15 +268,21 @@ impl ChunkAdapter {
             .catalog_cache
             .projected_schema()
             .get(
-                cached_table,
+                Arc::clone(&cached_table),
                 column_ids,
                 span_recorder.child_span("cache GET projected schema"),
             )
             .await;
 
         // calculate sort key
-        let pk_cols = schema.primary_key();
-        let sort_key = partition_sort_key_ref.filter_to(&pk_cols, parquet_file.partition_id.get());
+        let sort_key = SortKey::from_columns(
+            partition_sort_key
+                .column_order
+                .iter()
+                .filter(|c_id| parquet_file_cols.contains(c_id))
+                .filter_map(|c_id| cached_table.column_id_map.get(c_id))
+                .cloned(),
+        );
         assert!(
             !sort_key.is_empty(),
             "Sort key can never be empty because there should at least be a time column",
@@ -303,7 +306,7 @@ impl ChunkAdapter {
         Some(ChunkParts {
             meta,
             schema,
-            partition_sort_key,
+            partition_sort_key: Some(Arc::clone(&partition_sort_key.sort_key)),
         })
     }
 }
