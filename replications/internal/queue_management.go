@@ -100,6 +100,7 @@ func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQue
 		func(bytes []byte) error {
 			return nil
 		},
+		qm.logger,
 	)
 
 	if err != nil {
@@ -183,7 +184,11 @@ func (rq *replicationQueue) run() {
 			rq.logger.Debug("Replication Queue", zap.Duration("purgeTicker", rq.maxAge))
 			if rq.maxAge != 0 {
 				olderThan := time.Now().Add(-rq.maxAge)
-				rq.logger.Debug("Replication Queue purging", zap.Time("olderThan", olderThan))
+				rq.logger.Debug(
+					"Replication Queue purging",
+					zap.String("olderThan (local)", olderThan.In(time.Local).String()),
+					zap.String("olderThan (utc)", olderThan.UTC().String()),
+				)
 				err := rq.queue.PurgeOlderThan(olderThan)
 				if err != nil {
 					rq.logger.Error("error purging queue", zap.Error(err))
@@ -343,6 +348,7 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 			func(bytes []byte) error {
 				return nil
 			},
+			qm.logger,
 		)
 
 		if err != nil {

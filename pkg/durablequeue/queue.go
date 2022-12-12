@@ -47,20 +47,20 @@ const MaxWritesPending = 1024
 // queues can have a max size configured such that when the size of all
 // segments on disk exceeds the size, write will fail.
 //
-// 	┌─────┐
-// 	│Head │
-// 	├─────┘
-// 	│
-// 	▼
-// 	┌─────────────────┐ ┌─────────────────┐┌─────────────────┐
-// 	│Segment 1 - 10MB │ │Segment 2 - 10MB ││Segment 3 - 10MB │
-// 	└─────────────────┘ └─────────────────┘└─────────────────┘
-// 	                                                         ▲
-// 	                                                         │
-// 	                                                         │
-// 	                                                    ┌─────┐
-// 	                                                    │Tail │
-// 	                                                    └─────┘
+//	┌─────┐
+//	│Head │
+//	├─────┘
+//	│
+//	▼
+//	┌─────────────────┐ ┌─────────────────┐┌─────────────────┐
+//	│Segment 1 - 10MB │ │Segment 2 - 10MB ││Segment 3 - 10MB │
+//	└─────────────────┘ └─────────────────┘└─────────────────┘
+//	                                                         ▲
+//	                                                         │
+//	                                                         │
+//	                                                    ┌─────┐
+//	                                                    │Tail │
+//	                                                    └─────┘
 type Queue struct {
 	mu sync.RWMutex
 
@@ -120,7 +120,7 @@ func (a segments) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a segments) Less(i, j int) bool { return a[i].id < a[j].id }
 
 // NewQueue create a Queue that will store segments in dir and that will consume no more than maxSize on disk.
-func NewQueue(dir string, maxSize int64, maxSegmentSize int64, queueTotalSize *SharedCount, depth int, verifyBlockFn func([]byte) error) (*Queue, error) {
+func NewQueue(dir string, maxSize int64, maxSegmentSize int64, queueTotalSize *SharedCount, depth int, verifyBlockFn func([]byte) error, logger *zap.Logger) (*Queue, error) {
 	if maxSize < 2*maxSegmentSize {
 		return nil, fmt.Errorf("max queue size %d too small: must be at least twice the max segment size %d", maxSize, maxSegmentSize)
 	}
@@ -132,7 +132,7 @@ func NewQueue(dir string, maxSize int64, maxSegmentSize int64, queueTotalSize *S
 		queueTotalSize: queueTotalSize,
 		segments:       segments{},
 		appendCh:       make(chan struct{}, depth),
-		logger:         zap.NewNop(),
+		logger:         logger,
 		verifyBlockFn:  verifyBlockFn,
 	}, nil
 }
@@ -297,9 +297,19 @@ func (l *Queue) PurgeOlderThan(when time.Time) error {
 			return err
 		}
 
+		l.logger.Debug(
+			"Replication Queue head.lastModified",
+			zap.String("(local)", mod.In(time.Local).String()),
+			zap.String("(utc)", mod.UTC().String()),
+		)
+
 		if mod.After(cutoff) || mod.Equal(cutoff) {
 			return nil
 		}
+
+		l.logger.Debug(
+			"Replication Queue proceeding with purge...",
+		)
 
 		// If this is the last segment, first append a new one allowing
 		// trimming to proceed.
@@ -609,13 +619,13 @@ func (l *Queue) trimHead(force bool) error {
 // lengths + block with a single footer point to the position in the segment of the
 // current Head block.
 //
-// 	┌──────────────────────────┐ ┌──────────────────────────┐ ┌────────────┐
-// 	│         Block 1          │ │         Block 2          │ │   Footer   │
-// 	└──────────────────────────┘ └──────────────────────────┘ └────────────┘
-// 	┌────────────┐┌────────────┐ ┌────────────┐┌────────────┐ ┌────────────┐
-// 	│Block 1 Len ││Block 1 Body│ │Block 2 Len ││Block 2 Body│ │Head Offset │
-// 	│  8 bytes   ││  N bytes   │ │  8 bytes   ││  N bytes   │ │  8 bytes   │
-// 	└────────────┘└────────────┘ └────────────┘└────────────┘ └────────────┘
+//	┌──────────────────────────┐ ┌──────────────────────────┐ ┌────────────┐
+//	│         Block 1          │ │         Block 2          │ │   Footer   │
+//	└──────────────────────────┘ └──────────────────────────┘ └────────────┘
+//	┌────────────┐┌────────────┐ ┌────────────┐┌────────────┐ ┌────────────┐
+//	│Block 1 Len ││Block 1 Body│ │Block 2 Len ││Block 2 Body│ │Head Offset │
+//	│  8 bytes   ││  N bytes   │ │  8 bytes   ││  N bytes   │ │  8 bytes   │
+//	└────────────┘└────────────┘ └────────────┘└────────────┘ └────────────┘
 //
 // The footer holds the pointer to the Head entry at the end of the segment to allow writes
 // to seek to the end and write sequentially (vs having to seek back to the beginning of
