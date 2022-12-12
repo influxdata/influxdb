@@ -3,14 +3,14 @@ use self::{
     flight_client::{Error as FlightClientError, FlightClient, FlightClientImpl, FlightError},
     test_util::MockIngesterConnection,
 };
-use crate::cache::CatalogCache;
+use crate::cache::{namespace::CachedTable, CatalogCache};
 use arrow::{datatypes::DataType, error::ArrowError, record_batch::RecordBatch};
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig, BackoffError};
 use client_util::connection;
 use data_types::{
     ChunkId, ChunkOrder, IngesterMapping, NamespaceId, PartitionId, SequenceNumber, ShardId,
-    ShardIndex, TableId, TableSummary, TimestampMinMax,
+    ShardIndex, TableSummary, TimestampMinMax,
 };
 use datafusion::error::DataFusionError;
 use futures::{stream::FuturesUnordered, TryStreamExt};
@@ -206,10 +206,9 @@ pub trait IngesterConnection: std::fmt::Debug + Send + Sync + 'static {
         &self,
         shard_indexes: Option<Vec<ShardIndex>>,
         namespace_id: NamespaceId,
-        table_id: TableId,
+        cached_table: Arc<CachedTable>,
         columns: Vec<String>,
         predicate: &Predicate,
-        expected_schema: Arc<Schema>,
         span: Option<Span>,
     ) -> Result<Vec<IngesterPartition>>;
 
@@ -328,7 +327,7 @@ impl<'a> Drop for ObserveIngesterRequest<'a> {
             debug!(
                 predicate=?self.request.predicate,
                 namespace_id=self.request.namespace_id.get(),
-                table_id=self.request.table_id.get(),
+                table_id=self.request.cached_table.id.get(),
                 n_partitions=?ok_status.map(|s| s.n_partitions),
                 n_chunks=?ok_status.map(|s| s.n_chunks),
                 n_rows=?ok_status.map(|s| s.n_rows),
@@ -460,10 +459,9 @@ struct GetPartitionForIngester<'a> {
     catalog_cache: Arc<CatalogCache>,
     ingester_address: Arc<str>,
     namespace_id: NamespaceId,
-    table_id: TableId,
     columns: Vec<String>,
     predicate: &'a Predicate,
-    expected_schema: Arc<Schema>,
+    cached_table: Arc<CachedTable>,
 }
 
 /// Fetches the partitions for a single ingester
@@ -476,15 +474,14 @@ async fn execute(
         catalog_cache,
         ingester_address,
         namespace_id,
-        table_id,
         columns,
         predicate,
-        expected_schema,
+        cached_table,
     } = request;
 
     let ingester_query_request = IngesterQueryRequest {
         namespace_id,
-        table_id,
+        table_id: cached_table.id,
         columns: columns.clone(),
         predicate: Some(predicate.clone()),
     };
@@ -502,7 +499,7 @@ async fn execute(
             warn!(
                 ingester_address = ingester_address.as_ref(),
                 namespace_id = namespace_id.get(),
-                table_id = table_id.get(),
+                table_id = cached_table.id.get(),
                 "Could not connect to ingester,  circuit broken",
             );
             return Ok(vec![]);
@@ -513,7 +510,7 @@ async fn execute(
             debug!(
                 ingester_address = ingester_address.as_ref(),
                 namespace_id = namespace_id.get(),
-                table_id = table_id.get(),
+                table_id = cached_table.id.get(),
                 "Ingester does not know namespace or table, skipping",
             );
             return Ok(vec![]);
@@ -531,7 +528,7 @@ async fn execute(
                 e=%e,
                 ingester_address=ingester_address.as_ref(),
                 namespace_id=namespace_id.get(),
-                table_id=table_id.get(),
+                table_id=cached_table.id.get(),
                 columns=columns.join(",").as_str(),
                 predicate_str=%predicate,
                 predicate_binary=encode_predicate_as_base64(predicate).as_str(),
@@ -560,7 +557,7 @@ async fn execute(
     let mut decoder = IngesterStreamDecoder::new(
         ingester_address,
         catalog_cache,
-        expected_schema,
+        cached_table,
         span_recorder.child_span("IngesterStreamDecoder"),
     );
     for (msg, md) in messages {
@@ -580,7 +577,7 @@ struct IngesterStreamDecoder {
     current_chunk: Option<(Schema, Vec<RecordBatch>)>,
     ingester_address: Arc<str>,
     catalog_cache: Arc<CatalogCache>,
-    expected_schema: Arc<Schema>,
+    cached_table: Arc<CachedTable>,
     span_recorder: SpanRecorder,
 }
 
@@ -589,7 +586,7 @@ impl IngesterStreamDecoder {
     fn new(
         ingester_address: Arc<str>,
         catalog_cache: Arc<CatalogCache>,
-        expected_schema: Arc<Schema>,
+        cached_table: Arc<CachedTable>,
         span: Option<Span>,
     ) -> Self {
         Self {
@@ -598,7 +595,7 @@ impl IngesterStreamDecoder {
             current_chunk: None,
             ingester_address,
             catalog_cache,
-            expected_schema,
+            cached_table,
             span_recorder: SpanRecorder::new(span),
         }
     }
@@ -632,18 +629,27 @@ impl IngesterStreamDecoder {
             let primary_keys: Vec<_> = schemas.iter().map(|s| s.primary_key()).collect();
             let primary_key: Vec<_> = primary_keys
                 .iter()
-                .flat_map(|pk| pk.iter().copied())
+                .flat_map(|pk| pk.iter())
+                // cache may be older then the ingester response status, so some entries might be missing
+                .filter_map(|name| {
+                    self.cached_table
+                        .column_id_map_rev
+                        .get(&Arc::from(name.to_owned()))
+                })
+                .copied()
                 .collect();
             let partition_sort_key = self
                 .catalog_cache
                 .partition()
                 .sort_key(
+                    Arc::clone(&self.cached_table),
                     current_partition.partition_id(),
                     &primary_key,
                     self.span_recorder
                         .child_span("cache GET partition sort key"),
                 )
-                .await;
+                .await
+                .map(|sort_key| Arc::clone(&sort_key.sort_key));
             let current_partition = current_partition.with_partition_sort_key(partition_sort_key);
             self.finished_partitions
                 .insert(current_partition.partition_id, current_partition);
@@ -679,6 +685,7 @@ impl IngesterStreamDecoder {
                     .catalog_cache
                     .partition()
                     .shard_id(
+                        Arc::clone(&self.cached_table),
                         partition_id,
                         self.span_recorder
                             .child_span("cache GET partition shard ID"),
@@ -687,7 +694,7 @@ impl IngesterStreamDecoder {
 
                 // Use a temporary empty partition sort key. We are going to fetch this AFTER we know all chunks because
                 // then we are able to detect all relevant primary key columns that the sort key must cover.
-                let partition_sort_key = Arc::new(None);
+                let partition_sort_key = None;
 
                 let partition = IngesterPartition::new(
                     Arc::clone(&self.ingester_address),
@@ -713,7 +720,8 @@ impl IngesterStreamDecoder {
                 let column_names: Vec<_> =
                     schema.fields().iter().map(|f| f.name().as_str()).collect();
                 let schema = self
-                    .expected_schema
+                    .cached_table
+                    .schema
                     .select_by_names(&column_names)
                     .context(ConvertingSchemaSnafu)?;
                 self.current_chunk = Some((schema, vec![]));
@@ -775,10 +783,9 @@ impl IngesterConnection for IngesterConnectionImpl {
         &self,
         shard_indexes: Option<Vec<ShardIndex>>,
         namespace_id: NamespaceId,
-        table_id: TableId,
+        cached_table: Arc<CachedTable>,
         columns: Vec<String>,
         predicate: &Predicate,
-        expected_schema: Arc<Schema>,
         span: Option<Span>,
     ) -> Result<Vec<IngesterPartition>> {
         let relevant_ingester_addresses = match shard_indexes {
@@ -835,10 +842,9 @@ impl IngesterConnection for IngesterConnectionImpl {
                 catalog_cache: Arc::clone(&self.catalog_cache),
                 ingester_address: Arc::clone(&ingester_address),
                 namespace_id,
-                table_id,
+                cached_table: Arc::clone(&cached_table),
                 columns: columns.clone(),
                 predicate,
-                expected_schema: Arc::clone(&expected_schema),
             };
 
             let backoff_config = self.backoff_config.clone();
@@ -965,7 +971,7 @@ pub struct IngesterPartition {
     tombstone_max_sequence_number: Option<SequenceNumber>,
 
     /// Partition-wide sort key.
-    partition_sort_key: Arc<Option<SortKey>>,
+    partition_sort_key: Option<Arc<SortKey>>,
 
     chunks: Vec<IngesterChunk>,
 }
@@ -979,7 +985,7 @@ impl IngesterPartition {
         shard_id: ShardId,
         parquet_max_sequence_number: Option<SequenceNumber>,
         tombstone_max_sequence_number: Option<SequenceNumber>,
-        partition_sort_key: Arc<Option<SortKey>>,
+        partition_sort_key: Option<Arc<SortKey>>,
     ) -> Self {
         Self {
             ingester,
@@ -1029,7 +1035,7 @@ impl IngesterPartition {
             chunk_id,
             partition_id: self.partition_id,
             schema: expected_schema,
-            partition_sort_key: Arc::clone(&self.partition_sort_key),
+            partition_sort_key: self.partition_sort_key.clone(),
             batches,
             ts_min_max,
             summary,
@@ -1041,13 +1047,13 @@ impl IngesterPartition {
     }
 
     /// Update partition sort key
-    pub(crate) fn with_partition_sort_key(self, partition_sort_key: Arc<Option<SortKey>>) -> Self {
+    pub(crate) fn with_partition_sort_key(self, partition_sort_key: Option<Arc<SortKey>>) -> Self {
         Self {
-            partition_sort_key: Arc::clone(&partition_sort_key),
+            partition_sort_key: partition_sort_key.clone(),
             chunks: self
                 .chunks
                 .into_iter()
-                .map(|c| c.with_partition_sort_key(Arc::clone(&partition_sort_key)))
+                .map(|c| c.with_partition_sort_key(partition_sort_key.clone()))
                 .collect(),
             ..self
         }
@@ -1089,7 +1095,7 @@ pub struct IngesterChunk {
     schema: Arc<Schema>,
 
     /// Partition-wide sort key.
-    partition_sort_key: Arc<Option<SortKey>>,
+    partition_sort_key: Option<Arc<SortKey>>,
 
     /// The raw table data
     batches: Vec<RecordBatch>,
@@ -1102,7 +1108,7 @@ pub struct IngesterChunk {
 }
 
 impl IngesterChunk {
-    pub(crate) fn with_partition_sort_key(self, partition_sort_key: Arc<Option<SortKey>>) -> Self {
+    pub(crate) fn with_partition_sort_key(self, partition_sort_key: Option<Arc<SortKey>>) -> Self {
         Self {
             partition_sort_key,
             ..self
@@ -1141,7 +1147,7 @@ impl QueryChunkMeta for IngesterChunk {
     }
 
     fn partition_sort_key(&self) -> Option<&SortKey> {
-        self.partition_sort_key.as_ref().as_ref()
+        self.partition_sort_key.as_ref().map(|sk| sk.as_ref())
     }
 
     fn partition_id(&self) -> PartitionId {
@@ -1273,6 +1279,7 @@ mod tests {
         datatypes::Int32Type,
     };
     use assert_matches::assert_matches;
+    use data_types::TableId;
     use generated_types::influxdata::iox::ingester::v1::PartitionStatus;
     use influxdb_iox_client::flight::generated_types::IngesterQueryResponseMetadata;
     use iox_tests::util::TestCatalog;
@@ -1840,16 +1847,14 @@ mod tests {
         span: Option<Span>,
     ) -> Result<Vec<IngesterPartition>, Error> {
         let columns = vec![String::from("col")];
-        let schema = schema();
         let shard_indexes: Vec<_> = shard_indexes.iter().copied().map(ShardIndex::new).collect();
         ingester_conn
             .partitions(
                 Some(shard_indexes),
                 NamespaceId::new(1),
-                TableId::new(2),
+                cached_table(),
                 columns,
                 &Predicate::default(),
-                schema,
                 span,
             )
             .await
@@ -1996,7 +2001,7 @@ mod tests {
                 ShardId::new(1),
                 parquet_max_sequence_number,
                 tombstone_max_sequence_number,
-                Arc::new(None),
+                None,
             )
             .try_add_chunk(ChunkId::new(), Arc::clone(&expected_schema), vec![case])
             .unwrap();
@@ -2029,7 +2034,7 @@ mod tests {
             ShardId::new(1),
             parquet_max_sequence_number,
             tombstone_max_sequence_number,
-            Arc::new(None),
+            None,
         )
         .try_add_chunk(ChunkId::new(), Arc::clone(&expected_schema), vec![batch])
         .unwrap_err();
@@ -2068,5 +2073,15 @@ mod tests {
 
     fn i64_vec() -> &'static [Option<i64>] {
         &[Some(1), Some(2), Some(3)]
+    }
+
+    fn cached_table() -> Arc<CachedTable> {
+        Arc::new(CachedTable {
+            id: TableId::new(2),
+            schema: schema(),
+            column_id_map: Default::default(),
+            column_id_map_rev: Default::default(),
+            primary_key_column_ids: Default::default(),
+        })
     }
 }

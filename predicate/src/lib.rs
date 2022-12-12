@@ -635,6 +635,7 @@ impl ExpressionVisitor for RowBasedVisitor {
             | Expr::Literal(_)
             | Expr::Negative(_)
             | Expr::Not(_)
+            | Expr::Placeholder { .. }
             | Expr::QualifiedWildcard { .. }
             | Expr::ScalarFunction { .. }
             | Expr::ScalarSubquery(_)

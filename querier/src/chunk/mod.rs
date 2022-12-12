@@ -10,7 +10,7 @@ use iox_catalog::interface::Catalog;
 use iox_query::util::create_basic_summary;
 use parquet_file::chunk::ParquetChunk;
 use schema::{sort::SortKey, Schema};
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashSet, sync::Arc};
 use trace::span::{Span, SpanRecorder};
 use uuid::Uuid;
 
@@ -93,7 +93,7 @@ pub struct QuerierChunk {
     delete_predicates: Vec<Arc<DeletePredicate>>,
 
     /// Partition sort key (how does the read buffer use this?)
-    partition_sort_key: Arc<Option<SortKey>>,
+    partition_sort_key: Option<Arc<SortKey>>,
 
     /// Chunk of the Parquet file
     parquet_chunk: Arc<ParquetChunk>,
@@ -107,7 +107,7 @@ impl QuerierChunk {
     pub fn new(
         parquet_chunk: Arc<ParquetChunk>,
         meta: Arc<ChunkMeta>,
-        partition_sort_key: Arc<Option<SortKey>>,
+        partition_sort_key: Option<Arc<SortKey>>,
     ) -> Self {
         let schema = parquet_chunk.schema();
 
@@ -141,7 +141,7 @@ impl QuerierChunk {
     }
 
     /// Set partition sort key
-    pub fn with_partition_sort_key(self, partition_sort_key: Arc<Option<SortKey>>) -> Self {
+    pub fn with_partition_sort_key(self, partition_sort_key: Option<Arc<SortKey>>) -> Self {
         Self {
             partition_sort_key,
             ..self
@@ -227,38 +227,26 @@ impl ChunkAdapter {
     ) -> Option<ChunkParts> {
         let span_recorder = SpanRecorder::new(span);
 
-        let parquet_file_cols: HashMap<&str, ColumnId> = parquet_file
-            .column_set
-            .iter()
-            .map(|id| {
-                let name = cached_table
-                    .column_id_map
-                    .get(id)
-                    .expect("catalog has all columns")
-                    .as_ref();
-                (name, *id)
-            })
-            .collect();
+        let parquet_file_cols: HashSet<ColumnId> =
+            parquet_file.column_set.iter().copied().collect();
 
         // relevant_pk_columns is everything from the primary key for the table, that is actually in this parquet file
         let relevant_pk_columns: Vec<_> = cached_table
-            .schema
-            .primary_key()
-            .into_iter()
-            .filter(|c| parquet_file_cols.contains_key(*c))
+            .primary_key_column_ids
+            .iter()
+            .filter(|c| parquet_file_cols.contains(c))
+            .copied()
             .collect();
         let partition_sort_key = self
             .catalog_cache
             .partition()
             .sort_key(
+                Arc::clone(&cached_table),
                 parquet_file.partition_id,
                 &relevant_pk_columns,
                 span_recorder.child_span("cache GET partition sort key"),
             )
-            .await;
-        let partition_sort_key_ref = partition_sort_key
-            .as_ref()
-            .as_ref()
+            .await
             .expect("partition sort key should be set when a parquet file exists");
 
         // NOTE: Because we've looked up the sort key AFTER the namespace schema, it may contain columns for which we
@@ -271,26 +259,30 @@ impl ChunkAdapter {
         // NOTE: The schema that we calculate here may have a different column order than the actual parquet file. This
         //       is OK because the IOx parquet reader can deal with that (see #4921).
         let column_ids: Vec<_> = cached_table
-            .schema
-            .iter()
-            .filter_map(|(_, field)| {
-                let name = field.name();
-                parquet_file_cols.get(name.as_str()).copied()
-            })
+            .column_id_map
+            .keys()
+            .filter(|id| parquet_file_cols.contains(id))
+            .copied()
             .collect();
         let schema = self
             .catalog_cache
             .projected_schema()
             .get(
-                cached_table,
+                Arc::clone(&cached_table),
                 column_ids,
                 span_recorder.child_span("cache GET projected schema"),
             )
             .await;
 
         // calculate sort key
-        let pk_cols = schema.primary_key();
-        let sort_key = partition_sort_key_ref.filter_to(&pk_cols, parquet_file.partition_id.get());
+        let sort_key = SortKey::from_columns(
+            partition_sort_key
+                .column_order
+                .iter()
+                .filter(|c_id| parquet_file_cols.contains(c_id))
+                .filter_map(|c_id| cached_table.column_id_map.get(c_id))
+                .cloned(),
+        );
         assert!(
             !sort_key.is_empty(),
             "Sort key can never be empty because there should at least be a time column",
@@ -314,7 +306,7 @@ impl ChunkAdapter {
         Some(ChunkParts {
             meta,
             schema,
-            partition_sort_key,
+            partition_sort_key: Some(Arc::clone(&partition_sort_key.sort_key)),
         })
     }
 }
@@ -322,7 +314,7 @@ impl ChunkAdapter {
 struct ChunkParts {
     meta: Arc<ChunkMeta>,
     schema: Arc<Schema>,
-    partition_sort_key: Arc<Option<SortKey>>,
+    partition_sort_key: Option<Arc<SortKey>>,
 }
 
 #[cfg(test)]
@@ -417,6 +409,7 @@ pub mod tests {
             table.create_column("tag1", ColumnType::Tag).await;
             table.create_column("tag2", ColumnType::Tag).await;
             table.create_column("tag3", ColumnType::Tag).await;
+            table.create_column("tag4", ColumnType::Tag).await;
             table.create_column("field_int", ColumnType::I64).await;
             table.create_column("field_float", ColumnType::F64).await;
             table.create_column("time", ColumnType::Time).await;

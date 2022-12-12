@@ -208,18 +208,27 @@ pub struct CachedTable {
     pub id: TableId,
     pub schema: Arc<Schema>,
     pub column_id_map: HashMap<ColumnId, Arc<str>>,
+    pub column_id_map_rev: HashMap<Arc<str>, ColumnId>,
+    pub primary_key_column_ids: Vec<ColumnId>,
 }
 
 impl CachedTable {
     /// RAM-bytes EXCLUDING `self`.
     fn size(&self) -> usize {
         self.schema.estimate_size()
-            + self.column_id_map.capacity() * size_of::<(ColumnId, Arc<str>)>()
+            + (self.column_id_map.capacity() * size_of::<(ColumnId, Arc<str>)>())
             + self
                 .column_id_map
                 .iter()
                 .map(|(_id, name)| name.len())
                 .sum::<usize>()
+            + (self.column_id_map_rev.capacity() * size_of::<(Arc<str>, ColumnId)>())
+            + self
+                .column_id_map_rev
+                .iter()
+                .map(|(name, _id)| name.len())
+                .sum::<usize>()
+            + (self.primary_key_column_ids.capacity() * size_of::<ColumnId>())
     }
 }
 
@@ -232,10 +241,32 @@ impl From<TableSchema> for CachedTable {
             .collect();
         column_id_map.shrink_to_fit();
 
+        let id = table.id;
+        let schema: Arc<Schema> = Arc::new(table.try_into().expect("Catalog table schema broken"));
+
+        let mut column_id_map_rev: HashMap<Arc<str>, ColumnId> = column_id_map
+            .iter()
+            .map(|(v, k)| (Arc::clone(k), *v))
+            .collect();
+        column_id_map_rev.shrink_to_fit();
+
+        let mut primary_key_column_ids: Vec<ColumnId> = schema
+            .primary_key()
+            .into_iter()
+            .map(|name| {
+                *column_id_map_rev
+                    .get(name)
+                    .unwrap_or_else(|| panic!("primary key not known?!: {name}"))
+            })
+            .collect();
+        primary_key_column_ids.shrink_to_fit();
+
         Self {
-            id: table.id,
-            schema: Arc::new(table.try_into().expect("Catalog table schema broken")),
+            id,
+            schema,
             column_id_map,
+            column_id_map_rev,
+            primary_key_column_ids,
         }
     }
 }
@@ -351,6 +382,12 @@ mod tests {
                             (col112.column.id, Arc::from(col112.column.name.clone())),
                             (col113.column.id, Arc::from(col113.column.name.clone())),
                         ]),
+                        column_id_map_rev: HashMap::from([
+                            (Arc::from(col111.column.name.clone()), col111.column.id),
+                            (Arc::from(col112.column.name.clone()), col112.column.id),
+                            (Arc::from(col113.column.name.clone()), col113.column.id),
+                        ]),
+                        primary_key_column_ids: vec![col112.column.id, col113.column.id],
                     }),
                 ),
                 (
@@ -369,6 +406,11 @@ mod tests {
                             (col121.column.id, Arc::from(col121.column.name.clone())),
                             (col122.column.id, Arc::from(col122.column.name.clone())),
                         ]),
+                        column_id_map_rev: HashMap::from([
+                            (Arc::from(col121.column.name.clone()), col121.column.id),
+                            (Arc::from(col122.column.name.clone()), col122.column.id),
+                        ]),
+                        primary_key_column_ids: vec![col122.column.id],
                     }),
                 ),
             ]),
@@ -396,6 +438,11 @@ mod tests {
                         col211.column.id,
                         Arc::from(col211.column.name.clone()),
                     )]),
+                    column_id_map_rev: HashMap::from([(
+                        Arc::from(col211.column.name.clone()),
+                        col211.column.id,
+                    )]),
+                    primary_key_column_ids: vec![col211.column.id],
                 }),
             )]),
         };

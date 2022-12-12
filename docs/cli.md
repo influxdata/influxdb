@@ -12,14 +12,33 @@ To connect on a different port, use the `--host` argument:
 $ influxdb_iox --host http://localhost:8083  <command>
 ```
 
-## Getting data in to IOx
+## Getting data in to IOx / Loading
 
-You can load data in parallel using the influxdb_iox client by specifing one or more files from the command line.
+You can load data in parallel using `influxdb_iox write` command by specifing one or more files from the command line.
+
+Currently supported formats are
+1. `.lp` (line protocol),
+3. `.gz` (gzipped line protocol)
+2. `.parquet` (IOx created parquet files)
 
 This command uses the http v2 endpoint, which often runs on port 8080, rather than the default 8082 which handles gRPC:
 
 ```shell
-influxdb_iox --host=http://localhost:8080 -v write test_db test_fixtures/lineproto/*.lp
+influxdb_iox -h http://localhost:8080 write test_db test_fixtures/lineproto/*.lp
+```
+
+It is also possible to use the influxdb_iox write command to write data to the InfluxDB cloud service. For example, given the following scenario
+
+* Endpoint: https://us-east-1-1.aws.cloud2.influxdata.com
+* Organization: `974db1248c9d6846`
+* Bucket: `67c03137977b068c`
+* Data in local file: `temperature.lp`
+* Token in environment variable: `INFLUX_API_TOKEN`
+
+You can write using this command line:
+
+```shell
+$ influxdb_iox write  --token "$INFLUX_API_TOKEN"  -h https://us-east-1-1.aws.cloud2.influxdata.com  974db1248c9d6846_67c03137977b068c temperature.lp
 ```
 
 ## Run Queries
@@ -100,8 +119,7 @@ disk,device=disk1s1,fstype=apfs,host=MacBook-Pro-8.local,mode=rw,path=/System/Vo
 ...
 ```
 
-Note you can also write such parquet files that came from IOx to another IOx instance using the `influxdb_iox write` command.
-
+Note you can also write such parquet files that came from IOx to another IOx instance using the `influxdb_iox write` command as described in `Getting data in to IOx` above.
 
 ## Inspect The Catalog
 

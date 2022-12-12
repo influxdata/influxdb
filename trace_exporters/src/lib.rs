@@ -11,14 +11,16 @@
 
 use crate::export::AsyncExporter;
 use crate::jaeger::JaegerAgentExporter;
+use iox_time::SystemProvider;
 use jaeger::JaegerTag;
 use snafu::Snafu;
-use std::num::NonZeroU16;
+use std::num::{NonZeroU16, NonZeroU64};
 use std::sync::Arc;
 
 pub mod export;
 
 mod jaeger;
+mod rate_limiter;
 
 /// Auto-generated thrift code
 #[allow(
@@ -125,6 +127,17 @@ pub struct TracingConfig {
         action
     )]
     pub traces_jaeger_tags: Option<Vec<JaegerTag>>,
+
+    /// Tracing: Maximum number of message sent to a Jaeger service, per second.
+    ///
+    /// Only used if `--traces-exporter` is "jaeger".
+    #[clap(
+        long = "traces-jaeger-max-msgs-per-second",
+        env = "TRACES_JAEGER_MAX_MSGS_PER_SECOND",
+        default_value = "1000",
+        action
+    )]
+    pub traces_jaeger_max_msgs_per_second: NonZeroU64,
 }
 
 impl TracingConfig {
@@ -176,7 +189,12 @@ fn jaeger_exporter(config: &TracingConfig) -> Result<Arc<AsyncExporter>> {
     );
 
     let service_name = &config.traces_exporter_jaeger_service_name;
-    let mut jaeger = JaegerAgentExporter::new(service_name.clone(), agent_endpoint)?;
+    let mut jaeger = JaegerAgentExporter::new(
+        service_name.clone(),
+        agent_endpoint,
+        Arc::new(SystemProvider::new()),
+        config.traces_jaeger_max_msgs_per_second,
+    )?;
 
     // Use any specified static span tags.
     if let Some(tags) = &config.traces_jaeger_tags {

@@ -1,16 +1,19 @@
 use std::{
     net::{SocketAddr, ToSocketAddrs, UdpSocket},
+    num::NonZeroU64,
     str::FromStr,
+    sync::Arc,
 };
 
 use async_trait::async_trait;
 
+use iox_time::TimeProvider;
 use observability_deps::tracing::*;
 use trace::span::Span;
 
-use crate::export::AsyncExport;
 use crate::thrift::agent::{AgentSyncClient, TAgentSyncClient};
 use crate::thrift::jaeger;
+use crate::{export::AsyncExport, rate_limiter::RateLimiter};
 use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol};
 
 mod span;
@@ -75,12 +78,17 @@ pub struct JaegerAgentExporter {
 
     /// Optional static tags to annotate every span with.
     tags: Option<Vec<jaeger::Tag>>,
+
+    /// Rate limiter
+    rate_limiter: RateLimiter,
 }
 
 impl JaegerAgentExporter {
     pub fn new<E: ToSocketAddrs + std::fmt::Display>(
         service_name: String,
         agent_endpoint: E,
+        time_provider: Arc<dyn TimeProvider>,
+        max_msgs_per_second: NonZeroU64,
     ) -> super::Result<Self> {
         info!(%agent_endpoint, %service_name, "Creating jaeger tracing exporter");
         let remote_addr = agent_endpoint.to_socket_addrs()?.next().ok_or_else(|| {
@@ -111,6 +119,7 @@ impl JaegerAgentExporter {
             client,
             next_sequence: 0,
             tags: None,
+            rate_limiter: RateLimiter::new(max_msgs_per_second, time_provider),
         })
     }
 
@@ -141,6 +150,12 @@ impl JaegerAgentExporter {
 impl AsyncExport for JaegerAgentExporter {
     async fn export(&mut self, spans: Vec<Span>) {
         let batch = self.make_batch(spans);
+
+        // The Jaeger UDP protocol provides no backchannel and therefore no way for us to know about backpressure or
+        // dropped messages. To make dropped messages (by the OS, network, or Jaeger itself) less likely, we employ a
+        // simple rate limit.
+        self.rate_limiter.send().await;
+
         if let Err(e) = self.client.emit_batch(batch) {
             error!(%e, "error writing batch to jaeger agent")
         }
@@ -215,6 +230,7 @@ mod tests {
     use super::*;
     use crate::thrift::agent::{AgentSyncHandler, AgentSyncProcessor};
     use chrono::{TimeZone, Utc};
+    use iox_time::SystemProvider;
     use std::sync::{Arc, Mutex};
     use thrift::server::TProcessor;
     use thrift::transport::TBufferChannel;
@@ -309,9 +325,14 @@ mod tests {
 
         let tags = [JaegerTag::new("bananas", "great")];
         let address = server.local_addr().unwrap();
-        let mut exporter = JaegerAgentExporter::new("service_name".to_string(), address)
-            .unwrap()
-            .with_tags(&tags);
+        let mut exporter = JaegerAgentExporter::new(
+            "service_name".to_string(),
+            address,
+            Arc::new(SystemProvider::new()),
+            NonZeroU64::new(1_000).unwrap(),
+        )
+        .unwrap()
+        .with_tags(&tags);
 
         // Encoded form of tags.
         let want_tags = [jaeger::Tag {
@@ -431,6 +452,12 @@ mod tests {
 
     #[test]
     fn test_resolve() {
-        JaegerAgentExporter::new("service_name".to_string(), "localhost:8082").unwrap();
+        JaegerAgentExporter::new(
+            "service_name".to_string(),
+            "localhost:8082",
+            Arc::new(SystemProvider::new()),
+            NonZeroU64::new(1_000).unwrap(),
+        )
+        .unwrap();
     }
 }

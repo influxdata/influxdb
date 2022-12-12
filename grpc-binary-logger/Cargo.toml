@@ -6,7 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-base64 = "0.13"
+base64 = "0.20"
 byteorder = { version = "1", features = ["std"] }
 bytes = "1.3"
 futures = "0.3"

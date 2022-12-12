@@ -141,7 +141,9 @@ mod tests {
     use crate::namespace::test_util::querier_namespace;
     use data_types::ColumnType;
     use iox_tests::util::TestCatalog;
-    use schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType, Schema};
+    use schema::{
+        builder::SchemaBuilder, InfluxColumnType, InfluxFieldType, Schema, TIME_COLUMN_NAME,
+    };
 
     #[tokio::test]
     async fn test_sync_tables() {
@@ -198,14 +200,16 @@ mod tests {
         assert_eq!(actual_schema.as_ref(), &expected_schema,);
 
         table.create_column("col4", ColumnType::Tag).await;
-        table.create_column("col5", ColumnType::Time).await;
+        table
+            .create_column(TIME_COLUMN_NAME, ColumnType::Time)
+            .await;
         let qns = querier_namespace(&ns).await;
         let expected_schema = SchemaBuilder::new()
             .influx_column("col1", InfluxColumnType::Field(InfluxFieldType::Integer))
             .influx_column("col2", InfluxColumnType::Field(InfluxFieldType::Boolean))
             .influx_column("col3", InfluxColumnType::Tag)
             .influx_column("col4", InfluxColumnType::Tag)
-            .influx_column("col5", InfluxColumnType::Timestamp)
+            .influx_column(TIME_COLUMN_NAME, InfluxColumnType::Timestamp)
             .build()
             .unwrap();
         let actual_schema = schema(&qns, "table");

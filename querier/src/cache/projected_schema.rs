@@ -159,7 +159,7 @@ impl ProjectedSchemaCache {
 #[cfg(test)]
 mod tests {
     use iox_time::SystemProvider;
-    use schema::builder::SchemaBuilder;
+    use schema::{builder::SchemaBuilder, TIME_COLUMN_NAME};
 
     use crate::cache::ram::test_util::test_ram_pool;
 
@@ -199,29 +199,51 @@ mod tests {
             (ColumnId::new(1), Arc::from("t1")),
             (ColumnId::new(2), Arc::from("t2")),
             (ColumnId::new(3), Arc::from("t3")),
-            (ColumnId::new(4), Arc::from("time")),
+            (ColumnId::new(4), Arc::from(TIME_COLUMN_NAME)),
         ]);
         let column_id_map_b = HashMap::from([
             (ColumnId::new(1), Arc::from("t1")),
             (ColumnId::new(2), Arc::from("t2")),
             (ColumnId::new(3), Arc::from("t3")),
             (ColumnId::new(5), Arc::from("t4")),
-            (ColumnId::new(4), Arc::from("time")),
+            (ColumnId::new(4), Arc::from(TIME_COLUMN_NAME)),
         ]);
         let table_1a = Arc::new(CachedTable {
             id: table_id_1,
             schema: Arc::clone(&table_schema_a),
             column_id_map: column_id_map_a.clone(),
+            column_id_map_rev: reverse_map(&column_id_map_a),
+            primary_key_column_ids: vec![
+                ColumnId::new(1),
+                ColumnId::new(2),
+                ColumnId::new(3),
+                ColumnId::new(4),
+            ],
         });
         let table_1b = Arc::new(CachedTable {
             id: table_id_1,
             schema: Arc::clone(&table_schema_b),
             column_id_map: column_id_map_b.clone(),
+            column_id_map_rev: reverse_map(&column_id_map_b),
+            primary_key_column_ids: vec![
+                ColumnId::new(1),
+                ColumnId::new(2),
+                ColumnId::new(3),
+                ColumnId::new(4),
+            ],
         });
         let table_2a = Arc::new(CachedTable {
             id: table_id_2,
             schema: Arc::clone(&table_schema_a),
             column_id_map: column_id_map_a.clone(),
+            column_id_map_rev: reverse_map(&column_id_map_a),
+            primary_key_column_ids: vec![
+                ColumnId::new(1),
+                ColumnId::new(2),
+                ColumnId::new(3),
+                ColumnId::new(4),
+                ColumnId::new(5),
+            ],
         });
 
         // initial request
@@ -296,5 +318,13 @@ mod tests {
             )
             .await;
         assert!(Arc::ptr_eq(&projection_1, &projection_7));
+    }
+
+    fn reverse_map<K, V>(map: &HashMap<K, V>) -> HashMap<V, K>
+    where
+        K: Clone,
+        V: Clone + std::hash::Hash + Eq,
+    {
+        map.iter().map(|(k, v)| (v.clone(), k.clone())).collect()
     }
 }

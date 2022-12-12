@@ -1,4 +1,10 @@
-use std::{any::Any, sync::Arc};
+use std::{
+    any::Any,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
 use async_trait::async_trait;
 use futures::{
@@ -37,6 +43,9 @@ pub struct AsyncExporter {
     ///
     /// Sending None triggers termination
     sender: tokio::sync::mpsc::Sender<Option<Span>>,
+
+    /// Flags if we already warned about a saturated channel.
+    warned_sender_full: AtomicBool,
 }
 
 impl AsyncExporter {
@@ -47,7 +56,11 @@ impl AsyncExporter {
         let handle = tokio::spawn(background_worker(collector, receiver));
         let join = handle.map_err(Arc::new).boxed().shared();
 
-        Self { join, sender }
+        Self {
+            join,
+            sender,
+            warned_sender_full: AtomicBool::new(false),
+        }
     }
 
     /// Triggers shutdown of this `AsyncExporter` and waits until all in-flight
@@ -64,10 +77,16 @@ impl TraceCollector for AsyncExporter {
         use mpsc::error::TrySendError;
         match self.sender.try_send(Some(span)) {
             Ok(_) => {
+                // sending worked again, so re-enable warning
+                self.warned_sender_full.store(false, Ordering::SeqCst);
+
                 //TODO: Increment some metric (#2613)
             }
             Err(TrySendError::Full(_)) => {
-                warn!("exporter cannot keep up, dropping spans")
+                // avoid spamming the log system (there might be thousands of traces incoming)
+                if !self.warned_sender_full.swap(true, Ordering::SeqCst) {
+                    warn!("exporter cannot keep up, dropping spans");
+                }
             }
             Err(TrySendError::Closed(_)) => {
                 warn!("background worker shutdown")

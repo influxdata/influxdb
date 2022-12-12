@@ -114,8 +114,8 @@ license = "MIT OR Apache-2.0"
 [workspace.dependencies]
 arrow = { version = "28.0.0" }
 arrow-flight = { version = "28.0.0" }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="fbadebb894672f61327a30f77cda2ee88a343b2a", default-features = false }
-datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="fbadebb894672f61327a30f77cda2ee88a343b2a" }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="d33457c20c2b15d6a934e5b37ac9eb0d17e29145", default-features = false }
+datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="d33457c20c2b15d6a934e5b37ac9eb0d17e29145" }
 hashbrown = { version = "0.13.1" }
 parquet = { version = "28.0.0" }
 
@@ -143,3 +143,8 @@ opt-level = 3
 
 [profile.dev.package.similar]
 opt-level = 3
+
+[patch.crates-io]
+# remove and bump object_store dep version once this revision is released.
+# patch for https://github.com/influxdata/idpe/issues/16611
+object_store = { git = 'https://github.com/apache/arrow-rs.git', rev = "f5c165acc0e6cc4b34e0eaea006aab7e5bd28d66", package = "object_store" }
