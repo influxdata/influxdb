@@ -51,18 +51,4 @@ pub struct Ingester2Config {
         action
     )]
     pub persist_worker_queue_depth: usize,
-
-    /// The maximum number of persist tasks queued in the shared submission
-    /// queue. This is an advanced option, users should prefer
-    /// "--persist-worker-queue-depth".
-    ///
-    /// This queue provides a buffer for persist tasks before they are hashed to
-    /// a worker and enqueued for the worker to process.
-    #[clap(
-        long = "persist-submission-queue-depth",
-        env = "INFLUXDB_IOX_PERSIST_SUBMISSION_QUEUE_DEPTH",
-        default_value = "5",
-        action
-    )]
-    pub persist_submission_queue_depth: usize,
 }

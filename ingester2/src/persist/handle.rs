@@ -5,15 +5,13 @@ use iox_query::exec::Executor;
 use observability_deps::tracing::{debug, info};
 use parking_lot::Mutex;
 use parquet_file::storage::ParquetStorage;
+use sharder::JumpHash;
 use thiserror::Error;
-use tokio::sync::{
-    mpsc::{self},
-    Notify,
-};
+use tokio::sync::{mpsc, oneshot};
 
 use crate::buffer_tree::partition::{persisting::PersistingData, PartitionData};
 
-use super::{actor::PersistActor, context::PersistRequest};
+use super::context::{Context, PersistRequest};
 
 #[derive(Debug, Error)]
 pub(crate) enum PersistError {
@@ -27,29 +25,21 @@ pub(crate) enum PersistError {
 ///
 /// # Usage
 ///
-/// The caller should construct an [`PersistHandle`] and [`PersistActor`] by
-/// calling [`PersistHandle::new()`], and run the provided [`PersistActor`]
-/// instance in another thread / task (by calling [`PersistActor::run()`]).
+/// The caller should construct an [`PersistHandle`] by calling
+/// [`PersistHandle::new()`].
 ///
-/// From this point on, the caller interacts only with the [`PersistHandle`]
-/// which can be cheaply cloned and passed over thread/task boundaries to
-/// enqueue persist tasks.
+/// The [`PersistHandle`] can be cheaply cloned and passed over thread/task
+/// boundaries to enqueue persist tasks in parallel.
 ///
-/// Dropping all [`PersistHandle`] instances stops the [`PersistActor`], which
-/// immediately stops all workers.
+/// Dropping all [`PersistHandle`] instances immediately stops all workers.
 ///
 /// # Topology
 ///
-/// The persist actor is uses an internal work group to parallelise persistence
+/// The [`PersistHandle`] uses an internal work group to parallelise persistence
 /// operations up to `n_workers` number of parallel tasks.
 ///
-/// Submitting a persistence request places the job into a bounded queue,
-/// providing a buffer for persistence requests to wait for an available worker.
-///
-/// Two types of queue exists:
-///
-///   * Submission queue (bounded by `submission_queue_depth`)
-///   * `n_worker` number of worker queues (bounded by `worker_queue_depth`)
+/// Submitting a persistence request selects a worker for the persist job and
+/// places the job into a bounded queue (of up to `worker_queue_depth` items).
 ///
 /// ```text
 ///                            ┌─────────────┐
@@ -58,12 +48,6 @@ pub(crate) enum PersistError {
 ///                             └┬────────────┘│
 ///                              └─────┬───────┘
 ///                                    │
-///                         submission_queue_depth
-///                                    │
-///                                    ▼
-///                            ╔═══════════════╗
-///                            ║ PersistActor  ║
-///                            ╚═══════════════╝
 ///                                    │
 ///                   ┌────────────────┼────────────────┐
 ///                   │                │                │
@@ -89,17 +73,12 @@ pub(crate) enum PersistError {
 ///
 /// ```text
 ///
-///         submission_queue_depth + (workers * worker_queue_depth)
+///                    workers * worker_queue_depth
 ///
 /// ```
 ///
-/// At any one time, there may be at most `submission_queue_depth +
-/// worker_queue_depth` number of outstanding persist jobs for a single
-/// partition.
-///
-/// These two queues are used to decouple submissions from individual workers -
-/// this prevents a "hot" / backlogged worker with a full worker queue from
-/// blocking tasks from being passed through to workers with spare capacity.
+/// At any one time, there may be at most `worker_queue_depth` number of
+/// outstanding persist jobs for a single partition or worker.
 ///
 /// # Parallelism & Partition Serialisation
 ///
@@ -113,7 +92,19 @@ pub(crate) enum PersistError {
 /// [`SortKey`]: schema::sort::SortKey
 #[derive(Debug, Clone)]
 pub(crate) struct PersistHandle {
-    tx: mpsc::Sender<PersistRequest>,
+    /// THe state/dependencies shared across all worker tasks.
+    inner: Arc<Inner>,
+
+    /// A consistent hash implementation used to consistently map buffers from
+    /// one partition to the same worker queue.
+    ///
+    /// This ensures persistence is serialised per-partition, but in parallel
+    /// across partitions (up to the number of worker tasks).
+    persist_queues: Arc<JumpHash<mpsc::Sender<PersistRequest>>>,
+
+    /// Task handles for the worker tasks, aborted on drop of all
+    /// [`PersistHandle`] instances.
+    tasks: Arc<Vec<AbortOnDrop<()>>>,
 }
 
 impl PersistHandle {
@@ -122,67 +113,112 @@ impl PersistHandle {
     /// The caller should call [`PersistActor::run()`] in a separate
     /// thread / task to start the persistence executor.
     pub(crate) fn new(
-        submission_queue_depth: usize,
         n_workers: usize,
         worker_queue_depth: usize,
         exec: Arc<Executor>,
         store: ParquetStorage,
         catalog: Arc<dyn Catalog>,
-    ) -> (Self, PersistActor) {
-        let (tx, rx) = mpsc::channel(submission_queue_depth);
+    ) -> Self {
+        assert_ne!(n_workers, 0, "must run at least 1 persist worker");
+        assert_ne!(worker_queue_depth, 0, "worker queue depth must be non-zero");
 
         // Log the important configuration parameters of the persist subsystem.
         info!(
-            submission_queue_depth,
             n_workers,
             worker_queue_depth,
-            max_queued_tasks = submission_queue_depth + (n_workers * worker_queue_depth),
+            max_queued_tasks = (n_workers * worker_queue_depth),
             "initialised persist task"
         );
 
-        let actor = PersistActor::new(rx, exec, store, catalog, n_workers, worker_queue_depth);
+        let inner = Arc::new(Inner {
+            exec,
+            store,
+            catalog,
+        });
 
-        (Self { tx }, actor)
+        let (tx_handles, tasks): (Vec<_>, Vec<_>) = (0..n_workers)
+            .map(|_| {
+                let inner = Arc::clone(&inner);
+                let (tx, rx) = mpsc::channel(worker_queue_depth);
+                (tx, AbortOnDrop(tokio::spawn(run_task(inner, rx))))
+            })
+            .unzip();
+
+        assert!(!tasks.is_empty());
+
+        Self {
+            inner,
+            persist_queues: Arc::new(JumpHash::new(tx_handles)),
+            tasks: Arc::new(tasks),
+        }
     }
 
     /// Place `data` from `partition` into the persistence queue.
     ///
     /// This call (asynchronously) waits for space to become available in the
-    /// submission queue.
+    /// assigned worker queue.
     ///
     /// Once persistence is complete, the partition will be locked and the sort
     /// key will be updated, and [`PartitionData::mark_persisted()`] is called
     /// with `data`.
     ///
-    /// Once all persistence related tasks are complete, the returned [`Notify`]
-    /// broadcasts a notification.
+    /// Once all persistence related tasks are complete, the returned channel
+    /// publishes a notification.
     ///
     /// # Panics
+    ///
+    /// Panics if one or more worker threads have stopped.
     ///
     /// Panics (asynchronously) if the [`PartitionData`]'s sort key is updated
     /// between persistence starting and ending.
     ///
-    /// This will panic (asynchronously) if `data` was not from `partition` or
-    /// all worker threads have stopped.
+    /// This will panic (asynchronously) if `data` was not from `partition`.
     pub(crate) async fn queue_persist(
         &self,
         partition: Arc<Mutex<PartitionData>>,
         data: PersistingData,
-    ) -> Arc<Notify> {
+    ) -> oneshot::Receiver<()> {
         debug!(
             partition_id = data.partition_id().get(),
             "enqueuing persistence task"
         );
 
         // Build the persist task request
-        let r = PersistRequest::new(partition, data);
-        let notify = r.complete_notification();
+        let (r, notify) = PersistRequest::new(partition, data);
 
-        self.tx
+        self.persist_queues
+            .hash(r.partition_id())
             .send(r)
             .await
-            .expect("no persist worker tasks running");
+            .expect("persist worker has stopped");
 
         notify
+    }
+}
+
+#[derive(Debug)]
+struct AbortOnDrop<T>(tokio::task::JoinHandle<T>);
+
+impl<T> Drop for AbortOnDrop<T> {
+    fn drop(&mut self) {
+        self.0.abort()
+    }
+}
+
+#[derive(Debug)]
+pub(super) struct Inner {
+    pub(super) exec: Arc<Executor>,
+    pub(super) store: ParquetStorage,
+    pub(super) catalog: Arc<dyn Catalog>,
+}
+
+async fn run_task(inner: Arc<Inner>, mut rx: mpsc::Receiver<PersistRequest>) {
+    while let Some(req) = rx.recv().await {
+        let ctx = Context::new(req, Arc::clone(&inner));
+
+        let compacted = ctx.compact().await;
+        let (sort_key_update, parquet_table_data) = ctx.upload(compacted).await;
+        ctx.update_database(sort_key_update, parquet_table_data)
+            .await;
     }
 }

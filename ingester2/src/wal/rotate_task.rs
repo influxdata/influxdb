@@ -7,7 +7,7 @@ use crate::{buffer_tree::BufferTree, persist::handle::PersistHandle};
 
 /// [`PERSIST_ENQUEUE_CONCURRENCY`] defines the parallelism used when acquiring
 /// partition locks and marking the partition as persisting.
-const PERSIST_ENQUEUE_CONCURRENCY: usize = 10;
+const PERSIST_ENQUEUE_CONCURRENCY: usize = 5;
 
 /// Rotate the `wal` segment file every `period` duration of time.
 pub(crate) async fn periodic_rotation(
@@ -131,7 +131,7 @@ pub(crate) async fn periodic_rotation(
 
         // Wait for all the persist completion notifications.
         for n in notifications {
-            n.notified().await;
+            n.await.expect("persist worker task panic");
         }
 
         debug!(
