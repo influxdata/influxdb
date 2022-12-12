@@ -16,7 +16,7 @@ use crate::commands::{
 use dotenvy::dotenv;
 use influxdb_iox_client::connection::Builder;
 use iox_time::{SystemProvider, TimeProvider};
-use observability_deps::tracing::warn;
+use observability_deps::tracing::{debug, warn};
 use process_info::VERSION_STRING;
 use std::time::Duration;
 use std::{
@@ -131,6 +131,13 @@ struct Config {
     #[clap(long, global = true, action)]
     gen_trace_id: bool,
 
+    /// Add an InfluxDB Cloud style authorization header with the specified token
+    ///
+    /// This is shorthand for adding a header of the form
+    /// `Authorization: Token <token>`
+    #[clap(long, global = true, env = "INFLUX_TOKEN", action)]
+    token: Option<String>,
+
     /// Set the maximum number of threads to use. Defaults to the number of
     /// cores on the system
     #[clap(long, action)]
@@ -201,6 +208,7 @@ fn main() -> Result<(), std::io::Error> {
 
         let connection = || async move {
             let mut builder = headers.into_iter().fold(Builder::default(), |builder, kv| {
+                debug!(name=?kv.key, value=?kv.value, "Setting header");
                 builder.header(kv.key, kv.value)
             });
 
@@ -213,10 +221,19 @@ fn main() -> Result<(), std::io::Error> {
                 .unwrap();
                 let trace_id = gen_trace_id();
                 let value = http::header::HeaderValue::from_str(trace_id.as_str()).unwrap();
+                debug!(name=?key, value=?value, "Setting trace header");
                 builder = builder.header(key, value);
 
                 // Emit trace id information
                 println!("Trace ID set to {}", trace_id);
+            }
+
+            if let Some(token) = config.token.as_ref() {
+                let key = http::header::HeaderName::from_str("Authorization").unwrap();
+                let value =
+                    http::header::HeaderValue::from_str(&format!("Token {}", token)).unwrap();
+                debug!(name=?key, value=?value, "Setting token header");
+                builder = builder.header(key, value);
             }
 
             match builder.build(&host).await {
