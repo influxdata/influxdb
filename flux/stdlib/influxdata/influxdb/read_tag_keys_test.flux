@@ -146,7 +146,8 @@ testcase read_tag_keys_with_predicate {
 ,,0,region
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: -100y)
         |> filter(fn: (r) => r._field == "usage_user")
         |> keys()

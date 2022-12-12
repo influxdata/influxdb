@@ -148,7 +148,8 @@ testcase read_tag_values_with_predicate {
 ,,0,euterpe.local
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: 2018-01-01T00:00:00Z)
         |> filter(fn: (r) => r._field == "usage_user" and r._measurement == "cpu")
         |> keep(columns: ["host"])
