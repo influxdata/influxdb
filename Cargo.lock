@@ -206,7 +206,7 @@ dependencies = [
  "arrow-buffer",
  "arrow-ipc",
  "arrow-schema",
- "base64",
+ "base64 0.13.1",
  "bytes",
  "futures",
  "proc-macro2",
@@ -478,6 +478,12 @@ name = "base64"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
+
+[[package]]
+name = "base64"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ea22880d78093b0cbe17c89f64a7d457941e65759157ec6cb31a31d652b05e5"
 
 [[package]]
 name = "bitflags"
@@ -1790,7 +1796,7 @@ dependencies = [
 name = "generated_types"
 version = "0.1.0"
 dependencies = [
- "base64",
+ "base64 0.20.0",
  "bytes",
  "data_types",
  "datafusion",
@@ -1850,7 +1856,7 @@ name = "grpc-binary-logger"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
- "base64",
+ "base64 0.20.0",
  "byteorder",
  "bytes",
  "futures",
@@ -1977,7 +1983,7 @@ version = "7.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f19b9f54f7c7f55e31401bb647626ce0cf0f67b0004982ce815b3ee72a02aa8"
 dependencies = [
- "base64",
+ "base64 0.13.1",
  "byteorder",
  "flate2",
  "nom",
@@ -3498,7 +3504,7 @@ version = "0.5.2"
 source = "git+https://github.com/apache/arrow-rs.git?rev=f5c165acc0e6cc4b34e0eaea006aab7e5bd28d66#f5c165acc0e6cc4b34e0eaea006aab7e5bd28d66"
 dependencies = [
  "async-trait",
- "base64",
+ "base64 0.13.1",
  "bytes",
  "chrono",
  "futures",
@@ -3670,7 +3676,7 @@ dependencies = [
  "arrow-ipc",
  "arrow-schema",
  "arrow-select",
- "base64",
+ "base64 0.13.1",
  "brotli",
  "bytes",
  "chrono",
@@ -3694,7 +3700,7 @@ name = "parquet_file"
 version = "0.1.0"
 dependencies = [
  "arrow",
- "base64",
+ "base64 0.20.0",
  "bytes",
  "data_types",
  "datafusion",
@@ -3750,7 +3756,7 @@ version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "048f9ac93c1eab514f9470c4bc8d97ca2a0a236b84f45cc19d69a59fc11467f6"
 dependencies = [
- "base64",
+ "base64 0.13.1",
  "serde",
 ]
 
@@ -4468,7 +4474,7 @@ version = "0.11.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68cc60575865c7831548863cc02356512e3f1dc2f3f82cb837d7fc4cc8f3c97c"
 dependencies = [
- "base64",
+ "base64 0.13.1",
  "bytes",
  "encoding_rs",
  "futures-core",
@@ -4647,7 +4653,7 @@ version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0864aeff53f8c05aa08d86e5ef839d3dfcf07aeba2db32f12db0ef716e87bd55"
 dependencies = [
- "base64",
+ "base64 0.13.1",
 ]
 
 [[package]]
@@ -5148,7 +5154,7 @@ checksum = "dcbc16ddba161afc99e14d1713a453747a2b07fc097d2009f4c300ec99286105"
 dependencies = [
  "ahash 0.7.6",
  "atoi",
- "base64",
+ "base64 0.13.1",
  "bitflags",
  "byteorder",
  "bytes",
@@ -5676,7 +5682,7 @@ dependencies = [
  "async-stream",
  "async-trait",
  "axum",
- "base64",
+ "base64 0.13.1",
  "bytes",
  "futures-core",
  "futures-util",
@@ -6359,7 +6365,7 @@ version = "0.1.0"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
- "base64",
+ "base64 0.13.1",
  "bitflags",
  "byteorder",
  "bytes",
@@ -6476,7 +6482,7 @@ dependencies = [
 name = "write_summary"
 version = "0.1.0"
 dependencies = [
- "base64",
+ "base64 0.20.0",
  "data_types",
  "dml",
  "generated_types",
