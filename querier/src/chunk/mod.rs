@@ -10,7 +10,7 @@ use iox_catalog::interface::Catalog;
 use iox_query::util::create_basic_summary;
 use parquet_file::chunk::ParquetChunk;
 use schema::{sort::SortKey, Schema};
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashSet, sync::Arc};
 use trace::span::{Span, SpanRecorder};
 use uuid::Uuid;
 
@@ -93,7 +93,7 @@ pub struct QuerierChunk {
     delete_predicates: Vec<Arc<DeletePredicate>>,
 
     /// Partition sort key (how does the read buffer use this?)
-    partition_sort_key: Arc<Option<SortKey>>,
+    partition_sort_key: Option<Arc<SortKey>>,
 
     /// Chunk of the Parquet file
     parquet_chunk: Arc<ParquetChunk>,
@@ -107,7 +107,7 @@ impl QuerierChunk {
     pub fn new(
         parquet_chunk: Arc<ParquetChunk>,
         meta: Arc<ChunkMeta>,
-        partition_sort_key: Arc<Option<SortKey>>,
+        partition_sort_key: Option<Arc<SortKey>>,
     ) -> Self {
         let schema = parquet_chunk.schema();
 
@@ -141,7 +141,7 @@ impl QuerierChunk {
     }
 
     /// Set partition sort key
-    pub fn with_partition_sort_key(self, partition_sort_key: Arc<Option<SortKey>>) -> Self {
+    pub fn with_partition_sort_key(self, partition_sort_key: Option<Arc<SortKey>>) -> Self {
         Self {
             partition_sort_key,
             ..self
@@ -227,37 +227,29 @@ impl ChunkAdapter {
     ) -> Option<ChunkParts> {
         let span_recorder = SpanRecorder::new(span);
 
-        let parquet_file_cols: HashMap<ColumnId, &str> = parquet_file
-            .column_set
-            .iter()
-            .map(|id| {
-                let name = cached_table
-                    .column_id_map
-                    .get(id)
-                    .expect("catalog has all columns")
-                    .as_ref();
-                (*id, name)
-            })
-            .collect();
+        let parquet_file_cols: HashSet<ColumnId> =
+            parquet_file.column_set.iter().copied().collect();
 
         // relevant_pk_columns is everything from the primary key for the table, that is actually in this parquet file
         let relevant_pk_columns: Vec<_> = cached_table
             .primary_key_column_ids
             .iter()
-            .filter_map(|c| parquet_file_cols.get(c).copied())
+            .filter(|c| parquet_file_cols.contains(c))
+            .copied()
             .collect();
         let partition_sort_key = self
             .catalog_cache
             .partition()
             .sort_key(
+                Arc::clone(&cached_table),
                 parquet_file.partition_id,
                 &relevant_pk_columns,
                 span_recorder.child_span("cache GET partition sort key"),
             )
-            .await;
-        let partition_sort_key_ref = partition_sort_key
-            .as_ref()
-            .as_ref()
+            .await
+            .map(|sort_key| Arc::clone(&sort_key.sort_key));
+        let partition_sort_key_ref = partition_sort_key.as_ref();
+        let partition_sort_key_ref = partition_sort_key_ref
             .expect("partition sort key should be set when a parquet file exists");
 
         // NOTE: Because we've looked up the sort key AFTER the namespace schema, it may contain columns for which we
@@ -272,7 +264,7 @@ impl ChunkAdapter {
         let column_ids: Vec<_> = cached_table
             .column_id_map
             .keys()
-            .filter(|id| parquet_file_cols.contains_key(id))
+            .filter(|id| parquet_file_cols.contains(id))
             .copied()
             .collect();
         let schema = self
@@ -319,7 +311,7 @@ impl ChunkAdapter {
 struct ChunkParts {
     meta: Arc<ChunkMeta>,
     schema: Arc<Schema>,
-    partition_sort_key: Arc<Option<SortKey>>,
+    partition_sort_key: Option<Arc<SortKey>>,
 }
 
 #[cfg(test)]
@@ -414,6 +406,7 @@ pub mod tests {
             table.create_column("tag1", ColumnType::Tag).await;
             table.create_column("tag2", ColumnType::Tag).await;
             table.create_column("tag3", ColumnType::Tag).await;
+            table.create_column("tag4", ColumnType::Tag).await;
             table.create_column("field_int", ColumnType::I64).await;
             table.create_column("field_float", ColumnType::F64).await;
             table.create_column("time", ColumnType::Time).await;

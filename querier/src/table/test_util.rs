@@ -69,7 +69,7 @@ pub(crate) struct IngesterPartitionBuilder {
     ingester_name: Arc<str>,
     ingester_chunk_id: u128,
 
-    partition_sort_key: Arc<Option<SortKey>>,
+    partition_sort_key: Option<Arc<SortKey>>,
 
     /// Data returned from the partition, in line protocol format
     lp: Vec<String>,
@@ -86,7 +86,7 @@ impl IngesterPartitionBuilder {
             shard: Arc::clone(shard),
             partition: Arc::clone(partition),
             ingester_name: Arc::from("ingester1"),
-            partition_sort_key: Arc::new(None),
+            partition_sort_key: None,
             ingester_chunk_id: 1,
             lp: Vec::new(),
         }
@@ -129,7 +129,7 @@ impl IngesterPartitionBuilder {
             self.shard.shard.id,
             parquet_max_sequence_number,
             tombstone_max_sequence_number,
-            Arc::clone(&self.partition_sort_key),
+            self.partition_sort_key.clone(),
         )
         .try_add_chunk(
             ChunkId::new_test(self.ingester_chunk_id),

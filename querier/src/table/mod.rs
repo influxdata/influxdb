@@ -122,9 +122,6 @@ pub struct QuerierTable {
     /// Interface to create chunks for this table.
     chunk_adapter: Arc<ChunkAdapter>,
 
-    /// Handle reconciling ingester and catalog data
-    reconciler: Reconciler,
-
     /// Executor for queries.
     exec: Arc<Executor>,
 
@@ -149,12 +146,6 @@ impl QuerierTable {
             prune_metrics,
         } = args;
 
-        let reconciler = Reconciler::new(
-            Arc::clone(&table_name),
-            Arc::clone(&namespace_name),
-            Arc::clone(&chunk_adapter),
-        );
-
         Self {
             sharder,
             namespace_name,
@@ -165,7 +156,6 @@ impl QuerierTable {
             schema,
             ingester_connection,
             chunk_adapter,
-            reconciler,
             exec,
             prune_metrics,
         }
@@ -259,7 +249,7 @@ impl QuerierTable {
             self.ingester_partitions(
                 &predicate,
                 span_recorder.child_span("ingester partitions"),
-                projection
+                projection,
             ),
             catalog_cache.parquet_file().get(
                 self.id(),
@@ -324,82 +314,87 @@ impl QuerierTable {
                 span_recorder.child_span("cache GET namespace schema"),
             )
             .await;
-        let cached_table = cached_namespace
+        let Some(cached_table) = cached_namespace
             .as_ref()
-            .and_then(|ns| ns.tables.get(self.table_name.as_ref()));
+            .and_then(|ns| ns.tables.get(self.table_name.as_ref())) else {
+                return Ok(vec![]);
+            };
+
+        let reconciler = Reconciler::new(
+            Arc::clone(&self.table_name),
+            Arc::clone(&self.namespace_name),
+            Arc::clone(&self.chunk_adapter),
+            Arc::clone(cached_table),
+        );
 
         // create parquet files
-        let parquet_files: Vec<_> = match cached_table {
-            Some(cached_table) => {
-                // use nested scope because we span many child scopes here and it's easier to
-                // aggregate / collapse in the UI
-                let span_recorder = span_recorder.child("parquet chunks");
+        let parquet_files: Vec<_> = {
+            // use nested scope because we span many child scopes here and it's easier to
+            // aggregate / collapse in the UI
+            let span_recorder = span_recorder.child("parquet chunks");
 
-                let basic_summaries: Vec<_> = parquet_files
-                    .files
-                    .iter()
-                    .map(|p| {
-                        Arc::new(create_basic_summary(
-                            p.row_count as u64,
-                            &cached_table.schema,
-                            TimestampMinMax {
-                                min: p.min_time.get(),
-                                max: p.max_time.get(),
-                            },
-                        ))
-                    })
-                    .collect();
+            let basic_summaries: Vec<_> = parquet_files
+                .files
+                .iter()
+                .map(|p| {
+                    Arc::new(create_basic_summary(
+                        p.row_count as u64,
+                        &cached_table.schema,
+                        TimestampMinMax {
+                            min: p.min_time.get(),
+                            max: p.max_time.get(),
+                        },
+                    ))
+                })
+                .collect();
 
-                // Prune on the most basic summary data (timestamps and column names) before trying to fully load the chunks
-                let keeps = match prune_summaries(
-                    Arc::clone(&cached_table.schema),
-                    &basic_summaries,
-                    &predicate,
-                ) {
-                    Ok(keeps) => keeps,
-                    Err(reason) => {
-                        // Ignore pruning failures here - the chunk pruner should have already logged them.
-                        // Just skip pruning and gather all the metadata. We have another chance to prune them
-                        // once all the metadata is available
-                        debug!(?reason, "Could not prune before metadata fetch");
-                        vec![true; basic_summaries.len()]
+            // Prune on the most basic summary data (timestamps and column names) before trying to fully load the chunks
+            let keeps = match prune_summaries(
+                Arc::clone(&cached_table.schema),
+                &basic_summaries,
+                &predicate,
+            ) {
+                Ok(keeps) => keeps,
+                Err(reason) => {
+                    // Ignore pruning failures here - the chunk pruner should have already logged them.
+                    // Just skip pruning and gather all the metadata. We have another chance to prune them
+                    // once all the metadata is available
+                    debug!(?reason, "Could not prune before metadata fetch");
+                    vec![true; basic_summaries.len()]
+                }
+            };
+
+            let early_pruning_observer =
+                &MetricPruningObserver::new(Arc::clone(&self.prune_metrics));
+
+            futures::stream::iter(parquet_files.files.iter().cloned().zip(keeps))
+                .filter(|(cached_parquet_file, keep)| {
+                    if !keep {
+                        early_pruning_observer.was_pruned_early(
+                            cached_parquet_file.row_count as u64,
+                            cached_parquet_file.file_size_bytes as u64,
+                        );
                     }
-                };
 
-                let early_pruning_observer =
-                    &MetricPruningObserver::new(Arc::clone(&self.prune_metrics));
-
-                futures::stream::iter(parquet_files.files.iter().cloned().zip(keeps))
-                    .filter(|(cached_parquet_file, keep)| {
-                        if !keep {
-                            early_pruning_observer.was_pruned_early(
-                                cached_parquet_file.row_count as u64,
-                                cached_parquet_file.file_size_bytes as u64,
-                            );
-                        }
-
-                        let keep = *keep;
-                        async move { keep }
-                    })
-                    .map(|(cached_parquet_file, _keep)| {
-                        let span_recorder = &span_recorder;
-                        async move {
-                            let span = span_recorder.child_span("new_chunk");
-                            self.chunk_adapter
-                                .new_chunk(Arc::clone(cached_table), cached_parquet_file, span)
-                                .await
-                        }
-                    })
-                    .buffer_unordered(CONCURRENT_CHUNK_CREATION_JOBS)
-                    .filter_map(|x| async { x })
-                    .collect()
-                    .await
-            }
-            _ => Vec::new(),
+                    let keep = *keep;
+                    async move { keep }
+                })
+                .map(|(cached_parquet_file, _keep)| {
+                    let span_recorder = &span_recorder;
+                    async move {
+                        let span = span_recorder.child_span("new_chunk");
+                        self.chunk_adapter
+                            .new_chunk(Arc::clone(cached_table), cached_parquet_file, span)
+                            .await
+                    }
+                })
+                .buffer_unordered(CONCURRENT_CHUNK_CREATION_JOBS)
+                .filter_map(|x| async { x })
+                .collect()
+                .await
         };
 
-        let chunks = self
-            .reconciler
+        let chunks = reconciler
             .reconcile(
                 partitions,
                 tombstones.to_vec(),
@@ -416,7 +411,8 @@ impl QuerierTable {
             .chunk_pruner()
             .prune_chunks(
                 self.table_name(),
-                Arc::clone(&self.schema),
+                // use up-to-date schema
+                Arc::clone(&cached_table.schema),
                 chunks,
                 &predicate,
             )
@@ -487,15 +483,17 @@ impl QuerierTable {
             .as_ref()
             .map(|sharder| vec![**sharder.shard_for_query(&self.table_name, &self.namespace_name)]);
 
+        // get cached table w/o any must-coverage information
+        let Some(cached_table) = self.chunk_adapter.catalog_cache().namespace().get(Arc::clone(&self.namespace_name), &[], span_recorder.child_span("get namespace")).await.and_then(|ns| ns.tables.get(&self.table_name).cloned()) else {return Ok(vec![])};
+
         // get any chunks from the ingester(s)
         let partitions_result = ingester_connection
             .partitions(
                 shard_indexes,
                 self.namespace_id,
-                self.table_id,
+                cached_table,
                 columns,
                 predicate,
-                Arc::clone(&self.schema),
                 span_recorder.child_span("IngesterConnection partitions"),
             )
             .await
