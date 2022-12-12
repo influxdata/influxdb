@@ -11,6 +11,7 @@ arrow_util = { path = "../arrow_util" }
 assert_cmd = "2.0.7"
 bytes = "1.3"
 data_types = { path = "../data_types" }
+escargot = "0.5"
 futures = "0.3"
 generated_types = { path = "../generated_types" }
 http = "0.2.8"
@@ -30,3 +31,8 @@ tokio = { version = "1.22", features = ["macros", "net", "parking_lot", "rt-mult
 tokio-util = "0.7"
 tonic = "0.8"
 workspace-hack = { path = "../workspace-hack"}
+
+[features]
+# Temporary feature to use the RPC write path instead of the write buffer during the transition
+# away from using Kafka.
+rpc_write = []

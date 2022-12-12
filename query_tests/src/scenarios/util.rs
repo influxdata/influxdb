@@ -1031,6 +1031,8 @@ impl QueryDataAdapter {
                                         .parquet_max_sequence_number
                                         .map(|x| x.get()),
                                 }),
+                                // Only used in ingester2.
+                                ingester_uuid: String::new(),
                             },
                         ),
                         FlatIngesterQueryResponse::StartSnapshot { schema } => (

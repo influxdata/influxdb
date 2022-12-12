@@ -1399,6 +1399,7 @@ mod tests {
                             status: Some(PartitionStatus {
                                 parquet_max_sequence_number: None,
                             }),
+                            ingester_uuid: String::new(),
                         },
                     ))],
                 }),
@@ -1429,6 +1430,7 @@ mod tests {
                         IngesterQueryResponseMetadata {
                             partition_id: 1,
                             status: None,
+                            ingester_uuid: String::new(),
                         },
                     ))],
                 }),
@@ -1454,6 +1456,7 @@ mod tests {
                                 status: Some(PartitionStatus {
                                     parquet_max_sequence_number: None,
                                 }),
+                                ingester_uuid: String::new(),
                             },
                         )),
                         Ok((
@@ -1463,6 +1466,7 @@ mod tests {
                                 status: Some(PartitionStatus {
                                     parquet_max_sequence_number: None,
                                 }),
+                                ingester_uuid: String::new(),
                             },
                         )),
                         Ok((
@@ -1472,6 +1476,7 @@ mod tests {
                                 status: Some(PartitionStatus {
                                     parquet_max_sequence_number: None,
                                 }),
+                                ingester_uuid: String::new(),
                             },
                         )),
                     ],
@@ -1551,6 +1556,7 @@ mod tests {
                                     status: Some(PartitionStatus {
                                         parquet_max_sequence_number: Some(11),
                                     }),
+                                    ingester_uuid: String::new(),
                                 },
                             )),
                             Ok((
@@ -1580,6 +1586,7 @@ mod tests {
                                     status: Some(PartitionStatus {
                                         parquet_max_sequence_number: Some(21),
                                     }),
+                                    ingester_uuid: String::new(),
                                 },
                             )),
                             Ok((
@@ -1604,6 +1611,7 @@ mod tests {
                                     status: Some(PartitionStatus {
                                         parquet_max_sequence_number: Some(31),
                                     }),
+                                    ingester_uuid: String::new(),
                                 },
                             )),
                             Ok((
@@ -1783,6 +1791,7 @@ mod tests {
                                     status: Some(PartitionStatus {
                                         parquet_max_sequence_number: Some(11),
                                     }),
+                                    ingester_uuid: String::new(),
                                 },
                             )),
                             Ok((

@@ -1,4 +1,3 @@
-use assert_cmd::prelude::*;
 use futures::prelude::*;
 use influxdb_iox_client::connection::Connection;
 use observability_deps::tracing::{info, warn};
@@ -7,7 +6,7 @@ use std::{
     fs::OpenOptions,
     ops::DerefMut,
     path::Path,
-    process::{Child, Command},
+    process::Child,
     str,
     sync::{Arc, Weak},
     time::Duration,
@@ -185,7 +184,7 @@ impl Connections {
         let server_type = test_config.server_type();
 
         self.router_grpc_connection = match server_type {
-            ServerType::AllInOne | ServerType::Router => {
+            ServerType::AllInOne | ServerType::Router | ServerType::RouterRpcWrite => {
                 let client_base = test_config.addrs().router_grpc_api().client_base();
                 Some(
                     grpc_channel(test_config, client_base.as_ref())
@@ -199,7 +198,7 @@ impl Connections {
         };
 
         self.ingester_grpc_connection = match server_type {
-            ServerType::AllInOne | ServerType::Ingester => {
+            ServerType::AllInOne | ServerType::Ingester | ServerType::IngesterRpcWrite => {
                 let client_base = test_config.addrs().ingester_grpc_api().client_base();
                 Some(
                     grpc_channel(test_config, client_base.as_ref())
@@ -335,15 +334,12 @@ impl TestServer {
         let log_filter =
             std::env::var("LOG_FILTER").unwrap_or_else(|_| "info,sqlx=warn".to_string());
 
-        let run_command = server_type.run_command();
+        let run_command_name = server_type.run_command();
 
-        // Build the command
-        // This will inherit environment from the test runner
-        // in particular `LOG_FILTER`
-        let mut command = Command::cargo_bin("influxdb_iox").unwrap();
+        let mut command = cargo_run_command();
         let mut command = command
             .arg("run")
-            .arg(run_command)
+            .arg(run_command_name)
             .env("LOG_FILTER", log_filter)
             // add http/grpc address information
             .add_addr_env(server_type, test_config.addrs())
@@ -492,7 +488,7 @@ impl TestServer {
                         `influxdb_iox compactor run-once` instead"
                     );
                 }
-                ServerType::Router => {
+                ServerType::Router | ServerType::RouterRpcWrite => {
                     if check_catalog_service_health(
                         server_type,
                         connections.router_grpc_connection(),
@@ -502,7 +498,7 @@ impl TestServer {
                         return;
                     }
                 }
-                ServerType::Ingester => {
+                ServerType::Ingester | ServerType::IngesterRpcWrite => {
                     if check_arrow_service_health(
                         server_type,
                         connections.ingester_grpc_connection(),
@@ -548,6 +544,30 @@ impl TestServer {
             interval.tick().await;
         }
     }
+}
+
+// Build the command, with the `rpc_write` feature enabled to allow testing of the RPC
+// write path.
+// This will inherit environment from the test runner, in particular, `LOG_FILTER`
+#[cfg(feature = "rpc_write")]
+fn cargo_run_command() -> std::process::Command {
+    escargot::CargoBuild::new()
+        .bin("influxdb_iox")
+        .features("rpc_write")
+        .run()
+        .unwrap()
+        .command()
+}
+
+// Build the command, WITHOUT the `rpc_write` feature enabled, to not clobber the build.
+// This will inherit environment from the test runner, in particular, `LOG_FILTER`
+#[cfg(not(feature = "rpc_write"))]
+fn cargo_run_command() -> std::process::Command {
+    escargot::CargoBuild::new()
+        .bin("influxdb_iox")
+        .run()
+        .unwrap()
+        .command()
 }
 
 /// checks catalog service health, as a proxy for all gRPC
