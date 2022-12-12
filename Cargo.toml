@@ -114,8 +114,8 @@ license = "MIT OR Apache-2.0"
 [workspace.dependencies]
 arrow = { version = "28.0.0" }
 arrow-flight = { version = "28.0.0" }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="f2eb3b2bebffe75df06f3e55f2413728e7e19f2c", default-features = false }
-datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="f2eb3b2bebffe75df06f3e55f2413728e7e19f2c" }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="d33457c20c2b15d6a934e5b37ac9eb0d17e29145", default-features = false }
+datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="d33457c20c2b15d6a934e5b37ac9eb0d17e29145" }
 hashbrown = { version = "0.13.1" }
 parquet = { version = "28.0.0" }
 

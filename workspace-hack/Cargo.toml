@@ -25,7 +25,7 @@ bytes = { version = "1", features = ["std"] }
 chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "iana-time-zone", "serde", "std", "winapi"] }
 crossbeam-utils = { version = "0.8", features = ["std"] }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "f2eb3b2bebffe75df06f3e55f2413728e7e19f2c", features = ["async-compression", "bzip2", "compression", "crypto_expressions", "flate2", "regex_expressions", "unicode_expressions", "xz2"] }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "d33457c20c2b15d6a934e5b37ac9eb0d17e29145", features = ["async-compression", "bzip2", "compression", "crypto_expressions", "flate2", "regex_expressions", "unicode_expressions", "xz2"] }
 digest = { version = "0.10", features = ["alloc", "block-buffer", "core-api", "mac", "std", "subtle"] }
 either = { version = "1", features = ["use_std"] }
 fixedbitset = { version = "0.4", features = ["std"] }
