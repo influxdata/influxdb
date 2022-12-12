@@ -1,4 +1,6 @@
-mod wal_replay;
+crate::maybe_pub!(
+    mod wal_replay;
+);
 
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
