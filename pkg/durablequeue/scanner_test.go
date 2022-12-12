@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 type opts struct {
@@ -54,7 +55,7 @@ func newTestQueue(t testing.TB, fns ...func(o *opts)) (*Queue, string) {
 	dir, err := os.MkdirTemp(tmp, "hh_queue")
 	require.NoError(t, err)
 
-	q, err := NewQueue(dir, opts.maxSize, opts.maxSegmentSize, &SharedCount{}, MaxWritesPending, opts.fn)
+	q, err := NewQueue(dir, opts.maxSize, opts.maxSegmentSize, &SharedCount{}, MaxWritesPending, opts.fn, zap.NewNop())
 	require.NoError(t, err)
 
 	require.NoError(t, q.Open())
