@@ -9,10 +9,11 @@ use mutable_batch::writer;
 use mutable_batch_pb::decode::decode_database_batch;
 use observability_deps::tracing::*;
 use thiserror::Error;
-use tonic::{Request, Response};
+use tonic::{Code, Request, Response};
 
 use crate::{
     dml_sink::{DmlError, DmlSink},
+    persist::backpressure::PersistState,
     timestamp_oracle::TimestampOracle,
     TRANSITION_SHARD_INDEX,
 };
@@ -36,15 +37,25 @@ enum RpcError {
     /// The serialised write payload could not be read.
     #[error(transparent)]
     Decode(mutable_batch_pb::decode::Error),
+
+    /// The ingester's [`PersistState`] is marked as
+    /// [`CurrentState::Saturated`]. See [`PersistHandle`] for documentation.
+    ///
+    /// [`PersistHandle`]: crate::persist::handle::PersistHandle
+    /// [`CurrentState::Saturated`]:
+    ///     crate::persist::backpressure::CurrentState::Saturated
+    #[error("ingester overloaded")]
+    PersistSaturated,
 }
 
 impl From<RpcError> for tonic::Status {
     fn from(e: RpcError) -> Self {
-        match e {
-            RpcError::Decode(_) | RpcError::NoPayload | RpcError::NoTables => {
-                Self::invalid_argument(e.to_string())
-            }
-        }
+        let code = match e {
+            RpcError::Decode(_) | RpcError::NoPayload | RpcError::NoTables => Code::InvalidArgument,
+            RpcError::PersistSaturated => Code::ResourceExhausted,
+        };
+
+        Self::new(code, e.to_string())
     }
 }
 
@@ -94,14 +105,22 @@ fn map_write_error(e: mutable_batch::Error) -> tonic::Status {
 pub(crate) struct RpcWrite<T> {
     sink: T,
     timestamp: Arc<TimestampOracle>,
+    persist_state: Arc<PersistState>,
 }
 
 impl<T> RpcWrite<T> {
     /// Instantiate a new [`RpcWrite`] that pushes [`DmlOperation`] instances
     /// into `sink`.
-    #[allow(dead_code)]
-    pub(crate) fn new(sink: T, timestamp: Arc<TimestampOracle>) -> Self {
-        Self { sink, timestamp }
+    pub(crate) fn new(
+        sink: T,
+        timestamp: Arc<TimestampOracle>,
+        persist_state: Arc<PersistState>,
+    ) -> Self {
+        Self {
+            sink,
+            timestamp,
+            persist_state,
+        }
     }
 }
 
@@ -115,6 +134,27 @@ where
         &self,
         request: Request<proto::WriteRequest>,
     ) -> Result<Response<proto::WriteResponse>, tonic::Status> {
+        // Drop writes if the persistence is saturated.
+        //
+        // This gives the ingester a chance to reduce the backlog of persistence
+        // tasks, which in turn reduces the memory usage of the ingester. If
+        // ingest was to continue unabated, an OOM would be inevitable.
+        //
+        // If you're seeing these error responses in RPC requests, you need to
+        // either:
+        //
+        //   * Increase the persist queue depth if there is a decent headroom of
+        //     unused RAM allocated to the ingester.
+        //   * Increase the RAM allocation, and increase the persist queue
+        //     depth proportionally.
+        //   * Deploy more ingesters to reduce the request load on any single
+        //     ingester.
+        //
+        if self.persist_state.is_saturated() {
+            return Err(RpcError::PersistSaturated)?;
+        }
+
+        // Extract the remote address for debugging.
         let remote_addr = request
             .remote_addr()
             .map(|v| v.to_string())
@@ -188,7 +228,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::dml_sink::mock_sink::MockDmlSink;
+    use crate::{dml_sink::mock_sink::MockDmlSink, persist::backpressure::CurrentState};
 
     const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
     const PARTITION_KEY: &str = "bananas";
@@ -208,7 +248,7 @@ mod tests {
                         MockDmlSink::default().with_apply_return(vec![$sink_ret]),
                     );
                     let timestamp = Arc::new(TimestampOracle::new(0));
-                    let handler = RpcWrite::new(Arc::clone(&mock), timestamp);
+                    let handler = RpcWrite::new(Arc::clone(&mock), timestamp, Default::default());
 
                     let ret = handler
                         .write(Request::new($request))
@@ -319,7 +359,7 @@ mod tests {
     async fn test_rpc_write_ordered_timestamps() {
         let mock = Arc::new(MockDmlSink::default().with_apply_return(vec![Ok(()), Ok(())]));
         let timestamp = Arc::new(TimestampOracle::new(0));
-        let handler = RpcWrite::new(Arc::clone(&mock), timestamp);
+        let handler = RpcWrite::new(Arc::clone(&mock), timestamp, Default::default());
 
         let req = proto::WriteRequest {
             payload: Some(DatabaseBatch {
@@ -365,5 +405,59 @@ mod tests {
                 assert!(w1 < w2);
             }
         );
+    }
+
+    /// Validate that the persist system being marked as saturated prevents the
+    /// ingester from accepting new writes.
+    #[tokio::test]
+    async fn test_rpc_write_persist_saturation() {
+        let mock = Arc::new(MockDmlSink::default().with_apply_return(vec![Ok(()), Ok(())]));
+        let timestamp = Arc::new(TimestampOracle::new(0));
+        let persist_state = Default::default();
+        let handler = RpcWrite::new(Arc::clone(&mock), timestamp, Arc::clone(&persist_state));
+
+        let req = proto::WriteRequest {
+            payload: Some(DatabaseBatch {
+                database_id: NAMESPACE_ID.get(),
+                partition_key: PARTITION_KEY.to_string(),
+                table_batches: vec![TableBatch {
+                    table_id: 42,
+                    columns: vec![Column {
+                        column_name: "time".to_string(),
+                        semantic_type: SemanticType::Time.into(),
+                        values: Some(Values {
+                            i64_values: vec![4242],
+                            f64_values: vec![],
+                            u64_values: vec![],
+                            string_values: vec![],
+                            bool_values: vec![],
+                            bytes_values: vec![],
+                            packed_string_values: None,
+                            interned_string_values: None,
+                        }),
+                        null_mask: vec![0],
+                    }],
+                    row_count: 1,
+                }],
+            }),
+        };
+
+        handler
+            .write(Request::new(req.clone()))
+            .await
+            .expect("write should succeed");
+
+        persist_state.test_set_state(CurrentState::Saturated);
+
+        let err = handler
+            .write(Request::new(req))
+            .await
+            .expect_err("write should fail");
+
+        // Validate the error code returned to the user.
+        assert_eq!(err.code(), Code::ResourceExhausted);
+
+        // One write should have been passed through to the DML sinks.
+        assert_matches!(*mock.get_calls(), [DmlOperation::Write(_)]);
     }
 }
