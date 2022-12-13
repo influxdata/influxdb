@@ -23,10 +23,14 @@ impl IOxFunctionRegistry {
 
 impl FunctionRegistry for IOxFunctionRegistry {
     fn udfs(&self) -> HashSet<String> {
-        [regex::REGEX_MATCH_UDF_NAME, regex::REGEX_NOT_MATCH_UDF_NAME]
-            .into_iter()
-            .map(|s| s.to_string())
-            .collect()
+        [
+            regex::REGEX_MATCH_UDF_NAME,
+            regex::REGEX_NOT_MATCH_UDF_NAME,
+            window::WINDOW_BOUNDS_UDF_NAME,
+        ]
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
     }
 
     fn udf(&self, name: &str) -> DataFusionResult<Arc<ScalarUDF>> {
