@@ -1,11 +1,4 @@
-use influxdb_iox_client::{
-    connection::Connection,
-    flight::{
-        self,
-        generated_types::{read_info, ReadInfo},
-    },
-    format::QueryOutputFormat,
-};
+use influxdb_iox_client::{connection::Connection, flight, format::QueryOutputFormat};
 use std::str::FromStr;
 use thiserror::Error;
 
@@ -59,17 +52,10 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
 
     let format = QueryOutputFormat::from_str(&format)?;
 
-    let mut query_results = client
-        .perform_query(ReadInfo {
-            namespace_name: namespace,
-            sql_query: query,
-            query_type: match query_lang {
-                QueryLanguage::Sql => read_info::QueryType::Sql,
-                QueryLanguage::InfluxQL => read_info::QueryType::InfluxQl,
-            }
-            .into(),
-        })
-        .await?;
+    let mut query_results = match query_lang {
+        QueryLanguage::Sql => client.sql(namespace, query).await,
+        QueryLanguage::InfluxQL => client.influxql(namespace, query).await,
+    }?;
 
     // It might be nice to do some sort of streaming write
     // rather than buffering the whole thing.

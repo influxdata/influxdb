@@ -2,14 +2,29 @@ syntax = "proto3";
 package influxdata.iox.querier.v1;
 option go_package = "github.com/influxdata/iox/querier/v1";
 
-// Request body for ticket in "end-user to querier" flight requests.
+/*
+ * Message definitions for the InfluxDB IOx Flight API
+ *
+ * These messages are what is sent to/from an InfluxDB IOx server's
+ * `DoGet` endpoint as the opaque "Ticket" in Arrow Flight messages.
+ *
+ * The bytes for the Tickets are created by encoding these messages
+ * using the protobuf binary format.
+ *
+ * Clients can construct these Ticket's directly to avoid making two
+ * requests to run each query
+ */
+
+
+// Request for an IOx querier to execute a query on a user's behalf.
 message ReadInfo {
   // Namespace name.
   string namespace_name = 1;
 
-  // SQL query.
+  // query text (either SQL or InfluxQL, depending on query_type)
   string sql_query = 2;
 
+  // The type of query
   QueryType query_type = 3;
 
   enum QueryType {
@@ -22,8 +37,9 @@ message ReadInfo {
   }
 }
 
-// Response in "end-user to querier" flight response.
+// Message included in the DoGet response from the querier
 //
-// Currently this does not contain any metadata, but IOx might provide metadata like data lineage information,
-// statistics or watermark information in the future.
+// Currently this does not contain any information, but IOx may
+// provide data lineage information, statistics, watermarks or other
+// information in the future.
 message AppMetadata {}
