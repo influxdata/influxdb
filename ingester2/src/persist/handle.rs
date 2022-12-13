@@ -109,9 +109,6 @@ pub(crate) struct PersistHandle {
 
 impl PersistHandle {
     /// Initialise a new persist actor & obtain the first handle.
-    ///
-    /// The caller should call [`PersistActor::run()`] in a separate
-    /// thread / task to start the persistence executor.
     pub(crate) fn new(
         n_workers: usize,
         worker_queue_depth: usize,
