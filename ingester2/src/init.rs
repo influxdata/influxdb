@@ -27,7 +27,7 @@ use crate::{
     server::grpc::GrpcDelegate,
     timestamp_oracle::TimestampOracle,
     wal::{rotate_task::periodic_rotation, wal_sink::WalSink},
-    TRANSITION_SHARD_ID,
+    TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX,
 };
 
 /// Acquire opaque handles to the Ingester RPC service implementations.
@@ -159,6 +159,25 @@ pub async fn new(
     persist_worker_queue_depth: usize,
     object_store: ParquetStorage,
 ) -> Result<IngesterGuard<impl IngesterRpcInterface>, InitError> {
+    // Create the transition shard.
+    let mut txn = catalog
+        .start_transaction()
+        .await
+        .expect("start transaction");
+    let topic = txn
+        .topics()
+        .get_by_name("iox-shared")
+        .await
+        .expect("get topic")
+        .unwrap();
+    let s = txn
+        .shards()
+        .create_or_get(&topic, TRANSITION_SHARD_INDEX)
+        .await
+        .expect("create transition shard");
+    assert_eq!(s.id, TRANSITION_SHARD_ID);
+    txn.commit().await.expect("commit transition shard");
+
     // Initialise the deferred namespace name resolver.
     let namespace_name_provider: Arc<dyn NamespaceNameProvider> =
         Arc::new(NamespaceNameResolver::new(

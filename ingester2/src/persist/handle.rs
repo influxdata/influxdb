@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
-use observability_deps::tracing::info;
+use observability_deps::tracing::{debug, info};
 use parking_lot::Mutex;
 use parquet_file::storage::ParquetStorage;
 use thiserror::Error;
@@ -169,6 +169,11 @@ impl PersistHandle {
         partition: Arc<Mutex<PartitionData>>,
         data: PersistingData,
     ) -> Arc<Notify> {
+        debug!(
+            partition_id = data.partition_id().get(),
+            "enqueuing persistence task"
+        );
+
         // Build the persist task request
         let r = PersistRequest::new(partition, data);
         let notify = r.complete_notification();

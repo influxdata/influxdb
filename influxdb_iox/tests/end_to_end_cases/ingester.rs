@@ -53,7 +53,8 @@ async fn ingester_flight_api() {
             partition_id,
             status: Some(PartitionStatus {
                 parquet_max_sequence_number: None,
-            })
+            }),
+            ingester_uuid: String::new(),
         },
     );
 
@@ -85,6 +86,93 @@ async fn ingester_flight_api() {
             i
         );
     });
+}
+
+#[cfg(feature = "rpc_write")]
+#[tokio::test]
+async fn ingester2_flight_api() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "mytable";
+
+    // Set up cluster
+    let mut cluster = MiniCluster::create_non_shared_rpc_write(database_url).await;
+
+    // Write some data into the v2 HTTP API ==============
+    let lp = format!("{},tag1=A,tag2=B val=42i 123456", table_name);
+    let response = cluster.write_to_router(lp).await;
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    let mut querier_flight = influxdb_iox_client::flight::low_level::Client::<
+        influxdb_iox_client::flight::generated_types::IngesterQueryRequest,
+    >::new(cluster.ingester().ingester_grpc_connection(), None);
+
+    let query = IngesterQueryRequest::new(
+        cluster.namespace_id().await,
+        cluster.table_id(table_name).await,
+        vec![],
+        Some(::predicate::EMPTY_PREDICATE),
+    );
+
+    let mut performed_query = querier_flight
+        .perform_query(query.clone().try_into().unwrap())
+        .await
+        .unwrap();
+
+    let (msg, app_metadata) = performed_query.next().await.unwrap().unwrap();
+    msg.unwrap_none();
+
+    let ingester_uuid = app_metadata.ingester_uuid.clone();
+    assert!(!ingester_uuid.is_empty());
+
+    let (msg, _) = performed_query.next().await.unwrap().unwrap();
+    let schema = msg.unwrap_schema();
+
+    let mut query_results = vec![];
+    while let Some((msg, _md)) = performed_query.next().await.unwrap() {
+        let batch = msg.unwrap_record_batch();
+        query_results.push(batch);
+    }
+
+    let expected = [
+        "+------+------+--------------------------------+-----+",
+        "| tag1 | tag2 | time                           | val |",
+        "+------+------+--------------------------------+-----+",
+        "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
+        "+------+------+--------------------------------+-----+",
+    ];
+    assert_batches_sorted_eq!(&expected, &query_results);
+
+    // Also ensure that the schema of the batches matches what is
+    // reported by the performed_query.
+    query_results.iter().enumerate().for_each(|(i, b)| {
+        assert_eq!(
+            schema,
+            b.schema(),
+            "Schema mismatch for returned batch {}",
+            i
+        );
+    });
+
+    // Ensure the ingester UUID is the same in the next query
+    let mut performed_query = querier_flight
+        .perform_query(query.clone().try_into().unwrap())
+        .await
+        .unwrap();
+    let (msg, app_metadata) = performed_query.next().await.unwrap().unwrap();
+    msg.unwrap_none();
+    assert_eq!(app_metadata.ingester_uuid, ingester_uuid);
+
+    // Restart the ingester and ensure it gets a new UUID
+    cluster.restart_ingester().await;
+    let mut performed_query = querier_flight
+        .perform_query(query.try_into().unwrap())
+        .await
+        .unwrap();
+    let (msg, app_metadata) = performed_query.next().await.unwrap().unwrap();
+    msg.unwrap_none();
+    assert_ne!(app_metadata.ingester_uuid, ingester_uuid);
 }
 
 #[tokio::test]

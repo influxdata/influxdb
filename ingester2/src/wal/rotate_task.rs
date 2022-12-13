@@ -1,6 +1,7 @@
 use futures::{stream, StreamExt};
 use observability_deps::tracing::*;
 use std::{future, sync::Arc, time::Duration};
+use tokio::time::Instant;
 
 use crate::{buffer_tree::BufferTree, persist::handle::PersistHandle};
 
@@ -90,8 +91,16 @@ pub(crate) async fn periodic_rotation(
         let notifications = stream::iter(buffer.partitions())
             .filter_map(|p| {
                 async move {
+                    let t = Instant::now();
+
                     // Skip this partition if there is no data to persist
                     let data = p.lock().mark_persisting()?;
+
+                    debug!(
+                        partition_id=data.partition_id().get(),
+                        lock_wait=?Instant::now().duration_since(t),
+                        "read data for persistence"
+                    );
 
                     // Enqueue the partition for persistence.
                     //

@@ -440,11 +440,9 @@ impl Config {
         };
 
         let querier_config = QuerierConfig {
-            num_query_threads: None, // will be ignored
-            #[cfg(not(feature = "rpc_write"))]
+            num_query_threads: None,       // will be ignored
             shard_to_ingesters_file: None, // will be ignored
-            #[cfg(not(feature = "rpc_write"))]
-            shard_to_ingesters: None, // will be ignored
+            shard_to_ingesters: None,      // will be ignored
             #[cfg(feature = "rpc_write")]
             ingester_addresses: vec![], // will be ignored
             ram_pool_metadata_bytes: querier_ram_pool_metadata_bytes,

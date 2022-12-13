@@ -11,7 +11,7 @@ use observability_deps::tracing::*;
 use parking_lot::Mutex;
 use parquet_file::metadata::IoxMetadata;
 use schema::sort::SortKey;
-use tokio::sync::Notify;
+use tokio::{sync::Notify, time::Instant};
 use uuid::Uuid;
 
 use crate::{
@@ -35,14 +35,18 @@ pub(super) struct PersistRequest {
     complete: Arc<Notify>,
     partition: Arc<Mutex<PartitionData>>,
     data: PersistingData,
+    enqueued_at: Instant,
 }
 
 impl PersistRequest {
+    /// Construct a [`PersistRequest`] for `data` from `partition`, recording
+    /// the current timestamp as the "enqueued at" point.
     pub(super) fn new(partition: Arc<Mutex<PartitionData>>, data: PersistingData) -> Self {
         Self {
             complete: Arc::new(Notify::default()),
             partition,
             data,
+            enqueued_at: Instant::now(),
         }
     }
 
@@ -63,7 +67,6 @@ pub(super) struct Context {
     partition: Arc<Mutex<PartitionData>>,
     data: PersistingData,
     inner: Arc<Inner>,
-
     /// IDs loaded from the partition at construction time.
     namespace_id: NamespaceId,
     table_id: TableId,
@@ -93,6 +96,13 @@ pub(super) struct Context {
     /// A notification signal to indicate to the caller that this partition has
     /// persisted.
     complete: Arc<Notify>,
+
+    /// Timing statistics tracking the timestamp this persist job was first
+    /// enqueued, and the timestamp this [`Context`] was constructed (signifying
+    /// the start of active persist work, as opposed to passive time spent in
+    /// the queue).
+    enqueued_at: Instant,
+    dequeued_at: Instant,
 }
 
 impl Context {
@@ -128,6 +138,8 @@ impl Context {
                 sort_key: guard.sort_key().clone(),
 
                 complete,
+                enqueued_at: req.enqueued_at,
+                dequeued_at: Instant::now(),
             }
         };
 
@@ -364,6 +376,8 @@ impl Context {
         // the persisted data will be dropped "shortly".
         self.partition.lock().mark_persisted(self.data);
 
+        let now = Instant::now();
+
         info!(
             %object_store_id,
             namespace_id = %self.namespace_id,
@@ -372,6 +386,9 @@ impl Context {
             table_name = %self.table_name,
             partition_id = %self.partition_id,
             partition_key = %self.partition_key,
+            total_persist_duration = ?now.duration_since(self.enqueued_at),
+            active_persist_duration = ?now.duration_since(self.dequeued_at),
+            queued_persist_duration = ?self.dequeued_at.duration_since(self.enqueued_at),
             "persisted partition"
         );
 

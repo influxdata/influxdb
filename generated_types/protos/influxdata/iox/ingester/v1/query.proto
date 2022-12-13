@@ -81,6 +81,11 @@ message IngesterQueryResponseMetadata {
   //
   // This field is currently NOT used by the ingester but will be soon.
   PartitionStatus status = 8;
+
+  // UUID of this ingester instance.
+  //
+  // This field is currently NOT used by the ingester but will be soon.
+  string ingester_uuid = 9;
 }
 
 // Status of a partition that has unpersisted data.

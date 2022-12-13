@@ -4,8 +4,8 @@
 
 use crate::common::{
     limit_clause, offset_clause, order_by_clause, qualified_measurement_name, where_clause, ws0,
-    ws1, LimitClause, OffsetClause, OneOrMore, OrderByClause, Parser, QualifiedMeasurementName,
-    WhereClause,
+    ws1, LimitClause, OffsetClause, OrderByClause, Parser, QualifiedMeasurementName, WhereClause,
+    ZeroOrMore,
 };
 use crate::expression::arithmetic::Expr::Wildcard;
 use crate::expression::arithmetic::{
@@ -202,14 +202,17 @@ impl Parser for MeasurementSelection {
 }
 
 /// Represents a `FROM` clause for a `SELECT` statement.
-pub type FromMeasurementClause = OneOrMore<MeasurementSelection>;
+pub type FromMeasurementClause = ZeroOrMore<MeasurementSelection>;
 
 impl Display for FromMeasurementClause {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "FROM {}", self.first())?;
-        for arg in self.rest() {
-            write!(f, ", {}", arg)?;
+        if let Some(first) = self.head() {
+            write!(f, "FROM {}", first)?;
+            for arg in self.tail() {
+                write!(f, ", {}", arg)?;
+            }
         }
+
         Ok(())
     }
 }
@@ -224,14 +227,17 @@ fn from_clause(i: &str) -> ParseResult<&str, FromMeasurementClause> {
 }
 
 /// Represents the collection of dimensions for a `GROUP BY` clause.
-pub type GroupByClause = OneOrMore<Dimension>;
+pub type GroupByClause = ZeroOrMore<Dimension>;
 
 impl Display for GroupByClause {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "GROUP BY {}", self.first())?;
-        for arg in self.rest() {
-            write!(f, ", {}", arg)?;
+        if let Some(first) = self.head() {
+            write!(f, "GROUP BY {}", first)?;
+            for arg in self.tail() {
+                write!(f, ", {}", arg)?;
+            }
         }
+
         Ok(())
     }
 }
@@ -479,14 +485,17 @@ fn wildcard(i: &str) -> ParseResult<&str, Option<WildcardType>> {
 }
 
 /// Represents the field projection list of a `SELECT` statement.
-pub type FieldList = OneOrMore<Field>;
+pub type FieldList = ZeroOrMore<Field>;
 
 impl Display for FieldList {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        Display::fmt(self.first(), f)?;
-        for arg in self.rest() {
-            write!(f, ", {}", arg)?;
+        if let Some(first) = self.head() {
+            Display::fmt(first, f)?;
+            for arg in self.tail() {
+                write!(f, ", {}", arg)?;
+            }
         }
+
         Ok(())
     }
 }
@@ -980,6 +989,11 @@ mod test {
                 Field::new_alias(var_ref!("bar"), "foobar".into())
             ])
         );
+
+        // Fallible cases
+
+        // Unable to parse any valid fields
+        assert_expect_error!(field_list("."), "invalid SELECT statement, expected field");
     }
 
     #[test]
@@ -1022,6 +1036,10 @@ mod test {
 
         // Fallible cases
 
+        assert_expect_error!(
+            from_clause("FROM"),
+            "invalid FROM clause, expected identifier, regular expression or subquery"
+        );
         assert_expect_error!(
             from_clause("FROM 1"),
             "invalid FROM clause, expected identifier, regular expression or subquery"
@@ -1084,6 +1102,11 @@ mod test {
         assert_expect_error!(
             group_by_clause("GROUP time(5m)"),
             "invalid GROUP BY clause, expected BY"
+        );
+
+        assert_expect_error!(
+            group_by_clause("GROUP BY 1"),
+            "invalid GROUP BY clause, expected wildcard, TIME, identifier or regular expression"
         );
     }
 

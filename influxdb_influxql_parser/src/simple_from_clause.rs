@@ -68,8 +68,8 @@ pub type ShowFromClause = FromMeasurementClause<QualifiedMeasurementName>;
 
 impl Display for ShowFromClause {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "FROM {}", self.first())?;
-        for arg in self.rest() {
+        write!(f, "FROM {}", self.head())?;
+        for arg in self.tail() {
             write!(f, ", {}", arg)?;
         }
         Ok(())
@@ -92,8 +92,8 @@ pub type DeleteFromClause = FromMeasurementClause<MeasurementName>;
 
 impl Display for DeleteFromClause {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "FROM {}", self.first())?;
-        for arg in self.rest() {
+        write!(f, "FROM {}", self.head())?;
+        for arg in self.tail() {
             write!(f, ", {}", arg)?;
         }
         Ok(())

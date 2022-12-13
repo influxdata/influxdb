@@ -9,5 +9,5 @@ indent_style = space
 [{Dockerfile*,*.proto}]
 indent_size = 2
 
-[{*.rs,*.toml}]
+[{*.rs,*.toml,*.sh,*.bash}]
 indent_size = 4

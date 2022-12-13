@@ -1,8 +1,9 @@
+use crate::cache::namespace::CachedTable;
+
 use super::IngesterConnection;
 use async_trait::async_trait;
 use data_types::NamespaceId;
 use data_types::ShardIndex;
-use data_types::TableId;
 use generated_types::influxdata::iox::ingester::v1::GetWriteInfoResponse;
 use iox_query::util::create_basic_summary;
 use parking_lot::Mutex;
@@ -36,10 +37,9 @@ impl IngesterConnection for MockIngesterConnection {
         &self,
         _shard_indexes: Option<Vec<ShardIndex>>,
         _namespace_id: NamespaceId,
-        _table_id: TableId,
+        _cached_table: Arc<CachedTable>,
         columns: Vec<String>,
         _predicate: &predicate::Predicate,
-        _expected_schema: Arc<schema::Schema>,
         _span: Option<Span>,
     ) -> super::Result<Vec<super::IngesterPartition>> {
         // see if we want to do projection pushdown
