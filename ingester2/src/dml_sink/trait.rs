@@ -5,7 +5,7 @@ use dml::DmlOperation;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub(crate) enum DmlError {
+pub enum DmlError {
     /// An error applying a [`DmlOperation`] to a [`BufferTree`].
     ///
     /// [`BufferTree`]: crate::buffer_tree::BufferTree
@@ -19,7 +19,7 @@ pub(crate) enum DmlError {
 
 /// A [`DmlSink`] handles [`DmlOperation`] instances in some abstract way.
 #[async_trait]
-pub(crate) trait DmlSink: Debug + Send + Sync {
+pub trait DmlSink: Debug + Send + Sync {
     type Error: Error + Into<DmlError> + Send;
 
     /// Apply `op` to the implementer's state.

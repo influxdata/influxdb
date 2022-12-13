@@ -13,7 +13,7 @@ struct MockDmlSinkState {
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct MockDmlSink {
+pub struct MockDmlSink {
     state: Mutex<MockDmlSinkState>,
 }
 
