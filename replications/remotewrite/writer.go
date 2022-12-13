@@ -111,7 +111,16 @@ func (w *writer) Write(data []byte, attempts int) (backoff time.Duration, err er
 	}
 
 	res, postWriteErr := PostWrite(ctx, conf, data, w.clientTimeout)
-	res, msg := normalizeResponse(res, postWriteErr)
+	res, msg, ok := normalizeResponse(res, postWriteErr)
+	if !ok {
+		//Update Response info:
+		if err := w.configStore.UpdateResponseInfo(ctx, w.replicationID, res.StatusCode, msg); err != nil {
+			w.logger.Debug("failed to update config store with latest remote write response info", zap.Error(err))
+			return w.backoff(attempts), err
+		}
+		// bail out
+		return w.backoff(attempts), postWriteErr
+	}
 
 	// Update metrics and most recent error diagnostic information.
 	if err := w.configStore.UpdateResponseInfo(ctx, w.replicationID, res.StatusCode, msg); err != nil {
@@ -161,18 +170,23 @@ func (w *writer) Write(data []byte, attempts int) (backoff time.Duration, err er
 }
 
 // normalizeResponse returns a guaranteed non-nil value for *http.Response, and an extracted error message string for use
-// in logging.
-func normalizeResponse(r *http.Response, err error) (*http.Response, string) {
+// in logging. The returned bool indicates if the response is a time-out - false means that the write request should be
+// aborted due to a malformed request.
+func normalizeResponse(r *http.Response, err error) (*http.Response, string, bool) {
 	var errMsg string
 	if err != nil {
 		errMsg = err.Error()
 	}
 
 	if r == nil {
-		return &http.Response{}, errMsg
+		if errorIsTimeout(err) {
+			return &http.Response{}, errMsg, true
+		}
+
+		return &http.Response{}, errMsg, false
 	}
 
-	return r, errMsg
+	return r, errMsg, true
 }
 
 func errorIsTimeout(err error) bool {
