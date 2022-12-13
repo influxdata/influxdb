@@ -24,6 +24,13 @@ NAME=influxdb
 USER=influxdb
 GROUP=influxdb
 
+if [ -n "${INFLUXD_SERVICE_UMASK:-}" ]
+then
+  umask "${INFLUXD_SERVICE_UMASK}"
+else
+  umask 0027
+fi
+
 # Check for sudo or root privileges before continuing
 if [ "$UID" != "0" ]; then
     echo "You must be root to run this script"
@@ -40,10 +47,11 @@ fi
 
 # PID file for the daemon
 PIDFILE=/var/run/influxdb/influxd.pid
-PIDDIR=`dirname $PIDFILE`
-if [ ! -d "$PIDDIR" ]; then
-    mkdir -p $PIDDIR
-    chown $USER:$GROUP $PIDDIR
+piddir="$(dirname "${PIDFILE}")"
+if [ ! -d "${piddir}" ]; then
+    mkdir -p "${piddir}"
+    chown "${USER}:${GROUP}" "${piddir}"
+    chmod 0750 "${piddir}"
 fi
 
 # Max open files
@@ -58,16 +66,20 @@ if [ -z "$STDOUT" ]; then
     STDOUT=/var/log/influxdb/influxd.log
 fi
 
-if [ ! -f "$STDOUT" ]; then
-    mkdir -p $(dirname $STDOUT)
+outdir="$(dirname "${STDOUT}")"
+if [ ! -d "${outdir}" ]; then
+    mkdir -p "${outdir}"
+    chmod 0750 "${outdir}"
 fi
 
 if [ -z "$STDERR" ]; then
     STDERR=/var/log/influxdb/influxd.log
 fi
 
-if [ ! -f "$STDERR" ]; then
-    mkdir -p $(dirname $STDERR)
+errdir="$(dirname "${STDERR}")"
+if [ ! -d "${errdir}" ]; then
+    mkdir -p "${errdir}"
+    chmod 0750 "${errdir}"
 fi
 
 # Override init script variables with DEFAULT values
