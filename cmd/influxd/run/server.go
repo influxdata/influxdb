@@ -234,6 +234,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.QueryExecutor.TaskManager.QueryTimeout = time.Duration(c.Coordinator.QueryTimeout)
 	s.QueryExecutor.TaskManager.LogQueriesAfter = time.Duration(c.Coordinator.LogQueriesAfter)
 	s.QueryExecutor.TaskManager.MaxConcurrentQueries = c.Coordinator.MaxConcurrentQueries
+	s.QueryExecutor.TaskManager.LogTimedoutQueries = c.Coordinator.LogTimedOutQueries
 
 	// Initialize the monitor
 	s.Monitor.Version = s.buildInfo.Version
@@ -465,8 +466,10 @@ func (s *Server) Open() error {
 	s.TSDBStore.WithLogger(s.Logger)
 	if s.config.Data.QueryLogEnabled {
 		s.QueryExecutor.WithLogger(s.Logger)
-	} else if s.config.Coordinator.LogQueriesAfter > 0 {
-		// Log long-running queries even if not logging all queries
+	} else if s.config.Coordinator.LogQueriesAfter > 0 || s.config.Coordinator.LogTimedOutQueries {
+		// If we need to do any logging, add a logger.
+		// The TaskManager properly handles both of the above configs
+		// so it only logs as is appropriate.
 		s.QueryExecutor.TaskManager.Logger = s.Logger
 	}
 	s.PointsWriter.WithLogger(s.Logger)
