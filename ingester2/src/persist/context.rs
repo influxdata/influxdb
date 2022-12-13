@@ -11,7 +11,7 @@ use observability_deps::tracing::*;
 use parking_lot::Mutex;
 use parquet_file::metadata::IoxMetadata;
 use schema::sort::SortKey;
-use tokio::{sync::Notify, time::Instant};
+use tokio::{sync::oneshot, time::Instant};
 use uuid::Uuid;
 
 use crate::{
@@ -25,14 +25,14 @@ use crate::{
     TRANSITION_SHARD_ID,
 };
 
-use super::actor::Inner;
+use super::handle::Inner;
 
 /// An internal type that contains all necessary information to run a persist task.
 ///
 /// Used to communicate between actor handles & actor task.
 #[derive(Debug)]
 pub(super) struct PersistRequest {
-    complete: Arc<Notify>,
+    complete: oneshot::Sender<()>,
     partition: Arc<Mutex<PartitionData>>,
     data: PersistingData,
     enqueued_at: Instant,
@@ -41,25 +41,25 @@ pub(super) struct PersistRequest {
 impl PersistRequest {
     /// Construct a [`PersistRequest`] for `data` from `partition`, recording
     /// the current timestamp as the "enqueued at" point.
-    pub(super) fn new(partition: Arc<Mutex<PartitionData>>, data: PersistingData) -> Self {
-        Self {
-            complete: Arc::new(Notify::default()),
-            partition,
-            data,
-            enqueued_at: Instant::now(),
-        }
+    pub(super) fn new(
+        partition: Arc<Mutex<PartitionData>>,
+        data: PersistingData,
+    ) -> (Self, oneshot::Receiver<()>) {
+        let (tx, rx) = oneshot::channel();
+        (
+            Self {
+                complete: tx,
+                partition,
+                data,
+                enqueued_at: Instant::now(),
+            },
+            rx,
+        )
     }
 
     /// Return the partition ID of the persisting data.
     pub(super) fn partition_id(&self) -> PartitionId {
         self.data.partition_id()
-    }
-
-    /// Obtain the completion notification handle for this request.
-    ///
-    /// This notification is fired once persistence is complete.
-    pub(super) fn complete_notification(&self) -> Arc<Notify> {
-        Arc::clone(&self.complete)
     }
 }
 
@@ -95,7 +95,7 @@ pub(super) struct Context {
 
     /// A notification signal to indicate to the caller that this partition has
     /// persisted.
-    complete: Arc<Notify>,
+    complete: oneshot::Sender<()>,
 
     /// Timing statistics tracking the timestamp this persist job was first
     /// enqueued, and the timestamp this [`Context`] was constructed (signifying
@@ -116,15 +116,21 @@ impl Context {
         // Obtain the partition lock and load the immutable values that will be
         // used during this persistence.
         let s = {
-            let complete = req.complete_notification();
-            let p = Arc::clone(&req.partition);
+            let PersistRequest {
+                complete,
+                partition,
+                data,
+                enqueued_at,
+            } = req;
+
+            let p = Arc::clone(&partition);
             let guard = p.lock();
 
             assert_eq!(partition_id, guard.partition_id());
 
             Self {
-                partition: req.partition,
-                data: req.data,
+                partition,
+                data,
                 inner,
                 namespace_id: guard.namespace_id(),
                 table_id: guard.table_id(),
@@ -138,7 +144,7 @@ impl Context {
                 sort_key: guard.sort_key().clone(),
 
                 complete,
-                enqueued_at: req.enqueued_at,
+                enqueued_at,
                 dequeued_at: Instant::now(),
             }
         };
@@ -392,8 +398,8 @@ impl Context {
             "persisted partition"
         );
 
-        // Notify all observers of this persistence task
-        self.complete.notify_waiters();
+        // Notify the observer of this persistence task, if any.
+        let _ = self.complete.send(());
     }
 }
 
