@@ -29,14 +29,16 @@
     clippy::dbg_macro
 )]
 
-use crate::{agent::Agent, tag_set::GeneratedTagSets};
+use crate::{
+    agent::{Agent, AgentGenerateStats},
+    tag_set::GeneratedTagSets,
+};
 use snafu::{ResultExt, Snafu};
 use std::{
     convert::TryFrom,
     sync::{atomic::AtomicU64, Arc},
     time::{SystemTime, UNIX_EPOCH},
 };
-use tracing::info;
 
 pub mod agent;
 pub mod field;
@@ -136,6 +138,7 @@ pub async fn generate(
 
     let start = std::time::Instant::now();
     let total_rows = Arc::new(AtomicU64::new(0));
+    let total_requests = Arc::new(AtomicU64::new(0));
 
     for database_assignments in &database_agents {
         let (org, bucket) = org_and_bucket_from_database(database_assignments.database);
@@ -174,17 +177,28 @@ pub async fn generate(
                 let agent_points_writer = Arc::clone(&agent_points_writer);
 
                 let total_rows = Arc::clone(&total_rows);
+                let total_requests = Arc::clone(&total_requests);
                 handles.push(tokio::task::spawn(async move {
                     // did this weird hack because otherwise the stdout outputs would be jumbled
                     // together garbage
                     if one_agent_at_a_time {
                         let _l = lock_ref.lock().await;
                         agent
-                            .generate_all(agent_points_writer, batch_size, total_rows)
+                            .generate_all(
+                                agent_points_writer,
+                                batch_size,
+                                total_rows,
+                                total_requests,
+                            )
                             .await
                     } else {
                         agent
-                            .generate_all(agent_points_writer, batch_size, total_rows)
+                            .generate_all(
+                                agent_points_writer,
+                                batch_size,
+                                total_rows,
+                                total_requests,
+                            )
                             .await
                     }
                 }));
@@ -192,27 +206,28 @@ pub async fn generate(
         }
     }
 
-    let mut total_points = 0;
+    let mut stats = vec![];
     for handle in handles {
-        total_points += handle
-            .await
-            .context(TokioSnafu)?
-            .context(AgentCouldNotGeneratePointsSnafu)?;
+        stats.push(
+            handle
+                .await
+                .context(TokioSnafu)?
+                .context(AgentCouldNotGeneratePointsSnafu)?,
+        );
     }
+    let stats = stats
+        .into_iter()
+        .fold(AgentGenerateStats::default(), |totals, res| {
+            AgentGenerateStats {
+                request_count: totals.request_count + res.request_count,
+                error_count: totals.error_count + res.error_count,
+                row_count: totals.row_count + res.row_count,
+            }
+        });
 
-    let elapsed = start.elapsed();
+    println!("{}", stats.display_stats(start.elapsed()));
 
-    let points_sec = if elapsed.as_secs() == 0 {
-        0
-    } else {
-        total_points as u64 / elapsed.as_secs()
-    };
-    info!(
-        "wrote {} total points in {:?} for a rate of {}/sec",
-        total_points, elapsed, points_sec
-    );
-
-    Ok(total_points)
+    Ok(stats.row_count)
 }
 
 /// Gets the current time in nanoseconds since the epoch

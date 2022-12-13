@@ -192,6 +192,7 @@ agents = [{name = "foo", sampling_interval = "1s", count = 3}]
     let expected_points = 30000;
 
     let counter = Arc::new(AtomicU64::new(0));
+    let request_counter = Arc::new(AtomicU64::new(0));
     let mut group = c.benchmark_group("agent_pre_generated");
     group.measurement_time(std::time::Duration::from_secs(50));
     group.throughput(Throughput::Elements(expected_points));
@@ -201,9 +202,14 @@ agents = [{name = "foo", sampling_interval = "1s", count = 3}]
             agent.reset_current_date_time(0);
             let points_writer =
                 Arc::new(points_writer.build_for_agent("foo", "foo", "foo").unwrap());
-            let r = block_on(agent.generate_all(points_writer, 1, Arc::clone(&counter)));
+            let r = block_on(agent.generate_all(
+                points_writer,
+                1,
+                Arc::clone(&counter),
+                Arc::clone(&request_counter),
+            ));
             let n_points = r.expect("Could not generate data");
-            assert_eq!(n_points, expected_points as usize);
+            assert_eq!(n_points.row_count, expected_points as usize);
         })
     });
 }

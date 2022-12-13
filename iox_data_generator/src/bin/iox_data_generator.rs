@@ -214,7 +214,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 eprintln!("Submitted {} total points", total_points);
             }
         }
-        Err(e) => panic!("Execution failed: \n{}", e),
+        Err(e) => eprintln!("Execution failed: \n{}", e),
     }
 
     Ok(())
