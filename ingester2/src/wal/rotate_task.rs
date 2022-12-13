@@ -118,7 +118,13 @@ pub(crate) async fn periodic_rotation(
             // operation that doesn't benefit from contention at all).
             .then(|(p, data)| {
                 let persist = persist.clone();
-                async move { persist.queue_persist(p, data).await }
+
+                // Enqueue and retain the notification receiver, which will be
+                // awaited later.
+                #[allow(clippy::async_yields_async)]
+                async move {
+                    persist.queue_persist(p, data).await
+                }
             })
             .collect::<Vec<_>>()
             .await;
