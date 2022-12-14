@@ -3,14 +3,3 @@
 #
 # Here is information about how to configure this file:
 # https://help.github.com/en/articles/about-code-owners
-
-# monitoring team will help to review swagger.yml changes.
-#
-http/swagger.yml @influxdata/monitoring-team
-
-# dev tools
-/pkger/ @influxdata/tools-team
-
-# Storage code
-#/storage/ @influxdata/storage-team
-#/tsdb/ @influxdata/storage-team

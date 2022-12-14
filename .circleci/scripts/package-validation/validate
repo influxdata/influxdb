@@ -1,0 +1,116 @@
+#!/bin/bash
+set -o errexit \
+    -o nounset \
+    -o pipefail
+
+usage() {
+  cat <<'EOF'
+usage: validate [type] [path]
+
+Program:
+    This application performs sanity checks on the provided InfluxDB
+    package. InfluxDB should *not* be installed on the system before
+    running this application. This validates new installations and
+    performs specific checks relevant only to InfluxDB.
+
+Options:
+    type    Must be "deb" or "rpm". This option instructs the
+            application to use the package manager associated
+            with "type".
+    path    Path to InfluxDB package to validate.
+EOF
+}
+
+if [[ ! "${1:-}" ]] || [[ ! "${2:-}" ]]
+then
+  (usage) && exit 1
+fi
+PACKAGE_TYPE="${1}"
+PACKAGE_PATH="${2}"
+
+install_deb() {
+  # When installing the package, ensure that the latest repository listings
+  # are available. This might be required so that all dependencies resolve.
+  # Since this needs to be run by CI, we supply "noninteractive" and "-y"
+  # so no prompts stall the pipeline.
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update
+  # "apt-get install" should be used instead of "dpkg -i", because "dpkg"
+  # does not resolve dependencies. "apt-get" requires that the package
+  # path looks like a path (either fullpath or prefixed with "./").
+  apt-get install -y binutils "$(realpath "${PACKAGE_PATH}")"
+}
+
+install_rpm() {
+  # see "install_deb" for "update"
+  yum update -y
+  yum install -y binutils
+  yum localinstall -y "$(realpath "${PACKAGE_PATH}")"
+}
+
+case ${PACKAGE_TYPE}
+in
+  deb)
+    (install_deb)
+    ;;
+  rpm)
+    (install_rpm)
+    ;;
+esac
+
+if ! which influxd &>/dev/null
+then
+  printf 'ERROR: Failed to locate influxd executable!\n' >&2
+  exit 2
+fi
+
+NEEDED="$(readelf -d "$(which influxd)" | (grep 'NEEDED' || true ))"
+
+# shellcheck disable=SC2181
+if [[ ${?} -ne 0 ]]
+then
+  cat <<'EOF'
+ERROR: readelf could not analyze the influxd executable! This
+       might be the consequence of installing a package built
+       for another platform OR invalid compiler/linker flags.
+EOF
+  exit 2
+fi
+
+if [[ "${NEEDED:-}" ]]
+then
+  cat <<'EOF'
+ERROR: influxd not statically linked! This may prevent all
+       platforms from running influxd without installing
+       separate dependencies.
+EOF
+  exit 2
+fi
+
+PIE="$(readelf -d "$(which influxd)" | (grep 'Flags: PIE' || true))"
+if [[ ! "${PIE:-}" ]]
+then
+  printf 'ERROR: influxd not linked with "-fPIE"!\n'
+  exit 2
+fi
+
+if ! systemctl is-active influxdb &>/dev/null
+then
+  systemctl start influxdb
+fi
+
+for i in 0..2
+do
+  if ! systemctl is-active influxdb &>/dev/null
+  then
+    printf 'ERROR: influxdb service failed to start!\n'
+    exit 2
+  fi
+  # Sometimes the service fails several seconds or minutes after
+  # starting. This failure may not propagate to the original
+  # "systemctl start <influxdb>" command. Therefore, we'll
+  # poll the service several times before exiting.
+  sleep 30
+done
+
+printf 'Finished validating influxdb!\n'
