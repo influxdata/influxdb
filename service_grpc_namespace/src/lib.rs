@@ -77,6 +77,22 @@ impl namespace_service_server::NamespaceService for NamespaceService {
         Ok(Response::new(create_namespace_to_proto(namespace)))
     }
 
+    async fn delete_namespace(
+        &self,
+        request: Request<DeleteNamespaceRequest>,
+    ) -> Result<Response<DeleteNamespaceResponse>, Status> {
+        if self.topic_id.is_none() || self.query_id.is_none() {
+            return Err(Status::invalid_argument("topic_id or query_id not set"));
+        }
+        let mut repos = self.catalog.repositories().await;
+        let req = request.into_inner();
+        //let namespace = repos
+        //    .namespaces()
+        //    .delete(
+
+        todo!()
+    }
+
     async fn update_namespace_retention(
         &self,
         request: Request<UpdateNamespaceRetentionRequest>,

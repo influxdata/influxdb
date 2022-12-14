@@ -312,6 +312,9 @@ pub trait NamespaceRepo: Send + Sync {
     /// Gets the namespace by its unique name.
     async fn get_by_name(&mut self, name: &str) -> Result<Option<Namespace>>;
 
+    /// Delete a namespace by namDelete a namespace by name
+    async fn delete(&mut self, name: &str) -> Result<()>;
+
     /// Update the limit on the number of tables that can exist per namespace.
     async fn update_table_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace>;
 
@@ -917,6 +920,7 @@ pub(crate) mod test_helpers {
         test_txn_isolation(Arc::clone(&catalog)).await;
         test_txn_drop(Arc::clone(&catalog)).await;
         test_list_schemas(Arc::clone(&catalog)).await;
+        test_delete_namespace(Arc::clone(&catalog)).await;
 
         let metrics = catalog.metrics();
         assert_metric_hit(&metrics, "topic_create_or_get");
@@ -2762,12 +2766,20 @@ pub(crate) mod test_helpers {
             .unwrap();
         let partition = repos
             .partitions()
-            .create_or_get("one".into(), shard.id, table.id)
+            .create_or_get(
+                "test_parquet_file_compaction_level_1_one".into(),
+                shard.id,
+                table.id,
+            )
             .await
             .unwrap();
         let other_partition = repos
             .partitions()
-            .create_or_get("two".into(), shard.id, table.id)
+            .create_or_get(
+                "test_parquet_file_compaction_level_1_two".into(),
+                shard.id,
+                table.id,
+            )
             .await
             .unwrap();
 
@@ -3128,7 +3140,11 @@ pub(crate) mod test_helpers {
         // Partition_2 has 2 non-deleted L0 file created 38 hours ago
         let partition_2 = repos
             .partitions()
-            .create_or_get("two".into(), shard.id, table.id)
+            .create_or_get(
+                "test_most_cold_files_partitions_two".into(),
+                shard.id,
+                table.id,
+            )
             .await
             .unwrap();
         let another_file_params = ParquetFileParams {
@@ -3165,7 +3181,11 @@ pub(crate) mod test_helpers {
         // The DB now has 3 cold partitions, two with non-deleted L0 files and one with only non-deleted L1
         let partition_3 = repos
             .partitions()
-            .create_or_get("three".into(), shard.id, table.id)
+            .create_or_get(
+                "test_most_cold_files_partitions_three".into(),
+                shard.id,
+                table.id,
+            )
             .await
             .unwrap();
         // recent L1 but since no L0, this partition is still cold
@@ -3249,7 +3269,11 @@ pub(crate) mod test_helpers {
         // The DB now has 4 cold partitions but partition_2 should still be skipped
         let partition_4 = repos
             .partitions()
-            .create_or_get("four".into(), shard.id, table.id)
+            .create_or_get(
+                "test_most_cold_files_partitions_four".into(),
+                shard.id,
+                table.id,
+            )
             .await
             .unwrap();
         for _ in 0..3 {
@@ -3571,7 +3595,11 @@ pub(crate) mod test_helpers {
         // Let us create another partition with 2 L0 recent files
         let another_partition = repos
             .partitions()
-            .create_or_get("two".into(), shard.id, table.id)
+            .create_or_get(
+                "test_recent_highest_throughput_partitions_two".into(),
+                shard.id,
+                table.id,
+            )
             .await
             .unwrap();
         let l0_2_hours_ago_file_params = ParquetFileParams {
@@ -3732,12 +3760,20 @@ pub(crate) mod test_helpers {
 
         let partition = repos
             .partitions()
-            .create_or_get("one".into(), shard.id, table.id)
+            .create_or_get(
+                "test_list_by_partiton_not_to_delete_one".into(),
+                shard.id,
+                table.id,
+            )
             .await
             .unwrap();
         let partition2 = repos
             .partitions()
-            .create_or_get("two".into(), shard.id, table.id)
+            .create_or_get(
+                "test_list_by_partiton_not_to_delete_two".into(),
+                shard.id,
+                table.id,
+            )
             .await
             .unwrap();
 
@@ -3844,7 +3880,11 @@ pub(crate) mod test_helpers {
             .unwrap();
         let partition = repos
             .partitions()
-            .create_or_get("one".into(), shard.id, table.id)
+            .create_or_get(
+                "test_update_to_compaction_level_1_one".into(),
+                shard.id,
+                table.id,
+            )
             .await
             .unwrap();
 
@@ -3968,7 +4008,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let partition = repos
             .partitions()
-            .create_or_get("one".into(), shard.id, table.id)
+            .create_or_get("test_processed_tombstones_one".into(), shard.id, table.id)
             .await
             .unwrap();
 
@@ -4118,6 +4158,436 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(count, 0);
+    }
+
+    async fn test_delete_namespace(catalog: Arc<dyn Catalog>) {
+        let mut repos = catalog.repositories().await;
+        let topic = repos.topics().create_or_get("foo").await.unwrap();
+        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
+        let namespace_1 = repos
+            .namespaces()
+            .create("namespace_test_delete_namespace_1", None, topic.id, pool.id)
+            .await
+            .unwrap();
+        let table_1 = repos
+            .tables()
+            .create_or_get("test_table_1", namespace_1.id)
+            .await
+            .unwrap();
+        let _c = repos
+            .columns()
+            .create_or_get("column_test_1", table_1.id, ColumnType::Tag)
+            .await
+            .unwrap();
+        let shard = repos
+            .shards()
+            .create_or_get(&topic, ShardIndex::new(1))
+            .await
+            .unwrap();
+        let partition_1 = repos
+            .partitions()
+            .create_or_get("test_delete_namespace_one".into(), shard.id, table_1.id)
+            .await
+            .unwrap();
+
+        // parquet files
+        let parquet_file_params = ParquetFileParams {
+            namespace_id: namespace_1.id,
+            shard_id: shard.id,
+            table_id: partition_1.table_id,
+            partition_id: partition_1.id,
+            object_store_id: Uuid::new_v4(),
+            max_sequence_number: SequenceNumber::new(1),
+            min_time: Timestamp::new(100),
+            max_time: Timestamp::new(250),
+            file_size_bytes: 1337,
+            row_count: 0,
+            compaction_level: CompactionLevel::Initial,
+            created_at: Timestamp::new(1),
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+        };
+        let p1_n1 = repos
+            .parquet_files()
+            .create(parquet_file_params.clone())
+            .await
+            .unwrap();
+        let parquet_file_params_2 = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            max_sequence_number: SequenceNumber::new(3),
+            min_time: Timestamp::new(200),
+            max_time: Timestamp::new(300),
+            ..parquet_file_params
+        };
+        let p2_n1 = repos
+            .parquet_files()
+            .create(parquet_file_params_2.clone())
+            .await
+            .unwrap();
+
+        // tombstones
+        let t1_n1 = repos
+            .tombstones()
+            .create_or_get(
+                table_1.id,
+                shard.id,
+                SequenceNumber::new(10),
+                Timestamp::new(1),
+                Timestamp::new(10),
+                "whatevs",
+            )
+            .await
+            .unwrap();
+        let t2_n1 = repos
+            .tombstones()
+            .create_or_get(
+                table_1.id,
+                shard.id,
+                SequenceNumber::new(11),
+                Timestamp::new(100),
+                Timestamp::new(110),
+                "whatevs",
+            )
+            .await
+            .unwrap();
+        let t3_n1 = repos
+            .tombstones()
+            .create_or_get(
+                table_1.id,
+                shard.id,
+                SequenceNumber::new(12),
+                Timestamp::new(200),
+                Timestamp::new(210),
+                "whatevs",
+            )
+            .await
+            .unwrap();
+
+        // processed tombstones
+        // p1, t2
+        let _pt1 = repos
+            .processed_tombstones()
+            .create(p1_n1.id, t2_n1.id)
+            .await
+            .unwrap();
+        // p1, t3
+        let _pt2 = repos
+            .processed_tombstones()
+            .create(p1_n1.id, t3_n1.id)
+            .await
+            .unwrap();
+        // p2, t3
+        let _pt3 = repos
+            .processed_tombstones()
+            .create(p2_n1.id, t3_n1.id)
+            .await
+            .unwrap();
+
+        // test exist
+        let exist = repos
+            .processed_tombstones()
+            .exist(p1_n1.id, t1_n1.id)
+            .await
+            .unwrap();
+        assert!(!exist);
+        let exist = repos
+            .processed_tombstones()
+            .exist(p1_n1.id, t2_n1.id)
+            .await
+            .unwrap();
+        assert!(exist);
+
+        // we've now created a namespace with a table, parquet files, tombstones and processed
+        // tombstones. before we test deleting it let's create another so we can ensure that
+        // doesn't get deleted.
+        let namespace_2 = repos
+            .namespaces()
+            .create("namespace_test_delete_namespace_2", None, topic.id, pool.id)
+            .await
+            .unwrap();
+        let table_2 = repos
+            .tables()
+            .create_or_get("test_table_2", namespace_2.id)
+            .await
+            .unwrap();
+        let _c = repos
+            .columns()
+            .create_or_get("column_test_2", table_2.id, ColumnType::Tag)
+            .await
+            .unwrap();
+        let shard = repos
+            .shards()
+            .create_or_get(&topic, ShardIndex::new(1))
+            .await
+            .unwrap();
+        let partition_2 = repos
+            .partitions()
+            .create_or_get("test_delete_namespace_two".into(), shard.id, table_2.id)
+            .await
+            .unwrap();
+
+        // parquet files
+        let parquet_file_params = ParquetFileParams {
+            namespace_id: namespace_2.id,
+            shard_id: shard.id,
+            table_id: partition_2.table_id,
+            partition_id: partition_2.id,
+            object_store_id: Uuid::new_v4(),
+            max_sequence_number: SequenceNumber::new(1),
+            min_time: Timestamp::new(100),
+            max_time: Timestamp::new(250),
+            file_size_bytes: 1337,
+            row_count: 0,
+            compaction_level: CompactionLevel::Initial,
+            created_at: Timestamp::new(1),
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+        };
+        let p1_n2 = repos
+            .parquet_files()
+            .create(parquet_file_params.clone())
+            .await
+            .unwrap();
+        let parquet_file_params_2 = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            max_sequence_number: SequenceNumber::new(3),
+            min_time: Timestamp::new(200),
+            max_time: Timestamp::new(300),
+            ..parquet_file_params
+        };
+        let p2_n2 = repos
+            .parquet_files()
+            .create(parquet_file_params_2.clone())
+            .await
+            .unwrap();
+
+        // tombstones
+        let t1_n2 = repos
+            .tombstones()
+            .create_or_get(
+                table_2.id,
+                shard.id,
+                SequenceNumber::new(10),
+                Timestamp::new(1),
+                Timestamp::new(10),
+                "whatevs",
+            )
+            .await
+            .unwrap();
+        let t2_n2 = repos
+            .tombstones()
+            .create_or_get(
+                table_2.id,
+                shard.id,
+                SequenceNumber::new(11),
+                Timestamp::new(100),
+                Timestamp::new(110),
+                "whatevs",
+            )
+            .await
+            .unwrap();
+        let t3_n2 = repos
+            .tombstones()
+            .create_or_get(
+                table_2.id,
+                shard.id,
+                SequenceNumber::new(12),
+                Timestamp::new(200),
+                Timestamp::new(210),
+                "whatevs",
+            )
+            .await
+            .unwrap();
+
+        // processed tombstones
+        // p1, t2
+        let _pt1 = repos
+            .processed_tombstones()
+            .create(p1_n2.id, t2_n2.id)
+            .await
+            .unwrap();
+        // p1, t3
+        let _pt2 = repos
+            .processed_tombstones()
+            .create(p1_n2.id, t3_n2.id)
+            .await
+            .unwrap();
+        // p2, t3
+        let _pt3 = repos
+            .processed_tombstones()
+            .create(p2_n2.id, t3_n2.id)
+            .await
+            .unwrap();
+
+        // test exist
+        let exist = repos
+            .processed_tombstones()
+            .exist(p1_n2.id, t1_n2.id)
+            .await
+            .unwrap();
+        assert!(!exist);
+        let exist = repos
+            .processed_tombstones()
+            .exist(p1_n2.id, t2_n2.id)
+            .await
+            .unwrap();
+        assert!(exist);
+
+        // now delete namespace_1 and assert it's all gone and none of namespace_2 is gone
+        repos
+            .namespaces()
+            .delete("namespace_test_delete_namespace_1")
+            .await
+            .expect("delete namespace should succeed");
+        // assert that namespace, table, column, tombstones, parquet files and processed tombstones
+        // are all gone
+        assert!(repos
+            .namespaces()
+            .get_by_id(namespace_1.id)
+            .await
+            .expect("get namespace should succeed")
+            .is_none());
+        assert!(repos
+            .tables()
+            .get_by_id(table_1.id)
+            .await
+            .expect("get table should succeed")
+            .is_none());
+        assert_eq!(
+            repos
+                .columns()
+                .list_by_namespace_id(namespace_1.id)
+                .await
+                .expect("listing columns should succeed")
+                .len(),
+            0
+        );
+        assert_eq!(
+            repos
+                .columns()
+                .list_by_table_id(table_1.id)
+                .await
+                .expect("listing columns should succeed")
+                .len(),
+            0
+        );
+        assert_eq!(
+            repos
+                .tombstones()
+                .list_by_namespace(namespace_1.id)
+                .await
+                .expect("listing tombstones should succeed")
+                .len(),
+            0
+        );
+        assert_eq!(
+            repos
+                .tombstones()
+                .list_by_table(table_1.id)
+                .await
+                .expect("listing tombstones should succeed")
+                .len(),
+            0
+        );
+        assert!(!repos
+            .parquet_files()
+            .exist(p1_n1.id)
+            .await
+            .expect("parquet file exists check should succeed"));
+        assert!(!repos
+            .parquet_files()
+            .exist(p2_n1.id)
+            .await
+            .expect("parquet file exists check should succeed"));
+        assert!(!repos
+            .processed_tombstones()
+            .exist(p1_n1.id, t2_n1.id)
+            .await
+            .expect("processed tombstone exists check should succeed"));
+        assert!(!repos
+            .processed_tombstones()
+            .exist(p1_n1.id, t3_n1.id)
+            .await
+            .expect("processed tombstone exists check should succeed"));
+        assert!(!repos
+            .processed_tombstones()
+            .exist(p2_n1.id, t3_n1.id)
+            .await
+            .expect("processed tombstone exists check should succeed"));
+
+        // assert that the namespace, table, column, tombstone, parquet files and processed
+        // tombstones for namespace_2 are still there
+        assert!(repos
+            .namespaces()
+            .get_by_id(namespace_2.id)
+            .await
+            .expect("get namespace should succeed")
+            .is_some());
+        assert!(repos
+            .tables()
+            .get_by_id(table_2.id)
+            .await
+            .expect("get table should succeed")
+            .is_some());
+        assert_eq!(
+            repos
+                .columns()
+                .list_by_namespace_id(namespace_2.id)
+                .await
+                .expect("listing columns should succeed")
+                .len(),
+            1
+        );
+        assert_eq!(
+            repos
+                .columns()
+                .list_by_table_id(table_2.id)
+                .await
+                .expect("listing columns should succeed")
+                .len(),
+            1
+        );
+        assert_eq!(
+            repos
+                .tombstones()
+                .list_by_namespace(namespace_2.id)
+                .await
+                .expect("listing tombstones should succeed")
+                .len(),
+            3
+        );
+        assert_eq!(
+            repos
+                .tombstones()
+                .list_by_table(table_2.id)
+                .await
+                .expect("listing tombstones should succeed")
+                .len(),
+            3
+        );
+        assert!(repos
+            .parquet_files()
+            .exist(p1_n2.id)
+            .await
+            .expect("parquet file exists check should succeed"));
+        assert!(repos
+            .parquet_files()
+            .exist(p2_n2.id)
+            .await
+            .expect("parquet file exists check should succeed"));
+        assert!(repos
+            .processed_tombstones()
+            .exist(p1_n2.id, t2_n2.id)
+            .await
+            .expect("processed tombstone exists check should succeed"));
+        assert!(repos
+            .processed_tombstones()
+            .exist(p1_n2.id, t3_n2.id)
+            .await
+            .expect("processed tombstone exists check should succeed"));
+        assert!(repos
+            .processed_tombstones()
+            .exist(p2_n2.id, t3_n2.id)
+            .await
+            .expect("processed tombstone exists check should succeed"));
     }
 
     async fn test_txn_isolation(catalog: Arc<dyn Catalog>) {

@@ -9,6 +9,9 @@ service NamespaceService {
   // Create a namespace
   rpc CreateNamespace(CreateNamespaceRequest) returns (CreateNamespaceResponse);
 
+  // Delete a namespace
+  rpc DeleteNamespace(DeleteNamespaceRequest) returns (DeleteNamespaceResponse);
+
   // Update retention period
   rpc UpdateNamespaceRetention(UpdateNamespaceRetentionRequest) returns (UpdateNamespaceRetentionResponse);
 }
@@ -30,6 +33,14 @@ message CreateNamespaceRequest {
 
 message CreateNamespaceResponse {
   Namespace namespace = 1;
+}
+
+message DeleteNamespaceRequest {
+  // Name of the namespace to be deleted
+  string name = 1;
+}
+
+message DeleteNamespaceResponse {
 }
 
 message UpdateNamespaceRetentionRequest {

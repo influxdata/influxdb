@@ -680,6 +680,10 @@ WHERE name = $1;
         Ok(Some(namespace))
     }
 
+    async fn delete(&mut self, _name: &str) -> Result<()> {
+        todo!()
+    }
+
     async fn update_table_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace> {
         let rec = sqlx::query_as::<_, Namespace>(
             r#"
