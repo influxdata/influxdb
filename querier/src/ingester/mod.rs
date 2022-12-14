@@ -1156,6 +1156,14 @@ pub struct IngesterChunk {
 }
 
 impl IngesterChunk {
+    /// [`Arc`]ed version of the partition sort key.
+    ///
+    /// Note that this might NOT be the up-to-date sort key of the partition but the one that existed when the chunk was
+    /// created. You must sync the keys to use the chunks.
+    pub(crate) fn partition_sort_key_arc(&self) -> Option<Arc<SortKey>> {
+        self.partition_sort_key.clone()
+    }
+
     pub(crate) fn with_partition_sort_key(self, partition_sort_key: Option<Arc<SortKey>>) -> Self {
         Self {
             partition_sort_key,

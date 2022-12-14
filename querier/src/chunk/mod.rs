@@ -140,6 +140,14 @@ impl QuerierChunk {
         self.meta.as_ref()
     }
 
+    /// [`Arc`]ed version of the partition sort key.
+    ///
+    /// Note that this might NOT be the up-to-date sort key of the partition but the one that existed when the chunk was
+    /// created. You must sync the keys to use the chunks.
+    pub fn partition_sort_key_arc(&self) -> Option<Arc<SortKey>> {
+        self.partition_sort_key.clone()
+    }
+
     /// Set partition sort key
     pub fn with_partition_sort_key(self, partition_sort_key: Option<Arc<SortKey>>) -> Self {
         Self {
