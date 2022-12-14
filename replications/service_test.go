@@ -110,12 +110,14 @@ func TestListReplications(t *testing.T) {
 	filter := influxdb.ReplicationListFilter{}
 
 	tests := []struct {
-		name            string
-		list            influxdb.Replications
-		ids             []platform.ID
-		sizes           map[platform.ID]int64
-		storeErr        error
-		queueManagerErr error
+		name                          string
+		list                          influxdb.Replications
+		ids                           []platform.ID
+		sizes                         map[platform.ID]int64
+		rsizes                        map[platform.ID]int64
+		storeErr                      error
+		queueManagerErr               error
+		queueManagerRemainingSizesErr error
 	}{
 		{
 			name: "matches multiple",
@@ -149,6 +151,14 @@ func TestListReplications(t *testing.T) {
 			ids:             []platform.ID{replication1.ID},
 			queueManagerErr: errors.New("error from queue manager"),
 		},
+		{
+			name: "queue manager error - remaining queue size",
+			list: influxdb.Replications{
+				Replications: []influxdb.Replication{replication1},
+			},
+			ids:                           []platform.ID{replication1.ID},
+			queueManagerRemainingSizesErr: errors.New("Remaining Queue Size erro"),
+		},
 	}
 
 	for _, tt := range tests {
@@ -161,6 +171,9 @@ func TestListReplications(t *testing.T) {
 				mocks.durableQueueManager.EXPECT().CurrentQueueSizes(tt.ids).Return(tt.sizes, tt.queueManagerErr)
 			}
 
+			if tt.storeErr == nil && tt.queueManagerErr == nil && len(tt.list.Replications) > 0 {
+				mocks.durableQueueManager.EXPECT().RemainingQueueSizes(tt.ids).Return(tt.rsizes, tt.queueManagerRemainingSizesErr)
+			}
 			got, err := svc.ListReplications(ctx, filter)
 
 			var wantErr error
@@ -168,6 +181,8 @@ func TestListReplications(t *testing.T) {
 				wantErr = tt.storeErr
 			} else if tt.queueManagerErr != nil {
 				wantErr = tt.queueManagerErr
+			} else if tt.queueManagerRemainingSizesErr != nil {
+				wantErr = tt.queueManagerRemainingSizesErr
 			}
 
 			require.Equal(t, wantErr, err)
@@ -179,6 +194,7 @@ func TestListReplications(t *testing.T) {
 
 			for _, r := range got.Replications {
 				require.Equal(t, tt.sizes[r.ID], r.CurrentQueueSizeBytes)
+				require.Equal(t, tt.rsizes[r.ID], r.RemainingQueueSizeBytes)
 			}
 		})
 	}
@@ -315,12 +331,14 @@ func TestGetReplication(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name            string
-		sizes           map[platform.ID]int64
-		storeErr        error
-		queueManagerErr error
-		storeWant       influxdb.Replication
-		want            influxdb.Replication
+		name                          string
+		sizes                         map[platform.ID]int64
+		rsizes                        map[platform.ID]int64
+		storeErr                      error
+		queueManagerErr               error
+		queueManagerRemainingSizesErr error
+		storeWant                     influxdb.Replication
+		want                          influxdb.Replication
 	}{
 		{
 			name:      "success",
@@ -337,6 +355,11 @@ func TestGetReplication(t *testing.T) {
 			storeWant:       replication1,
 			queueManagerErr: errors.New("queue manager error"),
 		},
+		{
+			name:                          "queue manager error - remaining queue size",
+			storeWant:                     replication1,
+			queueManagerRemainingSizesErr: errors.New("queue manager error"),
+		},
 	}
 
 	for _, tt := range tests {
@@ -348,6 +371,9 @@ func TestGetReplication(t *testing.T) {
 			if tt.storeErr == nil {
 				mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{id1}).Return(tt.sizes, tt.queueManagerErr)
 			}
+			if tt.storeErr == nil && tt.queueManagerErr == nil {
+				mocks.durableQueueManager.EXPECT().RemainingQueueSizes([]platform.ID{id1}).Return(tt.rsizes, tt.queueManagerRemainingSizesErr)
+			}
 
 			got, err := svc.GetReplication(ctx, id1)
 
@@ -356,6 +382,8 @@ func TestGetReplication(t *testing.T) {
 				wantErr = tt.storeErr
 			} else if tt.queueManagerErr != nil {
 				wantErr = tt.queueManagerErr
+			} else if tt.queueManagerRemainingSizesErr != nil {
+				wantErr = tt.queueManagerRemainingSizesErr
 			}
 
 			require.Equal(t, wantErr, err)
@@ -366,6 +394,8 @@ func TestGetReplication(t *testing.T) {
 			}
 
 			require.Equal(t, tt.sizes[got.ID], got.CurrentQueueSizeBytes)
+			require.Equal(t, tt.rsizes[got.ID], got.RemainingQueueSizeBytes)
+
 		})
 	}
 }
@@ -374,15 +404,17 @@ func TestUpdateReplication(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name                        string
-		request                     influxdb.UpdateReplicationRequest
-		sizes                       map[platform.ID]int64
-		storeErr                    error
-		queueManagerUpdateSizeErr   error
-		queueManagerCurrentSizesErr error
-		storeUpdate                 *influxdb.Replication
-		want                        *influxdb.Replication
-		wantErr                     error
+		name                          string
+		request                       influxdb.UpdateReplicationRequest
+		sizes                         map[platform.ID]int64
+		rsizes                        map[platform.ID]int64
+		storeErr                      error
+		queueManagerUpdateSizeErr     error
+		queueManagerCurrentSizesErr   error
+		queueManagerRemainingSizesErr error
+		storeUpdate                   *influxdb.Replication
+		want                          *influxdb.Replication
+		wantErr                       error
 	}{
 		{
 			name:        "success with new max queue size",
@@ -417,6 +449,13 @@ func TestUpdateReplication(t *testing.T) {
 			storeUpdate:                 &updatedReplicationWithNoNewSize,
 			wantErr:                     errors.New("current size err"),
 		},
+		{
+			name:                          "queue manager error - remaining queue size",
+			request:                       updateReqWithNoNewSize,
+			queueManagerRemainingSizesErr: errors.New("remaining queue size err"),
+			storeUpdate:                   &updatedReplicationWithNoNewSize,
+			wantErr:                       errors.New("remaining queue size err"),
+		},
 	}
 
 	for _, tt := range tests {
@@ -434,6 +473,10 @@ func TestUpdateReplication(t *testing.T) {
 
 			if tt.storeErr == nil && tt.queueManagerUpdateSizeErr == nil {
 				mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{id1}).Return(tt.sizes, tt.queueManagerCurrentSizesErr)
+			}
+
+			if tt.storeErr == nil && tt.queueManagerUpdateSizeErr == nil && tt.queueManagerCurrentSizesErr == nil {
+				mocks.durableQueueManager.EXPECT().RemainingQueueSizes([]platform.ID{id1}).Return(tt.rsizes, tt.queueManagerRemainingSizesErr)
 			}
 
 			got, err := svc.UpdateReplication(ctx, id1, tt.request)
