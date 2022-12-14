@@ -15,6 +15,9 @@ pub(crate) struct PartitionResponse {
 
     /// Max sequence number persisted
     max_persisted_sequence_number: Option<SequenceNumber>,
+
+    /// Count of persisted Parquet files for this partition by this ingester instance.
+    completed_persistence_count: u64,
 }
 
 impl std::fmt::Debug for PartitionResponse {
@@ -23,6 +26,10 @@ impl std::fmt::Debug for PartitionResponse {
             .field("batches", &"<SNAPSHOT STREAM>")
             .field("partition_id", &self.id)
             .field("max_persisted", &self.max_persisted_sequence_number)
+            .field(
+                "completed_persistence_count",
+                &self.completed_persistence_count,
+            )
             .finish()
     }
 }
@@ -32,11 +39,13 @@ impl PartitionResponse {
         batches: SendableRecordBatchStream,
         id: PartitionId,
         max_persisted_sequence_number: Option<SequenceNumber>,
+        completed_persistence_count: u64,
     ) -> Self {
         Self {
             batches,
             id,
             max_persisted_sequence_number,
+            completed_persistence_count,
         }
     }
 
@@ -46,6 +55,10 @@ impl PartitionResponse {
 
     pub(crate) fn max_persisted_sequence_number(&self) -> Option<SequenceNumber> {
         self.max_persisted_sequence_number
+    }
+
+    pub(crate) fn completed_persistence_count(&self) -> u64 {
+        self.completed_persistence_count
     }
 
     pub(crate) fn into_record_batch_stream(self) -> SendableRecordBatchStream {

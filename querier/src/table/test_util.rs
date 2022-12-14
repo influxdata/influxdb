@@ -125,8 +125,10 @@ impl IngesterPartitionBuilder {
 
         IngesterPartition::new(
             Arc::clone(&self.ingester_name),
+            None,
             self.partition.partition.id,
             self.shard.shard.id,
+            0,
             parquet_max_sequence_number,
             tombstone_max_sequence_number,
             self.partition_sort_key.clone(),

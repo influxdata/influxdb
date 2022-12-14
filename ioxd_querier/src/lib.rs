@@ -186,6 +186,9 @@ pub async fn create_querier_server_type(
         );
     assert!(existing.is_none());
 
+    let rpc_write = args.querier_config.rpc_write()
+        && matches!(args.ingester_addresses, IngesterAddresses::List(_));
+
     let ingester_connection = match args.ingester_addresses {
         IngesterAddresses::None => None,
         IngesterAddresses::ByShardIndex(map) => Some(create_ingester_connections(
@@ -209,7 +212,7 @@ pub async fn create_querier_server_type(
             args.exec,
             ingester_connection,
             args.querier_config.max_concurrent_queries(),
-            args.querier_config.rpc_write(),
+            rpc_write,
         )
         .await?,
     );

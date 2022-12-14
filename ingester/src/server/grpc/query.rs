@@ -323,8 +323,9 @@ impl Stream for GetStream {
                                 .parquet_max_sequence_number
                                 .map(|x| x.get()),
                         }),
-                        // This is only used in ingester2.
+                        // These fields are only used in ingester2.
                         ingester_uuid: String::new(),
+                        completed_persistence_count: 0,
                     };
                     prost::Message::encode(&app_metadata, &mut bytes)
                         .context(SerializationSnafu)?;
@@ -414,8 +415,9 @@ mod tests {
                         status: Some(proto::PartitionStatus {
                             parquet_max_sequence_number: None,
                         }),
-                        // This is only used in ingester2.
+                        // These fields are only used in ingester2.
                         ingester_uuid: String::new(),
+                        completed_persistence_count: 0,
                     },
                 }),
                 Ok(DecodedFlightData {
@@ -457,8 +459,9 @@ mod tests {
                         status: Some(proto::PartitionStatus {
                             parquet_max_sequence_number: None,
                         }),
-                        // This is only used in ingester2.
+                        // These fields are only used in ingester2.
                         ingester_uuid: String::new(),
+                        completed_persistence_count: 0,
                     },
                 }),
                 Err(tonic::Code::Internal),

@@ -280,6 +280,13 @@ pub enum FlatIngesterQueryResponse {
 
         /// Partition persistence status.
         status: PartitionStatus,
+
+        /// Count of persisted Parquet files for the [`PartitionData`] instance this
+        /// [`PartitionResponse`] was generated from.
+        ///
+        /// [`PartitionData`]: crate::buffer_tree::partition::PartitionData
+        /// [`PartitionResponse`]: crate::query::partition_response::PartitionResponse
+        completed_persistence_count: u64,
     },
 
     /// Start a new snapshot.
@@ -305,12 +312,14 @@ impl From<QueryResponse> for FlatIngesterQueryResponseStream {
             .flat_map(|partition| {
                 let partition_id = partition.id();
                 let max_seq = partition.max_persisted_sequence_number().map(|v| v.get());
+                let completed_persistence_count = partition.completed_persistence_count();
                 let head = futures::stream::once(async move {
                     Ok(FlatIngesterQueryResponse::StartPartition {
                         partition_id,
                         status: PartitionStatus {
                             parquet_max_sequence_number: max_seq,
                         },
+                        completed_persistence_count,
                     })
                 });
                 let tail = partition
@@ -402,6 +411,7 @@ impl Stream for FlightFrameCodec {
                 Poll::Ready(Some(Ok(FlatIngesterQueryResponse::StartPartition {
                     partition_id,
                     status,
+                    completed_persistence_count,
                 }))) => {
                     let mut bytes = bytes::BytesMut::new();
                     let app_metadata = proto::IngesterQueryResponseMetadata {
@@ -410,6 +420,7 @@ impl Stream for FlightFrameCodec {
                             parquet_max_sequence_number: status.parquet_max_sequence_number,
                         }),
                         ingester_uuid: this.ingester_uuid.to_string(),
+                        completed_persistence_count,
                     };
                     prost::Message::encode(&app_metadata, &mut bytes).map_err(Error::from)?;
 
@@ -490,6 +501,7 @@ mod tests {
                     status: PartitionStatus {
                         parquet_max_sequence_number: None,
                     },
+                    completed_persistence_count: 0,
                 }),
                 Ok(FlatIngesterQueryResponse::StartSnapshot { schema }),
                 Ok(FlatIngesterQueryResponse::RecordBatch { batch }),
@@ -502,6 +514,7 @@ mod tests {
                         status: Some(proto::PartitionStatus {
                             parquet_max_sequence_number: None,
                         }),
+                        completed_persistence_count: 0,
                         ingester_uuid: ingester_uuid.to_string(),
                     },
                 }),
@@ -529,6 +542,7 @@ mod tests {
                     status: PartitionStatus {
                         parquet_max_sequence_number: None,
                     },
+                    completed_persistence_count: 0,
                 }),
                 Err(ArrowError::IoError("foo".into())),
                 Ok(FlatIngesterQueryResponse::StartPartition {
@@ -536,6 +550,7 @@ mod tests {
                     status: PartitionStatus {
                         parquet_max_sequence_number: None,
                     },
+                    completed_persistence_count: 0,
                 }),
             ],
             vec![
@@ -546,6 +561,7 @@ mod tests {
                         status: Some(proto::PartitionStatus {
                             parquet_max_sequence_number: None,
                         }),
+                        completed_persistence_count: 0,
                         ingester_uuid: ingester_uuid.to_string(),
                     },
                 }),

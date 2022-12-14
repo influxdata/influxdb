@@ -86,6 +86,9 @@ message IngesterQueryResponseMetadata {
   //
   // This field is currently NOT used by the ingester but will be soon.
   string ingester_uuid = 9;
+
+  // Number of Parquet files that have been persisted to object storage for this partition.
+  uint64 completed_persistence_count = 10;
 }
 
 // Status of a partition that has unpersisted data.
