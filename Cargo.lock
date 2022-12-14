@@ -6100,6 +6100,7 @@ dependencies = [
  "mutable_batch_pb",
  "observability_deps",
  "once_cell",
+ "parking_lot 0.12.1",
  "prost 0.11.3",
  "regex",
  "serde",

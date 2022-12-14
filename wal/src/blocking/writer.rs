@@ -13,6 +13,8 @@ use std::{
     },
 };
 
+/// Struct for writing data to a segment file in a wal
+#[derive(Debug)]
 pub struct OpenSegmentFileWriter {
     id: SegmentId,
     path: PathBuf,

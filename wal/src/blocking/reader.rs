@@ -1,7 +1,7 @@
 use crate::{FileTypeIdentifier, SegmentEntry, SegmentIdBytes, SequencedWalOp};
 use byteorder::{BigEndian, ReadBytesExt};
 use crc32fast::Hasher;
-use generated_types::influxdata::iox::wal::v1::SequencedWalOp as ProtoSequencedWalOp;
+use generated_types::influxdata::iox::wal::v1::WalOpBatch as ProtoWalOpBatch;
 use prost::Message;
 use snafu::prelude::*;
 use snap::read::FrameDecoder;
@@ -11,6 +11,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[derive(Debug)]
 pub struct ClosedSegmentFileReader<R>(R);
 
 impl ClosedSegmentFileReader<BufReader<File>> {
@@ -87,14 +88,17 @@ where
         }))
     }
 
-    pub fn next_ops(&mut self) -> Result<Option<SequencedWalOp>> {
+    pub fn next_batch(&mut self) -> Result<Option<Vec<SequencedWalOp>>> {
         if let Some(entry) = self.one_entry()? {
-            let decoded = ProtoSequencedWalOp::decode(&*entry.data)
-                .context(UnableToDeserializeDataSnafu)?
-                .try_into()
-                .context(InvalidMessageSnafu)?;
+            let decoded =
+                ProtoWalOpBatch::decode(&*entry.data).context(UnableToDeserializeDataSnafu)?;
 
-            return Ok(Some(decoded));
+            let mut ops = Vec::with_capacity(decoded.ops.len());
+            for op in decoded.ops {
+                ops.push(op.try_into().context(InvalidMessageSnafu)?);
+            }
+
+            return Ok(Some(ops));
         }
 
         Ok(None)

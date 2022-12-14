@@ -11,19 +11,18 @@ const PERSIST_ENQUEUE_CONCURRENCY: usize = 5;
 
 /// Rotate the `wal` segment file every `period` duration of time.
 pub(crate) async fn periodic_rotation(
-    wal: wal::Wal,
+    wal: Arc<wal::Wal>,
     period: Duration,
     buffer: Arc<BufferTree>,
     persist: PersistHandle,
 ) {
-    let handle = wal.rotation_handle();
     let mut interval = tokio::time::interval(period);
 
     loop {
         interval.tick().await;
         info!("rotating wal file");
 
-        let stats = handle.rotate().await.expect("failed to rotate WAL");
+        let stats = wal.rotate().expect("failed to rotate WAL");
         debug!(
             closed_id = %stats.id(),
             segment_bytes = stats.size(),
@@ -145,8 +144,7 @@ pub(crate) async fn periodic_rotation(
             "partitions persisted"
         );
 
-        handle
-            .delete(stats.id())
+        wal.delete(stats.id())
             .await
             .expect("failed to drop wal segment");
 

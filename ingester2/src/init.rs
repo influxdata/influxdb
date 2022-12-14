@@ -250,7 +250,7 @@ pub async fn new(
     );
 
     // Build the chain of DmlSink that forms the write path.
-    let write_path = WalSink::new(Arc::clone(&buffer), wal.write_handle().await);
+    let write_path = WalSink::new(Arc::clone(&buffer), Arc::clone(&wal));
 
     // Spawn a background thread to periodically rotate the WAL segment file.
     let handle = tokio::spawn(periodic_rotation(

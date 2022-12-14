@@ -13,23 +13,32 @@
 //!
 //! This crate provides a local-disk WAL for the IOx ingestion pipeline.
 
+use crate::blocking::{
+    ClosedSegmentFileReader as RawClosedSegmentFileReader, OpenSegmentFileWriter,
+};
 use generated_types::{
     google::{FieldViolation, OptionalField},
     influxdata::iox::wal::v1::{
         sequenced_wal_op::Op as WalOp, SequencedWalOp as ProtoSequencedWalOp,
+        WalOpBatch as ProtoWalOpBatch,
     },
 };
+use parking_lot::Mutex;
 use prost::Message;
 use snafu::prelude::*;
 use std::{
     collections::BTreeMap,
-    io,
-    path::PathBuf,
+    fs::File,
+    io::{self, BufReader},
+    path::{Path, PathBuf},
     sync::{atomic::AtomicU64, Arc},
+    time::Duration,
 };
-use tokio::sync::{mpsc, oneshot, RwLock};
+use tokio::sync::watch;
 
-mod blocking;
+pub mod blocking;
+
+const WAL_FLUSH_INTERVAL: Duration = Duration::from_millis(10);
 
 // TODO: Should have more variants / error types to avoid reusing these
 #[derive(Debug, Snafu)]
@@ -113,6 +122,14 @@ pub enum Error {
         source: std::io::Error,
         path: PathBuf,
     },
+
+    UnableToWrite {
+        source: blocking::WriterError,
+    },
+
+    UnableToCreateSegmentFile {
+        source: blocking::WriterError,
+    },
 }
 
 /// A specialized `Result` for WAL-related errors
@@ -174,12 +191,11 @@ const SEGMENT_FILE_EXTENSION: &str = "dat";
 ///
 /// Similarly, editing or deleting files within a `Wal`'s root directory via some other mechanism
 /// is not supported.
-#[derive(Debug)]
 pub struct Wal {
     root: PathBuf,
-    closed_segments: RwLock<BTreeMap<SegmentId, ClosedSegment>>,
-    open_segment: OpenSegmentFile,
+    segments: Mutex<Segments>,
     next_id_source: Arc<AtomicU64>,
+    buffer: Mutex<WalBuffer>,
 }
 
 impl Wal {
@@ -192,11 +208,18 @@ impl Wal {
     ///
     /// Similarly, editing or deleting files within a `Wal`'s root directory via some other
     /// mechanism is not supported.
-    pub async fn new(root: impl Into<PathBuf>) -> Result<Self> {
+    pub async fn new(root: impl Into<PathBuf>) -> Result<Arc<Self>> {
         let root = root.into();
         tokio::fs::create_dir_all(&root)
             .await
             .context(UnableToCreateWalDirSnafu { path: &root })?;
+
+        // ensure the directory creation is actually fsync'd so that when we create files there
+        // we don't lose them (see: https://www.usenix.org/system/files/conference/osdi14/osdi14-paper-pillai.pdf)
+        File::open(&root)
+            .expect("should be able to open just-created directory")
+            .sync_all()
+            .expect("fsync failure");
 
         let mut dir = tokio::fs::read_dir(&root)
             .await
@@ -241,113 +264,155 @@ impl Wal {
             .unwrap_or(0);
         let next_id_source = Arc::new(AtomicU64::new(next_id));
         let open_segment =
-            OpenSegmentFile::new_in_directory(&root, Arc::clone(&next_id_source)).await?;
+            OpenSegmentFileWriter::new_in_directory(&root, Arc::clone(&next_id_source))
+                .context(UnableToCreateSegmentFileSnafu)?;
 
-        Ok(Self {
+        let buffer = WalBuffer::new();
+
+        let wal = Self {
             root,
-            closed_segments: RwLock::new(closed_segments),
-            open_segment,
+            segments: Mutex::new(Segments {
+                closed_segments,
+                open_segment,
+            }),
             next_id_source,
-        })
+            buffer: Mutex::new(buffer),
+        };
+
+        let wal = Arc::new(wal);
+        let flush_wal = Arc::clone(&wal);
+
+        tokio::task::spawn(async move { flush_wal.flush_buffer_background_task().await });
+
+        Ok(wal)
     }
 
-    /// Returns a handle to the WAL that enables commiting entries to the currently active segment.
-    pub async fn write_handle(&self) -> WalWriter {
-        self.open_segment.write_handle()
+    /// Get the closed segments from the WAL
+    pub fn closed_segments(&self) -> Vec<ClosedSegment> {
+        let s = self.segments.lock();
+        s.closed_segments.values().cloned().collect()
     }
 
-    /// Returns a handle to the WAL that enables listing and reading entries from closed segments.
-    pub fn read_handle(&self) -> WalReader<'_> {
-        WalReader(self)
+    /// Open a reader to a closed segment
+    pub fn reader_for_segment(&self, id: SegmentId) -> Result<ClosedSegmentFileReader> {
+        let path = build_segment_path(&self.root, id);
+        ClosedSegmentFileReader::from_path(&path)
     }
 
-    /// Returns a handle to the WAL that enables rotating the open segment and deleting closed
-    /// segments.
-    pub fn rotation_handle(&self) -> WalRotator<'_> {
-        WalRotator(self)
-    }
-}
-
-/// Handle to the one currently open segment for users of the WAL to send [`SequencedWalOp`]s to.
-#[derive(Debug)]
-pub struct WalWriter(mpsc::Sender<OpenSegmentFileWriterRequest>);
-
-impl WalWriter {
-    async fn write(&self, data: &[u8]) -> Result<WriteSummary> {
-        OpenSegmentFile::one_command(&self.0, OpenSegmentFileWriterRequest::Write, data.to_vec())
-            .await
+    /// Writes one [`SequencedWalOp`] to the buffer and returns a watch channel for when the buffer
+    /// is flushed and fsync'd to disk.
+    pub fn write_op(&self, op: SequencedWalOp) -> watch::Receiver<Option<WriteResult>> {
+        let mut b = self.buffer.lock();
+        b.ops.push(op);
+        b.flush_notification.clone()
     }
 
-    /// Writes one [`SequencedWalOp`] to disk and returns when it is durable.
-    pub async fn write_op(&self, op: SequencedWalOp) -> Result<WriteSummary> {
-        let proto = ProtoSequencedWalOp::from(op);
-        let encoded = proto.encode_to_vec();
-        self.write(&encoded).await
-    }
-}
-
-/// Handle to list the closed segments and read [`SequencedWalOp`]s from them for replay.
-#[derive(Debug)]
-pub struct WalReader<'a>(&'a Wal);
-
-impl<'a> WalReader<'a> {
-    /// Gets a list of the closed segments
-    pub async fn closed_segments(&self) -> Vec<ClosedSegment> {
-        self.0
-            .closed_segments
-            .read()
-            .await
-            .values()
-            .cloned()
-            .collect()
-    }
-
-    /// Opens a reader for a given segment from the WAL
-    pub async fn reader_for_segment(&self, id: SegmentId) -> Result<ClosedSegmentFileReader> {
-        let path = build_segment_path(&self.0.root, id);
-        ClosedSegmentFileReader::from_path(path).await
-    }
-}
-
-/// Handle to rotate open segments to closed and delete closed segments.
-#[derive(Debug)]
-pub struct WalRotator<'a>(&'a Wal);
-
-impl<'a> WalRotator<'a> {
     /// Closes the currently open segment and opens a new one, returning the closed segment details.
-    pub async fn rotate(&self) -> Result<ClosedSegment> {
-        let closed = OpenSegmentFile::one_command(
-            &self.0.open_segment.tx.clone(),
-            OpenSegmentFileWriterRequest::Rotate,
-            (),
-        )
-        .await?;
-        let previous_value = self
-            .0
-            .closed_segments
-            .write()
-            .await
-            .insert(closed.id, closed.clone());
+    pub fn rotate(&self) -> Result<ClosedSegment> {
+        let new_open_segment =
+            OpenSegmentFileWriter::new_in_directory(&self.root, Arc::clone(&self.next_id_source))
+                .context(UnableToCreateSegmentFileSnafu)?;
+
+        let mut segments = self.segments.lock();
+
+        let closed = std::mem::replace(&mut segments.open_segment, new_open_segment);
+        let closed = closed.close().expect("should convert to closed segmet");
+
+        let previous_value = segments.closed_segments.insert(closed.id(), closed.clone());
         assert!(
             previous_value.is_none(),
             "Should always add new closed segment entries, not replace"
         );
+
         Ok(closed)
+    }
+
+    async fn flush_buffer_background_task(&self) {
+        let mut interval = tokio::time::interval(WAL_FLUSH_INTERVAL);
+
+        loop {
+            interval.tick().await;
+
+            // only write to the disk if there are writes buffered
+            let filled_buffer = {
+                let mut b = self.buffer.lock();
+                if b.ops.is_empty() {
+                    continue;
+                }
+
+                std::mem::replace(&mut *b, WalBuffer::new())
+            };
+
+            // do the encoding while we're not holding any locks
+            let ops: Vec<_> = filled_buffer
+                .ops
+                .into_iter()
+                .map(ProtoSequencedWalOp::from)
+                .collect();
+            let batch = ProtoWalOpBatch { ops };
+            let encoded = batch.encode_to_vec();
+
+            // now write the data and let everyone know how things went
+            let res = {
+                let mut segments = self.segments.lock();
+                match segments.open_segment.write(&encoded) {
+                    Ok(summary) => WriteResult::Ok(summary),
+                    Err(e) => WriteResult::Err(e.to_string()),
+                }
+            };
+
+            // Do not panic if no thread is waiting for the flush notification -
+            // this may be the case if all writes disconnected before the WAL
+            // was flushed.
+            let _ = filled_buffer.notify_flush.send(Some(res));
+        }
     }
 
     /// Deletes the specified segment from disk.
     pub async fn delete(&self, id: SegmentId) -> Result<()> {
         let closed = self
-            .0
+            .segments
+            .lock()
             .closed_segments
-            .write()
-            .await
             .remove(&id)
             .context(SegmentNotFoundSnafu { id })?;
         std::fs::remove_file(&closed.path).context(DeleteClosedSegmentSnafu { path: closed.path })
     }
 }
 
+impl std::fmt::Debug for Wal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Wal")
+            .field("root", &self.root)
+            .field("next_id_source", &self.next_id_source)
+            .finish()
+    }
+}
+
+struct Segments {
+    closed_segments: BTreeMap<SegmentId, ClosedSegment>,
+    open_segment: OpenSegmentFileWriter,
+}
+
+struct WalBuffer {
+    ops: Vec<SequencedWalOp>,
+    notify_flush: tokio::sync::watch::Sender<Option<WriteResult>>,
+    flush_notification: tokio::sync::watch::Receiver<Option<WriteResult>>,
+}
+
+impl WalBuffer {
+    fn new() -> Self {
+        let (tx, rx) = tokio::sync::watch::channel::<Option<WriteResult>>(None);
+
+        Self {
+            ops: vec![],
+            notify_flush: tx,
+            flush_notification: rx,
+        }
+    }
+}
+
+/// A wal operation with a sequence number
 #[derive(Debug, PartialEq, Clone)]
 pub struct SequencedWalOp {
     pub sequence_number: u64,
@@ -393,6 +458,16 @@ pub struct SegmentEntry {
     pub data: Vec<u8>,
 }
 
+/// Result from a WAL flush and fsync. This needs to be cloneable which is why it doesn't
+/// use a regular error type. Also, receivers of this can't really do anything with the
+/// error result other than determining that there was an error and that they should do an
+/// orderly shutdown.
+#[derive(Debug, Clone)]
+pub enum WriteResult {
+    Ok(WriteSummary),
+    Err(String),
+}
+
 /// Summary information after a write
 #[derive(Debug, Copy, Clone)]
 pub struct WriteSummary {
@@ -406,121 +481,30 @@ pub struct WriteSummary {
     checksum: u32,
 }
 
-#[derive(Debug)]
-enum OpenSegmentFileWriterRequest {
-    Write(oneshot::Sender<WriteSummary>, Vec<u8>), // todo Bytes
-    Rotate(oneshot::Sender<ClosedSegment>, ()),
-}
-
-/// An open segment in a WAL.
-#[derive(Debug)]
-struct OpenSegmentFile {
-    tx: mpsc::Sender<OpenSegmentFileWriterRequest>,
-    task: tokio::task::JoinHandle<Result<()>>,
-}
-
-impl OpenSegmentFile {
-    async fn new_in_directory(
-        dir: impl Into<PathBuf>,
-        next_id_source: Arc<AtomicU64>,
-    ) -> Result<Self> {
-        let dir = dir.into();
-        let dir_for_closure = dir.clone();
-        let (tx, rx) = mpsc::channel(10);
-        let task = tokio::task::spawn_blocking(move || {
-            Self::task_main(rx, dir_for_closure, next_id_source)
-        });
-        std::fs::File::open(&dir)
-            .context(OpenSegmentDirectorySnafu { path: dir })?
-            .sync_all()
-            .expect("fsync failure");
-        Ok(Self { tx, task })
-    }
-
-    fn task_main(
-        mut rx: tokio::sync::mpsc::Receiver<OpenSegmentFileWriterRequest>,
-        dir: PathBuf,
-        next_id_source: Arc<AtomicU64>,
-    ) -> Result<()> {
-        let new_writ =
-            || {
-                Ok(blocking::OpenSegmentFileWriter::new_in_directory(
-                    &dir,
-                    Arc::clone(&next_id_source),
-                )
-                .unwrap())
-            };
-        let mut open_write = new_writ()?;
-
-        while let Some(req) = rx.blocking_recv() {
-            use OpenSegmentFileWriterRequest::*;
-
-            match req {
-                Write(tx, data) => {
-                    let x = open_write.write(&data).unwrap();
-                    // Ignore send errors - the caller may have disconnected.
-                    let _ = tx.send(x);
-                }
-
-                Rotate(tx, ()) => {
-                    let old = std::mem::replace(&mut open_write, new_writ()?);
-                    let res = old.close().unwrap();
-                    tx.send(res).unwrap();
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    async fn one_command<Req, Resp, Args>(
-        tx: &mpsc::Sender<OpenSegmentFileWriterRequest>,
-        req: Req,
-        args: Args,
-    ) -> Result<Resp>
-    where
-        Req: FnOnce(oneshot::Sender<Resp>, Args) -> OpenSegmentFileWriterRequest,
-    {
-        let (req_tx, req_rx) = oneshot::channel();
-
-        tx.send(req(req_tx, args)).await.unwrap();
-        Ok(req_rx.await.unwrap())
-    }
-
-    fn write_handle(&self) -> WalWriter {
-        WalWriter(self.tx.clone())
-    }
-
-    async fn rotate(&self) -> Result<ClosedSegment> {
-        Self::one_command(&self.tx, OpenSegmentFileWriterRequest::Rotate, ()).await
-    }
-}
-
-#[derive(Debug)]
-enum ClosedSegmentFileReaderRequest {
-    ReadHeader(oneshot::Sender<blocking::ReaderResult<(FileTypeIdentifier, SegmentIdBytes)>>),
-
-    NextOps(oneshot::Sender<blocking::ReaderResult<Option<SequencedWalOp>>>),
-}
-
-/// Enables reading a particular closed segment's entries.
-#[derive(Debug)]
+/// Reader for a closed segment file
 pub struct ClosedSegmentFileReader {
     id: SegmentId,
-    tx: mpsc::Sender<ClosedSegmentFileReaderRequest>,
-    task: tokio::task::JoinHandle<Result<()>>,
+    file: RawClosedSegmentFileReader<BufReader<File>>,
 }
 
 impl ClosedSegmentFileReader {
-    async fn from_path(path: impl Into<PathBuf>) -> Result<Self> {
-        let path = path.into();
+    /// Get the next batch of sequenced wal ops from the file
+    pub fn next_batch(&mut self) -> Result<Option<Vec<SequencedWalOp>>> {
+        self.file.next_batch().context(UnableToReadNextOpsSnafu)
+    }
 
-        let (tx, rx) = mpsc::channel::<ClosedSegmentFileReaderRequest>(10);
-        let task = tokio::task::spawn_blocking(|| Self::task_main(rx, path));
+    /// Return the segment file id
+    pub fn id(&self) -> SegmentId {
+        self.id
+    }
 
-        let (file_type, id) = Self::one_command(&tx, ClosedSegmentFileReaderRequest::ReadHeader)
-            .await?
-            .context(UnableToReadFileHeaderSnafu)?;
+    /// Open the segment file and read its header, ensuring it is a segment file and reading its id.
+    pub fn from_path(path: impl AsRef<Path>) -> Result<Self> {
+        let path = path.as_ref();
+        let mut file =
+            RawClosedSegmentFileReader::from_path(path).context(UnableToOpenFileSnafu { path })?;
+
+        let (file_type, id) = file.read_header().context(UnableToReadFileHeaderSnafu)?;
 
         ensure!(
             &file_type == FILE_TYPE_IDENTIFIER,
@@ -529,56 +513,15 @@ impl ClosedSegmentFileReader {
 
         let id = SegmentId::from_bytes(id);
 
-        Ok(Self { id, tx, task })
+        Ok(Self { id, file })
     }
+}
 
-    fn task_main(
-        mut rx: mpsc::Receiver<ClosedSegmentFileReaderRequest>,
-        path: PathBuf,
-    ) -> Result<()> {
-        let mut reader = blocking::ClosedSegmentFileReader::from_path(&path)
-            .context(UnableToOpenFileSnafu { path })?;
-
-        while let Some(req) = rx.blocking_recv() {
-            use ClosedSegmentFileReaderRequest::*;
-
-            // We don't care if we can't respond to the request.
-            match req {
-                ReadHeader(tx) => {
-                    tx.send(reader.read_header()).ok();
-                }
-
-                NextOps(tx) => {
-                    tx.send(reader.next_ops()).ok();
-                }
-            };
-        }
-
-        Ok(())
-    }
-
-    async fn one_command<Req, Resp>(
-        tx: &mpsc::Sender<ClosedSegmentFileReaderRequest>,
-        req: Req,
-    ) -> Result<Resp>
-    where
-        Req: FnOnce(oneshot::Sender<Resp>) -> ClosedSegmentFileReaderRequest,
-    {
-        let (req_tx, req_rx) = oneshot::channel();
-        tx.send(req(req_tx))
-            .await
-            .ok()
-            .context(UnableToSendRequestToReaderTaskSnafu)?;
-        req_rx
-            .await
-            .context(UnableToReceiveResponseFromSenderTaskSnafu)
-    }
-
-    /// Return the next [`SequencedWalOp`] from this reader, if any.
-    pub async fn next_op(&mut self) -> Result<Option<SequencedWalOp>> {
-        Self::one_command(&self.tx, ClosedSegmentFileReaderRequest::NextOps)
-            .await?
-            .context(UnableToReadNextOpsSnafu)
+impl std::fmt::Debug for ClosedSegmentFileReader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ClosedSegmentFileReader")
+            .field("id", &self.id)
+            .finish()
     }
 }
 
@@ -613,13 +556,9 @@ mod tests {
     use mutable_batch_lp::lines_to_batches;
 
     #[tokio::test]
-    async fn segment_file_write_and_read_ops() {
+    async fn wal_write_and_read_ops() {
         let dir = test_helpers::tmp_dir().unwrap();
-        let next_id_source = Arc::new(AtomicU64::new(0));
-        let segment = OpenSegmentFile::new_in_directory(dir.path(), next_id_source)
-            .await
-            .unwrap();
-        let writer = segment.write_handle();
+        let wal = Wal::new(&dir.path()).await.unwrap();
 
         let w1 = test_data("m1,t=foo v=1i 1");
         let w2 = test_data("m1,t=foo v=2i 2");
@@ -641,29 +580,20 @@ mod tests {
             op: WalOp::Persist(test_persist()),
         };
 
-        writer.write_op(op1.clone()).await.unwrap();
-        writer.write_op(op2.clone()).await.unwrap();
-        writer.write_op(op3.clone()).await.unwrap();
-        writer.write_op(op4.clone()).await.unwrap();
+        wal.write_op(op1.clone());
+        wal.write_op(op2.clone());
+        wal.write_op(op3.clone());
+        wal.write_op(op4.clone()).changed().await.unwrap();
 
-        let closed = segment.rotate().await.unwrap();
+        let closed = wal.rotate().unwrap();
 
-        let mut reader = ClosedSegmentFileReader::from_path(&closed.path)
-            .await
-            .unwrap();
-        let read_op1 = reader.next_op().await.unwrap().unwrap();
-        assert_eq!(op1, read_op1);
+        let mut reader = wal.reader_for_segment(closed.id).unwrap();
 
-        let read_op2 = reader.next_op().await.unwrap().unwrap();
-        assert_eq!(op2, read_op2);
-
-        let read_op3 = reader.next_op().await.unwrap().unwrap();
-        assert_eq!(op3, read_op3);
-
-        let read_op4 = reader.next_op().await.unwrap().unwrap();
-        assert_eq!(op4, read_op4);
-
-        assert!(reader.next_op().await.unwrap().is_none());
+        let mut ops = vec![];
+        while let Ok(Some(mut batch)) = reader.next_batch() {
+            ops.append(&mut batch);
+        }
+        assert_eq!(vec![op1, op2, op3, op4], ops);
     }
 
     // open wal with files that aren't segments (should log and skip)
@@ -675,10 +605,9 @@ mod tests {
         let dir = test_helpers::tmp_dir().unwrap();
 
         let wal = Wal::new(dir.path()).await.unwrap();
-        let wal_reader = wal.read_handle();
 
         // Just-created WALs have no closed segments.
-        let closed = wal_reader.closed_segments().await;
+        let closed = wal.closed_segments();
         assert!(
             closed.is_empty(),
             "Expected empty closed segments; got {:?}",
@@ -686,28 +615,21 @@ mod tests {
         );
 
         // No writes, but rotating is totally fine
-        let wal_rotator = wal.rotation_handle();
-        let closed_segment_details = wal_rotator.rotate().await.unwrap();
+        let closed_segment_details = wal.rotate().unwrap();
         assert_eq!(closed_segment_details.size(), 16);
 
         // There's one closed segment
-        let closed = wal_reader.closed_segments().await;
+        let closed = wal.closed_segments();
         let closed_segment_ids: Vec<_> = closed.iter().map(|c| c.id()).collect();
         assert_eq!(closed_segment_ids, &[closed_segment_details.id()]);
 
         // There aren't any entries in the closed segment because nothing was written
-        let mut reader = wal_reader
-            .reader_for_segment(closed_segment_details.id())
-            .await
-            .unwrap();
-        assert!(reader.next_op().await.unwrap().is_none());
+        let mut reader = wal.reader_for_segment(closed_segment_details.id()).unwrap();
+        assert!(reader.next_batch().unwrap().is_none());
 
         // Can delete an empty segment, leaving no closed segments again
-        wal_rotator
-            .delete(closed_segment_details.id())
-            .await
-            .unwrap();
-        let closed = wal_reader.closed_segments().await;
+        wal.delete(closed_segment_details.id()).await.unwrap();
+        let closed = wal.closed_segments();
         assert!(
             closed.is_empty(),
             "Expected empty closed segments; got {:?}",

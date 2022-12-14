@@ -2,7 +2,9 @@ use async_trait::async_trait;
 use dml::DmlOperation;
 use generated_types::influxdata::iox::wal::v1::sequenced_wal_op::Op;
 use mutable_batch_pb::encode::encode_write;
-use wal::SequencedWalOp;
+use std::sync::Arc;
+use tokio::sync::watch::Receiver;
+use wal::{SequencedWalOp, WriteResult};
 
 use crate::dml_sink::{DmlError, DmlSink};
 
@@ -11,7 +13,7 @@ use super::traits::WalAppender;
 /// A [`DmlSink`] decorator that ensures any [`DmlOperation`] is committed to
 /// the write-ahead log before passing the operation to the inner [`DmlSink`].
 #[derive(Debug)]
-pub(crate) struct WalSink<T, W = wal::WalWriter> {
+pub(crate) struct WalSink<T, W = wal::Wal> {
     /// The inner chain of [`DmlSink`] that a [`DmlOperation`] is passed to once
     /// committed to the write-ahead log.
     inner: T,
@@ -49,16 +51,27 @@ where
         // future completes and before the inner DmlSink call returns Ready.
 
         // Append the operation to the WAL
-        self.wal.append(&op).await?;
+        let mut write_result = self.wal.append(&op);
 
-        // And once durable, pass it to the inner handler.
-        self.inner.apply(op).await.map_err(Into::into)
+        // Pass it to the inner handler while we wait for the write to be made durable
+        self.inner.apply(op).await.map_err(Into::into)?;
+
+        // wait for the write to be durable before returning
+        write_result
+            .changed()
+            .await
+            .expect("unable to get WAL write result");
+
+        let res = write_result.borrow();
+        match res.as_ref().expect("WAL should always return result") {
+            WriteResult::Ok(_) => Ok(()),
+            WriteResult::Err(ref e) => Err(DmlError::Wal(e.to_string())),
+        }
     }
 }
 
-#[async_trait]
-impl WalAppender for wal::WalWriter {
-    async fn append(&self, op: &DmlOperation) -> Result<(), wal::Error> {
+impl WalAppender for Arc<wal::Wal> {
+    fn append(&self, op: &DmlOperation) -> Receiver<Option<WriteResult>> {
         let sequence_number = op
             .meta()
             .sequence()
@@ -77,9 +90,6 @@ impl WalAppender for wal::WalWriter {
             sequence_number,
             op: wal_op,
         })
-        .await?;
-
-        Ok(())
     }
 }
 
@@ -120,9 +130,8 @@ mod tests {
             let wal = Wal::new(dir.path())
                 .await
                 .expect("failed to initialise WAL");
-            let wal_handle = wal.write_handle().await;
 
-            let wal_sink = WalSink::new(Arc::clone(&inner), wal_handle);
+            let wal_sink = WalSink::new(Arc::clone(&inner), wal);
 
             // Apply the op through the decorator
             wal_sink
@@ -138,22 +147,20 @@ mod tests {
         let wal = Wal::new(dir.path())
             .await
             .expect("failed to initialise WAL");
-        let read_handle = wal.read_handle();
 
         // Identify the segment file
-        let files = read_handle.closed_segments().await;
+        let files = wal.closed_segments();
         let file = assert_matches!(&*files, [f] => f, "expected 1 file");
 
         // Open a reader
-        let mut reader = read_handle
+        let mut reader = wal
             .reader_for_segment(file.id())
-            .await
             .expect("failed to obtain reader");
 
         // Obtain all the ops in the file
         let mut ops = Vec::new();
-        while let Ok(Some(op)) = reader.next_op().await {
-            ops.push(op);
+        while let Ok(Some(mut batch)) = reader.next_batch() {
+            ops.append(&mut batch);
         }
 
         // Extract the op payload read from the WAL

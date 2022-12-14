@@ -14,7 +14,7 @@ pub enum DmlError {
 
     /// An error appending the [`DmlOperation`] to the write-ahead log.
     #[error("wal commit failure: {0}")]
-    Wal(#[from] wal::Error),
+    Wal(String),
 }
 
 /// A [`DmlSink`] handles [`DmlOperation`] instances in some abstract way.

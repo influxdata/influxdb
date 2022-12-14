@@ -30,3 +30,9 @@ message SequencedWalOp {
     PersistOp persist = 4;
   }
 }
+
+// Collection of WAL operations (they get batched into a single write into the WAL)
+message WalOpBatch {
+  // the ops
+  repeated SequencedWalOp ops = 1;
+}

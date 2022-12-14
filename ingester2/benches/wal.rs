@@ -21,14 +21,13 @@ async fn init() -> tempfile::TempDir {
         .expect("failed to initialise WAL to write");
 
     // Write a single line of LP to the WAL
-    wal.write_handle()
-        .await
-        .write_op(SequencedWalOp {
-            sequence_number: 42,
-            op: WalOp::Write(lp_to_writes("bananas,tag1=A,tag2=B val=42i 1")),
-        })
-        .await
-        .expect("failed to write entry");
+    wal.write_op(SequencedWalOp {
+        sequence_number: 42,
+        op: WalOp::Write(lp_to_writes("bananas,tag1=A,tag2=B val=42i 1")),
+    })
+    .changed()
+    .await
+    .expect("flush fail");
 
     dir
 }

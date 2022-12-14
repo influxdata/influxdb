@@ -5,39 +5,37 @@ use generated_types::influxdata::{
     pbdata::v1::{DatabaseBatch, TableBatch},
 };
 use mutable_batch_lp::lines_to_batches;
-use wal::SequencedWalOp;
+use tokio::sync::watch;
+use wal::{SequencedWalOp, WriteResult, WriteSummary};
 
 #[tokio::test]
 async fn crud() {
     let dir = test_helpers::tmp_dir().unwrap();
 
     let wal = wal::Wal::new(dir.path()).await.unwrap();
-    let wal_reader = wal.read_handle();
 
     // Just-created WALs have no closed segments.
-    let closed = wal_reader.closed_segments().await;
+    let closed = wal.closed_segments();
     assert!(
         closed.is_empty(),
         "Expected empty closed segments; got {:?}",
         closed
     );
 
-    let open = wal.write_handle().await;
-
     // Can write an entry to the open segment
     let op = arbitrary_sequenced_wal_op(42);
-    let summary = open.write_op(op).await.unwrap();
-    assert_eq!(summary.total_bytes, 122);
-    assert_eq!(summary.bytes_written, 106);
+    let summary = unwrap_summary(wal.write_op(op)).await;
+    assert_eq!(summary.total_bytes, 124);
+    assert_eq!(summary.bytes_written, 108);
 
     // Can write another entry; total_bytes accumulates
     let op = arbitrary_sequenced_wal_op(43);
-    let summary = open.write_op(op).await.unwrap();
-    assert_eq!(summary.total_bytes, 228);
-    assert_eq!(summary.bytes_written, 106);
+    let summary = unwrap_summary(wal.write_op(op)).await;
+    assert_eq!(summary.total_bytes, 232);
+    assert_eq!(summary.bytes_written, 108);
 
     // Still no closed segments
-    let closed = wal_reader.closed_segments().await;
+    let closed = wal.closed_segments();
     assert!(
         closed.is_empty(),
         "Expected empty closed segments; got {:?}",
@@ -45,31 +43,24 @@ async fn crud() {
     );
 
     // Can't read entries from the open segment; have to rotate first
-    let wal_rotator = wal.rotation_handle();
-    let closed_segment_details = wal_rotator.rotate().await.unwrap();
-    assert_eq!(closed_segment_details.size(), 228);
+    let closed_segment_details = wal.rotate().unwrap();
+    assert_eq!(closed_segment_details.size(), 232);
 
     // There's one closed segment
-    let closed = wal_reader.closed_segments().await;
+    let closed = wal.closed_segments();
     let closed_segment_ids: Vec<_> = closed.iter().map(|c| c.id()).collect();
     assert_eq!(closed_segment_ids, &[closed_segment_details.id()]);
 
     // Can read the written entries from the closed segment
-    let mut reader = wal_reader
-        .reader_for_segment(closed_segment_details.id())
-        .await
-        .unwrap();
-    let op = reader.next_op().await.unwrap().unwrap();
-    assert_eq!(op.sequence_number, 42);
-    let op = reader.next_op().await.unwrap().unwrap();
-    assert_eq!(op.sequence_number, 43);
+    let mut reader = wal.reader_for_segment(closed_segment_details.id()).unwrap();
+    let op = reader.next_batch().unwrap().unwrap();
+    assert_eq!(op[0].sequence_number, 42);
+    let op = reader.next_batch().unwrap().unwrap();
+    assert_eq!(op[0].sequence_number, 43);
 
     // Can delete a segment, leaving no closed segments again
-    wal_rotator
-        .delete(closed_segment_details.id())
-        .await
-        .unwrap();
-    let closed = wal_reader.closed_segments().await;
+    wal.delete(closed_segment_details.id()).await.unwrap();
+    let closed = wal.closed_segments();
     assert!(
         closed.is_empty(),
         "Expected empty closed segments; got {:?}",
@@ -85,40 +76,31 @@ async fn replay() {
     // WAL.
     {
         let wal = wal::Wal::new(dir.path()).await.unwrap();
-        let open = wal.write_handle().await;
         let op = arbitrary_sequenced_wal_op(42);
-        open.write_op(op).await.unwrap();
-        let wal_rotator = wal.rotation_handle();
-        wal_rotator.rotate().await.unwrap();
+        let _ = unwrap_summary(wal.write_op(op)).await;
+        wal.rotate().unwrap();
         let op = arbitrary_sequenced_wal_op(43);
-        open.write_op(op).await.unwrap();
+        let _ = unwrap_summary(wal.write_op(op)).await;
     }
 
     // Create a new WAL instance with the same directory to replay from the files
     let wal = wal::Wal::new(dir.path()).await.unwrap();
-    let wal_reader = wal.read_handle();
 
     // There's two closed segments -- one for the previously closed segment, one for the previously
     // open segment. Replayed WALs treat all files as closed, because effectively they are.
-    let closed = wal_reader.closed_segments().await;
+    let closed = wal.closed_segments();
     let closed_segment_ids: Vec<_> = closed.iter().map(|c| c.id()).collect();
     assert_eq!(closed_segment_ids.len(), 2);
 
     // Can read the written entries from the previously closed segment
-    let mut reader = wal_reader
-        .reader_for_segment(closed_segment_ids[0])
-        .await
-        .unwrap();
-    let op = reader.next_op().await.unwrap().unwrap();
-    assert_eq!(op.sequence_number, 42);
+    let mut reader = wal.reader_for_segment(closed_segment_ids[0]).unwrap();
+    let op = reader.next_batch().unwrap().unwrap();
+    assert_eq!(op[0].sequence_number, 42);
 
     // Can read the written entries from the previously open segment
-    let mut reader = wal_reader
-        .reader_for_segment(closed_segment_ids[1])
-        .await
-        .unwrap();
-    let op = reader.next_op().await.unwrap().unwrap();
-    assert_eq!(op.sequence_number, 43);
+    let mut reader = wal.reader_for_segment(closed_segment_ids[1]).unwrap();
+    let op = reader.next_batch().unwrap().unwrap();
+    assert_eq!(op[0].sequence_number, 43);
 }
 
 #[tokio::test]
@@ -128,38 +110,34 @@ async fn ordering() {
     // Create a WAL with two closed segments and an open segment with entries, then drop the WAL
     {
         let wal = wal::Wal::new(dir.path()).await.unwrap();
-        let open = wal.write_handle().await;
-        let wal_rotator = wal.rotation_handle();
 
         let op = arbitrary_sequenced_wal_op(42);
-        open.write_op(op).await.unwrap();
-        wal_rotator.rotate().await.unwrap();
+        let _ = unwrap_summary(wal.write_op(op)).await;
+        wal.rotate().unwrap();
 
         let op = arbitrary_sequenced_wal_op(43);
-        open.write_op(op).await.unwrap();
-        wal_rotator.rotate().await.unwrap();
+        let _ = unwrap_summary(wal.write_op(op)).await;
+        wal.rotate().unwrap();
 
         let op = arbitrary_sequenced_wal_op(44);
-        open.write_op(op).await.unwrap();
+        let _ = unwrap_summary(wal.write_op(op)).await;
     }
 
     // Create a new WAL instance with the same directory to replay from the files
     let wal = wal::Wal::new(dir.path()).await.unwrap();
-    let wal_reader = wal.read_handle();
-    let wal_rotator = wal.rotation_handle();
 
     // There are 3 segments (from the 2 closed and 1 open) and they're in the order they were
     // created
-    let closed = wal_reader.closed_segments().await;
+    let closed = wal.closed_segments();
     let closed_segment_ids: Vec<_> = closed.iter().map(|c| c.id().get()).collect();
     assert_eq!(closed_segment_ids, &[0, 1, 2]);
 
     // The open segment is next in order
-    let closed_segment_details = wal_rotator.rotate().await.unwrap();
+    let closed_segment_details = wal.rotate().unwrap();
     assert_eq!(closed_segment_details.id().get(), 3);
 
     // Creating new files after replay are later in the ordering
-    let closed_segment_details = wal_rotator.rotate().await.unwrap();
+    let closed_segment_details = wal.rotate().unwrap();
     assert_eq!(closed_segment_details.id().get(), 4);
 }
 
@@ -221,5 +199,14 @@ fn test_data(lp: &str) -> DatabaseBatch {
         database_id,
         partition_key,
         table_batches,
+    }
+}
+
+async fn unwrap_summary(mut res: watch::Receiver<Option<WriteResult>>) -> WriteSummary {
+    res.changed().await.unwrap();
+
+    match res.borrow().clone().unwrap() {
+        WriteResult::Ok(summary) => summary,
+        WriteResult::Err(err) => panic!("error getting write summary: {}", err),
     }
 }

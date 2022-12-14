@@ -1,10 +1,11 @@
+use std::time::Instant;
 use data_types::{NamespaceId, PartitionKey, Sequence, SequenceNumber, TableId};
 use dml::{DmlMeta, DmlOperation, DmlWrite};
 use generated_types::influxdata::iox::wal::v1::sequenced_wal_op::Op;
 use mutable_batch_pb::decode::decode_database_batch;
 use observability_deps::tracing::*;
 use thiserror::Error;
-use wal::Wal;
+use wal::{SequencedWalOp, Wal};
 
 use crate::{
     dml_sink::{DmlError, DmlSink},
@@ -44,13 +45,11 @@ pub async fn replay<T>(wal: &Wal, sink: &T) -> Result<Option<SequenceNumber>, Wa
 where
     T: DmlSink,
 {
-    let read_handle = wal.read_handle();
-
     // Read the set of files to replay.
     //
     // The WAL yields files ordered from oldest to newest, ensuring the ordering
     // of this replay is correct.
-    let files = read_handle.closed_segments().await;
+    let files = wal.closed_segments();
     if files.is_empty() {
         info!("no wal replay files found");
         return Ok(None);
@@ -69,9 +68,8 @@ where
         let file_number = index + 1;
 
         // Read the segment
-        let reader = read_handle
+        let reader = wal
             .reader_for_segment(file.id())
-            .await
             .map_err(WalReplayError::OpenSegment)?;
 
         // Emit a log entry so progress can be tracked (and a problematic file
@@ -101,7 +99,7 @@ where
 
                 // A failure to delete an empty file should not prevent WAL
                 // replay from continuing.
-                if let Err(error) = wal.rotation_handle().delete(file.id()).await {
+                if let Err(error) = wal.delete(file.id()).await {
                     error!(
                         file_number,
                         n_files,
@@ -133,64 +131,66 @@ where
     T: DmlSink,
 {
     let mut max_sequence = None;
+    let start = Instant::now();
 
     loop {
-        let (sequence_number, op) = match file.next_op().await {
-            Ok(Some(v)) => (v.sequence_number, v.op),
+        let ops = match file.next_batch() {
+            Ok(Some(v)) => v,
             Ok(None) => {
                 // This file is complete, return the last observed sequence
                 // number.
+                debug!("wal file replayed in {:?}", start.elapsed());
                 return Ok(max_sequence);
             }
             Err(e) => return Err(WalReplayError::ReadEntry(e)),
         };
 
-        // For debug logging, emit a log line for each entry in the WAL file to
-        // help identify problematic WAL entries.
-        debug!(?op, sequence_number, "read wal op");
+        for op in ops {
+            let SequencedWalOp{sequence_number, op} = op;
 
-        let sequence_number =
-            SequenceNumber::new(i64::try_from(sequence_number).expect("sequence number overflow"));
+            let sequence_number =
+                SequenceNumber::new(i64::try_from(sequence_number).expect("sequence number overflow"));
 
-        max_sequence = max_sequence.max(Some(sequence_number));
+            max_sequence = max_sequence.max(Some(sequence_number));
 
-        let op = match op {
-            Op::Write(w) => w,
-            Op::Delete(_) => unreachable!(),
-            Op::Persist(_) => unreachable!(),
-        };
+            let op = match op {
+                Op::Write(w) => w,
+                Op::Delete(_) => unreachable!(),
+                Op::Persist(_) => unreachable!(),
+            };
 
-        debug!(?op, sequence_number = sequence_number.get(), "apply wal op");
+            debug!(?op, sequence_number = sequence_number.get(), "apply wal op");
 
-        // Reconstruct the DML operation
-        let batches = decode_database_batch(&op)?;
-        let namespace_id = NamespaceId::new(op.database_id);
-        let partition_key = PartitionKey::from(op.partition_key);
+            // Reconstruct the DML operation
+            let batches = decode_database_batch(&op)?;
+            let namespace_id = NamespaceId::new(op.database_id);
+            let partition_key = PartitionKey::from(op.partition_key);
 
-        let op = DmlWrite::new(
-            namespace_id,
-            batches
-                .into_iter()
-                .map(|(k, v)| (TableId::new(k), v))
-                .collect(),
-            partition_key,
-            // The tracing context should be propagated over the RPC boundary.
-            DmlMeta::sequenced(
-                Sequence {
-                    shard_index: TRANSITION_SHARD_INDEX, // TODO: remove this from DmlMeta
-                    sequence_number,
-                },
-                iox_time::Time::MAX, // TODO: remove this from DmlMeta
-                // TODO: A tracing context should be added for WAL replay.
-                None,
-                42, // TODO: remove this from DmlMeta
-            ),
-        );
+            let op = DmlWrite::new(
+                namespace_id,
+                batches
+                    .into_iter()
+                    .map(|(k, v)| (TableId::new(k), v))
+                    .collect(),
+                partition_key,
+                // The tracing context should be propagated over the RPC boundary.
+                DmlMeta::sequenced(
+                    Sequence {
+                        shard_index: TRANSITION_SHARD_INDEX, // TODO: remove this from DmlMeta
+                        sequence_number,
+                    },
+                    iox_time::Time::MAX, // TODO: remove this from DmlMeta
+                    // TODO: A tracing context should be added for WAL replay.
+                    None,
+                    42, // TODO: remove this from DmlMeta
+                ),
+            );
 
-        // Apply the operation to the provided DML sink
-        sink.apply(DmlOperation::Write(op))
-            .await
-            .map_err(Into::<DmlError>::into)?;
+            // Apply the operation to the provided DML sink
+            sink.apply(DmlOperation::Write(op))
+                .await
+                .map_err(Into::<DmlError>::into)?;
+        }
     }
 }
 
@@ -254,9 +254,8 @@ mod tests {
             let wal = Wal::new(dir.path())
                 .await
                 .expect("failed to initialise WAL");
-            let wal_handle = wal.write_handle().await;
 
-            let wal_sink = WalSink::new(Arc::clone(&inner), wal_handle);
+            let wal_sink = WalSink::new(Arc::clone(&inner), Arc::clone(&wal));
 
             // Apply the first op through the decorator
             wal_sink
@@ -270,10 +269,7 @@ mod tests {
                 .expect("wal should not error");
 
             // Rotate the log file
-            wal.rotation_handle()
-                .rotate()
-                .await
-                .expect("failed to rotate WAL file");
+            wal.rotate().expect("failed to rotate WAL file");
 
             // Write the third op
             wal_sink
