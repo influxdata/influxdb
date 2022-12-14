@@ -5,12 +5,10 @@ pub(crate) mod all_in_one;
 mod compactor;
 mod garbage_collector;
 mod ingester;
-#[cfg(feature = "rpc_write")]
 mod ingester2;
 mod main;
 mod querier;
 mod router;
-#[cfg(feature = "rpc_write")]
 mod router_rpc_write;
 mod test;
 
@@ -29,14 +27,12 @@ pub enum Error {
     #[snafu(display("Error in router subcommand: {}", source))]
     RouterError { source: router::Error },
 
-    #[cfg(feature = "rpc_write")]
     #[snafu(display("Error in router-rpc-write subcommand: {}", source))]
     RouterRpcWriteError { source: router_rpc_write::Error },
 
     #[snafu(display("Error in ingester subcommand: {}", source))]
     IngesterError { source: ingester::Error },
 
-    #[cfg(feature = "rpc_write")]
     #[snafu(display("Error in ingester2 subcommand: {}", source))]
     Ingester2Error { source: ingester2::Error },
 
@@ -67,10 +63,8 @@ impl Config {
             Some(Command::GarbageCollector(config)) => config.run_config.logging_config(),
             Some(Command::Querier(config)) => config.run_config.logging_config(),
             Some(Command::Router(config)) => config.run_config.logging_config(),
-            #[cfg(feature = "rpc_write")]
             Some(Command::RouterRpcWrite(config)) => config.run_config.logging_config(),
             Some(Command::Ingester(config)) => config.run_config.logging_config(),
-            #[cfg(feature = "rpc_write")]
             Some(Command::Ingester2(config)) => config.run_config.logging_config(),
             Some(Command::AllInOne(config)) => &config.logging_config,
             Some(Command::Test(config)) => config.run_config.logging_config(),
@@ -90,14 +84,12 @@ enum Command {
     Router(router::Config),
 
     /// Run the server in router mode using the RPC write path.
-    #[cfg(feature = "rpc_write")]
     RouterRpcWrite(router_rpc_write::Config),
 
     /// Run the server in ingester mode
     Ingester(ingester::Config),
 
     /// Run the server in ingester2 mode
-    #[cfg(feature = "rpc_write")]
     Ingester2(ingester2::Config),
 
     /// Run the server in "all in one" mode (Default)
@@ -123,12 +115,10 @@ pub async fn command(config: Config) -> Result<()> {
             .context(GarbageCollectorSnafu),
         Some(Command::Querier(config)) => querier::command(config).await.context(QuerierSnafu),
         Some(Command::Router(config)) => router::command(config).await.context(RouterSnafu),
-        #[cfg(feature = "rpc_write")]
         Some(Command::RouterRpcWrite(config)) => router_rpc_write::command(config)
             .await
             .context(RouterRpcWriteSnafu),
         Some(Command::Ingester(config)) => ingester::command(config).await.context(IngesterSnafu),
-        #[cfg(feature = "rpc_write")]
         Some(Command::Ingester2(config)) => {
             ingester2::command(config).await.context(Ingester2Snafu)
         }

@@ -152,9 +152,9 @@ impl MiniCluster {
             .with_compactor_config(compactor_config)
     }
 
-    pub async fn create_non_shared_rpc_write(database_url: String) -> Self {
-        let ingester_config = TestConfig::new_ingester_rpc_write(&database_url);
-        let router_config = TestConfig::new_router_rpc_write(&ingester_config);
+    pub async fn create_non_shared2(database_url: String) -> Self {
+        let ingester_config = TestConfig::new_ingester2(&database_url);
+        let router_config = TestConfig::new_router2(&ingester_config);
 
         // Set up the cluster  ====================================
         Self::new()

@@ -4,9 +4,7 @@ use crate::process_info::setup_metric_registry;
 
 use super::main;
 use clap_blocks::{
-    catalog_dsn::CatalogDsnConfig,
-    object_store::make_object_store,
-    querier::{IngesterAddresses, QuerierConfig},
+    catalog_dsn::CatalogDsnConfig, object_store::make_object_store, querier::QuerierConfig,
     run_config::RunConfig,
 };
 use iox_query::exec::Executor;
@@ -98,14 +96,14 @@ pub async fn command(config: Config) -> Result<(), Error> {
     let num_threads = num_query_threads.unwrap_or_else(num_cpus::get);
     info!(%num_threads, "using specified number of threads per thread pool");
 
-    let ingester_addresses = config.querier_config.ingester_addresses()?;
-    if config.querier_config.rpc_write() && matches!(ingester_addresses, IngesterAddresses::List(_))
-    {
+    let rpc_write = std::env::var("INFLUXDB_IOX_MODE").is_ok();
+    if rpc_write {
         info!("using the RPC write path");
     } else {
         info!("using the write buffer path");
     }
 
+    let ingester_addresses = config.querier_config.ingester_addresses()?;
     info!(?ingester_addresses, "using ingester addresses");
 
     let exec = Arc::new(Executor::new(
@@ -122,6 +120,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
         time_provider,
         ingester_addresses,
         querier_config: config.querier_config,
+        rpc_write,
     })
     .await?;
 

@@ -10,7 +10,7 @@ use ioxd_common::{
     server_type::{CommonServerState, CommonServerStateError},
     Service,
 };
-use ioxd_router::create_router_grpc_write_server_type;
+use ioxd_router::create_router2_server_type;
 use object_store::DynObjectStore;
 use object_store_metrics::ObjectStoreMetrics;
 use observability_deps::tracing::*;
@@ -70,7 +70,7 @@ pub async fn command(config: Config) -> Result<()> {
 
     let catalog = config
         .catalog_dsn
-        .get_catalog("router_rpc_write", Arc::clone(&metrics))
+        .get_catalog("router2", Arc::clone(&metrics))
         .await?;
 
     let object_store = make_object_store(config.run_config.object_store_config())
@@ -82,7 +82,7 @@ pub async fn command(config: Config) -> Result<()> {
         &metrics,
     ));
 
-    let server_type = create_router_grpc_write_server_type(
+    let server_type = create_router2_server_type(
         &common_state,
         Arc::clone(&metrics),
         catalog,
@@ -91,7 +91,7 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .await?;
 
-    info!("starting router_rpc_write");
+    info!("starting router2");
     let services = vec![Service::create(server_type, common_state.run_config())];
     Ok(main::main(common_state, services, metrics).await?)
 }

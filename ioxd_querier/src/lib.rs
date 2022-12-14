@@ -150,6 +150,7 @@ pub struct QuerierServerTypeArgs<'a> {
     pub time_provider: Arc<dyn TimeProvider>,
     pub ingester_addresses: IngesterAddresses,
     pub querier_config: QuerierConfig,
+    pub rpc_write: bool,
 }
 
 #[derive(Debug, Error)]
@@ -186,23 +187,36 @@ pub async fn create_querier_server_type(
         );
     assert!(existing.is_none());
 
-    let rpc_write = args.querier_config.rpc_write()
-        && matches!(args.ingester_addresses, IngesterAddresses::List(_));
-
     let ingester_connection = match args.ingester_addresses {
         IngesterAddresses::None => None,
-        IngesterAddresses::ByShardIndex(map) => Some(create_ingester_connections(
-            Some(map),
-            None,
-            Arc::clone(&catalog_cache),
-            args.querier_config.ingester_circuit_breaker_threshold,
-        )),
-        IngesterAddresses::List(list) => Some(create_ingester_connections(
-            None,
-            Some(list),
-            Arc::clone(&catalog_cache),
-            args.querier_config.ingester_circuit_breaker_threshold,
-        )),
+        IngesterAddresses::ByShardIndex(map) => {
+            if args.rpc_write {
+                panic!(
+                    "`INFLUXDB_IOX_MODE` is set but shard to ingester mappings were provided; \
+                    either unset `INFLUXDB_IOX_MODE` or specify `--ingester-addresses` instead"
+                );
+            }
+            Some(create_ingester_connections(
+                Some(map),
+                None,
+                Arc::clone(&catalog_cache),
+                args.querier_config.ingester_circuit_breaker_threshold,
+            ))
+        }
+        IngesterAddresses::List(list) => {
+            if !args.rpc_write {
+                panic!(
+                    "`INFLUXDB_IOX_MODE` is unset but ingester addresses were provided; \
+                    either set `INFLUXDB_IOX_MODE` or specify shard to ingester mappings instead"
+                );
+            }
+            Some(create_ingester_connections(
+                None,
+                Some(list),
+                Arc::clone(&catalog_cache),
+                args.querier_config.ingester_circuit_breaker_threshold,
+            ))
+        }
     };
 
     let database = Arc::new(
@@ -212,7 +226,7 @@ pub async fn create_querier_server_type(
             args.exec,
             ingester_connection,
             args.querier_config.max_concurrent_queries(),
-            rpc_write,
+            args.rpc_write,
         )
         .await?,
     );
