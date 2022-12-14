@@ -281,7 +281,11 @@ pub enum FlatIngesterQueryResponse {
         /// Partition persistence status.
         status: PartitionStatus,
 
-        /// Count of persisted Parquet files for this partition by this ingester instance.
+        /// Count of persisted Parquet files for the [`PartitionData`] instance this
+        /// [`PartitionResponse`] was generated from.
+        ///
+        /// [`PartitionData`]: crate::buffer_tree::partition::PartitionData
+        /// [`PartitionResponse`]: crate::query::partition_response::PartitionResponse
         completed_persistence_count: u64,
     },
 

@@ -258,6 +258,7 @@ impl PartitionData {
         self.completed_persistence_count += 1;
 
         debug!(
+            persistence_count = %self.completed_persistence_count,
             namespace_id = %self.namespace_id,
             table_id = %self.table_id,
             table_name = %self.table_name,
@@ -272,7 +273,7 @@ impl PartitionData {
         self.partition_id
     }
 
-    /// Return the count of persisted Parquet files for this partition by this ingester instance.
+    /// Return the count of persisted Parquet files for this [`PartitionData`] instance.
     pub(crate) fn completed_persistence_count(&self) -> u64 {
         self.completed_persistence_count
     }
