@@ -13,7 +13,7 @@ use crate::{
 
 /// Errors returned when replaying the write-ahead log.
 #[derive(Debug, Error)]
-pub(crate) enum WalReplayError {
+pub enum WalReplayError {
     /// An error initialising a segment file reader.
     #[error("failed to open wal segment for replay: {0}")]
     OpenSegment(wal::Error),
@@ -40,7 +40,7 @@ pub(crate) enum WalReplayError {
 
 /// Replay all the entries in `wal` to `sink`, returning the maximum observed
 /// [`SequenceNumber`].
-pub(crate) async fn replay<T>(wal: &Wal, sink: &T) -> Result<Option<SequenceNumber>, WalReplayError>
+pub async fn replay<T>(wal: &Wal, sink: &T) -> Result<Option<SequenceNumber>, WalReplayError>
 where
     T: DmlSink,
 {

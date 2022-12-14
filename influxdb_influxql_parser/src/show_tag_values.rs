@@ -120,8 +120,8 @@ pub type InList = OneOrMore<Identifier>;
 
 impl Display for InList {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        Display::fmt(self.first(), f)?;
-        for arg in self.rest() {
+        Display::fmt(self.head(), f)?;
+        for arg in self.tail() {
             write!(f, ", {}", arg)?;
         }
         Ok(())

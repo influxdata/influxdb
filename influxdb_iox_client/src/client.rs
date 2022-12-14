@@ -11,7 +11,7 @@ pub mod delete;
 pub mod error;
 
 #[cfg(feature = "flight")]
-/// Client for query API (based on Arrow flight)
+/// Client for IOx Flight API (native query API)
 pub mod flight;
 
 /// Client for health checking API

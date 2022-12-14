@@ -285,7 +285,7 @@ impl SeriesSet {
 
         let tags = self.create_frame_tags(schema.field(index.value_index).name());
 
-        let mut timestamps = compute::nullif(
+        let mut timestamps = compute::nullif::nullif(
             batch.column(index.timestamp_index),
             &compute::is_null(array).expect("is_null"),
         )

@@ -1,12 +1,13 @@
 use futures::{stream, StreamExt};
 use observability_deps::tracing::*;
 use std::{future, sync::Arc, time::Duration};
+use tokio::time::Instant;
 
 use crate::{buffer_tree::BufferTree, persist::handle::PersistHandle};
 
 /// [`PERSIST_ENQUEUE_CONCURRENCY`] defines the parallelism used when acquiring
 /// partition locks and marking the partition as persisting.
-const PERSIST_ENQUEUE_CONCURRENCY: usize = 10;
+const PERSIST_ENQUEUE_CONCURRENCY: usize = 5;
 
 /// Rotate the `wal` segment file every `period` duration of time.
 pub(crate) async fn periodic_rotation(
@@ -90,8 +91,16 @@ pub(crate) async fn periodic_rotation(
         let notifications = stream::iter(buffer.partitions())
             .filter_map(|p| {
                 async move {
+                    let t = Instant::now();
+
                     // Skip this partition if there is no data to persist
                     let data = p.lock().mark_persisting()?;
+
+                    debug!(
+                        partition_id=data.partition_id().get(),
+                        lock_wait=?Instant::now().duration_since(t),
+                        "read data for persistence"
+                    );
 
                     // Enqueue the partition for persistence.
                     //
@@ -109,7 +118,13 @@ pub(crate) async fn periodic_rotation(
             // operation that doesn't benefit from contention at all).
             .then(|(p, data)| {
                 let persist = persist.clone();
-                async move { persist.queue_persist(p, data).await }
+
+                // Enqueue and retain the notification receiver, which will be
+                // awaited later.
+                #[allow(clippy::async_yields_async)]
+                async move {
+                    persist.queue_persist(p, data).await
+                }
             })
             .collect::<Vec<_>>()
             .await;
@@ -122,7 +137,7 @@ pub(crate) async fn periodic_rotation(
 
         // Wait for all the persist completion notifications.
         for n in notifications {
-            n.notified().await;
+            n.await.expect("persist worker task panic");
         }
 
         debug!(

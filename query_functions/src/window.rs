@@ -23,7 +23,7 @@ use crate::group_by::WindowDuration;
 pub use datafusion::error::{DataFusionError, Result as DataFusionResult};
 
 /// The name of the window_bounds UDF given to DataFusion.
-pub(crate) const WINDOW_BOUNDS_UDF_NAME: &str = "WindowBounds";
+pub(crate) const WINDOW_BOUNDS_UDF_NAME: &str = "influx_window_bounds";
 
 /// Implementation of window_bounds
 pub(crate) static WINDOW_BOUNDS_UDF: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {

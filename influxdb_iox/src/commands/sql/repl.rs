@@ -10,11 +10,7 @@ use snafu::{ResultExt, Snafu};
 
 use super::repl_command::ReplCommand;
 
-use influxdb_iox_client::{
-    connection::Connection,
-    flight::generated_types::{read_info, ReadInfo},
-    format::QueryOutputFormat,
-};
+use influxdb_iox_client::{connection::Connection, format::QueryOutputFormat};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -292,7 +288,7 @@ impl Repl {
     async fn run_sql(&mut self, sql: String) -> Result<()> {
         let start = Instant::now();
 
-        let batches = match &mut self.query_engine {
+        let batches = match &self.query_engine {
             None => {
                 println!("Error: no namespace selected.");
                 println!("Hint: Run USE NAMESPACE <dbname> to select namespace");
@@ -301,7 +297,13 @@ impl Repl {
             Some(QueryEngine::Remote(db_name)) => {
                 info!(%db_name, %sql, "Running sql on remote namespace");
 
-                scrape_query(&mut self.flight_client, db_name, &sql).await?
+                self.flight_client
+                    .sql(db_name.to_string(), sql)
+                    .await
+                    .context(RunningRemoteQuerySnafu)?
+                    .collect()
+                    .await
+                    .context(RunningRemoteQuerySnafu)?
             }
         };
 
@@ -388,32 +390,4 @@ fn history_file() -> PathBuf {
     };
     buf.push(".iox_sql_history");
     buf
-}
-
-/// Runs the specified `query` and returns the record batches of the result
-async fn scrape_query(
-    client: &mut influxdb_iox_client::flight::Client,
-    db_name: &str,
-    query: &str,
-) -> Result<Vec<RecordBatch>> {
-    let mut query_results = client
-        .perform_query(ReadInfo {
-            namespace_name: db_name.to_string(),
-            sql_query: query.to_string(),
-            query_type: read_info::QueryType::Sql.into(),
-        })
-        .await
-        .context(RunningRemoteQuerySnafu)?;
-
-    let mut batches = vec![];
-
-    while let Some(data) = query_results
-        .next()
-        .await
-        .context(RunningRemoteQuerySnafu)?
-    {
-        batches.push(data);
-    }
-
-    Ok(batches)
 }

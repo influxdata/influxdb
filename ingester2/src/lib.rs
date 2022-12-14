@@ -41,11 +41,24 @@
     clippy::use_self,
     missing_copy_implementations,
     missing_debug_implementations,
-    missing_docs,
-    unreachable_pub
+    missing_docs
 )]
 
 use data_types::{ShardId, ShardIndex};
+
+/// A macro to conditionally prepend `pub` to the inner tokens for benchmarking
+/// purposes, should the `benches` feature be enabled.
+#[macro_export]
+macro_rules! maybe_pub {
+    ($($t:tt)+) => {
+        #[cfg(feature = "benches")]
+        #[allow(missing_docs)]
+        pub $($t)+
+
+        #[cfg(not(feature = "benches"))]
+        $($t)+
+    };
+}
 
 /// During the testing of ingester2, the catalog will require a ShardId for
 /// various operations. This is a const value for these occasions.
@@ -74,13 +87,17 @@ pub use init::*;
 mod arcmap;
 mod buffer_tree;
 mod deferred_load;
-mod dml_sink;
 mod persist;
 mod query;
 mod query_adaptor;
 pub(crate) mod server;
 mod timestamp_oracle;
 mod wal;
+
+// Conditionally exported for benchmark purposes.
+maybe_pub!(
+    mod dml_sink;
+);
 
 #[cfg(test)]
 mod test_util;

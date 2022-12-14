@@ -47,7 +47,7 @@ use datafusion_util::config::{iox_session_config, DEFAULT_CATALOG};
 use executor::DedicatedExecutor;
 use futures::{Stream, StreamExt, TryStreamExt};
 use observability_deps::tracing::debug;
-use query_functions::selectors::register_selector_aggregates;
+use query_functions::{register_scalar_functions, selectors::register_selector_aggregates};
 use std::{convert::TryInto, fmt, sync::Arc};
 use trace::{
     ctx::SpanContext,
@@ -212,6 +212,7 @@ impl IOxSessionConfig {
             .with_query_planner(Arc::new(IOxQueryPlanner {}));
 
         let state = register_selector_aggregates(state);
+        let state = register_scalar_functions(state);
 
         let inner = SessionContext::with_state(state);
 

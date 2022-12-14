@@ -411,12 +411,12 @@ impl<T> OneOrMore<T> {
     }
 
     /// Returns the first element.
-    pub fn first(&self) -> &T {
+    pub fn head(&self) -> &T {
         self.contents.first().unwrap()
     }
 
-    /// Returns any remaining elements.
-    pub fn rest(&self) -> &[T] {
+    /// Returns the remaining elements after [Self::head].
+    pub fn tail(&self) -> &[T] {
         &self.contents[1..]
     }
 
@@ -454,10 +454,75 @@ impl<T: Parser> OneOrMore<T> {
     }
 }
 
+/// `ZeroOrMore` is a container for representing zero or more elements of type `T`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ZeroOrMore<T> {
+    pub(crate) contents: Vec<T>,
+}
+
+impl<T> ZeroOrMore<T> {
+    /// Construct a new `ZeroOrMore<T>` with `contents`.
+    pub fn new(contents: Vec<T>) -> Self {
+        Self { contents }
+    }
+
+    /// Returns the first element or `None` if the container is empty.
+    pub fn head(&self) -> Option<&T> {
+        self.contents.first()
+    }
+
+    /// Returns the remaining elements after [Self::head].
+    pub fn tail(&self) -> &[T] {
+        if self.contents.len() < 2 {
+            &[]
+        } else {
+            &self.contents[1..]
+        }
+    }
+
+    /// Returns the total number of elements in the container.
+    pub fn len(&self) -> usize {
+        self.contents.len()
+    }
+
+    /// Returns true if the container has no elements.
+    pub fn is_empty(&self) -> bool {
+        self.contents.is_empty()
+    }
+}
+
+impl<T> Deref for ZeroOrMore<T> {
+    type Target = [T];
+
+    fn deref(&self) -> &Self::Target {
+        &self.contents
+    }
+}
+
+impl<T: Parser> ZeroOrMore<T> {
+    /// Parse a list of one or more `T`, separated by commas.
+    ///
+    /// Returns an error using `msg` if `separated_list1` fails to parse any elements.
+    pub(crate) fn separated_list1<'a>(
+        msg: &'static str,
+    ) -> impl FnMut(&'a str) -> ParseResult<&'a str, Self> {
+        move |i: &str| {
+            map(
+                expect(
+                    msg,
+                    separated_list1(preceded(ws0, char(',')), preceded(ws0, T::parse)),
+                ),
+                Self::new,
+            )(i)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{assert_error, assert_expect_error};
+    use assert_matches::assert_matches;
     use nom::character::complete::alphanumeric1;
 
     impl From<&str> for MeasurementName {
@@ -755,8 +820,8 @@ mod tests {
 
     impl Display for OneOrMoreString {
         fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-            Display::fmt(self.first(), f)?;
-            for arg in self.rest() {
+            Display::fmt(self.head(), f)?;
+            for arg in self.tail() {
                 write!(f, ", {}", arg)?;
             }
             Ok(())
@@ -768,15 +833,15 @@ mod tests {
     fn test_one_or_more() {
         let (_, got) = OneOrMoreString::separated_list1("Expects one or more")("foo").unwrap();
         assert_eq!(got.len(), 1);
-        assert_eq!(got.first(), "foo");
+        assert_eq!(got.head(), "foo");
         assert_eq!(*got, vec!["foo"]); // deref
         assert_eq!(format!("{}", got), "foo");
 
         let (_, got) =
             OneOrMoreString::separated_list1("Expects one or more")("foo ,  bar,foobar").unwrap();
         assert_eq!(got.len(), 3);
-        assert_eq!(got.first(), "foo");
-        assert_eq!(got.rest(), vec!["bar", "foobar"]);
+        assert_eq!(got.head(), "foo");
+        assert_eq!(got.tail(), vec!["bar", "foobar"]);
         assert_eq!(*got, vec!["foo", "bar", "foobar"]); // deref
         assert_eq!(format!("{}", got), "foo, bar, foobar");
 
@@ -789,6 +854,51 @@ mod tests {
 
         // should panic
         OneOrMoreString::new(vec![]);
+    }
+
+    type ZeroOrMoreString = ZeroOrMore<String>;
+
+    impl Display for ZeroOrMoreString {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            if let Some(first) = self.head() {
+                Display::fmt(first, f)?;
+                for arg in self.tail() {
+                    write!(f, ", {}", arg)?;
+                }
+            }
+
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn test_zero_or_more() {
+        let (_, got) = ZeroOrMoreString::separated_list1("Expects one or more")("foo").unwrap();
+        assert_eq!(got.len(), 1);
+        assert_eq!(got.head().unwrap(), "foo");
+        assert_eq!(*got, vec!["foo"]); // deref
+        assert_eq!(format!("{}", got), "foo");
+
+        let (_, got) =
+            ZeroOrMoreString::separated_list1("Expects one or more")("foo ,  bar,foobar").unwrap();
+        assert_eq!(got.len(), 3);
+        assert_eq!(got.head().unwrap(), "foo");
+        assert_eq!(got.tail(), vec!["bar", "foobar"]);
+        assert_eq!(*got, vec!["foo", "bar", "foobar"]); // deref
+        assert_eq!(format!("{}", got), "foo, bar, foobar");
+
+        // should not panic
+        let got = ZeroOrMoreString::new(vec![]);
+        assert!(got.is_empty());
+        assert_matches!(got.head(), None);
+        assert_eq!(got.tail().len(), 0);
+
+        // Fallible cases
+
+        assert_expect_error!(
+            OneOrMoreString::separated_list1("Expects one or more")("+"),
+            "Expects one or more"
+        );
     }
 
     #[test]

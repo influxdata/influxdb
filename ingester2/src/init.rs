@@ -1,4 +1,6 @@
-mod wal_replay;
+crate::maybe_pub!(
+    mod wal_replay;
+);
 
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
@@ -72,7 +74,6 @@ pub struct IngesterGuard<T> {
     ///
     /// Aborted on drop.
     rotation_task: tokio::task::JoinHandle<()>,
-    persist_task: tokio::task::JoinHandle<()>,
 }
 
 impl<T> IngesterGuard<T> {
@@ -118,7 +119,7 @@ pub enum InitError {
 ///
 /// These files are read and replayed fully before this function returns.
 ///
-/// Any error during replay
+/// Any error during replay is fatal.
 ///
 /// ## Deferred Loading for Persist Operations
 ///
@@ -152,7 +153,6 @@ pub async fn new(
     wal_directory: PathBuf,
     wal_rotation_period: Duration,
     persist_executor: Arc<Executor>,
-    persist_submission_queue_depth: usize,
     persist_workers: usize,
     persist_worker_queue_depth: usize,
     object_store: ParquetStorage,
@@ -241,15 +241,13 @@ pub async fn new(
 
     // Spawn the persist workers to compact partition data, convert it into
     // Parquet files, and upload them to object storage.
-    let (persist_handle, persist_actor) = PersistHandle::new(
-        persist_submission_queue_depth,
+    let persist_handle = PersistHandle::new(
         persist_workers,
         persist_worker_queue_depth,
         persist_executor,
         object_store,
         Arc::clone(&catalog),
     );
-    let persist_task = tokio::spawn(persist_actor.run());
 
     // Build the chain of DmlSink that forms the write path.
     let write_path = WalSink::new(Arc::clone(&buffer), wal.write_handle().await);
@@ -277,6 +275,5 @@ pub async fn new(
     Ok(IngesterGuard {
         rpc: GrpcDelegate::new(Arc::new(write_path), buffer, timestamp, catalog, metrics),
         rotation_task: handle,
-        persist_task,
     })
 }

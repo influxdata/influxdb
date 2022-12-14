@@ -188,8 +188,11 @@ impl LowLevelMessage {
     }
 }
 
-/// A struct that manages the stream of Arrow `RecordBatch` results from an Arrow Flight query.
+/// A struct that manages sending an Arrow Flight request via `DoGet`,
+/// and the stream of Arrow `RecordBatch` that results .
+///
 /// Created by calling the `perform_query` method on a Flight [`Client`].
+///
 #[derive(Debug)]
 pub struct PerformQuery<T>
 where

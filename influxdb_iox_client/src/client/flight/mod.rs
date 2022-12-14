@@ -1,4 +1,8 @@
-use ::generated_types::influxdata::iox::querier::v1::{AppMetadata, ReadInfo};
+//! Client for InfluxDB IOx Flight API
+
+use ::generated_types::influxdata::iox::querier::v1::{
+    read_info::QueryType, AppMetadata, ReadInfo,
+};
 use thiserror::Error;
 
 use arrow::{
@@ -21,7 +25,7 @@ pub use low_level::{Client as LowLevelClient, PerformQuery as LowLevelPerformQue
 
 use self::low_level::LowLevelMessage;
 
-/// Error responses when querying an IOx namespace using the Arrow Flight gRPC API.
+/// Error responses when querying an IOx namespace using the IOx Flight API.
 #[derive(Debug, Error)]
 pub enum Error {
     /// There were no FlightData messages returned when we expected to get one
@@ -69,11 +73,20 @@ pub enum Error {
     UnexpectedSchemaChange,
 }
 
-/// An IOx Arrow Flight gRPC API client.
+/// InfluxDB IOx Flight API client.
+///
+/// This client can send SQL or InfluxQL queries to an IOx server
+/// via IOx's native [Apache Arrow Flight](https://arrow.apache.org/blog/2019/10/13/introducing-arrow-flight/)
+/// API (based on gRPC) and returns query results as streams of [`RecordBatch`].
 ///
 /// # Protocol
-/// This client is only suitable to yield a stream of record batches with the same schema. No metadata handling is
-/// supported. For a more advanced usage use the [low level interface](low_level).
+///
+/// For SQL queries, this client yields a stream of [`RecordBatch`]es
+/// with the same schema.
+///
+/// Note that [low level interface](low_level), used internally for querier
+/// <--> ingester communication, offers more control over the messages
+/// that are sent and the batches received.
 ///
 /// # Example
 ///
@@ -97,11 +110,7 @@ pub enum Error {
 /// let mut client = Client::new(connection);
 ///
 /// let mut query_results = client
-///     .perform_query(ReadInfo {
-///         namespace_name: "my_database".to_string(),
-///         sql_query: "select * from cpu_load".to_string(),
-///         query_type: read_info::QueryType::Sql.into(),
-///     })
+///     .sql("my_namespace".into(), "select * from cpu_load".into())
 ///     .await
 ///     .expect("query request should work");
 ///
@@ -126,20 +135,59 @@ impl Client {
     }
 
     /// Query the given namespace with the given SQL query, and return a
-    /// [`PerformQuery`] instance that streams Arrow `RecordBatch` results.
-    pub async fn perform_query(&mut self, request: ReadInfo) -> Result<PerformQuery, Error> {
+    /// [`PerformQuery`] instance that streams Arrow [`RecordBatch`] results.
+    pub async fn sql(
+        &mut self,
+        namespace_name: String,
+        sql_query: String,
+    ) -> Result<PerformQuery, Error> {
+        let request = ReadInfo {
+            namespace_name,
+            sql_query,
+            query_type: QueryType::Sql.into(),
+        };
+
+        self.perform_read(request).await
+    }
+
+    /// Query the given namespace with the given InfluxQL query, and return a
+    /// [`PerformQuery`] instance that streams Arrow [`RecordBatch`] results.
+    pub async fn influxql(
+        &mut self,
+        namespace_name: String,
+        influxql_query: String,
+    ) -> Result<PerformQuery, Error> {
+        let request = ReadInfo {
+            namespace_name,
+            sql_query: influxql_query,
+            query_type: QueryType::InfluxQl.into(),
+        };
         PerformQuery::new(self, request).await
     }
 
-    /// Perform a handshake with the server, as defined by the Arrow Flight API.
+    /// Send the query request described in `request` to the IOx
+    /// server, returning a [`PerformQuery`] instance that streams
+    /// Arrow [`RecordBatch`] results.
+    pub async fn perform_read(&mut self, request: ReadInfo) -> Result<PerformQuery, Error> {
+        PerformQuery::new(self, request).await
+    }
+
+    /// Perform a handshake with the server, returning Ok on success
+    /// and Err if the server fails the handshake.
+    ///
+    /// It is best practice to ensure a successful handshake with IOx
+    /// prior to issuing queries.
     pub async fn handshake(&mut self) -> Result<(), Error> {
         self.inner.handshake().await
     }
 }
 
-/// A struct that manages the stream of Arrow `RecordBatch` results from an
-/// Arrow Flight query. Created by calling the `perform_query` method on a
-/// Flight [`Client`].
+/// A struct that manages the stream of Arrow [`RecordBatch`]
+/// resulting from executing an IOx Flight query.
+///
+/// Most users will not interact with this structure directly, but
+/// rather should use [`Client::sql`] or [`Client::influxql`]
+/// methods.
 #[derive(Debug)]
 pub struct PerformQuery {
     inner: LowLevelPerformQuery<AppMetadata>,
@@ -174,7 +222,7 @@ impl PerformQuery {
         }
     }
 
-    /// Collect and return all `RecordBatch`es into a `Vec`
+    /// Collect and return all `RecordBatch`es as a `Vec`
     pub async fn collect(&mut self) -> Result<Vec<RecordBatch>, Error> {
         let mut batches = Vec::new();
         while let Some(data) = self.next().await? {

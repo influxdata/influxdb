@@ -92,3 +92,7 @@ SELECT * from restaurant where system > 5.0 and system < 7.0 and town = 'reading
 -- Test 14: on push-down expression with a literal type different from the column type.
 -- IOX_COMPARE: sorted
 SELECT * from restaurant where count > 500.76 and count < 640.0;
+
+-- Test 15: Regex
+-- IOX_COMPARE: uuid
+EXPLAIN SELECT * from restaurant where influx_regex_match(town, 'foo|bar|baz') and influx_regex_not_match(town, 'one|two');

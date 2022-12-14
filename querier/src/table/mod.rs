@@ -16,6 +16,9 @@ use iox_query::util::create_basic_summary;
 use iox_query::{exec::Executor, provider, provider::ChunkPruner, QueryChunk};
 use observability_deps::tracing::{debug, trace};
 use predicate::Predicate;
+use rand::rngs::StdRng;
+use rand::seq::SliceRandom;
+use rand::SeedableRng;
 use schema::Schema;
 use sharder::JumpHash;
 use snafu::{ResultExt, Snafu};
@@ -40,7 +43,7 @@ mod test_util;
 /// Number of concurrent chunk creation jobs.
 ///
 /// This is mostly to fetch per-partition data concurrently.
-const CONCURRENT_CHUNK_CREATION_JOBS: usize = 10;
+const CONCURRENT_CHUNK_CREATION_JOBS: usize = 100;
 
 #[derive(Debug, Snafu)]
 #[allow(clippy::large_enum_variant)]
@@ -389,19 +392,30 @@ impl QuerierTable {
             let early_pruning_observer =
                 &MetricPruningObserver::new(Arc::clone(&self.prune_metrics));
 
-            futures::stream::iter(parquet_files.files.iter().cloned().zip(keeps))
-                .filter(|(cached_parquet_file, keep)| {
-                    if !keep {
-                        early_pruning_observer.was_pruned_early(
-                            cached_parquet_file.row_count as u64,
-                            cached_parquet_file.file_size_bytes as u64,
-                        );
+            // Remove any unused parquet files up front to maximize the
+            // concurrent catalog requests that could be outstanding
+            let mut parquet_files = parquet_files
+                .files
+                .iter()
+                .zip(keeps)
+                .filter_map(|(pf, keep)| {
+                    if keep {
+                        Some(Arc::clone(pf))
+                    } else {
+                        early_pruning_observer
+                            .was_pruned_early(pf.row_count as u64, pf.file_size_bytes as u64);
+                        None
                     }
-
-                    let keep = *keep;
-                    async move { keep }
                 })
-                .map(|(cached_parquet_file, _keep)| {
+                .collect::<Vec<_>>();
+
+            // de-correlate parquet files so that subsequent items likely don't block/wait on the same cache lookup
+            // (they are likely ordered by partition)
+            let mut rng = StdRng::seed_from_u64(self.id().get() as u64);
+            parquet_files.shuffle(&mut rng);
+
+            futures::stream::iter(parquet_files)
+                .map(|cached_parquet_file| {
                     let span_recorder = &span_recorder;
                     async move {
                         let span = span_recorder.child_span("new_chunk");

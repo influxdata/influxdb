@@ -15,7 +15,7 @@ use std::sync::{
     Arc,
 };
 use std::time::{Duration, Instant};
-use tracing::{debug, info};
+use tracing::debug;
 
 /// Agent-specific Results
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -69,6 +69,46 @@ pub struct Agent {
     /// Optional interval at which to re-run the agent if generating data in
     /// "continue" mode
     interval: Option<tokio::time::Interval>,
+}
+
+/// Basic stats for agents generating requests
+#[derive(Debug, Default, Copy, Clone)]
+pub struct AgentGenerateStats {
+    /// number of rows the agent has written
+    pub row_count: usize,
+    /// number of requests the agent has made
+    pub request_count: usize,
+    /// number of errors
+    pub error_count: usize,
+}
+
+impl AgentGenerateStats {
+    /// Display output for agent writing stats
+    pub fn display_stats(&self, elapsed_time: Duration) -> String {
+        if elapsed_time.as_secs() == 0 {
+            format!(
+                "made {} requests with {} rows in {:?} with {} errors for a {:.2} error rate",
+                self.request_count,
+                self.row_count,
+                elapsed_time,
+                self.error_count,
+                self.error_rate()
+            )
+        } else {
+            let req_secs = elapsed_time.as_secs();
+            let rows_per_sec = self.row_count as u64 / req_secs;
+            let reqs_per_sec = self.request_count as u64 / req_secs;
+            format!("made {} requests at {}/sec with {} rows at {}/sec in {:?} with {} errors for a {:.2} error rate",
+                self.request_count, reqs_per_sec, self.row_count, rows_per_sec, elapsed_time, self.error_count, self.error_rate())
+        }
+    }
+
+    fn error_rate(&self) -> f64 {
+        if self.error_count == 0 {
+            return 0.0;
+        }
+        self.error_count as f64 / self.request_count as f64 * 100.0
+    }
 }
 
 impl Agent {
@@ -137,10 +177,11 @@ impl Agent {
         points_writer: Arc<PointsWriter>,
         batch_size: usize,
         counter: Arc<AtomicU64>,
-    ) -> Result<usize> {
+        request_counter: Arc<AtomicU64>,
+    ) -> Result<AgentGenerateStats> {
         let mut points_this_batch = 1;
-        let mut total_points = 0;
         let start = Instant::now();
+        let mut stats = AgentGenerateStats::default();
 
         while points_this_batch != 0 {
             let batch_start = Instant::now();
@@ -158,35 +199,55 @@ impl Agent {
 
             for s in &streams {
                 points_this_batch += s.line_count();
-                total_points += s.line_count();
             }
 
             if points_this_batch == 0 && self.finished {
                 break;
             }
 
-            points_writer
+            stats.request_count += 1;
+            match points_writer
                 .write_points(streams.into_iter().flatten())
                 .await
-                .context(CouldNotWritePointsSnafu)?;
+                .context(CouldNotWritePointsSnafu)
+            {
+                Ok(_) => {
+                    stats.row_count += points_this_batch;
 
-            info!("wrote {} in {:?}", points_this_batch, batch_start.elapsed());
-            let total = counter.fetch_add(points_this_batch as u64, Ordering::SeqCst);
-            let secs = start.elapsed().as_secs();
-            if secs != 0 {
-                info!(
-                    "Agent {} written {} in {:?} for {}/sec. Aggregate {} in {}/sec",
-                    self.id,
-                    total_points,
-                    start.elapsed(),
-                    total_points / secs as usize,
-                    total,
-                    total / secs,
-                )
+                    if stats.request_count % 10 == 0 {
+                        println!(
+                            "Agent {} wrote {} in {:?}",
+                            self.id,
+                            points_this_batch,
+                            batch_start.elapsed()
+                        );
+                    }
+
+                    // output something on the aggregate stats every 100 requests across all agents
+                    let total_rows = counter.fetch_add(points_this_batch as u64, Ordering::SeqCst);
+                    let total_requests = request_counter.fetch_add(1, Ordering::SeqCst);
+
+                    if total_requests % 100 == 0 {
+                        let secs = start.elapsed().as_secs();
+                        if secs != 0 {
+                            println!(
+                                "{} rows written in {} requests for {} rows/sec and {} reqs/sec",
+                                total_rows,
+                                total_requests,
+                                total_rows / secs,
+                                total_requests / secs,
+                            )
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Error writing points: {}", e);
+                    stats.error_count += 1;
+                }
             }
         }
 
-        Ok(total_points)
+        Ok(stats)
     }
 
     /// Generate data points from the configuration in this agent.
