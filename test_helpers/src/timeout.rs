@@ -16,6 +16,7 @@ pub trait FutureTimeout: Future + Sized {
     /// # Safety
     ///
     /// This method panics if `d` elapses before the task rejoins.
+    #[track_caller]
     async fn with_timeout_panic(mut self, d: Duration) -> <Self as Future>::Output {
         self.with_timeout(d)
             .await
@@ -24,6 +25,7 @@ pub trait FutureTimeout: Future + Sized {
 
     /// Wraps `self` returning the result, or an error if the future hasn't
     /// completed after `d` length of time.
+    #[track_caller]
     async fn with_timeout(mut self, d: Duration) -> Result<<Self as Future>::Output, Elapsed> {
         tokio::time::timeout(d, self).await
     }
