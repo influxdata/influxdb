@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use clap_blocks::compactor::CompactorConfig;
+use clap_blocks::{compactor::CompactorConfig, compactor2::Compactor2Config};
 use compactor::{
     handler::{CompactorHandler, CompactorHandlerImpl},
     server::{grpc::GrpcDelegate, CompactorServer},
@@ -377,7 +377,7 @@ pub async fn build_compactor_from_config(
 
     // 5. Create a new compactor: Assigned only those shards specified in the CLI args.
     Ok(compactor::compact::Compactor::new(
-        shards,
+        compactor::compact::ShardAssignment::Only(shards),
         catalog,
         parquet_store,
         exec,

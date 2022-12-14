@@ -102,8 +102,8 @@ pub(crate) enum Error {
 mod tests {
     use super::*;
     use crate::{
-        compact_one_partition, handler::CompactorConfig, parquet_file_filtering,
-        ParquetFilesForCompaction,
+        compact::ShardAssignment, compact_one_partition, handler::CompactorConfig,
+        parquet_file_filtering, ParquetFilesForCompaction,
     };
     use ::parquet_file::storage::ParquetStorage;
     use arrow_util::assert_batches_sorted_eq;
@@ -182,7 +182,7 @@ mod tests {
         let config = make_compactor_config();
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Compactor::new(
-            vec![shard.shard.id],
+            ShardAssignment::Only(vec![shard.shard.id]),
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             catalog.exec(),
@@ -422,7 +422,7 @@ mod tests {
         let config = make_compactor_config();
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Compactor::new(
-            vec![shard.shard.id],
+            ShardAssignment::Only(vec![shard.shard.id]),
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             catalog.exec(),
@@ -649,7 +649,7 @@ mod tests {
         let config = make_compactor_config();
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Arc::new(Compactor::new(
-            vec![shard.shard.id],
+            ShardAssignment::Only(vec![shard.shard.id]),
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             catalog.exec(),
@@ -933,7 +933,7 @@ mod tests {
 
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Arc::new(Compactor::new(
-            vec![shard.shard.id],
+            ShardAssignment::Only(vec![shard.shard.id]),
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             catalog.exec(),
@@ -1038,7 +1038,7 @@ mod tests {
 
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Arc::new(Compactor::new(
-            vec![shard.shard.id],
+            ShardAssignment::Only(vec![shard.shard.id]),
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             catalog.exec(),
@@ -1178,7 +1178,7 @@ mod tests {
 
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Arc::new(Compactor::new(
-            vec![shard.shard.id],
+            ShardAssignment::Only(vec![shard.shard.id]),
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             catalog.exec(),
@@ -1424,7 +1424,7 @@ mod tests {
         let config = make_compactor_config();
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Arc::new(Compactor::new(
-            vec![shard.shard.id],
+            ShardAssignment::Only(vec![shard.shard.id]),
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             catalog.exec(),
