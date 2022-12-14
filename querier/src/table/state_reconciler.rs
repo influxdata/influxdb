@@ -2,21 +2,18 @@
 
 mod interface;
 
-use data_types::{
-    ColumnId, CompactionLevel, DeletePredicate, PartitionId, ShardId, Tombstone, TombstoneId,
-};
+use data_types::{CompactionLevel, DeletePredicate, PartitionId, ShardId, Tombstone, TombstoneId};
 use iox_query::QueryChunk;
 use observability_deps::tracing::debug;
 use schema::sort::SortKey;
 use snafu::Snafu;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{hash_map::Entry, HashMap, HashSet},
     sync::Arc,
 };
 use trace::span::{Span, SpanRecorder};
 
 use crate::{
-    cache::namespace::CachedTable,
     chunk::{ChunkAdapter, QuerierChunk},
     ingester::IngesterChunk,
     tombstone::QuerierTombstone,
@@ -38,7 +35,6 @@ pub struct Reconciler {
     table_name: Arc<str>,
     namespace_name: Arc<str>,
     chunk_adapter: Arc<ChunkAdapter>,
-    cached_table: Arc<CachedTable>,
 }
 
 impl Reconciler {
@@ -46,13 +42,11 @@ impl Reconciler {
         table_name: Arc<str>,
         namespace_name: Arc<str>,
         chunk_adapter: Arc<ChunkAdapter>,
-        cached_table: Arc<CachedTable>,
     ) -> Self {
         Self {
             table_name,
             namespace_name,
             chunk_adapter,
-            cached_table,
         }
     }
 
@@ -79,9 +73,7 @@ impl Reconciler {
         chunks.extend(self.build_ingester_chunks(ingester_partitions));
         debug!(num_chunks=%chunks.len(), "Final chunk count after reconcilation");
 
-        let chunks = self
-            .sync_partition_sort_keys(chunks, span_recorder.child_span("sync_partition_sort_key"))
-            .await;
+        let chunks = self.sync_partition_sort_keys(chunks);
 
         let chunks: Vec<Arc<dyn QueryChunk>> = chunks
             .into_iter()
@@ -231,41 +223,29 @@ impl Reconciler {
             .map(|c| Box::new(c) as Box<dyn UpdatableQuerierChunk>)
     }
 
-    async fn sync_partition_sort_keys(
+    fn sync_partition_sort_keys(
         &self,
         chunks: Vec<Box<dyn UpdatableQuerierChunk>>,
-        span: Option<Span>,
     ) -> Vec<Box<dyn UpdatableQuerierChunk>> {
-        let span_recorder = SpanRecorder::new(span);
-
-        // collect columns
-        let mut all_columns: HashMap<PartitionId, HashSet<ColumnId>> = HashMap::new();
+        // collect latest (= longest) sort key
+        // Note that the partition sort key may stale (only a subset of the most recent partition
+        // sort key) because newer chunks have new columns.
+        // However,  since the querier doesn't (yet) know about these chunks in the `chunks` list above
+        // using the most up to date sort key from the chunks it does know about is sufficient.
+        let mut sort_keys = HashMap::<PartitionId, Arc<SortKey>>::new();
         for c in &chunks {
-            // columns for this partition MUST include the primary key of this chunk
-            let schema = c.schema();
-            let pk = schema
-                .primary_key()
-                .into_iter()
-                .filter_map(|name| self.cached_table.column_id_map_rev.get(name).copied());
-            all_columns.entry(c.partition_id()).or_default().extend(pk);
-        }
-
-        // get cached (or fresh) sort keys
-        let partition_cache = self.chunk_adapter.catalog_cache().partition();
-        let mut sort_keys: HashMap<PartitionId, Option<Arc<SortKey>>> =
-            HashMap::with_capacity(all_columns.len());
-        for (partition_id, columns) in all_columns.into_iter() {
-            let columns: Vec<ColumnId> = columns.into_iter().collect();
-            let sort_key = partition_cache
-                .sort_key(
-                    Arc::clone(&self.cached_table),
-                    partition_id,
-                    &columns,
-                    span_recorder.child_span("cache GET partition sort key"),
-                )
-                .await
-                .map(|sk| Arc::clone(&sk.sort_key));
-            sort_keys.insert(partition_id, sort_key);
+            if let Some(sort_key) = c.partition_sort_key_arc() {
+                match sort_keys.entry(c.partition_id()) {
+                    Entry::Occupied(mut o) => {
+                        if sort_key.len() > o.get().len() {
+                            *o.get_mut() = sort_key;
+                        }
+                    }
+                    Entry::Vacant(v) => {
+                        v.insert(sort_key);
+                    }
+                }
+            }
         }
 
         // write partition sort keys to chunks
@@ -273,10 +253,8 @@ impl Reconciler {
             .into_iter()
             .map(|chunk| {
                 let partition_id = chunk.partition_id();
-                let sort_key = sort_keys
-                    .get(&partition_id)
-                    .expect("sort key for this partition should be fetched by now");
-                chunk.update_partition_sort_key(sort_key.clone())
+                let sort_key = sort_keys.get(&partition_id);
+                chunk.update_partition_sort_key(sort_key.cloned())
             })
             .collect()
     }
@@ -293,6 +271,8 @@ impl Reconciler {
 }
 
 trait UpdatableQuerierChunk: QueryChunk {
+    fn partition_sort_key_arc(&self) -> Option<Arc<SortKey>>;
+
     fn update_partition_sort_key(
         self: Box<Self>,
         sort_key: Option<Arc<SortKey>>,
@@ -302,6 +282,10 @@ trait UpdatableQuerierChunk: QueryChunk {
 }
 
 impl UpdatableQuerierChunk for QuerierChunk {
+    fn partition_sort_key_arc(&self) -> Option<Arc<SortKey>> {
+        self.partition_sort_key_arc()
+    }
+
     fn update_partition_sort_key(
         self: Box<Self>,
         sort_key: Option<Arc<SortKey>>,
@@ -315,6 +299,10 @@ impl UpdatableQuerierChunk for QuerierChunk {
 }
 
 impl UpdatableQuerierChunk for IngesterChunk {
+    fn partition_sort_key_arc(&self) -> Option<Arc<SortKey>> {
+        self.partition_sort_key_arc()
+    }
+
     fn update_partition_sort_key(
         self: Box<Self>,
         sort_key: Option<Arc<SortKey>>,

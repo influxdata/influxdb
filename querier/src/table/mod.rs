@@ -327,7 +327,6 @@ impl QuerierTable {
             Arc::clone(&self.table_name),
             Arc::clone(&self.namespace_name),
             Arc::clone(&self.chunk_adapter),
-            Arc::clone(cached_table),
         );
 
         // create parquet files
