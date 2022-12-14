@@ -87,6 +87,13 @@ pub struct Config {
 }
 
 pub async fn command(config: Config) -> Result<()> {
+    if std::env::var("INFLUXDB_IOX_MODE").is_ok() {
+        panic!(
+            "`INFLUXDB_IOX_MODE` was specified but `ingester` was the command run. Either unset
+             `INFLUXDB_IOX_MODE` or run the `ingester2` command."
+        );
+    }
+
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
 
     let time_provider = Arc::new(SystemProvider::new()) as Arc<dyn TimeProvider>;

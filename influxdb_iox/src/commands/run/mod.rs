@@ -9,7 +9,7 @@ mod ingester2;
 mod main;
 mod querier;
 mod router;
-mod router_rpc_write;
+mod router2;
 mod test;
 
 #[derive(Debug, Snafu)]
@@ -27,8 +27,8 @@ pub enum Error {
     #[snafu(display("Error in router subcommand: {}", source))]
     RouterError { source: router::Error },
 
-    #[snafu(display("Error in router-rpc-write subcommand: {}", source))]
-    RouterRpcWriteError { source: router_rpc_write::Error },
+    #[snafu(display("Error in router2 subcommand: {}", source))]
+    Router2Error { source: router2::Error },
 
     #[snafu(display("Error in ingester subcommand: {}", source))]
     IngesterError { source: ingester::Error },
@@ -63,7 +63,7 @@ impl Config {
             Some(Command::GarbageCollector(config)) => config.run_config.logging_config(),
             Some(Command::Querier(config)) => config.run_config.logging_config(),
             Some(Command::Router(config)) => config.run_config.logging_config(),
-            Some(Command::RouterRpcWrite(config)) => config.run_config.logging_config(),
+            Some(Command::Router2(config)) => config.run_config.logging_config(),
             Some(Command::Ingester(config)) => config.run_config.logging_config(),
             Some(Command::Ingester2(config)) => config.run_config.logging_config(),
             Some(Command::AllInOne(config)) => &config.logging_config,
@@ -83,8 +83,8 @@ enum Command {
     /// Run the server in router mode
     Router(router::Config),
 
-    /// Run the server in router mode using the RPC write path.
-    RouterRpcWrite(router_rpc_write::Config),
+    /// Run the server in router2 mode
+    Router2(router2::Config),
 
     /// Run the server in ingester mode
     Ingester(ingester::Config),
@@ -115,9 +115,7 @@ pub async fn command(config: Config) -> Result<()> {
             .context(GarbageCollectorSnafu),
         Some(Command::Querier(config)) => querier::command(config).await.context(QuerierSnafu),
         Some(Command::Router(config)) => router::command(config).await.context(RouterSnafu),
-        Some(Command::RouterRpcWrite(config)) => router_rpc_write::command(config)
-            .await
-            .context(RouterRpcWriteSnafu),
+        Some(Command::Router2(config)) => router2::command(config).await.context(Router2Snafu),
         Some(Command::Ingester(config)) => ingester::command(config).await.context(IngesterSnafu),
         Some(Command::Ingester2(config)) => {
             ingester2::command(config).await.context(Ingester2Snafu)

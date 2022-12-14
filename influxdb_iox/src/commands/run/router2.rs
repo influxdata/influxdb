@@ -1,9 +1,9 @@
-//! Command line options for running a router using the RPC write path.
+//! Command line options for running a router2 that uses the RPC write path.
 use super::main;
 use crate::process_info::setup_metric_registry;
 use clap_blocks::{
-    catalog_dsn::CatalogDsnConfig, object_store::make_object_store,
-    router_rpc_write::RouterRpcWriteConfig, run_config::RunConfig,
+    catalog_dsn::CatalogDsnConfig, object_store::make_object_store, router2::Router2Config,
+    run_config::RunConfig,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use ioxd_common::{
@@ -60,10 +60,17 @@ pub struct Config {
     pub(crate) catalog_dsn: CatalogDsnConfig,
 
     #[clap(flatten)]
-    pub(crate) router_config: RouterRpcWriteConfig,
+    pub(crate) router_config: Router2Config,
 }
 
 pub async fn command(config: Config) -> Result<()> {
+    if std::env::var("INFLUXDB_IOX_MODE").is_err() {
+        panic!(
+            "`INFLUXDB_IOX_MODE` was not specified but `router2` was the command run. Either set
+             `INFLUXDB_IOX_MODE` or run the `router` command."
+        );
+    }
+
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
     let time_provider = Arc::new(SystemProvider::new()) as Arc<dyn TimeProvider>;
     let metrics = setup_metric_registry();

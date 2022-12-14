@@ -1,7 +1,5 @@
 use async_trait::async_trait;
-use clap_blocks::{
-    router::RouterConfig, router_rpc_write::RouterRpcWriteConfig, write_buffer::WriteBufferConfig,
-};
+use clap_blocks::{router::RouterConfig, router2::Router2Config, write_buffer::WriteBufferConfig};
 use data_types::{NamespaceName, PartitionTemplate, TemplatePart};
 use hashbrown::HashMap;
 use hyper::{Body, Request, Response};
@@ -253,7 +251,7 @@ pub async fn create_router2_server_type(
     metrics: Arc<metric::Registry>,
     catalog: Arc<dyn Catalog>,
     object_store: Arc<DynObjectStore>,
-    router_config: &RouterRpcWriteConfig,
+    router_config: &Router2Config,
 ) -> Result<Arc<dyn ServerType>> {
     // 1. START: Different Setup Per Router Path: this part is only relevant to using RPC write
     //    path and should not be added to `create_router_server_type`.
