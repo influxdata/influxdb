@@ -908,6 +908,7 @@ pub(crate) mod test_helpers {
 
     pub(crate) async fn test_catalog(catalog: Arc<dyn Catalog>) {
         test_setup(Arc::clone(&catalog)).await;
+        test_most_cold_files_partitions(Arc::clone(&catalog)).await;
         test_topic(Arc::clone(&catalog)).await;
         test_query_pool(Arc::clone(&catalog)).await;
         test_namespace(Arc::clone(&catalog)).await;
@@ -920,7 +921,6 @@ pub(crate) mod test_helpers {
         test_parquet_file(Arc::clone(&catalog)).await;
         test_parquet_file_compaction_level_0(Arc::clone(&catalog)).await;
         test_parquet_file_compaction_level_1(Arc::clone(&catalog)).await;
-        test_most_cold_files_partitions(Arc::clone(&catalog)).await;
         test_recent_highest_throughput_partitions(Arc::clone(&catalog)).await;
         test_partitions_with_small_l1_file_count(Arc::clone(&catalog)).await;
         test_update_to_compaction_level_1(Arc::clone(&catalog)).await;
@@ -2958,7 +2958,7 @@ pub(crate) mod test_helpers {
     }
 
     async fn test_most_cold_files_partitions(catalog: Arc<dyn Catalog>) {
-        let mut repos = catalog.repositories().await;
+        let mut repos = catalog.start_transaction().await.unwrap();
         let topic = repos.topics().create_or_get("most_cold").await.unwrap();
         let pool = repos
             .query_pools()
@@ -3586,6 +3586,7 @@ pub(crate) mod test_helpers {
         assert_eq!(partitions[2].partition_id, partition_3.id);
         // then should be partition_1 witth 1 file: 1 L0
         assert_eq!(partitions[3].partition_id, partition_1.id);
+        repos.abort().await.unwrap();
     }
 
     async fn test_recent_highest_throughput_partitions(catalog: Arc<dyn Catalog>) {
