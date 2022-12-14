@@ -238,6 +238,27 @@ pub struct Config {
     )]
     pub persist_partition_cold_threshold_seconds: u64,
 
+    /// The memory budget assigned to this compactor.
+    ///
+    /// For each partition candidate, we will estimate the memory needed to compact each
+    /// file and only add more files if their needed estimated memory is below this memory
+    /// budget. Since we must compact L1 files that overlapped with L0 files, if their
+    /// total estimated memory does not allow us to compact a part of a partition at all,
+    /// we will not compact it and will log the partition and its related information in a
+    /// table in our catalog for further diagnosis of the issue.
+    ///
+    /// The number of candidates compacted concurrently is also decided using this
+    /// estimation and budget.
+    ///
+    /// Default is 300MB (314572800 = 300*1024*1024)
+    #[clap(
+        long = "compaction-memory-budget-bytes",
+        env = "INFLUXDB_IOX_COMPACTION_MEMORY_BUDGET_BYTES",
+        default_value = "314572800",
+        action
+    )]
+    pub compaction_memory_budget_bytes: u64,
+
     /// The address on which IOx will serve Router HTTP API requests
     #[clap(
         long = "router-http-bind",
@@ -338,6 +359,7 @@ impl Config {
             persist_partition_size_threshold_bytes,
             persist_partition_age_threshold_seconds,
             persist_partition_cold_threshold_seconds,
+            compaction_memory_budget_bytes,
             router_http_bind_address,
             router_grpc_bind_address,
             querier_grpc_bind_address,
@@ -429,7 +451,7 @@ impl Config {
             max_number_partitions_per_shard: 1,
             min_number_recent_ingested_files_per_partition: 1,
             hot_multiple: 4,
-            memory_budget_bytes: 300_000,
+            memory_budget_bytes: compaction_memory_budget_bytes,
             min_num_rows_allocated_per_record_batch_to_datafusion_plan: 100,
             max_num_compacting_files: 20,
             max_num_compacting_files_first_in_partition: 40,
