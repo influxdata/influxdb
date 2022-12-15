@@ -19,6 +19,7 @@ use crate::{
         split::StreamSplitExec,
         stringset::{IntoStringSet, StringSetRef},
     },
+    logical_optimizer::iox_optimizer,
     plan::{
         fieldlist::FieldListPlan,
         seriesset::{SeriesSetPlan, SeriesSetPlans},
@@ -212,7 +213,8 @@ impl IOxSessionConfig {
             .with_query_planner(Arc::new(IOxQueryPlanner {}));
 
         let state = register_selector_aggregates(state);
-        let state = register_scalar_functions(state);
+        let mut state = register_scalar_functions(state);
+        state.optimizer = iox_optimizer();
 
         let inner = SessionContext::with_state(state);
 
