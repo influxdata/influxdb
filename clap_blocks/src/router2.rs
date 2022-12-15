@@ -3,7 +3,7 @@
 /// CLI config for the router using the RPC write path
 #[derive(Debug, Clone, clap::Parser)]
 #[allow(missing_copy_implementations)]
-pub struct RouterRpcWriteConfig {
+pub struct Router2Config {
     /// The maximum number of simultaneous requests the HTTP server is
     /// configured to accept.
     ///

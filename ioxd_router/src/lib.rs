@@ -1,7 +1,5 @@
 use async_trait::async_trait;
-use clap_blocks::{
-    router::RouterConfig, router_rpc_write::RouterRpcWriteConfig, write_buffer::WriteBufferConfig,
-};
+use clap_blocks::{router::RouterConfig, router2::Router2Config, write_buffer::WriteBufferConfig};
 use data_types::{NamespaceName, PartitionTemplate, TemplatePart};
 use hashbrown::HashMap;
 use hyper::{Body, Request, Response};
@@ -248,12 +246,12 @@ impl HttpApiErrorSource for IoxHttpErrorAdaptor {
 // NOTE!!! This needs to be kept in sync with `create_router_server_type` until the
 // switch to the RPC write path/ingester2 is complete! See the numbered sections that annotate
 // where these two functions line up and where they diverge.
-pub async fn create_router_grpc_write_server_type(
+pub async fn create_router2_server_type(
     common_state: &CommonServerState,
     metrics: Arc<metric::Registry>,
     catalog: Arc<dyn Catalog>,
     object_store: Arc<DynObjectStore>,
-    router_config: &RouterRpcWriteConfig,
+    router_config: &Router2Config,
 ) -> Result<Arc<dyn ServerType>> {
     // 1. START: Different Setup Per Router Path: this part is only relevant to using RPC write
     //    path and should not be added to `create_router_server_type`.
@@ -423,7 +421,7 @@ pub async fn create_router_grpc_write_server_type(
 }
 
 /// Instantiate a router server
-// NOTE!!! This needs to be kept in sync with `create_router_grpc_write_server_type` until the
+// NOTE!!! This needs to be kept in sync with `create_router2_server_type` until the
 // switch to the RPC write path/ingester2 is complete! See the numbered sections that annotate
 // where these two functions line up and where they diverge.
 pub async fn create_router_server_type(
@@ -435,7 +433,7 @@ pub async fn create_router_server_type(
     router_config: &RouterConfig,
 ) -> Result<Arc<dyn ServerType>> {
     // 1. START: Different Setup Per Router Path: this part is only relevant to using a write
-    //    buffer and should not be added to `create_router_grpc_write_server_type`.
+    //    buffer and should not be added to `create_router2_server_type`.
 
     // Initialise the sharded write buffer and instrument it with DML handler metrics.
     let (write_buffer, sharder) = init_write_buffer(

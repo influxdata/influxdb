@@ -89,7 +89,6 @@ async fn ingester_flight_api() {
     });
 }
 
-#[cfg(feature = "rpc_write")]
 #[tokio::test]
 async fn ingester2_flight_api() {
     test_helpers::maybe_start_logging();
@@ -98,7 +97,7 @@ async fn ingester2_flight_api() {
     let table_name = "mytable";
 
     // Set up cluster
-    let mut cluster = MiniCluster::create_non_shared_rpc_write(database_url).await;
+    let mut cluster = MiniCluster::create_non_shared2(database_url).await;
 
     // Write some data into the v2 HTTP API ==============
     let lp = format!("{},tag1=A,tag2=B val=42i 123456", table_name);

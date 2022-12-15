@@ -82,6 +82,13 @@ pub struct Config {
 }
 
 pub async fn command(config: Config) -> Result<()> {
+    if std::env::var("INFLUXDB_IOX_RPC_MODE").is_err() {
+        panic!(
+            "`INFLUXDB_IOX_RPC_MODE` was not specified but `ingester2` was the command run. Either set
+             `INFLUXDB_IOX_RPC_MODE` or run the `ingester` command."
+        );
+    }
+
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
     let metric_registry = setup_metric_registry();
 

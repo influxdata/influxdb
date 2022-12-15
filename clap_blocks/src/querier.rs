@@ -212,7 +212,6 @@ pub struct QuerierConfig {
     ///
     /// for multiple addresses.
     #[clap(long = "ingester-addresses", env = "INFLUXDB_IOX_INGESTER_ADDRESSES")]
-    #[cfg(feature = "rpc_write")]
     pub ingester_addresses: Vec<String>,
 
     /// Size of the RAM cache used to store catalog metadata information in bytes.
@@ -275,42 +274,14 @@ impl QuerierConfig {
     /// Return the querier config's ingester addresses. If `--shard-to-ingesters-file` is used to
     /// specify a JSON file containing shard to ingester address mappings, this returns `Err` if
     /// there are any problems reading, deserializing, or interpreting the file.
-    #[cfg(not(feature = "rpc_write"))]
-    pub fn ingester_addresses(&self) -> Result<IngesterAddresses, Error> {
-        if let Some(file) = &self.shard_to_ingesters_file {
-            let contents =
-                fs::read_to_string(file).context(ShardToIngesterFileReadingSnafu { file })?;
-            let map = deserialize_shard_ingester_map(&contents)?;
-            if map.is_empty() {
-                Ok(IngesterAddresses::None)
-            } else {
-                Ok(IngesterAddresses::ByShardIndex(map))
-            }
-        } else if let Some(contents) = &self.shard_to_ingesters {
-            let map = deserialize_shard_ingester_map(contents)?;
-            if map.is_empty() {
-                Ok(IngesterAddresses::None)
-            } else {
-                Ok(IngesterAddresses::ByShardIndex(map))
-            }
-        } else {
-            Ok(IngesterAddresses::None)
-        }
-    }
 
-    /// Return the querier config's ingester addresses. If `--shard-to-ingesters-file` is used to
-    /// specify a JSON file containing shard to ingester address mappings, this returns `Err` if
-    /// there are any problems reading, deserializing, or interpreting the file.
-
-    // When we have switched to using the RPC write path and remove the rpc_write feature, this
-    // method can be changed to be infallible as clap will handle failure to parse the list of
-    // strings.
+    // When we have switched to using the RPC write path only, this method can be changed to be
+    // infallible as clap will handle failure to parse the list of strings.
     //
-    // For now, to enable turning on the `rpc_write` feature in tests but not necessarily switching
-    // into the RPC write path mode, require *both* the feature flag to be enabled *and*
-    // `--ingester-addresses` to be set in order to switch. If the `rpc_write` feature is enabled
-    // and `--shard-to-ingesters*` are set, use the write buffer path instead.
-    #[cfg(feature = "rpc_write")]
+    // Switching into the RPC write path mode requires *both* the `INFLUXDB_IOX_RPC_MODE`
+    // environment variable to be specified *and* `--ingester-addresses` to be set in order to
+    // switch. Setting `INFLUXDB_IOX_RPC_MODE` and shard-to-ingesters mapping, or not setting
+    // `INFLUXDB_IOX_RPC_MODE` and setting ingester addresses, will panic.
     pub fn ingester_addresses(&self) -> Result<IngesterAddresses, Error> {
         if let Some(file) = &self.shard_to_ingesters_file {
             let contents =
@@ -353,18 +324,6 @@ impl QuerierConfig {
     /// Number of queries allowed to run concurrently
     pub fn max_concurrent_queries(&self) -> usize {
         self.max_concurrent_queries
-    }
-
-    /// Whether the querier is contacting ingesters that use the RPC write path or not.
-    #[cfg(feature = "rpc_write")]
-    pub fn rpc_write(&self) -> bool {
-        true
-    }
-
-    /// Whether the querier is contacting ingesters that use the RPC write path or not.
-    #[cfg(not(feature = "rpc_write"))]
-    pub fn rpc_write(&self) -> bool {
-        false
     }
 }
 
