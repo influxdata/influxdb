@@ -58,7 +58,7 @@ mod tests {
             )
             .create();
 
-        let client = Client::new(&mockito::server_url(), token);
+        let client = Client::new(mockito::server_url(), token);
 
         let _result = client
             .create_bucket(Some(PostBucketRequest::new(org_id, bucket)))

@@ -37,7 +37,7 @@ mod tests {
     async fn ready() {
         let mock_server = mock("GET", "/ready").create();
 
-        let client = Client::new(&mockito::server_url(), "");
+        let client = Client::new(mockito::server_url(), "");
 
         let _result = client.ready().await;
 

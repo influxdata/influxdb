@@ -296,7 +296,7 @@ impl Wal {
     /// Open a reader to a closed segment
     pub fn reader_for_segment(&self, id: SegmentId) -> Result<ClosedSegmentFileReader> {
         let path = build_segment_path(&self.root, id);
-        ClosedSegmentFileReader::from_path(&path)
+        ClosedSegmentFileReader::from_path(path)
     }
 
     /// Writes one [`SequencedWalOp`] to the buffer and returns a watch channel for when the buffer
