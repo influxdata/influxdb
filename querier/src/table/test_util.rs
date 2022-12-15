@@ -1,6 +1,6 @@
 use super::{PruneMetrics, QuerierTable, QuerierTableArgs};
 use crate::{
-    cache::CatalogCache, chunk::ChunkAdapter, create_ingester_connection_for_testing,
+    cache::CatalogCache, create_ingester_connection_for_testing, parquet::ChunkAdapter,
     IngesterPartition,
 };
 use arrow::record_batch::RecordBatch;

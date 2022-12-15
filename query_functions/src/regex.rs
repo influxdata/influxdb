@@ -147,7 +147,7 @@ fn is_valid_character_after_escape(c: char) -> bool {
 /// golang, used by the influx storage rpc.
 ///
 /// See <https://github.com/rust-lang/regex/issues/501> for more details
-fn clean_non_meta_escapes(pattern: &str) -> String {
+pub fn clean_non_meta_escapes(pattern: &str) -> String {
     if pattern.is_empty() {
         return pattern.to_string();
     }
@@ -270,6 +270,18 @@ mod test {
                     "| words         | length |",
                     "+---------------+--------+",
                     "| Blood Orange  | 12     |",
+                    "| cocteau twins | 13     |",
+                    "+---------------+--------+",
+                ],
+            ),
+            (
+                "twi",
+                true, // keep the values matched
+                vec![
+                    "+---------------+--------+",
+                    "| words         | length |",
+                    "+---------------+--------+",
+                    "| aphex twin    | 10     |",
                     "| cocteau twins | 13     |",
                     "+---------------+--------+",
                 ],

@@ -33,6 +33,7 @@ mod window;
 /// Function registry
 mod registry;
 
+pub use crate::regex::clean_non_meta_escapes;
 pub use crate::regex::REGEX_MATCH_UDF_NAME;
 pub use crate::regex::REGEX_NOT_MATCH_UDF_NAME;
 

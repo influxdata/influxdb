@@ -231,8 +231,6 @@ impl ParquetFileReader {
             .runtime_env()
             .register_object_store("iox", "iox", object_store);
 
-        execute_stream(Arc::new(exec), task_ctx)
-            .await
-            .context(ExecutingStreamSnafu)
+        execute_stream(Arc::new(exec), task_ctx).context(ExecutingStreamSnafu)
     }
 }

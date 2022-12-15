@@ -27,6 +27,7 @@ use std::{any::Any, collections::BTreeSet, fmt::Debug, iter::FromIterator, sync:
 
 pub mod exec;
 pub mod frontend;
+pub mod logical_optimizer;
 pub mod plan;
 pub mod provider;
 pub mod pruning;

@@ -1,8 +1,8 @@
 //! Database for the querier that contains all namespaces.
 
 use crate::{
-    cache::CatalogCache, chunk::ChunkAdapter, ingester::IngesterConnection,
-    namespace::QuerierNamespace, query_log::QueryLog, table::PruneMetrics,
+    cache::CatalogCache, ingester::IngesterConnection, namespace::QuerierNamespace,
+    parquet::ChunkAdapter, query_log::QueryLog, table::PruneMetrics,
 };
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};

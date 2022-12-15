@@ -1,6 +1,6 @@
 //! Interface for reconciling Ingester and catalog state
 
-use crate::{chunk::QuerierChunk, ingester::IngesterPartition};
+use crate::{ingester::IngesterPartition, parquet::QuerierParquetChunk};
 use data_types::{
     CompactionLevel, ParquetFile, PartitionId, SequenceNumber, ShardId, Tombstone, TombstoneId,
 };
@@ -78,7 +78,7 @@ impl ParquetFileInfo for Arc<ParquetFile> {
     }
 }
 
-impl ParquetFileInfo for QuerierChunk {
+impl ParquetFileInfo for QuerierParquetChunk {
     fn partition_id(&self) -> PartitionId {
         self.meta().partition_id()
     }
