@@ -39,16 +39,15 @@ pub struct Ingester2Config {
     )]
     pub persist_max_parallelism: usize,
 
-    /// The maximum number of persist tasks that can be queued for each worker.
+    /// The maximum number of persist tasks that can be queued at any one time.
     ///
-    /// Note that each partition is consistently hashed to the same worker -
-    /// this can cause uneven distribution of persist tasks across workers in
-    /// workloads with skewed / hot partitions.
+    /// Once this limit is reached, ingest is blocked until the persist backlog
+    /// is reduced.
     #[clap(
-        long = "persist-worker-queue-depth",
-        env = "INFLUXDB_IOX_PERSIST_WORKER_QUEUE_DEPTH",
+        long = "persist-queue-depth",
+        env = "INFLUXDB_IOX_PERSIST_QUEUE_DEPTH",
         default_value = "250",
         action
     )]
-    pub persist_worker_queue_depth: usize,
+    pub persist_queue_depth: usize,
 }

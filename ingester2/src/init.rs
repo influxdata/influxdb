@@ -154,7 +154,7 @@ pub async fn new(
     wal_rotation_period: Duration,
     persist_executor: Arc<Executor>,
     persist_workers: usize,
-    persist_worker_queue_depth: usize,
+    persist_queue_depth: usize,
     object_store: ParquetStorage,
 ) -> Result<IngesterGuard<impl IngesterRpcInterface>, InitError> {
     // Create the transition shard.
@@ -243,7 +243,7 @@ pub async fn new(
     // Parquet files, and upload them to object storage.
     let (persist_handle, persist_state) = PersistHandle::new(
         persist_workers,
-        persist_worker_queue_depth,
+        persist_queue_depth,
         persist_executor,
         object_store,
         Arc::clone(&catalog),

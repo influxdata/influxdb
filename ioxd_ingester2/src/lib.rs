@@ -156,7 +156,7 @@ pub async fn create_ingester_server_type(
         Duration::from_secs(ingester_config.wal_rotation_period_seconds),
         exec,
         ingester_config.persist_max_parallelism,
-        ingester_config.persist_worker_queue_depth,
+        ingester_config.persist_queue_depth,
         object_store,
     )
     .await?;

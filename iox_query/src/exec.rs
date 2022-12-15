@@ -130,7 +130,8 @@ impl Executor {
         Self::new_with_config_and_executors(config, executors)
     }
 
-    /// Get testing executor.
+    /// Get testing executor that runs a on single thread and a low memory bound
+    /// to preserve resources.
     pub fn new_testing() -> Self {
         let config = ExecutorConfig {
             num_threads: 1,

@@ -11,7 +11,10 @@ use observability_deps::tracing::*;
 use parking_lot::Mutex;
 use parquet_file::metadata::IoxMetadata;
 use schema::sort::SortKey;
-use tokio::{sync::oneshot, time::Instant};
+use tokio::{
+    sync::{oneshot, OwnedSemaphorePermit},
+    time::Instant,
+};
 use uuid::Uuid;
 
 use crate::{
@@ -36,6 +39,7 @@ pub(super) struct PersistRequest {
     partition: Arc<Mutex<PartitionData>>,
     data: PersistingData,
     enqueued_at: Instant,
+    permit: OwnedSemaphorePermit,
 }
 
 impl PersistRequest {
@@ -44,6 +48,7 @@ impl PersistRequest {
     pub(super) fn new(
         partition: Arc<Mutex<PartitionData>>,
         data: PersistingData,
+        permit: OwnedSemaphorePermit,
         enqueued_at: Instant,
     ) -> (Self, oneshot::Receiver<()>) {
         let (tx, rx) = oneshot::channel();
@@ -53,6 +58,7 @@ impl PersistRequest {
                 partition,
                 data,
                 enqueued_at,
+                permit,
             },
             rx,
         )
@@ -104,6 +110,13 @@ pub(super) struct Context {
     /// the queue).
     enqueued_at: Instant,
     dequeued_at: Instant,
+
+    /// The persistence permit for this work.
+    ///
+    /// This permit MUST be retained for the entire duration of the persistence
+    /// work, and MUST be released at the end of the persistence AFTER any
+    /// references to the persisted data are released.
+    permit: OwnedSemaphorePermit,
 }
 
 impl Context {
@@ -122,6 +135,7 @@ impl Context {
                 partition,
                 data,
                 enqueued_at,
+                permit,
             } = req;
 
             let p = Arc::clone(&partition);
@@ -147,6 +161,7 @@ impl Context {
                 complete,
                 enqueued_at,
                 dequeued_at: Instant::now(),
+                permit,
             }
         };
 
@@ -398,6 +413,11 @@ impl Context {
             queued_persist_duration = ?self.dequeued_at.duration_since(self.enqueued_at),
             "persisted partition"
         );
+
+        // Explicitly drop the permit before notifying the caller, so that if
+        // there's no headroom in the queue, the caller that is woken by the
+        // notification is able to push into the queue immediately.
+        drop(self.permit);
 
         // Notify the observer of this persistence task, if any.
         let _ = self.complete.send(());
