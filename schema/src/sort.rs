@@ -386,7 +386,7 @@ pub fn compute_sort_key<'a>(
     builder = builder.with_col(TIME_COLUMN_NAME);
     let sort_key = builder.build();
 
-    debug!(?primary_key, ?sort_key, "Computed sort key");
+    debug!(?primary_key, ?sort_key, "computed sort key");
     sort_key
 }
 
@@ -519,7 +519,7 @@ pub fn adjust_sort_key_columns(
            input_catalog_sort_key=?catalog_sort_key,
            output_chunk_sort_key=?metadata_sort_key,
            output_catalog_sort_key=?catalog_update,
-           "Adjusted sort key");
+           "adjusted sort key");
 
     (metadata_sort_key, catalog_update)
 }
