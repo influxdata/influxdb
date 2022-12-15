@@ -23,9 +23,7 @@ use arrow::{
 use datafusion::{
     error::{DataFusionError, Result as DataFusionResult},
     execution::context::SessionState,
-    logical_expr::{
-        AccumulatorFunctionImplementation, AggregateState, Signature, TypeSignature, Volatility,
-    },
+    logical_expr::{AccumulatorFunctionImplementation, Signature, TypeSignature, Volatility},
     physical_plan::{udaf::AggregateUDF, Accumulator},
     scalar::ScalarValue,
 };
@@ -386,7 +384,7 @@ trait Selector: Debug + Default + Send + Sync {
     fn value_data_type() -> DataType;
 
     /// return state in a form that DataFusion can store during execution
-    fn datafusion_state(&self) -> DataFusionResult<Vec<AggregateState>>;
+    fn datafusion_state(&self) -> DataFusionResult<Vec<ScalarValue>>;
 
     /// produces the final value of this selector for the specified output type
     fn evaluate(&self, output: &SelectorOutput) -> DataFusionResult<ScalarValue>;
@@ -529,7 +527,7 @@ where
     // this function serializes our state to a vector of
     // `ScalarValue`s, which DataFusion uses to pass this state
     // between execution stages.
-    fn state(&self) -> DataFusionResult<Vec<AggregateState>> {
+    fn state(&self) -> DataFusionResult<Vec<ScalarValue>> {
         self.selector.datafusion_state()
     }
 
