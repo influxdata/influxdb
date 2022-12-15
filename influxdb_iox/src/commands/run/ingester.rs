@@ -87,10 +87,10 @@ pub struct Config {
 }
 
 pub async fn command(config: Config) -> Result<()> {
-    if std::env::var("INFLUXDB_IOX_MODE").is_ok() {
+    if std::env::var("INFLUXDB_IOX_RPC_MODE").is_ok() {
         panic!(
-            "`INFLUXDB_IOX_MODE` was specified but `ingester` was the command run. Either unset
-             `INFLUXDB_IOX_MODE` or run the `ingester2` command."
+            "`INFLUXDB_IOX_RPC_MODE` was specified but `ingester` was the command run. Either unset
+             `INFLUXDB_IOX_RPC_MODE` or run the `ingester2` command."
         );
     }
 

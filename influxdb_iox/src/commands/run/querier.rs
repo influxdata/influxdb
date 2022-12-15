@@ -96,7 +96,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
     let num_threads = num_query_threads.unwrap_or_else(num_cpus::get);
     info!(%num_threads, "using specified number of threads per thread pool");
 
-    let rpc_write = std::env::var("INFLUXDB_IOX_MODE").is_ok();
+    let rpc_write = std::env::var("INFLUXDB_IOX_RPC_MODE").is_ok();
     if rpc_write {
         info!("using the RPC write path");
     } else {

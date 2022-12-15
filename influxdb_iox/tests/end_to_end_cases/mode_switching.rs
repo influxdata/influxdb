@@ -9,7 +9,7 @@ fn router_errors_with_mode_env_var() {
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .env_clear()
-        .env("INFLUXDB_IOX_MODE", "2")
+        .env("INFLUXDB_IOX_RPC_MODE", "2")
         .arg("run")
         .arg("router")
         .arg("--write-buffer")
@@ -20,7 +20,7 @@ fn router_errors_with_mode_env_var() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(
-            "`INFLUXDB_IOX_MODE` was specified but `router` was the command run",
+            "`INFLUXDB_IOX_RPC_MODE` was specified but `router` was the command run",
         ));
 }
 
@@ -37,7 +37,7 @@ fn router2_errors_without_mode_env_var() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(
-            "`INFLUXDB_IOX_MODE` was not specified but `router2` was the command run",
+            "`INFLUXDB_IOX_RPC_MODE` was not specified but `router2` was the command run",
         ));
 }
 
@@ -46,7 +46,7 @@ fn ingester_errors_with_mode_env_var() {
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .env_clear()
-        .env("INFLUXDB_IOX_MODE", "2")
+        .env("INFLUXDB_IOX_RPC_MODE", "2")
         .arg("run")
         .arg("ingester")
         .arg("--write-buffer")
@@ -65,7 +65,7 @@ fn ingester_errors_with_mode_env_var() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(
-            "`INFLUXDB_IOX_MODE` was specified but `ingester` was the command run",
+            "`INFLUXDB_IOX_RPC_MODE` was specified but `ingester` was the command run",
         ));
 }
 
@@ -84,7 +84,7 @@ fn ingester2_errors_without_mode_env_var() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(
-            "`INFLUXDB_IOX_MODE` was not specified but `ingester2` was the command run",
+            "`INFLUXDB_IOX_RPC_MODE` was not specified but `ingester2` was the command run",
         ));
 }
 
@@ -106,7 +106,7 @@ fn querier_errors_with_mode_env_var_and_shard_to_ingester_mapping() {
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .env_clear()
-        .env("INFLUXDB_IOX_MODE", "2")
+        .env("INFLUXDB_IOX_RPC_MODE", "2")
         .arg("run")
         .arg("querier")
         .arg("--shard-to-ingesters")
@@ -117,7 +117,7 @@ fn querier_errors_with_mode_env_var_and_shard_to_ingester_mapping() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(
-            "`INFLUXDB_IOX_MODE` is set but shard to ingester mappings were provided",
+            "`INFLUXDB_IOX_RPC_MODE` is set but shard to ingester mappings were provided",
         ));
 }
 
@@ -136,7 +136,7 @@ fn querier_errors_without_mode_env_var_and_ingester_addresses() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(
-            "`INFLUXDB_IOX_MODE` is unset but ingester addresses were provided",
+            "`INFLUXDB_IOX_RPC_MODE` is unset but ingester addresses were provided",
         ));
 }
 
@@ -161,7 +161,7 @@ fn querier_without_ingesters_with_mode_env_var_uses_rpc_write() {
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .env_clear()
-        .env("INFLUXDB_IOX_MODE", "2")
+        .env("INFLUXDB_IOX_RPC_MODE", "2")
         .arg("run")
         .arg("querier")
         .arg("-v")

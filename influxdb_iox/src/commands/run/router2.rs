@@ -64,10 +64,10 @@ pub struct Config {
 }
 
 pub async fn command(config: Config) -> Result<()> {
-    if std::env::var("INFLUXDB_IOX_MODE").is_err() {
+    if std::env::var("INFLUXDB_IOX_RPC_MODE").is_err() {
         panic!(
-            "`INFLUXDB_IOX_MODE` was not specified but `router2` was the command run. Either set
-             `INFLUXDB_IOX_MODE` or run the `router` command."
+            "`INFLUXDB_IOX_RPC_MODE` was not specified but `router2` was the command run. Either set
+             `INFLUXDB_IOX_RPC_MODE` or run the `router` command."
         );
     }
 

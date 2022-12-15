@@ -192,8 +192,8 @@ pub async fn create_querier_server_type(
         IngesterAddresses::ByShardIndex(map) => {
             if args.rpc_write {
                 panic!(
-                    "`INFLUXDB_IOX_MODE` is set but shard to ingester mappings were provided; \
-                    either unset `INFLUXDB_IOX_MODE` or specify `--ingester-addresses` instead"
+                    "`INFLUXDB_IOX_RPC_MODE` is set but shard to ingester mappings were provided; \
+                    either unset `INFLUXDB_IOX_RPC_MODE` or specify `--ingester-addresses` instead"
                 );
             }
             Some(create_ingester_connections(
@@ -206,8 +206,8 @@ pub async fn create_querier_server_type(
         IngesterAddresses::List(list) => {
             if !args.rpc_write {
                 panic!(
-                    "`INFLUXDB_IOX_MODE` is unset but ingester addresses were provided; \
-                    either set `INFLUXDB_IOX_MODE` or specify shard to ingester mappings instead"
+                    "`INFLUXDB_IOX_RPC_MODE` is unset but ingester addresses were provided; \
+                    either set `INFLUXDB_IOX_RPC_MODE` or specify shard to ingester mappings instead"
                 );
             }
             Some(create_ingester_connections(
