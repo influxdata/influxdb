@@ -173,7 +173,7 @@ impl IntoFieldList for Vec<FieldList> {
             }
         }
 
-        let mut fields = field_map.into_iter().map(|(_, v)| v).collect::<Vec<_>>();
+        let mut fields = field_map.into_values().collect::<Vec<_>>();
         fields.sort_by(|a, b| a.name.cmp(&b.name));
 
         Ok(FieldList { fields })
