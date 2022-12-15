@@ -254,7 +254,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
         //     . already considered all remaining candidates.
         //     . hit the max number of partitions to compact in parallel
         if (!parallel_compacting_candidates.is_empty())
-            && ((remaining_budget_bytes <= (compactor.config.memory_budget_bytes / 10) as u64)
+            && ((remaining_budget_bytes <= compactor.config.memory_budget_bytes / 10)
                 || (candidates.is_empty())
                 || (count == num_remaining_candidates)
                 || (count as u64 == compactor.config.max_parallel_partitions))
