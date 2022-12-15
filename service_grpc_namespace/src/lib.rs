@@ -86,11 +86,21 @@ impl namespace_service_server::NamespaceService for NamespaceService {
         }
         let mut repos = self.catalog.repositories().await;
         let req = request.into_inner();
-        //let namespace = repos
-        //    .namespaces()
-        //    .delete(
+        repos
+            .namespaces()
+            .delete(&req.name)
+            .await
+            .map_err(|e| match e {
+                iox_catalog::interface::Error::NamespaceNotFoundByName { name: _ } => {
+                    Status::not_found(e.to_string())
+                }
+                _ => {
+                    warn!(error=%e, %req.name, "failed to delete namespace");
+                    Status::internal(e.to_string())
+                }
+            })?;
 
-        todo!()
+        Ok(Response::new(DeleteNamespaceResponse {}))
     }
 
     async fn update_namespace_retention(
