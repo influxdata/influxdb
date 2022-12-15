@@ -278,6 +278,19 @@ where
             State::Resolved(v) => v.clone(),
         }
     }
+
+    /// Optimistically return the deferred value, if it is immediately
+    /// available.
+    ///
+    /// If the value is currently unresolved, or in the process of being
+    /// resolved, [`None`] is returned.
+    pub(crate) fn peek(&self) -> Option<T> {
+        match self.value.lock().as_ref().expect("no deferred load state") {
+            State::Unresolved(_) => None,
+            State::Loading(_) => None,
+            State::Resolved(v) => Some(v.clone()),
+        }
+    }
 }
 
 impl<T> Drop for DeferredLoad<T> {
@@ -315,10 +328,13 @@ mod tests {
     async fn test_demand() {
         let d = DeferredLoad::new(LONG_LONG_TIME, async { 42 });
 
+        assert_eq!(d.peek(), None);
         assert_eq!(d.get().with_timeout_panic(TIMEOUT).await, 42);
+        assert_eq!(d.peek(), Some(42));
 
         // Subsequent calls also succeed
         assert_eq!(d.get().with_timeout_panic(TIMEOUT).await, 42);
+        assert_eq!(d.peek(), Some(42));
     }
 
     #[tokio::test]
@@ -340,6 +356,7 @@ mod tests {
             move || {
                 let got = block_on(async {
                     barrier.wait();
+                    let _ = d.peek(); // Drive some concurrent peeking behaviour
                     d.get().await
                 });
                 assert_eq!(got, 42);
@@ -415,12 +432,16 @@ mod tests {
         pin_mut!(fut);
         assert_eq!(fut.as_mut().take_output(), None);
 
+        // Peek at the current value, which should immediately return None
+        assert_eq!(d.peek(), None);
+
         // Unblock the background task.
         allow_complete.send(()).expect("background task died");
 
         // And await the demand call
         fut.as_mut().with_timeout_panic(TIMEOUT).await;
         assert_eq!(fut.as_mut().take_output(), Some(42));
+        assert_eq!(d.peek(), Some(42));
     }
 
     #[tokio::test]
