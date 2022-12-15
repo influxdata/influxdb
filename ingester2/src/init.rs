@@ -241,7 +241,7 @@ pub async fn new(
 
     // Spawn the persist workers to compact partition data, convert it into
     // Parquet files, and upload them to object storage.
-    let persist_handle = PersistHandle::new(
+    let (persist_handle, persist_state) = PersistHandle::new(
         persist_workers,
         persist_worker_queue_depth,
         persist_executor,
@@ -273,7 +273,14 @@ pub async fn new(
     ));
 
     Ok(IngesterGuard {
-        rpc: GrpcDelegate::new(Arc::new(write_path), buffer, timestamp, catalog, metrics),
+        rpc: GrpcDelegate::new(
+            Arc::new(write_path),
+            buffer,
+            timestamp,
+            persist_state,
+            catalog,
+            metrics,
+        ),
         rotation_task: handle,
     })
 }

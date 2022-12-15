@@ -47,7 +47,7 @@ pub struct Ingester2Config {
     #[clap(
         long = "persist-worker-queue-depth",
         env = "INFLUXDB_IOX_PERSIST_WORKER_QUEUE_DEPTH",
-        default_value = "10",
+        default_value = "250",
         action
     )]
     pub persist_worker_queue_depth: usize,

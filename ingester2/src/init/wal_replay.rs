@@ -95,7 +95,7 @@ where
                     "dropping empty wal segment",
                 );
 
-                // TODO(dom:test): empty WAL replay
+                // TODO(test): empty WAL replay
 
                 // A failure to delete an empty file should not prevent WAL
                 // replay from continuing.
