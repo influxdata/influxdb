@@ -14,10 +14,8 @@ use std::{
 use trace::span::{Span, SpanRecorder};
 
 use crate::{
-    chunk::{ChunkAdapter, QuerierChunk},
-    ingester::IngesterChunk,
-    tombstone::QuerierTombstone,
-    IngesterPartition,
+    cache::CatalogCache, ingester::IngesterChunk, parquet::QuerierParquetChunk,
+    tombstone::QuerierTombstone, IngesterPartition,
 };
 
 use self::interface::{IngesterPartitionInfo, ParquetFileInfo, TombstoneInfo};
@@ -34,19 +32,19 @@ pub enum ReconcileError {
 pub struct Reconciler {
     table_name: Arc<str>,
     namespace_name: Arc<str>,
-    chunk_adapter: Arc<ChunkAdapter>,
+    catalog_cache: Arc<CatalogCache>,
 }
 
 impl Reconciler {
     pub(crate) fn new(
         table_name: Arc<str>,
         namespace_name: Arc<str>,
-        chunk_adapter: Arc<ChunkAdapter>,
+        catalog_cache: Arc<CatalogCache>,
     ) -> Self {
         Self {
             table_name,
             namespace_name,
-            chunk_adapter,
+            catalog_cache,
         }
     }
 
@@ -57,7 +55,7 @@ impl Reconciler {
         ingester_partitions: Vec<IngesterPartition>,
         tombstones: Vec<Arc<Tombstone>>,
         retention_delete_pred: Option<DeletePredicate>,
-        parquet_files: Vec<QuerierChunk>,
+        parquet_files: Vec<QuerierParquetChunk>,
         span: Option<Span>,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, ReconcileError> {
         let span_recorder = SpanRecorder::new(span);
@@ -88,7 +86,7 @@ impl Reconciler {
         ingester_partitions: &[IngesterPartition],
         tombstones: Vec<Arc<Tombstone>>,
         retention_delete_pred: Option<DeletePredicate>,
-        parquet_files: Vec<QuerierChunk>,
+        parquet_files: Vec<QuerierParquetChunk>,
         span: Option<Span>,
     ) -> Result<Vec<Box<dyn UpdatableQuerierChunk>>, ReconcileError> {
         let span_recorder = SpanRecorder::new(span);
@@ -180,8 +178,7 @@ impl Reconciler {
 
                     // check if tombstone is marked as processed
                     if self
-                        .chunk_adapter
-                        .catalog_cache()
+                        .catalog_cache
                         .processed_tombstones()
                         .exists(
                             chunk.meta().parquet_file_id(),
@@ -281,7 +278,7 @@ trait UpdatableQuerierChunk: QueryChunk {
     fn upcast_to_querier_chunk(self: Box<Self>) -> Box<dyn QueryChunk>;
 }
 
-impl UpdatableQuerierChunk for QuerierChunk {
+impl UpdatableQuerierChunk for QuerierParquetChunk {
     fn partition_sort_key_arc(&self) -> Option<Arc<SortKey>> {
         self.partition_sort_key_arc()
     }

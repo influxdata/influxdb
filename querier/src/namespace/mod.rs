@@ -2,8 +2,8 @@
 
 use crate::{
     cache::{namespace::CachedNamespace, CatalogCache},
-    chunk::ChunkAdapter,
     ingester::IngesterConnection,
+    parquet::ChunkAdapter,
     query_log::QueryLog,
     table::{PruneMetrics, QuerierTable, QuerierTableArgs},
 };

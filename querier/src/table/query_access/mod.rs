@@ -19,7 +19,7 @@ use iox_query::{
 use predicate::Predicate;
 use schema::Schema;
 
-use crate::{chunk::QuerierChunk, ingester::IngesterChunk};
+use crate::{ingester::IngesterChunk, parquet::QuerierParquetChunk};
 
 use self::metrics::PruneMetrics;
 
@@ -152,6 +152,11 @@ impl MetricPruningObserver {
         Self { metrics }
     }
 
+    #[cfg(test)]
+    pub(crate) fn new_unregistered() -> Self {
+        Self::new(Arc::new(PruneMetrics::new_unregistered()))
+    }
+
     /// Called when pruning a chunk before fully creating the chunk structure
     pub(crate) fn was_pruned_early(&self, row_count: u64, size_estimate: u64) {
         self.metrics.pruned_early.inc(1, row_count, size_estimate);
@@ -197,7 +202,7 @@ fn chunk_estimate_size(chunk: &dyn QueryChunk) -> usize {
 
     if let Some(chunk) = chunk.downcast_ref::<IngesterChunk>() {
         chunk.estimate_size()
-    } else if let Some(chunk) = chunk.downcast_ref::<QuerierChunk>() {
+    } else if let Some(chunk) = chunk.downcast_ref::<QuerierParquetChunk>() {
         chunk.estimate_size()
     } else {
         panic!("Unknown chunk type")
@@ -207,7 +212,7 @@ fn chunk_estimate_size(chunk: &dyn QueryChunk) -> usize {
 fn chunk_rows(chunk: &dyn QueryChunk) -> usize {
     let chunk = chunk.as_any();
 
-    if let Some(chunk) = chunk.downcast_ref::<QuerierChunk>() {
+    if let Some(chunk) = chunk.downcast_ref::<QuerierParquetChunk>() {
         chunk.rows()
     } else if let Some(chunk) = chunk.downcast_ref::<IngesterChunk>() {
         chunk.rows()

@@ -1,24 +1,16 @@
 use self::query_access::QuerierTableChunkPruner;
 use self::state_reconciler::Reconciler;
-use crate::table::query_access::MetricPruningObserver;
 use crate::{
-    chunk::ChunkAdapter,
     ingester::{self, IngesterPartition},
+    parquet::ChunkAdapter,
     IngesterConnection,
 };
-use data_types::{
-    ColumnId, DeletePredicate, NamespaceId, PartitionId, ShardIndex, TableId, TimestampMinMax,
-};
+use data_types::{ColumnId, DeletePredicate, NamespaceId, PartitionId, ShardIndex, TableId};
 use datafusion::error::DataFusionError;
-use futures::{join, StreamExt};
-use iox_query::pruning::prune_summaries;
-use iox_query::util::create_basic_summary;
+use futures::join;
 use iox_query::{exec::Executor, provider, provider::ChunkPruner, QueryChunk};
 use observability_deps::tracing::{debug, trace};
 use predicate::Predicate;
-use rand::rngs::StdRng;
-use rand::seq::SliceRandom;
-use rand::SeedableRng;
 use schema::Schema;
 use sharder::JumpHash;
 use snafu::{ResultExt, Snafu};
@@ -33,17 +25,13 @@ use trace::span::{Span, SpanRecorder};
 use uuid::Uuid;
 
 pub use self::query_access::metrics::PruneMetrics;
+pub(crate) use self::query_access::MetricPruningObserver;
 
 mod query_access;
 mod state_reconciler;
 
 #[cfg(test)]
 mod test_util;
-
-/// Number of concurrent chunk creation jobs.
-///
-/// This is mostly to fetch per-partition data concurrently.
-const CONCURRENT_CHUNK_CREATION_JOBS: usize = 100;
 
 #[derive(Debug, Snafu)]
 #[allow(clippy::large_enum_variant)]
@@ -348,86 +336,20 @@ impl QuerierTable {
         let reconciler = Reconciler::new(
             Arc::clone(&self.table_name),
             Arc::clone(&self.namespace_name),
-            Arc::clone(&self.chunk_adapter),
+            Arc::clone(self.chunk_adapter.catalog_cache()),
         );
 
         // create parquet files
-        let parquet_files: Vec<_> = {
-            // use nested scope because we span many child scopes here and it's easier to
-            // aggregate / collapse in the UI
-            let span_recorder = span_recorder.child("parquet chunks");
-
-            let basic_summaries: Vec<_> = parquet_files
-                .files
-                .iter()
-                .map(|p| {
-                    Arc::new(create_basic_summary(
-                        p.row_count as u64,
-                        &cached_table.schema,
-                        TimestampMinMax {
-                            min: p.min_time.get(),
-                            max: p.max_time.get(),
-                        },
-                    ))
-                })
-                .collect();
-
-            // Prune on the most basic summary data (timestamps and column names) before trying to fully load the chunks
-            let keeps = match prune_summaries(
-                Arc::clone(&cached_table.schema),
-                &basic_summaries,
+        let parquet_files = self
+            .chunk_adapter
+            .new_chunks(
+                Arc::clone(cached_table),
+                Arc::clone(&parquet_files.files),
                 &predicate,
-            ) {
-                Ok(keeps) => keeps,
-                Err(reason) => {
-                    // Ignore pruning failures here - the chunk pruner should have already logged them.
-                    // Just skip pruning and gather all the metadata. We have another chance to prune them
-                    // once all the metadata is available
-                    debug!(?reason, "Could not prune before metadata fetch");
-                    vec![true; basic_summaries.len()]
-                }
-            };
-
-            let early_pruning_observer =
-                &MetricPruningObserver::new(Arc::clone(&self.prune_metrics));
-
-            // Remove any unused parquet files up front to maximize the
-            // concurrent catalog requests that could be outstanding
-            let mut parquet_files = parquet_files
-                .files
-                .iter()
-                .zip(keeps)
-                .filter_map(|(pf, keep)| {
-                    if keep {
-                        Some(Arc::clone(pf))
-                    } else {
-                        early_pruning_observer
-                            .was_pruned_early(pf.row_count as u64, pf.file_size_bytes as u64);
-                        None
-                    }
-                })
-                .collect::<Vec<_>>();
-
-            // de-correlate parquet files so that subsequent items likely don't block/wait on the same cache lookup
-            // (they are likely ordered by partition)
-            let mut rng = StdRng::seed_from_u64(self.id().get() as u64);
-            parquet_files.shuffle(&mut rng);
-
-            futures::stream::iter(parquet_files)
-                .map(|cached_parquet_file| {
-                    let span_recorder = &span_recorder;
-                    async move {
-                        let span = span_recorder.child_span("new_chunk");
-                        self.chunk_adapter
-                            .new_chunk(Arc::clone(cached_table), cached_parquet_file, span)
-                            .await
-                    }
-                })
-                .buffer_unordered(CONCURRENT_CHUNK_CREATION_JOBS)
-                .filter_map(|x| async { x })
-                .collect()
-                .await
-        };
+                MetricPruningObserver::new(Arc::clone(&self.prune_metrics)),
+                span_recorder.child_span("new_chunks"),
+            )
+            .await;
 
         let chunks = reconciler
             .reconcile(

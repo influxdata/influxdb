@@ -124,4 +124,9 @@ impl PruneMetrics {
             could_not_prune_df,
         }
     }
+
+    #[cfg(test)]
+    pub(crate) fn new_unregistered() -> Self {
+        Self::new(&metric::Registry::new())
+    }
 }

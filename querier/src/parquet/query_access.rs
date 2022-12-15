@@ -1,4 +1,4 @@
-use crate::chunk::QuerierChunk;
+use crate::parquet::QuerierParquetChunk;
 use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId, TableSummary};
 use datafusion::error::DataFusionError;
 use iox_query::{
@@ -9,7 +9,7 @@ use predicate::Predicate;
 use schema::{sort::SortKey, Projection, Schema};
 use std::{any::Any, sync::Arc};
 
-impl QueryChunkMeta for QuerierChunk {
+impl QueryChunkMeta for QuerierParquetChunk {
     fn summary(&self) -> Arc<TableSummary> {
         Arc::clone(&self.table_summary)
     }
@@ -35,7 +35,7 @@ impl QueryChunkMeta for QuerierChunk {
     }
 }
 
-impl QueryChunk for QuerierChunk {
+impl QueryChunk for QuerierParquetChunk {
     fn id(&self) -> ChunkId {
         self.meta().chunk_id
     }

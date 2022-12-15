@@ -12,11 +12,11 @@
 )]
 
 mod cache;
-mod chunk;
 mod database;
 mod handler;
 mod ingester;
 mod namespace;
+mod parquet;
 mod poison;
 mod query_log;
 mod server;

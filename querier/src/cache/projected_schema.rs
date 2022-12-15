@@ -1,7 +1,7 @@
 //! Cache for schema projections.
 //!
 //! While this is technically NOT caching catalog requests (i.e. CPU and IO work), it heavily reduced memory when
-//! creating [`QuerierChunk`](crate::chunk::QuerierChunk)s.
+//! creating [`QuerierParquetChunk`](crate::parquet::QuerierParquetChunk)s.
 use std::{
     collections::HashMap,
     mem::{size_of, size_of_val},
