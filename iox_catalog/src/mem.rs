@@ -361,6 +361,10 @@ impl NamespaceRepo for MemTxn {
             .iter()
             .filter_map(|table| (table.namespace_id == namespace_id).then_some(table.id))
             .collect();
+        // delete partitions for those tables
+        stage
+            .partitions
+            .retain(|p| !table_ids.iter().any(|id| *id == p.table_id));
         // delete tombstones for those tables
         stage
             .tombstones

@@ -680,8 +680,26 @@ WHERE name = $1;
         Ok(Some(namespace))
     }
 
-    async fn delete(&mut self, _name: &str) -> Result<()> {
-        todo!()
+    async fn delete(&mut self, name: &str) -> Result<()> {
+        // note that there is a uniqueness constraint on the name column in the DB
+        sqlx::query(
+            r#"
+WITH namespace_id as (
+    SELECT id
+    FROM namespace
+    WHERE name = $1
+    LIMIT 1
+)
+DELETE FROM namespace
+WHERE id = (SELECT id FROM namespace_id)
+RETURNING id;
+        "#,
+        )
+        .bind(name)
+        .execute(&mut self.inner)
+        .await
+        .context(interface::CouldNotDeleteNamespaceSnafu)
+        .map(|_| ())
     }
 
     async fn update_table_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace> {

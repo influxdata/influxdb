@@ -65,6 +65,15 @@ impl proto::namespace_service_server::NamespaceService for NamespaceServiceImpl 
         ))
     }
 
+    async fn delete_namespace(
+        &self,
+        _request: tonic::Request<proto::DeleteNamespaceRequest>,
+    ) -> Result<tonic::Response<proto::DeleteNamespaceResponse>, tonic::Status> {
+        Err(tonic::Status::unimplemented(
+            "use router instances to manage namespaces",
+        ))
+    }
+
     async fn update_namespace_retention(
         &self,
         _request: tonic::Request<proto::UpdateNamespaceRetentionRequest>,

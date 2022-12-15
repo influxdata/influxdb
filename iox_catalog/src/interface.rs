@@ -129,6 +129,9 @@ pub enum Error {
 
     #[snafu(display("could not delete skipped compactions: {source}"))]
     CouldNotDeleteSkippedCompactions { source: sqlx::Error },
+
+    #[snafu(display("could not delete namespace: {source}"))]
+    CouldNotDeleteNamespace { source: sqlx::Error },
 }
 
 /// A specialized `Error` for Catalog errors
@@ -4487,6 +4490,12 @@ pub(crate) mod test_helpers {
                 .len(),
             0
         );
+        assert!(repos
+            .partitions()
+            .get_by_id(partition_1.id)
+            .await
+            .expect("fetching partition by id should succeed")
+            .is_none());
         assert!(!repos
             .parquet_files()
             .exist(p1_n1.id)
@@ -4563,6 +4572,12 @@ pub(crate) mod test_helpers {
                 .len(),
             3
         );
+        assert!(repos
+            .partitions()
+            .get_by_id(partition_2.id)
+            .await
+            .expect("fetching partition by id should succeed")
+            .is_some());
         assert!(repos
             .parquet_files()
             .exist(p1_n2.id)
