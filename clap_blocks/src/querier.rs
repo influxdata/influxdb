@@ -278,10 +278,10 @@ impl QuerierConfig {
     // When we have switched to using the RPC write path only, this method can be changed to be
     // infallible as clap will handle failure to parse the list of strings.
     //
-    // Switching into the RPC write path mode requires *both* the `INFLUXDB_IOX_RPC_MODE` environment
-    // variable to be specified *and* `--ingester-addresses` to be set in order to switch. If the
-    // `INFLUXDB_IOX_RPC_MODE` is enabled and `--shard-to-ingesters*` is set, use the write buffer path
-    // instead.
+    // Switching into the RPC write path mode requires *both* the `INFLUXDB_IOX_RPC_MODE`
+    // environment variable to be specified *and* `--ingester-addresses` to be set in order to
+    // switch. Setting `INFLUXDB_IOX_RPC_MODE` and shard-to-ingesters mapping, or not setting
+    // `INFLUXDB_IOX_RPC_MODE` and setting ingester addresses, will panic.
     pub fn ingester_addresses(&self) -> Result<IngesterAddresses, Error> {
         if let Some(file) = &self.shard_to_ingesters_file {
             let contents =
