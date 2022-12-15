@@ -1,3 +1,35 @@
+## v2.6.0 [2022-12-15]
+----------------------
+
+### Bug Fixes
+
+1. [46464f4](https://github.com/influxdata/influxdb/commit/46464f4): Optimize SHOW FIELD KEY CARDINALITY
+1. [666cabb](https://github.com/influxdata/influxdb/commit/666cabb): Fix wrong max age transformation from seconds
+1. [f026d7b](https://github.com/influxdata/influxdb/commit/f026d7b): Fixes migrating when a remote already exists
+1. [9bf8840](https://github.com/influxdata/influxdb/commit/9bf8840): Update me and users routes to match cloud/documentation
+1. [ade21ad](https://github.com/influxdata/influxdb/commit/ade21ad): Restrict file permissions by default
+1. [ffd069a](https://github.com/influxdata/influxdb/commit/ffd069a): Handle NaN in scraper
+1. [24a2b62](https://github.com/influxdata/influxdb/commit/24a2b62): Pin UI to older version to address Dashboard issues
+
+### Features
+
+1. [7708108](https://github.com/influxdata/influxdb/commit/7708108): Port check-schema and merge-schema from 1.x
+1. [c2eac86](https://github.com/influxdata/influxdb/commit/c2eac86): Port report-db command from 1.x
+1. [853d615](https://github.com/influxdata/influxdb/commit/853d615): Perform basic package validation
+
+### Other
+
+1. [e62c8ab](https://github.com/influxdata/influxdb/commit/e62c8ab): Chore: upgrade to Go 1.18.8
+1. [86207fe](https://github.com/influxdata/influxdb/commit/86207fe): Build(flux): update flux to v0.189.0
+1. [61870e5](https://github.com/influxdata/influxdb/commit/61870e5): Chore: update 2.5 changelog
+1. [4de89af](https://github.com/influxdata/influxdb/commit/4de89af): Refactor: remove dead iterator code
+1. [07e6ef2](https://github.com/influxdata/influxdb/commit/07e6ef2): Build(flux): update flux to v0.191.0
+1. [7ad8fba](https://github.com/influxdata/influxdb/commit/7ad8fba): Chore: fix trace message text
+1. [ef098ac](https://github.com/influxdata/influxdb/commit/ef098ac): Chore: cleanup codeowners file
+1. [26daa86](https://github.com/influxdata/influxdb/commit/26daa86): Chore: bump testcontainers to latest released version
+1. [cee487f](https://github.com/influxdata/influxdb/commit/cee487f): Chore: update Go to 1.18.9
+
+
 ## v2.5.1 [2022-11-02]
 ----------------------
 
