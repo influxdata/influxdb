@@ -6,9 +6,12 @@ use observability_deps::tracing::*;
 use parking_lot::Mutex;
 use parquet_file::storage::ParquetStorage;
 use sharder::JumpHash;
-use tokio::sync::{
-    mpsc::{self, error::TrySendError},
-    oneshot,
+use tokio::{
+    sync::{
+        mpsc::{self, error::TrySendError},
+        oneshot,
+    },
+    time::Instant,
 };
 
 use crate::buffer_tree::partition::{persisting::PersistingData, PartitionData};
@@ -212,7 +215,8 @@ impl PersistHandle {
         );
 
         // Build the persist task request.
-        let (r, notify) = PersistRequest::new(partition, data);
+        let enqueued_at = Instant::now();
+        let (r, notify) = PersistRequest::new(partition, data, enqueued_at);
 
         // Select a worker to dispatch this request to.
         let queue = self.persist_queues.hash(r.partition_id());

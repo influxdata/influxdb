@@ -44,6 +44,7 @@ impl PersistRequest {
     pub(super) fn new(
         partition: Arc<Mutex<PartitionData>>,
         data: PersistingData,
+        enqueued_at: Instant,
     ) -> (Self, oneshot::Receiver<()>) {
         let (tx, rx) = oneshot::channel();
         (
@@ -51,7 +52,7 @@ impl PersistRequest {
                 complete: tx,
                 partition,
                 data,
-                enqueued_at: Instant::now(),
+                enqueued_at,
             },
             rx,
         )
