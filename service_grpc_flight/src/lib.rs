@@ -207,7 +207,7 @@ where
         let ticket = request.into_inner();
 
         // attempt to decode ticket
-        let request = IoxGetRequest::try_new(ticket).context(InvalidTicketSnafu);
+        let request = IoxGetRequest::try_decode(ticket).context(InvalidTicketSnafu);
 
         if let Err(e) = &request {
             info!(%e, "Error decoding Flight API ticket");
