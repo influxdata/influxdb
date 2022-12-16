@@ -5,7 +5,7 @@ pub(crate) mod name_resolver;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use data_types::{NamespaceId, TableId};
+use data_types::{NamespaceId, ShardId, TableId};
 use dml::DmlOperation;
 use metric::U64Counter;
 use observability_deps::tracing::warn;
@@ -77,6 +77,8 @@ pub(crate) struct NamespaceData<O> {
     partition_provider: Arc<dyn PartitionProvider>,
 
     post_write_observer: Arc<O>,
+
+    transition_shard_id: ShardId,
 }
 
 impl<O> NamespaceData<O> {
@@ -88,6 +90,7 @@ impl<O> NamespaceData<O> {
         partition_provider: Arc<dyn PartitionProvider>,
         post_write_observer: Arc<O>,
         metrics: &metric::Registry,
+        transition_shard_id: ShardId,
     ) -> Self {
         let table_count = metrics
             .register_metric::<U64Counter>(
@@ -104,6 +107,7 @@ impl<O> NamespaceData<O> {
             table_count,
             partition_provider,
             post_write_observer,
+            transition_shard_id,
         }
     }
 
@@ -163,6 +167,7 @@ where
                             Arc::clone(&self.namespace_name),
                             Arc::clone(&self.partition_provider),
                             Arc::clone(&self.post_write_observer),
+                            self.transition_shard_id,
                         ))
                     });
 
@@ -226,7 +231,7 @@ where
 mod tests {
     use std::{sync::Arc, time::Duration};
 
-    use data_types::{PartitionId, PartitionKey, ShardIndex};
+    use data_types::{PartitionId, PartitionKey, ShardId, ShardIndex};
     use metric::{Attributes, Metric};
 
     use super::*;
@@ -246,6 +251,7 @@ mod tests {
     const TABLE_ID: TableId = TableId::new(44);
     const NAMESPACE_NAME: &str = "platanos";
     const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
+    const TRANSITION_SHARD_ID: ShardId = ShardId::new(84);
 
     #[tokio::test]
     async fn test_namespace_init_table() {
@@ -266,6 +272,7 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
+                TRANSITION_SHARD_ID,
             ),
         ));
 
@@ -276,6 +283,7 @@ mod tests {
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
             &metrics,
+            TRANSITION_SHARD_ID,
         );
 
         // Assert the namespace name was stored

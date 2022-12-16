@@ -322,21 +322,25 @@ impl From<QueryResponse> for FlatIngesterQueryResponseStream {
                         completed_persistence_count,
                     })
                 });
-                let tail = partition
-                    .into_record_batch_stream()
-                    .flat_map(|snapshot_res| match snapshot_res {
-                        Ok(snapshot) => {
-                            let schema = Arc::new(prepare_schema_for_flight(&snapshot.schema()));
 
-                            let schema_captured = Arc::clone(&schema);
-                            let head = futures::stream::once(async {
-                                Ok(FlatIngesterQueryResponse::StartSnapshot {
-                                    schema: schema_captured,
-                                })
-                            });
+                match partition.into_record_batch_stream() {
+                    Some(stream) => {
+                        let tail = stream.flat_map(|snapshot_res| match snapshot_res {
+                            Ok(snapshot) => {
+                                let schema =
+                                    Arc::new(prepare_schema_for_flight(&snapshot.schema()));
 
-                            let tail =
-                                match prepare_batch_for_flight(&snapshot, Arc::clone(&schema)) {
+                                let schema_captured = Arc::clone(&schema);
+                                let head = futures::stream::once(async {
+                                    Ok(FlatIngesterQueryResponse::StartSnapshot {
+                                        schema: schema_captured,
+                                    })
+                                });
+
+                                let tail = match prepare_batch_for_flight(
+                                    &snapshot,
+                                    Arc::clone(&schema),
+                                ) {
                                     Ok(batch) => {
                                         futures::stream::iter(split_batch_for_grpc_response(batch))
                                             .map(|batch| {
@@ -347,12 +351,15 @@ impl From<QueryResponse> for FlatIngesterQueryResponseStream {
                                     Err(e) => futures::stream::once(async { Err(e) }).boxed(),
                                 };
 
-                            head.chain(tail).boxed()
-                        }
-                        Err(e) => futures::stream::once(async { Err(e) }).boxed(),
-                    });
+                                head.chain(tail).boxed()
+                            }
+                            Err(e) => futures::stream::once(async { Err(e) }).boxed(),
+                        });
 
-                head.chain(tail).boxed()
+                        head.chain(tail).boxed()
+                    }
+                    None => head.boxed(),
+                }
             })
             .boxed()
     }

@@ -5,7 +5,7 @@ pub(crate) mod name_resolver;
 use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{NamespaceId, PartitionId, PartitionKey, SequenceNumber, TableId};
+use data_types::{NamespaceId, PartitionId, PartitionKey, SequenceNumber, ShardId, TableId};
 use datafusion_util::MemoryStream;
 use mutable_batch::MutableBatch;
 use parking_lot::{Mutex, RwLock};
@@ -116,6 +116,7 @@ pub(crate) struct TableData<O> {
     partition_data: RwLock<DoubleRef>,
 
     post_write_observer: Arc<O>,
+    transition_shard_id: ShardId,
 }
 
 impl<O> TableData<O> {
@@ -136,6 +137,7 @@ impl<O> TableData<O> {
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         partition_provider: Arc<dyn PartitionProvider>,
         post_write_observer: Arc<O>,
+        transition_shard_id: ShardId,
     ) -> Self {
         Self {
             table_id,
@@ -145,6 +147,7 @@ impl<O> TableData<O> {
             partition_data: Default::default(),
             partition_provider,
             post_write_observer,
+            transition_shard_id,
         }
     }
 
@@ -218,6 +221,7 @@ where
                         Arc::clone(&self.namespace_name),
                         self.table_id,
                         Arc::clone(&self.table_name),
+                        self.transition_shard_id,
                     )
                     .await;
                 // Add the double-referenced partition to the map.
@@ -263,7 +267,7 @@ where
         );
 
         // Gather the partition data from all of the partitions in this table.
-        let partitions = self.partitions().into_iter().filter_map(move |p| {
+        let partitions = self.partitions().into_iter().map(move |p| {
             let mut span = SpanRecorder::new(span.clone().map(|s| s.child("partition read")));
 
             let (id, completed_persistence_count, data) = {
@@ -271,30 +275,32 @@ where
                 (
                     p.partition_id(),
                     p.completed_persistence_count(),
-                    p.get_query_data()?,
+                    p.get_query_data(),
                 )
             };
-            assert_eq!(id, data.partition_id());
 
-            // Project the data if necessary
-            let columns = columns.iter().map(String::as_str).collect::<Vec<_>>();
-            let selection = if columns.is_empty() {
-                Projection::All
-            } else {
-                Projection::Some(columns.as_ref())
+            let ret = match data {
+                Some(data) => {
+                    assert_eq!(id, data.partition_id());
+
+                    // Project the data if necessary
+                    let columns = columns.iter().map(String::as_str).collect::<Vec<_>>();
+                    let selection = if columns.is_empty() {
+                        Projection::All
+                    } else {
+                        Projection::Some(columns.as_ref())
+                    };
+
+                    let data = Box::pin(MemoryStream::new(
+                        data.project_selection(selection).into_iter().collect(),
+                    ));
+                    PartitionResponse::new(data, id, None, completed_persistence_count)
+                }
+                None => PartitionResponse::new_no_batches(id, None, completed_persistence_count),
             };
 
-            let ret = PartitionResponse::new(
-                Box::pin(MemoryStream::new(
-                    data.project_selection(selection).into_iter().collect(),
-                )),
-                id,
-                None,
-                completed_persistence_count,
-            );
-
             span.ok("read partition data");
-            Some(ret)
+            ret
         });
 
         Ok(PartitionStream::new(futures::stream::iter(partitions)))
@@ -319,6 +325,7 @@ mod tests {
     const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
     const PARTITION_KEY: &str = "platanos";
     const PARTITION_ID: PartitionId = PartitionId::new(0);
+    const TRANSITION_SHARD_ID: ShardId = ShardId::new(84);
 
     #[tokio::test]
     async fn test_partition_double_ref() {
@@ -337,6 +344,7 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
+                TRANSITION_SHARD_ID,
             ),
         ));
 
@@ -351,6 +359,7 @@ mod tests {
             })),
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
+            TRANSITION_SHARD_ID,
         );
 
         let batch = lines_to_batches(r#"bananas,bat=man value=24 42"#, 0)

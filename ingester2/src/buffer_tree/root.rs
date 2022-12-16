@@ -1,7 +1,7 @@
 use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{NamespaceId, TableId};
+use data_types::{NamespaceId, ShardId, TableId};
 use dml::DmlOperation;
 use metric::U64Counter;
 use parking_lot::Mutex;
@@ -97,6 +97,7 @@ pub(crate) struct BufferTree<O> {
     namespace_count: U64Counter,
 
     post_write_observer: Arc<O>,
+    transition_shard_id: ShardId,
 }
 
 impl<O> BufferTree<O>
@@ -110,6 +111,7 @@ where
         partition_provider: Arc<dyn PartitionProvider>,
         post_write_observer: Arc<O>,
         metrics: Arc<metric::Registry>,
+        transition_shard_id: ShardId,
     ) -> Self {
         let namespace_count = metrics
             .register_metric::<U64Counter>(
@@ -126,6 +128,7 @@ where
             partition_provider,
             post_write_observer,
             namespace_count,
+            transition_shard_id,
         }
     }
 
@@ -176,6 +179,7 @@ where
                 Arc::clone(&self.partition_provider),
                 Arc::clone(&self.post_write_observer),
                 &self.metrics,
+                self.transition_shard_id,
             ))
         });
 
@@ -239,6 +243,7 @@ mod tests {
     const TABLE_NAME: &str = "bananas";
     const NAMESPACE_NAME: &str = "platanos";
     const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
+    const TRANSITION_SHARD_ID: ShardId = ShardId::new(84);
 
     #[tokio::test]
     async fn test_namespace_init_table() {
@@ -259,6 +264,7 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
+                TRANSITION_SHARD_ID,
             ),
         ));
 
@@ -270,6 +276,7 @@ mod tests {
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
             &metrics,
+            TRANSITION_SHARD_ID,
         );
 
         // Assert the namespace name was stored
@@ -339,6 +346,7 @@ mod tests {
                         partition_provider,
                         Arc::new(MockPostWriteObserver::default()),
                         Arc::new(metric::Registry::default()),
+                        TRANSITION_SHARD_ID,
                     );
 
                     // Write the provided DmlWrites
@@ -383,6 +391,7 @@ mod tests {
                 TableName::from(TABLE_NAME)
             })),
             SortKeyState::Provided(None),
+            TRANSITION_SHARD_ID,
         )],
         writes = [make_write_op(
             &PartitionKey::from("p1"),
@@ -418,6 +427,7 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
+                TRANSITION_SHARD_ID,
             ),
             PartitionData::new(
                 PartitionId::new(1),
@@ -431,6 +441,7 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
+                TRANSITION_SHARD_ID,
             )
         ],
         writes = [
@@ -478,6 +489,7 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
+                TRANSITION_SHARD_ID,
             ),
             PartitionData::new(
                 PartitionId::new(1),
@@ -491,6 +503,7 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
+                TRANSITION_SHARD_ID,
             )
         ],
         writes = [
@@ -537,6 +550,7 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
+                TRANSITION_SHARD_ID,
             ),
             PartitionData::new(
                 PartitionId::new(1),
@@ -550,6 +564,7 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
+                TRANSITION_SHARD_ID,
             )
         ],
         writes = [
@@ -597,6 +612,7 @@ mod tests {
                 TableName::from(TABLE_NAME)
             })),
             SortKeyState::Provided(None),
+            TRANSITION_SHARD_ID,
         )],
         writes = [
             make_write_op(
@@ -646,6 +662,7 @@ mod tests {
                         TableName::from(TABLE_NAME)
                     })),
                     SortKeyState::Provided(None),
+                    TRANSITION_SHARD_ID,
                 ))
                 .with_partition(PartitionData::new(
                     PartitionId::new(0),
@@ -659,6 +676,7 @@ mod tests {
                         TableName::from(TABLE_NAME)
                     })),
                     SortKeyState::Provided(None),
+                    TRANSITION_SHARD_ID,
                 )),
         );
 
@@ -671,6 +689,7 @@ mod tests {
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
             Arc::clone(&metrics),
+            TRANSITION_SHARD_ID,
         );
 
         // Write data to partition p1, in table "bananas".
@@ -740,6 +759,7 @@ mod tests {
                         TableName::from(TABLE_NAME)
                     })),
                     SortKeyState::Provided(None),
+                    TRANSITION_SHARD_ID,
                 ))
                 .with_partition(PartitionData::new(
                     PartitionId::new(1),
@@ -753,6 +773,7 @@ mod tests {
                         TableName::from(TABLE_NAME)
                     })),
                     SortKeyState::Provided(None),
+                    TRANSITION_SHARD_ID,
                 ))
                 .with_partition(PartitionData::new(
                     PartitionId::new(2),
@@ -766,6 +787,7 @@ mod tests {
                         TableName::from("another_table")
                     })),
                     SortKeyState::Provided(None),
+                    TRANSITION_SHARD_ID,
                 )),
         );
 
@@ -776,6 +798,7 @@ mod tests {
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
             Arc::clone(&Arc::new(metric::Registry::default())),
+            TRANSITION_SHARD_ID,
         );
 
         assert_eq!(buf.partitions().count(), 0);
@@ -849,6 +872,7 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
+                TRANSITION_SHARD_ID,
             ),
         ));
 
@@ -859,6 +883,7 @@ mod tests {
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
             Arc::new(metric::Registry::default()),
+            TRANSITION_SHARD_ID,
         );
 
         // Query the empty tree
@@ -932,6 +957,7 @@ mod tests {
                         TableName::from(TABLE_NAME)
                     })),
                     SortKeyState::Provided(None),
+                    TRANSITION_SHARD_ID,
                 ))
                 .with_partition(PartitionData::new(
                     PartitionId::new(1),
@@ -945,6 +971,7 @@ mod tests {
                         TableName::from(TABLE_NAME)
                     })),
                     SortKeyState::Provided(None),
+                    TRANSITION_SHARD_ID,
                 )),
         );
 
@@ -955,6 +982,7 @@ mod tests {
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
             Arc::new(metric::Registry::default()),
+            TRANSITION_SHARD_ID,
         );
 
         // Write data to partition p1, in table "bananas".
@@ -1013,10 +1041,11 @@ mod tests {
         let partition = partitions.pop().unwrap();
 
         // Perform the partition read
-        let batches =
-            datafusion::physical_plan::common::collect(partition.into_record_batch_stream())
-                .await
-                .expect("failed to collate query results");
+        let batches = datafusion::physical_plan::common::collect(
+            partition.into_record_batch_stream().unwrap(),
+        )
+        .await
+        .expect("failed to collate query results");
 
         // Assert the contents of p1 contains both the initial write, and the
         // 3rd write in a single RecordBatch.
