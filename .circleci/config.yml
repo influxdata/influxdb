@@ -225,43 +225,6 @@ jobs:
               echo "No changes to commit"
             fi
 
-  test_rpc_write:
-    # setup multiple docker images (see https://circleci.com/docs/2.0/configuration-reference/#docker)
-    docker:
-      - image: quay.io/influxdb/rust:ci
-      - image: vectorized/redpanda:v22.1.5
-        command: redpanda start --overprovisioned --smp 1 --memory 1G --reserve-memory 0M
-      - image: postgres
-        environment:
-          POSTGRES_HOST_AUTH_METHOD: trust
-    resource_class: 2xlarge+ # use of a smaller executor tends crashes on link
-    environment:
-      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
-      CARGO_INCREMENTAL: "0"
-      # Disable full debug symbol generation to speed up CI build
-      # "1" means line tables only, which is useful for panic tracebacks.
-      RUSTFLAGS: "-C debuginfo=1"
-      # https://github.com/rust-lang/cargo/issues/10280
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-      RUST_BACKTRACE: "1"
-      # Run integration tests
-      TEST_INTEGRATION: 1
-      INFLUXDB_IOX_INTEGRATION_LOCAL: 1
-      KAFKA_CONNECT: "localhost:9092"
-      POSTGRES_USER: postgres
-      TEST_INFLUXDB_IOX_CATALOG_DSN: "postgres://postgres@localhost/iox_shared"
-      # When removing this, also remove the ignore on the test in trogging/src/cli.rs
-      RUST_LOG: debug,,hyper::proto::h1=info,h2=info
-      LOG_FILTER: debug,,hyper::proto::h1=info,h2=info
-    steps:
-      - checkout
-      - rust_components
-      - cache_restore
-      - run:
-          name: Cargo test RPC write path
-          command: cargo test --workspace
-      - cache_save
-
   test:
     # setup multiple docker images (see https://circleci.com/docs/2.0/configuration-reference/#docker)
     docker:
@@ -590,7 +553,6 @@ workflows:
       - protobuf-lint
       - docs-lint
       - test
-      - test_rpc_write
       - test_heappy
       - build_dev
       - doc
@@ -610,7 +572,6 @@ workflows:
             - protobuf-lint
             - docs-lint
             - test
-            - test_rpc_write
             - test_heappy
             - build_dev
             - build_release
