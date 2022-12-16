@@ -1,6 +1,6 @@
 //! Compactor handler
 
-use crate::{cold, compact::Compactor, hot};
+use crate::{cold, compact::Compactor, hot, warm};
 use async_trait::async_trait;
 use data_types::{PartitionId, SkippedCompaction};
 use futures::{
@@ -124,6 +124,11 @@ pub struct CompactorConfig {
     /// equally.
     pub hot_multiple: usize,
 
+    /// The multiple of times that compacting warm partitions should run for every one time that
+    /// compacting cold partitions runs. Set to 1 to compact warm partitions and cold partitions
+    /// equally.
+    pub warm_multiple: usize,
+
     /// The memory budget assigned to this compactor.
     ///
     /// For each partition candidate, we will estimate the memory needed to compact each file
@@ -179,6 +184,13 @@ pub struct CompactorConfig {
     /// However, we do not want to have that number too large which will cause the high usage of CPU cores
     /// and may also lead to inaccuracy of memory estimation. This number is to cap that.
     pub max_parallel_partitions: u64,
+
+    /// Upper bound on file size to be counted as "small" for warm compaction.
+    pub warm_compaction_small_size_threshold_bytes: i64,
+
+    /// Minimum number of small files a partition must have in order for it to be selected
+    /// as a candidate for warm compaction.
+    pub warm_compaction_min_small_file_count: usize,
 }
 
 /// How long to pause before checking for more work again if there was
@@ -200,8 +212,10 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
 /// as the configuration will allow.
 pub async fn run_compactor_once(compactor: Arc<Compactor>) {
     let num_hot_cycles = compactor.config.hot_multiple;
+    let num_warm_cycles = compactor.config.warm_multiple;
     debug!(
         ?num_hot_cycles,
+        ?num_warm_cycles,
         num_cold_cycles = 1,
         "start running compactor once that includes"
     );
@@ -210,7 +224,15 @@ pub async fn run_compactor_once(compactor: Arc<Compactor>) {
         debug!(?i, "start hot cycle");
         compacted_partitions += hot::compact(Arc::clone(&compactor)).await;
         if compacted_partitions == 0 {
-            // No hot candidates, should move to compact cold partitions
+            // No hot candidates, should move on to warm compaction
+            break;
+        }
+    }
+    for i in 0..num_warm_cycles {
+        debug!(?i, "start warm cycle");
+        compacted_partitions += warm::compact(Arc::clone(&compactor)).await;
+        if compacted_partitions == 0 {
+            // No warm candidates, should move to compact cold partitions
             break;
         }
     }

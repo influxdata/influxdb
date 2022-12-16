@@ -207,6 +207,7 @@ pub async fn build_compactor_from_config(
         max_number_partitions_per_shard,
         min_number_recent_ingested_files_per_partition,
         hot_multiple,
+        warm_multiple,
         memory_budget_bytes,
         min_num_rows_allocated_per_record_batch_to_datafusion_plan,
         max_num_compacting_files,
@@ -215,6 +216,8 @@ pub async fn build_compactor_from_config(
         hot_compaction_hours_threshold_1,
         hot_compaction_hours_threshold_2,
         max_parallel_partitions,
+        warm_compaction_small_size_threshold_bytes,
+        warm_compaction_min_small_file_count,
         ..
     } = compactor_config;
 
@@ -225,6 +228,7 @@ pub async fn build_compactor_from_config(
         max_number_partitions_per_shard,
         min_number_recent_ingested_files_per_partition,
         hot_multiple,
+        warm_multiple,
         memory_budget_bytes,
         min_num_rows_allocated_per_record_batch_to_datafusion_plan,
         max_num_compacting_files,
@@ -233,6 +237,8 @@ pub async fn build_compactor_from_config(
         hot_compaction_hours_threshold_1,
         hot_compaction_hours_threshold_2,
         max_parallel_partitions,
+        warm_compaction_small_size_threshold_bytes,
+        warm_compaction_min_small_file_count,
     };
 
     Ok(compactor::compact::Compactor::new(

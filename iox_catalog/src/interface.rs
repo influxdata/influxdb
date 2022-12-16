@@ -608,6 +608,17 @@ pub trait ParquetFileRepo: Send + Sync {
         num_partitions: usize,
     ) -> Result<Vec<PartitionParam>>;
 
+    /// List the partitions for a given shard that have at least the given count of L1 files no
+    /// bigger than the provided size threshold. Limits the number of partitions returned to
+    /// num_partitions, for performance.
+    async fn partitions_with_small_l1_file_count(
+        &mut self,
+        shard_id: ShardId,
+        small_size_threshold_bytes: i64,
+        min_small_file_count: usize,
+        num_partitions: usize,
+    ) -> Result<Vec<PartitionParam>>;
+
     /// List partitions with the most level 0 + level 1 files created earlier than
     /// `older_than_num_hours` hours ago for a given shard. In other words, "cold" partitions
     /// that need compaction.
@@ -911,6 +922,7 @@ pub(crate) mod test_helpers {
         test_parquet_file_compaction_level_1(Arc::clone(&catalog)).await;
         test_most_cold_files_partitions(Arc::clone(&catalog)).await;
         test_recent_highest_throughput_partitions(Arc::clone(&catalog)).await;
+        test_partitions_with_small_l1_file_count(Arc::clone(&catalog)).await;
         test_update_to_compaction_level_1(Arc::clone(&catalog)).await;
         test_processed_tombstones(Arc::clone(&catalog)).await;
         test_list_by_partiton_not_to_delete(Arc::clone(&catalog)).await;
@@ -3696,6 +3708,243 @@ pub(crate) mod test_helpers {
             .recent_highest_throughput_partitions(
                 shard.id,
                 time_at_num_minutes_ago,
+                1,
+                num_partitions,
+            )
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 1);
+        assert_eq!(partitions[0].partition_id, partition.id);
+    }
+
+    async fn test_partitions_with_small_l1_file_count(catalog: Arc<dyn Catalog>) {
+        let mut repos = catalog.repositories().await;
+        let topic = repos
+            .topics()
+            .create_or_get("small_l1_files")
+            .await
+            .unwrap();
+        let pool = repos
+            .query_pools()
+            .create_or_get("small_l1_files")
+            .await
+            .unwrap();
+        let namespace = repos
+            .namespaces()
+            .create(
+                "test_partitions_with_small_l1_file_count",
+                None,
+                topic.id,
+                pool.id,
+            )
+            .await
+            .unwrap();
+        let table = repos
+            .tables()
+            .create_or_get("test_table", namespace.id)
+            .await
+            .unwrap();
+        let shard = repos
+            .shards()
+            .create_or_get(&topic, ShardIndex::new(100))
+            .await
+            .unwrap();
+
+        // params for the tests
+        let small_size_threshold_bytes = 2048;
+        let min_small_file_count = 2;
+        let num_partitions = 2;
+
+        // Time for testing
+        let time_now = Timestamp::from(catalog.time_provider().now());
+
+        // Case 1
+        // Db has no partition
+        let partitions = repos
+            .parquet_files()
+            .partitions_with_small_l1_file_count(
+                shard.id,
+                small_size_threshold_bytes,
+                min_small_file_count,
+                num_partitions,
+            )
+            .await
+            .unwrap();
+        assert!(partitions.is_empty());
+
+        // Case 2
+        // The DB has 1 partition but it does not have any file
+        let partition = repos
+            .partitions()
+            .create_or_get("one".into(), shard.id, table.id)
+            .await
+            .unwrap();
+        let partitions = repos
+            .parquet_files()
+            .partitions_with_small_l1_file_count(
+                shard.id,
+                small_size_threshold_bytes,
+                min_small_file_count,
+                num_partitions,
+            )
+            .await
+            .unwrap();
+        assert!(partitions.is_empty());
+
+        // Case 3
+        // The partition has one deleted L1 file
+        let parquet_file_params = ParquetFileParams {
+            shard_id: shard.id,
+            namespace_id: namespace.id,
+            table_id: partition.table_id,
+            partition_id: partition.id,
+            object_store_id: Uuid::new_v4(),
+            max_sequence_number: SequenceNumber::new(140),
+            min_time: Timestamp::new(1),
+            max_time: Timestamp::new(10),
+            file_size_bytes: 1337,
+            row_count: 0,
+            compaction_level: CompactionLevel::FileNonOverlapped,
+            created_at: time_now,
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+        };
+        let delete_l1_file = repos
+            .parquet_files()
+            .create(parquet_file_params.clone())
+            .await
+            .unwrap();
+        repos
+            .parquet_files()
+            .flag_for_delete(delete_l1_file.id)
+            .await
+            .unwrap();
+        let partitions = repos
+            .parquet_files()
+            .partitions_with_small_l1_file_count(
+                shard.id,
+                small_size_threshold_bytes,
+                min_small_file_count,
+                num_partitions,
+            )
+            .await
+            .unwrap();
+        assert!(partitions.is_empty());
+
+        // Case 4
+        // Partition has only 1 file
+        let l1_file_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            ..parquet_file_params.clone()
+        };
+        repos
+            .parquet_files()
+            .create(l1_file_params.clone())
+            .await
+            .unwrap();
+        // Case 4.1: min_num_files = 2
+        let partitions = repos
+            .parquet_files()
+            .partitions_with_small_l1_file_count(
+                shard.id,
+                small_size_threshold_bytes,
+                min_small_file_count,
+                num_partitions,
+            )
+            .await
+            .unwrap();
+        // nothing return because the partition has only one L1 file which is smaller than
+        // min_small_file_count = 2
+        assert!(partitions.is_empty());
+        // Case 4.2: min_small_file_count = 1
+        let partitions = repos
+            .parquet_files()
+            .partitions_with_small_l1_file_count(
+                shard.id,
+                small_size_threshold_bytes,
+                1,
+                num_partitions,
+            )
+            .await
+            .unwrap();
+        // and have one partition
+        assert_eq!(partitions.len(), 1);
+        // Case 4.3: small_size_threshold_bytes = 500
+        let partitions = repos
+            .parquet_files()
+            .partitions_with_small_l1_file_count(
+                shard.id,
+                500, // smaller than our file size of 1337
+                1,
+                num_partitions,
+            )
+            .await
+            .unwrap();
+        // nothing to return because there aren't any files small enough
+        assert!(partitions.is_empty());
+
+        // Case 5
+        // Let us create another partition with 2 small L1 files
+        let another_partition = repos
+            .partitions()
+            .create_or_get("two".into(), shard.id, table.id)
+            .await
+            .unwrap();
+        let l1_file_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            partition_id: another_partition.id,
+            ..parquet_file_params.clone()
+        };
+        repos.parquet_files().create(l1_file_params).await.unwrap();
+        let l1_file_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            partition_id: another_partition.id,
+            ..parquet_file_params.clone()
+        };
+        repos.parquet_files().create(l1_file_params).await.unwrap();
+        // Case 5.1: min_num_files = 2
+        let partitions = repos
+            .parquet_files()
+            .partitions_with_small_l1_file_count(
+                shard.id,
+                small_size_threshold_bytes,
+                min_small_file_count,
+                num_partitions,
+            )
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 1);
+        // must be the partition with 2 files
+        assert_eq!(partitions[0].partition_id, another_partition.id);
+
+        // Case 5.2: min_num_files = 1
+        let partitions = repos
+            .parquet_files()
+            .partitions_with_small_l1_file_count(
+                shard.id,
+                small_size_threshold_bytes,
+                1,
+                num_partitions,
+            )
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 2);
+        // partition with 2 files must be first
+        assert_eq!(partitions[0].partition_id, another_partition.id);
+        assert_eq!(partitions[1].partition_id, partition.id);
+
+        // The compactor skipped compacting another_partition
+        repos
+            .partitions()
+            .record_skipped_compaction(another_partition.id, "Secret reasons", 1, 2, 4, 10, 20)
+            .await
+            .unwrap();
+
+        // another_partition should no longer be selected for compaction
+        let partitions = repos
+            .parquet_files()
+            .partitions_with_small_l1_file_count(
+                shard.id,
+                small_size_threshold_bytes,
                 1,
                 num_partitions,
             )

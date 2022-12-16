@@ -7,7 +7,8 @@ use arrow::{
 use data_types::{
     Column, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceSchema, ParquetFile,
     ParquetFileParams, Partition, PartitionId, QueryPool, SequenceNumber, Shard, ShardId,
-    ShardIndex, Table, TableId, TableSchema, Timestamp, Tombstone, TombstoneId, TopicMetadata,
+    ShardIndex, Table, TableId, TablePartition, TableSchema, Timestamp, Tombstone, TombstoneId,
+    TopicMetadata,
 };
 use datafusion::physical_plan::metrics::Count;
 use datafusion_util::MemoryStream;
@@ -243,6 +244,24 @@ impl TestCatalog {
             .await
             .unwrap();
         level_0.len()
+    }
+
+    /// Count level 1 files
+    pub async fn count_level_1_files(
+        self: &Arc<Self>,
+        table_partition: TablePartition,
+        min_time: Timestamp,
+        max_time: Timestamp,
+    ) -> usize {
+        let level_1 = self
+            .catalog
+            .repositories()
+            .await
+            .parquet_files()
+            .level_1(table_partition, min_time, max_time)
+            .await
+            .unwrap();
+        level_1.len()
     }
 
     /// List all non-deleted files
@@ -842,6 +861,12 @@ impl TestParquetFileBuilder {
     /// Specify the size override to use for a CompactorParquetFile
     pub fn with_size_override(mut self, size_override: i64) -> Self {
         self.size_override = Some(size_override);
+        self
+    }
+
+    /// Specify the file size to use for a CompactorParquetFile
+    pub fn with_file_size_bytes(mut self, file_size_bytes: u64) -> Self {
+        self.file_size_bytes = Some(file_size_bytes);
         self
     }
 }

@@ -44,6 +44,7 @@ pub async fn compact(compactor: Arc<Compactor>, do_full_compact: bool) -> usize 
         Arc::clone(&compactor),
         compaction_type,
         CompactionLevel::Initial,
+        CompactionLevel::FileNonOverlapped,
         compact_in_parallel,
         true, // split
         candidates.clone().into(),
@@ -56,6 +57,7 @@ pub async fn compact(compactor: Arc<Compactor>, do_full_compact: bool) -> usize 
             Arc::clone(&compactor),
             compaction_type,
             CompactionLevel::FileNonOverlapped,
+            CompactionLevel::Final,
             compact_in_parallel,
             true, // split
             candidates.into(),
@@ -704,6 +706,7 @@ mod tests {
             max_number_partitions_per_shard: 1,
             min_number_recent_ingested_files_per_partition: 1,
             hot_multiple: 4,
+            warm_multiple: 1,
             memory_budget_bytes: 100_000_000,
             min_num_rows_allocated_per_record_batch_to_datafusion_plan: 1,
             max_num_compacting_files: 20,
@@ -712,6 +715,8 @@ mod tests {
             hot_compaction_hours_threshold_1: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
             hot_compaction_hours_threshold_2: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             max_parallel_partitions: DEFAULT_MAX_PARALLEL_PARTITIONS,
+            warm_compaction_small_size_threshold_bytes: 5_000,
+            warm_compaction_min_small_file_count: 10,
         }
     }
 
@@ -735,6 +740,7 @@ mod tests {
             Arc::clone(&compactor),
             "cold",
             CompactionLevel::Initial,
+            CompactionLevel::FileNonOverlapped,
             compact_in_parallel,
             false, // no split
             candidates.clone().into(),
@@ -783,6 +789,7 @@ mod tests {
             Arc::clone(&compactor),
             "cold",
             CompactionLevel::Initial,
+            CompactionLevel::FileNonOverlapped,
             compact_in_parallel,
             true, // split
             candidates.clone().into(),

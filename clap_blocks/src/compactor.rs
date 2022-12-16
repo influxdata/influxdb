@@ -120,6 +120,19 @@ macro_rules! gen_compactor_config {
             )]
             pub hot_multiple: usize,
 
+            /// The multiple of times that compacting warm partitions should run for every one time
+            /// that compacting cold partitions runs. Set to 1 to compact warm partitions and cold
+            /// partitions equally.
+            ///
+            /// Default is 1
+            #[clap(
+                long = "compaction-warm-multiple",
+                env = "INFLUXDB_IOX_COMPACTION_WARM_MULTIPLE",
+                default_value = "1",
+                action
+            )]
+            pub warm_multiple: usize,
+
             /// The memory budget assigned to this compactor.
             ///
             /// For each partition candidate, we will estimate the memory needed to compact each
@@ -220,6 +233,28 @@ macro_rules! gen_compactor_config {
                 action
             )]
             pub max_parallel_partitions: u64,
+
+            /// When querying for partitions suitable for warm compaction, this is the
+            /// upper bound on file size to be counted as "small".
+            /// Default is half of max_desired_file_size_bytes's default (see above).
+            #[clap(
+                long = "compaction-warm-small-size-threshold-bytes",
+                env = "INFLUXDB_IOX_COMPACTION_WARM_SMALL_SIZE_THRESHOLD_BYTES",
+                default_value = "13107200",
+                action
+            )]
+            pub warm_compaction_small_size_threshold_bytes: i64,
+
+            /// When querying for partitions suitable for warm compaction, this is the minimum
+            /// number of "small" files a partition must have in order for it to be selected
+            /// as a candidate for warm compaction.
+            #[clap(
+                long = "compaction-warm-min-small-file-count",
+                env = "INFLUXDB_IOX_COMPACTION_WARM_MIN_SMALL_FILE_COUNT",
+                default_value = "10",
+                action
+            )]
+            pub warm_compaction_min_small_file_count: usize,
         }
     };
 }
@@ -243,6 +278,7 @@ impl CompactorOnceConfig {
             min_number_recent_ingested_files_per_partition: self
                 .min_number_recent_ingested_files_per_partition,
             hot_multiple: self.hot_multiple,
+            warm_multiple: self.warm_multiple,
             memory_budget_bytes: self.memory_budget_bytes,
             min_num_rows_allocated_per_record_batch_to_datafusion_plan: self
                 .min_num_rows_allocated_per_record_batch_to_datafusion_plan,
@@ -252,6 +288,8 @@ impl CompactorOnceConfig {
             hot_compaction_hours_threshold_1: self.hot_compaction_hours_threshold_1,
             hot_compaction_hours_threshold_2: self.hot_compaction_hours_threshold_2,
             max_parallel_partitions: self.max_parallel_partitions,
+            warm_compaction_small_size_threshold_bytes: self.warm_compaction_small_size_threshold_bytes,
+            warm_compaction_min_small_file_count: self.warm_compaction_min_small_file_count,
         }
     }
 }
