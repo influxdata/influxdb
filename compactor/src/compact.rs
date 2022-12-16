@@ -66,13 +66,13 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "Error getting partitions with small L1 files for warm compaction for shard {}. {}",
+        "Error getting partitions with small L1 files for warm compaction for shard {:?}. {}",
         shard_id,
         source
     ))]
     PartitionsWithSmallL1Files {
         source: iox_catalog::interface::Error,
-        shard_id: ShardId,
+        shard_id: Option<ShardId>,
     },
 
     #[snafu(display(

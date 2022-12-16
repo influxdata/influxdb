@@ -1,7 +1,7 @@
 //! Select partitions with small, adjacent L1 files and compact them
 
 use crate::{
-    compact::{self, Compactor},
+    compact::{self, Compactor, ShardAssignment},
     compact_candidates_with_memory_budget, compact_in_parallel,
     utils::get_candidates_with_retry,
     PartitionCompactionCandidateWithInfo,
@@ -71,32 +71,55 @@ pub(crate) async fn warm_partitions_to_compact(
     let mut candidates =
         Vec::with_capacity(compactor.shards.len() * max_number_partitions_per_shard);
 
-    for &shard_id in &compactor.shards {
-        let mut partitions = warm_partitions_for_shard(
-            Arc::clone(&compactor.catalog),
-            shard_id,
-            compactor.config.warm_compaction_small_size_threshold_bytes,
-            compactor.config.warm_compaction_min_small_file_count,
-            max_number_partitions_per_shard,
-        )
-        .await?;
+    match &compactor.shards {
+        ShardAssignment::All => {
+            let mut partitions = warm_partitions_for_shard(
+                Arc::clone(&compactor.catalog),
+                None,
+                compactor.config.warm_compaction_small_size_threshold_bytes,
+                compactor.config.warm_compaction_min_small_file_count,
+                max_number_partitions_per_shard,
+            )
+            .await?;
 
-        // Record metric for candidates per shard
-        let num_partitions = partitions.len();
-        debug!(
-            shard_id = shard_id.get(),
-            n = num_partitions,
-            compaction_type,
-            "compaction candidates",
-        );
-        let attributes = Attributes::from([
-            ("shard_id", format!("{}", shard_id).into()),
-            ("partition_type", compaction_type.into()),
-        ]);
-        let number_gauge = compactor.compaction_candidate_gauge.recorder(attributes);
-        number_gauge.set(num_partitions as u64);
+            // Record metric for candidates per shard
+            let num_partitions = partitions.len();
+            debug!(n = num_partitions, compaction_type, "compaction candidates",);
+            let attributes = Attributes::from([("partition_type", compaction_type.into())]);
+            let number_gauge = compactor.compaction_candidate_gauge.recorder(attributes);
+            number_gauge.set(num_partitions as u64);
 
-        candidates.append(&mut partitions);
+            candidates.append(&mut partitions);
+        }
+        ShardAssignment::Only(shards) => {
+            for &shard_id in shards {
+                let mut partitions = warm_partitions_for_shard(
+                    Arc::clone(&compactor.catalog),
+                    Some(shard_id),
+                    compactor.config.warm_compaction_small_size_threshold_bytes,
+                    compactor.config.warm_compaction_min_small_file_count,
+                    max_number_partitions_per_shard,
+                )
+                .await?;
+
+                // Record metric for candidates per shard
+                let num_partitions = partitions.len();
+                debug!(
+                    shard_id = shard_id.get(),
+                    n = num_partitions,
+                    compaction_type,
+                    "compaction candidates",
+                );
+                let attributes = Attributes::from([
+                    ("shard_id", format!("{}", shard_id).into()),
+                    ("partition_type", compaction_type.into()),
+                ]);
+                let number_gauge = compactor.compaction_candidate_gauge.recorder(attributes);
+                number_gauge.set(num_partitions as u64);
+
+                candidates.append(&mut partitions);
+            }
+        }
     }
 
     // Get extra needed information for selected partitions
@@ -137,7 +160,7 @@ pub(crate) async fn warm_partitions_to_compact(
 
 async fn warm_partitions_for_shard(
     catalog: Arc<dyn Catalog>,
-    shard_id: ShardId,
+    shard_id: Option<ShardId>,
     // Upper bound on file size to be counted as "small" for warm compaction.
     small_size_threshold_bytes: i64,
     // Minimum number of small files a partition must have to be selected as a candidate for warm
@@ -163,7 +186,7 @@ async fn warm_partitions_for_shard(
         })?;
     if !partitions.is_empty() {
         debug!(
-            shard_id = shard_id.get(),
+            ?shard_id,
             small_size_threshold_bytes,
             min_small_file_count,
             n = partitions.len(),
@@ -217,10 +240,15 @@ mod tests {
         let TestSetup {
             catalog, shard1, ..
         } = test_setup().await;
-        let candidates =
-            warm_partitions_for_shard(Arc::clone(&catalog.catalog), shard1.shard.id, 100, 10, 1)
-                .await
-                .unwrap();
+        let candidates = warm_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            Some(shard1.shard.id),
+            100,
+            10,
+            1,
+        )
+        .await
+        .unwrap();
         assert!(candidates.is_empty());
     }
 
@@ -233,10 +261,15 @@ mod tests {
             ..
         } = test_setup().await;
         table1.with_shard(&shard1).create_partition("one").await;
-        let candidates =
-            warm_partitions_for_shard(Arc::clone(&catalog.catalog), shard1.shard.id, 100, 10, 1)
-                .await
-                .unwrap();
+        let candidates = warm_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            Some(shard1.shard.id),
+            100,
+            10,
+            1,
+        )
+        .await
+        .unwrap();
         assert!(candidates.is_empty());
     }
 
@@ -256,7 +289,7 @@ mod tests {
         assert_eq!(catalog.count_level_0_files(shard1.shard.id).await, 1);
         let candidates = warm_partitions_for_shard(
             Arc::clone(&catalog.catalog),
-            shard1.shard.id,
+            Some(shard1.shard.id),
             200, // anything bigger than our file will work
             1,
             1,
@@ -281,7 +314,7 @@ mod tests {
         partition1.create_parquet_file_catalog_record(builder).await;
         let candidates = warm_partitions_for_shard(
             Arc::clone(&catalog.catalog),
-            shard1.shard.id,
+            Some(shard1.shard.id),
             200, // anything bigger than our file will work
             1,
             1,
@@ -306,7 +339,7 @@ mod tests {
         partition1.create_parquet_file_catalog_record(builder).await;
         let candidates = warm_partitions_for_shard(
             Arc::clone(&catalog.catalog),
-            shard1.shard.id,
+            Some(shard1.shard.id),
             200, // anything bigger than our file will work
             1,
             1,
@@ -331,7 +364,7 @@ mod tests {
         partition1.create_parquet_file_catalog_record(builder).await;
         let candidates = warm_partitions_for_shard(
             Arc::clone(&catalog.catalog),
-            shard1.shard.id,
+            Some(shard1.shard.id),
             200,
             2, // min limit is more than we have
             1,
@@ -356,7 +389,7 @@ mod tests {
         partition1.create_parquet_file_catalog_record(builder).await;
         let candidates = warm_partitions_for_shard(
             Arc::clone(&catalog.catalog),
-            shard1.shard.id,
+            Some(shard1.shard.id),
             100, // note, smaller than our file
             1,
             1,
@@ -412,7 +445,7 @@ mod tests {
         partition1.create_parquet_file_catalog_record(builder).await;
         let candidates = warm_partitions_for_shard(
             Arc::clone(&catalog.catalog),
-            shard1.shard.id,
+            Some(shard1.shard.id),
             500,
             // recall that we created 5 small files above
             5,
@@ -478,7 +511,7 @@ mod tests {
         let time_provider = Arc::clone(&catalog.time_provider);
         let config = make_compactor_config(10_000, 5_000, 10, 30);
         let compactor = Arc::new(Compactor::new(
-            vec![shard1.shard.id, shard2.shard.id],
+            ShardAssignment::Only(vec![shard1.shard.id, shard2.shard.id]),
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             catalog.exec(),
@@ -689,7 +722,7 @@ mod tests {
         let config = make_compactor_config(100_000, 5_000, 4, 30);
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Compactor::new(
-            vec![shard.shard.id],
+            ShardAssignment::Only(vec![shard.shard.id]),
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             catalog.exec(),
@@ -887,7 +920,7 @@ mod tests {
         let config = make_compactor_config(4_000, 10_000, 4, 90);
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Compactor::new(
-            vec![shard.shard.id],
+            ShardAssignment::Only(vec![shard.shard.id]),
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             catalog.exec(),
@@ -1078,7 +1111,7 @@ mod tests {
         let config = make_compactor_config(100_000, 5_000, 4, 30);
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Compactor::new(
-            vec![shard.shard.id],
+            ShardAssignment::Only(vec![shard.shard.id]),
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             catalog.exec(),
@@ -1256,7 +1289,7 @@ mod tests {
         let config = make_compactor_config(100_000, 10_000, 4, 30);
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Compactor::new(
-            vec![shard.shard.id],
+            ShardAssignment::Only(vec![shard.shard.id]),
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             catalog.exec(),

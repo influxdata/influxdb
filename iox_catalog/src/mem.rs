@@ -1330,7 +1330,7 @@ impl ParquetFileRepo for MemTxn {
 
     async fn partitions_with_small_l1_file_count(
         &mut self,
-        shard_id: ShardId,
+        shard_id: Option<ShardId>,
         small_size_threshold_bytes: i64,
         min_small_file_count: usize,
         num_partitions: usize,
@@ -1347,7 +1347,13 @@ impl ParquetFileRepo for MemTxn {
             .parquet_files
             .iter()
             .filter(|f| {
-                f.shard_id == shard_id
+                let shard_matches_if_specified = if let Some(shard_id) = shard_id {
+                    f.shard_id == shard_id
+                } else {
+                    true
+                };
+
+                shard_matches_if_specified
                     && f.compaction_level == CompactionLevel::FileNonOverlapped
                     && f.file_size_bytes < small_size_threshold_bytes
                     && !skipped_partitions.contains(&f.partition_id)

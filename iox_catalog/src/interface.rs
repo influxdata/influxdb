@@ -613,7 +613,7 @@ pub trait ParquetFileRepo: Send + Sync {
     /// num_partitions, for performance.
     async fn partitions_with_small_l1_file_count(
         &mut self,
-        shard_id: ShardId,
+        shard_id: Option<ShardId>,
         small_size_threshold_bytes: i64,
         min_small_file_count: usize,
         num_partitions: usize,
@@ -4052,7 +4052,7 @@ pub(crate) mod test_helpers {
         let partitions = repos
             .parquet_files()
             .partitions_with_small_l1_file_count(
-                shard.id,
+                Some(shard.id),
                 small_size_threshold_bytes,
                 min_small_file_count,
                 num_partitions,
@@ -4071,7 +4071,7 @@ pub(crate) mod test_helpers {
         let partitions = repos
             .parquet_files()
             .partitions_with_small_l1_file_count(
-                shard.id,
+                Some(shard.id),
                 small_size_threshold_bytes,
                 min_small_file_count,
                 num_partitions,
@@ -4110,7 +4110,7 @@ pub(crate) mod test_helpers {
         let partitions = repos
             .parquet_files()
             .partitions_with_small_l1_file_count(
-                shard.id,
+                Some(shard.id),
                 small_size_threshold_bytes,
                 min_small_file_count,
                 num_partitions,
@@ -4134,7 +4134,7 @@ pub(crate) mod test_helpers {
         let partitions = repos
             .parquet_files()
             .partitions_with_small_l1_file_count(
-                shard.id,
+                Some(shard.id),
                 small_size_threshold_bytes,
                 min_small_file_count,
                 num_partitions,
@@ -4148,7 +4148,7 @@ pub(crate) mod test_helpers {
         let partitions = repos
             .parquet_files()
             .partitions_with_small_l1_file_count(
-                shard.id,
+                Some(shard.id),
                 small_size_threshold_bytes,
                 1,
                 num_partitions,
@@ -4161,7 +4161,7 @@ pub(crate) mod test_helpers {
         let partitions = repos
             .parquet_files()
             .partitions_with_small_l1_file_count(
-                shard.id,
+                Some(shard.id),
                 500, // smaller than our file size of 1337
                 1,
                 num_partitions,
@@ -4194,7 +4194,7 @@ pub(crate) mod test_helpers {
         let partitions = repos
             .parquet_files()
             .partitions_with_small_l1_file_count(
-                shard.id,
+                Some(shard.id),
                 small_size_threshold_bytes,
                 min_small_file_count,
                 num_partitions,
@@ -4209,7 +4209,7 @@ pub(crate) mod test_helpers {
         let partitions = repos
             .parquet_files()
             .partitions_with_small_l1_file_count(
-                shard.id,
+                Some(shard.id),
                 small_size_threshold_bytes,
                 1,
                 num_partitions,
@@ -4232,7 +4232,7 @@ pub(crate) mod test_helpers {
         let partitions = repos
             .parquet_files()
             .partitions_with_small_l1_file_count(
-                shard.id,
+                Some(shard.id),
                 small_size_threshold_bytes,
                 1,
                 num_partitions,

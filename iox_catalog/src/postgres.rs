@@ -1969,7 +1969,7 @@ LIMIT $2;
 
     async fn partitions_with_small_l1_file_count(
         &mut self,
-        shard_id: ShardId,
+        shard_id: Option<ShardId>,
         small_size_threshold_bytes: i64,
         min_small_file_count: usize,
         num_partitions: usize,
