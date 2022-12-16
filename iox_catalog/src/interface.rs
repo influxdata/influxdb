@@ -315,7 +315,7 @@ pub trait NamespaceRepo: Send + Sync {
     /// Gets the namespace by its unique name.
     async fn get_by_name(&mut self, name: &str) -> Result<Option<Namespace>>;
 
-    /// Delete a namespace by namDelete a namespace by name
+    /// Delete a namespace by name
     async fn delete(&mut self, name: &str) -> Result<()>;
 
     /// Update the limit on the number of tables that can exist per namespace.
