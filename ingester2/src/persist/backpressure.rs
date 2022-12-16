@@ -10,7 +10,7 @@ use crossbeam_utils::CachePadded;
 use observability_deps::tracing::*;
 use parking_lot::Mutex;
 use tokio::{
-    sync::mpsc,
+    sync::Semaphore,
     task::JoinHandle,
     time::{Interval, MissedTickBehavior},
 };
@@ -41,8 +41,8 @@ pub(crate) enum CurrentState {
 ///   * There are no outstanding enqueue operations (no thread is blocked adding
 ///     an item to any work queue).
 ///
-///   * All queues have at least half of their capacity free (being at most,
-///     half full).
+///   * The number of outstanding persist jobs is less than 50% of
+///     `persist_queue_depth`
 ///
 /// These conditions are evaluated periodically, at the interval specified in
 /// [`EVALUATE_SATURATION_INTERVAL`].
@@ -58,9 +58,9 @@ pub(crate) struct PersistState {
     /// reads.
     state: CachePadded<AtomicUsize>,
 
-    /// Tracks the number of async tasks waiting within
-    /// [`PersistHandle::queue_persist()`], asynchronously blocking to enqueue a
-    /// persist job.
+    /// Tracks the number of [`WaitGuard`] instances, which in turn tracks the
+    /// number of async tasks waiting within [`PersistHandle::queue_persist()`]
+    /// to obtain a semaphore permit and enqueue a persist job.
     ///
     /// This is modified using [`Ordering::SeqCst`] as performance is not a
     /// priority for code paths that modify it.
@@ -69,24 +69,40 @@ pub(crate) struct PersistState {
     ///     super::handle::PersistHandle::queue_persist()
     waiting_to_enqueue: Arc<AtomicUsize>,
 
+    /// The persist task semaphore with a maximum of `persist_queue_depth`
+    /// permits allocatable.
+    sem: Arc<Semaphore>,
+    persist_queue_depth: usize,
+
     /// The handle to the current saturation evaluation/recovery task, if any.
     recovery_handle: Mutex<Option<JoinHandle<()>>>,
 }
 
-/// Initialise a [`PersistState`] with [`CurrentState::Ok`].
-impl Default for PersistState {
-    fn default() -> Self {
+impl PersistState {
+    /// Initialise a [`PersistState`] with [`CurrentState::Ok`], with a total
+    /// number of tasks bounded to `persist_queue_depth` and permits issued from
+    /// `sem`.
+    pub(crate) fn new(persist_queue_depth: usize, sem: Arc<Semaphore>) -> Self {
+        // The persist_queue_depth should be the maximum number of permits
+        // available in the semaphore.
+        assert!(persist_queue_depth >= sem.available_permits());
+        // This makes no sense and later we divide by this value.
+        assert!(
+            persist_queue_depth > 0,
+            "persist queue depth must be non-zero"
+        );
+
         let s = Self {
             state: Default::default(),
             waiting_to_enqueue: Arc::new(AtomicUsize::new(0)),
             recovery_handle: Default::default(),
+            persist_queue_depth,
+            sem,
         };
         s.set(CurrentState::Ok);
         s
     }
-}
 
-impl PersistState {
     /// Set the reported state of the [`PersistState`].
     fn set(&self, s: CurrentState) -> bool {
         // Set the new state, retaining the most recent state.
@@ -134,27 +150,25 @@ impl PersistState {
     }
 
     /// Mark the persist system as saturated, returning a [`WaitGuard`] that
-    /// MUST be held during any subsequent async-blocking enqueue request
-    /// ([`mpsc::Sender::send()`] and the like).
+    /// MUST be held during any subsequent async-blocking to acquire a permit
+    /// from the persist semaphore.
     ///
-    /// Holding the guard over the `send()` await allows the saturation
+    /// Holding the guard over the `acquire()` await allows the saturation
     /// evaluation to track the number of threads with an ongoing enqueue wait.
-    pub(super) fn set_saturated<T>(s: Arc<Self>, persist_queues: Vec<mpsc::Sender<T>>) -> WaitGuard
-    where
-        T: Send + 'static,
-    {
-        // Increment the number of tasks waiting to push into a queue.
+    pub(super) fn set_saturated(s: Arc<Self>) -> WaitGuard {
+        // Increment the number of tasks waiting to obtain a permit and push
+        // into any queue.
         //
         // INVARIANT: this increment MUST happen-before returning the guard, and
-        // waiting on the queue send(), and before starting the saturation
-        // monitor task so that it observes this waiter.
+        // waiting on the semaphore acquire(), and before starting the
+        // saturation monitor task so that it observes this waiter.
         let _ = s.waiting_to_enqueue.fetch_add(1, Ordering::SeqCst);
 
         // Attempt to set the system to "saturated".
         let first = s.set(CurrentState::Saturated);
         if first {
             // This is the first thread to mark the system as saturated.
-            warn!("persist queues saturated, blocking ingest");
+            warn!("persist queue saturated, blocking ingest");
 
             // Always check the state of the system EVALUATE_SATURATION_INTERVAL
             // duration of time after the last completed evaluation - do not
@@ -163,12 +177,13 @@ impl PersistState {
             let mut interval = tokio::time::interval(EVALUATE_SATURATION_INTERVAL);
             interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
-            // Spawn a task that marks the system as not saturated after the queues
-            // have processed some of the backlog.
+            // Spawn a task that marks the system as not saturated after the
+            // workers have processed some of the backlog.
             let h = tokio::spawn(saturation_monitor_task(
                 interval,
                 Arc::clone(&s),
-                persist_queues,
+                s.persist_queue_depth,
+                Arc::clone(&s.sem),
             ));
             // Retain the task handle to avoid leaking it if dropped.
             *s.recovery_handle.lock() = Some(h);
@@ -193,10 +208,10 @@ impl Drop for PersistState {
     }
 }
 
-/// A guard that decrements the number of writers waiting to enqueue an item
-/// into the persistence queue when dropped.
+/// A guard that decrements the number of writers waiting to obtain a permit
+/// from the persistence semaphore.
 ///
-/// This MUST be held whilst calling [`mpsc::Sender::send()`].
+/// This MUST be held whilst calling [`Semaphore::acquire()`].
 #[must_use = "must hold wait guard while waiting for enqueue"]
 pub(super) struct WaitGuard(Arc<AtomicUsize>);
 
@@ -206,19 +221,18 @@ impl Drop for WaitGuard {
     }
 }
 
-/// A task that monitors the `waiters` and `queues` to determine when the
-/// persist system is no longer saturated.
+/// A task that monitors the `waiters` and `sem` to determine when the persist
+/// system is no longer saturated.
 ///
 /// Once the system is no longer saturated (as determined according to the
 /// documentation for [`PersistState`]), the [`PersistState`] is set to
 /// [`CurrentState::Ok`].
-async fn saturation_monitor_task<T>(
+async fn saturation_monitor_task(
     mut interval: Interval,
     state: Arc<PersistState>,
-    queues: Vec<mpsc::Sender<T>>,
-) where
-    T: Send,
-{
+    persist_queue_depth: usize,
+    sem: Arc<Semaphore>,
+) {
     loop {
         // Wait before evaluating the state of the system.
         interval.tick().await;
@@ -226,40 +240,44 @@ async fn saturation_monitor_task<T>(
         // INVARIANT: this task only ever runs when the system is saturated.
         assert!(state.is_saturated());
 
-        // First check if any tasks are waiting to enqueue an item (an
-        // indication that one or more queues is full).
+        // First check if any tasks are waiting to obtain a permit and enqueue
+        // an item (an indication that one or more queues is full).
         let n_waiting = state.waiting_to_enqueue.load(Ordering::SeqCst);
         if n_waiting > 0 {
-            debug!(
+            warn!(
                 n_waiting,
                 "waiting for outstanding persist jobs to be enqueued"
             );
             continue;
         }
 
-        // No async task WAS currently waiting to enqueue a persist job when
-        // checking above, but one may want to immediately enqueue one now (or
-        // later).
+        // No async task WAS currently waiting for a permit to enqueue a persist
+        // job when checking above, but one may want to immediately await one
+        // now (or later).
         //
         // In order to minimise health flip-flopping, only mark the persist
-        // system as healthy once there is some capacity in the queues to accept
-        // new persist jobs. This avoids a queue having 1 slot free, only to be
-        // immediately filled and the system pause again.
+        // system as healthy once there is some capacity in the semaphore to
+        // accept new persist jobs. This avoids the semaphore having 1 permit
+        // free, only to be immediately acquired and the system pause again.
         //
-        // This check below ensures that all queues are at least half empty
+        // This check below ensures that the semaphore is at least half capacity
         // before marking the system as recovered.
-        let n_queues = queues
-            .iter()
-            .filter(|q| !has_sufficient_capacity(q.capacity(), q.max_capacity()))
-            .count();
-        if n_queues != 0 {
-            debug!(n_queues, "waiting for queues to drain");
+        let available = sem.available_permits();
+        let outstanding = persist_queue_depth.checked_sub(available).unwrap();
+        if !has_sufficient_capacity(available, persist_queue_depth) {
+            warn!(
+                available,
+                outstanding, "waiting for outstanding persist jobs to reduce"
+            );
             continue;
         }
 
         // There are no outstanding enqueue waiters, and all queues are at half
         // capacity or better.
-        info!("persist queue saturation reduced, resuming ingest");
+        info!(
+            available,
+            outstanding, "persist queue saturation reduced, resuming ingest"
+        );
 
         // INVARIANT: there is only ever one task that monitors the queue state
         // and transitions the persist state to OK, therefore this task is
@@ -279,12 +297,6 @@ fn has_sufficient_capacity(capacity: usize, max_capacity: usize) -> bool {
     assert!(capacity <= max_capacity);
 
     let want_at_least = (max_capacity + 1) / 2;
-    trace!(
-        available = capacity,
-        max = max_capacity,
-        want_at_least,
-        "evaluating queue backlog"
-    );
 
     capacity >= want_at_least
 }
@@ -297,6 +309,7 @@ mod tests {
 
     use super::*;
 
+    const QUEUE_DEPTH: usize = 42;
     const POLL_INTERVAL: Duration = Duration::from_millis(5);
 
     #[test]
@@ -323,7 +336,8 @@ mod tests {
     /// first thread that changes the state observes the "first=true" response.
     #[test]
     fn test_state_transitions() {
-        let s = PersistState::default();
+        let sem = Arc::new(Semaphore::new(QUEUE_DEPTH));
+        let s = PersistState::new(QUEUE_DEPTH, sem);
         assert_eq!(s.get(), CurrentState::Ok);
         assert!(!s.is_saturated());
 
@@ -355,14 +369,15 @@ mod tests {
     /// waiters (as tracked by the [`WaitGuard`]).
     #[tokio::test]
     async fn test_saturation_recovery_enqueue_waiters() {
-        let s = Arc::new(PersistState::default());
+        let sem = Arc::new(Semaphore::new(QUEUE_DEPTH));
+        let s = Arc::new(PersistState::new(QUEUE_DEPTH, Arc::clone(&sem)));
 
         // Use no queues to ensure only the waiters are blocking recovery.
 
         assert!(!s.is_saturated());
 
-        let w1 = PersistState::set_saturated::<()>(Arc::clone(&s), vec![]);
-        let w2 = PersistState::set_saturated::<()>(Arc::clone(&s), vec![]);
+        let w1 = PersistState::set_saturated(Arc::clone(&s));
+        let w2 = PersistState::set_saturated(Arc::clone(&s));
 
         assert!(s.is_saturated());
 
@@ -371,10 +386,11 @@ mod tests {
         s.recovery_handle.lock().take().unwrap().abort();
 
         // Spawn a replacement that ticks way more often to speed up the test.
-        let h = tokio::spawn(saturation_monitor_task::<()>(
+        let h = tokio::spawn(saturation_monitor_task(
             tokio::time::interval(POLL_INTERVAL),
             Arc::clone(&s),
-            vec![],
+            QUEUE_DEPTH,
+            sem,
         ));
 
         // Drop a waiter and ensure the system is still saturated.
@@ -433,22 +449,17 @@ mod tests {
     /// marking the system as healthy.
     #[tokio::test]
     async fn test_saturation_recovery_queue_capacity() {
-        let s = Arc::new(PersistState::default());
-
-        async fn fill(q: &mpsc::Sender<()>, times: usize) {
-            for _ in 0..times {
-                q.send(()).await.unwrap();
-            }
-        }
+        let sem = Arc::new(Semaphore::new(QUEUE_DEPTH));
+        let s = Arc::new(PersistState::new(QUEUE_DEPTH, Arc::clone(&sem)));
 
         // Use no waiters to ensure only the queue slots are blocking recovery.
 
-        let (tx1, mut rx1) = mpsc::channel(5);
-        let (tx2, mut rx2) = mpsc::channel(5);
+        // Take half the permits. Holding this number of permits should allow
+        // the state to transition to healthy.
+        let _half_the_permits = sem.acquire_many(QUEUE_DEPTH as u32 / 2).await.unwrap();
 
-        // Place some items in the queues
-        fill(&tx1, 3).await; // Over the threshold of 5/2 = 2.5, rounded down to 2.
-        fill(&tx2, 3).await; // Over the threshold of 5/2 = 2.5, rounded down to 2.
+        // Obtain a permit, pushing it over the "healthy" limit.
+        let permit = sem.acquire().await.unwrap();
 
         assert!(!s.is_saturated());
         assert!(s.set(CurrentState::Saturated));
@@ -457,10 +468,11 @@ mod tests {
         // Spawn the recovery task directly, not via set_saturated() for
         // simplicity - the test above asserts the task is started by a call to
         // set_saturated().
-        let h = tokio::spawn(saturation_monitor_task::<()>(
+        let h = tokio::spawn(saturation_monitor_task(
             tokio::time::interval(POLL_INTERVAL),
             Arc::clone(&s),
-            vec![tx1, tx2],
+            QUEUE_DEPTH,
+            Arc::clone(&sem),
         ));
 
         // Wait a little and ensure the state hasn't changed.
@@ -470,18 +482,8 @@ mod tests {
         tokio::time::sleep(POLL_INTERVAL * 4).await;
         assert!(s.is_saturated());
 
-        // Drain one of the queues to below the saturation point.
-        rx1.recv().await.expect("no recovery task running");
-
-        // Wait a little and ensure the state still hasn't changed.
-        //
-        // While this could also be a false negative, if this assert fires there
-        // is a legitimate problem.
-        tokio::time::sleep(POLL_INTERVAL * 4).await;
-        assert!(s.is_saturated());
-
-        // Drain the remaining queue below the threshold for recovery.
-        rx2.recv().await.expect("no recovery task running");
+        // Drop the permit so that the outstanding permits drops below the threshold for recovery.
+        drop(permit);
 
         // Wait up to 5 seconds to observe the system recovery.
         async {

@@ -226,12 +226,14 @@ mod tests {
         column::{SemanticType, Values},
         Column, DatabaseBatch, TableBatch,
     };
+    use tokio::sync::Semaphore;
 
     use super::*;
     use crate::{dml_sink::mock_sink::MockDmlSink, persist::backpressure::CurrentState};
 
     const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
     const PARTITION_KEY: &str = "bananas";
+    const PERSIST_QUEUE_DEPTH: usize = 42;
 
     macro_rules! test_rpc_write {
         (
@@ -248,7 +250,11 @@ mod tests {
                         MockDmlSink::default().with_apply_return(vec![$sink_ret]),
                     );
                     let timestamp = Arc::new(TimestampOracle::new(0));
-                    let handler = RpcWrite::new(Arc::clone(&mock), timestamp, Default::default());
+
+                    let sem = Arc::new(Semaphore::new(PERSIST_QUEUE_DEPTH));
+                    let persist_state = Arc::new(PersistState::new(PERSIST_QUEUE_DEPTH, sem));
+
+                    let handler = RpcWrite::new(Arc::clone(&mock), timestamp, persist_state);
 
                     let ret = handler
                         .write(Request::new($request))
@@ -359,7 +365,11 @@ mod tests {
     async fn test_rpc_write_ordered_timestamps() {
         let mock = Arc::new(MockDmlSink::default().with_apply_return(vec![Ok(()), Ok(())]));
         let timestamp = Arc::new(TimestampOracle::new(0));
-        let handler = RpcWrite::new(Arc::clone(&mock), timestamp, Default::default());
+
+        let sem = Arc::new(Semaphore::new(PERSIST_QUEUE_DEPTH));
+        let persist_state = Arc::new(PersistState::new(PERSIST_QUEUE_DEPTH, sem));
+
+        let handler = RpcWrite::new(Arc::clone(&mock), timestamp, persist_state);
 
         let req = proto::WriteRequest {
             payload: Some(DatabaseBatch {
@@ -413,7 +423,10 @@ mod tests {
     async fn test_rpc_write_persist_saturation() {
         let mock = Arc::new(MockDmlSink::default().with_apply_return(vec![Ok(()), Ok(())]));
         let timestamp = Arc::new(TimestampOracle::new(0));
-        let persist_state = Default::default();
+
+        let sem = Arc::new(Semaphore::new(PERSIST_QUEUE_DEPTH));
+        let persist_state = Arc::new(PersistState::new(PERSIST_QUEUE_DEPTH, sem));
+
         let handler = RpcWrite::new(Arc::clone(&mock), timestamp, Arc::clone(&persist_state));
 
         let req = proto::WriteRequest {
