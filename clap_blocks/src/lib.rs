@@ -19,7 +19,7 @@ pub mod ingester2;
 pub mod object_store;
 pub mod querier;
 pub mod router;
-pub mod router_rpc_write;
+pub mod router2;
 pub mod run_config;
 pub mod socket_addr;
 pub mod write_buffer;

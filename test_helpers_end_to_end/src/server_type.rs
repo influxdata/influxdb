@@ -4,9 +4,9 @@ use super::addrs::BindAddresses;
 pub enum ServerType {
     AllInOne,
     Ingester,
-    IngesterRpcWrite,
+    Ingester2,
     Router,
-    RouterRpcWrite,
+    Router2,
     Querier,
     Compactor,
 }
@@ -17,9 +17,9 @@ impl ServerType {
         match self {
             Self::AllInOne => "all-in-one",
             Self::Ingester => "ingester",
-            Self::IngesterRpcWrite => "ingester2",
+            Self::Ingester2 => "ingester2",
             Self::Router => "router",
-            Self::RouterRpcWrite => "router-rpc-write",
+            Self::Router2 => "router2",
             Self::Querier => "querier",
             Self::Compactor => "compactor",
         }
@@ -77,7 +77,7 @@ fn addr_envs(server_type: ServerType, addrs: &BindAddresses) -> Vec<(&'static st
                 addrs.ingester_grpc_api().bind_addr().to_string(),
             ),
         ],
-        ServerType::IngesterRpcWrite => vec![
+        ServerType::Ingester2 => vec![
             (
                 "INFLUXDB_IOX_BIND_ADDR",
                 addrs.router_http_api().bind_addr().to_string(),
@@ -86,6 +86,7 @@ fn addr_envs(server_type: ServerType, addrs: &BindAddresses) -> Vec<(&'static st
                 "INFLUXDB_IOX_GRPC_BIND_ADDR",
                 addrs.ingester_grpc_api().bind_addr().to_string(),
             ),
+            ("INFLUXDB_IOX_RPC_MODE", "2".to_string()),
         ],
         ServerType::Router => vec![
             (
@@ -97,7 +98,7 @@ fn addr_envs(server_type: ServerType, addrs: &BindAddresses) -> Vec<(&'static st
                 addrs.router_grpc_api().bind_addr().to_string(),
             ),
         ],
-        ServerType::RouterRpcWrite => vec![
+        ServerType::Router2 => vec![
             (
                 "INFLUXDB_IOX_BIND_ADDR",
                 addrs.router_http_api().bind_addr().to_string(),
@@ -110,6 +111,7 @@ fn addr_envs(server_type: ServerType, addrs: &BindAddresses) -> Vec<(&'static st
                 "INFLUXDB_IOX_INGESTER_ADDRESSES",
                 addrs.ingester_grpc_api().bind_addr().to_string(),
             ),
+            ("INFLUXDB_IOX_RPC_MODE", "2".to_string()),
         ],
         ServerType::Querier => vec![
             (

@@ -65,16 +65,17 @@ impl TestConfig {
             .with_new_object_store()
     }
 
-    /// Create a minimal router configuration sharing configuration with the ingester config
-    pub fn new_router_rpc_write(ingester_config: &TestConfig) -> Self {
-        assert_eq!(ingester_config.server_type(), ServerType::IngesterRpcWrite);
+    /// Create a minimal router2 configuration sharing configuration with the ingester2 config
+    pub fn new_router2(ingester_config: &TestConfig) -> Self {
+        assert_eq!(ingester_config.server_type(), ServerType::Ingester2);
 
         Self::new(
-            ServerType::RouterRpcWrite,
+            ServerType::Router2,
             ingester_config.dsn().to_owned(),
             ingester_config.catalog_schema_name(),
         )
         .with_existing_object_store(ingester_config)
+        .with_env("INFLUXDB_IOX_RPC_MODE", "2")
         .with_env(
             "INFLUXDB_IOX_INGESTER_ADDRESSES",
             ingester_config
@@ -98,17 +99,13 @@ impl TestConfig {
         .with_default_ingester_options()
     }
 
-    /// Create a minimal ingester configuration, using the dsn configuration from other
-    pub fn new_ingester_rpc_write(dsn: impl Into<String>) -> Self {
+    /// Create a minimal ingester2 configuration, using the dsn configuration specified
+    pub fn new_ingester2(dsn: impl Into<String>) -> Self {
         let dsn = Some(dsn.into());
-        Self::new(
-            ServerType::IngesterRpcWrite,
-            dsn,
-            random_catalog_schema_name(),
-        )
-        .with_new_object_store()
-        .with_new_wal()
-        .with_default_ingester_options()
+        Self::new(ServerType::Ingester2, dsn, random_catalog_schema_name())
+            .with_new_object_store()
+            .with_new_wal()
+            .with_default_ingester_options()
     }
 
     /// Create a minimal querier configuration from the specified

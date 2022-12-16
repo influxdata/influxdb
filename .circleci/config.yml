@@ -259,7 +259,7 @@ jobs:
       - cache_restore
       - run:
           name: Cargo test RPC write path
-          command: cargo test --workspace --features rpc_write
+          command: cargo test --workspace
       - cache_save
 
   test:

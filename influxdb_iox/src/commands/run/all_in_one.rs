@@ -465,8 +465,7 @@ impl Config {
             num_query_threads: None,       // will be ignored
             shard_to_ingesters_file: None, // will be ignored
             shard_to_ingesters: None,      // will be ignored
-            #[cfg(feature = "rpc_write")]
-            ingester_addresses: vec![], // will be ignored
+            ingester_addresses: vec![],    // will be ignored
             ram_pool_metadata_bytes: querier_ram_pool_metadata_bytes,
             ram_pool_data_bytes: querier_ram_pool_data_bytes,
             max_concurrent_queries: querier_max_concurrent_queries,
@@ -620,6 +619,7 @@ pub async fn command(config: Config) -> Result<()> {
         time_provider,
         ingester_addresses,
         querier_config,
+        rpc_write: false,
     })
     .await?;
 
