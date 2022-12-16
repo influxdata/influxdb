@@ -76,6 +76,10 @@ impl BufferState<Buffering> {
         // And transition to the WithSnapshot state.
         Transition::ok(Snapshot::new(vec![snap]))
     }
+
+    pub(crate) fn persist_cost_estimate(&self) -> usize {
+        self.state.buffer.persist_cost_estimate()
+    }
 }
 
 #[cfg(test)]

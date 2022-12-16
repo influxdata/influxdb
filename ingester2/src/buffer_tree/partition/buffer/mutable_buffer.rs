@@ -54,4 +54,8 @@ impl Buffer {
     pub(super) fn buffer(&self) -> Option<&MutableBatch> {
         self.buffer.as_ref()
     }
+
+    pub(crate) fn persist_cost_estimate(&self) -> usize {
+        self.buffer().map(|v| v.size_data()).unwrap_or_default()
+    }
 }

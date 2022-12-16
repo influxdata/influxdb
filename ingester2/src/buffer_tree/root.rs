@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use data_types::{NamespaceId, TableId};
@@ -10,6 +10,7 @@ use trace::span::Span;
 use super::{
     namespace::{name_resolver::NamespaceNameProvider, NamespaceData},
     partition::{resolver::PartitionProvider, PartitionData},
+    post_write::PostWriteObserver,
     table::name_resolver::TableNameProvider,
 };
 use crate::{
@@ -68,7 +69,7 @@ use crate::{
 /// [`TableData`]: crate::buffer_tree::table::TableData
 /// [`PartitionData`]: crate::buffer_tree::partition::PartitionData
 #[derive(Debug)]
-pub(crate) struct BufferTree {
+pub(crate) struct BufferTree<O> {
     /// The resolver of `(table_id, partition_key)` to [`PartitionData`].
     ///
     /// [`PartitionData`]: super::partition::PartitionData
@@ -83,7 +84,7 @@ pub(crate) struct BufferTree {
     ///
     /// [`DeferredLoad`]: crate::deferred_load::DeferredLoad
     /// [`NamespaceName`]: data_types::NamespaceName
-    namespaces: ArcMap<NamespaceId, NamespaceData>,
+    namespaces: ArcMap<NamespaceId, NamespaceData<O>>,
     namespace_name_resolver: Arc<dyn NamespaceNameProvider>,
     /// The [`TableName`] provider used by [`NamespaceData`] to initialise a
     /// [`TableData`].
@@ -94,14 +95,20 @@ pub(crate) struct BufferTree {
 
     metrics: Arc<metric::Registry>,
     namespace_count: U64Counter,
+
+    post_write_observer: Arc<O>,
 }
 
-impl BufferTree {
+impl<O> BufferTree<O>
+where
+    O: Send + Sync + Debug,
+{
     /// Initialise a new [`BufferTree`] that emits metrics to `metrics`.
     pub(crate) fn new(
         namespace_name_resolver: Arc<dyn NamespaceNameProvider>,
         table_name_resolver: Arc<dyn TableNameProvider>,
         partition_provider: Arc<dyn PartitionProvider>,
+        post_write_observer: Arc<O>,
         metrics: Arc<metric::Registry>,
     ) -> Self {
         let namespace_count = metrics
@@ -117,12 +124,13 @@ impl BufferTree {
             table_name_resolver,
             metrics,
             partition_provider,
+            post_write_observer,
             namespace_count,
         }
     }
 
     /// Gets the namespace data out of the map
-    pub(crate) fn namespace(&self, namespace_id: NamespaceId) -> Option<Arc<NamespaceData>> {
+    pub(crate) fn namespace(&self, namespace_id: NamespaceId) -> Option<Arc<NamespaceData<O>>> {
         self.namespaces.get(&namespace_id)
     }
 
@@ -148,7 +156,10 @@ impl BufferTree {
 }
 
 #[async_trait]
-impl DmlSink for BufferTree {
+impl<O> DmlSink for BufferTree<O>
+where
+    O: PostWriteObserver,
+{
     type Error = mutable_batch::Error;
 
     async fn apply(&self, op: DmlOperation) -> Result<(), Self::Error> {
@@ -163,6 +174,7 @@ impl DmlSink for BufferTree {
                 self.namespace_name_resolver.for_namespace(namespace_id),
                 Arc::clone(&self.table_name_resolver),
                 Arc::clone(&self.partition_provider),
+                Arc::clone(&self.post_write_observer),
                 &self.metrics,
             ))
         });
@@ -172,7 +184,10 @@ impl DmlSink for BufferTree {
 }
 
 #[async_trait]
-impl QueryExec for BufferTree {
+impl<O> QueryExec for BufferTree<O>
+where
+    O: Send + Sync + Debug,
+{
     type Response = QueryResponse;
 
     async fn query_exec(
@@ -212,6 +227,7 @@ mod tests {
                 name_resolver::mock::MockNamespaceNameProvider, NamespaceData, NamespaceName,
             },
             partition::{resolver::mock::MockPartitionProvider, PartitionData, SortKeyState},
+            post_write::mock::MockPostWriteObserver,
             table::{name_resolver::mock::MockTableNameProvider, TableName},
         },
         deferred_load::{self, DeferredLoad},
@@ -252,6 +268,7 @@ mod tests {
             DeferredLoad::new(Duration::from_millis(1), async { NAMESPACE_NAME.into() }),
             Arc::new(MockTableNameProvider::new(TABLE_NAME)),
             partition_provider,
+            Arc::new(MockPostWriteObserver::default()),
             &metrics,
         );
 
@@ -320,6 +337,7 @@ mod tests {
                         Arc::new(MockNamespaceNameProvider::default()),
                         Arc::new(MockTableNameProvider::new(TABLE_NAME)),
                         partition_provider,
+                        Arc::new(MockPostWriteObserver::default()),
                         Arc::new(metric::Registry::default()),
                     );
 
@@ -651,6 +669,7 @@ mod tests {
             Arc::new(MockNamespaceNameProvider::default()),
             Arc::new(MockTableNameProvider::new(TABLE_NAME)),
             partition_provider,
+            Arc::new(MockPostWriteObserver::default()),
             Arc::clone(&metrics),
         );
 
@@ -755,6 +774,7 @@ mod tests {
             Arc::new(MockNamespaceNameProvider::default()),
             Arc::new(MockTableNameProvider::new(TABLE_NAME)),
             partition_provider,
+            Arc::new(MockPostWriteObserver::default()),
             Arc::clone(&Arc::new(metric::Registry::default())),
         );
 
@@ -837,6 +857,7 @@ mod tests {
             Arc::new(MockNamespaceNameProvider::default()),
             Arc::new(MockTableNameProvider::new(TABLE_NAME)),
             partition_provider,
+            Arc::new(MockPostWriteObserver::default()),
             Arc::new(metric::Registry::default()),
         );
 
@@ -932,6 +953,7 @@ mod tests {
             Arc::new(MockNamespaceNameProvider::default()),
             Arc::new(MockTableNameProvider::new(TABLE_NAME)),
             partition_provider,
+            Arc::new(MockPostWriteObserver::default()),
             Arc::new(metric::Registry::default()),
         );
 

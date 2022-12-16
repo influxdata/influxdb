@@ -139,6 +139,10 @@ impl PartitionData {
         Ok(())
     }
 
+    pub(crate) fn persist_cost_estimate(&self) -> usize {
+        self.buffer.persist_cost_estimate()
+    }
+
     /// Return all data for this partition, ordered by the calls to
     /// [`PartitionData::buffer_write()`].
     pub(crate) fn get_query_data(&mut self) -> Option<QueryAdaptor> {

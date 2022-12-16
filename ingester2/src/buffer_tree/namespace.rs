@@ -13,6 +13,7 @@ use trace::span::Span;
 
 use super::{
     partition::resolver::PartitionProvider,
+    post_write::PostWriteObserver,
     table::{name_resolver::TableNameProvider, TableData},
 };
 use crate::{
@@ -53,7 +54,7 @@ impl std::fmt::Display for NamespaceName {
 
 /// Data of a Namespace that belongs to a given Shard
 #[derive(Debug)]
-pub(crate) struct NamespaceData {
+pub(crate) struct NamespaceData<O> {
     namespace_id: NamespaceId,
     namespace_name: Arc<DeferredLoad<NamespaceName>>,
 
@@ -64,7 +65,7 @@ pub(crate) struct NamespaceData {
     /// resolve the [`TableName`] for new [`TableData`] out of the hot path.
     ///
     /// [`TableName`]: crate::buffer_tree::table::TableName
-    tables: ArcMap<TableId, TableData>,
+    tables: ArcMap<TableId, TableData<O>>,
     table_name_resolver: Arc<dyn TableNameProvider>,
     /// The count of tables initialised in this Ingester so far, across all
     /// namespaces.
@@ -74,15 +75,18 @@ pub(crate) struct NamespaceData {
     ///
     /// [`PartitionData`]: super::partition::PartitionData
     partition_provider: Arc<dyn PartitionProvider>,
+
+    post_write_observer: Arc<O>,
 }
 
-impl NamespaceData {
+impl<O> NamespaceData<O> {
     /// Initialize new tables with default partition template of daily
     pub(super) fn new(
         namespace_id: NamespaceId,
         namespace_name: DeferredLoad<NamespaceName>,
         table_name_resolver: Arc<dyn TableNameProvider>,
         partition_provider: Arc<dyn PartitionProvider>,
+        post_write_observer: Arc<O>,
         metrics: &metric::Registry,
     ) -> Self {
         let table_count = metrics
@@ -99,11 +103,12 @@ impl NamespaceData {
             table_name_resolver,
             table_count,
             partition_provider,
+            post_write_observer,
         }
     }
 
     /// Return the table data by ID.
-    pub(crate) fn table(&self, table_id: TableId) -> Option<Arc<TableData>> {
+    pub(crate) fn table(&self, table_id: TableId) -> Option<Arc<TableData<O>>> {
         self.tables.get(&table_id)
     }
 
@@ -122,13 +127,16 @@ impl NamespaceData {
     /// NOTE: the snapshot is an atomic / point-in-time snapshot of the set of
     /// [`NamespaceData`], but the tables (and partitions) within them may
     /// change as they continue to buffer DML operations.
-    pub(super) fn tables(&self) -> Vec<Arc<TableData>> {
+    pub(super) fn tables(&self) -> Vec<Arc<TableData<O>>> {
         self.tables.values()
     }
 }
 
 #[async_trait]
-impl DmlSink for NamespaceData {
+impl<O> DmlSink for NamespaceData<O>
+where
+    O: PostWriteObserver,
+{
     type Error = mutable_batch::Error;
 
     async fn apply(&self, op: DmlOperation) -> Result<(), Self::Error> {
@@ -154,6 +162,7 @@ impl DmlSink for NamespaceData {
                             self.namespace_id,
                             Arc::clone(&self.namespace_name),
                             Arc::clone(&self.partition_provider),
+                            Arc::clone(&self.post_write_observer),
                         ))
                     });
 
@@ -180,7 +189,10 @@ impl DmlSink for NamespaceData {
 }
 
 #[async_trait]
-impl QueryExec for NamespaceData {
+impl<O> QueryExec for NamespaceData<O>
+where
+    O: Send + Sync + std::fmt::Debug,
+{
     type Response = QueryResponse;
 
     async fn query_exec(
@@ -222,6 +234,7 @@ mod tests {
         buffer_tree::{
             namespace::NamespaceData,
             partition::{resolver::mock::MockPartitionProvider, PartitionData, SortKeyState},
+            post_write::mock::MockPostWriteObserver,
             table::{name_resolver::mock::MockTableNameProvider, TableName},
         },
         deferred_load::{self, DeferredLoad},
@@ -261,6 +274,7 @@ mod tests {
             DeferredLoad::new(Duration::from_millis(1), async { NAMESPACE_NAME.into() }),
             Arc::new(MockTableNameProvider::new(TABLE_NAME)),
             partition_provider,
+            Arc::new(MockPostWriteObserver::default()),
             &metrics,
         );
 

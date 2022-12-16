@@ -444,6 +444,7 @@ mod tests {
         buffer_tree::{
             namespace::{name_resolver::mock::MockNamespaceNameProvider, NamespaceName},
             partition::resolver::mock::MockPartitionProvider,
+            post_write::mock::MockPostWriteObserver,
             table::{name_resolver::mock::MockTableNameProvider, TableName},
             BufferTree,
         },
@@ -493,6 +494,7 @@ mod tests {
                     sort_key,
                 )),
             ),
+            Arc::new(MockPostWriteObserver::default()),
             Default::default(),
         );
 
