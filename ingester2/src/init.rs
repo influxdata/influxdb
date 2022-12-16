@@ -164,16 +164,13 @@ pub async fn new(
         .expect("start transaction");
     let topic = txn
         .topics()
-        .get_by_name("iox-shared")
+        .create_or_get("iox-shared")
         .await
-        .expect("get topic")
-        .unwrap();
-    let s = txn
-        .shards()
+        .expect("get topic");
+    txn.shards()
         .create_or_get(&topic, TRANSITION_SHARD_INDEX)
         .await
         .expect("create transition shard");
-    assert_eq!(s.id, TRANSITION_SHARD_ID);
     txn.commit().await.expect("commit transition shard");
 
     // Initialise the deferred namespace name resolver.
