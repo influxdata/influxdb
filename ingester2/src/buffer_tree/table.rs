@@ -267,7 +267,7 @@ where
         );
 
         // Gather the partition data from all of the partitions in this table.
-        let partitions = self.partitions().into_iter().filter_map(move |p| {
+        let partitions = self.partitions().into_iter().map(move |p| {
             let mut span = SpanRecorder::new(span.clone().map(|s| s.child("partition read")));
 
             let (id, completed_persistence_count, data) = {
@@ -275,30 +275,32 @@ where
                 (
                     p.partition_id(),
                     p.completed_persistence_count(),
-                    p.get_query_data()?,
+                    p.get_query_data(),
                 )
             };
-            assert_eq!(id, data.partition_id());
 
-            // Project the data if necessary
-            let columns = columns.iter().map(String::as_str).collect::<Vec<_>>();
-            let selection = if columns.is_empty() {
-                Projection::All
-            } else {
-                Projection::Some(columns.as_ref())
+            let ret = match data {
+                Some(data) => {
+                    assert_eq!(id, data.partition_id());
+
+                    // Project the data if necessary
+                    let columns = columns.iter().map(String::as_str).collect::<Vec<_>>();
+                    let selection = if columns.is_empty() {
+                        Projection::All
+                    } else {
+                        Projection::Some(columns.as_ref())
+                    };
+
+                    let data = Box::pin(MemoryStream::new(
+                        data.project_selection(selection).into_iter().collect(),
+                    ));
+                    PartitionResponse::new(data, id, None, completed_persistence_count)
+                }
+                None => PartitionResponse::new_no_batches(id, None, completed_persistence_count),
             };
 
-            let ret = PartitionResponse::new(
-                Box::pin(MemoryStream::new(
-                    data.project_selection(selection).into_iter().collect(),
-                )),
-                id,
-                None,
-                completed_persistence_count,
-            );
-
             span.ok("read partition data");
-            Some(ret)
+            ret
         });
 
         Ok(PartitionStream::new(futures::stream::iter(partitions)))

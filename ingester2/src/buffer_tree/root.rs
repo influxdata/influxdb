@@ -1041,10 +1041,11 @@ mod tests {
         let partition = partitions.pop().unwrap();
 
         // Perform the partition read
-        let batches =
-            datafusion::physical_plan::common::collect(partition.into_record_batch_stream())
-                .await
-                .expect("failed to collate query results");
+        let batches = datafusion::physical_plan::common::collect(
+            partition.into_record_batch_stream().unwrap(),
+        )
+        .await
+        .expect("failed to collate query results");
 
         // Assert the contents of p1 contains both the initial write, and the
         // 3rd write in a single RecordBatch.
