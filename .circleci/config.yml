@@ -335,11 +335,11 @@ jobs:
 release_filter: &release_filter
   filters:
     tags:
-      # This regex matches what is found in 'scripts/get-version' with the
-      # '[[:digit:]]' transformed into '\d'. This also excludes release
-      # candidate detection, because this filter only matches against
-      # full releases.
-      only: /^v(\d+)(?:\.(\d+))?(?:\.(\d+))?$/
+      # This matches "semantic version" tags. These tags must start with
+      # a "v" and have a Major, Minor, and Patch section. After the main
+      # section matches, all other identifiers are matched. This allows
+      # for alphas, betas, and release candidates.
+      only: /^v(\d+).(\d+).(\d+)/
     branches:
       ignore: /.*/
 
