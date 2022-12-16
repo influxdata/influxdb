@@ -212,6 +212,11 @@ impl MutableBatch {
                 .sum::<usize>()
             + self.columns.iter().map(|c| c.size()).sum::<usize>()
     }
+
+    /// Return the approximate memory size of the data in the batch, in bytes.
+    pub fn size_data(&self) -> usize {
+        self.columns.iter().map(|c| c.size_data()).sum::<usize>()
+    }
 }
 
 /// A description of the distribution of timestamps in a
@@ -247,5 +252,42 @@ impl TimestampSummary {
     /// Records a timestamp value from nanos
     pub fn record_nanos(&mut self, timestamp_nanos: i64) {
         self.record(Time::from_timestamp_nanos(timestamp_nanos))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use mutable_batch_lp::lines_to_batches;
+
+    #[test]
+    fn size_data_without_nulls() {
+        let batches = lines_to_batches(
+            "cpu,t1=hello,t2=world f1=1.1,f2=1i 1234\ncpu,t1=h,t2=w f1=2.2,f2=2i 1234",
+            0,
+        )
+        .unwrap();
+        let batch = batches.get("cpu").unwrap();
+
+        assert_eq!(batch.size_data(), 128);
+
+        let batches = lines_to_batches(
+            "cpu,t1=hellomore,t2=world f1=1.1,f2=1i 1234\ncpu,t1=h,t2=w f1=2.2,f2=2i 1234",
+            0,
+        )
+        .unwrap();
+        let batch = batches.get("cpu").unwrap();
+        assert_eq!(batch.size_data(), 138);
+    }
+
+    #[test]
+    fn size_data_with_nulls() {
+        let batches = lines_to_batches(
+            "cpu,t1=hello,t2=world f1=1.1 1234\ncpu,t2=w f1=2.2,f2=2i 1234",
+            0,
+        )
+        .unwrap();
+        let batch = batches.get("cpu").unwrap();
+
+        assert_eq!(batch.size_data(), 124);
     }
 }

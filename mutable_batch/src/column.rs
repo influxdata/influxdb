@@ -243,6 +243,21 @@ impl Column {
         mem::size_of::<Self>() + data_size + self.valid.byte_len()
     }
 
+    /// The approximate memory size of the data in the column, not counting for stats or self or
+    /// whatever extra space has been allocated for the vecs
+    pub fn size_data(&self) -> usize {
+        match &self.data {
+            ColumnData::F64(_, _) => mem::size_of::<f64>() * self.len(),
+            ColumnData::I64(_, _) => mem::size_of::<i64>() * self.len(),
+            ColumnData::U64(_, _) => mem::size_of::<u64>() * self.len(),
+            ColumnData::Bool(_, _) => mem::size_of::<bool>() * self.len(),
+            ColumnData::Tag(_, dictionary, _) => {
+                mem::size_of::<DID>() * self.len() + dictionary.size()
+            }
+            ColumnData::String(v, _) => v.size(),
+        }
+    }
+
     /// Converts this column to an arrow [`ArrayRef`]
     pub fn to_arrow(&self) -> Result<ArrayRef> {
         let nulls = self.valid.to_arrow();

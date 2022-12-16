@@ -3314,6 +3314,7 @@ dependencies = [
  "hashbrown 0.13.1",
  "iox_time",
  "itertools",
+ "mutable_batch_lp",
  "rand",
  "schema",
  "snafu",
