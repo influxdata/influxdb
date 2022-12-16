@@ -157,6 +157,7 @@ pub async fn create_ingester_server_type(
         exec,
         ingester_config.persist_max_parallelism,
         ingester_config.persist_queue_depth,
+        ingester_config.persist_hot_partition_cost,
         object_store,
     )
     .await?;

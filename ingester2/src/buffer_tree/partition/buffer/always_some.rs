@@ -43,6 +43,11 @@ impl<T> AlwaysSome<T> {
     pub(crate) fn into_inner(self) -> T {
         self.0.unwrap()
     }
+
+    /// Return an immutable reference to the inner `T`.
+    pub(crate) fn get(&self) -> &T {
+        self.0.as_ref().unwrap()
+    }
 }
 
 #[cfg(test)]

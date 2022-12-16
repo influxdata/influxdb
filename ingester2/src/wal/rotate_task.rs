@@ -1,6 +1,6 @@
 use futures::{stream, StreamExt};
 use observability_deps::tracing::*;
-use std::{future, sync::Arc, time::Duration};
+use std::{fmt::Debug, future, sync::Arc, time::Duration};
 use tokio::time::Instant;
 
 use crate::{buffer_tree::BufferTree, persist::handle::PersistHandle};
@@ -10,12 +10,14 @@ use crate::{buffer_tree::BufferTree, persist::handle::PersistHandle};
 const PERSIST_ENQUEUE_CONCURRENCY: usize = 5;
 
 /// Rotate the `wal` segment file every `period` duration of time.
-pub(crate) async fn periodic_rotation(
+pub(crate) async fn periodic_rotation<O>(
     wal: Arc<wal::Wal>,
     period: Duration,
-    buffer: Arc<BufferTree>,
+    buffer: Arc<BufferTree<O>>,
     persist: PersistHandle,
-) {
+) where
+    O: Send + Sync + Debug,
+{
     let mut interval = tokio::time::interval(period);
 
     loop {

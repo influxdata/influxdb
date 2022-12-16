@@ -55,6 +55,12 @@ impl DataBuffer {
         })
     }
 
+    pub(crate) fn persist_cost_estimate(&self) -> usize {
+        match self.0.get() {
+            FsmState::Buffering(b) => b.persist_cost_estimate(),
+        }
+    }
+
     /// Return all data for this buffer, ordered by the [`SequenceNumber`] from
     /// which it was buffered with.
     pub(crate) fn get_query_data(&mut self) -> Vec<Arc<RecordBatch>> {
