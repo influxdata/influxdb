@@ -37,6 +37,8 @@ func (tc *TypeConflictChecker) Run(args ...string) error {
 	// Get a set of every measurement/field/type tuple present.
 	var schema Schema
 	var err error
+
+	tc.Path = path.Clean(tc.Path)
 	schema, err = tc.readFields()
 	if err != nil {
 		return err
@@ -64,8 +66,7 @@ func (tc *TypeConflictChecker) readFields() (Schema, error) {
 	} else {
 		root = path.Dir(tc.Path)
 	}
-	fileSystem := os.DirFS(".")
-	err = fs.WalkDir(fileSystem, root, func(path string, d fs.DirEntry, err error) error {
+	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return fmt.Errorf("error walking file: %w", err)
 		}
