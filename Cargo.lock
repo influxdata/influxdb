@@ -214,6 +214,7 @@ dependencies = [
  "prost 0.11.3",
  "prost-build 0.11.3",
  "prost-derive 0.11.2",
+ "prost-types 0.11.2",
  "tokio",
  "tonic",
  "tonic-build",
@@ -2344,6 +2345,7 @@ dependencies = [
  "influxdb_iox_client",
  "influxdb_storage_client",
  "influxrpc_parser",
+ "iox_arrow_flight",
  "iox_catalog",
  "iox_query",
  "iox_time",
@@ -2395,13 +2397,13 @@ name = "influxdb_iox_client"
 version = "0.1.0"
 dependencies = [
  "arrow",
- "arrow-flight",
  "arrow_util",
  "bytes",
  "client_util",
  "futures-util",
  "generated_types",
  "influxdb_line_protocol",
+ "iox_arrow_flight",
  "prost 0.11.3",
  "rand",
  "reqwest",
@@ -2409,8 +2411,6 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tonic",
- "trace",
- "trace_exporters",
  "trace_http",
 ]
 
@@ -2613,6 +2613,20 @@ checksum = "46112a93252b123d31a119a8d1a1ac19deac4fac6e0e8b0df58f0d4e5870e63c"
 dependencies = [
  "libc",
  "windows-sys",
+]
+
+[[package]]
+name = "iox_arrow_flight"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "arrow-flight",
+ "futures",
+ "futures-util",
+ "prost 0.11.3",
+ "prost-types 0.11.2",
+ "tonic",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -4252,6 +4266,7 @@ dependencies = [
  "futures",
  "generated_types",
  "influxdb_iox_client",
+ "iox_arrow_flight",
  "iox_catalog",
  "iox_query",
  "iox_tests",
@@ -4280,6 +4295,8 @@ dependencies = [
  "tokio-util",
  "tonic",
  "trace",
+ "trace_exporters",
+ "trace_http",
  "tracker",
  "uuid",
  "workspace-hack",
@@ -4321,6 +4338,7 @@ dependencies = [
  "hashbrown 0.13.1",
  "influxdb_iox_client",
  "ingester",
+ "iox_arrow_flight",
  "iox_catalog",
  "iox_query",
  "iox_tests",
@@ -6365,6 +6383,7 @@ version = "0.1.0"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
+ "arrow-flight",
  "arrow-ord",
  "arrow-string",
  "base64 0.13.1",

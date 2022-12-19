@@ -1,6 +1,8 @@
 use self::{
     circuit_breaker::CircuitBreakerFlightClient,
-    flight_client::{Error as FlightClientError, FlightClient, FlightClientImpl, FlightError},
+    flight_client::{
+        Error as FlightClientError, FlightClientImpl, FlightError, IngesterFlightClient,
+    },
     test_util::MockIngesterConnection,
 };
 use crate::cache::{namespace::CachedTable, CatalogCache};
@@ -19,9 +21,8 @@ use generated_types::{
     ingester::{encode_proto_predicate_as_base64, IngesterQueryRequest},
     write_info::merge_responses,
 };
-use influxdb_iox_client::flight::{
-    generated_types::IngesterQueryResponseMetadata, low_level::LowLevelMessage,
-};
+use influxdb_iox_client::flight::generated_types::IngesterQueryResponseMetadata;
+use iox_arrow_flight::DecodedPayload;
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
     util::{compute_timenanosecond_min_max, create_basic_summary},
@@ -351,7 +352,7 @@ impl<'a> Drop for ObserveIngesterRequest<'a> {
 pub struct IngesterConnectionImpl {
     shard_to_ingesters: HashMap<ShardIndex, IngesterMapping>,
     unique_ingester_addresses: HashSet<Arc<str>>,
-    flight_client: Arc<dyn FlightClient>,
+    flight_client: Arc<dyn IngesterFlightClient>,
     catalog_cache: Arc<CatalogCache>,
     metrics: Arc<IngesterConnectionMetrics>,
     backoff_config: BackoffConfig,
@@ -402,7 +403,7 @@ impl IngesterConnectionImpl {
     /// network communication.
     pub fn by_shard_with_flight_client(
         shard_to_ingesters: HashMap<ShardIndex, IngesterMapping>,
-        flight_client: Arc<dyn FlightClient>,
+        flight_client: Arc<dyn IngesterFlightClient>,
         catalog_cache: Arc<CatalogCache>,
         backoff_config: BackoffConfig,
     ) -> Self {
@@ -462,7 +463,7 @@ impl IngesterConnectionImpl {
 /// Struct that names all parameters to `execute`
 #[derive(Debug, Clone)]
 struct GetPartitionForIngester<'a> {
-    flight_client: Arc<dyn FlightClient>,
+    flight_client: Arc<dyn IngesterFlightClient>,
     catalog_cache: Arc<CatalogCache>,
     ingester_address: Arc<str>,
     namespace_id: NamespaceId,
@@ -512,7 +513,7 @@ async fn execute(
             return Ok(vec![]);
         }
         Err(FlightClientError::Flight {
-            source: FlightError::GrpcError(status),
+            source: FlightError::ArrowFlightError(iox_arrow_flight::FlightError::Tonic(status)),
         }) if status.code() == tonic::Code::NotFound => {
             debug!(
                 ingester_address = ingester_address.as_ref(),
@@ -669,11 +670,11 @@ impl IngesterStreamDecoder {
     /// Register a new message and its metadata from the Flight stream.
     async fn register(
         &mut self,
-        msg: LowLevelMessage,
+        msg: DecodedPayload,
         md: IngesterQueryResponseMetadata,
     ) -> Result<(), Error> {
         match msg {
-            LowLevelMessage::None => {
+            DecodedPayload::None => {
                 // new partition announced
                 self.flush_partition().await?;
 
@@ -728,7 +729,7 @@ impl IngesterStreamDecoder {
                 );
                 self.current_partition = Some(partition);
             }
-            LowLevelMessage::Schema(schema) => {
+            DecodedPayload::Schema(schema) => {
                 self.flush_chunk()?;
                 ensure!(
                     self.current_partition.is_some(),
@@ -749,7 +750,7 @@ impl IngesterStreamDecoder {
                     .context(ConvertingSchemaSnafu)?;
                 self.current_chunk = Some((schema, vec![]));
             }
-            LowLevelMessage::RecordBatch(batch) => {
+            DecodedPayload::RecordBatch(batch) => {
                 let current_chunk =
                     self.current_chunk
                         .as_mut()
@@ -1357,7 +1358,7 @@ mod tests {
                 "addr1",
                 Err(FlightClientError::Handshake {
                     ingester_address: String::from("addr1"),
-                    source: FlightError::GrpcError(tonic::Status::internal("don't know")),
+                    source: tonic::Status::internal("don't know").into(),
                 }),
             )])
             .await,
@@ -1373,7 +1374,7 @@ mod tests {
             MockFlightClient::new([(
                 "addr1",
                 Err(FlightClientError::Flight {
-                    source: FlightError::GrpcError(tonic::Status::internal("cow exploded")),
+                    source: tonic::Status::internal("cow exploded").into(),
                 }),
             )])
             .await,
@@ -1389,7 +1390,7 @@ mod tests {
             MockFlightClient::new([(
                 "addr1",
                 Err(FlightClientError::Flight {
-                    source: FlightError::GrpcError(tonic::Status::not_found("something")),
+                    source: tonic::Status::not_found("something").into(),
                 }),
             )])
             .await,
@@ -1406,9 +1407,7 @@ mod tests {
             MockFlightClient::new([(
                 "addr1",
                 Ok(MockQueryData {
-                    results: vec![Err(FlightError::GrpcError(tonic::Status::internal(
-                        "don't know",
-                    )))],
+                    results: vec![Err(tonic::Status::internal("don't know").into())],
                 }),
             )])
             .await,
@@ -1535,7 +1534,7 @@ mod tests {
                 "addr1",
                 Ok(MockQueryData {
                     results: vec![Ok((
-                        LowLevelMessage::Schema(record_batch.schema()),
+                        DecodedPayload::Schema(record_batch.schema()),
                         IngesterQueryResponseMetadata::default(),
                     ))],
                 }),
@@ -1555,7 +1554,7 @@ mod tests {
                 "addr1",
                 Ok(MockQueryData {
                     results: vec![Ok((
-                        LowLevelMessage::RecordBatch(record_batch),
+                        DecodedPayload::RecordBatch(record_batch),
                         IngesterQueryResponseMetadata::default(),
                     ))],
                 }),
@@ -1594,23 +1593,23 @@ mod tests {
                                 }),
                             ),
                             Ok((
-                                LowLevelMessage::Schema(Arc::clone(&schema_1_1)),
+                                DecodedPayload::Schema(Arc::clone(&schema_1_1)),
                                 IngesterQueryResponseMetadata::default(),
                             )),
                             Ok((
-                                LowLevelMessage::RecordBatch(record_batch_1_1_1),
+                                DecodedPayload::RecordBatch(record_batch_1_1_1),
                                 IngesterQueryResponseMetadata::default(),
                             )),
                             Ok((
-                                LowLevelMessage::RecordBatch(record_batch_1_1_2),
+                                DecodedPayload::RecordBatch(record_batch_1_1_2),
                                 IngesterQueryResponseMetadata::default(),
                             )),
                             Ok((
-                                LowLevelMessage::Schema(Arc::clone(&schema_1_2)),
+                                DecodedPayload::Schema(Arc::clone(&schema_1_2)),
                                 IngesterQueryResponseMetadata::default(),
                             )),
                             Ok((
-                                LowLevelMessage::RecordBatch(record_batch_1_2),
+                                DecodedPayload::RecordBatch(record_batch_1_2),
                                 IngesterQueryResponseMetadata::default(),
                             )),
                             metadata(
@@ -1620,11 +1619,11 @@ mod tests {
                                 }),
                             ),
                             Ok((
-                                LowLevelMessage::Schema(Arc::clone(&schema_2_1)),
+                                DecodedPayload::Schema(Arc::clone(&schema_2_1)),
                                 IngesterQueryResponseMetadata::default(),
                             )),
                             Ok((
-                                LowLevelMessage::RecordBatch(record_batch_2_1),
+                                DecodedPayload::RecordBatch(record_batch_2_1),
                                 IngesterQueryResponseMetadata::default(),
                             )),
                         ],
@@ -1641,11 +1640,11 @@ mod tests {
                                 }),
                             ),
                             Ok((
-                                LowLevelMessage::Schema(Arc::clone(&schema_3_1)),
+                                DecodedPayload::Schema(Arc::clone(&schema_3_1)),
                                 IngesterQueryResponseMetadata::default(),
                             )),
                             Ok((
-                                LowLevelMessage::RecordBatch(record_batch_3_1),
+                                DecodedPayload::RecordBatch(record_batch_3_1),
                                 IngesterQueryResponseMetadata::default(),
                             )),
                         ],
@@ -1844,14 +1843,14 @@ mod tests {
                     "addr3",
                     Err(FlightClientError::Handshake {
                         ingester_address: String::from("addr3"),
-                        source: FlightError::GrpcError(tonic::Status::internal("don't know")),
+                        source: tonic::Status::internal("don't know").into(),
                     }),
                 ),
                 (
                     "addr4",
                     Err(FlightClientError::Handshake {
                         ingester_address: String::from("addr4"),
-                        source: FlightError::GrpcError(tonic::Status::internal("don't know")),
+                        source: tonic::Status::internal("don't know").into(),
                     }),
                 ),
                 ("addr5", Ok(MockQueryData { results: vec![] })),
@@ -1948,11 +1947,11 @@ mod tests {
                                 }),
                             ),
                             Ok((
-                                LowLevelMessage::Schema(Arc::clone(&schema_1_1)),
+                                DecodedPayload::Schema(Arc::clone(&schema_1_1)),
                                 IngesterQueryResponseMetadata::default(),
                             )),
                             Ok((
-                                LowLevelMessage::RecordBatch(record_batch_1_1),
+                                DecodedPayload::RecordBatch(record_batch_1_1),
                                 IngesterQueryResponseMetadata::default(),
                             )),
                         ],
@@ -1961,9 +1960,8 @@ mod tests {
                 (
                     "addr2",
                     Err(FlightClientError::Flight {
-                        source: FlightError::GrpcError(tonic::Status::internal(
-                            "if this is queried, the test should fail",
-                        )),
+                        source: tonic::Status::internal("if this is queried, the test should fail")
+                            .into(),
                     }),
                 ),
             ])
@@ -2029,11 +2027,11 @@ mod tests {
         lp_to_mutable_batch(lp).1.to_arrow(Projection::All).unwrap()
     }
 
-    type MockFlightResult = Result<(LowLevelMessage, IngesterQueryResponseMetadata), FlightError>;
+    type MockFlightResult = Result<(DecodedPayload, IngesterQueryResponseMetadata), FlightError>;
 
     fn metadata(partition_id: i64, status: Option<PartitionStatus>) -> MockFlightResult {
         Ok((
-            LowLevelMessage::None,
+            DecodedPayload::None,
             IngesterQueryResponseMetadata {
                 partition_id,
                 status,
@@ -2051,7 +2049,7 @@ mod tests {
         completed_persistence_count: u64,
     ) -> MockFlightResult {
         Ok((
-            LowLevelMessage::None,
+            DecodedPayload::None,
             IngesterQueryResponseMetadata {
                 partition_id,
                 status,
@@ -2070,7 +2068,7 @@ mod tests {
     impl QueryData for MockQueryData {
         async fn next(
             &mut self,
-        ) -> Result<Option<(LowLevelMessage, IngesterQueryResponseMetadata)>, FlightError> {
+        ) -> Result<Option<(DecodedPayload, IngesterQueryResponseMetadata)>, FlightError> {
             if self.results.is_empty() {
                 Ok(None)
             } else {
@@ -2149,7 +2147,7 @@ mod tests {
     }
 
     #[async_trait]
-    impl FlightClient for MockFlightClient {
+    impl IngesterFlightClient for MockFlightClient {
         async fn query(
             &self,
             ingester_address: Arc<str>,

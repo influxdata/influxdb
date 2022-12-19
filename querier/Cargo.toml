@@ -18,6 +18,7 @@ datafusion_util = { path = "../datafusion_util" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }
 influxdb_iox_client = { path = "../influxdb_iox_client" }
+iox_arrow_flight = { path = "../iox_arrow_flight" }
 iox_catalog = { path = "../iox_catalog" }
 iox_query = { path = "../iox_query" }
 iox_time = { path = "../iox_time" }
@@ -41,6 +42,8 @@ tokio = { version = "1.22", features = ["macros", "parking_lot", "rt-multi-threa
 tokio-util = { version = "0.7.4" }
 tonic = { version = "0.8" }
 trace = { path = "../trace" }
+trace_exporters = { path = "../trace_exporters" }
+trace_http = { path = "../trace_http" }
 tracker = { path = "../tracker" }
 uuid = { version = "1", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
