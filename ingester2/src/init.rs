@@ -223,6 +223,7 @@ pub async fn new(
         persist_executor,
         object_store,
         Arc::clone(&catalog),
+        &metrics,
     );
 
     // Instantiate a post-write observer for hot partition persistence.
