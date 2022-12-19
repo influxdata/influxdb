@@ -255,8 +255,13 @@ pub async fn create_router2_server_type(
 ) -> Result<Arc<dyn ServerType>> {
     // 1. START: Different Setup Per Router Path: this part is only relevant to using RPC write
     //    path and should not be added to `create_router_server_type`.
-    let mut ingester_clients = Vec::with_capacity(router_config.ingester_addresses.len());
-    for ingester_addr in &router_config.ingester_addresses {
+
+    // Hack to handle multiple ingester addresses separated by commas in potentially many uses of
+    // the CLI arg
+    let ingester_addresses = router_config.ingester_addresses.join(",");
+    let ingester_addresses_list: Vec<_> = ingester_addresses.split(',').collect();
+    let mut ingester_clients = Vec::with_capacity(ingester_addresses_list.len());
+    for ingester_addr in ingester_addresses_list {
         ingester_clients.push(write_service_client(ingester_addr).await);
     }
 
