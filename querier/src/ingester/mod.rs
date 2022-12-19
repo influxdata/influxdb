@@ -552,7 +552,7 @@ async fn execute(
     // computations
     let mut messages = vec![];
     while let Some(data) = perform_query
-        .next()
+        .next_message()
         .await
         .map_err(|source| FlightClientError::Flight { source })
         .context(RemoteQuerySnafu {
@@ -2066,7 +2066,7 @@ mod tests {
 
     #[async_trait]
     impl QueryData for MockQueryData {
-        async fn next(
+        async fn next_message(
             &mut self,
         ) -> Result<Option<(DecodedPayload, IngesterQueryResponseMetadata)>, FlightError> {
             if self.results.is_empty() {

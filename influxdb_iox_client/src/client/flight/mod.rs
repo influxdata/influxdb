@@ -1,6 +1,9 @@
 //! Client for InfluxDB IOx Flight API
 
+use std::{pin::Pin, task::Poll};
+
 use ::generated_types::influxdata::iox::querier::v1::{read_info::QueryType, ReadInfo};
+use futures_util::{Stream, StreamExt};
 use prost::Message;
 use thiserror::Error;
 
@@ -111,6 +114,7 @@ impl From<tonic::Status> for Error {
 ///         generated_types::read_info,
 ///     },
 /// };
+/// use futures_util::TryStreamExt;
 ///
 /// let connection = Builder::default()
 ///     .build("http://127.0.0.1:8082")
@@ -119,16 +123,17 @@ impl From<tonic::Status> for Error {
 ///
 /// let mut client = Client::new(connection);
 ///
-/// let mut query_results = client
+/// // results is a stream of RecordBatches
+/// let query_results = client
 ///     .sql("my_namespace".into(), "select * from cpu_load".into())
 ///     .await
 ///     .expect("query request should work");
 ///
-/// let mut batches = vec![];
-///
-/// while let Some(data) = query_results.next().await.expect("valid batches") {
-///     batches.push(data);
-/// }
+/// // Can use standard TryStreamExt combinators like try_collect
+/// let batches: Vec<_> = query_results
+///     .try_collect()
+///     .await
+///     .expect("valid bathes");
 /// # }
 /// ```
 #[derive(Debug)]
@@ -196,7 +201,7 @@ impl Client {
         self.do_get_with_read_info(request).await
     }
 
-    /// Perform a lower level client read with something
+    /// Perform a lower level client read with the `ReadInfo`
     async fn do_get_with_read_info(
         &mut self,
         read_info: ReadInfo,
@@ -237,7 +242,8 @@ impl Client {
 }
 
 #[derive(Debug)]
-/// Translates errors from FlightErrors to IOxErrors
+/// Translates errors from FlightErrors to IOx client errors,
+/// providing access to the underyling [`FlightRecordBatchStream`]
 pub struct IOxRecordBatchStream {
     inner: FlightRecordBatchStream,
 }
@@ -248,24 +254,31 @@ impl IOxRecordBatchStream {
         Self { inner }
     }
 
-    /// Has a message defining the schema been seen yet
-    pub fn got_schema(&self) -> bool {
-        self.inner.got_schema()
+    /// Return a reference to the inner stream
+    pub fn inner(&self) -> &FlightRecordBatchStream {
+        &self.inner
+    }
+
+    /// Return a mutable reference to the inner stream
+    pub fn inner_mut(&mut self) -> &mut FlightRecordBatchStream {
+        &mut self.inner
     }
 
     /// Consume self and return the wrapped [`FlightRecordBatchStream`]
     pub fn into_inner(self) -> FlightRecordBatchStream {
         self.inner
     }
+}
 
-    /// Returns the next `RecordBatch` available in this stream, or `None` if
-    /// there are no further results available.
-    pub async fn next(&mut self) -> Result<Option<RecordBatch>, Error> {
-        Ok(self.inner.next().await?)
-    }
+impl Stream for IOxRecordBatchStream {
+    type Item = Result<RecordBatch, Error>;
 
-    /// Collect and return all `RecordBatch`es as a `Vec`
-    pub async fn collect(&mut self) -> Result<Vec<RecordBatch>, Error> {
-        Ok(self.inner.collect().await?)
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Result<RecordBatch, Error>>> {
+        self.inner
+            .poll_next_unpin(cx)
+            .map_err(Error::ArrowFlightError)
     }
 }

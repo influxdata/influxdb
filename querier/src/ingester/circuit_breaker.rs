@@ -1068,7 +1068,7 @@ mod tests {
 
     #[async_trait]
     impl QueryData for MockQueryData {
-        async fn next(
+        async fn next_message(
             &mut self,
         ) -> Result<
             Option<(DecodedPayload, IngesterQueryResponseMetadata)>,

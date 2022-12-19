@@ -6,9 +6,10 @@ use arrow_flight::{
     flight_service_client::FlightServiceClient, utils::flight_data_to_arrow_batch, FlightData,
     FlightDescriptor, FlightInfo, HandshakeRequest, Ticket,
 };
+use futures::ready;
 use futures_util::stream;
 use futures_util::stream::StreamExt;
-use std::{collections::HashMap, convert::TryFrom, sync::Arc};
+use std::{collections::HashMap, convert::TryFrom, pin::Pin, sync::Arc, task::Poll};
 use tonic::{
     metadata::MetadataMap,
     transport::Channel,
@@ -185,7 +186,6 @@ pub struct FlightRecordBatchStream {
     got_schema: bool,
 }
 
-// TODO make this a proper futures::Stream
 impl FlightRecordBatchStream {
     pub fn new(inner: FlightDataStream) -> Self {
         Self {
@@ -203,37 +203,46 @@ impl FlightRecordBatchStream {
     pub fn into_inner(self) -> FlightDataStream {
         self.inner
     }
+}
+impl futures::Stream for FlightRecordBatchStream {
+    type Item = Result<RecordBatch>;
 
     /// Returns the next [`RecordBatch`] available in this stream, or `None` if
     /// there are no further results available.
-    pub async fn next(&mut self) -> Result<Option<RecordBatch>> {
-        while let Some(data) = self.inner.next().await? {
-            match data.payload {
-                DecodedPayload::Schema(_) => {
-                    if self.got_schema {
-                        return Err(FlightError::protocol(
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Result<RecordBatch>>> {
+        loop {
+            let res = ready!(self.inner.poll_next_unpin(cx));
+            match res {
+                // Inner exhausted
+                None => {
+                    return Poll::Ready(None);
+                }
+                Some(Err(e)) => {
+                    return Poll::Ready(Some(Err(e)));
+                }
+                // translate data
+                Some(Ok(data)) => match data.payload {
+                    DecodedPayload::Schema(_) if self.got_schema => {
+                        return Poll::Ready(Some(Err(FlightError::protocol(
                             "Unexpectedly saw multiple Schema messages in FlightData stream",
-                        ));
+                        ))));
                     }
-                    self.got_schema = true;
-                }
-                DecodedPayload::RecordBatch(batch) => return Ok(Some(batch)),
-                DecodedPayload::None => {
-                    // loop again
-                }
+                    DecodedPayload::Schema(_) => {
+                        self.got_schema = true;
+                        // Need next message, poll inner again
+                    }
+                    DecodedPayload::RecordBatch(batch) => {
+                        return Poll::Ready(Some(Ok(batch)));
+                    }
+                    DecodedPayload::None => {
+                        // Need next message
+                    }
+                },
             }
         }
-        Ok(None)
-    }
-
-    /// Collect and return all `RecordBatch`es as a `Vec`
-    pub async fn collect(&mut self) -> Result<Vec<RecordBatch>> {
-        let mut batches = Vec::new();
-        while let Some(data) = self.next().await? {
-            batches.push(data);
-        }
-
-        Ok(batches)
     }
 }
 
@@ -261,13 +270,20 @@ impl FlightRecordBatchStream {
 ///
 /// All other message types (at the time of writing: e.g. tensor and
 /// sparse tensor) lead to an error.
-// TODO make this a real futures::Stream
+///
+/// Example usecases
+///
+/// 1. Using this low level stream it is possible to receive a steam
+/// of RecordBatches in FlightData that have different schemas by
+/// handling multiple schema messages separately.
 #[derive(Debug)]
 pub struct FlightDataStream {
     /// Underlying data stream
     response: Streaming<FlightData>,
     /// Decoding state
     state: Option<FlightStreamState>,
+    /// seen the end of the inner stream?
+    done: bool,
 }
 
 impl FlightDataStream {
@@ -276,93 +292,119 @@ impl FlightDataStream {
         Self {
             state: None,
             response,
+            done: false,
         }
     }
 
+    /// Extracts flight data from the next message, updating decoding
+    /// state as necessary.
+    fn extract_message(&mut self, data: FlightData) -> Result<Option<DecodedFlightData>> {
+        let message = ipc::root_as_message(&data.data_header[..])
+            .map_err(|e| FlightError::DecodeError(format!("Error decoding root message: {e}")))?;
+
+        match message.header_type() {
+            ipc::MessageHeader::NONE => Ok(Some(DecodedFlightData::new_none(data))),
+            ipc::MessageHeader::Schema => {
+                let schema = Schema::try_from(&data)
+                    .map_err(|e| FlightError::DecodeError(format!("Error decoding schema: {e}")))?;
+
+                let schema = Arc::new(schema);
+                let dictionaries_by_field = HashMap::new();
+
+                self.state = Some(FlightStreamState {
+                    schema: Arc::clone(&schema),
+                    dictionaries_by_field,
+                });
+                Ok(Some(DecodedFlightData::new_schema(data, schema)))
+            }
+            ipc::MessageHeader::DictionaryBatch => {
+                let state = if let Some(state) = self.state.as_mut() {
+                    state
+                } else {
+                    return Err(FlightError::protocol(
+                        "Received DictionaryBatch prior to Schema",
+                    ));
+                };
+
+                let buffer: arrow::buffer::Buffer = data.data_body.into();
+                let dictionary_batch = message.header_as_dictionary_batch().ok_or_else(|| {
+                    FlightError::protocol(
+                        "Could not get dictionary batch from DictionaryBatch message",
+                    )
+                })?;
+
+                ipc::reader::read_dictionary(
+                    &buffer,
+                    dictionary_batch,
+                    &state.schema,
+                    &mut state.dictionaries_by_field,
+                    &message.version(),
+                )
+                .map_err(|e| {
+                    FlightError::DecodeError(format!("Error decoding ipc dictionary: {e}"))
+                })?;
+
+                // Updated internal state, but no decoded message
+                Ok(None)
+            }
+            ipc::MessageHeader::RecordBatch => {
+                let state = if let Some(state) = self.state.as_ref() {
+                    state
+                } else {
+                    return Err(FlightError::protocol(
+                        "Received RecordBatch prior to Schema",
+                    ));
+                };
+
+                let batch = flight_data_to_arrow_batch(
+                    &data,
+                    Arc::clone(&state.schema),
+                    &state.dictionaries_by_field,
+                )
+                .map_err(|e| {
+                    FlightError::DecodeError(format!("Error decoding ipc RecordBatch: {e}"))
+                })?;
+
+                Ok(Some(DecodedFlightData::new_record_batch(data, batch)))
+            }
+            other => {
+                let name = other.variant_name().unwrap_or("UNKNOWN");
+                Err(FlightError::protocol(format!("Unexpected message: {name}")))
+            }
+        }
+    }
+}
+
+impl futures::Stream for FlightDataStream {
+    type Item = Result<DecodedFlightData>;
     /// Returns the result of decoding the next [`FlightData`] message
     /// from the server, or `None` if there are no further results
     /// available.
-    pub async fn next(&mut self) -> Result<Option<DecodedFlightData>> {
-        while let Some(data) = self.response.next().await {
-            let data = data.map_err(FlightError::Tonic)?;
-
-            let message = ipc::root_as_message(&data.data_header[..]).map_err(|e| {
-                FlightError::DecodeError(format!("Error decoding root message: {e}"))
-            })?;
-
-            match message.header_type() {
-                ipc::MessageHeader::NONE => {
-                    return Ok(Some(DecodedFlightData::new_none(data)));
-                }
-                ipc::MessageHeader::Schema => {
-                    let schema = Schema::try_from(&data).map_err(|e| {
-                        FlightError::DecodeError(format!("Error decoding schema: {e}"))
-                    })?;
-
-                    let schema = Arc::new(schema);
-                    let dictionaries_by_field = HashMap::new();
-
-                    self.state = Some(FlightStreamState {
-                        schema: Arc::clone(&schema),
-                        dictionaries_by_field,
-                    });
-                    return Ok(Some(DecodedFlightData::new_schema(data, schema)));
-                }
-                ipc::MessageHeader::DictionaryBatch => {
-                    let state = if let Some(state) = self.state.as_mut() {
-                        state
-                    } else {
-                        return Err(FlightError::protocol(
-                            "Received DictionaryBatch prior to Schema",
-                        ));
-                    };
-
-                    let buffer: arrow::buffer::Buffer = data.data_body.into();
-                    let dictionary_batch =
-                        message.header_as_dictionary_batch().ok_or_else(|| {
-                            FlightError::protocol(
-                                "Could not get dictionary batch from DictionaryBatch message",
-                            )
-                        })?;
-
-                    ipc::reader::read_dictionary(
-                        &buffer,
-                        dictionary_batch,
-                        &state.schema,
-                        &mut state.dictionaries_by_field,
-                        &message.version(),
-                    )
-                    .map_err(|e| {
-                        FlightError::DecodeError(format!("Error decoding ipc dictionary: {e}"))
-                    })?;
-                }
-                ipc::MessageHeader::RecordBatch => {
-                    let state = if let Some(state) = self.state.as_ref() {
-                        state
-                    } else {
-                        return Err(FlightError::protocol(
-                            "Received RecordBatch prior to Schema",
-                        ));
-                    };
-
-                    let batch = flight_data_to_arrow_batch(
-                        &data,
-                        Arc::clone(&state.schema),
-                        &state.dictionaries_by_field,
-                    )
-                    .map_err(|e| {
-                        FlightError::DecodeError(format!("Error decoding ipc RecordBatch: {e}"))
-                    })?;
-
-                    return Ok(Some(DecodedFlightData::new_record_batch(data, batch)));
-                }
-                other => {
-                    let name = other.variant_name().unwrap_or("UNKNOWN");
-                    return Err(FlightError::protocol(format!("Unexpected message: {name}")));
-                }
-            }
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        if self.done {
+            return Poll::Ready(None);
         }
-        Ok(None)
+        loop {
+            let res = ready!(self.response.poll_next_unpin(cx));
+
+            return Poll::Ready(match res {
+                None => {
+                    self.done = true;
+                    None // inner is exhausted
+                }
+                Some(data) => Some(match data {
+                    Err(e) => Err(FlightError::Tonic(e)),
+                    Ok(data) => match self.extract_message(data) {
+                        Ok(Some(extracted)) => Ok(extracted),
+                        Ok(None) => continue, // Need next input message
+                        Err(e) => Err(e),
+                    },
+                }),
+            });
+        }
     }
 }
 

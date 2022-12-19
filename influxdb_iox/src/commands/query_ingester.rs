@@ -1,3 +1,4 @@
+use futures::TryStreamExt;
 use generated_types::ingester::{
     decode_proto_predicate_from_base64, DecodeProtoPredicateFromBase64Error,
 };
@@ -77,13 +78,14 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         predicate,
         namespace_id,
     };
+
     // send the message directly encoded as bytes to the ingester.
     let request = request.encode_to_vec();
-    let mut query_results = client.into_inner().do_get(request).await?;
+    let query_results = client.into_inner().do_get(request).await?;
 
     // It might be nice to do some sort of streaming write
     // rather than buffering the whole thing.
-    let batches = query_results.collect().await?;
+    let batches: Vec<_> = query_results.try_collect().await?;
 
     let formatted_result = format.format(&batches)?;
 

@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use client_util::connection::{self, Connection};
+use futures::StreamExt;
 use generated_types::ingester::IngesterQueryRequest;
 use influxdb_iox_client::flight::generated_types as proto;
 use iox_arrow_flight::{prost::Message, DecodedFlightData, DecodedPayload, FlightDataStream};
@@ -184,7 +185,7 @@ impl SerializeFailureReason {
 pub trait QueryData: Debug + Send + 'static {
     /// Returns the next [`DecodedPayload`] available for this query, or `None` if
     /// there are no further results available.
-    async fn next(
+    async fn next_message(
         &mut self,
     ) -> Result<Option<(DecodedPayload, proto::IngesterQueryResponseMetadata)>, FlightError>;
 }
@@ -194,22 +195,22 @@ impl<T> QueryData for Box<T>
 where
     T: QueryData + ?Sized,
 {
-    async fn next(
+    async fn next_message(
         &mut self,
     ) -> Result<Option<(DecodedPayload, proto::IngesterQueryResponseMetadata)>, FlightError> {
-        self.deref_mut().next().await
+        self.deref_mut().next_message().await
     }
 }
 
 #[async_trait]
 // Extracts the ingester metadata from the streaming FlightData
 impl QueryData for FlightDataStream {
-    async fn next(
+    async fn next_message(
         &mut self,
     ) -> Result<Option<(DecodedPayload, proto::IngesterQueryResponseMetadata)>, FlightError> {
-        Ok(self
-            .next()
-            .await?
+        let decoded_data = self.next().await.transpose()?;
+
+        Ok(decoded_data
             .map(|decoded_data| {
                 let DecodedFlightData { inner, payload } = decoded_data;
 

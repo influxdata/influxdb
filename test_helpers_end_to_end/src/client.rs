@@ -1,6 +1,6 @@
 //! Client helpers for writing end to end ng tests
 use arrow::record_batch::RecordBatch;
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{stream::FuturesUnordered, StreamExt, TryStreamExt};
 use http::Response;
 use hyper::{Body, Client, Request};
 use influxdb_iox_client::{
@@ -200,9 +200,11 @@ pub async fn try_run_sql(
     // Normally this would be done one per connection, not per query
     client.handshake().await?;
 
-    let mut response = client.sql(namespace.into(), sql_query.into()).await?;
-
-    response.collect().await
+    client
+        .sql(namespace.into(), sql_query.into())
+        .await?
+        .try_collect()
+        .await
 }
 
 /// Runs a InfluxQL query using the flight API on the specified connection.
@@ -217,11 +219,11 @@ pub async fn try_run_influxql(
     // Normally this would be done one per connection, not per query
     client.handshake().await?;
 
-    let mut response = client
+    client
         .influxql(namespace.into(), influxql_query.into())
-        .await?;
-
-    response.collect().await
+        .await?
+        .try_collect()
+        .await
 }
 
 /// Runs a SQL query using the flight API on the specified connection.

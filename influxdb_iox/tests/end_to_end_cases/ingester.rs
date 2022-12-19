@@ -1,6 +1,7 @@
 use arrow::{datatypes::SchemaRef, record_batch::RecordBatch};
 use arrow_util::assert_batches_sorted_eq;
 use data_types::{NamespaceId, TableId};
+use futures::StreamExt;
 use generated_types::{influxdata::iox::ingester::v1 as proto, ingester::IngesterQueryRequest};
 use http::StatusCode;
 use influxdb_iox_client::flight::generated_types::IngesterQueryResponseMetadata;
@@ -256,7 +257,7 @@ async fn ingester_flight_api_table_not_found() {
 async fn next_message(
     performed_query: &mut FlightDataStream,
 ) -> Option<(DecodedPayload, proto::IngesterQueryResponseMetadata)> {
-    let DecodedFlightData { inner, payload } = performed_query.next().await.unwrap()?;
+    let DecodedFlightData { inner, payload } = performed_query.next().await.transpose().unwrap()?;
 
     // extract the metadata from the underlying FlightData structure
     let app_metadata = &inner.app_metadata[..];

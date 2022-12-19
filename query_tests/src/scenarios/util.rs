@@ -1062,7 +1062,7 @@ impl QueryDataAdapter {
 
 #[async_trait]
 impl IngesterFlightClientQueryData for QueryDataAdapter {
-    async fn next(
+    async fn next_message(
         &mut self,
     ) -> Result<Option<(DecodedPayload, IngesterQueryResponseMetadata)>, FlightError> {
         self.messages.next().transpose()
