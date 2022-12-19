@@ -33,6 +33,9 @@ pub struct Reconciler {
     table_name: Arc<str>,
     namespace_name: Arc<str>,
     catalog_cache: Arc<CatalogCache>,
+    /// Whether the querier is running in RPC write mode. This can be removed when the switch to
+    /// the RPC write design is complete.
+    rpc_write: bool,
 }
 
 impl Reconciler {
@@ -40,11 +43,13 @@ impl Reconciler {
         table_name: Arc<str>,
         namespace_name: Arc<str>,
         catalog_cache: Arc<CatalogCache>,
+        rpc_write: bool,
     ) -> Self {
         Self {
             table_name,
             namespace_name,
             catalog_cache,
+            rpc_write,
         }
     }
 
@@ -113,7 +118,13 @@ impl Reconciler {
                 .push(tombstone);
         }
 
-        let parquet_files = filter_parquet_files(ingester_partitions, parquet_files)?;
+        // Do not filter based on max sequence number in RPC write mode because sequence numbers
+        // are no longer relevant
+        let parquet_files = if self.rpc_write {
+            parquet_files
+        } else {
+            filter_parquet_files(ingester_partitions, parquet_files)?
+        };
 
         debug!(
             parquet_ids=?parquet_files.iter().map(|f| f.meta().parquet_file_id()).collect::<Vec<_>>(),
