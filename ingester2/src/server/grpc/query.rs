@@ -311,13 +311,12 @@ impl From<QueryResponse> for FlatIngesterQueryResponseStream {
         v.into_partition_stream()
             .flat_map(|partition| {
                 let partition_id = partition.id();
-                let max_seq = partition.max_persisted_sequence_number().map(|v| v.get());
                 let completed_persistence_count = partition.completed_persistence_count();
                 let head = futures::stream::once(async move {
                     Ok(FlatIngesterQueryResponse::StartPartition {
                         partition_id,
                         status: PartitionStatus {
-                            parquet_max_sequence_number: max_seq,
+                            parquet_max_sequence_number: None,
                         },
                         completed_persistence_count,
                     })

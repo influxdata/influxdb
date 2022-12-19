@@ -2,7 +2,7 @@
 //!
 //! [`QueryResponse`]: super::response::QueryResponse
 
-use data_types::{PartitionId, SequenceNumber};
+use data_types::PartitionId;
 use datafusion::physical_plan::SendableRecordBatchStream;
 
 /// Response data for a single partition.
@@ -13,9 +13,6 @@ pub(crate) struct PartitionResponse {
     /// Partition ID.
     id: PartitionId,
 
-    /// Max sequence number persisted
-    max_persisted_sequence_number: Option<SequenceNumber>,
-
     /// Count of persisted Parquet files for this partition by this ingester instance.
     completed_persistence_count: u64,
 }
@@ -23,9 +20,14 @@ pub(crate) struct PartitionResponse {
 impl std::fmt::Debug for PartitionResponse {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PartitionResponse")
-            .field("batches", &"<SNAPSHOT STREAM>")
+            .field(
+                "batches",
+                &match self.batches {
+                    Some(_) => "<SNAPSHOT STREAM>",
+                    None => "<NO DATA>,",
+                },
+            )
             .field("partition_id", &self.id)
-            .field("max_persisted", &self.max_persisted_sequence_number)
             .field(
                 "completed_persistence_count",
                 &self.completed_persistence_count,
@@ -36,38 +38,19 @@ impl std::fmt::Debug for PartitionResponse {
 
 impl PartitionResponse {
     pub(crate) fn new(
-        batches: SendableRecordBatchStream,
+        data: Option<SendableRecordBatchStream>,
         id: PartitionId,
-        max_persisted_sequence_number: Option<SequenceNumber>,
         completed_persistence_count: u64,
     ) -> Self {
         Self {
-            batches: Some(batches),
+            batches: data,
             id,
-            max_persisted_sequence_number,
-            completed_persistence_count,
-        }
-    }
-
-    pub(crate) fn new_no_batches(
-        id: PartitionId,
-        max_persisted_sequence_number: Option<SequenceNumber>,
-        completed_persistence_count: u64,
-    ) -> Self {
-        Self {
-            batches: None,
-            id,
-            max_persisted_sequence_number,
             completed_persistence_count,
         }
     }
 
     pub(crate) fn id(&self) -> PartitionId {
         self.id
-    }
-
-    pub(crate) fn max_persisted_sequence_number(&self) -> Option<SequenceNumber> {
-        self.max_persisted_sequence_number
     }
 
     pub(crate) fn completed_persistence_count(&self) -> u64 {
