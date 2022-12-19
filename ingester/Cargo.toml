@@ -55,6 +55,6 @@ mutable_batch_pb = { version = "0.1.0", path = "../mutable_batch_pb" }
 [dev-dependencies]
 assert_matches = "1.5.0"
 lazy_static = "1.4.0"
-paste = "1.0.10"
+paste = "1.0.11"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
 tokio-stream = {version = "0.1.11", default_features = false }
