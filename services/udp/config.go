@@ -41,6 +41,9 @@ const (
 	//     Linux:      sudo sysctl -w net.core.rmem_max=<read-buffer>
 	//     BSD/Darwin: sudo sysctl -w kern.ipc.maxsockbuf=<read-buffer>
 	DefaultReadBuffer = 0
+
+	// DefaultWriters is the default number of writers.
+	DefaultWriters = 1
 )
 
 // Config holds various configuration settings for the UDP listener.
@@ -55,6 +58,7 @@ type Config struct {
 	ReadBuffer      int           `toml:"read-buffer"`
 	BatchTimeout    toml.Duration `toml:"batch-timeout"`
 	Precision       string        `toml:"precision"`
+	Writers         int           `toml:"writers"`
 }
 
 // NewConfig returns a new instance of Config with defaults.
@@ -66,6 +70,7 @@ func NewConfig() Config {
 		BatchSize:       DefaultBatchSize,
 		BatchPending:    DefaultBatchPending,
 		BatchTimeout:    toml.Duration(DefaultBatchTimeout),
+		Writers:         DefaultWriters,
 	}
 }
 
@@ -91,6 +96,9 @@ func (c *Config) WithDefaults() *Config {
 	if d.ReadBuffer == 0 {
 		d.ReadBuffer = DefaultReadBuffer
 	}
+	if d.Writers == 0 {
+		d.Writers = DefaultWriters
+	}
 	return &d
 }
 
@@ -100,7 +108,7 @@ type Configs []Config
 // Diagnostics returns one set of diagnostics for all of the Configs.
 func (c Configs) Diagnostics() (*diagnostics.Diagnostics, error) {
 	d := &diagnostics.Diagnostics{
-		Columns: []string{"enabled", "bind-address", "database", "retention-policy", "batch-size", "batch-pending", "batch-timeout", "precision"},
+		Columns: []string{"enabled", "bind-address", "database", "retention-policy", "batch-size", "batch-pending", "batch-timeout", "precision", "writers"},
 	}
 
 	for _, cc := range c {
@@ -109,7 +117,7 @@ func (c Configs) Diagnostics() (*diagnostics.Diagnostics, error) {
 			continue
 		}
 
-		r := []interface{}{true, cc.BindAddress, cc.Database, cc.RetentionPolicy, cc.BatchSize, cc.BatchPending, cc.BatchTimeout, cc.Precision}
+		r := []interface{}{true, cc.BindAddress, cc.Database, cc.RetentionPolicy, cc.BatchSize, cc.BatchPending, cc.BatchTimeout, cc.Precision, cc.Writers}
 		d.AddRow(r)
 	}
 

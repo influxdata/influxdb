@@ -570,6 +570,9 @@
   # UDP Read buffer size, 0 means OS default. UDP listener will fail if set above OS max.
   # read-buffer = 0
 
+  # Number of parallel writers that will be started.
+  # writers = 1
+
 ###
 ### [continuous_queries]
 ###
