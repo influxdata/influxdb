@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	errors2 "github.com/influxdata/influxdb/pkg/errors"
 	"github.com/influxdata/influxdb/tsdb"
 )
 
@@ -37,6 +38,11 @@ func (tc *TypeConflictChecker) Run(args ...string) error {
 	// Get a set of every measurement/field/type tuple present.
 	var schema Schema
 	var err error
+
+	tc.Path, err = filepath.Abs(tc.Path)
+	if err != nil {
+		return err
+	}
 	schema, err = tc.readFields()
 	if err != nil {
 		return err
@@ -64,8 +70,7 @@ func (tc *TypeConflictChecker) readFields() (Schema, error) {
 	} else {
 		root = path.Dir(tc.Path)
 	}
-	fileSystem := os.DirFS(".")
-	err = fs.WalkDir(fileSystem, root, func(path string, d fs.DirEntry, err error) error {
+	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) (rErr error) {
 		if err != nil {
 			return fmt.Errorf("error walking file: %w", err)
 		}
@@ -80,6 +85,9 @@ func (tc *TypeConflictChecker) readFields() (Schema, error) {
 			return nil
 		}
 		dirs := strings.Split(path, string(os.PathSeparator))
+		if len(dirs) < 4 {
+			return fmt.Errorf("wrong directory structure for InfluxDB: %q", path)
+		}
 		db := dirs[len(dirs)-4]
 		rp := dirs[len(dirs)-3]
 		fmt.Printf("Processing %s\n", path)
@@ -91,7 +99,7 @@ func (tc *TypeConflictChecker) readFields() (Schema, error) {
 			}
 			return fmt.Errorf("unable to open file %q: %w", path, err)
 		}
-		defer mfs.Close()
+		defer errors2.Capture(&rErr, mfs.Close)()
 
 		measurements := mfs.MeasurementNames()
 		for _, m := range measurements {
