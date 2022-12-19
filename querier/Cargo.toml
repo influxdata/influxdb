@@ -7,7 +7,7 @@ license.workspace = true
 
 [dependencies]
 arrow = { workspace = true }
-async-trait = "0.1.58"
+async-trait = "0.1.60"
 backoff = { path = "../backoff" }
 bytes = "1.3"
 cache_system = { path = "../cache_system" }
