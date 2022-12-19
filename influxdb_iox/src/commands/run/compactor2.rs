@@ -1,4 +1,4 @@
-//! Implementation of command line option for running the compactor
+//! Command line options for running compactor2 in RPC write mode
 
 use iox_query::exec::{Executor, ExecutorConfig};
 use iox_time::{SystemProvider, TimeProvider};
@@ -12,11 +12,11 @@ use thiserror::Error;
 
 use clap_blocks::object_store::make_object_store;
 use clap_blocks::{
-    catalog_dsn::CatalogDsnConfig, compactor::CompactorConfig, run_config::RunConfig,
+    catalog_dsn::CatalogDsnConfig, compactor2::Compactor2Config, run_config::RunConfig,
 };
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
 use ioxd_common::Service;
-use ioxd_compactor::create_compactor_server_type;
+use ioxd_compactor::create_compactor2_server_type;
 
 use crate::process_info::{setup_metric_registry, USIZE_MAX};
 
@@ -46,7 +46,7 @@ pub enum Error {
 #[derive(Debug, clap::Parser)]
 #[clap(
     name = "run",
-    about = "Runs in compactor mode",
+    about = "Runs in compactor mode using the RPC write path",
     long_about = "Run the IOx compactor server.\n\nThe configuration options below can be \
     set either with the command line flags or with the specified environment \
     variable. If there is a file named '.env' in the current working directory, \
@@ -66,7 +66,7 @@ pub struct Config {
     pub(crate) catalog_dsn: CatalogDsnConfig,
 
     #[clap(flatten)]
-    pub(crate) compactor_config: CompactorConfig,
+    pub(crate) compactor_config: Compactor2Config,
 
     /// Number of threads to use for the compactor query execution, compaction and persistence.
     #[clap(
@@ -88,10 +88,10 @@ pub struct Config {
 }
 
 pub async fn command(config: Config) -> Result<(), Error> {
-    if std::env::var("INFLUXDB_IOX_RPC_MODE").is_ok() {
+    if std::env::var("INFLUXDB_IOX_RPC_MODE").is_err() {
         panic!(
-            "`INFLUXDB_IOX_RPC_MODE` was specified but `compactor` was the command run. Either unset
-             `INFLUXDB_IOX_RPC_MODE` or run the `compactor2` command."
+            "`INFLUXDB_IOX_RPC_MODE` was not specified but `compactor2` was the command run. Either set
+             `INFLUXDB_IOX_RPC_MODE` or run the `compactor` command."
         );
     }
 
@@ -127,7 +127,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
     }));
     let time_provider = Arc::new(SystemProvider::new());
 
-    let server_type = create_compactor_server_type(
+    let server_type = create_compactor2_server_type(
         &common_state,
         Arc::clone(&metric_registry),
         catalog,

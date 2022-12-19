@@ -1832,7 +1832,7 @@ WHERE parquet_file.shard_id = $1
 
     async fn recent_highest_throughput_partitions(
         &mut self,
-        shard_id: ShardId,
+        shard_id: Option<ShardId>,
         time_in_the_past: Timestamp,
         min_num_files: usize,
         num_partitions: usize,
@@ -1840,8 +1840,10 @@ WHERE parquet_file.shard_id = $1
         let min_num_files = min_num_files as i32;
         let num_partitions = num_partitions as i32;
 
-        sqlx::query_as::<_, PartitionParam>(
-            r#"
+        match shard_id {
+            Some(shard_id) => {
+                sqlx::query_as::<_, PartitionParam>(
+                    r#"
 SELECT parquet_file.partition_id, parquet_file.table_id, parquet_file.shard_id,
        parquet_file.namespace_id, count(parquet_file.id)
 FROM parquet_file
@@ -1855,30 +1857,60 @@ GROUP BY 1, 2, 3, 4
 HAVING count(id) >= $3
 ORDER BY 5 DESC
 LIMIT $4;
-            "#,
-        )
-        .bind(shard_id) // $1
-        .bind(time_in_the_past) //$2
-        .bind(min_num_files) // $3
-        .bind(num_partitions) // $4
-        .bind(CompactionLevel::Initial) // $5
-        .fetch_all(&mut self.inner)
-        .await
-        .map_err(|e| Error::SqlxError { source: e })
+                    "#,
+                )
+                .bind(shard_id) // $1
+                .bind(time_in_the_past) //$2
+                .bind(min_num_files) // $3
+                .bind(num_partitions) // $4
+                .bind(CompactionLevel::Initial) // $5
+                .fetch_all(&mut self.inner)
+                .await
+                .map_err(|e| Error::SqlxError { source: e })
+            }
+            None => {
+                sqlx::query_as::<_, PartitionParam>(
+                    r#"
+SELECT parquet_file.partition_id, parquet_file.table_id, parquet_file.shard_id,
+       parquet_file.namespace_id, count(parquet_file.id)
+FROM parquet_file
+LEFT OUTER JOIN skipped_compactions ON parquet_file.partition_id = skipped_compactions.partition_id
+WHERE compaction_level = $4
+AND   to_delete is null
+AND   created_at > $1
+AND   skipped_compactions.partition_id IS NULL
+GROUP BY 1, 2, 3, 4
+HAVING count(id) >= $2
+ORDER BY 5 DESC
+LIMIT $3;
+                    "#,
+                )
+                .bind(time_in_the_past) //$1
+                .bind(min_num_files) // $2
+                .bind(num_partitions) // $3
+                .bind(CompactionLevel::Initial) // $4
+                .fetch_all(&mut self.inner)
+                .await
+                .map_err(|e| Error::SqlxError { source: e })
+            }
+        }
     }
 
     async fn most_cold_files_partitions(
         &mut self,
-        shard_id: ShardId,
+        shard_id: Option<ShardId>,
         time_in_the_past: Timestamp,
         num_partitions: usize,
     ) -> Result<Vec<PartitionParam>> {
         let num_partitions = num_partitions as i32;
 
-        // This query returns partitions with most L0+L1 files and all L0 files (both deleted and non deleted) are either created
-        // before the given time ($2) or not available (removed by garbage collector)
-        sqlx::query_as::<_, PartitionParam>(
-            r#"
+        // This query returns partitions with most L0+L1 files and all L0 files (both deleted and
+        // non deleted) are either created before the given time ($2) or not available (removed by
+        // garbage collector)
+        match shard_id {
+            Some(shard_id) => {
+                sqlx::query_as::<_, PartitionParam>(
+                    r#"
 SELECT parquet_file.partition_id, parquet_file.shard_id, parquet_file.namespace_id,
        parquet_file.table_id,
        count(case when to_delete is null then 1 end) total_count,
@@ -1894,21 +1926,50 @@ HAVING count(case when to_delete is null then 1 end) > 0
              max(case when compaction_level= $4 then parquet_file.created_at end) is null)
 ORDER BY total_count DESC
 LIMIT $3;
-            "#,
-        )
-        .bind(shard_id) // $1
-        .bind(time_in_the_past) // $2
-        .bind(num_partitions) // $3
-        .bind(CompactionLevel::Initial) // $4
-        .bind(CompactionLevel::FileNonOverlapped) // $5
-        .fetch_all(&mut self.inner)
-        .await
-        .map_err(|e| Error::SqlxError { source: e })
+                    "#,
+                )
+                .bind(shard_id) // $1
+                .bind(time_in_the_past) // $2
+                .bind(num_partitions) // $3
+                .bind(CompactionLevel::Initial) // $4
+                .bind(CompactionLevel::FileNonOverlapped) // $5
+                .fetch_all(&mut self.inner)
+                .await
+                .map_err(|e| Error::SqlxError { source: e })
+            }
+            None => {
+                sqlx::query_as::<_, PartitionParam>(
+                    r#"
+SELECT parquet_file.partition_id, parquet_file.shard_id, parquet_file.namespace_id,
+       parquet_file.table_id,
+       count(case when to_delete is null then 1 end) total_count,
+       max(case when compaction_level= $4 then parquet_file.created_at end)
+FROM   parquet_file
+LEFT OUTER JOIN skipped_compactions ON parquet_file.partition_id = skipped_compactions.partition_id
+WHERE  (compaction_level = $3 OR compaction_level = $4)
+AND    skipped_compactions.partition_id IS NULL
+GROUP BY 1, 2, 3, 4
+HAVING count(case when to_delete is null then 1 end) > 0
+       AND ( max(case when compaction_level= $3 then parquet_file.created_at end) < $1  OR
+             max(case when compaction_level= $3 then parquet_file.created_at end) is null)
+ORDER BY total_count DESC
+LIMIT $2;
+                    "#,
+                )
+                .bind(time_in_the_past) // $1
+                .bind(num_partitions) // $2
+                .bind(CompactionLevel::Initial) // $3
+                .bind(CompactionLevel::FileNonOverlapped) // $4
+                .fetch_all(&mut self.inner)
+                .await
+                .map_err(|e| Error::SqlxError { source: e })
+            }
+        }
     }
 
     async fn partitions_with_small_l1_file_count(
         &mut self,
-        shard_id: ShardId,
+        shard_id: Option<ShardId>,
         small_size_threshold_bytes: i64,
         min_small_file_count: usize,
         num_partitions: usize,
