@@ -40,7 +40,7 @@ rand = "0.8.5"
 schema = { version = "0.1.0", path = "../schema" }
 service_grpc_catalog = { version = "0.1.0", path = "../service_grpc_catalog" }
 sharder = { version = "0.1.0", path = "../sharder" }
-thiserror = "1.0.37"
+thiserror = "1.0.38"
 tokio = { version = "1.22", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tonic = "0.8.3"
 trace = { version = "0.1.0", path = "../trace" }
