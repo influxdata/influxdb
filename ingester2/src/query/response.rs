@@ -51,6 +51,7 @@ impl QueryResponse {
     /// Reduce the [`QueryResponse`] to a stream of [`RecordBatch`].
     pub(crate) fn into_record_batches(self) -> impl Stream<Item = Result<RecordBatch, ArrowError>> {
         self.into_partition_stream()
-            .flat_map(|partition| partition.into_record_batch_stream())
+            .flat_map(|partition| futures::stream::iter(partition.into_record_batch_stream()))
+            .flatten()
     }
 }

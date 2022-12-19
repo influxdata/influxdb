@@ -3,7 +3,7 @@ use std::sync::Arc;
 use backoff::Backoff;
 use data_types::{
     CompactionLevel, NamespaceId, ParquetFileParams, PartitionId, PartitionKey, SequenceNumber,
-    TableId,
+    ShardId, TableId,
 };
 use iox_catalog::interface::get_table_schema_by_id;
 use iox_time::{SystemProvider, TimeProvider};
@@ -25,7 +25,6 @@ use crate::{
     },
     deferred_load::DeferredLoad,
     persist::compact::{compact_persisting_batch, CompactedStream},
-    TRANSITION_SHARD_ID,
 };
 
 use super::handle::Inner;
@@ -78,6 +77,8 @@ pub(super) struct Context {
     namespace_id: NamespaceId,
     table_id: TableId,
     partition_id: PartitionId,
+
+    transition_shard_id: ShardId,
 
     // The partition key for this partition
     partition_key: PartitionKey,
@@ -162,6 +163,7 @@ impl Context {
                 enqueued_at,
                 dequeued_at: Instant::now(),
                 permit,
+                transition_shard_id: guard.transition_shard_id(),
             }
         };
 
@@ -233,7 +235,7 @@ impl Context {
         let iox_metadata = IoxMetadata {
             object_store_id,
             creation_timestamp: SystemProvider::new().now(),
-            shard_id: TRANSITION_SHARD_ID,
+            shard_id: self.transition_shard_id,
             namespace_id: self.namespace_id,
             namespace_name: Arc::clone(&*self.namespace_name.get().await),
             table_id: self.table_id,

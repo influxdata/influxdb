@@ -8,7 +8,7 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 /// Response data for a single partition.
 pub(crate) struct PartitionResponse {
     /// Stream of snapshots.
-    batches: SendableRecordBatchStream,
+    batches: Option<SendableRecordBatchStream>,
 
     /// Partition ID.
     id: PartitionId,
@@ -42,7 +42,20 @@ impl PartitionResponse {
         completed_persistence_count: u64,
     ) -> Self {
         Self {
-            batches,
+            batches: Some(batches),
+            id,
+            max_persisted_sequence_number,
+            completed_persistence_count,
+        }
+    }
+
+    pub(crate) fn new_no_batches(
+        id: PartitionId,
+        max_persisted_sequence_number: Option<SequenceNumber>,
+        completed_persistence_count: u64,
+    ) -> Self {
+        Self {
+            batches: None,
             id,
             max_persisted_sequence_number,
             completed_persistence_count,
@@ -61,7 +74,7 @@ impl PartitionResponse {
         self.completed_persistence_count
     }
 
-    pub(crate) fn into_record_batch_stream(self) -> SendableRecordBatchStream {
+    pub(crate) fn into_record_batch_stream(self) -> Option<SendableRecordBatchStream> {
         self.batches
     }
 }

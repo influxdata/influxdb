@@ -1,0 +1,17 @@
+[package]
+name = "iox_arrow_flight"
+description = "Extended Apache Arrow Flight (intended to be upstreamed to arrow-rs)"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+arrow = { workspace = true }
+arrow-flight = { workspace = true, features=["flight-sql-experimental"] }
+futures = "0.3"
+futures-util = { version = "0.3" }
+prost = { version = "0.11", features = ["prost-derive", "std"] }
+prost-types = { version = "0.11", features = ["std"] }
+tonic = "0.8"
+workspace-hack = { path = "../workspace-hack"}

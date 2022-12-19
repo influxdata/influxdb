@@ -1,14 +1,13 @@
 use async_trait::async_trait;
 use client_util::connection::{self, Connection};
 use generated_types::ingester::IngesterQueryRequest;
-use influxdb_iox_client::flight::{
-    generated_types as proto,
-    low_level::{Client as LowLevelFlightClient, LowLevelMessage, PerformQuery},
-};
+use influxdb_iox_client::flight::generated_types as proto;
+use iox_arrow_flight::{prost::Message, DecodedFlightData, DecodedPayload, FlightDataStream};
 use observability_deps::tracing::{debug, warn};
 use snafu::{ResultExt, Snafu};
 use std::{collections::HashMap, fmt::Debug, ops::DerefMut, sync::Arc};
 use trace::ctx::SpanContext;
+use trace_http::ctx::format_jaeger_trace_context;
 
 pub use influxdb_iox_client::flight::Error as FlightError;
 
@@ -39,11 +38,11 @@ pub enum Error {
     CircuitBroken { ingester_address: String },
 }
 
-/// Abstract Flight client.
+/// Abstract Flight client interface for Ingester.
 ///
 /// May use an internal connection pool.
 #[async_trait]
-pub trait FlightClient: Debug + Send + Sync + 'static {
+pub trait IngesterFlightClient: Debug + Send + Sync + 'static {
     /// Send query to given ingester.
     async fn query(
         &self,
@@ -53,7 +52,7 @@ pub trait FlightClient: Debug + Send + Sync + 'static {
     ) -> Result<Box<dyn QueryData>, Error>;
 }
 
-/// Default [`FlightClient`] implementation that uses a real connection
+/// Default [`IngesterFlightClient`] implementation that uses a real connection
 #[derive(Debug, Default)]
 pub struct FlightClientImpl {
     /// Cached connections
@@ -90,7 +89,7 @@ impl FlightClientImpl {
 }
 
 #[async_trait]
-impl FlightClient for FlightClientImpl {
+impl IngesterFlightClient for FlightClientImpl {
     async fn query(
         &self,
         ingester_addr: Arc<str>,
@@ -99,14 +98,33 @@ impl FlightClient for FlightClientImpl {
     ) -> Result<Box<dyn QueryData>, Error> {
         let connection = self.connect(Arc::clone(&ingester_addr)).await?;
 
-        let mut client =
-            LowLevelFlightClient::<proto::IngesterQueryRequest>::new(connection, span_context);
+        let mut client = influxdb_iox_client::flight::Client::new(connection)
+            // use lower level client to send a custom message type
+            .into_inner();
+
+        // Add the span context header, if any
+        if let Some(ctx) = span_context {
+            client
+                .add_header(
+                    trace_exporters::DEFAULT_JAEGER_TRACE_CONTEXT_HEADER_NAME,
+                    &format_jaeger_trace_context(&ctx),
+                )
+                // wrap in client error type
+                .map_err(FlightError::ArrowFlightError)
+                .context(FlightSnafu)?;
+        }
 
         debug!(%ingester_addr, ?request, "Sending request to ingester");
-        let request = serialize_ingester_query_request(request)?;
+        let request = serialize_ingester_query_request(request)?.encode_to_vec();
 
-        let perform_query = client.perform_query(request).await.context(FlightSnafu)?;
-        Ok(Box::new(perform_query))
+        let data_stream = client
+            .do_get(request)
+            .await
+            // wrap in client error type
+            .map_err(FlightError::ArrowFlightError)
+            .context(FlightSnafu)?
+            .into_inner();
+        Ok(Box::new(data_stream))
     }
 }
 
@@ -161,14 +179,14 @@ impl SerializeFailureReason {
 
 /// Data that is returned by an ingester gRPC query.
 ///
-/// This is mostly the same as [`PerformQuery`] but allows some easier mocking.
+/// This is mostly the same as [`FlightDataStream`] but allows mocking in tests
 #[async_trait]
 pub trait QueryData: Debug + Send + 'static {
-    /// Returns the next [`LowLevelMessage`] available for this query, or `None` if
+    /// Returns the next [`DecodedPayload`] available for this query, or `None` if
     /// there are no further results available.
     async fn next(
         &mut self,
-    ) -> Result<Option<(LowLevelMessage, proto::IngesterQueryResponseMetadata)>, FlightError>;
+    ) -> Result<Option<(DecodedPayload, proto::IngesterQueryResponseMetadata)>, FlightError>;
 }
 
 #[async_trait]
@@ -178,17 +196,31 @@ where
 {
     async fn next(
         &mut self,
-    ) -> Result<Option<(LowLevelMessage, proto::IngesterQueryResponseMetadata)>, FlightError> {
+    ) -> Result<Option<(DecodedPayload, proto::IngesterQueryResponseMetadata)>, FlightError> {
         self.deref_mut().next().await
     }
 }
 
 #[async_trait]
-impl QueryData for PerformQuery<proto::IngesterQueryResponseMetadata> {
+// Extracts the ingester metadata from the streaming FlightData
+impl QueryData for FlightDataStream {
     async fn next(
         &mut self,
-    ) -> Result<Option<(LowLevelMessage, proto::IngesterQueryResponseMetadata)>, FlightError> {
-        self.next().await
+    ) -> Result<Option<(DecodedPayload, proto::IngesterQueryResponseMetadata)>, FlightError> {
+        Ok(self
+            .next()
+            .await?
+            .map(|decoded_data| {
+                let DecodedFlightData { inner, payload } = decoded_data;
+
+                // extract the metadata from the underlying FlightData structure
+                let app_metadata = &inner.app_metadata[..];
+                let app_metadata: proto::IngesterQueryResponseMetadata =
+                    Message::decode(app_metadata)?;
+
+                Ok((payload, app_metadata)) as Result<_, FlightError>
+            })
+            .transpose()?)
     }
 }
 
@@ -226,8 +258,7 @@ impl CachedConnection {
                 .context(ConnectingSnafu { ingester_address })?;
 
             // sanity check w/ a handshake
-            let mut client =
-                LowLevelFlightClient::<proto::IngesterQueryRequest>::new(connection.clone(), None);
+            let mut client = influxdb_iox_client::flight::Client::new(connection.clone());
 
             // make contact with the ingester
             client

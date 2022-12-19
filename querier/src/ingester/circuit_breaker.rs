@@ -21,9 +21,7 @@ use pin_project::{pin_project, pinned_drop};
 use rand::rngs::mock::StepRng;
 use trace::ctx::SpanContext;
 
-use crate::ingester::flight_client::{
-    Error as FlightClientError, FlightClient, FlightError, QueryData,
-};
+use crate::ingester::flight_client::{Error as FlightClientError, IngesterFlightClient, QueryData};
 
 /// Wrapper around a [`Future`] that signals if the future was cancelled or not.
 #[pin_project(PinnedDrop)]
@@ -206,13 +204,13 @@ enum Circuit {
     },
 }
 
-/// Wrapper around [`FlightClient`] that implements the [Circuit Breaker Design Pattern].
+/// Wrapper around [`IngesterFlightClient`] that implements the [Circuit Breaker Design Pattern].
 ///
 /// [Circuit Breaker Design Pattern]: https://en.wikipedia.org/wiki/Circuit_breaker_design_pattern
 #[derive(Debug)]
 pub struct CircuitBreakerFlightClient {
     /// The underlying client.
-    inner: Arc<dyn FlightClient>,
+    inner: Arc<dyn IngesterFlightClient>,
 
     /// After how many consecutive errors shall we open a circuit?
     open_circuit_after_n_errors: u64,
@@ -238,7 +236,7 @@ impl CircuitBreakerFlightClient {
     ///
     /// Use `open_circuit_after_n_errors` to determine after how many consecutive errors we shall open a circuit.
     pub fn new(
-        inner: Arc<dyn FlightClient>,
+        inner: Arc<dyn IngesterFlightClient>,
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: Arc<Registry>,
         open_circuit_after_n_errors: u64,
@@ -257,7 +255,7 @@ impl CircuitBreakerFlightClient {
 }
 
 #[async_trait]
-impl FlightClient for CircuitBreakerFlightClient {
+impl IngesterFlightClient for CircuitBreakerFlightClient {
     async fn query(
         &self,
         ingester_addr: Arc<str>,
@@ -362,7 +360,10 @@ impl FlightClient for CircuitBreakerFlightClient {
         let is_error = if let Err(e) = &res {
             match e {
                 FlightClientError::Flight {
-                    source: _source @ FlightError::GrpcError(e),
+                    source:
+                        _source @ influxdb_iox_client::flight::Error::ArrowFlightError(
+                            iox_arrow_flight::FlightError::Tonic(e),
+                        ),
                 } => !matches!(
                     e.code(),
                     tonic::Code::NotFound | tonic::Code::ResourceExhausted
@@ -503,9 +504,8 @@ mod tests {
     use assert_matches::assert_matches;
     use data_types::{NamespaceId, TableId};
     use generated_types::google::FieldViolation;
-    use influxdb_iox_client::flight::{
-        generated_types::IngesterQueryResponseMetadata, low_level::LowLevelMessage,
-    };
+    use influxdb_iox_client::flight::generated_types::IngesterQueryResponseMetadata;
+    use iox_arrow_flight::DecodedPayload;
     use iox_time::MockProvider;
     use metric::Attributes;
     use test_helpers::maybe_start_logging;
@@ -1038,7 +1038,7 @@ mod tests {
     }
 
     #[async_trait]
-    impl FlightClient for MockClient {
+    impl IngesterFlightClient for MockClient {
         async fn query(
             &self,
             _ingester_addr: Arc<str>,
@@ -1070,7 +1070,10 @@ mod tests {
     impl QueryData for MockQueryData {
         async fn next(
             &mut self,
-        ) -> Result<Option<(LowLevelMessage, IngesterQueryResponseMetadata)>, FlightError> {
+        ) -> Result<
+            Option<(DecodedPayload, IngesterQueryResponseMetadata)>,
+            influxdb_iox_client::flight::Error,
+        > {
             Ok(None)
         }
     }
@@ -1142,7 +1145,7 @@ mod tests {
     #[async_trait]
     impl<T> FlightClientExt for T
     where
-        T: FlightClient,
+        T: IngesterFlightClient,
     {
         async fn assert_query_ok(&self) {
             self.query(ingester_address(), request(), None)
@@ -1177,13 +1180,13 @@ mod tests {
 
     fn err_grpc_internal() -> FlightClientError {
         FlightClientError::Flight {
-            source: FlightError::GrpcError(tonic::Status::internal("test error")),
+            source: tonic::Status::internal("test error").into(),
         }
     }
 
     fn err_grpc_not_found() -> FlightClientError {
         FlightClientError::Flight {
-            source: FlightError::GrpcError(tonic::Status::not_found("test error")),
+            source: tonic::Status::not_found("test error").into(),
         }
     }
 

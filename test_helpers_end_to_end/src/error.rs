@@ -4,7 +4,7 @@ pub fn check_flight_error(
     expected_error_code: tonic::Code,
     expected_message: Option<&str>,
 ) {
-    if let influxdb_iox_client::flight::Error::GrpcError(status) = err {
+    if let Some(status) = err.tonic_status() {
         check_tonic_status(status, expected_error_code, expected_message);
     } else {
         panic!("Not a gRPC error: {err}");
@@ -13,7 +13,7 @@ pub fn check_flight_error(
 
 /// Check tonic status.
 pub fn check_tonic_status(
-    status: tonic::Status,
+    status: &tonic::Status,
     expected_error_code: tonic::Code,
     expected_message: Option<&str>,
 ) {

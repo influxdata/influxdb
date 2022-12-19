@@ -2,7 +2,7 @@
 
 use std::{collections::VecDeque, sync::Arc};
 
-use data_types::{NamespaceId, PartitionId, PartitionKey, SequenceNumber, TableId};
+use data_types::{NamespaceId, PartitionId, PartitionKey, SequenceNumber, ShardId, TableId};
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
 use schema::sort::SortKey;
@@ -89,6 +89,8 @@ pub(crate) struct PartitionData {
     /// The number of persist operations completed over the lifetime of this
     /// [`PartitionData`].
     completed_persistence_count: u64,
+
+    transition_shard_id: ShardId,
 }
 
 impl PartitionData {
@@ -102,6 +104,7 @@ impl PartitionData {
         table_id: TableId,
         table_name: Arc<DeferredLoad<TableName>>,
         sort_key: SortKeyState,
+        transition_shard_id: ShardId,
     ) -> Self {
         Self {
             partition_id: id,
@@ -115,6 +118,7 @@ impl PartitionData {
             persisting: VecDeque::with_capacity(1),
             started_persistence_count: BatchIdent::default(),
             completed_persistence_count: 0,
+            transition_shard_id,
         }
     }
 
@@ -293,6 +297,11 @@ impl PartitionData {
         &self.partition_key
     }
 
+    /// Return the transition_shard_id for this partition.
+    pub(crate) fn transition_shard_id(&self) -> ShardId {
+        self.transition_shard_id
+    }
+
     /// Return the [`NamespaceId`] this partition is a part of.
     pub(crate) fn namespace_id(&self) -> NamespaceId {
         self.namespace_id
@@ -344,6 +353,7 @@ mod tests {
     use crate::{buffer_tree::partition::resolver::SortKeyResolver, test_util::populate_catalog};
 
     const PARTITION_ID: PartitionId = PartitionId::new(1);
+    const TRANSITION_SHARD_ID: ShardId = ShardId::new(84);
 
     lazy_static! {
         static ref PARTITION_KEY: PartitionKey = PartitionKey::from("platanos");
@@ -369,6 +379,7 @@ mod tests {
                 TABLE_NAME.clone()
             })),
             SortKeyState::Provided(None),
+            TRANSITION_SHARD_ID,
         );
 
         // And no data should be returned when queried.
@@ -449,6 +460,7 @@ mod tests {
                 TABLE_NAME.clone()
             })),
             SortKeyState::Provided(None),
+            TRANSITION_SHARD_ID,
         );
 
         assert!(p.get_query_data().is_none());
@@ -599,6 +611,7 @@ mod tests {
                 TABLE_NAME.clone()
             })),
             SortKeyState::Provided(None),
+            TRANSITION_SHARD_ID,
         );
 
         // Perform the initial write.
@@ -777,6 +790,7 @@ mod tests {
                 TABLE_NAME.clone()
             })),
             SortKeyState::Provided(None),
+            TRANSITION_SHARD_ID,
         );
 
         // Perform the initial write.
@@ -957,6 +971,7 @@ mod tests {
                 TableName::from("platanos")
             })),
             starting_state,
+            TRANSITION_SHARD_ID,
         );
 
         let want = Some(SortKey::from_columns(["banana", "platanos", "time"]));
@@ -1016,6 +1031,7 @@ mod tests {
                 TableName::from("platanos")
             })),
             starting_state,
+            shard_id,
         );
 
         let want = Some(SortKey::from_columns(["banana", "platanos", "time"]));
@@ -1040,6 +1056,7 @@ mod tests {
                 TABLE_NAME.clone()
             })),
             SortKeyState::Provided(None),
+            TRANSITION_SHARD_ID,
         );
 
         // Perform out of order writes.
@@ -1087,6 +1104,7 @@ mod tests {
                 TABLE_NAME.clone()
             })),
             SortKeyState::Provided(None),
+            TRANSITION_SHARD_ID,
         );
 
         assert!(p.mark_persisting().is_none());
@@ -1106,6 +1124,7 @@ mod tests {
                 TABLE_NAME.clone()
             })),
             SortKeyState::Provided(None),
+            TRANSITION_SHARD_ID,
         );
 
         let mb = lp_to_mutable_batch(r#"bananas,city=London people=2,pigeons="millions" 10"#).1;
@@ -1132,6 +1151,7 @@ mod tests {
                 TABLE_NAME.clone()
             })),
             SortKeyState::Provided(None),
+            TRANSITION_SHARD_ID,
         );
 
         assert!(p.get_query_data().is_none());

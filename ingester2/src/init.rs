@@ -27,7 +27,7 @@ use crate::{
     server::grpc::GrpcDelegate,
     timestamp_oracle::TimestampOracle,
     wal::{rotate_task::periodic_rotation, wal_sink::WalSink},
-    TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX,
+    TRANSITION_SHARD_INDEX,
 };
 
 /// Acquire opaque handles to the Ingester RPC service implementations.
@@ -168,7 +168,8 @@ pub async fn new(
         .create_or_get("iox-shared")
         .await
         .expect("get topic");
-    txn.shards()
+    let transition_shard = txn
+        .shards()
         .create_or_get(&topic, TRANSITION_SHARD_INDEX)
         .await
         .expect("create transition shard");
@@ -199,7 +200,7 @@ pub async fn new(
         .repositories()
         .await
         .partitions()
-        .most_recent_n(40_000, &[TRANSITION_SHARD_ID])
+        .most_recent_n(40_000, &[transition_shard.id])
         .await
         .map_err(InitError::PreWarmPartitions)?;
 
@@ -242,6 +243,7 @@ pub async fn new(
         partition_provider,
         Arc::new(hot_partition_persister),
         Arc::clone(&metrics),
+        transition_shard.id,
     ));
 
     // Initialise the WAL

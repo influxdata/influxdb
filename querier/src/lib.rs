@@ -30,7 +30,7 @@ pub use handler::{QuerierHandler, QuerierHandlerImpl};
 pub use ingester::{
     create_ingester_connection_for_testing, create_ingester_connections,
     flight_client::{
-        Error as IngesterFlightClientError, FlightClient as IngesterFlightClient,
+        Error as IngesterFlightClientError, IngesterFlightClient,
         QueryData as IngesterFlightClientQueryData,
     },
     Error as IngesterError, IngesterConnection, IngesterConnectionImpl, IngesterPartition,
