@@ -59,10 +59,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
 
     // It might be nice to do some sort of streaming write
     // rather than buffering the whole thing.
-    let mut batches = vec![];
-    while let Some(data) = query_results.next().await? {
-        batches.push(data);
-    }
+    let batches = query_results.collect().await?;
 
     let formatted_result = format.format(&batches)?;
 

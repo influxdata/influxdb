@@ -599,10 +599,10 @@ pub trait ParquetFileRepo: Send + Sync {
         max_time: Timestamp,
     ) -> Result<Vec<ParquetFile>>;
 
-    /// List the most recent highest throughput partition for a given shard
+    /// List the most recent highest throughput partition for a given shard, if specified
     async fn recent_highest_throughput_partitions(
         &mut self,
-        shard_id: ShardId,
+        shard_id: Option<ShardId>,
         time_at_num_minutes_ago: Timestamp,
         min_num_files: usize,
         num_partitions: usize,
@@ -613,18 +613,18 @@ pub trait ParquetFileRepo: Send + Sync {
     /// num_partitions, for performance.
     async fn partitions_with_small_l1_file_count(
         &mut self,
-        shard_id: ShardId,
+        shard_id: Option<ShardId>,
         small_size_threshold_bytes: i64,
         min_small_file_count: usize,
         num_partitions: usize,
     ) -> Result<Vec<PartitionParam>>;
 
     /// List partitions with the most level 0 + level 1 files created earlier than
-    /// `older_than_num_hours` hours ago for a given shard. In other words, "cold" partitions
-    /// that need compaction.
+    /// `older_than_num_hours` hours ago for a given shard (if specified). In other words, "cold"
+    /// partitions that need compaction.
     async fn most_cold_files_partitions(
         &mut self,
-        shard_id: ShardId,
+        shard_id: Option<ShardId>,
         time_in_the_past: Timestamp,
         num_partitions: usize,
     ) -> Result<Vec<PartitionParam>>;
@@ -908,6 +908,7 @@ pub(crate) mod test_helpers {
 
     pub(crate) async fn test_catalog(catalog: Arc<dyn Catalog>) {
         test_setup(Arc::clone(&catalog)).await;
+        test_most_cold_files_partitions(Arc::clone(&catalog)).await;
         test_topic(Arc::clone(&catalog)).await;
         test_query_pool(Arc::clone(&catalog)).await;
         test_namespace(Arc::clone(&catalog)).await;
@@ -920,7 +921,6 @@ pub(crate) mod test_helpers {
         test_parquet_file(Arc::clone(&catalog)).await;
         test_parquet_file_compaction_level_0(Arc::clone(&catalog)).await;
         test_parquet_file_compaction_level_1(Arc::clone(&catalog)).await;
-        test_most_cold_files_partitions(Arc::clone(&catalog)).await;
         test_recent_highest_throughput_partitions(Arc::clone(&catalog)).await;
         test_partitions_with_small_l1_file_count(Arc::clone(&catalog)).await;
         test_update_to_compaction_level_1(Arc::clone(&catalog)).await;
@@ -2958,7 +2958,7 @@ pub(crate) mod test_helpers {
     }
 
     async fn test_most_cold_files_partitions(catalog: Arc<dyn Catalog>) {
-        let mut repos = catalog.repositories().await;
+        let mut repos = catalog.start_transaction().await.unwrap();
         let topic = repos.topics().create_or_get("most_cold").await.unwrap();
         let pool = repos
             .query_pools()
@@ -2995,7 +2995,18 @@ pub(crate) mod test_helpers {
         // Db has no partition
         let partitions = repos
             .parquet_files()
-            .most_cold_files_partitions(shard.id, time_8_hours_ago, num_partitions)
+            .most_cold_files_partitions(Some(shard.id), time_8_hours_ago, num_partitions)
+            .await
+            .unwrap();
+        assert!(
+            partitions.is_empty(),
+            "Expected no partitions, instead got {:#?}",
+            partitions,
+        );
+        // Across all shards
+        let partitions = repos
+            .parquet_files()
+            .most_cold_files_partitions(None, time_8_hours_ago, num_partitions)
             .await
             .unwrap();
         assert!(
@@ -3012,7 +3023,18 @@ pub(crate) mod test_helpers {
             .unwrap();
         let partitions = repos
             .parquet_files()
-            .most_cold_files_partitions(shard.id, time_8_hours_ago, num_partitions)
+            .most_cold_files_partitions(Some(shard.id), time_8_hours_ago, num_partitions)
+            .await
+            .unwrap();
+        assert!(
+            partitions.is_empty(),
+            "Expected no partitions, instead got {:#?}",
+            partitions,
+        );
+        // Across all shards
+        let partitions = repos
+            .parquet_files()
+            .most_cold_files_partitions(None, time_8_hours_ago, num_partitions)
             .await
             .unwrap();
         assert!(
@@ -3049,7 +3071,18 @@ pub(crate) mod test_helpers {
             .unwrap();
         let partitions = repos
             .parquet_files()
-            .most_cold_files_partitions(shard.id, time_8_hours_ago, num_partitions)
+            .most_cold_files_partitions(Some(shard.id), time_8_hours_ago, num_partitions)
+            .await
+            .unwrap();
+        assert!(
+            partitions.is_empty(),
+            "Expected no partitions, instead got {:#?}",
+            partitions,
+        );
+        // Across all shards
+        let partitions = repos
+            .parquet_files()
+            .most_cold_files_partitions(None, time_8_hours_ago, num_partitions)
             .await
             .unwrap();
         assert!(
@@ -3083,7 +3116,18 @@ pub(crate) mod test_helpers {
         repos.parquet_files().create(hot_file_params).await.unwrap();
         let partitions = repos
             .parquet_files()
-            .most_cold_files_partitions(shard.id, time_8_hours_ago, num_partitions)
+            .most_cold_files_partitions(Some(shard.id), time_8_hours_ago, num_partitions)
+            .await
+            .unwrap();
+        assert!(
+            partitions.is_empty(),
+            "Expected no partitions, instead got {:#?}",
+            partitions,
+        );
+        // Across all shards
+        let partitions = repos
+            .parquet_files()
+            .most_cold_files_partitions(None, time_8_hours_ago, num_partitions)
             .await
             .unwrap();
         assert!(
@@ -3092,7 +3136,8 @@ pub(crate) mod test_helpers {
             partitions,
         );
 
-        // A already_compacted_partition that has only one non-deleted level 2 file, should never be returned
+        // An already_compacted_partition that has only one non-deleted level 2 file, should never
+        // be returned
         let already_compacted_partition = repos
             .partitions()
             .create_or_get("already_compacted".into(), shard.id, table.id)
@@ -3111,7 +3156,18 @@ pub(crate) mod test_helpers {
             .unwrap();
         let partitions = repos
             .parquet_files()
-            .most_cold_files_partitions(shard.id, time_8_hours_ago, num_partitions)
+            .most_cold_files_partitions(Some(shard.id), time_8_hours_ago, num_partitions)
+            .await
+            .unwrap();
+        assert!(
+            partitions.is_empty(),
+            "Expected no partitions, instead got {:#?}",
+            partitions,
+        );
+        // Across all shards
+        let partitions = repos
+            .parquet_files()
+            .most_cold_files_partitions(None, time_8_hours_ago, num_partitions)
             .await
             .unwrap();
         assert!(
@@ -3132,7 +3188,14 @@ pub(crate) mod test_helpers {
             .unwrap();
         let partitions = repos
             .parquet_files()
-            .most_cold_files_partitions(shard.id, time_8_hours_ago, num_partitions)
+            .most_cold_files_partitions(Some(shard.id), time_8_hours_ago, num_partitions)
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 1);
+        // Across all shards
+        let partitions = repos
+            .parquet_files()
+            .most_cold_files_partitions(None, time_8_hours_ago, num_partitions)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 1);
@@ -3165,7 +3228,18 @@ pub(crate) mod test_helpers {
         // Must return 2 partitions
         let partitions = repos
             .parquet_files()
-            .most_cold_files_partitions(shard.id, time_8_hours_ago, num_partitions)
+            .most_cold_files_partitions(Some(shard.id), time_8_hours_ago, num_partitions)
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 2);
+        // They must be in order partition_2 (more files), partition
+        assert_eq!(partitions[0].partition_id, partition_2.id); // 2 files
+        assert_eq!(partitions[1].partition_id, partition_1.id); // 1 file
+                                                                // Across all shards
+                                                                // Must return 2 partitions
+        let partitions = repos
+            .parquet_files()
+            .most_cold_files_partitions(None, time_8_hours_ago, num_partitions)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
@@ -3174,7 +3248,8 @@ pub(crate) mod test_helpers {
         assert_eq!(partitions[1].partition_id, partition_1.id); // 1 file
 
         // Make partition_3  that has one level-1 file, no level-0
-        // The DB now has 3 cold partitions, two with non-deleted L0 files and one with only non-deleted L1
+        // The DB now has 3 cold partitions, two with non-deleted L0 files and one with only
+        // non-deleted L1
         let partition_3 = repos
             .partitions()
             .create_or_get("three".into(), shard.id, table.id)
@@ -3197,17 +3272,35 @@ pub(crate) mod test_helpers {
         // Still return 2 partitions because the limit num_partitions is 2
         let partitions = repos
             .parquet_files()
-            .most_cold_files_partitions(shard.id, time_8_hours_ago, num_partitions)
+            .most_cold_files_partitions(Some(shard.id), time_8_hours_ago, num_partitions)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
         // and the first one should still be the one, partition_2, with the most files
         assert_eq!(partitions[0].partition_id, partition_2.id);
-        //
         // return 3 partitions becasue the limit num_partitions is now 5
         let partitions = repos
             .parquet_files()
-            .most_cold_files_partitions(shard.id, time_8_hours_ago, 5)
+            .most_cold_files_partitions(Some(shard.id), time_8_hours_ago, 5)
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 3);
+        // and the first one should still be the one with the most files
+        assert_eq!(partitions[0].partition_id, partition_2.id);
+        // Across all shards
+        // Still return 2 partitions because the limit num_partitions is 2
+        let partitions = repos
+            .parquet_files()
+            .most_cold_files_partitions(None, time_8_hours_ago, num_partitions)
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 2);
+        // and the first one should still be the one, partition_2, with the most files
+        assert_eq!(partitions[0].partition_id, partition_2.id);
+        // return 3 partitions becasue the limit num_partitions is now 5
+        let partitions = repos
+            .parquet_files()
+            .most_cold_files_partitions(None, time_8_hours_ago, 5)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 3);
@@ -3232,7 +3325,20 @@ pub(crate) mod test_helpers {
         // partition_2 should no longer be selected for compaction
         let partitions = repos
             .parquet_files()
-            .most_cold_files_partitions(shard.id, time_8_hours_ago, num_partitions)
+            .most_cold_files_partitions(Some(shard.id), time_8_hours_ago, num_partitions)
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 2);
+        assert!(
+            partitions.iter().all(|p| p.partition_id != partition_2.id),
+            "Expected partitions not to include {}: {partitions:?}",
+            partition_2.id
+        );
+        // Across all shards
+        // partition_2 should no longer be selected for compaction
+        let partitions = repos
+            .parquet_files()
+            .most_cold_files_partitions(None, time_8_hours_ago, num_partitions)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
@@ -3242,7 +3348,8 @@ pub(crate) mod test_helpers {
             partition_2.id
         );
 
-        // Add another L1 files into partition_3 to make it have 2 L1 files for easier to check the output
+        // Add another L1 files into partition_3 to make it have 2 L1 files for easier to check the
+        // output
         // A non-recent L1
         let file_params = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
@@ -3280,7 +3387,19 @@ pub(crate) mod test_helpers {
         // Still return 2 partitions with the limit num_partitions=2
         let partitions = repos
             .parquet_files()
-            .most_cold_files_partitions(shard.id, time_8_hours_ago, num_partitions)
+            .most_cold_files_partitions(Some(shard.id), time_8_hours_ago, num_partitions)
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 2);
+        // the first one should now be the one with the most files: 3 L1s
+        assert_eq!(partitions[0].partition_id, partition_4.id);
+        // second one should be partition_3 with 2 files: 2 L1s
+        assert_eq!(partitions[1].partition_id, partition_3.id);
+        // Across all shards
+        // Still return 2 partitions with the limit num_partitions=2
+        let partitions = repos
+            .parquet_files()
+            .most_cold_files_partitions(None, time_8_hours_ago, num_partitions)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
@@ -3292,7 +3411,21 @@ pub(crate) mod test_helpers {
         // Return 3 partitions with the limit num_partitions=4
         let partitions = repos
             .parquet_files()
-            .most_cold_files_partitions(shard.id, time_8_hours_ago, 4)
+            .most_cold_files_partitions(Some(shard.id), time_8_hours_ago, 4)
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 3);
+        // the first one should now be the one with the most files: 3 L1s
+        assert_eq!(partitions[0].partition_id, partition_4.id);
+        // second one should be partition_3 with 2 files: 2 L1s
+        assert_eq!(partitions[1].partition_id, partition_3.id);
+        // third one should be partition_1 witth 1 file: 1 L0
+        assert_eq!(partitions[2].partition_id, partition_1.id);
+        // Across all shards
+        // Return 3 partitions with the limit num_partitions=4
+        let partitions = repos
+            .parquet_files()
+            .most_cold_files_partitions(None, time_8_hours_ago, 4)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 3);
@@ -3342,12 +3475,29 @@ pub(crate) mod test_helpers {
             .flag_for_delete(delete_l0_file.id)
             .await
             .unwrap();
-        //
+
         // Return 3 cold partitions, partition_1, partition_3, partition_4 becasue num_partitions=5
-        // still skip partition_2 and partition_5 is considered hot becasue it has a (deleted) L0 created recently
+        // still skip partition_2 and partition_5 is considered hot becasue it has a (deleted) L0
+        // created recently
         let partitions = repos
             .parquet_files()
-            .most_cold_files_partitions(shard.id, time_8_hours_ago, 5)
+            .most_cold_files_partitions(Some(shard.id), time_8_hours_ago, 5)
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 3);
+        // the first one should now be the one with the most files 3 L1s
+        assert_eq!(partitions[0].partition_id, partition_4.id);
+        // second one should be partition_3 with 2 files: 2 L1s
+        assert_eq!(partitions[1].partition_id, partition_3.id);
+        // third one should be partition_1 witth 1 file: 1 L0
+        assert_eq!(partitions[2].partition_id, partition_1.id);
+        // Across all shards
+        // Return 3 cold partitions, partition_1, partition_3, partition_4 becasue num_partitions=5
+        // still skip partition_2 and partition_5 is considered hot becasue it has a (deleted) L0
+        // created recently
+        let partitions = repos
+            .parquet_files()
+            .most_cold_files_partitions(None, time_8_hours_ago, 5)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 3);
@@ -3399,12 +3549,13 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
 
-        //
-        // Return 4 cold partitions, partition_1, partition_3, partition_4, partition_6 because num_partitions=5
-        // still skip partition_2 and partition_5 is considered hot becasue it has a (deleted) L0 created recently
+        // Return 4 cold partitions, partition_1, partition_3, partition_4, partition_6 because
+        // num_partitions=5
+        // still skip partition_2 and partition_5 is considered hot because it has a (deleted) L0
+        // created recently
         let partitions = repos
             .parquet_files()
-            .most_cold_files_partitions(shard.id, time_8_hours_ago, 5)
+            .most_cold_files_partitions(Some(shard.id), time_8_hours_ago, 5)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 4);
@@ -3416,6 +3567,26 @@ pub(crate) mod test_helpers {
         assert_eq!(partitions[2].partition_id, partition_3.id);
         // then should be partition_1 witth 1 file: 1 L0
         assert_eq!(partitions[3].partition_id, partition_1.id);
+        // Across all shards
+        // Return 4 cold partitions, partition_1, partition_3, partition_4, partition_6 because
+        // num_partitions=5
+        // still skip partition_2 and partition_5 is considered hot because it has a (deleted) L0
+        // created recently
+        let partitions = repos
+            .parquet_files()
+            .most_cold_files_partitions(None, time_8_hours_ago, 5)
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 4);
+        // the first one should now be the one with the most files: 4 L1s
+        assert_eq!(partitions[0].partition_id, partition_6.id);
+        // then should  be the one with the most files: 3 L1s
+        assert_eq!(partitions[1].partition_id, partition_4.id);
+        // then  should be partition_3 with 2 files: 2 L1s
+        assert_eq!(partitions[2].partition_id, partition_3.id);
+        // then should be partition_1 witth 1 file: 1 L0
+        assert_eq!(partitions[3].partition_id, partition_1.id);
+        repos.abort().await.unwrap();
     }
 
     async fn test_recent_highest_throughput_partitions(catalog: Arc<dyn Catalog>) {
@@ -3464,7 +3635,19 @@ pub(crate) mod test_helpers {
         let partitions = repos
             .parquet_files()
             .recent_highest_throughput_partitions(
-                shard.id,
+                Some(shard.id),
+                time_at_num_minutes_ago,
+                min_num_files,
+                num_partitions,
+            )
+            .await
+            .unwrap();
+        assert!(partitions.is_empty());
+        // Across all shards
+        let partitions = repos
+            .parquet_files()
+            .recent_highest_throughput_partitions(
+                None,
                 time_at_num_minutes_ago,
                 min_num_files,
                 num_partitions,
@@ -3483,7 +3666,19 @@ pub(crate) mod test_helpers {
         let partitions = repos
             .parquet_files()
             .recent_highest_throughput_partitions(
-                shard.id,
+                Some(shard.id),
+                time_at_num_minutes_ago,
+                min_num_files,
+                num_partitions,
+            )
+            .await
+            .unwrap();
+        assert!(partitions.is_empty());
+        // Across all shards
+        let partitions = repos
+            .parquet_files()
+            .recent_highest_throughput_partitions(
+                None,
                 time_at_num_minutes_ago,
                 min_num_files,
                 num_partitions,
@@ -3530,7 +3725,19 @@ pub(crate) mod test_helpers {
         let partitions = repos
             .parquet_files()
             .recent_highest_throughput_partitions(
-                shard.id,
+                Some(shard.id),
+                time_at_num_minutes_ago,
+                min_num_files,
+                num_partitions,
+            )
+            .await
+            .unwrap();
+        assert!(partitions.is_empty());
+        // Across all shards
+        let partitions = repos
+            .parquet_files()
+            .recent_highest_throughput_partitions(
+                None,
                 time_at_num_minutes_ago,
                 min_num_files,
                 num_partitions,
@@ -3555,7 +3762,7 @@ pub(crate) mod test_helpers {
         let partitions = repos
             .parquet_files()
             .recent_highest_throughput_partitions(
-                shard.id,
+                Some(shard.id),
                 time_at_num_minutes_ago,
                 min_num_files,
                 num_partitions,
@@ -3565,15 +3772,38 @@ pub(crate) mod test_helpers {
         // nothing return because the partition has only one recent L0 file which is smaller than
         // min_num_files = 2
         assert!(partitions.is_empty());
+        // Across all shards
+        let partitions = repos
+            .parquet_files()
+            .recent_highest_throughput_partitions(
+                None,
+                time_at_num_minutes_ago,
+                min_num_files,
+                num_partitions,
+            )
+            .await
+            .unwrap();
+        // nothing return because the partition has only one recent L0 file which is smaller than
+        // min_num_files = 2
+        assert!(partitions.is_empty());
+
         // Case 4.2: min_num_files = 1
         let partitions = repos
             .parquet_files()
             .recent_highest_throughput_partitions(
-                shard.id,
+                Some(shard.id),
                 time_at_num_minutes_ago,
                 1,
                 num_partitions,
             )
+            .await
+            .unwrap();
+        // and have one partition
+        assert_eq!(partitions.len(), 1);
+        // Across all shards
+        let partitions = repos
+            .parquet_files()
+            .recent_highest_throughput_partitions(None, time_at_num_minutes_ago, 1, num_partitions)
             .await
             .unwrap();
         // and have one partition
@@ -3608,11 +3838,26 @@ pub(crate) mod test_helpers {
             .create(l0_3_hours_ago_file_params)
             .await
             .unwrap();
+
         // Case 5.1: min_num_files = 2
         let partitions = repos
             .parquet_files()
             .recent_highest_throughput_partitions(
-                shard.id,
+                Some(shard.id),
+                time_at_num_minutes_ago,
+                min_num_files,
+                num_partitions,
+            )
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 1);
+        // must be the partition with 2 files
+        assert_eq!(partitions[0].partition_id, another_partition.id);
+        // Across all shards
+        let partitions = repos
+            .parquet_files()
+            .recent_highest_throughput_partitions(
+                None,
                 time_at_num_minutes_ago,
                 min_num_files,
                 num_partitions,
@@ -3627,11 +3872,21 @@ pub(crate) mod test_helpers {
         let partitions = repos
             .parquet_files()
             .recent_highest_throughput_partitions(
-                shard.id,
+                Some(shard.id),
                 time_at_num_minutes_ago,
                 1,
                 num_partitions,
             )
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 2);
+        // partition with 2 files must be first
+        assert_eq!(partitions[0].partition_id, another_partition.id);
+        assert_eq!(partitions[1].partition_id, partition.id);
+        // Across all shards
+        let partitions = repos
+            .parquet_files()
+            .recent_highest_throughput_partitions(None, time_at_num_minutes_ago, 1, num_partitions)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
@@ -3663,11 +3918,27 @@ pub(crate) mod test_helpers {
             .create(l0_10_hours_ago_file_params)
             .await
             .unwrap();
+
         // Case 6.1: min_num_files = 2
         let partitions = repos
             .parquet_files()
             .recent_highest_throughput_partitions(
-                shard.id,
+                Some(shard.id),
+                time_at_num_minutes_ago,
+                min_num_files,
+                num_partitions,
+            )
+            .await
+            .unwrap();
+        // result still 1 partition because the old files do not contribute to recent throughput
+        assert_eq!(partitions.len(), 1);
+        // must be the partition with 2 files
+        assert_eq!(partitions[0].partition_id, another_partition.id);
+        // Across all shards
+        let partitions = repos
+            .parquet_files()
+            .recent_highest_throughput_partitions(
+                None,
                 time_at_num_minutes_ago,
                 min_num_files,
                 num_partitions,
@@ -3683,11 +3954,21 @@ pub(crate) mod test_helpers {
         let partitions = repos
             .parquet_files()
             .recent_highest_throughput_partitions(
-                shard.id,
+                Some(shard.id),
                 time_at_num_minutes_ago,
                 1,
                 num_partitions,
             )
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 2);
+        // partition with 2 files must be first
+        assert_eq!(partitions[0].partition_id, another_partition.id);
+        assert_eq!(partitions[1].partition_id, partition.id);
+        // Across all shards
+        let partitions = repos
+            .parquet_files()
+            .recent_highest_throughput_partitions(None, time_at_num_minutes_ago, 1, num_partitions)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
@@ -3706,11 +3987,19 @@ pub(crate) mod test_helpers {
         let partitions = repos
             .parquet_files()
             .recent_highest_throughput_partitions(
-                shard.id,
+                Some(shard.id),
                 time_at_num_minutes_ago,
                 1,
                 num_partitions,
             )
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 1);
+        assert_eq!(partitions[0].partition_id, partition.id);
+        // Across all shards
+        let partitions = repos
+            .parquet_files()
+            .recent_highest_throughput_partitions(None, time_at_num_minutes_ago, 1, num_partitions)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 1);
@@ -3763,7 +4052,7 @@ pub(crate) mod test_helpers {
         let partitions = repos
             .parquet_files()
             .partitions_with_small_l1_file_count(
-                shard.id,
+                Some(shard.id),
                 small_size_threshold_bytes,
                 min_small_file_count,
                 num_partitions,
@@ -3782,7 +4071,7 @@ pub(crate) mod test_helpers {
         let partitions = repos
             .parquet_files()
             .partitions_with_small_l1_file_count(
-                shard.id,
+                Some(shard.id),
                 small_size_threshold_bytes,
                 min_small_file_count,
                 num_partitions,
@@ -3821,7 +4110,7 @@ pub(crate) mod test_helpers {
         let partitions = repos
             .parquet_files()
             .partitions_with_small_l1_file_count(
-                shard.id,
+                Some(shard.id),
                 small_size_threshold_bytes,
                 min_small_file_count,
                 num_partitions,
@@ -3845,7 +4134,7 @@ pub(crate) mod test_helpers {
         let partitions = repos
             .parquet_files()
             .partitions_with_small_l1_file_count(
-                shard.id,
+                Some(shard.id),
                 small_size_threshold_bytes,
                 min_small_file_count,
                 num_partitions,
@@ -3859,7 +4148,7 @@ pub(crate) mod test_helpers {
         let partitions = repos
             .parquet_files()
             .partitions_with_small_l1_file_count(
-                shard.id,
+                Some(shard.id),
                 small_size_threshold_bytes,
                 1,
                 num_partitions,
@@ -3872,7 +4161,7 @@ pub(crate) mod test_helpers {
         let partitions = repos
             .parquet_files()
             .partitions_with_small_l1_file_count(
-                shard.id,
+                Some(shard.id),
                 500, // smaller than our file size of 1337
                 1,
                 num_partitions,
@@ -3905,7 +4194,7 @@ pub(crate) mod test_helpers {
         let partitions = repos
             .parquet_files()
             .partitions_with_small_l1_file_count(
-                shard.id,
+                Some(shard.id),
                 small_size_threshold_bytes,
                 min_small_file_count,
                 num_partitions,
@@ -3920,7 +4209,7 @@ pub(crate) mod test_helpers {
         let partitions = repos
             .parquet_files()
             .partitions_with_small_l1_file_count(
-                shard.id,
+                Some(shard.id),
                 small_size_threshold_bytes,
                 1,
                 num_partitions,
@@ -3943,7 +4232,7 @@ pub(crate) mod test_helpers {
         let partitions = repos
             .parquet_files()
             .partitions_with_small_l1_file_count(
-                shard.id,
+                Some(shard.id),
                 small_size_threshold_bytes,
                 1,
                 num_partitions,

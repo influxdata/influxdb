@@ -663,7 +663,7 @@ async fn table_or_namespace_not_found() {
                         .read_filter(read_filter_request)
                         .await
                         .unwrap_err();
-                    check_tonic_status(status, tonic::Code::NotFound, None);
+                    check_tonic_status(&status, tonic::Code::NotFound, None);
                 }
                 .boxed()
             })),
@@ -740,7 +740,7 @@ async fn oom_protection() {
                         .read_group(read_group_request)
                         .await
                         .unwrap_err();
-                    check_tonic_status(status, tonic::Code::ResourceExhausted, None);
+                    check_tonic_status(&status, tonic::Code::ResourceExhausted, None);
                 }
                 .boxed()
             })),

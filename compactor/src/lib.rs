@@ -459,7 +459,9 @@ pub(crate) async fn compact_one_partition(
 pub mod tests {
     use super::*;
     use crate::{
-        compact::Compactor, compact_one_partition, handler::CompactorConfig,
+        compact::{Compactor, ShardAssignment},
+        compact_one_partition,
+        handler::CompactorConfig,
         parquet_file_filtering, parquet_file_lookup, ParquetFilesForCompaction,
     };
     use ::parquet_file::storage::{ParquetStorage, StorageId};
@@ -641,7 +643,7 @@ pub mod tests {
         let time_provider = Arc::new(SystemProvider::new());
         let config = make_compactor_config(budget, max_parallel_jobs);
         let compactor = Arc::new(Compactor::new(
-            vec![shard.shard.id],
+            ShardAssignment::Only(vec![shard.shard.id]),
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             catalog.exec(),
@@ -922,7 +924,7 @@ pub mod tests {
 
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Arc::new(Compactor::new(
-            vec![shard.shard.id],
+            ShardAssignment::Only(vec![shard.shard.id]),
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             catalog.exec(),

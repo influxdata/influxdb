@@ -20,6 +20,7 @@ generated_types = { path = "../generated_types" }
 hashbrown = { workspace = true }
 influxdb_iox_client = { path = "../influxdb_iox_client" }
 ingester = { path = "../ingester" }
+iox_arrow_flight = { path = "../iox_arrow_flight" }
 iox_catalog = { path = "../iox_catalog" }
 iox_query = { path = "../iox_query" }
 iox_tests = { path = "../iox_tests" }
