@@ -294,9 +294,9 @@ where
                     let data = Box::pin(MemoryStream::new(
                         data.project_selection(selection).into_iter().collect(),
                     ));
-                    PartitionResponse::new(data, id, None, completed_persistence_count)
+                    PartitionResponse::new(data, id, completed_persistence_count)
                 }
-                None => PartitionResponse::new_no_batches(id, None, completed_persistence_count),
+                None => PartitionResponse::new_no_batches(id, completed_persistence_count),
             };
 
             span.ok("read partition data");
