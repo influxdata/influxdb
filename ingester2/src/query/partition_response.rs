@@ -38,20 +38,12 @@ impl std::fmt::Debug for PartitionResponse {
 
 impl PartitionResponse {
     pub(crate) fn new(
-        batches: SendableRecordBatchStream,
+        data: Option<SendableRecordBatchStream>,
         id: PartitionId,
         completed_persistence_count: u64,
     ) -> Self {
         Self {
-            batches: Some(batches),
-            id,
-            completed_persistence_count,
-        }
-    }
-
-    pub(crate) fn new_no_batches(id: PartitionId, completed_persistence_count: u64) -> Self {
-        Self {
-            batches: None,
+            batches: data,
             id,
             completed_persistence_count,
         }
