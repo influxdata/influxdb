@@ -125,7 +125,8 @@ impl PersistState {
     /// Reading this value is extremely cheap and can be done without
     /// performance concern.
     ///
-    /// This value is eventually consistent, with a presumption of
+    /// This value is eventually consistent, with a presumption of being visible
+    /// in a reasonable amount of time.
     pub(crate) fn get(&self) -> CurrentState {
         // Correctness: relaxed as reading the current state is allowed to be
         // racy for performance reasons; this call should be as cheap as
