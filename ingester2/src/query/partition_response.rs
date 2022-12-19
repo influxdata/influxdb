@@ -23,7 +23,13 @@ pub(crate) struct PartitionResponse {
 impl std::fmt::Debug for PartitionResponse {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PartitionResponse")
-            .field("batches", &"<SNAPSHOT STREAM>")
+            .field(
+                "batches",
+                &match self.batches {
+                    Some(_) => "<SNAPSHOT STREAM>",
+                    None => "<NO DATA>,",
+                },
+            )
             .field("partition_id", &self.id)
             .field("max_persisted", &self.max_persisted_sequence_number)
             .field(
