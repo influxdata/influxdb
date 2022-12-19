@@ -11,14 +11,11 @@ use arrow::{
 };
 use datafusion::{
     error::DataFusionError,
-    execution::{
-        memory_manager::proxy::{MemoryConsumerProxy, VecAllocExt},
-        MemoryConsumerId, MemoryManager,
-    },
+    execution::memory_pool::{proxy::VecAllocExt, MemoryConsumer, MemoryPool, MemoryReservation},
     physical_plan::SendableRecordBatchStream,
 };
 
-use futures::{future::BoxFuture, ready, FutureExt, Stream, StreamExt};
+use futures::{ready, Stream, StreamExt};
 use predicate::rpc_predicate::{GROUP_KEY_SPECIAL_START, GROUP_KEY_SPECIAL_STOP};
 use snafu::{OptionExt, Snafu};
 use std::{
@@ -502,27 +499,27 @@ impl Stream for SeriesSetConverterStream {
 #[derive(Debug)]
 pub struct GroupGenerator {
     group_columns: Vec<Arc<str>>,
-    memory_manager: Arc<MemoryManager>,
+    memory_pool: Arc<dyn MemoryPool>,
     collector_buffered_size_max: usize,
 }
 
 impl GroupGenerator {
-    pub fn new(group_columns: Vec<Arc<str>>, memory_manager: Arc<MemoryManager>) -> Self {
+    pub fn new(group_columns: Vec<Arc<str>>, memory_pool: Arc<dyn MemoryPool>) -> Self {
         Self::new_with_buffered_size_max(
             group_columns,
-            memory_manager,
+            memory_pool,
             Collector::<()>::DEFAULT_ALLOCATION_BUFFER_SIZE,
         )
     }
 
     fn new_with_buffered_size_max(
         group_columns: Vec<Arc<str>>,
-        memory_manager: Arc<MemoryManager>,
+        memory_pool: Arc<dyn MemoryPool>,
         collector_buffered_size_max: usize,
     ) -> Self {
         Self {
             group_columns,
-            memory_manager,
+            memory_pool,
             collector_buffered_size_max,
         }
     }
@@ -541,7 +538,7 @@ impl GroupGenerator {
         let mut series = Collector::new(
             series,
             self.group_columns,
-            self.memory_manager,
+            self.memory_pool,
             self.collector_buffered_size_max,
         )
         .await?;
@@ -705,7 +702,7 @@ impl SortableSeries {
 }
 
 /// [`Future`] that collects [`Series`] objects into a [`SortableSeries`] vector while registering/checking memory
-/// allocations with a [`MemoryManager`].
+/// allocations with a [`MemoryPool`].
 ///
 /// This avoids unbounded memory growth when merging multiple `Series` in memory
 struct Collector<S> {
@@ -729,27 +726,20 @@ struct Collector<S> {
     /// Buffered but not-yet-registered allocated size.
     ///
     /// We use an additional buffer here because in contrast to the normal DataFusion processing, the input stream is
-    /// NOT batched and we want to avoid costly memory allocations checks with the [`MemoryManager`] for every single element.
+    /// NOT batched and we want to avoid costly memory allocations checks with the [`MemoryPool`] for every single element.
     buffered_size: usize,
 
-    /// Maximum [buffered size](Self::buffered_size).
+    /// Maximum [buffered size](Self::buffered_size). Decreasing this
+    /// value causes allocations to be reported to the [`MemoryPool`]
+    /// more frequently.
     buffered_size_max: usize,
 
-    /// Our memory consumer.
-    ///
-    /// This is optional because for [`MemoryConsumerProxy::alloc`], we need to move this into
-    /// [`mem_proxy_alloc_fut`](Self::mem_proxy_alloc_fut) to avoid self-borrowing.
-    mem_proxy: Option<MemoryConsumerProxy>,
-
-    /// A potential running [`MemoryConsumerProxy::alloc`].
-    ///
-    /// This owns [`mem_proxy`](Self::mem_proxy) to avoid self-borrowing.
-    mem_proxy_alloc_fut:
-        Option<BoxFuture<'static, (MemoryConsumerProxy, Result<(), DataFusionError>)>>,
+    /// Our memory reservation.
+    mem_reservation: MemoryReservation,
 }
 
 impl<S> Collector<S> {
-    /// Maximum [buffered size](Self::buffered_size).
+    /// Default maximum [buffered size](Self::buffered_size) before updating [`MemoryPool`] reservation
     const DEFAULT_ALLOCATION_BUFFER_SIZE: usize = 1024 * 1024;
 }
 
@@ -760,11 +750,11 @@ where
     fn new(
         inner: S,
         group_columns: Vec<Arc<str>>,
-        memory_manager: Arc<MemoryManager>,
+        memory_pool: Arc<dyn MemoryPool>,
         buffered_size_max: usize,
     ) -> Self {
-        let mem_proxy =
-            MemoryConsumerProxy::new("Collector stream", MemoryConsumerId::new(0), memory_manager);
+        let mem_reservation = MemoryConsumer::new("SeriesSet Collector").register(&memory_pool);
+
         Self {
             inner_done: false,
             outer_done: false,
@@ -773,27 +763,16 @@ where
             collected: Vec::with_capacity(0),
             buffered_size: 0,
             buffered_size_max,
-            mem_proxy: Some(mem_proxy),
-            mem_proxy_alloc_fut: None,
+            mem_reservation,
         }
     }
 
-    /// Start a [`MemoryConsumerProxy::alloc`] future.
-    ///
-    /// # Panic
-    /// Panics if a future is already running.
-    fn alloc(&mut self) {
-        assert!(self.mem_proxy_alloc_fut.is_none());
-        let mut mem_proxy =
-            std::mem::take(&mut self.mem_proxy).expect("no mem proxy future running");
+    /// Registers all `self.buffered_size` with the MemoryPool,
+    /// resetting self.buffered_size to zero. Returns an error if new
+    /// memory can not be allocated from the pool.
+    fn alloc(&mut self) -> Result<(), DataFusionError> {
         let bytes = std::mem::take(&mut self.buffered_size);
-        self.mem_proxy_alloc_fut = Some(
-            async move {
-                let res = mem_proxy.alloc(bytes).await;
-                (mem_proxy, res)
-            }
-            .boxed(),
-        );
+        self.mem_reservation.try_grow(bytes)
     }
 }
 
@@ -808,20 +787,6 @@ where
 
         loop {
             assert!(!this.outer_done);
-
-            // Drive `MemoryConsumerProxy::alloc` to completion.
-            if let Some(fut) = this.mem_proxy_alloc_fut.as_mut() {
-                let (mem_proxy, res) = ready!(fut.poll_unpin(cx));
-                assert!(this.mem_proxy.is_none());
-                this.mem_proxy = Some(mem_proxy);
-                this.mem_proxy_alloc_fut = None;
-                if let Err(e) = res {
-                    // poison this future
-                    this.outer_done = true;
-                    return Poll::Ready(Err(e));
-                }
-            }
-
             // if the underlying stream is drained and the allocation future is ready (see above), we can finalize this future
             if this.inner_done {
                 this.outer_done = true;
@@ -838,7 +803,9 @@ where
 
                         // should we clear our allocation buffer?
                         if this.buffered_size > this.buffered_size_max {
-                            this.alloc();
+                            if let Err(e) = this.alloc() {
+                                return Poll::Ready(Err(e));
+                            }
                             continue;
                         }
                     }
@@ -857,7 +824,9 @@ where
                     // underlying stream drained. now register the final allocation and then we're done
                     this.inner_done = true;
                     if this.buffered_size > 0 {
-                        this.alloc();
+                        if let Err(e) = this.alloc() {
+                            return Poll::Ready(Err(e));
+                        }
                     }
                     continue;
                 }
@@ -878,7 +847,7 @@ mod tests {
     };
     use arrow_util::assert_batches_eq;
     use assert_matches::assert_matches;
-    use datafusion::execution::memory_manager::MemoryManagerConfig;
+    use datafusion::execution::memory_pool::GreedyMemoryPool;
     use datafusion_util::{stream_from_batch, stream_from_batches, stream_from_schema};
     use futures::TryStreamExt;
     use itertools::Itertools;
@@ -1638,9 +1607,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_group_generator_mem_limit() {
-        let memory_manager =
-            MemoryManager::new(MemoryManagerConfig::try_new_limit(1, 1.0).unwrap());
-        let ggen = GroupGenerator::new(vec![Arc::from("g")], memory_manager);
+        let memory_pool = Arc::new(GreedyMemoryPool::new(1)) as _;
+
+        let ggen = GroupGenerator::new(vec![Arc::from("g")], memory_pool);
         let input = futures::stream::iter([Ok(Series {
             tags: vec![Tag {
                 key: Arc::from("g"),
@@ -1660,11 +1629,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_group_generator_no_mem_limit() {
-        let memory_manager =
-            MemoryManager::new(MemoryManagerConfig::try_new_limit(usize::MAX, 1.0).unwrap());
+        let memory_pool = Arc::new(GreedyMemoryPool::new(usize::MAX)) as _;
         // use a generator w/ a low buffered allocation to force multiple `alloc` calls
-        let ggen =
-            GroupGenerator::new_with_buffered_size_max(vec![Arc::from("g")], memory_manager, 1);
+        let ggen = GroupGenerator::new_with_buffered_size_max(vec![Arc::from("g")], memory_pool, 1);
         let input = futures::stream::iter([
             Ok(Series {
                 tags: vec![Tag {

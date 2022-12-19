@@ -23,6 +23,8 @@ use datafusion::arrow::datatypes::DataType;
 use datafusion::common::DataFusionError;
 use datafusion::datasource::MemTable;
 use datafusion::execution::context::TaskContext;
+use datafusion::execution::memory_pool::UnboundedMemoryPool;
+use datafusion::logical_expr::expr::Sort;
 use datafusion::physical_expr::PhysicalExpr;
 use datafusion::physical_plan::common::SizedRecordBatchStream;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MemTrackingMetrics};
@@ -49,11 +51,11 @@ pub trait AsExpr {
 
     /// creates a DataFusion SortExpr
     fn as_sort_expr(&self) -> Expr {
-        Expr::Sort {
+        Expr::Sort(Sort {
             expr: Box::new(self.as_expr()),
             asc: true, // Sort ASCENDING
             nulls_first: true,
-        }
+        })
     }
 }
 
@@ -254,18 +256,17 @@ pub fn stream_from_batches(
         return Box::pin(EmptyRecordBatchStream::new(schema));
     }
 
+    // TODO should track this memory properly
+    let dummy_pool = Arc::new(UnboundedMemoryPool::default()) as _;
     let dummy_metrics = ExecutionPlanMetricsSet::new();
-    let mem_metrics = MemTrackingMetrics::new(&dummy_metrics, 0);
+    let mem_metrics = MemTrackingMetrics::new(&dummy_metrics, &dummy_pool, 0);
     let stream = SizedRecordBatchStream::new(batches[0].schema(), batches, mem_metrics);
     Box::pin(stream)
 }
 
 /// Create a SendableRecordBatchStream that sends back no RecordBatches with a specific schema
 pub fn stream_from_schema(schema: SchemaRef) -> SendableRecordBatchStream {
-    let dummy_metrics = ExecutionPlanMetricsSet::new();
-    let mem_metrics = MemTrackingMetrics::new(&dummy_metrics, 0);
-    let stream = SizedRecordBatchStream::new(schema, vec![], mem_metrics);
-    Box::pin(stream)
+    stream_from_batches(schema, vec![])
 }
 
 /// Execute the [ExecutionPlan] with a default [SessionContext] and
