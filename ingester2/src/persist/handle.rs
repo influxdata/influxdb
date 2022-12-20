@@ -483,10 +483,8 @@ async fn run_task(
 ///
 /// If in the course of this the sort key is updated, this function attempts to
 /// update the sort key in the catalog. This MAY fail because another node has
-/// concurrently done the same and the persist must be restarted, see:
-///
-///     <https://github.com/influxdata/influxdb_iox/issues/6439>
-///
+/// concurrently done the same and the persist must be restarted, see
+/// <https://github.com/influxdata/influxdb_iox/issues/6439>.
 async fn compact_and_upload(ctx: &Context) -> Result<ParquetFileParams, PersistError> {
     let compacted = ctx.compact().await;
     let (sort_key_update, parquet_table_data) = ctx.upload(compacted).await;
