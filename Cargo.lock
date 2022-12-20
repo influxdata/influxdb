@@ -4875,7 +4875,6 @@ name = "service_grpc_flight"
 version = "0.1.0"
 dependencies = [
  "arrow",
- "arrow-flight",
  "arrow_util",
  "assert_matches",
  "bytes",
@@ -4883,11 +4882,13 @@ dependencies = [
  "datafusion",
  "futures",
  "generated_types",
+ "iox_arrow_flight",
  "iox_query",
  "metric",
  "observability_deps",
  "pin-project",
  "prost 0.11.3",
+ "prost-types 0.11.2",
  "serde",
  "serde_json",
  "service_common",

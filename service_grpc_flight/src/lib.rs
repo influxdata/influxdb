@@ -3,11 +3,6 @@
 mod request;
 
 use arrow::error::ArrowError;
-use arrow_flight::{
-    flight_service_server::{FlightService as Flight, FlightServiceServer as FlightServer},
-    Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
-    HandshakeRequest, HandshakeResponse, PutResult, SchemaAsIpc, SchemaResult, Ticket,
-};
 use arrow_util::optimize::{
     prepare_batch_for_flight, prepare_schema_for_flight, split_batch_for_grpc_response,
 };
@@ -16,6 +11,13 @@ use data_types::NamespaceNameError;
 use datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
 use futures::{SinkExt, Stream, StreamExt};
 use generated_types::influxdata::iox::querier::v1 as proto;
+use iox_arrow_flight::{
+    flight_descriptor::DescriptorType,
+    flight_service_server::{FlightService as Flight, FlightServiceServer as FlightServer},
+    sql::{CommandStatementQuery, ProstMessageExt},
+    Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightEndpoint, FlightInfo,
+    HandshakeRequest, HandshakeResponse, PutResult, SchemaAsIpc, SchemaResult, Ticket,
+};
 use iox_query::{
     exec::{ExecutionContextProvider, IOxSessionContext},
     QueryCompletedToken, QueryNamespace,
@@ -32,11 +34,21 @@ use trace::{ctx::SpanContext, span::SpanExt};
 use trace_http::ctx::{RequestLogContext, RequestLogContextExt};
 use tracker::InstrumentedAsyncOwnedSemaphorePermit;
 
+/// The name of the grpc header that contains the target iox namespace
+/// name for FlightSQL requests.
+///
+/// See <https://lists.apache.org/thread/fd6r1n7vt91sg2c7fr35wcrsqz6x4645>
+/// for discussion on adding support to FlightSQL itself.
+const IOX_FLIGHT_SQL_NAMESPACE_HEADER: &str = "iox-namespace-name";
+
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Invalid ticket. Error: {}", source))]
     InvalidTicket { source: request::Error },
+
+    #[snafu(display("Internal creating encoding ticket: {}", source))]
+    InternalCreatingTicket { source: request::Error },
 
     #[snafu(display("Invalid query, could not parse '{}': {}", query, source))]
     InvalidQuery {
@@ -57,6 +69,14 @@ pub enum Error {
         source: DataFusionError,
     },
 
+    #[snafu(display("no 'iox-namespace-name' header in request"))]
+    NoNamespaceHeader,
+
+    #[snafu(display("Invalid 'iox-namespace-name' header in request: {}", source))]
+    InvalidNamespaceHeader {
+        source: tonic::metadata::errors::ToStrError,
+    },
+
     #[snafu(display("Invalid namespace name: {}", source))]
     InvalidNamespaceName { source: NamespaceNameError },
 
@@ -70,6 +90,18 @@ pub enum Error {
 
     #[snafu(display("Error during protobuf serialization: {}", source))]
     Serialization { source: prost::EncodeError },
+
+    #[snafu(display("Invalid protobuf: {}", source))]
+    Deserialization { source: prost::DecodeError },
+
+    #[snafu(display("Invalid protobuf for type_url'{}': {}", type_url, source))]
+    DeserializationTypeKnown {
+        type_url: String,
+        source: prost::DecodeError,
+    },
+
+    #[snafu(display("Unsupported message type: {}", description))]
+    UnsupportedMessageType { description: String },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -84,11 +116,21 @@ impl From<Error> for tonic::Status {
             Error::NamespaceNotFound { .. }
             | Error::InvalidTicket { .. }
             | Error::InvalidQuery { .. }
-            // TODO(edd): this should be `debug`. Keeping at info whilst IOx still in early development
+            // TODO(edd): this should be `debug`. Keeping at info while IOx in early development
             | Error::InvalidNamespaceName { .. } => info!(e=%err, msg),
             Error::Query { .. } => info!(e=%err, msg),
             Error::Optimize { .. }
-            | Error::Planning { .. } | Error::Serialization { .. } => warn!(e=%err, msg),
+            |Error::NoNamespaceHeader
+            |Error::InvalidNamespaceHeader { .. }
+            | Error::Planning { .. }
+            | Error::Serialization { .. }
+            | Error::Deserialization { .. }
+            | Error::DeserializationTypeKnown { .. }
+            | Error::InternalCreatingTicket { .. }
+                | Error::UnsupportedMessageType { .. }
+            => {
+                warn!(e=%err, msg)
+            }
         }
         err.into_status()
     }
@@ -104,14 +146,26 @@ impl Error {
             Self::NamespaceNotFound { .. } => tonic::Code::NotFound,
             Self::InvalidTicket { .. }
             | Self::InvalidQuery { .. }
+            | Self::Serialization { .. }
+            | Self::Deserialization { .. }
+            | Self::DeserializationTypeKnown { .. }
+            | Self::NoNamespaceHeader
+            | Self::InvalidNamespaceHeader { .. }
             | Self::InvalidNamespaceName { .. } => tonic::Code::InvalidArgument,
             Self::Planning { source, .. } | Self::Query { source, .. } => {
                 datafusion_error_to_tonic_code(&source)
             }
-            Self::Optimize { .. } | Self::Serialization { .. } => tonic::Code::Internal,
+            Self::UnsupportedMessageType { .. } => tonic::Code::Unimplemented,
+            Self::InternalCreatingTicket { .. } | Self::Optimize { .. } => tonic::Code::Internal,
         };
 
         tonic::Status::new(code, msg)
+    }
+
+    fn unsupported_message_type(description: impl Into<String>) -> Self {
+        Self::UnsupportedMessageType {
+            description: description.into(),
+        }
     }
 }
 
@@ -186,7 +240,7 @@ where
     type ListFlightsStream = TonicStream<FlightInfo>;
     type DoGetStream = TonicStream<FlightData>;
     type DoPutStream = TonicStream<PutResult>;
-    type DoActionStream = TonicStream<arrow_flight::Result>;
+    type DoActionStream = TonicStream<iox_arrow_flight::Result>;
     type ListActionsStream = TonicStream<ActionType>;
     type DoExchangeStream = TonicStream<FlightData>;
 
@@ -259,11 +313,43 @@ where
         Err(tonic::Status::unimplemented("Not yet implemented"))
     }
 
+    /// Handles requests encoded in the FlightDescriptor
+    ///
+    /// IOx currently only processes "cmd" type Descriptors (not
+    /// paths) and attempts to decodes the [`FlightDescriptor::cmd`]
+    /// bytes as an encoded protobuf message
+    ///
+    ///
     async fn get_flight_info(
         &self,
-        _request: Request<FlightDescriptor>,
+        request: Request<FlightDescriptor>,
     ) -> Result<Response<FlightInfo>, tonic::Status> {
-        Err(tonic::Status::unimplemented("Not yet implemented"))
+        // look for namespace information in headers
+        let namespace_name = request
+            .metadata()
+            .get(IOX_FLIGHT_SQL_NAMESPACE_HEADER)
+            .map(|v| {
+                v.to_str()
+                    .context(InvalidNamespaceHeaderSnafu)
+                    .map(|s| s.to_string())
+            })
+            .ok_or(Error::NoNamespaceHeader)??;
+
+        let request = request.into_inner();
+
+        let cmd = match request.r#type() {
+            DescriptorType::Cmd => Ok(&request.cmd),
+            DescriptorType::Path => Err(Error::unsupported_message_type("FlightInfo with Path")),
+            DescriptorType::Unknown => Err(Error::unsupported_message_type(
+                "FlightInfo of unknown type",
+            )),
+        }?;
+
+        let message: prost_types::Any =
+            prost::Message::decode(cmd.as_slice()).context(DeserializationSnafu)?;
+
+        let flight_info = self.dispatch(&namespace_name, request, message).await?;
+        Ok(tonic::Response::new(flight_info))
     }
 
     async fn do_put(
@@ -292,6 +378,88 @@ where
         _request: Request<Streaming<FlightData>>,
     ) -> Result<Response<Self::DoExchangeStream>, tonic::Status> {
         Err(tonic::Status::unimplemented("Not yet implemented"))
+    }
+}
+
+impl<S> FlightService<S>
+where
+    S: QueryNamespaceProvider,
+{
+    /// Given a successfully decoded protobuf *Any* message, handles
+    /// recognized messages (e.g those defined by FlightSQL) and
+    /// creates the appropriate FlightData response
+    ///
+    /// Arguments
+    ///
+    /// namespace_name: is the target namespace of the request
+    ///
+    /// flight_descriptor: is the descriptor sent in the request (included in response)
+    ///
+    /// msg is the `cmd` field of the flight descriptor decoded as a protobuf  message
+    async fn dispatch(
+        &self,
+        namespace_name: &str,
+        flight_descriptor: FlightDescriptor,
+        msg: prost_types::Any,
+    ) -> Result<FlightInfo> {
+        fn try_unpack<T: ProstMessageExt>(msg: &prost_types::Any) -> Result<Option<T>> {
+            // Does the type URL match?
+            if T::type_url() != msg.type_url {
+                return Ok(None);
+            }
+            // type matched, so try and decode
+            let m = prost::Message::decode(&*msg.value).context(DeserializationTypeKnownSnafu {
+                type_url: &msg.type_url,
+            })?;
+            Ok(Some(m))
+        }
+
+        // FlightSQL CommandStatementQuery
+        let (schema, ticket) = if let Some(cmd) = try_unpack::<CommandStatementQuery>(&msg)? {
+            let CommandStatementQuery { query } = cmd;
+            debug!(%namespace_name, %query, "Handling FlightSQL CommandStatementQuery");
+
+            // TODO is supposed to return a schema -- if clients
+            // actually expect the schema we'll have to plan the query
+            // here.
+            let schema = vec![];
+
+            // Create a ticket that can be passed to do_get to run the query
+            let ticket = IoxGetRequest::new(namespace_name, RunQuery::Sql(query))
+                .try_encode()
+                .context(InternalCreatingTicketSnafu)?;
+
+            (schema, ticket)
+        } else {
+            return Err(Error::unsupported_message_type(format!(
+                "Unsupported cmd message: {}",
+                msg.type_url
+            )));
+        };
+
+        // form the response
+
+        // Arrow says "set to -1 if not known
+        let total_records = -1;
+        let total_bytes = -1;
+
+        let endpoint = vec![FlightEndpoint {
+            ticket: Some(ticket),
+            // "If the list is empty, the expectation is that the
+            // ticket can only be redeemed on the current service
+            // where the ticket was generated."
+            //
+            // https://github.com/apache/arrow-rs/blob/a0a5880665b1836890f6843b6b8772d81c463351/format/Flight.proto#L292-L294
+            location: vec![],
+        }];
+
+        Ok(FlightInfo {
+            schema,
+            flight_descriptor: Some(flight_descriptor),
+            endpoint,
+            total_records,
+            total_bytes,
+        })
     }
 }
 
@@ -349,7 +517,7 @@ impl GetStream {
                             Ok(batch) => {
                                 for batch in split_batch_for_grpc_response(batch) {
                                     let (flight_dictionaries, flight_batch) =
-                                        arrow_flight::utils::flight_data_from_arrow_batch(
+                                        iox_arrow_flight::utils::flight_data_from_arrow_batch(
                                             &batch, &options,
                                         );
 

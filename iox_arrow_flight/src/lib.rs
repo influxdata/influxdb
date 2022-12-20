@@ -25,6 +25,9 @@ pub use client::{
     DecodedFlightData, DecodedPayload, FlightClient, FlightDataStream, FlightRecordBatchStream,
 };
 
+pub mod flightsql;
+pub use flightsql::FlightSqlClient;
+
 /// Reexport all of arrow_flight so this crate can masquarade as
 /// `arrow-flight` in the IOx codebase (as the aim is to publish this
 /// all upstream)

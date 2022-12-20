@@ -1,9 +1,9 @@
 //! Ticket handling for the native IOx Flight API
 
-use arrow_flight::Ticket;
 use bytes::Bytes;
 use generated_types::influxdata::iox::querier::v1 as proto;
 use generated_types::influxdata::iox::querier::v1::read_info::QueryType;
+use iox_arrow_flight::Ticket;
 use observability_deps::tracing::trace;
 use prost::Message;
 use serde::Deserialize;
@@ -48,7 +48,6 @@ impl Display for RunQuery {
 
 impl IoxGetRequest {
     /// Create a new request to run the specified query
-    #[allow(dead_code)]
     pub fn new(namespace_name: impl Into<String>, query: RunQuery) -> Self {
         Self {
             namespace_name: namespace_name.into(),
@@ -72,7 +71,6 @@ impl IoxGetRequest {
     }
 
     /// Encode the request as a protobuf Ticket
-    #[allow(dead_code)]
     pub fn try_encode(self) -> Result<Ticket> {
         let Self {
             namespace_name,
