@@ -384,9 +384,9 @@ pub(super) struct Inner {
 ///
 /// Optimistically compacts the [`PersistingData`] using the locally cached sort
 /// key read from the [`PartitionData`] instance. If this key proves to be
-/// stale, the compaction is retried with the new key. See:
+/// stale, the compaction is retried with the new key.
 ///
-///     <https://github.com/influxdata/influxdb_iox/issues/6439>
+/// See <https://github.com/influxdata/influxdb_iox/issues/6439>.
 ///
 /// ```text
 ///           ┌───────┐
