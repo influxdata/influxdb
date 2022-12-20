@@ -23,6 +23,7 @@ mod tests {
     };
     use iox_query::exec::Executor;
     use lazy_static::lazy_static;
+    use metric::{Attributes, Metric, U64Counter};
     use object_store::{memory::InMemory, ObjectMeta, ObjectStore};
     use parking_lot::Mutex;
     use parquet_file::{
@@ -118,6 +119,18 @@ mod tests {
         buf.partitions().next().unwrap()
     }
 
+    #[track_caller]
+    fn assert_metric(metrics: &metric::Registry, name: &'static str, value: u64) {
+        let v = metrics
+            .get_instrument::<Metric<U64Counter>>(name)
+            .expect("failed to read metric")
+            .get_observer(&Attributes::from([]))
+            .expect("failed to get observer")
+            .fetch();
+
+        assert_eq!(v, value, "metric {name} had value {v} want {value}");
+    }
+
     /// A complete integration test of the persistence system components.
     #[tokio::test]
     async fn test_persist_integration() {
@@ -159,6 +172,8 @@ mod tests {
         // Enqueue the persist job
         let notify = handle.enqueue(Arc::clone(&partition), data).await;
         assert!(ingest_state.read().is_ok());
+
+        assert_metric(&metrics, "ingester_persist_enqueued_jobs", 1);
 
         // Wait for the persist to complete.
         notify
