@@ -454,7 +454,7 @@ pub trait PartitionRepo: Send + Sync {
     async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>>;
 
     /// Update the sort key for the partition, setting it to `new_sort_key` iff
-    /// the current value matches `old_sort_key`. Returns
+    /// the current value matches `old_sort_key`.
     ///
     /// NOTE: it is expected that ONLY the ingesters update sort keys for
     /// existing partitions.
@@ -462,7 +462,8 @@ pub trait PartitionRepo: Send + Sync {
     /// # Spurious failure
     ///
     /// Implementations are allowed to spuriously return
-    /// [`CasFailure::ValueMismatch`] for performance reasons.
+    /// [`CasFailure::ValueMismatch`] for performance reasons in the presence of
+    /// concurrent writers.
     async fn cas_sort_key(
         &mut self,
         partition_id: PartitionId,
