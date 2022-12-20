@@ -362,4 +362,26 @@ async fn sql_create_schema() {
     .await;
 }
 
+#[tokio::test]
+async fn bad_selector_num_args() {
+    let expected_error = "selector_last requires exactly 2 arguments, got 1";
+    run_sql_error_test_case(
+        scenarios::delete::NoDeleteOneChunk {},
+        "select selector_last(time)['bar'] from cpu;",
+        expected_error,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn bad_selector_arg_types() {
+    let expected_error = "selector_last second argument must be a timestamp, but got Float64";
+    run_sql_error_test_case(
+        scenarios::delete::NoDeleteOneChunk {},
+        "select selector_last(time, bar)['value'] from cpu;",
+        expected_error,
+    )
+    .await;
+}
+
 // --------------------------------------------------------
