@@ -340,6 +340,31 @@ impl Context {
                     {
                         Ok(_) => ControlFlow::Break(Ok(())),
                         Err(CasFailure::QueryError(e)) => ControlFlow::Continue(e),
+                        Err(CasFailure::ValueMismatch(observed))
+                            if observed == new_sort_key_str =>
+                        {
+                            // A CAS failure occurred because of a concurrent
+                            // sort key update, however the new catalog sort key
+                            // exactly matches the sort key this node wants to
+                            // commit.
+                            //
+                            // This is the sad-happy path, and this task can
+                            // continue.
+                            info!(
+                                %object_store_id,
+                                namespace_id = %self.namespace_id,
+                                namespace_name = %self.namespace_name,
+                                table_id = %self.table_id,
+                                table_name = %self.table_name,
+                                partition_id = %self.partition_id,
+                                partition_key = %self.partition_key,
+                                expected=?old_sort_key,
+                                ?observed,
+                                update=?new_sort_key_str,
+                                "detected matching concurrent sort key update"
+                            );
+                            ControlFlow::Break(Ok(()))
+                        }
                         Err(CasFailure::ValueMismatch(observed)) => {
                             // Another ingester concurrently updated the sort
                             // key.
