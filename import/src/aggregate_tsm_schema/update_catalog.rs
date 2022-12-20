@@ -6,7 +6,7 @@ use data_types::{
     Partition, PartitionKey, QueryPoolId, ShardId, TableSchema, TopicId,
 };
 use influxdb_iox_client::connection::{Connection, GrpcConnection};
-use iox_catalog::interface::{get_schema_by_name, Catalog, RepoCollection};
+use iox_catalog::interface::{get_schema_by_name, CasFailure, Catalog, RepoCollection};
 use schema::{
     sort::{adjust_sort_key_columns, SortKey, SortKeyBuilder},
     InfluxColumnType, InfluxFieldType, TIME_COLUMN_NAME,
@@ -22,6 +22,9 @@ pub mod generated_types {
 pub enum UpdateCatalogError {
     #[error("Error returned from the Catalog: {0}")]
     CatalogError(#[from] iox_catalog::interface::Error),
+
+    #[error("Error returned from the Catalog: failed to cas sort key update")]
+    SortKeyCasError,
 
     #[error("Couldn't construct namespace from org and bucket: {0}")]
     InvalidOrgBucket(#[from] OrgBucketMappingError),
@@ -301,9 +304,12 @@ where
                 let sort_key = sort_key.to_columns().collect::<Vec<_>>();
                 repos
                     .partitions()
-                    .update_sort_key(partition.id, &sort_key)
+                    .cas_sort_key(partition.id, Some(partition.sort_key), &sort_key)
                     .await
-                    .map_err(UpdateCatalogError::CatalogError)?;
+                    .map_err(|e| match e {
+                        CasFailure::ValueMismatch(_) => UpdateCatalogError::SortKeyCasError,
+                        CasFailure::QueryError(e) => UpdateCatalogError::CatalogError(e),
+                    })?;
             }
         }
     }

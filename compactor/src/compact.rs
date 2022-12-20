@@ -842,7 +842,11 @@ pub mod tests {
         // update sort key for this another_partition
         let another_partition = txn
             .partitions()
-            .update_sort_key(another_partition.id, &["tag1", "time"])
+            .cas_sort_key(
+                another_partition.id,
+                Some(another_partition.sort_key),
+                &["tag1", "time"],
+            )
             .await
             .unwrap();
         txn.commit().await.unwrap();

@@ -17,6 +17,18 @@ use std::{
 };
 use uuid::Uuid;
 
+/// An error wrapper detailing the reason for a compare-and-swap failure.
+#[derive(Debug)]
+pub enum CasFailure<T> {
+    /// The compare-and-swap failed because the current value differers from the
+    /// comparator.
+    ///
+    /// Contains the new current value.
+    ValueMismatch(T),
+    /// A query error occurred.
+    QueryError(Error),
+}
+
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
 #[snafu(visibility(pub(crate)))]
@@ -441,15 +453,23 @@ pub trait PartitionRepo: Send + Sync {
     /// return the partitions by table id
     async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>>;
 
-    /// Update the sort key for the partition.
+    /// Update the sort key for the partition, setting it to `new_sort_key` iff
+    /// the current value matches `old_sort_key`.
     ///
     /// NOTE: it is expected that ONLY the ingesters update sort keys for
     /// existing partitions.
-    async fn update_sort_key(
+    ///
+    /// # Spurious failure
+    ///
+    /// Implementations are allowed to spuriously return
+    /// [`CasFailure::ValueMismatch`] for performance reasons in the presence of
+    /// concurrent writers.
+    async fn cas_sort_key(
         &mut self,
         partition_id: PartitionId,
-        sort_key: &[&str],
-    ) -> Result<Partition>;
+        old_sort_key: Option<Vec<String>>,
+        new_sort_key: &[&str],
+    ) -> Result<Partition, CasFailure<Vec<String>>>;
 
     /// Record an instance of a partition being selected for compaction but compaction was not
     /// completed for the specified reason.
@@ -1570,9 +1590,23 @@ pub(crate) mod test_helpers {
         // test update_sort_key from None to Some
         repos
             .partitions()
-            .update_sort_key(other_partition.id, &["tag2", "tag1", "time"])
+            .cas_sort_key(other_partition.id, None, &["tag2", "tag1", "time"])
             .await
             .unwrap();
+
+        // test sort key CAS with an incorrect value
+        let err = repos
+            .partitions()
+            .cas_sort_key(
+                other_partition.id,
+                Some(["bananas".to_string()].to_vec()),
+                &["tag2", "tag1", "tag3 , with comma", "time"],
+            )
+            .await
+            .expect_err("CAS with incorrect value should fail");
+        assert_matches!(err, CasFailure::ValueMismatch(old) => {
+            assert_eq!(old, &["tag2", "tag1", "time"]);
+        });
 
         // test getting the new sort key
         let updated_other_partition = repos
@@ -1586,11 +1620,45 @@ pub(crate) mod test_helpers {
             vec!["tag2", "tag1", "time"]
         );
 
+        // test sort key CAS with no value
+        let err = repos
+            .partitions()
+            .cas_sort_key(
+                other_partition.id,
+                None,
+                &["tag2", "tag1", "tag3 , with comma", "time"],
+            )
+            .await
+            .expect_err("CAS with incorrect value should fail");
+        assert_matches!(err, CasFailure::ValueMismatch(old) => {
+            assert_eq!(old, ["tag2", "tag1", "time"]);
+        });
+
+        // test sort key CAS with an incorrect value
+        let err = repos
+            .partitions()
+            .cas_sort_key(
+                other_partition.id,
+                Some(["bananas".to_string()].to_vec()),
+                &["tag2", "tag1", "tag3 , with comma", "time"],
+            )
+            .await
+            .expect_err("CAS with incorrect value should fail");
+        assert_matches!(err, CasFailure::ValueMismatch(old) => {
+            assert_eq!(old, ["tag2", "tag1", "time"]);
+        });
+
         // test update_sort_key from Some value to Some other value
         repos
             .partitions()
-            .update_sort_key(
+            .cas_sort_key(
                 other_partition.id,
+                Some(
+                    ["tag2", "tag1", "time"]
+                        .into_iter()
+                        .map(ToString::to_string)
+                        .collect(),
+                ),
                 &["tag2", "tag1", "tag3 , with comma", "time"],
             )
             .await

@@ -495,7 +495,7 @@ mod tests {
                 column_order: vec![c1.column.id, c2.column.id],
             }
         );
-        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
+        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 4);
 
         // subsets and the full key don't expire
         for should_cover in [
@@ -511,7 +511,7 @@ mod tests {
                 sort_key.as_ref().unwrap(),
                 sort_key_2.as_ref().unwrap()
             ));
-            assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
+            assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 4);
         }
 
         // unknown columns expire
@@ -529,7 +529,7 @@ mod tests {
             sort_key_2.as_ref().unwrap()
         ));
         assert_eq!(sort_key, sort_key_2);
-        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 4);
+        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 5);
     }
 
     fn schema() -> Arc<Schema> {

@@ -2,10 +2,10 @@
 
 use crate::{
     interface::{
-        self, sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnTypeMismatchSnafu, Error,
-        NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo, QueryPoolRepo,
-        RepoCollection, Result, ShardRepo, TableRepo, TombstoneRepo, TopicMetadataRepo,
-        Transaction,
+        self, sealed::TransactionFinalize, CasFailure, Catalog, ColumnRepo,
+        ColumnTypeMismatchSnafu, Error, NamespaceRepo, ParquetFileRepo, PartitionRepo,
+        ProcessedTombstoneRepo, QueryPoolRepo, RepoCollection, Result, ShardRepo, TableRepo,
+        TombstoneRepo, TopicMetadataRepo, Transaction,
     },
     metrics::MetricDecorator,
     DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
@@ -1234,34 +1234,65 @@ WHERE table_id = $1;
         .map_err(|e| Error::SqlxError { source: e })
     }
 
-    async fn update_sort_key(
+    /// Update the sort key for `partition_id` if and only if `old_sort_key`
+    /// matches the current value in the database.
+    ///
+    /// This compare-and-swap operation is allowed to spuriously return
+    /// [`CasFailure::ValueMismatch`] for performance reasons (avoiding multiple
+    /// round trips to service a transaction in the happy path).
+    async fn cas_sort_key(
         &mut self,
         partition_id: PartitionId,
-        sort_key: &[&str],
-    ) -> Result<Partition> {
-        let rec = sqlx::query_as::<_, Partition>(
+        old_sort_key: Option<Vec<String>>,
+        new_sort_key: &[&str],
+    ) -> Result<Partition, CasFailure<Vec<String>>> {
+        let old_sort_key = old_sort_key.unwrap_or_default();
+        let res = sqlx::query_as::<_, Partition>(
             r#"
 UPDATE partition
 SET sort_key = $1
-WHERE id = $2
+WHERE id = $2 AND sort_key = $3
 RETURNING *;
         "#,
         )
-        .bind(sort_key)
-        .bind(partition_id)
+        .bind(new_sort_key) // $1
+        .bind(partition_id) // $2
+        .bind(&old_sort_key) // $3
         .fetch_one(&mut self.inner)
         .await;
 
-        let partition = rec.map_err(|e| match e {
-            sqlx::Error::RowNotFound => Error::PartitionNotFound { id: partition_id },
-            _ => Error::SqlxError { source: e },
-        })?;
+        let partition = match res {
+            Ok(v) => v,
+            Err(sqlx::Error::RowNotFound) => {
+                // This update may have failed either because:
+                //
+                // * A row with the specified ID did not exist at query time
+                //   (but may exist now!)
+                // * The sort key does not match.
+                //
+                // To differentiate, we submit a get partition query, returning
+                // the actual sort key if successful.
+                //
+                // NOTE: this is racy, but documented - this might return "Sort
+                // key differs! Old key: <old sort key you provided>"
+                return Err(CasFailure::ValueMismatch(
+                    PartitionRepo::get_by_id(self, partition_id)
+                        .await
+                        .map_err(CasFailure::QueryError)?
+                        .ok_or(CasFailure::QueryError(Error::PartitionNotFound {
+                            id: partition_id,
+                        }))?
+                        .sort_key,
+                ));
+            }
+            Err(e) => return Err(CasFailure::QueryError(Error::SqlxError { source: e })),
+        };
 
         debug!(
             ?partition_id,
-            input_sort_key=?sort_key,
-            partition_after_catalog_update=?partition,
-            "Partition after updating sort key"
+            ?old_sort_key,
+            ?new_sort_key,
+            "partition sort key cas successful"
         );
 
         Ok(partition)

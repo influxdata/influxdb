@@ -5,7 +5,7 @@ use data_types::{
     CompactionLevel, NamespaceId, ParquetFileParams, PartitionId, PartitionKey, SequenceNumber,
     ShardId, TableId,
 };
-use iox_catalog::interface::get_table_schema_by_id;
+use iox_catalog::interface::{get_table_schema_by_id, CasFailure};
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::*;
 use parking_lot::Mutex;
@@ -319,15 +319,54 @@ impl Context {
         // the consumer of the parquet file will observe an inconsistent sort
         // key.
         if let Some(new_sort_key) = sort_key_update {
-            let sort_key = new_sort_key.to_columns().collect::<Vec<_>>();
+            let old_sort_key = self
+                .sort_key
+                .get()
+                .await
+                .map(|v| v.to_columns().map(|v| v.to_string()).collect::<Vec<_>>());
             Backoff::new(&Default::default())
-                .retry_all_errors("update_sort_key", || async {
-                    let mut repos = self.inner.catalog.repositories().await;
-                    let _partition = repos
-                        .partitions()
-                        .update_sort_key(self.partition_id, &sort_key)
-                        .await?;
-                    Ok(()) as Result<(), iox_catalog::interface::Error>
+                .retry_all_errors("cas_sort_key", || {
+                    let mut old_sort_key = old_sort_key.clone();
+                    let new_sort_key_str = new_sort_key.to_columns().collect::<Vec<_>>();
+                    let catalog = Arc::clone(&self.inner.catalog);
+                    async move {
+                        let mut repos = catalog.repositories().await;
+                        loop {
+                            match repos
+                                .partitions()
+                                .cas_sort_key(
+                                    self.partition_id,
+                                    old_sort_key.clone(),
+                                    &new_sort_key_str,
+                                )
+                                .await
+                            {
+                                Ok(_) => break,
+                                Err(CasFailure::ValueMismatch(old)) => {
+                                    // An ingester concurrently updated the sort
+                                    // key.
+                                    //
+                                    // This breaks a sort-key update invariant -
+                                    // sort key updates MUST be serialised. This
+                                    // currently cannot be enforced.
+                                    //
+                                    // See:
+                                    //   https://github.com/influxdata/influxdb_iox/issues/6439
+                                    //
+                                    error!(
+                                        expected=?old_sort_key,
+                                        observed=?old,
+                                        update=?new_sort_key_str,
+                                        "detected concurrent sort key update"
+                                    );
+                                    // Retry using the new CAS value.
+                                    old_sort_key = Some(old);
+                                }
+                                Err(CasFailure::QueryError(e)) => return Err(e),
+                            };
+                        }
+                        Ok(()) as Result<(), iox_catalog::interface::Error>
+                    }
                 })
                 .await
                 .expect("retry forever");
@@ -340,10 +379,11 @@ impl Context {
                 guard.update_sort_key(Some(new_sort_key.clone()));
             };
 
-            // Assert the serialisation of sort key updates.
+            // Assert the internal (to this instance) serialisation of sort key
+            // updates.
             //
-            // Both of these get() should not block due to both of the
-            // values having been previously resolved / used.
+            // Both of these get() should not block due to both of the values
+            // having been previously resolved / used.
             assert_eq!(old_key.get().await, self.sort_key.get().await);
 
             debug!(
@@ -354,7 +394,7 @@ impl Context {
                 partition_id = %self.partition_id,
                 partition_key = %self.partition_key,
                 %object_store_id,
-                old_sort_key = ?sort_key,
+                ?old_sort_key,
                 %new_sort_key,
                 "adjusted partition sort key"
             );

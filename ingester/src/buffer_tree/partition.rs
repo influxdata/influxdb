@@ -939,7 +939,7 @@ mod tests {
             .repositories()
             .await
             .partitions()
-            .update_sort_key(partition_id, &["terrific"])
+            .cas_sort_key(partition_id, None, &["terrific"])
             .await
             .unwrap();
 

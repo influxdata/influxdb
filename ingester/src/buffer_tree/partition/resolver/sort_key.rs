@@ -92,7 +92,7 @@ mod tests {
             .repositories()
             .await
             .partitions()
-            .update_sort_key(partition_id, &["uno", "dos", "bananas"])
+            .cas_sort_key(partition_id, None, &["uno", "dos", "bananas"])
             .await
             .expect("should update existing partition key");
 
