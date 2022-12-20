@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use async_channel::RecvError;
-use data_types::ParquetFileParams;
 use iox_catalog::interface::Catalog;
 use iox_query::{exec::Executor, QueryChunkMeta};
 use observability_deps::tracing::*;
@@ -14,12 +12,12 @@ use tokio::{
     time::Instant,
 };
 
-use crate::buffer_tree::partition::{persisting::PersistingData, PartitionData, SortKeyState};
-
-use super::{
-    backpressure::PersistState,
-    context::{Context, PersistError, PersistRequest},
+use crate::{
+    buffer_tree::partition::{persisting::PersistingData, PartitionData, SortKeyState},
+    persist::worker,
 };
+
+use super::{backpressure::PersistState, context::PersistRequest, worker::SharedWorkerState};
 
 /// A persistence task submission handle.
 ///
@@ -115,7 +113,7 @@ use super::{
 #[derive(Debug, Clone)]
 pub(crate) struct PersistHandle {
     /// THe state/dependencies shared across all worker tasks.
-    inner: Arc<Inner>,
+    worker_state: Arc<SharedWorkerState>,
 
     /// Task handles for the worker tasks, aborted on drop of all
     /// [`PersistHandle`] instances.
@@ -172,7 +170,7 @@ impl PersistHandle {
         // Log the important configuration parameters of the persist subsystem.
         info!(n_workers, persist_queue_depth, "initialised persist task");
 
-        let inner = Arc::new(Inner {
+        let worker_state = Arc::new(SharedWorkerState {
             exec,
             store,
             catalog,
@@ -186,14 +184,18 @@ impl PersistHandle {
 
         let (tx_handles, tasks): (Vec<_>, Vec<_>) = (0..n_workers)
             .map(|_| {
-                let inner = Arc::clone(&inner);
+                let worker_state = Arc::clone(&worker_state);
 
                 // Initialise the worker queue that is not shared across workers
                 // allowing the persist code to address a single worker.
                 let (tx, rx) = mpsc::unbounded_channel();
                 (
                     tx,
-                    AbortOnDrop(tokio::spawn(run_task(inner, global_rx.clone(), rx))),
+                    AbortOnDrop(tokio::spawn(worker::run_task(
+                        worker_state,
+                        global_rx.clone(),
+                        rx,
+                    ))),
                 )
             })
             .unzip();
@@ -210,7 +212,7 @@ impl PersistHandle {
 
         (
             Self {
-                inner,
+                worker_state,
                 sem,
                 global_queue: global_tx,
                 worker_queues: Arc::new(JumpHash::new(tx_handles)),
@@ -370,131 +372,6 @@ impl<T> Drop for AbortOnDrop<T> {
     fn drop(&mut self) {
         self.0.abort()
     }
-}
-
-#[derive(Debug)]
-pub(super) struct Inner {
-    pub(super) exec: Arc<Executor>,
-    pub(super) store: ParquetStorage,
-    pub(super) catalog: Arc<dyn Catalog>,
-}
-
-/// Drive a [`PersistRequest`] to completion, prioritising jobs from the
-/// worker-specific queue, and falling back to jobs from the global work queue.
-///
-/// Optimistically compacts the [`PersistingData`] using the locally cached sort
-/// key read from the [`PartitionData`] instance. If this key proves to be
-/// stale, the compaction is retried with the new key.
-///
-/// See <https://github.com/influxdata/influxdb_iox/issues/6439>.
-///
-/// ```text
-///           ┌───────┐
-///           │COMPACT│
-///           └───┬───┘
-///           ┌───▽──┐
-///           │UPLOAD│
-///           └───┬──┘
-///        _______▽________     ┌────────────────┐
-///       ╱                ╲    │TRY UPDATE      │
-///      ╱ NEEDS CATALOG    ╲___│CATALOG SORT KEY│
-///      ╲ SORT KEY UPDATE? ╱yes└────────┬───────┘
-///       ╲________________╱      _______▽________     ┌────────────┐
-///               │no            ╱                ╲    │RESTART WITH│
-///               │             ╱ SAW CONCURRENT   ╲___│NEW SORT KEY│
-///               │             ╲ SORT KEY UPDATE? ╱yes└────────────┘
-///               │              ╲________________╱
-///               │                      │no
-///               └─────┬────────────────┘
-///               ┌─────▽─────┐
-///               │ADD PARQUET│
-///               │TO CATALOG │
-///               └─────┬─────┘
-///             ┌───────▽──────┐
-///             │NOTIFY PERSIST│
-///             │JOB COMPLETE  │
-///             └──────────────┘
-/// ```
-async fn run_task(
-    inner: Arc<Inner>,
-    global_queue: async_channel::Receiver<PersistRequest>,
-    mut rx: mpsc::UnboundedReceiver<PersistRequest>,
-) {
-    loop {
-        let req = tokio::select! {
-            // Bias the channel polling to prioritise work in the
-            // worker-specific queue.
-            //
-            // This causes the worker to do the work assigned to it specifically
-            // first, falling back to taking jobs from the global queue if it
-            // has no assigned work.
-            //
-            // This allows persist jobs to be reordered w.r.t the order in which
-            // they were enqueued with queue_persist().
-            biased;
-
-            v = rx.recv() => {
-                match v {
-                    Some(v) => v,
-                    None => {
-                        // The worker channel is closed.
-                        return
-                    }
-                }
-            }
-            v = global_queue.recv() => {
-                match v {
-                    Ok(v) => v,
-                    Err(RecvError) => {
-                        // The global channel is closed.
-                        return
-                    },
-                }
-            }
-        };
-
-        let ctx = Context::new(req, Arc::clone(&inner));
-
-        // Compact the data, generate the parquet file from the result, and
-        // upload it to object storage.
-        //
-        // If this process generated a new sort key that must be added to the
-        // catalog, attempt to update the catalog with a compare-and-swap
-        // operation; if this update fails due to a concurrent sort key update,
-        // the compaction must be redone with the new sort key and uploaded
-        // before continuing.
-        let parquet_table_data = loop {
-            match compact_and_upload(&ctx).await {
-                Ok(v) => break v,
-                Err(PersistError::ConcurrentSortKeyUpdate) => continue,
-            };
-        };
-
-        // Make the newly uploaded parquet file visible to other nodes.
-        let object_store_id = ctx.update_catalog_parquet(parquet_table_data).await;
-        // And finally mark the persist job as complete and notify any
-        // observers.
-        ctx.mark_complete(object_store_id);
-    }
-}
-
-/// Run a compaction on the [`PersistingData`], generate a parquet file and
-/// upload it to object storage.
-///
-/// If in the course of this the sort key is updated, this function attempts to
-/// update the sort key in the catalog. This MAY fail because another node has
-/// concurrently done the same and the persist must be restarted, see
-/// <https://github.com/influxdata/influxdb_iox/issues/6439>.
-async fn compact_and_upload(ctx: &Context) -> Result<ParquetFileParams, PersistError> {
-    let compacted = ctx.compact().await;
-    let (sort_key_update, parquet_table_data) = ctx.upload(compacted).await;
-
-    if let Some(update) = sort_key_update {
-        ctx.update_catalog_sort_key(update, parquet_table_data.object_store_id)
-            .await?
-    }
-
-    Ok(parquet_table_data)
 }
 
 #[cfg(test)]
