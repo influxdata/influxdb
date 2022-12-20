@@ -495,7 +495,7 @@ impl TestTableBoundShard {
 
         let partition = repos
             .partitions()
-            .update_sort_key(partition.id, sort_key)
+            .cas_sort_key(partition.id, None, sort_key)
             .await
             .unwrap();
 
@@ -553,14 +553,27 @@ pub struct TestPartition {
 impl TestPartition {
     /// Update sort key.
     pub async fn update_sort_key(self: &Arc<Self>, sort_key: SortKey) -> Arc<Self> {
+        let old_sort_key = self
+            .catalog
+            .catalog
+            .repositories()
+            .await
+            .partitions()
+            .get_by_id(self.partition.id)
+            .await
+            .unwrap()
+            .unwrap()
+            .sort_key;
+
         let partition = self
             .catalog
             .catalog
             .repositories()
             .await
             .partitions()
-            .update_sort_key(
+            .cas_sort_key(
                 self.partition.id,
+                Some(old_sort_key),
                 &sort_key.to_columns().collect::<Vec<_>>(),
             )
             .await
@@ -897,7 +910,16 @@ async fn update_catalog_sort_key_if_needed(
                     &new_columns,
                 );
                 partitions_catalog
-                    .update_sort_key(partition_id, &new_columns)
+                    .cas_sort_key(
+                        partition_id,
+                        Some(
+                            catalog_sort_key
+                                .to_columns()
+                                .map(ToString::to_string)
+                                .collect::<Vec<_>>(),
+                        ),
+                        &new_columns,
+                    )
                     .await
                     .unwrap();
             }
@@ -906,7 +928,7 @@ async fn update_catalog_sort_key_if_needed(
             let new_columns = sort_key.to_columns().collect::<Vec<_>>();
             debug!("Updating sort key from None to {:?}", &new_columns);
             partitions_catalog
-                .update_sort_key(partition_id, &new_columns)
+                .cas_sort_key(partition_id, None, &new_columns)
                 .await
                 .unwrap();
         }

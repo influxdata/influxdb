@@ -3,10 +3,10 @@
 
 use crate::{
     interface::{
-        sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnTypeMismatchSnafu, Error,
-        NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo, QueryPoolRepo,
-        RepoCollection, Result, ShardRepo, TableRepo, TombstoneRepo, TopicMetadataRepo,
-        Transaction,
+        sealed::TransactionFinalize, CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu,
+        Error, NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo,
+        QueryPoolRepo, RepoCollection, Result, ShardRepo, TableRepo, TombstoneRepo,
+        TopicMetadataRepo, Transaction,
     },
     metrics::MetricDecorator,
     DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
@@ -818,18 +818,23 @@ impl PartitionRepo for MemTxn {
         Ok(partitions)
     }
 
-    async fn update_sort_key(
+    async fn cas_sort_key(
         &mut self,
         partition_id: PartitionId,
-        sort_key: &[&str],
-    ) -> Result<Partition> {
+        old_sort_key: Option<Vec<String>>,
+        new_sort_key: &[&str],
+    ) -> Result<Partition, CasFailure<Vec<String>>> {
         let stage = self.stage();
+        let old_sort_key = old_sort_key.unwrap_or_default();
         match stage.partitions.iter_mut().find(|p| p.id == partition_id) {
-            Some(p) => {
-                p.sort_key = sort_key.iter().map(|s| s.to_string()).collect();
+            Some(p) if p.sort_key == old_sort_key => {
+                p.sort_key = new_sort_key.iter().map(|s| s.to_string()).collect();
                 Ok(p.clone())
             }
-            None => Err(Error::PartitionNotFound { id: partition_id }),
+            Some(p) => return Err(CasFailure::ValueMismatch(p.sort_key.clone())),
+            None => Err(CasFailure::QueryError(Error::PartitionNotFound {
+                id: partition_id,
+            })),
         }
     }
 
