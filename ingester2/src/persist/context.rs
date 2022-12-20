@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{ops::ControlFlow, sync::Arc};
 
 use backoff::Backoff;
 use data_types::{
@@ -11,6 +11,7 @@ use observability_deps::tracing::*;
 use parking_lot::Mutex;
 use parquet_file::metadata::IoxMetadata;
 use schema::sort::SortKey;
+use thiserror::Error;
 use tokio::{
     sync::{oneshot, OwnedSemaphorePermit},
     time::Instant,
@@ -29,9 +30,17 @@ use crate::{
 
 use super::handle::Inner;
 
-/// An internal type that contains all necessary information to run a persist task.
-///
-/// Used to communicate between actor handles & actor task.
+/// Errors a persist can experience.
+#[derive(Debug, Error)]
+pub(super) enum PersistError {
+    /// A concurrent sort key update was observed and the sort key update was
+    /// aborted.
+    #[error("detected concurrent sort key update")]
+    ConcurrentSortKeyUpdate,
+}
+
+/// An internal type that contains all necessary information to run a persist
+/// task.
 #[derive(Debug)]
 pub(super) struct PersistRequest {
     complete: oneshot::Sender<()>,
@@ -179,6 +188,8 @@ impl Context {
     }
 
     pub(super) async fn compact(&self) -> CompactedStream {
+        let sort_key = self.sort_key.get().await;
+
         debug!(
             namespace_id = %self.namespace_id,
             namespace_name = %self.namespace_name,
@@ -186,6 +197,7 @@ impl Context {
             table_name = %self.table_name,
             partition_id = %self.partition_id,
             partition_key = %self.partition_key,
+            ?sort_key,
             "compacting partition"
         );
 
@@ -197,7 +209,7 @@ impl Context {
         // to be loaded before compaction starts.
         compact_persisting_batch(
             &self.inner.exec,
-            self.sort_key.get().await,
+            sort_key,
             self.table_name.get().await,
             self.data.query_adaptor(),
         )
@@ -289,11 +301,118 @@ impl Context {
         (catalog_sort_key_update, parquet_table_data)
     }
 
-    pub(crate) async fn update_database(
-        self,
-        sort_key_update: Option<SortKey>,
+    pub(super) async fn update_catalog_sort_key(
+        &self,
+        new_sort_key: SortKey,
+        object_store_id: Uuid,
+    ) -> Result<(), PersistError> {
+        let old_sort_key = self
+            .sort_key
+            .get()
+            .await
+            .map(|v| v.to_columns().map(|v| v.to_string()).collect::<Vec<_>>());
+
+        debug!(
+            %object_store_id,
+            namespace_id = %self.namespace_id,
+            namespace_name = %self.namespace_name,
+            table_id = %self.table_id,
+            table_name = %self.table_name,
+            partition_id = %self.partition_id,
+            partition_key = %self.partition_key,
+            ?new_sort_key,
+            ?old_sort_key,
+            "updating partition sort key"
+        );
+
+        Backoff::new(&Default::default())
+            .retry_with_backoff("cas_sort_key", || {
+                let old_sort_key = old_sort_key.clone();
+                let new_sort_key_str = new_sort_key.to_columns().collect::<Vec<_>>();
+                let catalog = Arc::clone(&self.inner.catalog);
+
+                async move {
+                    let mut repos = catalog.repositories().await;
+                    match repos
+                        .partitions()
+                        .cas_sort_key(self.partition_id, old_sort_key.clone(), &new_sort_key_str)
+                        .await
+                    {
+                        Ok(_) => ControlFlow::Break(Ok(())),
+                        Err(CasFailure::QueryError(e)) => ControlFlow::Continue(e),
+                        Err(CasFailure::ValueMismatch(observed)) => {
+                            // Another ingester concurrently updated the sort
+                            // key.
+                            //
+                            // This breaks a sort-key update invariant - sort
+                            // key updates MUST be serialised. This persist must
+                            // be retried.
+                            //
+                            // See:
+                            //   https://github.com/influxdata/influxdb_iox/issues/6439
+                            //
+                            warn!(
+                                %object_store_id,
+                                namespace_id = %self.namespace_id,
+                                namespace_name = %self.namespace_name,
+                                table_id = %self.table_id,
+                                table_name = %self.table_name,
+                                partition_id = %self.partition_id,
+                                partition_key = %self.partition_key,
+                                expected=?old_sort_key,
+                                ?observed,
+                                update=?new_sort_key_str,
+                                "detected concurrent sort key update, regenerating parquet"
+                            );
+                            // Update the cached sort key to reflect the newly
+                            // observed value for the next attempt.
+                            self.partition
+                                .lock()
+                                .update_sort_key(Some(SortKey::from_columns(observed)));
+                            // Stop the retry loop with an error.
+                            ControlFlow::Break(Err(PersistError::ConcurrentSortKeyUpdate))
+                        }
+                    }
+                }
+            })
+            .await
+            .expect("retry forever")?;
+
+        // Update the sort key in the partition cache.
+        let old_key;
+        {
+            let mut guard = self.partition.lock();
+            old_key = guard.sort_key().clone();
+            guard.update_sort_key(Some(new_sort_key.clone()));
+        };
+
+        // Assert the internal (to this instance) serialisation of sort key
+        // updates.
+        //
+        // Both of these get() should not block due to both of the values
+        // having been previously resolved / used.
+        assert_eq!(old_key.get().await, self.sort_key.get().await);
+
+        debug!(
+            %object_store_id,
+            namespace_id = %self.namespace_id,
+            namespace_name = %self.namespace_name,
+            table_id = %self.table_id,
+            table_name = %self.table_name,
+            partition_id = %self.partition_id,
+            partition_key = %self.partition_key,
+            ?old_sort_key,
+            %new_sort_key,
+            "adjusted partition sort key"
+        );
+
+        Ok(())
+    }
+
+    pub(super) async fn update_catalog_parquet(
+        &self,
         parquet_table_data: ParquetFileParams,
-    ) {
+    ) -> Uuid {
         // Extract the object store ID to the local scope so that it can easily
         // be referenced in debug logging to aid correlation of persist events
         // for a specific file.
@@ -308,97 +427,8 @@ impl Context {
             partition_key = %self.partition_key,
             %object_store_id,
             ?parquet_table_data,
-            ?sort_key_update,
-            "updating catalog"
+            "updating catalog parquet table"
         );
-
-        // If necessary, update the partition sort key in the catalog and update
-        // the local cached copy in the PartitionData.
-        //
-        // This update MUST be made visibile before the parquet file, otherwise
-        // the consumer of the parquet file will observe an inconsistent sort
-        // key.
-        if let Some(new_sort_key) = sort_key_update {
-            let old_sort_key = self
-                .sort_key
-                .get()
-                .await
-                .map(|v| v.to_columns().map(|v| v.to_string()).collect::<Vec<_>>());
-            Backoff::new(&Default::default())
-                .retry_all_errors("cas_sort_key", || {
-                    let mut old_sort_key = old_sort_key.clone();
-                    let new_sort_key_str = new_sort_key.to_columns().collect::<Vec<_>>();
-                    let catalog = Arc::clone(&self.inner.catalog);
-                    async move {
-                        let mut repos = catalog.repositories().await;
-                        loop {
-                            match repos
-                                .partitions()
-                                .cas_sort_key(
-                                    self.partition_id,
-                                    old_sort_key.clone(),
-                                    &new_sort_key_str,
-                                )
-                                .await
-                            {
-                                Ok(_) => break,
-                                Err(CasFailure::ValueMismatch(old)) => {
-                                    // An ingester concurrently updated the sort
-                                    // key.
-                                    //
-                                    // This breaks a sort-key update invariant -
-                                    // sort key updates MUST be serialised. This
-                                    // currently cannot be enforced.
-                                    //
-                                    // See:
-                                    //   https://github.com/influxdata/influxdb_iox/issues/6439
-                                    //
-                                    error!(
-                                        expected=?old_sort_key,
-                                        observed=?old,
-                                        update=?new_sort_key_str,
-                                        "detected concurrent sort key update"
-                                    );
-                                    // Retry using the new CAS value.
-                                    old_sort_key = Some(old);
-                                }
-                                Err(CasFailure::QueryError(e)) => return Err(e),
-                            };
-                        }
-                        Ok(()) as Result<(), iox_catalog::interface::Error>
-                    }
-                })
-                .await
-                .expect("retry forever");
-
-            // Update the sort key in the partition cache.
-            let old_key;
-            {
-                let mut guard = self.partition.lock();
-                old_key = guard.sort_key().clone();
-                guard.update_sort_key(Some(new_sort_key.clone()));
-            };
-
-            // Assert the internal (to this instance) serialisation of sort key
-            // updates.
-            //
-            // Both of these get() should not block due to both of the values
-            // having been previously resolved / used.
-            assert_eq!(old_key.get().await, self.sort_key.get().await);
-
-            debug!(
-                namespace_id = %self.namespace_id,
-                namespace_name = %self.namespace_name,
-                table_id = %self.table_id,
-                table_name = %self.table_name,
-                partition_id = %self.partition_id,
-                partition_key = %self.partition_key,
-                %object_store_id,
-                ?old_sort_key,
-                %new_sort_key,
-                "adjusted partition sort key"
-            );
-        }
 
         // Add the parquet file to the catalog.
         //
@@ -431,6 +461,13 @@ impl Context {
             .await
             .expect("retry forever");
 
+        object_store_id
+    }
+
+    // Call [`PartitionData::mark_complete`] to finalise the persistence job,
+    // emit a log for the user, and notify the observer of this persistence
+    // task, if any.
+    pub(super) fn mark_complete(self, object_store_id: Uuid) {
         // Mark the partition as having completed persistence, causing it to
         // release the reference to the in-flight persistence data it is
         // holding.

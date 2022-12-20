@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use async_channel::RecvError;
+use data_types::ParquetFileParams;
 use iox_catalog::interface::Catalog;
 use iox_query::{exec::Executor, QueryChunkMeta};
 use observability_deps::tracing::*;
@@ -17,7 +18,7 @@ use crate::buffer_tree::partition::{persisting::PersistingData, PartitionData, S
 
 use super::{
     backpressure::PersistState,
-    context::{Context, PersistRequest},
+    context::{Context, PersistError, PersistRequest},
 };
 
 /// A persistence task submission handle.
@@ -378,6 +379,42 @@ pub(super) struct Inner {
     pub(super) catalog: Arc<dyn Catalog>,
 }
 
+/// Drive a [`PersistRequest`] to completion, prioritising jobs from the
+/// worker-specific queue, and falling back to jobs from the global work queue.
+///
+/// Optimistically compacts the [`PersistingData`] using the locally cached sort
+/// key read from the [`PartitionData`] instance. If this key proves to be
+/// stale, the compaction is retried with the new key. See:
+///
+///     <https://github.com/influxdata/influxdb_iox/issues/6439>
+///
+/// ```text
+///           ┌───────┐
+///           │COMPACT│
+///           └───┬───┘
+///           ┌───▽──┐
+///           │UPLOAD│
+///           └───┬──┘
+///        _______▽________     ┌────────────────┐
+///       ╱                ╲    │TRY UPDATE      │
+///      ╱ NEEDS CATALOG    ╲___│CATALOG SORT KEY│
+///      ╲ SORT KEY UPDATE? ╱yes└────────┬───────┘
+///       ╲________________╱      _______▽________     ┌────────────┐
+///               │no            ╱                ╲    │RESTART WITH│
+///               │             ╱ SAW CONCURRENT   ╲___│NEW SORT KEY│
+///               │             ╲ SORT KEY UPDATE? ╱yes└────────────┘
+///               │              ╲________________╱
+///               │                      │no
+///               └─────┬────────────────┘
+///               ┌─────▽─────┐
+///               │ADD PARQUET│
+///               │TO CATALOG │
+///               └─────┬─────┘
+///             ┌───────▽──────┐
+///             │NOTIFY PERSIST│
+///             │JOB COMPLETE  │
+///             └──────────────┘
+/// ```
 async fn run_task(
     inner: Arc<Inner>,
     global_queue: async_channel::Receiver<PersistRequest>,
@@ -418,11 +455,48 @@ async fn run_task(
 
         let ctx = Context::new(req, Arc::clone(&inner));
 
-        let compacted = ctx.compact().await;
-        let (sort_key_update, parquet_table_data) = ctx.upload(compacted).await;
-        ctx.update_database(sort_key_update, parquet_table_data)
-            .await;
+        // Compact the data, generate the parquet file from the result, and
+        // upload it to object storage.
+        //
+        // If this process generated a new sort key that must be added to the
+        // catalog, attempt to update the catalog with a compare-and-swap
+        // operation; if this update fails due to a concurrent sort key update,
+        // the compaction must be redone with the new sort key and uploaded
+        // before continuing.
+        let parquet_table_data = loop {
+            match compact_and_upload(&ctx).await {
+                Ok(v) => break v,
+                Err(PersistError::ConcurrentSortKeyUpdate) => continue,
+            };
+        };
+
+        // Make the newly uploaded parquet file visible to other nodes.
+        let object_store_id = ctx.update_catalog_parquet(parquet_table_data).await;
+        // And finally mark the persist job as complete and notify any
+        // observers.
+        ctx.mark_complete(object_store_id);
     }
+}
+
+/// Run a compaction on the [`PersistingData`], generate a parquet file and
+/// upload it to object storage.
+///
+/// If in the course of this the sort key is updated, this function attempts to
+/// update the sort key in the catalog. This MAY fail because another node has
+/// concurrently done the same and the persist must be restarted, see:
+///
+///     <https://github.com/influxdata/influxdb_iox/issues/6439>
+///
+async fn compact_and_upload(ctx: &Context) -> Result<ParquetFileParams, PersistError> {
+    let compacted = ctx.compact().await;
+    let (sort_key_update, parquet_table_data) = ctx.upload(compacted).await;
+
+    if let Some(update) = sort_key_update {
+        ctx.update_catalog_sort_key(update, parquet_table_data.object_store_id)
+            .await?
+    }
+
+    Ok(parquet_table_data)
 }
 
 #[cfg(test)]
