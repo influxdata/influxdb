@@ -478,19 +478,21 @@ impl QuerierTable {
 
         let partitions = partitions_result?;
 
-        // check that partitions from ingesters don't overlap
-        let mut seen = HashMap::with_capacity(partitions.len());
-        for partition in &partitions {
-            match seen.entry(partition.partition_id()) {
-                Entry::Occupied(o) => {
-                    return Err(Error::IngestersOverlap {
-                        ingester1: Arc::clone(o.get()),
-                        ingester2: Arc::clone(partition.ingester()),
-                        partition: partition.partition_id(),
-                    })
-                }
-                Entry::Vacant(v) => {
-                    v.insert(Arc::clone(partition.ingester()));
+        if !self.rpc_write() {
+            // check that partitions from ingesters don't overlap
+            let mut seen = HashMap::with_capacity(partitions.len());
+            for partition in &partitions {
+                match seen.entry(partition.partition_id()) {
+                    Entry::Occupied(o) => {
+                        return Err(Error::IngestersOverlap {
+                            ingester1: Arc::clone(o.get()),
+                            ingester2: Arc::clone(partition.ingester()),
+                            partition: partition.partition_id(),
+                        })
+                    }
+                    Entry::Vacant(v) => {
+                        v.insert(Arc::clone(partition.ingester()));
+                    }
                 }
             }
         }
