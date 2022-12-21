@@ -80,7 +80,7 @@ pub(crate) struct PersistState {
 
     /// A counter tracking the number of nanoseconds the state value is set to
     /// [`CurrentState::Saturated`].
-    saturated_duration_ms: DurationCounter,
+    saturated_duration: DurationCounter,
 }
 
 impl PersistState {
@@ -101,9 +101,9 @@ impl PersistState {
             "persist queue depth must be non-zero"
         );
 
-        let saturated_duration_ms = metrics
+        let saturated_duration = metrics
             .register_metric::<DurationCounter>(
-                "ingester_persist_saturated_duration_ns",
+                "ingester_persist_saturated_duration",
                 "the duration of time the persist system was marked as saturated",
             )
             .recorder(&[]);
@@ -114,7 +114,7 @@ impl PersistState {
             recovery_handle: Default::default(),
             persist_queue_depth,
             sem,
-            saturated_duration_ms,
+            saturated_duration,
         };
         s.set(CurrentState::Ok);
         s
@@ -263,7 +263,7 @@ async fn saturation_monitor_task(
         // For the first tick, this covers the tick wait itself. For subsequent
         // ticks, this duration covers the evaluation time + tick wait.
         let now = Instant::now();
-        state.saturated_duration_ms.inc(now.duration_since(last));
+        state.saturated_duration.inc(now.duration_since(last));
         last = now;
 
         // INVARIANT: this task only ever runs when the system is saturated.
@@ -343,7 +343,7 @@ mod tests {
     const POLL_INTERVAL: Duration = Duration::from_millis(5);
 
     /// Execute `f` with the current value of the
-    /// "ingester_persist_saturated_duration_ns" metric.
+    /// "ingester_persist_saturated_duration" metric.
     #[track_caller]
     fn assert_saturation_time<F>(metrics: &metric::Registry, f: F)
     where
@@ -352,7 +352,7 @@ mod tests {
         // Get the saturated duration counter that tracks the time spent in the
         // "saturated" state.
         let duration_counter = metrics
-            .get_instrument::<Metric<DurationCounter>>("ingester_persist_saturated_duration_ns")
+            .get_instrument::<Metric<DurationCounter>>("ingester_persist_saturated_duration")
             .expect("constructor did not create required duration metric")
             .recorder(&[]);
 
