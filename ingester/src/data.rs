@@ -258,8 +258,7 @@ impl IngesterData {
         for shard_index in shard_indexes {
             let shard_data = self
                 .shards
-                .iter()
-                .map(|(_, shard_data)| shard_data)
+                .values()
                 .find(|shard_data| shard_data.shard_index() == shard_index);
 
             let progress = match shard_data {

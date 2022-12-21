@@ -43,7 +43,7 @@ mod tests {
     async fn health() {
         let mock_server = mock("GET", "/health").create();
 
-        let client = Client::new(&mockito::server_url(), "");
+        let client = Client::new(mockito::server_url(), "");
 
         let _result = client.health().await;
 

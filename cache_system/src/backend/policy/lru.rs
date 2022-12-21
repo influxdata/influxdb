@@ -856,7 +856,7 @@ mod tests {
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         let policy_constructor = LruPolicy::new(
             Arc::clone(&pool),
             "id",
@@ -879,15 +879,14 @@ mod tests {
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
-        let mut backend1 =
-            PolicyBackend::new(Box::new(HashMap::new()), Arc::clone(&time_provider) as _);
+        let mut backend1 = PolicyBackend::hashmap_backed(Arc::clone(&time_provider) as _);
         backend1.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id",
             Arc::clone(&resource_estimator) as _,
         ));
 
-        let mut backend2 = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend2 = PolicyBackend::hashmap_backed(time_provider);
         backend2.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id",
@@ -905,8 +904,7 @@ mod tests {
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
-        let mut backend1 =
-            PolicyBackend::new(Box::new(HashMap::new()), Arc::clone(&time_provider) as _);
+        let mut backend1 = PolicyBackend::hashmap_backed(Arc::clone(&time_provider) as _);
         backend1.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id",
@@ -915,7 +913,7 @@ mod tests {
 
         // drop the backend so re-registering the same ID ("id") MUST NOT panic
         drop(backend1);
-        let mut backend2 = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend2 = PolicyBackend::hashmap_backed(time_provider);
         backend2.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id",
@@ -935,7 +933,7 @@ mod tests {
 
         assert_eq!(pool.current().0, 0);
 
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id1",
@@ -955,8 +953,7 @@ mod tests {
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
-        let mut backend =
-            PolicyBackend::new(Box::new(HashMap::new()), Arc::clone(&time_provider) as _);
+        let mut backend = PolicyBackend::hashmap_backed(Arc::clone(&time_provider) as _);
         backend.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id1",
@@ -988,7 +985,7 @@ mod tests {
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id1",
@@ -1015,7 +1012,7 @@ mod tests {
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id1",
@@ -1049,16 +1046,14 @@ mod tests {
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
-        let mut backend1 =
-            PolicyBackend::new(Box::new(HashMap::new()), Arc::clone(&time_provider) as _);
+        let mut backend1 = PolicyBackend::hashmap_backed(Arc::clone(&time_provider) as _);
         backend1.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id1",
             Arc::clone(&resource_estimator) as _,
         ));
 
-        let mut backend2 =
-            PolicyBackend::new(Box::new(HashMap::new()), Arc::clone(&time_provider) as _);
+        let mut backend2 = PolicyBackend::hashmap_backed(Arc::clone(&time_provider) as _);
         backend2.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id2",
@@ -1190,8 +1185,7 @@ mod tests {
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
-        let mut backend =
-            PolicyBackend::new(Box::new(HashMap::new()), Arc::clone(&time_provider) as _);
+        let mut backend = PolicyBackend::hashmap_backed(Arc::clone(&time_provider) as _);
         backend.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id1",
@@ -1237,7 +1231,7 @@ mod tests {
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id1",
@@ -1276,8 +1270,7 @@ mod tests {
 
         let resource_estimator = Arc::new(Provider {});
 
-        let mut backend =
-            PolicyBackend::new(Box::new(HashMap::new()), Arc::clone(&time_provider) as _);
+        let mut backend = PolicyBackend::hashmap_backed(Arc::clone(&time_provider) as _);
         backend.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id1",
@@ -1395,7 +1388,7 @@ mod tests {
             &Observation::U64Gauge(0)
         );
 
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id",
@@ -1522,7 +1515,7 @@ mod tests {
             ));
             let resource_estimator = Arc::new(ZeroSizeProvider {});
 
-            let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+            let mut backend = PolicyBackend::hashmap_backed(time_provider);
             backend.add_policy(LruPolicy::new(
                 Arc::clone(&pool),
                 "id",

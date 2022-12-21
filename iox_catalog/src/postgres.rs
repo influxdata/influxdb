@@ -401,7 +401,7 @@ async fn new_pool(
     options: &PostgresConnectionOptions,
 ) -> Result<HotSwapPool<Postgres>, sqlx::Error> {
     let parsed_dsn = match get_dsn_file_path(&options.dsn) {
-        Some(filename) => std::fs::read_to_string(&filename)?,
+        Some(filename) => std::fs::read_to_string(filename)?,
         None => options.dsn.clone(),
     };
     let pool = HotSwapPool::new(new_raw_pool(options, &parsed_dsn).await?);

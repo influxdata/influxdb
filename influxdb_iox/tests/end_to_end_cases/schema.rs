@@ -31,11 +31,8 @@ async fn ingester_schema_client() {
                         .get("my_awesome_table")
                         .expect("table not found");
 
-                    let mut column_names: Vec<_> = table
-                        .columns
-                        .iter()
-                        .map(|(name, _col)| name.to_string())
-                        .collect();
+                    let mut column_names: Vec<_> =
+                        table.columns.keys().map(ToString::to_string).collect();
                     column_names.sort_unstable();
 
                     assert_eq!(column_names, &["tag1", "tag2", "time", "val"]);

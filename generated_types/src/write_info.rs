@@ -60,10 +60,7 @@ pub fn merge_responses(
                 .or_insert(info);
         });
 
-    let shard_infos = shard_infos
-        .into_iter()
-        .map(|(_shard_index, info)| info)
-        .collect();
+    let shard_infos = shard_infos.into_values().collect();
 
     proto::GetWriteInfoResponse { shard_infos }
 }

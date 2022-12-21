@@ -236,7 +236,7 @@ impl Stream for SchemaAdapterStream {
 /// Describes how to create column in the output.
 #[derive(Debug)]
 enum ColumnMapping {
-    /// Output column is found at <index> column of the input schema
+    /// Output column is found at `<index>` column of the input schema
     FromInput(usize),
     /// Output colum should be synthesized with nulls of the specified type
     MakeNull(DataType),

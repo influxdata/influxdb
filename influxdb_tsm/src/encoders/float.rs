@@ -141,7 +141,7 @@ pub fn encode(src: &[f64], dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
             if m <= 3 {
                 // 5 bits fit in current byte
                 dst[n >> 3] |= (mask >> m) as u8;
-                n += l as usize;
+                n += l;
             } else {
                 // not enough bits available in current byte
                 let written = 8 - m;

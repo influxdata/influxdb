@@ -333,10 +333,7 @@ impl TestStateTtlAndRefresh {
         // set up "RNG" that always generates the maximum, so we can test things easier
         let rng_overwrite = StepRng::new(u64::MAX, 0);
 
-        let mut backend = PolicyBackend::new(
-            Box::new(HashMap::<u8, String>::new()),
-            Arc::clone(&time_provider) as _,
-        );
+        let mut backend = PolicyBackend::hashmap_backed(Arc::clone(&time_provider) as _);
         backend.add_policy(RefreshPolicy::new_inner(
             Arc::clone(&time_provider) as _,
             Arc::clone(&refresh_duration_provider) as _,
@@ -387,10 +384,7 @@ impl TestStateLRUAndRefresh {
         // set up "RNG" that always generates the maximum, so we can test things easier
         let rng_overwrite = StepRng::new(u64::MAX, 0);
 
-        let mut backend = PolicyBackend::new(
-            Box::new(HashMap::<u8, String>::new()),
-            Arc::clone(&time_provider) as _,
-        );
+        let mut backend = PolicyBackend::hashmap_backed(Arc::clone(&time_provider) as _);
         backend.add_policy(RefreshPolicy::new_inner(
             Arc::clone(&time_provider) as _,
             Arc::clone(&refresh_duration_provider) as _,
@@ -440,10 +434,7 @@ impl TestStateTtlAndLRU {
         let metric_registry = Arc::new(metric::Registry::new());
         let size_estimator = Arc::new(TestSizeEstimator::default());
 
-        let mut backend = PolicyBackend::new(
-            Box::new(HashMap::<u8, String>::new()),
-            Arc::clone(&time_provider) as _,
-        );
+        let mut backend = PolicyBackend::hashmap_backed(Arc::clone(&time_provider) as _);
         backend.add_policy(TtlPolicy::new(
             Arc::clone(&ttl_provider) as _,
             "my_cache",
@@ -484,10 +475,7 @@ impl TestStateLruAndRemoveIf {
         let metric_registry = Arc::new(metric::Registry::new());
         let size_estimator = Arc::new(TestSizeEstimator::default());
 
-        let mut backend = PolicyBackend::new(
-            Box::new(HashMap::<u8, String>::new()),
-            Arc::clone(&time_provider) as _,
-        );
+        let mut backend = PolicyBackend::hashmap_backed(Arc::clone(&time_provider) as _);
 
         let pool = Arc::new(ResourcePool::new(
             "my_pool",
@@ -535,10 +523,7 @@ impl TestStateLruAndRefresh {
         // set up "RNG" that always generates the maximum, so we can test things easier
         let rng_overwrite = StepRng::new(u64::MAX, 0);
 
-        let mut backend = PolicyBackend::new(
-            Box::new(HashMap::<u8, String>::new()),
-            Arc::clone(&time_provider) as _,
-        );
+        let mut backend = PolicyBackend::hashmap_backed(Arc::clone(&time_provider) as _);
         backend.add_policy(RefreshPolicy::new_inner(
             Arc::clone(&time_provider) as _,
             Arc::clone(&refresh_duration_provider) as _,

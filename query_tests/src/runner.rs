@@ -653,7 +653,7 @@ SELECT * from cpu ORDER BY time DESC;
         std::fs::create_dir(&in_dir).expect("create in-dir");
 
         let out_dir = dir.path().join("out");
-        std::fs::create_dir(&out_dir).expect("create out-dir");
+        std::fs::create_dir(out_dir).expect("create out-dir");
 
         let mut file = in_dir;
         file.push("foo.sql");

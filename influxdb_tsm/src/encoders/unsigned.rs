@@ -53,7 +53,7 @@ mod tests {
 
     #[test]
     fn encode_uncompressed() {
-        let src: Vec<u64> = vec![1000, 0, simple8b::MAX_VALUE as u64, 213123421];
+        let src: Vec<u64> = vec![1000, 0, simple8b::MAX_VALUE, 213123421];
         let mut dst = vec![];
 
         let exp = src.clone();

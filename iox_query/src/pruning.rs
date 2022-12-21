@@ -82,9 +82,8 @@ pub fn prune_chunks(
     prune_summaries(table_schema, &summaries, predicate)
 }
 
-/// Given a Vec of pruning summaries, return a Vec<bool>
-/// where `false` indicates that the predicate can be proven to evaluate to
-/// `false` for every single row.
+/// Given a `Vec` of pruning summaries, return a `Vec<bool>` where `false` indicates that the
+/// predicate can be proven to evaluate to `false` for every single row.
 pub fn prune_summaries(
     table_schema: Arc<Schema>,
     summaries: &Vec<Arc<TableSummary>>,

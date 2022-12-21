@@ -63,7 +63,7 @@ pub enum Expr {
     /// A literal wildcard (`*`) with an optional data type selection.
     Wildcard(Option<WildcardType>),
 
-    /// A DISTINCT <identifier> expression.
+    /// A DISTINCT `<identifier>` expression.
     Distinct(Identifier),
 
     /// Unary operation such as + 5 or - 1h3m

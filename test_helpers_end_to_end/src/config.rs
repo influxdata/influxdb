@@ -280,7 +280,7 @@ impl TestConfig {
                 "INFLUXDB_IOX_WRITE_BUFFER_AUTO_CREATE_TOPICS",
                 n_shards.to_string(),
             )
-            .with_env("INFLUXDB_IOX_WRITE_BUFFER_ADDR", &write_buffer_string)
+            .with_env("INFLUXDB_IOX_WRITE_BUFFER_ADDR", write_buffer_string)
     }
 
     /// Configures this TestConfig to use the same write buffer as other
@@ -307,7 +307,7 @@ impl TestConfig {
 
         let wal_string = tmpdir.path().display().to_string();
         self.wal_dir = Some(Arc::new(tmpdir));
-        self.with_env("INFLUXDB_IOX_WAL_DIRECTORY", &wal_string)
+        self.with_env("INFLUXDB_IOX_WAL_DIRECTORY", wal_string)
     }
 
     /// Configures a new object store
@@ -317,7 +317,7 @@ impl TestConfig {
         let object_store_string = tmpdir.path().display().to_string();
         self.object_store_dir = Some(Arc::new(tmpdir));
         self.with_env("INFLUXDB_IOX_OBJECT_STORE", "file")
-            .with_env("INFLUXDB_IOX_DB_DIR", &object_store_string)
+            .with_env("INFLUXDB_IOX_DB_DIR", object_store_string)
     }
 
     /// Configures this TestConfig to use the same object store as other

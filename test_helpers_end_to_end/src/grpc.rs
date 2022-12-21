@@ -159,18 +159,20 @@ impl GrpcRequestBuilder {
         self.regex_predicate(tag_key_name, pattern, Comparison::NotRegex)
     }
 
-    /// Set predicate to tag_name <op> /pattern/
+    /// Set predicate to `tag_name <op> /pattern/`
     ///
     /// where op is `Regex` or `NotRegEx`
     /// The constitution of this request was formed by looking at a real request
     /// made to storage, which looked like this:
     ///
+    /// ```text
     /// root:<
     ///         node_type:COMPARISON_EXPRESSION
     ///         children:<node_type:TAG_REF tag_ref_value:"tag_key_name" >
     ///         children:<node_type:LITERAL regex_value:"pattern" >
     ///         comparison:REGEX
     /// >
+    /// ```
     pub fn regex_predicate(
         self,
         tag_key_name: impl Into<String>,

@@ -85,7 +85,7 @@ cpu,host=server01,region=us-west usage=0.87
         )
         .create();
 
-        let client = Client::new(&mockito::server_url(), token);
+        let client = Client::new(mockito::server_url(), token);
 
         let points = vec![
             DataPoint::builder("cpu")

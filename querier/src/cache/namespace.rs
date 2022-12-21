@@ -113,7 +113,7 @@ impl NamespaceCache {
             testing,
         ));
 
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), Arc::clone(&time_provider));
+        let mut backend = PolicyBackend::hashmap_backed(Arc::clone(&time_provider));
         backend.add_policy(TtlPolicy::new(
             Arc::new(OptionalValueTtlProvider::new(
                 Some(TTL_NON_EXISTING),
@@ -219,14 +219,14 @@ impl CachedTable {
             + (self.column_id_map.capacity() * size_of::<(ColumnId, Arc<str>)>())
             + self
                 .column_id_map
-                .iter()
-                .map(|(_id, name)| name.len())
+                .values()
+                .map(|name| name.len())
                 .sum::<usize>()
             + (self.column_id_map_rev.capacity() * size_of::<(Arc<str>, ColumnId)>())
             + self
                 .column_id_map_rev
-                .iter()
-                .map(|(name, _id)| name.len())
+                .keys()
+                .map(|name| name.len())
                 .sum::<usize>()
             + (self.primary_key_column_ids.capacity() * size_of::<ColumnId>())
     }
