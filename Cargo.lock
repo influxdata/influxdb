@@ -211,10 +211,10 @@ dependencies = [
  "bytes",
  "futures",
  "proc-macro2",
- "prost 0.11.3",
+ "prost 0.11.5",
  "prost-build 0.11.3",
- "prost-derive 0.11.2",
- "prost-types 0.11.2",
+ "prost-derive 0.11.5",
+ "prost-types 0.11.5",
  "tokio",
  "tonic",
  "tonic-build",
@@ -963,8 +963,8 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e57ff02e8ad8e06ab9731d5dc72dc23bef9200778eae1a89d555d8c42e5d4a86"
 dependencies = [
- "prost 0.11.3",
- "prost-types 0.11.2",
+ "prost 0.11.5",
+ "prost-types 0.11.5",
  "tonic",
  "tracing-core",
 ]
@@ -982,7 +982,7 @@ dependencies = [
  "hdrhistogram",
  "humantime",
  "parking_lot 0.11.2",
- "prost-types 0.11.2",
+ "prost-types 0.11.5",
  "serde",
  "serde_json",
  "thread_local",
@@ -1418,7 +1418,7 @@ dependencies = [
  "object_store",
  "parking_lot 0.12.1",
  "pbjson-build",
- "prost 0.11.3",
+ "prost 0.11.5",
  "prost-build 0.11.3",
 ]
 
@@ -1851,7 +1851,7 @@ dependencies = [
  "pbjson-build",
  "pbjson-types",
  "predicate",
- "prost 0.11.3",
+ "prost 0.11.5",
  "prost-build 0.11.3",
  "query_functions",
  "serde",
@@ -1911,9 +1911,9 @@ dependencies = [
  "http-body",
  "hyper",
  "pin-project",
- "prost 0.11.3",
+ "prost 0.11.5",
  "prost-build 0.11.3",
- "prost-types 0.11.2",
+ "prost-types 0.11.5",
  "tokio",
  "tokio-stream",
  "tonic",
@@ -1926,9 +1926,9 @@ dependencies = [
 name = "grpc-binary-logger-proto"
 version = "0.1.0"
 dependencies = [
- "prost 0.11.3",
+ "prost 0.11.5",
  "prost-build 0.11.3",
- "prost-types 0.11.2",
+ "prost-types 0.11.5",
  "tonic",
  "tonic-build",
  "workspace-hack",
@@ -1938,9 +1938,9 @@ dependencies = [
 name = "grpc-binary-logger-test-proto"
 version = "0.1.0"
 dependencies = [
- "prost 0.11.3",
+ "prost 0.11.5",
  "prost-build 0.11.3",
- "prost-types 0.11.2",
+ "prost-types 0.11.5",
  "tonic",
  "tonic-build",
  "workspace-hack",
@@ -2404,7 +2404,7 @@ dependencies = [
  "generated_types",
  "influxdb_line_protocol",
  "iox_arrow_flight",
- "prost 0.11.3",
+ "prost 0.11.5",
  "rand",
  "reqwest",
  "thiserror",
@@ -2436,7 +2436,7 @@ dependencies = [
  "futures-util",
  "generated_types",
  "observability_deps",
- "prost 0.11.3",
+ "prost 0.11.5",
  "tonic",
  "workspace-hack",
 ]
@@ -2503,7 +2503,7 @@ dependencies = [
  "paste",
  "pin-project",
  "predicate",
- "prost 0.11.3",
+ "prost 0.11.5",
  "rand",
  "schema",
  "service_grpc_catalog",
@@ -2560,7 +2560,7 @@ dependencies = [
  "paste",
  "pin-project",
  "predicate",
- "prost 0.11.3",
+ "prost 0.11.5",
  "rand",
  "schema",
  "service_grpc_catalog",
@@ -2623,8 +2623,8 @@ dependencies = [
  "arrow-flight",
  "futures",
  "futures-util",
- "prost 0.11.3",
- "prost-types 0.11.2",
+ "prost 0.11.5",
+ "prost-types 0.11.5",
  "tonic",
  "workspace-hack",
 ]
@@ -3379,7 +3379,7 @@ dependencies = [
  "mutable_batch",
  "mutable_batch_lp",
  "mutable_batch_pb",
- "prost 0.11.3",
+ "prost 0.11.5",
 ]
 
 [[package]]
@@ -3755,7 +3755,7 @@ dependencies = [
  "parquet",
  "pbjson-types",
  "predicate",
- "prost 0.11.3",
+ "prost 0.11.5",
  "schema",
  "snafu",
  "thiserror",
@@ -3809,8 +3809,8 @@ checksum = "bdbb7b706f2afc610f3853550cdbbf6372fd324824a087806bd4480ea4996e24"
 dependencies = [
  "heck",
  "itertools",
- "prost 0.11.3",
- "prost-types 0.11.2",
+ "prost 0.11.5",
+ "prost-types 0.11.5",
 ]
 
 [[package]]
@@ -3823,7 +3823,7 @@ dependencies = [
  "chrono",
  "pbjson",
  "pbjson-build",
- "prost 0.11.3",
+ "prost 0.11.5",
  "prost-build 0.11.3",
  "serde",
 ]
@@ -3975,9 +3975,9 @@ dependencies = [
  "nix 0.24.2",
  "once_cell",
  "parking_lot 0.12.1",
- "prost 0.11.3",
+ "prost 0.11.5",
  "prost-build 0.11.3",
- "prost-derive 0.11.2",
+ "prost-derive 0.11.5",
  "sha2",
  "smallvec",
  "symbolic-demangle 10.2.0",
@@ -4144,12 +4144,12 @@ dependencies = [
 
 [[package]]
 name = "prost"
-version = "0.11.3"
+version = "0.11.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0b18e655c21ff5ac2084a5ad0611e827b3f92badf79f4910b5a5c58f4d87ff0"
+checksum = "c01db6702aa05baa3f57dec92b8eeeeb4cb19e894e73996b32a4093289e54592"
 dependencies = [
  "bytes",
- "prost-derive 0.11.2",
+ "prost-derive 0.11.5",
 ]
 
 [[package]]
@@ -4188,8 +4188,8 @@ dependencies = [
  "multimap",
  "petgraph",
  "prettyplease",
- "prost 0.11.3",
- "prost-types 0.11.2",
+ "prost 0.11.5",
+ "prost-types 0.11.5",
  "regex",
  "syn",
  "tempfile",
@@ -4211,9 +4211,9 @@ dependencies = [
 
 [[package]]
 name = "prost-derive"
-version = "0.11.2"
+version = "0.11.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "164ae68b6587001ca506d3bf7f1000bfa248d0e1217b618108fba4ec1d0cc306"
+checksum = "c8842bad1a5419bca14eac663ba798f6bc19c413c2fdceb5f3ba3b0932d96720"
 dependencies = [
  "anyhow",
  "itertools",
@@ -4234,12 +4234,12 @@ dependencies = [
 
 [[package]]
 name = "prost-types"
-version = "0.11.2"
+version = "0.11.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "747761bc3dc48f9a34553bf65605cf6cb6288ba219f3450b4275dbd81539551a"
+checksum = "017f79637768cde62820bc2d4fe0e45daaa027755c323ad077767c6c5f173091"
 dependencies = [
  "bytes",
- "prost 0.11.3",
+ "prost 0.11.5",
 ]
 
 [[package]]
@@ -4887,8 +4887,8 @@ dependencies = [
  "metric",
  "observability_deps",
  "pin-project",
- "prost 0.11.3",
- "prost-types 0.11.2",
+ "prost 0.11.5",
+ "prost-types 0.11.5",
  "serde",
  "serde_json",
  "service_common",
@@ -4920,7 +4920,7 @@ dependencies = [
  "parking_lot 0.12.1",
  "pin-project",
  "predicate",
- "prost 0.11.3",
+ "prost 0.11.5",
  "query_functions",
  "regex",
  "schema",
@@ -5467,7 +5467,7 @@ dependencies = [
  "observability_deps",
  "once_cell",
  "parking_lot 0.12.1",
- "prost 0.11.3",
+ "prost 0.11.5",
  "rand",
  "reqwest",
  "sqlx",
@@ -5711,8 +5711,8 @@ dependencies = [
  "hyper-timeout",
  "percent-encoding",
  "pin-project",
- "prost 0.11.3",
- "prost-derive 0.11.2",
+ "prost 0.11.5",
+ "prost-derive 0.11.5",
  "tokio",
  "tokio-stream",
  "tokio-util",
@@ -5744,7 +5744,7 @@ checksum = "a88aee666ef3a4d1ee46218bbc8e5f69bcf9cc27bf2e871d6b724d83f56d179f"
 dependencies = [
  "async-stream",
  "bytes",
- "prost 0.11.3",
+ "prost 0.11.5",
  "tokio",
  "tokio-stream",
  "tonic",
@@ -5757,8 +5757,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67494bad4dda4c9bffae901dfe14e2b2c0f760adb4706dc10beeb81799f7f7b2"
 dependencies = [
  "bytes",
- "prost 0.11.3",
- "prost-types 0.11.2",
+ "prost 0.11.5",
+ "prost-types 0.11.5",
  "tokio",
  "tokio-stream",
  "tonic",
@@ -6120,7 +6120,7 @@ dependencies = [
  "observability_deps",
  "once_cell",
  "parking_lot 0.12.1",
- "prost 0.11.3",
+ "prost 0.11.5",
  "regex",
  "serde",
  "snafu",
@@ -6413,6 +6413,7 @@ dependencies = [
  "heck",
  "indexmap",
  "io-lifetimes",
+ "itertools",
  "libc",
  "lock_api",
  "log",
@@ -6426,8 +6427,8 @@ dependencies = [
  "parking_lot 0.12.1",
  "parquet",
  "predicates",
- "prost 0.11.3",
- "prost-types 0.11.2",
+ "prost 0.11.5",
+ "prost-types 0.11.5",
  "rand",
  "regex",
  "regex-automata",
@@ -6487,7 +6488,7 @@ dependencies = [
  "observability_deps",
  "parking_lot 0.12.1",
  "pin-project",
- "prost 0.11.3",
+ "prost 0.11.5",
  "rskafka",
  "schema",
  "tempfile",
