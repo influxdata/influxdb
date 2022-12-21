@@ -3,7 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use iox_catalog::interface::Catalog;
 use iox_query::{exec::Executor, QueryChunkMeta};
-use metric::U64Counter;
+use metric::{DurationHistogram, U64Counter};
 use observability_deps::tracing::*;
 use parking_lot::Mutex;
 use parquet_file::storage::ParquetStorage;
@@ -192,6 +192,21 @@ impl PersistHandle {
             completion_observer,
         });
 
+        // Initialise a histogram to capture persist job duration & time spent
+        // in the queue.
+        let persist_duration = metrics
+            .register_metric::<DurationHistogram>(
+                "ingester_persist_active_duration",
+                "the distribution of persist job processing duration in nanoseconds",
+            )
+            .recorder(&[]);
+        let queue_duration = metrics
+            .register_metric::<DurationHistogram>(
+                "ingester_persist_enqueue_duration",
+                "the distribution of duration a persist job spent enqueued, waiting to be processed in nanoseconds",
+            )
+            .recorder(&[]);
+
         // Initialise the global queue.
         //
         // Persist tasks that do not require a sort key update are enqueued into
@@ -211,6 +226,8 @@ impl PersistHandle {
                         worker_state,
                         global_rx.clone(),
                         rx,
+                        queue_duration.clone(),
+                        persist_duration.clone(),
                     ))),
                 )
             })
@@ -422,7 +439,6 @@ mod tests {
     use futures::Future;
     use iox_catalog::mem::MemCatalog;
     use lazy_static::lazy_static;
-    use metric::{Attributes, Metric};
     use object_store::memory::InMemory;
     use parquet_file::storage::StorageId;
     use schema::sort::SortKey;
@@ -441,7 +457,10 @@ mod tests {
         deferred_load::DeferredLoad,
         dml_sink::DmlSink,
         ingest_state::IngestStateError,
-        persist::completion_observer::{mock::MockCompletionObserver, NopObserver},
+        persist::{
+            completion_observer::{mock::MockCompletionObserver, NopObserver},
+            tests::assert_metric_counter,
+        },
         test_util::make_write_op,
     };
 
@@ -463,18 +482,6 @@ mod tests {
             Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                 TableName::from(TABLE_NAME)
             }));
-    }
-
-    #[track_caller]
-    fn assert_metric(metrics: &metric::Registry, name: &'static str, value: u64) {
-        let v = metrics
-            .get_instrument::<Metric<U64Counter>>(name)
-            .expect("failed to read metric")
-            .get_observer(&Attributes::from([]))
-            .expect("failed to get observer")
-            .fetch();
-
-        assert_eq!(v, value, "metric {name} had value {v} want {value}");
     }
 
     /// Construct a partition with the above constants, with the given sort key,
@@ -922,6 +929,6 @@ mod tests {
         assert_matches!(ingest_state.read(), Err(IngestStateError::PersistSaturated));
 
         // And the counter shows two persist ops.
-        assert_metric(&metrics, "ingester_persist_enqueued_jobs", 2);
+        assert_metric_counter(&metrics, "ingester_persist_enqueued_jobs", 2);
     }
 }

@@ -23,7 +23,7 @@ mod tests {
     };
     use iox_query::exec::Executor;
     use lazy_static::lazy_static;
-    use metric::{Attributes, Metric, U64Counter};
+    use metric::{Attributes, DurationHistogram, Metric, U64Counter};
     use object_store::{memory::InMemory, ObjectMeta, ObjectStore};
     use parking_lot::Mutex;
     use parquet_file::{
@@ -120,7 +120,11 @@ mod tests {
     }
 
     #[track_caller]
-    fn assert_metric(metrics: &metric::Registry, name: &'static str, value: u64) {
+    pub(super) fn assert_metric_counter(
+        metrics: &metric::Registry,
+        name: &'static str,
+        value: u64,
+    ) {
         let v = metrics
             .get_instrument::<Metric<U64Counter>>(name)
             .expect("failed to read metric")
@@ -129,6 +133,23 @@ mod tests {
             .fetch();
 
         assert_eq!(v, value, "metric {name} had value {v} want {value}");
+    }
+
+    #[track_caller]
+    pub(super) fn assert_metric_histogram(
+        metrics: &metric::Registry,
+        name: &'static str,
+        hits: u64,
+    ) {
+        let v = metrics
+            .get_instrument::<Metric<DurationHistogram>>(name)
+            .expect("failed to read metric")
+            .get_observer(&Attributes::from([]))
+            .expect("failed to get observer")
+            .fetch()
+            .sample_count();
+
+        assert_eq!(v, hits, "metric {name} had {v} samples want {hits}");
     }
 
     /// A complete integration test of the persistence system components.
@@ -169,11 +190,15 @@ mod tests {
             .mark_persisting()
             .expect("partition with write should transition to persisting");
 
+        // Assert the starting metric values.
+        assert_metric_histogram(&metrics, "ingester_persist_active_duration", 0);
+        assert_metric_histogram(&metrics, "ingester_persist_enqueue_duration", 0);
+
         // Enqueue the persist job
         let notify = handle.enqueue(Arc::clone(&partition), data).await;
         assert!(ingest_state.read().is_ok());
 
-        assert_metric(&metrics, "ingester_persist_enqueued_jobs", 1);
+        assert_metric_counter(&metrics, "ingester_persist_enqueued_jobs", 1);
 
         // Wait for the persist to complete.
         notify
@@ -189,6 +214,10 @@ mod tests {
             assert_eq!(n.partition_id(), partition_id);
             assert_eq!(n.sequence_numbers().len(), 1);
         });
+
+        // And that metrics recorded the enqueue & completion
+        assert_metric_histogram(&metrics, "ingester_persist_active_duration", 1);
+        assert_metric_histogram(&metrics, "ingester_persist_enqueue_duration", 1);
 
         // Assert the partition persistence count increased, an indication that
         // mark_persisted() was called.
@@ -329,6 +358,12 @@ mod tests {
             assert_eq!(n.partition_id(), partition_id);
             assert_eq!(n.sequence_numbers().len(), 1);
         });
+
+        // And that despite the persist job effectively running twice (to handle
+        // the sort key conflict) the metrics should record 1 persist job start
+        // & completion
+        assert_metric_histogram(&metrics, "ingester_persist_active_duration", 1);
+        assert_metric_histogram(&metrics, "ingester_persist_enqueue_duration", 1);
 
         // Assert the partition persistence count increased, an indication that
         // mark_persisted() was called.
