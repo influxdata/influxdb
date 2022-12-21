@@ -2,7 +2,7 @@
 
 use std::{
     cell::RefCell,
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     fmt::Debug,
     hash::Hash,
     marker::PhantomData,
@@ -286,6 +286,11 @@ where
                 time_provider,
             }))),
         }
+    }
+
+    /// Create a new backend with a HashMap as the [`CacheBackend`].
+    pub fn hashmap_backed(time_provider: Arc<dyn TimeProvider>) -> Self {
+        Self::new(Box::new(HashMap::new()), Arc::clone(&time_provider))
     }
 
     /// Adds new policy.
@@ -729,7 +734,7 @@ mod tests {
     fn test_generic() {
         crate::backend::test_util::test_generic(|| {
             let time_provider = Arc::new(MockProvider::new(Time::MIN));
-            PolicyBackend::new(Box::new(HashMap::new()), time_provider)
+            PolicyBackend::hashmap_backed(time_provider)
         })
     }
 
@@ -737,7 +742,7 @@ mod tests {
     #[should_panic(expected = "test steps left")]
     fn test_meta_panic_steps_left() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![TestStep {
             condition: TestBackendInteraction::Set {
                 k: String::from("a"),
@@ -751,7 +756,7 @@ mod tests {
     #[should_panic(expected = "step left for get operation")]
     fn test_meta_panic_requires_condition_get() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![]));
 
         backend.get(&String::from("a"));
@@ -761,7 +766,7 @@ mod tests {
     #[should_panic(expected = "step left for set operation")]
     fn test_meta_panic_requires_condition_set() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![]));
 
         backend.set(String::from("a"), 2);
@@ -771,8 +776,7 @@ mod tests {
     #[should_panic(expected = "step left for remove operation")]
     fn test_meta_panic_requires_condition_remove() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend =
-            PolicyBackend::<String, usize>::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![]));
 
         backend.remove(&String::from("a"));
@@ -782,7 +786,7 @@ mod tests {
     #[should_panic(expected = "Condition mismatch")]
     fn test_meta_panic_checks_condition_get() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![TestStep {
             condition: TestBackendInteraction::Get {
                 k: String::from("a"),
@@ -797,7 +801,7 @@ mod tests {
     #[should_panic(expected = "Condition mismatch")]
     fn test_meta_panic_checks_condition_set() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![TestStep {
             condition: TestBackendInteraction::Set {
                 k: String::from("a"),
@@ -813,7 +817,7 @@ mod tests {
     #[should_panic(expected = "Condition mismatch")]
     fn test_meta_panic_checks_condition_remove() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![TestStep {
             condition: TestBackendInteraction::Remove {
                 k: String::from("a"),
@@ -827,7 +831,7 @@ mod tests {
     #[test]
     fn test_basic_propagation() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -875,7 +879,7 @@ mod tests {
     #[should_panic(expected = "illegal recursive access")]
     fn test_panic_recursion_detection_get() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![TestStep {
             condition: TestBackendInteraction::Remove {
                 k: String::from("a"),
@@ -892,7 +896,7 @@ mod tests {
     #[should_panic(expected = "illegal recursive access")]
     fn test_panic_recursion_detection_set() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![TestStep {
             condition: TestBackendInteraction::Remove {
                 k: String::from("a"),
@@ -910,7 +914,7 @@ mod tests {
     #[should_panic(expected = "illegal recursive access")]
     fn test_panic_recursion_detection_remove() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![TestStep {
             condition: TestBackendInteraction::Remove {
                 k: String::from("a"),
@@ -926,7 +930,7 @@ mod tests {
     #[test]
     fn test_get_untracked() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -948,7 +952,7 @@ mod tests {
     #[test]
     fn test_basic_get_set() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Get {
@@ -974,7 +978,7 @@ mod tests {
     #[test]
     fn test_basic_get_get() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Get {
@@ -998,7 +1002,7 @@ mod tests {
     #[test]
     fn test_basic_set_set_get_get() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -1040,7 +1044,7 @@ mod tests {
     #[test]
     fn test_basic_set_remove_get() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -1073,7 +1077,7 @@ mod tests {
     #[test]
     fn test_basic_remove_set_get_get() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Remove {
@@ -1114,7 +1118,7 @@ mod tests {
     #[test]
     fn test_basic_remove_remove_get_get() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Remove {
@@ -1153,7 +1157,7 @@ mod tests {
     #[test]
     fn test_ordering_within_requests_vector() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -1195,7 +1199,7 @@ mod tests {
     #[test]
     fn test_ordering_across_policies() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -1269,7 +1273,7 @@ mod tests {
     #[test]
     fn test_ping_pong() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -1364,7 +1368,7 @@ mod tests {
         let barrier_post = Arc::new(Barrier::new(1));
 
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![TestStep {
             condition: TestBackendInteraction::Set {
                 k: String::from("a"),
@@ -1391,7 +1395,7 @@ mod tests {
         let barrier_post = Arc::new(Barrier::new(2));
 
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -1460,7 +1464,7 @@ mod tests {
         let barrier_post = Arc::new(Barrier::new(2));
 
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -1531,7 +1535,7 @@ mod tests {
     #[test]
     fn test_ordering_within_compound_requests() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Set {

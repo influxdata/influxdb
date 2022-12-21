@@ -186,8 +186,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
     use iox_time::{MockProvider, Time};
     use metric::{Observation, RawReporter};
 
@@ -202,8 +200,7 @@ mod tests {
         test_generic(|| {
             let metric_registry = metric::Registry::new();
             let time_provider = Arc::new(MockProvider::new(Time::MIN));
-            let mut backend =
-                PolicyBackend::new(Box::new(HashMap::<u8, String>::new()), time_provider);
+            let mut backend = PolicyBackend::hashmap_backed(time_provider);
             let (policy_constructor, _handle) =
                 RemoveIfPolicy::create_constructor_and_handle("my_cache", &metric_registry);
             backend.add_policy(policy_constructor);
@@ -215,7 +212,7 @@ mod tests {
     fn test_remove_if() {
         let metric_registry = metric::Registry::new();
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::<u8, String>::new()), time_provider);
+        let mut backend: PolicyBackend<u8, String> = PolicyBackend::hashmap_backed(time_provider);
         let (policy_constructor, handle) =
             RemoveIfPolicy::create_constructor_and_handle("my_cache", &metric_registry);
         backend.add_policy(policy_constructor);

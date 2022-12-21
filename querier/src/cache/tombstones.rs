@@ -15,7 +15,7 @@ use data_types::{SequenceNumber, TableId, Tombstone};
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
 use snafu::{ResultExt, Snafu};
-use std::{collections::HashMap, mem, sync::Arc};
+use std::{mem, sync::Arc};
 use trace::span::Span;
 
 use super::ram::RamSize;
@@ -125,8 +125,7 @@ impl TombstoneCache {
             testing,
         ));
 
-        let mut backend =
-            PolicyBackend::new(Box::new(HashMap::new()), Arc::clone(&time_provider) as _);
+        let mut backend = PolicyBackend::hashmap_backed(Arc::clone(&time_provider) as _);
         let (policy_constructor, remove_if_handle) =
             RemoveIfPolicy::create_constructor_and_handle(CACHE_ID, metric_registry);
         backend.add_policy(policy_constructor);
