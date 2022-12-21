@@ -33,6 +33,7 @@ use crate::{
         table::name_resolver::{TableNameProvider, TableNameResolver},
         BufferTree,
     },
+    dml_sink::tracing::DmlSinkTracing,
     ingest_state::IngestState,
     ingester_id::IngesterId,
     persist::{
@@ -324,7 +325,16 @@ where
         .map_err(|e| InitError::WalReplay(e.into()))?;
 
     // Build the chain of DmlSink that forms the write path.
-    let write_path = WalSink::new(Arc::clone(&buffer), Arc::clone(&wal));
+    let write_path = DmlSinkTracing::new(
+        DmlSinkTracing::new(
+            WalSink::new(
+                DmlSinkTracing::new(Arc::clone(&buffer), "buffer"),
+                Arc::clone(&wal),
+            ),
+            "wal",
+        ),
+        "write apply",
+    );
 
     // And the chain of QueryExec that forms the read path.
     let read_path = QueryExecInstrumentation::new(
