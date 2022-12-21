@@ -24,15 +24,19 @@ pub(crate) struct QueryExecInstrumentation<T, P = SystemProvider> {
 }
 
 impl<T> QueryExecInstrumentation<T> {
-    pub(crate) fn new(inner: T, metrics: &metric::Registry) -> Self {
+    pub(crate) fn new(name: &'static str, inner: T, metrics: &metric::Registry) -> Self {
         // Record query duration metrics, broken down by query execution result
         let query_duration: Metric<DurationHistogram> = metrics.register_metric(
             "ingester_flight_query_duration",
             "flight request query execution duration",
         );
-        let query_duration_success = query_duration.recorder(&[("result", "success")]);
-        let query_duration_error_not_found =
-            query_duration.recorder(&[("result", "error"), ("reason", "not_found")]);
+        let query_duration_success =
+            query_duration.recorder(&[("handler", name), ("result", "success")]);
+        let query_duration_error_not_found = query_duration.recorder(&[
+            ("handler", name),
+            ("result", "error"),
+            ("reason", "not_found"),
+        ]);
 
         Self {
             inner,
@@ -90,6 +94,8 @@ mod tests {
         response::{PartitionStream, QueryResponse},
     };
 
+    const LAYER_NAME: &str = "test-bananas";
+
     macro_rules! test_metric {
         (
             $name:ident,
@@ -101,7 +107,7 @@ mod tests {
                 #[tokio::test]
                 async fn [<test_metric_ $name>]() {
                     let metrics = metric::Registry::default();
-                    let decorator = QueryExecInstrumentation::new($inner, &metrics);
+                    let decorator = QueryExecInstrumentation::new(LAYER_NAME, $inner, &metrics);
 
                     // Call the decorator and assert the return value
                     let got = decorator
@@ -129,7 +135,7 @@ mod tests {
             let stream: PartitionStream = PartitionStream::new(futures::stream::iter([]));
             MockQueryExec::default().with_result(Ok(QueryResponse::new(stream)))
         },
-        want_metric_attr = [("result", "success")],
+        want_metric_attr = [("handler", LAYER_NAME), ("result", "success")],
         want_ret = Ok(_)
     );
 
@@ -137,7 +143,7 @@ mod tests {
         namespace_not_found,
         inner = MockQueryExec::default()
             .with_result(Err(QueryError::NamespaceNotFound(NamespaceId::new(42)))),
-        want_metric_attr = [("result", "error"), ("reason", "not_found")],
+        want_metric_attr = [("handler", LAYER_NAME), ("result", "error"), ("reason", "not_found")],
         want_ret = Err(QueryError::NamespaceNotFound(ns)) => {
             assert_eq!(ns, NamespaceId::new(42));
         }
@@ -147,7 +153,7 @@ mod tests {
         table_not_found,
         inner = MockQueryExec::default()
             .with_result(Err(QueryError::TableNotFound(NamespaceId::new(42), TableId::new(24)))),
-        want_metric_attr = [("result", "error"), ("reason", "not_found")],
+        want_metric_attr = [("handler", LAYER_NAME), ("result", "error"), ("reason", "not_found")],
         want_ret = Err(QueryError::TableNotFound(ns, t)) => {
             assert_eq!(ns, NamespaceId::new(42));
             assert_eq!(t, TableId::new(24));

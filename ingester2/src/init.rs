@@ -39,6 +39,7 @@ use crate::{
         completion_observer::NopObserver, handle::PersistHandle,
         hot_partitions::HotPartitionPersister,
     },
+    query::{instrumentation::QueryExecInstrumentation, tracing::QueryExecTracing},
     server::grpc::GrpcDelegate,
     timestamp_oracle::TimestampOracle,
     wal::{rotate_task::periodic_rotation, wal_sink::WalSink},
@@ -325,6 +326,13 @@ where
     // Build the chain of DmlSink that forms the write path.
     let write_path = WalSink::new(Arc::clone(&buffer), Arc::clone(&wal));
 
+    // And the chain of QueryExec that forms the read path.
+    let read_path = QueryExecInstrumentation::new(
+        "buffer",
+        QueryExecTracing::new(Arc::clone(&buffer), "buffer"),
+        &metrics,
+    );
+
     // Spawn a background thread to periodically rotate the WAL segment file.
     let rotation_task = tokio::spawn(periodic_rotation(
         Arc::clone(&wal),
@@ -358,7 +366,7 @@ where
     Ok(IngesterGuard {
         rpc: GrpcDelegate::new(
             Arc::new(write_path),
-            Arc::clone(&buffer),
+            Arc::new(read_path),
             timestamp,
             ingest_state,
             ingester_id,
