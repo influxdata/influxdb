@@ -290,6 +290,11 @@ where
 
     /// Create a new backend with a HashMap as the [`CacheBackend`].
     pub fn hashmap_backed(time_provider: Arc<dyn TimeProvider>) -> Self {
+        // See <https://github.com/rust-lang/rust-clippy/issues/9621>. This clippy lint suggests
+        // replacing `Box::new(HashMap::new())` with `Box::default()`, which in most cases would be
+        // shorter, but because this type is actually a `Box<dyn Trait>`, the replacement would
+        // need to be `Box::<HashMap<_, _>>::default()`, which doesn't seem like an improvement.
+        #[allow(clippy::box_default)]
         Self::new(Box::new(HashMap::new()), Arc::clone(&time_provider))
     }
 
