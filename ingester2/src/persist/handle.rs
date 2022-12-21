@@ -12,12 +12,11 @@ use tokio::{
     time::Instant,
 };
 
+use super::{backpressure::PersistState, context::PersistRequest, worker::SharedWorkerState};
 use crate::{
     buffer_tree::partition::{persisting::PersistingData, PartitionData, SortKeyState},
     persist::worker,
 };
-
-use super::{backpressure::PersistState, context::PersistRequest, worker::SharedWorkerState};
 
 /// A persistence task submission handle.
 ///
@@ -160,6 +159,7 @@ impl PersistHandle {
         exec: Arc<Executor>,
         store: ParquetStorage,
         catalog: Arc<dyn Catalog>,
+        metrics: &metric::Registry,
     ) -> (Self, Arc<PersistState>) {
         assert_ne!(n_workers, 0, "must run at least 1 persist worker");
         assert_ne!(
@@ -208,7 +208,11 @@ impl PersistHandle {
 
         // Initialise the saturation state as "not saturated" and provide it
         // with the task semaphore and total permit count.
-        let persist_state = Arc::new(PersistState::new(persist_queue_depth, Arc::clone(&sem)));
+        let persist_state = Arc::new(PersistState::new(
+            persist_queue_depth,
+            Arc::clone(&sem),
+            metrics,
+        ));
 
         (
             Self {
@@ -389,6 +393,7 @@ mod tests {
     use test_helpers::timeout::FutureTimeout;
     use tokio::sync::mpsc::error::TryRecvError;
 
+    use super::*;
     use crate::{
         buffer_tree::{
             namespace::{name_resolver::mock::MockNamespaceNameProvider, NamespaceName},
@@ -401,8 +406,6 @@ mod tests {
         dml_sink::DmlSink,
         test_util::make_write_op,
     };
-
-    use super::*;
 
     const PARTITION_ID: PartitionId = PartitionId::new(42);
     const NAMESPACE_ID: NamespaceId = NamespaceId::new(24);
@@ -472,9 +475,10 @@ mod tests {
     async fn test_persist_sort_key_provided_none() {
         let storage = ParquetStorage::new(Arc::new(InMemory::default()), StorageId::from("iox"));
         let metrics = Arc::new(metric::Registry::default());
-        let catalog = Arc::new(MemCatalog::new(metrics));
+        let catalog = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
 
-        let (mut handle, state) = PersistHandle::new(1, 2, Arc::clone(&EXEC), storage, catalog);
+        let (mut handle, state) =
+            PersistHandle::new(1, 2, Arc::clone(&EXEC), storage, catalog, &metrics);
         assert!(!state.is_saturated());
 
         // Kill the workers, and replace the queues so we can inspect the
@@ -540,9 +544,10 @@ mod tests {
     async fn test_persist_sort_key_deferred_resolved_none_update_necessary() {
         let storage = ParquetStorage::new(Arc::new(InMemory::default()), StorageId::from("iox"));
         let metrics = Arc::new(metric::Registry::default());
-        let catalog = Arc::new(MemCatalog::new(metrics));
+        let catalog = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
 
-        let (mut handle, state) = PersistHandle::new(1, 2, Arc::clone(&EXEC), storage, catalog);
+        let (mut handle, state) =
+            PersistHandle::new(1, 2, Arc::clone(&EXEC), storage, catalog, &metrics);
         assert!(!state.is_saturated());
 
         // Kill the workers, and replace the queues so we can inspect the
@@ -620,9 +625,10 @@ mod tests {
     async fn test_persist_sort_key_deferred_resolved_some_update_necessary() {
         let storage = ParquetStorage::new(Arc::new(InMemory::default()), StorageId::from("iox"));
         let metrics = Arc::new(metric::Registry::default());
-        let catalog = Arc::new(MemCatalog::new(metrics));
+        let catalog = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
 
-        let (mut handle, state) = PersistHandle::new(1, 2, Arc::clone(&EXEC), storage, catalog);
+        let (mut handle, state) =
+            PersistHandle::new(1, 2, Arc::clone(&EXEC), storage, catalog, &metrics);
         assert!(!state.is_saturated());
 
         // Kill the workers, and replace the queues so we can inspect the
@@ -700,9 +706,10 @@ mod tests {
     async fn test_persist_sort_key_no_update_necessary() {
         let storage = ParquetStorage::new(Arc::new(InMemory::default()), StorageId::from("iox"));
         let metrics = Arc::new(metric::Registry::default());
-        let catalog = Arc::new(MemCatalog::new(metrics));
+        let catalog = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
 
-        let (mut handle, state) = PersistHandle::new(1, 2, Arc::clone(&EXEC), storage, catalog);
+        let (mut handle, state) =
+            PersistHandle::new(1, 2, Arc::clone(&EXEC), storage, catalog, &metrics);
         assert!(!state.is_saturated());
 
         // Kill the workers, and replace the queues so we can inspect the
