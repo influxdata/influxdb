@@ -219,14 +219,14 @@ impl CachedTable {
             + (self.column_id_map.capacity() * size_of::<(ColumnId, Arc<str>)>())
             + self
                 .column_id_map
-                .iter()
-                .map(|(_id, name)| name.len())
+                .values()
+                .map(|name| name.len())
                 .sum::<usize>()
             + (self.column_id_map_rev.capacity() * size_of::<(Arc<str>, ColumnId)>())
             + self
                 .column_id_map_rev
-                .iter()
-                .map(|(name, _id)| name.len())
+                .keys()
+                .map(|name| name.len())
                 .sum::<usize>()
             + (self.primary_key_column_ids.capacity() * size_of::<ColumnId>())
     }
