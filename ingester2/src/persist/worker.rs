@@ -3,26 +3,13 @@ use std::sync::Arc;
 use async_channel::RecvError;
 use data_types::ParquetFileParams;
 use iox_catalog::interface::Catalog;
-use iox_query::{exec::Executor, QueryChunkMeta};
-use observability_deps::tracing::*;
-use parking_lot::Mutex;
+use iox_query::exec::Executor;
+
 use parquet_file::storage::ParquetStorage;
-use schema::sort::adjust_sort_key_columns;
-use sharder::JumpHash;
-use tokio::{
-    sync::{mpsc, oneshot, Semaphore, TryAcquireError},
-    time::Instant,
-};
 
-use crate::{
-    buffer_tree::partition::{persisting::PersistingData, PartitionData, SortKeyState},
-    persist::worker,
-};
+use tokio::sync::mpsc;
 
-use super::{
-    backpressure::PersistState,
-    context::{Context, PersistError, PersistRequest},
-};
+use super::context::{Context, PersistError, PersistRequest};
 
 /// State shared across workers.
 #[derive(Debug)]
@@ -69,6 +56,10 @@ pub(super) struct SharedWorkerState {
 ///             │JOB COMPLETE  │
 ///             └──────────────┘
 /// ```
+///
+/// [`PersistingData`]:
+///     crate::buffer_tree::partition::persisting::PersistingData
+/// [`PartitionData`]: crate::buffer_tree::partition::PartitionData
 pub(super) async fn run_task(
     worker_state: Arc<SharedWorkerState>,
     global_queue: async_channel::Receiver<PersistRequest>,
@@ -137,10 +128,12 @@ pub(super) async fn run_task(
 ///
 /// If in the course of this the sort key is updated, this function attempts to
 /// update the sort key in the catalog. This MAY fail because another node has
-/// concurrently done the same and the persist must be restarted, see:
+/// concurrently done the same and the persist must be restarted.
 ///
-///     https://github.com/influxdata/influxdb_iox/issues/6439
+/// See <https://github.com/influxdata/influxdb_iox/issues/6439>.
 ///
+/// [`PersistingData`]:
+///     crate::buffer_tree::partition::persisting::PersistingData
 async fn compact_and_upload(ctx: &Context) -> Result<ParquetFileParams, PersistError> {
     let compacted = ctx.compact().await;
     let (sort_key_update, parquet_table_data) = ctx.upload(compacted).await;

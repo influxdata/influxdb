@@ -28,7 +28,7 @@ use crate::{
     persist::compact::{compact_persisting_batch, CompactedStream},
 };
 
-use super::handle::Inner;
+use super::worker::SharedWorkerState;
 
 /// Errors a persist can experience.
 #[derive(Debug, Error)]
@@ -81,7 +81,8 @@ impl PersistRequest {
 pub(super) struct Context {
     partition: Arc<Mutex<PartitionData>>,
     data: PersistingData,
-    inner: Arc<Inner>,
+    worker_state: Arc<SharedWorkerState>,
+
     /// IDs loaded from the partition at construction time.
     namespace_id: NamespaceId,
     table_id: TableId,
@@ -134,7 +135,7 @@ impl Context {
     ///
     /// Locks the [`PartitionData`] in `req` to read various properties which
     /// are then cached in the [`Context`].
-    pub(super) fn new(req: PersistRequest, inner: Arc<Inner>) -> Self {
+    pub(super) fn new(req: PersistRequest, worker_state: Arc<SharedWorkerState>) -> Self {
         let partition_id = req.data.partition_id();
 
         // Obtain the partition lock and load the immutable values that will be
@@ -156,7 +157,7 @@ impl Context {
             Self {
                 partition,
                 data,
-                inner,
+                worker_state,
                 namespace_id: guard.namespace_id(),
                 table_id: guard.table_id(),
                 partition_id,
@@ -208,7 +209,7 @@ impl Context {
         // This demands the deferred load values and may have to wait for them
         // to be loaded before compaction starts.
         compact_persisting_batch(
-            &self.inner.exec,
+            &self.worker_state.exec,
             sort_key,
             self.table_name.get().await,
             self.data.query_adaptor(),
@@ -263,7 +264,7 @@ impl Context {
         //
         // This call retries until it completes.
         let (md, file_size) = self
-            .inner
+            .worker_state
             .store
             .upload(record_stream, &iox_metadata)
             .await
@@ -285,7 +286,7 @@ impl Context {
         // -> column IDs.
         let table_schema = Backoff::new(&Default::default())
             .retry_all_errors("get table schema", || async {
-                let mut repos = self.inner.catalog.repositories().await;
+                let mut repos = self.worker_state.catalog.repositories().await;
                 get_table_schema_by_id(self.table_id, repos.as_mut()).await
             })
             .await
@@ -329,7 +330,7 @@ impl Context {
             .retry_with_backoff("cas_sort_key", || {
                 let old_sort_key = old_sort_key.clone();
                 let new_sort_key_str = new_sort_key.to_columns().collect::<Vec<_>>();
-                let catalog = Arc::clone(&self.inner.catalog);
+                let catalog = Arc::clone(&self.worker_state.catalog);
 
                 async move {
                     let mut repos = catalog.repositories().await;
@@ -461,7 +462,7 @@ impl Context {
         // parquet file by polling / querying the catalog.
         Backoff::new(&Default::default())
             .retry_all_errors("add parquet file to catalog", || async {
-                let mut repos = self.inner.catalog.repositories().await;
+                let mut repos = self.worker_state.catalog.repositories().await;
                 let parquet_file = repos
                     .parquet_files()
                     .create(parquet_table_data.clone())
