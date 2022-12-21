@@ -10,7 +10,7 @@ datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 futures = {version = "0.3"}
-num_cpus = "1.13.1"
+num_cpus = "1.15.0"
 object_store = { version = "0.5.2" }
 parquet_file  = { path = "../parquet_file" }
 schema = { path = "../schema" }
