@@ -98,7 +98,7 @@ pub(super) async fn run_task(
             }
         };
 
-        let ctx = Context::new(req, Arc::clone(&worker_state));
+        let mut ctx = Context::new(req, Arc::clone(&worker_state));
 
         // Compact the data, generate the parquet file from the result, and
         // upload it to object storage.
@@ -109,9 +109,9 @@ pub(super) async fn run_task(
         // the compaction must be redone with the new sort key and uploaded
         // before continuing.
         let parquet_table_data = loop {
-            match compact_and_upload(&ctx).await {
+            match compact_and_upload(&mut ctx).await {
                 Ok(v) => break v,
-                Err(PersistError::ConcurrentSortKeyUpdate) => continue,
+                Err(PersistError::ConcurrentSortKeyUpdate(_)) => continue,
             };
         };
 
@@ -134,7 +134,7 @@ pub(super) async fn run_task(
 ///
 /// [`PersistingData`]:
 ///     crate::buffer_tree::partition::persisting::PersistingData
-async fn compact_and_upload(ctx: &Context) -> Result<ParquetFileParams, PersistError> {
+async fn compact_and_upload(ctx: &mut Context) -> Result<ParquetFileParams, PersistError> {
     let compacted = ctx.compact().await;
     let (sort_key_update, parquet_table_data) = ctx.upload(compacted).await;
 

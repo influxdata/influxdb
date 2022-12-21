@@ -34,9 +34,9 @@ use super::worker::SharedWorkerState;
 #[derive(Debug, Error)]
 pub(super) enum PersistError {
     /// A concurrent sort key update was observed and the sort key update was
-    /// aborted.
+    /// aborted. The newly observed sort key is returned.
     #[error("detected concurrent sort key update")]
-    ConcurrentSortKeyUpdate,
+    ConcurrentSortKeyUpdate(SortKey),
 }
 
 /// An internal type that contains all necessary information to run a persist
@@ -165,8 +165,10 @@ impl Context {
                 namespace_name: Arc::clone(guard.namespace_name()),
                 table_name: Arc::clone(guard.table_name()),
 
-                // Technically the sort key isn't immutable, but MUST NOT change
-                // during the execution of this persist.
+                // Technically the sort key isn't immutable, but MUST NOT be
+                // changed by an external actor (by something other than code in
+                // this Context) during the execution of this persist, otherwise
+                // sort key update serialisation is violated.
                 sort_key: guard.sort_key().clone(),
 
                 complete,
@@ -303,7 +305,7 @@ impl Context {
     }
 
     pub(super) async fn update_catalog_sort_key(
-        &self,
+        &mut self,
         new_sort_key: SortKey,
         object_store_id: Uuid,
     ) -> Result<(), PersistError> {
@@ -326,17 +328,17 @@ impl Context {
             "updating partition sort key"
         );
 
-        Backoff::new(&Default::default())
+        let update_result = Backoff::new(&Default::default())
             .retry_with_backoff("cas_sort_key", || {
                 let old_sort_key = old_sort_key.clone();
                 let new_sort_key_str = new_sort_key.to_columns().collect::<Vec<_>>();
                 let catalog = Arc::clone(&self.worker_state.catalog);
-
+                let ctx = &self;
                 async move {
                     let mut repos = catalog.repositories().await;
                     match repos
                         .partitions()
-                        .cas_sort_key(self.partition_id, old_sort_key.clone(), &new_sort_key_str)
+                        .cas_sort_key(ctx.partition_id, old_sort_key.clone(), &new_sort_key_str)
                         .await
                     {
                         Ok(_) => ControlFlow::Break(Ok(())),
@@ -353,12 +355,12 @@ impl Context {
                             // continue.
                             info!(
                                 %object_store_id,
-                                namespace_id = %self.namespace_id,
-                                namespace_name = %self.namespace_name,
-                                table_id = %self.table_id,
-                                table_name = %self.table_name,
-                                partition_id = %self.partition_id,
-                                partition_key = %self.partition_key,
+                                namespace_id = %ctx.namespace_id,
+                                namespace_name = %ctx.namespace_name,
+                                table_id = %ctx.table_id,
+                                table_name = %ctx.table_name,
+                                partition_id = %ctx.partition_id,
+                                partition_key = %ctx.partition_key,
                                 expected=?old_sort_key,
                                 ?observed,
                                 update=?new_sort_key_str,
@@ -379,30 +381,42 @@ impl Context {
                             //
                             warn!(
                                 %object_store_id,
-                                namespace_id = %self.namespace_id,
-                                namespace_name = %self.namespace_name,
-                                table_id = %self.table_id,
-                                table_name = %self.table_name,
-                                partition_id = %self.partition_id,
-                                partition_key = %self.partition_key,
+                                namespace_id = %ctx.namespace_id,
+                                namespace_name = %ctx.namespace_name,
+                                table_id = %ctx.table_id,
+                                table_name = %ctx.table_name,
+                                partition_id = %ctx.partition_id,
+                                partition_key = %ctx.partition_key,
                                 expected=?old_sort_key,
                                 ?observed,
                                 update=?new_sort_key_str,
                                 "detected concurrent sort key update, regenerating parquet"
                             );
-                            // Update the cached sort key to reflect the newly
-                            // observed value for the next attempt.
-                            self.partition
-                                .lock()
-                                .update_sort_key(Some(SortKey::from_columns(observed)));
-                            // Stop the retry loop with an error.
-                            ControlFlow::Break(Err(PersistError::ConcurrentSortKeyUpdate))
+                            // Stop the retry loop with an error containing the
+                            // newly observed sort key.
+                            ControlFlow::Break(Err(PersistError::ConcurrentSortKeyUpdate(
+                                SortKey::from_columns(observed),
+                            )))
                         }
                     }
                 }
             })
             .await
-            .expect("retry forever")?;
+            .expect("retry forever");
+
+        match update_result {
+            Ok(_) => {}
+            Err(PersistError::ConcurrentSortKeyUpdate(new_key)) => {
+                // Update the cached sort key in the PartitionData to reflect
+                // the newly observed value for the next attempt.
+                self.partition.lock().update_sort_key(Some(new_key.clone()));
+
+                // Invalidate & update the sort key cached in this Context.
+                self.sort_key = SortKeyState::Provided(Some(new_key.clone()));
+
+                return Err(PersistError::ConcurrentSortKeyUpdate(new_key));
+            }
+        }
 
         // Update the sort key in the partition cache.
         let old_key;
