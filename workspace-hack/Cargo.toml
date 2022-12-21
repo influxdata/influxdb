@@ -44,6 +44,7 @@ getrandom = { version = "0.2", default-features = false, features = ["js", "js-s
 hashbrown-5ef9efb8ec2df382 = { package = "hashbrown", version = "0.12", features = ["ahash", "inline-more", "raw"] }
 hashbrown-594e8ee84c453af0 = { package = "hashbrown", version = "0.13", features = ["ahash", "inline-more", "raw"] }
 indexmap = { version = "1", default-features = false, features = ["std"] }
+itertools = { version = "0.10", features = ["use_alloc", "use_std"] }
 libc = { version = "0.2", features = ["extra_traits", "std"] }
 lock_api = { version = "0.4", default-features = false, features = ["arc_lock"] }
 log = { version = "0.4", default-features = false, features = ["std"] }
@@ -110,6 +111,7 @@ getrandom = { version = "0.2", default-features = false, features = ["js", "js-s
 hashbrown-5ef9efb8ec2df382 = { package = "hashbrown", version = "0.12", features = ["ahash", "inline-more", "raw"] }
 heck = { version = "0.4", features = ["unicode", "unicode-segmentation"] }
 indexmap = { version = "1", default-features = false, features = ["std"] }
+itertools = { version = "0.10", features = ["use_alloc", "use_std"] }
 libc = { version = "0.2", features = ["extra_traits", "std"] }
 lock_api = { version = "0.4", default-features = false, features = ["arc_lock"] }
 log = { version = "0.4", default-features = false, features = ["std"] }
