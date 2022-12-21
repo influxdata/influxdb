@@ -297,7 +297,7 @@ where
     }
 }
 
-/// Implement ChunkMeta for Arc<dyn QueryChunk>
+/// Implement `ChunkMeta` for `Arc<dyn QueryChunk>`
 impl QueryChunkMeta for Arc<dyn QueryChunk> {
     fn summary(&self) -> Arc<TableSummary> {
         self.as_ref().summary()

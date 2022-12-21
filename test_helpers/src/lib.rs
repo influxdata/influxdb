@@ -133,7 +133,7 @@ pub fn maybe_start_logging() {
 /// Is a macro so test error
 /// messages are on the same line as the failure;
 ///
-/// Both arguments must be convertable into Strings (Into<String>)
+/// Both arguments must be convertable into `String`s (`Into<String>`)
 macro_rules! assert_contains {
     ($ACTUAL: expr, $EXPECTED: expr) => {
         let actual_value: String = $ACTUAL.into();
@@ -152,7 +152,7 @@ macro_rules! assert_contains {
 /// a nice error message if that check fails. Is a macro so test error
 /// messages are on the same line as the failure;
 ///
-/// Both arguments must be convertable into Strings (Into<String>)
+/// Both arguments must be convertable into `String`s (`Into<String>`)
 macro_rules! assert_not_contains {
     ($ACTUAL: expr, $UNEXPECTED: expr) => {
         let actual_value: String = $ACTUAL.into();
@@ -182,10 +182,10 @@ macro_rules! assert_error {
 }
 
 #[macro_export]
-/// Assert that `actual` and `expected` values are within `epsilon` of
-/// each other. Used to compare values that may fluctuate from run to run (e.g. because they encode timestamps)
+/// Assert that `actual` and `expected` values are within `epsilon` of each other. Used to compare
+/// values that may fluctuate from run to run (e.g. because they encode timestamps)
 ///
-/// Usage: assert_close!(actual, expected, epsilon);
+/// Usage: `assert_close!(actual, expected, epsilon);`
 macro_rules! assert_close {
     ($ACTUAL:expr, $EXPECTED:expr, $EPSILON:expr) => {{
         {

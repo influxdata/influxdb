@@ -1810,7 +1810,7 @@ impl<T> StatValues<T> {
 
     /// updates the statistics keeping the min, max and incrementing count.
     ///
-    /// The type plumbing exists to allow calling with &str on a StatValues<String>
+    /// The type plumbing exists to allow calling with `&str` on a `StatValues<String>`.
     pub fn update<U: ?Sized>(&mut self, other: &U)
     where
         T: Borrow<U>,

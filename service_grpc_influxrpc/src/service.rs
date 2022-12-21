@@ -1652,7 +1652,7 @@ pub trait ErrorLogger {
     /// Log the contents of self with a string of context. The context
     /// should appear in a message such as
     ///
-    /// "Error <context>: <formatted error message>
+    /// "Error `<context>`: `<formatted error message>`
     fn log_if_error(self, context: &str) -> Self;
 
     /// Provided method to log an error via the `error!` macro

@@ -291,7 +291,7 @@ impl Schema {
         self.inner.fields().is_empty()
     }
 
-    /// Returns an iterator of (Option<InfluxColumnType>, &Field) for
+    /// Returns an iterator of `(Option<InfluxColumnType>, &Field)` for
     /// all the columns of this schema, in order
     pub fn iter(&self) -> SchemaIter<'_> {
         SchemaIter::new(self)

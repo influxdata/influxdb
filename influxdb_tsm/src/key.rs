@@ -71,26 +71,30 @@ pub enum DataError {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// parses the the measurement, field key and tag
-/// set from a tsm index key
+/// Parses the the measurement, field key and tag set from a TSM index key
 ///
-/// It does not provide access to the org and bucket ids on the key, these can
-/// be accessed via org_id() and bucket_id() respectively.
+/// It does not provide access to the org and bucket IDs on the key; these can be accessed via
+/// `org_id()` and `bucket_id()` respectively.
 ///
 /// Loosely based on [points.go](https://github.com/influxdata/influxdb/blob/751d70a213e5fdae837eda13d7ecb37763e69abb/models/points.go#L462)
 ///
 /// The format looks roughly like:
 ///
+/// ```text
 /// <org_id bucket_id>,\x00=<measurement>,<tag_keys_str>,\xff=<field_key_str>#!
 /// ~#<field_key_str>
+/// ```
 ///
 /// For example:
+///
+/// ```text
 /// <org_id bucket_id>,\x00=http_api_request_duration_seconds,status=2XX,\
 /// xff=sum#!~#sum
 ///
 ///    measurement = "http_api_request"
 ///    tags = [("status", "2XX")]
 ///    field = "sum"
+/// ```
 pub fn parse_tsm_key(key: &[u8]) -> Result<ParsedTsmKey, Error> {
     // Wrap in an internal function to translate error types and add key context
     parse_tsm_key_internal(key).context(ParsingTsmKeySnafu {
