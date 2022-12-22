@@ -15,7 +15,7 @@ pub(crate) struct HotPartitionPersister<P> {
 
 impl<P> HotPartitionPersister<P>
 where
-    P: PersistQueue + Sync + 'static,
+    P: PersistQueue + Clone + Sync + 'static,
 {
     pub fn new(persist_handle: P, max_estimated_persist_cost: usize) -> Self {
         Self {
@@ -52,7 +52,7 @@ where
 
 impl<P> PostWriteObserver for HotPartitionPersister<P>
 where
-    P: PersistQueue + Sync + 'static,
+    P: PersistQueue + Clone + Sync + 'static,
 {
     #[inline(always)]
     fn observe(&self, partition: Arc<Mutex<PartitionData>>, guard: MutexGuard<'_, PartitionData>) {

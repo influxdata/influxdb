@@ -22,7 +22,7 @@ const PERSIST_ENQUEUE_CONCURRENCY: usize = 5;
 pub(crate) async fn persist_partitions<T, P>(iter: T, persist: P)
 where
     T: Iterator<Item = Arc<Mutex<PartitionData>>> + Send,
-    P: PersistQueue,
+    P: PersistQueue + Clone,
 {
     let notifications = stream::iter(iter)
         .filter_map(|p| {

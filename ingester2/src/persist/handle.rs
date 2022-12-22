@@ -31,8 +31,8 @@ use crate::{
 /// The caller should construct an [`PersistHandle`] by calling
 /// [`PersistHandle::new()`].
 ///
-/// The [`PersistHandle`] can be cheaply cloned and passed over thread/task
-/// boundaries to enqueue persist tasks in parallel.
+/// The [`PersistHandle`] can be passed over thread/task boundaries to enqueue
+/// persist tasks in parallel.
 ///
 /// Dropping all [`PersistHandle`] instances immediately stops all persist
 /// workers and drops all outstanding persist tasks.
@@ -113,14 +113,14 @@ use crate::{
 ///
 /// For details of the exact saturation detection & recovery logic, see
 /// [`PersistState`].
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct PersistHandle {
     /// THe state/dependencies shared across all worker tasks.
     worker_state: Arc<SharedWorkerState>,
 
     /// Task handles for the worker tasks, aborted on drop of all
     /// [`PersistHandle`] instances.
-    worker_tasks: Arc<Vec<AbortOnDrop<()>>>,
+    worker_tasks: Vec<AbortOnDrop<()>>,
 
     /// While the persistence system exposes the concept of a "persistence
     /// queue" externally, it is actually a set of per-worker queues, and the
@@ -149,7 +149,7 @@ pub(crate) struct PersistHandle {
     ///
     /// These queues are used for persist tasks that modify the partition's sort
     /// key, ensuring sort key updates are serialised per-partition.
-    worker_queues: Arc<JumpHash<mpsc::UnboundedSender<PersistRequest>>>,
+    worker_queues: JumpHash<mpsc::UnboundedSender<PersistRequest>>,
 
     /// Records the saturation state of the persist system.
     persist_state: Arc<PersistState>,
@@ -186,7 +186,7 @@ impl PersistHandle {
         // this queue, from which all workers consume.
         let (global_tx, global_rx) = async_channel::unbounded();
 
-        let (tx_handles, tasks): (Vec<_>, Vec<_>) = (0..n_workers)
+        let (tx_handles, worker_tasks): (Vec<_>, Vec<_>) = (0..n_workers)
             .map(|_| {
                 let worker_state = Arc::clone(&worker_state);
 
@@ -204,7 +204,7 @@ impl PersistHandle {
             })
             .unzip();
 
-        assert!(!tasks.is_empty());
+        assert!(!worker_tasks.is_empty());
 
         // Initialise the semaphore that bounds the total number of persist jobs
         // in the system.
@@ -223,8 +223,8 @@ impl PersistHandle {
                 worker_state,
                 sem,
                 global_queue: global_tx,
-                worker_queues: Arc::new(JumpHash::new(tx_handles)),
-                worker_tasks: Arc::new(tasks),
+                worker_queues: JumpHash::new(tx_handles),
+                worker_tasks,
                 persist_state: Arc::clone(&persist_state),
             },
             persist_state,
@@ -491,14 +491,14 @@ mod tests {
 
         // Kill the workers, and replace the queues so we can inspect the
         // enqueue output.
-        handle.worker_tasks = Arc::new(vec![]);
+        handle.worker_tasks = vec![];
 
         let (global_tx, _global_rx) = async_channel::unbounded();
         handle.global_queue = global_tx;
 
         let (worker1_tx, mut worker1_rx) = mpsc::unbounded_channel();
         let (worker2_tx, mut worker2_rx) = mpsc::unbounded_channel();
-        handle.worker_queues = Arc::new(JumpHash::new([worker1_tx, worker2_tx]));
+        handle.worker_queues = JumpHash::new([worker1_tx, worker2_tx]);
 
         // Generate a partition with no known sort key.
         let p = new_partition(PARTITION_ID, SortKeyState::Provided(None)).await;
@@ -560,14 +560,14 @@ mod tests {
 
         // Kill the workers, and replace the queues so we can inspect the
         // enqueue output.
-        handle.worker_tasks = Arc::new(vec![]);
+        handle.worker_tasks = vec![];
 
         let (global_tx, _global_rx) = async_channel::unbounded();
         handle.global_queue = global_tx;
 
         let (worker1_tx, mut worker1_rx) = mpsc::unbounded_channel();
         let (worker2_tx, mut worker2_rx) = mpsc::unbounded_channel();
-        handle.worker_queues = Arc::new(JumpHash::new([worker1_tx, worker2_tx]));
+        handle.worker_queues = JumpHash::new([worker1_tx, worker2_tx]);
 
         // Generate a partition with a resolved, but empty sort key.
         let p = new_partition(
@@ -641,14 +641,14 @@ mod tests {
 
         // Kill the workers, and replace the queues so we can inspect the
         // enqueue output.
-        handle.worker_tasks = Arc::new(vec![]);
+        handle.worker_tasks = vec![];
 
         let (global_tx, _global_rx) = async_channel::unbounded();
         handle.global_queue = global_tx;
 
         let (worker1_tx, mut worker1_rx) = mpsc::unbounded_channel();
         let (worker2_tx, mut worker2_rx) = mpsc::unbounded_channel();
-        handle.worker_queues = Arc::new(JumpHash::new([worker1_tx, worker2_tx]));
+        handle.worker_queues = JumpHash::new([worker1_tx, worker2_tx]);
 
         // Generate a partition with a resolved sort key that does not reflect
         // the data within the partition's buffer.
@@ -722,14 +722,14 @@ mod tests {
 
         // Kill the workers, and replace the queues so we can inspect the
         // enqueue output.
-        handle.worker_tasks = Arc::new(vec![]);
+        handle.worker_tasks = vec![];
 
         let (global_tx, global_rx) = async_channel::unbounded();
         handle.global_queue = global_tx;
 
         let (worker1_tx, mut worker1_rx) = mpsc::unbounded_channel();
         let (worker2_tx, mut worker2_rx) = mpsc::unbounded_channel();
-        handle.worker_queues = Arc::new(JumpHash::new([worker1_tx, worker2_tx]));
+        handle.worker_queues = JumpHash::new([worker1_tx, worker2_tx]);
 
         // Generate a partition with a resolved sort key that does not reflect
         // the data within the partition's buffer.

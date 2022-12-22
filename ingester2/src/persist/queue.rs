@@ -15,7 +15,7 @@ use crate::buffer_tree::partition::{persisting::PersistingData, PartitionData};
 /// It is a logical error to enqueue a [`PartitionData`] with a
 /// [`PersistingData`] from another instance.
 #[async_trait]
-pub(crate) trait PersistQueue: Clone + Send + Sync + Debug {
+pub(crate) trait PersistQueue: Send + Sync + Debug {
     /// Place `data` from `partition` into the persistence queue,
     /// (asynchronously) blocking until enqueued.
     async fn enqueue(
@@ -23,4 +23,19 @@ pub(crate) trait PersistQueue: Clone + Send + Sync + Debug {
         partition: Arc<Mutex<PartitionData>>,
         data: PersistingData,
     ) -> oneshot::Receiver<()>;
+}
+
+#[async_trait]
+impl<T> PersistQueue for Arc<T>
+where
+    T: PersistQueue,
+{
+    #[allow(clippy::async_yields_async)]
+    async fn enqueue(
+        &self,
+        partition: Arc<Mutex<PartitionData>>,
+        data: PersistingData,
+    ) -> oneshot::Receiver<()> {
+        (**self).enqueue(partition, data).await
+    }
 }

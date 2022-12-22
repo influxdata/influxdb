@@ -39,7 +39,7 @@ pub(crate) async fn periodic_rotation<T, P>(
     persist: P,
 ) where
     T: PartitionIter + Sync,
-    P: PersistQueue,
+    P: PersistQueue + Clone,
 {
     let mut interval = tokio::time::interval(period);
 
