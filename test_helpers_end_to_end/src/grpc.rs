@@ -9,7 +9,7 @@ use generated_types::{
 };
 use prost::Message;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 /// Helps create and send influxrpc / gRPC requests to IOx
 pub struct GrpcRequestBuilder {
     read_source: Option<generated_types::google::protobuf::Any>,

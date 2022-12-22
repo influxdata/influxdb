@@ -14,6 +14,7 @@ use test_helpers_end_to_end::{
 async fn read_filter() {
     let generator = Arc::new(DataGenerator::new());
     run_data_test(Arc::clone(&generator), Box::new(move |state: &mut StepTestState| {
+        let generator = Arc::clone(&generator);
         async move {
             let mut storage_client = state.cluster().querier_storage_client();
 
@@ -325,6 +326,8 @@ async fn do_read_filter_test(
             Step::WriteLineProtocol(line_protocol),
             Step::WaitForReadable,
             Step::Custom(Box::new(move |state: &mut StepTestState| {
+                let request_builder = request_builder.clone();
+                let expected_frames = expected_frames.clone();
                 async move {
                     let mut storage_client = state.cluster().querier_storage_client();
 

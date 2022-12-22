@@ -1,22 +1,23 @@
 use crate::{
-    check_flight_error, get_write_token, run_influxql, run_sql, token_is_persisted,
-    try_run_influxql, try_run_sql, wait_for_persisted, wait_for_readable, MiniCluster,
+    check_flight_error, get_write_token, run_influxql, run_sql, snapshot_comparison,
+    token_is_persisted, try_run_influxql, try_run_sql, wait_for_persisted, wait_for_readable,
+    MiniCluster,
 };
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_sorted_eq;
 use futures::future::BoxFuture;
 use http::StatusCode;
 use observability_deps::tracing::info;
-use std::time::Duration;
+use std::{path::PathBuf, time::Duration};
 
 const MAX_QUERY_RETRY_TIME_SEC: u64 = 20;
 
 /// Test harness for end to end tests that are comprised of several steps
-pub struct StepTest<'a> {
+pub struct StepTest<'a, S> {
     cluster: &'a mut MiniCluster,
 
     /// The test steps to perform
-    steps: Vec<Step>,
+    steps: Box<dyn Iterator<Item = S> + 'a>,
 }
 
 /// The test state that is passed to custom steps
@@ -132,10 +133,10 @@ impl<'a> StepTestState<'a> {
 ///   }.boxed()
 /// });
 /// ```
-pub type FCustom = Box<dyn for<'b> FnOnce(&'b mut StepTestState) -> BoxFuture<'b, ()>>;
+pub type FCustom = Box<dyn for<'b> Fn(&'b mut StepTestState) -> BoxFuture<'b, ()> + Send + Sync>;
 
 /// Function to do custom validation on metrics. Expected to panic on validation failure.
-pub type MetricsValidationFn = Box<dyn Fn(&mut StepTestState, String)>;
+pub type MetricsValidationFn = Box<dyn Fn(&mut StepTestState, String) + Send + Sync>;
 
 /// Possible test steps that a test can perform
 pub enum Step {
@@ -184,6 +185,14 @@ pub enum Step {
         expected: Vec<&'static str>,
     },
 
+    /// Read the SQL queries in the specified file and verify that the results match the expected
+    /// results in the corresponding expected file
+    QueryAndCompare {
+        input_path: PathBuf,
+        setup_name: String,
+        contents: String,
+    },
+
     /// Run a SQL query that's expected to fail using the FlightSQL interface and verify that the
     /// request returns the expected error code and message
     QueryExpectingError {
@@ -200,7 +209,7 @@ pub enum Step {
     /// failure.
     VerifiedQuery {
         sql: String,
-        verify: Box<dyn Fn(Vec<RecordBatch>)>,
+        verify: Box<dyn Fn(Vec<RecordBatch>) + Send + Sync>,
     },
 
     /// Run an InfluxQL query using the FlightSQL interface and verify that the
@@ -231,11 +240,23 @@ pub enum Step {
     Custom(FCustom),
 }
 
-impl<'a> StepTest<'a> {
+impl AsRef<Step> for Step {
+    fn as_ref(&self) -> &Step {
+        self
+    }
+}
+
+impl<'a, S> StepTest<'a, S>
+where
+    S: AsRef<Step>,
+{
     /// Create a new test that runs each `step`, in sequence, against
     /// `cluster` panic'ing if any step fails
-    pub fn new(cluster: &'a mut MiniCluster, steps: Vec<Step>) -> Self {
-        Self { cluster, steps }
+    pub fn new(cluster: &'a mut MiniCluster, steps: impl IntoIterator<Item = S> + 'a) -> Self {
+        Self {
+            cluster,
+            steps: Box::new(steps.into_iter()),
+        }
     }
 
     /// run the test.
@@ -248,9 +269,9 @@ impl<'a> StepTest<'a> {
             num_parquet_files: Default::default(),
         };
 
-        for (i, step) in steps.into_iter().enumerate() {
+        for (i, step) in steps.enumerate() {
             info!("**** Begin step {} *****", i);
-            match step {
+            match step.as_ref() {
                 Step::WriteLineProtocol(line_protocol) => {
                     info!(
                         "====Begin writing line protocol to v2 HTTP API:\n{}",
@@ -292,7 +313,7 @@ impl<'a> StepTest<'a> {
                 Step::WaitForPersisted2 { expected_increase } => {
                     info!("====Begin waiting for a change in the number of Parquet files");
                     state
-                        .wait_for_num_parquet_file_change(expected_increase)
+                        .wait_for_num_parquet_file_change(*expected_increase)
                         .await;
                     info!("====Done waiting for a change in the number of Parquet files");
                 }
@@ -342,8 +363,24 @@ impl<'a> StepTest<'a> {
                         state.cluster.querier().querier_grpc_connection(),
                     )
                     .await;
-                    assert_batches_sorted_eq!(&expected, &batches);
+                    assert_batches_sorted_eq!(expected, &batches);
                     info!("====Done running");
+                }
+                Step::QueryAndCompare {
+                    input_path,
+                    setup_name,
+                    contents,
+                } => {
+                    info!("====Begin running queries in file {}", input_path.display());
+                    snapshot_comparison::run(
+                        state.cluster,
+                        input_path.into(),
+                        setup_name.into(),
+                        contents.into(),
+                    )
+                    .await
+                    .unwrap();
+                    info!("====Done running queries");
                 }
                 Step::QueryExpectingError {
                     sql,
@@ -360,7 +397,7 @@ impl<'a> StepTest<'a> {
                     .await
                     .unwrap_err();
 
-                    check_flight_error(err, expected_error_code, Some(&expected_message));
+                    check_flight_error(err, *expected_error_code, Some(expected_message));
 
                     info!("====Done running");
                 }
@@ -385,7 +422,7 @@ impl<'a> StepTest<'a> {
                         state.cluster.querier().querier_grpc_connection(),
                     )
                     .await;
-                    assert_batches_sorted_eq!(&expected, &batches);
+                    assert_batches_sorted_eq!(expected, &batches);
                     info!("====Done running");
                 }
                 Step::InfluxQLExpectingError {
@@ -406,7 +443,7 @@ impl<'a> StepTest<'a> {
                     .await
                     .unwrap_err();
 
-                    check_flight_error(err, expected_error_code, Some(&expected_message));
+                    check_flight_error(err, *expected_error_code, Some(expected_message));
 
                     info!("====Done running");
                 }
