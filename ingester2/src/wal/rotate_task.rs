@@ -1,19 +1,44 @@
 use observability_deps::tracing::*;
+use parking_lot::Mutex;
 use std::{fmt::Debug, sync::Arc, time::Duration};
 
 use crate::{
-    buffer_tree::BufferTree,
-    persist::{drain_buffer::persist_buffer, handle::PersistHandle},
+    buffer_tree::partition::PartitionData,
+    persist::{drain_buffer::persist_partitions, handle::PersistHandle},
 };
 
+/// An abstraction over any type that can yield an iterator of (potentially
+/// empty) [`PartitionData`].
+pub(crate) trait PartitionIter: Send + Debug {
+    fn partition_iter(&self) -> Box<dyn Iterator<Item = Arc<Mutex<PartitionData>>> + Send>;
+}
+
+impl<T> PartitionIter for Arc<T>
+where
+    T: PartitionIter + Send + Sync,
+{
+    fn partition_iter(&self) -> Box<dyn Iterator<Item = Arc<Mutex<PartitionData>>> + Send> {
+        (**self).partition_iter()
+    }
+}
+
+impl<O> PartitionIter for crate::buffer_tree::BufferTree<O>
+where
+    O: Send + Sync + Debug + 'static,
+{
+    fn partition_iter(&self) -> Box<dyn Iterator<Item = Arc<Mutex<PartitionData>>> + Send> {
+        Box::new(self.partitions())
+    }
+}
+
 /// Rotate the `wal` segment file every `period` duration of time.
-pub(crate) async fn periodic_rotation<O>(
+pub(crate) async fn periodic_rotation<T>(
     wal: Arc<wal::Wal>,
     period: Duration,
-    buffer: Arc<BufferTree<O>>,
+    buffer: T,
     persist: PersistHandle,
 ) where
-    O: Send + Sync + Debug,
+    T: PartitionIter + Sync,
 {
     let mut interval = tokio::time::interval(period);
 
@@ -85,7 +110,7 @@ pub(crate) async fn periodic_rotation<O>(
         // - a small price to pay for not having to block ingest while the WAL
         // is rotated, all outstanding writes + queries complete, and all then
         // partitions are marked as persisting.
-        persist_buffer(&buffer, persist.clone()).await;
+        persist_partitions(buffer.partition_iter(), persist.clone()).await;
 
         debug!(
             closed_id = %stats.id(),

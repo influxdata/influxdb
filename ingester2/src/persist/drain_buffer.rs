@@ -1,10 +1,11 @@
-use std::{fmt::Debug, future};
+use std::{future, sync::Arc};
 
 use futures::{stream, StreamExt};
 use observability_deps::tracing::debug;
+use parking_lot::Mutex;
 use tokio::time::Instant;
 
-use crate::buffer_tree::BufferTree;
+use crate::buffer_tree::partition::PartitionData;
 
 use super::handle::PersistHandle;
 
@@ -12,17 +13,17 @@ use super::handle::PersistHandle;
 /// partition locks and marking the partition as persisting.
 const PERSIST_ENQUEUE_CONCURRENCY: usize = 5;
 
-// Drain the [`BufferTree`] of partition data and persist each one. Blocks for
-// completion of all enqueued persist jobs.
+// Persist a set of [`PartitionData`], blocking for completion of all enqueued
+// persist jobs.
 //
 // This call is not atomic, partitions are marked for persistence incrementally.
 // Writes that landed into the partition buffer after this call, but before the
 // partition data is read will be included in the persisted data.
-pub(crate) async fn persist_buffer<O>(buffer: &BufferTree<O>, persist: PersistHandle)
+pub(crate) async fn persist_partitions<T>(iter: T, persist: PersistHandle)
 where
-    O: Send + Sync + Debug,
+    T: Iterator<Item = Arc<Mutex<PartitionData>>> + Send,
 {
-    let notifications = stream::iter(buffer.partitions())
+    let notifications = stream::iter(iter)
         .filter_map(|p| {
             async move {
                 let t = Instant::now();
