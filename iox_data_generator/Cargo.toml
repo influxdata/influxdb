@@ -13,7 +13,7 @@ chrono-english = "0.1.4"
 clap = { version = "4", features = ["derive", "env", "cargo"] }
 datafusion_util = { path = "../datafusion_util" }
 futures = "0.3"
-handlebars = "4.3.5"
+handlebars = "4.3.6"
 humantime = "2.1.0"
 influxdb2_client = { path = "../influxdb2_client" }
 itertools = "0.10.5"
