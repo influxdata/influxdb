@@ -46,10 +46,10 @@ func newIndexSeriesCursor(ctx context.Context, predicate *datatypes.Predicate, s
 		}
 	}
 
-	return newIndexSeriesCursorInfluxQLPred(ctx, expr, shards)
+	return NewIndexSeriesCursorInfluxQLPred(ctx, expr, shards)
 }
 
-func newIndexSeriesCursorInfluxQLPred(ctx context.Context, predicate influxql.Expr, shards []*tsdb.Shard) (*indexSeriesCursor, error) {
+func NewIndexSeriesCursorInfluxQLPred(ctx context.Context, predicate influxql.Expr, shards []*tsdb.Shard) (*indexSeriesCursor, error) {
 	queries, err := tsdb.CreateCursorIterators(ctx, shards)
 	if err != nil {
 		return nil, err

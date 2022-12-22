@@ -280,14 +280,14 @@ func (s *Store) WindowAggregate(ctx context.Context, req *datatypes.ReadWindowAg
 }
 
 type MetaqueryAttributes struct {
-	db, rp     string
-	start, end int64
-	pred       influxql.Expr
+	Db, Rp     string
+	Start, End int64
+	Pred       influxql.Expr
 }
 
 func (s *Store) tagKeysWithFieldPredicate(ctx context.Context, mqAttrs *MetaqueryAttributes, shardIDs []uint64) (cursors.StringIterator, error) {
 	var cur reads.SeriesCursor
-	if ic, err := newIndexSeriesCursorInfluxQLPred(ctx, mqAttrs.pred, s.TSDBStore.Shards(shardIDs)); err != nil {
+	if ic, err := NewIndexSeriesCursorInfluxQLPred(ctx, mqAttrs.Pred, s.TSDBStore.Shards(shardIDs)); err != nil {
 		return nil, err
 	} else if ic == nil {
 		return cursors.EmptyStringIterator, nil
@@ -295,7 +295,7 @@ func (s *Store) tagKeysWithFieldPredicate(ctx context.Context, mqAttrs *Metaquer
 		cur = ic
 	}
 	m := make(map[string]struct{})
-	rs := reads.NewFilteredResultSet(ctx, mqAttrs.start, mqAttrs.end, cur)
+	rs := reads.NewFilteredResultSet(ctx, mqAttrs.Start, mqAttrs.End, cur)
 	for rs.Next() {
 		func() {
 			c := rs.Cursor()
@@ -357,11 +357,11 @@ func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 		}
 		if found := reads.ExprHasKey(expr, fieldKey); found {
 			mqAttrs := &MetaqueryAttributes{
-				db:    db,
-				rp:    rp,
-				start: start,
-				end:   end,
-				pred:  expr,
+				Db:    db,
+				Rp:    rp,
+				Start: start,
+				End:   end,
+				Pred:  expr,
 			}
 			return s.tagKeysWithFieldPredicate(ctx, mqAttrs, shardIDs)
 		}
@@ -429,11 +429,11 @@ func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 	}
 
 	mqAttrs := &MetaqueryAttributes{
-		db:    db,
-		rp:    rp,
-		start: start,
-		end:   end,
-		pred:  influxqlPred,
+		Db:    db,
+		Rp:    rp,
+		Start: start,
+		End:   end,
+		Pred:  influxqlPred,
 	}
 
 	tagKey, ok := measurementRemap[req.TagKey]
@@ -455,13 +455,13 @@ func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 func (s *Store) tagValues(ctx context.Context, mqAttrs *MetaqueryAttributes, tagKey string) (cursors.StringIterator, error) {
 	// If there are any references to _field, we need to use the slow path
 	// since we cannot rely on the index alone.
-	if mqAttrs.pred != nil {
-		if hasFieldKey := reads.ExprHasKey(mqAttrs.pred, fieldKey); hasFieldKey {
+	if mqAttrs.Pred != nil {
+		if hasFieldKey := reads.ExprHasKey(mqAttrs.Pred, fieldKey); hasFieldKey {
 			return s.tagValuesSlow(ctx, mqAttrs, tagKey)
 		}
 	}
 
-	shardIDs, err := s.findShardIDs(mqAttrs.db, mqAttrs.rp, false, mqAttrs.start, mqAttrs.end)
+	shardIDs, err := s.findShardIDs(mqAttrs.Db, mqAttrs.Rp, false, mqAttrs.Start, mqAttrs.End)
 	if err != nil {
 		return nil, err
 	}
@@ -479,21 +479,21 @@ func (s *Store) tagValues(ctx context.Context, mqAttrs *MetaqueryAttributes, tag
 		},
 	}
 
-	if mqAttrs.pred != nil {
-		mqAttrs.pred = &influxql.BinaryExpr{
+	if mqAttrs.Pred != nil {
+		mqAttrs.Pred = &influxql.BinaryExpr{
 			Op:  influxql.AND,
 			LHS: tagKeyExpr,
 			RHS: &influxql.ParenExpr{
-				Expr: mqAttrs.pred,
+				Expr: mqAttrs.Pred,
 			},
 		}
 	} else {
-		mqAttrs.pred = tagKeyExpr
+		mqAttrs.Pred = tagKeyExpr
 	}
 
 	// TODO(jsternberg): Use a real authorizer.
 	auth := query.OpenAuthorizer
-	values, err := s.TSDBStore.TagValues(ctx, auth, shardIDs, mqAttrs.pred)
+	values, err := s.TSDBStore.TagValues(ctx, auth, shardIDs, mqAttrs.Pred)
 	if err != nil {
 		return nil, err
 	}
@@ -512,8 +512,8 @@ func (s *Store) tagValues(ctx context.Context, mqAttrs *MetaqueryAttributes, tag
 }
 
 func (s *Store) MeasurementNames(ctx context.Context, mqAttrs *MetaqueryAttributes) (cursors.StringIterator, error) {
-	if mqAttrs.pred != nil {
-		if hasFieldKey := reads.ExprHasKey(mqAttrs.pred, fieldKey); hasFieldKey {
+	if mqAttrs.Pred != nil {
+		if hasFieldKey := reads.ExprHasKey(mqAttrs.Pred, fieldKey); hasFieldKey {
 			// If there is a predicate on _field, we cannot use the index
 			// to filter out unwanted measurement names. Use a slower
 			// block scan instead.
@@ -523,7 +523,7 @@ func (s *Store) MeasurementNames(ctx context.Context, mqAttrs *MetaqueryAttribut
 
 	// TODO(jsternberg): Use a real authorizer.
 	auth := query.OpenAuthorizer
-	values, err := s.TSDBStore.MeasurementNames(ctx, auth, mqAttrs.db, "", mqAttrs.pred)
+	values, err := s.TSDBStore.MeasurementNames(ctx, auth, mqAttrs.Db, "", mqAttrs.Pred)
 	if err != nil {
 		return nil, err
 	}
@@ -546,19 +546,19 @@ func (s *Store) GetSource(db, rp string) proto.Message {
 }
 
 func (s *Store) measurementFields(ctx context.Context, mqAttrs *MetaqueryAttributes) (cursors.StringIterator, error) {
-	if mqAttrs.pred != nil {
-		if hasFieldKey := reads.ExprHasKey(mqAttrs.pred, fieldKey); hasFieldKey {
+	if mqAttrs.Pred != nil {
+		if hasFieldKey := reads.ExprHasKey(mqAttrs.Pred, fieldKey); hasFieldKey {
 			return s.tagValuesSlow(ctx, mqAttrs, fieldKey)
 		}
 
 		// If there predicates on anything besides _measurement, we can't
 		// use the index and need to use the slow path.
-		if hasTagKey(mqAttrs.pred) {
+		if HasTagKey(mqAttrs.Pred) {
 			return s.tagValuesSlow(ctx, mqAttrs, fieldKey)
 		}
 	}
 
-	shardIDs, err := s.findShardIDs(mqAttrs.db, mqAttrs.rp, false, mqAttrs.start, mqAttrs.end)
+	shardIDs, err := s.findShardIDs(mqAttrs.Db, mqAttrs.Rp, false, mqAttrs.Start, mqAttrs.End)
 	if err != nil {
 		return nil, err
 	}
@@ -568,12 +568,12 @@ func (s *Store) measurementFields(ctx context.Context, mqAttrs *MetaqueryAttribu
 
 	sg := s.TSDBStore.ShardGroup(shardIDs)
 	ms := &influxql.Measurement{
-		Database:        mqAttrs.db,
-		RetentionPolicy: mqAttrs.rp,
+		Database:        mqAttrs.Db,
+		RetentionPolicy: mqAttrs.Rp,
 		SystemIterator:  "_fieldKeys",
 	}
 	opts := query.IteratorOptions{
-		Condition:  mqAttrs.pred,
+		Condition:  mqAttrs.Pred,
 		Authorizer: query.OpenAuthorizer,
 	}
 	iter, err := sg.CreateIterator(ctx, ms, opts)
@@ -627,7 +627,7 @@ func cursorHasData(c cursors.Cursor) bool {
 // of correlating fields to tag values, so we sometimes need to consult tsm to
 // provide an accurate answer.
 func (s *Store) tagValuesSlow(ctx context.Context, mqAttrs *MetaqueryAttributes, tagKey string) (cursors.StringIterator, error) {
-	shardIDs, err := s.findShardIDs(mqAttrs.db, mqAttrs.rp, false, mqAttrs.start, mqAttrs.end)
+	shardIDs, err := s.findShardIDs(mqAttrs.Db, mqAttrs.Rp, false, mqAttrs.Start, mqAttrs.End)
 	if err != nil {
 		return nil, err
 	}
@@ -636,7 +636,7 @@ func (s *Store) tagValuesSlow(ctx context.Context, mqAttrs *MetaqueryAttributes,
 	}
 
 	var cur reads.SeriesCursor
-	if ic, err := newIndexSeriesCursorInfluxQLPred(ctx, mqAttrs.pred, s.TSDBStore.Shards(shardIDs)); err != nil {
+	if ic, err := NewIndexSeriesCursorInfluxQLPred(ctx, mqAttrs.Pred, s.TSDBStore.Shards(shardIDs)); err != nil {
 		return nil, err
 	} else if ic == nil {
 		return cursors.EmptyStringIterator, nil
@@ -645,7 +645,7 @@ func (s *Store) tagValuesSlow(ctx context.Context, mqAttrs *MetaqueryAttributes,
 	}
 	m := make(map[string]struct{})
 
-	rs := reads.NewFilteredResultSet(ctx, mqAttrs.start, mqAttrs.end, cur)
+	rs := reads.NewFilteredResultSet(ctx, mqAttrs.Start, mqAttrs.End, cur)
 	for rs.Next() {
 		func() {
 			c := rs.Cursor()
