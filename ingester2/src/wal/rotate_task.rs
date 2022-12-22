@@ -1,13 +1,10 @@
-use futures::{stream, StreamExt};
 use observability_deps::tracing::*;
-use std::{fmt::Debug, future, sync::Arc, time::Duration};
-use tokio::time::Instant;
+use std::{fmt::Debug, sync::Arc, time::Duration};
 
-use crate::{buffer_tree::BufferTree, persist::handle::PersistHandle};
-
-/// [`PERSIST_ENQUEUE_CONCURRENCY`] defines the parallelism used when acquiring
-/// partition locks and marking the partition as persisting.
-const PERSIST_ENQUEUE_CONCURRENCY: usize = 5;
+use crate::{
+    buffer_tree::BufferTree,
+    persist::{drain_buffer::persist_buffer, handle::PersistHandle},
+};
 
 /// Rotate the `wal` segment file every `period` duration of time.
 pub(crate) async fn periodic_rotation<O>(
@@ -88,58 +85,7 @@ pub(crate) async fn periodic_rotation<O>(
         // - a small price to pay for not having to block ingest while the WAL
         // is rotated, all outstanding writes + queries complete, and all then
         // partitions are marked as persisting.
-
-        let notifications = stream::iter(buffer.partitions())
-            .filter_map(|p| {
-                async move {
-                    let t = Instant::now();
-
-                    // Skip this partition if there is no data to persist
-                    let data = p.lock().mark_persisting()?;
-
-                    debug!(
-                        partition_id=data.partition_id().get(),
-                        lock_wait=?Instant::now().duration_since(t),
-                        "read data for persistence"
-                    );
-
-                    // Enqueue the partition for persistence.
-                    //
-                    // The persist task will call mark_persisted() on the partition
-                    // once complete.
-                    // Some(future::ready(persist.queue_persist(p, data).await))
-                    Some(future::ready((p, data)))
-                }
-            })
-            // Concurrently attempt to obtain partition locks and mark them as
-            // persisting. This will hide the latency of individual lock
-            // acquisitions.
-            .buffer_unordered(PERSIST_ENQUEUE_CONCURRENCY)
-            // Serialise adding partitions to the persist queue (a fast
-            // operation that doesn't benefit from contention at all).
-            .then(|(p, data)| {
-                let persist = persist.clone();
-
-                // Enqueue and retain the notification receiver, which will be
-                // awaited later.
-                #[allow(clippy::async_yields_async)]
-                async move {
-                    persist.queue_persist(p, data).await
-                }
-            })
-            .collect::<Vec<_>>()
-            .await;
-
-        debug!(
-            n_partitions = notifications.len(),
-            closed_id = %stats.id(),
-            "queued partitions for persist"
-        );
-
-        // Wait for all the persist completion notifications.
-        for n in notifications {
-            n.await.expect("persist worker task panic");
-        }
+        persist_buffer(&buffer, persist.clone()).await;
 
         debug!(
             closed_id = %stats.id(),
