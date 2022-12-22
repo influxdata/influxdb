@@ -1,6 +1,8 @@
 crate::maybe_pub!(
-    mod wal_replay;
+    pub use super::wal_replay::*;
 );
+
+mod wal_replay;
 
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
@@ -252,7 +254,7 @@ pub async fn new(
     let wal = Wal::new(wal_directory).await.map_err(InitError::WalInit)?;
 
     // Replay the WAL log files, if any.
-    let max_sequence_number = wal_replay::replay(&wal, &buffer)
+    let max_sequence_number = wal_replay::replay(&wal, &buffer, Arc::clone(&persist_handle))
         .await
         .map_err(|e| InitError::WalReplay(e.into()))?;
 

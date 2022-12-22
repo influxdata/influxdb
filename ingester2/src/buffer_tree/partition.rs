@@ -41,7 +41,7 @@ impl SortKeyState {
 /// Data of an IOx Partition of a given Table of a Namespace that belongs to a
 /// given Shard
 #[derive(Debug)]
-pub(crate) struct PartitionData {
+pub struct PartitionData {
     /// The catalog ID of the partition this buffer is for.
     partition_id: PartitionId,
     /// The string partition key for this partition.
@@ -123,7 +123,7 @@ impl PartitionData {
     }
 
     /// Buffer the given [`MutableBatch`] in memory.
-    pub(super) fn buffer_write(
+    pub(crate) fn buffer_write(
         &mut self,
         mb: MutableBatch,
         sequence_number: SequenceNumber,

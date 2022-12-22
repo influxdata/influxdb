@@ -41,6 +41,7 @@ schema = { version = "0.1.0", path = "../schema" }
 service_grpc_catalog = { version = "0.1.0", path = "../service_grpc_catalog" }
 sharder = { version = "0.1.0", path = "../sharder" }
 thiserror = "1.0.38"
+test_helpers = { path = "../test_helpers", features = ["future_timeout"], optional = true }
 tokio = { version = "1.22", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tonic = "0.8.3"
 trace = { version = "0.1.0", path = "../trace" }
@@ -59,7 +60,7 @@ tempfile = "3.3.0"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
 
 [features]
-benches = [] # Export some internal types for benchmark purposes only.
+benches = ["test_helpers"] # Export some internal types for benchmark purposes only.
 
 [lib]
 bench = false

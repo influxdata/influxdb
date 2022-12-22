@@ -38,7 +38,7 @@ impl Display for BatchIdent {
 /// [`PartitionData::mark_persisting()`]: super::PartitionData::mark_persisting
 /// [`PartitionData::mark_persisted()`]: super::PartitionData::mark_persisted
 #[derive(Debug, Clone)]
-pub(crate) struct PersistingData {
+pub struct PersistingData {
     data: QueryAdaptor,
     batch_ident: BatchIdent,
 }
