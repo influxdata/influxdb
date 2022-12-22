@@ -225,6 +225,7 @@ pub async fn new(
         Arc::clone(&catalog),
         &metrics,
     );
+    let persist_handle = Arc::new(persist_handle);
 
     // Instantiate a post-write observer for hot partition persistence.
     //
@@ -236,7 +237,7 @@ pub async fn new(
     // smaller partitions in-between executions because it was OOMing during WAL
     // replay (and the configuration was changed to mitigate it).
     let hot_partition_persister =
-        HotPartitionPersister::new(persist_handle.clone(), persist_hot_partition_cost);
+        HotPartitionPersister::new(Arc::clone(&persist_handle), persist_hot_partition_cost);
 
     let buffer = Arc::new(BufferTree::new(
         namespace_name_provider,
