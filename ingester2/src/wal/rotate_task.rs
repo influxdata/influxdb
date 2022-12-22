@@ -9,7 +9,8 @@ use crate::{
 
 /// An abstraction over any type that can yield an iterator of (potentially
 /// empty) [`PartitionData`].
-pub(crate) trait PartitionIter: Send + Debug {
+pub trait PartitionIter: Send + Debug {
+    /// Return the set of partitions in `self`.
     fn partition_iter(&self) -> Box<dyn Iterator<Item = Arc<Mutex<PartitionData>>> + Send>;
 }
 

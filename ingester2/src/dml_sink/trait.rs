@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use dml::DmlOperation;
 use thiserror::Error;
 
+/// Errors returned due from calls to [`DmlSink::apply()`].
 #[derive(Debug, Error)]
 pub enum DmlError {
     /// An error applying a [`DmlOperation`] to a [`BufferTree`].
@@ -20,6 +21,8 @@ pub enum DmlError {
 /// A [`DmlSink`] handles [`DmlOperation`] instances in some abstract way.
 #[async_trait]
 pub trait DmlSink: Debug + Send + Sync {
+    /// The concrete error type returned by a [`DmlSink`] implementation,
+    /// convertible to a [`DmlError`].
     type Error: Error + Into<DmlError> + Send;
 
     /// Apply `op` to the implementer's state.
