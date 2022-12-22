@@ -116,6 +116,8 @@ where
                         "error dropping empty wal segment",
                     );
                 }
+
+                continue;
             }
         };
 
