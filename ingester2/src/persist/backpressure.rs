@@ -60,14 +60,11 @@ pub(crate) struct PersistState {
     state: CachePadded<AtomicUsize>,
 
     /// Tracks the number of [`WaitGuard`] instances, which in turn tracks the
-    /// number of async tasks waiting within [`PersistHandle::queue_persist()`]
-    /// to obtain a semaphore permit and enqueue a persist job.
+    /// number of async tasks waiting within `PersistHandle::enqueue()` to
+    /// obtain a semaphore permit and enqueue a persist job.
     ///
     /// This is modified using [`Ordering::SeqCst`] as performance is not a
     /// priority for code paths that modify it.
-    ///
-    /// [`PersistHandle::queue_persist()`]:
-    ///     super::handle::PersistHandle::queue_persist()
     waiting_to_enqueue: Arc<AtomicUsize>,
 
     /// The persist task semaphore with a maximum of `persist_queue_depth`

@@ -7,7 +7,7 @@ use tokio::time::Instant;
 
 use crate::buffer_tree::partition::PartitionData;
 
-use super::handle::PersistHandle;
+use super::queue::PersistQueue;
 
 /// [`PERSIST_ENQUEUE_CONCURRENCY`] defines the parallelism used when acquiring
 /// partition locks and marking the partition as persisting.
@@ -19,9 +19,10 @@ const PERSIST_ENQUEUE_CONCURRENCY: usize = 5;
 // This call is not atomic, partitions are marked for persistence incrementally.
 // Writes that landed into the partition buffer after this call, but before the
 // partition data is read will be included in the persisted data.
-pub(crate) async fn persist_partitions<T>(iter: T, persist: PersistHandle)
+pub(crate) async fn persist_partitions<T, P>(iter: T, persist: P)
 where
     T: Iterator<Item = Arc<Mutex<PartitionData>>> + Send,
+    P: PersistQueue,
 {
     let notifications = stream::iter(iter)
         .filter_map(|p| {
@@ -58,7 +59,7 @@ where
             // awaited later.
             #[allow(clippy::async_yields_async)]
             async move {
-                persist.queue_persist(p, data).await
+                persist.enqueue(p, data).await
             }
         })
         .collect::<Vec<_>>()

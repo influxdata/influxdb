@@ -5,16 +5,19 @@ use parking_lot::{Mutex, MutexGuard};
 
 use crate::buffer_tree::{partition::PartitionData, post_write::PostWriteObserver};
 
-use super::handle::PersistHandle;
+use super::queue::PersistQueue;
 
 #[derive(Debug)]
-pub(crate) struct HotPartitionPersister {
-    persist_handle: PersistHandle,
+pub(crate) struct HotPartitionPersister<P> {
+    persist_handle: P,
     max_estimated_persist_cost: usize,
 }
 
-impl HotPartitionPersister {
-    pub fn new(persist_handle: PersistHandle, max_estimated_persist_cost: usize) -> Self {
+impl<P> HotPartitionPersister<P>
+where
+    P: PersistQueue + Sync + 'static,
+{
+    pub fn new(persist_handle: P, max_estimated_persist_cost: usize) -> Self {
         Self {
             persist_handle,
             max_estimated_persist_cost,
@@ -42,12 +45,15 @@ impl HotPartitionPersister {
         let persist_handle = self.persist_handle.clone();
         tokio::spawn(async move {
             // There is no need to await on the completion handle.
-            let _ = persist_handle.queue_persist(partition, data).await;
+            let _ = persist_handle.enqueue(partition, data).await;
         });
     }
 }
 
-impl PostWriteObserver for HotPartitionPersister {
+impl<P> PostWriteObserver for HotPartitionPersister<P>
+where
+    P: PersistQueue + Sync + 'static,
+{
     #[inline(always)]
     fn observe(&self, partition: Arc<Mutex<PartitionData>>, guard: MutexGuard<'_, PartitionData>) {
         // Without releasing the lock, obtain the new persist cost estimate.

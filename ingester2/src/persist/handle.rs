@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use iox_catalog::interface::Catalog;
 use iox_query::{exec::Executor, QueryChunkMeta};
 use observability_deps::tracing::*;
@@ -12,7 +13,10 @@ use tokio::{
     time::Instant,
 };
 
-use super::{backpressure::PersistState, context::PersistRequest, worker::SharedWorkerState};
+use super::{
+    backpressure::PersistState, context::PersistRequest, queue::PersistQueue,
+    worker::SharedWorkerState,
+};
 use crate::{
     buffer_tree::partition::{persisting::PersistingData, PartitionData, SortKeyState},
     persist::worker,
@@ -94,8 +98,8 @@ use crate::{
 /// persist jobs from being generated and blocked whilst waiting to add the
 /// persist job to the bounded queue, otherwise the system is effectively
 /// unbounded. If an unbounded number of threads block on
-/// [`PersistHandle::queue_persist()`] waiting to successfully enqueue the job,
-/// then there is no bound on outstanding persist jobs at all.
+/// [`PersistHandle::enqueue()`] waiting to successfully enqueue the job, then
+/// there is no bound on outstanding persist jobs at all.
 ///
 /// To enforce the bound, the persistence system exposes an indicator of
 /// saturation (readable via the [`PersistState`]) that the caller MUST use to
@@ -227,6 +231,23 @@ impl PersistHandle {
         )
     }
 
+    fn assign_worker(&self, r: PersistRequest) {
+        debug!(
+            partition_id = r.partition_id().get(),
+            "enqueue persist job to assigned worker"
+        );
+
+        // Consistently map partition tasks for this partition ID to the
+        // same worker.
+        self.worker_queues
+            .hash(r.partition_id())
+            .send(r)
+            .expect("persist worker stopped");
+    }
+}
+
+#[async_trait]
+impl PersistQueue for PersistHandle {
     /// Place `data` from `partition` into the persistence queue.
     ///
     /// This call (asynchronously) waits for space to become available in the
@@ -251,7 +272,8 @@ impl PersistHandle {
     /// between persistence starting and ending.
     ///
     /// This will panic (asynchronously) if `data` was not from `partition`.
-    pub(crate) async fn queue_persist(
+    #[allow(clippy::async_yields_async)] // Callers may want to wait async
+    async fn enqueue(
         &self,
         partition: Arc<Mutex<PartitionData>>,
         data: PersistingData,
@@ -352,20 +374,6 @@ impl PersistHandle {
         }
 
         notify
-    }
-
-    fn assign_worker(&self, r: PersistRequest) {
-        debug!(
-            partition_id = r.partition_id().get(),
-            "enqueue persist job to assigned worker"
-        );
-
-        // Consistently map partition tasks for this partition ID to the
-        // same worker.
-        self.worker_queues
-            .hash(r.partition_id())
-            .send(r)
-            .expect("persist worker stopped");
     }
 }
 
@@ -497,7 +505,7 @@ mod tests {
         let data = p.lock().mark_persisting().unwrap();
 
         // Enqueue it
-        let notify = handle.queue_persist(p, data).await;
+        let notify = handle.enqueue(p, data).await;
 
         // And assert it wound up in a worker queue.
         assert!(handle.global_queue.is_empty());
@@ -528,7 +536,7 @@ mod tests {
         let data = p.lock().mark_persisting().unwrap();
 
         // Enqueue it
-        let _notify = handle.queue_persist(p, data).await;
+        let _notify = handle.enqueue(p, data).await;
 
         // And ensure it was mapped to the same worker.
         let msg = assigned_worker
@@ -577,7 +585,7 @@ mod tests {
         assert_matches!(loader.get().await, None);
 
         // Enqueue it
-        let notify = handle.queue_persist(p, data).await;
+        let notify = handle.enqueue(p, data).await;
 
         // And assert it wound up in a worker queue.
         assert!(handle.global_queue.is_empty());
@@ -609,7 +617,7 @@ mod tests {
         let data = p.lock().mark_persisting().unwrap();
 
         // Enqueue it
-        let _notify = handle.queue_persist(p, data).await;
+        let _notify = handle.enqueue(p, data).await;
 
         // And ensure it was mapped to the same worker.
         let msg = assigned_worker
@@ -659,7 +667,7 @@ mod tests {
         assert_matches!(loader.get().await, Some(_));
 
         // Enqueue it
-        let notify = handle.queue_persist(p, data).await;
+        let notify = handle.enqueue(p, data).await;
 
         // And assert it wound up in a worker queue.
         assert!(handle.global_queue.is_empty());
@@ -691,7 +699,7 @@ mod tests {
         let data = p.lock().mark_persisting().unwrap();
 
         // Enqueue it
-        let _notify = handle.queue_persist(p, data).await;
+        let _notify = handle.enqueue(p, data).await;
 
         // And ensure it was mapped to the same worker.
         let msg = assigned_worker
@@ -740,7 +748,7 @@ mod tests {
         assert_matches!(loader.get().await, Some(_));
 
         // Enqueue it
-        let notify = handle.queue_persist(p, data).await;
+        let notify = handle.enqueue(p, data).await;
 
         // Assert the task did not get enqueued in a worker
         assert_matches!(worker1_rx.try_recv(), Err(TryRecvError::Empty));
@@ -765,7 +773,7 @@ mod tests {
         let data = p.lock().mark_persisting().unwrap();
 
         // Enqueue it
-        let _notify = handle.queue_persist(p, data).await;
+        let _notify = handle.enqueue(p, data).await;
 
         // And ensure it was mapped to the same worker.
         let msg = global_rx

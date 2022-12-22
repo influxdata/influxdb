@@ -4,7 +4,7 @@ use std::{fmt::Debug, sync::Arc, time::Duration};
 
 use crate::{
     buffer_tree::partition::PartitionData,
-    persist::{drain_buffer::persist_partitions, handle::PersistHandle},
+    persist::{drain_buffer::persist_partitions, queue::PersistQueue},
 };
 
 /// An abstraction over any type that can yield an iterator of (potentially
@@ -32,13 +32,14 @@ where
 }
 
 /// Rotate the `wal` segment file every `period` duration of time.
-pub(crate) async fn periodic_rotation<T>(
+pub(crate) async fn periodic_rotation<T, P>(
     wal: Arc<wal::Wal>,
     period: Duration,
     buffer: T,
-    persist: PersistHandle,
+    persist: P,
 ) where
     T: PartitionIter + Sync,
+    P: PersistQueue,
 {
     let mut interval = tokio::time::interval(period);
 
