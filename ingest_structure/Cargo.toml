@@ -1,0 +1,40 @@
+[package]
+name = "ingest_structure"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+arrow = { workspace = true, features = ["prettyprint"] }
+async-trait = "0.1"
+bytes = "1.3"
+chrono = "0.4"
+data_types = { path = "../data_types" }
+futures = "0.3.25"
+generated_types = { path = "../generated_types" }
+influxdb-line-protocol = { path = "../influxdb_line_protocol" }
+iox_catalog = { path = "../iox_catalog" }
+iox_time = { path = "../iox_time" }
+metric = { path = "../metric" }
+observability_deps = { path = "../observability_deps" }
+parking_lot = "0.12"
+schema = { path = "../schema" }
+serde = "1.0"
+serde_json = "1.0.91"
+serde_urlencoded = "0.7"
+snafu = "0.7"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+tonic = "0.8"
+trace = { path = "../trace/" }
+workspace-hack = { path = "../workspace-hack"}
+
+[dev-dependencies]
+arrow_util = { path = "../arrow_util" }
+assert_matches = "1.5"
+iox_tests = { path = "../iox_tests" }
+once_cell = "1"
+paste = "1.0.11"
+pretty_assertions = "1.3.0"
+test_helpers = { version = "0.1.0", path = "../test_helpers", features = ["future_timeout"] }
+tokio-stream = { version = "0.1.11", default_features = false, features = [] }

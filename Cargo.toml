@@ -30,6 +30,7 @@ members = [
     "influxdb_tsm",
     "influxdb2_client",
     "influxrpc_parser",
+    "ingest_structure",
     "ingester_query_grpc",
     "ingester_test_ctx",
     "ingester",
