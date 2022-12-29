@@ -691,7 +691,7 @@ async fn namespace_retention() {
                         .success()
                         .stdout(
                             predicate::str::contains(namespace)
-                                .and(predicate::str::contains(&retention_period_ns.to_string())),
+                                .and(predicate::str::contains(retention_period_ns.to_string())),
                         );
                 }
                 .boxed()
@@ -757,7 +757,7 @@ async fn namespace_retention() {
                         .success()
                         .stdout(
                             predicate::str::contains(namespace)
-                                .and(predicate::str::contains(&retention_period_ns.to_string())),
+                                .and(predicate::str::contains(retention_period_ns.to_string())),
                         );
                 }
                 .boxed()

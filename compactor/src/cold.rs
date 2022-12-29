@@ -39,6 +39,8 @@ pub async fn compact(compactor: Arc<Compactor>, do_full_compact: bool) -> usize 
 
     let start_time = compactor.time_provider.now();
 
+    debug!("Start cold compaction first step (L0+L1 -> L1)");
+
     // Compact any remaining level 0 files in parallel
     compact_candidates_with_memory_budget(
         Arc::clone(&compactor),
@@ -50,6 +52,9 @@ pub async fn compact(compactor: Arc<Compactor>, do_full_compact: bool) -> usize 
         candidates.clone().into(),
     )
     .await;
+
+    debug!("Finish cold compaction first step");
+    debug!("Start cold compaction second step (L1+L2 -> L2)");
 
     if do_full_compact {
         //Compact level 1 files in parallel ("full compaction")
@@ -64,6 +69,7 @@ pub async fn compact(compactor: Arc<Compactor>, do_full_compact: bool) -> usize 
         )
         .await;
     }
+    debug!("Finish cold compaction second step");
 
     // Done compacting all candidates in the cycle, record its time
     if let Some(delta) = compactor
