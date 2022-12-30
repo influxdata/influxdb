@@ -935,7 +935,7 @@ mod tests {
         let mut config = make_compactor_config();
 
         // Set the memory budget such that only one of the files will be compacted in a group
-        config.memory_budget_bytes = 4_900;
+        config.memory_budget_bytes = 20_000;
 
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Arc::new(Compactor::new(
@@ -1040,7 +1040,7 @@ mod tests {
         let mut config = make_compactor_config();
 
         // Set the memory budget such that two of the files will be compacted in a group
-        config.memory_budget_bytes = 9_800;
+        config.memory_budget_bytes = 30_000;
 
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Arc::new(Compactor::new(
@@ -1180,7 +1180,7 @@ mod tests {
         let mut config = make_compactor_config();
 
         // Set the memory budget such that only some of the files will be compacted in a group
-        config.memory_budget_bytes = 18000;
+        config.memory_budget_bytes = 40000;
 
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Arc::new(Compactor::new(
