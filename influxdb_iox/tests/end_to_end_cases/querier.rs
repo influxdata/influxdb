@@ -966,4 +966,68 @@ mod kafkaless_rpc_write {
         .run()
         .await
     }
+
+    #[tokio::test]
+    async fn query_after_persist_sees_new_files() {
+        // https://github.com/influxdata/influxdb_iox/issues/4634 added
+        // caching of tombstones and parquet files in the querier. This
+        // test ensures that a query issued after new parquet files are
+        // persisted correctly picks up the new parquet files
+        test_helpers::maybe_start_logging();
+        let database_url = maybe_skip_integration!();
+
+        let table_name = "the_table";
+
+        // Set up the cluster  ====================================
+        let mut cluster = MiniCluster::create_shared2(database_url).await;
+
+        let steps = vec![
+            Step::WriteLineProtocol(format!("{},tag1=A,tag2=B val=42i 123456", table_name)),
+            // Wait for data to be persisted to parquet
+            Step::WaitForPersisted2 {
+                table_name: table_name.into(),
+            },
+            Step::Query {
+                sql: format!("select * from {}", table_name),
+                expected: vec![
+                    "+------+------+--------------------------------+-----+",
+                    "| tag1 | tag2 | time                           | val |",
+                    "+------+------+--------------------------------+-----+",
+                    "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
+                    "+------+------+--------------------------------+-----+",
+                ],
+            },
+            // second query, should be the same result
+            Step::Query {
+                sql: format!("select * from {}", table_name),
+                expected: vec![
+                    "+------+------+--------------------------------+-----+",
+                    "| tag1 | tag2 | time                           | val |",
+                    "+------+------+--------------------------------+-----+",
+                    "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
+                    "+------+------+--------------------------------+-----+",
+                ],
+            },
+            // write another parquet file that has non duplicated data
+            Step::WriteLineProtocol(format!("{},tag1=B,tag2=A val=43i 789101112", table_name)),
+            // Wait for data to be persisted to parquet
+            Step::WaitForPersisted2 {
+                table_name: table_name.into(),
+            },
+            // query should correctly see the data in the second parquet file
+            Step::Query {
+                sql: format!("select * from {}", table_name),
+                expected: vec![
+                    "+------+------+--------------------------------+-----+",
+                    "| tag1 | tag2 | time                           | val |",
+                    "+------+------+--------------------------------+-----+",
+                    "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
+                    "| B    | A    | 1970-01-01T00:00:00.789101112Z | 43  |",
+                    "+------+------+--------------------------------+-----+",
+                ],
+            },
+        ];
+
+        StepTest::new(&mut cluster, steps).run().await
+    }
 }
