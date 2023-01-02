@@ -139,7 +139,10 @@ impl TestConfig {
     pub fn new_querier2(ingester_config: &TestConfig) -> Self {
         assert_eq!(ingester_config.server_type(), ServerType::Ingester2);
 
-        Self::new_querier2_with_ingester2_addresses(ingester_config)
+        Self::new_querier2_without_ingester2(ingester_config).with_env(
+            "INFLUXDB_IOX_INGESTER_ADDRESSES",
+            ingester_config.ingester_base().as_ref(),
+        )
     }
 
     /// Create a minimal compactor configuration, using the dsn
@@ -167,8 +170,8 @@ impl TestConfig {
     }
 
     /// Create a minimal querier2 configuration from the specified ingester2 configuration, using
-    /// the same dsn and object store
-    pub fn new_querier2_with_ingester2_addresses(ingester_config: &TestConfig) -> Self {
+    /// the same dsn and object store, but without specifying the ingester2 addresses
+    pub fn new_querier2_without_ingester2(ingester_config: &TestConfig) -> Self {
         Self::new(
             ServerType::Querier2,
             ingester_config.dsn().to_owned(),
@@ -176,10 +179,6 @@ impl TestConfig {
         )
         .with_existing_object_store(ingester_config)
         .with_env("INFLUXDB_IOX_RPC_MODE", "2")
-        .with_env(
-            "INFLUXDB_IOX_INGESTER_ADDRESSES",
-            ingester_config.ingester_base().as_ref(),
-        )
     }
 
     /// Create a minimal all in one configuration

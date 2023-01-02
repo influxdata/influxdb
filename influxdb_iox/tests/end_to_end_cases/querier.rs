@@ -211,6 +211,51 @@ async fn basic_no_ingester_connection() {
 }
 
 #[tokio::test]
+async fn basic_no_ingester2_connection() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let ingester_config = TestConfig::new_ingester2(&database_url);
+    let router_config = TestConfig::new_router2(&ingester_config);
+    // specially create a querier2 config that is NOT connected to the ingester2
+    let querier_config = TestConfig::new_querier2_without_ingester2(&ingester_config);
+
+    let mut cluster = MiniCluster::new()
+        .with_ingester(ingester_config)
+        .await
+        .with_router(router_config)
+        .await
+        .with_querier(querier_config)
+        .await;
+
+    // Write some data into the v2 HTTP API ==============
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!("{},tag1=A,tag2=B val=42i 123456", table_name)),
+            Step::WaitForPersisted2 {
+                table_name: table_name.into(),
+            },
+            Step::Query {
+                sql: format!("select * from {}", table_name),
+                expected: vec![
+                    "+------+------+--------------------------------+-----+",
+                    "| tag1 | tag2 | time                           | val |",
+                    "+------+------+--------------------------------+-----+",
+                    "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
+                    "+------+------+--------------------------------+-----+",
+                ],
+            },
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
 async fn query_after_persist_sees_new_files() {
     // https://github.com/influxdata/influxdb_iox/issues/4634 added
     // caching of tombstones and parquet files in the querier. This
