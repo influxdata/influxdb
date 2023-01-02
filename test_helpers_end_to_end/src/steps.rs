@@ -1,6 +1,6 @@
 use crate::{
     check_flight_error, get_write_token, run_sql, token_is_persisted, try_run_influxql,
-    try_run_sql, wait_for_persisted, wait_for_readable, MiniCluster,
+    try_run_sql, wait_for_new_parquet_file, wait_for_persisted, wait_for_readable, MiniCluster,
 };
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_sorted_eq;
@@ -85,6 +85,11 @@ pub enum Step {
 
     /// Wait for all previously written data to be persisted
     WaitForPersisted,
+
+    /// Wait for all previously written data to be persisted by observing an increase in the number
+    /// of Parquet files in the catalog for this cluster's namespace and the specified table name.
+    /// Needed for router2/ingester2/querier2.
+    WaitForPersisted2 { table_name: String },
 
     /// Ask the ingester if it has persisted the data. For use in tests where the querier doesn't
     /// know about the ingester, so the test needs to ask the ingester directly.
@@ -187,6 +192,18 @@ impl<'a> StepTest<'a> {
                         wait_for_persisted(write_token, querier_grpc_connection.clone()).await;
                     }
                     info!("====Done waiting for all write tokens to be persisted");
+                }
+                Step::WaitForPersisted2 { table_name } => {
+                    info!("====Begin waiting for a new Parquet file to be persisted");
+                    let querier_grpc_connection =
+                        state.cluster().querier().querier_grpc_connection();
+                    wait_for_new_parquet_file(
+                        querier_grpc_connection,
+                        state.cluster().namespace(),
+                        &table_name,
+                    )
+                    .await;
+                    info!("====Done waiting for a new Parquet file to be persisted");
                 }
                 // Specifically for cases when the querier doesn't know about the ingester so the
                 // test needs to ask the ingester directly.

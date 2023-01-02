@@ -176,7 +176,10 @@ impl TestConfig {
         )
         .with_existing_object_store(ingester_config)
         .with_env("INFLUXDB_IOX_RPC_MODE", "2")
-        .with_env("INFLUXDB_IOX_INGESTER_ADDRESSES", ingester_config.ingester_base().as_ref())
+        .with_env(
+            "INFLUXDB_IOX_INGESTER_ADDRESSES",
+            ingester_config.ingester_base().as_ref(),
+        )
     }
 
     /// Create a minimal all in one configuration

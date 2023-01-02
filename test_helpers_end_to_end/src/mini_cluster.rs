@@ -196,13 +196,15 @@ impl MiniCluster {
     pub async fn create_non_shared2(database_url: String) -> Self {
         let ingester_config = TestConfig::new_ingester2(&database_url);
         let router_config = TestConfig::new_router2(&ingester_config);
-        // let querier_config = TestConfig::new_querier2(&ingester_config);
+        let querier_config = TestConfig::new_querier2(&ingester_config);
 
         // Set up the cluster  ====================================
         Self::new()
             .with_ingester(ingester_config)
             .await
             .with_router(router_config)
+            .await
+            .with_querier(querier_config)
             .await
     }
 
