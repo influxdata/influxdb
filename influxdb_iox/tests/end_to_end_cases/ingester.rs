@@ -102,6 +102,7 @@ async fn ingester2_flight_api() {
     let table_name = "mytable";
 
     // Set up cluster
+    // Don't use a shared cluster because the ingester is going to be restarted
     let mut cluster = MiniCluster::create_non_shared2(database_url).await;
 
     // Write some data into the v2 HTTP API ==============
@@ -215,6 +216,37 @@ async fn ingester_flight_api_namespace_not_found() {
 }
 
 #[tokio::test]
+async fn ingester2_flight_api_namespace_not_found() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    // Set up cluster
+    let cluster = MiniCluster::create_shared2(database_url).await;
+
+    let mut querier_flight =
+        influxdb_iox_client::flight::Client::new(cluster.ingester().ingester_grpc_connection())
+            .into_inner();
+
+    let query = IngesterQueryRequest::new(
+        NamespaceId::new(i64::MAX),
+        TableId::new(42),
+        vec![],
+        Some(::predicate::EMPTY_PREDICATE),
+    );
+    let query: proto::IngesterQueryRequest = query.try_into().unwrap();
+
+    let err = querier_flight
+        .do_get(query.encode_to_vec())
+        .await
+        .unwrap_err();
+    if let iox_arrow_flight::FlightError::Tonic(status) = err {
+        assert_eq!(status.code(), tonic::Code::NotFound);
+    } else {
+        panic!("Wrong error variant: {err}")
+    }
+}
+
+#[tokio::test]
 async fn ingester_flight_api_table_not_found() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
@@ -230,6 +262,42 @@ async fn ingester_flight_api_table_not_found() {
     // wait for the write to become visible
     let write_token = get_write_token(&response);
     wait_for_readable(write_token, cluster.ingester().ingester_grpc_connection()).await;
+
+    let mut querier_flight =
+        influxdb_iox_client::flight::Client::new(cluster.ingester().ingester_grpc_connection())
+            .into_inner();
+
+    let query = IngesterQueryRequest::new(
+        cluster.namespace_id().await,
+        TableId::new(i64::MAX),
+        vec![],
+        Some(::predicate::EMPTY_PREDICATE),
+    );
+    let query: proto::IngesterQueryRequest = query.try_into().unwrap();
+
+    let err = querier_flight
+        .do_get(query.encode_to_vec())
+        .await
+        .unwrap_err();
+    if let iox_arrow_flight::FlightError::Tonic(status) = err {
+        assert_eq!(status.code(), tonic::Code::NotFound);
+    } else {
+        panic!("Wrong error variant: {err}")
+    }
+}
+
+#[tokio::test]
+async fn ingester2_flight_api_table_not_found() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    // Set up cluster
+    let cluster = MiniCluster::create_shared2(database_url).await;
+
+    // Write some data into the v2 HTTP API ==============
+    let lp = String::from("my_table,tag1=A,tag2=B val=42i 123456");
+    let response = cluster.write_to_router(lp).await;
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
     let mut querier_flight =
         influxdb_iox_client::flight::Client::new(cluster.ingester().ingester_grpc_connection())
