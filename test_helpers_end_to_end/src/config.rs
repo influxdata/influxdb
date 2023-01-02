@@ -99,13 +99,28 @@ impl TestConfig {
         .with_default_ingester_options()
     }
 
-    /// Create a minimal ingester2 configuration, using the dsn configuration specified
+    /// Create a minimal ingester2 configuration, using the dsn configuration specified. Set the
+    /// persistence options such that it will persist as quickly as possible.
     pub fn new_ingester2(dsn: impl Into<String>) -> Self {
         let dsn = Some(dsn.into());
         Self::new(ServerType::Ingester2, dsn, random_catalog_schema_name())
             .with_new_object_store()
             .with_new_wal()
             .with_default_ingester_options()
+            .with_env("INFLUXDB_IOX_WAL_ROTATION_PERIOD_SECONDS", "1")
+    }
+
+    /// Create a minimal ingester2 configuration, using the dsn configuration specified. Set the
+    /// persistence options such that it will likely never persist, to be able to test when data
+    /// only exists in the ingester's memory.
+    pub fn new_ingester2_never_persist(dsn: impl Into<String>) -> Self {
+        let dsn = Some(dsn.into());
+        Self::new(ServerType::Ingester2, dsn, random_catalog_schema_name())
+            .with_new_object_store()
+            .with_new_wal()
+            .with_default_ingester_options()
+            // I didn't run my tests for a day, because that would be too long
+            .with_env("INFLUXDB_IOX_WAL_ROTATION_PERIOD_SECONDS", "86400")
     }
 
     /// Create a minimal querier configuration from the specified

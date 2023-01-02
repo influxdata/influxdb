@@ -54,6 +54,50 @@ async fn basic_ingester() {
 }
 
 #[tokio::test]
+async fn basic_ingester2() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let ingester_config = TestConfig::new_ingester2_never_persist(&database_url);
+    let router_config = TestConfig::new_router2(&ingester_config);
+    let querier_config = TestConfig::new_querier2(&ingester_config);
+    let mut cluster = MiniCluster::new()
+        .with_ingester(ingester_config)
+        .await
+        .with_router(router_config)
+        .await
+        .with_querier(querier_config)
+        .await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{},tag1=A,tag2=B val=42i 123456\n\
+                 {},tag1=A,tag2=C val=43i 123457",
+                table_name, table_name
+            )),
+            Step::Query {
+                sql: format!("select * from {}", table_name),
+                expected: vec![
+                    "+------+------+--------------------------------+-----+",
+                    "| tag1 | tag2 | time                           | val |",
+                    "+------+------+--------------------------------+-----+",
+                    "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
+                    "| A    | C    | 1970-01-01T00:00:00.000123457Z | 43  |",
+                    "+------+------+--------------------------------+-----+",
+                ],
+            },
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
 async fn basic_on_parquet() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
