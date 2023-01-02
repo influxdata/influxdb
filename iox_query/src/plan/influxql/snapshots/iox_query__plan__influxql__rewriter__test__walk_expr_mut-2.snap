@@ -1,0 +1,9 @@
+---
+source: iox_query/src/plan/influxql/rewriter.rs
+expression: "walk_expr_mut(\"count(5, foo + 7)\")"
+---
+0: 5
+1: foo
+2: 7
+3: foo + 7
+4: count(5, foo + 7)

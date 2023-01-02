@@ -435,6 +435,12 @@ impl<T> Deref for OneOrMore<T> {
     }
 }
 
+impl<T> DerefMut for OneOrMore<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.contents
+    }
+}
+
 impl<T: Parser> OneOrMore<T> {
     /// Parse a list of one or more `T`, separated by commas.
     ///
@@ -496,6 +502,12 @@ impl<T> Deref for ZeroOrMore<T> {
 
     fn deref(&self) -> &Self::Target {
         &self.contents
+    }
+}
+
+impl<T> DerefMut for ZeroOrMore<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.contents
     }
 }
 
