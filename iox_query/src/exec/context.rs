@@ -209,7 +209,15 @@ impl IOxSessionConfig {
 
     /// Create an ExecutionContext suitable for executing DataFusion plans
     pub fn build(self) -> IOxSessionContext {
-        let state = SessionState::with_config_rt(self.session_config, self.runtime)
+        let maybe_span = self.span_ctx.child_span("Query Execution");
+        let recorder = SpanRecorder::new(maybe_span);
+
+        // attach span to DataFusion session
+        let session_config = self
+            .session_config
+            .with_extension(Arc::new(recorder.span().cloned()));
+
+        let state = SessionState::with_config_rt(session_config, self.runtime)
             .with_query_planner(Arc::new(IOxQueryPlanner {}));
 
         let state = register_selector_aggregates(state);
@@ -222,9 +230,7 @@ impl IOxSessionConfig {
             inner.register_catalog(DEFAULT_CATALOG, default_catalog);
         }
 
-        let maybe_span = self.span_ctx.child_span("Query Execution");
-
-        IOxSessionContext::new(inner, self.exec, SpanRecorder::new(maybe_span))
+        IOxSessionContext::new(inner, self.exec, recorder)
     }
 }
 
@@ -284,15 +290,6 @@ impl IOxSessionContext {
         exec: DedicatedExecutor,
         recorder: SpanRecorder,
     ) -> Self {
-        // attach span to DataFusion session
-        {
-            let mut state = inner.state.write();
-            state.config = state
-                .config
-                .clone()
-                .with_extension(Arc::new(recorder.span().cloned()));
-        }
-
         Self {
             inner,
             exec,
@@ -310,11 +307,21 @@ impl IOxSessionContext {
     pub async fn prepare_sql(&self, sql: &str) -> Result<Arc<dyn ExecutionPlan>> {
         let ctx = self.child_ctx("prepare_sql");
         debug!(text=%sql, "planning SQL query");
+
+        // NOTE can not use ctx.inner.sql here as it also interprets DDL
+        #[allow(deprecated)]
         let logical_plan = ctx.inner.create_logical_plan(sql)?;
         debug!(plan=%logical_plan.display_graphviz(), "logical plan");
 
-        // Handle unsupported SQL
+        // Make nicer erorrs for unsupported SQL
+        // (By default datafusion returns Internal Error)
         match &logical_plan {
+            LogicalPlan::CreateCatalog(_) => {
+                return Err(Error::NotImplemented("CreateCatalog".to_string()));
+            }
+            LogicalPlan::CreateCatalogSchema(_) => {
+                return Err(Error::NotImplemented("CreateCatalogSchema".to_string()));
+            }
             LogicalPlan::CreateMemoryTable(_) => {
                 return Err(Error::NotImplemented("CreateMemoryTable".to_string()));
             }

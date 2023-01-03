@@ -7,13 +7,16 @@ use datafusion::{
         listing::PartitionedFile,
         object_store::ObjectStoreUrl,
     },
-    execution::context::TaskContext,
+    execution::{
+        context::{SessionState, TaskContext},
+        runtime_env::RuntimeEnv,
+    },
     physical_plan::{
         execute_stream,
         file_format::{FileScanConfig, ParquetExec},
         SendableRecordBatchStream, Statistics,
     },
-    prelude::{SessionConfig, SessionContext},
+    prelude::SessionContext,
 };
 use datafusion_util::config::iox_session_config;
 use futures::StreamExt;
@@ -163,7 +166,7 @@ pub struct ParquetFileReader {
     schema: ArrowSchemaRef,
 
     /// DataFusion configuration, such as the target batchsize, etc
-    session_config: SessionConfig,
+    session_ctx: SessionContext,
 }
 
 impl ParquetFileReader {
@@ -173,25 +176,28 @@ impl ParquetFileReader {
         object_store_url: ObjectStoreUrl,
         object_meta: ObjectMeta,
     ) -> Result<Self, Error> {
+        let runtime = Arc::new(RuntimeEnv::default());
         let session_config = iox_session_config();
+        let session_state = SessionState::with_config_rt(session_config, runtime);
 
         // Keep metadata so we can find the measurement name
-        let format =
-            ParquetFormat::new(session_config.config_options()).with_skip_metadata(Some(false));
+        let format = ParquetFormat::new().with_skip_metadata(Some(false));
 
         // Use datafusion parquet reader to read the metadata from the
         // file.
         let schema = format
-            .infer_schema(&object_store, &[object_meta.clone()])
+            .infer_schema(&session_state, &object_store, &[object_meta.clone()])
             .await
             .context(InferringSchemaSnafu)?;
+
+        let session_ctx = SessionContext::with_state(session_state);
 
         Ok(Self {
             object_store,
             object_store_url,
             object_meta,
             schema,
-            session_config,
+            session_ctx,
         })
     }
 
@@ -216,17 +222,15 @@ impl ParquetFileReader {
             limit: None,
             table_partition_cols: vec![],
             output_ordering: None,
-            config_options: self.session_config.config_options(),
         };
 
         // set up enough datafusion context to do the real read session
         let predicate = None;
         let metadata_size_hint = None;
         let exec = ParquetExec::new(base_config, predicate, metadata_size_hint);
-        let session_ctx = SessionContext::with_config(self.session_config.clone());
 
         let object_store = Arc::clone(&self.object_store);
-        let task_ctx = Arc::new(TaskContext::from(&session_ctx));
+        let task_ctx = Arc::new(TaskContext::from(&self.session_ctx));
         task_ctx
             .runtime_env()
             .register_object_store("iox", "iox", object_store);
