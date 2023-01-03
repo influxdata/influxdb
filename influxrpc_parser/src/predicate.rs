@@ -78,7 +78,7 @@ pub fn expr_to_rpc_predicate(expr: &str) -> Result<RPCPredicate> {
     let dialect = sqlparser::dialect::PostgreSqlDialect {};
     let mut tokenizer = Tokenizer::new(&dialect, expr);
     let tokens = tokenizer.tokenize().unwrap();
-    let mut parser = Parser::new(tokens, &dialect);
+    let mut parser = Parser::new(&dialect).with_tokens(tokens);
 
     Ok(RPCPredicate {
         root: Some(build_node(
