@@ -626,7 +626,8 @@ pub trait ParquetFileRepo: Send + Sync {
     ) -> Result<Vec<ParquetFile>>;
 
     /// Select partition for cold/warm/hot compaction
-    /// These are partition with files created recently (after the specified time_in_the_past)
+    /// These are partitions with files created recently (aka created after the specified time_in_the_past)
+    /// These files include all levels of compaction files and both non-deleted and soft-deleted files
     async fn partitions_with_recent_created_files(
         &mut self,
         time_in_the_past: Timestamp,
@@ -3875,7 +3876,7 @@ pub(crate) mod test_helpers {
 
         // -----------------
         // PARTITION three
-        // Partition two without any file
+        // Partition three without any file
         let partition3 = repos
             .partitions()
             .create_or_get("three".into(), shard.id, table.id)
