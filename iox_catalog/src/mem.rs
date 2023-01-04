@@ -328,6 +328,60 @@ impl NamespaceRepo for MemTxn {
         Ok(stage.namespaces.iter().find(|n| n.name == name).cloned())
     }
 
+    // performs a cascading delete of all things attached to the namespace, then deletes the
+    // namespace
+    async fn delete(&mut self, name: &str) -> Result<()> {
+        let stage = self.stage();
+        // get namespace by name
+        let namespace_id = match stage.namespaces.iter().find(|n| n.name == name) {
+            Some(n) => n.id,
+            None => {
+                return Err(Error::NamespaceNotFoundByName {
+                    name: name.to_string(),
+                })
+            }
+        };
+        // get list of parquet files that match the namespace id
+        let parquet_file_ids: Vec<_> = stage
+            .parquet_files
+            .iter()
+            .filter_map(|f| (f.namespace_id == namespace_id).then_some(f.id))
+            .collect();
+        // delete all processed tombstones for those parquet files
+        stage
+            .processed_tombstones
+            .retain(|pt| !parquet_file_ids.iter().any(|id| *id == pt.parquet_file_id));
+        // delete all the parquet files
+        stage
+            .parquet_files
+            .retain(|pf| !parquet_file_ids.iter().any(|id| *id == pf.id));
+        // get tables with that namespace id
+        let table_ids: HashSet<_> = stage
+            .tables
+            .iter()
+            .filter_map(|table| (table.namespace_id == namespace_id).then_some(table.id))
+            .collect();
+        // delete partitions for those tables
+        stage
+            .partitions
+            .retain(|p| !table_ids.iter().any(|id| *id == p.table_id));
+        // delete tombstones for those tables
+        stage
+            .tombstones
+            .retain(|t| !table_ids.iter().any(|id| *id == t.table_id));
+        // delete columns for those tables
+        stage
+            .columns
+            .retain(|c| !table_ids.iter().any(|id| *id == c.table_id));
+        // delete those tables
+        stage
+            .tables
+            .retain(|t| !table_ids.iter().any(|id| *id == t.id));
+        // finally, delete the namespace
+        stage.namespaces.retain(|n| n.id != namespace_id);
+        Ok(())
+    }
+
     async fn update_table_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace> {
         let stage = self.stage();
         match stage.namespaces.iter_mut().find(|n| n.name == name) {

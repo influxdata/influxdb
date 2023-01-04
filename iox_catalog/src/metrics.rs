@@ -198,6 +198,7 @@ decorate!(
         "namespace_list" = list(&mut self) -> Result<Vec<Namespace>>;
         "namespace_get_by_id" = get_by_id(&mut self, id: NamespaceId) -> Result<Option<Namespace>>;
         "namespace_get_by_name" = get_by_name(&mut self, name: &str) -> Result<Option<Namespace>>;
+        "namespace_delete" = delete(&mut self, name: &str) -> Result<()>;
         "namespace_update_table_limit" = update_table_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace>;
         "namespace_update_column_limit" = update_column_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace>;
     ]
