@@ -25,6 +25,9 @@ pub use client::{
     DecodedFlightData, DecodedPayload, FlightClient, FlightDataStream, FlightRecordBatchStream,
 };
 
+pub mod encode;
+pub use encode::StreamEncoderBuilder;
+
 pub mod flightsql;
 pub use flightsql::FlightSqlClient;
 

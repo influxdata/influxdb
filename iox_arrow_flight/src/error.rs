@@ -1,5 +1,7 @@
 use std::error::Error;
 
+use arrow::error::ArrowError;
+
 /// Many different operations in the `arrow` crate return this error type.
 #[derive(Debug)]
 pub enum FlightError {
@@ -11,7 +13,10 @@ pub enum FlightError {
     ProtocolError(String),
     /// An error occured during decoding
     DecodeError(String),
+    /// An external error
     ExternalError(Box<dyn Error + Send + Sync>),
+    /// An underlying Arrow error
+    ArrowError(ArrowError),
 }
 
 impl FlightError {
@@ -37,6 +42,12 @@ impl std::error::Error for FlightError {}
 impl From<tonic::Status> for FlightError {
     fn from(status: tonic::Status) -> Self {
         Self::Tonic(status)
+    }
+}
+
+impl From<ArrowError> for FlightError {
+    fn from(e: ArrowError) -> Self {
+        Self::ArrowError(e)
     }
 }
 

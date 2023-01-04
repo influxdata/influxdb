@@ -1,18 +1,20 @@
 use std::{pin::Pin, sync::Arc, task::Poll};
 
 use arrow::{error::ArrowError, record_batch::RecordBatch};
-use arrow_flight::{
-    flight_service_server::FlightService as Flight, Action, ActionType, Criteria, Empty,
-    FlightData, FlightDescriptor, FlightInfo, HandshakeRequest, HandshakeResponse, IpcMessage,
-    PutResult, SchemaAsIpc, SchemaResult, Ticket,
-};
-use arrow_util::optimize::{
-    prepare_batch_for_flight, prepare_schema_for_flight, split_batch_for_grpc_response,
-};
 use data_types::{NamespaceId, PartitionId, TableId};
 use flatbuffers::FlatBufferBuilder;
 use futures::{Stream, StreamExt};
 use generated_types::influxdata::iox::ingester::v1::{self as proto, PartitionStatus};
+use iox_arrow_flight::{
+    encode::{
+        prepare_batch_for_flight, prepare_schema_for_flight, split_batch_for_grpc_response,
+        GRPC_TARGET_MAX_BATCH_SIZE_BYTES,
+    },
+    flight_service_server::FlightService as Flight,
+    utils::flight_data_from_arrow_batch,
+    Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
+    HandshakeRequest, HandshakeResponse, IpcMessage, PutResult, SchemaAsIpc, SchemaResult, Ticket,
+};
 use metric::U64Counter;
 use observability_deps::tracing::*;
 use pin_project::pin_project;
@@ -145,7 +147,7 @@ where
     type ListFlightsStream = TonicStream<FlightInfo>;
     type DoGetStream = TonicStream<FlightData>;
     type DoPutStream = TonicStream<PutResult>;
-    type DoActionStream = TonicStream<arrow_flight::Result>;
+    type DoActionStream = TonicStream<iox_arrow_flight::Result>;
     type ListActionsStream = TonicStream<ActionType>;
     type DoExchangeStream = TonicStream<FlightData>;
 
@@ -336,12 +338,17 @@ impl From<QueryResponse> for FlatIngesterQueryResponseStream {
                                     })
                                 });
 
-                                let tail = match prepare_batch_for_flight(
-                                    &snapshot,
-                                    Arc::clone(&schema),
-                                ) {
+                                let batch =
+                                    prepare_batch_for_flight(&snapshot, Arc::clone(&schema))
+                                        .map_err(|e| ArrowError::ExternalError(Box::new(e)));
+
+                                let tail = match batch {
                                     Ok(batch) => {
-                                        futures::stream::iter(split_batch_for_grpc_response(batch))
+                                        let batches = split_batch_for_grpc_response(
+                                            batch,
+                                            GRPC_TARGET_MAX_BATCH_SIZE_BYTES,
+                                        );
+                                        futures::stream::iter(batches)
                                             .map(|batch| {
                                                 Ok(FlatIngesterQueryResponse::RecordBatch { batch })
                                             })
@@ -365,7 +372,7 @@ impl From<QueryResponse> for FlatIngesterQueryResponseStream {
 }
 
 /// A mapping decorator over a [`FlatIngesterQueryResponseStream`] that converts
-/// it into [`arrow_flight`] response frames.
+/// it into Arrow Flight [`FlightData`] response frames.
 #[pin_project]
 struct FlightFrameCodec {
     #[pin]
@@ -430,7 +437,7 @@ impl Stream for FlightFrameCodec {
                     };
                     prost::Message::encode(&app_metadata, &mut bytes).map_err(Error::from)?;
 
-                    let flight_data = arrow_flight::FlightData::new(
+                    let flight_data = FlightData::new(
                         None,
                         IpcMessage(build_none_flight_msg()),
                         bytes.to_vec(),
@@ -446,7 +453,7 @@ impl Stream for FlightFrameCodec {
                 Poll::Ready(Some(Ok(FlatIngesterQueryResponse::RecordBatch { batch }))) => {
                     let options = arrow::ipc::writer::IpcWriteOptions::default();
                     let (mut flight_dictionaries, flight_batch) =
-                        arrow_flight::utils::flight_data_from_arrow_batch(&batch, &options);
+                        flight_data_from_arrow_batch(&batch, &options);
                     std::mem::swap(this.buffer, &mut flight_dictionaries);
                     this.buffer.push(flight_batch);
                     let next = this.buffer.remove(0);

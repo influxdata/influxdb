@@ -6,12 +6,12 @@ mod write_info;
 
 use std::sync::{atomic::AtomicU64, Arc};
 
-use arrow_flight::flight_service_server::{
-    FlightService as Flight, FlightServiceServer as FlightServer,
-};
 use generated_types::influxdata::iox::{
     catalog::v1::*,
     ingester::v1::write_info_service_server::{WriteInfoService, WriteInfoServiceServer},
+};
+use iox_arrow_flight::flight_service_server::{
+    FlightService as Flight, FlightServiceServer as FlightServer,
 };
 use iox_catalog::interface::Catalog;
 use service_grpc_catalog::CatalogService;

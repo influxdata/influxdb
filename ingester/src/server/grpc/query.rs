@@ -8,15 +8,15 @@ use std::{
 };
 
 use arrow::error::ArrowError;
-use arrow_flight::{
-    flight_service_server::FlightService as Flight, Action, ActionType, Criteria, Empty,
-    FlightData, FlightDescriptor, FlightInfo, HandshakeRequest, HandshakeResponse, IpcMessage,
-    PutResult, SchemaAsIpc, SchemaResult, Ticket,
-};
 use data_types::{NamespaceId, TableId};
 use flatbuffers::FlatBufferBuilder;
 use futures::Stream;
 use generated_types::influxdata::iox::ingester::v1::{self as proto};
+use iox_arrow_flight::{
+    flight_service_server::FlightService as Flight, utils::flight_data_from_arrow_batch, Action,
+    ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo, HandshakeRequest,
+    HandshakeResponse, IpcMessage, PutResult, SchemaAsIpc, SchemaResult, Ticket,
+};
 use observability_deps::tracing::*;
 use pin_project::pin_project;
 use prost::Message;
@@ -157,7 +157,7 @@ impl<I: IngestHandler + Send + Sync + 'static> Flight for FlightService<I> {
     type ListFlightsStream = TonicStream<FlightInfo>;
     type DoGetStream = TonicStream<FlightData>;
     type DoPutStream = TonicStream<PutResult>;
-    type DoActionStream = TonicStream<arrow_flight::Result>;
+    type DoActionStream = TonicStream<iox_arrow_flight::Result>;
     type ListActionsStream = TonicStream<ActionType>;
     type DoExchangeStream = TonicStream<FlightData>;
 
@@ -330,7 +330,7 @@ impl Stream for GetStream {
                     prost::Message::encode(&app_metadata, &mut bytes)
                         .context(SerializationSnafu)?;
 
-                    let flight_data = arrow_flight::FlightData::new(
+                    let flight_data = FlightData::new(
                         None,
                         IpcMessage(build_none_flight_msg()),
                         bytes.to_vec(),
@@ -346,7 +346,7 @@ impl Stream for GetStream {
                 Poll::Ready(Some(Ok(FlatIngesterQueryResponse::RecordBatch { batch }))) => {
                     let options = arrow::ipc::writer::IpcWriteOptions::default();
                     let (mut flight_dictionaries, flight_batch) =
-                        arrow_flight::utils::flight_data_from_arrow_batch(&batch, &options);
+                        flight_data_from_arrow_batch(&batch, &options);
                     std::mem::swap(this.buffer, &mut flight_dictionaries);
                     this.buffer.push(flight_batch);
                     let next = this.buffer.remove(0);
