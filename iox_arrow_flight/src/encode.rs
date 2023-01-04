@@ -189,12 +189,12 @@ pub fn split_batch_for_grpc_response(
 
     let n_batches =
         (size / max_batch_size_bytes + usize::from(size % max_batch_size_bytes != 0)).max(1);
-    let rows_per_batch = batch.num_rows() / n_batches;
+    let rows_per_batch = (batch.num_rows() / n_batches).max(1);
     let mut out = Vec::with_capacity(n_batches + 1);
 
     let mut offset = 0;
     while offset < batch.num_rows() {
-        let length = (offset + rows_per_batch).min(batch.num_rows() - offset);
+        let length = (rows_per_batch).min(batch.num_rows() - offset);
         out.push(batch.slice(offset, length));
 
         offset += length;
@@ -251,7 +251,7 @@ fn hydrate_dictionary(array: &ArrayRef) -> Result<ArrayRef, tonic::Status> {
 #[cfg(test)]
 mod tests {
     use arrow::{
-        array::{DictionaryArray, StringArray, UInt32Array, UInt8Array},
+        array::{Array, DictionaryArray, StringArray, UInt32Array, UInt64Array, UInt8Array},
         compute::concat_batches,
         datatypes::Int32Type,
     };
@@ -366,11 +366,48 @@ mod tests {
         let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(c) as ArrayRef)])
             .expect("cannot create record batch");
         let split = split_batch_for_grpc_response(batch.clone(), max_batch_size);
-        assert_eq!(split.len(), 2);
+        assert_eq!(split.len(), 3);
         assert_eq!(
             split.iter().map(|batch| batch.num_rows()).sum::<usize>(),
             n_rows
         );
         assert_eq!(concat_batches(&batch.schema(), &split).unwrap(), batch);
+    }
+
+    #[test]
+    fn test_split_batch_for_grpc_response_sizes() {
+        // 2000 8 byte entries into 2k pieces: 8 chunks of 250 rows
+        verify_split(2000, 2 * 1024, vec![250, 250, 250, 250, 250, 250, 250, 250]);
+
+        // 2000 8 byte entries into 4k pieces: 4 chunks of 500 rows
+        verify_split(2000, 4 * 1024, vec![500, 500, 500, 500]);
+
+        // 2023 8 byte entries into 3k pieces does not divide evenly
+        verify_split(2023, 3 * 1024, vec![337, 337, 337, 337, 337, 337, 1]);
+
+        // 10 8 byte entries into 1 byte pieces means each rows gets its own
+        verify_split(10, 1, vec![1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+
+        // 10 8 byte entries into 1k byte pieces means one piece
+        verify_split(10, 1024, vec![10]);
+    }
+
+    /// Creates a UInt64Array of 8 byte integers with input_rows rows
+    /// `max_batch_size_bytes` pieces and verifies the row counts in
+    /// those pieces
+    fn verify_split(num_input_rows: u64, max_batch_size_bytes: usize, expected_sizes: Vec<usize>) {
+        let array: UInt64Array = (0..num_input_rows).collect();
+
+        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(array) as ArrayRef)])
+            .expect("cannot create record batch");
+
+        let input_rows = batch.num_rows();
+
+        let split = split_batch_for_grpc_response(batch.clone(), max_batch_size_bytes);
+        let sizes: Vec<_> = split.iter().map(|batch| batch.num_rows()).collect();
+        let output_rows: usize = sizes.iter().sum();
+
+        assert_eq!(sizes, expected_sizes, "mismatch for {batch:?}");
+        assert_eq!(input_rows, output_rows, "mismatch for {batch:?}");
     }
 }
