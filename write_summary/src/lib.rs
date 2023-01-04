@@ -27,13 +27,13 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// This struct contains sufficient information to determine the
 /// current state of the write as a whole
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-/// Summary of a Vec<Vec<DmlMeta>>
+/// Summary of a `Vec<Vec<DmlMeta>>`
 pub struct WriteSummary {
-    /// Key is the shard index from the DmlMeta structure (aka kafka
+    /// Key is the shard index from the `DmlMeta` structure (aka kafka
     /// partition id), value is the sequence numbers from that
     /// shard.
     ///
-    /// Note: BTreeMap to ensure the output is in a consistent order
+    /// Note: `BTreeMap` to ensure the output is in a consistent order
     shards: BTreeMap<ShardIndex, Vec<SequenceNumber>>,
 }
 

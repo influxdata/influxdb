@@ -190,6 +190,14 @@ fn filter_parquet_files_inner(
         let budget_for_current_ln_and_ln_plus =
             estimated_processing_file_bytes + estimated_memory_for_output_streams;
 
+        debug!(
+            partition_id = partition_id.get(),
+            estimated_budget_for_current_ln_and_ln_plus = budget_for_current_ln_and_ln_plus,
+            estimated_budget_of_prior_ln_and_ln_plus = total_estimated_budget,
+            max_available_budget = max_bytes,
+            "Estimated memory needed to compact LN and LN+1 files. If current + prior > max, the only the prior will be proceeeded." 
+        );
+
         // Over limit of num files
         // At this stage files_to_return only includes LN+1 files. To get both returning LN+1 and
         // LN files, we need to consider both files_to_return and level_n_to_return

@@ -1,0 +1,7 @@
+---
+source: iox_query/src/plan/influxql/rewriter.rs
+expression: "walk_expr_mut(\"5 + 6\")"
+---
+0: 5
+1: 6
+2: 5 + 6

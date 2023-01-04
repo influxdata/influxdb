@@ -352,11 +352,33 @@ async fn sql_create_external_table() {
 
 #[tokio::test]
 async fn sql_create_schema() {
-    let expected_error = "Unsupported logical plan: CreateCatalogSchema";
+    let expected_error = "This feature is not implemented: CreateCatalogSchema";
     // Datafusion supports CREATE SCHEMA, but IOx should not (as that would be a security hole)
     run_sql_error_test_case(
         scenarios::delete::NoDeleteOneChunk {},
         "CREATE SCHEMA foo;",
+        expected_error,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn bad_selector_num_args() {
+    let expected_error = "selector_last requires exactly 2 arguments, got 1";
+    run_sql_error_test_case(
+        scenarios::delete::NoDeleteOneChunk {},
+        "select selector_last(time)['bar'] from cpu;",
+        expected_error,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn bad_selector_arg_types() {
+    let expected_error = "selector_last second argument must be a timestamp, but got Float64";
+    run_sql_error_test_case(
+        scenarios::delete::NoDeleteOneChunk {},
+        "select selector_last(time, bar)['value'] from cpu;",
         expected_error,
     )
     .await;

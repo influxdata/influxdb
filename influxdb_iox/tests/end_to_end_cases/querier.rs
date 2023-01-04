@@ -564,23 +564,16 @@ async fn unsupported_sql_returns_error() {
             },
             Step::QueryExpectingError {
                 sql: "create database my_new_database".into(),
-                // Should be InvalidArgument after
-                // https://github.com/apache/arrow-datafusion/issues/3873
-                expected_error_code: tonic::Code::Internal,
-                expected_message: "Error while planning query: Internal error: Unsupported \
-                    logical plan: CreateCatalog. This was likely caused by a bug in DataFusion's \
-                    code and we would welcome that you file an bug report in our issue tracker"
+                expected_error_code: tonic::Code::InvalidArgument,
+                expected_message: "Error while planning query: This feature is not implemented: \
+                    CreateCatalog"
                     .into(),
             },
             Step::QueryExpectingError {
                 sql: "create schema foo".into(),
-                // Should be InvalidArgument after
-                // https://github.com/apache/arrow-datafusion/issues/3873
-                expected_error_code: tonic::Code::Internal,
-                expected_message: "Error while planning query: Internal error: Unsupported \
-                    logical plan: CreateCatalogSchema. This was likely caused by a bug in \
-                    DataFusion's code and we would welcome that you file an bug report in our \
-                    issue tracker"
+                expected_error_code: tonic::Code::InvalidArgument,
+                expected_message: "Error while planning query: This feature is not implemented: \
+                    CreateCatalogSchema"
                     .into(),
             },
         ],
@@ -663,7 +656,7 @@ async fn table_or_namespace_not_found() {
                         .read_filter(read_filter_request)
                         .await
                         .unwrap_err();
-                    check_tonic_status(status, tonic::Code::NotFound, None);
+                    check_tonic_status(&status, tonic::Code::NotFound, None);
                 }
                 .boxed()
             })),
@@ -740,7 +733,7 @@ async fn oom_protection() {
                         .read_group(read_group_request)
                         .await
                         .unwrap_err();
-                    check_tonic_status(status, tonic::Code::ResourceExhausted, None);
+                    check_tonic_status(&status, tonic::Code::ResourceExhausted, None);
                 }
                 .boxed()
             })),

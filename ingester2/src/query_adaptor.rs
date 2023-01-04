@@ -25,7 +25,7 @@ use schema::{merge::merge_record_batch_schemas, sort::SortKey, Projection, Schem
 ///
 /// [`PartitionData`]: crate::buffer_tree::partition::PartitionData
 #[derive(Debug, PartialEq, Clone)]
-pub(crate) struct QueryAdaptor {
+pub struct QueryAdaptor {
     /// The snapshot data from a partition.
     ///
     /// This MUST be non-pub(crate) / closed for modification / immutable to support

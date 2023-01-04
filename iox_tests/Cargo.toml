@@ -18,7 +18,7 @@ metric = { path = "../metric" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 object_store = "0.5.2"
 observability_deps = { path = "../observability_deps" }
-once_cell = { version = "1.16.0", features = ["parking_lot"] }
+once_cell = { version = "1.17", features = ["parking_lot"] }
 parquet_file = { path = "../parquet_file" }
 predicate = { path = "../predicate" }
 iox_query = { path = "../iox_query" }

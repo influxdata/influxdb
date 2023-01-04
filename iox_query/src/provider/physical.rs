@@ -197,7 +197,6 @@ pub fn chunks_to_physical_nodes(
             projection: None,
             limit: None,
             table_partition_cols: vec![],
-            config_options: context.session_config().config_options(),
             output_ordering,
         };
         let meta_size_hint = None;

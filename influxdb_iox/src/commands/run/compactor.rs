@@ -88,6 +88,13 @@ pub struct Config {
 }
 
 pub async fn command(config: Config) -> Result<(), Error> {
+    if std::env::var("INFLUXDB_IOX_RPC_MODE").is_ok() {
+        panic!(
+            "`INFLUXDB_IOX_RPC_MODE` was specified but `compactor` was the command run. Either unset
+             `INFLUXDB_IOX_RPC_MODE` or run the `compactor2` command."
+        );
+    }
+
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
 
     let time_provider = Arc::new(SystemProvider::new()) as Arc<dyn TimeProvider>;

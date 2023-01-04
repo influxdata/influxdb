@@ -3,6 +3,7 @@ use trogging::cli::LoggingConfig;
 
 pub(crate) mod all_in_one;
 mod compactor;
+mod compactor2;
 mod garbage_collector;
 mod ingester;
 mod ingester2;
@@ -17,6 +18,9 @@ mod test;
 pub enum Error {
     #[snafu(display("Error in compactor subcommand: {}", source))]
     CompactorError { source: compactor::Error },
+
+    #[snafu(display("Error in compactor2 subcommand: {}", source))]
+    Compactor2Error { source: compactor2::Error },
 
     #[snafu(display("Error in garbage collector subcommand: {}", source))]
     GarbageCollectorError { source: garbage_collector::Error },
@@ -60,6 +64,7 @@ impl Config {
         match &self.command {
             None => &self.all_in_one_config.logging_config,
             Some(Command::Compactor(config)) => config.run_config.logging_config(),
+            Some(Command::Compactor2(config)) => config.run_config.logging_config(),
             Some(Command::GarbageCollector(config)) => config.run_config.logging_config(),
             Some(Command::Querier(config)) => config.run_config.logging_config(),
             Some(Command::Router(config)) => config.run_config.logging_config(),
@@ -76,6 +81,9 @@ impl Config {
 enum Command {
     /// Run the server in compactor mode
     Compactor(compactor::Config),
+
+    /// Run the server in compactor2 mode
+    Compactor2(compactor2::Config),
 
     /// Run the server in querier mode
     Querier(querier::Config),
@@ -109,6 +117,9 @@ pub async fn command(config: Config) -> Result<()> {
             .context(AllInOneSnafu),
         Some(Command::Compactor(config)) => {
             compactor::command(config).await.context(CompactorSnafu)
+        }
+        Some(Command::Compactor2(config)) => {
+            compactor2::command(config).await.context(Compactor2Snafu)
         }
         Some(Command::GarbageCollector(config)) => garbage_collector::command(config)
             .await

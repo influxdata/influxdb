@@ -6,7 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies] # In alphabetical order
-async-trait = "0.1.58"
+async-trait = "0.1.60"
 datafusion = { workspace = true }
 iox_query = { path = "../iox_query" }
 metric = { path = "../metric" }

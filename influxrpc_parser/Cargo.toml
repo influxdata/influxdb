@@ -6,8 +6,8 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-sqlparser = "0.28.0"
-snafu = "0.7.3"
+sqlparser = "0.30.0"
+snafu = "0.7.4"
 
 generated_types = { path = "../generated_types" }
 workspace-hack = { path = "../workspace-hack"}

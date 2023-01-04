@@ -12,7 +12,7 @@ use data_types::{
     CompactionLevel, NamespaceId, PartitionId, SequenceNumber, ShardId, ShardIndex, TableId,
 };
 use dml::DmlOperation;
-use iox_catalog::interface::{get_table_schema_by_id, Catalog};
+use iox_catalog::interface::{get_table_schema_by_id, CasFailure, Catalog};
 use iox_query::exec::Executor;
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{Attributes, Metric, U64Histogram, U64HistogramOptions};
@@ -258,8 +258,7 @@ impl IngesterData {
         for shard_index in shard_indexes {
             let shard_data = self
                 .shards
-                .iter()
-                .map(|(_, shard_data)| shard_data)
+                .values()
                 .find(|shard_data| shard_data.shard_index() == shard_index);
 
             let progress = match shard_data {
@@ -442,7 +441,7 @@ impl Persister for IngesterData {
             stream: record_stream,
             catalog_sort_key_update,
             data_sort_key,
-        } = compact_persisting_batch(&self.exec, sort_key, table_name.clone(), batch)
+        } = compact_persisting_batch(&self.exec, sort_key.clone(), table_name.clone(), batch)
             .await
             .expect("unable to compact persisting batch");
 
@@ -481,16 +480,35 @@ impl Persister for IngesterData {
         // compactor may see a parquet file with an inconsistent
         // sort key. https://github.com/influxdata/influxdb_iox/issues/5090
         if let Some(new_sort_key) = catalog_sort_key_update {
-            let sort_key = new_sort_key.to_columns().collect::<Vec<_>>();
+            let new_sort_key_str = new_sort_key.to_columns().collect::<Vec<_>>();
+            let old_sort_key: Option<Vec<String>> =
+                sort_key.map(|v| v.to_columns().map(ToString::to_string).collect());
             Backoff::new(&self.backoff_config)
-                .retry_all_errors("update_sort_key", || async {
-                    let mut repos = self.catalog.repositories().await;
-                    let _partition = repos
-                        .partitions()
-                        .update_sort_key(partition_id, &sort_key)
-                        .await?;
-                    // compiler insisted on getting told the type of the error :shrug:
-                    Ok(()) as Result<(), iox_catalog::interface::Error>
+                .retry_all_errors("cas_sort_key", || {
+                    let old_sort_key = old_sort_key.clone();
+                    async {
+                        let mut repos = self.catalog.repositories().await;
+                        match repos
+                            .partitions()
+                            .cas_sort_key(partition_id, old_sort_key, &new_sort_key_str)
+                            .await
+                        {
+                            Ok(_) => {}
+                            Err(CasFailure::ValueMismatch(_)) => {
+                                // An ingester concurrently updated the sort key.
+                                //
+                                // This breaks a sort-key update invariant - sort
+                                // key updates MUST be serialised. This should
+                                // not happen because writes for a given table
+                                // are always mapped to a single ingester
+                                // instance.
+                                panic!("detected concurrent sort key update");
+                            }
+                            Err(CasFailure::QueryError(e)) => return Err(e),
+                        };
+                        // compiler insisted on getting told the type of the error :shrug:
+                        Ok(()) as Result<(), iox_catalog::interface::Error>
+                    }
                 })
                 .await
                 .expect("retry forever");
@@ -507,7 +525,7 @@ impl Persister for IngesterData {
                 %table_name,
                 %partition_id,
                 %partition_key,
-                old_sort_key = ?sort_key,
+                ?old_sort_key,
                 %new_sort_key,
                 "adjusted sort key during batch compact & persist"
             );

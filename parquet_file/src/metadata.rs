@@ -301,7 +301,7 @@ pub struct IoxMetadata {
 impl IoxMetadata {
     /// Convert to base64 encoded protobuf format
     pub fn to_base64(&self) -> std::result::Result<String, prost::EncodeError> {
-        Ok(base64::encode(&self.to_protobuf()?))
+        Ok(base64::encode(self.to_protobuf()?))
     }
 
     /// Read from base64 encoded protobuf format

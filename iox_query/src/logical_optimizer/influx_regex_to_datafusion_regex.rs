@@ -25,16 +25,16 @@ impl InfluxRegexToDataFusionRegex {
 }
 
 impl OptimizerRule for InfluxRegexToDataFusionRegex {
-    fn optimize(
-        &self,
-        plan: &LogicalPlan,
-        _optimizer_config: &mut OptimizerConfig,
-    ) -> Result<LogicalPlan, DataFusionError> {
-        optimize(plan)
-    }
-
     fn name(&self) -> &str {
         "influx_regex_to_datafusion_regex"
+    }
+
+    fn try_optimize(
+        &self,
+        plan: &LogicalPlan,
+        _config: &dyn OptimizerConfig,
+    ) -> datafusion::error::Result<Option<LogicalPlan>> {
+        optimize(plan).map(Some)
     }
 }
 

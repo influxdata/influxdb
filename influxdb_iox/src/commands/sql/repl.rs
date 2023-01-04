@@ -4,6 +4,7 @@ use arrow::{
     array::{ArrayRef, Int64Array, StringArray},
     record_batch::RecordBatch,
 };
+use futures::TryStreamExt;
 use observability_deps::tracing::{debug, info};
 use rustyline::{error::ReadlineError, hint::Hinter, Editor};
 use snafu::{ResultExt, Snafu};
@@ -288,7 +289,7 @@ impl Repl {
     async fn run_sql(&mut self, sql: String) -> Result<()> {
         let start = Instant::now();
 
-        let batches = match &self.query_engine {
+        let batches: Vec<_> = match &self.query_engine {
             None => {
                 println!("Error: no namespace selected.");
                 println!("Hint: Run USE NAMESPACE <dbname> to select namespace");
@@ -301,7 +302,7 @@ impl Repl {
                     .sql(db_name.to_string(), sql)
                     .await
                     .context(RunningRemoteQuerySnafu)?
-                    .collect()
+                    .try_collect()
                     .await
                     .context(RunningRemoteQuerySnafu)?
             }

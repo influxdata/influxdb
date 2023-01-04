@@ -38,22 +38,22 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Convert a set of tag_keys into a form suitable for gRPC transport,
-/// adding the special 0x00 (_m) and 0xff (_f) tag keys
+/// adding the special `0x00` (`_m`) and `0xff` (`_f`) tag keys
 ///
-/// Namely, a Vec<Vec<u8>>, including the measurement and field names
+/// Namely, a `Vec<Vec<u8>>`, including the measurement and field names
 pub fn tag_keys_to_byte_vecs(tag_keys: Arc<BTreeSet<String>>) -> Vec<Vec<u8>> {
-    // special case measurement (0x00) and field (0xff)
+    // special case measurement (`0x00`) and field (`0xff`)
     // ensuring they are in the correct sort order (first and last, respectively)
     let mut byte_vecs = Vec::with_capacity(2 + tag_keys.len());
-    byte_vecs.push(TAG_KEY_MEASUREMENT.to_vec()); // Shown as _m == _measurement
+    byte_vecs.push(TAG_KEY_MEASUREMENT.to_vec()); // Shown as `_m == _measurement`
     tag_keys.iter().for_each(|name| {
         byte_vecs.push(name.bytes().collect());
     });
-    byte_vecs.push(TAG_KEY_FIELD.to_vec()); // Shown as _f == _field
+    byte_vecs.push(TAG_KEY_FIELD.to_vec()); // Shown as `_f == _field`
     byte_vecs
 }
 
-/// Convert Series and Groups ` into a form suitable for gRPC transport:
+/// Convert Series and Groups into a form suitable for gRPC transport:
 ///
 /// ```text
 /// (GroupFrame) potentially
@@ -157,7 +157,7 @@ fn group_to_frame(group: series::Group) -> Frame {
     Frame { data: Some(data) }
 }
 
-/// Convert the tag=value pairs from Arc<str> to Vec<u8> for gRPC transport
+/// Convert the `tag=value` pairs from `Arc<str>` to `Vec<u8>` for gRPC transport
 fn convert_tags(tags: Vec<series::Tag>, tag_key_binary_format: bool) -> Vec<Tag> {
     let mut res: Vec<Tag> = tags
         .into_iter()

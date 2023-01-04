@@ -451,6 +451,7 @@ impl Config {
             max_number_partitions_per_shard: 1,
             min_number_recent_ingested_files_per_partition: 1,
             hot_multiple: 4,
+            warm_multiple: 1,
             memory_budget_bytes: compaction_memory_budget_bytes,
             min_num_rows_allocated_per_record_batch_to_datafusion_plan: 100,
             max_num_compacting_files: 20,
@@ -459,6 +460,8 @@ impl Config {
             hot_compaction_hours_threshold_1: 4,
             hot_compaction_hours_threshold_2: 24,
             max_parallel_partitions: 20,
+            warm_compaction_small_size_threshold_bytes: 15_000,
+            warm_compaction_min_small_file_count: 10,
         };
 
         let querier_config = QuerierConfig {

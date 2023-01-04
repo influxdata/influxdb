@@ -1,5 +1,5 @@
 //! Cache for immutable object store entires.
-use std::{collections::HashMap, mem::size_of_val, ops::Range, sync::Arc};
+use std::{mem::size_of_val, ops::Range, sync::Arc};
 
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
@@ -105,7 +105,7 @@ impl ObjectStoreCache {
         ));
 
         // add to memory pool
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), Arc::clone(&time_provider));
+        let mut backend = PolicyBackend::hashmap_backed(Arc::clone(&time_provider));
         backend.add_policy(LruPolicy::new(
             Arc::clone(&ram_pool),
             CACHE_ID,

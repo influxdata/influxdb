@@ -7,7 +7,8 @@ use arrow::{
 use data_types::{
     Column, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceSchema, ParquetFile,
     ParquetFileParams, Partition, PartitionId, QueryPool, SequenceNumber, Shard, ShardId,
-    ShardIndex, Table, TableId, TableSchema, Timestamp, Tombstone, TombstoneId, TopicMetadata,
+    ShardIndex, Table, TableId, TablePartition, TableSchema, Timestamp, Tombstone, TombstoneId,
+    TopicMetadata,
 };
 use datafusion::physical_plan::metrics::Count;
 use datafusion_util::MemoryStream;
@@ -245,6 +246,24 @@ impl TestCatalog {
         level_0.len()
     }
 
+    /// Count level 1 files
+    pub async fn count_level_1_files(
+        self: &Arc<Self>,
+        table_partition: TablePartition,
+        min_time: Timestamp,
+        max_time: Timestamp,
+    ) -> usize {
+        let level_1 = self
+            .catalog
+            .repositories()
+            .await
+            .parquet_files()
+            .level_1(table_partition, min_time, max_time)
+            .await
+            .unwrap();
+        level_1.len()
+    }
+
     /// List all non-deleted files
     pub async fn list_by_table_not_to_delete(
         self: &Arc<Self>,
@@ -476,7 +495,7 @@ impl TestTableBoundShard {
 
         let partition = repos
             .partitions()
-            .update_sort_key(partition.id, sort_key)
+            .cas_sort_key(partition.id, None, sort_key)
             .await
             .unwrap();
 
@@ -534,14 +553,27 @@ pub struct TestPartition {
 impl TestPartition {
     /// Update sort key.
     pub async fn update_sort_key(self: &Arc<Self>, sort_key: SortKey) -> Arc<Self> {
+        let old_sort_key = self
+            .catalog
+            .catalog
+            .repositories()
+            .await
+            .partitions()
+            .get_by_id(self.partition.id)
+            .await
+            .unwrap()
+            .unwrap()
+            .sort_key;
+
         let partition = self
             .catalog
             .catalog
             .repositories()
             .await
             .partitions()
-            .update_sort_key(
+            .cas_sort_key(
                 self.partition.id,
+                Some(old_sort_key),
                 &sort_key.to_columns().collect::<Vec<_>>(),
             )
             .await
@@ -844,6 +876,12 @@ impl TestParquetFileBuilder {
         self.size_override = Some(size_override);
         self
     }
+
+    /// Specify the file size to use for a CompactorParquetFile
+    pub fn with_file_size_bytes(mut self, file_size_bytes: u64) -> Self {
+        self.file_size_bytes = Some(file_size_bytes);
+        self
+    }
 }
 
 async fn update_catalog_sort_key_if_needed(
@@ -872,7 +910,16 @@ async fn update_catalog_sort_key_if_needed(
                     &new_columns,
                 );
                 partitions_catalog
-                    .update_sort_key(partition_id, &new_columns)
+                    .cas_sort_key(
+                        partition_id,
+                        Some(
+                            catalog_sort_key
+                                .to_columns()
+                                .map(ToString::to_string)
+                                .collect::<Vec<_>>(),
+                        ),
+                        &new_columns,
+                    )
                     .await
                     .unwrap();
             }
@@ -881,7 +928,7 @@ async fn update_catalog_sort_key_if_needed(
             let new_columns = sort_key.to_columns().collect::<Vec<_>>();
             debug!("Updating sort key from None to {:?}", &new_columns);
             partitions_catalog
-                .update_sort_key(partition_id, &new_columns)
+                .cas_sort_key(partition_id, None, &new_columns)
                 .await
                 .unwrap();
         }

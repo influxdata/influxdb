@@ -251,8 +251,9 @@ mod tests {
                     );
                     let timestamp = Arc::new(TimestampOracle::new(0));
 
+                    let metrics = metric::Registry::default();
                     let sem = Arc::new(Semaphore::new(PERSIST_QUEUE_DEPTH));
-                    let persist_state = Arc::new(PersistState::new(PERSIST_QUEUE_DEPTH, sem));
+                    let persist_state = Arc::new(PersistState::new(PERSIST_QUEUE_DEPTH, sem, &metrics));
 
                     let handler = RpcWrite::new(Arc::clone(&mock), timestamp, persist_state);
 
@@ -366,8 +367,9 @@ mod tests {
         let mock = Arc::new(MockDmlSink::default().with_apply_return(vec![Ok(()), Ok(())]));
         let timestamp = Arc::new(TimestampOracle::new(0));
 
+        let metrics = metric::Registry::default();
         let sem = Arc::new(Semaphore::new(PERSIST_QUEUE_DEPTH));
-        let persist_state = Arc::new(PersistState::new(PERSIST_QUEUE_DEPTH, sem));
+        let persist_state = Arc::new(PersistState::new(PERSIST_QUEUE_DEPTH, sem, &metrics));
 
         let handler = RpcWrite::new(Arc::clone(&mock), timestamp, persist_state);
 
@@ -424,8 +426,9 @@ mod tests {
         let mock = Arc::new(MockDmlSink::default().with_apply_return(vec![Ok(()), Ok(())]));
         let timestamp = Arc::new(TimestampOracle::new(0));
 
+        let metrics = metric::Registry::default();
         let sem = Arc::new(Semaphore::new(PERSIST_QUEUE_DEPTH));
-        let persist_state = Arc::new(PersistState::new(PERSIST_QUEUE_DEPTH, sem));
+        let persist_state = Arc::new(PersistState::new(PERSIST_QUEUE_DEPTH, sem, &metrics));
 
         let handler = RpcWrite::new(Arc::clone(&mock), timestamp, Arc::clone(&persist_state));
 

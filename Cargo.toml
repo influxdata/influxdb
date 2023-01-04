@@ -26,6 +26,7 @@ members = [
     "influxrpc_parser",
     "ingester",
     "ingester2",
+    "iox_arrow_flight",
     "iox_catalog",
     "iox_data_generator",
     "garbage_collector",
@@ -114,8 +115,8 @@ license = "MIT OR Apache-2.0"
 [workspace.dependencies]
 arrow = { version = "29.0.0" }
 arrow-flight = { version = "29.0.0" }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="40e6a67604514124332bf132020a026bbe5b5903", default-features = false }
-datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="40e6a67604514124332bf132020a026bbe5b5903" }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="07f49803a3d7a9e9b3c2c9a7714c1bb08db71385", default-features = false }
+datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="07f49803a3d7a9e9b3c2c9a7714c1bb08db71385" }
 hashbrown = { version = "0.13.1" }
 parquet = { version = "29.0.0" }
 

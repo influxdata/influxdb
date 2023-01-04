@@ -328,7 +328,7 @@ mod tests {
         let metric_registry = metric::Registry::new();
 
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::<u8, String>::new()), time_provider);
+        let mut backend: PolicyBackend<u8, String> = PolicyBackend::hashmap_backed(time_provider);
         let policy_constructor =
             TtlPolicy::new(Arc::clone(&ttl_provider) as _, "my_cache", &metric_registry);
         backend.add_policy(|mut handle| {
@@ -367,7 +367,7 @@ mod tests {
 
         // init time provider at MAX!
         let time_provider = Arc::new(MockProvider::new(Time::MAX));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::<u8, String>::new()), time_provider);
+        let mut backend: PolicyBackend<u8, String> = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(TtlPolicy::new(
             Arc::clone(&ttl_provider) as _,
             "my_cache",
@@ -481,10 +481,8 @@ mod tests {
 
         // init time provider at nearly MAX!
         let time_provider = Arc::new(MockProvider::new(Time::MAX - Duration::from_secs(2)));
-        let mut backend = PolicyBackend::new(
-            Box::new(HashMap::<u8, String>::new()),
-            Arc::clone(&time_provider) as _,
-        );
+        let mut backend: PolicyBackend<u8, String> =
+            PolicyBackend::hashmap_backed(Arc::clone(&time_provider) as _);
         backend.add_policy(TtlPolicy::new(
             Arc::clone(&ttl_provider) as _,
             "my_cache",
@@ -648,8 +646,7 @@ mod tests {
             let ttl_provider = Arc::new(NeverTtlProvider::default());
             let time_provider = Arc::new(MockProvider::new(Time::MIN));
             let metric_registry = metric::Registry::new();
-            let mut backend =
-                PolicyBackend::new(Box::new(HashMap::<u8, String>::new()), time_provider);
+            let mut backend = PolicyBackend::hashmap_backed(time_provider);
             backend.add_policy(TtlPolicy::new(
                 Arc::clone(&ttl_provider) as _,
                 "my_cache",
@@ -672,10 +669,7 @@ mod tests {
             let time_provider = Arc::new(MockProvider::new(Time::MIN));
             let metric_registry = metric::Registry::new();
 
-            let mut backend = PolicyBackend::new(
-                Box::new(HashMap::<u8, String>::new()),
-                Arc::clone(&time_provider) as _,
-            );
+            let mut backend = PolicyBackend::hashmap_backed(Arc::clone(&time_provider) as _);
             backend.add_policy(TtlPolicy::new(
                 Arc::clone(&ttl_provider) as _,
                 "my_cache",

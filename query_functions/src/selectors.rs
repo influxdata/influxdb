@@ -464,15 +464,24 @@ fn make_uda(name: &str, factory_builder: FactoryBuilder) -> AggregateUDF {
     //
     // The inputs are (value, time) and the output is a struct with a
     // 'value' and 'time' field of the same time.
+    let captured_name = name.to_string();
     let return_type_func: ReturnTypeFunction = Arc::new(move |arg_types| {
-        assert_eq!(
-            arg_types.len(),
-            2,
-            "selector expected exactly 2 arguments, got {}",
-            arg_types.len()
-        );
+        if arg_types.len() != 2 {
+            return Err(DataFusionError::Plan(format!(
+                "{} requires exactly 2 arguments, got {}",
+                captured_name,
+                arg_types.len()
+            )));
+        }
+
         let input_type = &arg_types[0];
-        assert_eq!(&arg_types[1], &TIME_DATA_TYPE());
+        let time_type = &arg_types[1];
+        if time_type != &TIME_DATA_TYPE() {
+            return Err(DataFusionError::Plan(format!(
+                "{} second argument must be a timestamp, but got {}",
+                captured_name, time_type
+            )));
+        }
         let return_type = output_type.return_type(input_type);
 
         Ok(Arc::new(return_type))

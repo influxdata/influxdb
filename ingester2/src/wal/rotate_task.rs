@@ -1,21 +1,47 @@
-use futures::{stream, StreamExt};
 use observability_deps::tracing::*;
-use std::{future, sync::Arc, time::Duration};
-use tokio::time::Instant;
+use parking_lot::Mutex;
+use std::{fmt::Debug, sync::Arc, time::Duration};
 
-use crate::{buffer_tree::BufferTree, persist::handle::PersistHandle};
+use crate::{
+    buffer_tree::partition::PartitionData,
+    persist::{drain_buffer::persist_partitions, queue::PersistQueue},
+};
 
-/// [`PERSIST_ENQUEUE_CONCURRENCY`] defines the parallelism used when acquiring
-/// partition locks and marking the partition as persisting.
-const PERSIST_ENQUEUE_CONCURRENCY: usize = 5;
+/// An abstraction over any type that can yield an iterator of (potentially
+/// empty) [`PartitionData`].
+pub trait PartitionIter: Send + Debug {
+    /// Return the set of partitions in `self`.
+    fn partition_iter(&self) -> Box<dyn Iterator<Item = Arc<Mutex<PartitionData>>> + Send>;
+}
+
+impl<T> PartitionIter for Arc<T>
+where
+    T: PartitionIter + Send + Sync,
+{
+    fn partition_iter(&self) -> Box<dyn Iterator<Item = Arc<Mutex<PartitionData>>> + Send> {
+        (**self).partition_iter()
+    }
+}
+
+impl<O> PartitionIter for crate::buffer_tree::BufferTree<O>
+where
+    O: Send + Sync + Debug + 'static,
+{
+    fn partition_iter(&self) -> Box<dyn Iterator<Item = Arc<Mutex<PartitionData>>> + Send> {
+        Box::new(self.partitions())
+    }
+}
 
 /// Rotate the `wal` segment file every `period` duration of time.
-pub(crate) async fn periodic_rotation(
+pub(crate) async fn periodic_rotation<T, P>(
     wal: Arc<wal::Wal>,
     period: Duration,
-    buffer: Arc<BufferTree>,
-    persist: PersistHandle,
-) {
+    buffer: T,
+    persist: P,
+) where
+    T: PartitionIter + Sync,
+    P: PersistQueue + Clone,
+{
     let mut interval = tokio::time::interval(period);
 
     loop {
@@ -86,58 +112,7 @@ pub(crate) async fn periodic_rotation(
         // - a small price to pay for not having to block ingest while the WAL
         // is rotated, all outstanding writes + queries complete, and all then
         // partitions are marked as persisting.
-
-        let notifications = stream::iter(buffer.partitions())
-            .filter_map(|p| {
-                async move {
-                    let t = Instant::now();
-
-                    // Skip this partition if there is no data to persist
-                    let data = p.lock().mark_persisting()?;
-
-                    debug!(
-                        partition_id=data.partition_id().get(),
-                        lock_wait=?Instant::now().duration_since(t),
-                        "read data for persistence"
-                    );
-
-                    // Enqueue the partition for persistence.
-                    //
-                    // The persist task will call mark_persisted() on the partition
-                    // once complete.
-                    // Some(future::ready(persist.queue_persist(p, data).await))
-                    Some(future::ready((p, data)))
-                }
-            })
-            // Concurrently attempt to obtain partition locks and mark them as
-            // persisting. This will hide the latency of individual lock
-            // acquisitions.
-            .buffer_unordered(PERSIST_ENQUEUE_CONCURRENCY)
-            // Serialise adding partitions to the persist queue (a fast
-            // operation that doesn't benefit from contention at all).
-            .then(|(p, data)| {
-                let persist = persist.clone();
-
-                // Enqueue and retain the notification receiver, which will be
-                // awaited later.
-                #[allow(clippy::async_yields_async)]
-                async move {
-                    persist.queue_persist(p, data).await
-                }
-            })
-            .collect::<Vec<_>>()
-            .await;
-
-        debug!(
-            n_partitions = notifications.len(),
-            closed_id = %stats.id(),
-            "queued partitions for persist"
-        );
-
-        // Wait for all the persist completion notifications.
-        for n in notifications {
-            n.await.expect("persist worker task panic");
-        }
+        persist_partitions(buffer.partition_iter(), persist.clone()).await;
 
         debug!(
             closed_id = %stats.id(),

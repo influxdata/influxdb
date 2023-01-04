@@ -2,9 +2,13 @@ use std::sync::Arc;
 
 use crate::exec::context::IOxSessionContext;
 use crate::plan::influxql::InfluxQLToLogicalPlan;
-use crate::{debug, DataFusionError, QueryNamespace};
-use datafusion::{error::Result, physical_plan::ExecutionPlan};
+use crate::QueryNamespace;
+use datafusion::{
+    error::{DataFusionError, Result},
+    physical_plan::ExecutionPlan,
+};
 use influxdb_influxql_parser::parse_statements;
+use observability_deps::tracing::debug;
 
 /// This struct can create plans for running SQL queries against databases
 #[derive(Debug, Default)]
@@ -31,7 +35,7 @@ impl InfluxQLQueryPlanner {
 
         if statements.len() != 1 {
             return Err(DataFusionError::NotImplemented(
-                "The context currently only supports a single SQL statement".to_string(),
+                "The context currently only supports a single InfluxQL statement".to_string(),
             ));
         }
 

@@ -44,25 +44,36 @@
     missing_docs
 )]
 
-use data_types::{ShardId, ShardIndex};
+use data_types::ShardIndex;
 
 /// A macro to conditionally prepend `pub` to the inner tokens for benchmarking
 /// purposes, should the `benches` feature be enabled.
+///
+/// Call as `maybe_pub!(mod name)` to conditionally export a private module.
+///
+/// Call as `maybe_pub!( <block> )` to conditionally define a private module
+/// called "benches".
 #[macro_export]
 macro_rules! maybe_pub {
+    (mod $($t:tt)+) => {
+        #[cfg(feature = "benches")]
+        #[allow(missing_docs)]
+        pub mod $($t)+;
+        #[cfg(not(feature = "benches"))]
+        mod $($t)+;
+    };
     ($($t:tt)+) => {
         #[cfg(feature = "benches")]
         #[allow(missing_docs)]
-        pub $($t)+
-
-        #[cfg(not(feature = "benches"))]
-        $($t)+
+        pub mod benches {
+            $($t)+
+        }
     };
 }
 
-/// During the testing of ingester2, the catalog will require a ShardId for
-/// various operations. This is a const value for these occasions.
-const TRANSITION_SHARD_ID: ShardId = ShardId::new(1);
+/// During the testing of ingester2, the catalog will require a ShardIndex for
+/// various operations. This is a const value for these occasions. Look up the ShardId for this
+/// ShardIndex when needed.
 const TRANSITION_SHARD_INDEX: ShardIndex = ShardIndex::new(1);
 
 /// Ingester initialisation methods & types.
@@ -85,19 +96,15 @@ pub use init::*;
 //
 
 mod arcmap;
-mod buffer_tree;
+maybe_pub!(mod buffer_tree);
 mod deferred_load;
-mod persist;
+maybe_pub!(mod dml_sink);
+maybe_pub!(mod persist);
 mod query;
 mod query_adaptor;
 pub(crate) mod server;
 mod timestamp_oracle;
-mod wal;
-
-// Conditionally exported for benchmark purposes.
-maybe_pub!(
-    mod dml_sink;
-);
+maybe_pub!(mod wal);
 
 #[cfg(test)]
 mod test_util;

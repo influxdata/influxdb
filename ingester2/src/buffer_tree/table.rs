@@ -2,10 +2,10 @@
 
 pub(crate) mod name_resolver;
 
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{NamespaceId, PartitionId, PartitionKey, SequenceNumber, TableId};
+use data_types::{NamespaceId, PartitionId, PartitionKey, SequenceNumber, ShardId, TableId};
 use datafusion_util::MemoryStream;
 use mutable_batch::MutableBatch;
 use parking_lot::{Mutex, RwLock};
@@ -15,6 +15,7 @@ use trace::span::{Span, SpanRecorder};
 use super::{
     namespace::NamespaceName,
     partition::{resolver::PartitionProvider, PartitionData},
+    post_write::PostWriteObserver,
 };
 use crate::{
     arcmap::ArcMap,
@@ -79,7 +80,7 @@ impl From<TableName> for Arc<str> {
 
 impl std::fmt::Display for TableName {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
+        std::fmt::Display::fmt(&self.0, f)
     }
 }
 
@@ -99,7 +100,7 @@ impl PartialEq<str> for TableName {
 
 /// Data of a Table in a given Namesapce that belongs to a given Shard
 #[derive(Debug)]
-pub(crate) struct TableData {
+pub(crate) struct TableData<O> {
     table_id: TableId,
     table_name: Arc<DeferredLoad<TableName>>,
 
@@ -113,9 +114,12 @@ pub(crate) struct TableData {
 
     // Map of partition key to its data
     partition_data: RwLock<DoubleRef>,
+
+    post_write_observer: Arc<O>,
+    transition_shard_id: ShardId,
 }
 
-impl TableData {
+impl<O> TableData<O> {
     /// Initialize new table buffer identified by [`TableId`] in the catalog.
     ///
     /// Optionally the given tombstone max [`SequenceNumber`] identifies the
@@ -132,6 +136,8 @@ impl TableData {
         namespace_id: NamespaceId,
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         partition_provider: Arc<dyn PartitionProvider>,
+        post_write_observer: Arc<O>,
+        transition_shard_id: ShardId,
     ) -> Self {
         Self {
             table_id,
@@ -140,42 +146,9 @@ impl TableData {
             namespace_name,
             partition_data: Default::default(),
             partition_provider,
+            post_write_observer,
+            transition_shard_id,
         }
-    }
-
-    // buffers the table write and returns true if the lifecycle manager indicates that
-    // ingest should be paused.
-    pub(super) async fn buffer_table_write(
-        &self,
-        sequence_number: SequenceNumber,
-        batch: MutableBatch,
-        partition_key: PartitionKey,
-    ) -> Result<(), mutable_batch::Error> {
-        let p = self.partition_data.read().by_key(&partition_key);
-        let partition_data = match p {
-            Some(p) => p,
-            None => {
-                let p = self
-                    .partition_provider
-                    .get_partition(
-                        partition_key.clone(),
-                        self.namespace_id,
-                        Arc::clone(&self.namespace_name),
-                        self.table_id,
-                        Arc::clone(&self.table_name),
-                    )
-                    .await;
-                // Add the double-referenced partition to the map.
-                //
-                // This MAY return a different instance than `p` if another
-                // thread has already initialised the partition.
-                self.partition_data.write().try_insert(p)
-            }
-        };
-
-        partition_data.lock().buffer_write(batch, sequence_number)?;
-
-        Ok(())
     }
 
     /// Return a mutable reference to all partitions buffered for this table.
@@ -224,8 +197,60 @@ impl TableData {
     }
 }
 
+impl<O> TableData<O>
+where
+    O: PostWriteObserver,
+{
+    // buffers the table write and returns true if the lifecycle manager indicates that
+    // ingest should be paused.
+    pub(super) async fn buffer_table_write(
+        &self,
+        sequence_number: SequenceNumber,
+        batch: MutableBatch,
+        partition_key: PartitionKey,
+    ) -> Result<(), mutable_batch::Error> {
+        let p = self.partition_data.read().by_key(&partition_key);
+        let partition_data = match p {
+            Some(p) => p,
+            None => {
+                let p = self
+                    .partition_provider
+                    .get_partition(
+                        partition_key.clone(),
+                        self.namespace_id,
+                        Arc::clone(&self.namespace_name),
+                        self.table_id,
+                        Arc::clone(&self.table_name),
+                        self.transition_shard_id,
+                    )
+                    .await;
+                // Add the double-referenced partition to the map.
+                //
+                // This MAY return a different instance than `p` if another
+                // thread has already initialised the partition.
+                self.partition_data.write().try_insert(p)
+            }
+        };
+
+        // Obtain the partition lock.
+        let mut p = partition_data.lock();
+
+        // Enqueue the write, returning any error.
+        p.buffer_write(batch, sequence_number)?;
+
+        // If successful, allow the observer to inspect the partition.
+        self.post_write_observer
+            .observe(Arc::clone(&partition_data), p);
+
+        Ok(())
+    }
+}
+
 #[async_trait]
-impl QueryExec for TableData {
+impl<O> QueryExec for TableData<O>
+where
+    O: Send + Sync + Debug,
+{
     type Response = PartitionStream;
 
     async fn query_exec(
@@ -242,7 +267,7 @@ impl QueryExec for TableData {
         );
 
         // Gather the partition data from all of the partitions in this table.
-        let partitions = self.partitions().into_iter().filter_map(move |p| {
+        let partitions = self.partitions().into_iter().map(move |p| {
             let mut span = SpanRecorder::new(span.clone().map(|s| s.child("partition read")));
 
             let (id, completed_persistence_count, data) = {
@@ -250,30 +275,32 @@ impl QueryExec for TableData {
                 (
                     p.partition_id(),
                     p.completed_persistence_count(),
-                    p.get_query_data()?,
+                    p.get_query_data(),
                 )
             };
-            assert_eq!(id, data.partition_id());
 
-            // Project the data if necessary
-            let columns = columns.iter().map(String::as_str).collect::<Vec<_>>();
-            let selection = if columns.is_empty() {
-                Projection::All
-            } else {
-                Projection::Some(columns.as_ref())
+            let ret = match data {
+                Some(data) => {
+                    assert_eq!(id, data.partition_id());
+
+                    // Project the data if necessary
+                    let columns = columns.iter().map(String::as_str).collect::<Vec<_>>();
+                    let selection = if columns.is_empty() {
+                        Projection::All
+                    } else {
+                        Projection::Some(columns.as_ref())
+                    };
+
+                    let data = Box::pin(MemoryStream::new(
+                        data.project_selection(selection).into_iter().collect(),
+                    ));
+                    PartitionResponse::new(Some(data), id, completed_persistence_count)
+                }
+                None => PartitionResponse::new(None, id, completed_persistence_count),
             };
 
-            let ret = PartitionResponse::new(
-                Box::pin(MemoryStream::new(
-                    data.project_selection(selection).into_iter().collect(),
-                )),
-                id,
-                None,
-                completed_persistence_count,
-            );
-
             span.ok("read partition data");
-            Some(ret)
+            ret
         });
 
         Ok(PartitionStream::new(futures::stream::iter(partitions)))
@@ -288,8 +315,9 @@ mod tests {
     use mutable_batch_lp::lines_to_batches;
 
     use super::*;
-    use crate::buffer_tree::partition::{
-        resolver::mock::MockPartitionProvider, PartitionData, SortKeyState,
+    use crate::buffer_tree::{
+        partition::{resolver::mock::MockPartitionProvider, PartitionData, SortKeyState},
+        post_write::mock::MockPostWriteObserver,
     };
 
     const TABLE_NAME: &str = "bananas";
@@ -297,6 +325,7 @@ mod tests {
     const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
     const PARTITION_KEY: &str = "platanos";
     const PARTITION_ID: PartitionId = PartitionId::new(0);
+    const TRANSITION_SHARD_ID: ShardId = ShardId::new(84);
 
     #[tokio::test]
     async fn test_partition_double_ref() {
@@ -315,6 +344,7 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
+                TRANSITION_SHARD_ID,
             ),
         ));
 
@@ -328,6 +358,8 @@ mod tests {
                 NamespaceName::from("platanos")
             })),
             partition_provider,
+            Arc::new(MockPostWriteObserver::default()),
+            TRANSITION_SHARD_ID,
         );
 
         let batch = lines_to_batches(r#"bananas,bat=man value=24 42"#, 0)

@@ -3,10 +3,10 @@
 
 use crate::{
     interface::{
-        sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnTypeMismatchSnafu, Error,
-        NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo, QueryPoolRepo,
-        RepoCollection, Result, ShardRepo, TableRepo, TombstoneRepo, TopicMetadataRepo,
-        Transaction,
+        sealed::TransactionFinalize, CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu,
+        Error, NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo,
+        QueryPoolRepo, RepoCollection, Result, ShardRepo, TableRepo, TombstoneRepo,
+        TopicMetadataRepo, Transaction,
     },
     metrics::MetricDecorator,
     DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
@@ -872,18 +872,23 @@ impl PartitionRepo for MemTxn {
         Ok(partitions)
     }
 
-    async fn update_sort_key(
+    async fn cas_sort_key(
         &mut self,
         partition_id: PartitionId,
-        sort_key: &[&str],
-    ) -> Result<Partition> {
+        old_sort_key: Option<Vec<String>>,
+        new_sort_key: &[&str],
+    ) -> Result<Partition, CasFailure<Vec<String>>> {
         let stage = self.stage();
+        let old_sort_key = old_sort_key.unwrap_or_default();
         match stage.partitions.iter_mut().find(|p| p.id == partition_id) {
-            Some(p) => {
-                p.sort_key = sort_key.iter().map(|s| s.to_string()).collect();
+            Some(p) if p.sort_key == old_sort_key => {
+                p.sort_key = new_sort_key.iter().map(|s| s.to_string()).collect();
                 Ok(p.clone())
             }
-            None => Err(Error::PartitionNotFound { id: partition_id }),
+            Some(p) => return Err(CasFailure::ValueMismatch(p.sort_key.clone())),
+            None => Err(CasFailure::QueryError(Error::PartitionNotFound {
+                id: partition_id,
+            })),
         }
     }
 
@@ -1315,7 +1320,7 @@ impl ParquetFileRepo for MemTxn {
 
     async fn recent_highest_throughput_partitions(
         &mut self,
-        shard_id: ShardId,
+        shard_id: Option<ShardId>,
         time_in_the_past: Timestamp,
         min_num_files: usize,
         num_partitions: usize,
@@ -1329,7 +1334,13 @@ impl ParquetFileRepo for MemTxn {
             .parquet_files
             .iter()
             .filter(|f| {
-                f.shard_id == shard_id
+                let shard_matches_if_specified = if let Some(shard_id) = shard_id {
+                    f.shard_id == shard_id
+                } else {
+                    true
+                };
+
+                shard_matches_if_specified
                     && f.created_at > recent_time
                     && f.compaction_level == CompactionLevel::Initial
                     && f.to_delete.is_none()
@@ -1376,9 +1387,67 @@ impl ParquetFileRepo for MemTxn {
         Ok(partitions)
     }
 
+    async fn partitions_with_small_l1_file_count(
+        &mut self,
+        shard_id: Option<ShardId>,
+        small_size_threshold_bytes: i64,
+        min_small_file_count: usize,
+        num_partitions: usize,
+    ) -> Result<Vec<PartitionParam>> {
+        let stage = self.stage();
+        let skipped_partitions: Vec<_> = stage
+            .skipped_compactions
+            .iter()
+            .map(|s| s.partition_id)
+            .collect();
+        // get a list of files for the shard that are under the size threshold and don't belong to
+        // a partition that has been skipped by the compactor
+        let relevant_parquet_files = stage
+            .parquet_files
+            .iter()
+            .filter(|f| {
+                let shard_matches_if_specified = if let Some(shard_id) = shard_id {
+                    f.shard_id == shard_id
+                } else {
+                    true
+                };
+
+                shard_matches_if_specified
+                    && f.compaction_level == CompactionLevel::FileNonOverlapped
+                    && f.file_size_bytes < small_size_threshold_bytes
+                    && !skipped_partitions.contains(&f.partition_id)
+            })
+            .collect::<Vec<_>>();
+        // count the number of files per partition & use that to retain only a list of counts that
+        // are above our threshold. the keys then become our partition candidates
+        let mut partition_small_file_count: HashMap<PartitionParam, usize> =
+            HashMap::with_capacity(relevant_parquet_files.len());
+        for pf in relevant_parquet_files {
+            let key = PartitionParam {
+                partition_id: pf.partition_id,
+                shard_id: pf.shard_id,
+                namespace_id: pf.namespace_id,
+                table_id: pf.table_id,
+            };
+            if pf.to_delete.is_none() {
+                let count = partition_small_file_count.entry(key).or_insert(0);
+                *count += 1;
+            }
+        }
+        partition_small_file_count.retain(|_key, c| *c >= min_small_file_count);
+        let mut partitions = partition_small_file_count.iter().collect::<Vec<_>>();
+        // sort and return top N
+        partitions.sort_by(|a, b| b.1.cmp(a.1));
+        Ok(partitions
+            .into_iter()
+            .map(|(k, _)| *k)
+            .take(num_partitions)
+            .collect::<Vec<_>>())
+    }
+
     async fn most_cold_files_partitions(
         &mut self,
-        shard_id: ShardId,
+        shard_id: Option<ShardId>,
         time_in_the_past: Timestamp,
         num_partitions: usize,
     ) -> Result<Vec<PartitionParam>> {
@@ -1387,7 +1456,13 @@ impl ParquetFileRepo for MemTxn {
             .parquet_files
             .iter()
             .filter(|f| {
-                f.shard_id == shard_id
+                let shard_matches_if_specified = if let Some(shard_id) = shard_id {
+                    f.shard_id == shard_id
+                } else {
+                    true
+                };
+
+                shard_matches_if_specified
                     && (f.compaction_level == CompactionLevel::Initial
                         || f.compaction_level == CompactionLevel::FileNonOverlapped)
             })

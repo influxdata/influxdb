@@ -158,7 +158,7 @@ mod tests {
             .match_header("Authorization", format!("Token {}", token).as_str())
             .create();
 
-        let client = Client::new(&mockito::server_url(), token);
+        let client = Client::new(mockito::server_url(), token);
 
         let _result = client.query_suggestions().await;
 
@@ -181,7 +181,7 @@ mod tests {
         .match_header("Authorization", format!("Token {}", token).as_str())
         .create();
 
-        let client = Client::new(&mockito::server_url(), token);
+        let client = Client::new(mockito::server_url(), token);
 
         let _result = client.query_suggestions_name(suggestion_name).await;
 
@@ -205,7 +205,7 @@ mod tests {
             )
             .create();
 
-        let client = Client::new(&mockito::server_url(), token);
+        let client = Client::new(mockito::server_url(), token);
 
         let _result = client.query_raw(org, query).await;
 
@@ -230,7 +230,7 @@ mod tests {
             )
             .create();
 
-        let client = Client::new(&mockito::server_url(), token);
+        let client = Client::new(mockito::server_url(), token);
 
         let _result = client.query_raw(org, None).await;
 
@@ -251,7 +251,7 @@ mod tests {
             )
             .create();
 
-        let client = Client::new(&mockito::server_url(), token);
+        let client = Client::new(mockito::server_url(), token);
 
         let _result = client.query_analyze(query).await;
 
@@ -272,7 +272,7 @@ mod tests {
             )
             .create();
 
-        let client = Client::new(&mockito::server_url(), token);
+        let client = Client::new(mockito::server_url(), token);
 
         let _result = client.query_analyze(query).await;
 
@@ -294,7 +294,7 @@ mod tests {
             )
             .create();
 
-        let client = Client::new(&mockito::server_url(), token);
+        let client = Client::new(mockito::server_url(), token);
 
         let _result = client.query_ast(language_request).await;
 
@@ -315,7 +315,7 @@ mod tests {
             )
             .create();
 
-        let client = Client::new(&mockito::server_url(), token);
+        let client = Client::new(mockito::server_url(), token);
 
         let _result = client.query_ast(language_request).await;
 
@@ -340,7 +340,7 @@ mod tests {
             .with_body("")
             .create();
 
-        let client = Client::new(&mockito::server_url(), token);
+        let client = Client::new(mockito::server_url(), token);
 
         let result = client.query_raw(org, query).await.expect("request success");
         assert_eq!(result, "");

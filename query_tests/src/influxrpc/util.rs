@@ -26,7 +26,7 @@ pub async fn run_series_set_plan_maybe_error(
 
     use futures::TryStreamExt;
 
-    ctx.to_series_and_groups(plans, Arc::clone(&ctx.inner().runtime_env().memory_manager))
+    ctx.to_series_and_groups(plans, Arc::clone(&ctx.inner().runtime_env().memory_pool))
         .await?
         .map_ok(|series_or_group| series_or_group.to_string())
         .try_collect()

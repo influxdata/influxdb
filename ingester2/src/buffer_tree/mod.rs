@@ -6,3 +6,9 @@ pub(crate) mod table;
 mod root;
 #[allow(unused_imports)]
 pub(crate) use root::*;
+
+pub(crate) mod post_write;
+
+maybe_pub! {
+    pub use super::partition::PartitionData;
+}

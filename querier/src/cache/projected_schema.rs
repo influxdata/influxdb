@@ -3,7 +3,6 @@
 //! While this is technically NOT caching catalog requests (i.e. CPU and IO work), it heavily reduced memory when
 //! creating [`QuerierParquetChunk`](crate::parquet::QuerierParquetChunk)s.
 use std::{
-    collections::HashMap,
     mem::{size_of, size_of_val},
     sync::Arc,
 };
@@ -114,7 +113,7 @@ impl ProjectedSchemaCache {
         ));
 
         // add to memory pool
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), Arc::clone(&time_provider));
+        let mut backend = PolicyBackend::hashmap_backed(Arc::clone(&time_provider));
         backend.add_policy(LruPolicy::new(
             Arc::clone(&ram_pool),
             CACHE_ID,
@@ -160,6 +159,7 @@ impl ProjectedSchemaCache {
 mod tests {
     use iox_time::SystemProvider;
     use schema::{builder::SchemaBuilder, TIME_COLUMN_NAME};
+    use std::collections::HashMap;
 
     use crate::cache::ram::test_util::test_ram_pool;
 

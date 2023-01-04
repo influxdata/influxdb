@@ -1,7 +1,7 @@
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{NamespaceId, TableId};
+use data_types::{NamespaceId, ShardId, TableId};
 use dml::DmlOperation;
 use metric::U64Counter;
 use parking_lot::Mutex;
@@ -10,6 +10,7 @@ use trace::span::Span;
 use super::{
     namespace::{name_resolver::NamespaceNameProvider, NamespaceData},
     partition::{resolver::PartitionProvider, PartitionData},
+    post_write::PostWriteObserver,
     table::name_resolver::TableNameProvider,
 };
 use crate::{
@@ -68,7 +69,7 @@ use crate::{
 /// [`TableData`]: crate::buffer_tree::table::TableData
 /// [`PartitionData`]: crate::buffer_tree::partition::PartitionData
 #[derive(Debug)]
-pub(crate) struct BufferTree {
+pub(crate) struct BufferTree<O> {
     /// The resolver of `(table_id, partition_key)` to [`PartitionData`].
     ///
     /// [`PartitionData`]: super::partition::PartitionData
@@ -83,7 +84,7 @@ pub(crate) struct BufferTree {
     ///
     /// [`DeferredLoad`]: crate::deferred_load::DeferredLoad
     /// [`NamespaceName`]: data_types::NamespaceName
-    namespaces: ArcMap<NamespaceId, NamespaceData>,
+    namespaces: ArcMap<NamespaceId, NamespaceData<O>>,
     namespace_name_resolver: Arc<dyn NamespaceNameProvider>,
     /// The [`TableName`] provider used by [`NamespaceData`] to initialise a
     /// [`TableData`].
@@ -94,15 +95,23 @@ pub(crate) struct BufferTree {
 
     metrics: Arc<metric::Registry>,
     namespace_count: U64Counter,
+
+    post_write_observer: Arc<O>,
+    transition_shard_id: ShardId,
 }
 
-impl BufferTree {
+impl<O> BufferTree<O>
+where
+    O: Send + Sync + Debug,
+{
     /// Initialise a new [`BufferTree`] that emits metrics to `metrics`.
     pub(crate) fn new(
         namespace_name_resolver: Arc<dyn NamespaceNameProvider>,
         table_name_resolver: Arc<dyn TableNameProvider>,
         partition_provider: Arc<dyn PartitionProvider>,
+        post_write_observer: Arc<O>,
         metrics: Arc<metric::Registry>,
+        transition_shard_id: ShardId,
     ) -> Self {
         let namespace_count = metrics
             .register_metric::<U64Counter>(
@@ -117,12 +126,14 @@ impl BufferTree {
             table_name_resolver,
             metrics,
             partition_provider,
+            post_write_observer,
             namespace_count,
+            transition_shard_id,
         }
     }
 
     /// Gets the namespace data out of the map
-    pub(crate) fn namespace(&self, namespace_id: NamespaceId) -> Option<Arc<NamespaceData>> {
+    pub(crate) fn namespace(&self, namespace_id: NamespaceId) -> Option<Arc<NamespaceData<O>>> {
         self.namespaces.get(&namespace_id)
     }
 
@@ -148,7 +159,10 @@ impl BufferTree {
 }
 
 #[async_trait]
-impl DmlSink for BufferTree {
+impl<O> DmlSink for BufferTree<O>
+where
+    O: PostWriteObserver,
+{
     type Error = mutable_batch::Error;
 
     async fn apply(&self, op: DmlOperation) -> Result<(), Self::Error> {
@@ -163,7 +177,9 @@ impl DmlSink for BufferTree {
                 self.namespace_name_resolver.for_namespace(namespace_id),
                 Arc::clone(&self.table_name_resolver),
                 Arc::clone(&self.partition_provider),
+                Arc::clone(&self.post_write_observer),
                 &self.metrics,
+                self.transition_shard_id,
             ))
         });
 
@@ -172,7 +188,10 @@ impl DmlSink for BufferTree {
 }
 
 #[async_trait]
-impl QueryExec for BufferTree {
+impl<O> QueryExec for BufferTree<O>
+where
+    O: Send + Sync + Debug,
+{
     type Response = QueryResponse;
 
     async fn query_exec(
@@ -212,6 +231,7 @@ mod tests {
                 name_resolver::mock::MockNamespaceNameProvider, NamespaceData, NamespaceName,
             },
             partition::{resolver::mock::MockPartitionProvider, PartitionData, SortKeyState},
+            post_write::mock::MockPostWriteObserver,
             table::{name_resolver::mock::MockTableNameProvider, TableName},
         },
         deferred_load::{self, DeferredLoad},
@@ -223,6 +243,7 @@ mod tests {
     const TABLE_NAME: &str = "bananas";
     const NAMESPACE_NAME: &str = "platanos";
     const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
+    const TRANSITION_SHARD_ID: ShardId = ShardId::new(84);
 
     #[tokio::test]
     async fn test_namespace_init_table() {
@@ -243,6 +264,7 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
+                TRANSITION_SHARD_ID,
             ),
         ));
 
@@ -252,7 +274,9 @@ mod tests {
             DeferredLoad::new(Duration::from_millis(1), async { NAMESPACE_NAME.into() }),
             Arc::new(MockTableNameProvider::new(TABLE_NAME)),
             partition_provider,
+            Arc::new(MockPostWriteObserver::default()),
             &metrics,
+            TRANSITION_SHARD_ID,
         );
 
         // Assert the namespace name was stored
@@ -320,7 +344,9 @@ mod tests {
                         Arc::new(MockNamespaceNameProvider::default()),
                         Arc::new(MockTableNameProvider::new(TABLE_NAME)),
                         partition_provider,
+                        Arc::new(MockPostWriteObserver::default()),
                         Arc::new(metric::Registry::default()),
+                        TRANSITION_SHARD_ID,
                     );
 
                     // Write the provided DmlWrites
@@ -365,6 +391,7 @@ mod tests {
                 TableName::from(TABLE_NAME)
             })),
             SortKeyState::Provided(None),
+            TRANSITION_SHARD_ID,
         )],
         writes = [make_write_op(
             &PartitionKey::from("p1"),
@@ -400,6 +427,7 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
+                TRANSITION_SHARD_ID,
             ),
             PartitionData::new(
                 PartitionId::new(1),
@@ -413,6 +441,7 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
+                TRANSITION_SHARD_ID,
             )
         ],
         writes = [
@@ -460,6 +489,7 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
+                TRANSITION_SHARD_ID,
             ),
             PartitionData::new(
                 PartitionId::new(1),
@@ -473,6 +503,7 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
+                TRANSITION_SHARD_ID,
             )
         ],
         writes = [
@@ -519,6 +550,7 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
+                TRANSITION_SHARD_ID,
             ),
             PartitionData::new(
                 PartitionId::new(1),
@@ -532,6 +564,7 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
+                TRANSITION_SHARD_ID,
             )
         ],
         writes = [
@@ -579,6 +612,7 @@ mod tests {
                 TableName::from(TABLE_NAME)
             })),
             SortKeyState::Provided(None),
+            TRANSITION_SHARD_ID,
         )],
         writes = [
             make_write_op(
@@ -628,6 +662,7 @@ mod tests {
                         TableName::from(TABLE_NAME)
                     })),
                     SortKeyState::Provided(None),
+                    TRANSITION_SHARD_ID,
                 ))
                 .with_partition(PartitionData::new(
                     PartitionId::new(0),
@@ -641,6 +676,7 @@ mod tests {
                         TableName::from(TABLE_NAME)
                     })),
                     SortKeyState::Provided(None),
+                    TRANSITION_SHARD_ID,
                 )),
         );
 
@@ -651,7 +687,9 @@ mod tests {
             Arc::new(MockNamespaceNameProvider::default()),
             Arc::new(MockTableNameProvider::new(TABLE_NAME)),
             partition_provider,
+            Arc::new(MockPostWriteObserver::default()),
             Arc::clone(&metrics),
+            TRANSITION_SHARD_ID,
         );
 
         // Write data to partition p1, in table "bananas".
@@ -721,6 +759,7 @@ mod tests {
                         TableName::from(TABLE_NAME)
                     })),
                     SortKeyState::Provided(None),
+                    TRANSITION_SHARD_ID,
                 ))
                 .with_partition(PartitionData::new(
                     PartitionId::new(1),
@@ -734,6 +773,7 @@ mod tests {
                         TableName::from(TABLE_NAME)
                     })),
                     SortKeyState::Provided(None),
+                    TRANSITION_SHARD_ID,
                 ))
                 .with_partition(PartitionData::new(
                     PartitionId::new(2),
@@ -747,6 +787,7 @@ mod tests {
                         TableName::from("another_table")
                     })),
                     SortKeyState::Provided(None),
+                    TRANSITION_SHARD_ID,
                 )),
         );
 
@@ -755,7 +796,9 @@ mod tests {
             Arc::new(MockNamespaceNameProvider::default()),
             Arc::new(MockTableNameProvider::new(TABLE_NAME)),
             partition_provider,
+            Arc::new(MockPostWriteObserver::default()),
             Arc::clone(&Arc::new(metric::Registry::default())),
+            TRANSITION_SHARD_ID,
         );
 
         assert_eq!(buf.partitions().count(), 0);
@@ -829,6 +872,7 @@ mod tests {
                     TableName::from(TABLE_NAME)
                 })),
                 SortKeyState::Provided(None),
+                TRANSITION_SHARD_ID,
             ),
         ));
 
@@ -837,7 +881,9 @@ mod tests {
             Arc::new(MockNamespaceNameProvider::default()),
             Arc::new(MockTableNameProvider::new(TABLE_NAME)),
             partition_provider,
+            Arc::new(MockPostWriteObserver::default()),
             Arc::new(metric::Registry::default()),
+            TRANSITION_SHARD_ID,
         );
 
         // Query the empty tree
@@ -911,6 +957,7 @@ mod tests {
                         TableName::from(TABLE_NAME)
                     })),
                     SortKeyState::Provided(None),
+                    TRANSITION_SHARD_ID,
                 ))
                 .with_partition(PartitionData::new(
                     PartitionId::new(1),
@@ -924,6 +971,7 @@ mod tests {
                         TableName::from(TABLE_NAME)
                     })),
                     SortKeyState::Provided(None),
+                    TRANSITION_SHARD_ID,
                 )),
         );
 
@@ -932,7 +980,9 @@ mod tests {
             Arc::new(MockNamespaceNameProvider::default()),
             Arc::new(MockTableNameProvider::new(TABLE_NAME)),
             partition_provider,
+            Arc::new(MockPostWriteObserver::default()),
             Arc::new(metric::Registry::default()),
+            TRANSITION_SHARD_ID,
         );
 
         // Write data to partition p1, in table "bananas".
@@ -991,10 +1041,11 @@ mod tests {
         let partition = partitions.pop().unwrap();
 
         // Perform the partition read
-        let batches =
-            datafusion::physical_plan::common::collect(partition.into_record_batch_stream())
-                .await
-                .expect("failed to collate query results");
+        let batches = datafusion::physical_plan::common::collect(
+            partition.into_record_batch_stream().unwrap(),
+        )
+        .await
+        .expect("failed to collate query results");
 
         // Assert the contents of p1 contains both the initial write, and the
         // 3rd write in a single RecordBatch.

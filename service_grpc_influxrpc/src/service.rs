@@ -1350,7 +1350,7 @@ where
     let series_or_groups = ctx
         .to_series_and_groups(
             series_plan,
-            Arc::clone(&ctx.inner().runtime_env().memory_manager),
+            Arc::clone(&ctx.inner().runtime_env().memory_pool),
         )
         .await
         .context(FilteringSeriesSnafu {
@@ -1418,7 +1418,7 @@ where
     let series_or_groups = ctx
         .to_series_and_groups(
             grouped_series_set_plan,
-            Arc::clone(&ctx.inner().runtime_env().memory_manager),
+            Arc::clone(&ctx.inner().runtime_env().memory_pool),
         )
         .await
         .context(GroupingSeriesSnafu {
@@ -1652,7 +1652,7 @@ pub trait ErrorLogger {
     /// Log the contents of self with a string of context. The context
     /// should appear in a message such as
     ///
-    /// "Error <context>: <formatted error message>
+    /// "Error `<context>`: `<formatted error message>`
     fn log_if_error(self, context: &str) -> Self;
 
     /// Provided method to log an error via the `error!` macro

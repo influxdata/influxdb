@@ -1,0 +1,107 @@
+# generates load with 20k measurements getting a little bit of data, 20 measurements getting 300x the amount of data
+# and 3 measurements that are very wide with 600 fields. Adjust the count or sampling interval of the three different
+# agents to adjust how much load each type generates. But note that the first_agent sends far more lines per request
+# which is how those measurements see so much more data.
+name = "eu_central_sim"
+
+[[values]]
+name = "some_tag"
+cardinality = 10
+template = "id_{{id}}_{{random 15}}"
+has_one = ["extra_static"]
+
+[[values]]
+name = "child_tag"
+cardinality = 10
+belongs_to = "some_tag"
+has_one = ["rotation"]
+template = "id_{{id}}_{{random 10}}"
+
+[[values]]
+name = "rotation"
+cardinality = 3
+template = "id_{{id}}_{{guid}}"
+
+[[values]]
+name = "extra_static"
+cardinality = 1
+template = "whatever-constant-value"
+
+[[tag_sets]]
+name = "first_set"
+for_each = [
+    "some_tag",
+    "some_tag.extra_static",
+    "some_tag.child_tag",
+    "child_tag.rotation",
+]
+
+[[tag_sets]]
+name = "lower_cardinality_set"
+for_each = [
+    "some_tag",
+]
+
+[[agents]]
+name = "first_agent"
+tag_pairs = [
+    {key = "agent_id", template = "{{agent.id}}"}
+]
+
+[[agents.measurements]]
+name = "first_agent_measurement_{{measurement.id}}"
+count = 20
+tag_set = "first_set"
+tag_pairs = [
+    {key = "measurement_id", template = "{{measurement.id}}"}
+]
+
+[[agents.measurements.fields]]
+name = "intfield"
+i64_range = [1, 100000]
+
+[[agents.measurements.fields]]
+name = "floatfield"
+f64_range = [0.0, 1.0]
+
+[[agents]]
+name = "second_agent"
+tag_pairs = [
+    {key = "agent_id", template = "second_agent_{{agent.id}}"}
+]
+
+[[agents.measurements]]
+name = "second_agent_measurement_{{measurement.id}}"
+count = 20000
+tag_pairs = [
+    {key = "measurement_id", template = "{{measurement.id}}"}
+]
+
+[[agents.measurements.fields]]
+name = "intfield"
+i64_range = [1,1000]
+
+[[agents]]
+name = "third_agent"
+tag_pairs = [
+    {key = "agent_id", template = "third_agent_{{agent.id}}"}
+]
+
+[[agents.measurements]]
+name = "third_agent_measurement_{{measurement.id}}"
+count = 3
+tag_pairs = [
+    {key = "measurement_id", template = "{{measurement.id}}"}
+]
+
+[[agents.measurements.fields]]
+name = "intfield_{{field.id}}"
+count = 600
+i64_range = [1,1000]
+
+[[database_writers]]
+agents = [
+    {name = "first_agent", sampling_interval = "1s", count = 5},
+    {name = "second_agent", sampling_interval = "1s", count = 40},
+    {name = "third_agent", sampling_interval = "1s", count = 5},
+]

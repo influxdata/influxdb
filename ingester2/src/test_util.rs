@@ -78,8 +78,6 @@ pub(crate) async fn populate_catalog(
         .unwrap()
         .id;
 
-    assert_eq!(shard_id, crate::TRANSITION_SHARD_ID);
-
     (shard_id, ns_id, table_id)
 }
 

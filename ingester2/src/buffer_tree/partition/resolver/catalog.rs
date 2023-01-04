@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
-use data_types::{NamespaceId, Partition, PartitionKey, TableId};
+use data_types::{NamespaceId, Partition, PartitionKey, ShardId, TableId};
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::debug;
 
@@ -17,7 +17,6 @@ use crate::{
         table::TableName,
     },
     deferred_load::DeferredLoad,
-    TRANSITION_SHARD_ID,
 };
 
 /// A [`PartitionProvider`] implementation that hits the [`Catalog`] to resolve
@@ -43,12 +42,13 @@ impl CatalogPartitionResolver {
         &self,
         partition_key: PartitionKey,
         table_id: TableId,
+        transition_shard_id: ShardId,
     ) -> Result<Partition, iox_catalog::interface::Error> {
         self.catalog
             .repositories()
             .await
             .partitions()
-            .create_or_get(partition_key, TRANSITION_SHARD_ID, table_id)
+            .create_or_get(partition_key, transition_shard_id, table_id)
             .await
     }
 }
@@ -62,16 +62,18 @@ impl PartitionProvider for CatalogPartitionResolver {
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
         table_name: Arc<DeferredLoad<TableName>>,
+        transition_shard_id: ShardId,
     ) -> PartitionData {
         debug!(
             %partition_key,
             %table_id,
             %table_name,
+            %transition_shard_id,
             "upserting partition in catalog"
         );
         let p = Backoff::new(&self.backoff_config)
             .retry_all_errors("resolve partition", || {
-                self.get(partition_key.clone(), table_id)
+                self.get(partition_key.clone(), table_id, transition_shard_id)
             })
             .await
             .expect("retry forever");
@@ -87,6 +89,7 @@ impl PartitionProvider for CatalogPartitionResolver {
             table_id,
             table_name,
             SortKeyState::Provided(p.sort_key()),
+            transition_shard_id,
         )
     }
 }
@@ -99,7 +102,6 @@ mod tests {
     use data_types::ShardIndex;
 
     use super::*;
-    use crate::TRANSITION_SHARD_ID;
 
     const TABLE_NAME: &str = "bananas";
     const NAMESPACE_NAME: &str = "ns-bananas";
@@ -111,7 +113,7 @@ mod tests {
         let catalog: Arc<dyn Catalog> =
             Arc::new(iox_catalog::mem::MemCatalog::new(Arc::clone(&metrics)));
 
-        let (_shard_id, namespace_id, table_id) = {
+        let (shard_id, namespace_id, table_id) = {
             let mut repos = catalog.repositories().await;
             let t = repos.topics().create_or_get("platanos").await.unwrap();
             let q = repos.query_pools().create_or_get("platanos").await.unwrap();
@@ -126,7 +128,6 @@ mod tests {
                 .create_or_get(&t, ShardIndex::new(0))
                 .await
                 .unwrap();
-            assert_eq!(shard.id, TRANSITION_SHARD_ID);
 
             let table = repos
                 .tables()
@@ -151,6 +152,7 @@ mod tests {
                 Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                     TableName::from(TABLE_NAME)
                 })),
+                shard_id,
             )
             .await;
 

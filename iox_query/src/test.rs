@@ -223,6 +223,9 @@ pub struct TestChunk {
 
     /// The partition sort key of this chunk
     partition_sort_key: Option<SortKey>,
+
+    /// Suppress output
+    quiet: bool,
 }
 
 /// Implements a method for adding a column with default stats
@@ -304,7 +307,14 @@ impl TestChunk {
             sort_key: None,
             partition_sort_key: None,
             partition_id: PartitionId::new(0),
+            quiet: false,
         }
+    }
+
+    /// Returns the receiver configured to suppress any output to STDOUT.
+    pub fn with_quiet(mut self) -> Self {
+        self.quiet = true;
+        self
     }
 
     pub fn with_id(mut self, id: u128) -> Self {
@@ -618,7 +628,9 @@ impl TestChunk {
 
         let batch =
             RecordBatch::try_new(self.schema.as_ref().into(), columns).expect("made record batch");
-        println!("TestChunk batch data: {:#?}", batch);
+        if !self.quiet {
+            println!("TestChunk batch data: {:#?}", batch);
+        }
 
         self.table_data.push(Arc::new(batch));
         self
@@ -656,7 +668,9 @@ impl TestChunk {
 
         let batch =
             RecordBatch::try_new(self.schema.as_ref().into(), columns).expect("made record batch");
-        println!("TestChunk batch data: {:#?}", batch);
+        if !self.quiet {
+            println!("TestChunk batch data: {:#?}", batch);
+        }
 
         self.table_data.push(Arc::new(batch));
         self

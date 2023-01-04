@@ -857,10 +857,7 @@ mod tests {
 
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
         let loader = Arc::new(TestLoader::default());
-        let mut backend = PolicyBackend::new(
-            Box::new(HashMap::<u8, String>::new()),
-            Arc::clone(&time_provider) as _,
-        );
+        let mut backend = PolicyBackend::hashmap_backed(Arc::clone(&time_provider) as _);
         let policy_constructor = RefreshPolicy::new(
             time_provider,
             refresh_duration_provider,
@@ -890,10 +887,7 @@ mod tests {
         let metric_registry = metric::Registry::new();
         let time_provider = Arc::new(MockProvider::new(Time::MAX - Duration::from_secs(1)));
         let loader = Arc::new(TestLoader::default());
-        let mut backend = PolicyBackend::new(
-            Box::new(HashMap::<u8, String>::new()),
-            Arc::clone(&time_provider) as _,
-        );
+        let mut backend = PolicyBackend::hashmap_backed(Arc::clone(&time_provider) as _);
         backend.add_policy(RefreshPolicy::new(
             Arc::clone(&time_provider) as _,
             refresh_duration_provider,
@@ -1105,10 +1099,7 @@ mod tests {
             let time_provider = Arc::new(MockProvider::new(Time::MIN));
             let metric_registry = metric::Registry::new();
             let loader = Arc::new(TestLoader::default());
-            let mut backend = PolicyBackend::new(
-                Box::new(HashMap::<u8, String>::new()),
-                Arc::clone(&time_provider) as _,
-            );
+            let mut backend = PolicyBackend::hashmap_backed(Arc::clone(&time_provider) as _);
 
             backend.add_policy(RefreshPolicy::new(
                 time_provider,
@@ -1142,10 +1133,7 @@ mod tests {
             // set up "RNG" that always generates the maximum, so we can test things easier
             let rng_overwrite = StepRng::new(u64::MAX, 0);
 
-            let mut backend = PolicyBackend::new(
-                Box::new(HashMap::<u8, String>::new()),
-                Arc::clone(&time_provider) as _,
-            );
+            let mut backend = PolicyBackend::hashmap_backed(Arc::clone(&time_provider) as _);
             backend.add_policy(RefreshPolicy::new_inner(
                 Arc::clone(&time_provider) as _,
                 Arc::clone(&refresh_duration_provider) as _,

@@ -18,6 +18,7 @@ license.workspace = true
 [dependencies]
 ahash = { version = "0.8", default-features = false, features = ["getrandom", "runtime-rng"] }
 arrow = { version = "29", features = ["arrow-csv", "arrow-ipc", "arrow-json", "comfy-table", "csv", "dyn_cmp_dict", "ipc", "json", "prettyprint"] }
+arrow-flight = { version = "29", features = ["flight-sql-experimental", "prost-types"] }
 arrow-ord = { version = "29", default-features = false, features = ["dyn_cmp_dict"] }
 arrow-string = { version = "29", default-features = false, features = ["dyn_cmp_dict"] }
 base64 = { version = "0.13", features = ["std"] }
@@ -27,7 +28,7 @@ bytes = { version = "1", features = ["std"] }
 chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "iana-time-zone", "serde", "std", "winapi"] }
 crossbeam-utils = { version = "0.8", features = ["std"] }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "40e6a67604514124332bf132020a026bbe5b5903", features = ["async-compression", "bzip2", "compression", "crypto_expressions", "flate2", "regex_expressions", "unicode_expressions", "xz2"] }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "07f49803a3d7a9e9b3c2c9a7714c1bb08db71385", features = ["async-compression", "bzip2", "compression", "crypto_expressions", "flate2", "regex_expressions", "unicode_expressions", "xz2"] }
 digest = { version = "0.10", features = ["alloc", "block-buffer", "core-api", "mac", "std", "subtle"] }
 either = { version = "1", features = ["use_std"] }
 fixedbitset = { version = "0.4", features = ["std"] }
@@ -43,6 +44,7 @@ getrandom = { version = "0.2", default-features = false, features = ["js", "js-s
 hashbrown-5ef9efb8ec2df382 = { package = "hashbrown", version = "0.12", features = ["ahash", "inline-more", "raw"] }
 hashbrown-594e8ee84c453af0 = { package = "hashbrown", version = "0.13", features = ["ahash", "inline-more", "raw"] }
 indexmap = { version = "1", default-features = false, features = ["std"] }
+itertools = { version = "0.10", features = ["use_alloc", "use_std"] }
 libc = { version = "0.2", features = ["extra_traits", "std"] }
 lock_api = { version = "0.4", default-features = false, features = ["arc_lock"] }
 log = { version = "0.4", default-features = false, features = ["std"] }
@@ -109,6 +111,7 @@ getrandom = { version = "0.2", default-features = false, features = ["js", "js-s
 hashbrown-5ef9efb8ec2df382 = { package = "hashbrown", version = "0.12", features = ["ahash", "inline-more", "raw"] }
 heck = { version = "0.4", features = ["unicode", "unicode-segmentation"] }
 indexmap = { version = "1", default-features = false, features = ["std"] }
+itertools = { version = "0.10", features = ["use_alloc", "use_std"] }
 libc = { version = "0.2", features = ["extra_traits", "std"] }
 lock_api = { version = "0.4", default-features = false, features = ["arc_lock"] }
 log = { version = "0.4", default-features = false, features = ["std"] }

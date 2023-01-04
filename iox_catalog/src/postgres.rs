@@ -2,10 +2,10 @@
 
 use crate::{
     interface::{
-        self, sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnTypeMismatchSnafu, Error,
-        NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo, QueryPoolRepo,
-        RepoCollection, Result, ShardRepo, TableRepo, TombstoneRepo, TopicMetadataRepo,
-        Transaction,
+        self, sealed::TransactionFinalize, CasFailure, Catalog, ColumnRepo,
+        ColumnTypeMismatchSnafu, Error, NamespaceRepo, ParquetFileRepo, PartitionRepo,
+        ProcessedTombstoneRepo, QueryPoolRepo, RepoCollection, Result, ShardRepo, TableRepo,
+        TombstoneRepo, TopicMetadataRepo, Transaction,
     },
     metrics::MetricDecorator,
     DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
@@ -401,7 +401,7 @@ async fn new_pool(
     options: &PostgresConnectionOptions,
 ) -> Result<HotSwapPool<Postgres>, sqlx::Error> {
     let parsed_dsn = match get_dsn_file_path(&options.dsn) {
-        Some(filename) => std::fs::read_to_string(&filename)?,
+        Some(filename) => std::fs::read_to_string(filename)?,
         None => options.dsn.clone(),
     };
     let pool = HotSwapPool::new(new_raw_pool(options, &parsed_dsn).await?);
@@ -1249,34 +1249,65 @@ WHERE table_id = $1;
         .map_err(|e| Error::SqlxError { source: e })
     }
 
-    async fn update_sort_key(
+    /// Update the sort key for `partition_id` if and only if `old_sort_key`
+    /// matches the current value in the database.
+    ///
+    /// This compare-and-swap operation is allowed to spuriously return
+    /// [`CasFailure::ValueMismatch`] for performance reasons (avoiding multiple
+    /// round trips to service a transaction in the happy path).
+    async fn cas_sort_key(
         &mut self,
         partition_id: PartitionId,
-        sort_key: &[&str],
-    ) -> Result<Partition> {
-        let rec = sqlx::query_as::<_, Partition>(
+        old_sort_key: Option<Vec<String>>,
+        new_sort_key: &[&str],
+    ) -> Result<Partition, CasFailure<Vec<String>>> {
+        let old_sort_key = old_sort_key.unwrap_or_default();
+        let res = sqlx::query_as::<_, Partition>(
             r#"
 UPDATE partition
 SET sort_key = $1
-WHERE id = $2
+WHERE id = $2 AND sort_key = $3
 RETURNING *;
         "#,
         )
-        .bind(sort_key)
-        .bind(partition_id)
+        .bind(new_sort_key) // $1
+        .bind(partition_id) // $2
+        .bind(&old_sort_key) // $3
         .fetch_one(&mut self.inner)
         .await;
 
-        let partition = rec.map_err(|e| match e {
-            sqlx::Error::RowNotFound => Error::PartitionNotFound { id: partition_id },
-            _ => Error::SqlxError { source: e },
-        })?;
+        let partition = match res {
+            Ok(v) => v,
+            Err(sqlx::Error::RowNotFound) => {
+                // This update may have failed either because:
+                //
+                // * A row with the specified ID did not exist at query time
+                //   (but may exist now!)
+                // * The sort key does not match.
+                //
+                // To differentiate, we submit a get partition query, returning
+                // the actual sort key if successful.
+                //
+                // NOTE: this is racy, but documented - this might return "Sort
+                // key differs! Old key: <old sort key you provided>"
+                return Err(CasFailure::ValueMismatch(
+                    PartitionRepo::get_by_id(self, partition_id)
+                        .await
+                        .map_err(CasFailure::QueryError)?
+                        .ok_or(CasFailure::QueryError(Error::PartitionNotFound {
+                            id: partition_id,
+                        }))?
+                        .sort_key,
+                ));
+            }
+            Err(e) => return Err(CasFailure::QueryError(Error::SqlxError { source: e })),
+        };
 
         debug!(
             ?partition_id,
-            input_sort_key=?sort_key,
-            partition_after_catalog_update=?partition,
-            "Partition after updating sort key"
+            ?old_sort_key,
+            ?new_sort_key,
+            "partition sort key cas successful"
         );
 
         Ok(partition)
@@ -1847,7 +1878,7 @@ WHERE parquet_file.shard_id = $1
 
     async fn recent_highest_throughput_partitions(
         &mut self,
-        shard_id: ShardId,
+        shard_id: Option<ShardId>,
         time_in_the_past: Timestamp,
         min_num_files: usize,
         num_partitions: usize,
@@ -1855,8 +1886,10 @@ WHERE parquet_file.shard_id = $1
         let min_num_files = min_num_files as i32;
         let num_partitions = num_partitions as i32;
 
-        sqlx::query_as::<_, PartitionParam>(
-            r#"
+        match shard_id {
+            Some(shard_id) => {
+                sqlx::query_as::<_, PartitionParam>(
+                    r#"
 SELECT parquet_file.partition_id, parquet_file.table_id, parquet_file.shard_id,
        parquet_file.namespace_id, count(parquet_file.id)
 FROM parquet_file
@@ -1870,30 +1903,60 @@ GROUP BY 1, 2, 3, 4
 HAVING count(id) >= $3
 ORDER BY 5 DESC
 LIMIT $4;
-            "#,
-        )
-        .bind(shard_id) // $1
-        .bind(time_in_the_past) //$2
-        .bind(min_num_files) // $3
-        .bind(num_partitions) // $4
-        .bind(CompactionLevel::Initial) // $5
-        .fetch_all(&mut self.inner)
-        .await
-        .map_err(|e| Error::SqlxError { source: e })
+                    "#,
+                )
+                .bind(shard_id) // $1
+                .bind(time_in_the_past) //$2
+                .bind(min_num_files) // $3
+                .bind(num_partitions) // $4
+                .bind(CompactionLevel::Initial) // $5
+                .fetch_all(&mut self.inner)
+                .await
+                .map_err(|e| Error::SqlxError { source: e })
+            }
+            None => {
+                sqlx::query_as::<_, PartitionParam>(
+                    r#"
+SELECT parquet_file.partition_id, parquet_file.table_id, parquet_file.shard_id,
+       parquet_file.namespace_id, count(parquet_file.id)
+FROM parquet_file
+LEFT OUTER JOIN skipped_compactions ON parquet_file.partition_id = skipped_compactions.partition_id
+WHERE compaction_level = $4
+AND   to_delete is null
+AND   created_at > $1
+AND   skipped_compactions.partition_id IS NULL
+GROUP BY 1, 2, 3, 4
+HAVING count(id) >= $2
+ORDER BY 5 DESC
+LIMIT $3;
+                    "#,
+                )
+                .bind(time_in_the_past) //$1
+                .bind(min_num_files) // $2
+                .bind(num_partitions) // $3
+                .bind(CompactionLevel::Initial) // $4
+                .fetch_all(&mut self.inner)
+                .await
+                .map_err(|e| Error::SqlxError { source: e })
+            }
+        }
     }
 
     async fn most_cold_files_partitions(
         &mut self,
-        shard_id: ShardId,
+        shard_id: Option<ShardId>,
         time_in_the_past: Timestamp,
         num_partitions: usize,
     ) -> Result<Vec<PartitionParam>> {
         let num_partitions = num_partitions as i32;
 
-        // This query returns partitions with most L0+L1 files and all L0 files (both deleted and non deleted) are either created
-        // before the given time ($2) or not available (removed by garbage collector)
-        sqlx::query_as::<_, PartitionParam>(
-            r#"
+        // This query returns partitions with most L0+L1 files and all L0 files (both deleted and
+        // non deleted) are either created before the given time ($2) or not available (removed by
+        // garbage collector)
+        match shard_id {
+            Some(shard_id) => {
+                sqlx::query_as::<_, PartitionParam>(
+                    r#"
 SELECT parquet_file.partition_id, parquet_file.shard_id, parquet_file.namespace_id,
        parquet_file.table_id,
        count(case when to_delete is null then 1 end) total_count,
@@ -1909,12 +1972,78 @@ HAVING count(case when to_delete is null then 1 end) > 0
              max(case when compaction_level= $4 then parquet_file.created_at end) is null)
 ORDER BY total_count DESC
 LIMIT $3;
+                    "#,
+                )
+                .bind(shard_id) // $1
+                .bind(time_in_the_past) // $2
+                .bind(num_partitions) // $3
+                .bind(CompactionLevel::Initial) // $4
+                .bind(CompactionLevel::FileNonOverlapped) // $5
+                .fetch_all(&mut self.inner)
+                .await
+                .map_err(|e| Error::SqlxError { source: e })
+            }
+            None => {
+                sqlx::query_as::<_, PartitionParam>(
+                    r#"
+SELECT parquet_file.partition_id, parquet_file.shard_id, parquet_file.namespace_id,
+       parquet_file.table_id,
+       count(case when to_delete is null then 1 end) total_count,
+       max(case when compaction_level= $4 then parquet_file.created_at end)
+FROM   parquet_file
+LEFT OUTER JOIN skipped_compactions ON parquet_file.partition_id = skipped_compactions.partition_id
+WHERE  (compaction_level = $3 OR compaction_level = $4)
+AND    skipped_compactions.partition_id IS NULL
+GROUP BY 1, 2, 3, 4
+HAVING count(case when to_delete is null then 1 end) > 0
+       AND ( max(case when compaction_level= $3 then parquet_file.created_at end) < $1  OR
+             max(case when compaction_level= $3 then parquet_file.created_at end) is null)
+ORDER BY total_count DESC
+LIMIT $2;
+                    "#,
+                )
+                .bind(time_in_the_past) // $1
+                .bind(num_partitions) // $2
+                .bind(CompactionLevel::Initial) // $3
+                .bind(CompactionLevel::FileNonOverlapped) // $4
+                .fetch_all(&mut self.inner)
+                .await
+                .map_err(|e| Error::SqlxError { source: e })
+            }
+        }
+    }
+
+    async fn partitions_with_small_l1_file_count(
+        &mut self,
+        shard_id: Option<ShardId>,
+        small_size_threshold_bytes: i64,
+        min_small_file_count: usize,
+        num_partitions: usize,
+    ) -> Result<Vec<PartitionParam>> {
+        // This query returns partitions with at least `min_small_file_count` small L1 files,
+        // where "small" means no bigger than `small_size_threshold_bytes`, limited to the top `num_partitions`.
+        sqlx::query_as::<_, PartitionParam>(
+            r#"
+SELECT parquet_file.partition_id, parquet_file.shard_id, parquet_file.namespace_id,
+       parquet_file.table_id,
+       COUNT(1) AS l1_file_count
+FROM   parquet_file
+LEFT OUTER JOIN skipped_compactions ON parquet_file.partition_id = skipped_compactions.partition_id
+WHERE  compaction_level = $5
+AND    to_delete IS NULL
+AND    shard_id = $1
+AND    skipped_compactions.partition_id IS NULL
+AND    file_size_bytes < $3
+GROUP BY 1, 2, 3, 4
+HAVING COUNT(1) >= $2
+ORDER BY l1_file_count DESC
+LIMIT $4;
             "#,
         )
         .bind(shard_id) // $1
-        .bind(time_in_the_past) // $2
-        .bind(num_partitions) // $3
-        .bind(CompactionLevel::Initial) // $4
+        .bind(min_small_file_count as i32) // $2
+        .bind(small_size_threshold_bytes) // $3
+        .bind(num_partitions as i32) // $4
         .bind(CompactionLevel::FileNonOverlapped) // $5
         .fetch_all(&mut self.inner)
         .await

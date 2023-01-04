@@ -1,9 +1,9 @@
 //! Ticket handling for the native IOx Flight API
 
-use arrow_flight::Ticket;
 use bytes::Bytes;
 use generated_types::influxdata::iox::querier::v1 as proto;
 use generated_types::influxdata::iox::querier::v1::read_info::QueryType;
+use iox_arrow_flight::Ticket;
 use observability_deps::tracing::trace;
 use prost::Message;
 use serde::Deserialize;
@@ -22,13 +22,13 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// This structure encapsulates the deserialization (and eventual
 /// serializing) logic for these requests
-#[derive(Deserialize, Debug)]
+#[derive(Debug, PartialEq, Clone, Eq)]
 pub struct IoxGetRequest {
     namespace_name: String,
     query: RunQuery,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Debug, PartialEq, Clone, Eq)]
 pub enum RunQuery {
     /// Unparameterized SQL query
     Sql(String),
@@ -47,8 +47,16 @@ impl Display for RunQuery {
 }
 
 impl IoxGetRequest {
+    /// Create a new request to run the specified query
+    pub fn new(namespace_name: impl Into<String>, query: RunQuery) -> Self {
+        Self {
+            namespace_name: namespace_name.into(),
+            query,
+        }
+    }
+
     /// try to decode a ReadInfo structure from a Token
-    pub fn try_new(ticket: Ticket) -> Result<Self> {
+    pub fn try_decode(ticket: Ticket) -> Result<Self> {
         // decode ticket
         IoxGetRequest::decode_protobuf(&ticket.ticket)
             .or_else(|e| {
@@ -60,6 +68,34 @@ impl IoxGetRequest {
                 trace!(%e, "Error decoding ticket as JSON");
                 Error::Invalid
             })
+    }
+
+    /// Encode the request as a protobuf Ticket
+    pub fn try_encode(self) -> Result<Ticket> {
+        let Self {
+            namespace_name,
+            query,
+        } = self;
+
+        let read_info = match query {
+            RunQuery::Sql(sql_query) => proto::ReadInfo {
+                namespace_name,
+                sql_query,
+                query_type: QueryType::Sql.into(),
+            },
+            RunQuery::InfluxQL(influxql) => {
+                proto::ReadInfo {
+                    namespace_name,
+                    // field name is misleading
+                    sql_query: influxql,
+                    query_type: QueryType::InfluxQl.into(),
+                }
+            }
+        };
+
+        let ticket = read_info.encode_to_vec();
+
+        Ok(Ticket { ticket })
     }
 
     /// The Go clients still use an older form of ticket encoding, JSON tickets
@@ -134,7 +170,7 @@ mod tests {
         //
         // Do not change this test without having first changed what the Go clients are sending!
         let ticket = make_json_ticket(r#"{"namespace_name": "my_db", "sql_query": "SELECT 1;"}"#);
-        let ri = IoxGetRequest::try_new(ticket).unwrap();
+        let ri = IoxGetRequest::try_decode(ticket).unwrap();
 
         assert_eq!(ri.namespace_name, "my_db");
         assert_matches!(ri.query, RunQuery::Sql(query) => assert_eq!(query, "SELECT 1;"));
@@ -144,7 +180,7 @@ mod tests {
     fn json_ticket_decoding_error() {
         // invalid json (database name rather than namespace name)
         let ticket = make_json_ticket(r#"{"database_name": "my_db", "sql_query": "SELECT 1;"}"#);
-        let e = IoxGetRequest::try_new(ticket).unwrap_err();
+        let e = IoxGetRequest::try_decode(ticket).unwrap_err();
         assert_matches!(e, Error::Invalid);
     }
 
@@ -157,7 +193,7 @@ mod tests {
         });
 
         // Reverts to default (unspecified) for invalid query_type enumeration, and thus SQL
-        let ri = IoxGetRequest::try_new(ticket).unwrap();
+        let ri = IoxGetRequest::try_decode(ticket).unwrap();
         assert_eq!(ri.namespace_name, "<foo>_<bar>");
         assert_matches!(ri.query, RunQuery::Sql(query) => assert_eq!(query, "SELECT 1"));
     }
@@ -170,7 +206,7 @@ mod tests {
             query_type: QueryType::Sql.into(),
         });
 
-        let ri = IoxGetRequest::try_new(ticket).unwrap();
+        let ri = IoxGetRequest::try_decode(ticket).unwrap();
         assert_eq!(ri.namespace_name, "<foo>_<bar>");
         assert_matches!(ri.query, RunQuery::Sql(query) => assert_eq!(query, "SELECT 1"));
     }
@@ -183,7 +219,7 @@ mod tests {
             query_type: QueryType::InfluxQl.into(),
         });
 
-        let ri = IoxGetRequest::try_new(ticket).unwrap();
+        let ri = IoxGetRequest::try_decode(ticket).unwrap();
         assert_eq!(ri.namespace_name, "<foo>_<bar>");
         assert_matches!(ri.query, RunQuery::InfluxQL(query) => assert_eq!(query, "SELECT 1"));
     }
@@ -197,7 +233,7 @@ mod tests {
         });
 
         // Reverts to default (unspecified) for invalid query_type enumeration, and thus SQL
-        let ri = IoxGetRequest::try_new(ticket).unwrap();
+        let ri = IoxGetRequest::try_decode(ticket).unwrap();
         assert_eq!(ri.namespace_name, "<foo>_<bar>");
         assert_matches!(ri.query, RunQuery::Sql(query) => assert_eq!(query, "SELECT 1"));
     }
@@ -209,14 +245,42 @@ mod tests {
         };
 
         // Reverts to default (unspecified) for invalid query_type enumeration, and thus SQL
-        let e = IoxGetRequest::try_new(ticket).unwrap_err();
+        let e = IoxGetRequest::try_decode(ticket).unwrap_err();
         assert_matches!(e, Error::Invalid);
     }
 
+    #[test]
+    fn round_trip_sql() {
+        let request = IoxGetRequest {
+            namespace_name: "foo_blarg".into(),
+            query: RunQuery::Sql("select * from bar".into()),
+        };
+
+        let ticket = request.clone().try_encode().expect("encoding failed");
+
+        let roundtripped = IoxGetRequest::try_decode(ticket).expect("decode failed");
+
+        assert_eq!(request, roundtripped)
+    }
+
+    #[test]
+    fn round_trip_influxql() {
+        let request = IoxGetRequest {
+            namespace_name: "foo_blarg".into(),
+            query: RunQuery::InfluxQL("select * from bar".into()),
+        };
+
+        let ticket = request.clone().try_encode().expect("encoding failed");
+
+        let roundtripped = IoxGetRequest::try_decode(ticket).expect("decode failed");
+
+        assert_eq!(request, roundtripped)
+    }
+
     fn make_proto_ticket(read_info: &proto::ReadInfo) -> Ticket {
-        let mut buf = Vec::with_capacity(1024);
-        proto::ReadInfo::encode(read_info, &mut buf).unwrap();
-        Ticket { ticket: buf }
+        Ticket {
+            ticket: read_info.encode_to_vec(),
+        }
     }
 
     fn make_json_ticket(json: &str) -> Ticket {

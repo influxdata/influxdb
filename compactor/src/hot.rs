@@ -1,7 +1,7 @@
 //! Collect highest hot candidates and compact them
 
 use crate::{
-    compact::{self, Compactor},
+    compact::{self, Compactor, ShardAssignment},
     compact_candidates_with_memory_budget, compact_in_parallel,
     utils::get_candidates_with_retry,
     PartitionCompactionCandidateWithInfo,
@@ -38,6 +38,7 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
         Arc::clone(&compactor),
         compaction_type,
         CompactionLevel::Initial,
+        CompactionLevel::FileNonOverlapped,
         compact_in_parallel,
         true, // split
         candidates.into(),
@@ -91,32 +92,55 @@ pub(crate) async fn hot_partitions_to_compact(
         compactor.config.hot_compaction_hours_threshold_2,
     );
 
-    for &shard_id in &compactor.shards {
-        let mut partitions = hot_partitions_for_shard(
-            Arc::clone(&compactor.catalog),
-            shard_id,
-            &query_times,
-            min_number_recent_ingested_files_per_partition,
-            max_number_partitions_per_shard,
-        )
-        .await?;
+    match &compactor.shards {
+        ShardAssignment::All => {
+            let mut partitions = hot_partitions_for_shard(
+                Arc::clone(&compactor.catalog),
+                None,
+                &query_times,
+                min_number_recent_ingested_files_per_partition,
+                max_number_partitions_per_shard,
+            )
+            .await?;
 
-        // Record metric for candidates per shard
-        let num_partitions = partitions.len();
-        debug!(
-            shard_id = shard_id.get(),
-            n = num_partitions,
-            compaction_type,
-            "compaction candidates",
-        );
-        let attributes = Attributes::from([
-            ("shard_id", format!("{}", shard_id).into()),
-            ("partition_type", compaction_type.into()),
-        ]);
-        let number_gauge = compactor.compaction_candidate_gauge.recorder(attributes);
-        number_gauge.set(num_partitions as u64);
+            // Record metric for candidates
+            let num_partitions = partitions.len();
+            debug!(n = num_partitions, compaction_type, "compaction candidates",);
+            let attributes = Attributes::from([("partition_type", compaction_type.into())]);
+            let number_gauge = compactor.compaction_candidate_gauge.recorder(attributes);
+            number_gauge.set(num_partitions as u64);
 
-        candidates.append(&mut partitions);
+            candidates.append(&mut partitions);
+        }
+        ShardAssignment::Only(shards) => {
+            for &shard_id in shards {
+                let mut partitions = hot_partitions_for_shard(
+                    Arc::clone(&compactor.catalog),
+                    Some(shard_id),
+                    &query_times,
+                    min_number_recent_ingested_files_per_partition,
+                    max_number_partitions_per_shard,
+                )
+                .await?;
+
+                // Record metric for candidates per shard
+                let num_partitions = partitions.len();
+                debug!(
+                    shard_id = shard_id.get(),
+                    n = num_partitions,
+                    compaction_type,
+                    "compaction candidates",
+                );
+                let attributes = Attributes::from([
+                    ("shard_id", format!("{}", shard_id).into()),
+                    ("partition_type", compaction_type.into()),
+                ]);
+                let number_gauge = compactor.compaction_candidate_gauge.recorder(attributes);
+                number_gauge.set(num_partitions as u64);
+
+                candidates.append(&mut partitions);
+            }
+        }
     }
 
     // Get extra needed information for selected partitions
@@ -157,7 +181,7 @@ pub(crate) async fn hot_partitions_to_compact(
 
 async fn hot_partitions_for_shard(
     catalog: Arc<dyn Catalog>,
-    shard_id: ShardId,
+    shard_id: Option<ShardId>,
     query_times: &[(u64, Timestamp)],
     // Minimum number of the most recent writes per partition we want to count
     // to prioritize partitions
@@ -184,7 +208,7 @@ async fn hot_partitions_for_shard(
             })?;
         if !partitions.is_empty() {
             debug!(
-                shard_id = shard_id.get(),
+                ?shard_id,
                 hours_ago,
                 n = partitions.len(),
                 "found high-throughput partitions"
@@ -261,7 +285,24 @@ mod tests {
 
         let candidates = hot_partitions_for_shard(
             Arc::clone(&catalog.catalog),
-            shard1.shard.id,
+            Some(shard1.shard.id),
+            &query_times(
+                catalog.time_provider(),
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
+            ),
+            1,
+            1,
+        )
+        .await
+        .unwrap();
+
+        assert!(candidates.is_empty());
+
+        // Across all shards
+        let candidates = hot_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            None,
             &query_times(
                 catalog.time_provider(),
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
@@ -289,7 +330,24 @@ mod tests {
 
         let candidates = hot_partitions_for_shard(
             Arc::clone(&catalog.catalog),
-            shard1.shard.id,
+            Some(shard1.shard.id),
+            &query_times(
+                catalog.time_provider(),
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
+            ),
+            1,
+            1,
+        )
+        .await
+        .unwrap();
+
+        assert!(candidates.is_empty());
+
+        // Across all shards
+        let candidates = hot_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            None,
             &query_times(
                 catalog.time_provider(),
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
@@ -320,7 +378,24 @@ mod tests {
 
         let candidates = hot_partitions_for_shard(
             Arc::clone(&catalog.catalog),
-            shard1.shard.id,
+            Some(shard1.shard.id),
+            &query_times(
+                catalog.time_provider(),
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
+            ),
+            1,
+            1,
+        )
+        .await
+        .unwrap();
+
+        assert!(candidates.is_empty());
+
+        // Across all shards
+        let candidates = hot_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            None,
             &query_times(
                 catalog.time_provider(),
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
@@ -352,7 +427,24 @@ mod tests {
 
         let candidates = hot_partitions_for_shard(
             Arc::clone(&catalog.catalog),
-            shard1.shard.id,
+            Some(shard1.shard.id),
+            &query_times(
+                catalog.time_provider(),
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
+            ),
+            1,
+            1,
+        )
+        .await
+        .unwrap();
+
+        assert!(candidates.is_empty());
+
+        // Across all shards
+        let candidates = hot_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            None,
             &query_times(
                 catalog.time_provider(),
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
@@ -384,7 +476,24 @@ mod tests {
 
         let candidates = hot_partitions_for_shard(
             Arc::clone(&catalog.catalog),
-            shard1.shard.id,
+            Some(shard1.shard.id),
+            &query_times(
+                catalog.time_provider(),
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
+            ),
+            1,
+            1,
+        )
+        .await
+        .unwrap();
+
+        assert!(candidates.is_empty());
+
+        // Across all shards
+        let candidates = hot_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            None,
             &query_times(
                 catalog.time_provider(),
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
@@ -416,7 +525,24 @@ mod tests {
 
         let candidates = hot_partitions_for_shard(
             Arc::clone(&catalog.catalog),
-            shard1.shard.id,
+            Some(shard1.shard.id),
+            &query_times(
+                catalog.time_provider(),
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
+            ),
+            1,
+            1,
+        )
+        .await
+        .unwrap();
+
+        assert!(candidates.is_empty());
+
+        // Across all shards
+        let candidates = hot_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            None,
             &query_times(
                 catalog.time_provider(),
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
@@ -448,7 +574,25 @@ mod tests {
 
         let candidates = hot_partitions_for_shard(
             Arc::clone(&catalog.catalog),
-            shard1.shard.id,
+            Some(shard1.shard.id),
+            &query_times(
+                catalog.time_provider(),
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
+            ),
+            1,
+            1,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].partition_id, partition1.partition.id);
+
+        // Across all shards
+        let candidates = hot_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            None,
             &query_times(
                 catalog.time_provider(),
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
@@ -489,7 +633,27 @@ mod tests {
 
         let candidates = hot_partitions_for_shard(
             Arc::clone(&catalog.catalog),
-            shard1.shard.id,
+            Some(shard1.shard.id),
+            &query_times(
+                catalog.time_provider(),
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
+                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
+            ),
+            1,
+            // Even if we ask for 2 partitions per shard, we'll only get the one partition with
+            // writes within 4 hours
+            2,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].partition_id, partition_3_min.partition.id);
+
+        // Across all shards
+        let candidates = hot_partitions_for_shard(
+            Arc::clone(&catalog.catalog),
+            None,
             &query_times(
                 catalog.time_provider(),
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
@@ -538,6 +702,7 @@ mod tests {
             max_number_partitions_per_shard: 1,
             min_number_recent_ingested_files_per_partition: 1,
             hot_multiple: 4,
+            warm_multiple: 1,
             memory_budget_bytes: 10 * 1024 * 1024,
             min_num_rows_allocated_per_record_batch_to_datafusion_plan: 100,
             max_num_compacting_files: 20,
@@ -546,9 +711,11 @@ mod tests {
             hot_compaction_hours_threshold_1: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
             hot_compaction_hours_threshold_2: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             max_parallel_partitions: DEFAULT_MAX_PARALLEL_PARTITIONS,
+            warm_compaction_small_size_threshold_bytes: 5_000,
+            warm_compaction_min_small_file_count: 10,
         };
         let compactor = Arc::new(Compactor::new(
-            vec![shard1.shard.id, shard2.shard.id],
+            ShardAssignment::Only(vec![shard1.shard.id, shard2.shard.id]),
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             catalog.exec(),

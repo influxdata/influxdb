@@ -3,7 +3,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{NamespaceId, PartitionKey, TableId};
+use data_types::{NamespaceId, PartitionKey, ShardId, TableId};
 use parking_lot::Mutex;
 
 use super::r#trait::PartitionProvider;
@@ -54,6 +54,7 @@ impl PartitionProvider for MockPartitionProvider {
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
         table_name: Arc<DeferredLoad<TableName>>,
+        _transition_shard_id: ShardId,
     ) -> PartitionData {
         let p = self
             .partitions

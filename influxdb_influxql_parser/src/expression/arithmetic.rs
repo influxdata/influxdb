@@ -63,7 +63,7 @@ pub enum Expr {
     /// A literal wildcard (`*`) with an optional data type selection.
     Wildcard(Option<WildcardType>),
 
-    /// A DISTINCT <identifier> expression.
+    /// A DISTINCT `<identifier>` expression.
     Distinct(Identifier),
 
     /// Unary operation such as + 5 or - 1h3m
@@ -175,20 +175,36 @@ impl Display for WildcardType {
 /// InfluxQL only supports casting between [`Self::Float`] and [`Self::Integer`] types.
 ///
 /// [cast]: https://docs.influxdata.com/influxdb/v1.8/query_language/explore-data/#cast-operations
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum VarRefDataType {
     /// Represents a 64-bit float.
     Float,
     /// Represents a 64-bit integer.
     Integer,
+    /// Represents a 64-bit unsigned integer.
+    Unsigned,
     /// Represents a UTF-8 string.
     String,
     /// Represents a boolean.
     Boolean,
-    /// Represents a tag.
-    Tag,
     /// Represents a field.
     Field,
+    /// Represents a tag.
+    Tag,
+    /// Represents a timestamp.
+    Timestamp,
+}
+
+impl VarRefDataType {
+    /// Returns true if the receiver is a data type that identifies as a field type.
+    pub fn is_field_type(&self) -> bool {
+        *self < Self::Tag
+    }
+
+    /// Returns true if the receiver is a data type that identifies as a tag type.
+    pub fn is_tag_type(&self) -> bool {
+        *self == Self::Tag
+    }
 }
 
 impl Display for VarRefDataType {
@@ -196,10 +212,12 @@ impl Display for VarRefDataType {
         match self {
             Self::Float => f.write_str("float"),
             Self::Integer => f.write_str("integer"),
+            Self::Unsigned => f.write_str("unsigned"),
             Self::String => f.write_str("string"),
             Self::Boolean => f.write_str("boolean"),
             Self::Tag => f.write_str("tag"),
             Self::Field => f.write_str("field"),
+            Self::Timestamp => f.write_str("timestamp"),
         }
     }
 }
@@ -780,5 +798,35 @@ mod test {
             ),
             "foo::field"
         );
+    }
+
+    #[test]
+    fn test_var_ref_data_type() {
+        use VarRefDataType::*;
+
+        // Ensure ordering of data types relative to one another.
+
+        assert!(Float < Integer);
+        assert!(Integer < Unsigned);
+        assert!(Unsigned < String);
+        assert!(String < Boolean);
+        assert!(Boolean < Field);
+        assert!(Field < Tag);
+
+        assert!(Float.is_field_type());
+        assert!(Integer.is_field_type());
+        assert!(Unsigned.is_field_type());
+        assert!(String.is_field_type());
+        assert!(Boolean.is_field_type());
+        assert!(Field.is_field_type());
+        assert!(Tag.is_tag_type());
+
+        assert!(!Float.is_tag_type());
+        assert!(!Integer.is_tag_type());
+        assert!(!Unsigned.is_tag_type());
+        assert!(!String.is_tag_type());
+        assert!(!Boolean.is_tag_type());
+        assert!(!Field.is_tag_type());
+        assert!(!Tag.is_field_type());
     }
 }

@@ -2,7 +2,7 @@
 
 use std::{
     cell::RefCell,
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     fmt::Debug,
     hash::Hash,
     marker::PhantomData,
@@ -39,78 +39,88 @@ macro_rules! lock_inner {
 
 /// Backend that is controlled by different policies.
 ///
-///
 /// # Policies & Recursion
+///
 /// Policies have two tasks:
 ///
 /// - initiate changes (e.g. based on timers)
 /// - react to changes
 ///
-/// Getting data from a [`PolicyBackend`] and feeding data back into it in a somewhat synchronous manner sounds really
-/// close to recursion. Uncontrolled recursion however is bad for the following reasons:
+/// Getting data from a [`PolicyBackend`] and feeding data back into it in a somewhat synchronous
+/// manner sounds really close to recursion. Uncontrolled recursion however is bad for the
+/// following reasons:
 ///
 /// 1. **Stack space:** We may easily run out of stack space.
-/// 2. **Ownership:** Looping back into the same data structure can easily lead to deadlocks (data corruption is luckily
-///    prevented by Rust's ownership model).
+/// 2. **Ownership:** Looping back into the same data structure can easily lead to deadlocks (data
+///    corruption is luckily prevented by Rust's ownership model).
 ///
 /// However sometimes we need to have interactions of policies in a "recursive" manner. E.g.:
 ///
 /// 1. A refresh policies updates a value based on a timer. The value gets bigger.
 /// 2. Some resource-pool policy decides that this is now too much data and wants to evict data.
-/// 3. The refresh policy gets informed about the values that are removed so it can stop refreshing them.
+/// 3. The refresh policy gets informed about the values that are removed so it can stop refreshing
+///    them.
 ///
 /// The solution that [`PolicyBackend`] uses is the following:
 ///
-/// All interaction of the policy with a [`PolicyBackend`] happens through a proxy object called [`ChangeRequest`]. The
-/// [`ChangeRequest`] encapsulates a single atomic "transaction" on the underlying store. This can be a simple operation
-/// as [`REMOVE`](CacheBackend::remove) but also combound operation like "get+remove" (e.g. to check if a value needs to
-/// be pruned from the cache). The policy has two ways of issuing [`ChangeRequest`]s:
+/// All interaction of the policy with a [`PolicyBackend`] happens through a proxy object called
+/// [`ChangeRequest`]. The [`ChangeRequest`] encapsulates a single atomic "transaction" on the
+/// underlying store. This can be a simple operation as [`REMOVE`](CacheBackend::remove) but also
+/// compound operations like "get+remove" (e.g. to check if a value needs to be pruned from the
+/// cache). The policy has two ways of issuing [`ChangeRequest`]s:
 ///
-/// 1. **Initial / self-driven:** Upon creation the policy receives a [`CallbackHandle`] that it can use initiate
-///    requests. This handle must only be used to create requests "out of thin air" (e.g. based on a timer). It MUST NOT
-///    be used to react to changes (see next point) to avoid deadlocks.
-/// 2. **Reactions:** Each policy implements a [`Subscriber`] that receives notifications for each changes. These
-///    notification return [`ChangeRequest`]s that the policy wishes to be performed. This construct is designed to
-///    avoid recursion.
+/// 1. **Initial / self-driven:** Upon creation the policy receives a [`CallbackHandle`] that it
+///    can use initiate requests. This handle must only be used to create requests "out of thin
+///    air" (e.g. based on a timer). It MUST NOT be used to react to changes (see next point) to
+///    avoid deadlocks.
+/// 2. **Reactions:** Each policy implements a [`Subscriber`] that receives notifications for each
+///    changes. These notification return [`ChangeRequest`]s that the policy wishes to be
+///    performed. This construct is designed to avoid recursion.
 ///
-/// Also note that a policy that uses the subscriber interface MUST NOT hold locks on their internal data structure
-/// while performing _initial requests_ to avoid deadlocks (since the subscriber will be informed about the changes).
+/// Also note that a policy that uses the subscriber interface MUST NOT hold locks on their
+/// internal data structure while performing _initial requests_ to avoid deadlocks (since the
+/// subscriber will be informed about the changes).
 ///
-/// We cannot guarantee that policies fulfill this interface, but [`PolicyBackend`] performs some sanity checks (e.g. it
-/// will catch if the same thread that started an initial requests recurses into another initial request).
-///
+/// We cannot guarantee that policies fulfill this interface, but [`PolicyBackend`] performs some
+/// sanity checks (e.g. it will catch if the same thread that started an initial requests recurses
+/// into another initial request).
 ///
 /// # Change Propagation
-/// Each [`ChangeRequest`]s is processed atomically, so "get + set" / "compare + exchange" patterns work as expected.
 ///
-/// Changes will be propated "breadth first". This means that the initial changes will form a task list. For
-/// every task in this list (front to back), we will execute the [`ChangeRequest`]. Every change that is performed
-/// within this request (usually only one) we propagate the change as following:
+/// Each [`ChangeRequest`] is processed atomically, so "get + set" / "compare + exchange" patterns
+/// work as expected.
+///
+/// Changes will be propagated "breadth first". This means that the initial changes will form a
+/// task list. For every task in this list (front to back), we will execute the [`ChangeRequest`].
+/// Every change that is performed within this request (usually only one) we propagate the change
+/// as follows:
 ///
 /// 1. underlying backend
 /// 2. policies (in the order they where added)
 ///
-/// From step 2 we collect new change requests that will added to the back of the task list.
+/// From step 2 we collect new change requests that will be added to the back of the task list.
 ///
 /// The original requests will return to the caller once all tasks are completed.
 ///
 /// When a [`ChangeRequest`] performs multiple operations -- e.g. [`GET`](CacheBackend::get) and
-/// [`SET`](CacheBackend::set) -- we first inform all subscribers about the first operation (in this case:
-/// [`GET`](CacheBackend::get)) and collect the resulting [`ChangeRequest`]s and then we process the second operation
-/// (in this case: [`SET`](CacheBackend::set)).
-///
+/// [`SET`](CacheBackend::set) -- we first inform all subscribers about the first operation (in
+/// this case: [`GET`](CacheBackend::get)) and collect the resulting [`ChangeRequest`]s. Then we
+/// process the second operation (in this case: [`SET`](CacheBackend::set)).
 ///
 /// # `GET`
-/// The return value for [`CacheBackend::get`] is fetched from the inner backend AFTER all changes are applied.
 ///
-/// Note [`ChangeRequest::get`] has no way of returning a result to the [`Subscriber`] that created it. The "changes"
-/// solely act as some kind of "keep alive" / "this was used" signal.
+/// The return value for [`CacheBackend::get`] is fetched from the inner backend AFTER all changes
+/// are applied.
 ///
+/// Note [`ChangeRequest::get`] has no way of returning a result to the [`Subscriber`] that created
+/// it. The "changes" solely act as some kind of "keep alive" / "this was used" signal.
 ///
 /// # Example
+///
 /// **The policies in these examples are deliberately silly but simple!**
 ///
-/// Let's start with a purely reactive policy that will round up all integer values to the next even number:
+/// Let's start with a purely reactive policy that will round up all integer values to the next
+/// even number:
 ///
 /// ```
 /// use std::{
@@ -261,6 +271,7 @@ where
     /// Create new backend w/o any policies.
     ///
     /// # Panic
+    ///
     /// Panics if `inner` is not empty.
     pub fn new(
         inner: Box<dyn CacheBackend<K = K, V = V>>,
@@ -277,12 +288,23 @@ where
         }
     }
 
+    /// Create a new backend with a HashMap as the [`CacheBackend`].
+    pub fn hashmap_backed(time_provider: Arc<dyn TimeProvider>) -> Self {
+        // See <https://github.com/rust-lang/rust-clippy/issues/9621>. This clippy lint suggests
+        // replacing `Box::new(HashMap::new())` with `Box::default()`, which in most cases would be
+        // shorter, but because this type is actually a `Box<dyn Trait>`, the replacement would
+        // need to be `Box::<HashMap<_, _>>::default()`, which doesn't seem like an improvement.
+        #[allow(clippy::box_default)]
+        Self::new(Box::new(HashMap::new()), Arc::clone(&time_provider))
+    }
+
     /// Adds new policy.
     ///
     /// See documentation of [`PolicyBackend`] for more information.
     ///
-    /// This is called with a function that receives the "callback backend" to this backend and should return a
-    /// [`Subscriber`]. This loopy construct was chosen to discourage the leakage of the "callback backend" to any other object.
+    /// This is called with a function that receives the "callback backend" to this backend and
+    /// should return a [`Subscriber`]. This loopy construct was chosen to discourage the leakage
+    /// of the "callback backend" to any other object.
     pub fn add_policy<C, S>(&mut self, policy_constructor: C)
     where
         C: FnOnce(CallbackHandle<K, V>) -> S,
@@ -300,8 +322,8 @@ where
     ///
     /// This is mostly useful for debugging and testing.
     pub fn inner_ref(&mut self) -> InnerBackendRef<'_, K, V> {
-        // NOTE: We deliberately use a mutable reference here to prevent users from using `<Self as CacheBackend>` while
-        //       we hold a lock to the underlying backend.
+        // NOTE: We deliberately use a mutable reference here to prevent users from using `<Self as
+        // CacheBackend>` while we hold a lock to the underlying backend.
         lock_inner!(guard = self.inner);
         InnerBackendRef {
             inner: guard.inner.lock_arc(),
@@ -348,8 +370,8 @@ where
     }
 }
 
-/// Handle that allows a [`Subscriber`] to send [`ChangeRequest`]s back to the [`PolicyBackend`] that owns that very
-/// [`Subscriber`].
+/// Handle that allows a [`Subscriber`] to send [`ChangeRequest`]s back to the [`PolicyBackend`]
+/// that owns that very [`Subscriber`].
 #[derive(Debug)]
 pub struct CallbackHandle<K, V>
 where
@@ -366,9 +388,10 @@ where
 {
     /// Start a series of requests to the [`PolicyBackend`] that is referenced by this handle.
     ///
-    /// This method returns AFTER the requests and all the follow-up changes requested by all policies are played out.
-    /// You should NOT hold a lock on your policies internal data structures while calling this function if you plan to
-    /// also [subscribe](Subscriber) to changes because this would easily lead to deadlocks.
+    /// This method returns AFTER the requests and all the follow-up changes requested by all
+    /// policies are played out. You should NOT hold a lock on your policies internal data
+    /// structures while calling this function if you plan to also [subscribe](Subscriber) to
+    /// changes because this would easily lead to deadlocks.
     pub fn execute_requests(&mut self, change_requests: Vec<ChangeRequest<'_, K, V>>) {
         let inner = self.inner.upgrade().expect("backend gone");
         lock_inner!(mut guard = inner);
@@ -384,15 +407,15 @@ where
 {
     /// Underlying cache backend.
     ///
-    /// This is wrapped into another `Arc<Mutex<...>>` construct even though [`PolicyBackendInner`] is already guarded
-    /// by a lock, because we need to reference the underlying backend from [`Recorder`] and [`Recorder`] implements
-    /// [`CacheBackend`] which is `'static`.
+    /// This is wrapped into another `Arc<Mutex<...>>` construct even though [`PolicyBackendInner`]
+    /// is already guarded by a lock because we need to reference the underlying backend from
+    /// [`Recorder`], and [`Recorder`] implements [`CacheBackend`] which is `'static`.
     inner: Arc<Mutex<Box<dyn CacheBackend<K = K, V = V>>>>,
 
     /// List of subscribers.
     subscribers: Vec<Box<dyn Subscriber<K = K, V = V>>>,
 
-    /// Time provider
+    /// Time provider.
     time_provider: Arc<dyn TimeProvider>,
 }
 
@@ -442,9 +465,8 @@ pub trait Subscriber: Debug + Send + 'static {
 
     /// Get value for given key if it exists.
     ///
-    /// The current time `now` is provided as a parameter so that all policies and
-    /// backends use a unified timestamp rather than their own provider, which is
-    /// more consistent and performant.
+    /// The current time `now` is provided as a parameter so that all policies and backends use a
+    /// unified timestamp rather than their own provider, which is more consistent and performant.
     fn get(&mut self, _k: &Self::K, _now: Time) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
         // do nothing by default
         vec![]
@@ -454,9 +476,8 @@ pub trait Subscriber: Debug + Send + 'static {
     ///
     /// It is OK to set and override a key that already exists.
     ///
-    /// The current time `now` is provided as a parameter so that all policies and
-    /// backends use a unified timestamp rather than their own provider, which is
-    /// more consistent and performant.
+    /// The current time `now` is provided as a parameter so that all policies and backends use a
+    /// unified timestamp rather than their own provider, which is more consistent and performant.
     fn set(
         &mut self,
         _k: &Self::K,
@@ -471,9 +492,8 @@ pub trait Subscriber: Debug + Send + 'static {
     ///
     /// It is OK to remove a key even when it does not exist.
     ///
-    /// The current time `now` is provided as a parameter so that all policies and
-    /// backends use a unified timestamp rather than their own provider, which is
-    /// more consistent and performant.
+    /// The current time `now` is provided as a parameter so that all policies and backends use a
+    /// unified timestamp rather than their own provider, which is more consistent and performant.
     fn remove(
         &mut self,
         _k: &Self::K,
@@ -510,11 +530,12 @@ where
 {
     /// Custom way of constructing a change request.
     ///
-    /// This is considered a rather low-level function and you should prefer the higher-level constructs like
-    /// [`get`](Self::get), [`set`](Self::set), and [`remove`](Self::remove).
+    /// This is considered a rather low-level function and you should prefer the higher-level
+    /// constructs like [`get`](Self::get), [`set`](Self::set), and [`remove`](Self::remove).
     ///
-    /// Takes a "callback backend" and can freely act on it. The underlying backend of [`PolicyBackend`] is guaranteed to be
-    /// locked during a single request, so "get + modify" patterns work out of the box without the need to fair interleaving modifications.
+    /// Takes a "callback backend" and can freely act on it. The underlying backend of
+    /// [`PolicyBackend`] is guaranteed to be locked during a single request, so "get + modify"
+    /// patterns work out of the box without the need to fear interleaving modifications.
     pub fn from_fn<F>(f: F) -> Self
     where
         F: for<'b> FnOnce(&'b mut Recorder<K, V>) + 'a,
@@ -543,7 +564,7 @@ where
         })
     }
 
-    /// Ensure that backends is empty and panic otherwise.
+    /// Ensure that backend is empty and panic otherwise.
     ///
     /// This is mostly useful during initialization.
     pub fn ensure_empty() -> Self {
@@ -586,8 +607,8 @@ enum Record<K, V> {
     },
 }
 
-/// Specialized [`CacheBackend`] that forwards changes and requests to the underlying backend of [`PolicyBackend`] but
-/// also records all changes into [`Record`]s.
+/// Specialized [`CacheBackend`] that forwards changes and requests to the underlying backend of
+/// [`PolicyBackend`] but also records all changes into [`Record`]s.
 #[derive(Debug)]
 pub struct Recorder<K, V>
 where
@@ -605,10 +626,12 @@ where
 {
     /// Perform a [`GET`](CacheBackend::get) request that is NOT seen by other policies.
     ///
-    /// This is helpful if you just want to check the underlying data of a key without treating it as "used".
+    /// This is helpful if you just want to check the underlying data of a key without treating it
+    /// as "used".
     ///
-    /// Note that this functionality only exists for [`GET`](CacheBackend::get) requests, not for modifying requests
-    /// like [`SET`](CacheBackend::set) or [`REMOVE`](CacheBackend::remove) since they always require policies to be in-sync.
+    /// Note that this functionality only exists for [`GET`](CacheBackend::get) requests, not for
+    /// modifying requests like [`SET`](CacheBackend::set) or [`REMOVE`](CacheBackend::remove)
+    /// since they always require policies to be in-sync.
     pub fn get_untracked(&mut self, k: &K) -> Option<V> {
         self.inner.lock().get(k)
     }
@@ -716,7 +739,7 @@ mod tests {
     fn test_generic() {
         crate::backend::test_util::test_generic(|| {
             let time_provider = Arc::new(MockProvider::new(Time::MIN));
-            PolicyBackend::new(Box::new(HashMap::new()), time_provider)
+            PolicyBackend::hashmap_backed(time_provider)
         })
     }
 
@@ -724,7 +747,7 @@ mod tests {
     #[should_panic(expected = "test steps left")]
     fn test_meta_panic_steps_left() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![TestStep {
             condition: TestBackendInteraction::Set {
                 k: String::from("a"),
@@ -738,7 +761,7 @@ mod tests {
     #[should_panic(expected = "step left for get operation")]
     fn test_meta_panic_requires_condition_get() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![]));
 
         backend.get(&String::from("a"));
@@ -748,7 +771,7 @@ mod tests {
     #[should_panic(expected = "step left for set operation")]
     fn test_meta_panic_requires_condition_set() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![]));
 
         backend.set(String::from("a"), 2);
@@ -758,8 +781,7 @@ mod tests {
     #[should_panic(expected = "step left for remove operation")]
     fn test_meta_panic_requires_condition_remove() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend =
-            PolicyBackend::<String, usize>::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![]));
 
         backend.remove(&String::from("a"));
@@ -769,7 +791,7 @@ mod tests {
     #[should_panic(expected = "Condition mismatch")]
     fn test_meta_panic_checks_condition_get() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![TestStep {
             condition: TestBackendInteraction::Get {
                 k: String::from("a"),
@@ -784,7 +806,7 @@ mod tests {
     #[should_panic(expected = "Condition mismatch")]
     fn test_meta_panic_checks_condition_set() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![TestStep {
             condition: TestBackendInteraction::Set {
                 k: String::from("a"),
@@ -800,7 +822,7 @@ mod tests {
     #[should_panic(expected = "Condition mismatch")]
     fn test_meta_panic_checks_condition_remove() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![TestStep {
             condition: TestBackendInteraction::Remove {
                 k: String::from("a"),
@@ -814,7 +836,7 @@ mod tests {
     #[test]
     fn test_basic_propagation() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -862,7 +884,7 @@ mod tests {
     #[should_panic(expected = "illegal recursive access")]
     fn test_panic_recursion_detection_get() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![TestStep {
             condition: TestBackendInteraction::Remove {
                 k: String::from("a"),
@@ -879,7 +901,7 @@ mod tests {
     #[should_panic(expected = "illegal recursive access")]
     fn test_panic_recursion_detection_set() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![TestStep {
             condition: TestBackendInteraction::Remove {
                 k: String::from("a"),
@@ -897,7 +919,7 @@ mod tests {
     #[should_panic(expected = "illegal recursive access")]
     fn test_panic_recursion_detection_remove() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![TestStep {
             condition: TestBackendInteraction::Remove {
                 k: String::from("a"),
@@ -913,7 +935,7 @@ mod tests {
     #[test]
     fn test_get_untracked() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -935,7 +957,7 @@ mod tests {
     #[test]
     fn test_basic_get_set() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Get {
@@ -961,7 +983,7 @@ mod tests {
     #[test]
     fn test_basic_get_get() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Get {
@@ -985,7 +1007,7 @@ mod tests {
     #[test]
     fn test_basic_set_set_get_get() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -1027,7 +1049,7 @@ mod tests {
     #[test]
     fn test_basic_set_remove_get() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -1060,7 +1082,7 @@ mod tests {
     #[test]
     fn test_basic_remove_set_get_get() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Remove {
@@ -1101,7 +1123,7 @@ mod tests {
     #[test]
     fn test_basic_remove_remove_get_get() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Remove {
@@ -1140,7 +1162,7 @@ mod tests {
     #[test]
     fn test_ordering_within_requests_vector() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -1182,7 +1204,7 @@ mod tests {
     #[test]
     fn test_ordering_across_policies() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -1256,7 +1278,7 @@ mod tests {
     #[test]
     fn test_ping_pong() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -1351,7 +1373,7 @@ mod tests {
         let barrier_post = Arc::new(Barrier::new(1));
 
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![TestStep {
             condition: TestBackendInteraction::Set {
                 k: String::from("a"),
@@ -1370,15 +1392,15 @@ mod tests {
         // panic on drop
     }
 
-    /// Checks that a policy background task can access the "callback backend" without triggering the "illegal
-    /// recursion" detection.
+    /// Checks that a policy background task can access the "callback backend" without triggering
+    /// the "illegal recursion" detection.
     #[test]
     fn test_multithread() {
         let barrier_pre = Arc::new(Barrier::new(2));
         let barrier_post = Arc::new(Barrier::new(2));
 
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -1447,7 +1469,7 @@ mod tests {
         let barrier_post = Arc::new(Barrier::new(2));
 
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -1497,25 +1519,28 @@ mod tests {
         assert_eq!(Arc::strong_count(&marker_policy), 1);
     }
 
-    /// We have to ways of handling "compound" [`ChangeRequest`]s, i.e. requests that perform multiple operations:
+    /// We have to ways of handling "compound" [`ChangeRequest`]s, i.e. requests that perform
+    /// multiple operations:
     ///
     /// 1. We could loop over the operations and inner-loop over the policies to collect reactions
     /// 2. We could loop over all the policies and present each polices all operations in one go
     ///
-    /// We've decided to chose option 1. This test ensures that by setting up a compound request (reacting to
-    /// `set("a", 11)`) with a compound of two operations (`set("a", 12)`, `set("a", 13)`) which we call `C1` and `C2`
-    /// (for "compound 1 and 2"). The two policies react two these two compound operations as followed:
+    /// We've decided to chose option 1. This test ensures that by setting up a compound request
+    /// (reacting to `set("a", 11)`) with a compound of two operations (`set("a", 12)`, `set("a",
+    /// 13)`) which we call `C1` and `C2` (for "compound 1 and 2"). The two policies react to
+    /// these two compound operations as follows:
     ///
     /// |    | Policy 1       | Policy 2       |
     /// | -- | -------------- | -------------- |
     /// | C1 | `set("a", 14)` | `set("a", 15)` |
     /// | C2 | `set("a", 16)` | --             |
     ///
-    /// For option (1) the outcome will be `"a" -> 16`, for option (2) the outcome would be `"a" -> 15`.
+    /// For option (1) the outcome will be `"a" -> 16`, for option (2) the outcome would be `"a" ->
+    /// 15`.
     #[test]
     fn test_ordering_within_compound_requests() {
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), time_provider);
+        let mut backend = PolicyBackend::hashmap_backed(time_provider);
         backend.add_policy(create_test_policy(vec![
             TestStep {
                 condition: TestBackendInteraction::Set {

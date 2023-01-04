@@ -1,9 +1,9 @@
 //! Metric instrumentation for catalog implementations.
 
 use crate::interface::{
-    sealed::TransactionFinalize, ColumnRepo, NamespaceRepo, ParquetFileRepo, PartitionRepo,
-    ProcessedTombstoneRepo, QueryPoolRepo, RepoCollection, Result, ShardRepo, TableRepo,
-    TombstoneRepo, TopicMetadataRepo,
+    sealed::TransactionFinalize, CasFailure, ColumnRepo, NamespaceRepo, ParquetFileRepo,
+    PartitionRepo, ProcessedTombstoneRepo, QueryPoolRepo, RepoCollection, Result, ShardRepo,
+    TableRepo, TombstoneRepo, TopicMetadataRepo,
 };
 use async_trait::async_trait;
 use data_types::{
@@ -138,7 +138,7 @@ macro_rules! decorate {
             $metric:literal = $method:ident(
                 &mut self $(,)?
                 $($arg:ident : $t:ty),*
-            ) -> Result<$out:ty>;
+            ) -> Result<$out:ty$(, $err:ty)?>;
         )+]
     ) => {
         #[async_trait]
@@ -149,7 +149,7 @@ macro_rules! decorate {
             /// below.
 
             $(
-                async fn $method(&mut self, $($arg : $t),*) -> Result<$out> {
+                async fn $method(&mut self, $($arg : $t),*) -> Result<$out$(, $err)?> {
                     let observer: Metric<DurationHistogram> = self.metrics.register_metric(
                         "catalog_op_duration",
                         "catalog call duration",
@@ -246,7 +246,7 @@ decorate!(
         "partition_list_by_shard" = list_by_shard(&mut self, shard_id: ShardId) -> Result<Vec<Partition>>;
         "partition_list_by_namespace" = list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Partition>>;
         "partition_list_by_table_id" = list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>>;
-        "partition_update_sort_key" = update_sort_key(&mut self, partition_id: PartitionId, sort_key: &[&str]) -> Result<Partition>;
+        "partition_update_sort_key" = cas_sort_key(&mut self, partition_id: PartitionId, old_sort_key: Option<Vec<String>>, new_sort_key: &[&str]) -> Result<Partition, CasFailure<Vec<String>>>;
         "partition_record_skipped_compaction" = record_skipped_compaction(&mut self, partition_id: PartitionId, reason: &str, num_files: usize, limit_num_files: usize, limit_num_files_first_in_partition: usize, estimated_bytes: u64, limit_bytes: u64) -> Result<()>;
         "partition_list_skipped_compactions" = list_skipped_compactions(&mut self) -> Result<Vec<SkippedCompaction>>;
         "partition_delete_skipped_compactions" = delete_skipped_compactions(&mut self, partition_id: PartitionId) -> Result<Option<SkippedCompaction>>;
@@ -288,8 +288,9 @@ decorate!(
         "parquet_count_by_overlaps_with_level_0" = count_by_overlaps_with_level_0(&mut self, table_id: TableId, shard_id: ShardId, min_time: Timestamp, max_time: Timestamp, sequence_number: SequenceNumber) -> Result<i64>;
         "parquet_count_by_overlaps_with_level_1" = count_by_overlaps_with_level_1(&mut self, table_id: TableId, shard_id: ShardId, min_time: Timestamp, max_time: Timestamp) -> Result<i64>;
         "parquet_get_by_object_store_id" = get_by_object_store_id(&mut self, object_store_id: Uuid) -> Result<Option<ParquetFile>>;
-        "recent_highest_throughput_partitions" = recent_highest_throughput_partitions(&mut self, shard_id: ShardId, time_in_the_past: Timestamp, min_num_files: usize, num_partitions: usize) -> Result<Vec<PartitionParam>>;
-        "most_cold_files_partitions" =  most_cold_files_partitions(&mut self, shard_id: ShardId, time_in_the_past: Timestamp, num_partitions: usize) -> Result<Vec<PartitionParam>>;
+        "recent_highest_throughput_partitions" = recent_highest_throughput_partitions(&mut self, shard_id: Option<ShardId>, time_in_the_past: Timestamp, min_num_files: usize, num_partitions: usize) -> Result<Vec<PartitionParam>>;
+        "parquet_partitions_with_small_l1_file_count" = partitions_with_small_l1_file_count(&mut self, shard_id: Option<ShardId>, small_size_threshold_bytes: i64, min_small_file_count: usize, num_partitions: usize) -> Result<Vec<PartitionParam>>;
+        "most_cold_files_partitions" =  most_cold_files_partitions(&mut self, shard_id: Option<ShardId>, time_in_the_past: Timestamp, num_partitions: usize) -> Result<Vec<PartitionParam>>;
     ]
 );
 

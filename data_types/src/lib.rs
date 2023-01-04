@@ -1810,7 +1810,7 @@ impl<T> StatValues<T> {
 
     /// updates the statistics keeping the min, max and incrementing count.
     ///
-    /// The type plumbing exists to allow calling with &str on a StatValues<String>
+    /// The type plumbing exists to allow calling with `&str` on a `StatValues<String>`.
     pub fn update<U: ?Sized>(&mut self, other: &U)
     where
         T: Borrow<U>,
@@ -2243,7 +2243,7 @@ impl TimestampRange {
     ///
     /// If `start > end`, this will be interpreted as an empty time range and `start` will be set to `end`.
     pub fn new(start: i64, end: i64) -> Self {
-        let start = start.max(MIN_NANO_TIME).min(end);
+        let start = start.clamp(MIN_NANO_TIME, end);
         let end = end.max(MIN_NANO_TIME);
         Self { start, end }
     }

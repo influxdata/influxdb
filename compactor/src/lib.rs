@@ -24,6 +24,7 @@ pub(crate) mod parquet_file_lookup;
 pub mod query;
 pub mod server;
 pub mod utils;
+pub(crate) mod warm;
 
 use crate::{
     compact::{Compactor, PartitionCompactionCandidateWithInfo},
@@ -53,6 +54,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
     compactor: Arc<Compactor>,
     compaction_type: &'static str,
     initial_level: CompactionLevel,
+    target_level: CompactionLevel,
     compact_function: C,
     split: bool,
     mut candidates: VecDeque<Arc<PartitionCompactionCandidateWithInfo>>,
@@ -121,9 +123,17 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                     level_2,
                 } = parquet_files_for_compaction;
 
-                let (level_n, level_n_plus_1) = match initial_level {
-                    CompactionLevel::Initial => (level_0, level_1),
-                    CompactionLevel::FileNonOverlapped => (level_1, level_2),
+                let (level_n, level_n_plus_1) = match (initial_level, target_level) {
+                    (CompactionLevel::Initial, CompactionLevel::FileNonOverlapped) => {
+                        (level_0, level_1)
+                    }
+                    (CompactionLevel::FileNonOverlapped, CompactionLevel::FileNonOverlapped) => {
+                        // warm compaction; don't try to compact L2 files into L1
+                        (level_1, vec![])
+                    }
+                    (CompactionLevel::FileNonOverlapped, CompactionLevel::Final) => {
+                        (level_1, level_2)
+                    }
                     _ => {
                         // Focusing on compacting any other level is a bug
                         panic!("Unsupported initial compaction level: {initial_level:?}");
@@ -231,7 +241,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                     parallel_compacting_candidates.push(ReadyToCompact {
                         files,
                         partition,
-                        target_level: initial_level.next(),
+                        target_level,
                     });
                 }
             }
@@ -244,7 +254,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
         //     . already considered all remaining candidates.
         //     . hit the max number of partitions to compact in parallel
         if (!parallel_compacting_candidates.is_empty())
-            && ((remaining_budget_bytes <= (compactor.config.memory_budget_bytes / 10) as u64)
+            && ((remaining_budget_bytes <= compactor.config.memory_budget_bytes / 10)
                 || (candidates.is_empty())
                 || (count == num_remaining_candidates)
                 || (count as u64 == compactor.config.max_parallel_partitions))
@@ -449,7 +459,9 @@ pub(crate) async fn compact_one_partition(
 pub mod tests {
     use super::*;
     use crate::{
-        compact::Compactor, compact_one_partition, handler::CompactorConfig,
+        compact::{Compactor, ShardAssignment},
+        compact_one_partition,
+        handler::CompactorConfig,
         parquet_file_filtering, parquet_file_lookup, ParquetFilesForCompaction,
     };
     use ::parquet_file::storage::{ParquetStorage, StorageId};
@@ -515,6 +527,7 @@ pub mod tests {
             Arc::clone(&compactor),
             "hot",
             CompactionLevel::Initial,
+            CompactionLevel::FileNonOverlapped,
             mock_compactor.compaction_function(),
             true,
             sorted_candidates,
@@ -580,6 +593,7 @@ pub mod tests {
             max_number_partitions_per_shard: 100,
             min_number_recent_ingested_files_per_partition: 1,
             hot_multiple: 4,
+            warm_multiple: 1,
             memory_budget_bytes: budget,
             min_num_rows_allocated_per_record_batch_to_datafusion_plan: 2,
             max_num_compacting_files: 20,
@@ -588,6 +602,8 @@ pub mod tests {
             hot_compaction_hours_threshold_1: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
             hot_compaction_hours_threshold_2: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             max_parallel_partitions: max_parallel_jobs,
+            warm_compaction_small_size_threshold_bytes: 50_000_000,
+            warm_compaction_min_small_file_count: 10,
         }
     }
 
@@ -627,7 +643,7 @@ pub mod tests {
         let time_provider = Arc::new(SystemProvider::new());
         let config = make_compactor_config(budget, max_parallel_jobs);
         let compactor = Arc::new(Compactor::new(
-            vec![shard.shard.id],
+            ShardAssignment::Only(vec![shard.shard.id]),
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             catalog.exec(),
@@ -680,6 +696,7 @@ pub mod tests {
             Arc::clone(&compactor),
             "hot",
             CompactionLevel::Initial,
+            CompactionLevel::FileNonOverlapped,
             mock_compactor.compaction_function(),
             true,
             candidates.into(),
@@ -779,6 +796,7 @@ pub mod tests {
             Arc::clone(&compactor),
             "hot",
             CompactionLevel::Initial,
+            CompactionLevel::FileNonOverlapped,
             mock_compactor.compaction_function(),
             true,
             candidates.into(),
@@ -891,6 +909,7 @@ pub mod tests {
             max_number_partitions_per_shard: 1,
             min_number_recent_ingested_files_per_partition: 1,
             hot_multiple: 4,
+            warm_multiple: 1,
             memory_budget_bytes: 100_000_000,
             min_num_rows_allocated_per_record_batch_to_datafusion_plan: 100,
             max_num_compacting_files: 20,
@@ -899,11 +918,13 @@ pub mod tests {
             hot_compaction_hours_threshold_1: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
             hot_compaction_hours_threshold_2: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             max_parallel_partitions: DEFAULT_MAX_PARALLEL_PARTITIONS,
+            warm_compaction_small_size_threshold_bytes: 5_000,
+            warm_compaction_min_small_file_count: 10,
         };
 
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Arc::new(Compactor::new(
-            vec![shard.shard.id],
+            ShardAssignment::Only(vec![shard.shard.id]),
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
             catalog.exec(),

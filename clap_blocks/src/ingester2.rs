@@ -50,4 +50,14 @@ pub struct Ingester2Config {
         action
     )]
     pub persist_queue_depth: usize,
+
+    /// The limit at which a partition's estimated persistence cost causes it to
+    /// be queued for persistence.
+    #[clap(
+        long = "persist-hot-partition-cost",
+        env = "INFLUXDB_IOX_PERSIST_HOT_PARTITION_COST",
+        default_value = "20000000", // 20,000,000
+        action
+    )]
+    pub persist_hot_partition_cost: usize,
 }

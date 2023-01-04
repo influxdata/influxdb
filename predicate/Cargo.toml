@@ -16,7 +16,7 @@ observability_deps = { path = "../observability_deps" }
 query_functions = { path = "../query_functions"}
 schema = { path = "../schema" }
 snafu = "0.7"
-sqlparser = "0.28.0"
+sqlparser = "0.30.0"
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]

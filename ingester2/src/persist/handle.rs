@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use async_channel::RecvError;
+use async_trait::async_trait;
 use iox_catalog::interface::Catalog;
 use iox_query::{exec::Executor, QueryChunkMeta};
 use observability_deps::tracing::*;
@@ -13,11 +13,13 @@ use tokio::{
     time::Instant,
 };
 
-use crate::buffer_tree::partition::{persisting::PersistingData, PartitionData, SortKeyState};
-
 use super::{
-    backpressure::PersistState,
-    context::{Context, PersistRequest},
+    backpressure::PersistState, context::PersistRequest, queue::PersistQueue,
+    worker::SharedWorkerState,
+};
+use crate::{
+    buffer_tree::partition::{persisting::PersistingData, PartitionData, SortKeyState},
+    persist::worker,
 };
 
 /// A persistence task submission handle.
@@ -29,8 +31,8 @@ use super::{
 /// The caller should construct an [`PersistHandle`] by calling
 /// [`PersistHandle::new()`].
 ///
-/// The [`PersistHandle`] can be cheaply cloned and passed over thread/task
-/// boundaries to enqueue persist tasks in parallel.
+/// The [`PersistHandle`] can be passed over thread/task boundaries to enqueue
+/// persist tasks in parallel.
 ///
 /// Dropping all [`PersistHandle`] instances immediately stops all persist
 /// workers and drops all outstanding persist tasks.
@@ -96,8 +98,8 @@ use super::{
 /// persist jobs from being generated and blocked whilst waiting to add the
 /// persist job to the bounded queue, otherwise the system is effectively
 /// unbounded. If an unbounded number of threads block on
-/// [`PersistHandle::queue_persist()`] waiting to successfully enqueue the job,
-/// then there is no bound on outstanding persist jobs at all.
+/// [`PersistHandle::enqueue()`] waiting to successfully enqueue the job, then
+/// there is no bound on outstanding persist jobs at all.
 ///
 /// To enforce the bound, the persistence system exposes an indicator of
 /// saturation (readable via the [`PersistState`]) that the caller MUST use to
@@ -111,14 +113,14 @@ use super::{
 ///
 /// For details of the exact saturation detection & recovery logic, see
 /// [`PersistState`].
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct PersistHandle {
     /// THe state/dependencies shared across all worker tasks.
-    inner: Arc<Inner>,
+    worker_state: Arc<SharedWorkerState>,
 
     /// Task handles for the worker tasks, aborted on drop of all
     /// [`PersistHandle`] instances.
-    worker_tasks: Arc<Vec<AbortOnDrop<()>>>,
+    worker_tasks: Vec<AbortOnDrop<()>>,
 
     /// While the persistence system exposes the concept of a "persistence
     /// queue" externally, it is actually a set of per-worker queues, and the
@@ -147,7 +149,7 @@ pub(crate) struct PersistHandle {
     ///
     /// These queues are used for persist tasks that modify the partition's sort
     /// key, ensuring sort key updates are serialised per-partition.
-    worker_queues: Arc<JumpHash<mpsc::UnboundedSender<PersistRequest>>>,
+    worker_queues: JumpHash<mpsc::UnboundedSender<PersistRequest>>,
 
     /// Records the saturation state of the persist system.
     persist_state: Arc<PersistState>,
@@ -161,6 +163,7 @@ impl PersistHandle {
         exec: Arc<Executor>,
         store: ParquetStorage,
         catalog: Arc<dyn Catalog>,
+        metrics: &metric::Registry,
     ) -> (Self, Arc<PersistState>) {
         assert_ne!(n_workers, 0, "must run at least 1 persist worker");
         assert_ne!(
@@ -171,7 +174,7 @@ impl PersistHandle {
         // Log the important configuration parameters of the persist subsystem.
         info!(n_workers, persist_queue_depth, "initialised persist task");
 
-        let inner = Arc::new(Inner {
+        let worker_state = Arc::new(SharedWorkerState {
             exec,
             store,
             catalog,
@@ -183,21 +186,25 @@ impl PersistHandle {
         // this queue, from which all workers consume.
         let (global_tx, global_rx) = async_channel::unbounded();
 
-        let (tx_handles, tasks): (Vec<_>, Vec<_>) = (0..n_workers)
+        let (tx_handles, worker_tasks): (Vec<_>, Vec<_>) = (0..n_workers)
             .map(|_| {
-                let inner = Arc::clone(&inner);
+                let worker_state = Arc::clone(&worker_state);
 
                 // Initialise the worker queue that is not shared across workers
                 // allowing the persist code to address a single worker.
                 let (tx, rx) = mpsc::unbounded_channel();
                 (
                     tx,
-                    AbortOnDrop(tokio::spawn(run_task(inner, global_rx.clone(), rx))),
+                    AbortOnDrop(tokio::spawn(worker::run_task(
+                        worker_state,
+                        global_rx.clone(),
+                        rx,
+                    ))),
                 )
             })
             .unzip();
 
-        assert!(!tasks.is_empty());
+        assert!(!worker_tasks.is_empty());
 
         // Initialise the semaphore that bounds the total number of persist jobs
         // in the system.
@@ -205,21 +212,42 @@ impl PersistHandle {
 
         // Initialise the saturation state as "not saturated" and provide it
         // with the task semaphore and total permit count.
-        let persist_state = Arc::new(PersistState::new(persist_queue_depth, Arc::clone(&sem)));
+        let persist_state = Arc::new(PersistState::new(
+            persist_queue_depth,
+            Arc::clone(&sem),
+            metrics,
+        ));
 
         (
             Self {
-                inner,
+                worker_state,
                 sem,
                 global_queue: global_tx,
-                worker_queues: Arc::new(JumpHash::new(tx_handles)),
-                worker_tasks: Arc::new(tasks),
+                worker_queues: JumpHash::new(tx_handles),
+                worker_tasks,
                 persist_state: Arc::clone(&persist_state),
             },
             persist_state,
         )
     }
 
+    fn assign_worker(&self, r: PersistRequest) {
+        debug!(
+            partition_id = r.partition_id().get(),
+            "enqueue persist job to assigned worker"
+        );
+
+        // Consistently map partition tasks for this partition ID to the
+        // same worker.
+        self.worker_queues
+            .hash(r.partition_id())
+            .send(r)
+            .expect("persist worker stopped");
+    }
+}
+
+#[async_trait]
+impl PersistQueue for PersistHandle {
     /// Place `data` from `partition` into the persistence queue.
     ///
     /// This call (asynchronously) waits for space to become available in the
@@ -244,7 +272,8 @@ impl PersistHandle {
     /// between persistence starting and ending.
     ///
     /// This will panic (asynchronously) if `data` was not from `partition`.
-    pub(crate) async fn queue_persist(
+    #[allow(clippy::async_yields_async)] // Callers may want to wait async
+    async fn enqueue(
         &self,
         partition: Arc<Mutex<PartitionData>>,
         data: PersistingData,
@@ -346,20 +375,6 @@ impl PersistHandle {
 
         notify
     }
-
-    fn assign_worker(&self, r: PersistRequest) {
-        debug!(
-            partition_id = r.partition_id().get(),
-            "enqueue persist job to assigned worker"
-        );
-
-        // Consistently map partition tasks for this partition ID to the
-        // same worker.
-        self.worker_queues
-            .hash(r.partition_id())
-            .send(r)
-            .expect("persist worker stopped");
-    }
 }
 
 #[derive(Debug)]
@@ -371,66 +386,12 @@ impl<T> Drop for AbortOnDrop<T> {
     }
 }
 
-#[derive(Debug)]
-pub(super) struct Inner {
-    pub(super) exec: Arc<Executor>,
-    pub(super) store: ParquetStorage,
-    pub(super) catalog: Arc<dyn Catalog>,
-}
-
-async fn run_task(
-    inner: Arc<Inner>,
-    global_queue: async_channel::Receiver<PersistRequest>,
-    mut rx: mpsc::UnboundedReceiver<PersistRequest>,
-) {
-    loop {
-        let req = tokio::select! {
-            // Bias the channel polling to prioritise work in the
-            // worker-specific queue.
-            //
-            // This causes the worker to do the work assigned to it specifically
-            // first, falling back to taking jobs from the global queue if it
-            // has no assigned work.
-            //
-            // This allows persist jobs to be reordered w.r.t the order in which
-            // they were enqueued with queue_persist().
-            biased;
-
-            v = rx.recv() => {
-                match v {
-                    Some(v) => v,
-                    None => {
-                        // The worker channel is closed.
-                        return
-                    }
-                }
-            }
-            v = global_queue.recv() => {
-                match v {
-                    Ok(v) => v,
-                    Err(RecvError) => {
-                        // The global channel is closed.
-                        return
-                    },
-                }
-            }
-        };
-
-        let ctx = Context::new(req, Arc::clone(&inner));
-
-        let compacted = ctx.compact().await;
-        let (sort_key_update, parquet_table_data) = ctx.upload(compacted).await;
-        ctx.update_database(sort_key_update, parquet_table_data)
-            .await;
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::{sync::Arc, time::Duration};
 
     use assert_matches::assert_matches;
-    use data_types::{NamespaceId, PartitionId, PartitionKey, TableId};
+    use data_types::{NamespaceId, PartitionId, PartitionKey, ShardId, TableId};
     use dml::DmlOperation;
     use iox_catalog::mem::MemCatalog;
     use lazy_static::lazy_static;
@@ -440,10 +401,12 @@ mod tests {
     use test_helpers::timeout::FutureTimeout;
     use tokio::sync::mpsc::error::TryRecvError;
 
+    use super::*;
     use crate::{
         buffer_tree::{
             namespace::{name_resolver::mock::MockNamespaceNameProvider, NamespaceName},
             partition::resolver::mock::MockPartitionProvider,
+            post_write::mock::MockPostWriteObserver,
             table::{name_resolver::mock::MockTableNameProvider, TableName},
             BufferTree,
         },
@@ -452,13 +415,12 @@ mod tests {
         test_util::make_write_op,
     };
 
-    use super::*;
-
     const PARTITION_ID: PartitionId = PartitionId::new(42);
     const NAMESPACE_ID: NamespaceId = NamespaceId::new(24);
     const TABLE_ID: TableId = TableId::new(2442);
     const TABLE_NAME: &str = "banana-report";
     const NAMESPACE_NAME: &str = "platanos";
+    const TRANSITION_SHARD_ID: ShardId = ShardId::new(84);
 
     lazy_static! {
         static ref EXEC: Arc<Executor> = Arc::new(Executor::new_testing());
@@ -491,9 +453,12 @@ mod tests {
                     TABLE_ID,
                     Arc::clone(&TABLE_NAME_LOADER),
                     sort_key,
+                    TRANSITION_SHARD_ID,
                 )),
             ),
+            Arc::new(MockPostWriteObserver::default()),
             Default::default(),
+            TRANSITION_SHARD_ID,
         );
 
         buffer_tree
@@ -518,28 +483,29 @@ mod tests {
     async fn test_persist_sort_key_provided_none() {
         let storage = ParquetStorage::new(Arc::new(InMemory::default()), StorageId::from("iox"));
         let metrics = Arc::new(metric::Registry::default());
-        let catalog = Arc::new(MemCatalog::new(metrics));
+        let catalog = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
 
-        let (mut handle, state) = PersistHandle::new(1, 2, Arc::clone(&EXEC), storage, catalog);
+        let (mut handle, state) =
+            PersistHandle::new(1, 2, Arc::clone(&EXEC), storage, catalog, &metrics);
         assert!(!state.is_saturated());
 
         // Kill the workers, and replace the queues so we can inspect the
         // enqueue output.
-        handle.worker_tasks = Arc::new(vec![]);
+        handle.worker_tasks = vec![];
 
         let (global_tx, _global_rx) = async_channel::unbounded();
         handle.global_queue = global_tx;
 
         let (worker1_tx, mut worker1_rx) = mpsc::unbounded_channel();
         let (worker2_tx, mut worker2_rx) = mpsc::unbounded_channel();
-        handle.worker_queues = Arc::new(JumpHash::new([worker1_tx, worker2_tx]));
+        handle.worker_queues = JumpHash::new([worker1_tx, worker2_tx]);
 
         // Generate a partition with no known sort key.
         let p = new_partition(PARTITION_ID, SortKeyState::Provided(None)).await;
         let data = p.lock().mark_persisting().unwrap();
 
         // Enqueue it
-        let notify = handle.queue_persist(p, data).await;
+        let notify = handle.enqueue(p, data).await;
 
         // And assert it wound up in a worker queue.
         assert!(handle.global_queue.is_empty());
@@ -570,7 +536,7 @@ mod tests {
         let data = p.lock().mark_persisting().unwrap();
 
         // Enqueue it
-        let _notify = handle.queue_persist(p, data).await;
+        let _notify = handle.enqueue(p, data).await;
 
         // And ensure it was mapped to the same worker.
         let msg = assigned_worker
@@ -586,21 +552,22 @@ mod tests {
     async fn test_persist_sort_key_deferred_resolved_none_update_necessary() {
         let storage = ParquetStorage::new(Arc::new(InMemory::default()), StorageId::from("iox"));
         let metrics = Arc::new(metric::Registry::default());
-        let catalog = Arc::new(MemCatalog::new(metrics));
+        let catalog = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
 
-        let (mut handle, state) = PersistHandle::new(1, 2, Arc::clone(&EXEC), storage, catalog);
+        let (mut handle, state) =
+            PersistHandle::new(1, 2, Arc::clone(&EXEC), storage, catalog, &metrics);
         assert!(!state.is_saturated());
 
         // Kill the workers, and replace the queues so we can inspect the
         // enqueue output.
-        handle.worker_tasks = Arc::new(vec![]);
+        handle.worker_tasks = vec![];
 
         let (global_tx, _global_rx) = async_channel::unbounded();
         handle.global_queue = global_tx;
 
         let (worker1_tx, mut worker1_rx) = mpsc::unbounded_channel();
         let (worker2_tx, mut worker2_rx) = mpsc::unbounded_channel();
-        handle.worker_queues = Arc::new(JumpHash::new([worker1_tx, worker2_tx]));
+        handle.worker_queues = JumpHash::new([worker1_tx, worker2_tx]);
 
         // Generate a partition with a resolved, but empty sort key.
         let p = new_partition(
@@ -618,7 +585,7 @@ mod tests {
         assert_matches!(loader.get().await, None);
 
         // Enqueue it
-        let notify = handle.queue_persist(p, data).await;
+        let notify = handle.enqueue(p, data).await;
 
         // And assert it wound up in a worker queue.
         assert!(handle.global_queue.is_empty());
@@ -650,7 +617,7 @@ mod tests {
         let data = p.lock().mark_persisting().unwrap();
 
         // Enqueue it
-        let _notify = handle.queue_persist(p, data).await;
+        let _notify = handle.enqueue(p, data).await;
 
         // And ensure it was mapped to the same worker.
         let msg = assigned_worker
@@ -666,21 +633,22 @@ mod tests {
     async fn test_persist_sort_key_deferred_resolved_some_update_necessary() {
         let storage = ParquetStorage::new(Arc::new(InMemory::default()), StorageId::from("iox"));
         let metrics = Arc::new(metric::Registry::default());
-        let catalog = Arc::new(MemCatalog::new(metrics));
+        let catalog = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
 
-        let (mut handle, state) = PersistHandle::new(1, 2, Arc::clone(&EXEC), storage, catalog);
+        let (mut handle, state) =
+            PersistHandle::new(1, 2, Arc::clone(&EXEC), storage, catalog, &metrics);
         assert!(!state.is_saturated());
 
         // Kill the workers, and replace the queues so we can inspect the
         // enqueue output.
-        handle.worker_tasks = Arc::new(vec![]);
+        handle.worker_tasks = vec![];
 
         let (global_tx, _global_rx) = async_channel::unbounded();
         handle.global_queue = global_tx;
 
         let (worker1_tx, mut worker1_rx) = mpsc::unbounded_channel();
         let (worker2_tx, mut worker2_rx) = mpsc::unbounded_channel();
-        handle.worker_queues = Arc::new(JumpHash::new([worker1_tx, worker2_tx]));
+        handle.worker_queues = JumpHash::new([worker1_tx, worker2_tx]);
 
         // Generate a partition with a resolved sort key that does not reflect
         // the data within the partition's buffer.
@@ -699,7 +667,7 @@ mod tests {
         assert_matches!(loader.get().await, Some(_));
 
         // Enqueue it
-        let notify = handle.queue_persist(p, data).await;
+        let notify = handle.enqueue(p, data).await;
 
         // And assert it wound up in a worker queue.
         assert!(handle.global_queue.is_empty());
@@ -731,7 +699,7 @@ mod tests {
         let data = p.lock().mark_persisting().unwrap();
 
         // Enqueue it
-        let _notify = handle.queue_persist(p, data).await;
+        let _notify = handle.enqueue(p, data).await;
 
         // And ensure it was mapped to the same worker.
         let msg = assigned_worker
@@ -746,21 +714,22 @@ mod tests {
     async fn test_persist_sort_key_no_update_necessary() {
         let storage = ParquetStorage::new(Arc::new(InMemory::default()), StorageId::from("iox"));
         let metrics = Arc::new(metric::Registry::default());
-        let catalog = Arc::new(MemCatalog::new(metrics));
+        let catalog = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
 
-        let (mut handle, state) = PersistHandle::new(1, 2, Arc::clone(&EXEC), storage, catalog);
+        let (mut handle, state) =
+            PersistHandle::new(1, 2, Arc::clone(&EXEC), storage, catalog, &metrics);
         assert!(!state.is_saturated());
 
         // Kill the workers, and replace the queues so we can inspect the
         // enqueue output.
-        handle.worker_tasks = Arc::new(vec![]);
+        handle.worker_tasks = vec![];
 
         let (global_tx, global_rx) = async_channel::unbounded();
         handle.global_queue = global_tx;
 
         let (worker1_tx, mut worker1_rx) = mpsc::unbounded_channel();
         let (worker2_tx, mut worker2_rx) = mpsc::unbounded_channel();
-        handle.worker_queues = Arc::new(JumpHash::new([worker1_tx, worker2_tx]));
+        handle.worker_queues = JumpHash::new([worker1_tx, worker2_tx]);
 
         // Generate a partition with a resolved sort key that does not reflect
         // the data within the partition's buffer.
@@ -779,7 +748,7 @@ mod tests {
         assert_matches!(loader.get().await, Some(_));
 
         // Enqueue it
-        let notify = handle.queue_persist(p, data).await;
+        let notify = handle.enqueue(p, data).await;
 
         // Assert the task did not get enqueued in a worker
         assert_matches!(worker1_rx.try_recv(), Err(TryRecvError::Empty));
@@ -804,7 +773,7 @@ mod tests {
         let data = p.lock().mark_persisting().unwrap();
 
         // Enqueue it
-        let _notify = handle.queue_persist(p, data).await;
+        let _notify = handle.enqueue(p, data).await;
 
         // And ensure it was mapped to the same worker.
         let msg = global_rx

@@ -357,7 +357,7 @@ fn truncate_by_months(t: i64, d: &Duration) -> i64 {
 
     // Determine the total number of months and truncate
     // the number of months by the duration amount.
-    let mut total = (year * 12) as i32 + (month - 1) as i32;
+    let mut total = (year * 12) + (month - 1) as i32;
     let remainder = total % d.months() as i32;
     total -= remainder;
 

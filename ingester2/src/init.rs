@@ -1,6 +1,8 @@
 crate::maybe_pub!(
-    mod wal_replay;
+    pub use super::wal_replay::*;
 );
+
+mod wal_replay;
 
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
@@ -23,11 +25,11 @@ use crate::{
         table::name_resolver::{TableNameProvider, TableNameResolver},
         BufferTree,
     },
-    persist::handle::PersistHandle,
+    persist::{handle::PersistHandle, hot_partitions::HotPartitionPersister},
     server::grpc::GrpcDelegate,
     timestamp_oracle::TimestampOracle,
     wal::{rotate_task::periodic_rotation, wal_sink::WalSink},
-    TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX,
+    TRANSITION_SHARD_INDEX,
 };
 
 /// Acquire opaque handles to the Ingester RPC service implementations.
@@ -155,6 +157,7 @@ pub async fn new(
     persist_executor: Arc<Executor>,
     persist_workers: usize,
     persist_queue_depth: usize,
+    persist_hot_partition_cost: usize,
     object_store: ParquetStorage,
 ) -> Result<IngesterGuard<impl IngesterRpcInterface>, InitError> {
     // Create the transition shard.
@@ -164,16 +167,14 @@ pub async fn new(
         .expect("start transaction");
     let topic = txn
         .topics()
-        .get_by_name("iox-shared")
+        .create_or_get("iox-shared")
         .await
-        .expect("get topic")
-        .unwrap();
-    let s = txn
+        .expect("get topic");
+    let transition_shard = txn
         .shards()
         .create_or_get(&topic, TRANSITION_SHARD_INDEX)
         .await
         .expect("create transition shard");
-    assert_eq!(s.id, TRANSITION_SHARD_ID);
     txn.commit().await.expect("commit transition shard");
 
     // Initialise the deferred namespace name resolver.
@@ -201,7 +202,7 @@ pub async fn new(
         .repositories()
         .await
         .partitions()
-        .most_recent_n(40_000, &[TRANSITION_SHARD_ID])
+        .most_recent_n(40_000, &[transition_shard.id])
         .await
         .map_err(InitError::PreWarmPartitions)?;
 
@@ -216,29 +217,6 @@ pub async fn new(
     );
     let partition_provider: Arc<dyn PartitionProvider> = Arc::new(partition_provider);
 
-    let buffer = Arc::new(BufferTree::new(
-        namespace_name_provider,
-        table_name_provider,
-        partition_provider,
-        Arc::clone(&metrics),
-    ));
-
-    // TODO: start hot-partition persist task before replaying the WAL
-    //
-    // By starting the persist task first, the ingester can persist files during
-    // WAL replay if necessary. This could happen if the configuration of the
-    // ingester was changed to persist smaller partitions in-between executions
-    // (such as if the ingester was OOMing during WAL replay, and the
-    // configuration was changed to mitigate it.)
-
-    // Initialise the WAL
-    let wal = Wal::new(wal_directory).await.map_err(InitError::WalInit)?;
-
-    // Replay the WAL log files, if any.
-    let max_sequence_number = wal_replay::replay(&wal, &buffer)
-        .await
-        .map_err(|e| InitError::WalReplay(e.into()))?;
-
     // Spawn the persist workers to compact partition data, convert it into
     // Parquet files, and upload them to object storage.
     let (persist_handle, persist_state) = PersistHandle::new(
@@ -247,7 +225,38 @@ pub async fn new(
         persist_executor,
         object_store,
         Arc::clone(&catalog),
+        &metrics,
     );
+    let persist_handle = Arc::new(persist_handle);
+
+    // Instantiate a post-write observer for hot partition persistence.
+    //
+    // By enabling hot partition persistence before replaying the WAL, the
+    // ingester can persist files during WAL replay.
+    //
+    // It is also important to respect potential configuration changes between
+    // runs, such as if the configuration of the ingester was changed to persist
+    // smaller partitions in-between executions because it was OOMing during WAL
+    // replay (and the configuration was changed to mitigate it).
+    let hot_partition_persister =
+        HotPartitionPersister::new(Arc::clone(&persist_handle), persist_hot_partition_cost);
+
+    let buffer = Arc::new(BufferTree::new(
+        namespace_name_provider,
+        table_name_provider,
+        partition_provider,
+        Arc::new(hot_partition_persister),
+        Arc::clone(&metrics),
+        transition_shard.id,
+    ));
+
+    // Initialise the WAL
+    let wal = Wal::new(wal_directory).await.map_err(InitError::WalInit)?;
+
+    // Replay the WAL log files, if any.
+    let max_sequence_number = wal_replay::replay(&wal, &buffer, Arc::clone(&persist_handle))
+        .await
+        .map_err(|e| InitError::WalReplay(e.into()))?;
 
     // Build the chain of DmlSink that forms the write path.
     let write_path = WalSink::new(Arc::clone(&buffer), Arc::clone(&wal));

@@ -476,9 +476,9 @@ async fn query_error_handling() {
                         .arg("drop table this_table_doesnt_exist")
                         .assert()
                         .failure()
-                        .stderr(predicate::eq(
-                            "Error querying: Error while planning query: This feature is not \
-                            implemented: DropTable\n",
+                        .stderr(predicate::str::contains(
+                            "Error while planning query: This feature is not \
+                            implemented: DropTable",
                         ));
                 }
                 .boxed()
@@ -517,8 +517,8 @@ async fn influxql_error_handling() {
                         .arg("CREATE DATABASE foo")
                         .assert()
                         .failure()
-                        .stderr(predicate::eq(
-                            "Error querying: Error while planning query: This feature is not implemented: CREATE DATABASE\n",
+                        .stderr(predicate::str::contains(
+                            "Error while planning query: This feature is not implemented: CREATE DATABASE",
                         ));
                 }
                     .boxed()
@@ -691,7 +691,7 @@ async fn namespace_retention() {
                         .success()
                         .stdout(
                             predicate::str::contains(namespace)
-                                .and(predicate::str::contains(&retention_period_ns.to_string())),
+                                .and(predicate::str::contains(retention_period_ns.to_string())),
                         );
                 }
                 .boxed()
@@ -757,7 +757,7 @@ async fn namespace_retention() {
                         .success()
                         .stdout(
                             predicate::str::contains(namespace)
-                                .and(predicate::str::contains(&retention_period_ns.to_string())),
+                                .and(predicate::str::contains(retention_period_ns.to_string())),
                         );
                 }
                 .boxed()

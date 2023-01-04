@@ -2,7 +2,7 @@
 //!
 //! [`QueryExec::query_exec()`]: super::QueryExec::query_exec()
 
-use std::pin::Pin;
+use std::{future, pin::Pin};
 
 use arrow::{error::ArrowError, record_batch::RecordBatch};
 use futures::{Stream, StreamExt};
@@ -51,6 +51,7 @@ impl QueryResponse {
     /// Reduce the [`QueryResponse`] to a stream of [`RecordBatch`].
     pub(crate) fn into_record_batches(self) -> impl Stream<Item = Result<RecordBatch, ArrowError>> {
         self.into_partition_stream()
-            .flat_map(|partition| partition.into_record_batch_stream())
+            .filter_map(|partition| future::ready(partition.into_record_batch_stream()))
+            .flatten()
     }
 }

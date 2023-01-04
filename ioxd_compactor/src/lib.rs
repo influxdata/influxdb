@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use clap_blocks::compactor::CompactorConfig;
+use clap_blocks::{compactor::CompactorConfig, compactor2::Compactor2Config};
 use compactor::{
     handler::{CompactorHandler, CompactorHandlerImpl},
     server::{grpc::GrpcDelegate, CompactorServer},
@@ -132,7 +132,129 @@ impl HttpApiErrorSource for IoxHttpError {
     }
 }
 
+/// Instantiate a compactor server that uses the RPC write path
+// NOTE!!! This needs to be kept in sync with `create_compactor_server_type` until the switch to
+// the RPC write path mode is complete! See the annotations about where these two functions line up
+// and where they diverge.
+pub async fn create_compactor2_server_type(
+    common_state: &CommonServerState,
+    metric_registry: Arc<metric::Registry>,
+    catalog: Arc<dyn Catalog>,
+    parquet_store: ParquetStorage,
+    exec: Arc<Executor>,
+    time_provider: Arc<dyn TimeProvider>,
+    // Parameter difference: this function takes a `Compactor2Config` that doesn't have a write
+    // buffer topic or shard indexes. All the other parameters here are the same.
+    compactor_config: Compactor2Config,
+) -> Result<Arc<dyn ServerType>> {
+    let grpc_catalog = Arc::clone(&catalog);
+
+    // Setup difference: build a compactor2 instead, which expects a `Compactor2Config`.
+    let compactor = build_compactor2_from_config(
+        compactor_config,
+        catalog,
+        parquet_store,
+        exec,
+        time_provider,
+        Arc::clone(&metric_registry),
+    )
+    .await?;
+
+    let compactor_handler = Arc::new(CompactorHandlerImpl::new(Arc::new(compactor)));
+
+    let grpc = GrpcDelegate::new(grpc_catalog, Arc::clone(&compactor_handler));
+
+    let compactor = CompactorServer::new(metric_registry, grpc, compactor_handler);
+    Ok(Arc::new(CompactorServerType::new(compactor, common_state)))
+}
+
+// NOTE!!! This needs to be kept in sync with `build_compactor_from_config` until the switch to
+// the RPC write path mode is complete! See the annotations about where these two functions line up
+// and where they diverge.
+pub async fn build_compactor2_from_config(
+    // Parameter difference: this function takes a `Compactor2Config` that doesn't have a write
+    // buffer topic or shard indexes. All the other parameters here are the same.
+    compactor_config: Compactor2Config,
+    catalog: Arc<dyn Catalog>,
+    parquet_store: ParquetStorage,
+    exec: Arc<Executor>,
+    time_provider: Arc<dyn TimeProvider>,
+    metric_registry: Arc<Registry>,
+) -> Result<compactor::compact::Compactor, Error> {
+    // 1. Shard index range checking: MISSING
+    //    This function doesn't check the shard index range here like `build_compactor_from_config`
+    //    does because shard indexes aren't relevant to `compactor2`.
+
+    // 2. Split percentage value range checking
+    if compactor_config.split_percentage < 1 || compactor_config.split_percentage > 100 {
+        return Err(Error::SplitPercentageRange {
+            split_percentage: compactor_config.split_percentage,
+        });
+    }
+
+    // 3. Ensure topic and shard indexes are in the catalog: MISSING
+    //    This isn't relevant to `compactor2`.
+
+    // 4. Convert config type to handler config type
+    let Compactor2Config {
+        max_desired_file_size_bytes,
+        percentage_max_file_size,
+        split_percentage,
+        max_number_partitions_per_shard,
+        min_number_recent_ingested_files_per_partition,
+        hot_multiple,
+        warm_multiple,
+        memory_budget_bytes,
+        min_num_rows_allocated_per_record_batch_to_datafusion_plan,
+        max_num_compacting_files,
+        max_num_compacting_files_first_in_partition,
+        minutes_without_new_writes_to_be_cold,
+        hot_compaction_hours_threshold_1,
+        hot_compaction_hours_threshold_2,
+        max_parallel_partitions,
+        warm_compaction_small_size_threshold_bytes,
+        warm_compaction_min_small_file_count,
+    } = compactor_config;
+
+    let compactor_config = compactor::handler::CompactorConfig {
+        max_desired_file_size_bytes,
+        percentage_max_file_size,
+        split_percentage,
+        max_number_partitions_per_shard,
+        min_number_recent_ingested_files_per_partition,
+        hot_multiple,
+        warm_multiple,
+        memory_budget_bytes,
+        min_num_rows_allocated_per_record_batch_to_datafusion_plan,
+        max_num_compacting_files,
+        max_num_compacting_files_first_in_partition,
+        minutes_without_new_writes_to_be_cold,
+        hot_compaction_hours_threshold_1,
+        hot_compaction_hours_threshold_2,
+        max_parallel_partitions,
+        warm_compaction_small_size_threshold_bytes,
+        warm_compaction_min_small_file_count,
+    };
+    // 4. END
+
+    // 5. Create a new compactor: `compactor2` is assigned all shards (this argument can go away
+    // completely when the switch to RPC mode is complete)
+    Ok(compactor::compact::Compactor::new(
+        compactor::compact::ShardAssignment::All,
+        catalog,
+        parquet_store,
+        exec,
+        time_provider,
+        backoff::BackoffConfig::default(),
+        compactor_config,
+        metric_registry,
+    ))
+}
+
 /// Instantiate a compactor server
+// NOTE!!! This needs to be kept in sync with `create_compactor2_server_type` until the switch to
+// the RPC write path mode is complete! See the annotations about where these two functions line up
+// and where they diverge.
 pub async fn create_compactor_server_type(
     common_state: &CommonServerState,
     metric_registry: Arc<metric::Registry>,
@@ -140,9 +262,13 @@ pub async fn create_compactor_server_type(
     parquet_store: ParquetStorage,
     exec: Arc<Executor>,
     time_provider: Arc<dyn TimeProvider>,
+    // Parameter difference: this function takes a `CompactorConfig` that has a write buffer topic
+    // and requires shard indexes. All the other parameters here are the same.
     compactor_config: CompactorConfig,
 ) -> Result<Arc<dyn ServerType>> {
     let grpc_catalog = Arc::clone(&catalog);
+
+    // Setup difference: build a compactor instead, which expects a `CompactorConfig`.
     let compactor = build_compactor_from_config(
         compactor_config,
         catalog,
@@ -161,7 +287,12 @@ pub async fn create_compactor_server_type(
     Ok(Arc::new(CompactorServerType::new(compactor, common_state)))
 }
 
+// NOTE!!! This needs to be kept in sync with `build_compactor2_from_config` until the switch to
+// the RPC write path mode is complete! See the annotations about where these two functions line up
+// and where they diverge.
 pub async fn build_compactor_from_config(
+    // Parameter difference: this function takes a `CompactorConfig` that has a write buffer topic
+    // and requires shard indexes. All the other parameters here are the same.
     compactor_config: CompactorConfig,
     catalog: Arc<dyn Catalog>,
     parquet_store: ParquetStorage,
@@ -169,16 +300,22 @@ pub async fn build_compactor_from_config(
     time_provider: Arc<dyn TimeProvider>,
     metric_registry: Arc<Registry>,
 ) -> Result<compactor::compact::Compactor, Error> {
+    // 1. Shard index range checking
+    //    This function checks the shard index range; `compactor2` doesn't have shard indexes so
+    //    `build_compactor2_from_config` doesn't have this check.
     if compactor_config.shard_index_range_start > compactor_config.shard_index_range_end {
         return Err(Error::ShardIndexRange);
     }
 
+    // 2. Split percentage value range checking
     if compactor_config.split_percentage < 1 || compactor_config.split_percentage > 100 {
         return Err(Error::SplitPercentageRange {
             split_percentage: compactor_config.split_percentage,
         });
     }
 
+    // 3. Ensure topic and shard indexes are in the catalog
+    //    This isn't relevant to `compactor2`.
     let mut txn = catalog.start_transaction().await?;
     let topic = txn
         .topics()
@@ -199,7 +336,9 @@ pub async fn build_compactor_from_config(
         shards.push(s.id);
     }
     txn.commit().await?;
+    // 3. END
 
+    // 4. Convert config type to handler config type
     let CompactorConfig {
         max_desired_file_size_bytes,
         percentage_max_file_size,
@@ -207,6 +346,7 @@ pub async fn build_compactor_from_config(
         max_number_partitions_per_shard,
         min_number_recent_ingested_files_per_partition,
         hot_multiple,
+        warm_multiple,
         memory_budget_bytes,
         min_num_rows_allocated_per_record_batch_to_datafusion_plan,
         max_num_compacting_files,
@@ -215,6 +355,8 @@ pub async fn build_compactor_from_config(
         hot_compaction_hours_threshold_1,
         hot_compaction_hours_threshold_2,
         max_parallel_partitions,
+        warm_compaction_small_size_threshold_bytes,
+        warm_compaction_min_small_file_count,
         ..
     } = compactor_config;
 
@@ -225,6 +367,7 @@ pub async fn build_compactor_from_config(
         max_number_partitions_per_shard,
         min_number_recent_ingested_files_per_partition,
         hot_multiple,
+        warm_multiple,
         memory_budget_bytes,
         min_num_rows_allocated_per_record_batch_to_datafusion_plan,
         max_num_compacting_files,
@@ -233,10 +376,14 @@ pub async fn build_compactor_from_config(
         hot_compaction_hours_threshold_1,
         hot_compaction_hours_threshold_2,
         max_parallel_partitions,
+        warm_compaction_small_size_threshold_bytes,
+        warm_compaction_min_small_file_count,
     };
+    // 4. END
 
+    // 5. Create a new compactor: Assigned only those shards specified in the CLI args.
     Ok(compactor::compact::Compactor::new(
-        shards,
+        compactor::compact::ShardAssignment::Only(shards),
         catalog,
         parquet_store,
         exec,

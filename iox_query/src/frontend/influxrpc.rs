@@ -1143,6 +1143,8 @@ impl InfluxRpcPlanner {
         .with_chunks(chunks)
         .build()?;
 
+        let schema = scan_and_filter.schema();
+
         let tags_and_timestamp: Vec<_> = scan_and_filter
             .schema()
             .tags_iter()
@@ -1159,7 +1161,6 @@ impl InfluxRpcPlanner {
             .context(BuildingPlanSnafu)?;
 
         // Select away anything that isn't in the influx data model
-        let schema = scan_and_filter.schema();
         let tags_fields_and_timestamps: Vec<Expr> = schema
             .tags_iter()
             .map(|field| field.name().as_expr())

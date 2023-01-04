@@ -1,3 +1,5 @@
+use std::{iter, sync::Arc};
+
 use async_trait::async_trait;
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion, Throughput};
 use data_types::{NamespaceId, PartitionKey, TableId};
@@ -5,7 +7,10 @@ use dml::{DmlMeta, DmlOperation, DmlWrite};
 use generated_types::influxdata::{
     iox::wal::v1::sequenced_wal_op::Op as WalOp, pbdata::v1::DatabaseBatch,
 };
-use ingester2::dml_sink::{DmlError, DmlSink};
+use ingester2::{
+    buffer_tree::benches::PartitionData,
+    dml_sink::{DmlError, DmlSink},
+};
 use mutable_batch_pb::encode::encode_write;
 use wal::SequencedWalOp;
 
@@ -56,8 +61,10 @@ fn wal_replay_bench(c: &mut Criterion) {
                 // overhead.
                 let sink = NopSink::default();
 
+                let persist = ingester2::persist::queue::benches::MockPersistQueue::default();
+
                 // Replay the wal into the NOP.
-                ingester2::wal_replay::replay(&wal, &sink)
+                ingester2::benches::replay(&wal, &sink, Arc::new(persist))
                     .await
                     .expect("WAL replay error");
             },
@@ -102,6 +109,14 @@ impl DmlSink for NopSink {
     async fn apply(&self, _op: DmlOperation) -> Result<(), DmlError> {
         // It does nothing!
         Ok(())
+    }
+}
+
+impl ingester2::wal::benches::PartitionIter for NopSink {
+    fn partition_iter(
+        &self,
+    ) -> Box<dyn Iterator<Item = std::sync::Arc<parking_lot::Mutex<PartitionData>>> + Send> {
+        Box::new(iter::empty())
     }
 }
 

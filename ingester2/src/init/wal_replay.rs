@@ -1,14 +1,16 @@
-use std::time::Instant;
 use data_types::{NamespaceId, PartitionKey, Sequence, SequenceNumber, TableId};
 use dml::{DmlMeta, DmlOperation, DmlWrite};
 use generated_types::influxdata::iox::wal::v1::sequenced_wal_op::Op;
 use mutable_batch_pb::decode::decode_database_batch;
 use observability_deps::tracing::*;
+use std::time::Instant;
 use thiserror::Error;
 use wal::{SequencedWalOp, Wal};
 
 use crate::{
     dml_sink::{DmlError, DmlSink},
+    persist::{drain_buffer::persist_partitions, queue::PersistQueue},
+    wal::rotate_task::PartitionIter,
     TRANSITION_SHARD_INDEX,
 };
 
@@ -41,9 +43,14 @@ pub enum WalReplayError {
 
 /// Replay all the entries in `wal` to `sink`, returning the maximum observed
 /// [`SequenceNumber`].
-pub async fn replay<T>(wal: &Wal, sink: &T) -> Result<Option<SequenceNumber>, WalReplayError>
+pub async fn replay<T, P>(
+    wal: &Wal,
+    sink: &T,
+    persist: P,
+) -> Result<Option<SequenceNumber>, WalReplayError>
 where
-    T: DmlSink,
+    T: DmlSink + PartitionIter,
+    P: PersistQueue + Clone,
 {
     // Read the set of files to replay.
     //
@@ -109,8 +116,34 @@ where
                         "error dropping empty wal segment",
                     );
                 }
+
+                continue;
             }
         };
+
+        info!(
+            file_number,
+            n_files,
+            file_id = %file.id(),
+            size = file.size(),
+            "persisting wal segment data"
+        );
+
+        // Persist all the data that was replayed from the WAL segment.
+        persist_partitions(sink.partition_iter(), persist.clone()).await;
+
+        // Drop the newly persisted data - it should not be replayed.
+        wal.delete(file.id())
+            .await
+            .expect("failed to drop wal segment");
+
+        info!(
+            file_number,
+            n_files,
+            file_id = %file.id(),
+            size = file.size(),
+            "dropped persisted wal segment"
+        );
     }
 
     info!(
@@ -146,10 +179,14 @@ where
         };
 
         for op in ops {
-            let SequencedWalOp{sequence_number, op} = op;
+            let SequencedWalOp {
+                sequence_number,
+                op,
+            } = op;
 
-            let sequence_number =
-                SequenceNumber::new(i64::try_from(sequence_number).expect("sequence number overflow"));
+            let sequence_number = SequenceNumber::new(
+                i64::try_from(sequence_number).expect("sequence number overflow"),
+            );
 
             max_sequence = max_sequence.max(Some(sequence_number));
 
@@ -196,24 +233,51 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{sync::Arc, time::Duration};
 
     use assert_matches::assert_matches;
-    use data_types::{NamespaceId, PartitionKey, TableId};
+    use async_trait::async_trait;
+    use data_types::{NamespaceId, PartitionId, PartitionKey, ShardId, TableId};
+    use parking_lot::Mutex;
     use wal::Wal;
 
     use crate::{
+        buffer_tree::partition::{PartitionData, SortKeyState},
+        deferred_load::DeferredLoad,
         dml_sink::mock_sink::MockDmlSink,
+        persist::queue::mock::MockPersistQueue,
         test_util::{assert_dml_writes_eq, make_write_op},
         wal::wal_sink::WalSink,
     };
 
     use super::*;
 
+    const PARTITION_ID: PartitionId = PartitionId::new(42);
     const TABLE_ID: TableId = TableId::new(44);
     const TABLE_NAME: &str = "bananas";
     const NAMESPACE_NAME: &str = "platanos";
     const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
+
+    #[derive(Debug)]
+    struct MockIter {
+        sink: MockDmlSink,
+        partitions: Vec<Arc<Mutex<PartitionData>>>,
+    }
+
+    impl PartitionIter for MockIter {
+        fn partition_iter(&self) -> Box<dyn Iterator<Item = Arc<Mutex<PartitionData>>> + Send> {
+            Box::new(self.partitions.clone().into_iter())
+        }
+    }
+
+    #[async_trait]
+    impl DmlSink for MockIter {
+        type Error = <MockDmlSink as DmlSink>::Error;
+
+        async fn apply(&self, op: DmlOperation) -> Result<(), Self::Error> {
+            self.sink.apply(op).await
+        }
+    }
 
     #[tokio::test]
     async fn test_replay() {
@@ -286,20 +350,71 @@ mod tests {
             .await
             .expect("failed to initialise WAL");
 
-        // Replay the results into a mock to capture the DmlWrites
+        assert_eq!(wal.closed_segments().len(), 2);
+
+        // Initialise the mock persist system
+        let persist = Arc::new(MockPersistQueue::default());
+
+        // Replay the results into a mock to capture the DmlWrites and returns
+        // some dummy partitions when iterated over.
         let mock_sink = MockDmlSink::default().with_apply_return(vec![Ok(()), Ok(()), Ok(())]);
-        let max_sequence_number = replay(&wal, &mock_sink)
+        let mut partition = PartitionData::new(
+            PARTITION_ID,
+            PartitionKey::from("bananas"),
+            NAMESPACE_ID,
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                NAMESPACE_NAME.into()
+            })),
+            TABLE_ID,
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                TABLE_NAME.into()
+            })),
+            SortKeyState::Provided(None),
+            ShardId::new(1234),
+        );
+        // Put at least one write into the buffer so it is a candidate for persistence
+        partition
+            .buffer_write(
+                op1.tables().next().unwrap().1.clone(),
+                SequenceNumber::new(1),
+            )
+            .unwrap();
+        let mock_iter = MockIter {
+            sink: mock_sink,
+            partitions: vec![Arc::new(Mutex::new(partition))],
+        };
+
+        let max_sequence_number = replay(&wal, &mock_iter, Arc::clone(&persist))
             .await
             .expect("failed to replay WAL");
 
         assert_eq!(max_sequence_number, Some(SequenceNumber::new(42)));
 
-        // Assert the ops were pushed into the DmlSink
-        let ops = mock_sink.get_calls();
+        // Assert the ops were pushed into the DmlSink exactly as generated.
+        let ops = mock_iter.sink.get_calls();
         assert_matches!(&*ops, &[DmlOperation::Write(ref w1),DmlOperation::Write(ref w2),DmlOperation::Write(ref w3)] => {
             assert_dml_writes_eq(w1.clone(), op1);
             assert_dml_writes_eq(w2.clone(), op2);
             assert_dml_writes_eq(w3.clone(), op3);
-        })
+        });
+
+        // Ensure all partitions were persisted
+        let calls = persist.calls();
+        assert_matches!(&*calls, [p] => {
+            assert_eq!(p.lock().partition_id(), PARTITION_ID);
+        });
+
+        // Ensure there were no partition persist panics.
+        Arc::try_unwrap(persist)
+            .expect("should be no more refs")
+            .join()
+            .await;
+
+        // Ensure the replayed segments were dropped
+        let wal = Wal::new(dir.path())
+            .await
+            .expect("failed to initialise WAL");
+
+        assert_eq!(wal.closed_segments().len(), 1);
     }
 }

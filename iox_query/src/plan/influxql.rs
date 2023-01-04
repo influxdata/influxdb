@@ -1,3 +1,10 @@
+mod expr_type_evaluator;
+mod field;
+mod field_mapper;
+mod rewriter;
+mod test_utils;
+mod var_ref;
+
 use crate::{DataFusionError, IOxSessionContext, QueryNamespace};
 use datafusion::common::Result;
 use datafusion::execution::context::SessionState;

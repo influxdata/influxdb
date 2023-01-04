@@ -1,0 +1,12 @@
+---
+source: iox_query/src/plan/influxql/rewriter.rs
+expression: "walk_expr(\"count(5, foo + 7) + sum(bar)\")"
+---
+0: 5
+1: foo
+2: 7
+3: foo + 7
+4: count(5, foo + 7)
+5: bar
+6: sum(bar)
+7: count(5, foo + 7) + sum(bar)

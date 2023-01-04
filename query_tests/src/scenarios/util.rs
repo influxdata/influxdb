@@ -12,12 +12,13 @@ use generated_types::{
     influxdata::iox::ingester::v1::{IngesterQueryResponseMetadata, PartitionStatus},
     ingester::IngesterQueryRequest,
 };
-use influxdb_iox_client::flight::{low_level::LowLevelMessage, Error as FlightError};
+use influxdb_iox_client::flight::Error as FlightError;
 use ingester::{
     data::{DmlApplyAction, IngesterData, Persister},
     lifecycle::mock_handle::MockLifecycleHandle,
     querier_handler::{prepare_data_to_querier, FlatIngesterQueryResponse, IngesterQueryResponse},
 };
+use iox_arrow_flight::DecodedPayload;
 use iox_catalog::interface::get_schema_by_name;
 use iox_query::exec::{DedicatedExecutors, ExecutorType};
 use iox_tests::util::{TestCatalog, TestNamespace, TestShard};
@@ -997,7 +998,7 @@ impl IngesterFlightClient for MockIngester {
 /// [`IngesterFlightClientQueryData`] (used by the querier) without doing any real gRPC IO.
 struct QueryDataAdapter {
     messages: Box<
-        dyn Iterator<Item = Result<(LowLevelMessage, IngesterQueryResponseMetadata), FlightError>>
+        dyn Iterator<Item = Result<(DecodedPayload, IngesterQueryResponseMetadata), FlightError>>
             + Send,
     >,
 }
@@ -1023,7 +1024,7 @@ impl QueryDataAdapter {
                             partition_id,
                             status,
                         } => (
-                            LowLevelMessage::None,
+                            DecodedPayload::None,
                             IngesterQueryResponseMetadata {
                                 partition_id: partition_id.get(),
                                 status: Some(PartitionStatus {
@@ -1037,11 +1038,11 @@ impl QueryDataAdapter {
                             },
                         ),
                         FlatIngesterQueryResponse::StartSnapshot { schema } => (
-                            LowLevelMessage::Schema(schema),
+                            DecodedPayload::Schema(schema),
                             IngesterQueryResponseMetadata::default(),
                         ),
                         FlatIngesterQueryResponse::RecordBatch { batch } => (
-                            LowLevelMessage::RecordBatch(batch),
+                            DecodedPayload::RecordBatch(batch),
                             IngesterQueryResponseMetadata::default(),
                         ),
                     };
@@ -1061,9 +1062,9 @@ impl QueryDataAdapter {
 
 #[async_trait]
 impl IngesterFlightClientQueryData for QueryDataAdapter {
-    async fn next(
+    async fn next_message(
         &mut self,
-    ) -> Result<Option<(LowLevelMessage, IngesterQueryResponseMetadata)>, FlightError> {
+    ) -> Result<Option<(DecodedPayload, IngesterQueryResponseMetadata)>, FlightError> {
         self.messages.next().transpose()
     }
 }
