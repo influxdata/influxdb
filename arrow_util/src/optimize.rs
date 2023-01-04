@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use arrow::array::{Array, ArrayRef, DictionaryArray, StringArray};
-use arrow::datatypes::{DataType, Field, Int32Type, Schema, SchemaRef};
+use arrow::datatypes::{DataType, Int32Type};
 use arrow::error::{ArrowError, Result};
 use arrow::record_batch::RecordBatch;
 use hashbrown::HashMap;
@@ -95,127 +95,17 @@ fn optimize_dict_col(
     Ok(Arc::new(new_dictionary.to_arrow(new_keys, nulls)))
 }
 
-/// Hydrates a dictionary to its underlying type
-///
-/// An IPC response, streaming or otherwise, defines its schema up front
-/// which defines the mapping from dictionary IDs. It then sends these
-/// dictionaries over the wire.
-///
-/// This requires identifying the different dictionaries in use, assigning
-/// them IDs, and sending new dictionaries, delta or otherwise, when needed
-///
-/// This is tracked by <https://github.com/influxdata/influxdb_iox/issues/1318>
-///
-/// See also:
-/// * <https://github.com/influxdata/influxdb_iox/issues/4275>
-/// * <https://github.com/apache/arrow-rs/issues/1206>
-///
-/// For now we just hydrate the dictionaries to their underlying type
-fn hydrate_dictionary(array: &ArrayRef) -> Result<ArrayRef> {
-    match array.data_type() {
-        DataType::Dictionary(_, value) => arrow::compute::cast(array, value),
-        _ => unreachable!("not a dictionary"),
-    }
-}
-
-/// Prepares a RecordBatch for transport over the Arrow Flight protocol
-///
-/// This means:
-///
-/// 1. Hydrates any dictionaries to its underlying type. See
-/// hydrate_dictionary for more information.
-///
-pub fn prepare_batch_for_flight(batch: &RecordBatch, schema: SchemaRef) -> Result<RecordBatch> {
-    let columns: Result<Vec<_>> = batch
-        .columns()
-        .iter()
-        .map(|column| {
-            if matches!(column.data_type(), DataType::Dictionary(_, _)) {
-                hydrate_dictionary(column)
-            } else {
-                Ok(Arc::clone(column))
-            }
-        })
-        .collect();
-
-    RecordBatch::try_new(schema, columns?)
-}
-
-/// Prepare an arrow Schema for transport over the Arrow Flight protocol
-///
-/// Convert dictionary types to underlying types
-///
-/// See hydrate_dictionary for more information
-pub fn prepare_schema_for_flight(schema: &Schema) -> Schema {
-    let fields = schema
-        .fields()
-        .iter()
-        .map(|field| match field.data_type() {
-            DataType::Dictionary(_, value_type) => Field::new(
-                field.name(),
-                value_type.as_ref().clone(),
-                field.is_nullable(),
-            )
-            .with_metadata(field.metadata().clone()),
-            _ => field.clone(),
-        })
-        .collect();
-
-    Schema::new(fields)
-}
-
-/// The size to which we limit our [`RecordBatch`] payloads.
-///
-/// We will slice up the returned [`RecordBatch]s (preserving order) to only produce objects of approximately
-/// this size (there's a bit of additional encoding overhead on top of that, but that should be OK).
-///
-/// This would normally be 4MB, but the size calculation for the record batches is rather inexact, so we set it to 2MB.
-const MAX_GRPC_RESPONSE_BATCH_SIZE: usize = 2097152;
-
-/// Split [`RecordBatch`] so it hopefully fits into a gRPC response.
-///
-/// Max size is controlled by [`MAX_GRPC_RESPONSE_BATCH_SIZE`].
-///
-/// Data is zero-copy sliced into batches.
-pub fn split_batch_for_grpc_response(batch: RecordBatch) -> Vec<RecordBatch> {
-    let size = batch
-        .columns()
-        .iter()
-        .map(|col| col.get_array_memory_size())
-        .sum::<usize>();
-
-    let n_batches = (size / MAX_GRPC_RESPONSE_BATCH_SIZE
-        + usize::from(size % MAX_GRPC_RESPONSE_BATCH_SIZE != 0))
-    .max(1);
-    let rows_per_batch = batch.num_rows() / n_batches;
-    let mut out = Vec::with_capacity(n_batches + 1);
-
-    let mut offset = 0;
-    while offset < batch.num_rows() {
-        let length = (offset + rows_per_batch).min(batch.num_rows() - offset);
-        out.push(batch.slice(offset, length));
-
-        offset += length;
-    }
-
-    out
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate as arrow_util;
     use crate::assert_batches_eq;
-    use arrow::array::{
-        ArrayDataBuilder, DictionaryArray, Float64Array, Int32Array, StringArray, UInt32Array,
-        UInt8Array,
-    };
-    use arrow::compute::{concat, concat_batches};
-    use arrow_flight::utils::flight_data_to_arrow_batch;
+    use arrow::array::{ArrayDataBuilder, DictionaryArray, Float64Array, Int32Array, StringArray};
+    use arrow::compute::concat;
     use std::iter::FromIterator;
 
     #[test]
-    fn test_optimize() {
+    fn test_optimize_dictionaries() {
         let values = StringArray::from(vec![
             "duplicate",
             "duplicate",
@@ -272,7 +162,7 @@ mod tests {
     }
 
     #[test]
-    fn test_concat() {
+    fn test_optimize_dictionaries_concat() {
         let f1_1 = Float64Array::from(vec![Some(1.0), Some(2.0), Some(3.0), Some(4.0)]);
         let t2_1 = DictionaryArray::<Int32Type>::from_iter(vec![
             Some("a"),
@@ -352,7 +242,7 @@ mod tests {
     }
 
     #[test]
-    fn test_null() {
+    fn test_optimize_dictionaries_null() {
         let values = StringArray::from(vec!["bananas"]);
         let keys = Int32Array::from(vec![None, None, Some(0)]);
         let col = Arc::new(build_dict(keys, values)) as ArrayRef;
@@ -376,7 +266,7 @@ mod tests {
     }
 
     #[test]
-    fn test_slice() {
+    fn test_optimize_dictionaries_slice() {
         let values = StringArray::from(vec!["bananas"]);
         let keys = Int32Array::from(vec![None, Some(0), None]);
         let col = Arc::new(build_dict(keys, values)) as ArrayRef;
@@ -412,120 +302,5 @@ mod tests {
         .unwrap();
 
         DictionaryArray::from(data)
-    }
-
-    #[test]
-    fn test_encode_flight_data() {
-        let options = arrow::ipc::writer::IpcWriteOptions::default();
-        let c1 = UInt32Array::from(vec![1, 2, 3, 4, 5, 6]);
-
-        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(c1) as ArrayRef)])
-            .expect("cannot create record batch");
-        let schema = batch.schema();
-
-        let (_, baseline_flight_batch) =
-            arrow_flight::utils::flight_data_from_arrow_batch(&batch, &options);
-
-        let big_batch = batch.slice(0, batch.num_rows() - 1);
-        let optimized_big_batch =
-            prepare_batch_for_flight(&big_batch, Arc::clone(&schema)).expect("failed to optimize");
-        let (_, optimized_big_flight_batch) =
-            arrow_flight::utils::flight_data_from_arrow_batch(&optimized_big_batch, &options);
-
-        assert_eq!(
-            baseline_flight_batch.data_body.len(),
-            optimized_big_flight_batch.data_body.len()
-        );
-
-        let small_batch = batch.slice(0, 1);
-        let optimized_small_batch = prepare_batch_for_flight(&small_batch, Arc::clone(&schema))
-            .expect("failed to optimize");
-        let (_, optimized_small_flight_batch) =
-            arrow_flight::utils::flight_data_from_arrow_batch(&optimized_small_batch, &options);
-
-        assert!(
-            baseline_flight_batch.data_body.len() > optimized_small_flight_batch.data_body.len()
-        );
-    }
-
-    #[test]
-    fn test_encode_flight_data_dictionary() {
-        let options = arrow::ipc::writer::IpcWriteOptions::default();
-
-        let c1 = UInt32Array::from(vec![1, 2, 3, 4, 5, 6]);
-        let c2: DictionaryArray<Int32Type> = vec![
-            Some("foo"),
-            Some("bar"),
-            None,
-            Some("fiz"),
-            None,
-            Some("foo"),
-        ]
-        .into_iter()
-        .collect();
-
-        let batch =
-            RecordBatch::try_from_iter(vec![("a", Arc::new(c1) as ArrayRef), ("b", Arc::new(c2))])
-                .expect("cannot create record batch");
-
-        let original_schema = batch.schema();
-        let optimized_schema = Arc::new(prepare_schema_for_flight(&original_schema));
-
-        let optimized_batch =
-            prepare_batch_for_flight(&batch, Arc::clone(&optimized_schema)).unwrap();
-
-        let (_, flight_data) =
-            arrow_flight::utils::flight_data_from_arrow_batch(&optimized_batch, &options);
-
-        let dictionary_by_id = std::collections::HashMap::new();
-        let batch = flight_data_to_arrow_batch(
-            &flight_data,
-            Arc::clone(&optimized_schema),
-            &dictionary_by_id,
-        )
-        .unwrap();
-
-        // Should hydrate string dictionary for transport
-        assert_eq!(optimized_schema.field(1).data_type(), &DataType::Utf8);
-        let array = batch
-            .column(1)
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .unwrap();
-
-        let expected = StringArray::from(vec![
-            Some("foo"),
-            Some("bar"),
-            None,
-            Some("fiz"),
-            None,
-            Some("foo"),
-        ]);
-        assert_eq!(array, &expected)
-    }
-
-    #[test]
-    fn test_split_batch_for_grpc_response() {
-        // no split
-        let c = UInt32Array::from(vec![1, 2, 3, 4, 5, 6]);
-        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(c) as ArrayRef)])
-            .expect("cannot create record batch");
-        let split = split_batch_for_grpc_response(batch.clone());
-        assert_eq!(split.len(), 1);
-        assert_eq!(batch, split[0]);
-
-        // split once
-        let n_rows = MAX_GRPC_RESPONSE_BATCH_SIZE + 1;
-        assert!(n_rows % 2 == 1, "should be an odd number");
-        let c = UInt8Array::from((0..n_rows).map(|i| (i % 256) as u8).collect::<Vec<_>>());
-        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(c) as ArrayRef)])
-            .expect("cannot create record batch");
-        let split = split_batch_for_grpc_response(batch.clone());
-        assert_eq!(split.len(), 2);
-        assert_eq!(
-            split.iter().map(|batch| batch.num_rows()).sum::<usize>(),
-            n_rows
-        );
-        assert_eq!(concat_batches(&batch.schema(), &split).unwrap(), batch);
     }
 }

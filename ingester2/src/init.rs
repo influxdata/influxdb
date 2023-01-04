@@ -6,12 +6,12 @@ mod wal_replay;
 
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
-use arrow_flight::flight_service_server::{FlightService, FlightServiceServer};
 use backoff::BackoffConfig;
 use generated_types::influxdata::iox::{
     catalog::v1::catalog_service_server::{CatalogService, CatalogServiceServer},
     ingester::v1::write_service_server::{WriteService, WriteServiceServer},
 };
+use iox_arrow_flight::flight_service_server::{FlightService, FlightServiceServer};
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
 use parquet_file::storage::ParquetStorage;

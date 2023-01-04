@@ -3,17 +3,16 @@
 use std::{pin::Pin, sync::Arc};
 
 use arrow::{error::ArrowError, record_batch::RecordBatch};
-use arrow_util::{
-    optimize::{
-        prepare_batch_for_flight, prepare_schema_for_flight, split_batch_for_grpc_response,
-    },
-    test_util::equalize_batch_schemas,
-};
+use arrow_util::test_util::equalize_batch_schemas;
 use data_types::{NamespaceId, PartitionId, SequenceNumber, TableId};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::MemoryStream;
 use futures::{Stream, StreamExt, TryStreamExt};
 use generated_types::ingester::IngesterQueryRequest;
+use iox_arrow_flight::encode::{
+    prepare_batch_for_flight, prepare_schema_for_flight, split_batch_for_grpc_response,
+    GRPC_TARGET_MAX_BATCH_SIZE_BYTES,
+};
 use observability_deps::tracing::*;
 use schema::Projection;
 use snafu::{ensure, Snafu};
@@ -150,15 +149,26 @@ impl IngesterQueryResponse {
 
                                 let tail = snapshot.flat_map(move |batch_res| match batch_res {
                                     Ok(batch) => {
-                                        match prepare_batch_for_flight(&batch, Arc::clone(&schema))
-                                        {
-                                            Ok(batch) => futures::stream::iter(
-                                                split_batch_for_grpc_response(batch),
-                                            )
-                                            .map(|batch| {
-                                                Ok(FlatIngesterQueryResponse::RecordBatch { batch })
-                                            })
-                                            .boxed(),
+                                        let batch =
+                                            prepare_batch_for_flight(&batch, Arc::clone(&schema))
+                                                .map_err(|e| {
+                                                    ArrowError::ExternalError(Box::new(e))
+                                                });
+
+                                        match batch {
+                                            Ok(batch) => {
+                                                let batches = split_batch_for_grpc_response(
+                                                    batch,
+                                                    GRPC_TARGET_MAX_BATCH_SIZE_BYTES,
+                                                );
+                                                futures::stream::iter(batches)
+                                                    .map(|batch| {
+                                                        Ok(FlatIngesterQueryResponse::RecordBatch {
+                                                            batch,
+                                                        })
+                                                    })
+                                                    .boxed()
+                                            }
                                             Err(e) => {
                                                 futures::stream::once(async { Err(e) }).boxed()
                                             }

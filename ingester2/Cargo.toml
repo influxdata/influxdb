@@ -7,7 +7,6 @@ license.workspace = true
 
 [dependencies]
 arrow = { workspace = true, features = ["prettyprint"] }
-arrow-flight = { workspace = true }
 arrow_util = { version = "0.1.0", path = "../arrow_util" }
 async-channel = "1.8.0"
 async-trait = "0.1.60"
@@ -22,6 +21,7 @@ flatbuffers = "22"
 futures = "0.3.25"
 generated_types = { version = "0.1.0", path = "../generated_types" }
 hashbrown.workspace = true
+iox_arrow_flight = { path = "../iox_arrow_flight" }
 iox_catalog = { version = "0.1.0", path = "../iox_catalog" }
 iox_query = { version = "0.1.0", path = "../iox_query" }
 iox_time = { path = "../iox_time" }

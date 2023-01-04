@@ -3,32 +3,27 @@
 mod request;
 
 use arrow::error::ArrowError;
-use arrow_util::optimize::{
-    prepare_batch_for_flight, prepare_schema_for_flight, split_batch_for_grpc_response,
-};
-use bytes::BytesMut;
 use data_types::NamespaceNameError;
 use datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
-use futures::{SinkExt, Stream, StreamExt};
+use futures::{ready, stream::BoxStream, Stream, StreamExt, TryStreamExt};
 use generated_types::influxdata::iox::querier::v1 as proto;
 use iox_arrow_flight::{
     flight_descriptor::DescriptorType,
     flight_service_server::{FlightService as Flight, FlightServiceServer as FlightServer},
     sql::{CommandStatementQuery, ProstMessageExt},
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightEndpoint, FlightInfo,
-    HandshakeRequest, HandshakeResponse, PutResult, SchemaAsIpc, SchemaResult, Ticket,
+    HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, StreamEncoderBuilder, Ticket,
 };
 use iox_query::{
     exec::{ExecutionContextProvider, IOxSessionContext},
     QueryCompletedToken, QueryNamespace,
 };
 use observability_deps::tracing::{debug, info, warn};
-use pin_project::{pin_project, pinned_drop};
+use prost::Message;
 use request::{IoxGetRequest, RunQuery};
 use service_common::{datafusion_error_to_tonic_code, planner::Planner, QueryNamespaceProvider};
 use snafu::{ResultExt, Snafu};
 use std::{fmt::Debug, pin::Pin, sync::Arc, task::Poll, time::Instant};
-use tokio::task::JoinHandle;
 use tonic::{Request, Response, Streaming};
 use trace::{ctx::SpanContext, span::SpanExt};
 use trace_http::ctx::{RequestLogContext, RequestLogContextExt};
@@ -169,7 +164,7 @@ impl Error {
     }
 }
 
-type TonicStream<T> = Pin<Box<dyn Stream<Item = Result<T, tonic::Status>> + Send + Sync + 'static>>;
+type TonicStream<T> = Pin<Box<dyn Stream<Item = Result<T, tonic::Status>> + Send + 'static>>;
 
 /// Concrete implementation of the gRPC Arrow Flight Service API
 #[derive(Debug)]
@@ -463,14 +458,14 @@ where
     }
 }
 
-#[pin_project(PinnedDrop)]
+/// Wrapper over a FlightDataEncodeStream that adds IOx specfic
+/// metadata and records completion
 struct GetStream {
-    #[pin]
-    rx: futures::channel::mpsc::Receiver<Result<FlightData, tonic::Status>>,
-    join_handle: JoinHandle<()>,
-    done: bool,
+    inner: BoxStream<'static, Result<FlightData, tonic::Status>>,
     #[allow(dead_code)]
     permit: InstrumentedAsyncOwnedSemaphorePermit,
+    query_completed_token: QueryCompletedToken,
+    done: bool,
 }
 
 impl GetStream {
@@ -478,106 +473,40 @@ impl GetStream {
         ctx: IOxSessionContext,
         physical_plan: Arc<dyn ExecutionPlan>,
         namespace_name: String,
-        mut query_completed_token: QueryCompletedToken,
+        query_completed_token: QueryCompletedToken,
         permit: InstrumentedAsyncOwnedSemaphorePermit,
     ) -> Result<Self, tonic::Status> {
-        // setup channel
-        let (mut tx, rx) = futures::channel::mpsc::channel::<Result<FlightData, tonic::Status>>(1);
-
-        // get schema
-        let schema = Arc::new(prepare_schema_for_flight(&physical_plan.schema()));
-
-        // setup stream
-        let options = arrow::ipc::writer::IpcWriteOptions::default();
-        let mut schema_flight_data: FlightData = SchemaAsIpc::new(&schema, &options).into();
-
-        // Add response metadata
-        let mut bytes = BytesMut::new();
         let app_metadata = proto::AppMetadata {};
-        prost::Message::encode(&app_metadata, &mut bytes).context(SerializationSnafu)?;
-        schema_flight_data.app_metadata = bytes.to_vec();
 
-        let mut stream_record_batches = ctx
+        // setup inner stream
+        let builder = StreamEncoderBuilder::new().with_metadata(app_metadata.encode_to_vec());
+
+        let schema = physical_plan.schema();
+
+        let query_results = ctx
             .execute_stream(Arc::clone(&physical_plan))
             .await
             .context(QuerySnafu {
-                namespace_name: &namespace_name,
-            })?;
-
-        let join_handle = tokio::spawn(async move {
-            if tx.send(Ok(schema_flight_data)).await.is_err() {
-                // receiver gone
-                return;
-            }
-
-            while let Some(batch_or_err) = stream_record_batches.next().await {
-                match batch_or_err {
-                    Ok(batch) => {
-                        match prepare_batch_for_flight(&batch, Arc::clone(&schema)) {
-                            Ok(batch) => {
-                                for batch in split_batch_for_grpc_response(batch) {
-                                    let (flight_dictionaries, flight_batch) =
-                                        iox_arrow_flight::utils::flight_data_from_arrow_batch(
-                                            &batch, &options,
-                                        );
-
-                                    for dict in flight_dictionaries {
-                                        if tx.send(Ok(dict)).await.is_err() {
-                                            // receiver is gone
-                                            return;
-                                        }
-                                    }
-
-                                    if tx.send(Ok(flight_batch)).await.is_err() {
-                                        // receiver is gone
-                                        return;
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                // failure sending here is OK because we're cutting the stream anyways
-                                tx.send(Err(Error::Optimize { source: e }.into()))
-                                    .await
-                                    .ok();
-
-                                // end stream
-                                return;
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        // failure sending here is OK because we're cutting the stream anyways
-                        tx.send(Err(Error::Query {
-                            namespace_name: namespace_name.clone(),
-                            source: DataFusionError::ArrowError(e),
-                        }
-                        .into()))
-                            .await
-                            .ok();
-
-                        // end stream
-                        return;
-                    }
+                namespace_name: namespace_name.clone(),
+            })?
+            // Convert from Arrow errors to tonic errors
+            .map_err(move |e| {
+                Error::Query {
+                    namespace_name: namespace_name.clone(),
+                    source: e.into(),
                 }
-            }
+                .into()
+            })
+            .boxed();
 
-            // if we get here, all is good
-            query_completed_token.set_success()
-        });
+        let inner = builder.build(schema, query_results);
 
         Ok(Self {
-            rx,
-            join_handle,
-            done: false,
+            inner,
             permit,
+            query_completed_token,
+            done: false,
         })
-    }
-}
-
-#[pinned_drop]
-impl PinnedDrop for GetStream {
-    fn drop(self: Pin<&mut Self>) {
-        self.join_handle.abort();
     }
 }
 
@@ -585,23 +514,28 @@ impl Stream for GetStream {
     type Item = Result<FlightData, tonic::Status>;
 
     fn poll_next(
-        self: Pin<&mut Self>,
+        mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        let this = self.project();
-        if *this.done {
-            Poll::Ready(None)
-        } else {
-            match this.rx.poll_next(cx) {
-                Poll::Ready(None) => {
-                    *this.done = true;
-                    Poll::Ready(None)
+        loop {
+            if self.done {
+                return Poll::Ready(None);
+            }
+
+            let res = ready!(self.inner.poll_next_unpin(cx));
+            match res {
+                None => {
+                    self.done = true;
+                    // if we get here, all is good
+                    self.query_completed_token.set_success();
                 }
-                e @ Poll::Ready(Some(Err(_))) => {
-                    *this.done = true;
-                    e
+                Some(Ok(data)) => {
+                    return Poll::Ready(Some(Ok(data)));
                 }
-                other => other,
+                Some(Err(e)) => {
+                    self.done = true;
+                    return Poll::Ready(Some(Err(e)));
+                }
             }
         }
     }
