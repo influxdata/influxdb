@@ -25,6 +25,7 @@ fn keyword_follow_char(i: &str) -> ParseResult<&str, &str> {
         tag("\t"),
         tag(","),
         tag("="),
+        tag("!"), // possible !=
         tag("/"), // possible comment
         tag("-"), // possible comment
         eof,
@@ -277,6 +278,13 @@ mod test {
         // Will fail because keyword `OR` in `ORDER` is not recognized, as is not terminated by a valid character
         let err = or_keyword("ORDER").unwrap_err();
         assert_matches!(err, nom::Err::Error(crate::internal::Error::Nom(_, kind)) if kind == nom::error::ErrorKind::Fail);
+
+        // test valid follow-on characters
+        let mut tag_keyword = keyword("TAG");
+
+        let (rem, got) = tag_keyword("tag!").unwrap();
+        assert_eq!(rem, "!");
+        assert_eq!(got, "tag");
     }
 
     #[test]

@@ -1,6 +1,7 @@
 use influxdb_influxql_parser::expression::Expr;
 use influxdb_influxql_parser::select::{Field, SelectStatement};
 use influxdb_influxql_parser::visit::{Recursion, Visitable, Visitor, VisitorResult};
+use std::ops::Deref;
 
 /// Returns the name of the field.
 ///
@@ -14,15 +15,17 @@ pub(crate) fn field_name(f: &Field) -> String {
         return alias.to_string();
     }
 
-    match &f.expr {
-        Expr::Call { name, .. } => name.clone(),
-        Expr::Nested(nested) => field_name(&Field {
-            expr: *nested.clone(),
-            alias: None,
-        }),
-        Expr::Binary { .. } => binary_expr_name(&f.expr),
-        Expr::VarRef { name, .. } => name.to_string(),
-        _ => "".to_string(),
+    let mut expr = &f.expr;
+    loop {
+        expr = match expr {
+            Expr::Call { name, .. } => return name.clone(),
+            Expr::Nested(nested) => nested,
+            Expr::Binary { .. } => return binary_expr_name(&f.expr),
+            Expr::UnaryOp(_, nested) => nested,
+            Expr::Distinct(_) => return "distinct".to_string(),
+            Expr::VarRef { name, .. } => return name.deref().into(),
+            Expr::Wildcard(_) | Expr::BindParameter(_) | Expr::Literal(_) => return "".to_string(),
+        };
     }
 }
 
@@ -103,6 +106,22 @@ mod test {
 
         let f = get_first_field("SELECT 1+2 FROM cpu");
         assert_eq!(field_name(&f), "");
+
+        let f = get_first_field("SELECT 1 + usage FROM cpu");
+        assert_eq!(field_name(&f), "usage");
+
+        let f = get_first_field("SELECT /reg/ FROM cpu");
+        assert_eq!(field_name(&f), "");
+
+        let f = get_first_field("SELECT DISTINCT usage FROM cpu");
+        assert_eq!(field_name(&f), "distinct");
+
+        let f = get_first_field("SELECT -usage FROM cpu");
+        assert_eq!(field_name(&f), "usage");
+
+        // Doesn't quote keyword
+        let f = get_first_field("SELECT \"user\" FROM cpu");
+        assert_eq!(field_name(&f), "user");
     }
 
     #[test]

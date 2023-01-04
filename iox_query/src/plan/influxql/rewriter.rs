@@ -18,7 +18,7 @@ use influxdb_influxql_parser::visit::{Recursion, Visitable, Visitor, VisitorResu
 use itertools::Itertools;
 use query_functions::clean_non_meta_escapes;
 use std::borrow::Borrow;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -210,7 +210,7 @@ fn walk_expr_mut(expr: &mut Expr, visit: &mut impl FnMut(&mut Expr) -> Result<()
 }
 
 /// Perform a depth-first traversal of the expression tree.
-fn walk_expr(expr: &Expr, visit: &mut impl FnMut(&Expr) -> Result<()>) -> Result<()> {
+pub(crate) fn walk_expr(expr: &Expr, visit: &mut impl FnMut(&Expr) -> Result<()>) -> Result<()> {
     match expr {
         Expr::Binary { lhs, rhs, .. } => {
             walk_expr(lhs, visit)?;
@@ -488,6 +488,42 @@ fn rewrite_field_list(stmt: &mut SelectStatement, schema: Arc<dyn SchemaProvider
     Ok(())
 }
 
+/// Resolve the outer-most `SELECT` projection list column names in accordance with the
+/// [original implementation]. The names are assigned to the `alias` field of the [`Field`] struct.
+///
+/// [original implementation]: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L1651
+fn rewrite_field_list_aliases(field_list: &mut FieldList) -> Result<()> {
+    let names = field_list.iter().map(field_name).collect::<Vec<_>>();
+    let mut column_aliases = HashMap::<&str, _>::from_iter(names.iter().map(|f| (f.as_str(), 0)));
+    names
+        .iter()
+        .zip(field_list.iter_mut())
+        .for_each(|(name, field)| {
+            // Generate a new name if there is an existing alias
+            field.alias = Some(match column_aliases.get(name.as_str()) {
+                Some(0) => {
+                    column_aliases.insert(name, 1);
+                    name.as_str().into()
+                }
+                Some(count) => {
+                    let mut count = *count;
+                    loop {
+                        let resolved_name = format!("{}_{}", name, count);
+                        if column_aliases.contains_key(resolved_name.as_str()) {
+                            count += 1;
+                        } else {
+                            column_aliases.insert(name, count + 1);
+                            break resolved_name.as_str().into();
+                        }
+                    }
+                }
+                None => unreachable!(),
+            })
+        });
+
+    Ok(())
+}
+
 /// Recursively rewrite the specified [`SelectStatement`], expanding any wildcards or regular expressions
 /// found in the projection list, `FROM` clause or `GROUP BY` clause.
 pub(crate) fn rewrite_statement(
@@ -497,6 +533,7 @@ pub(crate) fn rewrite_statement(
     let mut stmt = q.clone();
     rewrite_from(&mut stmt, Arc::clone(&schema))?;
     rewrite_field_list(&mut stmt, schema)?;
+    rewrite_field_list_aliases(&mut stmt.fields)?;
 
     Ok(stmt)
 }
@@ -525,7 +562,32 @@ mod test {
         // Exact, match
         let stmt = parse_select("SELECT usage_user FROM cpu");
         let stmt = rewrite_statement(&stmt, MockSchemaProvider::new_schema_provider()).unwrap();
-        assert_eq!(stmt.to_string(), "SELECT usage_user::float FROM cpu");
+        assert_eq!(
+            stmt.to_string(),
+            "SELECT usage_user::float AS usage_user FROM cpu"
+        );
+
+        // Duplicate columns do not have conflicting aliases
+        let stmt = parse_select("SELECT usage_user, usage_user FROM cpu");
+        let stmt = rewrite_statement(&stmt, MockSchemaProvider::new_schema_provider()).unwrap();
+        assert_eq!(
+            stmt.to_string(),
+            "SELECT usage_user::float AS usage_user, usage_user::float AS usage_user_1 FROM cpu"
+        );
+
+        // Multiple aliases with no conflicts
+        let stmt = parse_select("SELECT usage_user as usage_user_1, usage_user FROM cpu");
+        let stmt = rewrite_statement(&stmt, MockSchemaProvider::new_schema_provider()).unwrap();
+        assert_eq!(
+            stmt.to_string(),
+            "SELECT usage_user::float AS usage_user_1, usage_user::float AS usage_user FROM cpu"
+        );
+
+        // Multiple aliases with conflicts
+        let stmt =
+            parse_select("SELECT usage_user as usage_user_1, usage_user, usage_user, usage_user as usage_user_2, usage_user, usage_user_2 FROM cpu");
+        let stmt = rewrite_statement(&stmt, MockSchemaProvider::new_schema_provider()).unwrap();
+        assert_eq!(stmt.to_string(), "SELECT usage_user::float AS usage_user_1, usage_user::float AS usage_user, usage_user::float AS usage_user_3, usage_user::float AS usage_user_2, usage_user::float AS usage_user_4, usage_user_2 AS usage_user_2_1 FROM cpu");
 
         // Rewriting FROM clause
 
@@ -534,7 +596,7 @@ mod test {
         let stmt = rewrite_statement(&stmt, MockSchemaProvider::new_schema_provider()).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT bytes_free::integer FROM disk, diskio"
+            "SELECT bytes_free::integer AS bytes_free FROM disk, diskio"
         );
 
         // Exact, no match
@@ -554,14 +616,14 @@ mod test {
         let stmt = rewrite_statement(&stmt, MockSchemaProvider::new_schema_provider()).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT host::tag, region::tag, usage_idle::float, usage_system::float, usage_user::float FROM cpu"
+            "SELECT host::tag AS host, region::tag AS region, usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu"
         );
 
         let stmt = parse_select("SELECT * FROM cpu, disk");
         let stmt = rewrite_statement(&stmt, MockSchemaProvider::new_schema_provider()).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT bytes_free::integer, bytes_used::integer, host::tag, region::tag, usage_idle::float, usage_system::float, usage_user::float FROM cpu, disk"
+            "SELECT bytes_free::integer AS bytes_free, bytes_used::integer AS bytes_used, host::tag AS host, region::tag AS region, usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu, disk"
         );
 
         // Regular expression selects fields from multiple measurements
@@ -569,20 +631,23 @@ mod test {
         let stmt = rewrite_statement(&stmt, MockSchemaProvider::new_schema_provider()).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT bytes_free::integer, bytes_used::integer, usage_idle::float, usage_system::float, usage_user::float FROM cpu, disk"
+            "SELECT bytes_free::integer AS bytes_free, bytes_used::integer AS bytes_used, usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu, disk"
         );
 
         // Selective wildcard for tags
         let stmt = parse_select("SELECT *::tag FROM cpu");
         let stmt = rewrite_statement(&stmt, MockSchemaProvider::new_schema_provider()).unwrap();
-        assert_eq!(stmt.to_string(), "SELECT host::tag, region::tag FROM cpu");
+        assert_eq!(
+            stmt.to_string(),
+            "SELECT host::tag AS host, region::tag AS region FROM cpu"
+        );
 
         // Selective wildcard for fields
         let stmt = parse_select("SELECT *::field FROM cpu");
         let stmt = rewrite_statement(&stmt, MockSchemaProvider::new_schema_provider()).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT usage_idle::float, usage_system::float, usage_user::float FROM cpu"
+            "SELECT usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu"
         );
 
         // Mixed fields and wildcards
@@ -590,7 +655,7 @@ mod test {
         let stmt = rewrite_statement(&stmt, MockSchemaProvider::new_schema_provider()).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT usage_idle::float, host::tag, region::tag FROM cpu"
+            "SELECT usage_idle::float AS usage_idle, host::tag AS host, region::tag AS region FROM cpu"
         );
 
         // GROUP BY expansion
@@ -599,14 +664,14 @@ mod test {
         let stmt = rewrite_statement(&stmt, MockSchemaProvider::new_schema_provider()).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT usage_idle::float FROM cpu GROUP BY host"
+            "SELECT usage_idle::float AS usage_idle FROM cpu GROUP BY host"
         );
 
         let stmt = parse_select("SELECT usage_idle FROM cpu GROUP BY *");
         let stmt = rewrite_statement(&stmt, MockSchemaProvider::new_schema_provider()).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT usage_idle::float FROM cpu GROUP BY host, region"
+            "SELECT usage_idle::float AS usage_idle FROM cpu GROUP BY host, region"
         );
 
         // Fallible
@@ -623,7 +688,7 @@ mod test {
         let stmt = rewrite_statement(&stmt, MockSchemaProvider::new_schema_provider()).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT usage_idle::float FROM (SELECT usage_idle::float FROM cpu)"
+            "SELECT usage_idle::float AS usage_idle FROM (SELECT usage_idle::float FROM cpu)"
         );
 
         // Subquery, regex, match
@@ -631,7 +696,7 @@ mod test {
         let stmt = rewrite_statement(&stmt, MockSchemaProvider::new_schema_provider()).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT bytes_free::integer FROM (SELECT bytes_free::integer FROM disk, diskio)"
+            "SELECT bytes_free::integer AS bytes_free FROM (SELECT bytes_free::integer FROM disk, diskio)"
         );
 
         // Subquery, exact, no match
@@ -639,7 +704,7 @@ mod test {
         let stmt = rewrite_statement(&stmt, MockSchemaProvider::new_schema_provider()).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT usage_idle FROM (SELECT usage_idle )"
+            "SELECT usage_idle AS usage_idle FROM (SELECT usage_idle )"
         );
 
         // Subquery, regex, no match
@@ -647,7 +712,7 @@ mod test {
         let stmt = rewrite_statement(&stmt, MockSchemaProvider::new_schema_provider()).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT bytes_free FROM (SELECT bytes_free )"
+            "SELECT bytes_free AS bytes_free FROM (SELECT bytes_free )"
         );
 
         // Binary expression
@@ -655,7 +720,15 @@ mod test {
         let stmt = rewrite_statement(&stmt, MockSchemaProvider::new_schema_provider()).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT bytes_free::integer + bytes_used::integer FROM disk"
+            "SELECT bytes_free::integer + bytes_used::integer AS bytes_free_bytes_used FROM disk"
+        );
+
+        // Unary expressions
+        let stmt = parse_select("SELECT -bytes_free FROM disk");
+        let stmt = rewrite_statement(&stmt, MockSchemaProvider::new_schema_provider()).unwrap();
+        assert_eq!(
+            stmt.to_string(),
+            "SELECT -bytes_free::integer AS bytes_free FROM disk"
         );
 
         // Call expressions
@@ -664,14 +737,22 @@ mod test {
         let stmt = rewrite_statement(&stmt, MockSchemaProvider::new_schema_provider()).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT COUNT(field_i64::integer) FROM temp_01"
+            "SELECT COUNT(field_i64::integer) AS COUNT FROM temp_01"
+        );
+
+        // Duplicate aggregate columns
+        let stmt = parse_select("SELECT COUNT(field_i64), COUNT(field_i64) FROM temp_01");
+        let stmt = rewrite_statement(&stmt, MockSchemaProvider::new_schema_provider()).unwrap();
+        assert_eq!(
+            stmt.to_string(),
+            "SELECT COUNT(field_i64::integer) AS COUNT, COUNT(field_i64::integer) AS COUNT_1 FROM temp_01"
         );
 
         let stmt = parse_select("SELECT COUNT(field_f64) FROM temp_01");
         let stmt = rewrite_statement(&stmt, MockSchemaProvider::new_schema_provider()).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT COUNT(field_f64::float) FROM temp_01"
+            "SELECT COUNT(field_f64::float) AS COUNT FROM temp_01"
         );
 
         // Expands all fields

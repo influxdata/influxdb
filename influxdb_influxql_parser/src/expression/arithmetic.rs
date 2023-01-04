@@ -191,6 +191,8 @@ pub enum VarRefDataType {
     Field,
     /// Represents a tag.
     Tag,
+    /// Represents a timestamp.
+    Timestamp,
 }
 
 impl VarRefDataType {
@@ -215,6 +217,7 @@ impl Display for VarRefDataType {
             Self::Boolean => f.write_str("boolean"),
             Self::Tag => f.write_str("tag"),
             Self::Field => f.write_str("field"),
+            Self::Timestamp => f.write_str("timestamp"),
         }
     }
 }

@@ -10,7 +10,7 @@ pub(crate) fn var_ref_data_type_to_field_type(v: VarRefDataType) -> Option<Influ
         VarRefDataType::Float => Some(InfluxFieldType::Float),
         VarRefDataType::String => Some(InfluxFieldType::String),
         VarRefDataType::Boolean => Some(InfluxFieldType::Boolean),
-        VarRefDataType::Tag | VarRefDataType::Field => None,
+        VarRefDataType::Tag | VarRefDataType::Field | VarRefDataType::Timestamp => None,
     }
 }
 
@@ -54,6 +54,7 @@ mod test {
         );
         assert!(var_ref_data_type_to_field_type(VarRefDataType::Field).is_none());
         assert!(var_ref_data_type_to_field_type(VarRefDataType::Tag).is_none());
+        assert!(var_ref_data_type_to_field_type(VarRefDataType::Timestamp).is_none());
     }
 
     #[test]

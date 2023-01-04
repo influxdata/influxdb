@@ -74,6 +74,54 @@ impl MockSchemaProvider {
     pub(crate) fn new_schema_provider() -> Arc<dyn SchemaProvider> {
         Arc::new(Self {})
     }
+
+    /// Return the chunks that make up the test database.
+    pub(crate) fn table_chunks() -> Vec<TestChunk> {
+        vec![
+            TestChunk::new("cpu")
+                .with_quiet()
+                .with_tag_column("host")
+                .with_tag_column("region")
+                .with_f64_field_column("usage_user")
+                .with_f64_field_column("usage_system")
+                .with_f64_field_column("usage_idle"),
+            TestChunk::new("disk")
+                .with_quiet()
+                .with_tag_column("host")
+                .with_tag_column("region")
+                .with_i64_field_column("bytes_used")
+                .with_i64_field_column("bytes_free"),
+            TestChunk::new("diskio")
+                .with_quiet()
+                .with_tag_column("host")
+                .with_tag_column("region")
+                .with_tag_column("status")
+                .with_i64_field_column("bytes_read")
+                .with_i64_field_column("bytes_written")
+                .with_f64_field_column("read_utilization")
+                .with_f64_field_column("write_utilization")
+                .with_bool_field_column("is_local"),
+            // Schemas for testing merged schemas
+            TestChunk::new("temp_01")
+                .with_quiet()
+                .with_tag_column("shared_tag0")
+                .with_tag_column("shared_tag1")
+                .with_f64_field_column("shared_field0")
+                .with_f64_field_column("field_f64")
+                .with_i64_field_column("field_i64")
+                .with_string_field_column_with_stats("field_str", None, None),
+            TestChunk::new("temp_02")
+                .with_quiet()
+                .with_tag_column("shared_tag0")
+                .with_tag_column("shared_tag1")
+                .with_i64_field_column("shared_field0"),
+            TestChunk::new("temp_03")
+                .with_quiet()
+                .with_tag_column("shared_tag0")
+                .with_tag_column("shared_tag1")
+                .with_string_field_column_with_stats("shared_field0", None, None),
+        ]
+    }
 }
 
 impl SchemaProvider for MockSchemaProvider {
@@ -82,77 +130,18 @@ impl SchemaProvider for MockSchemaProvider {
     }
 
     fn table_names(&self) -> Vec<String> {
-        vec![
-            "cpu".into(),
-            "disk".into(),
-            "diskio".into(),
-            "temp_01".into(),
-            "temp_03".into(),
-            "temp_03".into(),
-        ]
-        .into_iter()
-        .sorted()
-        .collect::<Vec<_>>()
+        Self::table_chunks()
+            .iter()
+            .map(|c| c.table_name().into())
+            .sorted()
+            .collect::<Vec<_>>()
     }
 
     fn table(&self, name: &str) -> Option<Arc<dyn TableProvider>> {
-        let schema = match name {
-            "cpu" => Some(
-                TestChunk::new("cpu")
-                    .with_tag_column("host")
-                    .with_tag_column("region")
-                    .with_f64_field_column("usage_user")
-                    .with_f64_field_column("usage_system")
-                    .with_f64_field_column("usage_idle")
-                    .schema(),
-            ),
-            "disk" => Some(
-                TestChunk::new("disk")
-                    .with_tag_column("host")
-                    .with_tag_column("region")
-                    .with_i64_field_column("bytes_used")
-                    .with_i64_field_column("bytes_free")
-                    .schema(),
-            ),
-            "diskio" => Some(
-                TestChunk::new("diskio")
-                    .with_tag_column("host")
-                    .with_tag_column("region")
-                    .with_tag_column("status")
-                    .with_i64_field_column("bytes_read")
-                    .with_i64_field_column("bytes_written")
-                    .with_f64_field_column("read_utilization")
-                    .with_f64_field_column("write_utilization")
-                    .with_bool_field_column("is_local")
-                    .schema(),
-            ),
-            // Schemas for testing merged schemas
-            "temp_01" => Some(
-                TestChunk::new("temp_01")
-                    .with_tag_column("shared_tag0")
-                    .with_tag_column("shared_tag1")
-                    .with_f64_field_column("shared_field0")
-                    .with_f64_field_column("field_f64")
-                    .with_i64_field_column("field_i64")
-                    .with_string_field_column_with_stats("field_str", None, None)
-                    .schema(),
-            ),
-            "temp_02" => Some(
-                TestChunk::new("temp_02")
-                    .with_tag_column("shared_tag0")
-                    .with_tag_column("shared_tag1")
-                    .with_i64_field_column("shared_field0")
-                    .schema(),
-            ),
-            "temp_03" => Some(
-                TestChunk::new("temp_03")
-                    .with_tag_column("shared_tag0")
-                    .with_tag_column("shared_tag1")
-                    .with_string_field_column_with_stats("shared_field0", None, None)
-                    .schema(),
-            ),
-            _ => None,
-        };
+        let schema = Self::table_chunks()
+            .iter()
+            .find(|c| c.table_name() == name)
+            .map(|c| c.schema());
 
         match schema {
             Some(s) => Some(Arc::new(EmptyTable::new(Arc::clone(s.inner())))),
