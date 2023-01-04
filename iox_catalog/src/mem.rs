@@ -1317,6 +1317,20 @@ impl ParquetFileRepo for MemTxn {
             .cloned()
             .collect())
     }
+    async fn partitions_with_recent_created_files(
+        &mut self,
+        time_in_the_past: Timestamp,
+    ) -> Result<Vec<PartitionId>> {
+        let stage = self.stage();
+
+        let partitions: Vec<_> = stage
+            .parquet_files
+            .iter()
+            .filter(|f| f.created_at > time_in_the_past)
+            .map(|f| f.partition_id)
+            .collect();
+        Ok(partitions)
+    }
 
     async fn recent_highest_throughput_partitions(
         &mut self,

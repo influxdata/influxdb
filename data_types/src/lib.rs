@@ -241,7 +241,7 @@ pub enum IngesterMapping {
 }
 
 /// Unique ID for a `Partition`
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type, sqlx::FromRow)]
 #[sqlx(transparent)]
 pub struct PartitionId(i64);
 
