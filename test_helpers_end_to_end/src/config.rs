@@ -99,13 +99,28 @@ impl TestConfig {
         .with_default_ingester_options()
     }
 
-    /// Create a minimal ingester2 configuration, using the dsn configuration specified
+    /// Create a minimal ingester2 configuration, using the dsn configuration specified. Set the
+    /// persistence options such that it will persist as quickly as possible.
     pub fn new_ingester2(dsn: impl Into<String>) -> Self {
         let dsn = Some(dsn.into());
         Self::new(ServerType::Ingester2, dsn, random_catalog_schema_name())
             .with_new_object_store()
             .with_new_wal()
             .with_default_ingester_options()
+            .with_env("INFLUXDB_IOX_WAL_ROTATION_PERIOD_SECONDS", "1")
+    }
+
+    /// Create a minimal ingester2 configuration, using the dsn configuration specified. Set the
+    /// persistence options such that it will likely never persist, to be able to test when data
+    /// only exists in the ingester's memory.
+    pub fn new_ingester2_never_persist(dsn: impl Into<String>) -> Self {
+        let dsn = Some(dsn.into());
+        Self::new(ServerType::Ingester2, dsn, random_catalog_schema_name())
+            .with_new_object_store()
+            .with_new_wal()
+            .with_default_ingester_options()
+            // I didn't run my tests for a day, because that would be too long
+            .with_env("INFLUXDB_IOX_WAL_ROTATION_PERIOD_SECONDS", "86400")
     }
 
     /// Create a minimal querier configuration from the specified
@@ -117,6 +132,17 @@ impl TestConfig {
         Self::new_querier_without_ingester(ingester_config)
             // Configure to talk with the ingester
             .with_ingester_mapping(ingester_config.ingester_base().as_ref())
+    }
+
+    /// Create a minimal querier2 configuration from the specified ingester2 configuration, using
+    /// the same dsn and object store, and pointing at the specified ingester.
+    pub fn new_querier2(ingester_config: &TestConfig) -> Self {
+        assert_eq!(ingester_config.server_type(), ServerType::Ingester2);
+
+        Self::new_querier2_without_ingester2(ingester_config).with_env(
+            "INFLUXDB_IOX_INGESTER_ADDRESSES",
+            ingester_config.ingester_base().as_ref(),
+        )
     }
 
     /// Create a minimal compactor configuration, using the dsn
@@ -141,6 +167,18 @@ impl TestConfig {
         )
         .with_existing_object_store(ingester_config)
         .with_shard_to_ingesters_mapping("{\"ignoreAll\": true}")
+    }
+
+    /// Create a minimal querier2 configuration from the specified ingester2 configuration, using
+    /// the same dsn and object store, but without specifying the ingester2 addresses
+    pub fn new_querier2_without_ingester2(ingester_config: &TestConfig) -> Self {
+        Self::new(
+            ServerType::Querier2,
+            ingester_config.dsn().to_owned(),
+            ingester_config.catalog_schema_name(),
+        )
+        .with_existing_object_store(ingester_config)
+        .with_env("INFLUXDB_IOX_RPC_MODE", "2")
     }
 
     /// Create a minimal all in one configuration
