@@ -30,7 +30,7 @@ type Replication struct {
 	RemoteBucketName        string       `json:"RemoteBucketName" db:"remote_bucket_name"`
 	MaxQueueSizeBytes       int64        `json:"maxQueueSizeBytes" db:"max_queue_size_bytes"`
 	CurrentQueueSizeBytes   int64        `json:"currentQueueSizeBytes" db:"current_queue_size_bytes"`
-	RemainingQueueSizeBytes int64        `json:"RemainingQueueSizeBytes" db:"remaining_queue_size_bytes"`
+	RemainingQueueSizeBytes int64        `json:"remainingQueueSizeBytes" db:"remaining_queue_size_bytes"`
 	LatestResponseCode      *int32       `json:"latestResponseCode,omitempty" db:"latest_response_code"`
 	LatestErrorMessage      *string      `json:"latestErrorMessage,omitempty" db:"latest_error_message"`
 	DropNonRetryableData    bool         `json:"dropNonRetryableData" db:"drop_non_retryable_data"`
