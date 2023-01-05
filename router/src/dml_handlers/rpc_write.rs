@@ -25,9 +25,36 @@ pub fn build_ingester_connection<T>(addrs: impl Iterator<Item = T>) -> WriteServ
 where
     T: AsRef<str>,
 {
-    WriteServiceClient::new(Channel::balance_list(
-        addrs.map(|s| Endpoint::from_str(s.as_ref()).expect("invalid ingester address")),
-    ))
+    let endpoints = addrs
+        .map(|s| Endpoint::from_str(s.as_ref()).expect("invalid ingester address"))
+        .collect::<Vec<_>>();
+
+    let (channel, tx) = Channel::balance_channel(endpoints.len());
+
+    // BUG: tower balance removes failed nodes from the pool, except the last
+    // node in the pool, which leads to a router talking to one ingester.
+    //
+    // As an absolute hack, keep inserting the nodes into the pool to drive
+    // discovery after they have failed.
+    //
+    //      https://github.com/influxdata/influxdb_iox/issues/6508
+    //
+    tokio::spawn(async move {
+        loop {
+            for e in &endpoints {
+                tx.send(tower::discover::Change::Insert(
+                    e.uri().to_owned(),
+                    e.clone(),
+                ))
+                .await
+                .expect("no grpc balance receiver");
+            }
+
+            tokio::time::sleep(Duration::from_secs(5)).await;
+        }
+    });
+
+    WriteServiceClient::new(channel)
 }
 
 /// The bound on RPC request duration.
