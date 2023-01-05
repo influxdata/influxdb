@@ -127,9 +127,10 @@ impl Reconciler {
         };
 
         debug!(
-            parquet_ids=?parquet_files.iter().map(|f| f.meta().parquet_file_id()).collect::<Vec<_>>(),
             namespace=%self.namespace_name(),
             table_name=%self.table_name(),
+            n=parquet_files.len(),
+            parquet_ids=?parquet_files.iter().map(|f| f.meta().parquet_file_id().get()).collect::<Vec<_>>(),
             "Parquet files after filtering"
         );
 
