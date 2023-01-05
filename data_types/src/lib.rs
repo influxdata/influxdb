@@ -13,6 +13,8 @@
     clippy::dbg_macro
 )]
 
+pub mod sequence_number_set;
+
 use influxdb_line_protocol::FieldValue;
 use observability_deps::tracing::warn;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
