@@ -417,7 +417,7 @@ func TestEnqueueData(t *testing.T) {
 	require.NoError(t, err)
 	// Empty queues are 8 bytes for the footer.
 	require.Equal(t, map[platform.ID]int64{id1: 8}, sizes)
-	//Remaining queue should initially be empty:
+	// Remaining queue should initially be empty:
 	rsizes, err := qm.RemainingQueueSizes([]platform.ID{id1})
 	require.NoError(t, err)
 	// Empty queue = 0 bytes:
