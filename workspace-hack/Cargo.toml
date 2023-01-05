@@ -20,7 +20,7 @@ ahash = { version = "0.8", default-features = false, features = ["getrandom", "r
 arrow = { version = "29", features = ["arrow-csv", "arrow-ipc", "arrow-json", "comfy-table", "csv", "dyn_cmp_dict", "ipc", "json", "prettyprint"] }
 arrow-flight = { version = "29", features = ["flight-sql-experimental", "prost-types"] }
 arrow-ord = { version = "29", default-features = false, features = ["dyn_cmp_dict"] }
-arrow-string = { version = "29", default-features = false, features = ["dyn_cmp_dict"] }
+arrow-string = { version = "30", default-features = false, features = ["dyn_cmp_dict"] }
 base64 = { version = "0.13", features = ["std"] }
 bitflags = { version = "1" }
 byteorder = { version = "1", features = ["std"] }
