@@ -315,7 +315,7 @@ func (qm *durableQueueManager) CurrentQueueSizes(ids []platform.ID) (map[platfor
 	return sizes, nil
 }
 
-//Returns the remaining number of bytes in Queue to be read:
+// Returns the remaining number of bytes in Queue to be read:
 func (qm *durableQueueManager) RemainingQueueSizes(ids []platform.ID) (map[platform.ID]int64, error) {
 	qm.mutex.RLock()
 	defer qm.mutex.RUnlock()
