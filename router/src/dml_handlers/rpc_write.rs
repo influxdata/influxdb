@@ -12,19 +12,22 @@ use mutable_batch::MutableBatch;
 use mutable_batch_pb::encode::encode_write;
 use observability_deps::tracing::*;
 use sharder::RoundRobin;
-use std::{fmt::Debug, time::Duration};
+use std::{fmt::Debug, str::FromStr, time::Duration};
 use thiserror::Error;
+use tonic::transport::{Channel, Endpoint};
 use trace::ctx::SpanContext;
 
-/// Create a client to the ingester's write service.
-pub async fn write_service_client(
-    ingester_addr: &str,
-) -> WriteServiceClient<client_util::connection::GrpcConnection> {
-    let connection = client_util::connection::Builder::default()
-        .build(format!("http://{}", ingester_addr))
-        .await
-        .unwrap_or_else(|e| panic!("failed to connect to server {ingester_addr}: {e}"));
-    WriteServiceClient::new(connection.into_grpc_connection())
+/// Create a connection to one or more ingesters, load-balancing requests across
+/// all of them.
+///
+/// Connections are lazily established.
+pub fn build_ingester_connection<T>(addrs: impl Iterator<Item = T>) -> WriteServiceClient<Channel>
+where
+    T: AsRef<str>,
+{
+    WriteServiceClient::new(Channel::balance_list(
+        addrs.map(|s| Endpoint::from_str(s.as_ref()).expect("invalid ingester address")),
+    ))
 }
 
 /// The bound on RPC request duration.
@@ -127,6 +130,7 @@ where
                     Ok(()) => break,
                     Err(e) => warn!(error=%e, "failed ingester rpc write"),
                 };
+                tokio::time::sleep(Duration::from_millis(50)).await;
             }
         })
         .await?;
