@@ -172,6 +172,47 @@ impl MiniCluster {
         new_cluster
     }
 
+    /// Create a shared "version 2" MiniCluster that has a router, ingester set to essentially
+    /// never persist data (except on-demand), and querier (but no
+    /// compactor as that should be run on-demand in tests).
+    ///
+    /// Note: Because the underlying server processes are shared across multiple tests, all users
+    /// of this `MiniCluster` instance should only modify their own unique namespace.
+    pub async fn create_shared2_never_persist(database_url: String) -> Self {
+        let start = Instant::now();
+        let mut shared_servers = GLOBAL_SHARED_SERVERS2_NEVER_PERSIST.lock().await;
+        debug!(mutex_wait=?start.elapsed(), "creating standard2 cluster");
+
+        // try to reuse existing server processes
+        if let Some(shared) = shared_servers.take() {
+            if let Some(cluster) = shared.creatable_cluster().await {
+                debug!("Reusing existing cluster");
+
+                // Put the server back
+                *shared_servers = Some(shared);
+                let start = Instant::now();
+                // drop the lock prior to calling `create()` to allow others to proceed
+                std::mem::drop(shared_servers);
+                let new_self = cluster.create().await;
+                info!(
+                    total_wait=?start.elapsed(),
+                    "created new mini cluster2 from existing cluster"
+                );
+                return new_self;
+            } else {
+                info!("some server proceses of previous cluster2 have already returned");
+            }
+        }
+
+        // Have to make a new one
+        info!("Create a new server2 set to never persist");
+        let new_cluster = Self::create_non_shared2_never_persist(database_url).await;
+
+        // Update the shared servers to point at the newly created server proesses
+        *shared_servers = Some(SharedServers::new(&new_cluster));
+        new_cluster
+    }
+
     /// Create a non shared "standard" MiniCluster that has a router, ingester, querier. Save
     /// config for a compactor, but the compactor should be run on-demand in tests using `compactor
     /// run-once` rather than using `run compactor`.
@@ -195,6 +236,23 @@ impl MiniCluster {
     /// Create a non-shared "version 2" "standard" MiniCluster that has a router, ingester, querier.
     pub async fn create_non_shared2(database_url: String) -> Self {
         let ingester_config = TestConfig::new_ingester2(&database_url);
+        let router_config = TestConfig::new_router2(&ingester_config);
+        let querier_config = TestConfig::new_querier2(&ingester_config);
+
+        // Set up the cluster  ====================================
+        Self::new()
+            .with_ingester(ingester_config)
+            .await
+            .with_router(router_config)
+            .await
+            .with_querier(querier_config)
+            .await
+    }
+
+    /// Create a non-shared "version 2" MiniCluster that has a router, ingester set to essentially
+    /// never persist data (except on-demand), and querier.
+    pub async fn create_non_shared2_never_persist(database_url: String) -> Self {
+        let ingester_config = TestConfig::new_ingester2_never_persist(&database_url);
         let router_config = TestConfig::new_router2(&ingester_config);
         let querier_config = TestConfig::new_querier2(&ingester_config);
 
@@ -532,3 +590,5 @@ static GLOBAL_SHARED_SERVERS: Lazy<Mutex<Option<SharedServers>>> = Lazy::new(|| 
 // For the new server versions. `GLOBAL_SHARED_SERVERS` can be removed and this can be renamed
 // when the migration to router2/etc is complete.
 static GLOBAL_SHARED_SERVERS2: Lazy<Mutex<Option<SharedServers>>> = Lazy::new(|| Mutex::new(None));
+static GLOBAL_SHARED_SERVERS2_NEVER_PERSIST: Lazy<Mutex<Option<SharedServers>>> =
+    Lazy::new(|| Mutex::new(None));
