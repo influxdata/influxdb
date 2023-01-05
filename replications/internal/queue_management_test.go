@@ -438,7 +438,7 @@ func TestEnqueueData(t *testing.T) {
 	rsizes, err = qm.RemainingQueueSizes([]platform.ID{id1})
 	require.NoError(t, err)
 	require.Greater(t, rsizes[id1], int64(0))
-	//Difference between disk size and queue should only be footer size
+	// Difference between disk size and queue should only be footer size
 	require.Equal(t, sizes[id1]-rsizes[id1], int64(8))
 
 	written, err := qm.replicationQueues[id1].queue.Current()
