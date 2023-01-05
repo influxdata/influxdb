@@ -1876,6 +1876,23 @@ WHERE parquet_file.shard_id = $1
         .map_err(|e| Error::SqlxError { source: e })
     }
 
+    async fn partitions_with_recent_created_files(
+        &mut self,
+        time_in_the_past: Timestamp,
+    ) -> Result<Vec<PartitionId>> {
+        sqlx::query_as::<_, PartitionId>(
+            r#"
+            SELECT distinct partition_id
+            FROM   parquet_file
+            WHERE  created_at > $1;
+            "#,
+        )
+        .bind(time_in_the_past) // $1
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
+    }
+
     async fn recent_highest_throughput_partitions(
         &mut self,
         shard_id: Option<ShardId>,

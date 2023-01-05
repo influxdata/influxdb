@@ -12,9 +12,19 @@ pub(super) trait WriteClient: Send + Sync + std::fmt::Debug {
     async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteError>;
 }
 
-/// An implementation of [`WriteClient`] for the tonic gRPC client.
+/// An implementation of [`WriteClient`] for the bespoke IOx wrapper over the
+/// tonic gRPC client.
 #[async_trait]
 impl WriteClient for WriteServiceClient<client_util::connection::GrpcConnection> {
+    async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteError> {
+        WriteServiceClient::write(&mut self.clone(), op).await?;
+        Ok(())
+    }
+}
+
+/// An implementation of [`WriteClient`] for the tonic gRPC client.
+#[async_trait]
+impl WriteClient for WriteServiceClient<tonic::transport::Channel> {
     async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteError> {
         WriteServiceClient::write(&mut self.clone(), op).await?;
         Ok(())

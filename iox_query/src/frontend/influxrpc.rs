@@ -1474,22 +1474,21 @@ fn columns_in_predicates(
     table_name: &str,
     predicate: &Predicate,
 ) -> Option<Vec<usize>> {
-    let mut columns = StdHashSet::new();
-
     // columns in field_columns
-    match &predicate.field_columns {
-        Some(field_columns) => {
-            for field in field_columns {
-                columns.insert(Column::from_name(field));
-            }
-        }
+    let mut columns = match &predicate.field_columns {
+        Some(field_columns) => field_columns
+            .iter()
+            .map(Column::from_name)
+            .collect::<StdHashSet<_>>(),
         None => {
             if need_fields {
                 // fields wanted and `field_columns` is empty mean al fields will be needed
                 return None;
+            } else {
+                StdHashSet::new()
             }
         }
-    }
+    };
 
     // columns in exprs
     let expr_cols_result =
@@ -1506,35 +1505,35 @@ fn columns_in_predicates(
     let projection = if expr_cols_result.is_err() || val_exprs_cols_result.is_err() {
         if expr_cols_result.is_err() {
             let error_message = expr_cols_result.err().unwrap().to_string();
-            warn!(?table_name, ?predicate.exprs, ?error_message, "cannot determine columns in predicate.exprs");
+            warn!(table_name, ?predicate.exprs, ?error_message, "cannot determine columns in predicate.exprs");
         }
         if val_exprs_cols_result.is_err() {
             let error_message = val_exprs_cols_result.err().unwrap().to_string();
-            warn!(?table_name, ?predicate.value_expr, ?error_message, "cannot determine columns in predicate.value_expr");
+            warn!(table_name, ?predicate.value_expr, ?error_message, "cannot determine columns in predicate.value_expr");
         }
 
         None
     } else {
         // convert the column names into their corresponding indexes in the schema
-        let cols = columns
-            .iter()
-            .map(|c| table_schema.find_index_of(&c.name))
-            .collect::<Vec<_>>();
-
-        if cols.contains(&None) || cols.is_empty() {
-            // At least one column has no matching index, we do not know which
-            // columns to filter. Read all columns
-            warn!(
-                ?table_name,
-                ?predicate,
-                ?table_schema,
-                "cannot find index for at least one column in the table schema"
-            );
-            None
-        } else {
-            // We know which columns to filter, read only those columns
-            Some(cols.into_iter().flatten().collect::<Vec<_>>())
+        if columns.is_empty() {
+            return None;
         }
+
+        let mut indices = Vec::with_capacity(columns.len());
+        for c in columns {
+            if let Some(idx) = table_schema.find_index_of(&c.name) {
+                indices.push(idx);
+            } else {
+                warn!(
+                    table_name,
+                    column=c.name.as_str(),
+                    table_columns=?table_schema.iter().map(|(_t, f)| f.name()).collect::<Vec<_>>(),
+                    "cannot find predicate column (field column, value expr, filter expression) table schema",
+                );
+                return None;
+            }
+        }
+        Some(indices)
     };
 
     projection

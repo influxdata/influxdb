@@ -18,9 +18,8 @@ use object_store::DynObjectStore;
 use observability_deps::tracing::info;
 use router::{
     dml_handlers::{
-        write_service_client, DmlHandler, DmlHandlerChainExt, FanOutAdaptor,
-        InstrumentationDecorator, Partitioner, RetentionValidator, RpcWrite, SchemaValidator,
-        ShardedWriteBuffer, WriteSummaryAdapter,
+        DmlHandler, DmlHandlerChainExt, FanOutAdaptor, InstrumentationDecorator, Partitioner,
+        RetentionValidator, RpcWrite, SchemaValidator, ShardedWriteBuffer, WriteSummaryAdapter,
     },
     namespace_cache::{
         metrics::InstrumentedCache, MemoryNamespaceCache, NamespaceCache, ShardedCache,
@@ -259,14 +258,13 @@ pub async fn create_router2_server_type(
     // Hack to handle multiple ingester addresses separated by commas in potentially many uses of
     // the CLI arg
     let ingester_addresses = router_config.ingester_addresses.join(",");
-    let ingester_addresses_list: Vec<_> = ingester_addresses.split(',').collect();
-    let mut ingester_clients = Vec::with_capacity(ingester_addresses_list.len());
-    for ingester_addr in ingester_addresses_list {
-        ingester_clients.push(write_service_client(ingester_addr).await);
-    }
+
+    let grpc_connections = router::dml_handlers::build_ingester_connection(
+        ingester_addresses.split(',').map(|s| format!("http://{s}")),
+    );
 
     // Initialise the DML handler that sends writes to the ingester using the RPC write path.
-    let rpc_writer = RpcWrite::new(RoundRobin::new(ingester_clients));
+    let rpc_writer = RpcWrite::new(RoundRobin::new([grpc_connections]));
     let rpc_writer = InstrumentationDecorator::new("rpc_writer", &metrics, rpc_writer);
     // 1. END
 
