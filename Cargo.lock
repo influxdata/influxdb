@@ -4626,6 +4626,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tonic",
+ "tower",
  "trace",
  "workspace-hack",
  "write_buffer",
