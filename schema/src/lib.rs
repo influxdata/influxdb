@@ -105,19 +105,26 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Schema for an IOx table.
 ///
-/// This struct is a wrapper around an Arrow `SchemaRef` that knows
-/// how to create and interpret the "user defined metadata" added to that schema
-/// by IOx.
+/// This structure can be copied / cloned cheaply
 ///
-/// The metadata can be used to map back and forth to the InfluxDB
+/// Holds an Arrow [`SchemaRef`] that stores IOx schema information in
+/// the "user defined metadata".
+///
+/// The metadata can be used to map back and forth between the Arrow data model
+/// (e.g. [`DataType`]) and the to the InfluxDB
 /// data model, which is described in the
 /// [documentation](https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/).
 ///
 /// Specifically, each column in the Arrow schema has a corresponding
-/// InfluxDB data model type of Tag, Field or Timestamp which is stored in
-/// the metadata field of the ArrowSchemaRef
+/// InfluxDB data model type of `Tag`, `Field` or `Timestamp` which is stored in
+/// the metadata field of the [`SchemaRef`].
+///
+/// [`SchemaRef`]: arrow::datatypes::SchemaRef
+/// [`DataType`]: arrow::datatypes::DataType
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Schema {
+    /// Reference-counted pointer to underlying Arrow Schema
+    ///
     /// All the actual data lives on the metadata structure in
     /// `ArrowSchemaRef` and this structure knows how to access that
     /// metadata
