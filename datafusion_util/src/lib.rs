@@ -227,8 +227,8 @@ where
 
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
         self.inner.poll_next_unpin(cx)
     }
 }
@@ -243,13 +243,13 @@ where
 }
 
 /// Create a SendableRecordBatchStream a RecordBatch
-pub fn stream_from_batch(schema: Arc<Schema>, batch: RecordBatch) -> SendableRecordBatchStream {
+pub fn stream_from_batch(schema: SchemaRef, batch: RecordBatch) -> SendableRecordBatchStream {
     stream_from_batches(schema, vec![Arc::new(batch)])
 }
 
 /// Create a SendableRecordBatchStream from Vec of RecordBatches with the same schema
 pub fn stream_from_batches(
-    schema: Arc<Schema>,
+    schema: SchemaRef,
     batches: Vec<Arc<RecordBatch>>,
 ) -> SendableRecordBatchStream {
     if batches.is_empty() {

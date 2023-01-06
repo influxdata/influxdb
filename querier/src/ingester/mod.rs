@@ -617,7 +617,7 @@ impl IngesterStreamDecoder {
                 .take()
                 .expect("Partition should have been checked before chunk creation");
             self.current_partition =
-                Some(current_partition.try_add_chunk(ChunkId::new(), Arc::new(schema), batches)?);
+                Some(current_partition.try_add_chunk(ChunkId::new(), schema, batches)?);
         }
 
         Ok(())
@@ -1043,7 +1043,7 @@ impl IngesterPartition {
     pub(crate) fn try_add_chunk(
         mut self,
         chunk_id: ChunkId,
-        expected_schema: Arc<Schema>,
+        expected_schema: Schema,
         batches: Vec<RecordBatch>,
     ) -> Result<Self> {
         // ignore chunk if there are no batches
@@ -1059,7 +1059,7 @@ impl IngesterPartition {
         // details)
         let batches = batches
             .into_iter()
-            .map(|batch| ensure_schema(batch, expected_schema.as_ref()))
+            .map(|batch| ensure_schema(batch, &expected_schema))
             .collect::<Result<Vec<RecordBatch>>>()?;
 
         // TODO: may want to ask the Ingester to send this value instead of computing it here.
@@ -1141,7 +1141,7 @@ impl IngesterPartition {
 pub struct IngesterChunk {
     chunk_id: ChunkId,
     partition_id: PartitionId,
-    schema: Arc<Schema>,
+    schema: Schema,
 
     /// Partition-wide sort key.
     partition_sort_key: Option<Arc<SortKey>>,
@@ -1198,9 +1198,9 @@ impl QueryChunkMeta for IngesterChunk {
         Arc::clone(&self.summary)
     }
 
-    fn schema(&self) -> Arc<Schema> {
+    fn schema(&self) -> &Schema {
         trace!(schema=?self.schema, "IngesterChunk schema");
-        Arc::clone(&self.schema)
+        &self.schema
     }
 
     fn partition_sort_key(&self) -> Option<&SortKey> {
@@ -2011,16 +2011,14 @@ mod tests {
             .await
     }
 
-    fn schema() -> Arc<Schema> {
-        Arc::new(
-            SchemaBuilder::new()
-                .influx_field("bar", InfluxFieldType::Float)
-                .influx_field("baz", InfluxFieldType::Float)
-                .influx_field("foo", InfluxFieldType::Float)
-                .timestamp()
-                .build()
-                .unwrap(),
-        )
+    fn schema() -> Schema {
+        SchemaBuilder::new()
+            .influx_field("bar", InfluxFieldType::Float)
+            .influx_field("baz", InfluxFieldType::Float)
+            .influx_field("foo", InfluxFieldType::Float)
+            .timestamp()
+            .build()
+            .unwrap()
     }
 
     fn lp_to_record_batch(lp: &str) -> RecordBatch {
@@ -2165,7 +2163,7 @@ mod tests {
 
     #[test]
     fn test_ingester_partition_type_cast() {
-        let expected_schema = Arc::new(SchemaBuilder::new().tag("t").timestamp().build().unwrap());
+        let expected_schema = SchemaBuilder::new().tag("t").timestamp().build().unwrap();
 
         let cases = vec![
             // send a batch that matches the schema exactly
@@ -2188,7 +2186,7 @@ mod tests {
                 tombstone_max_sequence_number,
                 None,
             )
-            .try_add_chunk(ChunkId::new(), Arc::clone(&expected_schema), vec![case])
+            .try_add_chunk(ChunkId::new(), expected_schema.clone(), vec![case])
             .unwrap();
 
             for batch in &ingester_partition.chunks[0].batches {
@@ -2199,15 +2197,12 @@ mod tests {
 
     #[test]
     fn test_ingester_partition_fail_type_cast() {
-        let expected_schema = Arc::new(
-            SchemaBuilder::new()
-                .field("b", DataType::Boolean)
-                .unwrap()
-                .timestamp()
-                .build()
-                .unwrap(),
-        );
-
+        let expected_schema = SchemaBuilder::new()
+            .field("b", DataType::Boolean)
+            .unwrap()
+            .timestamp()
+            .build()
+            .unwrap();
         let batch =
             RecordBatch::try_from_iter(vec![("b", int64_array()), ("time", ts_array())]).unwrap();
 
@@ -2223,7 +2218,7 @@ mod tests {
             tombstone_max_sequence_number,
             None,
         )
-        .try_add_chunk(ChunkId::new(), Arc::clone(&expected_schema), vec![batch])
+        .try_add_chunk(ChunkId::new(), expected_schema, vec![batch])
         .unwrap_err();
 
         assert_matches!(err, Error::RecordBatchType { .. });

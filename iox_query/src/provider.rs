@@ -100,7 +100,7 @@ pub trait ChunkPruner: Sync + Send + std::fmt::Debug {
     fn prune_chunks(
         &self,
         table_name: &str,
-        table_schema: Arc<Schema>,
+        table_schema: &Schema,
         chunks: Vec<Arc<dyn QueryChunk>>,
         predicate: &Predicate,
     ) -> Result<Vec<Arc<dyn QueryChunk>>>;
@@ -112,7 +112,7 @@ pub trait ChunkPruner: Sync + Send + std::fmt::Debug {
 #[derive(Debug)]
 pub struct ProviderBuilder {
     table_name: Arc<str>,
-    schema: Arc<Schema>,
+    schema: Schema,
     chunks: Vec<Arc<dyn QueryChunk>>,
     output_sort_key: Option<SortKey>,
     deduplication: bool,
@@ -122,7 +122,7 @@ pub struct ProviderBuilder {
 }
 
 impl ProviderBuilder {
-    pub fn new(table_name: Arc<str>, schema: Arc<Schema>, ctx: IOxSessionContext) -> Self {
+    pub fn new(table_name: Arc<str>, schema: Schema, ctx: IOxSessionContext) -> Self {
         Self {
             table_name,
             schema,
@@ -173,7 +173,7 @@ impl ProviderBuilder {
 pub struct ChunkTableProvider {
     table_name: Arc<str>,
     /// The IOx schema (wrapper around Arrow Schemaref) for this table
-    iox_schema: Arc<Schema>,
+    iox_schema: Schema,
     /// The chunks
     chunks: Vec<Arc<dyn QueryChunk>>,
     /// The desired output sort key if any
@@ -187,8 +187,8 @@ pub struct ChunkTableProvider {
 
 impl ChunkTableProvider {
     /// Return the IOx schema view for the data provided by this provider
-    pub fn iox_schema(&self) -> Arc<Schema> {
-        Arc::clone(&self.iox_schema)
+    pub fn iox_schema(&self) -> &Schema {
+        &self.iox_schema
     }
 
     /// Return the Arrow schema view for the data provided by this provider
@@ -229,10 +229,7 @@ impl TableProvider for ChunkTableProvider {
         let chunks: Vec<Arc<dyn QueryChunk>> = self.chunks.to_vec();
 
         // Figure out the schema of the requested output
-        let scan_schema = match projection {
-            Some(indices) => Arc::new(self.iox_schema.select_by_indices(indices)),
-            None => Arc::clone(&self.iox_schema),
-        };
+        let schema = projection.map(|indices| self.iox_schema.select_by_indices(indices));
 
         // This debug shows the self.arrow_schema() includes all columns in all chunks
         // which means the schema of all chunks are merged before invoking this scan
@@ -247,7 +244,7 @@ impl TableProvider for ChunkTableProvider {
 
         let plan = deduplicate.build_scan_plan(
             Arc::clone(&self.table_name),
-            scan_schema,
+            schema.as_ref().unwrap_or(&self.iox_schema),
             chunks,
             predicate,
             self.output_sort_key.clone(),
@@ -502,7 +499,7 @@ impl Deduplicater {
     pub(crate) fn build_scan_plan(
         mut self,
         table_name: Arc<str>,
-        output_schema: Arc<Schema>,
+        output_schema: &Schema,
         chunks: Vec<Arc<dyn QueryChunk>>,
         mut predicate: Predicate,
         output_sort_key: Option<SortKey>,
@@ -532,7 +529,7 @@ impl Deduplicater {
 
             let mut non_duplicate_plans = Self::build_plans_for_non_duplicates_chunks(
                 self.ctx.child_ctx("build_plans_for_non_duplicates_chunks"),
-                Arc::clone(&output_schema),
+                output_schema,
                 chunks,
                 predicate,
                 output_sort_key.as_ref(),
@@ -593,7 +590,7 @@ impl Deduplicater {
                 plans.push(Self::build_deduplicate_plan_for_overlapped_chunks(
                     self.ctx
                         .child_ctx("build_deduplicate_plan_for_overlapped_chunks"),
-                    Arc::clone(&output_schema),
+                    output_schema,
                     overlapped_chunks,
                     predicate.clone(),
                     &chunks_dedup_sort_key,
@@ -622,7 +619,7 @@ impl Deduplicater {
                 plans.push(Self::build_deduplicate_plan_for_chunk_with_duplicates(
                     self.ctx
                         .child_ctx("build_deduplicate_plan_for_chunk_with_duplicates"),
-                    Arc::clone(&output_schema),
+                    output_schema,
                     chunk_with_duplicates,
                     predicate.clone(),
                     &chunk_dedup_sort_key,
@@ -640,7 +637,7 @@ impl Deduplicater {
                 );
                 let mut non_duplicate_plans = Self::build_plans_for_non_duplicates_chunks(
                     self.ctx.child_ctx("build_plans_for_non_duplicates_chunks"),
-                    Arc::clone(&output_schema),
+                    output_schema,
                     chunks,
                     predicate,
                     output_sort_key.as_ref(),
@@ -808,7 +805,7 @@ impl Deduplicater {
     ///```
     fn build_deduplicate_plan_for_overlapped_chunks(
         ctx: IOxSessionContext,
-        output_schema: Arc<Schema>,
+        output_schema: &Schema,
         chunks: Vec<Arc<dyn QueryChunk>>, // These chunks are identified overlapped
         predicate: Predicate,
         output_sort_key: &SortKey,
@@ -829,7 +826,7 @@ impl Deduplicater {
         };
 
         let pk_schema = Self::compute_pk_schema(&chunks, schema_interner);
-        let input_schema = Self::compute_input_schema(&output_schema, &pk_schema, schema_interner);
+        let input_schema = Self::compute_input_schema(output_schema, &pk_schema, schema_interner);
 
         debug!(
             ?output_schema,
@@ -844,7 +841,7 @@ impl Deduplicater {
             .map(|chunk| {
                 Self::build_sort_plan_for_read_filter(
                     ctx.child_ctx("build_sort_plan_for_read_filter"),
-                    Arc::clone(&input_schema),
+                    &input_schema,
                     Arc::clone(chunk),
                     predicate.clone(),
                     Some(output_sort_key),
@@ -900,7 +897,7 @@ impl Deduplicater {
     ///```
     fn build_deduplicate_plan_for_chunk_with_duplicates(
         ctx: IOxSessionContext,
-        output_schema: Arc<Schema>,
+        output_schema: &Schema,
         chunk: Arc<dyn QueryChunk>, // This chunk is identified having duplicates
         predicate: Predicate,
         output_sort_key: &SortKey,
@@ -909,10 +906,10 @@ impl Deduplicater {
         // This will practically never matter because this can only happen for in-memory chunks which are currently
         // backed by RecordBatches and these don't do anything with the predicate at all. However to prevent weird
         // future issues, we still transform the predicate here. (@crepererum, 2022-11-16)
-        let predicate = predicate.push_through_dedup(&chunk.schema());
+        let predicate = predicate.push_through_dedup(chunk.schema());
 
         let pk_schema = Self::compute_pk_schema(&[Arc::clone(&chunk)], schema_interner);
-        let input_schema = Self::compute_input_schema(&output_schema, &pk_schema, schema_interner);
+        let input_schema = Self::compute_input_schema(output_schema, &pk_schema, schema_interner);
 
         debug!(
             ?output_schema,
@@ -927,7 +924,7 @@ impl Deduplicater {
         // Create the 2 bottom nodes RecordBatchesExec and SortExec
         let plan = Self::build_sort_plan_for_read_filter(
             ctx.child_ctx("build_sort_plan_for_read_filter"),
-            Arc::clone(&input_schema),
+            &input_schema,
             Arc::clone(&chunks[0]),
             predicate,
             Some(output_sort_key),
@@ -963,7 +960,7 @@ impl Deduplicater {
     ///```
 
     fn add_projection_node_if_needed(
-        output_schema: Arc<Schema>,
+        output_schema: &Schema,
         input: Arc<dyn ExecutionPlan>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let input_schema = input.schema();
@@ -1042,7 +1039,7 @@ impl Deduplicater {
     ///```
     fn build_sort_plan_for_read_filter(
         ctx: IOxSessionContext,
-        output_schema: Arc<Schema>,
+        output_schema: &Schema,
         chunk: Arc<dyn QueryChunk>,
         predicate: Predicate, // This is the select predicate of the query
         output_sort_key: Option<&SortKey>,
@@ -1066,7 +1063,7 @@ impl Deduplicater {
         trace!("Build sort plan for a single chunk. Sort node won't be added if the plan is already sorted");
         let mut schema_merger = SchemaMerger::new()
             .with_interner(schema_interner)
-            .merge(&output_schema)
+            .merge(output_schema)
             .unwrap();
         let chunk_schema = chunk.schema();
         trace!(?chunk_schema, "chunk schema");
@@ -1097,7 +1094,7 @@ impl Deduplicater {
 
         // Create the bottom node RecordBatchesExec for this chunk
         let mut input = chunks_to_physical_nodes(
-            input_schema,
+            &input_schema,
             output_sort_key,
             vec![Arc::clone(&chunk)],
             predicate,
@@ -1206,7 +1203,7 @@ impl Deduplicater {
     // And some optional operators on top such as applying delete predicates or sort the chunk
     fn build_plan_for_non_duplicates_chunk(
         ctx: IOxSessionContext,
-        output_schema: Arc<Schema>,
+        output_schema: &Schema,
         chunk: Arc<dyn QueryChunk>, // This chunk is identified having no duplicates
         predicate: Predicate,
         output_sort_key: Option<&SortKey>,
@@ -1256,7 +1253,7 @@ impl Deduplicater {
     #[allow(clippy::too_many_arguments)]
     fn build_plans_for_non_duplicates_chunks(
         ctx: IOxSessionContext,
-        output_schema: Arc<Schema>,
+        output_schema: &Schema,
         chunks: Chunks, // These chunks is identified having no duplicates
         predicate: Predicate,
         output_sort_key: Option<&SortKey>,
@@ -1291,7 +1288,7 @@ impl Deduplicater {
             .map(|chunk| {
                 Self::build_plan_for_non_duplicates_chunk(
                     ctx.child_ctx("build_plan_for_non_duplicates_chunk"),
-                    Arc::clone(&output_schema),
+                    output_schema,
                     Arc::clone(chunk),
                     predicate.clone(),
                     output_sort_key,
@@ -1307,7 +1304,7 @@ impl Deduplicater {
     fn compute_pk_schema<'a>(
         chunks: impl IntoIterator<Item = &'a Arc<dyn QueryChunk>>,
         schema_interner: &mut SchemaInterner,
-    ) -> Arc<Schema> {
+    ) -> Schema {
         let mut schema_merger = SchemaMerger::new().with_interner(schema_interner);
         for chunk in chunks {
             let chunk_schema = chunk.schema();
@@ -1330,10 +1327,10 @@ impl Deduplicater {
     fn compute_chunks_schema<'a>(
         chunks: impl IntoIterator<Item = &'a Arc<dyn QueryChunk>>,
         schema_interner: &mut SchemaInterner,
-    ) -> Arc<Schema> {
+    ) -> Schema {
         let mut schema_merger = SchemaMerger::new().with_interner(schema_interner);
         for chunk in chunks {
-            schema_merger = schema_merger.merge(&chunk.schema()).unwrap();
+            schema_merger = schema_merger.merge(chunk.schema()).unwrap();
         }
 
         schema_merger.build()
@@ -1345,7 +1342,7 @@ impl Deduplicater {
         output_schema: &Schema,
         pk_schema: &Schema,
         schema_interner: &mut SchemaInterner,
-    ) -> Arc<Schema> {
+    ) -> Schema {
         SchemaMerger::new()
             .with_interner(schema_interner)
             .merge(output_schema)
@@ -1621,7 +1618,7 @@ mod test {
 
         let sort_plan = Deduplicater::build_sort_plan_for_read_filter(
             IOxSessionContext::with_testing(),
-            Arc::clone(&schema),
+            schema,
             Arc::clone(&chunk),
             Predicate::default(),
             Some(&sort_key.clone()),
@@ -1775,7 +1772,7 @@ mod test {
         // All chunks in one single scan
         let plans = Deduplicater::build_plans_for_non_duplicates_chunks(
             IOxSessionContext::with_testing(),
-            Arc::clone(&schema),
+            schema,
             Chunks::split_overlapped_chunks(vec![Arc::clone(&chunk1), Arc::clone(&chunk2)], false)
                 .unwrap(),
             Predicate::default(),
@@ -1939,7 +1936,7 @@ mod test {
         ) as Arc<dyn QueryChunk>;
         // Datafusion schema of the chunk
         // the same for 2 chunks
-        let schema = chunk1.schema();
+        let schema = chunk1.schema().clone();
         let chunks = vec![chunk1, chunk2];
 
         // data in its original form
@@ -1964,7 +1961,7 @@ mod test {
         let output_sort_key = SortKey::from_columns(vec!["tag1", "tag2", "time"]);
         let sort_plan = Deduplicater::build_deduplicate_plan_for_overlapped_chunks(
             IOxSessionContext::with_testing(),
-            Arc::clone(&schema),
+            &schema,
             chunks,
             Predicate::default(),
             &output_sort_key,
@@ -2024,7 +2021,7 @@ mod test {
 
         let sort_plan = Deduplicater::build_deduplicate_plan_for_overlapped_chunks(
             IOxSessionContext::with_testing(),
-            schema,
+            &schema,
             vec![chunk1, chunk2],
             Predicate::default(),
             &output_sort_key,
@@ -2100,7 +2097,7 @@ mod test {
         let output_sort_key = SortKey::from_columns(vec!["tag1", "tag2", "time"]);
         let sort_plan = Deduplicater::build_deduplicate_plan_for_overlapped_chunks(
             IOxSessionContext::with_testing(),
-            Arc::new(schema),
+            &schema,
             chunks,
             Predicate::default(),
             &output_sort_key,
@@ -2199,7 +2196,7 @@ mod test {
         let output_sort_key = SortKey::from_columns(vec!["tag2", "tag1", "time"]);
         let sort_plan = Deduplicater::build_deduplicate_plan_for_overlapped_chunks(
             IOxSessionContext::with_testing(),
-            Arc::new(schema),
+            &schema,
             chunks,
             Predicate::default(),
             &output_sort_key,
@@ -2267,11 +2264,11 @@ mod test {
         // With provided stats, the computed key will be (tag2, tag1, tag3, time)
         // Requested output schema == the schema for all three
         let schema = SchemaMerger::new()
-            .merge(chunk1.schema().as_ref())
+            .merge(chunk1.schema())
             .unwrap()
-            .merge(chunk2.schema().as_ref())
+            .merge(chunk2.schema())
             .unwrap()
-            .merge(chunk3.schema().as_ref())
+            .merge(chunk3.schema())
             .unwrap()
             .build();
 
@@ -2306,7 +2303,7 @@ mod test {
         let output_sort_key = SortKey::from_columns(vec!["tag2", "tag1", "time"]);
         let sort_plan = Deduplicater::build_deduplicate_plan_for_overlapped_chunks(
             IOxSessionContext::with_testing(),
-            schema,
+            &schema,
             chunks,
             Predicate::default(),
             &output_sort_key,
@@ -2364,7 +2361,7 @@ mod test {
         ) as Arc<dyn QueryChunk>;
 
         // Datafusion schema of the chunk
-        let schema = chunk.schema();
+        let schema = chunk.schema().clone();
         let chunks = vec![chunk];
 
         // data in its original form
@@ -2385,7 +2382,7 @@ mod test {
         let plan = deduplicator
             .build_scan_plan(
                 Arc::from("t"),
-                Arc::clone(&schema),
+                &schema,
                 chunks.clone(),
                 Predicate::default(),
                 None,
@@ -2400,7 +2397,7 @@ mod test {
         let deduplicator =
             Deduplicater::new(IOxSessionContext::with_testing()).enable_deduplication(false);
         let plan = deduplicator
-            .build_scan_plan(Arc::from("t"), schema, chunks, Predicate::default(), None)
+            .build_scan_plan(Arc::from("t"), &schema, chunks, Predicate::default(), None)
             .unwrap();
         let batch = test_collect(plan).await;
         // The data will stay in their original order
@@ -2433,7 +2430,7 @@ mod test {
         ) as Arc<dyn QueryChunk>;
 
         // Datafusion schema of the chunk
-        let schema = chunk.schema();
+        let schema = chunk.schema().clone();
         let chunks = vec![chunk];
 
         // data in its original form
@@ -2459,7 +2456,7 @@ mod test {
         let plan = deduplicator
             .build_scan_plan(
                 Arc::from("t"),
-                Arc::clone(&schema),
+                &schema,
                 chunks.clone(),
                 Predicate::default(),
                 None,
@@ -2487,7 +2484,7 @@ mod test {
         let deduplicator =
             Deduplicater::new(IOxSessionContext::with_testing()).enable_deduplication(false);
         let plan = deduplicator
-            .build_scan_plan(Arc::from("t"), schema, chunks, Predicate::default(), None)
+            .build_scan_plan(Arc::from("t"), &schema, chunks, Predicate::default(), None)
             .unwrap();
         let batch = test_collect(plan).await;
         // Deduplication is disabled, the output shoudl be the same as the original data
@@ -2546,13 +2543,12 @@ mod test {
             .timestamp()
             .build()
             .unwrap();
-        let schema = Arc::new(schema);
 
         let deduplicator = Deduplicater::new(IOxSessionContext::with_testing());
         let plan = deduplicator
             .build_scan_plan(
                 Arc::from("t"),
-                Arc::clone(&Arc::clone(&schema)),
+                &schema,
                 chunks.clone(),
                 Predicate::default(),
                 None,
@@ -2581,13 +2577,7 @@ mod test {
         let deduplicator =
             Deduplicater::new(IOxSessionContext::with_testing()).enable_deduplication(false);
         let plan = deduplicator
-            .build_scan_plan(
-                Arc::from("t"),
-                Arc::clone(&schema),
-                chunks,
-                Predicate::default(),
-                None,
-            )
+            .build_scan_plan(Arc::from("t"), &schema, chunks, Predicate::default(), None)
             .unwrap();
         let batch = test_collect(plan).await;
         // Deduplication is disabled, the output should include all rows but only 2 selected columns
@@ -2655,7 +2645,7 @@ mod test {
         ) as Arc<dyn QueryChunk>;
 
         // Datafusion schema of the chunk
-        let schema = chunk1.schema();
+        let schema = chunk1.schema().clone();
         let chunks = vec![chunk1, chunk2];
 
         // data in its original form
@@ -2686,7 +2676,7 @@ mod test {
         let plan = deduplicator
             .build_scan_plan(
                 Arc::from("t"),
-                Arc::clone(&schema),
+                &schema,
                 chunks.clone(),
                 Predicate::default(),
                 None,
@@ -2715,7 +2705,7 @@ mod test {
         let deduplicator =
             Deduplicater::new(IOxSessionContext::with_testing()).enable_deduplication(false);
         let plan = deduplicator
-            .build_scan_plan(Arc::from("t"), schema, chunks, Predicate::default(), None)
+            .build_scan_plan(Arc::from("t"), &schema, chunks, Predicate::default(), None)
             .unwrap();
         let batch = test_collect(plan).await;
         // Deduplication is disabled, the output shoudl be the same as the original data
@@ -2816,7 +2806,7 @@ mod test {
         ) as Arc<dyn QueryChunk>;
 
         // Datafusion schema of the chunk
-        let schema = chunk1.schema();
+        let schema = chunk1.schema().clone();
         let chunks = vec![chunk1, chunk2, chunk3, chunk4];
 
         // data in its original form
@@ -2855,7 +2845,7 @@ mod test {
         let plan = deduplicator
             .build_scan_plan(
                 Arc::from("t"),
-                Arc::clone(&schema),
+                &schema,
                 chunks.clone(),
                 Predicate::default(),
                 None,
@@ -2935,7 +2925,7 @@ mod test {
         let deduplicator =
             Deduplicater::new(IOxSessionContext::with_testing()).enable_deduplication(false);
         let plan = deduplicator
-            .build_scan_plan(Arc::from("t"), schema, chunks, Predicate::default(), None)
+            .build_scan_plan(Arc::from("t"), &schema, chunks, Predicate::default(), None)
             .unwrap();
 
         // Plan is very simple with one single RecordBatchesExec that includes 4 chunks
@@ -3042,7 +3032,7 @@ mod test {
         ) as Arc<dyn QueryChunk>;
 
         // Datafusion schema of the chunk
-        let schema = chunk1.schema();
+        let schema = chunk1.schema().clone();
         let chunks = vec![chunk1, chunk2, chunk3, chunk4];
 
         // data in its original form
@@ -3081,7 +3071,7 @@ mod test {
         let plan = deduplicator
             .build_scan_plan(
                 Arc::from("t"),
-                Arc::clone(&schema),
+                &schema,
                 chunks.clone(),
                 Predicate::default(),
                 Some(sort_key.clone()), // Ask to sort the plan output
@@ -3158,7 +3148,7 @@ mod test {
         let plan = deduplicator
             .build_scan_plan(
                 Arc::from("t"),
-                schema,
+                &schema,
                 chunks,
                 Predicate::default(),
                 Some(sort_key.clone()),
@@ -3260,13 +3250,13 @@ mod test {
                 .with_sort_key(sort_key.clone()), // signal the chunk is sorted
         ) as Arc<dyn QueryChunk>;
 
-        let schema = chunk1.schema();
+        let schema = chunk1.schema().clone();
         let chunks = vec![chunk1, chunk2, chunk3, chunk4];
         let deduplicator = Deduplicater::new(IOxSessionContext::with_testing());
         let plan = deduplicator
             .build_scan_plan(
                 Arc::from("t"),
-                Arc::clone(&schema),
+                &schema,
                 chunks.clone(),
                 Predicate::default(),
                 Some(sort_key.clone()),
@@ -3325,7 +3315,7 @@ mod test {
         let plan = deduplicator
             .build_scan_plan(
                 Arc::from("t"),
-                schema,
+                &schema,
                 chunks,
                 Predicate::default(),
                 Some(sort_key),
@@ -3488,7 +3478,7 @@ mod test {
                 .with_sort_key(sort_key.clone()), // signal the chunk is sorted
         ) as Arc<dyn QueryChunk>;
 
-        let schema = chunk1_1.schema();
+        let schema = chunk1_1.schema().clone();
         let chunks = vec![
             chunk1_1, chunk1_2, chunk1_3, chunk1_4, chunk2_1, chunk2_2, chunk2_3, chunk2_4,
             chunk2_5, chunk2_6,
@@ -3497,7 +3487,7 @@ mod test {
         let plan = deduplicator
             .build_scan_plan(
                 Arc::from("t"),
-                Arc::clone(&schema),
+                &schema,
                 chunks.clone(),
                 Predicate::default(),
                 Some(sort_key.clone()),
@@ -3557,7 +3547,7 @@ mod test {
         let plan = deduplicator
             .build_scan_plan(
                 Arc::from("t"),
-                schema,
+                &schema,
                 chunks,
                 Predicate::default(),
                 Some(sort_key),

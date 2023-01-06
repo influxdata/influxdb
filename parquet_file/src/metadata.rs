@@ -760,7 +760,7 @@ impl DecodedIoxParquetMetaData {
     }
 
     /// Read IOx schema from parquet metadata.
-    pub fn read_schema(&self) -> Result<Arc<Schema>> {
+    pub fn read_schema(&self) -> Result<Schema> {
         let file_metadata = self.md.file_metadata();
 
         let arrow_schema = parquet_to_arrow_schema(
@@ -776,10 +776,9 @@ impl DecodedIoxParquetMetaData {
         // as this metadata will vary from file to file
         let arrow_schema_ref = Arc::new(arrow_schema.with_metadata(Default::default()));
 
-        let schema: Schema = arrow_schema_ref
+        arrow_schema_ref
             .try_into()
-            .context(IoxFromArrowFailureSnafu {})?;
-        Ok(Arc::new(schema))
+            .context(IoxFromArrowFailureSnafu {})
     }
 
     /// Read IOx statistics (including timestamp range) from parquet metadata.

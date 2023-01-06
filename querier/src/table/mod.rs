@@ -76,7 +76,7 @@ pub struct QuerierTableArgs {
     pub namespace_retention_period: Option<Duration>,
     pub table_id: TableId,
     pub table_name: Arc<str>,
-    pub schema: Arc<Schema>,
+    pub schema: Schema,
     pub ingester_connection: Option<Arc<dyn IngesterConnection>>,
     pub chunk_adapter: Arc<ChunkAdapter>,
     pub exec: Arc<Executor>,
@@ -106,7 +106,7 @@ pub struct QuerierTable {
     table_id: TableId,
 
     /// Table schema.
-    schema: Arc<Schema>,
+    schema: Schema,
 
     /// Connection to ingester
     ingester_connection: Option<Arc<dyn IngesterConnection>>,
@@ -165,7 +165,7 @@ impl QuerierTable {
     }
 
     /// Schema.
-    pub fn schema(&self) -> &Arc<Schema> {
+    pub fn schema(&self) -> &Schema {
         &self.schema
     }
 
@@ -372,7 +372,7 @@ impl QuerierTable {
             .prune_chunks(
                 self.table_name(),
                 // use up-to-date schema
-                Arc::clone(&cached_table.schema),
+                &cached_table.schema,
                 chunks,
                 &predicate,
             )
@@ -848,7 +848,7 @@ mod tests {
         let schema = make_schema_two_fields_two_tags(&table).await;
 
         // let add a partion from the ingester
-        let builder = IngesterPartitionBuilder::new(&schema, &shard, &partition)
+        let builder = IngesterPartitionBuilder::new(schema, &shard, &partition)
             .with_lp(["table,tag1=val1,tag2=val2 foo=3,bar=4 11"]);
 
         let ingester_partition =
@@ -945,7 +945,7 @@ mod tests {
             .with_compaction_level(CompactionLevel::FileNonOverlapped);
         partition.create_parquet_file(builder).await;
 
-        let builder = IngesterPartitionBuilder::new(&schema, &shard, &partition);
+        let builder = IngesterPartitionBuilder::new(schema, &shard, &partition);
         let ingester_partition =
             builder.build_with_max_parquet_sequence_number(Some(SequenceNumber::new(1)));
 
@@ -1015,18 +1015,16 @@ mod tests {
             .create_tombstone(12, 1, 100, "foo=3")
             .await;
 
-        let schema = Arc::new(
-            SchemaBuilder::new()
-                .influx_field("foo", InfluxFieldType::Integer)
-                .timestamp()
-                .build()
-                .unwrap(),
-        );
+        let schema = SchemaBuilder::new()
+            .influx_field("foo", InfluxFieldType::Integer)
+            .timestamp()
+            .build()
+            .unwrap();
 
         let ingester_chunk_id1 = u128::MAX - 1;
 
-        let builder1 = IngesterPartitionBuilder::new(&schema, &shard, &partition1);
-        let builder2 = IngesterPartitionBuilder::new(&schema, &shard, &partition2);
+        let builder1 = IngesterPartitionBuilder::new(schema.clone(), &shard, &partition1);
+        let builder2 = IngesterPartitionBuilder::new(schema, &shard, &partition2);
         let querier_table = TestQuerierTable::new(&catalog, &table)
             .await
             .with_ingester_partition(
@@ -1111,16 +1109,14 @@ mod tests {
         let partition1 = table.with_shard(&shard).create_partition("k1").await;
         let partition2 = table.with_shard(&shard).create_partition("k2").await;
 
-        let schema = Arc::new(
-            SchemaBuilder::new()
-                .influx_field("foo", InfluxFieldType::Integer)
-                .timestamp()
-                .build()
-                .unwrap(),
-        );
+        let schema = SchemaBuilder::new()
+            .influx_field("foo", InfluxFieldType::Integer)
+            .timestamp()
+            .build()
+            .unwrap();
 
-        let builder1 = IngesterPartitionBuilder::new(&schema, &shard, &partition1);
-        let builder2 = IngesterPartitionBuilder::new(&schema, &shard, &partition2);
+        let builder1 = IngesterPartitionBuilder::new(schema.clone(), &shard, &partition1);
+        let builder2 = IngesterPartitionBuilder::new(schema, &shard, &partition2);
 
         let querier_table = TestQuerierTable::new(&catalog, &table)
             .await
@@ -1172,7 +1168,7 @@ mod tests {
         let schema = make_schema(&table).await;
 
         let builder =
-            IngesterPartitionBuilder::new(&schema, &shard, &partition).with_lp(["table foo=1 1"]);
+            IngesterPartitionBuilder::new(schema, &shard, &partition).with_lp(["table foo=1 1"]);
 
         // Parquet file between with max sequence number 2
         let pf_builder = TestParquetFileBuilder::default()
@@ -1230,7 +1226,7 @@ mod tests {
         let querier_table = TestQuerierTable::new(&catalog, &table).await;
 
         let builder =
-            IngesterPartitionBuilder::new(&schema, &shard, &partition).with_lp(["table foo=1 1"]);
+            IngesterPartitionBuilder::new(schema, &shard, &partition).with_lp(["table foo=1 1"]);
 
         // parquet file with max sequence number 1
         let pf_builder = TestParquetFileBuilder::default()
@@ -1292,7 +1288,7 @@ mod tests {
         let querier_table = TestQuerierTable::new(&catalog, &table).await;
 
         let builder =
-            IngesterPartitionBuilder::new(&schema, &shard, &partition).with_lp(["table foo=1 1"]);
+            IngesterPartitionBuilder::new(schema, &shard, &partition).with_lp(["table foo=1 1"]);
 
         // parquet file with max sequence number 1
         let pf_builder = TestParquetFileBuilder::default()
@@ -1319,20 +1315,18 @@ mod tests {
     }
 
     /// Adds a "foo" column to the table and returns the created schema
-    async fn make_schema(table: &Arc<TestTable>) -> Arc<Schema> {
+    async fn make_schema(table: &Arc<TestTable>) -> Schema {
         table.create_column("foo", ColumnType::F64).await;
         table.create_column("time", ColumnType::Time).await;
         // create corresponding schema
-        Arc::new(
-            SchemaBuilder::new()
-                .influx_field("foo", InfluxFieldType::Float)
-                .timestamp()
-                .build()
-                .unwrap(),
-        )
+        SchemaBuilder::new()
+            .influx_field("foo", InfluxFieldType::Float)
+            .timestamp()
+            .build()
+            .unwrap()
     }
 
-    async fn make_schema_two_fields_two_tags(table: &Arc<TestTable>) -> Arc<Schema> {
+    async fn make_schema_two_fields_two_tags(table: &Arc<TestTable>) -> Schema {
         table.create_column("time", ColumnType::Time).await;
         table.create_column("foo", ColumnType::F64).await;
         table.create_column("bar", ColumnType::F64).await;
@@ -1340,16 +1334,14 @@ mod tests {
         table.create_column("tag2", ColumnType::Tag).await;
 
         // create corresponding schema
-        Arc::new(
-            SchemaBuilder::new()
-                .influx_field("foo", InfluxFieldType::Float)
-                .influx_field("bar", InfluxFieldType::Float)
-                .tag("tag1")
-                .tag("tag2")
-                .timestamp()
-                .build()
-                .unwrap(),
-        )
+        SchemaBuilder::new()
+            .influx_field("foo", InfluxFieldType::Float)
+            .influx_field("bar", InfluxFieldType::Float)
+            .tag("tag1")
+            .tag("tag2")
+            .timestamp()
+            .build()
+            .unwrap()
     }
 
     /// A `QuerierTable` and some number of `IngesterPartitions` that

@@ -119,7 +119,7 @@ fn combine_sort_key(
 /// pushdown ([`RecordBatchesExec`] has NO builtin filter function). Delete predicates are NOT applied at all. The
 /// caller is responsible for wrapping the output node into appropriate filter nodes.
 pub fn chunks_to_physical_nodes(
-    iox_schema: Arc<Schema>,
+    iox_schema: &Schema,
     output_sort_key: Option<&SortKey>,
     chunks: Vec<Arc<dyn QueryChunk>>,
     predicate: Predicate,

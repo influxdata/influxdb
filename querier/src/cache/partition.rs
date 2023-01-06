@@ -532,7 +532,7 @@ mod tests {
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 5);
     }
 
-    fn schema() -> Arc<Schema> {
-        Arc::new(SchemaBuilder::new().build().unwrap())
+    fn schema() -> Schema {
+        SchemaBuilder::new().build().unwrap()
     }
 }

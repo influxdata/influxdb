@@ -309,7 +309,7 @@ impl InfluxRpcPlanner {
                     let plan = Self::table_name_plan(
                         ctx,
                         Arc::clone(table_name),
-                        schema,
+                        &schema,
                         predicate,
                         chunks,
                     )?;
@@ -472,7 +472,7 @@ impl InfluxRpcPlanner {
                 let mut ctx = ctx.child_ctx("tag_keys_plan");
                 ctx.set_metadata("table", table_name.to_string());
 
-                let plan = self.tag_keys_plan(ctx, table_name, schema, predicate, chunks_full)?;
+                let plan = self.tag_keys_plan(ctx, table_name, &schema, predicate, chunks_full)?;
 
                 if let Some(plan) = plan {
                     builder = builder.append_other(plan)
@@ -641,7 +641,7 @@ impl InfluxRpcPlanner {
                 let mut ctx = ctx.child_ctx("scan_and_filter planning");
                 ctx.set_metadata("table", table_name.to_string());
 
-                let scan_and_filter = ScanPlanBuilder::new(Arc::clone(table_name), schema, ctx)
+                let scan_and_filter = ScanPlanBuilder::new(Arc::clone(table_name), &schema, ctx)
                     .with_chunks(chunks_full)
                     .with_predicate(predicate)
                     .build()?;
@@ -884,7 +884,7 @@ impl InfluxRpcPlanner {
                     Aggregate::None => Self::read_filter_plan(
                         ctx.child_ctx("read_filter plan"),
                         table_name,
-                        Arc::clone(&schema),
+                        schema,
                         predicate,
                         chunks,
                     ),
@@ -963,7 +963,7 @@ impl InfluxRpcPlanner {
         &self,
         ctx: IOxSessionContext,
         table_name: &str,
-        schema: Arc<Schema>,
+        schema: &Schema,
         predicate: &Predicate,
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<Option<StringSetPlan>> {
@@ -1029,7 +1029,7 @@ impl InfluxRpcPlanner {
     fn field_columns_plan(
         ctx: IOxSessionContext,
         table_name: Arc<str>,
-        schema: Arc<Schema>,
+        schema: &Schema,
         predicate: &Predicate,
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<LogicalPlan> {
@@ -1085,7 +1085,7 @@ impl InfluxRpcPlanner {
     fn table_name_plan(
         ctx: IOxSessionContext,
         table_name: Arc<str>,
-        schema: Arc<Schema>,
+        schema: &Schema,
         predicate: &Predicate,
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<LogicalPlan> {
@@ -1100,7 +1100,7 @@ impl InfluxRpcPlanner {
         .build()?;
 
         // Select only fields requested
-        let select_exprs: Vec<_> = filtered_fields_iter(&scan_and_filter.schema(), predicate)
+        let select_exprs: Vec<_> = filtered_fields_iter(scan_and_filter.schema(), predicate)
             .map(|field| field.name.as_expr())
             .collect();
 
@@ -1130,7 +1130,7 @@ impl InfluxRpcPlanner {
     fn read_filter_plan(
         ctx: IOxSessionContext,
         table_name: &str,
-        schema: Arc<Schema>,
+        schema: &Schema,
         predicate: &Predicate,
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<SeriesSetPlan> {
@@ -1143,7 +1143,7 @@ impl InfluxRpcPlanner {
         .with_chunks(chunks)
         .build()?;
 
-        let schema = scan_and_filter.schema();
+        let schema = scan_and_filter.provider.iox_schema();
 
         let tags_and_timestamp: Vec<_> = scan_and_filter
             .schema()
@@ -1164,7 +1164,7 @@ impl InfluxRpcPlanner {
         let tags_fields_and_timestamps: Vec<Expr> = schema
             .tags_iter()
             .map(|field| field.name().as_expr())
-            .chain(filtered_fields_iter(&schema, predicate).map(|f| f.expr))
+            .chain(filtered_fields_iter(schema, predicate).map(|f| f.expr))
             .chain(schema.time_iter().map(|field| field.name().as_expr()))
             .collect();
 
@@ -1179,7 +1179,7 @@ impl InfluxRpcPlanner {
             .map(|field| Arc::from(field.name().as_str()))
             .collect();
 
-        let field_columns = filtered_fields_iter(&schema, predicate)
+        let field_columns = filtered_fields_iter(schema, predicate)
             .map(|field| Arc::from(field.name))
             .collect();
 
@@ -1238,7 +1238,7 @@ impl InfluxRpcPlanner {
     fn read_group_plan(
         ctx: IOxSessionContext,
         table_name: &str,
-        schema: Arc<Schema>,
+        schema: &Schema,
         predicate: &Predicate,
         agg: Aggregate,
         chunks: Vec<Arc<dyn QueryChunk>>,
@@ -1255,7 +1255,7 @@ impl InfluxRpcPlanner {
         // order the tag columns so that the group keys come first (we
         // will group and
         // order in the same order)
-        let schema = scan_and_filter.schema();
+        let schema = scan_and_filter.provider.iox_schema();
         let tag_columns: Vec<_> = schema.tags_iter().map(|f| f.name() as &str).collect();
 
         // Group by all tag columns
@@ -1267,7 +1267,7 @@ impl InfluxRpcPlanner {
         let AggExprs {
             agg_exprs,
             field_columns,
-        } = AggExprs::try_new_for_read_group(agg, &schema, predicate)?;
+        } = AggExprs::try_new_for_read_group(agg, schema, predicate)?;
 
         let plan_builder = scan_and_filter
             .plan_builder
@@ -1347,7 +1347,7 @@ impl InfluxRpcPlanner {
     fn read_window_aggregate_plan(
         ctx: IOxSessionContext,
         table_name: &str,
-        schema: Arc<Schema>,
+        schema: &Schema,
         predicate: &Predicate,
         agg: Aggregate,
         every: WindowDuration,
@@ -1363,7 +1363,7 @@ impl InfluxRpcPlanner {
         .with_chunks(chunks)
         .build()?;
 
-        let schema = scan_and_filter.schema();
+        let schema = scan_and_filter.provider.iox_schema();
 
         // Group by all tag columns and the window bounds
         let window_bound = make_window_bound_expr(TIME_COLUMN_NAME.as_expr(), every, offset)
@@ -1378,7 +1378,7 @@ impl InfluxRpcPlanner {
         let AggExprs {
             agg_exprs,
             field_columns,
-        } = AggExprs::try_new_for_read_window_aggregate(agg, &schema, predicate)?;
+        } = AggExprs::try_new_for_read_window_aggregate(agg, schema, predicate)?;
 
         // sort by the group by expressions as well
         let sort_exprs = group_exprs
@@ -1436,7 +1436,7 @@ fn table_chunk_stream<'a>(
             let table_schema = namespace.table_schema(table_name);
             let projection = match table_schema {
                 Some(table_schema) => {
-                    columns_in_predicates(need_fields, table_schema, table_name, predicate)
+                    columns_in_predicates(need_fields, &table_schema, table_name, predicate)
                 }
                 None => None,
             };
@@ -1470,7 +1470,7 @@ fn table_chunk_stream<'a>(
 // in the predicate.
 fn columns_in_predicates(
     need_fields: bool,
-    table_schema: Arc<Schema>,
+    table_schema: &Schema,
     table_name: &str,
     predicate: &Predicate,
 ) -> Option<Vec<usize>> {
@@ -1560,7 +1560,7 @@ where
             &'a str,
             &'a Predicate,
             Vec<Arc<dyn QueryChunk>>,
-            Arc<Schema>,
+            &'a Schema,
         ) -> Result<P>
         + Clone
         + Send
@@ -1592,7 +1592,7 @@ where
                         table_name: table_name.as_ref(),
                     })?;
 
-                f(&ctx, table_name, predicate, chunks, schema)
+                f(&ctx, table_name, predicate, chunks, &schema)
             }
         })
         .try_collect()
@@ -2004,25 +2004,24 @@ mod tests {
         // test 1: empty predicate without need_fields
         let predicate = Predicate::new();
         let need_fields = false;
-        let projection = columns_in_predicates(need_fields, Arc::clone(&schema), table, &predicate);
+        let projection = columns_in_predicates(need_fields, &schema, table, &predicate);
         assert_eq!(projection, None);
 
         // test 2: empty predicate with need_fields
         let need_fields = true;
-        let projection = columns_in_predicates(need_fields, Arc::clone(&schema), table, &predicate);
+        let projection = columns_in_predicates(need_fields, &schema, table, &predicate);
         assert_eq!(projection, None);
 
         // test 3: predicate on tag without need_fields
         let predicate = Predicate::new().with_expr(col("foo").eq(lit("some_thing")));
         let need_fields = false;
-        let projection =
-            columns_in_predicates(need_fields, Arc::clone(&schema), table, &predicate).unwrap();
+        let projection = columns_in_predicates(need_fields, &schema, table, &predicate).unwrap();
         // return index of foo
         assert_eq!(projection, vec![1]);
 
         // test 4: predicate on tag with need_fields
         let need_fields = true;
-        let projection = columns_in_predicates(need_fields, Arc::clone(&schema), table, &predicate);
+        let projection = columns_in_predicates(need_fields, &schema, table, &predicate);
         // return None means all fields
         assert_eq!(projection, None);
 
@@ -2032,7 +2031,7 @@ mod tests {
             .with_field_columns(vec!["i64_field".to_string()]);
         let need_fields = false;
         let mut projection =
-            columns_in_predicates(need_fields, Arc::clone(&schema), table, &predicate).unwrap();
+            columns_in_predicates(need_fields, &schema, table, &predicate).unwrap();
         projection.sort();
         // return indexes of i64_field and foo
         assert_eq!(projection, vec![1, 2]);
@@ -2040,7 +2039,7 @@ mod tests {
         // test 6: predicate on tag with field_columns with need_fields
         let need_fields = true;
         let mut projection =
-            columns_in_predicates(need_fields, Arc::clone(&schema), table, &predicate).unwrap();
+            columns_in_predicates(need_fields, &schema, table, &predicate).unwrap();
         projection.sort();
         // return indexes of foo and index of i64_field
         assert_eq!(projection, vec![1, 2]);
@@ -2051,7 +2050,7 @@ mod tests {
             .with_field_columns(vec!["i64_field".to_string()]);
         let need_fields = false;
         let mut projection =
-            columns_in_predicates(need_fields, Arc::clone(&schema), table, &predicate).unwrap();
+            columns_in_predicates(need_fields, &schema, table, &predicate).unwrap();
         projection.sort();
         // return indexes of bard and i64_field
         assert_eq!(projection, vec![0, 2]);
@@ -2059,7 +2058,7 @@ mod tests {
         // test 7: predicate on tag and field with field_columns with need_fields
         let need_fields = true;
         let mut projection =
-            columns_in_predicates(need_fields, Arc::clone(&schema), table, &predicate).unwrap();
+            columns_in_predicates(need_fields, &schema, table, &predicate).unwrap();
         projection.sort();
         // return indexes of bard and i64_field
         assert_eq!(projection, vec![0, 2]);

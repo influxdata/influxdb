@@ -31,8 +31,8 @@ impl QueryNamespaceMeta for QuerierNamespace {
         names
     }
 
-    fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {
-        self.tables.get(table_name).map(|t| Arc::clone(t.schema()))
+    fn table_schema(&self, table_name: &str) -> Option<Schema> {
+        self.tables.get(table_name).map(|t| t.schema().clone())
     }
 }
 

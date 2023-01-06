@@ -8,7 +8,6 @@ use influxdb_influxql_parser::select::{Field, SelectStatement};
 use influxdb_influxql_parser::statement::Statement;
 use predicate::rpc_predicate::QueryNamespaceMeta;
 use schema::Schema;
-use std::sync::Arc;
 
 /// Returns the first `Field` of the `SELECT` statement.
 pub(crate) fn get_first_field(s: &str) -> Field {
@@ -86,8 +85,8 @@ impl QueryNamespaceMeta for MockNamespace {
             .collect()
     }
 
-    fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {
+    fn table_schema(&self, table_name: &str) -> Option<Schema> {
         let c = self.chunks.iter().find(|x| x.table_name() == table_name)?;
-        Some(c.schema())
+        Some(c.schema().clone())
     }
 }

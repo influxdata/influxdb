@@ -169,7 +169,9 @@ pub trait QueryNamespaceMeta {
     fn table_names(&self) -> Vec<String>;
 
     /// Schema for a specific table if the table exists.
-    fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>>;
+    ///
+    /// TODO: Make this return Option<&Schema>
+    fn table_schema(&self, table_name: &str) -> Option<Schema>;
 }
 
 /// Predicate that has been "specialized" / normalized for a
@@ -204,13 +206,13 @@ pub trait QueryNamespaceMeta {
 /// ```
 fn normalize_predicate(
     table_name: &str,
-    schema: Arc<Schema>,
+    schema: Schema,
     predicate: &Predicate,
 ) -> DataFusionResult<Predicate> {
     let mut predicate = predicate.clone();
 
-    let mut field_projections = FieldProjectionRewriter::new(Arc::clone(&schema));
-    let mut missing_tag_columns = MissingTagColumnRewriter::new(Arc::clone(&schema));
+    let mut field_projections = FieldProjectionRewriter::new(schema.clone());
+    let mut missing_tag_columns = MissingTagColumnRewriter::new(schema.clone());
 
     let mut field_value_exprs = vec![];
 
@@ -221,7 +223,7 @@ fn normalize_predicate(
         .exprs
         .into_iter()
         .map(|e| {
-            let simplifier = ExprSimplifier::new(SimplifyAdapter::new(schema.as_ref()));
+            let simplifier = ExprSimplifier::new(SimplifyAdapter::new(&schema));
 
             debug!(?e, "rewriting expr");
 
@@ -349,10 +351,9 @@ mod tests {
 
     #[test]
     fn test_normalize_predicate_coerced() {
-        let schema = schema();
         let predicate = normalize_predicate(
             "table",
-            Arc::clone(&schema),
+            schema(),
             &Predicate::new().with_expr(col("t1").eq(lit("f1"))),
         )
         .unwrap();
@@ -470,8 +471,8 @@ mod tests {
         assert_eq!(predicate, expected);
     }
 
-    fn schema() -> Arc<Schema> {
-        let schema = schema::builder::SchemaBuilder::new()
+    fn schema() -> Schema {
+        schema::builder::SchemaBuilder::new()
             .tag("t1")
             .tag("t2")
             .field("f1", DataType::Int64)
@@ -479,9 +480,7 @@ mod tests {
             .field("f2", DataType::Int64)
             .unwrap()
             .build()
-            .unwrap();
-
-        Arc::new(schema)
+            .unwrap()
     }
 
     #[allow(dead_code)]

@@ -29,7 +29,7 @@ pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -
         .await
         .unwrap();
     let schema = catalog_schema.tables.remove(&table.table.name).unwrap();
-    let schema = Arc::new(Schema::try_from(schema).unwrap());
+    let schema = Schema::try_from(schema).unwrap();
 
     let namespace_name = Arc::from(table.namespace.namespace.name.as_str());
 
@@ -63,7 +63,7 @@ pub(crate) fn lp_to_record_batch(lp: &str) -> RecordBatch {
 /// Helper for creating IngesterPartitions
 #[derive(Debug, Clone)]
 pub(crate) struct IngesterPartitionBuilder {
-    schema: Arc<Schema>,
+    schema: Schema,
     shard: Arc<TestShard>,
     partition: Arc<TestPartition>,
     ingester_name: Arc<str>,
@@ -77,12 +77,12 @@ pub(crate) struct IngesterPartitionBuilder {
 
 impl IngesterPartitionBuilder {
     pub(crate) fn new(
-        schema: &Arc<Schema>,
+        schema: Schema,
         shard: &Arc<TestShard>,
         partition: &Arc<TestPartition>,
     ) -> Self {
         Self {
-            schema: Arc::clone(schema),
+            schema,
             shard: Arc::clone(shard),
             partition: Arc::clone(partition),
             ingester_name: Arc::from("ingester1"),
@@ -135,7 +135,7 @@ impl IngesterPartitionBuilder {
         )
         .try_add_chunk(
             ChunkId::new_test(self.ingester_chunk_id),
-            Arc::clone(&self.schema),
+            self.schema.clone(),
             data,
         )
         .unwrap()
