@@ -123,7 +123,9 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// [`DataType`]: arrow::datatypes::DataType
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Schema {
-    /// Refcount to underlying Arrow Schema All the actual data lives on the metadata structure in
+    /// Reference-counted pointer to underlying Arrow Schema 
+    ///
+    /// All the actual data lives on the metadata structure in
     /// `ArrowSchemaRef` and this structure knows how to access that
     /// metadata
     inner: ArrowSchemaRef,
