@@ -6,7 +6,7 @@ use data_types::{
 };
 use iox_query::util::create_basic_summary;
 use parquet_file::chunk::ParquetChunk;
-use schema::{sort::SortKey, Schema};
+use schema::sort::SortKey;
 use std::sync::Arc;
 
 mod creation;
@@ -84,9 +84,6 @@ pub struct QuerierParquetChunk {
     /// Immutable chunk metadata
     meta: Arc<QuerierParquetChunkMeta>,
 
-    /// Schema of the chunk
-    schema: Arc<Schema>,
-
     /// Delete predicates to be combined with the chunk
     delete_predicates: Vec<Arc<DeletePredicate>>,
 
@@ -107,11 +104,9 @@ impl QuerierParquetChunk {
         meta: Arc<QuerierParquetChunkMeta>,
         partition_sort_key: Option<Arc<SortKey>>,
     ) -> Self {
-        let schema = parquet_chunk.schema();
-
         let table_summary = Arc::new(create_basic_summary(
             parquet_chunk.rows() as u64,
-            &parquet_chunk.schema(),
+            parquet_chunk.schema(),
             parquet_chunk.timestamp_min_max(),
         ));
 
@@ -119,7 +114,6 @@ impl QuerierParquetChunk {
             meta,
             delete_predicates: Vec::new(),
             partition_sort_key,
-            schema,
             parquet_chunk,
             table_summary,
         }
@@ -341,7 +335,7 @@ pub mod tests {
             .build()
             .unwrap();
         let actual_schema = chunk.schema();
-        assert_eq!(actual_schema.as_ref(), &expected_schema);
+        assert_eq!(actual_schema, &expected_schema);
     }
 
     fn assert_sort_key(chunk: &QuerierParquetChunk) {

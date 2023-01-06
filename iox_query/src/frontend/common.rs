@@ -63,7 +63,7 @@ impl std::fmt::Debug for ScanPlan {
 
 impl ScanPlan {
     /// Return the schema of the source (the merged schema across all tables)
-    pub fn schema(&self) -> Arc<Schema> {
+    pub fn schema(&self) -> &Schema {
         self.provider.iox_schema()
     }
 }
@@ -90,7 +90,7 @@ pub struct ScanPlanBuilder<'a> {
     table_name: Arc<str>,
     /// The schema of the resulting table (any chunks that don't have
     /// all the necessary columns will be extended appropriately)
-    table_schema: Arc<Schema>,
+    table_schema: &'a Schema,
     chunks: Vec<Arc<dyn QueryChunk>>,
     /// The sort key that describes the desired output sort order
     output_sort_key: Option<SortKey>,
@@ -100,7 +100,7 @@ pub struct ScanPlanBuilder<'a> {
 }
 
 impl<'a> ScanPlanBuilder<'a> {
-    pub fn new(table_name: Arc<str>, table_schema: Arc<Schema>, ctx: IOxSessionContext) -> Self {
+    pub fn new(table_name: Arc<str>, table_schema: &'a Schema, ctx: IOxSessionContext) -> Self {
         Self {
             ctx,
             table_name,
@@ -158,7 +158,7 @@ impl<'a> ScanPlanBuilder<'a> {
         // Prepare the plan for the table
         let mut builder = ProviderBuilder::new(
             Arc::clone(&table_name),
-            table_schema,
+            table_schema.clone(),
             ctx.child_ctx("provider_builder"),
         )
         .with_enable_deduplication(deduplication);
@@ -193,7 +193,7 @@ impl<'a> ScanPlanBuilder<'a> {
                 // Rewrite expression so it only refers to columns in this chunk
                 let schema = provider.iox_schema();
                 trace!(%table_name, ?filter_expr, "Adding filter expr");
-                let mut rewriter = MissingColumnsToNull::new(&schema);
+                let mut rewriter = MissingColumnsToNull::new(schema);
                 let filter_expr =
                     filter_expr
                         .rewrite(&mut rewriter)

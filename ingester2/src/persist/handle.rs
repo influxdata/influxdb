@@ -339,7 +339,7 @@ impl PersistQueue for PersistHandle {
         };
 
         // Build the persist task request.
-        let schema = data.schema();
+        let schema = data.schema().clone();
         let (r, notify) = PersistRequest::new(Arc::clone(&partition), data, permit, enqueued_at);
 
         match sort_key {

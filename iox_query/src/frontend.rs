@@ -66,7 +66,7 @@ mod test {
         let ctx = IOxSessionContext::with_testing();
 
         // Build a logical plan with deduplication
-        let scan_plan = ScanPlanBuilder::new(Arc::from("t"), schema, ctx.child_ctx("scan_plan"))
+        let scan_plan = ScanPlanBuilder::new(Arc::from("t"), &schema, ctx.child_ctx("scan_plan"))
             .with_chunks(chunks)
             .build()
             .unwrap();
@@ -114,7 +114,7 @@ mod test {
         let ctx = IOxSessionContext::with_testing();
 
         // Build a logical plan without deduplication
-        let scan_plan = ScanPlanBuilder::new(Arc::from("t"), schema, ctx.child_ctx("scan_plan"))
+        let scan_plan = ScanPlanBuilder::new(Arc::from("t"), &schema, ctx.child_ctx("scan_plan"))
             .with_chunks(chunks)
             // force it to not deduplicate
             .enable_deduplication(false)
@@ -178,7 +178,7 @@ mod test {
         let ctx = IOxSessionContext::with_testing();
 
         // Build a logical plan without deduplication but sort
-        let scan_plan = ScanPlanBuilder::new(Arc::from("t"), schema, ctx.child_ctx("scan_plan"))
+        let scan_plan = ScanPlanBuilder::new(Arc::from("t"), &schema, ctx.child_ctx("scan_plan"))
             .with_chunks(chunks)
             // force it to not deduplicate
             .enable_deduplication(false)
@@ -230,7 +230,7 @@ mod test {
 
         // Use a split plan as it has StreamSplitExec, DeduplicateExec and IOxReadFilternode
         let split_plan = ReorgPlanner::new(IOxSessionContext::with_testing())
-            .split_plan(Arc::from("t"), schema, chunks, sort_key, vec![1000])
+            .split_plan(Arc::from("t"), &schema, chunks, sort_key, vec![1000])
             .expect("created compact plan");
 
         let executor = Executor::new_testing();
@@ -361,7 +361,7 @@ mod test {
         extractor.inner
     }
 
-    fn test_chunks(overlapped: bool) -> (Arc<Schema>, Vec<Arc<dyn QueryChunk>>) {
+    fn test_chunks(overlapped: bool) -> (Schema, Vec<Arc<dyn QueryChunk>>) {
         let max_time = if overlapped { 70000 } else { 7000 };
         let chunk1 = Arc::new(
             TestChunk::new("t")
@@ -385,20 +385,20 @@ mod test {
         );
 
         let schema = SchemaMerger::new()
-            .merge(&chunk1.schema())
+            .merge(chunk1.schema())
             .unwrap()
-            .merge(&chunk2.schema())
+            .merge(chunk2.schema())
             .unwrap()
             .build();
 
         (schema, vec![chunk1, chunk2])
     }
 
-    fn get_test_chunks() -> (Arc<Schema>, Vec<Arc<dyn QueryChunk>>) {
+    fn get_test_chunks() -> (Schema, Vec<Arc<dyn QueryChunk>>) {
         test_chunks(false)
     }
 
-    fn get_test_overlapped_chunks() -> (Arc<Schema>, Vec<Arc<dyn QueryChunk>>) {
+    fn get_test_overlapped_chunks() -> (Schema, Vec<Arc<dyn QueryChunk>>) {
         test_chunks(true)
     }
 }

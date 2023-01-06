@@ -1,4 +1,4 @@
-use std::{collections::HashSet, sync::Arc};
+use std::collections::HashSet;
 
 use crate::Schema;
 
@@ -10,7 +10,7 @@ use crate::Schema;
 /// [Interning]: https://en.wikipedia.org/wiki/Interning_(computer_science)
 #[derive(Debug, Default)]
 pub struct SchemaInterner {
-    schemas: HashSet<Arc<Schema>>,
+    schemas: HashSet<Schema>,
 }
 
 impl SchemaInterner {
@@ -20,12 +20,11 @@ impl SchemaInterner {
     }
 
     /// Intern schema.
-    pub fn intern(&mut self, schema: Schema) -> Arc<Schema> {
+    pub fn intern(&mut self, schema: Schema) -> Schema {
         if let Some(schema) = self.schemas.get(&schema) {
-            Arc::clone(schema)
+            schema.clone()
         } else {
-            let schema = Arc::new(schema);
-            self.schemas.insert(Arc::clone(&schema));
+            self.schemas.insert(schema.clone());
             schema
         }
     }
@@ -34,6 +33,7 @@ impl SchemaInterner {
 #[cfg(test)]
 mod tests {
     use crate::builder::SchemaBuilder;
+    use std::sync::Arc;
 
     use super::*;
 
@@ -46,12 +46,12 @@ mod tests {
         let schema_2 = SchemaBuilder::new().tag("t1").tag("t3").build().unwrap();
 
         let interned_1a = interner.intern(schema_1a.clone());
-        assert_eq!(interned_1a.as_ref(), &schema_1a);
+        assert_eq!(interned_1a, schema_1a);
 
         let interned_1b = interner.intern(schema_1b);
-        assert!(Arc::ptr_eq(&interned_1a, &interned_1b));
+        assert!(Arc::ptr_eq(interned_1a.inner(), interned_1b.inner()));
 
         let interned_2 = interner.intern(schema_2.clone());
-        assert_eq!(interned_2.as_ref(), &schema_2);
+        assert_eq!(interned_2, schema_2);
     }
 }

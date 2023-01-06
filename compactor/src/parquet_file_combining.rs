@@ -356,7 +356,7 @@ impl CompactPlanBuilder {
             ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
                 .compact_plan(
                     Arc::from(partition.table.name.clone()),
-                    Arc::clone(&merged_schema),
+                    &merged_schema,
                     query_chunks,
                     sort_key.clone(),
                 )
@@ -384,7 +384,7 @@ impl CompactPlanBuilder {
                 ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
                     .compact_plan(
                         Arc::from(partition.table.name.clone()),
-                        Arc::clone(&merged_schema),
+                        &merged_schema,
                         query_chunks,
                         sort_key.clone(),
                     )
@@ -394,7 +394,7 @@ impl CompactPlanBuilder {
                 ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
                     .split_plan(
                         Arc::from(partition.table.name.clone()),
-                        Arc::clone(&merged_schema),
+                        &merged_schema,
                         query_chunks,
                         sort_key.clone(),
                         split_times,
@@ -537,7 +537,7 @@ impl CompactPlanBuilder {
         let plan = ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
             .compact_plan(
                 Arc::from(partition.table.name.clone()),
-                Arc::clone(&merged_schema),
+                &merged_schema,
                 query_chunks,
                 sort_key.clone(),
             )
@@ -769,7 +769,7 @@ fn to_queryable_parquet_chunk(
         .map(|sk| sk.filter_to(&pk, file.partition_id().get()));
     let file = Arc::new(ParquetFile::from(file));
 
-    let parquet_chunk = ParquetChunk::new(Arc::clone(&file), Arc::new(schema), store);
+    let parquet_chunk = ParquetChunk::new(Arc::clone(&file), schema, store);
 
     trace!(
         parquet_file_id=?file.id,

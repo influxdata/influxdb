@@ -894,7 +894,7 @@ mod tests {
     use generated_types::node::Type as RPCNodeType;
     use predicate::{rpc_predicate::QueryNamespaceMeta, Predicate};
     use schema::{Schema, SchemaBuilder};
-    use std::{collections::BTreeSet, sync::Arc};
+    use std::collections::BTreeSet;
     use test_helpers::assert_contains;
 
     use super::*;
@@ -915,7 +915,7 @@ mod tests {
             self.table_names.clone()
         }
 
-        fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {
+        fn table_schema(&self, table_name: &str) -> Option<Schema> {
             match table_name {
                 "foo" => {
                     let schema = SchemaBuilder::new()
@@ -929,7 +929,7 @@ mod tests {
                         .build()
                         .unwrap();
 
-                    Some(Arc::new(schema))
+                    Some(schema)
                 }
                 "bar" => {
                     let schema = SchemaBuilder::new()
@@ -939,7 +939,7 @@ mod tests {
                         .build()
                         .unwrap();
 
-                    Some(Arc::new(schema))
+                    Some(schema)
                 }
                 _ => None,
             }

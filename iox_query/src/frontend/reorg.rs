@@ -75,7 +75,7 @@ impl ReorgPlanner {
     pub fn compact_plan<I>(
         &self,
         table_name: Arc<str>,
-        schema: Arc<Schema>,
+        schema: &Schema,
         chunks: I,
         output_sort_key: SortKey,
     ) -> Result<LogicalPlan>
@@ -150,7 +150,7 @@ impl ReorgPlanner {
     pub fn split_plan<I>(
         &self,
         table_name: Arc<str>,
-        schema: Arc<Schema>,
+        schema: &Schema,
         chunks: I,
         output_sort_key: SortKey,
         split_times: Vec<i64>,
@@ -214,7 +214,7 @@ mod test {
 
     use super::*;
 
-    async fn get_test_chunks() -> (Arc<Schema>, Vec<Arc<dyn QueryChunk>>) {
+    async fn get_test_chunks() -> (Schema, Vec<Arc<dyn QueryChunk>>) {
         // Chunk 1 with 5 rows of data on 2 tags
         let chunk1 = Arc::new(
             TestChunk::new("t")
@@ -261,16 +261,16 @@ mod test {
         assert_batches_eq!(&expected, &raw_data(&[Arc::clone(&chunk2)]).await);
 
         let schema = SchemaMerger::new()
-            .merge(&chunk1.schema())
+            .merge(chunk1.schema())
             .unwrap()
-            .merge(&chunk2.schema())
+            .merge(chunk2.schema())
             .unwrap()
             .build();
 
         (schema, vec![chunk1, chunk2])
     }
 
-    async fn get_sorted_test_chunks() -> (Arc<Schema>, Vec<Arc<dyn QueryChunk>>) {
+    async fn get_sorted_test_chunks() -> (Schema, Vec<Arc<dyn QueryChunk>>) {
         // Chunk 1
         let chunk1 = Arc::new(
             TestChunk::new("t")
@@ -307,7 +307,7 @@ mod test {
         ];
         assert_batches_eq!(&expected, &raw_data(&[Arc::clone(&chunk2)]).await);
 
-        (chunk1.schema(), vec![chunk1, chunk2])
+        (chunk1.schema().clone(), vec![chunk1, chunk2])
     }
 
     #[tokio::test]
@@ -333,7 +333,7 @@ mod test {
                 .build();
 
             let compact_plan = ReorgPlanner::new(IOxSessionContext::with_testing())
-                .compact_plan(Arc::from("t"), Arc::clone(&schema), chunks, sort_key)
+                .compact_plan(Arc::from("t"), &schema, chunks, sort_key)
                 .expect("created compact plan");
 
             let physical_plan = executor
@@ -370,7 +370,7 @@ mod test {
             .build();
 
         let compact_plan = ReorgPlanner::new(IOxSessionContext::with_testing())
-            .compact_plan(Arc::from("t"), schema, chunks, sort_key)
+            .compact_plan(Arc::from("t"), &schema, chunks, sort_key)
             .expect("created compact plan");
 
         let executor = Executor::new_testing();
@@ -421,7 +421,7 @@ mod test {
 
         // split on 1000 should have timestamps 1000, 5000, and 7000
         let split_plan = ReorgPlanner::new(IOxSessionContext::with_testing())
-            .split_plan(Arc::from("t"), schema, chunks, sort_key, vec![1000])
+            .split_plan(Arc::from("t"), &schema, chunks, sort_key, vec![1000])
             .expect("created compact plan");
 
         let executor = Executor::new_testing();
@@ -485,7 +485,7 @@ mod test {
 
         // split on 1000 and 7000
         let split_plan = ReorgPlanner::new(IOxSessionContext::with_testing())
-            .split_plan(Arc::from("t"), schema, chunks, sort_key, vec![1000, 7000])
+            .split_plan(Arc::from("t"), &schema, chunks, sort_key, vec![1000, 7000])
             .expect("created compact plan");
 
         let executor = Executor::new_testing();
@@ -561,7 +561,7 @@ mod test {
 
         // split on 1000 and 7000
         let _split_plan = ReorgPlanner::new(IOxSessionContext::with_testing())
-            .split_plan(Arc::from("t"), schema, chunks, sort_key, vec![]) // reason of panic: empty split_times
+            .split_plan(Arc::from("t"), &schema, chunks, sort_key, vec![]) // reason of panic: empty split_times
             .expect("created compact plan");
     }
 
@@ -580,7 +580,7 @@ mod test {
 
         // split on 1000 and 7000
         let _split_plan = ReorgPlanner::new(IOxSessionContext::with_testing())
-            .split_plan(Arc::from("t"), schema, chunks, sort_key, vec![1000, 500]) // reason of panic: split_times not in ascending order
+            .split_plan(Arc::from("t"), &schema, chunks, sort_key, vec![1000, 500]) // reason of panic: split_times not in ascending order
             .expect("created compact plan");
     }
 }

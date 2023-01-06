@@ -60,7 +60,7 @@ pub(crate) struct QueryAdaptor {
     id: ChunkId,
 
     /// An interned schema for all [`RecordBatch`] in data.
-    schema: OnceCell<Arc<Schema>>,
+    schema: Schema,
 
     /// An interned table summary.
     summary: OnceCell<Arc<TableSummary>>,
@@ -80,13 +80,14 @@ impl QueryAdaptor {
         // partitions - if there is a QueryAdaptor, it contains data.
         assert!(data.iter().map(|b| b.num_rows()).sum::<usize>() > 0);
 
+        let schema = merge_record_batch_schemas(&data);
         Self {
+            schema,
             data,
             partition_id,
             // To return a value for debugging and make it consistent with ChunkId created in Compactor,
             // use Uuid for this. Draw this UUID during chunk generation so that it is stable during the whole query process.
             id: ChunkId::new(),
-            schema: OnceCell::default(),
             summary: OnceCell::default(),
         }
     }
@@ -137,17 +138,14 @@ impl QueryChunkMeta for QueryAdaptor {
 
             Arc::new(create_basic_summary(
                 self.data.iter().map(|b| b.num_rows()).sum::<usize>() as u64,
-                &self.schema(),
+                self.schema(),
                 ts_min_max,
             ))
         }))
     }
 
-    fn schema(&self) -> Arc<Schema> {
-        Arc::clone(
-            self.schema
-                .get_or_init(|| merge_record_batch_schemas(&self.data)),
-        )
+    fn schema(&self) -> &Schema {
+        &self.schema
     }
 
     fn partition_sort_key(&self) -> Option<&SortKey> {

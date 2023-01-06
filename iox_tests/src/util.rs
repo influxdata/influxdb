@@ -424,11 +424,7 @@ impl TestTable {
             .collect();
         let schema = table_schema.select_by_names(&selection).unwrap();
 
-        let chunk = ParquetChunk::new(
-            Arc::new(file),
-            Arc::new(schema),
-            self.catalog.parquet_store.clone(),
-        );
+        let chunk = ParquetChunk::new(Arc::new(file), schema, self.catalog.parquet_store.clone());
         chunk
             .parquet_exec_input()
             .read_to_batches(
@@ -624,7 +620,7 @@ impl TestPartition {
         );
         let row_count = record_batch.num_rows();
         assert!(row_count > 0, "Parquet file must have at least 1 row");
-        let (record_batch, sort_key) = sort_batch(record_batch, schema.clone());
+        let (record_batch, sort_key) = sort_batch(record_batch, &schema);
         let record_batch = dedup_batch(record_batch, &sort_key);
 
         let object_store_id = object_store_id.unwrap_or_else(Uuid::new_v4);
@@ -974,7 +970,7 @@ impl TestParquetFile {
     }
 
     /// Get Parquet file schema.
-    pub async fn schema(&self) -> Arc<Schema> {
+    pub async fn schema(&self) -> Schema {
         let table_schema = self.table.catalog_schema().await;
         let column_id_lookup = table_schema.column_id_map();
         let selection: Vec<_> = self
@@ -984,7 +980,7 @@ impl TestParquetFile {
             .map(|id| *column_id_lookup.get(id).unwrap())
             .collect();
         let table_schema: Schema = table_schema.clone().try_into().unwrap();
-        Arc::new(table_schema.select_by_names(&selection).unwrap())
+        table_schema.select_by_names(&selection).unwrap()
     }
 }
 
@@ -1018,9 +1014,9 @@ pub fn now() -> Time {
 }
 
 /// Sort arrow record batch into arrow record batch and sort key.
-fn sort_batch(record_batch: RecordBatch, schema: Schema) -> (RecordBatch, SortKey) {
+fn sort_batch(record_batch: RecordBatch, schema: &Schema) -> (RecordBatch, SortKey) {
     // calculate realistic sort key
-    let sort_key = compute_sort_key(&schema, std::iter::once(&record_batch));
+    let sort_key = compute_sort_key(schema, std::iter::once(&record_batch));
 
     // set up sorting
     let mut sort_columns = Vec::with_capacity(record_batch.num_columns());

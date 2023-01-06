@@ -206,7 +206,7 @@ impl NamespaceCache {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CachedTable {
     pub id: TableId,
-    pub schema: Arc<Schema>,
+    pub schema: Schema,
     pub column_id_map: HashMap<ColumnId, Arc<str>>,
     pub column_id_map_rev: HashMap<Arc<str>, ColumnId>,
     pub primary_key_column_ids: Vec<ColumnId>,
@@ -242,7 +242,7 @@ impl From<TableSchema> for CachedTable {
         column_id_map.shrink_to_fit();
 
         let id = table.id;
-        let schema: Arc<Schema> = Arc::new(table.try_into().expect("Catalog table schema broken"));
+        let schema: Schema = table.try_into().expect("Catalog table schema broken");
 
         let mut column_id_map_rev: HashMap<Arc<str>, ColumnId> = column_id_map
             .iter()
@@ -368,15 +368,13 @@ mod tests {
                     Arc::from("table1"),
                     Arc::new(CachedTable {
                         id: table11.table.id,
-                        schema: Arc::new(
-                            SchemaBuilder::new()
-                                .field("col1", DataType::Int64)
-                                .unwrap()
-                                .tag("col2")
-                                .timestamp()
-                                .build()
-                                .unwrap(),
-                        ),
+                        schema: SchemaBuilder::new()
+                            .field("col1", DataType::Int64)
+                            .unwrap()
+                            .tag("col2")
+                            .timestamp()
+                            .build()
+                            .unwrap(),
                         column_id_map: HashMap::from([
                             (col111.column.id, Arc::from(col111.column.name.clone())),
                             (col112.column.id, Arc::from(col112.column.name.clone())),
@@ -394,14 +392,12 @@ mod tests {
                     Arc::from("table2"),
                     Arc::new(CachedTable {
                         id: table12.table.id,
-                        schema: Arc::new(
-                            SchemaBuilder::new()
-                                .field("col1", DataType::Float64)
-                                .unwrap()
-                                .timestamp()
-                                .build()
-                                .unwrap(),
-                        ),
+                        schema: SchemaBuilder::new()
+                            .field("col1", DataType::Float64)
+                            .unwrap()
+                            .timestamp()
+                            .build()
+                            .unwrap(),
                         column_id_map: HashMap::from([
                             (col121.column.id, Arc::from(col121.column.name.clone())),
                             (col122.column.id, Arc::from(col122.column.name.clone())),
@@ -433,7 +429,7 @@ mod tests {
                 Arc::from("table1"),
                 Arc::new(CachedTable {
                     id: table21.table.id,
-                    schema: Arc::new(SchemaBuilder::new().timestamp().build().unwrap()),
+                    schema: SchemaBuilder::new().timestamp().build().unwrap(),
                     column_id_map: HashMap::from([(
                         col211.column.id,
                         Arc::from(col211.column.name.clone()),
