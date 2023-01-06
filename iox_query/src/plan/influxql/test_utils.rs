@@ -3,30 +3,12 @@
 
 use crate::test::TestChunk;
 use crate::QueryChunkMeta;
-use arrow::datatypes::SchemaRef;
-use async_trait::async_trait;
-use datafusion::catalog::schema::SchemaProvider;
-use datafusion::datasource::{TableProvider, TableType};
-use datafusion::error::Result;
-use datafusion::execution::context::SessionState;
-use datafusion::logical_expr::Expr;
-use datafusion::physical_plan::ExecutionPlan;
 use influxdb_influxql_parser::parse_statements;
 use influxdb_influxql_parser::select::{Field, SelectStatement};
 use influxdb_influxql_parser::statement::Statement;
-use itertools::Itertools;
-use std::any::Any;
+use predicate::rpc_predicate::QueryNamespaceMeta;
+use schema::Schema;
 use std::sync::Arc;
-
-struct EmptyTable {
-    table_schema: SchemaRef,
-}
-
-impl EmptyTable {
-    pub(crate) fn new(table_schema: SchemaRef) -> Self {
-        Self { table_schema }
-    }
-}
 
 /// Returns the first `Field` of the `SELECT` statement.
 pub(crate) fn get_first_field(s: &str) -> Field {
@@ -42,42 +24,13 @@ pub(crate) fn parse_select(s: &str) -> SelectStatement {
     }
 }
 
-#[async_trait]
-impl TableProvider for EmptyTable {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn schema(&self) -> SchemaRef {
-        Arc::clone(&self.table_schema)
-    }
-
-    fn table_type(&self) -> TableType {
-        TableType::Base
-    }
-
-    async fn scan(
-        &self,
-        _ctx: &SessionState,
-        _projection: Option<&Vec<usize>>,
-        _filters: &[Expr],
-        _limit: Option<usize>,
-    ) -> Result<Arc<dyn ExecutionPlan>> {
-        unimplemented!()
-    }
+pub(crate) struct MockNamespace {
+    chunks: Vec<TestChunk>,
 }
 
-pub(crate) struct MockSchemaProvider {}
-
-impl MockSchemaProvider {
-    /// Convenience constructor to return a new instance of [`Self`] as a dynamic [`SchemaProvider`].
-    pub(crate) fn new_schema_provider() -> Arc<dyn SchemaProvider> {
-        Arc::new(Self {})
-    }
-
-    /// Return the chunks that make up the test database.
-    pub(crate) fn table_chunks() -> Vec<TestChunk> {
-        vec![
+impl Default for MockNamespace {
+    fn default() -> Self {
+        let chunks = vec![
             TestChunk::new("cpu")
                 .with_quiet()
                 .with_tag_column("host")
@@ -120,36 +73,21 @@ impl MockSchemaProvider {
                 .with_tag_column("shared_tag0")
                 .with_tag_column("shared_tag1")
                 .with_string_field_column_with_stats("shared_field0", None, None),
-        ]
+        ];
+        Self { chunks }
     }
 }
 
-impl SchemaProvider for MockSchemaProvider {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
+impl QueryNamespaceMeta for MockNamespace {
     fn table_names(&self) -> Vec<String> {
-        Self::table_chunks()
+        self.chunks
             .iter()
-            .map(|c| c.table_name().into())
-            .sorted()
-            .collect::<Vec<_>>()
+            .map(|x| x.table_name().to_string())
+            .collect()
     }
 
-    fn table(&self, name: &str) -> Option<Arc<dyn TableProvider>> {
-        let schema = Self::table_chunks()
-            .iter()
-            .find(|c| c.table_name() == name)
-            .map(|c| c.schema());
-
-        match schema {
-            Some(s) => Some(Arc::new(EmptyTable::new(Arc::clone(s.inner())))),
-            None => None,
-        }
-    }
-
-    fn table_exist(&self, name: &str) -> bool {
-        self.table_names().contains(&name.to_string())
+    fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {
+        let c = self.chunks.iter().find(|x| x.table_name() == table_name)?;
+        Some(c.schema())
     }
 }
