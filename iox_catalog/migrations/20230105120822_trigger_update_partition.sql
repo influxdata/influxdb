@@ -7,7 +7,7 @@ RETURNS TRIGGER
 LANGUAGE PLPGSQL
 AS $$
 BEGIN 
-    UPDATE partition SET new_file_at = EXTRACT(EPOCH FROM now() ) * 1000000000 WHERE id = NEW.partition_id;
+    UPDATE partition SET new_file_at = NEW.created_at WHERE id = NEW.partition_id;
 
     RETURN NEW;
 END;

@@ -904,6 +904,9 @@ pub struct Partition {
     ///
     /// If [`None`] no data has been persisted for this partition.
     pub persisted_sequence_number: Option<SequenceNumber>,
+
+    /// The time at which the newest file of the partition is created
+    pub new_file_at: Option<Timestamp>,
 }
 
 impl Partition {
@@ -922,6 +925,7 @@ impl Partition {
 pub struct PartitionParam {
     /// the partition
     pub partition_id: PartitionId,
+    // Remove this shard_id: https://github.com/influxdata/influxdb_iox/issues/6518
     /// the partition's shard
     pub shard_id: ShardId,
     /// the partition's namespace
