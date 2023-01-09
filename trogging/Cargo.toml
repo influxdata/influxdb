@@ -7,8 +7,8 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-atty = "0.2.14"
 clap = { version = "4", features = ["derive", "env"], optional = true }
+is-terminal = "0.4.2"
 logfmt = { path = "../logfmt" }
 observability_deps = { path = "../observability_deps" }
 thiserror = "1.0.38"
