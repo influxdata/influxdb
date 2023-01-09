@@ -7,7 +7,7 @@ pub(crate) use r#trait::*;
 pub(crate) mod partition_response;
 pub(crate) mod response;
 
-pub(crate) mod exec;
+// Instrumentation
 pub(crate) mod instrumentation;
 pub(crate) mod tracing;
 
