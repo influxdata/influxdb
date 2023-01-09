@@ -18,6 +18,7 @@ pub mod config;
 
 pub use config::*;
 
+use is_terminal::IsTerminal;
 // Re-export tracing_subscriber
 pub use tracing_subscriber;
 
@@ -75,7 +76,7 @@ impl Default for Builder {
             make_writer: io::stdout,
             with_target: true,
             // use ansi control codes for color if connected to a TTY
-            with_ansi: atty::is(atty::Stream::Stdout),
+            with_ansi: std::io::stdout().is_terminal(),
         }
     }
 }
