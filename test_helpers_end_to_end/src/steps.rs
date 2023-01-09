@@ -1,13 +1,15 @@
 use crate::{
     check_flight_error, get_write_token, run_influxql, run_sql, token_is_persisted,
-    try_run_influxql, try_run_sql, wait_for_new_parquet_file, wait_for_persisted,
-    wait_for_readable, MiniCluster,
+    try_run_influxql, try_run_sql, wait_for_persisted, wait_for_readable, MiniCluster,
 };
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_sorted_eq;
 use futures::future::BoxFuture;
 use http::StatusCode;
 use observability_deps::tracing::info;
+use std::time::Duration;
+
+const MAX_QUERY_RETRY_TIME_SEC: u64 = 20;
 
 /// Test harness for end to end tests that are comprised of several steps
 pub struct StepTest<'a> {
@@ -24,6 +26,11 @@ pub struct StepTestState<'a> {
 
     /// Tokens for all data written in WriteLineProtocol steps
     write_tokens: Vec<String>,
+
+    /// How many Parquet files the catalog service knows about for the mini cluster's namespace,
+    /// for tracking when persistence has happened. If this is `None`, we haven't ever checked with
+    /// the catalog service.
+    num_parquet_files: Option<usize>,
 }
 
 impl<'a> StepTestState<'a> {
@@ -43,6 +50,55 @@ impl<'a> StepTestState<'a> {
     #[must_use]
     pub fn write_tokens(&self) -> &[String] {
         self.write_tokens.as_ref()
+    }
+
+    /// Store the number of Parquet files the catalog has for the mini cluster's namespace.
+    /// Call this before a write to be able to tell when a write has been persisted by checking for
+    /// a change in this count.
+    pub async fn record_num_parquet_files(&mut self) {
+        let num_parquet_files = self.get_num_parquet_files().await;
+
+        info!(
+            "Recorded count of Parquet files for namespace {}: {num_parquet_files}",
+            self.cluster.namespace()
+        );
+        self.num_parquet_files = Some(num_parquet_files);
+    }
+
+    /// Wait for a change (up to a timeout) in the number of Parquet files the catalog has for the
+    /// mini cluster's namespacee since the last time the number of Parquet files was recorded,
+    /// which indicates persistence has taken place.
+    pub async fn wait_for_num_parquet_file_change(&mut self) {
+        let retry_duration = Duration::from_secs(MAX_QUERY_RETRY_TIME_SEC);
+
+        tokio::time::timeout(retry_duration, async move {
+            let mut interval = tokio::time::interval(Duration::from_millis(1000));
+            loop {
+                let current_count = self.get_num_parquet_files().await;
+                if Some(current_count) > self.num_parquet_files {
+                    info!("Success; Parquet file count is now {current_count}");
+                    self.num_parquet_files = Some(current_count);
+                    return;
+                }
+                info!("Retrying; Parquet file count is still {current_count}");
+
+                interval.tick().await;
+            }
+        })
+        .await
+        .expect("did not get additional Parquet files in the catalog");
+    }
+
+    /// Ask the catalog service how many Parquet files it has for the mini cluster's namespace.
+    async fn get_num_parquet_files(&self) -> usize {
+        let connection = self.cluster.router().router_grpc_connection();
+        let mut catalog_client = influxdb_iox_client::catalog::Client::new(connection);
+
+        catalog_client
+            .get_parquet_files_by_namespace(self.cluster.namespace().into())
+            .await
+            .map(|parquet_files| parquet_files.len())
+            .unwrap_or_default()
     }
 }
 
@@ -88,9 +144,9 @@ pub enum Step {
     WaitForPersisted,
 
     /// Wait for all previously written data to be persisted by observing an increase in the number
-    /// of Parquet files in the catalog for this cluster's namespace and the specified table name.
-    /// Needed for router2/ingester2/querier2.
-    WaitForPersisted2 { table_name: String },
+    /// of Parquet files in the catalog for this cluster's namespace. Needed for
+    /// router2/ingester2/querier2.
+    WaitForPersisted2,
 
     /// Ask the ingester if it has persisted the data. For use in tests where the querier doesn't
     /// know about the ingester, so the test needs to ask the ingester directly.
@@ -168,6 +224,7 @@ impl<'a> StepTest<'a> {
         let mut state = StepTestState {
             cluster,
             write_tokens: vec![],
+            num_parquet_files: Default::default(),
         };
 
         for (i, step) in steps.into_iter().enumerate() {
@@ -178,6 +235,9 @@ impl<'a> StepTest<'a> {
                         "====Begin writing line protocol to v2 HTTP API:\n{}",
                         line_protocol
                     );
+                    // Get the current number of Parquet files in the cluster's namespace before
+                    // starting a new write so we can observe a change when waiting for persistence.
+                    state.record_num_parquet_files().await;
                     let response = state.cluster.write_to_router(line_protocol).await;
                     assert_eq!(response.status(), StatusCode::NO_CONTENT);
                     let write_token = get_write_token(&response);
@@ -202,17 +262,10 @@ impl<'a> StepTest<'a> {
                     }
                     info!("====Done waiting for all write tokens to be persisted");
                 }
-                Step::WaitForPersisted2 { table_name } => {
-                    info!("====Begin waiting for a new Parquet file to be persisted");
-                    let querier_grpc_connection =
-                        state.cluster().querier().querier_grpc_connection();
-                    wait_for_new_parquet_file(
-                        querier_grpc_connection,
-                        state.cluster().namespace(),
-                        &table_name,
-                    )
-                    .await;
-                    info!("====Done waiting for a new Parquet file to be persisted");
+                Step::WaitForPersisted2 => {
+                    info!("====Begin waiting for a change in the number of Parquet files");
+                    state.wait_for_num_parquet_file_change().await;
+                    info!("====Done waiting for a change in the number of Parquet files");
                 }
                 // Specifically for cases when the querier doesn't know about the ingester so the
                 // test needs to ask the ingester directly.
