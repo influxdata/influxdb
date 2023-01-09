@@ -322,6 +322,8 @@ func (t *TaskManager) waitForQuery(qid uint64, interrupt <-chan struct{}, closin
 			t.Logger.Warn(
 				"query killed for exceeding timeout limit",
 				zap.String("query", t.queries[qid].query),
+				zap.String("database", t.queries[qid].database),
+				zap.String("timeout", prettyTime(t.QueryTimeout).String()),
 			)
 		}
 		t.queryError(qid, ErrQueryTimeoutLimitExceeded)
