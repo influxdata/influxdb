@@ -1,3 +1,4 @@
+use base64::{prelude::BASE64_STANDARD, Engine};
 use data_types::{SequenceNumber, ShardIndex, ShardWriteStatus};
 use dml::DmlMeta;
 /// Protobuf to/from conversion
@@ -62,7 +63,7 @@ impl WriteSummary {
     /// Return an opaque summary "token" of this summary
     pub fn to_token(self) -> String {
         let proto_write_summary: proto::WriteSummary = self.into();
-        base64::encode(
+        BASE64_STANDARD.encode(
             serde_json::to_string(&proto_write_summary)
                 .expect("unexpected error serializing token to json"),
         )
@@ -70,7 +71,8 @@ impl WriteSummary {
 
     /// Return a WriteSummary from the "token" (created with [Self::to_token]), or error if not possible
     pub fn try_from_token(token: &str) -> Result<Self, String> {
-        let data = base64::decode(token)
+        let data = BASE64_STANDARD
+            .decode(token)
             .map_err(|e| format!("Invalid write token, invalid base64: {}", e))?;
 
         let json = String::from_utf8(data)
@@ -324,14 +326,14 @@ mod tests {
     #[test]
     #[should_panic(expected = "Invalid write token, non utf8 data in write token")]
     fn token_parsing_bad_utf8() {
-        let token = base64::encode(vec![0xa0, 0xa1]);
+        let token = BASE64_STANDARD.encode(vec![0xa0, 0xa1]);
         WriteSummary::try_from_token(&token).unwrap();
     }
 
     #[test]
     #[should_panic(expected = "Invalid write token, protobuf decode error: key must be a string")]
     fn token_parsing_bad_proto() {
-        let token = base64::encode("{not_valid_json}");
+        let token = BASE64_STANDARD.encode("{not_valid_json}");
         WriteSummary::try_from_token(&token).unwrap();
     }
 

@@ -1,4 +1,5 @@
 use crate::{google::FieldViolation, influxdata::iox::ingester::v1 as proto};
+use base64::{prelude::BASE64_STANDARD, Engine};
 use data_types::{NamespaceId, TableId, TimestampRange};
 use datafusion::{common::DataFusionError, prelude::Expr};
 use datafusion_proto::bytes::Serializeable;
@@ -208,7 +209,7 @@ pub fn encode_proto_predicate_as_base64(
 ) -> Result<String, EncodeProtoPredicateFromBase64Error> {
     let mut buf = vec![];
     predicate.encode(&mut buf).context(ProtobufEncodeSnafu)?;
-    Ok(base64::encode(&buf))
+    Ok(BASE64_STANDARD.encode(&buf))
 }
 
 #[derive(Debug, Snafu)]
@@ -224,7 +225,7 @@ pub enum DecodeProtoPredicateFromBase64Error {
 pub fn decode_proto_predicate_from_base64(
     s: &str,
 ) -> Result<proto::Predicate, DecodeProtoPredicateFromBase64Error> {
-    let predicate_binary = base64::decode(s).context(Base64DecodeSnafu)?;
+    let predicate_binary = BASE64_STANDARD.decode(s).context(Base64DecodeSnafu)?;
     proto::Predicate::decode(predicate_binary.as_slice()).context(ProtobufDecodeSnafu)
 }
 

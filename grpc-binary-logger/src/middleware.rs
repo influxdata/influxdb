@@ -1,3 +1,5 @@
+use base64::prelude::BASE64_STANDARD;
+use base64::Engine;
 use bytes::Bytes;
 use http::header::AsHeaderName;
 use http::uri::Authority;
@@ -501,7 +503,7 @@ impl GrpcHeaderExt for HeaderMap {
 
     fn grpc_status_details(&self) -> Vec<u8> {
         self.get_grpc_header("grpc-status-details-bin")
-            .and_then(|v| base64::decode(v).ok())
+            .and_then(|v| BASE64_STANDARD.decode(v).ok())
             .unwrap_or_default()
     }
 
