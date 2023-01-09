@@ -1116,6 +1116,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "croaring"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b637fa52bae8bfe59608b632329dd3bd606126ec8af04a5cbc628f9371a545d5"
+dependencies = [
+ "byteorder",
+ "croaring-sys",
+ "libc",
+]
+
+[[package]]
+name = "croaring-sys"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f09181aa94e1b0b038a1ef581f816e1e303c1146c1504bf34ea73fe8079095f"
+dependencies = [
+ "cc",
+ "libc",
+]
+
+[[package]]
 name = "crossbeam-channel"
 version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1277,6 +1298,7 @@ dependencies = [
 name = "data_types"
 version = "0.1.0"
 dependencies = [
+ "croaring",
  "influxdb_line_protocol",
  "iox_time",
  "observability_deps",
