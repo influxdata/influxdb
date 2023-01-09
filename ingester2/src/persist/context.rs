@@ -515,7 +515,7 @@ impl Context {
         // This SHOULD cause the data to be dropped, but there MAY be ongoing
         // queries that currently hold a reference to the data. In either case,
         // the persisted data will be dropped "shortly".
-        self.partition.lock().mark_persisted(self.data);
+        let sequence_numbers = self.partition.lock().mark_persisted(self.data);
 
         let now = Instant::now();
 
@@ -530,6 +530,7 @@ impl Context {
             total_persist_duration = ?now.duration_since(self.enqueued_at),
             active_persist_duration = ?now.duration_since(self.dequeued_at),
             queued_persist_duration = ?self.dequeued_at.duration_since(self.enqueued_at),
+            n_writes = sequence_numbers.len(),
             "persisted partition"
         );
 
