@@ -13,3 +13,11 @@ message WriteRequest {
 }
 
 message WriteResponse {}
+
+service PersistService {
+  rpc Persist(PersistRequest) returns (PersistResponse);
+}
+
+message PersistRequest {}
+
+message PersistResponse {}

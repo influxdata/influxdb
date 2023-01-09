@@ -154,6 +154,52 @@ mod kafkaless_rpc_write {
     use super::*;
 
     #[tokio::test]
+    async fn persist_on_demand() {
+        test_helpers::maybe_start_logging();
+        let database_url = maybe_skip_integration!();
+
+        let table_name = "mytable";
+        let cluster = MiniCluster::create_shared2_never_persist(database_url).await;
+
+        let lp = format!("{},tag1=A,tag2=B val=42i 123456", table_name);
+        let response = cluster.write_to_router(lp).await;
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+        // query the ingester
+        let query = IngesterQueryRequest::new(
+            cluster.namespace_id().await,
+            cluster.table_id(table_name).await,
+            vec![],
+            Some(::predicate::EMPTY_PREDICATE),
+        );
+        let query: proto::IngesterQueryRequest = query.try_into().unwrap();
+        let ingester_response = cluster.query_ingester(query.clone()).await.unwrap();
+
+        let ingester_uuid = ingester_response.app_metadata.ingester_uuid.clone();
+        assert!(!ingester_uuid.is_empty());
+
+        let expected = [
+            "+------+------+--------------------------------+-----+",
+            "| tag1 | tag2 | time                           | val |",
+            "+------+------+--------------------------------+-----+",
+            "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
+            "+------+------+--------------------------------+-----+",
+        ];
+        assert_batches_sorted_eq!(&expected, &ingester_response.record_batches);
+
+        // request that the ingester persist its data
+        cluster.persist_ingester().await;
+
+        let ingester_response = cluster.query_ingester(query.clone()).await.unwrap();
+
+        let num_files_persisted = ingester_response.app_metadata.completed_persistence_count;
+        assert_eq!(num_files_persisted, 1);
+
+        // ingester no longer has data in memory
+        assert!(ingester_response.record_batches.is_empty());
+    }
+
+    #[tokio::test]
     async fn ingester_flight_api() {
         test_helpers::maybe_start_logging();
         let database_url = maybe_skip_integration!();

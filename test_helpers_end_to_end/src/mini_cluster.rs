@@ -461,6 +461,14 @@ impl MiniCluster {
         })
     }
 
+    /// Ask the ingester to persist its data.
+    pub async fn persist_ingester(&self) {
+        let mut ingester_client =
+            influxdb_iox_client::ingester::Client::new(self.ingester().ingester_grpc_connection());
+
+        ingester_client.persist().await.unwrap();
+    }
+
     /// Get a reference to the mini cluster's other servers.
     pub fn other_servers(&self) -> &[ServerFixture] {
         self.other_servers.as_ref()
