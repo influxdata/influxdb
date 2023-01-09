@@ -5565,6 +5565,7 @@ dependencies = [
  "http",
  "hyper",
  "influxdb_iox_client",
+ "iox_arrow_flight",
  "nix 0.26.1",
  "observability_deps",
  "once_cell",

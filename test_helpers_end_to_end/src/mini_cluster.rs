@@ -2,6 +2,7 @@ use crate::{
     dump_log_to_stdout, log_command, rand_id, write_to_router, ServerFixture, TestConfig,
     TestServer,
 };
+use arrow::{datatypes::SchemaRef, record_batch::RecordBatch};
 use assert_cmd::prelude::*;
 use data_types::{NamespaceId, TableId};
 use futures::{stream::FuturesOrdered, StreamExt};
@@ -9,7 +10,11 @@ use http::Response;
 use hyper::Body;
 use influxdb_iox_client::{
     connection::GrpcConnection,
+    flight::generated_types::{IngesterQueryRequest, IngesterQueryResponseMetadata},
     schema::generated_types::{schema_service_client::SchemaServiceClient, GetSchemaRequest},
+};
+use iox_arrow_flight::{
+    prost::Message, DecodedFlightData, DecodedPayload, FlightDataStream, FlightError,
 };
 use observability_deps::tracing::{debug, info};
 use once_cell::sync::Lazy;
@@ -422,6 +427,40 @@ impl MiniCluster {
         .await
     }
 
+    /// Query the ingester using flight directly, rather than through a querier.
+    pub async fn query_ingester(
+        &self,
+        query: IngesterQueryRequest,
+    ) -> Result<IngesterResponse, FlightError> {
+        let querier_flight =
+            influxdb_iox_client::flight::Client::new(self.ingester().ingester_grpc_connection());
+
+        let mut performed_query = querier_flight
+            .into_inner()
+            .do_get(query.encode_to_vec())
+            .await?
+            .into_inner();
+
+        let (msg, app_metadata) = next_message(&mut performed_query).await.unwrap();
+        assert!(matches!(msg, DecodedPayload::None), "{:?}", msg);
+
+        let schema = next_message(&mut performed_query)
+            .await
+            .map(|(msg, _)| unwrap_schema(msg));
+
+        let mut record_batches = vec![];
+        while let Some((msg, _md)) = next_message(&mut performed_query).await {
+            let batch = unwrap_record_batch(msg);
+            record_batches.push(batch);
+        }
+
+        Ok(IngesterResponse {
+            app_metadata,
+            schema,
+            record_batches,
+        })
+    }
+
     /// Get a reference to the mini cluster's other servers.
     pub fn other_servers(&self) -> &[ServerFixture] {
         self.other_servers.as_ref()
@@ -484,6 +523,14 @@ impl MiniCluster {
 
         generated_types::storage_client::StorageClient::new(grpc_connection)
     }
+}
+
+/// Gathers data from ingester Flight queries
+#[derive(Debug)]
+pub struct IngesterResponse {
+    pub app_metadata: IngesterQueryResponseMetadata,
+    pub schema: Option<SchemaRef>,
+    pub record_batches: Vec<RecordBatch>,
 }
 
 /// holds shared server processes to share across tests
@@ -592,3 +639,29 @@ static GLOBAL_SHARED_SERVERS: Lazy<Mutex<Option<SharedServers>>> = Lazy::new(|| 
 static GLOBAL_SHARED_SERVERS2: Lazy<Mutex<Option<SharedServers>>> = Lazy::new(|| Mutex::new(None));
 static GLOBAL_SHARED_SERVERS2_NEVER_PERSIST: Lazy<Mutex<Option<SharedServers>>> =
     Lazy::new(|| Mutex::new(None));
+
+async fn next_message(
+    performed_query: &mut FlightDataStream,
+) -> Option<(DecodedPayload, IngesterQueryResponseMetadata)> {
+    let DecodedFlightData { inner, payload } = performed_query.next().await.transpose().unwrap()?;
+
+    // extract the metadata from the underlying FlightData structure
+    let app_metadata = &inner.app_metadata[..];
+    let app_metadata: IngesterQueryResponseMetadata = Message::decode(app_metadata).unwrap();
+
+    Some((payload, app_metadata))
+}
+
+fn unwrap_schema(msg: DecodedPayload) -> SchemaRef {
+    match msg {
+        DecodedPayload::Schema(s) => s,
+        _ => panic!("Unexpected message type: {:?}", msg),
+    }
+}
+
+fn unwrap_record_batch(msg: DecodedPayload) -> RecordBatch {
+    match msg {
+        DecodedPayload::RecordBatch(b) => b,
+        _ => panic!("Unexpected message type: {:?}", msg),
+    }
+}
