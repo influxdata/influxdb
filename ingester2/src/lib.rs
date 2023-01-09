@@ -100,6 +100,7 @@ maybe_pub!(mod buffer_tree);
 mod deferred_load;
 maybe_pub!(mod dml_sink);
 maybe_pub!(mod persist);
+maybe_pub!(mod partition_iter);
 mod query;
 mod query_adaptor;
 pub(crate) mod server;
