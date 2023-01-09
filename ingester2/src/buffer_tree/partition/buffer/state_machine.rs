@@ -2,7 +2,7 @@
 use std::sync::Arc;
 
 use arrow::record_batch::RecordBatch;
-use data_types::SequenceNumber;
+use data_types::{sequence_number_set::SequenceNumberSet, SequenceNumber};
 use mutable_batch::MutableBatch;
 
 mod buffering;
@@ -29,8 +29,11 @@ pub(crate) enum Transition<A, B> {
 
 impl<A, B> Transition<A, B> {
     /// A helper function to construct [`Self::Ok`] variants.
-    pub(super) fn ok(v: A) -> Self {
-        Self::Ok(BufferState { state: v })
+    pub(super) fn ok(v: A, sequence_numbers: SequenceNumberSet) -> Self {
+        Self::Ok(BufferState {
+            state: v,
+            sequence_numbers,
+        })
     }
 
     /// A helper function to construct [`Self::Unchanged`] variants.
@@ -67,6 +70,9 @@ impl<A, B> Transition<A, B> {
 #[derive(Debug)]
 pub(crate) struct BufferState<T> {
     state: T,
+
+    /// The set of [`SequenceNumber`] successfully applied to this buffer.
+    sequence_numbers: SequenceNumberSet,
 }
 
 impl BufferState<Buffering> {
@@ -74,7 +80,15 @@ impl BufferState<Buffering> {
     pub(super) fn new() -> Self {
         Self {
             state: Buffering::default(),
+            sequence_numbers: SequenceNumberSet::default(),
         }
+    }
+}
+
+impl<T> BufferState<T> {
+    /// Return the set of sequence numbers wrote to this [`BufferState`].
+    pub(crate) fn sequence_number_set(&self) -> &SequenceNumberSet {
+        &self.sequence_numbers
     }
 }
 
@@ -85,17 +99,16 @@ where
     T: Writeable,
 {
     /// The provided [`SequenceNumber`] MUST be for the given [`MutableBatch`].
-    ///
-    /// # Panics
-    ///
-    /// This method panics if it is called non-monotonic writes/sequence
-    /// numbers.
     pub(crate) fn write(
         &mut self,
         batch: MutableBatch,
-        _n: SequenceNumber,
+        n: SequenceNumber,
     ) -> Result<(), mutable_batch::Error> {
         self.state.write(batch)?;
+
+        // Add the sequence number to the observed set after the fallible write.
+        self.sequence_numbers.add(n);
+
         Ok(())
     }
 }
@@ -140,6 +153,13 @@ mod tests {
                 SequenceNumber::new(0),
             )
             .expect("write to empty buffer should succeed");
+
+        // Ensure the sequence number was recorded
+        {
+            let set = buffer.sequence_number_set();
+            assert!(set.contains(SequenceNumber::new(0)));
+            assert_eq!(set.len(), 1);
+        }
 
         // Extract the queryable data from the buffer and validate it.
         //
@@ -204,7 +224,7 @@ mod tests {
         let buffer: BufferState<Persisting> = buffer.into_persisting();
 
         // Extract the final buffered result
-        let final_data = buffer.into_data();
+        let final_data = buffer.get_query_data();
 
         // And once again verify no data was changed, copied or re-ordered.
         assert_eq!(w2_data, final_data);
@@ -213,6 +233,12 @@ mod tests {
             .zip(final_data.into_iter())
             .all(|(a, b)| Arc::ptr_eq(&a, &b));
         assert!(same_arcs);
+
+        // Assert the sequence numbers were recorded.
+        let set = buffer.into_sequence_number_set();
+        assert!(set.contains(SequenceNumber::new(0)));
+        assert!(set.contains(SequenceNumber::new(1)));
+        assert_eq!(set.len(), 2);
     }
 
     #[test]
@@ -242,5 +268,31 @@ mod tests {
         let want = mb1.to_arrow(Projection::All).unwrap();
 
         assert_eq!(&**snapshot, &want);
+    }
+
+    #[test]
+    fn test_fallible_write_sequence_number_observation() {
+        let mut buffer: BufferState<Buffering> = BufferState::new();
+
+        // A successful write has the sequence number recorded.
+        let (_, mb) = lp_to_mutable_batch(r#"bananas great=42 1"#);
+        buffer.write(mb, SequenceNumber::new(24)).unwrap();
+
+        // Validate the sequence number was recorded.
+        {
+            let set = buffer.sequence_number_set();
+            assert!(set.contains(SequenceNumber::new(24)));
+            assert_eq!(set.len(), 1);
+        }
+
+        // A failed write (in this case because of a schema conflict) must not
+        // have the sequence number recorded.
+        let (_, mb) = lp_to_mutable_batch(r#"bananas great="yep" 1"#);
+        let _ = buffer.write(mb, SequenceNumber::new(12)).unwrap_err();
+
+        let set = buffer.sequence_number_set();
+        assert!(set.contains(SequenceNumber::new(24)));
+        assert!(!set.contains(SequenceNumber::new(12)));
+        assert_eq!(set.len(), 1);
     }
 }
