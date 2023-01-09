@@ -85,11 +85,6 @@ where
     T: Writeable,
 {
     /// The provided [`SequenceNumber`] MUST be for the given [`MutableBatch`].
-    ///
-    /// # Panics
-    ///
-    /// This method panics if it is called non-monotonic writes/sequence
-    /// numbers.
     pub(crate) fn write(
         &mut self,
         batch: MutableBatch,
