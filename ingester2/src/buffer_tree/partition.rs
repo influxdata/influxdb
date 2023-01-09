@@ -2,7 +2,10 @@
 
 use std::{collections::VecDeque, sync::Arc};
 
-use data_types::{NamespaceId, PartitionId, PartitionKey, SequenceNumber, ShardId, TableId};
+use data_types::{
+    sequence_number_set::SequenceNumberSet, NamespaceId, PartitionId, PartitionKey, SequenceNumber,
+    ShardId, TableId,
+};
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
 use schema::sort::SortKey;
@@ -244,7 +247,7 @@ impl PartitionData {
     ///
     /// This method panics if [`Self`] is not marked as undergoing a persist
     /// operation, or `batch` is not currently being persisted.
-    pub(crate) fn mark_persisted(&mut self, batch: PersistingData) {
+    pub(crate) fn mark_persisted(&mut self, batch: PersistingData) -> SequenceNumberSet {
         // Find the batch in the persisting queue.
         let idx = self
             .persisting
@@ -254,8 +257,8 @@ impl PartitionData {
 
         // Remove the batch from the queue, preserving the order of the queue
         // for batch iteration during queries.
-        let (old_ident, _oldest) = self.persisting.remove(idx).unwrap();
-        assert_eq!(old_ident, batch.batch_ident(),);
+        let (old_ident, fsm) = self.persisting.remove(idx).unwrap();
+        assert_eq!(old_ident, batch.batch_ident());
 
         self.completed_persistence_count += 1;
 
@@ -270,6 +273,9 @@ impl PartitionData {
             batch_ident = %batch.batch_ident(),
             "marking partition persistence complete"
         );
+
+        // Return the set of IDs this buffer contained.
+        fsm.into_sequence_number_set()
     }
 
     pub(crate) fn partition_id(&self) -> PartitionId {
@@ -533,7 +539,9 @@ mod tests {
         }
 
         // The persist now "completes".
-        p.mark_persisted(persisting_data);
+        let set = p.mark_persisted(persisting_data);
+        assert_eq!(set.len(), 1);
+        assert!(set.contains(SequenceNumber::new(1)));
 
         // Ensure the started batch ident isn't increased when a persist completes, but the
         // completed count is increased.
@@ -566,7 +574,8 @@ mod tests {
 
     // Ensure the ordering of snapshots & persisting data is preserved such that
     // updates resolve correctly, and batch identifiers are correctly allocated
-    // and validated in mark_persisted() calls
+    // and validated in mark_persisted() calls which return the correct
+    // SequenceNumberSet instances.
     #[tokio::test]
     async fn test_record_batch_ordering() {
         // A helper function to dedupe the record batches in [`QueryAdaptor`]
@@ -737,7 +746,10 @@ mod tests {
         .await;
 
         // Finish persisting the first batch.
-        p.mark_persisted(persisting_data1);
+        let set = p.mark_persisted(persisting_data1);
+        assert_eq!(set.len(), 2);
+        assert!(set.contains(SequenceNumber::new(1)));
+        assert!(set.contains(SequenceNumber::new(2)));
 
         // And assert the correct value remains.
         assert_eq!(p.get_query_data().unwrap().record_batches().len(), 2);
@@ -754,7 +766,9 @@ mod tests {
         .await;
 
         // Finish persisting the second batch.
-        p.mark_persisted(persisting_data2);
+        let set = p.mark_persisted(persisting_data2);
+        assert_eq!(set.len(), 1);
+        assert!(set.contains(SequenceNumber::new(3)));
 
         // And assert the correct value remains.
         assert_eq!(p.get_query_data().unwrap().record_batches().len(), 1);
@@ -776,6 +790,7 @@ mod tests {
     // Ensure the ordering of snapshots & persisting data is preserved such that
     // updates resolve correctly when queried, and batch identifiers are
     // correctly allocated, validated, and removed in mark_persisted() calls
+    // which return the correct SequenceNumberSet instances.
     #[tokio::test]
     async fn test_out_of_order_persist() {
         let mut p = PartitionData::new(
@@ -889,7 +904,9 @@ mod tests {
 
         // Finish persisting the second batch out-of-order! The middle entry,
         // ensuring the first and last entries remain ordered.
-        p.mark_persisted(persisting_data2);
+        let set = p.mark_persisted(persisting_data2);
+        assert_eq!(set.len(), 1);
+        assert!(set.contains(SequenceNumber::new(3)));
 
         let data = p.get_query_data().unwrap();
         assert_batches_eq!(
@@ -911,7 +928,9 @@ mod tests {
         );
 
         // Finish persisting the last batch.
-        p.mark_persisted(persisting_data3);
+        let set = p.mark_persisted(persisting_data3);
+        assert_eq!(set.len(), 1);
+        assert!(set.contains(SequenceNumber::new(4)));
 
         let data = p.get_query_data().unwrap();
         assert_batches_eq!(
@@ -932,7 +951,9 @@ mod tests {
         );
 
         // Finish persisting the first batch.
-        p.mark_persisted(persisting_data1);
+        let set = p.mark_persisted(persisting_data1);
+        assert_eq!(set.len(), 1);
+        assert!(set.contains(SequenceNumber::new(1)));
 
         // Assert only the buffered data remains
         let data = p.get_query_data().unwrap();

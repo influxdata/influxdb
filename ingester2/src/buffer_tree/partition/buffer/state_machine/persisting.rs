@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use arrow::record_batch::RecordBatch;
+use data_types::sequence_number_set::SequenceNumberSet;
 
 use super::BufferState;
 use crate::buffer_tree::partition::buffer::traits::Queryable;
@@ -29,8 +30,9 @@ impl Queryable for Persisting {
 }
 
 impl BufferState<Persisting> {
-    /// Consume `self`, returning the data it holds as a set of [`RecordBatch`].
-    pub(super) fn into_data(self) -> Vec<Arc<RecordBatch>> {
-        self.state.snapshots
+    /// Consume `self` and all references to the buffered data, returning the owned
+    /// [`SequenceNumberSet`] within it.
+    pub(crate) fn into_sequence_number_set(self) -> SequenceNumberSet {
+        self.sequence_numbers
     }
 }
