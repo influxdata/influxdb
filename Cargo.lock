@@ -2373,6 +2373,7 @@ dependencies = [
  "ioxd_common",
  "ioxd_compactor",
  "ioxd_garbage_collector",
+ "ioxd_ingest_replica",
  "ioxd_ingester",
  "ioxd_ingester2",
  "ioxd_querier",
@@ -2484,6 +2485,57 @@ dependencies = [
  "generated_types",
  "snafu",
  "sqlparser 0.30.0",
+ "workspace-hack",
+]
+
+[[package]]
+name = "ingest_replica"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "arrow_util",
+ "assert_matches",
+ "async-channel",
+ "async-trait",
+ "backoff",
+ "bytes",
+ "criterion",
+ "crossbeam-utils",
+ "data_types",
+ "datafusion",
+ "datafusion_util",
+ "flatbuffers",
+ "futures",
+ "generated_types",
+ "hashbrown 0.13.1",
+ "iox_arrow_flight",
+ "iox_catalog",
+ "iox_query",
+ "iox_time",
+ "lazy_static",
+ "metric",
+ "mutable_batch",
+ "mutable_batch_lp",
+ "mutable_batch_pb",
+ "object_store",
+ "observability_deps",
+ "once_cell",
+ "parking_lot 0.12.1",
+ "parquet_file",
+ "paste",
+ "pin-project",
+ "predicate",
+ "prost 0.11.5",
+ "rand",
+ "schema",
+ "service_grpc_catalog",
+ "tempfile",
+ "test_helpers",
+ "thiserror",
+ "tokio",
+ "tonic",
+ "trace",
+ "uuid",
  "workspace-hack",
 ]
 
@@ -2859,6 +2911,26 @@ dependencies = [
  "observability_deps",
  "snafu",
  "tokio",
+ "trace",
+ "workspace-hack",
+]
+
+[[package]]
+name = "ioxd_ingest_replica"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "clap_blocks",
+ "hyper",
+ "ingest_replica",
+ "iox_catalog",
+ "iox_query",
+ "ioxd_common",
+ "metric",
+ "parquet_file",
+ "thiserror",
+ "tokio",
+ "tokio-util",
  "trace",
  "workspace-hack",
 ]

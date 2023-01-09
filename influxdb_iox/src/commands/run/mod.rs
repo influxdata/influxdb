@@ -5,6 +5,7 @@ pub(crate) mod all_in_one;
 mod compactor;
 mod compactor2;
 mod garbage_collector;
+mod ingest_replica;
 mod ingester;
 mod ingester2;
 mod main;
@@ -40,6 +41,9 @@ pub enum Error {
     #[snafu(display("Error in ingester2 subcommand: {}", source))]
     Ingester2Error { source: ingester2::Error },
 
+    #[snafu(display("Error in ingest_replica subcommand: {}", source))]
+    IngestReplicaError { source: ingest_replica::Error },
+
     #[snafu(display("Error in all in one subcommand: {}", source))]
     AllInOneError { source: all_in_one::Error },
 
@@ -71,6 +75,7 @@ impl Config {
             Some(Command::Router2(config)) => config.run_config.logging_config(),
             Some(Command::Ingester(config)) => config.run_config.logging_config(),
             Some(Command::Ingester2(config)) => config.run_config.logging_config(),
+            Some(Command::IngestReplica(config)) => config.run_config.logging_config(),
             Some(Command::AllInOne(config)) => &config.logging_config,
             Some(Command::Test(config)) => config.run_config.logging_config(),
         }
@@ -99,6 +104,9 @@ enum Command {
 
     /// Run the server in ingester2 mode
     Ingester2(ingester2::Config),
+
+    /// Run the server in ingest_replica mode
+    IngestReplica(ingest_replica::Config),
 
     /// Run the server in "all in one" mode (Default)
     AllInOne(all_in_one::Config),
@@ -131,6 +139,9 @@ pub async fn command(config: Config) -> Result<()> {
         Some(Command::Ingester2(config)) => {
             ingester2::command(config).await.context(Ingester2Snafu)
         }
+        Some(Command::IngestReplica(config)) => ingest_replica::command(config)
+            .await
+            .context(IngestReplicaSnafu),
         Some(Command::AllInOne(config)) => all_in_one::command(config).await.context(AllInOneSnafu),
         Some(Command::Test(config)) => test::command(config).await.context(TestSnafu),
     }
