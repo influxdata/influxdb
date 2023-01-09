@@ -11,6 +11,11 @@ ignore = [
     # why needed: used by `chrono`
     # upstream issue: https://github.com/chronotope/chrono/issues/553
     "RUSTSEC-2020-0071",
+
+    # potential unalinged read in atty
+    # https://rustsec.org/advisories/RUSTSEC-2021-0145
+    # Acceptable because only dependencies are dev/test (not used in prod code).
+    "RUSTSEC-2021-0145",
 ]
 git-fetch-with-cli = true
 
