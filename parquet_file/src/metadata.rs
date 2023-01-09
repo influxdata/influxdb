@@ -86,6 +86,7 @@
 //! [Apache Parquet]: https://parquet.apache.org/
 //! [Apache Thrift]: https://thrift.apache.org/
 //! [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
+use base64::{prelude::BASE64_STANDARD, Engine};
 use bytes::Bytes;
 use data_types::{
     ColumnId, ColumnSet, ColumnSummary, CompactionLevel, InfluxDbType, NamespaceId,
@@ -301,12 +302,13 @@ pub struct IoxMetadata {
 impl IoxMetadata {
     /// Convert to base64 encoded protobuf format
     pub fn to_base64(&self) -> std::result::Result<String, prost::EncodeError> {
-        Ok(base64::encode(self.to_protobuf()?))
+        Ok(BASE64_STANDARD.encode(self.to_protobuf()?))
     }
 
     /// Read from base64 encoded protobuf format
     pub fn from_base64(proto_base64: &[u8]) -> Result<Self> {
-        let proto_bytes = base64::decode(proto_base64)
+        let proto_bytes = BASE64_STANDARD
+            .decode(proto_base64)
             .map_err(|err| Box::new(err) as _)
             .context(IoxMetadataBrokenSnafu)?;
 
@@ -760,7 +762,7 @@ impl DecodedIoxParquetMetaData {
     }
 
     /// Read IOx schema from parquet metadata.
-    pub fn read_schema(&self) -> Result<Arc<Schema>> {
+    pub fn read_schema(&self) -> Result<Schema> {
         let file_metadata = self.md.file_metadata();
 
         let arrow_schema = parquet_to_arrow_schema(
@@ -776,10 +778,9 @@ impl DecodedIoxParquetMetaData {
         // as this metadata will vary from file to file
         let arrow_schema_ref = Arc::new(arrow_schema.with_metadata(Default::default()));
 
-        let schema: Schema = arrow_schema_ref
+        arrow_schema_ref
             .try_into()
-            .context(IoxFromArrowFailureSnafu {})?;
-        Ok(Arc::new(schema))
+            .context(IoxFromArrowFailureSnafu {})
     }
 
     /// Read IOx statistics (including timestamp range) from parquet metadata.

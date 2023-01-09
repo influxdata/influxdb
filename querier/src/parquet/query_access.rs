@@ -14,8 +14,8 @@ impl QueryChunkMeta for QuerierParquetChunk {
         Arc::clone(&self.table_summary)
     }
 
-    fn schema(&self) -> Arc<Schema> {
-        Arc::clone(&self.schema)
+    fn schema(&self) -> &Schema {
+        self.parquet_chunk.schema()
     }
 
     fn partition_sort_key(&self) -> Option<&SortKey> {

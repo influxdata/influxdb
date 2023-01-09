@@ -58,7 +58,7 @@ impl CacheKey {
 type CacheT = Box<
     dyn Cache<
         K = CacheKey,
-        V = Arc<Schema>,
+        V = Schema,
         GetExtra = (Arc<CachedTable>, Option<Span>),
         PeekExtra = ((), Option<Span>),
     >,
@@ -97,12 +97,10 @@ impl ProjectedSchemaCache {
                 // order by name since IDs are rather arbitrary
                 projection.sort();
 
-                Arc::new(
-                    table
-                        .schema
-                        .select_by_names(&projection)
-                        .expect("Bug in schema projection"),
-                )
+                table
+                    .schema
+                    .select_by_names(&projection)
+                    .expect("Bug in schema projection")
             });
         let loader = Arc::new(MetricsLoader::new(
             loader,
@@ -117,7 +115,7 @@ impl ProjectedSchemaCache {
         backend.add_policy(LruPolicy::new(
             Arc::clone(&ram_pool),
             CACHE_ID,
-            Arc::new(FunctionEstimator::new(|k: &CacheKey, v: &Arc<Schema>| {
+            Arc::new(FunctionEstimator::new(|k: &CacheKey, v: &Schema| {
                 RamSize(k.size() + size_of_val(v) + v.estimate_size())
             })),
         ));
@@ -148,7 +146,7 @@ impl ProjectedSchemaCache {
         table: Arc<CachedTable>,
         projection: Vec<ColumnId>,
         span: Option<Span>,
-    ) -> Arc<Schema> {
+    ) -> Schema {
         let key = CacheKey::new(table.id, projection);
 
         self.cache.get(key, (table, span)).await
@@ -176,25 +174,21 @@ mod tests {
 
         let table_id_1 = TableId::new(1);
         let table_id_2 = TableId::new(2);
-        let table_schema_a = Arc::new(
-            SchemaBuilder::new()
-                .tag("t1")
-                .tag("t2")
-                .tag("t3")
-                .timestamp()
-                .build()
-                .unwrap(),
-        );
-        let table_schema_b = Arc::new(
-            SchemaBuilder::new()
-                .tag("t1")
-                .tag("t2")
-                .tag("t3")
-                .tag("t4")
-                .timestamp()
-                .build()
-                .unwrap(),
-        );
+        let table_schema_a = SchemaBuilder::new()
+            .tag("t1")
+            .tag("t2")
+            .tag("t3")
+            .timestamp()
+            .build()
+            .unwrap();
+        let table_schema_b = SchemaBuilder::new()
+            .tag("t1")
+            .tag("t2")
+            .tag("t3")
+            .tag("t4")
+            .timestamp()
+            .build()
+            .unwrap();
         let column_id_map_a = HashMap::from([
             (ColumnId::new(1), Arc::from("t1")),
             (ColumnId::new(2), Arc::from("t2")),
@@ -210,7 +204,7 @@ mod tests {
         ]);
         let table_1a = Arc::new(CachedTable {
             id: table_id_1,
-            schema: Arc::clone(&table_schema_a),
+            schema: table_schema_a.clone(),
             column_id_map: column_id_map_a.clone(),
             column_id_map_rev: reverse_map(&column_id_map_a),
             primary_key_column_ids: vec![
@@ -222,7 +216,7 @@ mod tests {
         });
         let table_1b = Arc::new(CachedTable {
             id: table_id_1,
-            schema: Arc::clone(&table_schema_b),
+            schema: table_schema_b.clone(),
             column_id_map: column_id_map_b.clone(),
             column_id_map_rev: reverse_map(&column_id_map_b),
             primary_key_column_ids: vec![
@@ -234,7 +228,7 @@ mod tests {
         });
         let table_2a = Arc::new(CachedTable {
             id: table_id_2,
-            schema: Arc::clone(&table_schema_a),
+            schema: table_schema_a.clone(),
             column_id_map: column_id_map_a.clone(),
             column_id_map_rev: reverse_map(&column_id_map_a),
             primary_key_column_ids: vec![
@@ -247,7 +241,7 @@ mod tests {
         });
 
         // initial request
-        let expected = Arc::new(SchemaBuilder::new().tag("t1").tag("t2").build().unwrap());
+        let expected = SchemaBuilder::new().tag("t1").tag("t2").build().unwrap();
         let projection_1 = cache
             .get(
                 Arc::clone(&table_1a),
@@ -265,7 +259,7 @@ mod tests {
                 None,
             )
             .await;
-        assert!(Arc::ptr_eq(&projection_1, &projection_2));
+        assert!(Arc::ptr_eq(projection_1.inner(), projection_2.inner()));
 
         // updated table schema
         let projection_3 = cache
@@ -275,7 +269,7 @@ mod tests {
                 None,
             )
             .await;
-        assert!(Arc::ptr_eq(&projection_1, &projection_3));
+        assert!(Arc::ptr_eq(projection_1.inner(), projection_3.inner()));
 
         // different column order
         let projection_4 = cache
@@ -285,10 +279,10 @@ mod tests {
                 None,
             )
             .await;
-        assert!(Arc::ptr_eq(&projection_1, &projection_4));
+        assert!(Arc::ptr_eq(projection_1.inner(), projection_4.inner()));
 
         // different columns set
-        let expected = Arc::new(SchemaBuilder::new().tag("t1").tag("t3").build().unwrap());
+        let expected = SchemaBuilder::new().tag("t1").tag("t3").build().unwrap();
         let projection_5 = cache
             .get(
                 Arc::clone(&table_1a),
@@ -307,7 +301,7 @@ mod tests {
             )
             .await;
         assert_eq!(projection_6, projection_1);
-        assert!(!Arc::ptr_eq(&projection_1, &projection_6));
+        assert!(!Arc::ptr_eq(projection_1.inner(), projection_6.inner()));
 
         // original data still present
         let projection_7 = cache
@@ -317,7 +311,7 @@ mod tests {
                 None,
             )
             .await;
-        assert!(Arc::ptr_eq(&projection_1, &projection_7));
+        assert!(Arc::ptr_eq(projection_1.inner(), projection_7.inner()));
     }
 
     fn reverse_map<K, V>(map: &HashMap<K, V>) -> HashMap<V, K>

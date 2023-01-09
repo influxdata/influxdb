@@ -176,7 +176,7 @@ impl ParquetFileWithTombstone {
             .as_ref()
             .map(|sk| sk.filter_to(&pk, self.partition_id.get()));
 
-        let parquet_chunk = ParquetChunk::new(Arc::clone(&self.data), Arc::new(schema), store);
+        let parquet_chunk = ParquetChunk::new(Arc::clone(&self.data), schema, store);
 
         trace!(
             parquet_file_id=?self.id,

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use datafusion::{
     error::Result as DataFusionResult, logical_expr::expr_rewriter::ExprRewriter, prelude::*,
     scalar::ScalarValue,
@@ -11,12 +9,12 @@ use schema::{InfluxColumnType, Schema};
 #[derive(Debug)]
 pub(crate) struct MissingTagColumnRewriter {
     /// The input schema
-    schema: Arc<Schema>,
+    schema: Schema,
 }
 
 impl MissingTagColumnRewriter {
     /// Create a new [`MissingTagColumnRewriter`] targeting the given schema
-    pub(crate) fn new(schema: Arc<Schema>) -> Self {
+    pub(crate) fn new(schema: Schema) -> Self {
         Self { schema }
     }
 
@@ -105,7 +103,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let mut rewriter = MissingTagColumnRewriter::new(Arc::new(schema));
+        let mut rewriter = MissingTagColumnRewriter::new(schema);
         expr.rewrite(&mut rewriter).unwrap()
     }
 }

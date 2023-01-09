@@ -54,7 +54,7 @@ impl TableProvider for QuerierTable {
 
         let mut builder = ProviderBuilder::new(
             Arc::clone(self.table_name()),
-            Arc::clone(self.schema()),
+            self.schema().clone(),
             iox_ctx,
         );
 
@@ -108,7 +108,7 @@ impl ChunkPruner for QuerierTableChunkPruner {
     fn prune_chunks(
         &self,
         _table_name: &str,
-        table_schema: Arc<Schema>,
+        table_schema: &Schema,
         chunks: Vec<Arc<dyn QueryChunk>>,
         predicate: &Predicate,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, ProviderError> {

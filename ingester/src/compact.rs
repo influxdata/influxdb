@@ -109,7 +109,7 @@ pub(crate) async fn compact_persisting_batch(
         }
         None => {
             let sort_key = compute_sort_key(
-                batch.schema().as_ref(),
+                batch.schema(),
                 batch.record_batches().iter().map(|sb| sb.as_ref()),
             );
             // Use the sort key computed from the cardinality as the sort key for this parquet
@@ -141,7 +141,7 @@ pub(crate) async fn compact(
         .compact_plan(
             table_name.into(),
             data.schema(),
-            [data as Arc<dyn QueryChunk>],
+            [Arc::clone(&data) as Arc<dyn QueryChunk>],
             sort_key,
         )
         .context(LogicalPlanSnafu {})?;
@@ -525,7 +525,7 @@ mod tests {
         assert_eq!(expected_pk, pk);
 
         let sort_key =
-            compute_sort_key(&schema, batch.record_batches().iter().map(|rb| rb.as_ref()));
+            compute_sort_key(schema, batch.record_batches().iter().map(|rb| rb.as_ref()));
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "time"]));
 
         // compact
@@ -566,7 +566,7 @@ mod tests {
         assert_eq!(expected_pk, pk);
 
         let sort_key =
-            compute_sort_key(&schema, batch.record_batches().iter().map(|rb| rb.as_ref()));
+            compute_sort_key(schema, batch.record_batches().iter().map(|rb| rb.as_ref()));
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "time"]));
 
         // compact
@@ -612,7 +612,7 @@ mod tests {
         assert_eq!(expected_pk, pk);
 
         let sort_key =
-            compute_sort_key(&schema, batch.record_batches().iter().map(|rb| rb.as_ref()));
+            compute_sort_key(schema, batch.record_batches().iter().map(|rb| rb.as_ref()));
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "time"]));
 
         // compact
@@ -658,7 +658,7 @@ mod tests {
         assert_eq!(expected_pk, pk);
 
         let sort_key =
-            compute_sort_key(&schema, batch.record_batches().iter().map(|rb| rb.as_ref()));
+            compute_sort_key(schema, batch.record_batches().iter().map(|rb| rb.as_ref()));
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "tag2", "time"]));
 
         // compact
@@ -708,7 +708,7 @@ mod tests {
         assert_eq!(expected_pk, pk);
 
         let sort_key =
-            compute_sort_key(&schema, batch.record_batches().iter().map(|rb| rb.as_ref()));
+            compute_sort_key(schema, batch.record_batches().iter().map(|rb| rb.as_ref()));
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "tag2", "time"]));
 
         // compact

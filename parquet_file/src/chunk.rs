@@ -18,7 +18,7 @@ pub struct ParquetChunk {
     parquet_file: Arc<ParquetFile>,
 
     /// Schema that goes with this table's parquet file
-    schema: Arc<Schema>,
+    schema: Schema,
 
     /// Persists the parquet file within a namespace's relative path
     store: ParquetStorage,
@@ -26,7 +26,7 @@ pub struct ParquetChunk {
 
 impl ParquetChunk {
     /// Create parquet chunk.
-    pub fn new(parquet_file: Arc<ParquetFile>, schema: Arc<Schema>, store: ParquetStorage) -> Self {
+    pub fn new(parquet_file: Arc<ParquetFile>, schema: Schema, store: ParquetStorage) -> Self {
         Self {
             parquet_file,
             schema,
@@ -55,9 +55,9 @@ impl ParquetChunk {
         mem::size_of_val(self) + self.parquet_file.size() - mem::size_of_val(&self.parquet_file)
     }
 
-    /// Infallably return the full schema (for all columns) for this chunk
-    pub fn schema(&self) -> Arc<Schema> {
-        Arc::clone(&self.schema)
+    /// Infallibly return the full schema (for all columns) for this chunk
+    pub fn schema(&self) -> &Schema {
+        &self.schema
     }
 
     /// Return the columns names that belong to the given column selection

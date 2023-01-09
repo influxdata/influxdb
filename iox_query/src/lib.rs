@@ -44,7 +44,7 @@ pub trait QueryChunkMeta {
     fn summary(&self) -> Arc<TableSummary>;
 
     /// return a reference to the summary of the data held in this chunk
-    fn schema(&self) -> Arc<Schema>;
+    fn schema(&self) -> &Schema;
 
     /// Return a reference to the chunk's partition sort key if any.
     /// Only persisted chunk has its partition sort key
@@ -191,7 +191,7 @@ impl QueryChunkData {
     /// Read data into [`RecordBatch`]es. This is mostly meant for testing!
     pub async fn read_to_batches(
         self,
-        schema: Arc<Schema>,
+        schema: &Schema,
         session_ctx: &SessionContext,
     ) -> Vec<RecordBatch> {
         match self {
@@ -274,7 +274,7 @@ where
         self.as_ref().summary()
     }
 
-    fn schema(&self) -> Arc<Schema> {
+    fn schema(&self) -> &Schema {
         self.as_ref().schema()
     }
 
@@ -303,7 +303,7 @@ impl QueryChunkMeta for Arc<dyn QueryChunk> {
         self.as_ref().summary()
     }
 
-    fn schema(&self) -> Arc<Schema> {
+    fn schema(&self) -> &Schema {
         self.as_ref().schema()
     }
 

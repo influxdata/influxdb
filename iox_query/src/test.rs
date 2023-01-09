@@ -142,7 +142,7 @@ impl QueryNamespace for TestDatabase {
 }
 
 impl QueryNamespaceMeta for TestDatabase {
-    fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {
+    fn table_schema(&self, table_name: &str) -> Option<Schema> {
         let mut merger = SchemaMerger::new();
         let mut found_one = false;
 
@@ -150,7 +150,7 @@ impl QueryNamespaceMeta for TestDatabase {
         for partition in partitions.values() {
             for chunk in partition.values() {
                 if chunk.table_name() == table_name {
-                    merger = merger.merge(&chunk.schema()).expect("consistent schemas");
+                    merger = merger.merge(chunk.schema()).expect("consistent schemas");
                     found_one = true;
                 }
             }
@@ -188,7 +188,7 @@ pub struct TestChunk {
     table_name: String,
 
     /// Schema of the table
-    schema: Arc<Schema>,
+    schema: Schema,
 
     /// Return value for summary()
     table_summary: TableSummary,
@@ -294,7 +294,7 @@ impl TestChunk {
         let table_name = table_name.into();
         Self {
             table_name,
-            schema: Arc::new(SchemaBuilder::new().build().unwrap()),
+            schema: SchemaBuilder::new().build().unwrap(),
             table_summary: TableSummary::default(),
             id: ChunkId::new_test(0),
             may_contain_pk_duplicates: Default::default(),
@@ -552,9 +552,7 @@ impl TestChunk {
     ) -> Self {
         let mut merger = SchemaMerger::new();
         merger = merger.merge(&new_column_schema).unwrap();
-        merger = merger
-            .merge(self.schema.as_ref())
-            .expect("merging was successful");
+        merger = merger.merge(&self.schema).expect("merging was successful");
         self.schema = merger.build();
 
         for i in 0..new_column_schema.len() {
@@ -627,7 +625,7 @@ impl TestChunk {
             .collect::<Vec<_>>();
 
         let batch =
-            RecordBatch::try_new(self.schema.as_ref().into(), columns).expect("made record batch");
+            RecordBatch::try_new(self.schema.as_arrow(), columns).expect("made record batch");
         if !self.quiet {
             println!("TestChunk batch data: {:#?}", batch);
         }
@@ -667,7 +665,7 @@ impl TestChunk {
             .collect::<Vec<_>>();
 
         let batch =
-            RecordBatch::try_new(self.schema.as_ref().into(), columns).expect("made record batch");
+            RecordBatch::try_new(self.schema.as_arrow(), columns).expect("made record batch");
         if !self.quiet {
             println!("TestChunk batch data: {:#?}", batch);
         }
@@ -731,7 +729,7 @@ impl TestChunk {
             .collect::<Vec<_>>();
 
         let batch =
-            RecordBatch::try_new(self.schema.as_ref().into(), columns).expect("made record batch");
+            RecordBatch::try_new(self.schema.as_arrow(), columns).expect("made record batch");
 
         self.table_data.push(Arc::new(batch));
         self
@@ -794,7 +792,7 @@ impl TestChunk {
             .collect::<Vec<_>>();
 
         let batch =
-            RecordBatch::try_new(self.schema.as_ref().into(), columns).expect("made record batch");
+            RecordBatch::try_new(self.schema.as_arrow(), columns).expect("made record batch");
 
         self.table_data.push(Arc::new(batch));
         self
@@ -864,7 +862,7 @@ impl TestChunk {
                 .collect::<Vec<_>>();
 
         let batch =
-            RecordBatch::try_new(self.schema.as_ref().into(), columns).expect("made record batch");
+            RecordBatch::try_new(self.schema.as_arrow(), columns).expect("made record batch");
 
         self.table_data.push(Arc::new(batch));
         self
@@ -941,7 +939,7 @@ impl TestChunk {
             .collect::<Vec<_>>();
 
         let batch =
-            RecordBatch::try_new(self.schema.as_ref().into(), columns).expect("made record batch");
+            RecordBatch::try_new(self.schema.as_arrow(), columns).expect("made record batch");
 
         self.table_data.push(Arc::new(batch));
         self
@@ -1069,8 +1067,8 @@ impl QueryChunkMeta for TestChunk {
         Arc::new(self.table_summary.clone())
     }
 
-    fn schema(&self) -> Arc<Schema> {
-        Arc::clone(&self.schema)
+    fn schema(&self) -> &Schema {
+        &self.schema
     }
 
     fn partition_sort_key(&self) -> Option<&SortKey> {

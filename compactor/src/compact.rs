@@ -64,6 +64,10 @@ pub enum Error {
         source: iox_catalog::interface::Error,
         shard_id: Option<ShardId>,
     },
+    RecentIngestedPartitions {
+        source: iox_catalog::interface::Error,
+        compaction_type: &'static str,
+    },
 
     #[snafu(display(
         "Error getting partitions with small L1 files for warm compaction for shard {:?}. {}",

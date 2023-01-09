@@ -60,7 +60,7 @@ impl QueryableParquetChunk {
         let delete_predicates = tombstones_to_delete_predicates(deletes);
         let summary = Arc::new(create_basic_summary(
             data.rows() as u64,
-            &data.schema(),
+            data.schema(),
             data.timestamp_min_max(),
         ));
         Self {
@@ -79,10 +79,10 @@ impl QueryableParquetChunk {
     }
 
     /// Merge schema of the given chunks
-    pub fn merge_schemas(chunks: &[Arc<dyn QueryChunk>]) -> Arc<Schema> {
+    pub fn merge_schemas(chunks: &[Arc<dyn QueryChunk>]) -> Schema {
         let mut merger = SchemaMerger::new();
         for chunk in chunks {
-            merger = merger.merge(&chunk.schema()).expect("schemas compatible");
+            merger = merger.merge(chunk.schema()).expect("schemas compatible");
         }
         merger.build()
     }
@@ -113,7 +113,7 @@ impl QueryChunkMeta for QueryableParquetChunk {
         Arc::clone(&self.summary)
     }
 
-    fn schema(&self) -> Arc<Schema> {
+    fn schema(&self) -> &Schema {
         self.data.schema()
     }
 
@@ -259,7 +259,7 @@ mod tests {
 
         let parquet_chunk = Arc::new(ParquetChunk::new(
             Arc::clone(&parquet_file),
-            Arc::new(table.schema().await),
+            table.schema().await,
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
         ));
 

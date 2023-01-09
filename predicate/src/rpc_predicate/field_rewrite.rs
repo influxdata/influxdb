@@ -45,12 +45,12 @@ pub(crate) struct FieldProjectionRewriter {
     /// output
     field_predicates: Vec<Expr>,
     /// The input schema (from where we know the field)
-    schema: Arc<Schema>,
+    schema: Schema,
 }
 
 impl FieldProjectionRewriter {
     /// Create a new [`FieldProjectionRewriter`] targeting the given schema
-    pub(crate) fn new(schema: Arc<Schema>) -> Self {
+    pub(crate) fn new(schema: Schema) -> Self {
         Self {
             field_predicates: vec![],
             schema,
@@ -429,7 +429,7 @@ mod tests {
                 "Running test\ninput: {:?}\nexpected_expr: {:?}\nexpected_field_columns: {:?}\n",
                 input, exp_expr, exp_field_columns
             );
-            let mut rewriter = FieldProjectionRewriter::new(Arc::clone(&schema));
+            let mut rewriter = FieldProjectionRewriter::new(schema.clone());
 
             let rewritten = rewriter.rewrite_field_exprs(input).unwrap();
             assert_eq!(rewritten, exp_expr);
@@ -471,9 +471,8 @@ mod tests {
                 input, exp_error
             );
 
-            let schema = Arc::clone(&schema);
-            let run_case = move || {
-                let mut rewriter = FieldProjectionRewriter::new(schema);
+            let run_case = || {
+                let mut rewriter = FieldProjectionRewriter::new(schema.clone());
                 // check for error in rewrite_field_exprs
                 rewriter.rewrite_field_exprs(input)?;
                 // check for error adding to predicate
@@ -500,7 +499,7 @@ mod tests {
         query_functions::regex_not_match_expr(arg, pattern.into())
     }
 
-    fn make_schema() -> Arc<Schema> {
+    fn make_schema() -> Schema {
         SchemaBuilder::new()
             .tag("foo")
             .tag("bar")
@@ -513,7 +512,6 @@ mod tests {
             .field("f4", DataType::Float64)
             .unwrap()
             .build()
-            .map(Arc::new)
             .unwrap()
     }
 }

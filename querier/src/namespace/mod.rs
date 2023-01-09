@@ -72,7 +72,7 @@ impl QuerierNamespace {
                     namespace_retention_period: ns.retention_period,
                     table_id: cached_table.id,
                     table_name: Arc::clone(table_name),
-                    schema: Arc::clone(&cached_table.schema),
+                    schema: cached_table.schema.clone(),
                     ingester_connection: ingester_connection.clone(),
                     chunk_adapter: Arc::clone(&chunk_adapter),
                     exec: Arc::clone(&exec),
@@ -184,7 +184,7 @@ mod tests {
         let qns = querier_namespace(&ns).await;
         let expected_schema = SchemaBuilder::new().build().unwrap();
         let actual_schema = schema(&qns, "table");
-        assert_eq!(actual_schema.as_ref(), &expected_schema,);
+        assert_eq!(actual_schema, &expected_schema,);
 
         table.create_column("col1", ColumnType::I64).await;
         table.create_column("col2", ColumnType::Bool).await;
@@ -197,7 +197,7 @@ mod tests {
             .build()
             .unwrap();
         let actual_schema = schema(&qns, "table");
-        assert_eq!(actual_schema.as_ref(), &expected_schema,);
+        assert_eq!(actual_schema, &expected_schema);
 
         table.create_column("col4", ColumnType::Tag).await;
         table
@@ -213,7 +213,7 @@ mod tests {
             .build()
             .unwrap();
         let actual_schema = schema(&qns, "table");
-        assert_eq!(actual_schema.as_ref(), &expected_schema,);
+        assert_eq!(actual_schema, &expected_schema);
     }
 
     fn sorted<T>(mut v: Vec<T>) -> Vec<T>
@@ -234,7 +234,7 @@ mod tests {
         )
     }
 
-    fn schema(querier_namespace: &QuerierNamespace, table: &str) -> Arc<Schema> {
-        Arc::clone(querier_namespace.tables.get(table).unwrap().schema())
+    fn schema<'a>(querier_namespace: &'a QuerierNamespace, table: &str) -> &'a Schema {
+        querier_namespace.tables.get(table).unwrap().schema()
     }
 }

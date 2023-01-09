@@ -1413,6 +1413,24 @@ WHERE id = $2;
         .await
         .map_err(|e| Error::SqlxError { source: e })
     }
+
+    async fn partitions_with_recent_created_files(
+        &mut self,
+        time_in_the_past: Timestamp,
+    ) -> Result<Vec<PartitionParam>> {
+        sqlx::query_as(
+            r#"
+            SELECT p.id as partition_id, p.table_id, t.namespace_id, p.shard_id
+            FROM partition p, table_name t
+            WHERE p.new_file_at > $1
+                AND p.table_id = t.id;
+            "#,
+        )
+        .bind(time_in_the_past) // $1
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
+    }
 }
 
 #[async_trait]

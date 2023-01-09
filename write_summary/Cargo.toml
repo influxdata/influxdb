@@ -6,7 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-base64 = "0.20"
+base64 = "0.21"
 data_types = { path = "../data_types" }
 dml = { path = "../dml" }
 generated_types = { path = "../generated_types" }

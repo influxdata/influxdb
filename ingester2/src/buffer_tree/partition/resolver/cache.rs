@@ -301,6 +301,7 @@ mod tests {
             partition_key: stored_partition_key.clone(),
             sort_key: vec!["dos".to_string(), "bananas".to_string()],
             persisted_sequence_number: Default::default(),
+            new_file_at: Default::default(),
         };
 
         let cache = new_cache(inner, [partition]);
@@ -365,6 +366,7 @@ mod tests {
             partition_key: PARTITION_KEY.into(),
             sort_key: Default::default(),
             persisted_sequence_number: Default::default(),
+            new_file_at: Default::default(),
         };
 
         let cache = new_cache(inner, [partition]);
@@ -413,6 +415,7 @@ mod tests {
             partition_key: PARTITION_KEY.into(),
             sort_key: Default::default(),
             persisted_sequence_number: Default::default(),
+            new_file_at: Default::default(),
         };
 
         let cache = new_cache(inner, [partition]);

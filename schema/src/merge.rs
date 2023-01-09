@@ -44,7 +44,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// This is infallable because the schemas of chunks within a
 /// partition are assumed to be compatible because that schema was
 /// enforced as part of writing into the partition
-pub fn merge_record_batch_schemas(batches: &[Arc<RecordBatch>]) -> Arc<Schema> {
+pub fn merge_record_batch_schemas(batches: &[Arc<RecordBatch>]) -> Schema {
     let mut merger = SchemaMerger::new();
     for batch in batches {
         let schema = Schema::try_from(batch.schema()).expect("Schema conversion error");
@@ -154,7 +154,7 @@ impl<'a> SchemaMerger<'a> {
     }
 
     /// Returns the schema that was built, the columns are always sorted in lexicographic order
-    pub fn build(mut self) -> Arc<Schema> {
+    pub fn build(mut self) -> Schema {
         let schema = Schema::new_from_parts(
             self.measurement.take(),
             self.fields.drain().map(|x| x.1),
@@ -165,7 +165,7 @@ impl<'a> SchemaMerger<'a> {
         if let Some(interner) = self.interner.as_mut() {
             interner.intern(schema)
         } else {
-            Arc::new(schema)
+            schema
         }
     }
 }
@@ -198,8 +198,8 @@ mod tests {
             .unwrap()
             .build();
 
-        assert_eq!(merged_schema.as_ref(), &schema1);
-        assert_eq!(merged_schema.as_ref(), &schema2);
+        assert_eq!(merged_schema, schema1);
+        assert_eq!(merged_schema, schema2);
     }
 
     #[test]
@@ -239,11 +239,9 @@ mod tests {
             .sort_fields_by_name();
 
         assert_eq!(
-            &expected_schema,
-            merged_schema.as_ref(),
+            expected_schema, merged_schema,
             "\nExpected:\n{:#?}\nActual:\n{:#?}",
-            expected_schema,
-            merged_schema
+            expected_schema, merged_schema
         );
     }
 
@@ -269,11 +267,9 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            &expected_schema,
-            merged_schema.as_ref(),
+            expected_schema, merged_schema,
             "\nExpected:\n{:#?}\nActual:\n{:#?}",
-            expected_schema,
-            merged_schema
+            expected_schema, merged_schema
         );
     }
 
@@ -303,11 +299,9 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            &expected_schema,
-            merged_schema.as_ref(),
+            expected_schema, merged_schema,
             "\nExpected:\n{:#?}\nActual:\n{:#?}",
-            expected_schema,
-            merged_schema
+            expected_schema, merged_schema
         );
     }
 
@@ -335,11 +329,9 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            &expected_schema,
-            merged_schema.as_ref(),
+            expected_schema, merged_schema,
             "\nExpected:\n{:#?}\nActual:\n{:#?}",
-            expected_schema,
-            merged_schema
+            expected_schema, merged_schema
         );
     }
 
@@ -428,6 +420,9 @@ mod tests {
             .build();
 
         assert_eq!(merged_schema_a, merged_schema_b);
-        assert!(Arc::ptr_eq(&merged_schema_a, &merged_schema_b));
+        assert!(Arc::ptr_eq(
+            merged_schema_a.inner(),
+            merged_schema_b.inner()
+        ));
     }
 }

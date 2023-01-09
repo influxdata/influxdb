@@ -1,12 +1,12 @@
 //! Collect highest hot candidates and compact them
 
 use crate::{
-    compact::{self, Compactor, ShardAssignment},
+    compact::{self, Compactor},
     compact_candidates_with_memory_budget, compact_in_parallel,
     utils::get_candidates_with_retry,
     PartitionCompactionCandidateWithInfo,
 };
-use data_types::{CompactionLevel, PartitionParam, ShardId, Timestamp};
+use data_types::{CompactionLevel, PartitionParam, Timestamp};
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
 use metric::Attributes;
@@ -77,9 +77,6 @@ pub(crate) async fn hot_partitions_to_compact(
 ) -> Result<Vec<Arc<PartitionCompactionCandidateWithInfo>>, compact::Error> {
     let compaction_type = "hot";
 
-    let min_number_recent_ingested_files_per_partition = compactor
-        .config
-        .min_number_recent_ingested_files_per_partition;
     let max_number_partitions_per_shard = compactor.config.max_number_partitions_per_shard;
     let mut candidates =
         Vec::with_capacity(compactor.shards.len() * max_number_partitions_per_shard);
@@ -92,56 +89,16 @@ pub(crate) async fn hot_partitions_to_compact(
         compactor.config.hot_compaction_hours_threshold_2,
     );
 
-    match &compactor.shards {
-        ShardAssignment::All => {
-            let mut partitions = hot_partitions_for_shard(
-                Arc::clone(&compactor.catalog),
-                None,
-                &query_times,
-                min_number_recent_ingested_files_per_partition,
-                max_number_partitions_per_shard,
-            )
-            .await?;
+    let mut partitions = hot_partitions(Arc::clone(&compactor.catalog), &query_times).await?;
 
-            // Record metric for candidates
-            let num_partitions = partitions.len();
-            debug!(n = num_partitions, compaction_type, "compaction candidates",);
-            let attributes = Attributes::from([("partition_type", compaction_type.into())]);
-            let number_gauge = compactor.compaction_candidate_gauge.recorder(attributes);
-            number_gauge.set(num_partitions as u64);
+    // Record metric for candidates
+    let num_partitions = partitions.len();
+    debug!(n = num_partitions, compaction_type, "compaction candidates",);
+    let attributes = Attributes::from([("partition_type", compaction_type.into())]);
+    let number_gauge = compactor.compaction_candidate_gauge.recorder(attributes);
+    number_gauge.set(num_partitions as u64);
 
-            candidates.append(&mut partitions);
-        }
-        ShardAssignment::Only(shards) => {
-            for &shard_id in shards {
-                let mut partitions = hot_partitions_for_shard(
-                    Arc::clone(&compactor.catalog),
-                    Some(shard_id),
-                    &query_times,
-                    min_number_recent_ingested_files_per_partition,
-                    max_number_partitions_per_shard,
-                )
-                .await?;
-
-                // Record metric for candidates per shard
-                let num_partitions = partitions.len();
-                debug!(
-                    shard_id = shard_id.get(),
-                    n = num_partitions,
-                    compaction_type,
-                    "compaction candidates",
-                );
-                let attributes = Attributes::from([
-                    ("shard_id", format!("{}", shard_id).into()),
-                    ("partition_type", compaction_type.into()),
-                ]);
-                let number_gauge = compactor.compaction_candidate_gauge.recorder(attributes);
-                number_gauge.set(num_partitions as u64);
-
-                candidates.append(&mut partitions);
-            }
-        }
-    }
+    candidates.append(&mut partitions);
 
     // Get extra needed information for selected partitions
     let start_time = compactor.time_provider.now();
@@ -179,39 +136,28 @@ pub(crate) async fn hot_partitions_to_compact(
     Ok(candidates)
 }
 
-async fn hot_partitions_for_shard(
+async fn hot_partitions(
     catalog: Arc<dyn Catalog>,
-    shard_id: Option<ShardId>,
     query_times: &[(u64, Timestamp)],
-    // Minimum number of the most recent writes per partition we want to count
-    // to prioritize partitions
-    min_number_recent_ingested_files_per_partition: usize,
-    // Max number of the most recent highest ingested throughput partitions
-    // per shard we want to read
-    max_number_partitions_per_shard: usize,
 ) -> Result<Vec<PartitionParam>, compact::Error> {
+    let compaction_type = "hot";
     let mut repos = catalog.repositories().await;
 
     for &(hours_ago, hours_ago_in_ns) in query_times {
         let partitions = repos
-            .parquet_files()
-            .recent_highest_throughput_partitions(
-                shard_id,
-                hours_ago_in_ns,
-                min_number_recent_ingested_files_per_partition,
-                max_number_partitions_per_shard,
-            )
+            .partitions()
+            .partitions_with_recent_created_files(hours_ago_in_ns)
             .await
-            .map_err(|e| compact::Error::HighestThroughputPartitions {
-                shard_id,
+            .map_err(|e| compact::Error::RecentIngestedPartitions {
                 source: e,
+                compaction_type: "hot",
             })?;
         if !partitions.is_empty() {
             debug!(
-                ?shard_id,
+                compaction_type,
                 hours_ago,
                 n = partitions.len(),
-                "found high-throughput partitions"
+                "found partitions"
             );
             return Ok(partitions);
         }
@@ -239,7 +185,10 @@ fn query_times(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{compact::Compactor, handler::CompactorConfig};
+    use crate::{
+        compact::{Compactor, ShardAssignment},
+        handler::CompactorConfig,
+    };
     use backoff::BackoffConfig;
     use data_types::CompactionLevel;
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestShard, TestTable};
@@ -279,37 +228,15 @@ mod tests {
 
     #[tokio::test]
     async fn no_partitions_no_candidates() {
-        let TestSetup {
-            catalog, shard1, ..
-        } = test_setup().await;
+        let TestSetup { catalog, .. } = test_setup().await;
 
-        let candidates = hot_partitions_for_shard(
+        let candidates = hot_partitions(
             Arc::clone(&catalog.catalog),
-            Some(shard1.shard.id),
             &query_times(
                 catalog.time_provider(),
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             ),
-            1,
-            1,
-        )
-        .await
-        .unwrap();
-
-        assert!(candidates.is_empty());
-
-        // Across all shards
-        let candidates = hot_partitions_for_shard(
-            Arc::clone(&catalog.catalog),
-            None,
-            &query_times(
-                catalog.time_provider(),
-                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
-                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
-            ),
-            1,
-            1,
         )
         .await
         .unwrap();
@@ -328,33 +255,13 @@ mod tests {
 
         table1.with_shard(&shard1).create_partition("one").await;
 
-        let candidates = hot_partitions_for_shard(
+        let candidates = hot_partitions(
             Arc::clone(&catalog.catalog),
-            Some(shard1.shard.id),
             &query_times(
                 catalog.time_provider(),
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             ),
-            1,
-            1,
-        )
-        .await
-        .unwrap();
-
-        assert!(candidates.is_empty());
-
-        // Across all shards
-        let candidates = hot_partitions_for_shard(
-            Arc::clone(&catalog.catalog),
-            None,
-            &query_times(
-                catalog.time_provider(),
-                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
-                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
-            ),
-            1,
-            1,
         )
         .await
         .unwrap();
@@ -373,40 +280,25 @@ mod tests {
 
         let partition1 = table1.with_shard(&shard1).create_partition("one").await;
 
-        let builder = TestParquetFileBuilder::default().with_to_delete(true);
+        // make sure creation time is older than the threshold
+        let creation_time = catalog
+            .time_provider
+            .hours_ago(DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2 + 1);
+        let builder = TestParquetFileBuilder::default()
+            .with_to_delete(true)
+            .with_creation_time(creation_time);
         partition1.create_parquet_file_catalog_record(builder).await;
 
-        let candidates = hot_partitions_for_shard(
+        let candidates = hot_partitions(
             Arc::clone(&catalog.catalog),
-            Some(shard1.shard.id),
             &query_times(
                 catalog.time_provider(),
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             ),
-            1,
-            1,
         )
         .await
         .unwrap();
-
-        assert!(candidates.is_empty());
-
-        // Across all shards
-        let candidates = hot_partitions_for_shard(
-            Arc::clone(&catalog.catalog),
-            None,
-            &query_times(
-                catalog.time_provider(),
-                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
-                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
-            ),
-            1,
-            1,
-        )
-        .await
-        .unwrap();
-
         assert!(candidates.is_empty());
     }
 
@@ -421,37 +313,23 @@ mod tests {
 
         let partition1 = table1.with_shard(&shard1).create_partition("one").await;
 
+        // make sure creation time is older than the threshold
+        let creation_time = catalog
+            .time_provider
+            .hours_ago(DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2 + 1);
         let builder = TestParquetFileBuilder::default()
-            .with_compaction_level(CompactionLevel::FileNonOverlapped);
+            .with_compaction_level(CompactionLevel::FileNonOverlapped)
+            .with_creation_time(creation_time);
+
         partition1.create_parquet_file_catalog_record(builder).await;
 
-        let candidates = hot_partitions_for_shard(
+        let candidates = hot_partitions(
             Arc::clone(&catalog.catalog),
-            Some(shard1.shard.id),
             &query_times(
                 catalog.time_provider(),
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             ),
-            1,
-            1,
-        )
-        .await
-        .unwrap();
-
-        assert!(candidates.is_empty());
-
-        // Across all shards
-        let candidates = hot_partitions_for_shard(
-            Arc::clone(&catalog.catalog),
-            None,
-            &query_times(
-                catalog.time_provider(),
-                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
-                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
-            ),
-            1,
-            1,
         )
         .await
         .unwrap();
@@ -470,37 +348,22 @@ mod tests {
 
         let partition1 = table1.with_shard(&shard1).create_partition("one").await;
 
-        let builder =
-            TestParquetFileBuilder::default().with_compaction_level(CompactionLevel::Final);
+        // make sure creation time is older than the threshold
+        let creation_time = catalog
+            .time_provider
+            .hours_ago(DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2 + 1);
+        let builder = TestParquetFileBuilder::default()
+            .with_compaction_level(CompactionLevel::Final)
+            .with_creation_time(creation_time);
         partition1.create_parquet_file_catalog_record(builder).await;
 
-        let candidates = hot_partitions_for_shard(
+        let candidates = hot_partitions(
             Arc::clone(&catalog.catalog),
-            Some(shard1.shard.id),
             &query_times(
                 catalog.time_provider(),
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             ),
-            1,
-            1,
-        )
-        .await
-        .unwrap();
-
-        assert!(candidates.is_empty());
-
-        // Across all shards
-        let candidates = hot_partitions_for_shard(
-            Arc::clone(&catalog.catalog),
-            None,
-            &query_times(
-                catalog.time_provider(),
-                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
-                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
-            ),
-            1,
-            1,
         )
         .await
         .unwrap();
@@ -523,33 +386,13 @@ mod tests {
             .with_creation_time(catalog.time_provider().hours_ago(38));
         partition1.create_parquet_file_catalog_record(builder).await;
 
-        let candidates = hot_partitions_for_shard(
+        let candidates = hot_partitions(
             Arc::clone(&catalog.catalog),
-            Some(shard1.shard.id),
             &query_times(
                 catalog.time_provider(),
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             ),
-            1,
-            1,
-        )
-        .await
-        .unwrap();
-
-        assert!(candidates.is_empty());
-
-        // Across all shards
-        let candidates = hot_partitions_for_shard(
-            Arc::clone(&catalog.catalog),
-            None,
-            &query_times(
-                catalog.time_provider(),
-                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
-                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
-            ),
-            1,
-            1,
         )
         .await
         .unwrap();
@@ -572,34 +415,13 @@ mod tests {
             .with_creation_time(catalog.time_provider().hours_ago(5));
         partition1.create_parquet_file_catalog_record(builder).await;
 
-        let candidates = hot_partitions_for_shard(
+        let candidates = hot_partitions(
             Arc::clone(&catalog.catalog),
-            Some(shard1.shard.id),
             &query_times(
                 catalog.time_provider(),
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             ),
-            1,
-            1,
-        )
-        .await
-        .unwrap();
-
-        assert_eq!(candidates.len(), 1);
-        assert_eq!(candidates[0].partition_id, partition1.partition.id);
-
-        // Across all shards
-        let candidates = hot_partitions_for_shard(
-            Arc::clone(&catalog.catalog),
-            None,
-            &query_times(
-                catalog.time_provider(),
-                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
-                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
-            ),
-            1,
-            1,
         )
         .await
         .unwrap();
@@ -631,38 +453,13 @@ mod tests {
             .create_parquet_file_catalog_record(builder)
             .await;
 
-        let candidates = hot_partitions_for_shard(
+        let candidates = hot_partitions(
             Arc::clone(&catalog.catalog),
-            Some(shard1.shard.id),
             &query_times(
                 catalog.time_provider(),
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             ),
-            1,
-            // Even if we ask for 2 partitions per shard, we'll only get the one partition with
-            // writes within 4 hours
-            2,
-        )
-        .await
-        .unwrap();
-
-        assert_eq!(candidates.len(), 1);
-        assert_eq!(candidates[0].partition_id, partition_3_min.partition.id);
-
-        // Across all shards
-        let candidates = hot_partitions_for_shard(
-            Arc::clone(&catalog.catalog),
-            None,
-            &query_times(
-                catalog.time_provider(),
-                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
-                DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
-            ),
-            1,
-            // Even if we ask for 2 partitions per shard, we'll only get the one partition with
-            // writes within 4 hours
-            2,
         )
         .await
         .unwrap();
@@ -692,6 +489,7 @@ mod tests {
             .with_shard(&shard2)
             .create_partition_with_sort_key("another", &["tag1", "time"])
             .await;
+        println!("another_partition: {:?}", another_partition.partition);
 
         // Create a compactor
         let time_provider = Arc::clone(&catalog.time_provider);
@@ -733,13 +531,20 @@ mod tests {
         // This test is an integration test that covers the priority of the candidate selection
         // algorithm when there are many files of different kinds across many partitions.
 
-        // partition1 has a deleted L0, isn't returned
-        let builder = TestParquetFileBuilder::default().with_to_delete(true);
+        // partition1 has a deleted L0 created long ago, isn't returned
+        // make sure creation time is older than the threshold
+        let creation_time = catalog
+            .time_provider
+            .hours_ago(DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2 + 1);
+        let builder = TestParquetFileBuilder::default()
+            .with_to_delete(true)
+            .with_creation_time(creation_time);
         let _pf1 = partition1.create_parquet_file_catalog_record(builder).await;
 
         // partition2 has a non-L0 file, isn't returned
         let builder = TestParquetFileBuilder::default()
-            .with_compaction_level(CompactionLevel::FileNonOverlapped);
+            .with_compaction_level(CompactionLevel::FileNonOverlapped)
+            .with_creation_time(creation_time);
         let _pf2 = partition2.create_parquet_file_catalog_record(builder).await;
 
         // partition2 has an old (more than 8 hours ago) non-deleted level 0 file, isn't returned
@@ -755,7 +560,7 @@ mod tests {
         let _pf5 = partition3.create_parquet_file_catalog_record(builder).await;
 
         // The another_shard now has non-deleted level-0 file ingested 5 hours ago, is returned
-        let builder = TestParquetFileBuilder::default().with_creation_time(time_five_hour_ago);
+        let builder = TestParquetFileBuilder::default().with_creation_time(time_three_minutes_ago);
         let _pf6 = another_partition
             .create_parquet_file_catalog_record(builder)
             .await;

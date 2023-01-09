@@ -84,11 +84,7 @@ impl ChunkAdapter {
             .collect();
 
         // Prune on the most basic summary data (timestamps and column names) before trying to fully load the chunks
-        let keeps = match prune_summaries(
-            Arc::clone(&cached_table.schema),
-            &basic_summaries,
-            predicate,
-        ) {
+        let keeps = match prune_summaries(&cached_table.schema, &basic_summaries, predicate) {
             Ok(keeps) => keeps,
             Err(reason) => {
                 // Ignore pruning failures here - the chunk pruner should have already logged them.

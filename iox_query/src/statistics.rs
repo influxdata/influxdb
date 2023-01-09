@@ -53,29 +53,23 @@ pub(crate) fn df_from_iox(
     schema: &arrow::datatypes::Schema,
     summary: &TableSummary,
 ) -> DFStatistics {
-    // reorder the column statistics so DF sees them in the same order
-    // as the schema. Form map of field_name-->column_index
-    let order_map = schema
-        .fields()
-        .iter()
-        .enumerate()
-        .map(|(i, field)| (field.name(), i))
-        .collect::<hashbrown::HashMap<_, _>>();
-
-    let mut columns: Vec<(&ColumnSummary, &usize)> = summary
+    let column_by_name = summary
         .columns
         .iter()
-        // as there may be more columns in the summary than are in the
-        // schema, filter them out prior to sorting
-        .filter_map(|s| order_map.get(&s.name).map(|order_index| (s, order_index)))
-        .collect();
+        .map(|c| (&c.name, c))
+        .collect::<hashbrown::HashMap<_, _>>();
 
-    // sort columns by schema order
-    columns.sort_by_key(|s| s.1);
-
-    let column_statistics = columns
-        .into_iter()
-        .map(|(c, _)| df_from_iox_col(c))
+    // compute statistics for all columns in the schema, in order
+    let column_statistics = schema
+        .fields()
+        .iter()
+        .map(|field| {
+            column_by_name
+                .get(field.name())
+                .map(|c| df_from_iox_col(c))
+                // use default statisics of none available  for this column
+                .unwrap_or_default()
+        })
         .collect::<Vec<_>>();
 
     DFStatistics {
@@ -197,7 +191,25 @@ mod test {
 
         let expected = DFStatistics {
             // in c2, c1 order
-            column_statistics: Some(vec![df_c2_stats, df_c1_stats]),
+            column_statistics: Some(vec![df_c2_stats.clone(), df_c1_stats.clone()]),
+            // other fields the same
+            ..expected
+        };
+
+        let actual = df_from_iox(schema.inner(), &table_summary);
+        assert_nice_eq!(actual, expected);
+
+        // test 3: columns in c1 tag with stats, c3 (tag no stats) and c2column without statistics
+        let schema = SchemaBuilder::new()
+            .tag("c2")
+            .influx_field("c1", InfluxFieldType::Integer)
+            .tag("c3")
+            .build()
+            .unwrap();
+
+        let expected = DFStatistics {
+            // in c2, c1, c3 w/ default stats
+            column_statistics: Some(vec![df_c2_stats, df_c1_stats, ColumnStatistics::default()]),
             // other fields the same
             ..expected
         };

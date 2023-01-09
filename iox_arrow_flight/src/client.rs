@@ -1,3 +1,4 @@
+use arrow::datatypes::SchemaRef;
 /// Prototype "Flight Client" that handles underlying details of the flight protocol at a higher level
 
 /// Based on the "low level client" from IOx client:
@@ -412,7 +413,7 @@ impl futures::Stream for FlightDataStream {
 /// streaming flight response.
 #[derive(Debug)]
 struct FlightStreamState {
-    schema: Arc<Schema>,
+    schema: SchemaRef,
     dictionaries_by_field: HashMap<i64, ArrayRef>,
 }
 
@@ -431,7 +432,7 @@ impl DecodedFlightData {
         }
     }
 
-    pub fn new_schema(inner: FlightData, schema: Arc<Schema>) -> Self {
+    pub fn new_schema(inner: FlightData, schema: SchemaRef) -> Self {
         Self {
             inner,
             payload: DecodedPayload::Schema(schema),
@@ -458,7 +459,7 @@ pub enum DecodedPayload {
     None,
 
     /// A decoded Schema message
-    Schema(Arc<Schema>),
+    Schema(SchemaRef),
 
     /// A decoded Record batch.
     RecordBatch(RecordBatch),

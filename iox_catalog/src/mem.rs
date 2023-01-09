@@ -812,6 +812,7 @@ impl PartitionRepo for MemTxn {
                         partition_key: key,
                         sort_key: vec![],
                         persisted_sequence_number: None,
+                        new_file_at: None,
                     };
                     stage.partitions.push(p);
                     stage.partitions.last().unwrap()
@@ -984,6 +985,37 @@ impl PartitionRepo for MemTxn {
             .take(n)
             .cloned()
             .collect())
+    }
+
+    async fn partitions_with_recent_created_files(
+        &mut self,
+        time_in_the_past: Timestamp,
+    ) -> Result<Vec<PartitionParam>> {
+        let stage = self.stage();
+
+        let partitions: Vec<_> = stage
+            .partitions
+            .iter()
+            .filter(|p| p.new_file_at > Some(time_in_the_past))
+            .map(|p| {
+                // get namesapce_id of this partition
+                let namespace_id = stage
+                    .tables
+                    .iter()
+                    .find(|t| t.id == p.table_id)
+                    .map(|t| t.namespace_id)
+                    .unwrap_or(NamespaceId::new(1));
+
+                PartitionParam {
+                    partition_id: p.id,
+                    table_id: p.table_id,
+                    shard_id: ShardId::new(1), // this is unused and will be removed when we remove shard_id
+                    namespace_id,
+                }
+            })
+            .collect();
+
+        Ok(partitions)
     }
 }
 
@@ -1162,6 +1194,14 @@ impl ParquetFileRepo for MemTxn {
             column_set,
         };
         stage.parquet_files.push(parquet_file);
+
+        // Update the new_file_at field its partition to the time of created_at
+        let partition = stage
+            .partitions
+            .iter_mut()
+            .find(|p| p.id == partition_id)
+            .ok_or(Error::PartitionNotFound { id: partition_id })?;
+        partition.new_file_at = Some(created_at);
 
         Ok(stage.parquet_files.last().unwrap().clone())
     }

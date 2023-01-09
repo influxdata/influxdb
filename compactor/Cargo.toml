@@ -7,7 +7,7 @@ license.workspace = true
 
 [dependencies]
 arrow = { workspace = true, features = ["prettyprint"] }
-async-trait = "0.1.60"
+async-trait = "0.1.61"
 backoff = { path = "../backoff" }
 bytes = "1.3"
 data_types = { path = "../data_types" }
