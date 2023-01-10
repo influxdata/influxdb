@@ -16,6 +16,7 @@ use super::{
 use crate::{
     arcmap::ArcMap,
     dml_sink::DmlSink,
+    partition_iter::PartitionIter,
     query::{response::QueryResponse, tracing::QueryExecTracing, QueryError, QueryExec},
 };
 
@@ -211,6 +212,15 @@ where
         QueryExecTracing::new(inner, "namespace")
             .query_exec(namespace_id, table_id, columns, span)
             .await
+    }
+}
+
+impl<O> PartitionIter for crate::buffer_tree::BufferTree<O>
+where
+    O: Send + Sync + Debug + 'static,
+{
+    fn partition_iter(&self) -> Box<dyn Iterator<Item = Arc<Mutex<PartitionData>>> + Send> {
+        Box::new(self.partitions())
     }
 }
 

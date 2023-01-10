@@ -1,36 +1,10 @@
 use observability_deps::tracing::*;
-use parking_lot::Mutex;
-use std::{fmt::Debug, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use crate::{
-    buffer_tree::partition::PartitionData,
+    partition_iter::PartitionIter,
     persist::{drain_buffer::persist_partitions, queue::PersistQueue},
 };
-
-/// An abstraction over any type that can yield an iterator of (potentially
-/// empty) [`PartitionData`].
-pub trait PartitionIter: Send + Debug {
-    /// Return the set of partitions in `self`.
-    fn partition_iter(&self) -> Box<dyn Iterator<Item = Arc<Mutex<PartitionData>>> + Send>;
-}
-
-impl<T> PartitionIter for Arc<T>
-where
-    T: PartitionIter + Send + Sync,
-{
-    fn partition_iter(&self) -> Box<dyn Iterator<Item = Arc<Mutex<PartitionData>>> + Send> {
-        (**self).partition_iter()
-    }
-}
-
-impl<O> PartitionIter for crate::buffer_tree::BufferTree<O>
-where
-    O: Send + Sync + Debug + 'static,
-{
-    fn partition_iter(&self) -> Box<dyn Iterator<Item = Arc<Mutex<PartitionData>>> + Send> {
-        Box::new(self.partitions())
-    }
-}
 
 /// Rotate the `wal` segment file every `period` duration of time.
 pub(crate) async fn periodic_rotation<T, P>(

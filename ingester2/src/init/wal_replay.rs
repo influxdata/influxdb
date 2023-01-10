@@ -9,8 +9,8 @@ use wal::{SequencedWalOp, Wal};
 
 use crate::{
     dml_sink::{DmlError, DmlSink},
+    partition_iter::PartitionIter,
     persist::{drain_buffer::persist_partitions, queue::PersistQueue},
-    wal::rotate_task::PartitionIter,
     TRANSITION_SHARD_INDEX,
 };
 

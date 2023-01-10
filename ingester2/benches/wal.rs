@@ -112,7 +112,7 @@ impl DmlSink for NopSink {
     }
 }
 
-impl ingester2::wal::benches::PartitionIter for NopSink {
+impl ingester2::partition_iter::PartitionIter for NopSink {
     fn partition_iter(
         &self,
     ) -> Box<dyn Iterator<Item = std::sync::Arc<parking_lot::Mutex<PartitionData>>> + Send> {
