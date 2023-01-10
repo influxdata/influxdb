@@ -1,8 +1,9 @@
 //! Collect highest hot candidates and compact them
 
 use crate::{
-    compact::{self, Compactor},
+    compact::{self, Compactor, ShardAssignment},
     compact_candidates_with_memory_budget, compact_in_parallel,
+    parquet_file_lookup::CompactionType,
     utils::get_candidates_with_retry,
     PartitionCompactionCandidateWithInfo,
 };
@@ -36,7 +37,7 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
 
     compact_candidates_with_memory_budget(
         Arc::clone(&compactor),
-        compaction_type,
+        CompactionType::Hot,
         CompactionLevel::Initial,
         CompactionLevel::FileNonOverlapped,
         compact_in_parallel,
@@ -77,9 +78,28 @@ pub(crate) async fn hot_partitions_to_compact(
 ) -> Result<Vec<Arc<PartitionCompactionCandidateWithInfo>>, compact::Error> {
     let compaction_type = "hot";
 
-    let max_number_partitions_per_shard = compactor.config.max_number_partitions_per_shard;
-    let mut candidates =
-        Vec::with_capacity(compactor.shards.len() * max_number_partitions_per_shard);
+    // https://github.com/influxdata/influxdb_iox/issues/6518 to remove the use of shard_id and
+    //simplify this
+    let max_num_partitions = match &compactor.shards {
+        ShardAssignment::All => {
+            debug!(
+                compaction_type,
+                max_num_partitions = compactor.config.max_number_partitions_per_shard,
+                "Compactor2"
+            );
+            compactor.config.max_number_partitions_per_shard
+        }
+        ShardAssignment::Only(shards) => {
+            debug!(
+                compaction_type,
+                num_shards = shards.len(),
+                max_number_partitions_per_shard = compactor.config.max_number_partitions_per_shard,
+                "Compactor1"
+            );
+            compactor.config.max_number_partitions_per_shard * shards.len()
+        }
+    };
+    let mut candidates = Vec::with_capacity(max_num_partitions);
 
     // Get the most recent highest ingested throughput partitions within the last 4 hours. If not,
     // increase to 24 hours.
@@ -89,7 +109,12 @@ pub(crate) async fn hot_partitions_to_compact(
         compactor.config.hot_compaction_hours_threshold_2,
     );
 
-    let mut partitions = hot_partitions(Arc::clone(&compactor.catalog), &query_times).await?;
+    let mut partitions = hot_partition_candidates(
+        Arc::clone(&compactor.catalog),
+        &query_times,
+        max_num_partitions,
+    )
+    .await?;
 
     // Record metric for candidates
     let num_partitions = partitions.len();
@@ -136,9 +161,10 @@ pub(crate) async fn hot_partitions_to_compact(
     Ok(candidates)
 }
 
-async fn hot_partitions(
+async fn hot_partition_candidates(
     catalog: Arc<dyn Catalog>,
     query_times: &[(u64, Timestamp)],
+    max_num_partitions: usize,
 ) -> Result<Vec<PartitionParam>, compact::Error> {
     let compaction_type = "hot";
     let mut repos = catalog.repositories().await;
@@ -146,7 +172,7 @@ async fn hot_partitions(
     for &(hours_ago, hours_ago_in_ns) in query_times {
         let partitions = repos
             .partitions()
-            .partitions_with_recent_created_files(hours_ago_in_ns)
+            .partitions_with_recent_created_files(hours_ago_in_ns, max_num_partitions)
             .await
             .map_err(|e| compact::Error::RecentIngestedPartitions {
                 source: e,
@@ -157,7 +183,7 @@ async fn hot_partitions(
                 compaction_type,
                 hours_ago,
                 n = partitions.len(),
-                "found partitions"
+                "found partition candidates"
             );
             return Ok(partitions);
         }
@@ -197,7 +223,9 @@ mod tests {
 
     const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1: u64 = 4;
     const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2: u64 = 24;
+    const DEFAULT_COLD_PARTITION_CANDIDATES_HOURS_THRESHOLD: u64 = 24;
     const DEFAULT_MAX_PARALLEL_PARTITIONS: u64 = 20;
+    const DEFAULT_MAX_NUM_PARTITION_CANDIDATES: usize = 10;
 
     struct TestSetup {
         catalog: Arc<TestCatalog>,
@@ -230,13 +258,14 @@ mod tests {
     async fn no_partitions_no_candidates() {
         let TestSetup { catalog, .. } = test_setup().await;
 
-        let candidates = hot_partitions(
+        let candidates = hot_partition_candidates(
             Arc::clone(&catalog.catalog),
             &query_times(
                 catalog.time_provider(),
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             ),
+            DEFAULT_MAX_NUM_PARTITION_CANDIDATES,
         )
         .await
         .unwrap();
@@ -255,13 +284,14 @@ mod tests {
 
         table1.with_shard(&shard1).create_partition("one").await;
 
-        let candidates = hot_partitions(
+        let candidates = hot_partition_candidates(
             Arc::clone(&catalog.catalog),
             &query_times(
                 catalog.time_provider(),
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             ),
+            DEFAULT_MAX_NUM_PARTITION_CANDIDATES,
         )
         .await
         .unwrap();
@@ -289,13 +319,14 @@ mod tests {
             .with_creation_time(creation_time);
         partition1.create_parquet_file_catalog_record(builder).await;
 
-        let candidates = hot_partitions(
+        let candidates = hot_partition_candidates(
             Arc::clone(&catalog.catalog),
             &query_times(
                 catalog.time_provider(),
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             ),
+            DEFAULT_MAX_NUM_PARTITION_CANDIDATES,
         )
         .await
         .unwrap();
@@ -323,13 +354,14 @@ mod tests {
 
         partition1.create_parquet_file_catalog_record(builder).await;
 
-        let candidates = hot_partitions(
+        let candidates = hot_partition_candidates(
             Arc::clone(&catalog.catalog),
             &query_times(
                 catalog.time_provider(),
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             ),
+            DEFAULT_MAX_NUM_PARTITION_CANDIDATES,
         )
         .await
         .unwrap();
@@ -357,13 +389,14 @@ mod tests {
             .with_creation_time(creation_time);
         partition1.create_parquet_file_catalog_record(builder).await;
 
-        let candidates = hot_partitions(
+        let candidates = hot_partition_candidates(
             Arc::clone(&catalog.catalog),
             &query_times(
                 catalog.time_provider(),
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             ),
+            DEFAULT_MAX_NUM_PARTITION_CANDIDATES,
         )
         .await
         .unwrap();
@@ -386,13 +419,14 @@ mod tests {
             .with_creation_time(catalog.time_provider().hours_ago(38));
         partition1.create_parquet_file_catalog_record(builder).await;
 
-        let candidates = hot_partitions(
+        let candidates = hot_partition_candidates(
             Arc::clone(&catalog.catalog),
             &query_times(
                 catalog.time_provider(),
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             ),
+            DEFAULT_MAX_NUM_PARTITION_CANDIDATES,
         )
         .await
         .unwrap();
@@ -415,13 +449,14 @@ mod tests {
             .with_creation_time(catalog.time_provider().hours_ago(5));
         partition1.create_parquet_file_catalog_record(builder).await;
 
-        let candidates = hot_partitions(
+        let candidates = hot_partition_candidates(
             Arc::clone(&catalog.catalog),
             &query_times(
                 catalog.time_provider(),
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             ),
+            DEFAULT_MAX_NUM_PARTITION_CANDIDATES,
         )
         .await
         .unwrap();
@@ -453,13 +488,14 @@ mod tests {
             .create_parquet_file_catalog_record(builder)
             .await;
 
-        let candidates = hot_partitions(
+        let candidates = hot_partition_candidates(
             Arc::clone(&catalog.catalog),
             &query_times(
                 catalog.time_provider(),
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
                 DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             ),
+            DEFAULT_MAX_NUM_PARTITION_CANDIDATES,
         )
         .await
         .unwrap();
@@ -506,6 +542,8 @@ mod tests {
             max_num_compacting_files: 20,
             max_num_compacting_files_first_in_partition: 40,
             minutes_without_new_writes_to_be_cold: 10,
+            cold_partition_candidates_hours_threshold:
+                DEFAULT_COLD_PARTITION_CANDIDATES_HOURS_THRESHOLD,
             hot_compaction_hours_threshold_1: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
             hot_compaction_hours_threshold_2: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             max_parallel_partitions: DEFAULT_MAX_PARALLEL_PARTITIONS,
