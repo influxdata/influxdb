@@ -15,8 +15,8 @@ use service_grpc_catalog::CatalogService;
 
 use crate::{
     dml_sink::DmlSink,
+    ingest_state::IngestState,
     init::IngesterRpcInterface,
-    persist::backpressure::PersistState,
     query::{response::QueryResponse, QueryExec},
     timestamp_oracle::TimestampOracle,
 };
@@ -33,7 +33,7 @@ pub(crate) struct GrpcDelegate<D, Q> {
     dml_sink: Arc<D>,
     query_exec: Arc<Q>,
     timestamp: Arc<TimestampOracle>,
-    persist_state: Arc<PersistState>,
+    ingest_state: Arc<IngestState>,
     catalog: Arc<dyn Catalog>,
     metrics: Arc<metric::Registry>,
 }
@@ -48,7 +48,7 @@ where
         dml_sink: Arc<D>,
         query_exec: Arc<Q>,
         timestamp: Arc<TimestampOracle>,
-        persist_state: Arc<PersistState>,
+        ingest_state: Arc<IngestState>,
         catalog: Arc<dyn Catalog>,
         metrics: Arc<metric::Registry>,
     ) -> Self {
@@ -56,7 +56,7 @@ where
             dml_sink,
             query_exec,
             timestamp,
-            persist_state,
+            ingest_state,
             catalog,
             metrics,
         }
@@ -88,7 +88,7 @@ where
         WriteServiceServer::new(RpcWrite::new(
             Arc::clone(&self.dml_sink),
             Arc::clone(&self.timestamp),
-            Arc::clone(&self.persist_state),
+            Arc::clone(&self.ingest_state),
         ))
     }
 
