@@ -803,7 +803,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 
 	ss := index.SeriesIDSet()
 
-	s.walkShards(shards, func(sh *Shard) error {
+	err = s.walkShards(shards, func(sh *Shard) error {
 		index, err := sh.Index()
 		if err != nil {
 			return err
@@ -813,13 +813,20 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		return nil
 	})
 
+	if err != nil {
+		s.Logger.Error("error walking shards during deletion", zap.Error(err))
+	}
+
 	// Remove any remaining series in the set from the series file, as they don't
 	// exist in any of the database's remaining shards.
 	if ss.Cardinality() > 0 {
 		sfile := s.seriesFile(db)
 		if sfile != nil {
 			ss.ForEach(func(id uint64) {
-				sfile.DeleteSeriesID(id)
+				err = sfile.DeleteSeriesID(id)
+				if err != nil {
+					s.Logger.Error("error deleting series id", zap.Uint64("id", id), zap.Error(err))
+				}
 			})
 		}
 
