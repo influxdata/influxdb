@@ -8,7 +8,7 @@ license.workspace = true
 [dependencies] # In alphabetical order
 arrow = { workspace = true, features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
-assert_cmd = "2.0.7"
+assert_cmd = "2.0.8"
 bytes = "1.3"
 data_types = { path = "../data_types" }
 futures = "0.3"
