@@ -27,11 +27,11 @@ async-trait = "0.1"
 futures = "0.3"
 pin-project = "1.0"
 prost = "0.11"
-regex = "1.7.0"
+regex = "1.7.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.91"
 snafu = "0.7"
-tokio = { version = "1.22", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+tokio = { version = "1.24", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 tonic = "0.8"
 workspace-hack = { path = "../workspace-hack"}

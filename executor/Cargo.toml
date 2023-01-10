@@ -11,7 +11,7 @@ observability_deps = { path = "../observability_deps" }
 once_cell = { version = "1.17", features = ["parking_lot"] }
 parking_lot = "0.12"
 pin-project = "1.0"
-tokio = { version = "1.22" }
+tokio = { version = "1.24" }
 tokio-util = { version = "0.7.4" }
 workspace-hack = { path = "../workspace-hack"}
 

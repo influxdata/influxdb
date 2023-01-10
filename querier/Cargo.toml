@@ -38,7 +38,7 @@ schema = { path = "../schema" }
 sharder = { path = "../sharder" }
 snafu = "0.7"
 thiserror = "1.0"
-tokio = { version = "1.22", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.24", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7.4" }
 tonic = { version = "0.8" }
 trace = { path = "../trace" }
@@ -54,5 +54,5 @@ assert_matches = "1.5"
 iox_tests = { path = "../iox_tests" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 object_store_metrics = { path = "../object_store_metrics" }
-regex = "1.7.0"
+regex = "1.7.1"
 test_helpers = { path = "../test_helpers" }
