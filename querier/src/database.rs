@@ -121,6 +121,7 @@ impl QuerierDatabase {
         let chunk_adapter = Arc::new(ChunkAdapter::new(
             Arc::clone(&catalog_cache),
             Arc::clone(&metric_registry),
+            rpc_write,
         ));
         let query_log = Arc::new(QueryLog::new(QUERY_LOG_SIZE, catalog_cache.time_provider()));
         let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(

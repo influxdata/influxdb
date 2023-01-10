@@ -519,6 +519,7 @@ pub trait PartitionRepo: Send + Sync {
     async fn partitions_with_recent_created_files(
         &mut self,
         time_in_the_past: Timestamp,
+        max_num_partitions: usize,
     ) -> Result<Vec<PartitionParam>>;
 }
 
@@ -3795,6 +3796,7 @@ pub(crate) mod test_helpers {
     }
 
     async fn test_partitions_with_recent_created_files(catalog: Arc<dyn Catalog>) {
+        let max_num_partition = 100;
         let mut repos = catalog.repositories().await;
         let topic = repos
             .topics()
@@ -3844,7 +3846,7 @@ pub(crate) mod test_helpers {
         // get from partition table
         let partitions = repos
             .partitions()
-            .partitions_with_recent_created_files(time_two_hour_ago)
+            .partitions_with_recent_created_files(time_two_hour_ago, max_num_partition)
             .await
             .unwrap();
         assert!(partitions.is_empty());
@@ -3866,7 +3868,7 @@ pub(crate) mod test_helpers {
         // get from partition table
         let partitions = repos
             .partitions()
-            .partitions_with_recent_created_files(time_two_hour_ago)
+            .partitions_with_recent_created_files(time_two_hour_ago, max_num_partition)
             .await
             .unwrap();
         assert!(partitions.is_empty());
@@ -3910,7 +3912,7 @@ pub(crate) mod test_helpers {
         // get from partition table
         let partitions = repos
             .partitions()
-            .partitions_with_recent_created_files(time_two_hour_ago)
+            .partitions_with_recent_created_files(time_two_hour_ago, max_num_partition)
             .await
             .unwrap();
         assert!(partitions.is_empty());
@@ -3937,7 +3939,7 @@ pub(crate) mod test_helpers {
         // get from partition table
         let partitions = repos
             .partitions()
-            .partitions_with_recent_created_files(time_two_hour_ago)
+            .partitions_with_recent_created_files(time_two_hour_ago, max_num_partition)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 1);
@@ -3962,7 +3964,7 @@ pub(crate) mod test_helpers {
         // get from partition table
         let partitions = repos
             .partitions()
-            .partitions_with_recent_created_files(time_two_hour_ago)
+            .partitions_with_recent_created_files(time_two_hour_ago, max_num_partition)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 1);
@@ -3991,7 +3993,7 @@ pub(crate) mod test_helpers {
         // get from partition table
         let partitions = repos
             .partitions()
-            .partitions_with_recent_created_files(time_two_hour_ago)
+            .partitions_with_recent_created_files(time_two_hour_ago, max_num_partition)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 1);
@@ -4022,7 +4024,7 @@ pub(crate) mod test_helpers {
         // get from partition table
         let partitions = repos
             .partitions()
-            .partitions_with_recent_created_files(time_two_hour_ago)
+            .partitions_with_recent_created_files(time_two_hour_ago, max_num_partition)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
@@ -4052,7 +4054,7 @@ pub(crate) mod test_helpers {
         // get from partition table
         let partitions = repos
             .partitions()
-            .partitions_with_recent_created_files(time_two_hour_ago)
+            .partitions_with_recent_created_files(time_two_hour_ago, max_num_partition)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
@@ -4087,7 +4089,7 @@ pub(crate) mod test_helpers {
         // get from partition table
         let partitions = repos
             .partitions()
-            .partitions_with_recent_created_files(time_two_hour_ago)
+            .partitions_with_recent_created_files(time_two_hour_ago, max_num_partition)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 3);
@@ -4097,6 +4099,26 @@ pub(crate) mod test_helpers {
         assert_eq!(partitions[0].partition_id, partition1.id);
         assert_eq!(partitions[1].partition_id, partition2.id);
         assert_eq!(partitions[2].partition_id, partition3.id);
+
+        // Limit max num partition
+        let partitions = repos
+            .partitions()
+            .partitions_with_recent_created_files(time_two_hour_ago, 2)
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 2);
+        let partitions = repos
+            .partitions()
+            .partitions_with_recent_created_files(time_two_hour_ago, 1)
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 1);
+        let partitions = repos
+            .partitions()
+            .partitions_with_recent_created_files(time_two_hour_ago, 0)
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 0);
 
         // drop the namespace to avoid the created data in this tests from affecting other tests
         repos

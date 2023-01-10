@@ -1,13 +1,14 @@
 //! Logic for finding relevant Parquet files in the catalog to be considered during a compaction
 //! operation.
 
-use data_types::{CompactionLevel, ParquetFileId, PartitionId};
-use iox_catalog::interface::Catalog;
+use data_types::{CompactionLevel, ParquetFileId, PartitionId, Timestamp};
 use observability_deps::tracing::*;
 use snafu::{ResultExt, Snafu};
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, fmt::Display, sync::Arc};
 
-use crate::{parquet_file::CompactorParquetFile, PartitionCompactionCandidateWithInfo};
+use crate::{
+    compact::Compactor, parquet_file::CompactorParquetFile, PartitionCompactionCandidateWithInfo,
+};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -21,6 +22,23 @@ pub(crate) enum PartitionFilesFromPartitionError {
         partition_id: PartitionId,
         source: iox_catalog::interface::Error,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CompactionType {
+    Hot,
+    Warm,
+    Cold,
+}
+
+impl Display for CompactionType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Hot => write!(f, "hot"),
+            Self::Warm => write!(f, "warm"),
+            Self::Cold => write!(f, "cold"),
+        }
+    }
 }
 
 /// Collection of Parquet files relevant to compacting a partition. Separated by compaction level.
@@ -42,14 +60,14 @@ impl ParquetFilesForCompaction {
     /// Given a catalog and a partition ID, find the Parquet files in the catalog relevant to a
     /// compaction operation.
     pub(crate) async fn for_partition(
-        catalog: Arc<dyn Catalog>,
-        min_num_rows_allocated_per_record_batch_to_datafusion_plan: u64,
+        compactor: Arc<Compactor>,
         partition: Arc<PartitionCompactionCandidateWithInfo>,
-    ) -> Result<Self, PartitionFilesFromPartitionError> {
+        compaction_type: CompactionType,
+    ) -> Result<Option<Self>, PartitionFilesFromPartitionError> {
         Self::for_partition_with_size_overrides(
-            catalog,
-            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
+            compactor,
             partition,
+            compaction_type,
             &Default::default(),
         )
         .await
@@ -63,16 +81,23 @@ impl ParquetFilesForCompaction {
     /// when/how to compact files), but leave the actual physical size of the file as it is (i.e.
     /// file deserialization can still rely on the original value).
     pub(crate) async fn for_partition_with_size_overrides(
-        catalog: Arc<dyn Catalog>,
-        min_num_rows_allocated_per_record_batch_to_datafusion_plan: u64,
+        compactor: Arc<Compactor>,
         partition: Arc<PartitionCompactionCandidateWithInfo>,
+        compaction_type: CompactionType,
         size_overrides: &HashMap<ParquetFileId, i64>,
-    ) -> Result<Self, PartitionFilesFromPartitionError> {
+    ) -> Result<Option<Self>, PartitionFilesFromPartitionError> {
         let partition_id = partition.id();
         info!(
             partition_id = partition_id.get(),
             "finding parquet files for compaction"
         );
+
+        let catalog = Arc::clone(&compactor.catalog);
+        let min_num_rows_allocated_per_record_batch_to_datafusion_plan = compactor
+            .config
+            .min_num_rows_allocated_per_record_batch_to_datafusion_plan;
+        let minutes_without_new_writes_to_be_cold =
+            compactor.config.minutes_without_new_writes_to_be_cold;
 
         // List all valid (not soft deleted) files of the partition
         let parquet_files = catalog
@@ -87,7 +112,25 @@ impl ParquetFilesForCompaction {
         let mut level_1 = Vec::with_capacity(parquet_files.len());
         let mut level_2 = Vec::with_capacity(parquet_files.len());
 
+        if parquet_files.is_empty() {
+            return Ok(None);
+        }
+
         for parquet_file in parquet_files {
+            // For cold compaction, won't proceed if at least one L0 file created  after
+            // minutes_without_new_writes_to_be_cold
+            if parquet_file.compaction_level == CompactionLevel::Initial
+                && compaction_type == CompactionType::Cold
+                && parquet_file.created_at
+                    > Timestamp::from(
+                        compactor
+                            .time_provider
+                            .minutes_ago(minutes_without_new_writes_to_be_cold),
+                    )
+            {
+                return Ok(None);
+            }
+
             // Estimate the bytes DataFusion needs when scan this file
             let estimated_arrow_bytes = partition
                 .estimated_arrow_bytes(min_num_rows_allocated_per_record_batch_to_datafusion_plan);
@@ -114,22 +157,39 @@ impl ParquetFilesForCompaction {
             }
         }
 
-        level_0.sort_by_key(|pf| pf.max_sequence_number());
+        // No L0 and L1, nothing to compact
+        if level_0.is_empty() && level_1.is_empty() {
+            return Ok(None);
+        }
+
+        level_0.sort_by_key(|pf| pf.created_at());
         level_1.sort_by_key(|pf| pf.min_time());
 
-        Ok(Self {
+        Ok(Some(Self {
             level_0,
             level_1,
             level_2,
-        })
+        }))
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::{compact::ShardAssignment, handler::CompactorConfig};
+
     use super::*;
+    use backoff::BackoffConfig;
     use data_types::ColumnType;
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestPartition};
+    use iox_time::{SystemProvider, TimeProvider};
+    use parquet_file::storage::{ParquetStorage, StorageId};
+
+    const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1: u64 = 4;
+    const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2: u64 = 24;
+    const DEFAULT_COLD_PARTITION_CANDIDATES_HOURS_THRESHOLD: u64 = 24;
+    const DEFAULT_MAX_PARALLEL_PARTITIONS: u64 = 20;
+    const DEFAULT_MINUTES_WITHOUT_NEW_WRITES: u64 = 8 * 60;
+    const DEFAULT_MIN_ROWS_ALLOCATED: u64 = 100;
 
     const ARBITRARY_LINE_PROTOCOL: &str = r#"
         table,tag1=WA field_int=1000i 8000
@@ -138,11 +198,10 @@ mod tests {
     "#;
 
     struct TestSetup {
-        catalog: Arc<TestCatalog>,
+        compactor: Arc<Compactor>,
         partition: Arc<TestPartition>,
         partition_on_another_shard: Arc<TestPartition>,
         older_partition: Arc<TestPartition>,
-        min_num_rows_allocated_per_record_batch_to_datafusion_plan: u64,
     }
 
     async fn test_setup() -> TestSetup {
@@ -172,12 +231,48 @@ mod tests {
             .create_partition("2022-07-12")
             .await;
 
+        let config = make_compactor_config();
+        let metrics = Arc::new(metric::Registry::new());
+        let compactor = Arc::new(Compactor::new(
+            ShardAssignment::All,
+            Arc::clone(&catalog.catalog),
+            ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
+            catalog.exec(),
+            Arc::new(SystemProvider::new()),
+            BackoffConfig::default(),
+            config,
+            Arc::clone(&metrics),
+        ));
+
         TestSetup {
-            catalog,
+            compactor,
             partition,
             partition_on_another_shard,
             older_partition,
-            min_num_rows_allocated_per_record_batch_to_datafusion_plan: 100,
+        }
+    }
+
+    fn make_compactor_config() -> CompactorConfig {
+        CompactorConfig {
+            max_desired_file_size_bytes: 10_000,
+            percentage_max_file_size: 30,
+            split_percentage: 80,
+            max_number_partitions_per_shard: 1,
+            min_number_recent_ingested_files_per_partition: 1,
+            hot_multiple: 4,
+            warm_multiple: 1,
+            memory_budget_bytes: 100_000_000,
+            min_num_rows_allocated_per_record_batch_to_datafusion_plan: DEFAULT_MIN_ROWS_ALLOCATED,
+            max_num_compacting_files: 20,
+            max_num_compacting_files_first_in_partition: 40,
+            minutes_without_new_writes_to_be_cold: DEFAULT_MINUTES_WITHOUT_NEW_WRITES,
+            cold_partition_candidates_hours_threshold:
+                DEFAULT_COLD_PARTITION_CANDIDATES_HOURS_THRESHOLD,
+            hot_compaction_hours_threshold_1: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
+            hot_compaction_hours_threshold_2: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
+            max_parallel_partitions: DEFAULT_MAX_PARALLEL_PARTITIONS,
+            warm_compaction_small_size_threshold_bytes: 5_000,
+            warm_compaction_min_small_file_count: 10,
         }
     }
 
@@ -185,11 +280,10 @@ mod tests {
     async fn no_relevant_parquet_files_returns_empty() {
         test_helpers::maybe_start_logging();
         let TestSetup {
-            catalog,
+            compactor,
             partition,
             partition_on_another_shard,
             older_partition,
-            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
         } = test_setup().await;
 
         // Create some files that shouldn't be returned:
@@ -221,31 +315,21 @@ mod tests {
             Arc::new(PartitionCompactionCandidateWithInfo::from_test_partition(&partition).await);
 
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
-            Arc::clone(&catalog.catalog),
-            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
+            compactor,
             partition_with_info,
+            CompactionType::Hot,
         )
         .await
         .unwrap();
-        assert!(
-            parquet_files_for_compaction.level_0.is_empty(),
-            "Expected empty, got: {:#?}",
-            parquet_files_for_compaction.level_0
-        );
-        assert!(
-            parquet_files_for_compaction.level_1.is_empty(),
-            "Expected empty, got: {:#?}",
-            parquet_files_for_compaction.level_1
-        );
+        assert!(parquet_files_for_compaction.is_none());
     }
 
     #[tokio::test]
     async fn one_level_0_file_gets_returned() {
         test_helpers::maybe_start_logging();
         let TestSetup {
-            catalog,
+            compactor,
             partition,
-            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
             ..
         } = test_setup().await;
 
@@ -259,11 +343,12 @@ mod tests {
             Arc::new(PartitionCompactionCandidateWithInfo::from_test_partition(&partition).await);
 
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
-            Arc::clone(&catalog.catalog),
-            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
+            compactor,
             partition_with_info,
+            CompactionType::Hot,
         )
         .await
+        .unwrap()
         .unwrap();
 
         let parquet_file_file_size_in_mem = 5 * parquet_file.parquet_file.file_size_bytes as u64;
@@ -287,9 +372,8 @@ mod tests {
     async fn one_level_1_file_gets_returned() {
         test_helpers::maybe_start_logging();
         let TestSetup {
-            catalog,
+            compactor,
             partition,
-            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
             ..
         } = test_setup().await;
 
@@ -303,11 +387,12 @@ mod tests {
             Arc::new(PartitionCompactionCandidateWithInfo::from_test_partition(&partition).await);
 
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
-            Arc::clone(&catalog.catalog),
-            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
+            compactor,
             partition_with_info,
+            CompactionType::Hot,
         )
         .await
+        .unwrap()
         .unwrap();
 
         assert!(
@@ -331,9 +416,8 @@ mod tests {
     async fn one_level_2_file_gets_returned() {
         test_helpers::maybe_start_logging();
         let TestSetup {
-            catalog,
+            compactor,
             partition,
-            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
             ..
         } = test_setup().await;
 
@@ -341,49 +425,28 @@ mod tests {
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(ARBITRARY_LINE_PROTOCOL)
             .with_compaction_level(CompactionLevel::Final);
-        let parquet_file = partition.create_parquet_file(builder).await;
+        let _parquet_file = partition.create_parquet_file(builder).await;
 
         let partition_with_info =
             Arc::new(PartitionCompactionCandidateWithInfo::from_test_partition(&partition).await);
 
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
-            Arc::clone(&catalog.catalog),
-            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
+            Arc::clone(&compactor),
             partition_with_info,
+            CompactionType::Hot,
         )
         .await
         .unwrap();
-
-        assert!(
-            parquet_files_for_compaction.level_0.is_empty(),
-            "Expected empty, got: {:#?}",
-            parquet_files_for_compaction.level_0
-        );
-
-        assert!(
-            parquet_files_for_compaction.level_1.is_empty(),
-            "Expected empty, got: {:#?}",
-            parquet_files_for_compaction.level_1
-        );
-
-        let parquet_file_file_size_in_mem = 5 * parquet_file.parquet_file.file_size_bytes as u64;
-        assert_eq!(
-            parquet_files_for_compaction.level_2,
-            vec![CompactorParquetFile::new(
-                parquet_file.parquet_file,
-                0,
-                parquet_file_file_size_in_mem
-            )]
-        );
+        // Only L2 files, nothing to compact
+        assert!(parquet_files_for_compaction.is_none());
     }
 
     #[tokio::test]
     async fn one_file_of_each_level_gets_returned() {
         test_helpers::maybe_start_logging();
         let TestSetup {
-            catalog,
+            compactor,
             partition,
-            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
             ..
         } = test_setup().await;
 
@@ -409,11 +472,12 @@ mod tests {
             Arc::new(PartitionCompactionCandidateWithInfo::from_test_partition(&partition).await);
 
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
-            Arc::clone(&catalog.catalog),
-            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
+            compactor,
             partition_with_info,
+            CompactionType::Hot,
         )
         .await
+        .unwrap()
         .unwrap();
 
         let l0_file_size_in_mem = 5 * l0.parquet_file.file_size_bytes as u64;
@@ -448,28 +512,31 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn level_0_files_are_sorted_on_max_seq_num() {
+    async fn level_0_files_are_sorted_on_created_at() {
         test_helpers::maybe_start_logging();
         let TestSetup {
-            catalog,
+            compactor,
             partition,
-            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
             ..
         } = test_setup().await;
 
-        // Create a level 0 file, max seq = 100
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol(ARBITRARY_LINE_PROTOCOL)
-            .with_compaction_level(CompactionLevel::Initial)
-            .with_max_seq(100);
-        let l0_max_seq_100 = partition.create_parquet_file(builder).await;
+        let time_provider = SystemProvider::new();
+        let one_hour_ago = time_provider.hours_ago(1);
+        let ten_munites_ago = time_provider.minutes_ago(10);
 
-        // Create a level 0 file, max seq = 50
+        // Create a level 0 file 10 minutes ago
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(ARBITRARY_LINE_PROTOCOL)
             .with_compaction_level(CompactionLevel::Initial)
-            .with_max_seq(50);
-        let l0_max_seq_50 = partition.create_parquet_file(builder).await;
+            .with_creation_time(ten_munites_ago);
+        let l0_ten_minutes_ago = partition.create_parquet_file(builder).await;
+
+        // Create a level 0 file one hour ago
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(ARBITRARY_LINE_PROTOCOL)
+            .with_compaction_level(CompactionLevel::Initial)
+            .with_creation_time(one_hour_ago);
+        let l0_one_hour_ago = partition.create_parquet_file(builder).await;
 
         // Create a level 1 file
         let builder = TestParquetFileBuilder::default()
@@ -481,30 +548,32 @@ mod tests {
             Arc::new(PartitionCompactionCandidateWithInfo::from_test_partition(&partition).await);
 
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
-            Arc::clone(&catalog.catalog),
-            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
+            compactor,
             partition_with_info,
+            CompactionType::Hot,
         )
         .await
+        .unwrap()
         .unwrap();
 
-        let l0_max_seq_50_file_size_in_mem = 5 * l0_max_seq_50.parquet_file.file_size_bytes as u64;
-        let l0_max_seq_100_file_size_in_mem =
-            5 * l0_max_seq_100.parquet_file.file_size_bytes as u64;
+        let l0_ten_minutes_ago_file_size_in_mem =
+            5 * l0_ten_minutes_ago.parquet_file.file_size_bytes as u64;
+        let l0_one_hour_ago_file_size_in_mem =
+            5 * l0_one_hour_ago.parquet_file.file_size_bytes as u64;
         let l1_file_size_in_mem = 5 * l1.parquet_file.file_size_bytes as u64;
 
         assert_eq!(
             parquet_files_for_compaction.level_0,
             vec![
                 CompactorParquetFile::new(
-                    l0_max_seq_50.parquet_file,
+                    l0_one_hour_ago.parquet_file,
                     0,
-                    l0_max_seq_50_file_size_in_mem
+                    l0_one_hour_ago_file_size_in_mem
                 ),
                 CompactorParquetFile::new(
-                    l0_max_seq_100.parquet_file,
+                    l0_ten_minutes_ago.parquet_file,
                     0,
-                    l0_max_seq_100_file_size_in_mem
+                    l0_ten_minutes_ago_file_size_in_mem
                 ),
             ]
         );
@@ -523,9 +592,8 @@ mod tests {
     async fn level_1_files_are_sorted_on_min_time() {
         test_helpers::maybe_start_logging();
         let TestSetup {
-            catalog,
+            compactor,
             partition,
-            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
             ..
         } = test_setup().await;
 
@@ -569,11 +637,12 @@ mod tests {
             Arc::new(PartitionCompactionCandidateWithInfo::from_test_partition(&partition).await);
 
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
-            Arc::clone(&catalog.catalog),
-            min_num_rows_allocated_per_record_batch_to_datafusion_plan,
+            compactor,
             partition_with_info,
+            CompactionType::Hot,
         )
         .await
+        .unwrap()
         .unwrap();
 
         let l0_file_size_in_mem = 5 * l0.parquet_file.file_size_bytes as u64;

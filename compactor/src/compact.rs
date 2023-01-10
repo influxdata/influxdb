@@ -56,14 +56,10 @@ pub enum Error {
     NamespaceNotFound { namespace_id: NamespaceId },
 
     #[snafu(display(
-        "Error getting the most recent highest ingested throughput partitions for shard {:?}. {}",
-        shard_id,
-        source
+        "Error getting partitions with recently created files for {} compaction. {:?}",
+        compaction_type,
+        source,
     ))]
-    HighestThroughputPartitions {
-        source: iox_catalog::interface::Error,
-        shard_id: Option<ShardId>,
-    },
     RecentIngestedPartitions {
         source: iox_catalog::interface::Error,
         compaction_type: &'static str,
@@ -75,16 +71,6 @@ pub enum Error {
         source
     ))]
     PartitionsWithSmallL1Files {
-        source: iox_catalog::interface::Error,
-        shard_id: Option<ShardId>,
-    },
-
-    #[snafu(display(
-        "Error getting the most level 0 + level 1 file cold partitions for shard {:?}. {}",
-        shard_id,
-        source
-    ))]
-    MostColdPartitions {
         source: iox_catalog::interface::Error,
         shard_id: Option<ShardId>,
     },
@@ -302,72 +288,32 @@ impl Compactor {
     pub async fn cold_partitions_to_compact(
         &self,
         // Max number of cold partitions per shard we want to compact
-        max_num_partitions_per_shard: usize,
+        max_num_partitions: usize,
     ) -> Result<Vec<Arc<PartitionCompactionCandidateWithInfo>>> {
         let compaction_type = "cold";
-        let mut candidates = Vec::with_capacity(self.shards.len() * max_num_partitions_per_shard);
 
-        let minutes = self.config.minutes_without_new_writes_to_be_cold;
-        let time_in_the_past = Timestamp::from(self.time_provider.minutes_ago(minutes));
+        // Use cold_partition_candidates_hours_threshold to get partition candidates
+        // for cold compaction. They are partitions with new created files after that threshold.
+        // Later during cold compaction for each candidate, we will see if this partition
+        // is really cold or not by checking if it has no new writes in the last
+        // config's minutes_without_new_writes_to_be_cold;
+        let hours = self.config.cold_partition_candidates_hours_threshold;
+        let time_in_the_past = Timestamp::from(self.time_provider.hours_ago(hours));
 
-        match &self.shards {
-            ShardAssignment::All => {
-                let attributes = Attributes::from([("partition_type", compaction_type.into())]);
+        let attributes = Attributes::from([("partition_type", compaction_type.into())]);
 
-                let mut repos = self.catalog.repositories().await;
-                let mut partitions = repos
-                    .parquet_files()
-                    .most_cold_files_partitions(
-                        None,
-                        time_in_the_past,
-                        max_num_partitions_per_shard,
-                    )
-                    .await
-                    .context(MostColdPartitionsSnafu { shard_id: None })?;
+        let candidates = Self::cold_partition_candidates(
+            Arc::clone(&self.catalog),
+            time_in_the_past,
+            max_num_partitions,
+        )
+        .await?;
+        let num_partitions = candidates.len();
 
-                let num_partitions = partitions.len();
-                candidates.append(&mut partitions);
-
-                // Record metric for candidates
-                debug!(n = num_partitions, compaction_type, "compaction candidates",);
-                let number_gauge = self.compaction_candidate_gauge.recorder(attributes);
-                number_gauge.set(num_partitions as u64);
-            }
-            ShardAssignment::Only(shards) => {
-                for shard_id in shards {
-                    let attributes = Attributes::from([
-                        ("shard_id", format!("{}", *shard_id).into()),
-                        ("partition_type", compaction_type.into()),
-                    ]);
-
-                    let mut repos = self.catalog.repositories().await;
-                    let mut partitions = repos
-                        .parquet_files()
-                        .most_cold_files_partitions(
-                            Some(*shard_id),
-                            time_in_the_past,
-                            max_num_partitions_per_shard,
-                        )
-                        .await
-                        .context(MostColdPartitionsSnafu {
-                            shard_id: Some(*shard_id),
-                        })?;
-
-                    let num_partitions = partitions.len();
-                    candidates.append(&mut partitions);
-
-                    // Record metric for candidates per shard
-                    debug!(
-                        shard_id = shard_id.get(),
-                        n = num_partitions,
-                        compaction_type,
-                        "compaction candidates",
-                    );
-                    let number_gauge = self.compaction_candidate_gauge.recorder(attributes);
-                    number_gauge.set(num_partitions as u64);
-                }
-            }
-        }
+        // Record metric for candidates
+        debug!(n = num_partitions, compaction_type, "compaction candidates",);
+        let number_gauge = self.compaction_candidate_gauge.recorder(attributes);
+        number_gauge.set(num_partitions as u64);
 
         // Get extra needed information for selected partitions
         let start_time = self.time_provider.now();
@@ -378,6 +324,7 @@ impl Compactor {
             compaction_type,
             "start getting column types for the partition candidates"
         );
+
         let table_columns = self.table_columns(&candidates).await?;
 
         // Add other compaction-needed info into selected partitions
@@ -399,6 +346,31 @@ impl Compactor {
         }
 
         Ok(candidates)
+    }
+
+    async fn cold_partition_candidates(
+        catalog: Arc<dyn Catalog>,
+        time_in_the_past: Timestamp,
+        max_num_partitions: usize,
+    ) -> Result<Vec<PartitionParam>> {
+        let compaction_type = "cold";
+        let mut repos = catalog.repositories().await;
+
+        let partitions = repos
+            .partitions()
+            .partitions_with_recent_created_files(time_in_the_past, max_num_partitions)
+            .await
+            .context(RecentIngestedPartitionsSnafu { compaction_type })?;
+        if !partitions.is_empty() {
+            debug!(
+                compaction_type,
+                n = partitions.len(),
+                "found partition candidates"
+            );
+            return Ok(partitions);
+        }
+
+        Ok(Vec::new())
     }
 
     /// Get column types for tables of given partitions
@@ -613,6 +585,8 @@ fn estimate_arrow_bytes_for_file(
 
 #[cfg(test)]
 pub mod tests {
+    use crate::parquet_file_lookup::{self, CompactionType};
+
     use super::*;
     use data_types::{
         ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, SequenceNumber, ShardIndex,
@@ -625,7 +599,9 @@ pub mod tests {
 
     const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1: u64 = 4;
     const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2: u64 = 24;
+    const DEFAULT_COLD_PARTITION_CANDIDATES_HOURS_THRESHOLD: u64 = 24;
     const DEFAULT_MAX_PARALLEL_PARTITIONS: u64 = 20;
+    const DEFAULT_MAX_NUM_PARTITION_CANDIDATES: usize = 10;
 
     impl PartitionCompactionCandidateWithInfo {
         pub(crate) async fn from_test_partition(test_partition: &TestPartition) -> Self {
@@ -760,6 +736,8 @@ pub mod tests {
             max_num_compacting_files: 20,
             max_num_compacting_files_first_in_partition: 40,
             minutes_without_new_writes_to_be_cold: 10,
+            cold_partition_candidates_hours_threshold:
+                DEFAULT_COLD_PARTITION_CANDIDATES_HOURS_THRESHOLD,
             hot_compaction_hours_threshold_1: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
             hot_compaction_hours_threshold_2: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             max_parallel_partitions: DEFAULT_MAX_PARALLEL_PARTITIONS,
@@ -858,9 +836,12 @@ pub mod tests {
         // Create a compactor
         let time_provider = Arc::new(SystemProvider::new());
         let mut config = make_compactor_config();
-        // 8 hours to be cold
+        // 24-hour threshold: partitions with any files created after this threshold will be selected as
+        // cold partition candidates. Only candidates that meet another condition below will actually get cold compacted
+        config.hot_compaction_hours_threshold_2 = 24;
+        // 8 hours without new writes for the candidates to actually get cold compaction
         config.minutes_without_new_writes_to_be_cold = 8 * 60;
-        let compactor = Compactor::new(
+        let compactor = Arc::new(Compactor::new(
             ShardAssignment::Only(vec![shard.id, another_shard.id]),
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store), StorageId::from("iox")),
@@ -869,7 +850,7 @@ pub mod tests {
             BackoffConfig::default(),
             config,
             Arc::new(metric::Registry::new()),
-        );
+        ));
 
         // Some times in the past to set to created_at of the files
         let time_5_hour_ago = Timestamp::from(compactor.time_provider.hours_ago(5));
@@ -906,14 +887,14 @@ pub mod tests {
         assert!(candidates.is_empty());
 
         // --------------------------------------
-        // Case 2: no non-deleleted cold L0 files -->  no partition candidates
+        // Case 2: 2 partitions with file created recently (newer than the threshold to selct for cold candidates) -> 2 partition candidates
         //
-        // partition1 has a cold deleted L0
+        // partition1 has a cold deleted L0 created recently (default 9 hours ago) --> a cold candidate
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
         let pf1 = txn.parquet_files().create(p1.clone()).await.unwrap();
         txn.parquet_files().flag_for_delete(pf1.id).await.unwrap();
         //
-        // partition2 has a cold L2 file
+        // partition2 has a cold L2 file created recently (default 9 hours ago) --> a cold candidate
         let p2 = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             partition_id: partition2.id,
@@ -922,9 +903,39 @@ pub mod tests {
         };
         let _pf2 = txn.parquet_files().create(p2).await.unwrap();
         txn.commit().await.unwrap();
-        // No non-deleted level 0 files yet --> no candidates
+        // 1 candidate becasue we limit it
         let candidates = compactor.cold_partitions_to_compact(1).await.unwrap();
-        assert!(candidates.is_empty());
+        assert_eq!(candidates.len(), 1);
+        // 2 candidates because we do not limit it
+        let candidates = compactor
+            .cold_partitions_to_compact(DEFAULT_MAX_NUM_PARTITION_CANDIDATES)
+            .await
+            .unwrap();
+        assert_eq!(candidates.len(), 2);
+        // sort candidates on partition_id
+        let mut candidates = candidates.into_iter().collect::<Vec<_>>();
+        candidates.sort_by_key(|c| c.candidate.partition_id);
+        assert_eq!(candidates[0].candidate.partition_id, partition1.id);
+        assert_eq!(candidates[1].candidate.partition_id, partition2.id);
+        //
+        // verify no candidates will actualy get cold compaction because they are not old enough
+        let files = parquet_file_lookup::ParquetFilesForCompaction::for_partition(
+            Arc::clone(&compactor),
+            Arc::clone(&candidates[0]),
+            CompactionType::Cold,
+        )
+        .await
+        .unwrap();
+        assert!(files.is_none());
+        //
+        let files = parquet_file_lookup::ParquetFilesForCompaction::for_partition(
+            Arc::clone(&compactor),
+            Arc::clone(&candidates[1]),
+            CompactionType::Cold,
+        )
+        .await
+        .unwrap();
+        assert!(files.is_none());
 
         // --------------------------------------
         // Case 3: no new recent writes (within the last 8 hours) --> return that partition
@@ -939,13 +950,40 @@ pub mod tests {
         let _pf3 = txn.parquet_files().create(p3).await.unwrap();
         txn.commit().await.unwrap();
         //
-        // Has at least one partition with a L0 file --> make it a candidate
-        let candidates = compactor.cold_partitions_to_compact(1).await.unwrap();
-        assert_eq!(candidates.len(), 1);
-        assert_eq!(candidates[0].id(), partition2.id);
+        // Still return 2 candidates
+        let candidates = compactor
+            .cold_partitions_to_compact(DEFAULT_MAX_NUM_PARTITION_CANDIDATES)
+            .await
+            .unwrap();
+        assert_eq!(candidates.len(), 2);
+        // sort candidates on partition_id
+        let mut candidates = candidates.into_iter().collect::<Vec<_>>();
+        candidates.sort_by_key(|c| c.candidate.partition_id);
+        assert_eq!(candidates[0].candidate.partition_id, partition1.id);
+        assert_eq!(candidates[1].candidate.partition_id, partition2.id);
+        //
+        // verify only partition2 is qualified for cold compaction
+        // partition1
+        let files = parquet_file_lookup::ParquetFilesForCompaction::for_partition(
+            Arc::clone(&compactor),
+            Arc::clone(&candidates[0]),
+            CompactionType::Cold,
+        )
+        .await
+        .unwrap();
+        assert!(files.is_none());
+        // partition2
+        let files = parquet_file_lookup::ParquetFilesForCompaction::for_partition(
+            Arc::clone(&compactor),
+            Arc::clone(&candidates[1]),
+            CompactionType::Cold,
+        )
+        .await
+        .unwrap();
+        assert!(files.is_some());
 
         // --------------------------------------
-        // Case 4: has two cold partitions --> return the candidate with the most L0
+        // Case 4: has two actual cold partitions but three cold candidates --> return all 3 candidates
         //
         // partition4 has two cold non-deleted level 0 files
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
@@ -962,13 +1000,50 @@ pub mod tests {
         };
         let _pf5 = txn.parquet_files().create(p5).await.unwrap();
         txn.commit().await.unwrap();
-        // Partition with the most l0 files is the candidate
-        let candidates = compactor.cold_partitions_to_compact(1).await.unwrap();
-        assert_eq!(candidates.len(), 1);
-        assert_eq!(candidates[0].id(), partition4.id);
+        // Three candidates
+        let candidates = compactor
+            .cold_partitions_to_compact(DEFAULT_MAX_NUM_PARTITION_CANDIDATES)
+            .await
+            .unwrap();
+        assert_eq!(candidates.len(), 3);
+        // sort candidates on partition_id
+        let mut candidates = candidates.into_iter().collect::<Vec<_>>();
+        candidates.sort_by_key(|c| c.candidate.partition_id);
+        assert_eq!(candidates[0].candidate.partition_id, partition1.id);
+        assert_eq!(candidates[1].candidate.partition_id, partition2.id);
+        assert_eq!(candidates[2].candidate.partition_id, partition4.id);
+        //
+        //  verify two candidates, partition2 and partition4, are qualified for cold compaction
+        // partition1
+        let files = parquet_file_lookup::ParquetFilesForCompaction::for_partition(
+            Arc::clone(&compactor),
+            Arc::clone(&candidates[0]),
+            CompactionType::Cold,
+        )
+        .await
+        .unwrap();
+        assert!(files.is_none());
+        // partition2
+        let files = parquet_file_lookup::ParquetFilesForCompaction::for_partition(
+            Arc::clone(&compactor),
+            Arc::clone(&candidates[1]),
+            CompactionType::Cold,
+        )
+        .await
+        .unwrap();
+        assert!(files.is_some());
+        // partition4
+        let files = parquet_file_lookup::ParquetFilesForCompaction::for_partition(
+            Arc::clone(&compactor),
+            Arc::clone(&candidates[2]),
+            CompactionType::Cold,
+        )
+        .await
+        .unwrap();
+        assert!(files.is_some());
 
         // --------------------------------------
-        // Case 5: "warm" and "hot" partitions aren't returned
+        // Case 5: Add 2 more "warm"/"hot" partitions --> 5 candidates will be returned
         //
         // partition3 has one cold level 0 file and one hot level 0 file
         // partition5 has one hot level 0 file
@@ -994,58 +1069,111 @@ pub mod tests {
         };
         let _pf5_hot = txn.parquet_files().create(p5_hot).await.unwrap();
         txn.commit().await.unwrap();
-        // Partition4 is still the only candidate
+        // Ask for only 1 first-read candidate
         let candidates = compactor.cold_partitions_to_compact(1).await.unwrap();
         assert_eq!(candidates.len(), 1);
-        assert_eq!(candidates[0].id(), partition4.id);
 
-        // Ask for 2 partitions per shard; get partition4 and partition2
+        // Ask for 2 first-read partitions
         let candidates = compactor.cold_partitions_to_compact(2).await.unwrap();
         assert_eq!(candidates.len(), 2);
-        assert_eq!(candidates[0].id(), partition4.id);
-        assert_eq!(candidates[1].id(), partition2.id);
 
-        // Ask for 3 partitions per shard; still get only partition4 and partition2
-        let candidates = compactor.cold_partitions_to_compact(3).await.unwrap();
-        assert_eq!(candidates.len(), 2);
-        assert_eq!(candidates[0].id(), partition4.id);
-        assert_eq!(candidates[1].id(), partition2.id);
+        // Ask for a lot of partitions -> return all 5 candidates
+        let candidates = compactor
+            .cold_partitions_to_compact(DEFAULT_MAX_NUM_PARTITION_CANDIDATES)
+            .await
+            .unwrap();
+        assert_eq!(candidates.len(), 5);
+        // sort candidates on partition_id
+        let mut candidates = candidates.into_iter().collect::<Vec<_>>();
+        candidates.sort_by_key(|c| c.candidate.partition_id);
+        assert_eq!(candidates[0].candidate.partition_id, partition1.id);
+        assert_eq!(candidates[1].candidate.partition_id, partition2.id);
+        assert_eq!(candidates[2].candidate.partition_id, partition3.id);
+        assert_eq!(candidates[3].candidate.partition_id, partition4.id);
+        assert_eq!(candidates[4].candidate.partition_id, partition5.id);
+        //
+        // verify still two candidates partition2 and partition4, are qualified for cold compaction
+        // partition1
+        let files = parquet_file_lookup::ParquetFilesForCompaction::for_partition(
+            Arc::clone(&compactor),
+            Arc::clone(&candidates[0]),
+            CompactionType::Cold,
+        )
+        .await
+        .unwrap();
+        assert!(files.is_none());
+        // partition2
+        let files = parquet_file_lookup::ParquetFilesForCompaction::for_partition(
+            Arc::clone(&compactor),
+            Arc::clone(&candidates[1]),
+            CompactionType::Cold,
+        )
+        .await
+        .unwrap();
+        assert!(files.is_some());
+        // partition3
+        let files = parquet_file_lookup::ParquetFilesForCompaction::for_partition(
+            Arc::clone(&compactor),
+            Arc::clone(&candidates[2]),
+            CompactionType::Cold,
+        )
+        .await
+        .unwrap();
+        assert!(files.is_none());
+        // partition4
+        let files = parquet_file_lookup::ParquetFilesForCompaction::for_partition(
+            Arc::clone(&compactor),
+            Arc::clone(&candidates[3]),
+            CompactionType::Cold,
+        )
+        .await
+        .unwrap();
+        assert!(files.is_some());
+        // partition5
+        let files = parquet_file_lookup::ParquetFilesForCompaction::for_partition(
+            Arc::clone(&compactor),
+            Arc::clone(&candidates[4]),
+            CompactionType::Cold,
+        )
+        .await
+        .unwrap();
+        assert!(files.is_none());
 
         // --------------------------------------
         // Case 6: has partition candidates for 2 shards
         //
-        // The another_shard now has non-deleted level-0 file ingested 18 hours ago
+        // The another_shard now has non-deleted level-0 file ingested 1 hour after config.hot_compaction_hours_threshold_2
+        let file_created_time = Timestamp::from(
+            compactor
+                .time_provider
+                .hours_ago(config.hot_compaction_hours_threshold_2 - 1),
+        );
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
         let p6 = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             shard_id: another_shard.id,
             table_id: another_table.id,
             partition_id: another_partition.id,
-            created_at: time_9_hour_ago,
+            created_at: file_created_time,
             ..p1.clone()
         };
         let _pf6 = txn.parquet_files().create(p6).await.unwrap();
         txn.commit().await.unwrap();
 
-        // Will have 2 candidates, one for each shard
-        let mut candidates = compactor.cold_partitions_to_compact(1).await.unwrap();
-        candidates.sort_by_key(|c| c.candidate);
-        assert_eq!(candidates.len(), 2);
-        assert_eq!(candidates[0].id(), partition4.id);
-        assert_eq!(candidates[0].shard_id(), shard.id);
-        assert_eq!(candidates[1].id(), another_partition.id);
-        assert_eq!(candidates[1].shard_id(), another_shard.id);
-
-        // Ask for 2 candidates per shard; get back 3: 2 from shard and 1 from
-        // another_shard
-        let mut candidates = compactor.cold_partitions_to_compact(2).await.unwrap();
-        candidates.sort_by_key(|c| c.candidate);
-        assert_eq!(candidates.len(), 3);
-        assert_eq!(candidates[0].id(), partition2.id);
-        assert_eq!(candidates[0].shard_id(), shard.id);
-        assert_eq!(candidates[1].id(), partition4.id);
-        assert_eq!(candidates[1].shard_id(), shard.id);
-        assert_eq!(candidates[2].id(), another_partition.id);
-        assert_eq!(candidates[2].shard_id(), another_shard.id);
+        // Will have 6 candidates
+        let candidates = compactor
+            .cold_partitions_to_compact(DEFAULT_MAX_NUM_PARTITION_CANDIDATES)
+            .await
+            .unwrap();
+        assert_eq!(candidates.len(), 6);
+        // sort candidates on partition_id
+        let mut candidates = candidates.into_iter().collect::<Vec<_>>();
+        candidates.sort_by_key(|c| c.candidate.partition_id);
+        assert_eq!(candidates[0].candidate.partition_id, partition1.id);
+        assert_eq!(candidates[1].candidate.partition_id, partition2.id);
+        assert_eq!(candidates[2].candidate.partition_id, partition3.id);
+        assert_eq!(candidates[3].candidate.partition_id, partition4.id);
+        assert_eq!(candidates[4].candidate.partition_id, partition5.id);
+        assert_eq!(candidates[5].candidate.partition_id, another_partition.id);
     }
 }

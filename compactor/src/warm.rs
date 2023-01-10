@@ -3,6 +3,7 @@
 use crate::{
     compact::{self, Compactor, ShardAssignment},
     compact_candidates_with_memory_budget, compact_in_parallel,
+    parquet_file_lookup::CompactionType,
     utils::get_candidates_with_retry,
     PartitionCompactionCandidateWithInfo,
 };
@@ -35,7 +36,7 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
 
     compact_candidates_with_memory_budget(
         Arc::clone(&compactor),
-        compaction_type,
+        CompactionType::Warm,
         CompactionLevel::FileNonOverlapped,
         // we are compacting L1 files into other L1 files
         CompactionLevel::FileNonOverlapped,
@@ -475,6 +476,7 @@ mod tests {
             max_num_compacting_files: 20,
             max_num_compacting_files_first_in_partition: 40,
             minutes_without_new_writes_to_be_cold: 10,
+            cold_partition_candidates_hours_threshold: 24,
             hot_compaction_hours_threshold_1: 4,
             hot_compaction_hours_threshold_2: 24,
             max_parallel_partitions: 20,
@@ -774,7 +776,7 @@ mod tests {
 
         compact_candidates_with_memory_budget(
             Arc::clone(&compactor),
-            "warm",
+            CompactionType::Warm,
             CompactionLevel::FileNonOverlapped,
             // we are compacting L1 files into other L1 files
             CompactionLevel::FileNonOverlapped,
@@ -972,7 +974,7 @@ mod tests {
 
         compact_candidates_with_memory_budget(
             Arc::clone(&compactor),
-            "warm",
+            CompactionType::Warm,
             CompactionLevel::FileNonOverlapped,
             // we are compacting L1 files into other L1 files
             CompactionLevel::FileNonOverlapped,
@@ -1165,7 +1167,7 @@ mod tests {
 
         compact_candidates_with_memory_budget(
             Arc::clone(&compactor),
-            "warm",
+            CompactionType::Warm,
             CompactionLevel::FileNonOverlapped,
             // we are compacting L1 files into other L1 files
             CompactionLevel::FileNonOverlapped,
@@ -1345,7 +1347,7 @@ mod tests {
 
         compact_candidates_with_memory_budget(
             Arc::clone(&compactor),
-            "warm",
+            CompactionType::Warm,
             CompactionLevel::FileNonOverlapped,
             // we are compacting L1 files into other L1 files
             CompactionLevel::FileNonOverlapped,

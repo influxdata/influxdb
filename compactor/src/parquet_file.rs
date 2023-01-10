@@ -111,6 +111,10 @@ impl CompactorParquetFile {
     pub fn table_id(&self) -> TableId {
         self.inner.table_id
     }
+
+    pub fn created_at(&self) -> Timestamp {
+        self.inner.created_at
+    }
 }
 
 impl From<CompactorParquetFile> for ParquetFile {
