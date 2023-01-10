@@ -457,6 +457,7 @@ impl Config {
             max_num_compacting_files: 20,
             max_num_compacting_files_first_in_partition: 40,
             minutes_without_new_writes_to_be_cold: 10,
+            cold_partition_candidates_hours_threshold: 24,
             hot_compaction_hours_threshold_1: 4,
             hot_compaction_hours_threshold_2: 24,
             max_parallel_partitions: 20,

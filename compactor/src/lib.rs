@@ -35,6 +35,7 @@ use crate::{
 use data_types::{CompactionLevel, PartitionId};
 use metric::Attributes;
 use observability_deps::tracing::*;
+use parquet_file_lookup::CompactionType;
 use snafu::{ResultExt, Snafu};
 use std::{collections::VecDeque, sync::Arc};
 
@@ -52,20 +53,21 @@ use std::{collections::VecDeque, sync::Arc};
 // considered later with a full memory budget.
 async fn compact_candidates_with_memory_budget<C, Fut>(
     compactor: Arc<Compactor>,
-    compaction_type: &'static str,
+    compaction_type: CompactionType,
     initial_level: CompactionLevel,
     target_level: CompactionLevel,
     compact_function: C,
     split: bool,
     mut candidates: VecDeque<Arc<PartitionCompactionCandidateWithInfo>>,
 ) where
-    C: Fn(Arc<Compactor>, Vec<ReadyToCompact>, &'static str, bool) -> Fut + Send + Sync + 'static,
+    C: Fn(Arc<Compactor>, Vec<ReadyToCompact>, CompactionType, bool) -> Fut + Send + Sync,
     Fut: futures::Future<Output = ()> + Send,
 {
     let mut remaining_budget_bytes = compactor.config.memory_budget_bytes;
     let mut parallel_compacting_candidates = Vec::with_capacity(candidates.len());
     let mut num_remaining_candidates = candidates.len();
     let mut count = 0;
+
     while !candidates.is_empty() {
         // Algorithm:
         // 1. Remove the first candidate from the list
@@ -83,9 +85,8 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
         // 5. Repeat
 
         // --------------------------------------------------------------------
-        // 1. Pop first candidate from the list. Since it is not empty, there must be at least one
+        // 1. Pop first candidate from the list
         let partition = candidates.pop_front().unwrap();
-        count += 1;
         let partition_id = partition.candidate.partition_id;
         let table_id = partition.candidate.table_id;
 
@@ -95,11 +96,9 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
         // Get parquet_file info for this partition
         let parquet_files_for_compaction =
             parquet_file_lookup::ParquetFilesForCompaction::for_partition(
-                Arc::clone(&compactor.catalog),
-                compactor
-                    .config
-                    .min_num_rows_allocated_per_record_batch_to_datafusion_plan,
+                Arc::clone(&compactor),
                 Arc::clone(&partition),
+                compaction_type,
             )
             .await;
         let to_compact = match parquet_files_for_compaction {
@@ -109,12 +108,12 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                 warn!(
                     %e,
                     ?partition_id,
-                    compaction_type,
+                    %compaction_type,
                     "failed due to error in reading parquet files"
                 );
                 None
             }
-            Ok(parquet_files_for_compaction) => {
+            Ok(Some(parquet_files_for_compaction)) => {
                 // Return only files under the `remaining_budget_bytes` that should be
                 // compacted
                 let ParquetFilesForCompaction {
@@ -151,7 +150,16 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                     &compactor.parquet_file_candidate_gauge,
                     &compactor.parquet_file_candidate_bytes,
                 );
+                count += 1;
                 Some(to_compact)
+            }
+            Ok(None) => {
+                // This partition candidate is not qualified to get compacted, skip it
+                debug!(
+                    ?partition_id,
+                    %compaction_type, "not qualified for compaction"
+                );
+                None
             }
         };
 
@@ -165,7 +173,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
 
             match filter_result {
                 FilterResult::NothingToCompact => {
-                    debug!(?partition_id, compaction_type, "nothing to compact");
+                    debug!(?partition_id, %compaction_type, "nothing to compact");
                 }
                 FilterResult::OverLimitFileNum {
                     num_files,
@@ -176,7 +184,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                     warn!(
                         ?partition_id,
                         ?table_id,
-                        compaction_type,
+                        %compaction_type,
                         num_files,
                         budget_bytes,
                         file_num_limit = compactor.config.max_num_compacting_files,
@@ -211,7 +219,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                         warn!(
                             ?partition_id,
                             ?table_id,
-                            compaction_type,
+                            %compaction_type,
                             ?needed_bytes,
                             memory_budget_bytes = compactor.config.memory_budget_bytes,
                             ?num_files,
@@ -264,7 +272,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                 total_needed_memory_budget_bytes =
                     compactor.config.memory_budget_bytes - remaining_budget_bytes,
                 config_max_parallel_partitions = compactor.config.max_parallel_partitions,
-                compaction_type,
+                %compaction_type,
                 "parallel compacting candidate"
             );
             compact_function(
@@ -329,7 +337,7 @@ pub(crate) struct ReadyToCompact {
 async fn compact_in_parallel(
     compactor: Arc<Compactor>,
     groups: Vec<ReadyToCompact>,
-    compaction_type: &'static str,
+    compaction_type: CompactionType,
     split: bool,
 ) {
     let mut handles = Vec::with_capacity(groups.len());
@@ -337,15 +345,15 @@ async fn compact_in_parallel(
         let comp = Arc::clone(&compactor);
         let handle = tokio::task::spawn(async move {
             let partition_id = group.partition.id();
-            debug!(?partition_id, compaction_type, "compaction starting");
+            debug!(?partition_id, %compaction_type, "compaction starting");
             let compaction_result =
                 compact_one_partition(&comp, group, compaction_type, split).await;
             match compaction_result {
                 Err(e) => {
-                    warn!(%e, ?partition_id, compaction_type, "compaction failed");
+                    warn!(%e, ?partition_id, %compaction_type, "compaction failed");
                 }
                 Ok(_) => {
-                    debug!(?partition_id, compaction_type, "compaction complete");
+                    debug!(?partition_id, %compaction_type, "compaction complete");
                 }
             };
         });
@@ -355,7 +363,7 @@ async fn compact_in_parallel(
     let compactions_run = handles.len();
     debug!(
         ?compactions_run,
-        compaction_type, "Number of concurrent partitions are being compacted"
+        %compaction_type, "Number of concurrent partitions are being compacted"
     );
 
     let _ = futures::future::join_all(handles).await;
@@ -387,7 +395,7 @@ impl From<parquet_file_combining::Error> for CompactOnePartitionError {
 pub(crate) async fn compact_one_partition(
     compactor: &Compactor,
     to_compact: ReadyToCompact,
-    compaction_type: &'static str,
+    compaction_type: CompactionType,
     split: bool,
 ) -> Result<(), CompactOnePartitionError> {
     let start_time = compactor.time_provider.now();
@@ -440,7 +448,7 @@ pub(crate) async fn compact_one_partition(
 
     let attributes = Attributes::from([
         ("shard_id", format!("{shard_id}").into()),
-        ("partition_type", compaction_type.into()),
+        ("partition_type", compaction_type.to_string().into()),
         ("target_level", format!("{}", target_level as i16).into()),
     ]);
     if let Some(delta) = compactor
@@ -480,6 +488,7 @@ pub mod tests {
 
     const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1: u64 = 4;
     const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2: u64 = 24;
+    const DEFAULT_COLD_PARTITION_CANDIDATES_HOURS_THRESHOLD: u64 = 24;
     const DEFAULT_MAX_PARALLEL_PARTITIONS: u64 = 20;
 
     // In tests that are verifying successful compaction not affected by the memory budget, this
@@ -525,7 +534,7 @@ pub mod tests {
 
         compact_candidates_with_memory_budget(
             Arc::clone(&compactor),
-            "hot",
+            CompactionType::Hot,
             CompactionLevel::Initial,
             CompactionLevel::FileNonOverlapped,
             mock_compactor.compaction_function(),
@@ -547,12 +556,11 @@ pub mod tests {
         dyn Fn(
                 Arc<Compactor>,
                 Vec<ReadyToCompact>,
-                &'static str,
+                CompactionType,
                 bool,
             ) -> Pin<Box<dyn futures::Future<Output = ()> + Send>>
             + Send
-            + Sync
-            + 'static,
+            + Sync,
     >;
 
     impl MockCompactor {
@@ -561,7 +569,7 @@ pub mod tests {
             Box::new(
                 move |_compactor: Arc<Compactor>,
                       parallel_compacting_candidates: Vec<ReadyToCompact>,
-                      _compaction_type: &'static str,
+                      _compaction_type: CompactionType,
                       _split: bool| {
                     let compaction_groups_for_async = Arc::clone(&compaction_groups_for_closure);
                     Box::pin(async move {
@@ -599,6 +607,8 @@ pub mod tests {
             max_num_compacting_files: 20,
             max_num_compacting_files_first_in_partition: 40,
             minutes_without_new_writes_to_be_cold: 10,
+            cold_partition_candidates_hours_threshold:
+                DEFAULT_COLD_PARTITION_CANDIDATES_HOURS_THRESHOLD,
             hot_compaction_hours_threshold_1: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
             hot_compaction_hours_threshold_2: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             max_parallel_partitions: max_parallel_jobs,
@@ -694,7 +704,7 @@ pub mod tests {
         // P4 is not compacted due to overbudget.
         compact_candidates_with_memory_budget(
             Arc::clone(&compactor),
-            "hot",
+            CompactionType::Hot,
             CompactionLevel::Initial,
             CompactionLevel::FileNonOverlapped,
             mock_compactor.compaction_function(),
@@ -794,7 +804,7 @@ pub mod tests {
 
         compact_candidates_with_memory_budget(
             Arc::clone(&compactor),
-            "hot",
+            CompactionType::Hot,
             CompactionLevel::Initial,
             CompactionLevel::FileNonOverlapped,
             mock_compactor.compaction_function(),
@@ -915,6 +925,8 @@ pub mod tests {
             max_num_compacting_files: 20,
             max_num_compacting_files_first_in_partition: 40,
             minutes_without_new_writes_to_be_cold: 10,
+            cold_partition_candidates_hours_threshold:
+                DEFAULT_COLD_PARTITION_CANDIDATES_HOURS_THRESHOLD,
             hot_compaction_hours_threshold_1: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
             hot_compaction_hours_threshold_2: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             max_parallel_partitions: DEFAULT_MAX_PARALLEL_PARTITIONS,
@@ -1018,14 +1030,13 @@ pub mod tests {
 
         let parquet_files_for_compaction =
             parquet_file_lookup::ParquetFilesForCompaction::for_partition_with_size_overrides(
-                Arc::clone(&compactor.catalog),
-                compactor
-                    .config
-                    .min_num_rows_allocated_per_record_batch_to_datafusion_plan,
+                Arc::clone(&compactor),
                 Arc::clone(&partition),
+                CompactionType::Hot,
                 &size_overrides,
             )
             .await
+            .unwrap()
             .unwrap();
 
         let ParquetFilesForCompaction {
@@ -1048,7 +1059,7 @@ pub mod tests {
 
         let to_compact = to_compact.into();
 
-        compact_one_partition(&compactor, to_compact, "hot", true)
+        compact_one_partition(&compactor, to_compact, CompactionType::Hot, true)
             .await
             .unwrap();
 

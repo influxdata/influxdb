@@ -990,6 +990,7 @@ impl PartitionRepo for MemTxn {
     async fn partitions_with_recent_created_files(
         &mut self,
         time_in_the_past: Timestamp,
+        max_num_partitions: usize,
     ) -> Result<Vec<PartitionParam>> {
         let stage = self.stage();
 
@@ -1013,6 +1014,7 @@ impl PartitionRepo for MemTxn {
                     namespace_id,
                 }
             })
+            .take(max_num_partitions)
             .collect();
 
         Ok(partitions)
