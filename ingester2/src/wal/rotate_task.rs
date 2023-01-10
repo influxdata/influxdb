@@ -86,7 +86,7 @@ pub(crate) async fn periodic_rotation<T, P>(
         // - a small price to pay for not having to block ingest while the WAL
         // is rotated, all outstanding writes + queries complete, and all then
         // partitions are marked as persisting.
-        persist_partitions(buffer.partition_iter(), persist.clone()).await;
+        persist_partitions(buffer.partition_iter(), &persist).await;
 
         debug!(
             closed_id = %stats.id(),

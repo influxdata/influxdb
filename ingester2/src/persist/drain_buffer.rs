@@ -19,7 +19,7 @@ const PERSIST_ENQUEUE_CONCURRENCY: usize = 5;
 // This call is not atomic, partitions are marked for persistence incrementally.
 // Writes that landed into the partition buffer after this call, but before the
 // partition data is read will be included in the persisted data.
-pub(crate) async fn persist_partitions<T, P>(iter: T, persist: P)
+pub(crate) async fn persist_partitions<T, P>(iter: T, persist: &P)
 where
     T: Iterator<Item = Arc<Mutex<PartitionData>>> + Send,
     P: PersistQueue + Clone,
