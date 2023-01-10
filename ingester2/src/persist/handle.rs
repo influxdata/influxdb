@@ -19,6 +19,7 @@ use super::{
 };
 use crate::{
     buffer_tree::partition::{persisting::PersistingData, PartitionData, SortKeyState},
+    ingest_state::IngestState,
     persist::worker,
 };
 
@@ -106,13 +107,16 @@ use crate::{
 /// prevent the generation of new persist tasks on a best-effort basis (for
 /// example; by blocking any further ingest).
 ///
-/// When the persist queue is saturated, the [`PersistState::is_saturated()`]
-/// returns true. Once the backlog of persist jobs is reduced, the
-/// [`PersistState`] is switched back to a healthy state and new persist jobs
-/// may be generated as normal.
+/// When the persist queue is saturated, a call to [`IngestState::read()`]
+/// returns [`IngestStateError::PersistSaturated`]. Once the backlog of persist
+/// jobs is reduced, the [`PersistState`] is switched back to a healthy state
+/// and new persist jobs may be generated as normal.
 ///
 /// For details of the exact saturation detection & recovery logic, see
 /// [`PersistState`].
+///
+/// [`IngestStateError::PersistSaturated`]:
+///     crate::ingest_state::IngestStateError::PersistSaturated
 #[derive(Debug)]
 pub(crate) struct PersistHandle {
     /// THe state/dependencies shared across all worker tasks.
@@ -151,7 +155,7 @@ pub(crate) struct PersistHandle {
     /// key, ensuring sort key updates are serialised per-partition.
     worker_queues: JumpHash<mpsc::UnboundedSender<PersistRequest>>,
 
-    /// Records the saturation state of the persist system.
+    /// Marks and recovers the saturation state of the persist system.
     persist_state: Arc<PersistState>,
 }
 
@@ -160,11 +164,12 @@ impl PersistHandle {
     pub(crate) fn new(
         n_workers: usize,
         persist_queue_depth: usize,
+        ingest_state: Arc<IngestState>,
         exec: Arc<Executor>,
         store: ParquetStorage,
         catalog: Arc<dyn Catalog>,
         metrics: &metric::Registry,
-    ) -> (Self, Arc<PersistState>) {
+    ) -> Self {
         assert_ne!(n_workers, 0, "must run at least 1 persist worker");
         assert_ne!(
             persist_queue_depth, 0,
@@ -213,22 +218,20 @@ impl PersistHandle {
         // Initialise the saturation state as "not saturated" and provide it
         // with the task semaphore and total permit count.
         let persist_state = Arc::new(PersistState::new(
+            ingest_state,
             persist_queue_depth,
             Arc::clone(&sem),
             metrics,
         ));
 
-        (
-            Self {
-                worker_state,
-                sem,
-                global_queue: global_tx,
-                worker_queues: JumpHash::new(tx_handles),
-                worker_tasks,
-                persist_state: Arc::clone(&persist_state),
-            },
+        Self {
+            worker_state,
+            sem,
+            global_queue: global_tx,
+            worker_queues: JumpHash::new(tx_handles),
+            worker_tasks,
             persist_state,
-        )
+        }
     }
 
     fn assign_worker(&self, r: PersistRequest) {
@@ -485,9 +488,15 @@ mod tests {
         let metrics = Arc::new(metric::Registry::default());
         let catalog = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
 
-        let (mut handle, state) =
-            PersistHandle::new(1, 2, Arc::clone(&EXEC), storage, catalog, &metrics);
-        assert!(!state.is_saturated());
+        let mut handle = PersistHandle::new(
+            1,
+            2,
+            Arc::new(IngestState::default()),
+            Arc::clone(&EXEC),
+            storage,
+            catalog,
+            &metrics,
+        );
 
         // Kill the workers, and replace the queues so we can inspect the
         // enqueue output.
@@ -554,9 +563,15 @@ mod tests {
         let metrics = Arc::new(metric::Registry::default());
         let catalog = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
 
-        let (mut handle, state) =
-            PersistHandle::new(1, 2, Arc::clone(&EXEC), storage, catalog, &metrics);
-        assert!(!state.is_saturated());
+        let mut handle = PersistHandle::new(
+            1,
+            2,
+            Arc::new(IngestState::default()),
+            Arc::clone(&EXEC),
+            storage,
+            catalog,
+            &metrics,
+        );
 
         // Kill the workers, and replace the queues so we can inspect the
         // enqueue output.
@@ -635,9 +650,15 @@ mod tests {
         let metrics = Arc::new(metric::Registry::default());
         let catalog = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
 
-        let (mut handle, state) =
-            PersistHandle::new(1, 2, Arc::clone(&EXEC), storage, catalog, &metrics);
-        assert!(!state.is_saturated());
+        let mut handle = PersistHandle::new(
+            1,
+            2,
+            Arc::new(IngestState::default()),
+            Arc::clone(&EXEC),
+            storage,
+            catalog,
+            &metrics,
+        );
 
         // Kill the workers, and replace the queues so we can inspect the
         // enqueue output.
@@ -716,9 +737,15 @@ mod tests {
         let metrics = Arc::new(metric::Registry::default());
         let catalog = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
 
-        let (mut handle, state) =
-            PersistHandle::new(1, 2, Arc::clone(&EXEC), storage, catalog, &metrics);
-        assert!(!state.is_saturated());
+        let mut handle = PersistHandle::new(
+            1,
+            2,
+            Arc::new(IngestState::default()),
+            Arc::clone(&EXEC),
+            storage,
+            catalog,
+            &metrics,
+        );
 
         // Kill the workers, and replace the queues so we can inspect the
         // enqueue output.

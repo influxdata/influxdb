@@ -25,6 +25,7 @@ use crate::{
         table::name_resolver::{TableNameProvider, TableNameResolver},
         BufferTree,
     },
+    ingest_state::IngestState,
     persist::{handle::PersistHandle, hot_partitions::HotPartitionPersister},
     server::grpc::GrpcDelegate,
     timestamp_oracle::TimestampOracle,
@@ -217,11 +218,17 @@ pub async fn new(
     );
     let partition_provider: Arc<dyn PartitionProvider> = Arc::new(partition_provider);
 
+    // Initialise the ingest pause signal, used to propagate error conditions
+    // between subsystems such that they cause an error to be returned in the
+    // write path.
+    let ingest_state = Arc::new(IngestState::default());
+
     // Spawn the persist workers to compact partition data, convert it into
     // Parquet files, and upload them to object storage.
-    let (persist_handle, persist_state) = PersistHandle::new(
+    let persist_handle = PersistHandle::new(
         persist_workers,
         persist_queue_depth,
+        Arc::clone(&ingest_state),
         persist_executor,
         object_store,
         Arc::clone(&catalog),
@@ -286,7 +293,7 @@ pub async fn new(
             Arc::new(write_path),
             buffer,
             timestamp,
-            persist_state,
+            ingest_state,
             catalog,
             metrics,
         ),
