@@ -106,6 +106,11 @@ impl QueryableParquetChunk {
     pub fn object_store_id(&self) -> Uuid {
         self.data.object_store_id()
     }
+
+    /// Return the creation time of the file
+    pub fn created_at(&self) -> Timestamp {
+        self.data.parquet_file().created_at
+    }
 }
 
 impl QueryChunkMeta for QueryableParquetChunk {
@@ -204,8 +209,8 @@ impl QueryChunk for QueryableParquetChunk {
 
             // Files that haven't yet been compacted to the target level were created later and
             // should be sorted based on their max sequence number.
-            (FileNonOverlapped, Initial) => ChunkOrder::new(self.max_sequence_number.get()),
-            (Final, FileNonOverlapped) => ChunkOrder::new(self.max_sequence_number.get()),
+            (FileNonOverlapped, Initial) => ChunkOrder::new(self.created_at().get()),
+            (Final, FileNonOverlapped) => ChunkOrder::new(self.created_at().get()),
 
             // These combinations of target compaction level and file compaction level are
             // invalid in this context given the current compaction algorithm.
@@ -229,12 +234,13 @@ mod tests {
     use super::*;
     use data_types::ColumnType;
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder};
+    use iox_time::{SystemProvider, TimeProvider};
     use parquet_file::storage::{ParquetStorage, StorageId};
 
     async fn test_setup(
         compaction_level: CompactionLevel,
         target_level: CompactionLevel,
-        max_sequence_number: i64,
+        created_at: iox_time::Time,
     ) -> QueryableParquetChunk {
         let catalog = TestCatalog::new();
         let ns = catalog.create_namespace_1hr_retention("ns").await;
@@ -253,7 +259,7 @@ mod tests {
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp)
             .with_compaction_level(compaction_level)
-            .with_max_seq(max_sequence_number);
+            .with_creation_time(created_at);
         let file = partition.create_parquet_file(builder).await;
         let parquet_file = Arc::new(file.parquet_file);
 
@@ -278,23 +284,27 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn chunk_order_is_max_seq_when_compaction_level_0_and_target_level_1() {
+    async fn chunk_order_is_created_at_when_compaction_level_0_and_target_level_1() {
+        let tp = SystemProvider::new();
+        let time = tp.hours_ago(1);
         let chunk = test_setup(
             CompactionLevel::Initial,
             CompactionLevel::FileNonOverlapped,
-            2,
+            time,
         )
         .await;
 
-        assert_eq!(chunk.order(), ChunkOrder::new(2));
+        assert_eq!(chunk.order(), ChunkOrder::new(time.timestamp_nanos()));
     }
 
     #[tokio::test]
     async fn chunk_order_is_0_when_compaction_level_1_and_target_level_1() {
+        let tp = SystemProvider::new();
+        let time = tp.hours_ago(1);
         let chunk = test_setup(
             CompactionLevel::FileNonOverlapped,
             CompactionLevel::FileNonOverlapped,
-            2,
+            time,
         )
         .await;
 
@@ -302,20 +312,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn chunk_order_is_max_seq_when_compaction_level_1_and_target_level_2() {
+    async fn chunk_order_is_created_at_when_compaction_level_1_and_target_level_2() {
+        let tp = SystemProvider::new();
+        let time = tp.hours_ago(1);
         let chunk = test_setup(
             CompactionLevel::FileNonOverlapped,
             CompactionLevel::Final,
-            2,
+            time,
         )
         .await;
 
-        assert_eq!(chunk.order(), ChunkOrder::new(2));
+        assert_eq!(chunk.order(), ChunkOrder::new(time.timestamp_nanos()));
     }
 
     #[tokio::test]
     async fn chunk_order_is_0_when_compaction_level_2_and_target_level_2() {
-        let chunk = test_setup(CompactionLevel::Final, CompactionLevel::Final, 2).await;
+        let tp = SystemProvider::new();
+        let time = tp.hours_ago(1);
+        let chunk = test_setup(CompactionLevel::Final, CompactionLevel::Final, time).await;
 
         assert_eq!(chunk.order(), ChunkOrder::new(0));
     }

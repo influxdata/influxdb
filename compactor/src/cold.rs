@@ -145,6 +145,7 @@ mod tests {
     const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1: u64 = 4;
     const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2: u64 = 24;
     const DEFAULT_COLD_PARTITION_CANDIDATES_HOURS_THRESHOLD: u64 = 24;
+    const MINUTE_WITHOUT_NEW_WRITE_TO_BE_COLD: u64 = 10;
     const DEFAULT_MAX_PARALLEL_PARTITIONS: u64 = 20;
     const DEFAULT_MAX_NUM_PARTITION_CANDIDATES: usize = 10;
 
@@ -225,13 +226,19 @@ mod tests {
         // parquet files that are all in the same partition
         let mut size_overrides = HashMap::<ParquetFileId, i64>::default();
 
+        let time_60_minutes_ago = time.minutes_ago(60);
+        let time_50_minutes_ago = time.minutes_ago(50);
+        let time_40_minutes_ago = time.minutes_ago(40);
+        let time_30_minutes_ago = time.minutes_ago(30);
+        let time_20_minutes_ago = time.minutes_ago(20);
+        let time_11_minutes_ago = time.minutes_ago(11);
+
         // pf1 does not overlap with any other level 0
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp1)
-            .with_max_seq(3)
+            .with_creation_time(time_50_minutes_ago)
             .with_min_time(10)
-            .with_max_time(20)
-            .with_creation_time(time_five_hour_ago);
+            .with_max_time(20);
         let pf1_no_overlap = partition.create_parquet_file(builder).await;
         size_overrides.insert(
             pf1_no_overlap.parquet_file.id,
@@ -241,27 +248,25 @@ mod tests {
         // pf2 overlaps with pf3
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp2)
-            .with_max_seq(5)
+            .with_creation_time(time_40_minutes_ago)
             .with_min_time(8_000)
-            .with_max_time(20_000)
-            .with_creation_time(time_five_hour_ago);
+            .with_max_time(20_000);
         let pf2 = partition.create_parquet_file(builder).await;
         size_overrides.insert(pf2.parquet_file.id, 100); // small file
 
         // pf3 overlaps with pf2
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp3)
-            .with_max_seq(10)
+            .with_creation_time(time_30_minutes_ago)
             .with_min_time(6_000)
-            .with_max_time(25_000)
-            .with_creation_time(time_five_hour_ago);
+            .with_max_time(25_000);
         let pf3 = partition.create_parquet_file(builder).await;
         size_overrides.insert(pf3.parquet_file.id, 100); // small file
 
         // pf4 does not overlap with any but is small
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp4)
-            .with_max_seq(18)
+            .with_creation_time(time_20_minutes_ago)
             .with_min_time(26_000)
             .with_max_time(28_000)
             .with_creation_time(time_five_hour_ago);
@@ -271,10 +276,9 @@ mod tests {
         // pf5 was created in a previous compaction cycle; overlaps with pf1
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp5)
-            .with_max_seq(1)
+            .with_creation_time(time_60_minutes_ago)
             .with_min_time(9)
             .with_max_time(25)
-            .with_creation_time(time_five_hour_ago)
             .with_compaction_level(CompactionLevel::FileNonOverlapped);
         let pf5 = partition.create_parquet_file(builder).await;
         size_overrides.insert(pf5.parquet_file.id, 100); // small file
@@ -282,10 +286,9 @@ mod tests {
         // pf6 was created in a previous compaction cycle; does not overlap with any
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp6)
-            .with_max_seq(20)
+            .with_creation_time(time_11_minutes_ago)
             .with_min_time(90000)
             .with_max_time(91000)
-            .with_creation_time(time_five_hour_ago)
             .with_compaction_level(CompactionLevel::FileNonOverlapped);
         let pf6 = partition.create_parquet_file(builder).await;
         size_overrides.insert(pf6.parquet_file.id, 100); // small file
@@ -738,7 +741,7 @@ mod tests {
             min_num_rows_allocated_per_record_batch_to_datafusion_plan: 1,
             max_num_compacting_files: 20,
             max_num_compacting_files_first_in_partition: 40,
-            minutes_without_new_writes_to_be_cold: 10,
+            minutes_without_new_writes_to_be_cold: MINUTE_WITHOUT_NEW_WRITE_TO_BE_COLD,
             cold_partition_candidates_hours_threshold:
                 DEFAULT_COLD_PARTITION_CANDIDATES_HOURS_THRESHOLD,
             hot_compaction_hours_threshold_1: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
@@ -1455,7 +1458,7 @@ mod tests {
 
         let partition = table.with_shard(&shard).create_partition("part").await;
         let time = Arc::new(SystemProvider::new());
-        let time_five_hour_ago = time.hours_ago(5);
+        // let time_five_hour_ago = time.hours_ago(5);
         let config = make_compactor_config();
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Arc::new(Compactor::new(
@@ -1472,13 +1475,19 @@ mod tests {
         // parquet files that are all in the same partition
         let mut size_overrides = HashMap::<ParquetFileId, i64>::default();
 
+        let time_60_minutes_ago = time.minutes_ago(60);
+        let time_50_minutes_ago = time.minutes_ago(50);
+        let time_40_minutes_ago = time.minutes_ago(40);
+        let time_30_minutes_ago = time.minutes_ago(30);
+        let time_20_minutes_ago = time.minutes_ago(20);
+        let time_11_minutes_ago = time.minutes_ago(11);
+
         // pf1 does not overlap with any other level 0
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp1)
-            .with_max_seq(3)
+            .with_creation_time(time_50_minutes_ago)
             .with_min_time(10)
-            .with_max_time(20)
-            .with_creation_time(time_five_hour_ago);
+            .with_max_time(20);
         let pf1 = partition.create_parquet_file(builder).await;
         size_overrides.insert(
             pf1.parquet_file.id,
@@ -1488,10 +1497,9 @@ mod tests {
         // pf2 overlaps with pf3
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp2)
-            .with_max_seq(5)
+            .with_creation_time(time_40_minutes_ago)
             .with_min_time(8_000)
-            .with_max_time(20_000)
-            .with_creation_time(time_five_hour_ago);
+            .with_max_time(20_000);
         let pf2 = partition.create_parquet_file(builder).await;
         size_overrides.insert(
             pf2.parquet_file.id,
@@ -1501,10 +1509,9 @@ mod tests {
         // pf3 overlaps with pf2
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp3)
-            .with_max_seq(10)
+            .with_creation_time(time_30_minutes_ago)
             .with_min_time(6_000)
-            .with_max_time(25_000)
-            .with_creation_time(time_five_hour_ago);
+            .with_max_time(25_000);
         let pf3 = partition.create_parquet_file(builder).await;
         size_overrides.insert(
             pf3.parquet_file.id,
@@ -1514,10 +1521,9 @@ mod tests {
         // pf4 does not overlap with any but is small
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp4)
-            .with_max_seq(18)
+            .with_creation_time(time_20_minutes_ago)
             .with_min_time(26_000)
-            .with_max_time(28_000)
-            .with_creation_time(time_five_hour_ago);
+            .with_max_time(28_000);
         let pf4 = partition.create_parquet_file(builder).await;
         size_overrides.insert(
             pf4.parquet_file.id,
@@ -1527,10 +1533,9 @@ mod tests {
         // pf5 was created in a previous compaction cycle; overlaps with pf1
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp5)
-            .with_max_seq(1)
+            .with_creation_time(time_60_minutes_ago)
             .with_min_time(9)
             .with_max_time(25)
-            .with_creation_time(time_five_hour_ago)
             .with_compaction_level(CompactionLevel::FileNonOverlapped);
         let pf5 = partition.create_parquet_file(builder).await;
         size_overrides.insert(
@@ -1541,10 +1546,9 @@ mod tests {
         // pf6 was created in a previous compaction cycle; does not overlap with any
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp6)
-            .with_max_seq(20)
+            .with_creation_time(time_11_minutes_ago)
             .with_min_time(90000)
             .with_max_time(91000)
-            .with_creation_time(time_five_hour_ago)
             .with_compaction_level(CompactionLevel::FileNonOverlapped);
         let pf6 = partition.create_parquet_file(builder).await;
         size_overrides.insert(

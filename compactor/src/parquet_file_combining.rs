@@ -883,6 +883,7 @@ mod tests {
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use data_types::{ColumnType, PartitionParam};
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
+    use iox_time::SystemProvider;
     use itertools::Itertools;
     use metric::U64HistogramOptions;
     use parquet_file::storage::StorageId;
@@ -972,6 +973,10 @@ mod tests {
                 partition_key: partition.partition.partition_key.clone(),
             });
 
+            let time = SystemProvider::new();
+            let time_60_minutes_ago = time.minutes_ago(60);
+            let time_50_minutes_ago = time.minutes_ago(50);
+
             let lp = vec![
                 "table,tag2=PA,tag3=15 field_int=1601i 30000",
                 "table,tag2=OH,tag3=21 field_int=21i 36000",
@@ -979,7 +984,6 @@ mod tests {
             .join("\n");
             let builder = TestParquetFileBuilder::default()
                 .with_line_protocol(&lp)
-                .with_max_seq(20) // This should be irrelevant because this is a level 1 file
                 .with_compaction_level(CompactionLevel::FileNonOverlapped); // Prev compaction
             let level_1_file = partition.create_parquet_file(builder).await.into();
 
@@ -991,7 +995,7 @@ mod tests {
             .join("\n");
             let builder = TestParquetFileBuilder::default()
                 .with_line_protocol(&lp)
-                .with_max_seq(1);
+                .with_creation_time(time_60_minutes_ago);
             let level_0_max_seq_1 = partition.create_parquet_file(builder).await.into();
 
             let lp = vec![
@@ -1002,7 +1006,7 @@ mod tests {
             .join("\n");
             let builder = TestParquetFileBuilder::default()
                 .with_line_protocol(&lp)
-                .with_max_seq(2);
+                .with_creation_time(time_50_minutes_ago);
             let level_0_max_seq_2 = partition.create_parquet_file(builder).await.into();
 
             let lp = vec![
@@ -1012,7 +1016,6 @@ mod tests {
             .join("\n");
             let builder = TestParquetFileBuilder::default()
                 .with_line_protocol(&lp)
-                .with_max_seq(5) // This should be irrelevant because this is a level 1 file
                 .with_compaction_level(CompactionLevel::FileNonOverlapped); // Prev compaction
             let level_1_with_duplicates = partition.create_parquet_file(builder).await.into();
 
