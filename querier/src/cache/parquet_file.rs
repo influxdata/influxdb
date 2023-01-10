@@ -33,7 +33,7 @@ pub enum Error {
     },
 }
 
-type IngesterCounts = Option<Arc<HashMap<Uuid, u64>>>;
+type IngesterCounts = Option<Arc<Vec<(Uuid, u64)>>>;
 
 /// Holds catalog information about a parquet file
 #[derive(Debug)]
@@ -45,6 +45,8 @@ pub struct CachedParquetFiles {
     /// us about. When a call to `get` includes a number of persisted Parquet files for this table
     /// and a particular ingester UUID that doesn't match what we've previously seen, the cache
     /// needs to be expired.
+    ///
+    /// **This list is sorted!**
     persisted_file_counts_from_ingesters: IngesterCounts,
 }
 
@@ -231,9 +233,11 @@ impl ParquetFileCache {
         span: Option<Span>,
     ) -> Arc<CachedParquetFiles> {
         let persisted_file_counts_by_ingester_uuid =
-            persisted_file_counts_by_ingester_uuid.map(|mut map| {
-                map.shrink_to_fit();
-                Arc::new(map)
+            persisted_file_counts_by_ingester_uuid.map(|map| {
+                let mut entries = map.into_iter().collect::<Vec<_>>();
+                entries.sort();
+                entries.shrink_to_fit();
+                Arc::new(entries)
             });
         let persisted_file_counts_by_ingester_uuid_captured =
             persisted_file_counts_by_ingester_uuid.clone();
@@ -268,8 +272,11 @@ impl ParquetFileCache {
                     {
                         // If there's new or different information about the ingesters or the
                         // number of files they've persisted, we need to refresh.
-                        new_or_different(
-                            cached_file.persisted_file_counts_from_ingesters.as_deref(),
+                        different(
+                            cached_file
+                                .persisted_file_counts_from_ingesters
+                                .as_ref()
+                                .map(|x| x.as_ref().as_ref()),
                             ingester_counts,
                         )
                     } else {
@@ -288,30 +295,10 @@ impl ParquetFileCache {
     }
 }
 
-fn new_or_different(
-    stored_counts: Option<&HashMap<Uuid, u64>>,
-    ingester_counts: &HashMap<Uuid, u64>,
-) -> bool {
+fn different(stored_counts: Option<&[(Uuid, u64)]>, ingester_counts: &[(Uuid, u64)]) -> bool {
     // If we have some information stored for this table,
     if let Some(stored) = stored_counts {
-        // Go through all the ingester info we just got
-        for (ingester_uuid, ingester_file_count) in ingester_counts {
-            // Look up the value we've stored for this ingester UUID (if any)
-            let stored_file_count = stored.get(ingester_uuid);
-            match stored_file_count {
-                // If we've never seen this UUID before, we need to refresh the cache.
-                None => return true,
-                // If we've seen this UUID before but the file count we have stored is different,
-                // we need to refresh the cache
-                Some(s) if s != ingester_file_count => return true,
-                // Otherwise, the file count is the same and we DON'T need to refresh the cache on
-                // account of this ingester; keep checking the rest.
-                Some(_) => (),
-            }
-        }
-        // If we get to this point, all ingester UUIDs and all counts we just got from the ingester
-        // requests match up, and we don't need to refresh the cache.
-        false
+        ingester_counts != stored
     } else {
         // Otherwise, we've never seen ingester file counts for this table.
         // If the hashmap we got is empty, then we still haven't gotten any information, so we
@@ -531,14 +518,14 @@ mod tests {
 
         // Empty metadata again: still use the cache
         cache.get(table_id, None, Some(HashMap::new()), None).await;
-        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 3);
+        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 4);
 
         // See a new UUID and not the old one: refresh the cache
         let new_uuid = Uuid::new_v4();
         cache
             .get(table_id, None, Some(HashMap::from([(new_uuid, 1)])), None)
             .await;
-        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 4);
+        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 5);
     }
 
     #[tokio::test]
