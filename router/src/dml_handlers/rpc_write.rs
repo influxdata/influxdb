@@ -42,12 +42,22 @@ where
     tokio::spawn(async move {
         loop {
             for e in &endpoints {
-                tx.send(tower::discover::Change::Insert(
-                    e.uri().to_owned(),
-                    e.clone(),
-                ))
-                .await
-                .expect("no grpc balance receiver");
+                // The gRPC balance listener will stop first during shutdown.
+                if tx
+                    .send(tower::discover::Change::Insert(
+                        e.uri().to_owned(),
+                        e.clone(),
+                    ))
+                    .await
+                    .is_err()
+                {
+                    // The gRPC balancer task has stopped - likely because
+                    // the server has stopped.
+                    //
+                    // Do not leak this task, or panic trying to send on the
+                    // closed channel.
+                    return;
+                }
             }
 
             tokio::time::sleep(Duration::from_secs(5)).await;
