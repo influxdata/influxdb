@@ -72,6 +72,9 @@ type TaskManager struct {
 	// If zero, slow queries will never be logged.
 	LogQueriesAfter time.Duration
 
+	// If true, queries that are killed due to `query-timeout` will be logged.
+	LogTimedoutQueries bool
+
 	// Maximum number of concurrent queries.
 	MaxConcurrentQueries int
 
@@ -315,6 +318,14 @@ func (t *TaskManager) waitForQuery(qid uint64, interrupt <-chan struct{}, closin
 
 		t.queryError(qid, err)
 	case <-timerCh:
+		if t.LogTimedoutQueries {
+			t.Logger.Warn(
+				"query killed for exceeding timeout limit",
+				zap.String("query", t.queries[qid].query),
+				zap.String("database", t.queries[qid].database),
+				zap.String("timeout", prettyTime(t.QueryTimeout).String()),
+			)
+		}
 		t.queryError(qid, ErrQueryTimeoutLimitExceeded)
 	case <-interrupt:
 		// Query was manually closed so exit the select.
