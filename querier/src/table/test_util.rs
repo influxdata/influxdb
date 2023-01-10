@@ -22,7 +22,11 @@ pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -
         catalog.object_store(),
         &Handle::current(),
     ));
-    let chunk_adapter = Arc::new(ChunkAdapter::new(catalog_cache, catalog.metric_registry()));
+    let chunk_adapter = Arc::new(ChunkAdapter::new(
+        catalog_cache,
+        catalog.metric_registry(),
+        false,
+    ));
 
     let mut repos = catalog.catalog.repositories().await;
     let mut catalog_schema = get_schema_by_name(&table.namespace.namespace.name, repos.as_mut())
