@@ -267,6 +267,14 @@ mod kafkaless_rpc_write {
 
         // Restart the ingester and ensure it gets a new UUID
         cluster.restart_ingester().await;
+
+        // Populate the ingester with some data so it returns a successful
+        // response containing the UUID.
+        let lp = format!("{},tag1=A,tag2=B val=42i 123456", table_name);
+        let response = cluster.write_to_router(lp).await;
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+        // Query for the new UUID and assert it has changed.
         let mut performed_query = querier_flight.do_get(query).await.unwrap().into_inner();
         let (msg, app_metadata) = next_message(&mut performed_query).await.unwrap();
         assert!(matches!(msg, DecodedPayload::None), "{:?}", msg);
