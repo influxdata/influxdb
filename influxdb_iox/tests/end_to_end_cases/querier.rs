@@ -901,10 +901,11 @@ mod kafkaless_rpc_write {
         StepTest::new(
             &mut cluster,
             vec![
+                Step::RecordNumParquetFiles,
                 Step::WriteLineProtocol(format!("{},tag1=A,tag2=B val=42i 123456", table_name)),
                 // Wait for data to be persisted to parquet
                 Step::WaitForPersisted2 {
-                    table_name: table_name.into(),
+                    expected_increase: 1,
                 },
                 Step::Query {
                     sql: format!("select * from {}", table_name),
@@ -947,9 +948,10 @@ mod kafkaless_rpc_write {
         StepTest::new(
             &mut cluster,
             vec![
+                Step::RecordNumParquetFiles,
                 Step::WriteLineProtocol(format!("{},tag1=A,tag2=B val=42i 123456", table_name)),
                 Step::WaitForPersisted2 {
-                    table_name: table_name.into(),
+                    expected_increase: 1,
                 },
                 Step::Query {
                     sql: format!("select * from {}", table_name),
@@ -982,10 +984,11 @@ mod kafkaless_rpc_write {
         let mut cluster = MiniCluster::create_shared2(database_url).await;
 
         let steps = vec![
+            Step::RecordNumParquetFiles,
             Step::WriteLineProtocol(format!("{},tag1=A,tag2=B val=42i 123456", table_name)),
             // Wait for data to be persisted to parquet
             Step::WaitForPersisted2 {
-                table_name: table_name.into(),
+                expected_increase: 1,
             },
             Step::Query {
                 sql: format!("select * from {}", table_name),
@@ -1008,11 +1011,12 @@ mod kafkaless_rpc_write {
                     "+------+------+--------------------------------+-----+",
                 ],
             },
+            Step::RecordNumParquetFiles,
             // write another parquet file that has non duplicated data
             Step::WriteLineProtocol(format!("{},tag1=B,tag2=A val=43i 789101112", table_name)),
             // Wait for data to be persisted to parquet
             Step::WaitForPersisted2 {
-                table_name: table_name.into(),
+                expected_increase: 1,
             },
             // query should correctly see the data in the second parquet file
             Step::Query {

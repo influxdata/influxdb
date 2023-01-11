@@ -13,6 +13,9 @@ service CatalogService {
 
     // Get the parquet_file catalog records in the given namespace and table name
     rpc GetParquetFilesByNamespaceTable(GetParquetFilesByNamespaceTableRequest) returns (GetParquetFilesByNamespaceTableResponse);
+
+    // Get the parquet_file catalog records in the given namespace
+    rpc GetParquetFilesByNamespace(GetParquetFilesByNamespaceRequest) returns (GetParquetFilesByNamespaceResponse);
 }
 
 message GetParquetFilesByPartitionIdRequest {
@@ -61,5 +64,15 @@ message GetParquetFilesByNamespaceTableRequest {
 
 message GetParquetFilesByNamespaceTableResponse {
     // the parquet_file records in the table in the namespace
+    repeated ParquetFile parquet_files = 1;
+}
+
+message GetParquetFilesByNamespaceRequest {
+    // the namespace name
+    string namespace_name = 1;
+}
+
+message GetParquetFilesByNamespaceResponse {
+    // the parquet_file records in the namespace
     repeated ParquetFile parquet_files = 1;
 }

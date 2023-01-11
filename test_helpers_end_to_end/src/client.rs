@@ -103,51 +103,6 @@ pub async fn token_is_persisted(
 
 const MAX_QUERY_RETRY_TIME_SEC: u64 = 20;
 
-/// Waits for the number of Parquet files in the catalog for the specified namespace and table to
-/// change
-pub async fn wait_for_new_parquet_file(
-    connection: Connection,
-    namespace_name: &str,
-    table_name: &str,
-) {
-    let retry_duration = Duration::from_secs(MAX_QUERY_RETRY_TIME_SEC);
-    let mut catalog_client = influxdb_iox_client::catalog::Client::new(connection);
-
-    let initial_count = catalog_client
-        .get_parquet_files_by_namespace_table(namespace_name.into(), table_name.into())
-        .await
-        .unwrap()
-        .len();
-
-    info!("Initial count of Parquet files: {initial_count}");
-
-    tokio::time::timeout(retry_duration, async move {
-        let mut interval = tokio::time::interval(Duration::from_millis(1000));
-        loop {
-            match catalog_client
-                .get_parquet_files_by_namespace_table(namespace_name.into(), table_name.into())
-                .await
-            {
-                Ok(parquet_files) => {
-                    let current_count = parquet_files.len();
-                    if current_count > initial_count {
-                        info!("Success; Parquet file count is now {current_count}");
-                        return;
-                    }
-                    info!("Retrying; Parquet file count is still {current_count}");
-                }
-
-                Err(e) => {
-                    info!("Retrying; Got error getting catalog info: {e}");
-                }
-            };
-            interval.tick().await;
-        }
-    })
-    .await
-    .expect("did not get additional Parquet files in the catalog");
-}
-
 /// Waits for the specified predicate to return true
 pub async fn wait_for_token<F>(write_token: impl Into<String>, connection: Connection, f: F)
 where
