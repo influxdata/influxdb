@@ -143,6 +143,12 @@ pub enum Step {
     /// Wait for all previously written data to be persisted
     WaitForPersisted,
 
+    /// Ask the catalog service how many Parquet files it has for this cluster's namespace. Do this
+    /// before a write where you're interested in when the write has been persisted to Parquet;
+    /// then after the write use `WaitForPersisted2` to observe the change in the number of Parquet
+    /// files from the value this step recorded.
+    RecordNumParquetFiles,
+
     /// Wait for all previously written data to be persisted by observing an increase in the number
     /// of Parquet files in the catalog for this cluster's namespace. Needed for
     /// router2/ingester2/querier2.
@@ -235,9 +241,6 @@ impl<'a> StepTest<'a> {
                         "====Begin writing line protocol to v2 HTTP API:\n{}",
                         line_protocol
                     );
-                    // Get the current number of Parquet files in the cluster's namespace before
-                    // starting a new write so we can observe a change when waiting for persistence.
-                    state.record_num_parquet_files().await;
                     let response = state.cluster.write_to_router(line_protocol).await;
                     assert_eq!(response.status(), StatusCode::NO_CONTENT);
                     let write_token = get_write_token(&response);
@@ -261,6 +264,11 @@ impl<'a> StepTest<'a> {
                         wait_for_persisted(write_token, querier_grpc_connection.clone()).await;
                     }
                     info!("====Done waiting for all write tokens to be persisted");
+                }
+                // Get the current number of Parquet files in the cluster's namespace before
+                // starting a new write so we can observe a change when waiting for persistence.
+                Step::RecordNumParquetFiles => {
+                    state.record_num_parquet_files().await;
                 }
                 Step::WaitForPersisted2 => {
                     info!("====Begin waiting for a change in the number of Parquet files");
