@@ -89,6 +89,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
         let partition = candidates.pop_front().unwrap();
         let partition_id = partition.candidate.partition_id;
         let table_id = partition.candidate.table_id;
+        count += 1;
 
         // --------------------------------------------------------------------
         // 2. Check if the candidate can be compacted fully or partially under the
@@ -150,7 +151,6 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                     &compactor.parquet_file_candidate_gauge,
                     &compactor.parquet_file_candidate_bytes,
                 );
-                count += 1;
                 Some(to_compact)
             }
             Ok(None) => {
