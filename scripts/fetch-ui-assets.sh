@@ -5,8 +5,8 @@
 # which is linked here.
 #
 # The master branch of "influxdata/influxdb" (this repository) downloads from the
-# release tagged as "OSS-Master" in "influxdata/ui". That release is kept up-to-date
-# with the most recent changes in "influxdata/ui".
+# release tagged at the latest released version of influxdb.
+# For example, if master is tracking slightly ahead of 2.6.1, then the tag would be OSS-v2.6.1.
 #
 # Feature branches of "influxdata/influxdb" (2.0, 2.1, etc) download from their
 # respective releases in "influxdata/ui" (OSS-2.0, OSS-2.1, etc). Those releases
@@ -18,7 +18,7 @@ declare -r SCRIPT_DIR=$(cd $(dirname ${0}) >/dev/null 2>&1 && pwd)
 declare -r ROOT_DIR=$(dirname ${SCRIPT_DIR})
 declare -r STATIC_DIR="$ROOT_DIR/static"
 
-UI_RELEASE="OSS-2022-09-16"
+UI_RELEASE="OSS-v2.6.1"
 
 # Download the SHA256 checksum attached to the release. To verify the integrity
 # of the download, this checksum will be used to check the download tar file
