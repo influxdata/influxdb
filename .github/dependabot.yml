@@ -13,3 +13,10 @@ updates:
       # Additionally the thrift-compiler version available in standard repos tends to lag
       # the latest release significantly, and so updating to the latest version adds friction
       - dependency-name: "thrift"
+
+      # We want to update arrow and datafusion manually
+      - dependency-name: "arrow"
+      - dependency-name: "arrow-*"
+      - dependency-name: "parquet"
+      - dependency-name: "datafusion"
+      - dependency-name: "datafusion-*"
