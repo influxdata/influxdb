@@ -214,7 +214,7 @@ dependencies = [
  "prost 0.11.6",
  "prost-build 0.11.3",
  "prost-derive 0.11.6",
- "prost-types 0.11.5",
+ "prost-types 0.11.6",
  "tokio",
  "tonic",
  "tonic-build",
@@ -963,7 +963,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e57ff02e8ad8e06ab9731d5dc72dc23bef9200778eae1a89d555d8c42e5d4a86"
 dependencies = [
  "prost 0.11.6",
- "prost-types 0.11.5",
+ "prost-types 0.11.6",
  "tonic",
  "tracing-core",
 ]
@@ -981,7 +981,7 @@ dependencies = [
  "hdrhistogram",
  "humantime",
  "parking_lot 0.11.2",
- "prost-types 0.11.5",
+ "prost-types 0.11.6",
  "serde",
  "serde_json",
  "thread_local",
@@ -1934,7 +1934,7 @@ dependencies = [
  "pin-project",
  "prost 0.11.6",
  "prost-build 0.11.3",
- "prost-types 0.11.5",
+ "prost-types 0.11.6",
  "tokio",
  "tokio-stream",
  "tonic",
@@ -1949,7 +1949,7 @@ version = "0.1.0"
 dependencies = [
  "prost 0.11.6",
  "prost-build 0.11.3",
- "prost-types 0.11.5",
+ "prost-types 0.11.6",
  "tonic",
  "tonic-build",
  "workspace-hack",
@@ -1961,7 +1961,7 @@ version = "0.1.0"
 dependencies = [
  "prost 0.11.6",
  "prost-build 0.11.3",
- "prost-types 0.11.5",
+ "prost-types 0.11.6",
  "tonic",
  "tonic-build",
  "workspace-hack",
@@ -2697,7 +2697,7 @@ dependencies = [
  "futures",
  "futures-util",
  "prost 0.11.6",
- "prost-types 0.11.5",
+ "prost-types 0.11.6",
  "tonic",
  "workspace-hack",
 ]
@@ -3906,7 +3906,7 @@ dependencies = [
  "heck",
  "itertools",
  "prost 0.11.6",
- "prost-types 0.11.5",
+ "prost-types 0.11.6",
 ]
 
 [[package]]
@@ -4285,7 +4285,7 @@ dependencies = [
  "petgraph",
  "prettyplease",
  "prost 0.11.6",
- "prost-types 0.11.5",
+ "prost-types 0.11.6",
  "regex",
  "syn",
  "tempfile",
@@ -4330,9 +4330,9 @@ dependencies = [
 
 [[package]]
 name = "prost-types"
-version = "0.11.5"
+version = "0.11.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "017f79637768cde62820bc2d4fe0e45daaa027755c323ad077767c6c5f173091"
+checksum = "a5e0526209433e96d83d750dd81a99118edbc55739e7e61a46764fd2ad537788"
 dependencies = [
  "bytes",
  "prost 0.11.6",
@@ -4985,7 +4985,7 @@ dependencies = [
  "metric",
  "observability_deps",
  "prost 0.11.6",
- "prost-types 0.11.5",
+ "prost-types 0.11.6",
  "serde",
  "serde_json",
  "service_common",
@@ -5854,7 +5854,7 @@ checksum = "67494bad4dda4c9bffae901dfe14e2b2c0f760adb4706dc10beeb81799f7f7b2"
 dependencies = [
  "bytes",
  "prost 0.11.6",
- "prost-types 0.11.5",
+ "prost-types 0.11.6",
  "tokio",
  "tokio-stream",
  "tonic",
@@ -6524,7 +6524,7 @@ dependencies = [
  "parquet",
  "predicates",
  "prost 0.11.6",
- "prost-types 0.11.5",
+ "prost-types 0.11.6",
  "rand",
  "regex",
  "regex-automata",
