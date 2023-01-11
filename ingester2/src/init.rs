@@ -11,7 +11,10 @@ use backoff::BackoffConfig;
 use futures::{future::Shared, Future, FutureExt};
 use generated_types::influxdata::iox::{
     catalog::v1::catalog_service_server::{CatalogService, CatalogServiceServer},
-    ingester::v1::write_service_server::{WriteService, WriteServiceServer},
+    ingester::v1::{
+        persist_service_server::{PersistService, PersistServiceServer},
+        write_service_server::{WriteService, WriteServiceServer},
+    },
 };
 use iox_arrow_flight::flight_service_server::{FlightService, FlightServiceServer};
 use iox_catalog::interface::Catalog;
@@ -54,6 +57,8 @@ pub trait IngesterRpcInterface: Send + Sync + std::fmt::Debug {
     type CatalogHandler: CatalogService;
     /// The type of the [`WriteService`] implementation.
     type WriteHandler: WriteService;
+    /// The type of the [`PersistService`] implementation.
+    type PersistHandler: PersistService;
     /// The type of the [`FlightService`] implementation.
     type FlightHandler: FlightService;
 
@@ -64,6 +69,10 @@ pub trait IngesterRpcInterface: Send + Sync + std::fmt::Debug {
     /// Acquire an opaque handle to the Ingester's [`WriteService`] RPC
     /// handler implementation.
     fn write_service(&self) -> WriteServiceServer<Self::WriteHandler>;
+
+    /// Acquire an opaque handle to the Ingester's [`PersistService`] RPC
+    /// handler implementation.
+    fn persist_service(&self) -> PersistServiceServer<Self::PersistHandler>;
 
     /// Acquire an opaque handle to the Ingester's Arrow Flight
     /// [`FlightService`] RPC handler implementation, allowing at most
@@ -341,11 +350,13 @@ where
     Ok(IngesterGuard {
         rpc: GrpcDelegate::new(
             Arc::new(write_path),
-            buffer,
+            Arc::clone(&buffer),
             timestamp,
             ingest_state,
             catalog,
             metrics,
+            buffer,
+            persist_handle,
         ),
         rotation_task,
         graceful_shutdown_handler: shutdown_task,
