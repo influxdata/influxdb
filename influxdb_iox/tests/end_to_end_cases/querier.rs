@@ -904,7 +904,9 @@ mod kafkaless_rpc_write {
                 Step::RecordNumParquetFiles,
                 Step::WriteLineProtocol(format!("{},tag1=A,tag2=B val=42i 123456", table_name)),
                 // Wait for data to be persisted to parquet
-                Step::WaitForPersisted2,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
                 Step::Query {
                     sql: format!("select * from {}", table_name),
                     expected: vec![
@@ -948,7 +950,9 @@ mod kafkaless_rpc_write {
             vec![
                 Step::RecordNumParquetFiles,
                 Step::WriteLineProtocol(format!("{},tag1=A,tag2=B val=42i 123456", table_name)),
-                Step::WaitForPersisted2,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
                 Step::Query {
                     sql: format!("select * from {}", table_name),
                     expected: vec![
@@ -983,7 +987,9 @@ mod kafkaless_rpc_write {
             Step::RecordNumParquetFiles,
             Step::WriteLineProtocol(format!("{},tag1=A,tag2=B val=42i 123456", table_name)),
             // Wait for data to be persisted to parquet
-            Step::WaitForPersisted2,
+            Step::WaitForPersisted2 {
+                expected_increase: 1,
+            },
             Step::Query {
                 sql: format!("select * from {}", table_name),
                 expected: vec![
@@ -1009,7 +1015,9 @@ mod kafkaless_rpc_write {
             // write another parquet file that has non duplicated data
             Step::WriteLineProtocol(format!("{},tag1=B,tag2=A val=43i 789101112", table_name)),
             // Wait for data to be persisted to parquet
-            Step::WaitForPersisted2,
+            Step::WaitForPersisted2 {
+                expected_increase: 1,
+            },
             // query should correctly see the data in the second parquet file
             Step::Query {
                 sql: format!("select * from {}", table_name),
