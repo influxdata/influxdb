@@ -42,7 +42,7 @@ const EVALUATE_SATURATION_INTERVAL: Duration = Duration::from_secs(1);
 /// These conditions are evaluated periodically, at the interval specified in
 /// [`EVALUATE_SATURATION_INTERVAL`].
 #[derive(Debug)]
-pub(crate) struct PersistState {
+pub(super) struct PersistState {
     /// The ingest state the persister configures.
     ingest_state: Arc<IngestState>,
 
@@ -70,7 +70,7 @@ pub(crate) struct PersistState {
 impl PersistState {
     /// Initialise a [`PersistState`], with a total number of tasks bounded to
     /// `persist_queue_depth` and permits issued from `sem`.
-    pub(crate) fn new(
+    pub(super) fn new(
         ingest_state: Arc<IngestState>,
         persist_queue_depth: usize,
         sem: Arc<Semaphore>,
