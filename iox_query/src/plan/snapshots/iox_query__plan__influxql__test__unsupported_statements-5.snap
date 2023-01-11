@@ -1,0 +1,5 @@
+---
+source: iox_query/src/plan/influxql.rs
+expression: "plan(\"SHOW DATABASES\")"
+---
+This feature is not implemented: SHOW DATABASES

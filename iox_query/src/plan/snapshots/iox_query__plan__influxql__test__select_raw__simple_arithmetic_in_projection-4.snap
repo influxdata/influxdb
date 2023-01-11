@@ -1,0 +1,6 @@
+---
+source: iox_query/src/plan/influxql.rs
+expression: "plan(\"SELECT foo, f64_field + 0.5 FROM data\")"
+---
+Projection: data.time, data.foo AS foo, data.f64_field + Float64(0.5) AS f64_field [time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, f64_field:Float64;N]
+  TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]

@@ -1,0 +1,5 @@
+---
+source: iox_query/src/plan/influxql.rs
+expression: "plan(\"SHOW RETENTION POLICIES\")"
+---
+This feature is not implemented: SHOW RETENTION POLICIES

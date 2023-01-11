@@ -10,6 +10,8 @@ use crate::{
     Predicate, PredicateMatch, QueryChunk, QueryChunkData, QueryChunkMeta, QueryCompletedToken,
     QueryNamespace, QueryText,
 };
+use arrow::array::{BooleanArray, Float64Array};
+use arrow::datatypes::SchemaRef;
 use arrow::{
     array::{
         ArrayRef, DictionaryArray, Int64Array, StringArray, TimestampNanosecondArray, UInt64Array,
@@ -22,8 +24,15 @@ use data_types::{
     ChunkId, ChunkOrder, ColumnSummary, DeletePredicate, InfluxDbType, PartitionId, StatValues,
     Statistics, TableSummary,
 };
+use datafusion::catalog::catalog::CatalogProvider;
+use datafusion::catalog::schema::SchemaProvider;
+use datafusion::datasource::{TableProvider, TableType};
 use datafusion::error::DataFusionError;
+use datafusion::execution::context::SessionState;
+use datafusion::logical_expr::Expr;
+use datafusion::physical_plan::ExecutionPlan;
 use hashbrown::HashSet;
+use itertools::Itertools;
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 use predicate::rpc_predicate::QueryNamespaceMeta;
@@ -177,8 +186,114 @@ impl ExecutionContextProvider for TestDatabase {
         // Note: unlike Db this does not register a catalog provider
         self.executor
             .new_execution_config(ExecutorType::Query)
+            .with_default_catalog(Arc::new(TestDatabaseCatalogProvider::from_test_database(
+                self,
+            )))
             .with_span_context(span_ctx)
             .build()
+    }
+}
+
+// The default schema name - this impacts what SQL queries use if not specified
+const DEFAULT_SCHEMA: &str = "iox";
+
+struct TestDatabaseCatalogProvider {
+    partitions: BTreeMap<String, BTreeMap<ChunkId, Arc<TestChunk>>>,
+}
+
+impl TestDatabaseCatalogProvider {
+    fn from_test_database(db: &TestDatabase) -> Self {
+        Self {
+            partitions: db.partitions.lock().clone(),
+        }
+    }
+}
+
+impl CatalogProvider for TestDatabaseCatalogProvider {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn schema_names(&self) -> Vec<String> {
+        vec![DEFAULT_SCHEMA.to_string()]
+    }
+
+    fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
+        match name {
+            DEFAULT_SCHEMA => Some(Arc::new(TestDatabaseSchemaProvider {
+                partitions: self.partitions.clone(),
+            })),
+            _ => None,
+        }
+    }
+}
+
+struct TestDatabaseSchemaProvider {
+    partitions: BTreeMap<String, BTreeMap<ChunkId, Arc<TestChunk>>>,
+}
+
+impl SchemaProvider for TestDatabaseSchemaProvider {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn table_names(&self) -> Vec<String> {
+        self.partitions
+            .values()
+            .flat_map(|c| c.values())
+            .map(|c| c.table_name.to_owned())
+            .unique()
+            .collect()
+    }
+
+    fn table(&self, name: &str) -> Option<Arc<dyn TableProvider>> {
+        Some(Arc::new(TestDatabaseTableProvider {
+            partitions: self
+                .partitions
+                .values()
+                .flat_map(|chunks| chunks.values().filter(|c| c.table_name() == name))
+                .map(Clone::clone)
+                .collect(),
+        }))
+    }
+
+    fn table_exist(&self, name: &str) -> bool {
+        self.table_names().contains(&name.to_string())
+    }
+}
+
+struct TestDatabaseTableProvider {
+    partitions: Vec<Arc<TestChunk>>,
+}
+
+#[async_trait]
+impl TableProvider for TestDatabaseTableProvider {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn schema(&self) -> SchemaRef {
+        self.partitions
+            .iter()
+            .fold(SchemaMerger::new(), |merger, chunk| {
+                merger.merge(chunk.schema()).expect("consistent schemas")
+            })
+            .build()
+            .as_arrow()
+    }
+
+    fn table_type(&self) -> TableType {
+        TableType::Base
+    }
+
+    async fn scan(
+        &self,
+        _ctx: &SessionState,
+        _projection: Option<&Vec<usize>>,
+        _filters: &[Expr],
+        _limit: Option<usize>,
+    ) -> crate::exec::context::Result<Arc<dyn ExecutionPlan>> {
+        unimplemented!()
     }
 }
 
@@ -617,6 +732,8 @@ impl TestChunk {
                     let dict: DictionaryArray<Int32Type> = vec!["MA"].into_iter().collect();
                     Arc::new(dict) as ArrayRef
                 }
+                DataType::Float64 => Arc::new(Float64Array::from(vec![99.5])) as ArrayRef,
+                DataType::Boolean => Arc::new(BooleanArray::from(vec![true])) as ArrayRef,
                 _ => unimplemented!(
                     "Unimplemented data type for test database: {:?}",
                     field.data_type()

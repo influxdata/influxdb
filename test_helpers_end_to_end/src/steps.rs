@@ -1,6 +1,7 @@
 use crate::{
-    check_flight_error, get_write_token, run_sql, token_is_persisted, try_run_influxql,
-    try_run_sql, wait_for_new_parquet_file, wait_for_persisted, wait_for_readable, MiniCluster,
+    check_flight_error, get_write_token, run_influxql, run_sql, token_is_persisted,
+    try_run_influxql, try_run_sql, wait_for_new_parquet_file, wait_for_persisted,
+    wait_for_readable, MiniCluster,
 };
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_sorted_eq;
@@ -125,10 +126,18 @@ pub enum Step {
         verify: Box<dyn Fn(Vec<RecordBatch>)>,
     },
 
+    /// Run an InfluxQL query using the FlightSQL interface and verify that the
+    /// results match the expected results using the
+    /// `assert_batches_eq!` macro
+    InfluxQLQuery {
+        query: String,
+        expected: Vec<&'static str>,
+    },
+
     /// Run an InfluxQL query that's expected to fail using the FlightSQL interface and verify that the
     /// request returns the expected error code and message
     InfluxQLExpectingError {
-        sql: String,
+        query: String,
         expected_error_code: tonic::Code,
         expected_message: String,
     },
@@ -285,18 +294,30 @@ impl<'a> StepTest<'a> {
                     verify(batches);
                     info!("====Done running");
                 }
+                Step::InfluxQLQuery { query, expected } => {
+                    info!("====Begin running InfluxQL query: {}", query);
+                    // run query
+                    let batches = run_influxql(
+                        query,
+                        state.cluster.namespace(),
+                        state.cluster.querier().querier_grpc_connection(),
+                    )
+                    .await;
+                    assert_batches_sorted_eq!(&expected, &batches);
+                    info!("====Done running");
+                }
                 Step::InfluxQLExpectingError {
-                    sql,
+                    query,
                     expected_error_code,
                     expected_message,
                 } => {
                     info!(
                         "====Begin running InfluxQL query expected to error: {}",
-                        sql
+                        query
                     );
 
                     let err = try_run_influxql(
-                        sql,
+                        query,
                         state.cluster().namespace(),
                         state.cluster().querier().querier_grpc_connection(),
                     )

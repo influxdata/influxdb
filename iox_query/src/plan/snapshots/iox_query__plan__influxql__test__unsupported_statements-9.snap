@@ -1,0 +1,5 @@
+---
+source: iox_query/src/plan/influxql.rs
+expression: "plan(\"SHOW TAG VALUES WITH KEY = bar\")"
+---
+This feature is not implemented: SHOW TAG VALUES

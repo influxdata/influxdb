@@ -1,0 +1,5 @@
+---
+source: iox_query/src/plan/influxql.rs
+expression: "plan(\"EXPLAIN SELECT bar FROM foo\")"
+---
+This feature is not implemented: EXPLAIN
