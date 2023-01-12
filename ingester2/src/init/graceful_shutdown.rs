@@ -3,6 +3,7 @@ use std::{sync::Arc, time::Duration};
 use futures::Future;
 use observability_deps::tracing::*;
 use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
 
 use crate::{
     ingest_state::{IngestState, IngestStateError},
@@ -40,11 +41,12 @@ pub(super) async fn graceful_shutdown_handler<F, T, P>(
     persist: P,
     wal: Arc<wal::Wal>,
 ) where
-    F: Future<Output = ()> + Send,
+    F: Future<Output = CancellationToken> + Send,
     T: PartitionIter + Sync,
     P: PersistQueue + Clone,
 {
-    fut.await;
+    // Obtain the cancellation token that stops the RPC server.
+    let rpc_server_stop = fut.await;
     info!("gracefully stopping ingester");
 
     // Reject RPC writes.
@@ -118,6 +120,10 @@ pub(super) async fn graceful_shutdown_handler<F, T, P>(
     }
 
     info!("persisted all data - stopping ingester");
+
+    // Stop the RPC server (and therefore stop accepting new queries)
+    rpc_server_stop.cancel();
+    // And signal the ingester has stopped.
     let _ = complete.send(());
 }
 
@@ -197,9 +203,10 @@ mod tests {
         let (_tempdir, wal) = new_wal().await;
         let partition = new_partition();
 
+        let rpc_stop = CancellationToken::new();
         let (tx, rx) = oneshot::channel();
         graceful_shutdown_handler(
-            ready(()),
+            ready(rpc_stop.clone()),
             tx,
             ingest_state,
             vec![Arc::clone(&partition)],
@@ -212,6 +219,8 @@ mod tests {
         rx.with_timeout_panic(Duration::from_secs(5))
             .await
             .expect("shutdown task panicked");
+
+        assert!(rpc_stop.is_cancelled());
 
         // Assert the data was persisted
         let persist_calls = persist.calls();
@@ -238,9 +247,10 @@ mod tests {
 
         // Start the graceful shutdown job in another thread, as it SHOULD block
         // until the persist job is marked as complete.
+        let rpc_stop = CancellationToken::new();
         let (tx, rx) = oneshot::channel();
         let handle = tokio::spawn(graceful_shutdown_handler(
-            ready(()),
+            ready(rpc_stop.clone()),
             tx,
             ingest_state,
             vec![Arc::clone(&partition)],
@@ -260,6 +270,10 @@ mod tests {
         let rx = rx.shared();
         assert_matches!(futures::poll!(rx.clone()), Poll::Pending);
 
+        // And because the shutdown is still ongoing, the RPC server must not
+        // have been signalled to stop.
+        assert!(!rpc_stop.is_cancelled());
+
         // Mark the persist job as having completed, unblocking the shutdown
         // task.
         partition.lock().mark_persisted(persist_job);
@@ -268,6 +282,8 @@ mod tests {
         rx.with_timeout_panic(Duration::from_secs(5))
             .await
             .expect("shutdown task panicked");
+
+        assert!(rpc_stop.is_cancelled());
 
         assert!(handle
             .with_timeout_panic(Duration::from_secs(1))
@@ -331,9 +347,10 @@ mod tests {
 
         // Start the graceful shutdown job in another thread, as it SHOULD block
         // until the persist job is marked as complete.
+        let rpc_stop = CancellationToken::new();
         let (tx, rx) = oneshot::channel();
         let handle = tokio::spawn(graceful_shutdown_handler(
-            ready(()),
+            ready(rpc_stop.clone()),
             tx,
             ingest_state,
             Arc::clone(&buffer),
@@ -345,6 +362,8 @@ mod tests {
         rx.with_timeout_panic(Duration::from_secs(5))
             .await
             .expect("shutdown task panicked");
+
+        assert!(rpc_stop.is_cancelled());
 
         assert!(handle
             .with_timeout_panic(Duration::from_secs(1))

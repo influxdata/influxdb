@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use clap_blocks::ingester2::Ingester2Config;
+use futures::FutureExt;
 use hyper::{Body, Request, Response};
 use ingester2::{IngesterGuard, IngesterRpcInterface};
 use iox_catalog::interface::Catalog;
@@ -16,10 +17,11 @@ use metric::Registry;
 use parquet_file::storage::ParquetStorage;
 use std::{
     fmt::{Debug, Display},
-    sync::Arc,
+    sync::{Arc, Mutex},
     time::Duration,
 };
 use thiserror::Error;
+use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
@@ -33,7 +35,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 struct IngesterServerType<I: IngesterRpcInterface> {
     server: IngesterGuard<I>,
-    shutdown: CancellationToken,
+    shutdown: Mutex<Option<oneshot::Sender<CancellationToken>>>,
     metrics: Arc<Registry>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
     max_simultaneous_queries: usize,
@@ -45,11 +47,11 @@ impl<I: IngesterRpcInterface> IngesterServerType<I> {
         metrics: Arc<Registry>,
         common_state: &CommonServerState,
         max_simultaneous_queries: usize,
-        shutdown: CancellationToken,
+        shutdown: oneshot::Sender<CancellationToken>,
     ) -> Self {
         Self {
             server,
-            shutdown,
+            shutdown: Mutex::new(Some(shutdown)),
             metrics,
             trace_collector: common_state.trace_collector(),
             max_simultaneous_queries,
@@ -105,8 +107,15 @@ impl<I: IngesterRpcInterface + Sync + Send + Debug + 'static> ServerType for Ing
         self.server.join().await;
     }
 
-    fn shutdown(&self) {
-        self.shutdown.cancel();
+    fn shutdown(&self, frontend: CancellationToken) {
+        if let Some(c) = self
+            .shutdown
+            .lock()
+            .expect("shutdown mutex poisoned")
+            .take()
+        {
+            let _ = c.send(frontend);
+        }
     }
 }
 
@@ -149,7 +158,7 @@ pub async fn create_ingester_server_type(
     exec: Arc<Executor>,
     object_store: ParquetStorage,
 ) -> Result<Arc<dyn ServerType>> {
-    let shutdown = CancellationToken::new();
+    let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
     let grpc = ingester2::new(
         catalog,
@@ -162,10 +171,7 @@ pub async fn create_ingester_server_type(
         ingester_config.persist_queue_depth,
         ingester_config.persist_hot_partition_cost,
         object_store,
-        {
-            let shutdown = shutdown.clone();
-            async move { shutdown.cancelled().await }
-        },
+        shutdown_rx.map(|v| v.expect("shutdown sender dropped without calling shutdown")),
     )
     .await?;
 
@@ -174,6 +180,6 @@ pub async fn create_ingester_server_type(
         metrics,
         common_state,
         ingester_config.concurrent_query_limit,
-        shutdown,
+        shutdown_tx,
     )))
 }

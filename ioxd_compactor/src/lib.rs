@@ -24,6 +24,7 @@ use std::{
     sync::Arc,
 };
 use thiserror::Error;
+use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
 #[derive(Debug, Error)]
@@ -99,7 +100,8 @@ impl<C: CompactorHandler + std::fmt::Debug + 'static> ServerType for CompactorSe
         self.server.join().await;
     }
 
-    fn shutdown(&self) {
+    fn shutdown(&self, frontend: CancellationToken) {
+        frontend.cancel();
         self.server.shutdown();
     }
 }

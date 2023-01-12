@@ -24,6 +24,7 @@ use std::{
 };
 use thiserror::Error;
 use tokio::runtime::Handle;
+use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
 mod rpc;
@@ -106,7 +107,8 @@ impl<C: QuerierHandler + std::fmt::Debug + 'static> ServerType for QuerierServer
         self.server.join().await;
     }
 
-    fn shutdown(&self) {
+    fn shutdown(&self, frontend: CancellationToken) {
+        frontend.cancel();
         self.server.shutdown();
     }
 }

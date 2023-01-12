@@ -204,15 +204,24 @@ pub async fn serve(
     // registry, don't exit before HTTP and gRPC requests dependent on them
     while !grpc_server.is_terminated() && !http_server.is_terminated() {
         futures::select! {
-            _ = signal => info!(?server_type, "Shutdown requested"),
+            _ = signal => info!(?server_type, "shutdown requested"),
             _ = server_handle => {
-                error!(?server_type, "server worker shutdown prematurely");
+                // If the frontend & backend stop together, the select! may
+                // choose to follow the "background has shutdown" signal instead
+                // of one of the frontend paths.
+                //
+                // This should not be a problem so long as the frontend has
+                // stopped.
+                if frontend_shutdown.is_cancelled() {
+                    break;
+                }
+                error!(?server_type, "server worker shutdown before frontend");
                 res = res.and(Err(Error::LostServer));
             },
             result = grpc_server => match result {
                 Ok(_) if frontend_shutdown.is_cancelled() => info!(?server_type, "gRPC server shutdown"),
                 Ok(_) => {
-                    error!(?server_type, "Early gRPC server exit");
+                    error!(?server_type, "early gRPC server exit");
                     res = res.and(Err(Error::LostRpc));
                 }
                 Err(error) => {
@@ -223,7 +232,7 @@ pub async fn serve(
             result = http_server => match result {
                 Ok(_) if frontend_shutdown.is_cancelled() => info!(?server_type, "HTTP server shutdown"),
                 Ok(_) => {
-                    error!(?server_type, "Early HTTP server exit");
+                    error!(?server_type, "early HTTP server exit");
                     res = res.and(Err(Error::LostHttp));
                 }
                 Err(error) => {
@@ -233,11 +242,13 @@ pub async fn serve(
             },
         }
 
-        frontend_shutdown.cancel()
+        // Delegate shutting down the frontend to the background shutdown
+        // handler, allowing it to sequence the stopping of the RPC/HTTP
+        // servers as needed.
+        server_type.shutdown(frontend_shutdown.clone())
     }
     info!(?server_type, "frontend shutdown completed");
 
-    server_type.shutdown();
     if !server_handle.is_terminated() {
         server_handle.await;
     }
