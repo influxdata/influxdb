@@ -32,7 +32,9 @@ where
     T: PartitionIter + Sync + 'static,
     P: PersistQueue + Clone + Sync + 'static,
 {
-    /// Handle the RPC request to persist immediately.
+    /// Handle the RPC request to persist immediately. Will block until the data has persisted,
+    /// which is useful in tests asserting on persisted data. May behave in unexpected ways if used
+    /// concurrently with writes and ingester WAL rotations.
     async fn persist(
         &self,
         _request: Request<proto::PersistRequest>,
