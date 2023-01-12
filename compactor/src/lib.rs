@@ -486,6 +486,7 @@ pub mod tests {
         sync::{Arc, Mutex},
     };
 
+    const DEFAULT_MAX_NUM_PARTITION_CANDIDATES: usize = 100;
     const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1: u64 = 4;
     const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2: u64 = 24;
     const DEFAULT_COLD_PARTITION_CANDIDATES_HOURS_THRESHOLD: u64 = 24;
@@ -598,7 +599,7 @@ pub mod tests {
             max_desired_file_size_bytes: 100_000_000,
             percentage_max_file_size: 90,
             split_percentage: 100,
-            max_number_partitions_per_shard: 100,
+            max_number_partitions_per_shard: DEFAULT_MAX_NUM_PARTITION_CANDIDATES,
             min_number_recent_ingested_files_per_partition: 1,
             hot_multiple: 4,
             warm_multiple: 1,
@@ -681,7 +682,14 @@ pub mod tests {
         let (compactor, mock_compactor, partitions) = make_6_partitions(14350, 200).await;
 
         // partition candidates: partitions with L0 and overlapped L1
-        let mut candidates = hot::hot_partitions_to_compact(Arc::clone(&compactor))
+        let compaction_type = CompactionType::Hot;
+        let hour_thresholds = vec![
+            compactor.config.hot_compaction_hours_threshold_1,
+            compactor.config.hot_compaction_hours_threshold_2,
+        ];
+        let max_num_partitions = compactor.config.max_number_partitions_per_shard;
+        let mut candidates = compactor
+            .partitions_to_compact(compaction_type, hour_thresholds, max_num_partitions)
             .await
             .unwrap();
         assert_eq!(candidates.len(), 6);
@@ -782,7 +790,14 @@ pub mod tests {
             make_6_partitions(1024 * 1024 * 1024, 2).await;
 
         // partition candidates: partitions with L0 and overlapped L1
-        let mut candidates = hot::hot_partitions_to_compact(Arc::clone(&compactor))
+        let compaction_type = CompactionType::Hot;
+        let hour_thresholds = vec![
+            compactor.config.hot_compaction_hours_threshold_1,
+            compactor.config.hot_compaction_hours_threshold_2,
+        ];
+        let max_num_partitions = compactor.config.max_number_partitions_per_shard;
+        let mut candidates = compactor
+            .partitions_to_compact(compaction_type, hour_thresholds, max_num_partitions)
             .await
             .unwrap();
         assert_eq!(candidates.len(), 6);
@@ -1020,9 +1035,19 @@ pub mod tests {
 
         // ------------------------------------------------
         // Compact
-        let mut partition_candidates = hot::hot_partitions_to_compact(Arc::clone(&compactor))
+        let compaction_type = CompactionType::Hot;
+        let hour_thresholds = vec![
+            compactor.config.hot_compaction_hours_threshold_1,
+            compactor.config.hot_compaction_hours_threshold_2,
+        ];
+        let max_num_partitions = compactor.config.max_number_partitions_per_shard;
+        let mut partition_candidates = compactor
+            .partitions_to_compact(compaction_type, hour_thresholds, max_num_partitions)
             .await
             .unwrap();
+        // let mut partition_candidates = hot::hot_partitions_to_compact(Arc::clone(&compactor))
+        //     .await
+        //     .unwrap();
 
         assert_eq!(partition_candidates.len(), 1);
 

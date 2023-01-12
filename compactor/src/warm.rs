@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 /// Warm compaction. Returns the number of compacted partitions.
 pub async fn compact(compactor: Arc<Compactor>) -> usize {
-    let compaction_type = "warm";
+    let compaction_type = CompactionType::Warm;
 
     let candidates = get_candidates_with_retry(
         Arc::clone(&compactor),
@@ -26,10 +26,10 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
 
     let n_candidates = candidates.len();
     if n_candidates == 0 {
-        debug!(compaction_type, "no compaction candidates found");
+        debug!(%compaction_type, "no compaction candidates found");
         return 0;
     } else {
-        debug!(n_candidates, compaction_type, "found compaction candidates");
+        debug!(n_candidates, %compaction_type, "found compaction candidates");
     }
 
     let start_time = compactor.time_provider.now();
@@ -52,7 +52,7 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
         .now()
         .checked_duration_since(start_time)
     {
-        let attributes = Attributes::from(&[("partition_type", compaction_type)]);
+        let attributes = Attributes::from([("partition_type", compaction_type.to_string().into())]);
         let duration = compactor.compaction_cycle_duration.recorder(attributes);
         duration.record(delta);
     }

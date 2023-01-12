@@ -1,6 +1,6 @@
 //! Data Points for the lifecycle of the Compactor
 
-use crate::handler::CompactorConfig;
+use crate::{handler::CompactorConfig, parquet_file_lookup::CompactionType};
 use backoff::BackoffConfig;
 use data_types::{
     ColumnType, ColumnTypeCount, Namespace, NamespaceId, PartitionId, PartitionKey, PartitionParam,
@@ -62,7 +62,7 @@ pub enum Error {
     ))]
     RecentIngestedPartitions {
         source: iox_catalog::interface::Error,
-        compaction_type: &'static str,
+        compaction_type: CompactionType,
     },
 
     #[snafu(display(
@@ -278,40 +278,49 @@ impl Compactor {
         Arc::clone(&self.time_provider) as _
     }
 
-    /// Return a list of partitions that:
-    ///
-    /// - Have not received any writes in 8 hours (determined by all level 0 and level 1 parquet
-    ///   files having a created_at time older than 8 hours ago). Note that 8 is the default but
-    ///   it's configurable
-    /// - Have some level 0 or level 1 parquet files that need to be upgraded or compacted
-    /// - Sorted by the number of level 0 files + number of level 1 files descending
-    pub async fn cold_partitions_to_compact(
+    /// hours to nanos for all thresholds
+    pub fn threshold_times(
+        time_provider: Arc<dyn TimeProvider>,
+        hours_thresholds: Vec<u64>,
+    ) -> Vec<(u64, Timestamp)> {
+        hours_thresholds
+            .iter()
+            .map(|&num_hours| {
+                (
+                    num_hours,
+                    Timestamp::from(time_provider.hours_ago(num_hours)),
+                )
+            })
+            .collect()
+    }
+
+    /// Partition candidate to compact
+    /// This is a list of partitions that have new created files (any level) after
+    /// the given partition_candidate_hours_threshold
+    pub async fn partitions_to_compact(
         &self,
-        // Max number of cold partitions per shard we want to compact
+        compaction_type: CompactionType,
+        partition_candidate_hours_thresholds: Vec<u64>,
         max_num_partitions: usize,
     ) -> Result<Vec<Arc<PartitionCompactionCandidateWithInfo>>> {
-        let compaction_type = "cold";
+        let threshold_times = Self::threshold_times(
+            Arc::clone(&self.time_provider),
+            partition_candidate_hours_thresholds,
+        );
 
-        // Use cold_partition_candidates_hours_threshold to get partition candidates
-        // for cold compaction. They are partitions with new created files after that threshold.
-        // Later during cold compaction for each candidate, we will see if this partition
-        // is really cold or not by checking if it has no new writes in the last
-        // config's minutes_without_new_writes_to_be_cold;
-        let hours = self.config.cold_partition_candidates_hours_threshold;
-        let time_in_the_past = Timestamp::from(self.time_provider.hours_ago(hours));
+        let attributes = Attributes::from([("partition_type", compaction_type.to_string().into())]);
 
-        let attributes = Attributes::from([("partition_type", compaction_type.into())]);
-
-        let candidates = Self::cold_partition_candidates(
+        let candidates = Self::partition_candidates(
             Arc::clone(&self.catalog),
-            time_in_the_past,
+            &threshold_times,
+            compaction_type,
             max_num_partitions,
         )
         .await?;
         let num_partitions = candidates.len();
 
         // Record metric for candidates
-        debug!(n = num_partitions, compaction_type, "compaction candidates",);
+        debug!(n = num_partitions, %compaction_type, "compaction candidates",);
         let number_gauge = self.compaction_candidate_gauge.recorder(attributes);
         number_gauge.set(num_partitions as u64);
 
@@ -321,7 +330,7 @@ impl Compactor {
         // Column types and their counts of the tables of the partition candidates
         debug!(
             num_candidates=?candidates.len(),
-            compaction_type,
+            %compaction_type,
             "start getting column types for the partition candidates"
         );
 
@@ -330,7 +339,7 @@ impl Compactor {
         // Add other compaction-needed info into selected partitions
         debug!(
             num_candidates=?candidates.len(),
-            compaction_type,
+            %compaction_type,
             "start getting additional info for the partition candidates"
         );
         let candidates = self
@@ -338,7 +347,8 @@ impl Compactor {
             .await?;
 
         if let Some(delta) = self.time_provider.now().checked_duration_since(start_time) {
-            let attributes = Attributes::from(&[("partition_type", compaction_type)]);
+            let attributes =
+                Attributes::from([("partition_type", compaction_type.to_string().into())]);
             let duration = self
                 .partitions_extra_info_reading_duration
                 .recorder(attributes);
@@ -348,26 +358,31 @@ impl Compactor {
         Ok(candidates)
     }
 
-    async fn cold_partition_candidates(
+    /// Get partition candidates with new created files (any level) after the thresholds
+    /// The threshold is ordered. The function returns right after there are candidates for a threshold
+    pub async fn partition_candidates(
         catalog: Arc<dyn Catalog>,
-        time_in_the_past: Timestamp,
+        thresholds: &[(u64, Timestamp)],
+        compaction_type: CompactionType,
         max_num_partitions: usize,
     ) -> Result<Vec<PartitionParam>> {
-        let compaction_type = "cold";
         let mut repos = catalog.repositories().await;
 
-        let partitions = repos
-            .partitions()
-            .partitions_with_recent_created_files(time_in_the_past, max_num_partitions)
-            .await
-            .context(RecentIngestedPartitionsSnafu { compaction_type })?;
-        if !partitions.is_empty() {
-            debug!(
-                compaction_type,
-                n = partitions.len(),
-                "found partition candidates"
-            );
-            return Ok(partitions);
+        for &(hours_ago, hours_ago_in_ns) in thresholds {
+            let partitions = repos
+                .partitions()
+                .partitions_with_recent_created_files(hours_ago_in_ns, max_num_partitions)
+                .await
+                .context(RecentIngestedPartitionsSnafu { compaction_type })?;
+            if !partitions.is_empty() {
+                debug!(
+                    %compaction_type,
+                    hours_ago,
+                    n = partitions.len(),
+                    "found partition candidates"
+                );
+                return Ok(partitions);
+            }
         }
 
         Ok(Vec::new())
@@ -838,7 +853,8 @@ pub mod tests {
         let mut config = make_compactor_config();
         // 24-hour threshold: partitions with any files created after this threshold will be selected as
         // cold partition candidates. Only candidates that meet another condition below will actually get cold compacted
-        config.hot_compaction_hours_threshold_2 = 24;
+        config.hot_compaction_hours_threshold_2 = DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2;
+        config.max_number_partitions_per_shard = DEFAULT_MAX_NUM_PARTITION_CANDIDATES;
         // 8 hours without new writes for the candidates to actually get cold compaction
         config.minutes_without_new_writes_to_be_cold = 8 * 60;
         let compactor = Arc::new(Compactor::new(
@@ -883,7 +899,13 @@ pub mod tests {
         // --------------------------------------
         // Case 1: no files yet --> no partition candidates
         //
-        let candidates = compactor.cold_partitions_to_compact(1).await.unwrap();
+        let compaction_type = CompactionType::Cold;
+        let hour_threshold = compactor.config.cold_partition_candidates_hours_threshold;
+        let max_num_partitions = compactor.config.max_number_partitions_per_shard;
+        let candidates = compactor
+            .partitions_to_compact(compaction_type, vec![hour_threshold], max_num_partitions)
+            .await
+            .unwrap();
         assert!(candidates.is_empty());
 
         // --------------------------------------
@@ -904,11 +926,14 @@ pub mod tests {
         let _pf2 = txn.parquet_files().create(p2).await.unwrap();
         txn.commit().await.unwrap();
         // 1 candidate becasue we limit it
-        let candidates = compactor.cold_partitions_to_compact(1).await.unwrap();
+        let candidates = compactor
+            .partitions_to_compact(compaction_type, vec![hour_threshold], 1)
+            .await
+            .unwrap();
         assert_eq!(candidates.len(), 1);
         // 2 candidates because we do not limit it
         let candidates = compactor
-            .cold_partitions_to_compact(DEFAULT_MAX_NUM_PARTITION_CANDIDATES)
+            .partitions_to_compact(compaction_type, vec![hour_threshold], max_num_partitions)
             .await
             .unwrap();
         assert_eq!(candidates.len(), 2);
@@ -952,7 +977,7 @@ pub mod tests {
         //
         // Still return 2 candidates
         let candidates = compactor
-            .cold_partitions_to_compact(DEFAULT_MAX_NUM_PARTITION_CANDIDATES)
+            .partitions_to_compact(compaction_type, vec![hour_threshold], max_num_partitions)
             .await
             .unwrap();
         assert_eq!(candidates.len(), 2);
@@ -1002,7 +1027,7 @@ pub mod tests {
         txn.commit().await.unwrap();
         // Three candidates
         let candidates = compactor
-            .cold_partitions_to_compact(DEFAULT_MAX_NUM_PARTITION_CANDIDATES)
+            .partitions_to_compact(compaction_type, vec![hour_threshold], max_num_partitions)
             .await
             .unwrap();
         assert_eq!(candidates.len(), 3);
@@ -1070,16 +1095,22 @@ pub mod tests {
         let _pf5_hot = txn.parquet_files().create(p5_hot).await.unwrap();
         txn.commit().await.unwrap();
         // Ask for only 1 first-read candidate
-        let candidates = compactor.cold_partitions_to_compact(1).await.unwrap();
+        let candidates = compactor
+            .partitions_to_compact(compaction_type, vec![hour_threshold], 1)
+            .await
+            .unwrap();
         assert_eq!(candidates.len(), 1);
 
         // Ask for 2 first-read partitions
-        let candidates = compactor.cold_partitions_to_compact(2).await.unwrap();
+        let candidates = compactor
+            .partitions_to_compact(compaction_type, vec![hour_threshold], 2)
+            .await
+            .unwrap();
         assert_eq!(candidates.len(), 2);
 
         // Ask for a lot of partitions -> return all 5 candidates
         let candidates = compactor
-            .cold_partitions_to_compact(DEFAULT_MAX_NUM_PARTITION_CANDIDATES)
+            .partitions_to_compact(compaction_type, vec![hour_threshold], max_num_partitions)
             .await
             .unwrap();
         assert_eq!(candidates.len(), 5);
@@ -1162,7 +1193,7 @@ pub mod tests {
 
         // Will have 6 candidates
         let candidates = compactor
-            .cold_partitions_to_compact(DEFAULT_MAX_NUM_PARTITION_CANDIDATES)
+            .partitions_to_compact(compaction_type, vec![hour_threshold], max_num_partitions)
             .await
             .unwrap();
         assert_eq!(candidates.len(), 6);
