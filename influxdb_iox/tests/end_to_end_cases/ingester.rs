@@ -1,11 +1,13 @@
 use arrow_util::assert_batches_sorted_eq;
 use data_types::{NamespaceId, TableId};
+use futures::FutureExt;
 use generated_types::{influxdata::iox::ingester::v1 as proto, ingester::IngesterQueryRequest};
 use http::StatusCode;
 use influxdb_iox_client::flight::generated_types::IngesterQueryResponseMetadata;
 use iox_arrow_flight::prost::Message;
 use test_helpers_end_to_end::{
-    get_write_token, maybe_skip_integration, wait_for_readable, MiniCluster,
+    get_write_token, maybe_skip_integration, wait_for_readable, MiniCluster, Step, StepTest,
+    StepTestState,
 };
 
 /// Temporary duplication: These tests should be kept in sync (as far as what they're logically
@@ -159,44 +161,68 @@ mod kafkaless_rpc_write {
         let database_url = maybe_skip_integration!();
 
         let table_name = "mytable";
-        let cluster = MiniCluster::create_shared2_never_persist(database_url).await;
+        let mut cluster = MiniCluster::create_shared2_never_persist(database_url).await;
 
-        let lp = format!("{},tag1=A,tag2=B val=42i 123456", table_name);
-        let response = cluster.write_to_router(lp).await;
-        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+        StepTest::new(
+            &mut cluster,
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(format!("{table_name},tag1=A,tag2=B val=42i 123456")),
+                Step::Custom(Box::new(move |state: &mut StepTestState| {
+                    async move {
+                        // query the ingester
+                        let query = IngesterQueryRequest::new(
+                            state.cluster().namespace_id().await,
+                            state.cluster().table_id(table_name).await,
+                            vec![],
+                            Some(::predicate::EMPTY_PREDICATE),
+                        );
+                        let query: proto::IngesterQueryRequest = query.try_into().unwrap();
+                        let ingester_response =
+                            state.cluster().query_ingester(query).await.unwrap();
 
-        // query the ingester
-        let query = IngesterQueryRequest::new(
-            cluster.namespace_id().await,
-            cluster.table_id(table_name).await,
-            vec![],
-            Some(::predicate::EMPTY_PREDICATE),
-        );
-        let query: proto::IngesterQueryRequest = query.try_into().unwrap();
-        let ingester_response = cluster.query_ingester(query.clone()).await.unwrap();
+                        let ingester_uuid = ingester_response.app_metadata.ingester_uuid.clone();
+                        assert!(!ingester_uuid.is_empty());
 
-        let ingester_uuid = ingester_response.app_metadata.ingester_uuid.clone();
-        assert!(!ingester_uuid.is_empty());
+                        let expected = [
+                            "+------+------+--------------------------------+-----+",
+                            "| tag1 | tag2 | time                           | val |",
+                            "+------+------+--------------------------------+-----+",
+                            "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
+                            "+------+------+--------------------------------+-----+",
+                        ];
+                        assert_batches_sorted_eq!(&expected, &ingester_response.record_batches);
+                    }
+                    .boxed()
+                })),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+                // Ensure the ingester responds with the correct file count to tell the querier
+                // it needs to expire its catalog cache
+                Step::Custom(Box::new(move |state: &mut StepTestState| {
+                    async move {
+                        let query = IngesterQueryRequest::new(
+                            state.cluster().namespace_id().await,
+                            state.cluster().table_id(table_name).await,
+                            vec![],
+                            Some(::predicate::EMPTY_PREDICATE),
+                        );
+                        let query: proto::IngesterQueryRequest = query.try_into().unwrap();
+                        let ingester_response =
+                            state.cluster().query_ingester(query.clone()).await.unwrap();
 
-        let expected = [
-            "+------+------+--------------------------------+-----+",
-            "| tag1 | tag2 | time                           | val |",
-            "+------+------+--------------------------------+-----+",
-            "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
-            "+------+------+--------------------------------+-----+",
-        ];
-        assert_batches_sorted_eq!(&expected, &ingester_response.record_batches);
-
-        // request that the ingester persist its data
-        cluster.persist_ingester().await;
-
-        let ingester_response = cluster.query_ingester(query.clone()).await.unwrap();
-
-        let num_files_persisted = ingester_response.app_metadata.completed_persistence_count;
-        assert_eq!(num_files_persisted, 1);
-
-        // ingester no longer has data in memory
-        assert!(ingester_response.record_batches.is_empty());
+                        let num_files_persisted =
+                            ingester_response.app_metadata.completed_persistence_count;
+                        assert_eq!(num_files_persisted, 1);
+                    }
+                    .boxed()
+                })),
+            ],
+        )
+        .run()
+        .await
     }
 
     #[tokio::test]
