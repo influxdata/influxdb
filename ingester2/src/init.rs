@@ -343,7 +343,7 @@ where
         shutdown_tx,
         Arc::clone(&ingest_state),
         Arc::clone(&buffer),
-        persist_handle,
+        Arc::clone(&persist_handle),
         wal,
     ));
 

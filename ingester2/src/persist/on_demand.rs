@@ -37,7 +37,7 @@ P: PersistQueue + Clone + Sync + 'static,
         &self,
         _request: Request<proto::PersistRequest>,
     ) -> Result<Response<proto::PersistResponse>, tonic::Status> {
-        persist_partitions(self.buffer.partition_iter(), self.persist_handle.clone()).await;
+        persist_partitions(self.buffer.partition_iter(), &self.persist_handle).await;
 
         Ok(Response::new(proto::PersistResponse {}))
     }
