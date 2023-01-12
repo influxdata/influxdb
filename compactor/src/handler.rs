@@ -190,6 +190,11 @@ pub struct CompactorConfig {
     /// and may also lead to inaccuracy of memory estimation. This number is to cap that.
     pub max_parallel_partitions: u64,
 
+    /// When select warm partition candidates, partitions with new created files (any level) after
+    /// this threshold will be considered a candidate. However, only partitions with many contiguous small
+    /// L1 files will get warm compacted
+    pub warm_partition_candidates_hours_threshold: u64,
+
     /// Upper bound on file size to be counted as "small" for warm compaction.
     pub warm_compaction_small_size_threshold_bytes: i64,
 

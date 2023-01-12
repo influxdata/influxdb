@@ -2,7 +2,7 @@
 //! fully compacted.
 
 use crate::{
-    compact::{Compactor, ShardAssignment},
+    compact::Compactor,
     compact_candidates_with_memory_budget, compact_in_parallel, parquet_file_combining,
     parquet_file_lookup::{self, CompactionType},
     utils::get_candidates_with_retry,
@@ -20,25 +20,8 @@ pub async fn compact(compactor: Arc<Compactor>, do_full_compact: bool) -> usize 
 
     // https://github.com/influxdata/influxdb_iox/issues/6518 to remove the use of shard_id and
     // simplify this
-    let max_num_partitions = match &compactor.shards {
-        ShardAssignment::All => {
-            debug!(
-                %compaction_type,
-                max_num_partitions = compactor.config.max_number_partitions_per_shard,
-                "Compactor2"
-            );
-            compactor.config.max_number_partitions_per_shard
-        }
-        ShardAssignment::Only(shards) => {
-            debug!(
-                %compaction_type,
-                num_shards = shards.len(),
-                max_number_partitions_per_shard = compactor.config.max_number_partitions_per_shard,
-                "Compactor1"
-            );
-            compactor.config.max_number_partitions_per_shard * shards.len()
-        }
-    };
+    let max_num_partitions =
+        compactor.shards.len() * compactor.config.max_number_partitions_per_shard;
 
     let cold_partition_candidates_hours_threshold =
         compactor.config.cold_partition_candidates_hours_threshold;
@@ -150,6 +133,7 @@ mod tests {
 
     const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1: u64 = 4;
     const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2: u64 = 24;
+    const DEFAULT_WARM_PARTITION_CANDIDATES_HOURS_THRESHOLD: u64 = 24;
     const DEFAULT_COLD_PARTITION_CANDIDATES_HOURS_THRESHOLD: u64 = 24;
     const MINUTE_WITHOUT_NEW_WRITE_TO_BE_COLD: u64 = 10;
     const DEFAULT_MAX_PARALLEL_PARTITIONS: u64 = 20;
@@ -759,6 +743,8 @@ mod tests {
             hot_compaction_hours_threshold_1: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
             hot_compaction_hours_threshold_2: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             max_parallel_partitions: DEFAULT_MAX_PARALLEL_PARTITIONS,
+            warm_partition_candidates_hours_threshold:
+                DEFAULT_WARM_PARTITION_CANDIDATES_HOURS_THRESHOLD,
             warm_compaction_small_size_threshold_bytes: 5_000,
             warm_compaction_min_small_file_count: 10,
         }

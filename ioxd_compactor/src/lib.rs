@@ -213,6 +213,7 @@ pub async fn build_compactor2_from_config(
         hot_compaction_hours_threshold_1,
         hot_compaction_hours_threshold_2,
         max_parallel_partitions,
+        warm_partition_candidates_hours_threshold,
         warm_compaction_small_size_threshold_bytes,
         warm_compaction_min_small_file_count,
     } = compactor_config;
@@ -234,6 +235,7 @@ pub async fn build_compactor2_from_config(
         hot_compaction_hours_threshold_1,
         hot_compaction_hours_threshold_2,
         max_parallel_partitions,
+        warm_partition_candidates_hours_threshold,
         warm_compaction_small_size_threshold_bytes,
         warm_compaction_min_small_file_count,
     };
@@ -358,6 +360,7 @@ pub async fn build_compactor_from_config(
         hot_compaction_hours_threshold_1,
         hot_compaction_hours_threshold_2,
         max_parallel_partitions,
+        warm_partition_candidates_hours_threshold,
         warm_compaction_small_size_threshold_bytes,
         warm_compaction_min_small_file_count,
         ..
@@ -380,6 +383,7 @@ pub async fn build_compactor_from_config(
         hot_compaction_hours_threshold_1,
         hot_compaction_hours_threshold_2,
         max_parallel_partitions,
+        warm_partition_candidates_hours_threshold,
         warm_compaction_small_size_threshold_bytes,
         warm_compaction_min_small_file_count,
     };

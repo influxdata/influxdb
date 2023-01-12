@@ -489,6 +489,7 @@ pub mod tests {
     const DEFAULT_MAX_NUM_PARTITION_CANDIDATES: usize = 100;
     const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1: u64 = 4;
     const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2: u64 = 24;
+    const DEFAULT_WARM_PARTITION_CANDIDATES_HOURS_THRESHOLD: u64 = 24;
     const DEFAULT_COLD_PARTITION_CANDIDATES_HOURS_THRESHOLD: u64 = 24;
     const DEFAULT_MAX_PARALLEL_PARTITIONS: u64 = 20;
 
@@ -613,6 +614,8 @@ pub mod tests {
             hot_compaction_hours_threshold_1: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
             hot_compaction_hours_threshold_2: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             max_parallel_partitions: max_parallel_jobs,
+            warm_partition_candidates_hours_threshold:
+                DEFAULT_WARM_PARTITION_CANDIDATES_HOURS_THRESHOLD,
             warm_compaction_small_size_threshold_bytes: 50_000_000,
             warm_compaction_min_small_file_count: 10,
         }
@@ -945,6 +948,8 @@ pub mod tests {
             hot_compaction_hours_threshold_1: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
             hot_compaction_hours_threshold_2: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             max_parallel_partitions: DEFAULT_MAX_PARALLEL_PARTITIONS,
+            warm_partition_candidates_hours_threshold:
+                DEFAULT_WARM_PARTITION_CANDIDATES_HOURS_THRESHOLD,
             warm_compaction_small_size_threshold_bytes: 5_000,
             warm_compaction_min_small_file_count: 10,
         };
