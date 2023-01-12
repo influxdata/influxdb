@@ -68,6 +68,8 @@ pub(crate) async fn periodic_rotation<T, P>(
         // special code path between "hot partition persist" and "wal rotation
         // persist" - it all works the same way!
         //
+        //      https://github.com/influxdata/influxdb_iox/issues/6566
+        //
         // TODO: this properly as described above.
 
         tokio::time::sleep(Duration::from_secs(5)).await;
@@ -86,7 +88,7 @@ pub(crate) async fn periodic_rotation<T, P>(
         // - a small price to pay for not having to block ingest while the WAL
         // is rotated, all outstanding writes + queries complete, and all then
         // partitions are marked as persisting.
-        persist_partitions(buffer.partition_iter(), persist.clone()).await;
+        persist_partitions(buffer.partition_iter(), &persist).await;
 
         debug!(
             closed_id = %stats.id(),

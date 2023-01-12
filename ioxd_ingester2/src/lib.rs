@@ -45,10 +45,11 @@ impl<I: IngesterRpcInterface> IngesterServerType<I> {
         metrics: Arc<Registry>,
         common_state: &CommonServerState,
         max_simultaneous_queries: usize,
+        shutdown: CancellationToken,
     ) -> Self {
         Self {
             server,
-            shutdown: CancellationToken::new(),
+            shutdown,
             metrics,
             trace_collector: common_state.trace_collector(),
             max_simultaneous_queries,
@@ -101,7 +102,7 @@ impl<I: IngesterRpcInterface + Sync + Send + Debug + 'static> ServerType for Ing
     }
 
     async fn join(self: Arc<Self>) {
-        self.shutdown.cancelled().await;
+        self.server.join().await;
     }
 
     fn shutdown(&self) {
@@ -148,6 +149,8 @@ pub async fn create_ingester_server_type(
     exec: Arc<Executor>,
     object_store: ParquetStorage,
 ) -> Result<Arc<dyn ServerType>> {
+    let shutdown = CancellationToken::new();
+
     let grpc = ingester2::new(
         catalog,
         Arc::clone(&metrics),
@@ -159,6 +162,10 @@ pub async fn create_ingester_server_type(
         ingester_config.persist_queue_depth,
         ingester_config.persist_hot_partition_cost,
         object_store,
+        {
+            let shutdown = shutdown.clone();
+            async move { shutdown.cancelled().await }
+        },
     )
     .await?;
 
@@ -167,5 +174,6 @@ pub async fn create_ingester_server_type(
         metrics,
         common_state,
         ingester_config.concurrent_query_limit,
+        shutdown,
     )))
 }
