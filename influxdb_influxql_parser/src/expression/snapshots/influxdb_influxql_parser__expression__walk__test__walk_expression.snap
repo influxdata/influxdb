@@ -1,0 +1,13 @@
+---
+source: influxdb_influxql_parser/src/expression/walk.rs
+expression: "walk_expression(\"5 + 6 = 2 + 9\")"
+---
+0: Arithmetic(Literal(Unsigned(5)))
+1: Arithmetic(Literal(Unsigned(6)))
+2: Arithmetic(Binary { lhs: Literal(Unsigned(5)), op: Add, rhs: Literal(Unsigned(6)) })
+3: Conditional(Expr(Binary { lhs: Literal(Unsigned(5)), op: Add, rhs: Literal(Unsigned(6)) }))
+4: Arithmetic(Literal(Unsigned(2)))
+5: Arithmetic(Literal(Unsigned(9)))
+6: Arithmetic(Binary { lhs: Literal(Unsigned(2)), op: Add, rhs: Literal(Unsigned(9)) })
+7: Conditional(Expr(Binary { lhs: Literal(Unsigned(2)), op: Add, rhs: Literal(Unsigned(9)) }))
+8: Conditional(Binary { lhs: Expr(Binary { lhs: Literal(Unsigned(5)), op: Add, rhs: Literal(Unsigned(6)) }), op: Eq, rhs: Expr(Binary { lhs: Literal(Unsigned(2)), op: Add, rhs: Literal(Unsigned(9)) }) })

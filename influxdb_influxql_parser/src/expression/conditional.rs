@@ -15,7 +15,7 @@ use nom::sequence::{delimited, preceded, tuple};
 use std::fmt;
 use std::fmt::{Display, Formatter, Write};
 
-/// Represents on of the conditional operators supported by [`ConditionalExpression::Binary`].
+/// Represents one of the conditional operators supported by [`ConditionalExpression::Binary`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConditionalOperator {
     /// Represents the `=` operator.
@@ -233,7 +233,7 @@ impl ArithmeticParsers for ConditionalExpression {
 }
 
 /// Parse an arithmetic expression used by conditional expressions.
-fn arithmetic_expression(i: &str) -> ParseResult<&str, Expr> {
+pub(crate) fn arithmetic_expression(i: &str) -> ParseResult<&str, Expr> {
     arithmetic::<ConditionalExpression>(i)
 }
 
