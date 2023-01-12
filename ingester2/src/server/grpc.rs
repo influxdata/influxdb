@@ -1,5 +1,6 @@
 //! gRPC service implementations for `ingester`.
 
+mod persist;
 mod query;
 mod rpc_write;
 
@@ -20,12 +21,12 @@ use crate::{
     ingest_state::IngestState,
     init::IngesterRpcInterface,
     partition_iter::PartitionIter,
-    persist::{on_demand::PersistNow, queue::PersistQueue},
+    persist::queue::PersistQueue,
     query::{response::QueryResponse, QueryExec},
     timestamp_oracle::TimestampOracle,
 };
 
-use self::rpc_write::RpcWrite;
+use self::{persist::PersistHandler, rpc_write::RpcWrite};
 
 /// This type is responsible for injecting internal dependencies that SHOULD NOT
 /// leak outside of the ingester crate into public gRPC handlers.
@@ -87,7 +88,7 @@ where
 {
     type CatalogHandler = CatalogService;
     type WriteHandler = RpcWrite<Arc<D>>;
-    type PersistHandler = PersistNow<Arc<T>, Arc<P>>;
+    type PersistHandler = PersistHandler<Arc<T>, Arc<P>>;
     type FlightHandler = query::FlightService<Arc<Q>>;
 
     /// Acquire a [`CatalogService`] gRPC service implementation.
@@ -112,7 +113,7 @@ where
     ///
     /// [`PersistService`]: generated_types::influxdata::iox::ingester::v1::persist_service_server::PersistService.
     fn persist_service(&self) -> PersistServiceServer<Self::PersistHandler> {
-        PersistServiceServer::new(PersistNow::new(
+        PersistServiceServer::new(PersistHandler::new(
             Arc::clone(&self.buffer),
             Arc::clone(&self.persist_handle),
         ))

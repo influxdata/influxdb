@@ -8,16 +8,16 @@ use generated_types::influxdata::iox::ingester::v1::{
 use tonic::{Request, Response};
 
 #[derive(Debug)]
-pub(crate) struct PersistNow<T, P> {
+pub(crate) struct PersistHandler<T, P> {
     buffer: T,
     persist_handle: P,
 }
 
-impl<T, P> PersistNow<T, P>
+impl<T, P> PersistHandler<T, P>
 where
-T: PartitionIter + Sync + 'static,
-P: PersistQueue + Clone + Sync + 'static,
- {
+    T: PartitionIter + Sync + 'static,
+    P: PersistQueue + Clone + Sync + 'static,
+{
     pub(crate) fn new(buffer: T, persist_handle: P) -> Self {
         Self {
             buffer,
@@ -27,11 +27,11 @@ P: PersistQueue + Clone + Sync + 'static,
 }
 
 #[tonic::async_trait]
-impl<T, P> PersistService for PersistNow<T, P>
+impl<T, P> PersistService for PersistHandler<T, P>
 where
-T: PartitionIter + Sync + 'static,
-P: PersistQueue + Clone + Sync + 'static,
- {
+    T: PartitionIter + Sync + 'static,
+    P: PersistQueue + Clone + Sync + 'static,
+{
     /// Handle the RPC request to persist immediately.
     async fn persist(
         &self,
