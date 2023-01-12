@@ -18,11 +18,17 @@ use influxdb_iox_client::connection::Builder;
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, warn};
 use process_info::VERSION_STRING;
-use std::time::Duration;
 use std::{
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
     str::FromStr,
+};
+use std::{
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+    time::Duration,
 };
 use tokio::runtime::Runtime;
 
@@ -391,6 +397,7 @@ fn get_runtime(num_threads: Option<usize>) -> Result<Runtime, std::io::Error> {
                 num_threads
             );
 
+            let thread_counter = Arc::new(AtomicUsize::new(1));
             match num_threads {
                 0 => {
                     let msg = format!(
@@ -402,6 +409,9 @@ fn get_runtime(num_threads: Option<usize>) -> Result<Runtime, std::io::Error> {
                 1 => Builder::new_current_thread().enable_all().build(),
                 _ => Builder::new_multi_thread()
                     .enable_all()
+                    .thread_name_fn(move || {
+                        format!("IOx main {}", thread_counter.fetch_add(1, Ordering::SeqCst))
+                    })
                     .worker_threads(num_threads)
                     .build(),
             }

@@ -16,7 +16,13 @@
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use pin_project::{pin_project, pinned_drop};
-use std::{pin::Pin, sync::Arc};
+use std::{
+    pin::Pin,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+};
 use tokio::sync::oneshot::{error::RecvError, Receiver};
 use tokio_util::sync::CancellationToken;
 
@@ -102,6 +108,9 @@ impl<T> PinnedDrop for Job<T> {
 pub struct DedicatedExecutor {
     state: Arc<Mutex<State>>,
 
+    /// Number of threads
+    num_threads: usize,
+
     /// Used for testing.
     ///
     /// This will ignore explicit shutdown requests.
@@ -183,42 +192,52 @@ impl DedicatedExecutor {
 
     fn new_inner(thread_name: &str, num_threads: usize, testing: bool) -> Self {
         let thread_name = thread_name.to_string();
+        let thread_counter = Arc::new(AtomicUsize::new(1));
 
         let (tx_tasks, rx_tasks) = std::sync::mpsc::channel::<Task>();
         let (tx_shutdown, rx_shutdown) = tokio::sync::oneshot::channel();
 
-        let thread = std::thread::spawn(move || {
-            let runtime = tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .thread_name(&thread_name)
-                .worker_threads(num_threads)
-                .on_thread_start(move || set_current_thread_priority(WORKER_PRIORITY))
-                .build()
-                .expect("Creating tokio runtime");
+        let thread = std::thread::Builder::new()
+            .name(format!("{thread_name} driver"))
+            .spawn(move || {
+                let runtime = tokio::runtime::Builder::new_multi_thread()
+                    .enable_all()
+                    .thread_name_fn(move || {
+                        format!(
+                            "{} {}",
+                            thread_name,
+                            thread_counter.fetch_add(1, Ordering::SeqCst)
+                        )
+                    })
+                    .worker_threads(num_threads)
+                    .on_thread_start(move || set_current_thread_priority(WORKER_PRIORITY))
+                    .build()
+                    .expect("Creating tokio runtime");
 
-            runtime.block_on(async move {
-                // Dropping the tokio runtime only waits for tasks to yield not to complete
-                //
-                // We therefore use a RwLock to wait for tasks to complete
-                let join = Arc::new(tokio::sync::RwLock::new(()));
+                runtime.block_on(async move {
+                    // Dropping the tokio runtime only waits for tasks to yield not to complete
+                    //
+                    // We therefore use a RwLock to wait for tasks to complete
+                    let join = Arc::new(tokio::sync::RwLock::new(()));
 
-                while let Ok(task) = rx_tasks.recv() {
-                    let join = Arc::clone(&join);
-                    let handle = join.read_owned().await;
+                    while let Ok(task) = rx_tasks.recv() {
+                        let join = Arc::clone(&join);
+                        let handle = join.read_owned().await;
 
-                    tokio::task::spawn(async move {
-                        task.run().await;
-                        std::mem::drop(handle);
-                    });
-                }
+                        tokio::task::spawn(async move {
+                            task.run().await;
+                            std::mem::drop(handle);
+                        });
+                    }
 
-                // Wait for all tasks to finish
-                let _guard = join.write().await;
+                    // Wait for all tasks to finish
+                    let _guard = join.write().await;
 
-                // signal shutdown, but it's OK if the other side is gone
-                tx_shutdown.send(()).ok();
+                    // signal shutdown, but it's OK if the other side is gone
+                    tx_shutdown.send(()).ok();
+                })
             })
-        });
+            .expect("executor setup");
 
         let state = State {
             requests: Some(tx_tasks),
@@ -229,6 +248,7 @@ impl DedicatedExecutor {
 
         Self {
             state: Arc::new(Mutex::new(state)),
+            num_threads,
             testing,
         }
     }
@@ -238,6 +258,11 @@ impl DedicatedExecutor {
     /// Internal state may be shared with other tests.
     pub fn new_testing() -> Self {
         TESTING_EXECUTOR.clone()
+    }
+
+    /// Number of threads that back this executor.
+    pub fn num_threads(&self) -> usize {
+        self.num_threads
     }
 
     /// Runs the specified Future (and any tasks it spawns) on the
@@ -466,10 +491,15 @@ mod tests {
         let dedicated_task = exec.spawn(async move {
             // spawn separate tasks
             let t1 = tokio::task::spawn(async {
-                assert_eq!(
-                    std::thread::current().name(),
-                    Some("Test DedicatedExecutor")
+                let thread = std::thread::current();
+                let tname = thread.name().expect("thread is named");
+
+                assert!(
+                    tname.starts_with("Test DedicatedExecutor"),
+                    "Invalid thread name: {}",
+                    tname,
                 );
+
                 25usize
             });
             t1.await.unwrap()

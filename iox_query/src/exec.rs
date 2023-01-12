@@ -65,8 +65,8 @@ pub struct DedicatedExecutors {
 
 impl DedicatedExecutors {
     pub fn new(num_threads: usize) -> Self {
-        let query_exec = DedicatedExecutor::new("IOx Query Executor Thread", num_threads);
-        let reorg_exec = DedicatedExecutor::new("IOx Reorg Executor Thread", num_threads);
+        let query_exec = DedicatedExecutor::new("IOx Query", num_threads);
+        let reorg_exec = DedicatedExecutor::new("IOx Reorg", num_threads);
 
         Self {
             query_exec,
