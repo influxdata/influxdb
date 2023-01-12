@@ -889,6 +889,45 @@ mod kafkaless_rpc_write {
     }
 
     #[tokio::test]
+    #[should_panic(expected = "did not get additional Parquet files in the catalog")]
+    async fn never_persist_really_never_persists() {
+        test_helpers::maybe_start_logging();
+        let database_url = maybe_skip_integration!();
+
+        let table_name = "the_table";
+
+        // Set up the cluster  ====================================
+        let ingester_config = TestConfig::new_ingester2_never_persist(&database_url);
+        let router_config = TestConfig::new_router2(&ingester_config);
+        let querier_config = TestConfig::new_querier2(&ingester_config);
+        let mut cluster = MiniCluster::new()
+            .with_ingester(ingester_config)
+            .await
+            .with_router(router_config)
+            .await
+            .with_querier(querier_config)
+            .await;
+
+        StepTest::new(
+            &mut cluster,
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(format!(
+                    "{},tag1=A,tag2=B val=42i 123456\n\
+                     {},tag1=A,tag2=C val=43i 123457",
+                    table_name, table_name
+                )),
+                // This should_panic if the ingester setup is correct
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+            ],
+        )
+        .run()
+        .await
+    }
+
+    #[tokio::test]
     async fn basic_on_parquet() {
         test_helpers::maybe_start_logging();
         let database_url = maybe_skip_integration!();
