@@ -35,6 +35,7 @@ use metric::Registry;
 use snafu::prelude::*;
 use std::{fmt::Debug, sync::Arc, time::Duration};
 use tokio::{select, sync::broadcast, task::JoinError, time};
+use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
 pub use garbage_collector::{Config, SubConfig};
@@ -134,7 +135,8 @@ impl ServerType for Server {
             .unwrap_or_report();
     }
 
-    fn shutdown(&self) {
+    fn shutdown(&self, frontend: CancellationToken) {
+        frontend.cancel();
         self.shutdown_tx.send(()).ok();
     }
 }

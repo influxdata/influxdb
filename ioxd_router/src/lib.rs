@@ -141,7 +141,8 @@ where
         self.shutdown.cancelled().await;
     }
 
-    fn shutdown(&self) {
+    fn shutdown(&self, frontend: CancellationToken) {
+        frontend.cancel();
         self.shutdown.cancel();
     }
 }
@@ -216,7 +217,8 @@ where
         self.shutdown.cancelled().await;
     }
 
-    fn shutdown(&self) {
+    fn shutdown(&self, frontend: CancellationToken) {
+        frontend.cancel();
         self.shutdown.cancel();
     }
 }

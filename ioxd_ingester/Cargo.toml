@@ -23,3 +23,4 @@ async-trait = "0.1"
 hyper = "0.14"
 thiserror = "1.0.38"
 workspace-hack = { path = "../workspace-hack"}
+tokio-util = "0.7.4"

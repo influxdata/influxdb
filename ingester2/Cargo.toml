@@ -48,6 +48,7 @@ trace = { version = "0.1.0", path = "../trace" }
 uuid = "1.2.2"
 wal = { version = "0.1.0", path = "../wal" }
 workspace-hack = { path = "../workspace-hack"}
+tokio-util = "0.7.4"
 
 [dev-dependencies]
 assert_matches = "1.5.0"

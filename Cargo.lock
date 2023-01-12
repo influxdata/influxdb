@@ -2642,6 +2642,7 @@ dependencies = [
  "test_helpers",
  "thiserror",
  "tokio",
+ "tokio-util",
  "tonic",
  "trace",
  "uuid",
@@ -2895,6 +2896,7 @@ dependencies = [
  "object_store",
  "parquet_file",
  "thiserror",
+ "tokio-util",
  "trace",
  "workspace-hack",
 ]
@@ -2912,6 +2914,7 @@ dependencies = [
  "observability_deps",
  "snafu",
  "tokio",
+ "tokio-util",
  "trace",
  "workspace-hack",
 ]
@@ -2951,6 +2954,7 @@ dependencies = [
  "metric",
  "object_store",
  "thiserror",
+ "tokio-util",
  "trace",
  "workspace-hack",
  "write_buffer",
@@ -2962,6 +2966,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "clap_blocks",
+ "futures",
  "hyper",
  "ingester2",
  "iox_catalog",
@@ -3001,6 +3006,7 @@ dependencies = [
  "sharder",
  "thiserror",
  "tokio",
+ "tokio-util",
  "tonic",
  "trace",
  "workspace-hack",

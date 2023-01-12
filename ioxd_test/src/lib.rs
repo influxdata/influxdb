@@ -104,7 +104,8 @@ impl ServerType for TestServerType {
         self.shutdown.cancelled().await;
     }
 
-    fn shutdown(&self) {
+    fn shutdown(&self, frontend: CancellationToken) {
+        frontend.cancel();
         self.shutdown.cancel();
     }
 }

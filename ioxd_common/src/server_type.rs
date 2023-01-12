@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use hyper::{Body, Request, Response};
 use metric::Registry;
 use snafu::Snafu;
+use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
 pub use common_state::{CommonServerState, CommonServerStateError};
@@ -60,5 +61,9 @@ pub trait ServerType: std::fmt::Debug + Send + Sync + 'static {
     async fn join(self: Arc<Self>);
 
     /// Shutdown background worker.
-    fn shutdown(&self);
+    ///
+    /// The provided [`CancellationToken`] MUST be used by the background worker
+    /// to shutdown the "frontend" (HTTP & RPC servers) when appropriate - this
+    /// should happen before [`Self::join()`] returns.
+    fn shutdown(&self, frontend: CancellationToken);
 }

@@ -26,6 +26,7 @@ use std::{
     time::Duration,
 };
 use thiserror::Error;
+use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
 #[derive(Debug, Error)]
@@ -105,7 +106,8 @@ impl<I: IngestHandler + Sync + Send + Debug + 'static> ServerType for IngesterSe
         self.server.join().await;
     }
 
-    fn shutdown(&self) {
+    fn shutdown(&self, frontend: CancellationToken) {
+        frontend.cancel();
         self.server.shutdown();
     }
 }

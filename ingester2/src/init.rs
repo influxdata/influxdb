@@ -20,6 +20,7 @@ use observability_deps::tracing::*;
 use parquet_file::storage::ParquetStorage;
 use thiserror::Error;
 use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
 use wal::Wal;
 
 use crate::{
@@ -198,7 +199,7 @@ pub async fn new<F>(
     shutdown: F,
 ) -> Result<IngesterGuard<impl IngesterRpcInterface>, InitError>
 where
-    F: Future<Output = ()> + Send + 'static,
+    F: Future<Output = CancellationToken> + Send + 'static,
 {
     // Create the transition shard.
     let mut txn = catalog

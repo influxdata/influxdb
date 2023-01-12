@@ -101,7 +101,8 @@ impl<I: IngestReplicaRpcInterface + Sync + Send + Debug + 'static> ServerType
         self.shutdown.cancelled().await;
     }
 
-    fn shutdown(&self) {
+    fn shutdown(&self, frontend: CancellationToken) {
+        frontend.cancel();
         self.shutdown.cancel();
     }
 }
