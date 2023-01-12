@@ -392,9 +392,7 @@ jobs:
           command: |
             COMMIT_SHA="$(git rev-parse HEAD)"
 
-            # FIXME: revert this override - https://github.com/rust-lang/docker-rust/issues/128
-            # RUST_VERSION="$(sed -E -ne 's/channel = "(.*)"/\1/p' rust-toolchain.toml)"
-            RUST_VERSION="1.66"
+            RUST_VERSION="$(sed -E -ne 's/channel = "(.*)"/\1/p' rust-toolchain.toml)"
 
             docker buildx build \
               --build-arg FEATURES="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof" \
