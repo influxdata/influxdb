@@ -2,6 +2,7 @@ use crate::{
     dump_log_to_stdout, log_command, rand_id, write_to_router, ServerFixture, TestConfig,
     TestServer,
 };
+use arrow::{datatypes::SchemaRef, record_batch::RecordBatch};
 use assert_cmd::prelude::*;
 use data_types::{NamespaceId, TableId};
 use futures::{stream::FuturesOrdered, StreamExt};
@@ -9,7 +10,11 @@ use http::Response;
 use hyper::Body;
 use influxdb_iox_client::{
     connection::GrpcConnection,
+    flight::generated_types::{IngesterQueryRequest, IngesterQueryResponseMetadata},
     schema::generated_types::{schema_service_client::SchemaServiceClient, GetSchemaRequest},
+};
+use iox_arrow_flight::{
+    prost::Message, DecodedFlightData, DecodedPayload, FlightDataStream, FlightError,
 };
 use observability_deps::tracing::{debug, info};
 use once_cell::sync::Lazy;
@@ -172,6 +177,47 @@ impl MiniCluster {
         new_cluster
     }
 
+    /// Create a shared "version 2" MiniCluster that has a router, ingester set to essentially
+    /// never persist data (except on-demand), and querier (but no
+    /// compactor as that should be run on-demand in tests).
+    ///
+    /// Note: Because the underlying server processes are shared across multiple tests, all users
+    /// of this `MiniCluster` instance should only modify their own unique namespace.
+    pub async fn create_shared2_never_persist(database_url: String) -> Self {
+        let start = Instant::now();
+        let mut shared_servers = GLOBAL_SHARED_SERVERS2_NEVER_PERSIST.lock().await;
+        debug!(mutex_wait=?start.elapsed(), "creating standard2 cluster");
+
+        // try to reuse existing server processes
+        if let Some(shared) = shared_servers.take() {
+            if let Some(cluster) = shared.creatable_cluster().await {
+                debug!("Reusing existing cluster");
+
+                // Put the server back
+                *shared_servers = Some(shared);
+                let start = Instant::now();
+                // drop the lock prior to calling `create()` to allow others to proceed
+                std::mem::drop(shared_servers);
+                let new_self = cluster.create().await;
+                info!(
+                    total_wait=?start.elapsed(),
+                    "created new mini cluster2 from existing cluster"
+                );
+                return new_self;
+            } else {
+                info!("some server proceses of previous cluster2 have already returned");
+            }
+        }
+
+        // Have to make a new one
+        info!("Create a new server2 set to never persist");
+        let new_cluster = Self::create_non_shared2_never_persist(database_url).await;
+
+        // Update the shared servers to point at the newly created server proesses
+        *shared_servers = Some(SharedServers::new(&new_cluster));
+        new_cluster
+    }
+
     /// Create a non shared "standard" MiniCluster that has a router, ingester, querier. Save
     /// config for a compactor, but the compactor should be run on-demand in tests using `compactor
     /// run-once` rather than using `run compactor`.
@@ -195,6 +241,23 @@ impl MiniCluster {
     /// Create a non-shared "version 2" "standard" MiniCluster that has a router, ingester, querier.
     pub async fn create_non_shared2(database_url: String) -> Self {
         let ingester_config = TestConfig::new_ingester2(&database_url);
+        let router_config = TestConfig::new_router2(&ingester_config);
+        let querier_config = TestConfig::new_querier2(&ingester_config);
+
+        // Set up the cluster  ====================================
+        Self::new()
+            .with_ingester(ingester_config)
+            .await
+            .with_router(router_config)
+            .await
+            .with_querier(querier_config)
+            .await
+    }
+
+    /// Create a non-shared "version 2" MiniCluster that has a router, ingester set to essentially
+    /// never persist data (except on-demand), and querier.
+    pub async fn create_non_shared2_never_persist(database_url: String) -> Self {
+        let ingester_config = TestConfig::new_ingester2_never_persist(&database_url);
         let router_config = TestConfig::new_router2(&ingester_config);
         let querier_config = TestConfig::new_querier2(&ingester_config);
 
@@ -364,6 +427,48 @@ impl MiniCluster {
         .await
     }
 
+    /// Query the ingester using flight directly, rather than through a querier.
+    pub async fn query_ingester(
+        &self,
+        query: IngesterQueryRequest,
+    ) -> Result<IngesterResponse, FlightError> {
+        let querier_flight =
+            influxdb_iox_client::flight::Client::new(self.ingester().ingester_grpc_connection());
+
+        let mut performed_query = querier_flight
+            .into_inner()
+            .do_get(query.encode_to_vec())
+            .await?
+            .into_inner();
+
+        let (msg, app_metadata) = next_message(&mut performed_query).await.unwrap();
+        assert!(matches!(msg, DecodedPayload::None), "{:?}", msg);
+
+        let schema = next_message(&mut performed_query)
+            .await
+            .map(|(msg, _)| unwrap_schema(msg));
+
+        let mut record_batches = vec![];
+        while let Some((msg, _md)) = next_message(&mut performed_query).await {
+            let batch = unwrap_record_batch(msg);
+            record_batches.push(batch);
+        }
+
+        Ok(IngesterResponse {
+            app_metadata,
+            schema,
+            record_batches,
+        })
+    }
+
+    /// Ask the ingester to persist its data.
+    pub async fn persist_ingester(&self) {
+        let mut ingester_client =
+            influxdb_iox_client::ingester::Client::new(self.ingester().ingester_grpc_connection());
+
+        ingester_client.persist().await.unwrap();
+    }
+
     /// Get a reference to the mini cluster's other servers.
     pub fn other_servers(&self) -> &[ServerFixture] {
         self.other_servers.as_ref()
@@ -426,6 +531,14 @@ impl MiniCluster {
 
         generated_types::storage_client::StorageClient::new(grpc_connection)
     }
+}
+
+/// Gathers data from ingester Flight queries
+#[derive(Debug)]
+pub struct IngesterResponse {
+    pub app_metadata: IngesterQueryResponseMetadata,
+    pub schema: Option<SchemaRef>,
+    pub record_batches: Vec<RecordBatch>,
 }
 
 /// holds shared server processes to share across tests
@@ -532,3 +645,31 @@ static GLOBAL_SHARED_SERVERS: Lazy<Mutex<Option<SharedServers>>> = Lazy::new(|| 
 // For the new server versions. `GLOBAL_SHARED_SERVERS` can be removed and this can be renamed
 // when the migration to router2/etc is complete.
 static GLOBAL_SHARED_SERVERS2: Lazy<Mutex<Option<SharedServers>>> = Lazy::new(|| Mutex::new(None));
+static GLOBAL_SHARED_SERVERS2_NEVER_PERSIST: Lazy<Mutex<Option<SharedServers>>> =
+    Lazy::new(|| Mutex::new(None));
+
+async fn next_message(
+    performed_query: &mut FlightDataStream,
+) -> Option<(DecodedPayload, IngesterQueryResponseMetadata)> {
+    let DecodedFlightData { inner, payload } = performed_query.next().await.transpose().unwrap()?;
+
+    // extract the metadata from the underlying FlightData structure
+    let app_metadata = &inner.app_metadata[..];
+    let app_metadata: IngesterQueryResponseMetadata = Message::decode(app_metadata).unwrap();
+
+    Some((payload, app_metadata))
+}
+
+fn unwrap_schema(msg: DecodedPayload) -> SchemaRef {
+    match msg {
+        DecodedPayload::Schema(s) => s,
+        _ => panic!("Unexpected message type: {:?}", msg),
+    }
+}
+
+fn unwrap_record_batch(msg: DecodedPayload) -> RecordBatch {
+    match msg {
+        DecodedPayload::RecordBatch(b) => b,
+        _ => panic!("Unexpected message type: {:?}", msg),
+    }
+}

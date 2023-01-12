@@ -17,6 +17,9 @@ pub mod flight;
 /// Client for health checking API
 pub mod health;
 
+/// Client for the ingester API
+pub mod ingester;
+
 /// Client for namespace API
 pub mod namespace;
 
