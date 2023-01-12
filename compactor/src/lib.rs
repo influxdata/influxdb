@@ -89,6 +89,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
         let partition = candidates.pop_front().unwrap();
         let partition_id = partition.candidate.partition_id;
         let table_id = partition.candidate.table_id;
+        count += 1;
 
         // --------------------------------------------------------------------
         // 2. Check if the candidate can be compacted fully or partially under the
@@ -150,7 +151,6 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                     &compactor.parquet_file_candidate_gauge,
                     &compactor.parquet_file_candidate_bytes,
                 );
-                count += 1;
                 Some(to_compact)
             }
             Ok(None) => {
@@ -486,8 +486,10 @@ pub mod tests {
         sync::{Arc, Mutex},
     };
 
+    const DEFAULT_MAX_NUM_PARTITION_CANDIDATES: usize = 100;
     const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1: u64 = 4;
     const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2: u64 = 24;
+    const DEFAULT_WARM_PARTITION_CANDIDATES_HOURS_THRESHOLD: u64 = 24;
     const DEFAULT_COLD_PARTITION_CANDIDATES_HOURS_THRESHOLD: u64 = 24;
     const DEFAULT_MAX_PARALLEL_PARTITIONS: u64 = 20;
 
@@ -598,7 +600,7 @@ pub mod tests {
             max_desired_file_size_bytes: 100_000_000,
             percentage_max_file_size: 90,
             split_percentage: 100,
-            max_number_partitions_per_shard: 100,
+            max_number_partitions_per_shard: DEFAULT_MAX_NUM_PARTITION_CANDIDATES,
             min_number_recent_ingested_files_per_partition: 1,
             hot_multiple: 4,
             warm_multiple: 1,
@@ -612,6 +614,8 @@ pub mod tests {
             hot_compaction_hours_threshold_1: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
             hot_compaction_hours_threshold_2: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             max_parallel_partitions: max_parallel_jobs,
+            warm_partition_candidates_hours_threshold:
+                DEFAULT_WARM_PARTITION_CANDIDATES_HOURS_THRESHOLD,
             warm_compaction_small_size_threshold_bytes: 50_000_000,
             warm_compaction_min_small_file_count: 10,
         }
@@ -681,7 +685,14 @@ pub mod tests {
         let (compactor, mock_compactor, partitions) = make_6_partitions(14350, 200).await;
 
         // partition candidates: partitions with L0 and overlapped L1
-        let mut candidates = hot::hot_partitions_to_compact(Arc::clone(&compactor))
+        let compaction_type = CompactionType::Hot;
+        let hour_thresholds = vec![
+            compactor.config.hot_compaction_hours_threshold_1,
+            compactor.config.hot_compaction_hours_threshold_2,
+        ];
+        let max_num_partitions = compactor.config.max_number_partitions_per_shard;
+        let mut candidates = compactor
+            .partitions_to_compact(compaction_type, hour_thresholds, max_num_partitions)
             .await
             .unwrap();
         assert_eq!(candidates.len(), 6);
@@ -782,7 +793,14 @@ pub mod tests {
             make_6_partitions(1024 * 1024 * 1024, 2).await;
 
         // partition candidates: partitions with L0 and overlapped L1
-        let mut candidates = hot::hot_partitions_to_compact(Arc::clone(&compactor))
+        let compaction_type = CompactionType::Hot;
+        let hour_thresholds = vec![
+            compactor.config.hot_compaction_hours_threshold_1,
+            compactor.config.hot_compaction_hours_threshold_2,
+        ];
+        let max_num_partitions = compactor.config.max_number_partitions_per_shard;
+        let mut candidates = compactor
+            .partitions_to_compact(compaction_type, hour_thresholds, max_num_partitions)
             .await
             .unwrap();
         assert_eq!(candidates.len(), 6);
@@ -930,6 +948,8 @@ pub mod tests {
             hot_compaction_hours_threshold_1: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
             hot_compaction_hours_threshold_2: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             max_parallel_partitions: DEFAULT_MAX_PARALLEL_PARTITIONS,
+            warm_partition_candidates_hours_threshold:
+                DEFAULT_WARM_PARTITION_CANDIDATES_HOURS_THRESHOLD,
             warm_compaction_small_size_threshold_bytes: 5_000,
             warm_compaction_min_small_file_count: 10,
         };
@@ -1020,9 +1040,19 @@ pub mod tests {
 
         // ------------------------------------------------
         // Compact
-        let mut partition_candidates = hot::hot_partitions_to_compact(Arc::clone(&compactor))
+        let compaction_type = CompactionType::Hot;
+        let hour_thresholds = vec![
+            compactor.config.hot_compaction_hours_threshold_1,
+            compactor.config.hot_compaction_hours_threshold_2,
+        ];
+        let max_num_partitions = compactor.config.max_number_partitions_per_shard;
+        let mut partition_candidates = compactor
+            .partitions_to_compact(compaction_type, hour_thresholds, max_num_partitions)
             .await
             .unwrap();
+        // let mut partition_candidates = hot::hot_partitions_to_compact(Arc::clone(&compactor))
+        //     .await
+        //     .unwrap();
 
         assert_eq!(partition_candidates.len(), 1);
 

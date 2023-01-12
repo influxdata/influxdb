@@ -116,19 +116,34 @@ impl ParquetFilesForCompaction {
             return Ok(None);
         }
 
+        let mut count_small_l1 = 0;
         for parquet_file in parquet_files {
-            // For cold compaction, won't proceed if at least one L0 file created  after
-            // minutes_without_new_writes_to_be_cold
-            if parquet_file.compaction_level == CompactionLevel::Initial
-                && compaction_type == CompactionType::Cold
-                && parquet_file.created_at
-                    > Timestamp::from(
-                        compactor
-                            .time_provider
-                            .minutes_ago(minutes_without_new_writes_to_be_cold),
-                    )
-            {
-                return Ok(None);
+            match compaction_type {
+                CompactionType::Warm => {
+                    // Count number of small L1 files
+                    if parquet_file.compaction_level == CompactionLevel::FileNonOverlapped
+                        && parquet_file.file_size_bytes
+                            < compactor.config.warm_compaction_small_size_threshold_bytes
+                    {
+                        count_small_l1 += 1;
+                    }
+                }
+                CompactionType::Cold => {
+                    // won't proceed if at least one L0 file created  after
+                    // minutes_without_new_writes_to_be_cold
+                    if parquet_file.compaction_level == CompactionLevel::Initial
+                        && compaction_type == CompactionType::Cold
+                        && parquet_file.created_at
+                            > Timestamp::from(
+                                compactor
+                                    .time_provider
+                                    .minutes_ago(minutes_without_new_writes_to_be_cold),
+                            )
+                    {
+                        return Ok(None);
+                    }
+                }
+                CompactionType::Hot => {}
             }
 
             // Estimate the bytes DataFusion needs when scan this file
@@ -162,6 +177,22 @@ impl ParquetFilesForCompaction {
             return Ok(None);
         }
 
+        match compaction_type {
+            CompactionType::Hot => {
+                // Only do hot compaction if there are L0 files
+                if level_0.is_empty() {
+                    return Ok(None);
+                }
+            }
+            CompactionType::Warm => {
+                // Only do warm compaction if there are certain small L1 files
+                if count_small_l1 < compactor.config.warm_compaction_min_small_file_count {
+                    return Ok(None);
+                }
+            }
+            CompactionType::Cold => {}
+        }
+
         level_0.sort_by_key(|pf| pf.created_at());
         level_1.sort_by_key(|pf| pf.min_time());
 
@@ -186,6 +217,7 @@ mod tests {
 
     const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1: u64 = 4;
     const DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2: u64 = 24;
+    const DEFAULT_WARM_PARTITION_CANDIDATES_HOURS_THRESHOLD: u64 = 24;
     const DEFAULT_COLD_PARTITION_CANDIDATES_HOURS_THRESHOLD: u64 = 24;
     const DEFAULT_MAX_PARALLEL_PARTITIONS: u64 = 20;
     const DEFAULT_MINUTES_WITHOUT_NEW_WRITES: u64 = 8 * 60;
@@ -271,6 +303,8 @@ mod tests {
             hot_compaction_hours_threshold_1: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_1,
             hot_compaction_hours_threshold_2: DEFAULT_HOT_COMPACTION_HOURS_THRESHOLD_2,
             max_parallel_partitions: DEFAULT_MAX_PARALLEL_PARTITIONS,
+            warm_partition_candidates_hours_threshold:
+                DEFAULT_WARM_PARTITION_CANDIDATES_HOURS_THRESHOLD,
             warm_compaction_small_size_threshold_bytes: 5_000,
             warm_compaction_min_small_file_count: 10,
         }
@@ -389,7 +423,7 @@ mod tests {
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             compactor,
             partition_with_info,
-            CompactionType::Hot,
+            CompactionType::Cold,
         )
         .await
         .unwrap()

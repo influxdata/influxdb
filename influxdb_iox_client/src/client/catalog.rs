@@ -66,4 +66,17 @@ impl Client {
 
         Ok(response.into_inner().parquet_files)
     }
+
+    /// Get the Parquet file records by their namespace
+    pub async fn get_parquet_files_by_namespace(
+        &mut self,
+        namespace_name: String,
+    ) -> Result<Vec<ParquetFile>, Error> {
+        let response = self
+            .inner
+            .get_parquet_files_by_namespace(GetParquetFilesByNamespaceRequest { namespace_name })
+            .await?;
+
+        Ok(response.into_inner().parquet_files)
+    }
 }

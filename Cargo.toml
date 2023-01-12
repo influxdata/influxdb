@@ -117,7 +117,7 @@ arrow = { version = "29.0.0" }
 arrow-flight = { version = "29.0.0" }
 datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="07f49803a3d7a9e9b3c2c9a7714c1bb08db71385", default-features = false }
 datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="07f49803a3d7a9e9b3c2c9a7714c1bb08db71385" }
-hashbrown = { version = "0.13.1" }
+hashbrown = { version = "0.13.2" }
 parquet = { version = "29.0.0" }
 
 # This profile optimizes for runtime performance and small binary size at the expense of longer

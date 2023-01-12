@@ -461,6 +461,7 @@ impl Config {
             hot_compaction_hours_threshold_1: 4,
             hot_compaction_hours_threshold_2: 24,
             max_parallel_partitions: 20,
+            warm_partition_candidates_hours_threshold: 24,
             warm_compaction_small_size_threshold_bytes: 15_000,
             warm_compaction_min_small_file_count: 10,
         };

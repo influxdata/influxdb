@@ -1,6 +1,9 @@
 //! Helpers of the Compactor
 
-use crate::{compact, query::QueryableParquetChunk, PartitionCompactionCandidateWithInfo};
+use crate::{
+    compact, parquet_file_lookup::CompactionType, query::QueryableParquetChunk,
+    PartitionCompactionCandidateWithInfo,
+};
 use backoff::Backoff;
 use data_types::{
     CompactionLevel, ParquetFile, ParquetFileId, TableSchema, Timestamp, TimestampMinMax,
@@ -20,7 +23,7 @@ use std::{
 /// candidates. Record metrics on the compactor about how long it took to get the candidates.
 pub(crate) async fn get_candidates_with_retry<Q, Fut>(
     compactor: Arc<compact::Compactor>,
-    compaction_type: &'static str,
+    compaction_type: CompactionType,
     query_function: Q,
 ) -> Vec<Arc<PartitionCompactionCandidateWithInfo>>
 where
@@ -30,8 +33,8 @@ where
         > + Send,
 {
     let backoff_task_name = format!("{compaction_type}_partitions_to_compact");
-    debug!(compaction_type, "start collecting partitions to compact");
-    let attributes = Attributes::from(&[("partition_type", compaction_type)]);
+    debug!(%compaction_type, "start collecting partitions to compact");
+    let attributes = Attributes::from([("partition_type", compaction_type.to_string().into())]);
 
     let start_time = compactor.time_provider.now();
 
