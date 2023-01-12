@@ -18,3 +18,9 @@ where
         (**self).partition_iter()
     }
 }
+
+impl PartitionIter for Vec<Arc<Mutex<PartitionData>>> {
+    fn partition_iter(&self) -> Box<dyn Iterator<Item = Arc<Mutex<PartitionData>>> + Send> {
+        Box::new(self.clone().into_iter())
+    }
+}

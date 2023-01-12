@@ -14,12 +14,12 @@ use super::queue::PersistQueue;
 const PERSIST_ENQUEUE_CONCURRENCY: usize = 5;
 
 // Persist a set of [`PartitionData`], blocking for completion of all enqueued
-// persist jobs.
+// persist jobs and returning the number of partitions that were persisted.
 //
 // This call is not atomic, partitions are marked for persistence incrementally.
 // Writes that landed into the partition buffer after this call, but before the
 // partition data is read will be included in the persisted data.
-pub(crate) async fn persist_partitions<T, P>(iter: T, persist: P)
+pub(crate) async fn persist_partitions<T, P>(iter: T, persist: &P) -> usize
 where
     T: Iterator<Item = Arc<Mutex<PartitionData>>> + Send,
     P: PersistQueue + Clone,
@@ -70,8 +70,12 @@ where
         "queued all non-empty partitions for persist"
     );
 
+    let count = notifications.len();
+
     // Wait for all the persist completion notifications.
     for n in notifications {
         n.await.expect("persist worker task panic");
     }
+
+    count
 }

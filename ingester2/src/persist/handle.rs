@@ -119,7 +119,7 @@ use crate::{
 ///     crate::ingest_state::IngestStateError::PersistSaturated
 #[derive(Debug)]
 pub(crate) struct PersistHandle {
-    /// THe state/dependencies shared across all worker tasks.
+    /// The state/dependencies shared across all worker tasks.
     worker_state: Arc<SharedWorkerState>,
 
     /// Task handles for the worker tasks, aborted on drop of all

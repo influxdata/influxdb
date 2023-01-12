@@ -130,7 +130,7 @@ where
         );
 
         // Persist all the data that was replayed from the WAL segment.
-        persist_partitions(sink.partition_iter(), persist.clone()).await;
+        persist_partitions(sink.partition_iter(), &persist).await;
 
         // Drop the newly persisted data - it should not be replayed.
         wal.delete(file.id())

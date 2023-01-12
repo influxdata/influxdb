@@ -2,11 +2,13 @@ crate::maybe_pub!(
     pub use super::wal_replay::*;
 );
 
+mod graceful_shutdown;
 mod wal_replay;
 
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use backoff::BackoffConfig;
+use futures::{future::Shared, Future, FutureExt};
 use generated_types::influxdata::iox::{
     catalog::v1::catalog_service_server::{CatalogService, CatalogServiceServer},
     ingester::v1::write_service_server::{WriteService, WriteServiceServer},
@@ -14,8 +16,10 @@ use generated_types::influxdata::iox::{
 use iox_arrow_flight::flight_service_server::{FlightService, FlightServiceServer};
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
+use observability_deps::tracing::*;
 use parquet_file::storage::ParquetStorage;
 use thiserror::Error;
+use tokio::sync::oneshot;
 use wal::Wal;
 
 use crate::{
@@ -32,6 +36,8 @@ use crate::{
     wal::{rotate_task::periodic_rotation, wal_sink::WalSink},
     TRANSITION_SHARD_INDEX,
 };
+
+use self::graceful_shutdown::graceful_shutdown_handler;
 
 /// Acquire opaque handles to the Ingester RPC service implementations.
 ///
@@ -77,18 +83,34 @@ pub struct IngesterGuard<T> {
     ///
     /// Aborted on drop.
     rotation_task: tokio::task::JoinHandle<()>,
+
+    /// The task handle executing the graceful shutdown once triggered.
+    graceful_shutdown_handler: tokio::task::JoinHandle<()>,
+    shutdown_complete: Shared<oneshot::Receiver<()>>,
 }
 
-impl<T> IngesterGuard<T> {
+impl<T> IngesterGuard<T>
+where
+    T: Send + Sync,
+{
     /// Obtain a handle to the gRPC handlers.
     pub fn rpc(&self) -> &T {
         &self.rpc
+    }
+
+    /// Block and wait until the ingester has gracefully stopped.
+    pub async fn join(&self) {
+        self.shutdown_complete
+            .clone()
+            .await
+            .expect("graceful shutdown task panicked")
     }
 }
 
 impl<T> Drop for IngesterGuard<T> {
     fn drop(&mut self) {
         self.rotation_task.abort();
+        self.graceful_shutdown_handler.abort();
     }
 }
 
@@ -148,8 +170,21 @@ pub enum InitError {
 /// value should be tuned to be slightly less than the interval between persist
 /// operations, but not so long that it causes catalog load spikes at persist
 /// time (which can be observed by the catalog instrumentation metrics).
+///
+/// ## Graceful Shutdown
+///
+/// When `shutdown` completes, the ingester blocks ingest (returning an error to
+/// all new write requests) while still executing query requests. The ingester
+/// then persists all data currently buffered.
+///
+/// Callers can wait for this buffer persist to complete by awaiting
+/// [`IngesterGuard::join()`], which will resolve once all data has been flushed
+/// to object storage.
+///
+/// The ingester will continue answering queries until the gRPC server is
+/// stopped by the caller (managed outside of this crate).
 #[allow(clippy::too_many_arguments)]
-pub async fn new(
+pub async fn new<F>(
     catalog: Arc<dyn Catalog>,
     metrics: Arc<metric::Registry>,
     persist_background_fetch_time: Duration,
@@ -160,7 +195,11 @@ pub async fn new(
     persist_queue_depth: usize,
     persist_hot_partition_cost: usize,
     object_store: ParquetStorage,
-) -> Result<IngesterGuard<impl IngesterRpcInterface>, InitError> {
+    shutdown: F,
+) -> Result<IngesterGuard<impl IngesterRpcInterface>, InitError>
+where
+    F: Future<Output = ()> + Send + 'static,
+{
     // Create the transition shard.
     let mut txn = catalog
         .start_transaction()
@@ -269,11 +308,11 @@ pub async fn new(
     let write_path = WalSink::new(Arc::clone(&buffer), Arc::clone(&wal));
 
     // Spawn a background thread to periodically rotate the WAL segment file.
-    let handle = tokio::spawn(periodic_rotation(
-        wal,
+    let rotation_task = tokio::spawn(periodic_rotation(
+        Arc::clone(&wal),
         wal_rotation_period,
         Arc::clone(&buffer),
-        persist_handle,
+        Arc::clone(&persist_handle),
     ));
 
     // Restore the highest sequence number from the WAL files, and default to 0
@@ -288,6 +327,16 @@ pub async fn new(
             .unwrap_or(0),
     ));
 
+    let (shutdown_tx, shutdown_rx) = oneshot::channel();
+    let shutdown_task = tokio::spawn(graceful_shutdown_handler(
+        shutdown,
+        shutdown_tx,
+        Arc::clone(&ingest_state),
+        Arc::clone(&buffer),
+        persist_handle,
+        wal,
+    ));
+
     Ok(IngesterGuard {
         rpc: GrpcDelegate::new(
             Arc::new(write_path),
@@ -297,6 +346,8 @@ pub async fn new(
             catalog,
             metrics,
         ),
-        rotation_task: handle,
+        rotation_task,
+        graceful_shutdown_handler: shutdown_task,
+        shutdown_complete: shutdown_rx.shared(),
     })
 }
