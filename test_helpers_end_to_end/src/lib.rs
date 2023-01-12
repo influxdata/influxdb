@@ -108,7 +108,7 @@ fn dump_log_to_stdout(server_type: &str, log_path: &std::path::Path) {
 // variables are not set.
 #[macro_export]
 macro_rules! maybe_skip_integration {
-    () => {{
+    ($panic_msg:expr) => {{
         use std::env;
         dotenvy::dotenv().ok();
 
@@ -126,17 +126,24 @@ macro_rules! maybe_skip_integration {
                     would connect to a Postgres catalog."
                 )
             }
-            (false, Some(_)) => {
-                eprintln!("skipping end-to-end integration tests - set TEST_INTEGRATION to run");
-                return;
-            }
-            (false, None) => {
-                eprintln!(
-                    "skipping end-to-end integration tests - set TEST_INTEGRATION and \
-                    TEST_INFLUXDB_IOX_CATALOG_DSN to run"
-                );
+            (false, maybe_dsn) => {
+                let unset_vars = match maybe_dsn {
+                    Some(_) => "TEST_INTEGRATION",
+                    None => "TEST_INTEGRATION and TEST_INFLUXDB_IOX_CATALOG_DSN",
+                };
+
+                eprintln!("skipping end-to-end integration tests - set {unset_vars} to run");
+
+                let panic_msg: &'static str = $panic_msg;
+                if !panic_msg.is_empty() {
+                    panic!("{}", panic_msg);
+                }
+
                 return;
             }
         }
     }};
+    () => {
+        maybe_skip_integration!("")
+    };
 }

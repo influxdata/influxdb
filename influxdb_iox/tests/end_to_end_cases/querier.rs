@@ -892,7 +892,10 @@ mod kafkaless_rpc_write {
     #[should_panic(expected = "did not get additional Parquet files in the catalog")]
     async fn never_persist_really_never_persists() {
         test_helpers::maybe_start_logging();
-        let database_url = maybe_skip_integration!();
+        // Tell the test to panic with the expected message if `TEST_INTEGRATION` isn't set so that
+        // this still passes
+        let database_url =
+            maybe_skip_integration!("did not get additional Parquet files in the catalog");
 
         let table_name = "the_table";
 
