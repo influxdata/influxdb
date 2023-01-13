@@ -635,15 +635,6 @@ pub trait ParquetFileRepo: Send + Sync {
     ) -> Result<Vec<ParquetFile>>;
 
     // Remove this function: https://github.com/influxdata/influxdb_iox/issues/6518
-    /// Select partition for cold/warm/hot compaction
-    /// These are partitions with files created recently (aka created after the specified time_in_the_past)
-    /// These files include all levels of compaction files and both non-deleted and soft-deleted files
-    async fn partitions_with_recent_created_files(
-        &mut self,
-        time_in_the_past: Timestamp,
-    ) -> Result<Vec<PartitionId>>;
-
-    // Remove this function: https://github.com/influxdata/influxdb_iox/issues/6518
     /// List the most recent highest throughput partition for a given shard, if specified
     async fn recent_highest_throughput_partitions(
         &mut self,
@@ -3837,12 +3828,6 @@ pub(crate) mod test_helpers {
         let time_five_hour_ago = Timestamp::from(catalog.time_provider().hours_ago(5));
 
         // Db has no partition
-        let partitions = repos
-            .parquet_files()
-            .partitions_with_recent_created_files(time_two_hour_ago)
-            .await
-            .unwrap();
-        assert!(partitions.is_empty());
         // get from partition table
         let partitions = repos
             .partitions()
@@ -3859,12 +3844,6 @@ pub(crate) mod test_helpers {
             .create_or_get("one".into(), shard.id, table.id)
             .await
             .unwrap();
-        let partitions = repos
-            .parquet_files()
-            .partitions_with_recent_created_files(time_two_hour_ago)
-            .await
-            .unwrap();
-        assert!(partitions.is_empty());
         // get from partition table
         let partitions = repos
             .partitions()
@@ -3902,13 +3881,6 @@ pub(crate) mod test_helpers {
             .flag_for_delete(delete_l0_file.id)
             .await
             .unwrap();
-        let partitions = repos
-            .parquet_files()
-            .partitions_with_recent_created_files(time_two_hour_ago)
-            .await
-            .unwrap();
-        // still empty becasue the file was not recently created
-        assert!(partitions.is_empty());
         // get from partition table
         let partitions = repos
             .partitions()
@@ -3928,14 +3900,7 @@ pub(crate) mod test_helpers {
             .create(l0_one_hour_ago_file_params.clone())
             .await
             .unwrap();
-        let partitions = repos
-            .parquet_files()
-            .partitions_with_recent_created_files(time_two_hour_ago)
-            .await
-            .unwrap();
         // partition one should be returned
-        assert_eq!(partitions.len(), 1);
-        assert!(partitions.contains(&partition1.id));
         // get from partition table
         let partitions = repos
             .partitions()
@@ -3953,14 +3918,7 @@ pub(crate) mod test_helpers {
             .create_or_get("two".into(), shard.id, table.id)
             .await
             .unwrap();
-        let partitions = repos
-            .parquet_files()
-            .partitions_with_recent_created_files(time_two_hour_ago)
-            .await
-            .unwrap();
         // should return partittion one only
-        assert_eq!(partitions.len(), 1);
-        assert!(partitions.contains(&partition1.id));
         // get from partition table
         let partitions = repos
             .partitions()
@@ -3982,14 +3940,7 @@ pub(crate) mod test_helpers {
             .create(l0_five_hour_ago_file_params.clone())
             .await
             .unwrap();
-        let partitions = repos
-            .parquet_files()
-            .partitions_with_recent_created_files(time_two_hour_ago)
-            .await
-            .unwrap();
         // still return partittione one only
-        assert_eq!(partitions.len(), 1);
-        assert!(partitions.contains(&partition1.id));
         // get from partition table
         let partitions = repos
             .partitions()
@@ -4012,15 +3963,7 @@ pub(crate) mod test_helpers {
             .create(l1_file_params.clone())
             .await
             .unwrap();
-        let partitions = repos
-            .parquet_files()
-            .partitions_with_recent_created_files(time_two_hour_ago)
-            .await
-            .unwrap();
         // should return both partitions
-        assert_eq!(partitions.len(), 2);
-        assert!(partitions.contains(&partition1.id));
-        assert!(partitions.contains(&partition2.id));
         // get from partition table
         let partitions = repos
             .partitions()
@@ -4042,15 +3985,7 @@ pub(crate) mod test_helpers {
             .create_or_get("three".into(), shard.id, table.id)
             .await
             .unwrap();
-        let partitions = repos
-            .parquet_files()
-            .partitions_with_recent_created_files(time_two_hour_ago)
-            .await
-            .unwrap();
         // should return partittion one and two only
-        assert_eq!(partitions.len(), 2);
-        assert!(partitions.contains(&partition1.id));
-        assert!(partitions.contains(&partition2.id));
         // get from partition table
         let partitions = repos
             .partitions()
@@ -4064,7 +3999,35 @@ pub(crate) mod test_helpers {
         assert_eq!(partitions[0].partition_id, partition1.id);
         assert_eq!(partitions[1].partition_id, partition2.id);
 
-        // add an L0 file created recently (one hour ago)
+        // Add a L2 created recently (just now) for partition three
+        // Since it is L2, the partition won't get updated
+        let l2_file_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            created_at: time_now,
+            partition_id: partition3.id,
+            compaction_level: CompactionLevel::Final,
+            ..parquet_file_params.clone()
+        };
+        repos
+            .parquet_files()
+            .create(l2_file_params.clone())
+            .await
+            .unwrap();
+        // still should return partittion one and two only
+        // get from partition table
+        let partitions = repos
+            .partitions()
+            .partitions_with_recent_created_files(time_two_hour_ago, max_num_partition)
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 2);
+        // sort by partition id
+        let mut partitions = partitions;
+        partitions.sort_by(|a, b| a.partition_id.cmp(&b.partition_id));
+        assert_eq!(partitions[0].partition_id, partition1.id);
+        assert_eq!(partitions[1].partition_id, partition2.id);
+
+        // add an L0 file created recently (one hour ago) for partition three
         let l0_one_hour_ago_file_params = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             created_at: time_one_hour_ago,
@@ -4076,16 +4039,7 @@ pub(crate) mod test_helpers {
             .create(l0_one_hour_ago_file_params.clone())
             .await
             .unwrap();
-        let partitions = repos
-            .parquet_files()
-            .partitions_with_recent_created_files(time_two_hour_ago)
-            .await
-            .unwrap();
         // should return all partitions
-        assert_eq!(partitions.len(), 3);
-        assert!(partitions.contains(&partition1.id));
-        assert!(partitions.contains(&partition2.id));
-        assert!(partitions.contains(&partition3.id));
         // get from partition table
         let partitions = repos
             .partitions()

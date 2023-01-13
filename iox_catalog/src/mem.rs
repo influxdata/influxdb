@@ -1195,15 +1195,19 @@ impl ParquetFileRepo for MemTxn {
             created_at,
             column_set,
         };
+        let compaction_level = parquet_file.compaction_level;
         stage.parquet_files.push(parquet_file);
 
         // Update the new_file_at field its partition to the time of created_at
-        let partition = stage
-            .partitions
-            .iter_mut()
-            .find(|p| p.id == partition_id)
-            .ok_or(Error::PartitionNotFound { id: partition_id })?;
-        partition.new_file_at = Some(created_at);
+        // Only update if the compaction level is not Final which signal more compaction needed
+        if compaction_level < CompactionLevel::Final {
+            let partition = stage
+                .partitions
+                .iter_mut()
+                .find(|p| p.id == partition_id)
+                .ok_or(Error::PartitionNotFound { id: partition_id })?;
+            partition.new_file_at = Some(created_at);
+        }
 
         Ok(stage.parquet_files.last().unwrap().clone())
     }
@@ -1358,20 +1362,6 @@ impl ParquetFileRepo for MemTxn {
             })
             .cloned()
             .collect())
-    }
-    async fn partitions_with_recent_created_files(
-        &mut self,
-        time_in_the_past: Timestamp,
-    ) -> Result<Vec<PartitionId>> {
-        let stage = self.stage();
-
-        let partitions: Vec<_> = stage
-            .parquet_files
-            .iter()
-            .filter(|f| f.created_at > time_in_the_past)
-            .map(|f| f.partition_id)
-            .collect();
-        Ok(partitions)
     }
 
     async fn recent_highest_throughput_partitions(

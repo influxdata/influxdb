@@ -918,7 +918,7 @@ pub mod tests {
         let pf1 = txn.parquet_files().create(p1.clone()).await.unwrap();
         txn.parquet_files().flag_for_delete(pf1.id).await.unwrap();
         //
-        // partition2 has a cold L2 file created recently (default 9 hours ago) --> a cold candidate
+        // partition2 has only a L2 file created recently (default 9 hours ago) --> not a candidate
         let p2 = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             partition_id: partition2.id,
@@ -927,37 +927,18 @@ pub mod tests {
         };
         let _pf2 = txn.parquet_files().create(p2).await.unwrap();
         txn.commit().await.unwrap();
-        // 1 candidate becasue we limit it
-        let candidates = compactor
-            .partitions_to_compact(compaction_type, vec![hour_threshold], 1)
-            .await
-            .unwrap();
-        assert_eq!(candidates.len(), 1);
-        // 2 candidates because we do not limit it
+        // only partition 1 is returned as a candidate
         let candidates = compactor
             .partitions_to_compact(compaction_type, vec![hour_threshold], max_num_partitions)
             .await
             .unwrap();
-        assert_eq!(candidates.len(), 2);
-        // sort candidates on partition_id
-        let mut candidates = candidates.into_iter().collect::<Vec<_>>();
-        candidates.sort_by_key(|c| c.candidate.partition_id);
+        assert_eq!(candidates.len(), 1);
         assert_eq!(candidates[0].candidate.partition_id, partition1.id);
-        assert_eq!(candidates[1].candidate.partition_id, partition2.id);
         //
         // verify no candidates will actualy get cold compaction because they are not old enough
         let files = parquet_file_lookup::ParquetFilesForCompaction::for_partition(
             Arc::clone(&compactor),
             Arc::clone(&candidates[0]),
-            CompactionType::Cold,
-        )
-        .await
-        .unwrap();
-        assert!(files.is_none());
-        //
-        let files = parquet_file_lookup::ParquetFilesForCompaction::for_partition(
-            Arc::clone(&compactor),
-            Arc::clone(&candidates[1]),
             CompactionType::Cold,
         )
         .await
@@ -977,7 +958,7 @@ pub mod tests {
         let _pf3 = txn.parquet_files().create(p3).await.unwrap();
         txn.commit().await.unwrap();
         //
-        // Still return 2 candidates
+        // Return 2 candidates
         let candidates = compactor
             .partitions_to_compact(compaction_type, vec![hour_threshold], max_num_partitions)
             .await
@@ -1208,5 +1189,15 @@ pub mod tests {
         assert_eq!(candidates[3].candidate.partition_id, partition4.id);
         assert_eq!(candidates[4].candidate.partition_id, partition5.id);
         assert_eq!(candidates[5].candidate.partition_id, another_partition.id);
+
+        // --------------------------------------
+        // Test limit of number of partitions to compact
+        let candidates = compactor
+            .partitions_to_compact(compaction_type, vec![hour_threshold], 3)
+            .await
+            .unwrap();
+        // Since we do not prioritize partitions (for now), only need to check the number of candidates
+        // We are testing and the goal is to keep this limit high and do not have to think about prioritization
+        assert_eq!(candidates.len(), 3);
     }
 }
