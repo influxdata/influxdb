@@ -34,6 +34,7 @@ use crate::{
         BufferTree,
     },
     ingest_state::IngestState,
+    ingester_id::IngesterId,
     persist::{handle::PersistHandle, hot_partitions::HotPartitionPersister},
     server::grpc::GrpcDelegate,
     timestamp_oracle::TimestampOracle,
@@ -227,6 +228,9 @@ where
         .expect("create transition shard");
     txn.commit().await.expect("commit transition shard");
 
+    // Initialise a random ID for this ingester instance.
+    let ingester_id = IngesterId::new();
+
     // Initialise the deferred namespace name resolver.
     let namespace_name_provider: Arc<dyn NamespaceNameProvider> =
         Arc::new(NamespaceNameResolver::new(
@@ -353,6 +357,7 @@ where
             Arc::clone(&buffer),
             timestamp,
             ingest_state,
+            ingester_id,
             catalog,
             metrics,
             buffer,

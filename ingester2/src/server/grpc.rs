@@ -19,6 +19,7 @@ use service_grpc_catalog::CatalogService;
 use crate::{
     dml_sink::DmlSink,
     ingest_state::IngestState,
+    ingester_id::IngesterId,
     init::IngesterRpcInterface,
     partition_iter::PartitionIter,
     persist::queue::PersistQueue,
@@ -39,6 +40,7 @@ pub(crate) struct GrpcDelegate<D, Q, T, P> {
     query_exec: Arc<Q>,
     timestamp: Arc<TimestampOracle>,
     ingest_state: Arc<IngestState>,
+    ingester_id: IngesterId,
     catalog: Arc<dyn Catalog>,
     metrics: Arc<metric::Registry>,
     buffer: Arc<T>,
@@ -59,6 +61,7 @@ where
         query_exec: Arc<Q>,
         timestamp: Arc<TimestampOracle>,
         ingest_state: Arc<IngestState>,
+        ingester_id: IngesterId,
         catalog: Arc<dyn Catalog>,
         metrics: Arc<metric::Registry>,
         buffer: Arc<T>,
@@ -69,6 +72,7 @@ where
             query_exec,
             timestamp,
             ingest_state,
+            ingester_id,
             catalog,
             metrics,
             buffer,
@@ -128,6 +132,7 @@ where
     ) -> FlightServiceServer<Self::FlightHandler> {
         FlightServiceServer::new(query::FlightService::new(
             Arc::clone(&self.query_exec),
+            self.ingester_id,
             max_simultaneous_requests,
             &self.metrics,
         ))

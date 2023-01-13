@@ -23,9 +23,11 @@ use thiserror::Error;
 use tokio::sync::{Semaphore, TryAcquireError};
 use tonic::{Request, Response, Streaming};
 use trace::{ctx::SpanContext, span::SpanExt};
-use uuid::Uuid;
 
-use crate::query::{response::QueryResponse, QueryError, QueryExec};
+use crate::{
+    ingester_id::IngesterId,
+    query::{response::QueryResponse, QueryError, QueryExec},
+};
 
 /// Error states for the query RPC handler.
 ///
@@ -111,12 +113,13 @@ pub(crate) struct FlightService<Q> {
     /// permit.
     query_request_limit_rejected: U64Counter,
 
-    ingester_uuid: Uuid,
+    ingester_id: IngesterId,
 }
 
 impl<Q> FlightService<Q> {
     pub(super) fn new(
         query_handler: Q,
+        ingester_id: IngesterId,
         max_simultaneous_requests: usize,
         metrics: &metric::Registry,
     ) -> Self {
@@ -131,7 +134,7 @@ impl<Q> FlightService<Q> {
             query_handler,
             request_sem: Semaphore::new(max_simultaneous_requests),
             query_request_limit_rejected,
-            ingester_uuid: Uuid::new_v4(),
+            ingester_id,
         }
     }
 }
@@ -205,7 +208,7 @@ where
 
         let output = FlightFrameCodec::new(
             FlatIngesterQueryResponseStream::from(response),
-            self.ingester_uuid,
+            self.ingester_id,
         );
 
         Ok(Response::new(Box::pin(output) as Self::DoGetStream))
@@ -379,16 +382,16 @@ struct FlightFrameCodec {
     inner: Pin<Box<dyn Stream<Item = Result<FlatIngesterQueryResponse, ArrowError>> + Send>>,
     done: bool,
     buffer: Vec<FlightData>,
-    ingester_uuid: Uuid,
+    ingester_id: IngesterId,
 }
 
 impl FlightFrameCodec {
-    fn new(inner: FlatIngesterQueryResponseStream, ingester_uuid: Uuid) -> Self {
+    fn new(inner: FlatIngesterQueryResponseStream, ingester_id: IngesterId) -> Self {
         Self {
             inner,
             done: false,
             buffer: vec![],
-            ingester_uuid,
+            ingester_id,
         }
     }
 }
@@ -432,7 +435,7 @@ impl Stream for FlightFrameCodec {
                         status: Some(proto::PartitionStatus {
                             parquet_max_sequence_number: status.parquet_max_sequence_number,
                         }),
-                        ingester_uuid: this.ingester_uuid.to_string(),
+                        ingester_uuid: this.ingester_id.to_string(),
                         completed_persistence_count,
                     };
                     prost::Message::encode(&app_metadata, &mut bytes).map_err(Error::from)?;
@@ -494,7 +497,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_stream_empty() {
-        assert_get_stream(Uuid::new_v4(), vec![], vec![]).await;
+        assert_get_stream(IngesterId::new(), vec![], vec![]).await;
     }
 
     #[tokio::test]
@@ -504,10 +507,10 @@ mod tests {
             .to_arrow(Projection::All)
             .unwrap();
         let schema = batch.schema();
-        let ingester_uuid = Uuid::new_v4();
+        let ingester_id = IngesterId::new();
 
         assert_get_stream(
-            ingester_uuid,
+            ingester_id,
             vec![
                 Ok(FlatIngesterQueryResponse::StartPartition {
                     partition_id: PartitionId::new(1),
@@ -528,7 +531,7 @@ mod tests {
                             parquet_max_sequence_number: None,
                         }),
                         completed_persistence_count: 0,
-                        ingester_uuid: ingester_uuid.to_string(),
+                        ingester_uuid: ingester_id.to_string(),
                     },
                 }),
                 Ok(DecodedFlightData {
@@ -546,9 +549,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_stream_shortcuts_err() {
-        let ingester_uuid = Uuid::new_v4();
+        let ingester_id = IngesterId::new();
         assert_get_stream(
-            ingester_uuid,
+            ingester_id,
             vec![
                 Ok(FlatIngesterQueryResponse::StartPartition {
                     partition_id: PartitionId::new(1),
@@ -575,7 +578,7 @@ mod tests {
                             parquet_max_sequence_number: None,
                         }),
                         completed_persistence_count: 0,
-                        ingester_uuid: ingester_uuid.to_string(),
+                        ingester_uuid: ingester_id.to_string(),
                     },
                 }),
                 Err(tonic::Code::Internal),
@@ -592,7 +595,7 @@ mod tests {
             .unwrap();
 
         assert_get_stream(
-            Uuid::new_v4(),
+            IngesterId::new(),
             vec![Ok(FlatIngesterQueryResponse::RecordBatch { batch })],
             vec![
                 Ok(DecodedFlightData {
@@ -618,12 +621,12 @@ mod tests {
     }
 
     async fn assert_get_stream(
-        ingester_uuid: Uuid,
+        ingester_id: IngesterId,
         inputs: Vec<Result<FlatIngesterQueryResponse, ArrowError>>,
         expected: Vec<Result<DecodedFlightData, tonic::Code>>,
     ) {
         let inner = Box::pin(futures::stream::iter(inputs));
-        let stream = FlightFrameCodec::new(inner, ingester_uuid);
+        let stream = FlightFrameCodec::new(inner, ingester_id);
         let actual: Vec<_> = stream.collect().await;
         assert_eq!(actual.len(), expected.len());
 
@@ -650,8 +653,12 @@ mod tests {
 
     #[tokio::test]
     async fn limits_concurrent_queries() {
-        let mut flight =
-            FlightService::new(MockQueryExec::default(), 100, &metric::Registry::default());
+        let mut flight = FlightService::new(
+            MockQueryExec::default(),
+            IngesterId::new(),
+            100,
+            &metric::Registry::default(),
+        );
 
         let req = tonic::Request::new(Ticket { ticket: vec![] });
         match flight.do_get(req).await {
