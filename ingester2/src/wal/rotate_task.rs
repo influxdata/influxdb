@@ -18,6 +18,10 @@ pub(crate) async fn periodic_rotation<T, P>(
 {
     let mut interval = tokio::time::interval(period);
 
+    // The first tick completes immediately. We want to wait one interval before rotating the wal
+    // and persisting for the first time, so tick once outside the loop first.
+    interval.tick().await;
+
     loop {
         interval.tick().await;
         info!("rotating wal file");
