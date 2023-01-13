@@ -231,7 +231,7 @@ where
 mod tests {
     use std::{sync::Arc, time::Duration};
 
-    use data_types::{PartitionId, PartitionKey, ShardId, ShardIndex};
+    use data_types::{PartitionId, PartitionKey, ShardId};
     use metric::{Attributes, Metric};
 
     use super::*;
@@ -246,7 +246,6 @@ mod tests {
         test_util::make_write_op,
     };
 
-    const SHARD_INDEX: ShardIndex = ShardIndex::new(24);
     const TABLE_NAME: &str = "bananas";
     const TABLE_ID: TableId = TableId::new(44);
     const NAMESPACE_NAME: &str = "platanos";

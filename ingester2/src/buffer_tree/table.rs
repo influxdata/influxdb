@@ -5,10 +5,10 @@ pub(crate) mod name_resolver;
 use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{NamespaceId, PartitionId, PartitionKey, SequenceNumber, ShardId, TableId};
+use data_types::{NamespaceId, PartitionKey, SequenceNumber, ShardId, TableId};
 use datafusion_util::MemoryStream;
 use mutable_batch::MutableBatch;
-use parking_lot::{Mutex, RwLock};
+use parking_lot::Mutex;
 use schema::Projection;
 use trace::span::{Span, SpanRecorder};
 
@@ -24,38 +24,6 @@ use crate::{
         partition_response::PartitionResponse, response::PartitionStream, QueryError, QueryExec,
     },
 };
-
-/// A double-referenced map where [`PartitionData`] can be looked up by
-/// [`PartitionKey`], or ID.
-#[derive(Debug, Default)]
-struct DoubleRef {
-    by_key: ArcMap<PartitionKey, Mutex<PartitionData>>,
-    by_id: ArcMap<PartitionId, Mutex<PartitionData>>,
-}
-
-impl DoubleRef {
-    /// Try to insert the provided [`PartitionData`].
-    ///
-    /// Note that the partition MAY have been inserted concurrently, and the
-    /// returned [`PartitionData`] MAY be a different instance for the same
-    /// underlying partition.
-    fn try_insert(&mut self, ns: PartitionData) -> Arc<Mutex<PartitionData>> {
-        let id = ns.partition_id();
-        let key = ns.partition_key().clone();
-
-        let ns = Arc::new(Mutex::new(ns));
-        self.by_key.get_or_insert_with(&key, || Arc::clone(&ns));
-        self.by_id.get_or_insert_with(&id, || ns)
-    }
-
-    fn by_key(&self, key: &PartitionKey) -> Option<Arc<Mutex<PartitionData>>> {
-        self.by_key.get(key)
-    }
-
-    fn by_id(&self, id: PartitionId) -> Option<Arc<Mutex<PartitionData>>> {
-        self.by_id.get(&id)
-    }
-}
 
 /// The string name / identifier of a Table.
 ///
@@ -113,7 +81,7 @@ pub(crate) struct TableData<O> {
     partition_provider: Arc<dyn PartitionProvider>,
 
     // Map of partition key to its data
-    partition_data: RwLock<DoubleRef>,
+    partition_data: ArcMap<PartitionKey, Mutex<PartitionData>>,
 
     post_write_observer: Arc<O>,
     transition_shard_id: ShardId,
@@ -165,20 +133,7 @@ impl<O> TableData<O> {
     /// invoked, but the data within them may change as they continue to buffer
     /// DML operations.
     pub(crate) fn partitions(&self) -> Vec<Arc<Mutex<PartitionData>>> {
-        self.partition_data.read().by_key.values()
-    }
-
-    /// Return the [`PartitionData`] for the specified ID.
-    pub(crate) fn partition(&self, partition_id: PartitionId) -> Option<Arc<Mutex<PartitionData>>> {
-        self.partition_data.read().by_id(partition_id)
-    }
-
-    /// Return the [`PartitionData`] for the specified partition key.
-    pub(crate) fn get_partition_by_key(
-        &self,
-        partition_key: &PartitionKey,
-    ) -> Option<Arc<Mutex<PartitionData>>> {
-        self.partition_data.read().by_key(partition_key)
+        self.partition_data.values()
     }
 
     /// Returns the table ID for this partition.
@@ -209,7 +164,7 @@ where
         batch: MutableBatch,
         partition_key: PartitionKey,
     ) -> Result<(), mutable_batch::Error> {
-        let p = self.partition_data.read().by_key(&partition_key);
+        let p = self.partition_data.get(&partition_key);
         let partition_data = match p {
             Some(p) => p,
             None => {
@@ -224,11 +179,12 @@ where
                         self.transition_shard_id,
                     )
                     .await;
-                // Add the double-referenced partition to the map.
+                // Add the partition to the map.
                 //
                 // This MAY return a different instance than `p` if another
                 // thread has already initialised the partition.
-                self.partition_data.write().try_insert(p)
+                self.partition_data
+                    .get_or_insert_with(&partition_key, || Arc::new(Mutex::new(p)))
             }
         };
 
@@ -328,7 +284,7 @@ mod tests {
     const TRANSITION_SHARD_ID: ShardId = ShardId::new(84);
 
     #[tokio::test]
-    async fn test_partition_double_ref() {
+    async fn test_partition_init() {
         // Configure the mock partition provider to return a partition for this
         // table ID.
         let partition_provider = Arc::new(MockPartitionProvider::default().with_partition(
@@ -368,12 +324,7 @@ mod tests {
             .unwrap();
 
         // Assert the table does not contain the test partition
-        assert!(table
-            .partition_data
-            .read()
-            .by_key(&PARTITION_KEY.into())
-            .is_none());
-        assert!(table.partition_data.read().by_id(PARTITION_ID).is_none());
+        assert!(table.partition_data.get(&PARTITION_KEY.into()).is_none());
 
         // Write some test data
         table
@@ -382,11 +333,6 @@ mod tests {
             .expect("buffer op should succeed");
 
         // Referencing the partition should succeed
-        assert!(table
-            .partition_data
-            .read()
-            .by_key(&PARTITION_KEY.into())
-            .is_some());
-        assert!(table.partition_data.read().by_id(PARTITION_ID).is_some());
+        assert!(table.partition_data.get(&PARTITION_KEY.into()).is_some());
     }
 }
