@@ -31,7 +31,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
 	"github.com/peterh/liner"
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 )
 
 // ErrBlankCommand is returned when a parsed command is empty.
@@ -81,7 +81,7 @@ func New(version string) *CommandLine {
 
 // Run executes the CLI.
 func (c *CommandLine) Run() error {
-	hasTTY := c.ForceTTY || terminal.IsTerminal(int(os.Stdin.Fd()))
+	hasTTY := c.ForceTTY || term.IsTerminal(int(os.Stdin.Fd()))
 
 	var promptForPassword bool
 	// determine if they set the password flag but provided no value
