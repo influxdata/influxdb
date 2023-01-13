@@ -95,18 +95,19 @@ pub use init::*;
 // through its public API only, and not by poking around at the internals.
 //
 
-mod arcmap;
 maybe_pub!(mod buffer_tree);
-mod deferred_load;
 maybe_pub!(mod dml_sink);
 maybe_pub!(mod persist);
 maybe_pub!(mod partition_iter);
+maybe_pub!(mod wal);
+mod arcmap;
+mod deferred_load;
 mod ingest_state;
+mod ingester_id;
 mod query;
 mod query_adaptor;
 pub(crate) mod server;
 mod timestamp_oracle;
-maybe_pub!(mod wal);
 
 #[cfg(test)]
 mod test_util;
