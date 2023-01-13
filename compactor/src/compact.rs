@@ -308,8 +308,6 @@ impl Compactor {
             partition_candidate_hours_thresholds,
         );
 
-        let attributes = Attributes::from([("partition_type", compaction_type.to_string().into())]);
-
         let candidates = Self::partition_candidates(
             Arc::clone(&self.catalog),
             &threshold_times,
@@ -319,10 +317,7 @@ impl Compactor {
         .await?;
         let num_partitions = candidates.len();
 
-        // Record metric for candidates
         debug!(n = num_partitions, %compaction_type, "compaction candidates",);
-        let number_gauge = self.compaction_candidate_gauge.recorder(attributes);
-        number_gauge.set(num_partitions as u64);
 
         // Get extra needed information for selected partitions
         let start_time = self.time_provider.now();

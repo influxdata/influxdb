@@ -33,7 +33,7 @@ use crate::{
     parquet_file_lookup::ParquetFilesForCompaction,
 };
 use data_types::{CompactionLevel, PartitionId};
-use metric::Attributes;
+use metric::{Attributes, Metric, U64Gauge};
 use observability_deps::tracing::*;
 use parquet_file_lookup::CompactionType;
 use snafu::{ResultExt, Snafu};
@@ -67,6 +67,9 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
     let mut parallel_compacting_candidates = Vec::with_capacity(candidates.len());
     let mut num_remaining_candidates = candidates.len();
     let mut count = 0;
+
+    let mut candidate_counts = CandidateCounts::new();
+    candidate_counts.count_total_candidates = candidates.len() as u64;
 
     while !candidates.is_empty() {
         // Algorithm:
@@ -112,6 +115,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                     %compaction_type,
                     "failed due to error in reading parquet files"
                 );
+                candidate_counts.count_read_hiccup_candidates += 1;
                 None
             }
             Ok(Some(parquet_files_for_compaction)) => {
@@ -151,6 +155,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                     &compactor.parquet_file_candidate_gauge,
                     &compactor.parquet_file_candidate_bytes,
                 );
+                candidate_counts.count_qualified_canddiates += 1;
                 Some(to_compact)
             }
             Ok(None) => {
@@ -204,6 +209,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                         compactor.config.memory_budget_bytes,
                     )
                     .await;
+                    candidate_counts.count_over_file_limit_candidates += 1;
                 }
                 FilterResult::OverBudget {
                     budget_bytes: needed_bytes,
@@ -239,6 +245,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                             compactor.config.memory_budget_bytes,
                         )
                         .await;
+                        candidate_counts.count_over_budget_candidates += 1;
                     }
                 }
                 FilterResult::Proceed {
@@ -251,6 +258,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                         partition,
                         target_level,
                     });
+                    candidate_counts.count_compacted_candidates += 1;
                 }
             }
         }
@@ -273,7 +281,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                     compactor.config.memory_budget_bytes - remaining_budget_bytes,
                 config_max_parallel_partitions = compactor.config.max_parallel_partitions,
                 %compaction_type,
-                "parallel compacting candidate"
+                "parallel compacting candidates"
             );
             compact_function(
                 Arc::clone(&compactor),
@@ -290,6 +298,67 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
             count = 0;
         }
     }
+
+    record_partition_metrics(
+        &compactor.compaction_candidate_gauge,
+        compaction_type,
+        candidate_counts,
+    );
+}
+
+struct CandidateCounts {
+    pub count_total_candidates: u64,
+    pub count_read_hiccup_candidates: u64,
+    pub count_qualified_canddiates: u64,
+    pub count_compacted_candidates: u64,
+    pub count_over_budget_candidates: u64,
+    pub count_over_file_limit_candidates: u64,
+}
+
+impl CandidateCounts {
+    fn new() -> Self {
+        Self {
+            count_total_candidates: 0,
+            count_read_hiccup_candidates: 0,
+            count_qualified_canddiates: 0,
+            count_compacted_candidates: 0,
+            count_over_budget_candidates: 0,
+            count_over_file_limit_candidates: 0,
+        }
+    }
+}
+
+fn record_partition_metrics(
+    gauge: &Metric<U64Gauge>,
+    compaction_type: CompactionType,
+    candidate_counts: CandidateCounts,
+) {
+    let mut attributes =
+        Attributes::from([("compaction_type", compaction_type.to_string().into())]);
+
+    attributes.insert("status", "total_candidates");
+    let recorder = gauge.recorder(attributes.clone());
+    recorder.set(candidate_counts.count_total_candidates);
+
+    attributes.insert("status", "read_hiccup_candidates");
+    let recorder = gauge.recorder(attributes.clone());
+    recorder.set(candidate_counts.count_read_hiccup_candidates);
+
+    attributes.insert("status", "qualified_candidates");
+    let recorder = gauge.recorder(attributes.clone());
+    recorder.set(candidate_counts.count_qualified_canddiates);
+
+    attributes.insert("status", "compacted_candidates");
+    let recorder = gauge.recorder(attributes.clone());
+    recorder.set(candidate_counts.count_compacted_candidates);
+
+    attributes.insert("status", "over_budget_candidates");
+    let recorder = gauge.recorder(attributes.clone());
+    recorder.set(candidate_counts.count_over_budget_candidates);
+
+    attributes.insert("status", "over_file_limit_candidates");
+    let recorder = gauge.recorder(attributes);
+    recorder.set(candidate_counts.count_over_file_limit_candidates);
 }
 
 #[allow(clippy::too_many_arguments)]
