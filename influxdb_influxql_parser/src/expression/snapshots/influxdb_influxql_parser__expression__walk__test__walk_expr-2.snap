@@ -1,0 +1,7 @@
+---
+source: influxdb_influxql_parser/src/expression/walk.rs
+expression: "walk_expr(\"now() + 1h\")"
+---
+0: Call { name: "now", args: [] }
+1: Literal(Duration(Duration(3600000000000)))
+2: Binary { lhs: Call { name: "now", args: [] }, op: Add, rhs: Literal(Duration(Duration(3600000000000))) }

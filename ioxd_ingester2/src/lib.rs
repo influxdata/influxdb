@@ -91,6 +91,7 @@ impl<I: IngesterRpcInterface + Sync + Send + Debug + 'static> ServerType for Ing
 
         add_service!(builder, self.server.rpc().catalog_service());
         add_service!(builder, self.server.rpc().write_service());
+        add_service!(builder, self.server.rpc().persist_service());
         add_service!(
             builder,
             self.server

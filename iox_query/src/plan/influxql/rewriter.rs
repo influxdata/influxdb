@@ -5,6 +5,7 @@ use crate::plan::influxql::field::field_name;
 use crate::plan::influxql::field_mapper::{field_and_dimensions, FieldTypeMap, TagSet};
 use datafusion::common::{DataFusionError, Result};
 use influxdb_influxql_parser::common::{MeasurementName, QualifiedMeasurementName};
+use influxdb_influxql_parser::expression::walk::{walk_expr, walk_expr_mut};
 use influxdb_influxql_parser::expression::{Expr, VarRefDataType, WildcardType};
 use influxdb_influxql_parser::identifier::Identifier;
 use influxdb_influxql_parser::literal::Literal;
@@ -19,7 +20,7 @@ use predicate::rpc_predicate::QueryNamespaceMeta;
 use query_functions::clean_non_meta_escapes;
 use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
-use std::ops::Deref;
+use std::ops::{ControlFlow, Deref};
 
 fn parse_regex(re: &Regex) -> Result<regex::Regex> {
     let pattern = clean_non_meta_escapes(re.as_str());
@@ -184,50 +185,6 @@ fn has_wildcards(stmt: &SelectStatement) -> (bool, bool) {
     (res.0, res.1)
 }
 
-/// Perform a depth-first traversal of the expression tree.
-fn walk_expr_mut(expr: &mut Expr, visit: &mut impl FnMut(&mut Expr) -> Result<()>) -> Result<()> {
-    match expr {
-        Expr::Binary { lhs, rhs, .. } => {
-            walk_expr_mut(lhs, visit)?;
-            walk_expr_mut(rhs, visit)?;
-        }
-        Expr::UnaryOp(_, expr) => walk_expr_mut(expr, visit)?,
-        Expr::Nested(expr) => walk_expr_mut(expr, visit)?,
-        Expr::Call { args, .. } => {
-            args.iter_mut().try_for_each(|n| walk_expr_mut(n, visit))?;
-        }
-        Expr::VarRef { .. }
-        | Expr::BindParameter(_)
-        | Expr::Literal(_)
-        | Expr::Wildcard(_)
-        | Expr::Distinct(_) => {}
-    }
-
-    visit(expr)
-}
-
-/// Perform a depth-first traversal of the expression tree.
-pub(crate) fn walk_expr(expr: &Expr, visit: &mut impl FnMut(&Expr) -> Result<()>) -> Result<()> {
-    match expr {
-        Expr::Binary { lhs, rhs, .. } => {
-            walk_expr(lhs, visit)?;
-            walk_expr(rhs, visit)?;
-        }
-        Expr::UnaryOp(_, expr) => walk_expr(expr, visit)?,
-        Expr::Nested(expr) => walk_expr(expr, visit)?,
-        Expr::Call { args, .. } => {
-            args.iter().try_for_each(|n| walk_expr(n, visit))?;
-        }
-        Expr::VarRef { .. }
-        | Expr::BindParameter(_)
-        | Expr::Literal(_)
-        | Expr::Wildcard(_)
-        | Expr::Distinct(_) => {}
-    }
-
-    visit(expr)
-}
-
 /// Rewrite the projection list and GROUP BY of the specified `SELECT` statement.
 ///
 /// Wildcards and regular expressions in the `SELECT` projection list and `GROUP BY` are expanded.
@@ -248,18 +205,23 @@ fn rewrite_field_list(
 
     // Attempt to rewrite all variable references in the fields with their types, if one
     // hasn't been specified.
-    stmt.fields.iter_mut().try_for_each(|f| {
-        walk_expr_mut(&mut f.expr, &mut |e| {
+    if let ControlFlow::Break(e) = stmt.fields.iter_mut().try_for_each(|f| {
+        walk_expr_mut::<DataFusionError>(&mut f.expr, &mut |e| {
             if matches!(e, Expr::VarRef { .. }) {
-                let new_type = evaluate_type(namespace, e.borrow(), &stmt.from)?;
+                let new_type = match evaluate_type(namespace, e.borrow(), &stmt.from) {
+                    Err(e) => ControlFlow::Break(e)?,
+                    Ok(v) => v,
+                };
 
                 if let Expr::VarRef { data_type, .. } = e {
                     *data_type = new_type;
                 }
             }
-            Ok(())
+            ControlFlow::Continue(())
         })
-    })?;
+    }) {
+        return Err(e);
+    }
 
     let (has_field_wildcard, has_group_by_wildcard) = has_wildcards(stmt);
     if (has_field_wildcard, has_group_by_wildcard) == (false, false) {
@@ -421,17 +383,16 @@ fn rewrite_field_list(
                 }
 
                 Expr::Binary { .. } => {
-                    let mut has_wildcard = false;
-
-                    walk_expr(&f.expr, &mut |e| {
+                    let has_wildcard = walk_expr(&f.expr, &mut |e| {
                         match e {
                             Expr::Wildcard(_) | Expr::Literal(Literal::Regex(_)) => {
-                                has_wildcard = true
+                                return ControlFlow::Break(())
                             }
                             _ => {}
                         }
-                        Ok(())
-                    })?;
+                        ControlFlow::Continue(())
+                    })
+                    .is_break();
 
                     if has_wildcard {
                         return Err(DataFusionError::External(
@@ -539,10 +500,8 @@ pub(crate) fn rewrite_statement(
 
 #[cfg(test)]
 mod test {
-    use crate::plan::influxql::rewriter::{has_wildcards, rewrite_statement, walk_expr_mut};
-    use crate::plan::influxql::test_utils::{get_first_field, MockNamespace};
-    use influxdb_influxql_parser::expression::Expr;
-    use influxdb_influxql_parser::literal::Literal;
+    use crate::plan::influxql::rewriter::{has_wildcards, rewrite_statement};
+    use crate::plan::influxql::test_utils::MockNamespace;
     use influxdb_influxql_parser::parse_statements;
     use influxdb_influxql_parser::select::SelectStatement;
     use influxdb_influxql_parser::statement::Statement;
@@ -850,60 +809,5 @@ mod test {
         let res = has_wildcards(&sel);
         assert!(!res.0);
         assert!(!res.1);
-    }
-
-    #[test]
-    fn test_walk_expr() {
-        fn walk_expr(s: &str) -> String {
-            let expr = get_first_field(format!("SELECT {} FROM f", s).as_str()).expr;
-            let mut calls = Vec::new();
-            let mut call_no = 0;
-            super::walk_expr(&expr, &mut |n| {
-                calls.push(format!("{}: {}", call_no, n));
-                call_no += 1;
-                Ok(())
-            })
-            .unwrap();
-            calls.join("\n")
-        }
-
-        insta::assert_display_snapshot!(walk_expr("5 + 6"));
-        insta::assert_display_snapshot!(walk_expr("count(5, foo + 7)"));
-        insta::assert_display_snapshot!(walk_expr("count(5, foo + 7) + sum(bar)"));
-    }
-
-    #[test]
-    fn test_walk_expr_mut() {
-        fn walk_expr_mut(s: &str) -> String {
-            let mut expr = get_first_field(format!("SELECT {} FROM f", s).as_str()).expr;
-            let mut calls = Vec::new();
-            let mut call_no = 0;
-            super::walk_expr_mut(&mut expr, &mut |n| {
-                calls.push(format!("{}: {}", call_no, n));
-                call_no += 1;
-                Ok(())
-            })
-            .unwrap();
-            calls.join("\n")
-        }
-
-        insta::assert_display_snapshot!(walk_expr_mut("5 + 6"));
-        insta::assert_display_snapshot!(walk_expr_mut("count(5, foo + 7)"));
-        insta::assert_display_snapshot!(walk_expr_mut("count(5, foo + 7) + sum(bar)"));
-    }
-
-    #[test]
-    fn test_walk_expr_mut_modify() {
-        let mut expr = get_first_field("SELECT foo + bar + 5 FROM f").expr;
-        walk_expr_mut(&mut expr, &mut |e| {
-            match e {
-                Expr::VarRef { name, .. } => *name = format!("c_{}", name).into(),
-                Expr::Literal(Literal::Unsigned(v)) => *v *= 10,
-                _ => {}
-            }
-            Ok(())
-        })
-        .unwrap();
-        assert_eq!(format!("{}", expr), "c_foo + c_bar + 50")
     }
 }

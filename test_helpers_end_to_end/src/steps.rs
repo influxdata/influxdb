@@ -161,6 +161,9 @@ pub enum Step {
     /// files from the value this step recorded.
     RecordNumParquetFiles,
 
+    /// Ask the ingester to persist immediately through the persist service gRPC API
+    Persist,
+
     /// Wait for all previously written data to be persisted by observing an increase in the number
     /// of Parquet files in the catalog as specified for this cluster's namespace. Needed for
     /// router2/ingester2/querier2.
@@ -281,6 +284,10 @@ impl<'a> StepTest<'a> {
                 // starting a new write so we can observe a change when waiting for persistence.
                 Step::RecordNumParquetFiles => {
                     state.record_num_parquet_files().await;
+                }
+                // Ask the ingester to persist immediately through the persist service gRPC API
+                Step::Persist => {
+                    state.cluster().persist_ingester().await;
                 }
                 Step::WaitForPersisted2 { expected_increase } => {
                     info!("====Begin waiting for a change in the number of Parquet files");
