@@ -3,14 +3,16 @@
 //! # Example
 //!
 //! ```
-//! use influxdb_influxql_parser::visit_mut::{VisitableMut, VisitorMut, VisitorResult};
+//! use influxdb_influxql_parser::visit_mut::{VisitableMut, VisitorMut};
 //! use influxdb_influxql_parser::parse_statements;
 //! use influxdb_influxql_parser::common::WhereClause;
 //!
 //! struct MyVisitor;
 //!
 //! impl VisitorMut for MyVisitor {
-//!     fn post_visit_where_clause(&mut self, n: &mut WhereClause) -> VisitorResult<()> {
+//!     type Error = ();
+//!
+//!     fn post_visit_where_clause(&mut self, n: &mut WhereClause) -> Result<(), Self::Error> {
 //!         println!("{}", n);
 //!         Ok(())
 //!     }
@@ -47,9 +49,6 @@ use crate::show_tag_values::{ShowTagValuesStatement, WithKeyClause};
 use crate::simple_from_clause::{DeleteFromClause, ShowFromClause};
 use crate::statement::Statement;
 
-/// The result type for a [`VisitorMut`].
-pub type VisitorResult<T, E = &'static str> = Result<T, E>;
-
 /// Controls how the visitor recursion should proceed.
 #[derive(Clone, Copy)]
 pub enum Recursion {
@@ -64,13 +63,16 @@ pub enum Recursion {
 /// any [`VisitableMut::accept`], `pre_visit` functions are invoked repeatedly
 /// until a leaf node is reached or a `pre_visit` function returns [`Recursion::Stop`].
 pub trait VisitorMut: Sized {
+    /// The type returned in the event of an error traversing the tree.
+    type Error;
+
     /// Invoked before any children of the InfluxQL statement are visited.
-    fn pre_visit_statement(&mut self, _n: &mut Statement) -> VisitorResult<Recursion> {
+    fn pre_visit_statement(&mut self, _n: &mut Statement) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
     /// Invoked after all children of the InfluxQL statement are visited.
-    fn post_visit_statement(&mut self, _n: &mut Statement) -> VisitorResult<()> {
+    fn post_visit_statement(&mut self, _n: &mut Statement) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -78,7 +80,7 @@ pub trait VisitorMut: Sized {
     fn pre_visit_create_database_statement(
         &mut self,
         _n: &mut CreateDatabaseStatement,
-    ) -> VisitorResult<Recursion> {
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
@@ -87,17 +89,20 @@ pub trait VisitorMut: Sized {
     fn post_visit_create_database_statement(
         &mut self,
         _n: &mut CreateDatabaseStatement,
-    ) -> VisitorResult<()> {
+    ) -> Result<(), Self::Error> {
         Ok(())
     }
 
     /// Invoked before any children of the `DELETE` statement are visited.
-    fn pre_visit_delete_statement(&mut self, _n: &mut DeleteStatement) -> VisitorResult<Recursion> {
+    fn pre_visit_delete_statement(
+        &mut self,
+        _n: &mut DeleteStatement,
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
     /// Invoked after all children of the `DELETE` statement are visited.
-    fn post_visit_delete_statement(&mut self, _n: &mut DeleteStatement) -> VisitorResult<()> {
+    fn post_visit_delete_statement(&mut self, _n: &mut DeleteStatement) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -105,22 +110,28 @@ pub trait VisitorMut: Sized {
     fn pre_visit_delete_from_clause(
         &mut self,
         _n: &mut DeleteFromClause,
-    ) -> VisitorResult<Recursion> {
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
     /// Invoked after all children of the `FROM` clause of a `DELETE` statement are visited.
-    fn post_visit_delete_from_clause(&mut self, _n: &mut DeleteFromClause) -> VisitorResult<()> {
+    fn post_visit_delete_from_clause(
+        &mut self,
+        _n: &mut DeleteFromClause,
+    ) -> Result<(), Self::Error> {
         Ok(())
     }
 
     /// Invoked before any children of the measurement name are visited.
-    fn pre_visit_measurement_name(&mut self, _n: &mut MeasurementName) -> VisitorResult<Recursion> {
+    fn pre_visit_measurement_name(
+        &mut self,
+        _n: &mut MeasurementName,
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
     /// Invoked after all children of the measurement name are visited.
-    fn post_visit_measurement_name(&mut self, _n: &mut MeasurementName) -> VisitorResult<()> {
+    fn post_visit_measurement_name(&mut self, _n: &mut MeasurementName) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -128,7 +139,7 @@ pub trait VisitorMut: Sized {
     fn pre_visit_drop_measurement_statement(
         &mut self,
         _n: &mut DropMeasurementStatement,
-    ) -> VisitorResult<Recursion> {
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
@@ -136,7 +147,7 @@ pub trait VisitorMut: Sized {
     fn post_visit_drop_measurement_statement(
         &mut self,
         _n: &mut DropMeasurementStatement,
-    ) -> VisitorResult<()> {
+    ) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -144,22 +155,28 @@ pub trait VisitorMut: Sized {
     fn pre_visit_explain_statement(
         &mut self,
         _n: &mut ExplainStatement,
-    ) -> VisitorResult<Recursion> {
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
     /// Invoked after all children of the `EXPLAIN` statement are visited.
-    fn post_visit_explain_statement(&mut self, _n: &mut ExplainStatement) -> VisitorResult<()> {
+    fn post_visit_explain_statement(
+        &mut self,
+        _n: &mut ExplainStatement,
+    ) -> Result<(), Self::Error> {
         Ok(())
     }
 
     /// Invoked before any children of the `SELECT` statement are visited.
-    fn pre_visit_select_statement(&mut self, _n: &mut SelectStatement) -> VisitorResult<Recursion> {
+    fn pre_visit_select_statement(
+        &mut self,
+        _n: &mut SelectStatement,
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
     /// Invoked after all children of the `SELECT` statement are visited.
-    fn post_visit_select_statement(&mut self, _n: &mut SelectStatement) -> VisitorResult<()> {
+    fn post_visit_select_statement(&mut self, _n: &mut SelectStatement) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -167,7 +184,7 @@ pub trait VisitorMut: Sized {
     fn pre_visit_show_databases_statement(
         &mut self,
         _n: &mut ShowDatabasesStatement,
-    ) -> VisitorResult<Recursion> {
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
@@ -175,7 +192,7 @@ pub trait VisitorMut: Sized {
     fn post_visit_show_databases_statement(
         &mut self,
         _n: &mut ShowDatabasesStatement,
-    ) -> VisitorResult<()> {
+    ) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -183,7 +200,7 @@ pub trait VisitorMut: Sized {
     fn pre_visit_show_measurements_statement(
         &mut self,
         _n: &mut ShowMeasurementsStatement,
-    ) -> VisitorResult<Recursion> {
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
@@ -191,7 +208,7 @@ pub trait VisitorMut: Sized {
     fn post_visit_show_measurements_statement(
         &mut self,
         _n: &mut ShowMeasurementsStatement,
-    ) -> VisitorResult<()> {
+    ) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -199,7 +216,7 @@ pub trait VisitorMut: Sized {
     fn pre_visit_show_retention_policies_statement(
         &mut self,
         _n: &mut ShowRetentionPoliciesStatement,
-    ) -> VisitorResult<Recursion> {
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
@@ -207,7 +224,7 @@ pub trait VisitorMut: Sized {
     fn post_visit_show_retention_policies_statement(
         &mut self,
         _n: &mut ShowRetentionPoliciesStatement,
-    ) -> VisitorResult<()> {
+    ) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -215,7 +232,7 @@ pub trait VisitorMut: Sized {
     fn pre_visit_show_tag_keys_statement(
         &mut self,
         _n: &mut ShowTagKeysStatement,
-    ) -> VisitorResult<Recursion> {
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
@@ -223,7 +240,7 @@ pub trait VisitorMut: Sized {
     fn post_visit_show_tag_keys_statement(
         &mut self,
         _n: &mut ShowTagKeysStatement,
-    ) -> VisitorResult<()> {
+    ) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -231,7 +248,7 @@ pub trait VisitorMut: Sized {
     fn pre_visit_show_tag_values_statement(
         &mut self,
         _n: &mut ShowTagValuesStatement,
-    ) -> VisitorResult<Recursion> {
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
@@ -239,7 +256,7 @@ pub trait VisitorMut: Sized {
     fn post_visit_show_tag_values_statement(
         &mut self,
         _n: &mut ShowTagValuesStatement,
-    ) -> VisitorResult<()> {
+    ) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -247,7 +264,7 @@ pub trait VisitorMut: Sized {
     fn pre_visit_show_field_keys_statement(
         &mut self,
         _n: &mut ShowFieldKeysStatement,
-    ) -> VisitorResult<Recursion> {
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
@@ -255,7 +272,7 @@ pub trait VisitorMut: Sized {
     fn post_visit_show_field_keys_statement(
         &mut self,
         _n: &mut ShowFieldKeysStatement,
-    ) -> VisitorResult<()> {
+    ) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -263,7 +280,7 @@ pub trait VisitorMut: Sized {
     fn pre_visit_conditional_expression(
         &mut self,
         _n: &mut ConditionalExpression,
-    ) -> VisitorResult<Recursion> {
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
@@ -271,37 +288,40 @@ pub trait VisitorMut: Sized {
     fn post_visit_conditional_expression(
         &mut self,
         _n: &mut ConditionalExpression,
-    ) -> VisitorResult<()> {
+    ) -> Result<(), Self::Error> {
         Ok(())
     }
 
     /// Invoked before any children of the arithmetic expression are visited.
-    fn pre_visit_expr(&mut self, _n: &mut Expr) -> VisitorResult<Recursion> {
+    fn pre_visit_expr(&mut self, _n: &mut Expr) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
     /// Invoked after all children of the arithmetic expression are visited.
-    fn post_visit_expr(&mut self, _n: &mut Expr) -> VisitorResult<()> {
+    fn post_visit_expr(&mut self, _n: &mut Expr) -> Result<(), Self::Error> {
         Ok(())
     }
 
     /// Invoked before any fields of the `SELECT` projection are visited.
-    fn pre_visit_select_field_list(&mut self, _n: &mut FieldList) -> VisitorResult<Recursion> {
+    fn pre_visit_select_field_list(
+        &mut self,
+        _n: &mut FieldList,
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
     /// Invoked after all fields of the `SELECT` projection are visited.
-    fn post_visit_select_field_list(&mut self, _n: &mut FieldList) -> VisitorResult<()> {
+    fn post_visit_select_field_list(&mut self, _n: &mut FieldList) -> Result<(), Self::Error> {
         Ok(())
     }
 
     /// Invoked before any children of the field of a `SELECT` statement are visited.
-    fn pre_visit_select_field(&mut self, _n: &mut Field) -> VisitorResult<Recursion> {
+    fn pre_visit_select_field(&mut self, _n: &mut Field) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
     /// Invoked after all children of the field of a `SELECT` statement are visited.
-    fn post_visit_select_field(&mut self, _n: &mut Field) -> VisitorResult<()> {
+    fn post_visit_select_field(&mut self, _n: &mut Field) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -309,7 +329,7 @@ pub trait VisitorMut: Sized {
     fn pre_visit_select_from_clause(
         &mut self,
         _n: &mut FromMeasurementClause,
-    ) -> VisitorResult<Recursion> {
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
@@ -317,7 +337,7 @@ pub trait VisitorMut: Sized {
     fn post_visit_select_from_clause(
         &mut self,
         _n: &mut FromMeasurementClause,
-    ) -> VisitorResult<()> {
+    ) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -325,7 +345,7 @@ pub trait VisitorMut: Sized {
     fn pre_visit_select_measurement_selection(
         &mut self,
         _n: &mut MeasurementSelection,
-    ) -> VisitorResult<Recursion> {
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
@@ -333,47 +353,53 @@ pub trait VisitorMut: Sized {
     fn post_visit_select_measurement_selection(
         &mut self,
         _n: &mut MeasurementSelection,
-    ) -> VisitorResult<()> {
+    ) -> Result<(), Self::Error> {
         Ok(())
     }
 
     /// Invoked before any children of the `GROUP BY` clause are visited.
-    fn pre_visit_group_by_clause(&mut self, _n: &mut GroupByClause) -> VisitorResult<Recursion> {
+    fn pre_visit_group_by_clause(
+        &mut self,
+        _n: &mut GroupByClause,
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
     /// Invoked after all children of the `GROUP BY` clause are visited.
-    fn post_visit_group_by_clause(&mut self, _n: &mut GroupByClause) -> VisitorResult<()> {
+    fn post_visit_group_by_clause(&mut self, _n: &mut GroupByClause) -> Result<(), Self::Error> {
         Ok(())
     }
 
     /// Invoked before any children of the `GROUP BY` dimension expression are visited.
-    fn pre_visit_select_dimension(&mut self, _n: &mut Dimension) -> VisitorResult<Recursion> {
+    fn pre_visit_select_dimension(&mut self, _n: &mut Dimension) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
     /// Invoked after all children of the `GROUP BY` dimension expression are visited.
-    fn post_visit_select_dimension(&mut self, _n: &mut Dimension) -> VisitorResult<()> {
+    fn post_visit_select_dimension(&mut self, _n: &mut Dimension) -> Result<(), Self::Error> {
         Ok(())
     }
 
     /// Invoked before any children of the `WHERE` clause are visited.
-    fn pre_visit_where_clause(&mut self, _n: &mut WhereClause) -> VisitorResult<Recursion> {
+    fn pre_visit_where_clause(&mut self, _n: &mut WhereClause) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
     /// Invoked after all children of the `WHERE` clause are visited.
-    fn post_visit_where_clause(&mut self, _n: &mut WhereClause) -> VisitorResult<()> {
+    fn post_visit_where_clause(&mut self, _n: &mut WhereClause) -> Result<(), Self::Error> {
         Ok(())
     }
 
     /// Invoked before any children of the `FROM` clause for any `SHOW` statement are visited.
-    fn pre_visit_show_from_clause(&mut self, _n: &mut ShowFromClause) -> VisitorResult<Recursion> {
+    fn pre_visit_show_from_clause(
+        &mut self,
+        _n: &mut ShowFromClause,
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
     /// Invoked after all children of the `FROM` clause for any `SHOW` statement are visited.
-    fn post_visit_show_from_clause(&mut self, _n: &mut ShowFromClause) -> VisitorResult<()> {
+    fn post_visit_show_from_clause(&mut self, _n: &mut ShowFromClause) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -381,7 +407,7 @@ pub trait VisitorMut: Sized {
     fn pre_visit_qualified_measurement_name(
         &mut self,
         _n: &mut QualifiedMeasurementName,
-    ) -> VisitorResult<Recursion> {
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
@@ -389,77 +415,86 @@ pub trait VisitorMut: Sized {
     fn post_visit_qualified_measurement_name(
         &mut self,
         _n: &mut QualifiedMeasurementName,
-    ) -> VisitorResult<()> {
+    ) -> Result<(), Self::Error> {
         Ok(())
     }
 
     /// Invoked before any children of the `FILL` clause are visited.
-    fn pre_visit_fill_clause(&mut self, _n: &mut FillClause) -> VisitorResult<Recursion> {
+    fn pre_visit_fill_clause(&mut self, _n: &mut FillClause) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
     /// Invoked after all children of the `FILL` clause are visited.
-    fn post_visit_fill_clause(&mut self, _n: &mut FillClause) -> VisitorResult<()> {
+    fn post_visit_fill_clause(&mut self, _n: &mut FillClause) -> Result<(), Self::Error> {
         Ok(())
     }
 
     /// Invoked before any children of the `ORDER BY` clause are visited.
-    fn pre_visit_order_by_clause(&mut self, _n: &mut OrderByClause) -> VisitorResult<Recursion> {
+    fn pre_visit_order_by_clause(
+        &mut self,
+        _n: &mut OrderByClause,
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
     /// Invoked after all children of the `ORDER BY` clause are visited.
-    fn post_visit_order_by_clause(&mut self, _n: &mut OrderByClause) -> VisitorResult<()> {
+    fn post_visit_order_by_clause(&mut self, _n: &mut OrderByClause) -> Result<(), Self::Error> {
         Ok(())
     }
 
     /// Invoked before any children of the `LIMIT` clause are visited.
-    fn pre_visit_limit_clause(&mut self, _n: &mut LimitClause) -> VisitorResult<Recursion> {
+    fn pre_visit_limit_clause(&mut self, _n: &mut LimitClause) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
     /// Invoked after all children of the `LIMIT` clause are visited.
-    fn post_visit_limit_clause(&mut self, _n: &mut LimitClause) -> VisitorResult<()> {
+    fn post_visit_limit_clause(&mut self, _n: &mut LimitClause) -> Result<(), Self::Error> {
         Ok(())
     }
 
     /// Invoked before any children of the `OFFSET` clause are visited.
-    fn pre_visit_offset_clause(&mut self, _n: &mut OffsetClause) -> VisitorResult<Recursion> {
+    fn pre_visit_offset_clause(&mut self, _n: &mut OffsetClause) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
     /// Invoked after all children of the `OFFSET` clause are visited.
-    fn post_visit_offset_clause(&mut self, _n: &mut OffsetClause) -> VisitorResult<()> {
+    fn post_visit_offset_clause(&mut self, _n: &mut OffsetClause) -> Result<(), Self::Error> {
         Ok(())
     }
 
     /// Invoked before any children of the `SLIMIT` clause are visited.
-    fn pre_visit_slimit_clause(&mut self, _n: &mut SLimitClause) -> VisitorResult<Recursion> {
+    fn pre_visit_slimit_clause(&mut self, _n: &mut SLimitClause) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
     /// Invoked after all children of the `SLIMIT` clause are visited.
-    fn post_visit_slimit_clause(&mut self, _n: &mut SLimitClause) -> VisitorResult<()> {
+    fn post_visit_slimit_clause(&mut self, _n: &mut SLimitClause) -> Result<(), Self::Error> {
         Ok(())
     }
 
     /// Invoked before any children of the `SOFFSET` clause are visited.
-    fn pre_visit_soffset_clause(&mut self, _n: &mut SOffsetClause) -> VisitorResult<Recursion> {
+    fn pre_visit_soffset_clause(
+        &mut self,
+        _n: &mut SOffsetClause,
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
     /// Invoked after all children of the `SOFFSET` clause are visited.
-    fn post_visit_soffset_clause(&mut self, _n: &mut SOffsetClause) -> VisitorResult<()> {
+    fn post_visit_soffset_clause(&mut self, _n: &mut SOffsetClause) -> Result<(), Self::Error> {
         Ok(())
     }
 
     /// Invoked before any children of a `TZ` clause are visited.
-    fn pre_visit_timezone_clause(&mut self, _n: &mut TimeZoneClause) -> VisitorResult<Recursion> {
+    fn pre_visit_timezone_clause(
+        &mut self,
+        _n: &mut TimeZoneClause,
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
     /// Invoked after all children of a `TZ` clause are visited.
-    fn post_visit_timezone_clause(&mut self, _n: &mut TimeZoneClause) -> VisitorResult<()> {
+    fn post_visit_timezone_clause(&mut self, _n: &mut TimeZoneClause) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -467,22 +502,25 @@ pub trait VisitorMut: Sized {
     fn pre_visit_extended_on_clause(
         &mut self,
         _n: &mut ExtendedOnClause,
-    ) -> VisitorResult<Recursion> {
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
     /// Invoked after all children of an extended `ON` clause are visited.
-    fn post_visit_extended_on_clause(&mut self, _n: &mut ExtendedOnClause) -> VisitorResult<()> {
+    fn post_visit_extended_on_clause(
+        &mut self,
+        _n: &mut ExtendedOnClause,
+    ) -> Result<(), Self::Error> {
         Ok(())
     }
 
     /// Invoked before any children of an `ON` clause are visited.
-    fn pre_visit_on_clause(&mut self, _n: &mut OnClause) -> VisitorResult<Recursion> {
+    fn pre_visit_on_clause(&mut self, _n: &mut OnClause) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
     /// Invoked after all children of an `ON` clause are visited.
-    fn post_visit_on_clause(&mut self, _n: &mut OnClause) -> VisitorResult<()> {
+    fn post_visit_on_clause(&mut self, _n: &mut OnClause) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -490,7 +528,7 @@ pub trait VisitorMut: Sized {
     fn pre_visit_with_measurement_clause(
         &mut self,
         _n: &mut WithMeasurementClause,
-    ) -> VisitorResult<Recursion> {
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
@@ -498,17 +536,20 @@ pub trait VisitorMut: Sized {
     fn post_visit_with_measurement_clause(
         &mut self,
         _n: &mut WithMeasurementClause,
-    ) -> VisitorResult<()> {
+    ) -> Result<(), Self::Error> {
         Ok(())
     }
 
     /// Invoked before any children of a `WITH KEY` clause are visited.
-    fn pre_visit_with_key_clause(&mut self, _n: &mut WithKeyClause) -> VisitorResult<Recursion> {
+    fn pre_visit_with_key_clause(
+        &mut self,
+        _n: &mut WithKeyClause,
+    ) -> Result<Recursion, Self::Error> {
         Ok(Continue)
     }
 
     /// Invoked after all children of a `WITH KEY` clause  are visited.
-    fn post_visit_with_key_clause(&mut self, _n: &mut WithKeyClause) -> VisitorResult<()> {
+    fn post_visit_with_key_clause(&mut self, _n: &mut WithKeyClause) -> Result<(), Self::Error> {
         Ok(())
     }
 }
@@ -516,11 +557,11 @@ pub trait VisitorMut: Sized {
 /// Trait for types that can be visited by [`VisitorMut`]
 pub trait VisitableMut: Sized {
     /// accept a visitor, calling `visit` on all children of this
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()>;
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error>;
 }
 
 impl VisitableMut for Statement {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_statement(self)? {
             return Ok(());
         };
@@ -544,7 +585,7 @@ impl VisitableMut for Statement {
 }
 
 impl VisitableMut for CreateDatabaseStatement {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_create_database_statement(self)? {
             return Ok(());
         };
@@ -554,7 +595,7 @@ impl VisitableMut for CreateDatabaseStatement {
 }
 
 impl VisitableMut for DeleteStatement {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_delete_statement(self)? {
             return Ok(());
         };
@@ -575,7 +616,7 @@ impl VisitableMut for DeleteStatement {
 }
 
 impl VisitableMut for WhereClause {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_where_clause(self)? {
             return Ok(());
         };
@@ -587,7 +628,7 @@ impl VisitableMut for WhereClause {
 }
 
 impl VisitableMut for DeleteFromClause {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_delete_from_clause(self)? {
             return Ok(());
         };
@@ -601,7 +642,7 @@ impl VisitableMut for DeleteFromClause {
 }
 
 impl VisitableMut for MeasurementName {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_measurement_name(self)? {
             return Ok(());
         };
@@ -611,7 +652,7 @@ impl VisitableMut for MeasurementName {
 }
 
 impl VisitableMut for DropMeasurementStatement {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_drop_measurement_statement(self)? {
             return Ok(());
         };
@@ -621,7 +662,7 @@ impl VisitableMut for DropMeasurementStatement {
 }
 
 impl VisitableMut for ExplainStatement {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_explain_statement(self)? {
             return Ok(());
         };
@@ -633,7 +674,7 @@ impl VisitableMut for ExplainStatement {
 }
 
 impl VisitableMut for SelectStatement {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_select_statement(self)? {
             return Ok(());
         };
@@ -683,7 +724,7 @@ impl VisitableMut for SelectStatement {
 }
 
 impl VisitableMut for TimeZoneClause {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_timezone_clause(self)? {
             return Ok(());
         };
@@ -693,7 +734,7 @@ impl VisitableMut for TimeZoneClause {
 }
 
 impl VisitableMut for LimitClause {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_limit_clause(self)? {
             return Ok(());
         };
@@ -703,7 +744,7 @@ impl VisitableMut for LimitClause {
 }
 
 impl VisitableMut for OffsetClause {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_offset_clause(self)? {
             return Ok(());
         };
@@ -713,7 +754,7 @@ impl VisitableMut for OffsetClause {
 }
 
 impl VisitableMut for SLimitClause {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_slimit_clause(self)? {
             return Ok(());
         };
@@ -723,7 +764,7 @@ impl VisitableMut for SLimitClause {
 }
 
 impl VisitableMut for SOffsetClause {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_soffset_clause(self)? {
             return Ok(());
         };
@@ -733,7 +774,7 @@ impl VisitableMut for SOffsetClause {
 }
 
 impl VisitableMut for FillClause {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_fill_clause(self)? {
             return Ok(());
         };
@@ -743,7 +784,7 @@ impl VisitableMut for FillClause {
 }
 
 impl VisitableMut for OrderByClause {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_order_by_clause(self)? {
             return Ok(());
         };
@@ -753,7 +794,7 @@ impl VisitableMut for OrderByClause {
 }
 
 impl VisitableMut for GroupByClause {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_group_by_clause(self)? {
             return Ok(());
         };
@@ -767,7 +808,7 @@ impl VisitableMut for GroupByClause {
 }
 
 impl VisitableMut for ShowMeasurementsStatement {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_show_measurements_statement(self)? {
             return Ok(());
         };
@@ -797,7 +838,7 @@ impl VisitableMut for ShowMeasurementsStatement {
 }
 
 impl VisitableMut for ExtendedOnClause {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_extended_on_clause(self)? {
             return Ok(());
         };
@@ -807,7 +848,7 @@ impl VisitableMut for ExtendedOnClause {
 }
 
 impl VisitableMut for WithMeasurementClause {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_with_measurement_clause(self)? {
             return Ok(());
         };
@@ -822,7 +863,7 @@ impl VisitableMut for WithMeasurementClause {
 }
 
 impl VisitableMut for ShowRetentionPoliciesStatement {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_show_retention_policies_statement(self)? {
             return Ok(());
         };
@@ -836,7 +877,7 @@ impl VisitableMut for ShowRetentionPoliciesStatement {
 }
 
 impl VisitableMut for ShowFromClause {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_show_from_clause(self)? {
             return Ok(());
         };
@@ -850,7 +891,7 @@ impl VisitableMut for ShowFromClause {
 }
 
 impl VisitableMut for QualifiedMeasurementName {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_qualified_measurement_name(self)? {
             return Ok(());
         };
@@ -862,7 +903,7 @@ impl VisitableMut for QualifiedMeasurementName {
 }
 
 impl VisitableMut for ShowTagKeysStatement {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_show_tag_keys_statement(self)? {
             return Ok(());
         };
@@ -892,7 +933,7 @@ impl VisitableMut for ShowTagKeysStatement {
 }
 
 impl VisitableMut for ShowTagValuesStatement {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_show_tag_values_statement(self)? {
             return Ok(());
         };
@@ -924,7 +965,7 @@ impl VisitableMut for ShowTagValuesStatement {
 }
 
 impl VisitableMut for ShowFieldKeysStatement {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_show_field_keys_statement(self)? {
             return Ok(());
         };
@@ -950,7 +991,7 @@ impl VisitableMut for ShowFieldKeysStatement {
 }
 
 impl VisitableMut for FieldList {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_select_field_list(self)? {
             return Ok(());
         };
@@ -964,7 +1005,7 @@ impl VisitableMut for FieldList {
 }
 
 impl VisitableMut for Field {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_select_field(self)? {
             return Ok(());
         };
@@ -976,7 +1017,7 @@ impl VisitableMut for Field {
 }
 
 impl VisitableMut for FromMeasurementClause {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_select_from_clause(self)? {
             return Ok(());
         };
@@ -990,7 +1031,7 @@ impl VisitableMut for FromMeasurementClause {
 }
 
 impl VisitableMut for MeasurementSelection {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_select_measurement_selection(self)? {
             return Ok(());
         };
@@ -1005,7 +1046,7 @@ impl VisitableMut for MeasurementSelection {
 }
 
 impl VisitableMut for Dimension {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_select_dimension(self)? {
             return Ok(());
         };
@@ -1025,7 +1066,7 @@ impl VisitableMut for Dimension {
 }
 
 impl VisitableMut for WithKeyClause {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_with_key_clause(self)? {
             return Ok(());
         };
@@ -1035,7 +1076,7 @@ impl VisitableMut for WithKeyClause {
 }
 
 impl VisitableMut for ShowDatabasesStatement {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_show_databases_statement(self)? {
             return Ok(());
         };
@@ -1044,7 +1085,7 @@ impl VisitableMut for ShowDatabasesStatement {
 }
 
 impl VisitableMut for ConditionalExpression {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_conditional_expression(self)? {
             return Ok(());
         };
@@ -1063,7 +1104,7 @@ impl VisitableMut for ConditionalExpression {
 }
 
 impl VisitableMut for Expr {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_expr(self)? {
             return Ok(());
         };
@@ -1091,7 +1132,7 @@ impl VisitableMut for Expr {
 }
 
 impl VisitableMut for OnClause {
-    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> VisitorResult<()> {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
         if let Stop = visitor.pre_visit_on_clause(self)? {
             return Ok(());
         };
@@ -1103,7 +1144,7 @@ impl VisitableMut for OnClause {
 #[cfg(test)]
 mod test {
     use super::Recursion::Continue;
-    use super::{Recursion, VisitableMut, VisitorMut, VisitorResult};
+    use super::{Recursion, VisitableMut, VisitorMut};
     use crate::common::{
         LimitClause, MeasurementName, OffsetClause, OrderByClause, QualifiedMeasurementName,
         WhereClause,
@@ -1147,12 +1188,14 @@ mod test {
     }
 
     impl VisitorMut for TestVisitor {
-        fn pre_visit_statement(&mut self, n: &mut Statement) -> VisitorResult<Recursion> {
+        type Error = ();
+
+        fn pre_visit_statement(&mut self, n: &mut Statement) -> Result<Recursion, Self::Error> {
             self.push_pre("statement", n);
             Ok(Continue)
         }
 
-        fn post_visit_statement(&mut self, n: &mut Statement) -> VisitorResult<()> {
+        fn post_visit_statement(&mut self, n: &mut Statement) -> Result<(), Self::Error> {
             self.push_post("statement", n);
             Ok(())
         }
@@ -1160,12 +1203,15 @@ mod test {
         fn pre_visit_delete_statement(
             &mut self,
             n: &mut DeleteStatement,
-        ) -> VisitorResult<Recursion> {
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("delete_statement", n);
             Ok(Continue)
         }
 
-        fn post_visit_delete_statement(&mut self, n: &mut DeleteStatement) -> VisitorResult<()> {
+        fn post_visit_delete_statement(
+            &mut self,
+            n: &mut DeleteStatement,
+        ) -> Result<(), Self::Error> {
             self.push_post("delete_statement", n);
             Ok(())
         }
@@ -1173,12 +1219,15 @@ mod test {
         fn pre_visit_delete_from_clause(
             &mut self,
             n: &mut DeleteFromClause,
-        ) -> VisitorResult<Recursion> {
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("delete_from", n);
             Ok(Continue)
         }
 
-        fn post_visit_delete_from_clause(&mut self, n: &mut DeleteFromClause) -> VisitorResult<()> {
+        fn post_visit_delete_from_clause(
+            &mut self,
+            n: &mut DeleteFromClause,
+        ) -> Result<(), Self::Error> {
             self.push_post("delete_from", n);
             Ok(())
         }
@@ -1186,12 +1235,15 @@ mod test {
         fn pre_visit_measurement_name(
             &mut self,
             n: &mut MeasurementName,
-        ) -> VisitorResult<Recursion> {
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("measurement_name", n);
             Ok(Continue)
         }
 
-        fn post_visit_measurement_name(&mut self, n: &mut MeasurementName) -> VisitorResult<()> {
+        fn post_visit_measurement_name(
+            &mut self,
+            n: &mut MeasurementName,
+        ) -> Result<(), Self::Error> {
             self.push_post("measurement_name", n);
             Ok(())
         }
@@ -1199,7 +1251,7 @@ mod test {
         fn pre_visit_drop_measurement_statement(
             &mut self,
             n: &mut DropMeasurementStatement,
-        ) -> VisitorResult<Recursion> {
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("drop_measurement_statement", n);
             Ok(Continue)
         }
@@ -1207,7 +1259,7 @@ mod test {
         fn post_visit_drop_measurement_statement(
             &mut self,
             n: &mut DropMeasurementStatement,
-        ) -> VisitorResult<()> {
+        ) -> Result<(), Self::Error> {
             self.push_post("drop_measurement_statement", n);
             Ok(())
         }
@@ -1215,12 +1267,15 @@ mod test {
         fn pre_visit_explain_statement(
             &mut self,
             n: &mut ExplainStatement,
-        ) -> VisitorResult<Recursion> {
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("explain_statement", n);
             Ok(Continue)
         }
 
-        fn post_visit_explain_statement(&mut self, n: &mut ExplainStatement) -> VisitorResult<()> {
+        fn post_visit_explain_statement(
+            &mut self,
+            n: &mut ExplainStatement,
+        ) -> Result<(), Self::Error> {
             self.push_post("explain_statement", n);
             Ok(())
         }
@@ -1228,12 +1283,15 @@ mod test {
         fn pre_visit_select_statement(
             &mut self,
             n: &mut SelectStatement,
-        ) -> VisitorResult<Recursion> {
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("select_statement", n);
             Ok(Continue)
         }
 
-        fn post_visit_select_statement(&mut self, n: &mut SelectStatement) -> VisitorResult<()> {
+        fn post_visit_select_statement(
+            &mut self,
+            n: &mut SelectStatement,
+        ) -> Result<(), Self::Error> {
             self.push_post("select_statement", n);
             Ok(())
         }
@@ -1241,7 +1299,7 @@ mod test {
         fn pre_visit_show_databases_statement(
             &mut self,
             n: &mut ShowDatabasesStatement,
-        ) -> VisitorResult<Recursion> {
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("show_databases_statement", n);
             Ok(Continue)
         }
@@ -1249,7 +1307,7 @@ mod test {
         fn post_visit_show_databases_statement(
             &mut self,
             n: &mut ShowDatabasesStatement,
-        ) -> VisitorResult<()> {
+        ) -> Result<(), Self::Error> {
             self.push_post("show_databases_statement", n);
             Ok(())
         }
@@ -1257,7 +1315,7 @@ mod test {
         fn pre_visit_show_measurements_statement(
             &mut self,
             n: &mut ShowMeasurementsStatement,
-        ) -> VisitorResult<Recursion> {
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("show_measurements_statement", n);
             Ok(Continue)
         }
@@ -1265,7 +1323,7 @@ mod test {
         fn post_visit_show_measurements_statement(
             &mut self,
             n: &mut ShowMeasurementsStatement,
-        ) -> VisitorResult<()> {
+        ) -> Result<(), Self::Error> {
             self.push_post("show_measurements_statement", n);
             Ok(())
         }
@@ -1273,7 +1331,7 @@ mod test {
         fn pre_visit_show_retention_policies_statement(
             &mut self,
             n: &mut ShowRetentionPoliciesStatement,
-        ) -> VisitorResult<Recursion> {
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("show_retention_policies_statement", n);
             Ok(Continue)
         }
@@ -1281,7 +1339,7 @@ mod test {
         fn post_visit_show_retention_policies_statement(
             &mut self,
             n: &mut ShowRetentionPoliciesStatement,
-        ) -> VisitorResult<()> {
+        ) -> Result<(), Self::Error> {
             self.push_post("show_retention_policies_statement", n);
             Ok(())
         }
@@ -1289,7 +1347,7 @@ mod test {
         fn pre_visit_show_tag_keys_statement(
             &mut self,
             n: &mut ShowTagKeysStatement,
-        ) -> VisitorResult<Recursion> {
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("show_tag_keys_statement", n);
             Ok(Continue)
         }
@@ -1297,7 +1355,7 @@ mod test {
         fn post_visit_show_tag_keys_statement(
             &mut self,
             n: &mut ShowTagKeysStatement,
-        ) -> VisitorResult<()> {
+        ) -> Result<(), Self::Error> {
             self.push_post("show_tag_keys_statement", n);
             Ok(())
         }
@@ -1305,7 +1363,7 @@ mod test {
         fn pre_visit_show_tag_values_statement(
             &mut self,
             n: &mut ShowTagValuesStatement,
-        ) -> VisitorResult<Recursion> {
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("show_tag_values_statement", n);
             Ok(Continue)
         }
@@ -1313,7 +1371,7 @@ mod test {
         fn post_visit_show_tag_values_statement(
             &mut self,
             n: &mut ShowTagValuesStatement,
-        ) -> VisitorResult<()> {
+        ) -> Result<(), Self::Error> {
             self.push_post("show_tag_values_statement", n);
             Ok(())
         }
@@ -1321,7 +1379,7 @@ mod test {
         fn pre_visit_show_field_keys_statement(
             &mut self,
             n: &mut ShowFieldKeysStatement,
-        ) -> VisitorResult<Recursion> {
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("show_field_keys_statement", n);
             Ok(Continue)
         }
@@ -1329,7 +1387,7 @@ mod test {
         fn post_visit_show_field_keys_statement(
             &mut self,
             n: &mut ShowFieldKeysStatement,
-        ) -> VisitorResult<()> {
+        ) -> Result<(), Self::Error> {
             self.push_post("show_field_keys_statement", n);
             Ok(())
         }
@@ -1337,7 +1395,7 @@ mod test {
         fn pre_visit_conditional_expression(
             &mut self,
             n: &mut ConditionalExpression,
-        ) -> VisitorResult<Recursion> {
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("conditional_expression", n);
             Ok(Continue)
         }
@@ -1345,37 +1403,40 @@ mod test {
         fn post_visit_conditional_expression(
             &mut self,
             n: &mut ConditionalExpression,
-        ) -> VisitorResult<()> {
+        ) -> Result<(), Self::Error> {
             self.push_post("conditional_expression", n);
             Ok(())
         }
 
-        fn pre_visit_expr(&mut self, n: &mut Expr) -> VisitorResult<Recursion> {
+        fn pre_visit_expr(&mut self, n: &mut Expr) -> Result<Recursion, Self::Error> {
             self.push_pre("expr", n);
             Ok(Continue)
         }
 
-        fn post_visit_expr(&mut self, n: &mut Expr) -> VisitorResult<()> {
+        fn post_visit_expr(&mut self, n: &mut Expr) -> Result<(), Self::Error> {
             self.push_post("expr", n);
             Ok(())
         }
 
-        fn pre_visit_select_field_list(&mut self, n: &mut FieldList) -> VisitorResult<Recursion> {
+        fn pre_visit_select_field_list(
+            &mut self,
+            n: &mut FieldList,
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("select_field_list", n);
             Ok(Continue)
         }
 
-        fn post_visit_select_field_list(&mut self, n: &mut FieldList) -> VisitorResult<()> {
+        fn post_visit_select_field_list(&mut self, n: &mut FieldList) -> Result<(), Self::Error> {
             self.push_post("select_field_list", n);
             Ok(())
         }
 
-        fn pre_visit_select_field(&mut self, n: &mut Field) -> VisitorResult<Recursion> {
+        fn pre_visit_select_field(&mut self, n: &mut Field) -> Result<Recursion, Self::Error> {
             self.push_pre("select_field", n);
             Ok(Continue)
         }
 
-        fn post_visit_select_field(&mut self, n: &mut Field) -> VisitorResult<()> {
+        fn post_visit_select_field(&mut self, n: &mut Field) -> Result<(), Self::Error> {
             self.push_post("select_field", n);
             Ok(())
         }
@@ -1383,7 +1444,7 @@ mod test {
         fn pre_visit_select_from_clause(
             &mut self,
             n: &mut FromMeasurementClause,
-        ) -> VisitorResult<Recursion> {
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("select_from_clause", n);
             Ok(Continue)
         }
@@ -1391,7 +1452,7 @@ mod test {
         fn post_visit_select_from_clause(
             &mut self,
             n: &mut FromMeasurementClause,
-        ) -> VisitorResult<()> {
+        ) -> Result<(), Self::Error> {
             self.push_post("select_from_clause", n);
             Ok(())
         }
@@ -1399,7 +1460,7 @@ mod test {
         fn pre_visit_select_measurement_selection(
             &mut self,
             n: &mut MeasurementSelection,
-        ) -> VisitorResult<Recursion> {
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("select_measurement_selection", n);
             Ok(Continue)
         }
@@ -1407,37 +1468,46 @@ mod test {
         fn post_visit_select_measurement_selection(
             &mut self,
             n: &mut MeasurementSelection,
-        ) -> VisitorResult<()> {
+        ) -> Result<(), Self::Error> {
             self.push_post("select_measurement_selection", n);
             Ok(())
         }
 
-        fn pre_visit_group_by_clause(&mut self, n: &mut GroupByClause) -> VisitorResult<Recursion> {
+        fn pre_visit_group_by_clause(
+            &mut self,
+            n: &mut GroupByClause,
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("group_by_clause", n);
             Ok(Continue)
         }
 
-        fn post_visit_group_by_clause(&mut self, n: &mut GroupByClause) -> VisitorResult<()> {
+        fn post_visit_group_by_clause(&mut self, n: &mut GroupByClause) -> Result<(), Self::Error> {
             self.push_post("group_by_clause", n);
             Ok(())
         }
 
-        fn pre_visit_select_dimension(&mut self, n: &mut Dimension) -> VisitorResult<Recursion> {
+        fn pre_visit_select_dimension(
+            &mut self,
+            n: &mut Dimension,
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("select_dimension", n);
             Ok(Continue)
         }
 
-        fn post_visit_select_dimension(&mut self, n: &mut Dimension) -> VisitorResult<()> {
+        fn post_visit_select_dimension(&mut self, n: &mut Dimension) -> Result<(), Self::Error> {
             self.push_post("select_dimension", n);
             Ok(())
         }
 
-        fn pre_visit_where_clause(&mut self, n: &mut WhereClause) -> VisitorResult<Recursion> {
+        fn pre_visit_where_clause(
+            &mut self,
+            n: &mut WhereClause,
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("where_clause", n);
             Ok(Continue)
         }
 
-        fn post_visit_where_clause(&mut self, n: &mut WhereClause) -> VisitorResult<()> {
+        fn post_visit_where_clause(&mut self, n: &mut WhereClause) -> Result<(), Self::Error> {
             self.push_post("where_clause", n);
             Ok(())
         }
@@ -1445,12 +1515,15 @@ mod test {
         fn pre_visit_show_from_clause(
             &mut self,
             n: &mut ShowFromClause,
-        ) -> VisitorResult<Recursion> {
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("show_from_clause", n);
             Ok(Continue)
         }
 
-        fn post_visit_show_from_clause(&mut self, n: &mut ShowFromClause) -> VisitorResult<()> {
+        fn post_visit_show_from_clause(
+            &mut self,
+            n: &mut ShowFromClause,
+        ) -> Result<(), Self::Error> {
             self.push_post("show_from_clause", n);
             Ok(())
         }
@@ -1458,7 +1531,7 @@ mod test {
         fn pre_visit_qualified_measurement_name(
             &mut self,
             n: &mut QualifiedMeasurementName,
-        ) -> VisitorResult<Recursion> {
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("qualified_measurement_name", n);
             Ok(Continue)
         }
@@ -1466,67 +1539,82 @@ mod test {
         fn post_visit_qualified_measurement_name(
             &mut self,
             n: &mut QualifiedMeasurementName,
-        ) -> VisitorResult<()> {
+        ) -> Result<(), Self::Error> {
             self.push_post("qualified_measurement_name", n);
             Ok(())
         }
 
-        fn pre_visit_fill_clause(&mut self, n: &mut FillClause) -> VisitorResult<Recursion> {
+        fn pre_visit_fill_clause(&mut self, n: &mut FillClause) -> Result<Recursion, Self::Error> {
             self.push_pre("fill_clause", n);
             Ok(Continue)
         }
 
-        fn post_visit_fill_clause(&mut self, n: &mut FillClause) -> VisitorResult<()> {
+        fn post_visit_fill_clause(&mut self, n: &mut FillClause) -> Result<(), Self::Error> {
             self.push_post("fill_clause", n);
             Ok(())
         }
 
-        fn pre_visit_order_by_clause(&mut self, n: &mut OrderByClause) -> VisitorResult<Recursion> {
+        fn pre_visit_order_by_clause(
+            &mut self,
+            n: &mut OrderByClause,
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("order_by_clause", n);
             Ok(Continue)
         }
 
-        fn post_visit_order_by_clause(&mut self, n: &mut OrderByClause) -> VisitorResult<()> {
+        fn post_visit_order_by_clause(&mut self, n: &mut OrderByClause) -> Result<(), Self::Error> {
             self.push_post("order_by_clause", n);
             Ok(())
         }
 
-        fn pre_visit_limit_clause(&mut self, n: &mut LimitClause) -> VisitorResult<Recursion> {
+        fn pre_visit_limit_clause(
+            &mut self,
+            n: &mut LimitClause,
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("limit_clause", n);
             Ok(Continue)
         }
 
-        fn post_visit_limit_clause(&mut self, n: &mut LimitClause) -> VisitorResult<()> {
+        fn post_visit_limit_clause(&mut self, n: &mut LimitClause) -> Result<(), Self::Error> {
             self.push_post("limit_clause", n);
             Ok(())
         }
 
-        fn pre_visit_offset_clause(&mut self, n: &mut OffsetClause) -> VisitorResult<Recursion> {
+        fn pre_visit_offset_clause(
+            &mut self,
+            n: &mut OffsetClause,
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("offset_clause", n);
             Ok(Continue)
         }
 
-        fn post_visit_offset_clause(&mut self, n: &mut OffsetClause) -> VisitorResult<()> {
+        fn post_visit_offset_clause(&mut self, n: &mut OffsetClause) -> Result<(), Self::Error> {
             self.push_post("offset_clause", n);
             Ok(())
         }
 
-        fn pre_visit_slimit_clause(&mut self, n: &mut SLimitClause) -> VisitorResult<Recursion> {
+        fn pre_visit_slimit_clause(
+            &mut self,
+            n: &mut SLimitClause,
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("slimit_clause", n);
             Ok(Continue)
         }
 
-        fn post_visit_slimit_clause(&mut self, n: &mut SLimitClause) -> VisitorResult<()> {
+        fn post_visit_slimit_clause(&mut self, n: &mut SLimitClause) -> Result<(), Self::Error> {
             self.push_post("slimit_clause", n);
             Ok(())
         }
 
-        fn pre_visit_soffset_clause(&mut self, n: &mut SOffsetClause) -> VisitorResult<Recursion> {
+        fn pre_visit_soffset_clause(
+            &mut self,
+            n: &mut SOffsetClause,
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("soffset_clause", n);
             Ok(Continue)
         }
 
-        fn post_visit_soffset_clause(&mut self, n: &mut SOffsetClause) -> VisitorResult<()> {
+        fn post_visit_soffset_clause(&mut self, n: &mut SOffsetClause) -> Result<(), Self::Error> {
             self.push_post("soffset_clause", n);
             Ok(())
         }
@@ -1534,12 +1622,15 @@ mod test {
         fn pre_visit_timezone_clause(
             &mut self,
             n: &mut TimeZoneClause,
-        ) -> VisitorResult<Recursion> {
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("timezone_clause", n);
             Ok(Continue)
         }
 
-        fn post_visit_timezone_clause(&mut self, n: &mut TimeZoneClause) -> VisitorResult<()> {
+        fn post_visit_timezone_clause(
+            &mut self,
+            n: &mut TimeZoneClause,
+        ) -> Result<(), Self::Error> {
             self.push_post("timezone_clause", n);
             Ok(())
         }
@@ -1547,22 +1638,25 @@ mod test {
         fn pre_visit_extended_on_clause(
             &mut self,
             n: &mut ExtendedOnClause,
-        ) -> VisitorResult<Recursion> {
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("extended_on_clause", n);
             Ok(Continue)
         }
 
-        fn post_visit_extended_on_clause(&mut self, n: &mut ExtendedOnClause) -> VisitorResult<()> {
+        fn post_visit_extended_on_clause(
+            &mut self,
+            n: &mut ExtendedOnClause,
+        ) -> Result<(), Self::Error> {
             self.push_post("extended_on_clause", n);
             Ok(())
         }
 
-        fn pre_visit_on_clause(&mut self, n: &mut OnClause) -> VisitorResult<Recursion> {
+        fn pre_visit_on_clause(&mut self, n: &mut OnClause) -> Result<Recursion, Self::Error> {
             self.push_pre("on_clause", n);
             Ok(Continue)
         }
 
-        fn post_visit_on_clause(&mut self, n: &mut OnClause) -> VisitorResult<()> {
+        fn post_visit_on_clause(&mut self, n: &mut OnClause) -> Result<(), Self::Error> {
             self.push_pre("on_clause", n);
             Ok(())
         }
@@ -1570,7 +1664,7 @@ mod test {
         fn pre_visit_with_measurement_clause(
             &mut self,
             n: &mut WithMeasurementClause,
-        ) -> VisitorResult<Recursion> {
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("with_measurement_clause", n);
             Ok(Continue)
         }
@@ -1578,17 +1672,20 @@ mod test {
         fn post_visit_with_measurement_clause(
             &mut self,
             n: &mut WithMeasurementClause,
-        ) -> VisitorResult<()> {
+        ) -> Result<(), Self::Error> {
             self.push_post("with_measurement_clause", n);
             Ok(())
         }
 
-        fn pre_visit_with_key_clause(&mut self, n: &mut WithKeyClause) -> VisitorResult<Recursion> {
+        fn pre_visit_with_key_clause(
+            &mut self,
+            n: &mut WithKeyClause,
+        ) -> Result<Recursion, Self::Error> {
             self.push_pre("with_key_clause", n);
             Ok(Continue)
         }
 
-        fn post_visit_with_key_clause(&mut self, n: &mut WithKeyClause) -> VisitorResult<()> {
+        fn post_visit_with_key_clause(&mut self, n: &mut WithKeyClause) -> Result<(), Self::Error> {
             self.push_post("with_key_clause", n);
             Ok(())
         }
@@ -1703,10 +1800,12 @@ mod test {
         struct AddLimit;
 
         impl VisitorMut for AddLimit {
+            type Error = ();
+
             fn pre_visit_select_statement(
                 &mut self,
                 n: &mut SelectStatement,
-            ) -> VisitorResult<Recursion> {
+            ) -> Result<Recursion, Self::Error> {
                 n.limit = Some(LimitClause(10));
                 Ok(Continue)
             }

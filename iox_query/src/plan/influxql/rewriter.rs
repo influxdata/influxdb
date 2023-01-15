@@ -14,7 +14,6 @@ use influxdb_influxql_parser::select::{
     SelectStatement,
 };
 use influxdb_influxql_parser::string::Regex;
-use influxdb_influxql_parser::visit::{Recursion, Visitable, Visitor, VisitorResult};
 use itertools::Itertools;
 use predicate::rpc_predicate::QueryNamespaceMeta;
 use query_functions::clean_non_meta_escapes;
@@ -151,10 +150,14 @@ fn from_field_and_dimensions(
 /// has any wildcards or regular expressions in the projection list
 /// and `GROUP BY` clause respectively.
 fn has_wildcards(stmt: &SelectStatement) -> (bool, bool) {
+    use influxdb_influxql_parser::visit::{Recursion, Visitable, Visitor};
+
     struct HasWildcardsVisitor(bool, bool);
 
     impl Visitor for HasWildcardsVisitor {
-        fn pre_visit_expr(self, n: &Expr) -> VisitorResult<Recursion<Self>> {
+        type Error = DataFusionError;
+
+        fn pre_visit_expr(self, n: &Expr) -> Result<Recursion<Self>> {
             Ok(
                 if matches!(n, Expr::Wildcard(_) | Expr::Literal(Literal::Regex(_))) {
                     Recursion::Stop(Self(true, self.1))
@@ -167,12 +170,12 @@ fn has_wildcards(stmt: &SelectStatement) -> (bool, bool) {
         fn pre_visit_select_from_clause(
             self,
             _n: &FromMeasurementClause,
-        ) -> VisitorResult<Recursion<Self>> {
+        ) -> Result<Recursion<Self>> {
             // Don't traverse FROM and potential subqueries
             Ok(Recursion::Stop(self))
         }
 
-        fn pre_visit_select_dimension(self, n: &Dimension) -> VisitorResult<Recursion<Self>> {
+        fn pre_visit_select_dimension(self, n: &Dimension) -> Result<Recursion<Self>> {
             Ok(if matches!(n, Dimension::Wildcard | Dimension::Regex(_)) {
                 Recursion::Stop(Self(self.0, true))
             } else {

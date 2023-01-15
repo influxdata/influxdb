@@ -3,14 +3,16 @@
 //! # Example
 //!
 //! ```
-//! use influxdb_influxql_parser::visit::{Visitable, Visitor, VisitorResult};
+//! use influxdb_influxql_parser::visit::{Visitable, Visitor};
 //! use influxdb_influxql_parser::parse_statements;
 //! use influxdb_influxql_parser::common::WhereClause;
 //!
 //! struct MyVisitor;
 //!
 //! impl Visitor for MyVisitor {
-//!     fn post_visit_where_clause(self, n: &WhereClause) -> VisitorResult<Self> {
+//!     type Error = ();
+//!
+//!     fn post_visit_where_clause(self, n: &WhereClause) -> Result<Self, Self::Error> {
 //!         println!("{}", n);
 //!         Ok(self)
 //!     }
@@ -47,9 +49,6 @@ use crate::show_tag_values::{ShowTagValuesStatement, WithKeyClause};
 use crate::simple_from_clause::{DeleteFromClause, ShowFromClause};
 use crate::statement::Statement;
 
-/// The result type for a [`Visitor`].
-pub type VisitorResult<T, E = &'static str> = Result<T, E>;
-
 /// Controls how the visitor recursion should proceed.
 pub enum Recursion<V: Visitor> {
     /// Attempt to visit all the children, recursively, of this expression.
@@ -63,13 +62,16 @@ pub enum Recursion<V: Visitor> {
 /// any [`Visitable::accept`], `pre_visit` functions are invoked repeatedly
 /// until a leaf node is reached or a `pre_visit` function returns [`Recursion::Stop`].
 pub trait Visitor: Sized {
+    /// The type returned in the event of an error traversing the tree.
+    type Error;
+
     /// Invoked before any children of the InfluxQL statement are visited.
-    fn pre_visit_statement(self, _n: &Statement) -> VisitorResult<Recursion<Self>> {
+    fn pre_visit_statement(self, _n: &Statement) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of the InfluxQL statement are visited.
-    fn post_visit_statement(self, _n: &Statement) -> VisitorResult<Self> {
+    fn post_visit_statement(self, _n: &Statement) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
@@ -77,7 +79,7 @@ pub trait Visitor: Sized {
     fn pre_visit_create_database_statement(
         self,
         _n: &CreateDatabaseStatement,
-    ) -> VisitorResult<Recursion<Self>> {
+    ) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
@@ -86,37 +88,46 @@ pub trait Visitor: Sized {
     fn post_visit_create_database_statement(
         self,
         _n: &CreateDatabaseStatement,
-    ) -> VisitorResult<Self> {
+    ) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
     /// Invoked before any children of the `DELETE` statement are visited.
-    fn pre_visit_delete_statement(self, _n: &DeleteStatement) -> VisitorResult<Recursion<Self>> {
+    fn pre_visit_delete_statement(
+        self,
+        _n: &DeleteStatement,
+    ) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of the `DELETE` statement are visited.
-    fn post_visit_delete_statement(self, _n: &DeleteStatement) -> VisitorResult<Self> {
+    fn post_visit_delete_statement(self, _n: &DeleteStatement) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
     /// Invoked before any children of the `FROM` clause of a `DELETE` statement are visited.
-    fn pre_visit_delete_from_clause(self, _n: &DeleteFromClause) -> VisitorResult<Recursion<Self>> {
+    fn pre_visit_delete_from_clause(
+        self,
+        _n: &DeleteFromClause,
+    ) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of the `FROM` clause of a `DELETE` statement are visited.
-    fn post_visit_delete_from_clause(self, _n: &DeleteFromClause) -> VisitorResult<Self> {
+    fn post_visit_delete_from_clause(self, _n: &DeleteFromClause) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
     /// Invoked before any children of the measurement name are visited.
-    fn pre_visit_measurement_name(self, _n: &MeasurementName) -> VisitorResult<Recursion<Self>> {
+    fn pre_visit_measurement_name(
+        self,
+        _n: &MeasurementName,
+    ) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of the measurement name are visited.
-    fn post_visit_measurement_name(self, _n: &MeasurementName) -> VisitorResult<Self> {
+    fn post_visit_measurement_name(self, _n: &MeasurementName) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
@@ -124,7 +135,7 @@ pub trait Visitor: Sized {
     fn pre_visit_drop_measurement_statement(
         self,
         _n: &DropMeasurementStatement,
-    ) -> VisitorResult<Recursion<Self>> {
+    ) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
@@ -132,27 +143,33 @@ pub trait Visitor: Sized {
     fn post_visit_drop_measurement_statement(
         self,
         _n: &DropMeasurementStatement,
-    ) -> VisitorResult<Self> {
+    ) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
     /// Invoked before any children of the `EXPLAIN` statement are visited.
-    fn pre_visit_explain_statement(self, _n: &ExplainStatement) -> VisitorResult<Recursion<Self>> {
+    fn pre_visit_explain_statement(
+        self,
+        _n: &ExplainStatement,
+    ) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of the `EXPLAIN` statement are visited.
-    fn post_visit_explain_statement(self, _n: &ExplainStatement) -> VisitorResult<Self> {
+    fn post_visit_explain_statement(self, _n: &ExplainStatement) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
     /// Invoked before any children of the `SELECT` statement are visited.
-    fn pre_visit_select_statement(self, _n: &SelectStatement) -> VisitorResult<Recursion<Self>> {
+    fn pre_visit_select_statement(
+        self,
+        _n: &SelectStatement,
+    ) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of the `SELECT` statement are visited.
-    fn post_visit_select_statement(self, _n: &SelectStatement) -> VisitorResult<Self> {
+    fn post_visit_select_statement(self, _n: &SelectStatement) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
@@ -160,7 +177,7 @@ pub trait Visitor: Sized {
     fn pre_visit_show_databases_statement(
         self,
         _n: &ShowDatabasesStatement,
-    ) -> VisitorResult<Recursion<Self>> {
+    ) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
@@ -168,7 +185,7 @@ pub trait Visitor: Sized {
     fn post_visit_show_databases_statement(
         self,
         _n: &ShowDatabasesStatement,
-    ) -> VisitorResult<Self> {
+    ) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
@@ -176,7 +193,7 @@ pub trait Visitor: Sized {
     fn pre_visit_show_measurements_statement(
         self,
         _n: &ShowMeasurementsStatement,
-    ) -> VisitorResult<Recursion<Self>> {
+    ) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
@@ -184,7 +201,7 @@ pub trait Visitor: Sized {
     fn post_visit_show_measurements_statement(
         self,
         _n: &ShowMeasurementsStatement,
-    ) -> VisitorResult<Self> {
+    ) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
@@ -192,7 +209,7 @@ pub trait Visitor: Sized {
     fn pre_visit_show_retention_policies_statement(
         self,
         _n: &ShowRetentionPoliciesStatement,
-    ) -> VisitorResult<Recursion<Self>> {
+    ) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
@@ -200,7 +217,7 @@ pub trait Visitor: Sized {
     fn post_visit_show_retention_policies_statement(
         self,
         _n: &ShowRetentionPoliciesStatement,
-    ) -> VisitorResult<Self> {
+    ) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
@@ -208,12 +225,15 @@ pub trait Visitor: Sized {
     fn pre_visit_show_tag_keys_statement(
         self,
         _n: &ShowTagKeysStatement,
-    ) -> VisitorResult<Recursion<Self>> {
+    ) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of the `SHOW TAG KEYS` statement are visited.
-    fn post_visit_show_tag_keys_statement(self, _n: &ShowTagKeysStatement) -> VisitorResult<Self> {
+    fn post_visit_show_tag_keys_statement(
+        self,
+        _n: &ShowTagKeysStatement,
+    ) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
@@ -221,7 +241,7 @@ pub trait Visitor: Sized {
     fn pre_visit_show_tag_values_statement(
         self,
         _n: &ShowTagValuesStatement,
-    ) -> VisitorResult<Recursion<Self>> {
+    ) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
@@ -229,7 +249,7 @@ pub trait Visitor: Sized {
     fn post_visit_show_tag_values_statement(
         self,
         _n: &ShowTagValuesStatement,
-    ) -> VisitorResult<Self> {
+    ) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
@@ -237,7 +257,7 @@ pub trait Visitor: Sized {
     fn pre_visit_show_field_keys_statement(
         self,
         _n: &ShowFieldKeysStatement,
-    ) -> VisitorResult<Recursion<Self>> {
+    ) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
@@ -245,7 +265,7 @@ pub trait Visitor: Sized {
     fn post_visit_show_field_keys_statement(
         self,
         _n: &ShowFieldKeysStatement,
-    ) -> VisitorResult<Self> {
+    ) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
@@ -253,42 +273,45 @@ pub trait Visitor: Sized {
     fn pre_visit_conditional_expression(
         self,
         _n: &ConditionalExpression,
-    ) -> VisitorResult<Recursion<Self>> {
+    ) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of the conditional expression are visited.
-    fn post_visit_conditional_expression(self, _n: &ConditionalExpression) -> VisitorResult<Self> {
+    fn post_visit_conditional_expression(
+        self,
+        _n: &ConditionalExpression,
+    ) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
     /// Invoked before any children of the arithmetic expression are visited.
-    fn pre_visit_expr(self, _n: &Expr) -> VisitorResult<Recursion<Self>> {
+    fn pre_visit_expr(self, _n: &Expr) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of the arithmetic expression are visited.
-    fn post_visit_expr(self, _n: &Expr) -> VisitorResult<Self> {
+    fn post_visit_expr(self, _n: &Expr) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
     /// Invoked before any fields of the `SELECT` projection are visited.
-    fn pre_visit_select_field_list(self, _n: &FieldList) -> VisitorResult<Recursion<Self>> {
+    fn pre_visit_select_field_list(self, _n: &FieldList) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all fields of the `SELECT` projection are visited.
-    fn post_visit_select_field_list(self, _n: &FieldList) -> VisitorResult<Self> {
+    fn post_visit_select_field_list(self, _n: &FieldList) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
     /// Invoked before any children of the field of a `SELECT` statement are visited.
-    fn pre_visit_select_field(self, _n: &Field) -> VisitorResult<Recursion<Self>> {
+    fn pre_visit_select_field(self, _n: &Field) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of the field of a `SELECT` statement are visited.
-    fn post_visit_select_field(self, _n: &Field) -> VisitorResult<Self> {
+    fn post_visit_select_field(self, _n: &Field) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
@@ -296,12 +319,15 @@ pub trait Visitor: Sized {
     fn pre_visit_select_from_clause(
         self,
         _n: &FromMeasurementClause,
-    ) -> VisitorResult<Recursion<Self>> {
+    ) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of the `FROM` clause of a `SELECT` statement are visited.
-    fn post_visit_select_from_clause(self, _n: &FromMeasurementClause) -> VisitorResult<Self> {
+    fn post_visit_select_from_clause(
+        self,
+        _n: &FromMeasurementClause,
+    ) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
@@ -309,7 +335,7 @@ pub trait Visitor: Sized {
     fn pre_visit_select_measurement_selection(
         self,
         _n: &MeasurementSelection,
-    ) -> VisitorResult<Recursion<Self>> {
+    ) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
@@ -317,47 +343,50 @@ pub trait Visitor: Sized {
     fn post_visit_select_measurement_selection(
         self,
         _n: &MeasurementSelection,
-    ) -> VisitorResult<Self> {
+    ) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
     /// Invoked before any children of the `GROUP BY` clause are visited.
-    fn pre_visit_group_by_clause(self, _n: &GroupByClause) -> VisitorResult<Recursion<Self>> {
+    fn pre_visit_group_by_clause(self, _n: &GroupByClause) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of the `GROUP BY` clause are visited.
-    fn post_visit_group_by_clause(self, _n: &GroupByClause) -> VisitorResult<Self> {
+    fn post_visit_group_by_clause(self, _n: &GroupByClause) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
     /// Invoked before any children of the `GROUP BY` dimension expression are visited.
-    fn pre_visit_select_dimension(self, _n: &Dimension) -> VisitorResult<Recursion<Self>> {
+    fn pre_visit_select_dimension(self, _n: &Dimension) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of the `GROUP BY` dimension expression are visited.
-    fn post_visit_select_dimension(self, _n: &Dimension) -> VisitorResult<Self> {
+    fn post_visit_select_dimension(self, _n: &Dimension) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
     /// Invoked before any children of the `WHERE` clause are visited.
-    fn pre_visit_where_clause(self, _n: &WhereClause) -> VisitorResult<Recursion<Self>> {
+    fn pre_visit_where_clause(self, _n: &WhereClause) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of the `WHERE` clause are visited.
-    fn post_visit_where_clause(self, _n: &WhereClause) -> VisitorResult<Self> {
+    fn post_visit_where_clause(self, _n: &WhereClause) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
     /// Invoked before any children of the `FROM` clause for any `SHOW` statement are visited.
-    fn pre_visit_show_from_clause(self, _n: &ShowFromClause) -> VisitorResult<Recursion<Self>> {
+    fn pre_visit_show_from_clause(
+        self,
+        _n: &ShowFromClause,
+    ) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of the `FROM` clause for any `SHOW` statement are visited.
-    fn post_visit_show_from_clause(self, _n: &ShowFromClause) -> VisitorResult<Self> {
+    fn post_visit_show_from_clause(self, _n: &ShowFromClause) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
@@ -365,7 +394,7 @@ pub trait Visitor: Sized {
     fn pre_visit_qualified_measurement_name(
         self,
         _n: &QualifiedMeasurementName,
-    ) -> VisitorResult<Recursion<Self>> {
+    ) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
@@ -373,97 +402,103 @@ pub trait Visitor: Sized {
     fn post_visit_qualified_measurement_name(
         self,
         _n: &QualifiedMeasurementName,
-    ) -> VisitorResult<Self> {
+    ) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
     /// Invoked before any children of the `FILL` clause are visited.
-    fn pre_visit_fill_clause(self, _n: &FillClause) -> VisitorResult<Recursion<Self>> {
+    fn pre_visit_fill_clause(self, _n: &FillClause) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of the `FILL` clause are visited.
-    fn post_visit_fill_clause(self, _n: &FillClause) -> VisitorResult<Self> {
+    fn post_visit_fill_clause(self, _n: &FillClause) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
     /// Invoked before any children of the `ORDER BY` clause are visited.
-    fn pre_visit_order_by_clause(self, _n: &OrderByClause) -> VisitorResult<Recursion<Self>> {
+    fn pre_visit_order_by_clause(self, _n: &OrderByClause) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of the `ORDER BY` clause are visited.
-    fn post_visit_order_by_clause(self, _n: &OrderByClause) -> VisitorResult<Self> {
+    fn post_visit_order_by_clause(self, _n: &OrderByClause) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
     /// Invoked before any children of the `LIMIT` clause are visited.
-    fn pre_visit_limit_clause(self, _n: &LimitClause) -> VisitorResult<Recursion<Self>> {
+    fn pre_visit_limit_clause(self, _n: &LimitClause) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of the `LIMIT` clause are visited.
-    fn post_visit_limit_clause(self, _n: &LimitClause) -> VisitorResult<Self> {
+    fn post_visit_limit_clause(self, _n: &LimitClause) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
     /// Invoked before any children of the `OFFSET` clause are visited.
-    fn pre_visit_offset_clause(self, _n: &OffsetClause) -> VisitorResult<Recursion<Self>> {
+    fn pre_visit_offset_clause(self, _n: &OffsetClause) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of the `OFFSET` clause are visited.
-    fn post_visit_offset_clause(self, _n: &OffsetClause) -> VisitorResult<Self> {
+    fn post_visit_offset_clause(self, _n: &OffsetClause) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
     /// Invoked before any children of the `SLIMIT` clause are visited.
-    fn pre_visit_slimit_clause(self, _n: &SLimitClause) -> VisitorResult<Recursion<Self>> {
+    fn pre_visit_slimit_clause(self, _n: &SLimitClause) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of the `SLIMIT` clause are visited.
-    fn post_visit_slimit_clause(self, _n: &SLimitClause) -> VisitorResult<Self> {
+    fn post_visit_slimit_clause(self, _n: &SLimitClause) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
     /// Invoked before any children of the `SOFFSET` clause are visited.
-    fn pre_visit_soffset_clause(self, _n: &SOffsetClause) -> VisitorResult<Recursion<Self>> {
+    fn pre_visit_soffset_clause(self, _n: &SOffsetClause) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of the `SOFFSET` clause are visited.
-    fn post_visit_soffset_clause(self, _n: &SOffsetClause) -> VisitorResult<Self> {
+    fn post_visit_soffset_clause(self, _n: &SOffsetClause) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
     /// Invoked before any children of a `TZ` clause are visited.
-    fn pre_visit_timezone_clause(self, _n: &TimeZoneClause) -> VisitorResult<Recursion<Self>> {
+    fn pre_visit_timezone_clause(
+        self,
+        _n: &TimeZoneClause,
+    ) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of a `TZ` clause are visited.
-    fn post_visit_timezone_clause(self, _n: &TimeZoneClause) -> VisitorResult<Self> {
+    fn post_visit_timezone_clause(self, _n: &TimeZoneClause) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
     /// Invoked before any children of an extended `ON` clause are visited.
-    fn pre_visit_extended_on_clause(self, _n: &ExtendedOnClause) -> VisitorResult<Recursion<Self>> {
+    fn pre_visit_extended_on_clause(
+        self,
+        _n: &ExtendedOnClause,
+    ) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of an extended `ON` clause are visited.
-    fn post_visit_extended_on_clause(self, _n: &ExtendedOnClause) -> VisitorResult<Self> {
+    fn post_visit_extended_on_clause(self, _n: &ExtendedOnClause) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
     /// Invoked before any children of an `ON` clause are visited.
-    fn pre_visit_on_clause(self, _n: &OnClause) -> VisitorResult<Recursion<Self>> {
+    fn pre_visit_on_clause(self, _n: &OnClause) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of an `ON` clause are visited.
-    fn post_visit_on_clause(self, _n: &OnClause) -> VisitorResult<Self> {
+    fn post_visit_on_clause(self, _n: &OnClause) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
@@ -471,22 +506,25 @@ pub trait Visitor: Sized {
     fn pre_visit_with_measurement_clause(
         self,
         _n: &WithMeasurementClause,
-    ) -> VisitorResult<Recursion<Self>> {
+    ) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of a `WITH MEASUREMENT` clause  are visited.
-    fn post_visit_with_measurement_clause(self, _n: &WithMeasurementClause) -> VisitorResult<Self> {
+    fn post_visit_with_measurement_clause(
+        self,
+        _n: &WithMeasurementClause,
+    ) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
     /// Invoked before any children of a `WITH KEY` clause are visited.
-    fn pre_visit_with_key_clause(self, _n: &WithKeyClause) -> VisitorResult<Recursion<Self>> {
+    fn pre_visit_with_key_clause(self, _n: &WithKeyClause) -> Result<Recursion<Self>, Self::Error> {
         Ok(Continue(self))
     }
 
     /// Invoked after all children of a `WITH KEY` clause  are visited.
-    fn post_visit_with_key_clause(self, _n: &WithKeyClause) -> VisitorResult<Self> {
+    fn post_visit_with_key_clause(self, _n: &WithKeyClause) -> Result<Self, Self::Error> {
         Ok(self)
     }
 }
@@ -494,11 +532,11 @@ pub trait Visitor: Sized {
 /// Trait for types that can be visited by [`Visitor`]
 pub trait Visitable: Sized {
     /// accept a visitor, calling `visit` on all children of this
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V>;
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error>;
 }
 
 impl Visitable for Statement {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_statement(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -523,7 +561,7 @@ impl Visitable for Statement {
 }
 
 impl Visitable for CreateDatabaseStatement {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_create_database_statement(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -534,7 +572,7 @@ impl Visitable for CreateDatabaseStatement {
 }
 
 impl Visitable for DeleteStatement {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_delete_statement(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -558,7 +596,7 @@ impl Visitable for DeleteStatement {
 }
 
 impl Visitable for WhereClause {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_where_clause(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -571,7 +609,7 @@ impl Visitable for WhereClause {
 }
 
 impl Visitable for DeleteFromClause {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_delete_from_clause(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -584,7 +622,7 @@ impl Visitable for DeleteFromClause {
 }
 
 impl Visitable for MeasurementName {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_measurement_name(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -595,7 +633,7 @@ impl Visitable for MeasurementName {
 }
 
 impl Visitable for DropMeasurementStatement {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_drop_measurement_statement(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -606,7 +644,7 @@ impl Visitable for DropMeasurementStatement {
 }
 
 impl Visitable for ExplainStatement {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_explain_statement(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -619,7 +657,7 @@ impl Visitable for ExplainStatement {
 }
 
 impl Visitable for SelectStatement {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_select_statement(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -688,7 +726,7 @@ impl Visitable for SelectStatement {
 }
 
 impl Visitable for TimeZoneClause {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_timezone_clause(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -699,7 +737,7 @@ impl Visitable for TimeZoneClause {
 }
 
 impl Visitable for LimitClause {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_limit_clause(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -710,7 +748,7 @@ impl Visitable for LimitClause {
 }
 
 impl Visitable for OffsetClause {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_offset_clause(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -721,7 +759,7 @@ impl Visitable for OffsetClause {
 }
 
 impl Visitable for SLimitClause {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_slimit_clause(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -732,7 +770,7 @@ impl Visitable for SLimitClause {
 }
 
 impl Visitable for SOffsetClause {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_soffset_clause(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -743,7 +781,7 @@ impl Visitable for SOffsetClause {
 }
 
 impl Visitable for FillClause {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_fill_clause(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -754,7 +792,7 @@ impl Visitable for FillClause {
 }
 
 impl Visitable for OrderByClause {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_order_by_clause(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -765,7 +803,7 @@ impl Visitable for OrderByClause {
 }
 
 impl Visitable for GroupByClause {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_group_by_clause(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -778,7 +816,7 @@ impl Visitable for GroupByClause {
 }
 
 impl Visitable for ShowMeasurementsStatement {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_show_measurements_statement(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -819,7 +857,7 @@ impl Visitable for ShowMeasurementsStatement {
 }
 
 impl Visitable for ExtendedOnClause {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_extended_on_clause(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -830,7 +868,7 @@ impl Visitable for ExtendedOnClause {
 }
 
 impl Visitable for WithMeasurementClause {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_with_measurement_clause(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -846,7 +884,7 @@ impl Visitable for WithMeasurementClause {
 }
 
 impl Visitable for ShowRetentionPoliciesStatement {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_show_retention_policies_statement(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -863,7 +901,7 @@ impl Visitable for ShowRetentionPoliciesStatement {
 }
 
 impl Visitable for ShowFromClause {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_show_from_clause(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -876,7 +914,7 @@ impl Visitable for ShowFromClause {
 }
 
 impl Visitable for QualifiedMeasurementName {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_qualified_measurement_name(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -889,7 +927,7 @@ impl Visitable for QualifiedMeasurementName {
 }
 
 impl Visitable for ShowTagKeysStatement {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_show_tag_keys_statement(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -930,7 +968,7 @@ impl Visitable for ShowTagKeysStatement {
 }
 
 impl Visitable for ShowTagValuesStatement {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_show_tag_values_statement(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -973,7 +1011,7 @@ impl Visitable for ShowTagValuesStatement {
 }
 
 impl Visitable for ShowFieldKeysStatement {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_show_field_keys_statement(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -1008,7 +1046,7 @@ impl Visitable for ShowFieldKeysStatement {
 }
 
 impl Visitable for FieldList {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_select_field_list(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -1021,7 +1059,7 @@ impl Visitable for FieldList {
 }
 
 impl Visitable for Field {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_select_field(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -1034,7 +1072,7 @@ impl Visitable for Field {
 }
 
 impl Visitable for FromMeasurementClause {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_select_from_clause(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -1047,7 +1085,7 @@ impl Visitable for FromMeasurementClause {
 }
 
 impl Visitable for MeasurementSelection {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_select_measurement_selection(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -1063,7 +1101,7 @@ impl Visitable for MeasurementSelection {
 }
 
 impl Visitable for Dimension {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_select_dimension(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -1086,7 +1124,7 @@ impl Visitable for Dimension {
 }
 
 impl Visitable for WithKeyClause {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_with_key_clause(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -1097,7 +1135,7 @@ impl Visitable for WithKeyClause {
 }
 
 impl Visitable for ShowDatabasesStatement {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_show_databases_statement(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -1107,7 +1145,7 @@ impl Visitable for ShowDatabasesStatement {
 }
 
 impl Visitable for ConditionalExpression {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_conditional_expression(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -1127,7 +1165,7 @@ impl Visitable for ConditionalExpression {
 }
 
 impl Visitable for Expr {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_expr(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -1156,7 +1194,7 @@ impl Visitable for Expr {
 }
 
 impl Visitable for OnClause {
-    fn accept<V: Visitor>(&self, visitor: V) -> VisitorResult<V> {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
         let visitor = match visitor.pre_visit_on_clause(self)? {
             Continue(visitor) => visitor,
             Stop(visitor) => return Ok(visitor),
@@ -1169,7 +1207,7 @@ impl Visitable for OnClause {
 #[cfg(test)]
 mod test {
     use super::Recursion::Continue;
-    use super::{Recursion, Visitable, Visitor, VisitorResult};
+    use super::{Recursion, Visitable, Visitor};
     use crate::common::{
         LimitClause, MeasurementName, OffsetClause, OrderByClause, QualifiedMeasurementName,
         WhereClause,
@@ -1216,106 +1254,117 @@ mod test {
     }
 
     impl Visitor for TestVisitor {
-        fn pre_visit_statement(self, n: &Statement) -> VisitorResult<Recursion<Self>> {
+        type Error = ();
+
+        fn pre_visit_statement(self, n: &Statement) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("statement", n)))
         }
 
-        fn post_visit_statement(self, n: &Statement) -> VisitorResult<Self> {
+        fn post_visit_statement(self, n: &Statement) -> Result<Self, Self::Error> {
             Ok(self.push_post("statement", n))
         }
 
-        fn pre_visit_delete_statement(self, n: &DeleteStatement) -> VisitorResult<Recursion<Self>> {
+        fn pre_visit_delete_statement(
+            self,
+            n: &DeleteStatement,
+        ) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("delete_statement", n)))
         }
 
-        fn post_visit_delete_statement(self, n: &DeleteStatement) -> VisitorResult<Self> {
+        fn post_visit_delete_statement(self, n: &DeleteStatement) -> Result<Self, Self::Error> {
             Ok(self.push_post("delete_statement", n))
         }
 
         fn pre_visit_delete_from_clause(
             self,
             n: &DeleteFromClause,
-        ) -> VisitorResult<Recursion<Self>> {
+        ) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("delete_from", n)))
         }
 
-        fn post_visit_delete_from_clause(self, n: &DeleteFromClause) -> VisitorResult<Self> {
+        fn post_visit_delete_from_clause(self, n: &DeleteFromClause) -> Result<Self, Self::Error> {
             Ok(self.push_post("delete_from", n))
         }
 
-        fn pre_visit_measurement_name(self, n: &MeasurementName) -> VisitorResult<Recursion<Self>> {
+        fn pre_visit_measurement_name(
+            self,
+            n: &MeasurementName,
+        ) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("measurement_name", n)))
         }
 
-        fn post_visit_measurement_name(self, n: &MeasurementName) -> VisitorResult<Self> {
+        fn post_visit_measurement_name(self, n: &MeasurementName) -> Result<Self, Self::Error> {
             Ok(self.push_post("measurement_name", n))
         }
 
         fn pre_visit_drop_measurement_statement(
             self,
             n: &DropMeasurementStatement,
-        ) -> VisitorResult<Recursion<Self>> {
+        ) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("drop_measurement_statement", n)))
         }
 
         fn post_visit_drop_measurement_statement(
             self,
             n: &DropMeasurementStatement,
-        ) -> VisitorResult<Self> {
+        ) -> Result<Self, Self::Error> {
             Ok(self.push_post("drop_measurement_statement", n))
         }
 
         fn pre_visit_explain_statement(
             self,
             n: &ExplainStatement,
-        ) -> VisitorResult<Recursion<Self>> {
+        ) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("explain_statement", n)))
         }
 
-        fn post_visit_explain_statement(self, n: &ExplainStatement) -> VisitorResult<Self> {
+        fn post_visit_explain_statement(self, n: &ExplainStatement) -> Result<Self, Self::Error> {
             Ok(self.push_post("explain_statement", n))
         }
 
-        fn pre_visit_select_statement(self, n: &SelectStatement) -> VisitorResult<Recursion<Self>> {
+        fn pre_visit_select_statement(
+            self,
+            n: &SelectStatement,
+        ) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("select_statement", n)))
         }
 
-        fn post_visit_select_statement(self, n: &SelectStatement) -> VisitorResult<Self> {
+        fn post_visit_select_statement(self, n: &SelectStatement) -> Result<Self, Self::Error> {
             Ok(self.push_post("select_statement", n))
         }
 
         fn pre_visit_show_databases_statement(
             self,
             n: &ShowDatabasesStatement,
-        ) -> VisitorResult<Recursion<Self>> {
+        ) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("show_databases_statement", n)))
         }
 
         fn post_visit_show_databases_statement(
             self,
             n: &ShowDatabasesStatement,
-        ) -> VisitorResult<Self> {
+        ) -> Result<Self, Self::Error> {
             Ok(self.push_post("show_databases_statement", n))
         }
 
         fn pre_visit_show_measurements_statement(
             self,
             n: &ShowMeasurementsStatement,
-        ) -> VisitorResult<Recursion<Self>> {
+        ) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("show_measurements_statement", n)))
         }
 
         fn post_visit_show_measurements_statement(
             self,
             n: &ShowMeasurementsStatement,
-        ) -> VisitorResult<Self> {
+        ) -> Result<Self, Self::Error> {
             Ok(self.push_post("show_measurements_statement", n))
         }
 
         fn pre_visit_show_retention_policies_statement(
             self,
             n: &ShowRetentionPoliciesStatement,
-        ) -> VisitorResult<Recursion<Self>> {
+        ) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(
                 self.push_pre("show_retention_policies_statement", n),
             ))
@@ -1324,255 +1373,279 @@ mod test {
         fn post_visit_show_retention_policies_statement(
             self,
             n: &ShowRetentionPoliciesStatement,
-        ) -> VisitorResult<Self> {
+        ) -> Result<Self, Self::Error> {
             Ok(self.push_post("show_retention_policies_statement", n))
         }
 
         fn pre_visit_show_tag_keys_statement(
             self,
             n: &ShowTagKeysStatement,
-        ) -> VisitorResult<Recursion<Self>> {
+        ) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("show_tag_keys_statement", n)))
         }
 
         fn post_visit_show_tag_keys_statement(
             self,
             n: &ShowTagKeysStatement,
-        ) -> VisitorResult<Self> {
+        ) -> Result<Self, Self::Error> {
             Ok(self.push_post("show_tag_keys_statement", n))
         }
 
         fn pre_visit_show_tag_values_statement(
             self,
             n: &ShowTagValuesStatement,
-        ) -> VisitorResult<Recursion<Self>> {
+        ) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("show_tag_values_statement", n)))
         }
 
         fn post_visit_show_tag_values_statement(
             self,
             n: &ShowTagValuesStatement,
-        ) -> VisitorResult<Self> {
+        ) -> Result<Self, Self::Error> {
             Ok(self.push_post("show_tag_values_statement", n))
         }
 
         fn pre_visit_show_field_keys_statement(
             self,
             n: &ShowFieldKeysStatement,
-        ) -> VisitorResult<Recursion<Self>> {
+        ) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("show_field_keys_statement", n)))
         }
 
         fn post_visit_show_field_keys_statement(
             self,
             n: &ShowFieldKeysStatement,
-        ) -> VisitorResult<Self> {
+        ) -> Result<Self, Self::Error> {
             Ok(self.push_post("show_field_keys_statement", n))
         }
 
         fn pre_visit_conditional_expression(
             self,
             n: &ConditionalExpression,
-        ) -> VisitorResult<Recursion<Self>> {
+        ) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("conditional_expression", n)))
         }
 
         fn post_visit_conditional_expression(
             self,
             n: &ConditionalExpression,
-        ) -> VisitorResult<Self> {
+        ) -> Result<Self, Self::Error> {
             Ok(self.push_post("conditional_expression", n))
         }
 
-        fn pre_visit_expr(self, n: &Expr) -> VisitorResult<Recursion<Self>> {
+        fn pre_visit_expr(self, n: &Expr) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("expr", n)))
         }
 
-        fn post_visit_expr(self, n: &Expr) -> VisitorResult<Self> {
+        fn post_visit_expr(self, n: &Expr) -> Result<Self, Self::Error> {
             Ok(self.push_post("expr", n))
         }
 
-        fn pre_visit_select_field_list(self, n: &FieldList) -> VisitorResult<Recursion<Self>> {
+        fn pre_visit_select_field_list(
+            self,
+            n: &FieldList,
+        ) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("select_field_list", n)))
         }
 
-        fn post_visit_select_field_list(self, n: &FieldList) -> VisitorResult<Self> {
+        fn post_visit_select_field_list(self, n: &FieldList) -> Result<Self, Self::Error> {
             Ok(self.push_post("select_field_list", n))
         }
 
-        fn pre_visit_select_field(self, n: &Field) -> VisitorResult<Recursion<Self>> {
+        fn pre_visit_select_field(self, n: &Field) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("select_field", n)))
         }
 
-        fn post_visit_select_field(self, n: &Field) -> VisitorResult<Self> {
+        fn post_visit_select_field(self, n: &Field) -> Result<Self, Self::Error> {
             Ok(self.push_post("select_field", n))
         }
 
         fn pre_visit_select_from_clause(
             self,
             n: &FromMeasurementClause,
-        ) -> VisitorResult<Recursion<Self>> {
+        ) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("select_from_clause", n)))
         }
 
-        fn post_visit_select_from_clause(self, n: &FromMeasurementClause) -> VisitorResult<Self> {
+        fn post_visit_select_from_clause(
+            self,
+            n: &FromMeasurementClause,
+        ) -> Result<Self, Self::Error> {
             Ok(self.push_post("select_from_clause", n))
         }
 
         fn pre_visit_select_measurement_selection(
             self,
             n: &MeasurementSelection,
-        ) -> VisitorResult<Recursion<Self>> {
+        ) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("select_measurement_selection", n)))
         }
 
         fn post_visit_select_measurement_selection(
             self,
             n: &MeasurementSelection,
-        ) -> VisitorResult<Self> {
+        ) -> Result<Self, Self::Error> {
             Ok(self.push_post("select_measurement_selection", n))
         }
 
-        fn pre_visit_group_by_clause(self, n: &GroupByClause) -> VisitorResult<Recursion<Self>> {
+        fn pre_visit_group_by_clause(
+            self,
+            n: &GroupByClause,
+        ) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("group_by_clause", n)))
         }
 
-        fn post_visit_group_by_clause(self, n: &GroupByClause) -> VisitorResult<Self> {
+        fn post_visit_group_by_clause(self, n: &GroupByClause) -> Result<Self, Self::Error> {
             Ok(self.push_post("group_by_clause", n))
         }
 
-        fn pre_visit_select_dimension(self, n: &Dimension) -> VisitorResult<Recursion<Self>> {
+        fn pre_visit_select_dimension(self, n: &Dimension) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("select_dimension", n)))
         }
 
-        fn post_visit_select_dimension(self, n: &Dimension) -> VisitorResult<Self> {
+        fn post_visit_select_dimension(self, n: &Dimension) -> Result<Self, Self::Error> {
             Ok(self.push_post("select_dimension", n))
         }
 
-        fn pre_visit_where_clause(self, n: &WhereClause) -> VisitorResult<Recursion<Self>> {
+        fn pre_visit_where_clause(self, n: &WhereClause) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("where_clause", n)))
         }
 
-        fn post_visit_where_clause(self, n: &WhereClause) -> VisitorResult<Self> {
+        fn post_visit_where_clause(self, n: &WhereClause) -> Result<Self, Self::Error> {
             Ok(self.push_post("where_clause", n))
         }
 
-        fn pre_visit_show_from_clause(self, n: &ShowFromClause) -> VisitorResult<Recursion<Self>> {
+        fn pre_visit_show_from_clause(
+            self,
+            n: &ShowFromClause,
+        ) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("show_from_clause", n)))
         }
 
-        fn post_visit_show_from_clause(self, n: &ShowFromClause) -> VisitorResult<Self> {
+        fn post_visit_show_from_clause(self, n: &ShowFromClause) -> Result<Self, Self::Error> {
             Ok(self.push_post("show_from_clause", n))
         }
 
         fn pre_visit_qualified_measurement_name(
             self,
             n: &QualifiedMeasurementName,
-        ) -> VisitorResult<Recursion<Self>> {
+        ) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("qualified_measurement_name", n)))
         }
 
         fn post_visit_qualified_measurement_name(
             self,
             n: &QualifiedMeasurementName,
-        ) -> VisitorResult<Self> {
+        ) -> Result<Self, Self::Error> {
             Ok(self.push_post("qualified_measurement_name", n))
         }
 
-        fn pre_visit_fill_clause(self, n: &FillClause) -> VisitorResult<Recursion<Self>> {
+        fn pre_visit_fill_clause(self, n: &FillClause) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("fill_clause", n)))
         }
 
-        fn post_visit_fill_clause(self, n: &FillClause) -> VisitorResult<Self> {
+        fn post_visit_fill_clause(self, n: &FillClause) -> Result<Self, Self::Error> {
             Ok(self.push_post("fill_clause", n))
         }
 
-        fn pre_visit_order_by_clause(self, n: &OrderByClause) -> VisitorResult<Recursion<Self>> {
+        fn pre_visit_order_by_clause(
+            self,
+            n: &OrderByClause,
+        ) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("order_by_clause", n)))
         }
 
-        fn post_visit_order_by_clause(self, n: &OrderByClause) -> VisitorResult<Self> {
+        fn post_visit_order_by_clause(self, n: &OrderByClause) -> Result<Self, Self::Error> {
             Ok(self.push_post("order_by_clause", n))
         }
 
-        fn pre_visit_limit_clause(self, n: &LimitClause) -> VisitorResult<Recursion<Self>> {
+        fn pre_visit_limit_clause(self, n: &LimitClause) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("limit_clause", n)))
         }
 
-        fn post_visit_limit_clause(self, n: &LimitClause) -> VisitorResult<Self> {
+        fn post_visit_limit_clause(self, n: &LimitClause) -> Result<Self, Self::Error> {
             Ok(self.push_post("limit_clause", n))
         }
 
-        fn pre_visit_offset_clause(self, n: &OffsetClause) -> VisitorResult<Recursion<Self>> {
+        fn pre_visit_offset_clause(self, n: &OffsetClause) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("offset_clause", n)))
         }
 
-        fn post_visit_offset_clause(self, n: &OffsetClause) -> VisitorResult<Self> {
+        fn post_visit_offset_clause(self, n: &OffsetClause) -> Result<Self, Self::Error> {
             Ok(self.push_post("offset_clause", n))
         }
 
-        fn pre_visit_slimit_clause(self, n: &SLimitClause) -> VisitorResult<Recursion<Self>> {
+        fn pre_visit_slimit_clause(self, n: &SLimitClause) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("slimit_clause", n)))
         }
 
-        fn post_visit_slimit_clause(self, n: &SLimitClause) -> VisitorResult<Self> {
+        fn post_visit_slimit_clause(self, n: &SLimitClause) -> Result<Self, Self::Error> {
             Ok(self.push_post("slimit_clause", n))
         }
 
-        fn pre_visit_soffset_clause(self, n: &SOffsetClause) -> VisitorResult<Recursion<Self>> {
+        fn pre_visit_soffset_clause(
+            self,
+            n: &SOffsetClause,
+        ) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("soffset_clause", n)))
         }
 
-        fn post_visit_soffset_clause(self, n: &SOffsetClause) -> VisitorResult<Self> {
+        fn post_visit_soffset_clause(self, n: &SOffsetClause) -> Result<Self, Self::Error> {
             Ok(self.push_post("soffset_clause", n))
         }
 
-        fn pre_visit_timezone_clause(self, n: &TimeZoneClause) -> VisitorResult<Recursion<Self>> {
+        fn pre_visit_timezone_clause(
+            self,
+            n: &TimeZoneClause,
+        ) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("timezone_clause", n)))
         }
 
-        fn post_visit_timezone_clause(self, n: &TimeZoneClause) -> VisitorResult<Self> {
+        fn post_visit_timezone_clause(self, n: &TimeZoneClause) -> Result<Self, Self::Error> {
             Ok(self.push_post("timezone_clause", n))
         }
 
         fn pre_visit_extended_on_clause(
             self,
             n: &ExtendedOnClause,
-        ) -> VisitorResult<Recursion<Self>> {
+        ) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("extended_on_clause", n)))
         }
 
-        fn post_visit_extended_on_clause(self, n: &ExtendedOnClause) -> VisitorResult<Self> {
+        fn post_visit_extended_on_clause(self, n: &ExtendedOnClause) -> Result<Self, Self::Error> {
             Ok(self.push_post("extended_on_clause", n))
         }
 
-        fn pre_visit_on_clause(self, n: &OnClause) -> VisitorResult<Recursion<Self>> {
+        fn pre_visit_on_clause(self, n: &OnClause) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("on_clause", n)))
         }
 
-        fn post_visit_on_clause(self, n: &OnClause) -> VisitorResult<Self> {
+        fn post_visit_on_clause(self, n: &OnClause) -> Result<Self, Self::Error> {
             Ok(self.push_pre("on_clause", n))
         }
 
         fn pre_visit_with_measurement_clause(
             self,
             n: &WithMeasurementClause,
-        ) -> VisitorResult<Recursion<Self>> {
+        ) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("with_measurement_clause", n)))
         }
 
         fn post_visit_with_measurement_clause(
             self,
             n: &WithMeasurementClause,
-        ) -> VisitorResult<Self> {
+        ) -> Result<Self, Self::Error> {
             Ok(self.push_post("with_measurement_clause", n))
         }
 
-        fn pre_visit_with_key_clause(self, n: &WithKeyClause) -> VisitorResult<Recursion<Self>> {
+        fn pre_visit_with_key_clause(
+            self,
+            n: &WithKeyClause,
+        ) -> Result<Recursion<Self>, Self::Error> {
             Ok(Continue(self.push_pre("with_key_clause", n)))
         }
 
-        fn post_visit_with_key_clause(self, n: &WithKeyClause) -> VisitorResult<Self> {
+        fn post_visit_with_key_clause(self, n: &WithKeyClause) -> Result<Self, Self::Error> {
             Ok(self.push_post("with_key_clause", n))
         }
     }

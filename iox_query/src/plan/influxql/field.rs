@@ -1,6 +1,6 @@
 use influxdb_influxql_parser::expression::Expr;
 use influxdb_influxql_parser::select::{Field, SelectStatement};
-use influxdb_influxql_parser::visit::{Recursion, Visitable, Visitor, VisitorResult};
+use influxdb_influxql_parser::visit::{Recursion, Visitable, Visitor};
 use std::ops::Deref;
 
 /// Returns the name of the field.
@@ -59,7 +59,9 @@ pub(crate) fn field_by_name(select: &SelectStatement, name: &str) -> Option<Fiel
 struct BinaryExprNameVisitor<'a>(&'a mut Vec<String>);
 
 impl<'a> Visitor for BinaryExprNameVisitor<'a> {
-    fn pre_visit_expr(self, n: &Expr) -> VisitorResult<Recursion<Self>> {
+    type Error = ();
+
+    fn pre_visit_expr(self, n: &Expr) -> Result<Recursion<Self>, Self::Error> {
         match n {
             Expr::Call { name, .. } => self.0.push(name.clone()),
             Expr::VarRef { name, .. } => self.0.push(name.to_string()),

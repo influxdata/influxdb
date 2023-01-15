@@ -57,10 +57,12 @@ object_store = { git = "https://github.com/apache/arrow-rs.git", rev = "f5c165ac
 once_cell = { version = "1", features = ["alloc", "parking_lot", "parking_lot_core", "race", "std"] }
 parking_lot = { version = "0.12", features = ["arc_lock"] }
 parquet = { version = "29", features = ["arrow", "arrow-array", "arrow-buffer", "arrow-cast", "arrow-data", "arrow-ipc", "arrow-schema", "arrow-select", "async", "base64", "brotli", "experimental", "flate2", "futures", "lz4", "snap", "tokio", "zstd"] }
+phf_shared = { version = "0.11", features = ["std"] }
 predicates = { version = "2", features = ["diff", "difflib", "float-cmp", "normalize-line-endings", "regex"] }
 prost = { version = "0.11", features = ["prost-derive", "std"] }
 prost-types = { version = "0.11", features = ["std"] }
 rand = { version = "0.8", features = ["alloc", "getrandom", "libc", "rand_chacha", "small_rng", "std", "std_rng"] }
+rand_core = { version = "0.6", default-features = false, features = ["alloc", "getrandom", "std"] }
 regex = { version = "1", features = ["aho-corasick", "memchr", "perf", "perf-cache", "perf-dfa", "perf-inline", "perf-literal", "std", "unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
 regex-automata = { version = "0.1", features = ["regex-syntax", "std"] }
 regex-syntax = { version = "0.6", features = ["unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
@@ -121,9 +123,11 @@ nom = { version = "7", features = ["alloc", "std"] }
 num-traits = { version = "0.2", features = ["i128", "libm", "std"] }
 once_cell = { version = "1", features = ["alloc", "parking_lot", "parking_lot_core", "race", "std"] }
 parking_lot = { version = "0.12", features = ["arc_lock"] }
+phf_shared = { version = "0.11", features = ["std"] }
 prost = { version = "0.11", features = ["prost-derive", "std"] }
 prost-types = { version = "0.11", features = ["std"] }
 rand = { version = "0.8", features = ["alloc", "getrandom", "libc", "rand_chacha", "small_rng", "std", "std_rng"] }
+rand_core = { version = "0.6", default-features = false, features = ["alloc", "getrandom", "std"] }
 regex = { version = "1", features = ["aho-corasick", "memchr", "perf", "perf-cache", "perf-dfa", "perf-inline", "perf-literal", "std", "unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
 regex-syntax = { version = "0.6", features = ["unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
 ring = { version = "0.16", features = ["alloc", "dev_urandom_fallback", "once_cell", "std"] }

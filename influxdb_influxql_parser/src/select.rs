@@ -13,13 +13,13 @@ use crate::expression::arithmetic::{
 };
 use crate::expression::conditional::is_valid_now_call;
 use crate::identifier::{identifier, Identifier};
-use crate::internal::{expect, verify, ParseResult};
+use crate::impl_tuple_clause;
+use crate::internal::{expect, map_fail, verify, ParseResult};
 use crate::keywords::keyword;
 use crate::literal::{duration, literal, number, unsigned_integer, Literal, Number};
 use crate::parameter::parameter;
 use crate::select::MeasurementSelection::Subquery;
 use crate::string::{regex, single_quoted_string, Regex};
-use crate::{impl_tuple_clause, write_escaped};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::char;
@@ -630,17 +630,15 @@ fn soffset_clause(i: &str) -> ParseResult<&str, SOffsetClause> {
     )(i)
 }
 
-/// Represents the value of the time zone string of a `TZ` clause.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TimeZoneClause(pub(crate) String);
+/// Represents an IANA time zone parsed from the `TZ` clause.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TimeZoneClause(pub(crate) chrono_tz::Tz);
 
-impl_tuple_clause!(TimeZoneClause, String);
+impl_tuple_clause!(TimeZoneClause, chrono_tz::Tz);
 
 impl Display for TimeZoneClause {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str("TZ('")?;
-        write_escaped!(f, self.0, '\n' => "\\n", '\\' => "\\\\", '\'' => "\\'", '"' => "\\\"");
-        f.write_str("')")
+        write!(f, "TZ('{}')", self.0)
     }
 }
 
@@ -649,6 +647,34 @@ impl Display for TimeZoneClause {
 /// ```text
 /// timezone_clause ::= "TZ" "(" single_quoted_string ")"
 /// ```
+///
+/// ## NOTE
+///
+/// There are some differences with how the IANA timezone string
+/// is parsed to a [chrono_tz::Tz] in Rust vs a [`time.Location`][location] via
+/// Go's [`time.LoadLocation`][load_location]
+/// function, which is used by the canonical Go InfluxQL parser.
+///
+/// It isn't expected that these differences matter for parsing, however,
+/// the notable differences are:
+///
+/// * Specifying the location name `Local` returns `time.Local`, which represents
+///   the system's local time zone. As a result, a user could specify a `TZ` clause
+///   as `TZ('Local')` to use the local time zone of the server running InfluxDB.
+///
+/// * on macOS, IANA name lookups are case-insensitive, whereas the Rust implementation
+///   is case-sensitive. However, this is purely a result of the Go implementation,
+///   which loads the zoneinfo files from the filesystem. macOS uses a case-insensitive
+///   file system by default. When using a case-sensitive file system, name lookups are
+///   also case-sensitive.
+///
+/// * Go's implementation (by default) loads the timezone database from the local file system
+///   vs Rust's implementation, where the database is statically compiled into the binary. Changes
+///   to the IANA database on disk will allow an existing binary to load new timezones.
+///
+/// [location]: https://github.com/influxdata/influxql/blob/7e7d61973256ffeef4b99edd0a89f18a9e52fa2d/parser.go#L2384
+/// [load_location]: https://pkg.go.dev/time#LoadLocation
+///
 fn timezone_clause(i: &str) -> ParseResult<&str, TimeZoneClause> {
     preceded(
         keyword("TZ"),
@@ -656,7 +682,12 @@ fn timezone_clause(i: &str) -> ParseResult<&str, TimeZoneClause> {
             preceded(ws0, char('(')),
             expect(
                 "invalid TZ clause, expected string",
-                preceded(ws0, map(single_quoted_string, TimeZoneClause)),
+                preceded(
+                    ws0,
+                    map_fail("unable to find timezone", single_quoted_string, |s| {
+                        s.parse().map(TimeZoneClause)
+                    }),
+                ),
             ),
             preceded(ws0, char(')')),
         ),
@@ -1189,13 +1220,17 @@ mod test {
     #[test]
     fn test_timezone_clause() {
         let (_, got) = timezone_clause("TZ('Australia/Hobart')").unwrap();
-        assert_eq!(*got, "Australia/Hobart");
+        assert_eq!(*got, chrono_tz::Australia::Hobart);
+
+        let (_, got) = timezone_clause("TZ('UTC')").unwrap();
+        assert_eq!(*got, chrono_tz::UTC);
 
         // Fallible cases
         assert_expect_error!(
             timezone_clause("TZ(foo)"),
             "invalid TZ clause, expected string"
         );
+        assert_expect_error!(timezone_clause("TZ('Foo')"), "unable to find timezone");
     }
 
     #[test]
