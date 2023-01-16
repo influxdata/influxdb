@@ -24,7 +24,10 @@ mod tests {
     use lazy_static::lazy_static;
     use object_store::{memory::InMemory, ObjectMeta, ObjectStore};
     use parking_lot::Mutex;
-    use parquet_file::storage::{ParquetStorage, StorageId};
+    use parquet_file::{
+        storage::{ParquetStorage, StorageId},
+        ParquetFilePath,
+    };
     use test_helpers::{maybe_start_logging, timeout::FutureTimeout};
 
     use crate::{
@@ -226,5 +229,143 @@ mod tests {
                 assert_eq!(size, file_size_bytes as usize);
             }
         )
+    }
+
+    /// An integration test covering concurrent catalog sort key updates,
+    /// discovered at persist time.
+    #[tokio::test]
+    async fn test_persist_integration_concurrent_sort_key_update() {
+        maybe_start_logging();
+
+        let object_storage: Arc<dyn ObjectStore> = Arc::new(InMemory::default());
+        let storage = ParquetStorage::new(Arc::clone(&object_storage), StorageId::from("iox"));
+        let metrics = Arc::new(metric::Registry::default());
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
+        let ingest_state = Arc::new(IngestState::default());
+
+        // Initialise the persist system.
+        let handle = PersistHandle::new(
+            1,
+            2,
+            Arc::clone(&ingest_state),
+            Arc::clone(&EXEC),
+            storage,
+            Arc::clone(&catalog),
+            &metrics,
+        );
+        assert!(ingest_state.read().is_ok());
+
+        // Generate a partition with data
+        let partition = partition_with_write(Arc::clone(&catalog)).await;
+        let table_id = partition.lock().table_id();
+        let partition_id = partition.lock().partition_id();
+        let namespace_id = partition.lock().namespace_id();
+        assert_matches!(partition.lock().sort_key(), SortKeyState::Provided(None));
+
+        // Transition it to "persisting".
+        let data = partition
+            .lock()
+            .mark_persisting()
+            .expect("partition with write should transition to persisting");
+
+        // Update the sort key in the catalog, causing the persist job to
+        // discover the change during the persist.
+        catalog
+            .repositories()
+            .await
+            .partitions()
+            .cas_sort_key(
+                partition_id,
+                None,
+                &["bananas", "are", "good", "for", "you"],
+            )
+            .await
+            .expect("failed to set catalog sort key");
+
+        // Enqueue the persist job
+        let notify = handle.enqueue(Arc::clone(&partition), data).await;
+        assert!(ingest_state.read().is_ok());
+
+        // Wait for the persist to complete.
+        notify
+            .with_timeout(Duration::from_secs(10))
+            .await
+            .expect("timeout waiting for completion notification")
+            .expect("worker task failed");
+
+        // Assert the partition persistence count increased, an indication that
+        // mark_persisted() was called.
+        assert_eq!(partition.lock().completed_persistence_count(), 1);
+
+        // Assert the sort key was also updated, adding the new columns to the
+        // end of the concurrently updated catalog sort key.
+        assert_matches!(partition.lock().sort_key(), SortKeyState::Provided(Some(p)) => {
+            assert_eq!(p.to_columns().collect::<Vec<_>>(), &["bananas", "are", "good", "for", "you", "region", "time"]);
+        });
+
+        // Ensure a file was made visible in the catalog
+        let files = catalog
+            .repositories()
+            .await
+            .parquet_files()
+            .list_by_partition_not_to_delete(partition_id)
+            .await
+            .expect("query for parquet files failed");
+
+        // Validate a single file was inserted with the expected properties.
+        let (object_store_id, file_size_bytes) = assert_matches!(&*files, &[ParquetFile {
+                namespace_id: got_namespace_id,
+                table_id: got_table_id,
+                partition_id: got_partition_id,
+                object_store_id,
+                max_sequence_number,
+                row_count,
+                compaction_level,
+                file_size_bytes,
+                ..
+            }] =>
+            {
+                assert_eq!(got_namespace_id, namespace_id);
+                assert_eq!(got_table_id, table_id);
+                assert_eq!(got_partition_id, partition_id);
+
+                assert_eq!(row_count, 1);
+                assert_eq!(compaction_level, CompactionLevel::Initial);
+
+                assert_eq!(max_sequence_number.get(), 0); // Unused, dummy value
+
+                (object_store_id, file_size_bytes)
+            }
+        );
+
+        // Validate the files exists in object storage.
+        let files: Vec<ObjectMeta> = object_storage
+            .list(None)
+            .await
+            .expect("listing object storage failed")
+            .try_collect::<Vec<_>>()
+            .await
+            .expect("failed to list object store files");
+
+        // Two files should have been uploaded - first the one that observed the
+        // concurrent sort key update, and then the resorted file using the
+        // observed sort key.
+        assert_eq!(files.len(), 2, "expected two uploaded files");
+
+        // Ensure the catalog record points at a valid file in object storage.
+        let want_path = ParquetFilePath::new(
+            namespace_id,
+            table_id,
+            TRANSITION_SHARD_ID,
+            partition_id,
+            object_store_id,
+        )
+        .object_store_path();
+        let file = files
+            .into_iter()
+            .find(|f| f.location == want_path)
+            .expect("did not find final file in object storage");
+
+        assert_eq!(file.size, file_size_bytes as usize);
     }
 }
