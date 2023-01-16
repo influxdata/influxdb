@@ -1,5 +1,6 @@
 pub(crate) mod backpressure;
 pub(super) mod compact;
+pub(crate) mod completion_observer;
 mod context;
 pub(crate) mod drain_buffer;
 pub(crate) mod handle;
@@ -40,7 +41,7 @@ mod tests {
         },
         dml_sink::DmlSink,
         ingest_state::IngestState,
-        persist::queue::PersistQueue,
+        persist::{completion_observer::mock::MockCompletionObserver, queue::PersistQueue},
         test_util::{make_write_op, populate_catalog},
         TRANSITION_SHARD_INDEX,
     };
@@ -127,6 +128,7 @@ mod tests {
         let metrics = Arc::new(metric::Registry::default());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
         let ingest_state = Arc::new(IngestState::default());
+        let completion_observer = Arc::new(MockCompletionObserver::default());
 
         // Initialise the persist system.
         let handle = PersistHandle::new(
@@ -136,6 +138,7 @@ mod tests {
             Arc::clone(&EXEC),
             storage,
             Arc::clone(&catalog),
+            Arc::clone(&completion_observer),
             &metrics,
         );
         assert!(ingest_state.read().is_ok());
@@ -163,6 +166,14 @@ mod tests {
             .await
             .expect("timeout waiting for completion notification")
             .expect("worker task failed");
+
+        // Assert the notification observer saw this persist operation finish.
+        assert_matches!(&completion_observer.calls().as_slice(), &[n] => {
+            assert_eq!(n.namespace_id(), namespace_id);
+            assert_eq!(n.table_id(), table_id);
+            assert_eq!(n.partition_id(), partition_id);
+            assert_eq!(n.sequence_numbers().len(), 1);
+        });
 
         // Assert the partition persistence count increased, an indication that
         // mark_persisted() was called.
@@ -242,6 +253,7 @@ mod tests {
         let metrics = Arc::new(metric::Registry::default());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
         let ingest_state = Arc::new(IngestState::default());
+        let completion_observer = Arc::new(MockCompletionObserver::default());
 
         // Initialise the persist system.
         let handle = PersistHandle::new(
@@ -251,6 +263,7 @@ mod tests {
             Arc::clone(&EXEC),
             storage,
             Arc::clone(&catalog),
+            Arc::clone(&completion_observer),
             &metrics,
         );
         assert!(ingest_state.read().is_ok());
@@ -292,6 +305,15 @@ mod tests {
             .await
             .expect("timeout waiting for completion notification")
             .expect("worker task failed");
+
+        // Assert the notification observer was invoked exactly once, with the
+        // successful persist output.
+        assert_matches!(&completion_observer.calls().as_slice(), &[n] => {
+            assert_eq!(n.namespace_id(), namespace_id);
+            assert_eq!(n.table_id(), table_id);
+            assert_eq!(n.partition_id(), partition_id);
+            assert_eq!(n.sequence_numbers().len(), 1);
+        });
 
         // Assert the partition persistence count increased, an indication that
         // mark_persisted() was called.

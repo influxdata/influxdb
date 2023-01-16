@@ -35,7 +35,10 @@ use crate::{
     },
     ingest_state::IngestState,
     ingester_id::IngesterId,
-    persist::{handle::PersistHandle, hot_partitions::HotPartitionPersister},
+    persist::{
+        completion_observer::NopObserver, handle::PersistHandle,
+        hot_partitions::HotPartitionPersister,
+    },
     server::grpc::GrpcDelegate,
     timestamp_oracle::TimestampOracle,
     wal::{rotate_task::periodic_rotation, wal_sink::WalSink},
@@ -285,6 +288,7 @@ where
         persist_executor,
         object_store,
         Arc::clone(&catalog),
+        NopObserver::default(),
         &metrics,
     );
     let persist_handle = Arc::new(persist_handle);

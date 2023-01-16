@@ -18,15 +18,17 @@ use crate::persist::compact::compact_persisting_batch;
 
 use super::{
     compact::CompactedStream,
+    completion_observer::PersistCompletionObserver,
     context::{Context, PersistError, PersistRequest},
 };
 
 /// State shared across workers.
 #[derive(Debug)]
-pub(super) struct SharedWorkerState {
+pub(super) struct SharedWorkerState<O> {
     pub(super) exec: Arc<Executor>,
     pub(super) store: ParquetStorage,
     pub(super) catalog: Arc<dyn Catalog>,
+    pub(super) completion_observer: O,
 }
 
 /// The worker routine that drives a [`PersistRequest`] to completion,
@@ -70,11 +72,13 @@ pub(super) struct SharedWorkerState {
 /// [`PersistingData`]:
 ///     crate::buffer_tree::partition::persisting::PersistingData
 /// [`PartitionData`]: crate::buffer_tree::partition::PartitionData
-pub(super) async fn run_task(
-    worker_state: Arc<SharedWorkerState>,
+pub(super) async fn run_task<O>(
+    worker_state: Arc<SharedWorkerState<O>>,
     global_queue: async_channel::Receiver<PersistRequest>,
     mut rx: mpsc::UnboundedReceiver<PersistRequest>,
-) {
+) where
+    O: PersistCompletionObserver,
+{
     loop {
         let req = tokio::select! {
             // Bias the channel polling to prioritise work in the
@@ -130,7 +134,8 @@ pub(super) async fn run_task(
 
         // And finally mark the persist job as complete and notify any
         // observers.
-        ctx.mark_complete(object_store_id);
+        ctx.mark_complete(object_store_id, &worker_state.completion_observer)
+            .await;
     }
 }
 
@@ -148,10 +153,13 @@ pub(super) async fn run_task(
 ///
 /// [`PersistingData`]:
 ///     crate::buffer_tree::partition::persisting::PersistingData
-async fn compact_and_upload(
+async fn compact_and_upload<O>(
     ctx: &mut Context,
-    worker_state: &SharedWorkerState,
-) -> Result<ParquetFileParams, PersistError> {
+    worker_state: &SharedWorkerState<O>,
+) -> Result<ParquetFileParams, PersistError>
+where
+    O: Send + Sync,
+{
     let compacted = compact(ctx, worker_state).await;
     let (sort_key_update, parquet_table_data) = upload(ctx, worker_state, compacted).await;
 
@@ -170,7 +178,10 @@ async fn compact_and_upload(
 
 /// Compact the data in `ctx` using sorted by the sort key returned from
 /// [`Context::sort_key()`].
-async fn compact(ctx: &Context, worker_state: &SharedWorkerState) -> CompactedStream {
+async fn compact<O>(ctx: &Context, worker_state: &SharedWorkerState<O>) -> CompactedStream
+where
+    O: Send + Sync,
+{
     let sort_key = ctx.sort_key().get().await;
 
     debug!(
@@ -202,11 +213,14 @@ async fn compact(ctx: &Context, worker_state: &SharedWorkerState) -> CompactedSt
 
 /// Upload the compacted data in `compacted`, returning the new sort key value
 /// and parquet metadata to be upserted into the catalog.
-async fn upload(
+async fn upload<O>(
     ctx: &Context,
-    worker_state: &SharedWorkerState,
+    worker_state: &SharedWorkerState<O>,
     compacted: CompactedStream,
-) -> (Option<SortKey>, ParquetFileParams) {
+) -> (Option<SortKey>, ParquetFileParams)
+where
+    O: Send + Sync,
+{
     let CompactedStream {
         stream: record_stream,
         catalog_sort_key_update,
@@ -293,12 +307,15 @@ async fn upload(
 /// If a concurrent sort key change is detected (issued by another node) then
 /// this method updates the sort key in `ctx` to reflect the newly observed
 /// value and returns [`PersistError::ConcurrentSortKeyUpdate`] to the caller.
-async fn update_catalog_sort_key(
+async fn update_catalog_sort_key<O>(
     ctx: &mut Context,
-    worker_state: &SharedWorkerState,
+    worker_state: &SharedWorkerState<O>,
     new_sort_key: SortKey,
     object_store_id: Uuid,
-) -> Result<(), PersistError> {
+) -> Result<(), PersistError>
+where
+    O: Send + Sync,
+{
     let old_sort_key = ctx
         .sort_key()
         .get()
@@ -423,11 +440,14 @@ async fn update_catalog_sort_key(
     Ok(())
 }
 
-async fn update_catalog_parquet(
+async fn update_catalog_parquet<O>(
     ctx: &Context,
-    worker_state: &SharedWorkerState,
+    worker_state: &SharedWorkerState<O>,
     parquet_table_data: ParquetFileParams,
-) -> Uuid {
+) -> Uuid
+where
+    O: Send + Sync,
+{
     // Extract the object store ID to the local scope so that it can easily
     // be referenced in debug logging to aid correlation of persist events
     // for a specific file.

@@ -14,8 +14,8 @@ use tokio::{
 };
 
 use super::{
-    backpressure::PersistState, context::PersistRequest, queue::PersistQueue,
-    worker::SharedWorkerState,
+    backpressure::PersistState, completion_observer::PersistCompletionObserver,
+    context::PersistRequest, queue::PersistQueue, worker::SharedWorkerState,
 };
 use crate::{
     buffer_tree::partition::{persisting::PersistingData, PartitionData, SortKeyState},
@@ -119,9 +119,6 @@ use crate::{
 ///     crate::ingest_state::IngestStateError::PersistSaturated
 #[derive(Debug)]
 pub(crate) struct PersistHandle {
-    /// The state/dependencies shared across all worker tasks.
-    worker_state: Arc<SharedWorkerState>,
-
     /// Task handles for the worker tasks, aborted on drop of all
     /// [`PersistHandle`] instances.
     worker_tasks: Vec<AbortOnDrop<()>>,
@@ -161,15 +158,20 @@ pub(crate) struct PersistHandle {
 
 impl PersistHandle {
     /// Initialise a new persist actor & obtain the first handle.
-    pub(crate) fn new(
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new<O>(
         n_workers: usize,
         persist_queue_depth: usize,
         ingest_state: Arc<IngestState>,
         exec: Arc<Executor>,
         store: ParquetStorage,
         catalog: Arc<dyn Catalog>,
+        completion_observer: O,
         metrics: &metric::Registry,
-    ) -> Self {
+    ) -> Self
+    where
+        O: PersistCompletionObserver + 'static,
+    {
         assert_ne!(n_workers, 0, "must run at least 1 persist worker");
         assert_ne!(
             persist_queue_depth, 0,
@@ -183,6 +185,7 @@ impl PersistHandle {
             exec,
             store,
             catalog,
+            completion_observer,
         });
 
         // Initialise the global queue.
@@ -225,7 +228,6 @@ impl PersistHandle {
         ));
 
         Self {
-            worker_state,
             sem,
             global_queue: global_tx,
             worker_queues: JumpHash::new(tx_handles),
@@ -415,6 +417,7 @@ mod tests {
         },
         deferred_load::DeferredLoad,
         dml_sink::DmlSink,
+        persist::completion_observer::mock::MockCompletionObserver,
         test_util::make_write_op,
     };
 
@@ -495,6 +498,7 @@ mod tests {
             Arc::clone(&EXEC),
             storage,
             catalog,
+            Arc::new(MockCompletionObserver::default()),
             &metrics,
         );
 
@@ -570,6 +574,7 @@ mod tests {
             Arc::clone(&EXEC),
             storage,
             catalog,
+            Arc::new(MockCompletionObserver::default()),
             &metrics,
         );
 
@@ -657,6 +662,7 @@ mod tests {
             Arc::clone(&EXEC),
             storage,
             catalog,
+            Arc::new(MockCompletionObserver::default()),
             &metrics,
         );
 
@@ -744,6 +750,7 @@ mod tests {
             Arc::clone(&EXEC),
             storage,
             catalog,
+            Arc::new(MockCompletionObserver::default()),
             &metrics,
         );
 
