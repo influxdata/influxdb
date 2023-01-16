@@ -4884,9 +4884,9 @@ checksum = "97477e48b4cf8603ad5f7aaf897467cf42ab4218a38ef76fb14c2d6773a6d6a8"
 
 [[package]]
 name = "rustyline"
-version = "10.0.0"
+version = "10.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d1cd5ae51d3f7bf65d7969d579d502168ef578f289452bd8ccc91de28fda20e"
+checksum = "5fc2d30f0bb29c4308f902d4a147b2d6cb022b59771463d9785f37e21f544df7"
 dependencies = [
  "bitflags",
  "cfg-if",
@@ -4895,7 +4895,7 @@ dependencies = [
  "libc",
  "log",
  "memchr",
- "nix 0.24.2",
+ "nix 0.26.1",
  "scopeguard",
  "unicode-segmentation",
  "unicode-width",
@@ -6593,6 +6593,7 @@ dependencies = [
  "log",
  "md-5",
  "memchr",
+ "nix 0.26.1",
  "nom",
  "num-integer",
  "num-traits",
