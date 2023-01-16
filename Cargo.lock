@@ -6593,6 +6593,7 @@ dependencies = [
  "log",
  "md-5",
  "memchr",
+ "nix 0.26.1",
  "nom",
  "num-integer",
  "num-traits",
