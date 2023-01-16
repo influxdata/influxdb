@@ -478,7 +478,3 @@ async fn update_catalog_parquet(
 
     object_store_id
 }
-
-// TODO(test): persist
-// TODO(test): persist completion notification
-// TODO(test): sort key conflict
