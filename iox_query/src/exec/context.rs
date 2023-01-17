@@ -2,6 +2,7 @@
 //! DataFusion
 
 use super::{
+    cross_rt_stream::CrossRtStream,
     non_null_checker::NonNullCheckerNode,
     seriesset::{series::Either, SeriesSet},
     split::StreamSplitNode,
@@ -40,7 +41,9 @@ use datafusion::{
         coalesce_partitions::CoalescePartitionsExec,
         displayable,
         planner::{DefaultPhysicalPlanner, ExtensionPlanner},
-        EmptyRecordBatchStream, ExecutionPlan, PhysicalPlanner, SendableRecordBatchStream,
+        stream::RecordBatchStreamAdapter,
+        EmptyRecordBatchStream, ExecutionPlan, PhysicalPlanner, RecordBatchStream,
+        SendableRecordBatchStream,
     },
     prelude::*,
 };
@@ -409,12 +412,20 @@ impl IOxSessionContext {
 
         let task_context = Arc::new(TaskContext::from(self.inner()));
 
-        self.run(async move {
-            let stream = physical_plan.execute(partition, task_context)?;
-            let stream = TracedStream::new(stream, span, physical_plan);
-            Ok(Box::pin(stream) as _)
-        })
-        .await
+        let stream = self
+            .run(async move {
+                let stream = physical_plan.execute(partition, task_context)?;
+                Ok(TracedStream::new(stream, span, physical_plan))
+            })
+            .await?;
+        // Wrap the resulting stream into `CrossRtStream`. This is required because polling the DataFusion result stream
+        // actually drives the (potentially CPU-bound) work. We need to make sure that this work stays within the
+        // dedicated executor because otherwise this may block the top-level tokio/tonic runtime which may lead to
+        // requests timetouts (either for new requests, metrics or even for HTTP2 pings on the active connection).
+        let schema = stream.schema();
+        let stream = CrossRtStream::new_with_arrow_error_stream(stream, self.exec.clone());
+        let stream = RecordBatchStreamAdapter::new(schema, stream);
+        Ok(Box::pin(stream))
     }
 
     /// Executes the SeriesSetPlans on the query executor, in
@@ -442,24 +453,31 @@ impl IOxSessionContext {
         let data = futures::stream::iter(plans)
             .then(move |plan| {
                 let ctx = ctx.child_ctx("for plan");
-                Self::run_inner(exec.clone(), async move {
-                    let SeriesSetPlan {
-                        table_name,
-                        plan,
-                        tag_columns,
-                        field_columns,
-                    } = plan;
+                let exec = exec.clone();
 
-                    let tag_columns = Arc::new(tag_columns);
+                async move {
+                    let stream = Self::run_inner(exec.clone(), async move {
+                        let SeriesSetPlan {
+                            table_name,
+                            plan,
+                            tag_columns,
+                            field_columns,
+                        } = plan;
 
-                    let physical_plan = ctx.create_physical_plan(&plan).await?;
+                        let tag_columns = Arc::new(tag_columns);
 
-                    let it = ctx.execute_stream(physical_plan).await?;
+                        let physical_plan = ctx.create_physical_plan(&plan).await?;
 
-                    SeriesSetConverter::default()
-                        .convert(table_name, tag_columns, field_columns, it)
-                        .await
-                })
+                        let it = ctx.execute_stream(physical_plan).await?;
+
+                        SeriesSetConverter::default()
+                            .convert(table_name, tag_columns, field_columns, it)
+                            .await
+                    })
+                    .await?;
+
+                    Ok::<_, Error>(CrossRtStream::new_with_df_error_stream(stream, exec))
+                }
             })
             .try_flatten()
             .try_filter_map(|series_set: SeriesSet| async move {
@@ -564,11 +582,6 @@ impl IOxSessionContext {
         }
     }
 
-    /// Run the plan and return a record batch reader for reading the results
-    pub async fn run_logical_plan(&self, plan: LogicalPlan) -> Result<Vec<RecordBatch>> {
-        self.run_logical_plans(vec![plan]).await
-    }
-
     /// plans and runs the plans in parallel and collects the results
     /// run each plan in parallel and collect the results
     async fn run_logical_plans(&self, plans: Vec<LogicalPlan>) -> Result<Vec<RecordBatch>> {
@@ -603,7 +616,7 @@ impl IOxSessionContext {
         Self::run_inner(self.exec.clone(), fut).await
     }
 
-    pub async fn run_inner<Fut, T>(exec: DedicatedExecutor, fut: Fut) -> Result<T>
+    async fn run_inner<Fut, T>(exec: DedicatedExecutor, fut: Fut) -> Result<T>
     where
         Fut: std::future::Future<Output = Result<T>> + Send + 'static,
         T: Send + 'static,

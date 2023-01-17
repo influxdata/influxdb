@@ -14,6 +14,7 @@ use executor::DedicatedExecutor;
 use object_store::DynObjectStore;
 use parquet_file::storage::StorageId;
 use trace::span::{SpanExt, SpanRecorder};
+mod cross_rt_stream;
 
 use std::{collections::HashMap, sync::Arc};
 
