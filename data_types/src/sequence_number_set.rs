@@ -31,12 +31,12 @@ impl SequenceNumberSet {
         self.0.andnot_inplace(&other.0)
     }
 
-    /// Serialise `self` into a set of bytes.
+    /// Serialise `self` into an array of bytes.
     ///
     /// [This document][spec] describes the serialised format.
     ///
     /// [spec]: https://github.com/RoaringBitmap/RoaringFormatSpec/
-    pub fn as_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> Vec<u8> {
         self.0.serialize()
     }
 
