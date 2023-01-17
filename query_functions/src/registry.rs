@@ -7,7 +7,7 @@ use datafusion::{
 };
 use once_cell::sync::Lazy;
 
-use crate::{regex, window};
+use crate::{gapfill, regex, window};
 
 static REGISTRY: Lazy<IOxFunctionRegistry> = Lazy::new(IOxFunctionRegistry::new);
 
@@ -24,6 +24,7 @@ impl IOxFunctionRegistry {
 impl FunctionRegistry for IOxFunctionRegistry {
     fn udfs(&self) -> HashSet<String> {
         [
+            gapfill::DATE_BIN_GAPFILL_UDF_NAME,
             regex::REGEX_MATCH_UDF_NAME,
             regex::REGEX_NOT_MATCH_UDF_NAME,
             window::WINDOW_BOUNDS_UDF_NAME,
@@ -35,6 +36,7 @@ impl FunctionRegistry for IOxFunctionRegistry {
 
     fn udf(&self, name: &str) -> DataFusionResult<Arc<ScalarUDF>> {
         match name {
+            gapfill::DATE_BIN_GAPFILL_UDF_NAME => Ok(gapfill::DATE_BIN_GAPFILL.clone()),
             regex::REGEX_MATCH_UDF_NAME => Ok(regex::REGEX_MATCH_UDF.clone()),
             regex::REGEX_NOT_MATCH_UDF_NAME => Ok(regex::REGEX_NOT_MATCH_UDF.clone()),
             window::WINDOW_BOUNDS_UDF_NAME => Ok(window::WINDOW_BOUNDS_UDF.clone()),
