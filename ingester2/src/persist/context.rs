@@ -1,15 +1,8 @@
-use std::{ops::ControlFlow, sync::Arc};
+use std::sync::Arc;
 
-use backoff::Backoff;
-use data_types::{
-    CompactionLevel, NamespaceId, ParquetFileParams, PartitionId, PartitionKey, SequenceNumber,
-    ShardId, TableId,
-};
-use iox_catalog::interface::{get_table_schema_by_id, CasFailure};
-use iox_time::{SystemProvider, TimeProvider};
+use data_types::{NamespaceId, PartitionId, PartitionKey, ShardId, TableId};
 use observability_deps::tracing::*;
 use parking_lot::Mutex;
-use parquet_file::metadata::IoxMetadata;
 use schema::sort::SortKey;
 use thiserror::Error;
 use tokio::{
@@ -25,10 +18,7 @@ use crate::{
         table::TableName,
     },
     deferred_load::DeferredLoad,
-    persist::compact::{compact_persisting_batch, CompactedStream},
 };
-
-use super::worker::SharedWorkerState;
 
 /// Errors a persist can experience.
 #[derive(Debug, Error)]
@@ -78,10 +68,16 @@ impl PersistRequest {
     }
 }
 
+/// The context of a persist job, containing the data to be persisted and
+/// associated metadata.
+///
+/// This type caches various read-only (or read-mostly) fields on the
+/// [`PartitionData`] itself, avoiding unnecessary lock contention. It also
+/// carries timing metadata, and the completion notification channel for the
+/// enqueuer notification.
 pub(super) struct Context {
     partition: Arc<Mutex<PartitionData>>,
     data: PersistingData,
-    worker_state: Arc<SharedWorkerState>,
 
     /// IDs loaded from the partition at construction time.
     namespace_id: NamespaceId,
@@ -135,7 +131,7 @@ impl Context {
     ///
     /// Locks the [`PartitionData`] in `req` to read various properties which
     /// are then cached in the [`Context`].
-    pub(super) fn new(req: PersistRequest, worker_state: Arc<SharedWorkerState>) -> Self {
+    pub(super) fn new(req: PersistRequest) -> Self {
         let partition_id = req.data.partition_id();
 
         // Obtain the partition lock and load the immutable values that will be
@@ -157,7 +153,6 @@ impl Context {
             Self {
                 partition,
                 data,
-                worker_state,
                 namespace_id: guard.namespace_id(),
                 table_id: guard.table_id(),
                 partition_id,
@@ -190,235 +185,17 @@ impl Context {
         s
     }
 
-    pub(super) async fn compact(&self) -> CompactedStream {
-        let sort_key = self.sort_key.get().await;
-
-        debug!(
-            namespace_id = %self.namespace_id,
-            namespace_name = %self.namespace_name,
-            table_id = %self.table_id,
-            table_name = %self.table_name,
-            partition_id = %self.partition_id,
-            partition_key = %self.partition_key,
-            ?sort_key,
-            "compacting partition"
-        );
-
-        assert!(!self.data.record_batches().is_empty());
-
-        // Run a compaction sort the data and resolve any duplicate values.
-        //
-        // This demands the deferred load values and may have to wait for them
-        // to be loaded before compaction starts.
-        compact_persisting_batch(
-            &self.worker_state.exec,
-            sort_key,
-            self.table_name.get().await,
-            self.data.query_adaptor(),
-        )
-        .await
-        .expect("unable to compact persisting batch")
-    }
-
-    pub(super) async fn upload(
-        &self,
-        compacted: CompactedStream,
-    ) -> (Option<SortKey>, ParquetFileParams) {
-        let CompactedStream {
-            stream: record_stream,
-            catalog_sort_key_update,
-            data_sort_key,
-        } = compacted;
-
-        // Generate a UUID to uniquely identify this parquet file in
-        // object storage.
-        let object_store_id = Uuid::new_v4();
-
-        debug!(
-            namespace_id = %self.namespace_id,
-            namespace_name = %self.namespace_name,
-            table_id = %self.table_id,
-            table_name = %self.table_name,
-            partition_id = %self.partition_id,
-            partition_key = %self.partition_key,
-            %object_store_id,
-            sort_key = %data_sort_key,
-            "uploading partition parquet"
-        );
-
-        // Construct the metadata for this parquet file.
-        let iox_metadata = IoxMetadata {
-            object_store_id,
-            creation_timestamp: SystemProvider::new().now(),
-            shard_id: self.transition_shard_id,
-            namespace_id: self.namespace_id,
-            namespace_name: Arc::clone(&*self.namespace_name.get().await),
-            table_id: self.table_id,
-            table_name: Arc::clone(&*self.table_name.get().await),
-            partition_id: self.partition_id,
-            partition_key: self.partition_key.clone(),
-            max_sequence_number: SequenceNumber::new(0), // TODO: not ordered!
-            compaction_level: CompactionLevel::Initial,
-            sort_key: Some(data_sort_key),
-        };
-
-        // Save the compacted data to a parquet file in object storage.
-        //
-        // This call retries until it completes.
-        let (md, file_size) = self
-            .worker_state
-            .store
-            .upload(record_stream, &iox_metadata)
-            .await
-            .expect("unexpected fatal persist error");
-
-        debug!(
-            namespace_id = %self.namespace_id,
-            namespace_name = %self.namespace_name,
-            table_id = %self.table_id,
-            table_name = %self.table_name,
-            partition_id = %self.partition_id,
-            partition_key = %self.partition_key,
-            %object_store_id,
-            file_size,
-            "partition parquet uploaded"
-        );
-
-        // Read the table schema from the catalog to act as a map of column name
-        // -> column IDs.
-        let table_schema = Backoff::new(&Default::default())
-            .retry_all_errors("get table schema", || async {
-                let mut repos = self.worker_state.catalog.repositories().await;
-                get_table_schema_by_id(self.table_id, repos.as_mut()).await
-            })
-            .await
-            .expect("retry forever");
-
-        // Build the data that must be inserted into the parquet_files catalog
-        // table in order to make the file visible to queriers.
-        let parquet_table_data =
-            iox_metadata.to_parquet_file(self.partition_id, file_size, &md, |name| {
-                table_schema.columns.get(name).expect("unknown column").id
-            });
-
-        (catalog_sort_key_update, parquet_table_data)
-    }
-
-    pub(super) async fn update_catalog_sort_key(
-        &mut self,
-        new_sort_key: SortKey,
-        object_store_id: Uuid,
-    ) -> Result<(), PersistError> {
-        let old_sort_key = self
-            .sort_key
-            .get()
-            .await
-            .map(|v| v.to_columns().map(|v| v.to_string()).collect::<Vec<_>>());
-
-        debug!(
-            %object_store_id,
-            namespace_id = %self.namespace_id,
-            namespace_name = %self.namespace_name,
-            table_id = %self.table_id,
-            table_name = %self.table_name,
-            partition_id = %self.partition_id,
-            partition_key = %self.partition_key,
-            ?new_sort_key,
-            ?old_sort_key,
-            "updating partition sort key"
-        );
-
-        let update_result = Backoff::new(&Default::default())
-            .retry_with_backoff("cas_sort_key", || {
-                let old_sort_key = old_sort_key.clone();
-                let new_sort_key_str = new_sort_key.to_columns().collect::<Vec<_>>();
-                let catalog = Arc::clone(&self.worker_state.catalog);
-                let ctx = &self;
-                async move {
-                    let mut repos = catalog.repositories().await;
-                    match repos
-                        .partitions()
-                        .cas_sort_key(ctx.partition_id, old_sort_key.clone(), &new_sort_key_str)
-                        .await
-                    {
-                        Ok(_) => ControlFlow::Break(Ok(())),
-                        Err(CasFailure::QueryError(e)) => ControlFlow::Continue(e),
-                        Err(CasFailure::ValueMismatch(observed))
-                            if observed == new_sort_key_str =>
-                        {
-                            // A CAS failure occurred because of a concurrent
-                            // sort key update, however the new catalog sort key
-                            // exactly matches the sort key this node wants to
-                            // commit.
-                            //
-                            // This is the sad-happy path, and this task can
-                            // continue.
-                            info!(
-                                %object_store_id,
-                                namespace_id = %ctx.namespace_id,
-                                namespace_name = %ctx.namespace_name,
-                                table_id = %ctx.table_id,
-                                table_name = %ctx.table_name,
-                                partition_id = %ctx.partition_id,
-                                partition_key = %ctx.partition_key,
-                                expected=?old_sort_key,
-                                ?observed,
-                                update=?new_sort_key_str,
-                                "detected matching concurrent sort key update"
-                            );
-                            ControlFlow::Break(Ok(()))
-                        }
-                        Err(CasFailure::ValueMismatch(observed)) => {
-                            // Another ingester concurrently updated the sort
-                            // key.
-                            //
-                            // This breaks a sort-key update invariant - sort
-                            // key updates MUST be serialised. This persist must
-                            // be retried.
-                            //
-                            // See:
-                            //   https://github.com/influxdata/influxdb_iox/issues/6439
-                            //
-                            warn!(
-                                %object_store_id,
-                                namespace_id = %ctx.namespace_id,
-                                namespace_name = %ctx.namespace_name,
-                                table_id = %ctx.table_id,
-                                table_name = %ctx.table_name,
-                                partition_id = %ctx.partition_id,
-                                partition_key = %ctx.partition_key,
-                                expected=?old_sort_key,
-                                ?observed,
-                                update=?new_sort_key_str,
-                                "detected concurrent sort key update, regenerating parquet"
-                            );
-                            // Stop the retry loop with an error containing the
-                            // newly observed sort key.
-                            ControlFlow::Break(Err(PersistError::ConcurrentSortKeyUpdate(
-                                SortKey::from_columns(observed),
-                            )))
-                        }
-                    }
-                }
-            })
-            .await
-            .expect("retry forever");
-
-        match update_result {
-            Ok(_) => {}
-            Err(PersistError::ConcurrentSortKeyUpdate(new_key)) => {
-                // Update the cached sort key in the PartitionData to reflect
-                // the newly observed value for the next attempt.
-                self.partition.lock().update_sort_key(Some(new_key.clone()));
-
-                // Invalidate & update the sort key cached in this Context.
-                self.sort_key = SortKeyState::Provided(Some(new_key.clone()));
-
-                return Err(PersistError::ConcurrentSortKeyUpdate(new_key));
-            }
-        }
-
-        // Update the sort key in the partition cache.
+    /// Replace the cached sort key in the [`PartitionData`] with the specified
+    /// new sort key.
+    ///
+    /// # Panics
+    ///
+    /// This method panics if the cached sort key in the [`PartitionData`] has
+    /// diverged from the cached sort key in `self`, indicating concurrent
+    /// persist jobs that update the sort key for the same [`PartitionData`]
+    /// running in this ingester process.
+    pub(super) async fn set_partition_sort_key(&mut self, new_sort_key: SortKey) {
+        // Invalidate the sort key in the partition.
         let old_key;
         {
             let mut guard = self.partition.lock();
@@ -426,82 +203,15 @@ impl Context {
             guard.update_sort_key(Some(new_sort_key.clone()));
         };
 
-        // Assert the internal (to this instance) serialisation of sort key
-        // updates.
+        // Assert the internal (to this ingester2 instance) serialisation of
+        // sort key updates.
         //
-        // Both of these get() should not block due to both of the values
-        // having been previously resolved / used.
+        // Both of these get() should not block due to both of the values having
+        // been previously resolved / used in the Context constructor.
         assert_eq!(old_key.get().await, self.sort_key.get().await);
 
-        debug!(
-            %object_store_id,
-            namespace_id = %self.namespace_id,
-            namespace_name = %self.namespace_name,
-            table_id = %self.table_id,
-            table_name = %self.table_name,
-            partition_id = %self.partition_id,
-            partition_key = %self.partition_key,
-            ?old_sort_key,
-            %new_sort_key,
-            "adjusted partition sort key"
-        );
-
-        Ok(())
-    }
-
-    pub(super) async fn update_catalog_parquet(
-        &self,
-        parquet_table_data: ParquetFileParams,
-    ) -> Uuid {
-        // Extract the object store ID to the local scope so that it can easily
-        // be referenced in debug logging to aid correlation of persist events
-        // for a specific file.
-        let object_store_id = parquet_table_data.object_store_id;
-
-        debug!(
-            namespace_id = %self.namespace_id,
-            namespace_name = %self.namespace_name,
-            table_id = %self.table_id,
-            table_name = %self.table_name,
-            partition_id = %self.partition_id,
-            partition_key = %self.partition_key,
-            %object_store_id,
-            ?parquet_table_data,
-            "updating catalog parquet table"
-        );
-
-        // Add the parquet file to the catalog.
-        //
-        // This has the effect of allowing the queriers to "discover" the
-        // parquet file by polling / querying the catalog.
-        Backoff::new(&Default::default())
-            .retry_all_errors("add parquet file to catalog", || async {
-                let mut repos = self.worker_state.catalog.repositories().await;
-                let parquet_file = repos
-                    .parquet_files()
-                    .create(parquet_table_data.clone())
-                    .await?;
-
-                debug!(
-                    namespace_id = %self.namespace_id,
-                    namespace_name = %self.namespace_name,
-                    table_id = %self.table_id,
-                    table_name = %self.table_name,
-                    partition_id = %self.partition_id,
-                    partition_key = %self.partition_key,
-                    %object_store_id,
-                    ?parquet_table_data,
-                    parquet_file_id=?parquet_file.id,
-                    "parquet file added to catalog"
-                );
-
-                // compiler insisted on getting told the type of the error :shrug:
-                Ok(()) as Result<(), iox_catalog::interface::Error>
-            })
-            .await
-            .expect("retry forever");
-
-        object_store_id
+        // Update the cached copy of the sort key in this Context.
+        self.sort_key = SortKeyState::Provided(Some(new_sort_key));
     }
 
     // Call [`PartitionData::mark_complete`] to finalise the persistence job,
@@ -542,8 +252,40 @@ impl Context {
         // Notify the observer of this persistence task, if any.
         let _ = self.complete.send(());
     }
-}
 
-// TODO(test): persist
-// TODO(test): persist completion notification
-// TODO(test): sort key conflict
+    pub(super) fn sort_key(&self) -> &SortKeyState {
+        &self.sort_key
+    }
+
+    pub(super) fn data(&self) -> &PersistingData {
+        &self.data
+    }
+
+    pub(super) fn namespace_id(&self) -> NamespaceId {
+        self.namespace_id
+    }
+
+    pub(super) fn table_id(&self) -> TableId {
+        self.table_id
+    }
+
+    pub(super) fn partition_id(&self) -> PartitionId {
+        self.partition_id
+    }
+
+    pub(super) fn partition_key(&self) -> &PartitionKey {
+        &self.partition_key
+    }
+
+    pub(super) fn namespace_name(&self) -> &DeferredLoad<NamespaceName> {
+        self.namespace_name.as_ref()
+    }
+
+    pub(super) fn table_name(&self) -> &DeferredLoad<TableName> {
+        self.table_name.as_ref()
+    }
+
+    pub(super) fn transition_shard_id(&self) -> ShardId {
+        self.transition_shard_id
+    }
+}
