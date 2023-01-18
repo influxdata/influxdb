@@ -99,6 +99,22 @@ impl TestConfig {
         .with_default_ingester_options()
     }
 
+    /// Create a minimal ingester configuration, using the dsn and write buffer configuration from
+    /// `other`. Set the persistence options such that it will likely never persist, to be able to
+    /// test when data only exists in the ingester's memory.
+    pub fn new_ingester_never_persist(other: &TestConfig) -> Self {
+        Self::new(
+            ServerType::Ingester,
+            other.dsn().to_owned(),
+            other.catalog_schema_name(),
+        )
+        .with_existing_write_buffer(other)
+        .with_existing_object_store(other)
+        .with_default_ingester_options()
+        // No test writes this much data, so with this threshold, the ingester will never persist.
+        .with_ingester_persist_memory_threshold(1_000_000)
+    }
+
     /// Create a minimal ingester2 configuration, using the dsn configuration specified. Set the
     /// persistence options such that it will persist as quickly as possible.
     pub fn new_ingester2(dsn: impl Into<String>) -> Self {

@@ -14,10 +14,19 @@ use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, Step, StepTes
 pub enum ChunkStage {
     /// Set up all chunks in the ingester; never persist automatically. The chunks are accessible
     /// from the ingester.
-    Ingester,
+    Ingester2,
 
     /// Set up all chunks persisted in Parquet, as fast as possible. The chunks are accessible from
     /// and managed by the querier.
+    Parquet2,
+
+    /// Set up all chunks in the ingester set up to go through the write buffer (Kafka). This is
+    /// temporary until the switch to the Kafkaless architecture is complete.
+    Ingester,
+
+    /// Set up all chunks persisted in Parquet, as fast as possible, through the old ingester and
+    /// write buffer (Kafka). This is temporary until the switch to the Kafkaless architecture is
+    /// complete.
     Parquet,
 
     /// Run tests against all of the previous states in this enum.
@@ -32,7 +41,23 @@ impl IntoIterator for ChunkStage {
         match self {
             // If `All` is specified, run the test twice, once with all chunks in the ingester and
             // then once with all chunks in Parquet.
-            Self::All => vec![Self::Ingester, Self::Parquet].into_iter(),
+            Self::All => vec![
+                Self::Ingester2,
+                Self::Parquet2,
+                Self::Ingester,
+                Self::Parquet,
+            ]
+            .into_iter(),
+
+            // If the Kafkaless architectures are specified, run the test twice, once with the
+            // Kafkaless architectures and once with the Kafka-ful, old architectures. This is
+            // temporary to keep tests for the old and new architectures in sync. When the
+            // Kafka-ful architecture is removed, the `Ingester` and `Parquet` states can be
+            // removed from `ChunkStage`, and the next two match arms can be removed. No changes to
+            // the `cases` module should be necessary.
+            Self::Ingester2 => vec![Self::Ingester2, Self::Ingester].into_iter(),
+            Self::Parquet2 => vec![Self::Parquet2, Self::Parquet].into_iter(),
+
             other => vec![other].into_iter(),
         }
     }
@@ -57,10 +82,17 @@ impl TestCase {
             // shared, then the tests that run in parallel and persist at particular times mess
             // with each other because persistence applies to everything in the ingester.
             let mut cluster = match chunk_stage {
-                ChunkStage::Ingester => {
+                ChunkStage::Ingester2 => {
                     MiniCluster::create_non_shared2_never_persist(database_url.clone()).await
                 }
-                ChunkStage::Parquet => MiniCluster::create_non_shared2(database_url.clone()).await,
+                ChunkStage::Parquet2 => MiniCluster::create_non_shared2(database_url.clone()).await,
+                ChunkStage::Ingester => {
+                    MiniCluster::create_non_shared_standard_never_persist(database_url.clone())
+                        .await
+                }
+                ChunkStage::Parquet => {
+                    MiniCluster::create_non_shared_standard(database_url.clone()).await
+                }
                 ChunkStage::All => unreachable!("See `impl IntoIterator for ChunkStage`"),
             };
 
@@ -82,7 +114,19 @@ impl TestCase {
             let setup_steps = crate::setups::SETUPS
                 .get(setup_name)
                 .unwrap_or_else(|| panic!("Could not find setup with key `{setup_name}`"))
-                .iter();
+                .iter()
+                // When the `Ingester` and `Parquet` `ChunkStage`s are removed, this map can be
+                // removed.
+                .map(|step| match (chunk_stage, step) {
+                    // If we're using the old architecture and the test steps include
+                    // `WaitForPersist2`, swap it with `WaitForPersist` instead.
+                    (ChunkStage::Ingester, Step::WaitForPersisted2 { .. })
+                    | (ChunkStage::Parquet, Step::WaitForPersisted2 { .. }) => {
+                        &Step::WaitForPersisted
+                    }
+                    (_, other) => other,
+                });
+
             let test_step = Step::QueryAndCompare {
                 input_path,
                 setup_name: setup_name.into(),
