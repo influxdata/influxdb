@@ -1,4 +1,4 @@
-use crate::{ChunkStage, TestCase};
+use crate::framework::{ChunkStage, TestCase};
 
 // TODO: Generate these tests from the files on disk.
 // See <https://github.com/influxdata/influxdb_iox/issues/6610>.
