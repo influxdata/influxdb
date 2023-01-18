@@ -63,6 +63,9 @@ pub fn datafusion_error_to_tonic_code(e: &DataFusionError) -> tonic::Code {
         // errors (e.g. misconfiguration or bad path) which would be
         // an internal error and thus we classify them as such.
         | DataFusionError::External(_)
+        // Substrait errors come from internal code and are unused
+        // with DataFusion at the moment
+        | DataFusionError::Substrait(_)
         | DataFusionError::Internal(_) => tonic::Code::Internal,
         // explicitly don't have a catchall here so any
         // newly added DataFusion error will raise a compiler error for us to address

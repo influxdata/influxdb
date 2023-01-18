@@ -100,9 +100,9 @@ checksum = "8da52d66c7071e2e3fa2a1e5c6d088fec47b593032b254f5e980de8ea54454d6"
 
 [[package]]
 name = "arrow"
-version = "30.0.1"
+version = "31.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1948f504d736dc6f71ea33773c5c7475998c44925be5321e9d18087a626845f5"
+checksum = "1b556d39f9d19e363833a0fe65d591cd0e2ecc0977589a78179b592bea8dc945"
 dependencies = [
  "ahash 0.8.2",
  "arrow-arith",
@@ -123,9 +123,9 @@ dependencies = [
 
 [[package]]
 name = "arrow-arith"
-version = "30.0.1"
+version = "31.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5984187a7913813ffd5bb034fdc6810bdbe0ae4cff2292f0eb92797342dc02c8"
+checksum = "85c61b9235694b48f60d89e0e8d6cb478f39c65dd14b0fe1c3f04379b7d50068"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -138,9 +138,9 @@ dependencies = [
 
 [[package]]
 name = "arrow-array"
-version = "30.0.1"
+version = "31.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf71dc342bb42343d331b58c0bcad095dc045e367493d47b7f4c4509e2adfee5"
+checksum = "a1e6e839764618a911cc460a58ebee5ad3d42bc12d9a5e96a29b7cc296303aa1"
 dependencies = [
  "ahash 0.8.2",
  "arrow-buffer",
@@ -154,9 +154,9 @@ dependencies = [
 
 [[package]]
 name = "arrow-buffer"
-version = "30.0.1"
+version = "31.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7b328d9f3e124cca761ec85a6d3fcea9bf8de1b8531c7a3b6abd367472024df"
+checksum = "03a21d232b1bc1190a3fdd2f9c1e39b7cd41235e95a0d44dd4f522bc5f495748"
 dependencies = [
  "half 2.2.1",
  "num",
@@ -164,9 +164,9 @@ dependencies = [
 
 [[package]]
 name = "arrow-cast"
-version = "30.0.1"
+version = "31.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03976edbf66ac00a582af10a51743f0a9611777adfd68c71799d783344c3bdd2"
+checksum = "83dcdb1436cac574f1c1b30fda91c53c467534337bef4064bbd4ea2d6fbc6e04"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -180,9 +180,9 @@ dependencies = [
 
 [[package]]
 name = "arrow-csv"
-version = "30.0.1"
+version = "31.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1b610dc9e3b43bcebeacede47381252ea41363fbcc3c3eb641ff24fc94e567e"
+checksum = "a01677ae9458f5af9e35e1aa6ba97502f539e621db0c6672566403f97edd0448"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -199,9 +199,9 @@ dependencies = [
 
 [[package]]
 name = "arrow-data"
-version = "30.0.1"
+version = "31.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "174df8602dedcdb9149538809c11bd3c0888af30b915f763c66a3d724391c8b9"
+checksum = "14e3e69c9fd98357eeeab4aa0f626ecf7ecf663e68e8fc04eac87c424a414477"
 dependencies = [
  "arrow-buffer",
  "arrow-schema",
@@ -211,20 +211,21 @@ dependencies = [
 
 [[package]]
 name = "arrow-flight"
-version = "30.0.1"
+version = "31.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf32bc58976e558f1ba3ff0aa7b07914d4b70850906fc55d5d16790a9ee79e3f"
+checksum = "fd3ce08d31a1a24497bcf144029f8475539984aa50e41585e01b2057cf3dbb21"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
+ "arrow-cast",
  "arrow-ipc",
  "arrow-schema",
- "base64 0.20.0",
+ "base64 0.21.0",
  "bytes",
  "futures",
  "proc-macro2",
  "prost 0.11.6",
- "prost-build 0.11.5",
+ "prost-build 0.11.6",
  "prost-derive 0.11.6",
  "tokio",
  "tonic",
@@ -233,9 +234,9 @@ dependencies = [
 
 [[package]]
 name = "arrow-ipc"
-version = "30.0.1"
+version = "31.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a316907980e70fbf87b006c52993a22d93e4a9bca4ec2ac42cfedb2fdc204ac"
+checksum = "64cac2706acbd796965b6eaf0da30204fe44aacf70273f8cb3c9b7d7f3d4c190"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -247,9 +248,9 @@ dependencies = [
 
 [[package]]
 name = "arrow-json"
-version = "30.0.1"
+version = "31.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2cc1a1b2e98be0d8d20f932f76a8d976b779d502c8f6b828becc835d6879e903"
+checksum = "7790e8b7df2d8ef5ac802377ac256cf2fb80cbf7d44b82d6464e20ace6232a5a"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -265,9 +266,9 @@ dependencies = [
 
 [[package]]
 name = "arrow-ord"
-version = "30.0.1"
+version = "31.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7db83c14ddddf81c1d10ce303670f70b7687c8f52de7425b09ae905e4357fda5"
+checksum = "c7ee6e1b761dfffaaf7b5bbe68c113a576a3a802146c5c0b9fcec781e30d80a3"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -279,9 +280,9 @@ dependencies = [
 
 [[package]]
 name = "arrow-row"
-version = "30.0.1"
+version = "31.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db41abdf586f1dba8c2973711d5c69ffb9d63688ffa46354b8c85bf9347a921c"
+checksum = "6e65bfedf782fc92721e796fdd26ae7343c98ba9a9243d62def9e4e1c4c1cf0b"
 dependencies = [
  "ahash 0.8.2",
  "arrow-array",
@@ -294,15 +295,15 @@ dependencies = [
 
 [[package]]
 name = "arrow-schema"
-version = "30.0.1"
+version = "31.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a99dcc494fe6224e5ece572c5935d5109120a71df06bd8e04c4e23ac14dd8fac"
+checksum = "73ca49d010b27e2d73f70c1d1f90c1b378550ed0f4ad379c4dea0c997d97d723"
 
 [[package]]
 name = "arrow-select"
-version = "30.0.1"
+version = "31.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e3a2cde3ea85b28f64704045d7d54e0fcc4b17efffced574d2dd3320218298f"
+checksum = "976cbaeb1a85c09eea81f3f9c149c758630ff422ed0238624c5c3f4704b6a53c"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -313,9 +314,9 @@ dependencies = [
 
 [[package]]
 name = "arrow-string"
-version = "30.0.1"
+version = "31.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04cf8d0003ebe0aecc716e0ac8c858c570872a7485c7c6284975f31469703a0d"
+checksum = "3d4882762f8f48a9218946c016553d38b04b4fe8202038dad4141b3b887b7da8"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -1389,7 +1390,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "16.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=279440b2ab92d18675b8102e342d4d82182287dc#279440b2ab92d18675b8102e342d4d82182287dc"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=64fa312ecc5f32294e70fd7389e18cb41f25e732#64fa312ecc5f32294e70fd7389e18cb41f25e732"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
@@ -1435,7 +1436,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "16.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=279440b2ab92d18675b8102e342d4d82182287dc#279440b2ab92d18675b8102e342d4d82182287dc"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=64fa312ecc5f32294e70fd7389e18cb41f25e732#64fa312ecc5f32294e70fd7389e18cb41f25e732"
 dependencies = [
  "arrow",
  "chrono",
@@ -1448,7 +1449,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "16.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=279440b2ab92d18675b8102e342d4d82182287dc#279440b2ab92d18675b8102e342d4d82182287dc"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=64fa312ecc5f32294e70fd7389e18cb41f25e732#64fa312ecc5f32294e70fd7389e18cb41f25e732"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
@@ -1460,7 +1461,7 @@ dependencies = [
 [[package]]
 name = "datafusion-optimizer"
 version = "16.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=279440b2ab92d18675b8102e342d4d82182287dc#279440b2ab92d18675b8102e342d4d82182287dc"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=64fa312ecc5f32294e70fd7389e18cb41f25e732#64fa312ecc5f32294e70fd7389e18cb41f25e732"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1476,7 +1477,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "16.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=279440b2ab92d18675b8102e342d4d82182287dc#279440b2ab92d18675b8102e342d4d82182287dc"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=64fa312ecc5f32294e70fd7389e18cb41f25e732#64fa312ecc5f32294e70fd7389e18cb41f25e732"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
@@ -1506,7 +1507,7 @@ dependencies = [
 [[package]]
 name = "datafusion-proto"
 version = "16.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=279440b2ab92d18675b8102e342d4d82182287dc#279440b2ab92d18675b8102e342d4d82182287dc"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=64fa312ecc5f32294e70fd7389e18cb41f25e732#64fa312ecc5f32294e70fd7389e18cb41f25e732"
 dependencies = [
  "arrow",
  "chrono",
@@ -1517,13 +1518,13 @@ dependencies = [
  "parking_lot 0.12.1",
  "pbjson-build",
  "prost 0.11.6",
- "prost-build 0.11.5",
+ "prost-build 0.11.6",
 ]
 
 [[package]]
 name = "datafusion-row"
 version = "16.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=279440b2ab92d18675b8102e342d4d82182287dc#279440b2ab92d18675b8102e342d4d82182287dc"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=64fa312ecc5f32294e70fd7389e18cb41f25e732#64fa312ecc5f32294e70fd7389e18cb41f25e732"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1534,7 +1535,7 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "16.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=279440b2ab92d18675b8102e342d4d82182287dc#279440b2ab92d18675b8102e342d4d82182287dc"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=64fa312ecc5f32294e70fd7389e18cb41f25e732#64fa312ecc5f32294e70fd7389e18cb41f25e732"
 dependencies = [
  "arrow-schema",
  "datafusion-common",
@@ -1950,7 +1951,7 @@ dependencies = [
  "pbjson-types",
  "predicate",
  "prost 0.11.6",
- "prost-build 0.11.5",
+ "prost-build 0.11.6",
  "query_functions",
  "serde",
  "snafu",
@@ -2008,7 +2009,7 @@ dependencies = [
  "hyper",
  "pin-project",
  "prost 0.11.6",
- "prost-build 0.11.5",
+ "prost-build 0.11.6",
  "prost-types 0.11.6",
  "tokio",
  "tokio-stream",
@@ -2023,7 +2024,7 @@ name = "grpc-binary-logger-proto"
 version = "0.1.0"
 dependencies = [
  "prost 0.11.6",
- "prost-build 0.11.5",
+ "prost-build 0.11.6",
  "prost-types 0.11.6",
  "tonic",
  "tonic-build",
@@ -2035,7 +2036,7 @@ name = "grpc-binary-logger-test-proto"
 version = "0.1.0"
 dependencies = [
  "prost 0.11.6",
- "prost-build 0.11.5",
+ "prost-build 0.11.6",
  "prost-types 0.11.6",
  "tonic",
  "tonic-build",
@@ -3884,9 +3885,9 @@ dependencies = [
 
 [[package]]
 name = "parquet"
-version = "30.0.1"
+version = "31.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4bba2a7630d2946f9e2020225062ad5619d70320e06dae6ae1074febf4c4e932"
+checksum = "6b4ee1ffc0778395c9783a5c74f2cad2fb1a128ade95a965212d31b7b13e3d45"
 dependencies = [
  "ahash 0.8.2",
  "arrow-array",
@@ -3896,7 +3897,7 @@ dependencies = [
  "arrow-ipc",
  "arrow-schema",
  "arrow-select",
- "base64 0.20.0",
+ "base64 0.21.0",
  "brotli",
  "bytes",
  "chrono",
@@ -4012,7 +4013,7 @@ dependencies = [
  "pbjson",
  "pbjson-build",
  "prost 0.11.6",
- "prost-build 0.11.5",
+ "prost-build 0.11.6",
  "serde",
 ]
 
@@ -4202,7 +4203,7 @@ dependencies = [
  "once_cell",
  "parking_lot 0.12.1",
  "prost 0.11.6",
- "prost-build 0.11.5",
+ "prost-build 0.11.6",
  "prost-derive 0.11.6",
  "sha2",
  "smallvec",
@@ -4238,9 +4239,9 @@ dependencies = [
 
 [[package]]
 name = "predicates"
-version = "2.1.1"
+version = "2.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5aab5be6e4732b473071984b3164dbbfb7a3674d30ea5ff44410b6bcd960c3c"
+checksum = "59230a63c37f3e18569bdb90e4a89cbf5bf8b06fea0b84e65ea10cc4df47addd"
 dependencies = [
  "difflib",
  "float-cmp",
@@ -4402,9 +4403,9 @@ dependencies = [
 
 [[package]]
 name = "prost-build"
-version = "0.11.5"
+version = "0.11.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb5320c680de74ba083512704acb90fe00f28f79207286a848e730c45dd73ed6"
+checksum = "a3f8ad728fb08fe212df3c05169e940fbb6d9d16a877ddde14644a983ba2012e"
 dependencies = [
  "bytes",
  "heck",
@@ -5986,7 +5987,7 @@ checksum = "5bf5e9b9c0f7e0a7c027dcfaba7b2c60816c7049171f679d99ee2ff65d0de8c4"
 dependencies = [
  "prettyplease",
  "proc-macro2",
- "prost-build 0.11.5",
+ "prost-build 0.11.6",
  "quote",
  "syn",
 ]
@@ -6642,6 +6643,7 @@ dependencies = [
  "arrow-ord",
  "arrow-string",
  "base64 0.13.1",
+ "base64 0.21.0",
  "bitflags",
  "byteorder",
  "bytes",
