@@ -96,6 +96,7 @@ impl<I: IngestHandler + Sync + Send + Debug + 'static> ServerType for IngesterSe
         add_service!(builder, self.server.grpc().flight_service());
         add_service!(builder, self.server.grpc().write_info_service());
         add_service!(builder, self.server.grpc().catalog_service());
+        add_service!(builder, self.server.grpc().persist_service());
 
         serve_builder!(builder);
 

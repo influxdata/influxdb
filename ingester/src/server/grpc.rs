@@ -1,5 +1,6 @@
 //! gRPC service implementations for `ingester`.
 
+mod persist;
 mod query;
 mod rpc_write;
 mod write_info;
@@ -11,7 +12,10 @@ use arrow_flight::flight_service_server::{
 };
 use generated_types::influxdata::iox::{
     catalog::v1::*,
-    ingester::v1::write_info_service_server::{WriteInfoService, WriteInfoServiceServer},
+    ingester::v1::{
+        persist_service_server::{PersistService, PersistServiceServer},
+        write_info_service_server::{WriteInfoService, WriteInfoServiceServer},
+    },
 };
 use iox_catalog::interface::Catalog;
 use service_grpc_catalog::CatalogService;
@@ -68,6 +72,15 @@ impl<I: IngestHandler + Send + Sync + 'static> GrpcDelegate<I> {
     {
         catalog_service_server::CatalogServiceServer::new(CatalogService::new(Arc::clone(
             &self.catalog,
+        )))
+    }
+
+    /// Return a [`PersistService`] gRPC implementation.
+    ///
+    /// [`PersistService`]: generated_types::influxdata::iox::ingester::v1::persist_service_server::PersistService.
+    pub fn persist_service(&self) -> PersistServiceServer<impl PersistService> {
+        PersistServiceServer::new(persist::PersistHandler::new(Arc::clone(
+            &self.ingest_handler,
         )))
     }
 }

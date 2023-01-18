@@ -75,6 +75,9 @@ pub trait IngestHandler: Send + Sync {
 
     /// Shut down background workers.
     fn shutdown(&self);
+
+    /// Persist everything immediately.
+    async fn persist_all(&self);
 }
 
 /// A [`JoinHandle`] that can be cloned
@@ -370,6 +373,11 @@ impl IngestHandler for IngestHandlerImpl {
         shard_indexes: Vec<ShardIndex>,
     ) -> BTreeMap<ShardIndex, ShardProgress> {
         self.data.progresses(shard_indexes).await
+    }
+
+    /// Persist everything immediately.
+    async fn persist_all(&self) {
+        self.data.persist_all().await.unwrap()
     }
 }
 
