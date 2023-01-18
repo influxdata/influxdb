@@ -1019,6 +1019,19 @@ impl PartitionRepo for MemTxn {
 
         Ok(partitions)
     }
+
+    async fn partitions_to_compact(&mut self, recent_time: Timestamp) -> Result<Vec<PartitionId>> {
+        let stage = self.stage();
+
+        let partitions: Vec<_> = stage
+            .partitions
+            .iter()
+            .filter(|p| p.new_file_at > Some(recent_time))
+            .map(|p| p.id)
+            .collect();
+
+        Ok(partitions)
+    }
 }
 
 #[async_trait]

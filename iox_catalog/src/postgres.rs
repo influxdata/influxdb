@@ -1434,6 +1434,20 @@ WHERE id = $2;
         .await
         .map_err(|e| Error::SqlxError { source: e })
     }
+
+    async fn partitions_to_compact(&mut self, recent_time: Timestamp) -> Result<Vec<PartitionId>> {
+        sqlx::query_as(
+            r#"
+            SELECT p.id as partition_id
+            FROM partition p
+            WHERE p.new_file_at > $1
+            "#,
+        )
+        .bind(recent_time) // $1
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
+    }
 }
 
 #[async_trait]
