@@ -155,6 +155,6 @@ impl FlightSqlClient {
             })?
             .ticket;
 
-        self.inner.do_get(ticket).await
+        self.inner.do_get(ticket.into()).await
     }
 }

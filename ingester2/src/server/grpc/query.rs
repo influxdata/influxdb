@@ -7,11 +7,10 @@ use futures::{Stream, StreamExt};
 use generated_types::influxdata::iox::ingester::v1::{self as proto, PartitionStatus};
 use iox_arrow_flight::{
     encode::{
-        prepare_batch_for_flight, prepare_schema_for_flight, split_batch_for_grpc_response,
-        GRPC_TARGET_MAX_BATCH_SIZE_BYTES,
+        flight_data_from_arrow_batch, prepare_batch_for_flight, prepare_schema_for_flight,
+        split_batch_for_grpc_response, GRPC_TARGET_MAX_BATCH_SIZE_BYTES,
     },
     flight_service_server::FlightService as Flight,
-    utils::flight_data_from_arrow_batch,
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
     HandshakeRequest, HandshakeResponse, IpcMessage, PutResult, SchemaAsIpc, SchemaResult, Ticket,
 };
@@ -442,7 +441,7 @@ impl Stream for FlightFrameCodec {
 
                     let flight_data = FlightData::new(
                         None,
-                        IpcMessage(build_none_flight_msg()),
+                        IpcMessage(build_none_flight_msg().into()),
                         bytes.to_vec(),
                         vec![],
                     );
@@ -484,6 +483,7 @@ fn build_none_flight_msg() -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use arrow::{error::ArrowError, ipc::MessageHeader};
+    use bytes::Bytes;
     use data_types::PartitionId;
     use futures::StreamExt;
     use generated_types::influxdata::iox::ingester::v1::{self as proto};
@@ -660,7 +660,9 @@ mod tests {
             &metric::Registry::default(),
         );
 
-        let req = tonic::Request::new(Ticket { ticket: vec![] });
+        let req = tonic::Request::new(Ticket {
+            ticket: Bytes::new(),
+        });
         match flight.do_get(req).await {
             Ok(_) => panic!("expected error because of invalid ticket"),
             Err(s) => {
@@ -670,7 +672,9 @@ mod tests {
 
         flight.request_sem = Semaphore::new(0);
 
-        let req = tonic::Request::new(Ticket { ticket: vec![] });
+        let req = tonic::Request::new(Ticket {
+            ticket: Bytes::new(),
+        });
         match flight.do_get(req).await {
             Ok(_) => panic!("expected error because of request limit"),
             Err(s) => {
