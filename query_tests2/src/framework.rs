@@ -25,14 +25,14 @@ pub enum ChunkStage {
 }
 
 impl IntoIterator for ChunkStage {
-    type Item = ChunkStage;
+    type Item = Self;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
         match self {
             // If `All` is specified, run the test twice, once with all chunks in the ingester and
             // then once with all chunks in Parquet.
-            ChunkStage::All => vec![ChunkStage::Ingester, ChunkStage::Parquet].into_iter(),
+            Self::All => vec![Self::Ingester, Self::Parquet].into_iter(),
             other => vec![other].into_iter(),
         }
     }

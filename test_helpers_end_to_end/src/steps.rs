@@ -17,7 +17,7 @@ pub struct StepTest<'a, S> {
     cluster: &'a mut MiniCluster,
 
     /// The test steps to perform
-    steps: Box<dyn Iterator<Item = S> + 'a>,
+    steps: Box<dyn Iterator<Item = S> + Send + Sync + 'a>,
 }
 
 /// The test state that is passed to custom steps
@@ -252,7 +252,11 @@ where
 {
     /// Create a new test that runs each `step`, in sequence, against
     /// `cluster` panic'ing if any step fails
-    pub fn new(cluster: &'a mut MiniCluster, steps: impl IntoIterator<Item = S> + 'a) -> Self {
+    pub fn new<I>(cluster: &'a mut MiniCluster, steps: I) -> Self
+    where
+        I: IntoIterator<Item = S> + Send + Sync + 'a,
+        <I as IntoIterator>::IntoIter: Send + Sync,
+    {
         Self {
             cluster,
             steps: Box::new(steps.into_iter()),
