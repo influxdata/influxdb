@@ -183,6 +183,7 @@ impl TestConfig {
         )
         .with_existing_object_store(ingester_config)
         .with_shard_to_ingesters_mapping("{\"ignoreAll\": true}")
+        .with_env("INFLUXDB_IOX_NUM_QUERY_THREADS", "4")
     }
 
     /// Create a minimal querier2 configuration from the specified ingester2 configuration, using
