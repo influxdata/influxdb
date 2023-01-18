@@ -134,8 +134,7 @@ async fn basic_multi_ingesters() {
             assert_eq!(array.len(), 1);
             assert_eq!(array.value(0), i);
         }),
-    }))
-    .collect();
+    }));
 
     // Run the tests
     StepTest::new(&mut cluster, test_steps).run().await

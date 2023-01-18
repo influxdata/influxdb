@@ -227,6 +227,7 @@ async fn test_group_by_time() {
     do_test_invalid_group_key(InvalidGroupKey::Time).await;
 }
 
+#[derive(Clone, Copy)]
 enum InvalidGroupKey {
     ColNotFound,
     NotATag,
@@ -312,6 +313,8 @@ async fn do_read_group_test(
             Step::WriteLineProtocol(line_protocol),
             Step::WaitForReadable,
             Step::Custom(Box::new(move |state: &mut StepTestState| {
+                let request_builder = request_builder.clone();
+                let expected_frames = expected_frames.clone();
                 async move {
                     let grpc_connection = state
                         .cluster()

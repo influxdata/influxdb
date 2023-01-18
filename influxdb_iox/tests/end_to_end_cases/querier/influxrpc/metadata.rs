@@ -54,6 +54,7 @@ async fn tag_keys() {
     run_data_test(
         Arc::clone(&generator),
         Box::new(move |state: &mut StepTestState| {
+            let generator = Arc::clone(&generator);
             async move {
                 let mut storage_client = state.cluster().querier_storage_client();
 
@@ -86,6 +87,7 @@ async fn tag_values() {
     run_data_test(
         Arc::clone(&generator),
         Box::new(move |state: &mut StepTestState| {
+            let generator = Arc::clone(&generator);
             async move {
                 let mut storage_client = state.cluster().querier_storage_client();
 
@@ -123,6 +125,7 @@ async fn measurement_names() {
     run_data_test(
         Arc::clone(&generator),
         Box::new(move |state: &mut StepTestState| {
+            let generator = Arc::clone(&generator);
             async move {
                 let mut storage_client = state.cluster().querier_storage_client();
 
@@ -164,6 +167,7 @@ async fn measurement_tag_keys() {
     run_data_test(
         Arc::clone(&generator),
         Box::new(move |state: &mut StepTestState| {
+            let generator = Arc::clone(&generator);
             async move {
                 let mut storage_client = state.cluster().querier_storage_client();
 
@@ -203,6 +207,7 @@ async fn measurement_tag_values() {
     run_data_test(
         Arc::clone(&generator),
         Box::new(move |state: &mut StepTestState| {
+            let generator = Arc::clone(&generator);
             async move {
                 let mut storage_client = state.cluster().querier_storage_client();
 
@@ -242,6 +247,7 @@ async fn measurement_fields() {
     run_data_test(
         Arc::clone(&generator),
         Box::new(move |state: &mut StepTestState| {
+            let generator = Arc::clone(&generator);
             async move {
                 let mut storage_client = state.cluster().querier_storage_client();
 
