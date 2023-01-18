@@ -31,7 +31,7 @@ pub mod selectors;
 mod window;
 
 /// gap filling expressions
-mod gapfill;
+pub mod gapfill;
 
 /// Function registry
 mod registry;

@@ -95,7 +95,9 @@ impl IoxGetRequest {
 
         let ticket = read_info.encode_to_vec();
 
-        Ok(Ticket { ticket })
+        Ok(Ticket {
+            ticket: ticket.into(),
+        })
     }
 
     /// The Go clients still use an older form of ticket encoding, JSON tickets
@@ -241,7 +243,7 @@ mod tests {
     #[test]
     fn proto_ticket_decoding_error() {
         let ticket = Ticket {
-            ticket: b"invalid ticket".to_vec(),
+            ticket: b"invalid ticket".to_vec().into(),
         };
 
         // Reverts to default (unspecified) for invalid query_type enumeration, and thus SQL
@@ -279,13 +281,13 @@ mod tests {
 
     fn make_proto_ticket(read_info: &proto::ReadInfo) -> Ticket {
         Ticket {
-            ticket: read_info.encode_to_vec(),
+            ticket: read_info.encode_to_vec().into(),
         }
     }
 
     fn make_json_ticket(json: &str) -> Ticket {
         Ticket {
-            ticket: json.as_bytes().to_vec(),
+            ticket: json.as_bytes().to_vec().into(),
         }
     }
 }

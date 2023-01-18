@@ -13,7 +13,7 @@ use flatbuffers::FlatBufferBuilder;
 use futures::Stream;
 use generated_types::influxdata::iox::ingester::v1::{self as proto};
 use iox_arrow_flight::{
-    flight_service_server::FlightService as Flight, utils::flight_data_from_arrow_batch, Action,
+    encode::flight_data_from_arrow_batch, flight_service_server::FlightService as Flight, Action,
     ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo, HandshakeRequest,
     HandshakeResponse, IpcMessage, PutResult, SchemaAsIpc, SchemaResult, Ticket,
 };
@@ -332,7 +332,7 @@ impl Stream for GetStream {
 
                     let flight_data = FlightData::new(
                         None,
-                        IpcMessage(build_none_flight_msg()),
+                        IpcMessage(build_none_flight_msg().into()),
                         bytes.to_vec(),
                         vec![],
                     );

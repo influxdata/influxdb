@@ -7,6 +7,7 @@ members = [
     "clap_blocks",
     "client_util",
     "compactor",
+    "compactor2",
     "data_types",
     "datafusion_util",
     "dml",
@@ -35,6 +36,7 @@ members = [
     "iox_time",
     "ioxd_common",
     "ioxd_compactor",
+    "ioxd_compactor2",
     "ioxd_ingester",
     "ioxd_ingester2",
     "ioxd_garbage_collector",
@@ -114,16 +116,12 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-arrow = { version = "29.0.0" }
-arrow-flight = { version = "29.0.0" }
-#datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="07f49803a3d7a9e9b3c2c9a7714c1bb08db71385", default-features = false }
-#datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="07f49803a3d7a9e9b3c2c9a7714c1bb08db71385" }
-# Temporary patch to https://github.com/alamb/arrow-datafusion/tree/alamb/patched_for_iox
-# See https://github.com/alamb/arrow-datafusion/pull/7 for details
-datafusion = { git = "https://github.com/alamb/arrow-datafusion.git", branch="alamb/patched_for_iox", default-features = false }
-datafusion-proto = { git = "https://github.com/alamb/arrow-datafusion.git", branch="alamb/patched_for_iox" }
+arrow = { version = "30.0.0" }
+arrow-flight = { version = "30.0.0" }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="279440b2ab92d18675b8102e342d4d82182287dc", default-features = false }
+datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="279440b2ab92d18675b8102e342d4d82182287dc" }
 hashbrown = { version = "0.13.2" }
-parquet = { version = "29.0.0" }
+parquet = { version = "30.0.0" }
 
 # This profile optimizes for runtime performance and small binary size at the expense of longer
 # build times. It's most suitable for final release builds.
@@ -149,8 +147,3 @@ opt-level = 3
 
 [profile.dev.package.similar]
 opt-level = 3
-
-[patch.crates-io]
-# remove and bump object_store dep version once this revision is released.
-# patch for https://github.com/influxdata/idpe/issues/16611
-object_store = { git = 'https://github.com/apache/arrow-rs.git', rev = "f5c165acc0e6cc4b34e0eaea006aab7e5bd28d66", package = "object_store" }

@@ -16,7 +16,7 @@ use clap_blocks::{
 };
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
 use ioxd_common::Service;
-use ioxd_compactor::create_compactor2_server_type;
+use ioxd_compactor2::create_compactor2_server_type;
 
 use crate::process_info::{setup_metric_registry, USIZE_MAX};
 
@@ -135,8 +135,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
         exec,
         time_provider,
         config.compactor_config,
-    )
-    .await?;
+    );
 
     info!("starting compactor");
 

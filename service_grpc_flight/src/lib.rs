@@ -341,7 +341,7 @@ where
         }?;
 
         let message: prost_types::Any =
-            prost::Message::decode(cmd.as_slice()).context(DeserializationSnafu)?;
+            prost::Message::decode(cmd.as_ref()).context(DeserializationSnafu)?;
 
         let flight_info = self.dispatch(&namespace_name, request, message).await?;
         Ok(tonic::Response::new(flight_info))
@@ -449,7 +449,7 @@ where
         }];
 
         Ok(FlightInfo {
-            schema,
+            schema: schema.into(),
             flight_descriptor: Some(flight_descriptor),
             endpoint,
             total_records,
@@ -578,7 +578,9 @@ mod tests {
             server: Arc::clone(&test_storage),
         };
         let ticket = Ticket {
-            ticket: br#"{"namespace_name": "my_db", "sql_query": "SELECT 1;"}"#.to_vec(),
+            ticket: br#"{"namespace_name": "my_db", "sql_query": "SELECT 1;"}"#
+                .to_vec()
+                .into(),
         };
         let streaming_resp1 = service
             .do_get(tonic::Request::new(ticket.clone()))

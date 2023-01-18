@@ -4,6 +4,7 @@ use datafusion::execution::context::SessionState;
 
 use self::influx_regex_to_datafusion_regex::InfluxRegexToDataFusionRegex;
 
+mod handle_gapfill;
 mod influx_regex_to_datafusion_regex;
 
 /// Register IOx-specific logical [`OptimizerRule`]s with the SessionContext

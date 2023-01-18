@@ -4,6 +4,7 @@
 pub(crate) mod context;
 pub mod field;
 pub mod fieldlist;
+pub(crate) mod gapfill;
 mod non_null_checker;
 mod query_tracing;
 mod schema_pivot;

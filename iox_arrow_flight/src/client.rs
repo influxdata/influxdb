@@ -108,7 +108,7 @@ impl FlightClient {
     pub async fn handshake(&mut self, payload: Vec<u8>) -> Result<Vec<u8>> {
         let request = HandshakeRequest {
             protocol_version: 0,
-            payload,
+            payload: payload.into(),
         };
 
         let mut response_stream = self
@@ -128,7 +128,7 @@ impl FlightClient {
                 ));
             }
 
-            Ok(response.payload)
+            Ok(response.payload.to_vec())
         } else {
             Err(FlightError::protocol("No response from handshake"))
         }
@@ -138,7 +138,9 @@ impl FlightClient {
     /// returning a [`FlightRecordBatchStream`] for reading
     /// [`RecordBatch`]es.
     pub async fn do_get(&mut self, ticket: Vec<u8>) -> Result<FlightRecordBatchStream> {
-        let t = Ticket { ticket };
+        let t = Ticket {
+            ticket: ticket.into(),
+        };
         let request = self.make_request(t);
 
         let response = self

@@ -6,7 +6,7 @@ use arrow::{
     ipc::writer::IpcWriteOptions,
     record_batch::RecordBatch,
 };
-use arrow_flight::{utils::flight_data_from_arrow_batch, FlightData, SchemaAsIpc};
+use arrow_flight::{FlightData, SchemaAsIpc};
 use futures::{stream::BoxStream, StreamExt};
 
 /// Creates a stream which encodes a [`Stream`](futures::Stream) of
@@ -93,7 +93,7 @@ impl StreamEncoderBuilder {
         // to have that schema too
         let schema = Arc::new(prepare_schema_for_flight(&schema));
         let mut schema_flight_data: FlightData = SchemaAsIpc::new(&schema, &options).into();
-        schema_flight_data.app_metadata = app_metadata;
+        schema_flight_data.app_metadata = app_metadata.into();
 
         let schema_stream = futures::stream::once(async move { Ok(schema_flight_data) });
 
@@ -246,6 +246,25 @@ fn hydrate_dictionary(array: &ArrayRef) -> Result<ArrayRef, tonic::Status> {
     } else {
         Ok(Arc::clone(array))
     }
+}
+
+/// TODO remove when arrow 31.0.0 is released
+/// and instead use the FlightDataEncoder directly
+pub fn flight_data_from_arrow_batch(
+    batch: &RecordBatch,
+    options: &IpcWriteOptions,
+) -> (Vec<FlightData>, FlightData) {
+    let data_gen = arrow::ipc::writer::IpcDataGenerator::default();
+    let mut dictionary_tracker = arrow::ipc::writer::DictionaryTracker::new(false);
+
+    let (encoded_dictionaries, encoded_batch) = data_gen
+        .encoded_batch(batch, &mut dictionary_tracker, options)
+        .expect("DictionaryTracker configured above to not error on replacement");
+
+    let flight_dictionaries = encoded_dictionaries.into_iter().map(Into::into).collect();
+    let flight_batch = encoded_batch.into();
+
+    (flight_dictionaries, flight_batch)
 }
 
 #[cfg(test)]
