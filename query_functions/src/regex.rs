@@ -343,7 +343,7 @@ mod test {
         .unwrap();
 
         let ctx = context_with_table(rb);
-        let df = ctx.table("t").unwrap();
+        let df = ctx.table("t").await.unwrap();
         let df = df.filter(op).unwrap();
 
         // execute the query

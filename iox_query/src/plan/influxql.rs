@@ -8,14 +8,13 @@ mod var_ref;
 use crate::plan::influxql::rewriter::rewrite_statement;
 use crate::{DataFusionError, IOxSessionContext, QueryNamespace};
 use datafusion::common::{DFSchema, Result, ScalarValue};
-use datafusion::execution::context::SessionState;
+use datafusion::datasource::provider_as_source;
 use datafusion::logical_expr::expr_rewriter::normalize_col;
 use datafusion::logical_expr::logical_plan::builder::project;
 use datafusion::logical_expr::{
     lit, BinaryExpr, BuiltinScalarFunction, Expr, LogicalPlan, LogicalPlanBuilder, Operator,
 };
 use datafusion::prelude::Column;
-use datafusion::sql::planner::ContextProvider;
 use datafusion::sql::TableReference;
 use influxdb_influxql_parser::expression::{
     BinaryOperator, ConditionalExpression, ConditionalOperator, VarRefDataType,
@@ -56,19 +55,14 @@ enum ExprScope {
 pub struct InfluxQLToLogicalPlan<'a> {
     ctx: &'a IOxSessionContext,
     database: Arc<dyn QueryNamespace>,
-    state: SessionState,
 }
 
 impl<'a> InfluxQLToLogicalPlan<'a> {
     pub fn new(ctx: &'a IOxSessionContext, database: Arc<dyn QueryNamespace>) -> Self {
-        Self {
-            ctx,
-            database,
-            state: ctx.inner().state(),
-        }
+        Self { ctx, database }
     }
 
-    pub fn statement_to_plan(&self, statement: Statement) -> Result<LogicalPlan> {
+    pub async fn statement_to_plan(&self, statement: Statement) -> Result<LogicalPlan> {
         match statement {
             Statement::CreateDatabase(_) => {
                 Err(DataFusionError::NotImplemented("CREATE DATABASE".into()))
@@ -80,7 +74,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             Statement::Explain(_) => Err(DataFusionError::NotImplemented("EXPLAIN".into())),
             Statement::Select(select) => {
                 let select = rewrite_statement(self.database.as_meta(), &select)?;
-                self.select_statement_to_plan(select)
+                self.select_statement_to_plan(select).await
             }
             Statement::ShowDatabases(_) => {
                 Err(DataFusionError::NotImplemented("SHOW DATABASES".into()))
@@ -104,9 +98,9 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     }
 
     /// Create a [`LogicalPlan`] from the specified InfluxQL `SELECT` statement.
-    fn select_statement_to_plan(&self, select: SelectStatement) -> Result<LogicalPlan> {
+    async fn select_statement_to_plan(&self, select: SelectStatement) -> Result<LogicalPlan> {
         // Process FROM clause
-        let plans = self.plan_from_tables(select.from)?;
+        let plans = self.plan_from_tables(select.from).await?;
 
         // Only support a single measurement to begin with
         let plan = match plans.len() {
@@ -398,12 +392,13 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
     /// Generate a list of logical plans for each of the tables references in the `FROM`
     /// clause.
-    fn plan_from_tables(&self, from: FromMeasurementClause) -> Result<Vec<LogicalPlan>> {
-        from.iter()
-            .map(|ms| match ms {
+    async fn plan_from_tables(&self, from: FromMeasurementClause) -> Result<Vec<LogicalPlan>> {
+        let mut plans = vec![];
+        for ms in from.iter() {
+            let plan = match ms {
                 MeasurementSelection::Name(qn) => match qn.name {
                     MeasurementName::Name(ref ident) => {
-                        self.create_table_ref(normalize_identifier(ident))
+                        self.create_table_ref(normalize_identifier(ident)).await
                     }
                     // rewriter is expected to expand the regular expression
                     MeasurementName::Regex(_) => Err(DataFusionError::Internal(
@@ -413,17 +408,19 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 MeasurementSelection::Subquery(_) => Err(DataFusionError::NotImplemented(
                     "subquery in FROM clause".into(),
                 )),
-            })
-            .collect()
+            }?;
+            plans.push(plan);
+        }
+        Ok(plans)
     }
 
     /// Create a [LogicalPlan] that refers to the specified `table_name` or
     /// an [LogicalPlan::EmptyRelation] if the table does not exist.
-    fn create_table_ref(&self, table_name: String) -> Result<LogicalPlan> {
+    async fn create_table_ref(&self, table_name: String) -> Result<LogicalPlan> {
         let table_ref: TableReference<'_> = table_name.as_str().into();
 
-        if let Ok(provider) = self.state.get_table_provider(table_ref) {
-            LogicalPlanBuilder::scan(&table_name, provider, None)?.build()
+        if let Ok(provider) = self.ctx.inner().table_provider(table_ref).await {
+            LogicalPlanBuilder::scan(&table_name, provider_as_source(provider), None)?.build()
         } else {
             LogicalPlanBuilder::empty(false).build()
         }
@@ -469,7 +466,7 @@ mod test {
     use influxdb_influxql_parser::parse_statements;
     use insta::assert_snapshot;
 
-    fn plan(sql: &str) -> String {
+    async fn plan(sql: &str) -> String {
         let mut statements = parse_statements(sql).unwrap();
         // index of columns in the above chunk: [bar, foo, i64_field, i64_field_2, time]
         let executor = Arc::new(Executor::new_testing());
@@ -502,7 +499,7 @@ mod test {
         let ctx = test_db.new_query_context(None);
         let planner = InfluxQLToLogicalPlan::new(&ctx, test_db);
 
-        match planner.statement_to_plan(statements.pop().unwrap()) {
+        match planner.statement_to_plan(statements.pop().unwrap()).await {
             Ok(res) => res.display_indent_schema().to_string(),
             Err(err) => err.to_string(),
         }
@@ -511,18 +508,18 @@ mod test {
     /// Verify the list of unsupported statements.
     ///
     /// It is expected certain statements will be unsupported, indefinitely.
-    #[test]
-    fn test_unsupported_statements() {
-        assert_snapshot!(plan("CREATE DATABASE foo"));
-        assert_snapshot!(plan("DELETE FROM foo"));
-        assert_snapshot!(plan("DROP MEASUREMENT foo"));
-        assert_snapshot!(plan("EXPLAIN SELECT bar FROM foo"));
-        assert_snapshot!(plan("SHOW DATABASES"));
-        assert_snapshot!(plan("SHOW MEASUREMENTS"));
-        assert_snapshot!(plan("SHOW RETENTION POLICIES"));
-        assert_snapshot!(plan("SHOW TAG KEYS"));
-        assert_snapshot!(plan("SHOW TAG VALUES WITH KEY = bar"));
-        assert_snapshot!(plan("SHOW FIELD KEYS"));
+    #[tokio::test]
+    async fn test_unsupported_statements() {
+        assert_snapshot!(plan("CREATE DATABASE foo").await);
+        assert_snapshot!(plan("DELETE FROM foo").await);
+        assert_snapshot!(plan("DROP MEASUREMENT foo").await);
+        assert_snapshot!(plan("EXPLAIN SELECT bar FROM foo").await);
+        assert_snapshot!(plan("SHOW DATABASES").await);
+        assert_snapshot!(plan("SHOW MEASUREMENTS").await);
+        assert_snapshot!(plan("SHOW RETENTION POLICIES").await);
+        assert_snapshot!(plan("SHOW TAG KEYS").await);
+        assert_snapshot!(plan("SHOW TAG VALUES WITH KEY = bar").await);
+        assert_snapshot!(plan("SHOW FIELD KEYS").await);
     }
 
     /// Tests to validate InfluxQL `SELECT` statements that project columns without specifying
@@ -531,25 +528,25 @@ mod test {
         use super::*;
 
         /// Select data from a single measurement
-        #[test]
-        fn test_single_measurement() {
-            assert_snapshot!(plan("SELECT f64_field FROM data"));
-            assert_snapshot!(plan("SELECT time, f64_field FROM data"));
-            assert_snapshot!(plan("SELECT time as timestamp, f64_field FROM data"));
-            assert_snapshot!(plan("SELECT foo, f64_field FROM data"));
-            assert_snapshot!(plan("SELECT foo, f64_field, i64_field FROM data"));
-            assert_snapshot!(plan("SELECT /^f/ FROM data"));
-            assert_snapshot!(plan("SELECT * FROM data"));
-            assert_snapshot!(plan("SELECT TIME FROM data")); // TIME is a field
+        #[tokio::test]
+        async fn test_single_measurement() {
+            assert_snapshot!(plan("SELECT f64_field FROM data").await);
+            assert_snapshot!(plan("SELECT time, f64_field FROM data").await);
+            assert_snapshot!(plan("SELECT time as timestamp, f64_field FROM data").await);
+            assert_snapshot!(plan("SELECT foo, f64_field FROM data").await);
+            assert_snapshot!(plan("SELECT foo, f64_field, i64_field FROM data").await);
+            assert_snapshot!(plan("SELECT /^f/ FROM data").await);
+            assert_snapshot!(plan("SELECT * FROM data").await);
+            assert_snapshot!(plan("SELECT TIME FROM data").await); // TIME is a field
         }
 
         /// Arithmetic expressions in the projection list
-        #[test]
-        fn test_simple_arithmetic_in_projection() {
-            assert_snapshot!(plan("SELECT foo, f64_field + f64_field FROM data"));
-            assert_snapshot!(plan("SELECT foo, sin(f64_field) FROM data"));
-            assert_snapshot!(plan("SELECT foo, atan2(f64_field, 2) FROM data"));
-            assert_snapshot!(plan("SELECT foo, f64_field + 0.5 FROM data"));
+        #[tokio::test]
+        async fn test_simple_arithmetic_in_projection() {
+            assert_snapshot!(plan("SELECT foo, f64_field + f64_field FROM data").await);
+            assert_snapshot!(plan("SELECT foo, sin(f64_field) FROM data").await);
+            assert_snapshot!(plan("SELECT foo, atan2(f64_field, 2) FROM data").await);
+            assert_snapshot!(plan("SELECT foo, f64_field + 0.5 FROM data").await);
         }
 
         // The following is an outline of additional scenarios to develop
@@ -659,10 +656,10 @@ mod test {
         /// Succeeds and returns null values for the expression
         /// **Actual:**
         /// Error during planning: 'Float64 + Utf8' can't be evaluated because there isn't a common type to coerce the types to
-        #[test]
+        #[tokio::test]
         #[ignore]
-        fn test_select_coercion_from_str() {
-            assert_snapshot!(plan("SELECT f64_field + str_field::float FROM data"));
+        async fn test_select_coercion_from_str() {
+            assert_snapshot!(plan("SELECT f64_field + str_field::float FROM data").await);
         }
 
         /// **Issue:**
@@ -673,10 +670,10 @@ mod test {
         /// Succeeds and plan projection of f64_field is Float64
         /// **Data:**
         /// m0,tag0=val00 f64=99.0,i64=100i,str="lo",str_f64="5.5" 1667181600000000000
-        #[test]
+        #[tokio::test]
         #[ignore]
-        fn test_select_explicit_cast() {
-            assert_snapshot!(plan("SELECT f64_field::integer FROM data"));
+        async fn test_select_explicit_cast() {
+            assert_snapshot!(plan("SELECT f64_field::integer FROM data").await);
         }
 
         /// **Issue:**
@@ -685,14 +682,14 @@ mod test {
         /// Succeeds and plans the query, returning null values for unknown columns
         /// **Actual:**
         /// Schema error: No field named 'TIME'. Valid fields are 'data'.'bar', 'data'.'bool_field', 'data'.'f64_field', 'data'.'foo', 'data'.'i64_field', 'data'.'mixedCase', 'data'.'str_field', 'data'.'time', 'data'.'with space'.
-        #[test]
+        #[tokio::test]
         #[ignore]
-        fn test_select_case_sensitivity() {
+        async fn test_select_case_sensitivity() {
             // should return no results
-            assert_snapshot!(plan("SELECT TIME, f64_Field FROM data"));
+            assert_snapshot!(plan("SELECT TIME, f64_Field FROM data").await);
 
             // should bind to time and f64_field, and i64_Field should return NULL values
-            assert_snapshot!(plan("SELECT time, f64_field, i64_Field FROM data"));
+            assert_snapshot!(plan("SELECT time, f64_field, i64_Field FROM data").await);
         }
     }
 }

@@ -66,7 +66,7 @@ mod test {
         let times = Arc::new(TimestampNanosecondArray::from(vec![Some(1000)]));
         let rb = RecordBatch::try_from_iter(vec![("time", times as ArrayRef)])?;
         let ctx = context_with_table(rb);
-        let df = ctx.table("t")?.select(vec![date_bin_gapfill(
+        let df = ctx.table("t").await?.select(vec![date_bin_gapfill(
             lit_interval_milliseconds(360_000),
             col("time"),
             lit_timestamp_nano(0),

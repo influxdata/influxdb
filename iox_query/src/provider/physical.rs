@@ -198,6 +198,7 @@ pub fn chunks_to_physical_nodes(
             limit: None,
             table_partition_cols: vec![],
             output_ordering,
+            infinite_source: false,
         };
         let meta_size_hint = None;
         let parquet_exec = ParquetExec::new(base_config, predicate.filter_expr(), meta_size_hint);

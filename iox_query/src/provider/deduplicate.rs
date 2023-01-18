@@ -156,8 +156,9 @@ impl ExecutionPlan for DeduplicateExec {
         Some(&self.sort_keys)
     }
 
-    fn relies_on_input_order(&self) -> bool {
-        true
+    fn required_input_ordering(&self) -> Vec<Option<&[PhysicalSortExpr]>> {
+        // requires the input to be sorted on the primary key
+        vec![self.output_ordering()]
     }
 
     fn maintains_input_order(&self) -> bool {

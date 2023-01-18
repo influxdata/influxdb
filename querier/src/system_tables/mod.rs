@@ -43,6 +43,7 @@ impl SystemSchemaProvider {
     }
 }
 
+#[async_trait]
 impl SchemaProvider for SystemSchemaProvider {
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
@@ -55,7 +56,7 @@ impl SchemaProvider for SystemSchemaProvider {
             .collect()
     }
 
-    fn table(&self, name: &str) -> Option<Arc<dyn TableProvider>> {
+    async fn table(&self, name: &str) -> Option<Arc<dyn TableProvider>> {
         match name {
             QUERIES_TABLE => Some(Arc::clone(&self.queries)),
             _ => None,

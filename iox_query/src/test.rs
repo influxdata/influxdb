@@ -232,6 +232,7 @@ struct TestDatabaseSchemaProvider {
     partitions: BTreeMap<String, BTreeMap<ChunkId, Arc<TestChunk>>>,
 }
 
+#[async_trait]
 impl SchemaProvider for TestDatabaseSchemaProvider {
     fn as_any(&self) -> &dyn Any {
         self
@@ -246,7 +247,7 @@ impl SchemaProvider for TestDatabaseSchemaProvider {
             .collect()
     }
 
-    fn table(&self, name: &str) -> Option<Arc<dyn TableProvider>> {
+    async fn table(&self, name: &str) -> Option<Arc<dyn TableProvider>> {
         Some(Arc::new(TestDatabaseTableProvider {
             partitions: self
                 .partitions

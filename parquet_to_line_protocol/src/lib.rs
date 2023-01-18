@@ -222,6 +222,7 @@ impl ParquetFileReader {
             limit: None,
             table_partition_cols: vec![],
             output_ordering: None,
+            infinite_source: false,
         };
 
         // set up enough datafusion context to do the real read session

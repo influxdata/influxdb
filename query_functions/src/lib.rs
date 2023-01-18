@@ -12,8 +12,8 @@
 )]
 
 use datafusion::{
-    execution::{context::SessionState, FunctionRegistry},
-    prelude::{lit, Expr},
+    execution::FunctionRegistry,
+    prelude::{lit, Expr, SessionContext},
 };
 use group_by::WindowDuration;
 use window::EncodedWindowDuration;
@@ -96,14 +96,12 @@ pub fn registry() -> &'static dyn FunctionRegistry {
 }
 
 /// registers scalar functions so they can be invoked via SQL
-pub fn register_scalar_functions(mut state: SessionState) -> SessionState {
+pub fn register_scalar_functions(ctx: &SessionContext) {
     let registry = registry();
     for f in registry.udfs() {
         let udf = registry.udf(&f).unwrap();
-        state.scalar_functions.insert(f, udf);
+        ctx.register_udf(udf.as_ref().clone())
     }
-
-    state
 }
 
 #[cfg(test)]
@@ -131,6 +129,7 @@ mod test {
         let ctx = context_with_table(batch);
         let result = ctx
             .table("t")
+            .await
             .unwrap()
             .filter(regex_match_expr(col("data"), "Foo".into()))
             .unwrap()
@@ -163,6 +162,7 @@ mod test {
         let ctx = context_with_table(batch);
         let result = ctx
             .table("t")
+            .await
             .unwrap()
             .filter(regex_not_match_expr(col("data"), "Foo".into()))
             .unwrap()
@@ -191,6 +191,7 @@ mod test {
         let ctx = context_with_table(batch);
         let result = ctx
             .table("t")
+            .await
             .unwrap()
             .select(vec![
                 col("time"),

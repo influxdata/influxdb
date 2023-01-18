@@ -22,9 +22,9 @@ use arrow::{
 };
 use datafusion::{
     error::{DataFusionError, Result as DataFusionResult},
-    execution::context::SessionState,
     logical_expr::{AccumulatorFunctionImplementation, Signature, TypeSignature, Volatility},
     physical_plan::{udaf::AggregateUDF, Accumulator},
+    prelude::SessionContext,
     scalar::ScalarValue,
 };
 
@@ -40,26 +40,11 @@ use internal::{
 use schema::TIME_DATA_TYPE;
 
 /// registers selector functions so they can be invoked via SQL
-pub fn register_selector_aggregates(mut state: SessionState) -> SessionState {
-    let first = struct_selector_first();
-    let last = struct_selector_last();
-    let min = struct_selector_min();
-    let max = struct_selector_max();
-
-    //TODO make a nicer api for this in DataFusion
-    state
-        .aggregate_functions
-        .insert(first.name.to_string(), first);
-
-    state
-        .aggregate_functions
-        .insert(last.name.to_string(), last);
-
-    state.aggregate_functions.insert(min.name.to_string(), min);
-
-    state.aggregate_functions.insert(max.name.to_string(), max);
-
-    state
+pub fn register_selector_aggregates(ctx: &SessionContext) {
+    ctx.register_udaf(struct_selector_first());
+    ctx.register_udaf(struct_selector_last());
+    ctx.register_udaf(struct_selector_min());
+    ctx.register_udaf(struct_selector_max());
 }
 
 /// Returns a DataFusion user defined aggregate function for computing
@@ -76,11 +61,11 @@ pub fn register_selector_aggregates(mut state: SessionState) -> SessionState {
 ///
 /// If there are multiple rows with the minimum timestamp value, the
 /// value is arbitrary
-pub fn struct_selector_first() -> Arc<AggregateUDF> {
-    Arc::new(make_uda(
+pub fn struct_selector_first() -> AggregateUDF {
+    make_uda(
         "selector_first",
         FactoryBuilder::new(SelectorType::First, SelectorOutput::Struct),
-    ))
+    )
 }
 
 /// Returns a DataFusion user defined aggregate function for computing
@@ -97,11 +82,11 @@ pub fn struct_selector_first() -> Arc<AggregateUDF> {
 ///
 /// If there are multiple rows with the maximum timestamp value, the
 /// value is arbitrary
-pub fn struct_selector_last() -> Arc<AggregateUDF> {
-    Arc::new(make_uda(
+pub fn struct_selector_last() -> AggregateUDF {
+    make_uda(
         "selector_last",
         FactoryBuilder::new(SelectorType::Last, SelectorOutput::Struct),
-    ))
+    )
 }
 
 /// Returns a DataFusion user defined aggregate function for computing
@@ -118,11 +103,11 @@ pub fn struct_selector_last() -> Arc<AggregateUDF> {
 ///
 /// If there are multiple rows with the same minimum value, the value
 /// with the first (earliest/smallest) timestamp is chosen
-pub fn struct_selector_min() -> Arc<AggregateUDF> {
-    Arc::new(make_uda(
+pub fn struct_selector_min() -> AggregateUDF {
+    make_uda(
         "selector_min",
         FactoryBuilder::new(SelectorType::Min, SelectorOutput::Struct),
-    ))
+    )
 }
 
 /// Returns a DataFusion user defined aggregate function for computing
@@ -139,11 +124,11 @@ pub fn struct_selector_min() -> Arc<AggregateUDF> {
 ///
 /// If there are multiple rows with the same maximum value, the value
 /// with the first (earliest/smallest) timestamp is chosen
-pub fn struct_selector_max() -> Arc<AggregateUDF> {
-    Arc::new(make_uda(
+pub fn struct_selector_max() -> AggregateUDF {
+    make_uda(
         "selector_max",
         FactoryBuilder::new(SelectorType::Max, SelectorOutput::Struct),
-    ))
+    )
 }
 
 /// Returns a DataFusion user defined aggregate function for computing
@@ -1346,7 +1331,7 @@ mod test {
         let ctx = SessionContext::new();
         ctx.register_table("t", Arc::new(provider)).unwrap();
 
-        let df = ctx.table("t").unwrap();
+        let df = ctx.table("t").await.unwrap();
         let df = df.aggregate(vec![], aggs).unwrap();
 
         // execute the query

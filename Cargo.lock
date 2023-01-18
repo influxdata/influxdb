@@ -1337,8 +1337,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion"
-version = "15.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=07f49803a3d7a9e9b3c2c9a7714c1bb08db71385#07f49803a3d7a9e9b3c2c9a7714c1bb08db71385"
+version = "16.0.0"
+source = "git+https://github.com/alamb/arrow-datafusion.git?branch=alamb/patched_for_iox#baeb5a042a0169027df5345ace5f5ccc146f4603"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
@@ -1358,6 +1358,7 @@ dependencies = [
  "futures",
  "glob",
  "hashbrown 0.13.2",
+ "indexmap",
  "itertools",
  "lazy_static",
  "log",
@@ -1370,7 +1371,7 @@ dependencies = [
  "pin-project-lite",
  "rand",
  "smallvec",
- "sqlparser 0.28.0",
+ "sqlparser",
  "tempfile",
  "tokio",
  "tokio-stream",
@@ -1382,32 +1383,33 @@ dependencies = [
 
 [[package]]
 name = "datafusion-common"
-version = "15.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=07f49803a3d7a9e9b3c2c9a7714c1bb08db71385#07f49803a3d7a9e9b3c2c9a7714c1bb08db71385"
+version = "16.0.0"
+source = "git+https://github.com/alamb/arrow-datafusion.git?branch=alamb/patched_for_iox#baeb5a042a0169027df5345ace5f5ccc146f4603"
 dependencies = [
  "arrow",
  "chrono",
+ "num_cpus",
  "object_store",
  "parquet",
- "sqlparser 0.28.0",
+ "sqlparser",
 ]
 
 [[package]]
 name = "datafusion-expr"
-version = "15.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=07f49803a3d7a9e9b3c2c9a7714c1bb08db71385#07f49803a3d7a9e9b3c2c9a7714c1bb08db71385"
+version = "16.0.0"
+source = "git+https://github.com/alamb/arrow-datafusion.git?branch=alamb/patched_for_iox#baeb5a042a0169027df5345ace5f5ccc146f4603"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
  "datafusion-common",
  "log",
- "sqlparser 0.28.0",
+ "sqlparser",
 ]
 
 [[package]]
 name = "datafusion-optimizer"
-version = "15.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=07f49803a3d7a9e9b3c2c9a7714c1bb08db71385#07f49803a3d7a9e9b3c2c9a7714c1bb08db71385"
+version = "16.0.0"
+source = "git+https://github.com/alamb/arrow-datafusion.git?branch=alamb/patched_for_iox#baeb5a042a0169027df5345ace5f5ccc146f4603"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1417,12 +1419,13 @@ dependencies = [
  "datafusion-physical-expr",
  "hashbrown 0.13.2",
  "log",
+ "regex-syntax",
 ]
 
 [[package]]
 name = "datafusion-physical-expr"
-version = "15.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=07f49803a3d7a9e9b3c2c9a7714c1bb08db71385#07f49803a3d7a9e9b3c2c9a7714c1bb08db71385"
+version = "16.0.0"
+source = "git+https://github.com/alamb/arrow-datafusion.git?branch=alamb/patched_for_iox#baeb5a042a0169027df5345ace5f5ccc146f4603"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
@@ -1436,6 +1439,7 @@ dependencies = [
  "datafusion-row",
  "half 2.1.0",
  "hashbrown 0.13.2",
+ "indexmap",
  "itertools",
  "lazy_static",
  "md-5",
@@ -1450,8 +1454,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-proto"
-version = "15.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=07f49803a3d7a9e9b3c2c9a7714c1bb08db71385#07f49803a3d7a9e9b3c2c9a7714c1bb08db71385"
+version = "16.0.0"
+source = "git+https://github.com/alamb/arrow-datafusion.git?branch=alamb/patched_for_iox#baeb5a042a0169027df5345ace5f5ccc146f4603"
 dependencies = [
  "arrow",
  "chrono",
@@ -1467,8 +1471,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-row"
-version = "15.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=07f49803a3d7a9e9b3c2c9a7714c1bb08db71385#07f49803a3d7a9e9b3c2c9a7714c1bb08db71385"
+version = "16.0.0"
+source = "git+https://github.com/alamb/arrow-datafusion.git?branch=alamb/patched_for_iox#baeb5a042a0169027df5345ace5f5ccc146f4603"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1478,14 +1482,14 @@ dependencies = [
 
 [[package]]
 name = "datafusion-sql"
-version = "15.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=07f49803a3d7a9e9b3c2c9a7714c1bb08db71385#07f49803a3d7a9e9b3c2c9a7714c1bb08db71385"
+version = "16.0.0"
+source = "git+https://github.com/alamb/arrow-datafusion.git?branch=alamb/patched_for_iox#baeb5a042a0169027df5345ace5f5ccc146f4603"
 dependencies = [
  "arrow-schema",
  "datafusion-common",
  "datafusion-expr",
  "log",
- "sqlparser 0.28.0",
+ "sqlparser",
 ]
 
 [[package]]
@@ -2508,7 +2512,7 @@ version = "0.1.0"
 dependencies = [
  "generated_types",
  "snafu",
- "sqlparser 0.30.0",
+ "sqlparser",
  "workspace-hack",
 ]
 
@@ -4178,7 +4182,7 @@ dependencies = [
  "query_functions",
  "schema",
  "snafu",
- "sqlparser 0.30.0",
+ "sqlparser",
  "test_helpers",
  "workspace-hack",
 ]
@@ -5321,20 +5325,23 @@ dependencies = [
 
 [[package]]
 name = "sqlparser"
-version = "0.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "249ae674b9f636b8ff64d8bfe218774cf05a26de40fd9f358669dccc4c0a9d7d"
-dependencies = [
- "log",
-]
-
-[[package]]
-name = "sqlparser"
 version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db67dc6ef36edb658196c3fef0464a80b53dbbc194a904e81f9bd4190f9ecc5b"
 dependencies = [
  "log",
+ "sqlparser_derive",
+]
+
+[[package]]
+name = "sqlparser_derive"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "55fe75cb4a364c7f7ae06c7dbbc8d84bddd85d6cdf9975963c3935bc1991761e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

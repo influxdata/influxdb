@@ -99,10 +99,6 @@ fn is_comparison(op: Operator) -> bool {
         Operator::Modulo => false,
         Operator::And => true,
         Operator::Or => true,
-        Operator::Like => true,
-        Operator::ILike => true,
-        Operator::NotLike => true,
-        Operator::NotILike => true,
         Operator::IsDistinctFrom => true,
         Operator::IsNotDistinctFrom => true,
         Operator::RegexMatch => true,
@@ -381,8 +377,6 @@ mod tests {
         run_case(Operator::Modulo, false, lit(1), lit(2));
         run_case(Operator::And, true, lit("foo"), lit("bar"));
         run_case(Operator::Or, true, lit("foo"), lit("bar"));
-        run_case(Operator::Like, true, lit("foo"), lit("bar"));
-        run_case(Operator::NotLike, true, lit("foo"), lit("bar"));
         run_case(Operator::IsDistinctFrom, true, lit("foo"), lit("bar"));
         run_case(Operator::IsNotDistinctFrom, true, lit("foo"), lit("bar"));
         run_case(Operator::RegexMatch, true, lit("foo"), lit("bar"));

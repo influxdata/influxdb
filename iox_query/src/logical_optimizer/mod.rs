@@ -1,17 +1,14 @@
 use std::sync::Arc;
 
-use datafusion::optimizer::optimizer::Optimizer;
+use datafusion::execution::context::SessionState;
 
 use self::influx_regex_to_datafusion_regex::InfluxRegexToDataFusionRegex;
 
 mod influx_regex_to_datafusion_regex;
 
-/// Create IOx-specific logical [`Optimizer`].
+/// Register IOx-specific logical [`OptimizerRule`]s with the SessionContext
 ///
-/// This is mostly the default optimizer that DataFusion provides but with some additional passes.
-pub fn iox_optimizer() -> Optimizer {
-    let mut opt = Optimizer::new();
-    opt.rules
-        .push(Arc::new(InfluxRegexToDataFusionRegex::new()));
-    opt
+/// [`OptimizerRule`]: datafusion::optimizer::OptimizerRule
+pub fn register_iox_optimizers(state: SessionState) -> SessionState {
+    state.add_optimizer_rule(Arc::new(InfluxRegexToDataFusionRegex::new()))
 }

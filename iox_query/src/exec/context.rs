@@ -20,7 +20,7 @@ use crate::{
         split::StreamSplitExec,
         stringset::{IntoStringSet, StringSetRef},
     },
-    logical_optimizer::iox_optimizer,
+    logical_optimizer::register_iox_optimizers,
     plan::{
         fieldlist::FieldListPlan,
         seriesset::{SeriesSetPlan, SeriesSetPlans},
@@ -222,13 +222,11 @@ impl IOxSessionConfig {
 
         let state = SessionState::with_config_rt(session_config, self.runtime)
             .with_query_planner(Arc::new(IOxQueryPlanner {}));
-
-        let state = register_selector_aggregates(state);
-        let mut state = register_scalar_functions(state);
-        state.optimizer = iox_optimizer();
+        let state = register_iox_optimizers(state);
 
         let inner = SessionContext::with_state(state);
-
+        register_selector_aggregates(&inner);
+        register_scalar_functions(&inner);
         if let Some(default_catalog) = self.default_catalog {
             inner.register_catalog(DEFAULT_CATALOG, default_catalog);
         }
@@ -311,9 +309,9 @@ impl IOxSessionContext {
         let ctx = self.child_ctx("prepare_sql");
         debug!(text=%sql, "planning SQL query");
 
-        // NOTE can not use ctx.inner.sql here as it also interprets DDL
+        // NOTE can not use ctx.inner.sql() here as it also interprets DDL
         #[allow(deprecated)]
-        let logical_plan = ctx.inner.create_logical_plan(sql)?;
+        let logical_plan = ctx.inner.state().create_logical_plan(sql).await?;
         debug!(plan=%logical_plan.display_graphviz(), "logical plan");
 
         // Make nicer erorrs for unsupported SQL
@@ -347,7 +345,7 @@ impl IOxSessionContext {
     pub async fn create_physical_plan(&self, plan: &LogicalPlan) -> Result<Arc<dyn ExecutionPlan>> {
         let mut ctx = self.child_ctx("create_physical_plan");
         debug!(text=%plan.display_indent_schema(), "create_physical_plan: initial plan");
-        let physical_plan = ctx.inner.create_physical_plan(plan).await?;
+        let physical_plan = ctx.inner.state().create_physical_plan(plan).await?;
 
         ctx.recorder.event("physical plan");
         debug!(text=%displayable(physical_plan.as_ref()).indent(), "create_physical_plan: plan to run");
@@ -670,13 +668,13 @@ pub trait SessionContextIOxExt {
 
 impl SessionContextIOxExt for SessionState {
     fn child_span(&self, name: &'static str) -> Option<Span> {
-        self.config
+        self.config()
             .get_extension::<Option<Span>>()
             .and_then(|span| span.as_ref().as_ref().map(|span| span.child(name)))
     }
 
     fn span_ctx(&self) -> Option<SpanContext> {
-        self.config
+        self.config()
             .get_extension::<Option<Span>>()
             .and_then(|span| span.as_ref().as_ref().map(|span| span.ctx.clone()))
     }

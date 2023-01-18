@@ -40,7 +40,7 @@ impl InfluxQLQueryPlanner {
         }
 
         let planner = InfluxQLToLogicalPlan::new(&ctx, database);
-        let logical_plan = planner.statement_to_plan(statements.pop().unwrap())?;
+        let logical_plan = planner.statement_to_plan(statements.pop().unwrap()).await?;
         debug!(plan=%logical_plan.display_graphviz(), "logical plan");
 
         // This would only work for SELECT statements at the moment, as the schema queries do

@@ -115,8 +115,12 @@ license = "MIT OR Apache-2.0"
 [workspace.dependencies]
 arrow = { version = "29.0.0" }
 arrow-flight = { version = "29.0.0" }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="07f49803a3d7a9e9b3c2c9a7714c1bb08db71385", default-features = false }
-datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="07f49803a3d7a9e9b3c2c9a7714c1bb08db71385" }
+#datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="07f49803a3d7a9e9b3c2c9a7714c1bb08db71385", default-features = false }
+#datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="07f49803a3d7a9e9b3c2c9a7714c1bb08db71385" }
+# Temporary patch to https://github.com/alamb/arrow-datafusion/tree/alamb/patched_for_iox
+# See https://github.com/alamb/arrow-datafusion/pull/7 for details
+datafusion = { git = "https://github.com/alamb/arrow-datafusion.git", branch="alamb/patched_for_iox", default-features = false }
+datafusion-proto = { git = "https://github.com/alamb/arrow-datafusion.git", branch="alamb/patched_for_iox" }
 hashbrown = { version = "0.13.2" }
 parquet = { version = "29.0.0" }
 

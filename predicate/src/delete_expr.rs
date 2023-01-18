@@ -216,13 +216,13 @@ mod tests {
 
     #[test]
     fn test_unsupported_operator() {
-        let res = df_to_op(datafusion::logical_expr::Operator::Like);
+        let res = df_to_op(datafusion::logical_expr::Operator::Lt);
         assert_contains!(res.unwrap_err().to_string(), "unsupported operator:");
     }
 
     #[test]
     fn test_unsupported_operator_in_expr() {
-        let expr = col("foo").like(lit("x"));
+        let expr = col("foo").lt(lit("x"));
         let res = df_to_expr(expr);
         assert_contains!(res.unwrap_err().to_string(), "unsupported operator:");
     }
