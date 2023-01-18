@@ -176,7 +176,7 @@ mod test {
         let (rem, got) = create_database("DATABASE telegraf WITH DURATION 5m").unwrap();
         assert_eq!(rem, "");
         assert_eq!(got.name, "telegraf".into());
-        assert_eq!(format!("{}", got.duration.unwrap()), "5m");
+        assert_eq!(got.duration.unwrap().to_string(), "5m");
 
         let (rem, got) = create_database("DATABASE telegraf WITH REPLICATION 10").unwrap();
         assert_eq!(rem, "");
@@ -186,7 +186,7 @@ mod test {
         let (rem, got) = create_database("DATABASE telegraf WITH SHARD DURATION 6m").unwrap();
         assert_eq!(rem, "");
         assert_eq!(got.name, "telegraf".into());
-        assert_eq!(format!("{}", got.shard_duration.unwrap()), "6m");
+        assert_eq!(got.shard_duration.unwrap().to_string(), "6m");
 
         let (rem, got) = create_database("DATABASE telegraf WITH NAME \"5 minutes\"").unwrap();
         assert_eq!(rem, "");
@@ -196,9 +196,9 @@ mod test {
         let (rem, got) = create_database("DATABASE telegraf WITH DURATION 5m REPLICATION 10 SHARD DURATION 6m NAME \"5 minutes\"").unwrap();
         assert_eq!(rem, "");
         assert_eq!(got.name, "telegraf".into());
-        assert_eq!(format!("{}", got.duration.unwrap()), "5m");
+        assert_eq!(got.duration.unwrap().to_string(), "5m");
         assert_eq!(got.replication.unwrap(), 10);
-        assert_eq!(format!("{}", got.shard_duration.unwrap()), "6m");
+        assert_eq!(got.shard_duration.unwrap().to_string(), "6m");
         assert_eq!(got.retention_name.unwrap(), "5 minutes".into());
 
         // Fallible

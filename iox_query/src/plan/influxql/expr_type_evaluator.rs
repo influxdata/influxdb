@@ -2,7 +2,7 @@ use crate::plan::influxql::field::field_by_name;
 use crate::plan::influxql::field_mapper::map_type;
 use datafusion::common::{DataFusionError, Result};
 use influxdb_influxql_parser::common::{MeasurementName, QualifiedMeasurementName};
-use influxdb_influxql_parser::expression::{Expr, UnaryOperator, VarRefDataType};
+use influxdb_influxql_parser::expression::{Expr, VarRefDataType};
 use influxdb_influxql_parser::literal::Literal;
 use influxdb_influxql_parser::select::{Dimension, FromMeasurementClause, MeasurementSelection};
 use itertools::Itertools;
@@ -39,15 +39,9 @@ impl<'a> TypeEvaluator<'a> {
             Expr::Nested(expr) => self.eval_type(expr)?,
             Expr::Literal(Literal::Float(_)) => Some(VarRefDataType::Float),
             Expr::Literal(Literal::Unsigned(_)) => Some(VarRefDataType::Unsigned),
+            Expr::Literal(Literal::Integer(_)) => Some(VarRefDataType::Integer),
             Expr::Literal(Literal::String(_)) => Some(VarRefDataType::String),
             Expr::Literal(Literal::Boolean(_)) => Some(VarRefDataType::Boolean),
-            Expr::UnaryOp(op, expr) => match (op, self.eval_type(expr)?) {
-                (UnaryOperator::Minus, Some(VarRefDataType::Unsigned)) => {
-                    Some(VarRefDataType::Integer)
-                }
-                (_, Some(ft)) => Some(ft),
-                (_, None) => None,
-            },
             // Remaining patterns are not valid field types
             Expr::BindParameter(_)
             | Expr::Distinct(_)

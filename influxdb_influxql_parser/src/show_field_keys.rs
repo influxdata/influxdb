@@ -100,36 +100,36 @@ mod test {
     fn test_show_field_keys() {
         // No optional clauses
         let (_, got) = show_field_keys("FIELD KEYS").unwrap();
-        assert_eq!(format!("{}", got), "SHOW FIELD KEYS");
+        assert_eq!(got.to_string(), "SHOW FIELD KEYS");
 
         let (_, got) = show_field_keys("FIELD KEYS ON db").unwrap();
-        assert_eq!(format!("{}", got), "SHOW FIELD KEYS ON db");
+        assert_eq!(got.to_string(), "SHOW FIELD KEYS ON db");
 
         // measurement selection using name
         let (_, got) = show_field_keys("FIELD KEYS FROM db..foo").unwrap();
-        assert_eq!(format!("{}", got), "SHOW FIELD KEYS FROM db..foo");
+        assert_eq!(got.to_string(), "SHOW FIELD KEYS FROM db..foo");
 
         // measurement selection using regex
         let (_, got) = show_field_keys("FIELD KEYS FROM /foo/").unwrap();
-        assert_eq!(format!("{}", got), "SHOW FIELD KEYS FROM /foo/");
+        assert_eq!(got.to_string(), "SHOW FIELD KEYS FROM /foo/");
 
         // measurement selection using list
         let (_, got) = show_field_keys("FIELD KEYS FROM /foo/ , bar, \"foo bar\"").unwrap();
         assert_eq!(
-            format!("{}", got),
+            got.to_string(),
             "SHOW FIELD KEYS FROM /foo/, bar, \"foo bar\""
         );
 
         let (_, got) = show_field_keys("FIELD KEYS LIMIT 1").unwrap();
-        assert_eq!(format!("{}", got), "SHOW FIELD KEYS LIMIT 1");
+        assert_eq!(got.to_string(), "SHOW FIELD KEYS LIMIT 1");
 
         let (_, got) = show_field_keys("FIELD KEYS OFFSET 2").unwrap();
-        assert_eq!(format!("{}", got), "SHOW FIELD KEYS OFFSET 2");
+        assert_eq!(got.to_string(), "SHOW FIELD KEYS OFFSET 2");
 
         // all optional clauses
         let (_, got) = show_field_keys("FIELD KEYS ON db FROM /foo/ LIMIT 1 OFFSET 2").unwrap();
         assert_eq!(
-            format!("{}", got),
+            got.to_string(),
             "SHOW FIELD KEYS ON db FROM /foo/ LIMIT 1 OFFSET 2"
         );
 

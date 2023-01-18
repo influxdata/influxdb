@@ -81,17 +81,17 @@ mod test {
 
         // Measurement name expressed as an identifier
         let (_, got) = delete_statement("DELETE FROM foo").unwrap();
-        assert_eq!(format!("{}", got), "DELETE FROM foo");
+        assert_eq!(got.to_string(), "DELETE FROM foo");
 
         // Measurement name expressed as a regular expression
         let (_, got) = delete_statement("DELETE FROM /foo/").unwrap();
-        assert_eq!(format!("{}", got), "DELETE FROM /foo/");
+        assert_eq!(got.to_string(), "DELETE FROM /foo/");
 
         let (_, got) = delete_statement("DELETE FROM foo WHERE time > 10").unwrap();
-        assert_eq!(format!("{}", got), "DELETE FROM foo WHERE time > 10");
+        assert_eq!(got.to_string(), "DELETE FROM foo WHERE time > 10");
 
         let (_, got) = delete_statement("DELETE WHERE time > 10").unwrap();
-        assert_eq!(format!("{}", got), "DELETE WHERE time > 10");
+        assert_eq!(got.to_string(), "DELETE WHERE time > 10");
 
         // Fallible cases
         assert_expect_error!(

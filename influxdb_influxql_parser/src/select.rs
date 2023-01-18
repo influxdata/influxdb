@@ -703,20 +703,20 @@ mod test {
     #[test]
     fn test_select_statement() {
         let (_, got) = select_statement("SELECT value FROM foo").unwrap();
-        assert_eq!(format!("{}", got), "SELECT value FROM foo");
+        assert_eq!(got.to_string(), "SELECT value FROM foo");
 
         let (_, got) =
             select_statement(r#"SELECT f1,/f2/, f3 AS "a field" FROM foo WHERE host =~ /c1/"#)
                 .unwrap();
         assert_eq!(
-            format!("{}", got),
+            got.to_string(),
             r#"SELECT f1, /f2/, f3 AS "a field" FROM foo WHERE host =~ /c1/"#
         );
 
         let (_, got) =
             select_statement("SELECT sum(value) FROM foo GROUP BY time(5m), host").unwrap();
         assert_eq!(
-            format!("{}", got),
+            got.to_string(),
             r#"SELECT sum(value) FROM foo GROUP BY TIME(5m), host"#
         );
 
@@ -724,7 +724,7 @@ mod test {
         let (_, got) =
             select_statement("SELECT sum(value) FROM foo GROUP BY time(5m * 10), host").unwrap();
         assert_eq!(
-            format!("{}", got),
+            got.to_string(),
             r#"SELECT sum(value) FROM foo GROUP BY TIME(5m * 10), host"#
         );
 
@@ -737,37 +737,37 @@ mod test {
             select_statement("SELECT sum(value) FROM foo GROUP BY time(5m), host FILL(previous)")
                 .unwrap();
         assert_eq!(
-            format!("{}", got),
+            got.to_string(),
             r#"SELECT sum(value) FROM foo GROUP BY TIME(5m), host FILL(PREVIOUS)"#
         );
 
         let (_, got) = select_statement("SELECT value FROM foo ORDER BY DESC").unwrap();
         assert_eq!(
-            format!("{}", got),
+            got.to_string(),
             r#"SELECT value FROM foo ORDER BY TIME DESC"#
         );
 
         let (_, got) = select_statement("SELECT value FROM foo ORDER BY TIME ASC").unwrap();
         assert_eq!(
-            format!("{}", got),
+            got.to_string(),
             r#"SELECT value FROM foo ORDER BY TIME ASC"#
         );
 
         let (_, got) = select_statement("SELECT value FROM foo LIMIT 5").unwrap();
-        assert_eq!(format!("{}", got), r#"SELECT value FROM foo LIMIT 5"#);
+        assert_eq!(got.to_string(), r#"SELECT value FROM foo LIMIT 5"#);
 
         let (_, got) = select_statement("SELECT value FROM foo OFFSET 20").unwrap();
-        assert_eq!(format!("{}", got), r#"SELECT value FROM foo OFFSET 20"#);
+        assert_eq!(got.to_string(), r#"SELECT value FROM foo OFFSET 20"#);
 
         let (_, got) = select_statement("SELECT value FROM foo SLIMIT 25").unwrap();
-        assert_eq!(format!("{}", got), r#"SELECT value FROM foo SLIMIT 25"#);
+        assert_eq!(got.to_string(), r#"SELECT value FROM foo SLIMIT 25"#);
 
         let (_, got) = select_statement("SELECT value FROM foo SOFFSET 220").unwrap();
-        assert_eq!(format!("{}", got), r#"SELECT value FROM foo SOFFSET 220"#);
+        assert_eq!(got.to_string(), r#"SELECT value FROM foo SOFFSET 220"#);
 
         let (_, got) = select_statement("SELECT value FROM foo tz('Australia/Hobart')").unwrap();
         assert_eq!(
-            format!("{}", got),
+            got.to_string(),
             r#"SELECT value FROM foo TZ('Australia/Hobart')"#
         );
 

@@ -690,7 +690,7 @@ mod test {
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT -bytes_free::integer AS bytes_free FROM disk"
+            "SELECT -1 * bytes_free::integer AS bytes_free FROM disk"
         );
 
         // Call expressions

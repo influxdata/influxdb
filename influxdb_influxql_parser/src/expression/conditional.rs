@@ -242,13 +242,28 @@ mod test {
     use super::*;
     use crate::expression::arithmetic::Expr;
     use crate::{
-        assert_expect_error, assert_failure, binary_op, call, cond_op, grouped, regex, unary,
-        var_ref,
+        assert_expect_error, assert_failure, binary_op, call, cond_op, grouped, regex, var_ref,
     };
 
     impl From<Expr> for ConditionalExpression {
         fn from(v: Expr) -> Self {
             Self::Expr(Box::new(v))
+        }
+    }
+
+    impl From<i32> for Box<ConditionalExpression> {
+        fn from(v: i32) -> Self {
+            Self::new(ConditionalExpression::Expr(Box::new(Expr::Literal(
+                (v as i64).into(),
+            ))))
+        }
+    }
+
+    impl From<i64> for Box<ConditionalExpression> {
+        fn from(v: i64) -> Self {
+            Self::new(ConditionalExpression::Expr(Box::new(Expr::Literal(
+                v.into(),
+            ))))
         }
     }
 
@@ -315,7 +330,7 @@ mod test {
         assert_eq!(got, *cond_op!(var_ref!("foo"), Gt, binary_op!(5, Add, 6)));
 
         let (_, got) = conditional_expression("5 <= -6").unwrap();
-        assert_eq!(got, *cond_op!(5, LtEq, unary!(-6)));
+        assert_eq!(got, *cond_op!(5, LtEq, -6));
 
         // simple expressions
         let (_, got) = conditional_expression("true").unwrap();
@@ -330,7 +345,7 @@ mod test {
         assert_eq!(got, *cond_op!(var_ref!("foo"), Gt, binary_op!(5, Add, 6)));
 
         let (_, got) = conditional_expression("5<=-6").unwrap();
-        assert_eq!(got, *cond_op!(5, LtEq, unary!(-6)));
+        assert_eq!(got, *cond_op!(5, LtEq, -6));
 
         // var refs with cast operator
         let (_, got) = conditional_expression("foo::integer = 5").unwrap();
@@ -422,7 +437,6 @@ mod test {
     #[test]
     fn test_display_expr() {
         let (_, e) = conditional_expression("foo = 'test'").unwrap();
-        let got = format!("{}", e);
-        assert_eq!(got, "foo = 'test'");
+        assert_eq!(e.to_string(), "foo = 'test'");
     }
 }

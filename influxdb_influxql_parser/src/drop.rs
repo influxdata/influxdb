@@ -67,7 +67,7 @@ mod test {
         let (_, got) = drop_measurement("MEASUREMENT \"foo\"").unwrap();
         assert_eq!(got, DropMeasurementStatement { name: "foo".into() });
         // validate Display
-        assert_eq!(format!("{}", got), "DROP MEASUREMENT foo");
+        assert_eq!(got.to_string(), "DROP MEASUREMENT foo");
 
         // Fallible cases
         assert_expect_error!(

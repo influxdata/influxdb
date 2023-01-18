@@ -847,7 +847,7 @@ mod tests {
         assert_eq!(got.len(), 1);
         assert_eq!(got.head(), "foo");
         assert_eq!(*got, vec!["foo"]); // deref
-        assert_eq!(format!("{}", got), "foo");
+        assert_eq!(got.to_string(), "foo");
 
         let (_, got) =
             OneOrMoreString::separated_list1("Expects one or more")("foo ,  bar,foobar").unwrap();
@@ -855,7 +855,7 @@ mod tests {
         assert_eq!(got.head(), "foo");
         assert_eq!(got.tail(), vec!["bar", "foobar"]);
         assert_eq!(*got, vec!["foo", "bar", "foobar"]); // deref
-        assert_eq!(format!("{}", got), "foo, bar, foobar");
+        assert_eq!(got.to_string(), "foo, bar, foobar");
 
         // Fallible cases
 
@@ -889,7 +889,7 @@ mod tests {
         assert_eq!(got.len(), 1);
         assert_eq!(got.head().unwrap(), "foo");
         assert_eq!(*got, vec!["foo"]); // deref
-        assert_eq!(format!("{}", got), "foo");
+        assert_eq!(got.to_string(), "foo");
 
         let (_, got) =
             ZeroOrMoreString::separated_list1("Expects one or more")("foo ,  bar,foobar").unwrap();
@@ -897,7 +897,7 @@ mod tests {
         assert_eq!(got.head().unwrap(), "foo");
         assert_eq!(got.tail(), vec!["bar", "foobar"]);
         assert_eq!(*got, vec!["foo", "bar", "foobar"]); // deref
-        assert_eq!(format!("{}", got), "foo, bar, foobar");
+        assert_eq!(got.to_string(), "foo, bar, foobar");
 
         // should not panic
         let got = ZeroOrMoreString::new(vec![]);

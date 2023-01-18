@@ -75,23 +75,6 @@ macro_rules! call {
     };
 }
 
-/// Constructs a [crate::expression::arithmetic::Expr::UnaryOp] expression.
-#[macro_export]
-macro_rules! unary {
-    (- $EXPR:expr) => {
-        $crate::expression::arithmetic::Expr::UnaryOp(
-            $crate::expression::arithmetic::UnaryOperator::Minus,
-            $EXPR.into(),
-        )
-    };
-    (+ $EXPR:expr) => {
-        $crate::expression::arithmetic::Expr::UnaryOp(
-            $crate::expression::arithmetic::UnaryOperator::Plus,
-            $EXPR.into(),
-        )
-    };
-}
-
 /// Constructs a [crate::expression::arithmetic::Expr::Distinct] expression.
 #[macro_export]
 macro_rules! distinct {
