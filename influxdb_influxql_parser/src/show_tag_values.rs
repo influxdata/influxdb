@@ -243,25 +243,22 @@ mod test {
     fn test_show_tag_values() {
         // No optional clauses
         let (_, got) = show_tag_values("VALUES WITH KEY = some_key").unwrap();
-        assert_eq!(format!("{}", got), "SHOW TAG VALUES WITH KEY = some_key");
+        assert_eq!(got.to_string(), "SHOW TAG VALUES WITH KEY = some_key");
 
         let (_, got) = show_tag_values("VALUES ON db WITH KEY = some_key").unwrap();
-        assert_eq!(
-            format!("{}", got),
-            "SHOW TAG VALUES ON db WITH KEY = some_key"
-        );
+        assert_eq!(got.to_string(), "SHOW TAG VALUES ON db WITH KEY = some_key");
 
         // measurement selection using name
         let (_, got) = show_tag_values("VALUES FROM db..foo WITH KEY = some_key").unwrap();
         assert_eq!(
-            format!("{}", got),
+            got.to_string(),
             "SHOW TAG VALUES FROM db..foo WITH KEY = some_key"
         );
 
         // measurement selection using regex
         let (_, got) = show_tag_values("VALUES FROM /foo/ WITH KEY = some_key").unwrap();
         assert_eq!(
-            format!("{}", got),
+            got.to_string(),
             "SHOW TAG VALUES FROM /foo/ WITH KEY = some_key"
         );
 
@@ -269,25 +266,25 @@ mod test {
         let (_, got) =
             show_tag_values("VALUES FROM /foo/ , bar, \"foo bar\" WITH KEY = some_key").unwrap();
         assert_eq!(
-            format!("{}", got),
+            got.to_string(),
             "SHOW TAG VALUES FROM /foo/, bar, \"foo bar\" WITH KEY = some_key"
         );
 
         let (_, got) = show_tag_values("VALUES WITH KEY = some_key WHERE foo = 'bar'").unwrap();
         assert_eq!(
-            format!("{}", got),
+            got.to_string(),
             "SHOW TAG VALUES WITH KEY = some_key WHERE foo = 'bar'"
         );
 
         let (_, got) = show_tag_values("VALUES WITH KEY = some_key LIMIT 1").unwrap();
         assert_eq!(
-            format!("{}", got),
+            got.to_string(),
             "SHOW TAG VALUES WITH KEY = some_key LIMIT 1"
         );
 
         let (_, got) = show_tag_values("VALUES WITH KEY = some_key OFFSET 2").unwrap();
         assert_eq!(
-            format!("{}", got),
+            got.to_string(),
             "SHOW TAG VALUES WITH KEY = some_key OFFSET 2"
         );
 
@@ -297,12 +294,12 @@ mod test {
         )
         .unwrap();
         assert_eq!(
-            format!("{}", got),
+            got.to_string(),
             "SHOW TAG VALUES ON db FROM /foo/ WITH KEY = some_key WHERE foo = 'bar' LIMIT 1 OFFSET 2"
         );
 
         let (_, got) = show_tag_values("VALUES WITH KEY IN( foo )").unwrap();
-        assert_eq!(format!("{}", got), "SHOW TAG VALUES WITH KEY IN (foo)");
+        assert_eq!(got.to_string(), "SHOW TAG VALUES WITH KEY IN (foo)");
 
         // Fallible cases are tested by the various combinator functions
     }

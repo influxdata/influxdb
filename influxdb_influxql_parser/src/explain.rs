@@ -102,24 +102,24 @@ mod test {
         let (remain, got) = explain_statement("EXPLAIN SELECT val from temp").unwrap();
         assert_eq!(remain, ""); // assert that all input was consumed
         assert_matches!(got.options, None);
-        assert_eq!(format!("{}", got), "EXPLAIN SELECT val FROM temp");
+        assert_eq!(got.to_string(), "EXPLAIN SELECT val FROM temp");
 
         let (remain, got) = explain_statement("EXPLAIN VERBOSE SELECT val from temp").unwrap();
         assert_eq!(remain, "");
         assert_matches!(&got.options, Some(o) if *o == ExplainOption::Verbose);
-        assert_eq!(format!("{}", got), "EXPLAIN VERBOSE SELECT val FROM temp");
+        assert_eq!(got.to_string(), "EXPLAIN VERBOSE SELECT val FROM temp");
 
         let (remain, got) = explain_statement("EXPLAIN ANALYZE SELECT val from temp").unwrap();
         assert_eq!(remain, "");
         assert_matches!(&got.options, Some(o) if *o == ExplainOption::Analyze);
-        assert_eq!(format!("{}", got), "EXPLAIN ANALYZE SELECT val FROM temp");
+        assert_eq!(got.to_string(), "EXPLAIN ANALYZE SELECT val FROM temp");
 
         let (remain, got) =
             explain_statement("EXPLAIN ANALYZE VERBOSE SELECT val from temp").unwrap();
         assert_eq!(remain, "");
         assert_matches!(&got.options, Some(o) if *o == ExplainOption::AnalyzeVerbose);
         assert_eq!(
-            format!("{}", got),
+            got.to_string(),
             "EXPLAIN ANALYZE VERBOSE SELECT val FROM temp"
         );
 

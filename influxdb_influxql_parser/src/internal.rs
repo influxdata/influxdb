@@ -36,8 +36,8 @@ impl<'a> ParseError<'a> for Error<&'a str> {
 }
 
 /// Applies a function returning a [`ParseResult`] over the result of the `parser`.
-/// If the parser returns an error, the result will be mapped to a [`nom::Err::Failure`]
-/// with the specified `message` for additional context.
+/// If the parser returns an error, the result will be mapped to an unrecoverable
+/// [`nom::Err::Failure`] with the specified `message` for additional context.
 pub fn map_fail<'a, O1, O2, E: ParseError<'a>, E2, F, G>(
     message: &'static str,
     mut parser: F,
@@ -52,6 +52,27 @@ where
         match f(o1) {
             Ok(o2) => Ok((input, o2)),
             Err(_) => Err(nom::Err::Failure(E::from_message(input, message))),
+        }
+    }
+}
+
+/// Applies a function returning a [`ParseResult`] over the result of the `parser`.
+/// If the parser returns an error, the result will be mapped to a recoverable
+/// [`nom::Err::Error`] with the specified `message` for additional context.
+pub fn map_error<'a, O1, O2, E: ParseError<'a>, E2, F, G>(
+    message: &'static str,
+    mut parser: F,
+    mut f: G,
+) -> impl FnMut(&'a str) -> ParseResult<&'a str, O2, E>
+where
+    F: Parser<&'a str, O1, E>,
+    G: FnMut(O1) -> Result<O2, E2>,
+{
+    move |input| {
+        let (input, o1) = parser.parse(input)?;
+        match f(o1) {
+            Ok(o2) => Ok((input, o2)),
+            Err(_) => Err(nom::Err::Error(E::from_message(input, message))),
         }
     }
 }

@@ -1,7 +1,7 @@
 //! Types and parsers for literals.
 
 use crate::common::ws0;
-use crate::internal::{map_fail, ParseResult};
+use crate::internal::{map_error, map_fail, ParseResult};
 use crate::keywords::keyword;
 use crate::string::{regex, single_quoted_string, Regex};
 use crate::{impl_tuple_clause, write_escaped};
@@ -32,6 +32,9 @@ const NANOS_PER_WEEK: i64 = 7 * NANOS_PER_DAY;
 /// Primitive InfluxQL literal values, such as strings and regular expressions.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Literal {
+    /// Signed integer literal.
+    Integer(i64),
+
     /// Unsigned integer literal.
     Unsigned(u64),
 
@@ -63,6 +66,12 @@ impl From<u64> for Literal {
     }
 }
 
+impl From<i64> for Literal {
+    fn from(v: i64) -> Self {
+        Self::Integer(v)
+    }
+}
+
 impl From<f64> for Literal {
     fn from(v: f64) -> Self {
         Self::Float(v)
@@ -90,6 +99,7 @@ impl From<Regex> for Literal {
 impl Display for Literal {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Integer(v) => write!(f, "{}", v),
             Self::Unsigned(v) => write!(f, "{}", v),
             Self::Float(v) => write!(f, "{}", v),
             Self::String(v) => {
@@ -112,7 +122,29 @@ impl Display for Literal {
 /// INTEGER ::= [0-9]+
 /// ```
 fn integer(i: &str) -> ParseResult<&str, i64> {
-    map_fail("unable to parse integer", digit1, &str::parse)(i)
+    map_error("unable to parse integer", digit1, &str::parse)(i)
+}
+
+/// Parse an InfluxQL integer to a [`Literal::Integer`] or [`Literal::Unsigned`]
+/// if the string overflows. This behavior is consistent with [InfluxQL].
+///
+/// InfluxQL defines an integer as follows
+///
+/// ```text
+/// INTEGER ::= [0-9]+
+/// ```
+///
+/// [InfluxQL]: https://github.com/influxdata/influxql/blob/7e7d61973256ffeef4b99edd0a89f18a9e52fa2d/parser.go#L2669-L2675
+fn integer_literal(i: &str) -> ParseResult<&str, Literal> {
+    map_fail(
+        "unable to parse integer due to overflow",
+        digit1,
+        |s: &str| {
+            s.parse::<i64>()
+                .map(Literal::Integer)
+                .or_else(|_| s.parse::<u64>().map(Literal::Unsigned))
+        },
+    )(i)
 }
 
 /// Parse an unsigned InfluxQL integer.
@@ -224,11 +256,17 @@ static DIVISORS: [(i64, &str); 8] = [
 
 impl Display for Duration {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self.0 {
+        let v = if self.0.is_negative() {
+            write!(f, "-")?;
+            -self.0
+        } else {
+            self.0
+        };
+        match v {
             0 => f.write_str("0s")?,
             mut i => {
                 // only return the divisors that are > self
-                for (div, unit) in DIVISORS.iter().filter(|(div, _)| self.0 > *div) {
+                for (div, unit) in DIVISORS.iter().filter(|(div, _)| v > *div) {
                     let units = i / div;
                     if units > 0 {
                         write!(f, "{}{}", units, unit)?;
@@ -290,7 +328,7 @@ pub(crate) fn literal_no_regex(i: &str) -> ParseResult<&str, Literal> {
         // NOTE: order is important, as floats should be tested before durations and integers.
         map(float, Literal::Float),
         map(duration, Literal::Duration),
-        map(unsigned_integer, Literal::Unsigned),
+        integer_literal,
         map(single_quoted_string, Literal::String),
         map(boolean, Literal::Boolean),
     ))(i)
@@ -313,8 +351,14 @@ mod test {
 
     #[test]
     fn test_literal_no_regex() {
+        // Whole numbers are parsed first as a signed integer, and if that overflows,
+        // tries an unsigned integer, which is consistent with InfluxQL
         let (_, got) = literal_no_regex("42").unwrap();
-        assert_matches!(got, Literal::Unsigned(42));
+        assert_matches!(got, Literal::Integer(42));
+
+        // > i64::MAX + 1 should be parsed as an unsigned integer
+        let (_, got) = literal_no_regex("9223372036854775808").unwrap();
+        assert_matches!(got, Literal::Unsigned(9223372036854775808));
 
         let (_, got) = literal_no_regex("42.69").unwrap();
         assert_matches!(got, Literal::Float(v) if v == 42.69);
@@ -452,16 +496,18 @@ mod test {
     #[test]
     fn test_display_duration() {
         let (_, d) = duration("3w2h15ms").unwrap();
-        let got = format!("{}", d);
-        assert_eq!(got, "3w2h15ms");
+        assert_eq!(d.to_string(), "3w2h15ms");
 
         let (_, d) = duration("5s5s5s5s5s").unwrap();
-        let got = format!("{}", d);
-        assert_eq!(got, "25s");
+        assert_eq!(d.to_string(), "25s");
 
         let d = Duration(0);
-        let got = format!("{}", d);
-        assert_eq!(got, "0s");
+        assert_eq!(d.to_string(), "0s");
+
+        // Negative duration
+        let (_, d) = duration("3w2h15ms").unwrap();
+        let d = Duration(-d.0);
+        assert_eq!(d.to_string(), "-3w2h15ms");
 
         let d = Duration(
             20 * NANOS_PER_WEEK
@@ -473,8 +519,7 @@ mod test {
                 + 8 * NANOS_PER_MICRO
                 + 500,
         );
-        let got = format!("{}", d);
-        assert_eq!(got, "20w6d13h11m10s9ms8us500ns");
+        assert_eq!(d.to_string(), "20w6d13h11m10s9ms8us500ns");
     }
 
     #[test]

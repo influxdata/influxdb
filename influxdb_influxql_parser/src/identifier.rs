@@ -130,11 +130,11 @@ mod test {
     #[test]
     fn test_identifier_display() {
         // Identifier properly escapes specific characters and quotes output
-        let got = format!("{}", Identifier("quick\n\t\\\"'draw \u{1f47d}".into()));
+        let got = Identifier("quick\n\t\\\"'draw \u{1f47d}".into()).to_string();
         assert_eq!(got, r#""quick\n	\\\"'draw 👽""#);
 
         // Identifier displays unquoted output
-        let got = format!("{}", Identifier("quick_draw".into()));
+        let got = Identifier("quick_draw".into()).to_string();
         assert_eq!(got, "quick_draw");
     }
 

@@ -21,7 +21,6 @@ pub(crate) fn field_name(f: &Field) -> String {
             Expr::Call { name, .. } => return name.clone(),
             Expr::Nested(nested) => nested,
             Expr::Binary { .. } => return binary_expr_name(&f.expr),
-            Expr::UnaryOp(_, nested) => nested,
             Expr::Distinct(_) => return "distinct".to_string(),
             Expr::VarRef { name, .. } => return name.deref().into(),
             Expr::Wildcard(_) | Expr::BindParameter(_) | Expr::Literal(_) => return "".to_string(),

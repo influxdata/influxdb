@@ -93,15 +93,15 @@ mod test {
     #[test]
     fn test_bind_parameter_display() {
         // BindParameter displays quoted output
-        let got = format!("{}", BindParameter("from foo".into()));
+        let got = BindParameter("from foo".into()).to_string();
         assert_eq!(got, r#"$"from foo""#);
 
         // BindParameter displays quoted and escaped output
-        let got = format!("{}", BindParameter("from\nfoo".into()));
+        let got = BindParameter("from\nfoo".into()).to_string();
         assert_eq!(got, r#"$"from\nfoo""#);
 
         // BindParameter displays unquoted output
-        let got = format!("{}", BindParameter("quick_draw".into()));
+        let got = BindParameter("quick_draw".into()).to_string();
         assert_eq!(got, "$quick_draw");
     }
 }

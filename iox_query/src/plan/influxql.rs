@@ -18,7 +18,7 @@ use datafusion::prelude::Column;
 use datafusion::sql::planner::ContextProvider;
 use datafusion::sql::TableReference;
 use influxdb_influxql_parser::expression::{
-    BinaryOperator, ConditionalExpression, ConditionalOperator, UnaryOperator, VarRefDataType,
+    BinaryOperator, ConditionalExpression, ConditionalOperator, VarRefDataType,
 };
 use influxdb_influxql_parser::select::{SLimitClause, SOffsetClause};
 use influxdb_influxql_parser::{
@@ -279,6 +279,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             })),
             IQLExpr::BindParameter(_) => Err(DataFusionError::NotImplemented("parameter".into())),
             IQLExpr::Literal(val) => match val {
+                Literal::Integer(v) => Ok(lit(ScalarValue::Int64(Some(*v)))),
                 Literal::Unsigned(v) => Ok(lit(ScalarValue::UInt64(Some(*v)))),
                 Literal::Float(v) => Ok(lit(*v)),
                 Literal::String(v) => Ok(lit(v.clone())),
@@ -298,10 +299,6 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 },
             },
             IQLExpr::Distinct(_) => Err(DataFusionError::NotImplemented("DISTINCT".into())),
-            IQLExpr::UnaryOp(op, e) => match (op, self.expr_to_df_expr(scope, e, schema)?) {
-                (UnaryOperator::Minus, e) => Ok(Expr::Negative(Box::new(e))),
-                (UnaryOperator::Plus, e) => Ok(e),
-            },
             IQLExpr::Call { name, args } => self.call_to_df_expr(scope, name, args, schema),
             IQLExpr::Binary { lhs, op, rhs } => {
                 self.arithmetic_expr_to_df_expr(scope, lhs, *op, rhs, schema)

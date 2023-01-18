@@ -106,22 +106,22 @@ mod test {
         // Validate each of the `SHOW` statements are accepted
 
         let (_, got) = show_statement("SHOW DATABASES").unwrap();
-        assert_eq!(format!("{}", got), "SHOW DATABASES");
+        assert_eq!(got.to_string(), "SHOW DATABASES");
 
         let (_, got) = show_statement("SHOW FIELD KEYS").unwrap();
-        assert_eq!(format!("{}", got), "SHOW FIELD KEYS");
+        assert_eq!(got.to_string(), "SHOW FIELD KEYS");
 
         let (_, got) = show_statement("SHOW MEASUREMENTS").unwrap();
-        assert_eq!(format!("{}", got), "SHOW MEASUREMENTS");
+        assert_eq!(got.to_string(), "SHOW MEASUREMENTS");
 
         let (_, got) = show_statement("SHOW RETENTION POLICIES ON \"foo\"").unwrap();
-        assert_eq!(format!("{}", got), "SHOW RETENTION POLICIES ON foo");
+        assert_eq!(got.to_string(), "SHOW RETENTION POLICIES ON foo");
 
         let (_, got) = show_statement("SHOW TAG KEYS").unwrap();
-        assert_eq!(format!("{}", got), "SHOW TAG KEYS");
+        assert_eq!(got.to_string(), "SHOW TAG KEYS");
 
         let (_, got) = show_statement("SHOW TAG VALUES WITH KEY = some_key").unwrap();
-        assert_eq!(format!("{}", got), "SHOW TAG VALUES WITH KEY = some_key");
+        assert_eq!(got.to_string(), "SHOW TAG VALUES WITH KEY = some_key");
 
         // Fallible cases
 

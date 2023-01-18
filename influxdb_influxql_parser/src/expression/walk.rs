@@ -66,7 +66,6 @@ pub fn walk_expr<B>(
             walk_expr(lhs, visit)?;
             walk_expr(rhs, visit)?;
         }
-        Expr::UnaryOp(_, n) => walk_expr(n, visit)?,
         Expr::Nested(n) => walk_expr(n, visit)?,
         Expr::Call { args, .. } => {
             args.iter().try_for_each(|n| walk_expr(n, visit))?;
@@ -91,7 +90,6 @@ pub fn walk_expr_mut<B>(
             walk_expr_mut(lhs, visit)?;
             walk_expr_mut(rhs, visit)?;
         }
-        Expr::UnaryOp(_, n) => walk_expr_mut(n, visit)?,
         Expr::Nested(n) => walk_expr_mut(n, visit)?,
         Expr::Call { args, .. } => {
             args.iter_mut().try_for_each(|n| walk_expr_mut(n, visit))?;
@@ -140,7 +138,7 @@ mod test {
             match e {
                 ExpressionMut::Arithmetic(n) => match n {
                     Expr::VarRef { name, .. } => *name = format!("c_{}", name).into(),
-                    Expr::Literal(Literal::Unsigned(v)) => *v *= 10,
+                    Expr::Literal(Literal::Integer(v)) => *v *= 10,
                     Expr::Literal(Literal::Regex(v)) => *v = format!("c_{}", v.0).into(),
                     _ => {}
                 },
@@ -152,7 +150,7 @@ mod test {
             }
             std::ops::ControlFlow::Continue(())
         });
-        assert_eq!(format!("{}", expr), "c_foo + c_bar + 50 !~ /c_str/")
+        assert_eq!(expr.to_string(), "c_foo + c_bar + 50 !~ /c_str/")
     }
 
     #[test]
@@ -197,11 +195,11 @@ mod test {
         walk_expr_mut::<()>(&mut expr, &mut |e| {
             match e {
                 Expr::VarRef { name, .. } => *name = format!("c_{}", name).into(),
-                Expr::Literal(Literal::Unsigned(v)) => *v *= 10,
+                Expr::Literal(Literal::Integer(v)) => *v *= 10,
                 _ => {}
             }
             std::ops::ControlFlow::Continue(())
         });
-        assert_eq!(format!("{}", expr), "c_foo + c_bar + 50")
+        assert_eq!(expr.to_string(), "c_foo + c_bar + 50")
     }
 }

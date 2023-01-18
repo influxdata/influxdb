@@ -1110,7 +1110,6 @@ impl VisitableMut for Expr {
         };
 
         match self {
-            Self::UnaryOp(_, expr) => expr.accept(visitor)?,
             Self::Call { args, .. } => args.iter_mut().try_for_each(|e| e.accept(visitor))?,
             Self::Binary { lhs, op: _, rhs } => {
                 lhs.accept(visitor)?;
@@ -1818,7 +1817,6 @@ mod test {
             .clone();
         let mut vis = AddLimit;
         statement.accept(&mut vis).unwrap();
-        let res = format!("{}", statement);
-        assert_eq!(res, "SELECT usage FROM cpu LIMIT 10");
+        assert_eq!(statement.to_string(), "SELECT usage FROM cpu LIMIT 10");
     }
 }

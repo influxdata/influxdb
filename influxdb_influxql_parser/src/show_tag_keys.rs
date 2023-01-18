@@ -104,40 +104,40 @@ mod test {
     fn test_show_tag_keys() {
         // No optional clauses
         let (_, got) = show_tag_keys("KEYS").unwrap();
-        assert_eq!(format!("{}", got), "SHOW TAG KEYS");
+        assert_eq!(got.to_string(), "SHOW TAG KEYS");
 
         let (_, got) = show_tag_keys("KEYS ON db").unwrap();
-        assert_eq!(format!("{}", got), "SHOW TAG KEYS ON db");
+        assert_eq!(got.to_string(), "SHOW TAG KEYS ON db");
 
         // measurement selection using name
         let (_, got) = show_tag_keys("KEYS FROM db..foo").unwrap();
-        assert_eq!(format!("{}", got), "SHOW TAG KEYS FROM db..foo");
+        assert_eq!(got.to_string(), "SHOW TAG KEYS FROM db..foo");
 
         // measurement selection using regex
         let (_, got) = show_tag_keys("KEYS FROM /foo/").unwrap();
-        assert_eq!(format!("{}", got), "SHOW TAG KEYS FROM /foo/");
+        assert_eq!(got.to_string(), "SHOW TAG KEYS FROM /foo/");
 
         // measurement selection using list
         let (_, got) = show_tag_keys("KEYS FROM /foo/ , bar, \"foo bar\"").unwrap();
         assert_eq!(
-            format!("{}", got),
+            got.to_string(),
             "SHOW TAG KEYS FROM /foo/, bar, \"foo bar\""
         );
 
         let (_, got) = show_tag_keys("KEYS WHERE foo = 'bar'").unwrap();
-        assert_eq!(format!("{}", got), "SHOW TAG KEYS WHERE foo = 'bar'");
+        assert_eq!(got.to_string(), "SHOW TAG KEYS WHERE foo = 'bar'");
 
         let (_, got) = show_tag_keys("KEYS LIMIT 1").unwrap();
-        assert_eq!(format!("{}", got), "SHOW TAG KEYS LIMIT 1");
+        assert_eq!(got.to_string(), "SHOW TAG KEYS LIMIT 1");
 
         let (_, got) = show_tag_keys("KEYS OFFSET 2").unwrap();
-        assert_eq!(format!("{}", got), "SHOW TAG KEYS OFFSET 2");
+        assert_eq!(got.to_string(), "SHOW TAG KEYS OFFSET 2");
 
         // all optional clauses
         let (_, got) =
             show_tag_keys("KEYS ON db FROM /foo/ WHERE foo = 'bar' LIMIT 1 OFFSET 2").unwrap();
         assert_eq!(
-            format!("{}", got),
+            got.to_string(),
             "SHOW TAG KEYS ON db FROM /foo/ WHERE foo = 'bar' LIMIT 1 OFFSET 2"
         );
 

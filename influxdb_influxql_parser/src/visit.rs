@@ -1172,7 +1172,6 @@ impl Visitable for Expr {
         };
 
         let visitor = match self {
-            Self::UnaryOp(_, expr) => expr.accept(visitor),
             Self::Call { args, .. } => args.iter().try_fold(visitor, |v, e| e.accept(v)),
             Self::Binary { lhs, op: _, rhs } => {
                 let visitor = lhs.accept(visitor)?;

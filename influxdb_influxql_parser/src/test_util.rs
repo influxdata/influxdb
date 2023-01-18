@@ -29,7 +29,7 @@ macro_rules! assert_expect_error {
                 input: _,
                 message: got,
             }) => {
-                assert_eq!(format!("{}", got), $MSG)
+                assert_eq!(got.to_string(), $MSG)
             }
             e => panic!("Expected Failure(Syntax(_, msg), got {:?}", e),
         }
