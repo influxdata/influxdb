@@ -126,7 +126,7 @@ pub fn create_compactor2_server_type(
     parquet_store: ParquetStorage,
     exec: Arc<Executor>,
     time_provider: Arc<dyn TimeProvider>,
-    _compactor_config: Compactor2Config,
+    compactor_config: Compactor2Config,
 ) -> Arc<dyn ServerType> {
     let compactor = Compactor2::start(compactor2::config::Config {
         metric_registry: Arc::clone(&metric_registry),
@@ -134,6 +134,7 @@ pub fn create_compactor2_server_type(
         parquet_store,
         exec,
         time_provider,
+        partition_concurrency: compactor_config.compaction_partition_concurrency,
     });
     Arc::new(Compactor2ServerType::new(
         compactor,

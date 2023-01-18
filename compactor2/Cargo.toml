@@ -6,6 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+data_types = { path = "../data_types" }
 futures = "0.3"
 iox_catalog = { path = "../iox_catalog" }
 iox_query = { path = "../iox_query" }
@@ -13,6 +14,8 @@ iox_time = { path = "../iox_time" }
 metric = { path = "../metric" }
 observability_deps = { path = "../observability_deps" }
 parquet_file = { path = "../parquet_file" }
+rand = "0.8.3"
+snafu = "0.7"
 tokio = { version = "1", features = ["macros", "rt", "sync"] }
 tokio-util = { version = "0.7.4" }
 workspace-hack = { path = "../workspace-hack"}

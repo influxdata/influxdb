@@ -11,5 +11,8 @@
     clippy::dbg_macro
 )]
 
+pub mod compact;
 pub mod compactor;
 pub mod config;
+mod driver;
+mod rules;

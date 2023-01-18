@@ -993,6 +993,7 @@ dependencies = [
 name = "compactor2"
 version = "0.1.0"
 dependencies = [
+ "data_types",
  "futures",
  "iox_catalog",
  "iox_query",
@@ -1000,6 +1001,8 @@ dependencies = [
  "metric",
  "observability_deps",
  "parquet_file",
+ "rand",
+ "snafu",
  "tokio",
  "tokio-util",
  "workspace-hack",

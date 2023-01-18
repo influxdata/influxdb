@@ -9,7 +9,7 @@ use observability_deps::tracing::warn;
 use tokio::task::{JoinError, JoinHandle};
 use tokio_util::sync::CancellationToken;
 
-use crate::config::Config;
+use crate::{config::Config, driver::compact, rules::hardcoded_rules};
 
 /// A [`JoinHandle`] that can be cloned
 type SharedJoinHandle = Shared<BoxFuture<'static, Result<(), Arc<JoinError>>>>;
@@ -28,12 +28,20 @@ pub struct Compactor2 {
 
 impl Compactor2 {
     /// Start compactor.
-    pub fn start(_config: Config) -> Self {
+    pub fn start(config: Config) -> Self {
         let shutdown = CancellationToken::new();
         let shutdown_captured = shutdown.clone();
+
+        let rules = hardcoded_rules();
+
         let worker = tokio::spawn(async move {
             tokio::select! {
                 _ = shutdown_captured.cancelled() => {}
+                _ = async {
+                    loop {
+                        compact(&config, &rules).await;
+                    }
+                } => unreachable!(),
             }
         });
         let worker = shared_handle(worker);
