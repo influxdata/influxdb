@@ -990,6 +990,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "compactor2"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "iox_catalog",
+ "iox_query",
+ "iox_time",
+ "metric",
+ "observability_deps",
+ "parquet_file",
+ "tokio",
+ "tokio-util",
+ "workspace-hack",
+]
+
+[[package]]
 name = "concurrent-queue"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2430,6 +2446,7 @@ dependencies = [
  "iox_time",
  "ioxd_common",
  "ioxd_compactor",
+ "ioxd_compactor2",
  "ioxd_garbage_collector",
  "ioxd_ingest_replica",
  "ioxd_ingester",
@@ -2954,6 +2971,25 @@ dependencies = [
  "object_store",
  "parquet_file",
  "thiserror",
+ "tokio-util",
+ "trace",
+ "workspace-hack",
+]
+
+[[package]]
+name = "ioxd_compactor2"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "clap_blocks",
+ "compactor2",
+ "hyper",
+ "iox_catalog",
+ "iox_query",
+ "iox_time",
+ "ioxd_common",
+ "metric",
+ "parquet_file",
  "tokio-util",
  "trace",
  "workspace-hack",
