@@ -57,7 +57,7 @@ pub(crate) struct LifecycleHandleImpl {
     config: Arc<LifecycleConfig>,
 
     /// The state shared with the [`LifecycleManager`].
-    state: Arc<Mutex<LifecycleState>>,
+    pub(crate) state: Arc<Mutex<LifecycleState>>,
 }
 
 impl LifecycleHandle for LifecycleHandleImpl {
@@ -224,9 +224,10 @@ impl LifecycleConfig {
 }
 
 #[derive(Default, Debug)]
-struct LifecycleState {
+pub(crate) struct LifecycleState {
     total_bytes: usize,
     partition_stats: BTreeMap<PartitionId, PartitionLifecycleStats>,
+    pub(crate) persist_everything_now: bool,
 }
 
 impl LifecycleState {
@@ -330,19 +331,83 @@ impl LifecycleManager {
         // get anything over the threshold size or age to persist
         let now = self.time_provider.now();
 
+        let persist_everything_now = self.state.lock().persist_everything_now;
+
         let (mut to_persist, mut rest): (
             Vec<PartitionLifecycleStats>,
             Vec<PartitionLifecycleStats>,
-        ) = partition_stats.into_iter().partition(|s| {
-            //
-            // Log the partitions that are marked for persistence using
-            // consistent fields across all trigger types.
-            //
+        ) = if persist_everything_now {
+            partition_stats.into_iter().partition(|_| true)
+        } else {
+            partition_stats.into_iter().partition(|s| {
+                //
+                // Log the partitions that are marked for persistence using
+                // consistent fields across all trigger types.
+                //
 
-            // Check if this partition's first write occurred long enough ago
-            // that the data is considered "old" and can be flushed.
-            let aged_out = match now.checked_duration_since(s.first_write) {
-                Some(age) if age > self.config.partition_age_threshold => {
+                // Check if this partition's first write occurred long enough ago
+                // that the data is considered "old" and can be flushed.
+                let aged_out = match now.checked_duration_since(s.first_write) {
+                    Some(age) if age > self.config.partition_age_threshold => {
+                        info!(
+                            shard_id=%s.shard_id,
+                            partition_id=%s.partition_id,
+                            first_write=%s.first_write,
+                            last_write=%s.last_write,
+                            bytes_written=s.bytes_written,
+                            rows_written=s.rows_written,
+                            first_sequence_number=?s.first_sequence_number,
+                            age=?age,
+                            "partition is over age threshold, persisting"
+                        );
+                        self.persist_age_counter.inc(1);
+                        true
+                    }
+                    None => {
+                        warn!(
+                            shard_id=%s.shard_id,
+                            partition_id=%s.partition_id,
+                            "unable to calculate partition age"
+                        );
+                        false
+                    }
+                    _ => false,
+                };
+
+                // Check if this partition's most recent write was long enough ago
+                // that the partition is considered "cold" and is unlikely to see
+                // new writes imminently.
+                let is_cold = match now.checked_duration_since(s.last_write) {
+                    Some(age) if age > self.config.partition_cold_threshold => {
+                        info!(
+                            shard_id=%s.shard_id,
+                            partition_id=%s.partition_id,
+                            first_write=%s.first_write,
+                            last_write=%s.last_write,
+                            bytes_written=s.bytes_written,
+                            rows_written=s.rows_written,
+                            first_sequence_number=?s.first_sequence_number,
+                            no_writes_for=?age,
+                            "partition is cold, persisting"
+                        );
+                        self.persist_cold_counter.inc(1);
+                        true
+                    }
+                    None => {
+                        warn!(
+                            shard_id=%s.shard_id,
+                            partition_id=%s.partition_id,
+                            "unable to calculate partition cold duration"
+                        );
+                        false
+                    }
+                    _ => false,
+                };
+
+                // If this partition contains more rows than it is permitted, flush
+                // it.
+                let exceeded_max_rows = s.rows_written >= self.config.partition_row_max;
+                if exceeded_max_rows {
                     info!(
                         shard_id=%s.shard_id,
                         partition_id=%s.partition_id,
@@ -351,28 +416,15 @@ impl LifecycleManager {
                         bytes_written=s.bytes_written,
                         rows_written=s.rows_written,
                         first_sequence_number=?s.first_sequence_number,
-                        age=?age,
-                        "partition is over age threshold, persisting"
+                        "partition is over max row, persisting"
                     );
-                    self.persist_age_counter.inc(1);
-                    true
+                    self.persist_rows_counter.inc(1);
                 }
-                None => {
-                    warn!(
-                        shard_id=%s.shard_id,
-                        partition_id=%s.partition_id,
-                        "unable to calculate partition age"
-                    );
-                    false
-                }
-                _ => false,
-            };
 
-            // Check if this partition's most recent write was long enough ago
-            // that the partition is considered "cold" and is unlikely to see
-            // new writes imminently.
-            let is_cold = match now.checked_duration_since(s.last_write) {
-                Some(age) if age > self.config.partition_cold_threshold => {
+                // If the partition's in-memory buffer is larger than the configured
+                // maximum byte size, flush it.
+                let sized_out = s.bytes_written > self.config.partition_size_threshold;
+                if sized_out {
                     info!(
                         shard_id=%s.shard_id,
                         partition_id=%s.partition_id,
@@ -381,59 +433,14 @@ impl LifecycleManager {
                         bytes_written=s.bytes_written,
                         rows_written=s.rows_written,
                         first_sequence_number=?s.first_sequence_number,
-                        no_writes_for=?age,
-                        "partition is cold, persisting"
+                        "partition exceeded byte size threshold, persisting"
                     );
-                    self.persist_cold_counter.inc(1);
-                    true
+                    self.persist_size_counter.inc(1);
                 }
-                None => {
-                    warn!(
-                        shard_id=%s.shard_id,
-                        partition_id=%s.partition_id,
-                        "unable to calculate partition cold duration"
-                    );
-                    false
-                }
-                _ => false,
-            };
 
-            // If this partition contains more rows than it is permitted, flush
-            // it.
-            let exceeded_max_rows = s.rows_written >= self.config.partition_row_max;
-            if exceeded_max_rows {
-                info!(
-                    shard_id=%s.shard_id,
-                    partition_id=%s.partition_id,
-                    first_write=%s.first_write,
-                    last_write=%s.last_write,
-                    bytes_written=s.bytes_written,
-                    rows_written=s.rows_written,
-                    first_sequence_number=?s.first_sequence_number,
-                    "partition is over max row, persisting"
-                );
-                self.persist_rows_counter.inc(1);
-            }
-
-            // If the partition's in-memory buffer is larger than the configured
-            // maximum byte size, flush it.
-            let sized_out = s.bytes_written > self.config.partition_size_threshold;
-            if sized_out {
-                info!(
-                    shard_id=%s.shard_id,
-                    partition_id=%s.partition_id,
-                    first_write=%s.first_write,
-                    last_write=%s.last_write,
-                    bytes_written=s.bytes_written,
-                    rows_written=s.rows_written,
-                    first_sequence_number=?s.first_sequence_number,
-                    "partition exceeded byte size threshold, persisting"
-                );
-                self.persist_size_counter.inc(1);
-            }
-
-            aged_out || sized_out || is_cold || exceeded_max_rows
-        });
+                aged_out || sized_out || is_cold || exceeded_max_rows
+            })
+        };
 
         // keep track of what we'll be evicting to see what else to drop
         for s in &to_persist {
@@ -565,6 +572,9 @@ impl LifecycleManager {
                     .update_min_unpersisted_sequence_number(shard_id, min)
                     .await;
             }
+        }
+        if persist_everything_now {
+            self.state.lock().persist_everything_now = false;
         }
     }
 

@@ -270,30 +270,6 @@ impl IngesterData {
         }
         progresses
     }
-
-    pub(super) async fn persist_all(&self) -> Result<()> {
-        let mut repos = self.catalog.repositories().await;
-
-        for (&shard_id, _shard_data) in self.shards() {
-            let partitions = repos.partitions().list_by_shard(shard_id).await.unwrap();
-            for partition in partitions {
-                let table = repos
-                    .tables()
-                    .get_by_id(partition.table_id)
-                    .await
-                    .unwrap()
-                    .unwrap();
-                self.persist(
-                    shard_id,
-                    table.namespace_id,
-                    partition.table_id,
-                    partition.id,
-                )
-                .await
-            }
-        }
-        Ok(())
-    }
 }
 
 /// The Persister has a function to persist a given partition ID and to update the

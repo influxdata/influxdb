@@ -29,7 +29,7 @@ use write_summary::ShardProgress;
 
 use crate::{
     data::IngesterData,
-    lifecycle::{run_lifecycle_manager, LifecycleConfig, LifecycleManager},
+    lifecycle::{run_lifecycle_manager, LifecycleConfig, LifecycleHandleImpl, LifecycleManager},
     poison::PoisonCabinet,
     querier_handler::{prepare_data_to_querier, IngesterQueryResponse},
     stream_handler::{
@@ -98,6 +98,8 @@ pub struct IngestHandlerImpl<T = SystemProvider> {
 
     /// Future that resolves when the background worker exits
     join_handles: Vec<(String, SharedJoinHandle)>,
+
+    lifecycle_handle: LifecycleHandleImpl,
 
     /// A token that is used to trigger shutdown of the background worker
     shutdown: CancellationToken,
@@ -270,6 +272,7 @@ impl IngestHandlerImpl {
             data,
             topic,
             join_handles,
+            lifecycle_handle,
             shutdown,
             query_duration_success,
             query_duration_error_not_found,
@@ -377,7 +380,7 @@ impl IngestHandler for IngestHandlerImpl {
 
     /// Persist everything immediately.
     async fn persist_all(&self) {
-        self.data.persist_all().await.unwrap()
+        self.lifecycle_handle.state.lock().persist_everything_now = true;
     }
 }
 
