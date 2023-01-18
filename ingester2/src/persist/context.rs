@@ -18,7 +18,10 @@ use crate::{
         table::TableName,
     },
     deferred_load::DeferredLoad,
+    persist::completion_observer::CompletedPersist,
 };
+
+use super::completion_observer::PersistCompletionObserver;
 
 /// Errors a persist can experience.
 #[derive(Debug, Error)]
@@ -217,7 +220,10 @@ impl Context {
     // Call [`PartitionData::mark_complete`] to finalise the persistence job,
     // emit a log for the user, and notify the observer of this persistence
     // task, if any.
-    pub(super) fn mark_complete(self, object_store_id: Uuid) {
+    pub(super) async fn mark_complete<O>(self, object_store_id: Uuid, completion_observer: &O)
+    where
+        O: PersistCompletionObserver,
+    {
         // Mark the partition as having completed persistence, causing it to
         // release the reference to the in-flight persistence data it is
         // holding.
@@ -226,6 +232,18 @@ impl Context {
         // queries that currently hold a reference to the data. In either case,
         // the persisted data will be dropped "shortly".
         let sequence_numbers = self.partition.lock().mark_persisted(self.data);
+        let n_writes = sequence_numbers.len();
+
+        // Dispatch the completion notification into the observer chain before
+        // completing the persist operation.
+        completion_observer
+            .persist_complete(Arc::new(CompletedPersist::new(
+                self.namespace_id,
+                self.table_id,
+                self.partition_id,
+                sequence_numbers,
+            )))
+            .await;
 
         let now = Instant::now();
 
@@ -240,7 +258,7 @@ impl Context {
             total_persist_duration = ?now.duration_since(self.enqueued_at),
             active_persist_duration = ?now.duration_since(self.dequeued_at),
             queued_persist_duration = ?self.dequeued_at.duration_since(self.enqueued_at),
-            n_writes = sequence_numbers.len(),
+            n_writes,
             "persisted partition"
         );
 
