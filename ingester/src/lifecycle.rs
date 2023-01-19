@@ -572,9 +572,19 @@ impl LifecycleManager {
                     .update_min_unpersisted_sequence_number(shard_id, min)
                     .await;
             }
-        }
-        if persist_everything_now {
-            self.state.lock().persist_everything_now = false;
+
+            // If we persisted some data (because we're within the `if !persist_tasks.is_empty()`
+            // condition), and we were asked to persist everything because of an explicit call to
+            // the persist API (which sets `persist_everything_now` to true), then we can reset the
+            // `persist_everything_now` directive to `false` as it's now completed. Only resetting
+            // `persist_everything_now` if data has actually been persisted is important to
+            // eliminate a race condition in the tests where the tests would write data and call
+            // the persist API, but the data hadn't actually gotten to the ingester yet to be
+            // persisted.
+            if persist_everything_now {
+                info!("resetting persist_everything_now to false");
+                self.state.lock().persist_everything_now = false;
+            }
         }
     }
 

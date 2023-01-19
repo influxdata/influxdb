@@ -378,7 +378,9 @@ impl IngestHandler for IngestHandlerImpl {
         self.data.progresses(shard_indexes).await
     }
 
-    /// Persist everything immediately.
+    /// Persist everything immediately. This is called by the `PersistService` gRPC API in tests
+    /// asserting on persisted data, and should probably not be used in production. May behave in
+    /// unexpected ways if used concurrently with writes or lifecycle persists.
     async fn persist_all(&self) {
         self.lifecycle_handle.state.lock().persist_everything_now = true;
     }
