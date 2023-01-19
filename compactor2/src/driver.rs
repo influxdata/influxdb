@@ -21,19 +21,23 @@ pub async fn compact(config: &Config, components: &Arc<Components>) {
                     return;
                 }
 
-                if let Err(e) = compact_files(&files, &config.catalog).await {
-                    components
-                        .partition_error_sink
-                        .record(partition_id, &e.to_string())
-                        .await;
-                    return;
+                match compact_files(&files, &config.catalog).await {
+                    Ok(create) => {
+                        let delete_ids = files.iter().map(|f| f.id).collect::<Vec<_>>();
+                        components.commit.commit(&delete_ids, &create).await;
+                    }
+                    // TODO: remove this stop-gap
+                    Err(crate::compact::Error::NotImplemented) => {
+                        info!("not implemented");
+                    }
+                    #[allow(unreachable_patterns)] // TODO: remove this when stop-gap is removed
+                    Err(e) => {
+                        components
+                            .partition_error_sink
+                            .record(partition_id, &e.to_string())
+                            .await;
+                    }
                 }
-                info!(
-                    input_size = files.iter().map(|f| f.file_size_bytes).sum::<i64>(),
-                    input_files = files.len(),
-                    partition_id = partition_id.get(),
-                    "Compacted partition",
-                );
             }
         })
         .buffer_unordered(config.partition_concurrency.get())

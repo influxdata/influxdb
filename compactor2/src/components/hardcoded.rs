@@ -7,6 +7,9 @@ use std::sync::Arc;
 use crate::config::Config;
 
 use super::{
+    commit::{
+        catalog::CatalogCommit, logging::LoggingCommitWrapper, metrics::MetricsCommitWrapper,
+    },
     files_filter::chain::FilesFilterChain,
     partition_error_sink::{
         catalog::CatalogPartitionErrorSink, logging::LoggingPartitionErrorSinkWrapper,
@@ -55,5 +58,9 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
                 &config.metric_registry,
             ),
         )),
+        commit: Arc::new(LoggingCommitWrapper::new(MetricsCommitWrapper::new(
+            CatalogCommit::new(config.backoff_config.clone(), Arc::clone(&config.catalog)),
+            &config.metric_registry,
+        ))),
     })
 }
