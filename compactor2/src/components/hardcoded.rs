@@ -7,11 +7,13 @@ use std::sync::Arc;
 use crate::config::Config;
 
 use super::{
+    files_filter::chain::FilesFilterChain,
     partition_error_sink::{
         catalog::CatalogPartitionErrorSink, logging::LoggingPartitionErrorSinkWrapper,
         metrics::MetricsPartitionErrorSinkWrapper,
     },
     partition_files_source::catalog::CatalogPartitionFilesSource,
+    partition_filter::{and::AndPartitionFilter, has_files::HasFilesPartitionFilter},
     partitions_source::{
         catalog::CatalogPartitionsSource, logging::LoggingPartitionsSourceWrapper,
         randomize_order::RandomizeOrderPartitionsSourcesWrapper,
@@ -40,8 +42,10 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             config.backoff_config.clone(),
             Arc::clone(&config.catalog),
         )),
-        file_filters: vec![],
-        partition_filters: vec![],
+        files_filter: Arc::new(FilesFilterChain::new(vec![])),
+        partition_filter: Arc::new(AndPartitionFilter::new(vec![Arc::new(
+            HasFilesPartitionFilter::new(),
+        )])),
         partition_error_sink: Arc::new(LoggingPartitionErrorSinkWrapper::new(
             MetricsPartitionErrorSinkWrapper::new(
                 CatalogPartitionErrorSink::new(

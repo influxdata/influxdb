@@ -15,26 +15,9 @@ pub async fn compact(config: &Config, components: &Arc<Components>) {
 
             async move {
                 let files = components.partition_files_source.fetch(partition_id).await;
+                let files = components.files_filter.apply(files);
 
-                let files = files
-                    .into_iter()
-                    .filter(|file| {
-                        components
-                            .file_filters
-                            .iter()
-                            .all(|filter| filter.apply(file))
-                    })
-                    .collect::<Vec<_>>();
-
-                if !components
-                    .partition_filters
-                    .iter()
-                    .all(|filter| filter.apply(&files))
-                {
-                    return;
-                }
-
-                if files.is_empty() {
+                if !components.partition_filter.apply(&files) {
                     return;
                 }
 
