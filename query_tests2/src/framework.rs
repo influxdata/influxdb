@@ -12,14 +12,6 @@ use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, Step, StepTes
 /// ingester that persists everything as fast as possible.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ChunkStage {
-    /// Set up all chunks in the ingester; never persist automatically. The chunks are accessible
-    /// from the ingester.
-    Ingester2,
-
-    /// Set up all chunks persisted in Parquet, as fast as possible. The chunks are accessible from
-    /// and managed by the querier.
-    Parquet2,
-
     /// Set up all chunks in the ingester set up to go through the write buffer (Kafka). This is
     /// temporary until the switch to the Kafkaless architecture is complete.
     Ingester,
@@ -41,26 +33,21 @@ impl IntoIterator for ChunkStage {
         match self {
             // If `All` is specified, run the test twice, once with all chunks in the ingester and
             // then once with all chunks in Parquet.
-            Self::All => vec![
-                Self::Ingester2,
-                Self::Parquet2,
-                Self::Ingester,
-                Self::Parquet,
-            ]
-            .into_iter(),
-
-            // If the Kafkaless architectures are specified, run the test twice, once with the
-            // Kafkaless architectures and once with the Kafka-ful, old architectures. This is
-            // temporary to keep tests for the old and new architectures in sync. When the
-            // Kafka-ful architecture is removed, the `Ingester` and `Parquet` states can be
-            // removed from `ChunkStage`, and the next two match arms can be removed. No changes to
-            // the `cases` module should be necessary.
-            Self::Ingester2 => vec![Self::Ingester2, Self::Ingester].into_iter(),
-            Self::Parquet2 => vec![Self::Parquet2, Self::Parquet].into_iter(),
-
+            Self::All => vec![Self::Ingester, Self::Parquet].into_iter(),
             other => vec![other].into_iter(),
         }
     }
+}
+
+/// Which architecture is being used in this test run. This enum and running the tests twice is temporary until the Kafkaful architecture is retired.
+#[derive(Debug, Copy, Clone)]
+enum IoxArchitecture {
+    /// Use the "standard" MiniCluster that uses ingester, router, querier, compactor with a write
+    /// buffer (aka Kafka). This is slated for retirement soon.
+    Kafkaful,
+    /// Use the "RPC write"/"version 2" MiniCluster that uses ingester2, router2, querier2 without
+    /// a write buffer. This will soon be the only architecture.
+    Kafkaless,
 }
 
 /// Struct to orchestrate the test setup and assertions based on the `.sql` file specified in the
@@ -75,74 +62,77 @@ impl TestCase {
     pub async fn run(&self) {
         let database_url = maybe_skip_integration!();
 
-        for chunk_stage in self.chunk_stage {
-            info!("Using ChunkStage::{chunk_stage:?}");
+        for arch in [IoxArchitecture::Kafkaful, IoxArchitecture::Kafkaless] {
+            for chunk_stage in self.chunk_stage {
+                info!("Using IoxArchitecture::{arch:?} and ChunkStage::{chunk_stage:?}");
 
-            // Setup that differs by chunk stage. These need to be non-shared clusters; if they're
-            // shared, then the tests that run in parallel and persist at particular times mess
-            // with each other because persistence applies to everything in the ingester.
-            let mut cluster = match chunk_stage {
-                ChunkStage::Ingester2 => {
-                    MiniCluster::create_non_shared2_never_persist(database_url.clone()).await
-                }
-                ChunkStage::Parquet2 => MiniCluster::create_non_shared2(database_url.clone()).await,
-                ChunkStage::Ingester => {
-                    MiniCluster::create_non_shared_standard_never_persist(database_url.clone())
-                        .await
-                }
-                ChunkStage::Parquet => {
-                    MiniCluster::create_non_shared_standard(database_url.clone()).await
-                }
-                ChunkStage::All => unreachable!("See `impl IntoIterator for ChunkStage`"),
-            };
-
-            // TEMPORARY: look in `query_tests` for all case files; change this if we decide to
-            // move them
-            let given_input_path: PathBuf = self.input.into();
-            let mut input_path = PathBuf::from("../query_tests/");
-            input_path.push(given_input_path);
-            let contents = fs::read_to_string(&input_path).unwrap_or_else(|_| {
-                panic!("Could not read test case file `{}`", input_path.display())
-            });
-
-            let setup =
-                TestSetup::try_from_lines(contents.lines()).expect("Could not get TestSetup");
-            let setup_name = setup.setup_name();
-            info!("Using setup {setup_name}");
-
-            // Run the setup steps and the QueryAndCompare step
-            let setup_steps = crate::setups::SETUPS
-                .get(setup_name)
-                .unwrap_or_else(|| panic!("Could not find setup with key `{setup_name}`"))
-                .iter()
-                // When the `Ingester` and `Parquet` `ChunkStage`s are removed, this map can be
-                // removed.
-                .flat_map(|step| match (chunk_stage, step) {
-                    // If we're using the old architecture and the test steps include
-                    // `WaitForPersist2`, swap it with `WaitForPersist` instead.
-                    (ChunkStage::Ingester, Step::WaitForPersisted2 { .. })
-                    | (ChunkStage::Parquet, Step::WaitForPersisted2 { .. }) => {
-                        vec![&Step::WaitForPersisted]
+                // Setup that differs by architecture and chunk stage. These need to be non-shared
+                // clusters; if they're shared, then the tests that run in parallel and persist at
+                // particular times mess with each other because persistence applies to everything in
+                // the ingester.
+                let mut cluster = match (arch, chunk_stage) {
+                    (IoxArchitecture::Kafkaful, ChunkStage::Ingester) => {
+                        MiniCluster::create_non_shared_standard_never_persist(database_url.clone())
+                            .await
                     }
-                    // If we're using the old architecture and the test steps include
-                    // `WriteLineProtocol`, wait for the data to be readable after writing.
-                    (ChunkStage::Ingester, Step::WriteLineProtocol { .. })
-                    | (ChunkStage::Parquet, Step::WriteLineProtocol { .. }) => {
-                        vec![step, &Step::WaitForReadable]
+                    (IoxArchitecture::Kafkaful, ChunkStage::Parquet) => {
+                        MiniCluster::create_non_shared_standard(database_url.clone()).await
                     }
-                    (_, other) => vec![other],
+                    (IoxArchitecture::Kafkaless, ChunkStage::Ingester) => {
+                        MiniCluster::create_non_shared2_never_persist(database_url.clone()).await
+                    }
+                    (IoxArchitecture::Kafkaless, ChunkStage::Parquet) => {
+                        MiniCluster::create_non_shared2(database_url.clone()).await
+                    }
+                    (_, ChunkStage::All) => unreachable!("See `impl IntoIterator for ChunkStage`"),
+                };
+
+                // TEMPORARY: look in `query_tests` for all case files; change this if we decide to
+                // move them
+                let given_input_path: PathBuf = self.input.into();
+                let mut input_path = PathBuf::from("../query_tests/");
+                input_path.push(given_input_path);
+                let contents = fs::read_to_string(&input_path).unwrap_or_else(|_| {
+                    panic!("Could not read test case file `{}`", input_path.display())
                 });
 
-            let test_step = Step::QueryAndCompare {
-                input_path,
-                setup_name: setup_name.into(),
-                contents,
-            };
+                let setup =
+                    TestSetup::try_from_lines(contents.lines()).expect("Could not get TestSetup");
+                let setup_name = setup.setup_name();
+                info!("Using setup {setup_name}");
 
-            // Run the tests
-            StepTest::new(&mut cluster, setup_steps.chain(std::iter::once(&test_step)))
-                .run()
-                .await;
+                // Run the setup steps and the QueryAndCompare step
+                let setup_steps = crate::setups::SETUPS
+                    .get(setup_name)
+                    .unwrap_or_else(|| panic!("Could not find setup with key `{setup_name}`"))
+                    .iter()
+                    // When we've switched over to the Kafkaless architecture, this map can be
+                    // removed.
+                    .flat_map(|step| match (arch, step) {
+                        // If we're using the old architecture and the test steps include
+                        // `WaitForPersist2`, swap it with `WaitForPersist` instead.
+                        (IoxArchitecture::Kafkaful, Step::WaitForPersisted2 { .. }) => {
+                            vec![&Step::WaitForPersisted]
+                        }
+                        // If we're using the old architecture and the test steps include
+                        // `WriteLineProtocol`, wait for the data to be readable after writing.
+                        (IoxArchitecture::Kafkaful, Step::WriteLineProtocol { .. }) => {
+                            vec![step, &Step::WaitForReadable]
+                        }
+                        (_, other) => vec![other],
+                    });
+
+                let test_step = Step::QueryAndCompare {
+                    input_path,
+                    setup_name: setup_name.into(),
+                    contents,
+                };
+
+                // Run the tests
+                StepTest::new(&mut cluster, setup_steps.chain(std::iter::once(&test_step)))
+                    .run()
+                    .await;
+            }
         }
     }
 }
