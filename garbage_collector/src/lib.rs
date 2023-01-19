@@ -212,7 +212,8 @@ pub struct SubConfig {
     #[clap(long, env = "INFLUXDB_IOX_GC_DRY_RUN")]
     dry_run: bool,
 
-    /// Items in the object store that are older than this duration.
+    /// Items in the object store that are older than this duration that are not referenced in the
+    /// catalog will be deleted.
     /// Parsed with <https://docs.rs/humantime/latest/humantime/fn.parse_duration.html>
     ///
     /// If not specified, defaults to 14 days ago.
@@ -241,8 +242,8 @@ pub struct SubConfig {
     )]
     objectstore_sleep_interval_minutes: u64,
 
-    /// Parquet file rows in the catalog flagged for deletion before this many days ago will be
-    /// deleted.
+    /// Parquet file rows in the catalog flagged for deletion before this duration will be deleted.
+    /// Parsed with <https://docs.rs/humantime/latest/humantime/fn.parse_duration.html>
     ///
     /// If not specified, defaults to 14 days ago.
     #[clap(
