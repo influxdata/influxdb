@@ -92,15 +92,14 @@ async fn new_sql_system_tables() {
 #[tokio::test]
 #[ignore]
 async fn periods() {
-    unimplemented!("See <https://github.com/influxdata/influxdb_iox/issues/6515>");
-    // test_helpers::maybe_start_logging();
-    //
-    // TestCase {
-    //     input: "cases/in/periods.sql",
-    //     chunk_stage: ChunkStage::Ingester,
-    // }
-    // .run()
-    // .await;
+    test_helpers::maybe_start_logging();
+
+    TestCase {
+        input: "cases/in/periods.sql",
+        chunk_stage: ChunkStage::Ingester,
+    }
+    .run()
+    .await;
 }
 
 #[tokio::test]
@@ -132,15 +131,14 @@ async fn retention() {
 #[tokio::test]
 #[ignore]
 async fn selectors() {
-    unimplemented!("See <https://github.com/influxdata/influxdb_iox/issues/6515>");
-    // test_helpers::maybe_start_logging();
-    //
-    // TestCase {
-    //     input: "cases/in/selectors.sql",
-    //     chunk_stage: ChunkStage::All,
-    // }
-    // .run()
-    // .await;
+    test_helpers::maybe_start_logging();
+
+    TestCase {
+        input: "cases/in/selectors.sql",
+        chunk_stage: ChunkStage::All,
+    }
+    .run()
+    .await;
 }
 
 #[tokio::test]
