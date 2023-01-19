@@ -18,9 +18,9 @@ impl<I: IngestHandler> PersistHandler<I> {
 
 #[tonic::async_trait]
 impl<I: IngestHandler + 'static> PersistService for PersistHandler<I> {
-    /// Handle the RPC request to persist immediately. Will block until the data has persisted,
-    /// which is useful in tests asserting on persisted data. May behave in unexpected ways if used
-    /// concurrently with writes or lifecycle persists.
+    /// Handle the RPC request to persist immediately. This is useful in tests asserting on
+    /// persisted data. May behave in unexpected ways if used concurrently with writes or lifecycle
+    /// persists.
     async fn persist(
         &self,
         _request: Request<proto::PersistRequest>,
