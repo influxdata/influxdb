@@ -183,6 +183,7 @@ impl TestConfig {
         )
         .with_existing_object_store(ingester_config)
         .with_shard_to_ingesters_mapping("{\"ignoreAll\": true}")
+        // Hard code query threads so query plans do not vary based on environment
         .with_env("INFLUXDB_IOX_NUM_QUERY_THREADS", "4")
     }
 
