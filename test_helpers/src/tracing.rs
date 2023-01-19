@@ -71,6 +71,7 @@ impl Subscriber for TracingCaptureSubscriber {
         let mut v = StringVisitor {
             string: String::new(),
         };
+        v.record_kv("level", &event.metadata().level().to_string());
         event.record(&mut v);
         let mut logs = self.logs.lock();
         logs.push(v.string);
@@ -84,9 +85,15 @@ struct StringVisitor {
     string: String,
 }
 
+impl StringVisitor {
+    fn record_kv(&mut self, key: &str, value: &str) {
+        use std::fmt::Write;
+        write!(self.string, "{} = {}; ", key, value).unwrap();
+    }
+}
+
 impl tracing::field::Visit for StringVisitor {
     fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
-        use std::fmt::Write;
-        write!(self.string, "{} = {:?}; ", field.name(), value).unwrap();
+        self.record_kv(field.name(), &format!("{:?}", value))
     }
 }
