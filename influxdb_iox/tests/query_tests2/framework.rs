@@ -1,4 +1,4 @@
-//! The common test code that drives the tests in the [`cases`][crate::cases] module.
+//! The common test code that drives the tests in the [`cases`][super::cases] module.
 
 use observability_deps::tracing::*;
 use snafu::{OptionExt, Snafu};
@@ -102,7 +102,7 @@ impl TestCase {
                 info!("Using setup {setup_name}");
 
                 // Run the setup steps and the QueryAndCompare step
-                let setup_steps = crate::setups::SETUPS
+                let setup_steps = super::setups::SETUPS
                     .get(setup_name)
                     .unwrap_or_else(|| panic!("Could not find setup with key `{setup_name}`"))
                     .iter()

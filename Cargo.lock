@@ -4599,29 +4599,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "query_tests2"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "dotenvy",
- "generated_types",
- "ingester2",
- "iox_catalog",
- "iox_query",
- "metric",
- "object_store",
- "observability_deps",
- "once_cell",
- "parquet_file",
- "snafu",
- "tempfile",
- "test_helpers",
- "test_helpers_end_to_end",
- "tokio",
- "workspace-hack",
-]
-
-[[package]]
 name = "quick-error"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
