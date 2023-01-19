@@ -7,6 +7,7 @@ mod wal_replay;
 
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
+use arrow_flight::flight_service_server::{FlightService, FlightServiceServer};
 use backoff::BackoffConfig;
 use futures::{future::Shared, Future, FutureExt};
 use generated_types::influxdata::iox::{
@@ -16,7 +17,6 @@ use generated_types::influxdata::iox::{
         write_service_server::{WriteService, WriteServiceServer},
     },
 };
-use iox_arrow_flight::flight_service_server::{FlightService, FlightServiceServer};
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
 use observability_deps::tracing::*;

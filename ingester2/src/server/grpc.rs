@@ -6,13 +6,13 @@ mod rpc_write;
 
 use std::{fmt::Debug, sync::Arc};
 
+use arrow_flight::flight_service_server::FlightServiceServer;
 use generated_types::influxdata::iox::{
     catalog::v1::catalog_service_server::CatalogServiceServer,
     ingester::v1::{
         persist_service_server::PersistServiceServer, write_service_server::WriteServiceServer,
     },
 };
-use iox_arrow_flight::flight_service_server::FlightServiceServer;
 use iox_catalog::interface::Catalog;
 use service_grpc_catalog::CatalogService;
 
@@ -125,7 +125,7 @@ where
 
     /// Return an Arrow [`FlightService`] gRPC implementation.
     ///
-    /// [`FlightService`]: iox_arrow_flight::flight_service_server::FlightService
+    /// [`FlightService`]: arrow_flight::flight_service_server::FlightService
     fn query_service(
         &self,
         max_simultaneous_requests: usize,

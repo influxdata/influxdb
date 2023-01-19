@@ -2684,6 +2684,7 @@ name = "ingester2"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "arrow-flight",
  "arrow_util",
  "assert_matches",
  "async-channel",
@@ -2700,7 +2701,6 @@ dependencies = [
  "futures",
  "generated_types",
  "hashbrown 0.13.2",
- "iox_arrow_flight",
  "iox_catalog",
  "iox_query",
  "iox_time",
