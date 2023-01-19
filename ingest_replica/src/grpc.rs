@@ -3,8 +3,8 @@ mod replication;
 
 use std::{fmt::Debug, sync::Arc};
 
+use arrow_flight::flight_service_server::FlightServiceServer;
 use generated_types::influxdata::iox::ingester::v1::replication_service_server::ReplicationServiceServer;
-use iox_arrow_flight::flight_service_server::FlightServiceServer;
 
 use crate::ReplicationBuffer;
 use crate::{
@@ -53,7 +53,7 @@ where
 
     /// Return an Arrow [`FlightService`] gRPC implementation.
     ///
-    /// [`FlightService`]: iox_arrow_flight::flight_service_server::FlightService
+    /// [`FlightService`]: arrow_flight::flight_service_server::FlightService
     fn query_service(
         &self,
         max_simultaneous_requests: usize,

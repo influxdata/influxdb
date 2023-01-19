@@ -28,6 +28,7 @@ mod query_adaptor;
 
 use crate::cache::CacheError;
 use crate::{buffer::Buffer, cache::SchemaCache, grpc::GrpcDelegate};
+use arrow_flight::flight_service_server::{FlightService, FlightServiceServer};
 use async_trait::async_trait;
 use data_types::sequence_number_set::SequenceNumberSet;
 use data_types::{NamespaceId, PartitionId, SequenceNumber, ShardIndex, TableId};
@@ -35,7 +36,6 @@ use generated_types::influxdata::iox::ingester::v1::replication_service_server::
     ReplicationService, ReplicationServiceServer,
 };
 use hashbrown::HashMap;
-use iox_arrow_flight::flight_service_server::{FlightService, FlightServiceServer};
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
 use mutable_batch::MutableBatch;
