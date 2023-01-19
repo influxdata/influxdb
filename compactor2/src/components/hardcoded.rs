@@ -7,6 +7,7 @@ use std::sync::Arc;
 use crate::config::Config;
 
 use super::{
+    partition_files_source::catalog::CatalogPartitionFilesSource,
     partitions_source::{
         catalog::CatalogPartitionsSource, logging::LoggingPartitionsSourceWrapper,
         randomize_order::RandomizeOrderPartitionsSourcesWrapper,
@@ -30,6 +31,10 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
                 ),
                 1234,
             ),
+        )),
+        partition_files_source: Arc::new(CatalogPartitionFilesSource::new(
+            config.backoff_config.clone(),
+            Arc::clone(&config.catalog),
         )),
         file_filters: vec![],
         partition_filters: vec![],

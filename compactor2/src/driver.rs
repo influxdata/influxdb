@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use backoff::Backoff;
-use data_types::{ParquetFile, PartitionId};
 use futures::StreamExt;
 use observability_deps::tracing::{error, info};
 
@@ -16,7 +14,7 @@ pub async fn compact(config: &Config, components: &Arc<Components>) {
             let components = Arc::clone(components);
 
             async move {
-                let files = get_parquet_files(&config, partition_id).await;
+                let files = components.partition_files_source.fetch(partition_id).await;
 
                 let files = files
                     .into_iter()
@@ -60,24 +58,4 @@ pub async fn compact(config: &Config, components: &Arc<Components>) {
         .buffer_unordered(config.partition_concurrency.get())
         .collect::<()>()
         .await;
-}
-
-/// Get parquet files for given partition.
-///
-/// This method performs retries.
-async fn get_parquet_files(config: &Config, partition: PartitionId) -> Vec<ParquetFile> {
-    let parquet_files = Backoff::new(&config.backoff_config)
-        .retry_all_errors("parquet_files_of_given_partition", || async {
-            config
-                .catalog
-                .repositories()
-                .await
-                .parquet_files()
-                .list_by_partition_not_to_delete(partition)
-                .await
-        })
-        .await
-        .expect("retry forever");
-
-    parquet_files
 }
