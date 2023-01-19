@@ -1108,6 +1108,29 @@ pub struct ParquetFile {
 }
 
 impl ParquetFile {
+    /// Create new file from given parameters and ID.
+    ///
+    /// [`to_delete`](Self::to_delete) will be set to `None`.
+    pub fn from_params(params: ParquetFileParams, id: ParquetFileId) -> Self {
+        Self {
+            id,
+            shard_id: params.shard_id,
+            namespace_id: params.namespace_id,
+            table_id: params.table_id,
+            partition_id: params.partition_id,
+            object_store_id: params.object_store_id,
+            max_sequence_number: params.max_sequence_number,
+            min_time: params.min_time,
+            max_time: params.max_time,
+            to_delete: None,
+            file_size_bytes: params.file_size_bytes,
+            row_count: params.row_count,
+            compaction_level: params.compaction_level,
+            created_at: params.created_at,
+            column_set: params.column_set,
+        }
+    }
+
     /// Estimate the memory consumption of this object and its contents
     pub fn size(&self) -> usize {
         std::mem::size_of_val(self) + self.column_set.size()
@@ -1144,6 +1167,26 @@ pub struct ParquetFileParams {
     pub created_at: Timestamp,
     /// columns in this file.
     pub column_set: ColumnSet,
+}
+
+impl From<ParquetFile> for ParquetFileParams {
+    fn from(value: ParquetFile) -> Self {
+        Self {
+            shard_id: value.shard_id,
+            namespace_id: value.namespace_id,
+            table_id: value.table_id,
+            partition_id: value.partition_id,
+            object_store_id: value.object_store_id,
+            max_sequence_number: value.max_sequence_number,
+            min_time: value.min_time,
+            max_time: value.max_time,
+            file_size_bytes: value.file_size_bytes,
+            row_count: value.row_count,
+            compaction_level: value.compaction_level,
+            created_at: value.created_at,
+            column_set: value.column_set,
+        }
+    }
 }
 
 /// Data for a processed tombstone reference in the catalog.

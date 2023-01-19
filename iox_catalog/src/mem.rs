@@ -1167,48 +1167,23 @@ impl ParquetFileRepo for MemTxn {
     async fn create(&mut self, parquet_file_params: ParquetFileParams) -> Result<ParquetFile> {
         let stage = self.stage();
 
-        let ParquetFileParams {
-            shard_id,
-            namespace_id,
-            table_id,
-            partition_id,
-            object_store_id,
-            max_sequence_number,
-            min_time,
-            max_time,
-            file_size_bytes,
-            row_count,
-            compaction_level,
-            created_at,
-            column_set,
-        } = parquet_file_params;
-
         if stage
             .parquet_files
             .iter()
-            .any(|f| f.object_store_id == object_store_id)
+            .any(|f| f.object_store_id == parquet_file_params.object_store_id)
         {
-            return Err(Error::FileExists { object_store_id });
+            return Err(Error::FileExists {
+                object_store_id: parquet_file_params.object_store_id,
+            });
         }
 
-        let parquet_file = ParquetFile {
-            id: ParquetFileId::new(stage.parquet_files.len() as i64 + 1),
-            shard_id,
-            namespace_id,
-            table_id,
-            partition_id,
-            object_store_id,
-            max_sequence_number,
-            min_time,
-            max_time,
-            row_count,
-            to_delete: None,
-            file_size_bytes,
-            compaction_level,
-            created_at,
-            column_set,
-        };
+        let parquet_file = ParquetFile::from_params(
+            parquet_file_params,
+            ParquetFileId::new(stage.parquet_files.len() as i64 + 1),
+        );
         let compaction_level = parquet_file.compaction_level;
+        let created_at = parquet_file.created_at;
+        let partition_id = parquet_file.partition_id;
         stage.parquet_files.push(parquet_file);
 
         // Update the new_file_at field its partition to the time of created_at
