@@ -1,10 +1,14 @@
+use arrow_flight::{
+    decode::{DecodedFlightData, DecodedPayload, FlightDataDecoder},
+    Ticket,
+};
 use async_trait::async_trait;
 use client_util::connection::{self, Connection};
 use futures::StreamExt;
 use generated_types::ingester::IngesterQueryRequest;
 use influxdb_iox_client::flight::generated_types as proto;
-use iox_arrow_flight::{prost::Message, DecodedFlightData, DecodedPayload, FlightDataStream};
 use observability_deps::tracing::{debug, warn};
+use prost::Message;
 use snafu::{ResultExt, Snafu};
 use std::{collections::HashMap, fmt::Debug, ops::DerefMut, sync::Arc};
 use trace::ctx::SpanContext;
@@ -118,8 +122,12 @@ impl IngesterFlightClient for FlightClientImpl {
         debug!(%ingester_addr, ?request, "Sending request to ingester");
         let request = serialize_ingester_query_request(request)?.encode_to_vec();
 
+        let ticket = Ticket {
+            ticket: request.into(),
+        };
+
         let data_stream = client
-            .do_get(request)
+            .do_get(ticket)
             .await
             // wrap in client error type
             .map_err(FlightError::ArrowFlightError)
@@ -180,7 +188,7 @@ impl SerializeFailureReason {
 
 /// Data that is returned by an ingester gRPC query.
 ///
-/// This is mostly the same as [`FlightDataStream`] but allows mocking in tests
+/// This is mostly the same as [`FlightDataDecoder`] but allows mocking in tests
 #[async_trait]
 pub trait QueryData: Debug + Send + 'static {
     /// Returns the next [`DecodedPayload`] available for this query, or `None` if
@@ -204,7 +212,7 @@ where
 
 #[async_trait]
 // Extracts the ingester metadata from the streaming FlightData
-impl QueryData for FlightDataStream {
+impl QueryData for FlightDataDecoder {
     async fn next_message(
         &mut self,
     ) -> Result<Option<(DecodedPayload, proto::IngesterQueryResponseMetadata)>, FlightError> {

@@ -17,6 +17,8 @@ pub enum FlightError {
     ExternalError(Box<dyn Error + Send + Sync>),
     /// An underlying Arrow error
     ArrowError(ArrowError),
+    /// An underlying Arrow Flight error
+    ApacheFlightError(arrow_flight::error::FlightError),
 }
 
 impl FlightError {

@@ -2425,6 +2425,7 @@ name = "influxdb_iox"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "arrow-flight",
  "arrow_util",
  "assert_cmd",
  "backtrace",
@@ -2448,7 +2449,6 @@ dependencies = [
  "influxdb_iox_client",
  "influxdb_storage_client",
  "influxrpc_parser",
- "iox_arrow_flight",
  "iox_catalog",
  "iox_query",
  "iox_time",
@@ -2476,6 +2476,7 @@ dependencies = [
  "parquet_to_line_protocol",
  "predicate",
  "predicates",
+ "prost 0.11.6",
  "rustyline",
  "schema",
  "serde_json",
@@ -2509,7 +2510,6 @@ dependencies = [
  "futures-util",
  "generated_types",
  "influxdb_line_protocol",
- "iox_arrow_flight",
  "prost 0.11.6",
  "rand",
  "reqwest",
@@ -4486,6 +4486,7 @@ name = "querier"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "arrow-flight",
  "arrow_util",
  "assert_matches",
  "async-trait",
@@ -4499,7 +4500,6 @@ dependencies = [
  "futures",
  "generated_types",
  "influxdb_iox_client",
- "iox_arrow_flight",
  "iox_catalog",
  "iox_query",
  "iox_tests",
@@ -4513,6 +4513,7 @@ dependencies = [
  "parquet_file",
  "pin-project",
  "predicate",
+ "prost 0.11.6",
  "rand",
  "regex",
  "schema",
@@ -4573,7 +4574,6 @@ dependencies = [
  "influxdb_iox_client",
  "ingester",
  "insta",
- "iox_arrow_flight",
  "iox_catalog",
  "iox_query",
  "iox_tests",
@@ -4584,6 +4584,7 @@ dependencies = [
  "once_cell",
  "parquet_file",
  "predicate",
+ "prost 0.11.6",
  "querier",
  "regex",
  "schema",
@@ -5713,6 +5714,7 @@ name = "test_helpers_end_to_end"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "arrow-flight",
  "arrow_util",
  "assert_cmd",
  "bytes",
@@ -5722,7 +5724,6 @@ dependencies = [
  "http",
  "hyper",
  "influxdb_iox_client",
- "iox_arrow_flight",
  "nix 0.26.2",
  "observability_deps",
  "once_cell",

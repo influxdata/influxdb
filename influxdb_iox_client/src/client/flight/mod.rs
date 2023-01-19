@@ -14,7 +14,7 @@ use arrow::{
 
 use rand::Rng;
 
-use iox_arrow_flight::{FlightClient, FlightError, FlightRecordBatchStream};
+use arrow_flight::{decode::FlightRecordBatchStream, error::FlightError, FlightClient, Ticket};
 
 use crate::connection::Connection;
 
@@ -40,14 +40,7 @@ pub enum Error {
 
     /// An error involving an Arrow Flight operation occurred.
     #[error(transparent)]
-    ArrowFlightError(#[from] iox_arrow_flight::FlightError),
-
-    /// An error involving an Arrow Flight operation occurred
-    /// (exists alongsize ArrowFlightError until
-    /// <https://github.com/influxdata/influxdb_iox/issues/6620>
-    /// is complete)
-    #[error(transparent)]
-    ApacheArrowFlightError(#[from] arrow_flight::error::FlightError),
+    ArrowFlightError(#[from] FlightError),
 
     /// The data contained invalid Flatbuffers.
     #[error("Invalid Flatbuffer: `{0}`")]
@@ -214,8 +207,11 @@ impl Client {
         read_info: ReadInfo,
     ) -> Result<IOxRecordBatchStream, Error> {
         // encode readinfo as bytes and send it
+        let ticket = Ticket {
+            ticket: read_info.encode_to_vec().into(),
+        };
         self.inner
-            .do_get(read_info.encode_to_vec())
+            .do_get(ticket)
             .await
             .map(IOxRecordBatchStream::new)
             .map_err(Error::ArrowFlightError)

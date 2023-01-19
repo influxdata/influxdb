@@ -14,6 +14,10 @@ pub mod error;
 /// Client for IOx Flight API (native query API)
 pub mod flight;
 
+#[cfg(feature = "flight")]
+/// Client for Flight SQL
+pub mod flightsql;
+
 /// Client for health checking API
 pub mod health;
 

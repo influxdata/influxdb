@@ -1,3 +1,4 @@
+use arrow_flight::Ticket;
 use futures::TryStreamExt;
 use generated_types::ingester::{
     decode_proto_predicate_from_base64, DecodeProtoPredicateFromBase64Error,
@@ -7,7 +8,7 @@ use influxdb_iox_client::{
     flight::{self},
     format::QueryOutputFormat,
 };
-use iox_arrow_flight::prost::Message;
+use prost::Message;
 use std::str::FromStr;
 use thiserror::Error;
 
@@ -17,7 +18,7 @@ pub enum Error {
     Formatting(#[from] influxdb_iox_client::format::Error),
 
     #[error("Error querying: {0}")]
-    Query(#[from] iox_arrow_flight::FlightError),
+    Query(#[from] arrow_flight::error::FlightError),
 
     #[error("Error decoding base64-encoded predicate from argument: {0}")]
     PredicateFromBase64(#[from] DecodeProtoPredicateFromBase64Error),
@@ -81,7 +82,10 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
 
     // send the message directly encoded as bytes to the ingester.
     let request = request.encode_to_vec();
-    let query_results = client.into_inner().do_get(request).await?;
+    let ticket = Ticket {
+        ticket: request.into(),
+    };
+    let query_results = client.into_inner().do_get(ticket).await?;
 
     // It might be nice to do some sort of streaming write
     // rather than buffering the whole thing.

@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies]
 arrow = { workspace = true }
+arrow-flight = { workspace = true }
 async-trait = "0.1.61"
 backoff = { path = "../backoff" }
 bytes = "1.3"
@@ -18,7 +19,6 @@ datafusion_util = { path = "../datafusion_util" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }
 influxdb_iox_client = { path = "../influxdb_iox_client" }
-iox_arrow_flight = { path = "../iox_arrow_flight" }
 iox_catalog = { path = "../iox_catalog" }
 iox_query = { path = "../iox_query" }
 iox_time = { path = "../iox_time" }
@@ -29,6 +29,7 @@ parking_lot = "0.12"
 parquet_file = { path = "../parquet_file" }
 pin-project = "1.0"
 predicate = { path = "../predicate" }
+prost = { version = "0.11" }
 rand = "0.8.3"
 service_common = { path = "../service_common" }
 service_grpc_catalog = { path = "../service_grpc_catalog"}

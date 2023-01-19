@@ -362,7 +362,7 @@ impl IngesterFlightClient for CircuitBreakerFlightClient {
                 FlightClientError::Flight {
                     source:
                         _source @ influxdb_iox_client::flight::Error::ArrowFlightError(
-                            iox_arrow_flight::FlightError::Tonic(e),
+                            arrow_flight::error::FlightError::Tonic(e),
                         ),
                 } => !matches!(
                     e.code(),
@@ -501,11 +501,11 @@ impl IngesterFlightClient for CircuitBreakerFlightClient {
 mod tests {
     use std::time::Duration;
 
+    use arrow_flight::decode::DecodedPayload;
     use assert_matches::assert_matches;
     use data_types::{NamespaceId, TableId};
     use generated_types::google::FieldViolation;
     use influxdb_iox_client::flight::generated_types::IngesterQueryResponseMetadata;
-    use iox_arrow_flight::DecodedPayload;
     use iox_time::MockProvider;
     use metric::Attributes;
     use test_helpers::maybe_start_logging;

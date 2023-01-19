@@ -4,7 +4,7 @@ use futures::FutureExt;
 use generated_types::{influxdata::iox::ingester::v1 as proto, ingester::IngesterQueryRequest};
 use http::StatusCode;
 use influxdb_iox_client::flight::generated_types::IngesterQueryResponseMetadata;
-use iox_arrow_flight::prost::Message;
+use prost::Message;
 use test_helpers_end_to_end::{
     get_write_token, maybe_skip_integration, wait_for_readable, MiniCluster, Step, StepTest,
     StepTestState,
@@ -16,6 +16,8 @@ use test_helpers_end_to_end::{
 ///
 /// When we switch to the RPC write path, this module can be deleted.
 mod with_kafka {
+    use arrow_flight::error::FlightError;
+
     use super::*;
 
     #[tokio::test]
@@ -105,7 +107,7 @@ mod with_kafka {
         let query: proto::IngesterQueryRequest = query.try_into().unwrap();
         let err = cluster.query_ingester(query).await.unwrap_err();
 
-        if let iox_arrow_flight::FlightError::Tonic(status) = err {
+        if let FlightError::Tonic(status) = err {
             assert_eq!(status.code(), tonic::Code::NotFound);
         } else {
             panic!("Wrong error variant: {err}")
@@ -138,7 +140,7 @@ mod with_kafka {
         let query: proto::IngesterQueryRequest = query.try_into().unwrap();
         let err = cluster.query_ingester(query).await.unwrap_err();
 
-        if let iox_arrow_flight::FlightError::Tonic(status) = err {
+        if let FlightError::Tonic(status) = err {
             assert_eq!(status.code(), tonic::Code::NotFound);
         } else {
             panic!("Wrong error variant: {err}")
@@ -153,6 +155,8 @@ mod with_kafka {
 /// When we switch to the RPC write path, the code in this module can be unwrapped into its super
 /// scope and unindented.
 mod kafkaless_rpc_write {
+    use arrow_flight::{error::FlightError, Ticket};
+
     use super::*;
 
     #[tokio::test]
@@ -316,7 +320,7 @@ mod kafkaless_rpc_write {
         let query: proto::IngesterQueryRequest = query.try_into().unwrap();
         let err = cluster.query_ingester(query).await.unwrap_err();
 
-        if let iox_arrow_flight::FlightError::Tonic(status) = err {
+        if let FlightError::Tonic(status) = err {
             assert_eq!(status.code(), tonic::Code::NotFound);
         } else {
             panic!("Wrong error variant: {err}")
@@ -348,11 +352,12 @@ mod kafkaless_rpc_write {
         );
         let query: proto::IngesterQueryRequest = query.try_into().unwrap();
 
-        let err = querier_flight
-            .do_get(query.encode_to_vec())
-            .await
-            .unwrap_err();
-        if let iox_arrow_flight::FlightError::Tonic(status) = err {
+        let ticket = Ticket {
+            ticket: query.encode_to_vec().into(),
+        };
+
+        let err = querier_flight.do_get(ticket).await.unwrap_err();
+        if let FlightError::Tonic(status) = err {
             assert_eq!(status.code(), tonic::Code::NotFound);
         } else {
             panic!("Wrong error variant: {err}")

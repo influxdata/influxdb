@@ -7,6 +7,7 @@ use self::{
 };
 use crate::cache::{namespace::CachedTable, CatalogCache};
 use arrow::{datatypes::DataType, error::ArrowError, record_batch::RecordBatch};
+use arrow_flight::decode::DecodedPayload;
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig, BackoffError};
 use client_util::connection;
@@ -22,7 +23,6 @@ use generated_types::{
     write_info::merge_responses,
 };
 use influxdb_iox_client::flight::generated_types::IngesterQueryResponseMetadata;
-use iox_arrow_flight::DecodedPayload;
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
     util::{compute_timenanosecond_min_max, create_basic_summary},
@@ -513,7 +513,7 @@ async fn execute(
             return Ok(vec![]);
         }
         Err(FlightClientError::Flight {
-            source: FlightError::ArrowFlightError(iox_arrow_flight::FlightError::Tonic(status)),
+            source: FlightError::ArrowFlightError(arrow_flight::error::FlightError::Tonic(status)),
         }) if status.code() == tonic::Code::NotFound => {
             debug!(
                 ingester_address = ingester_address.as_ref(),

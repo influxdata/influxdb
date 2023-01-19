@@ -1,5 +1,6 @@
 use arrow_util::assert_batches_sorted_eq;
 use futures::{FutureExt, TryStreamExt};
+use influxdb_iox_client::flightsql::FlightSqlClient;
 use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState};
 
 #[tokio::test]
@@ -37,7 +38,7 @@ async fn flightsql_query() {
                     let connection = state.cluster().querier().querier_grpc_connection();
                     let (channel, _headers) = connection.into_grpc_connection().into_parts();
 
-                    let mut client = iox_arrow_flight::FlightSqlClient::new(channel);
+                    let mut client = FlightSqlClient::new(channel);
 
                     // Add namespace to client headers until it is fully supported by FlightSQL
                     let namespace = state.cluster().namespace();

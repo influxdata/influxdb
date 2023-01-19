@@ -1,5 +1,6 @@
 //! This module contains util functions for testing scenarios
 use super::DbScenario;
+use arrow_flight::decode::DecodedPayload;
 use arrow_flight::decode::FlightDataDecoder;
 use async_trait::async_trait;
 use backoff::BackoffConfig;
@@ -18,7 +19,6 @@ use ingester::{
     lifecycle::mock_handle::MockLifecycleHandle,
     querier_handler::{prepare_data_to_querier, IngesterQueryResponse},
 };
-use iox_arrow_flight::DecodedPayload;
 use iox_catalog::interface::get_schema_by_name;
 use iox_query::exec::{DedicatedExecutors, ExecutorType};
 use iox_tests::util::{TestCatalog, TestNamespace, TestShard};
@@ -1028,22 +1028,12 @@ impl IngesterFlightClientQueryData for QueryDataAdapter {
                 // decode the app metadata
                 let app_metadata = &inner.app_metadata[..];
                 let app_metadata: IngesterQueryResponseMetadata =
-                    iox_arrow_flight::prost::Message::decode(app_metadata).unwrap();
+                    prost::Message::decode(app_metadata).unwrap();
 
-                let payload = match payload {
-                    // translate from apache crate to iox_arrow_flight versions
-                    arrow_flight::decode::DecodedPayload::None => DecodedPayload::None,
-                    arrow_flight::decode::DecodedPayload::RecordBatch(batch) => {
-                        DecodedPayload::RecordBatch(batch)
-                    }
-                    arrow_flight::decode::DecodedPayload::Schema(schema) => {
-                        DecodedPayload::Schema(schema)
-                    }
-                };
                 let res = (payload, app_metadata);
                 Ok(Some(res))
             }
-            Some(Err(e)) => Err(FlightError::ApacheArrowFlightError(e)),
+            Some(Err(e)) => Err(FlightError::ArrowFlightError(e)),
         }
     }
 }

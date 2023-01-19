@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies] # In alphabetical order
 arrow = { workspace = true, features = ["prettyprint"] }
+arrow-flight = { workspace = true }
 arrow_util = { path = "../arrow_util" }
 assert_cmd = "2.0.8"
 bytes = "1.3"
@@ -16,7 +17,6 @@ generated_types = { path = "../generated_types" }
 http = "0.2.8"
 hyper = "0.14"
 influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format"] }
-iox_arrow_flight = { path = "../iox_arrow_flight" }
 nix = "0.26"
 observability_deps = { path = "../observability_deps" }
 once_cell = { version = "1.17", features = ["parking_lot"] }

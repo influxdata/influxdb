@@ -3,6 +3,11 @@ use crate::{
     TestServer,
 };
 use arrow::{datatypes::SchemaRef, record_batch::RecordBatch};
+use arrow_flight::{
+    decode::{DecodedFlightData, DecodedPayload, FlightDataDecoder},
+    error::FlightError,
+    Ticket,
+};
 use assert_cmd::prelude::*;
 use data_types::{NamespaceId, TableId};
 use futures::{stream::FuturesOrdered, StreamExt};
@@ -13,11 +18,9 @@ use influxdb_iox_client::{
     flight::generated_types::{IngesterQueryRequest, IngesterQueryResponseMetadata},
     schema::generated_types::{schema_service_client::SchemaServiceClient, GetSchemaRequest},
 };
-use iox_arrow_flight::{
-    prost::Message, DecodedFlightData, DecodedPayload, FlightDataStream, FlightError,
-};
 use observability_deps::tracing::{debug, info};
 use once_cell::sync::Lazy;
+use prost::Message;
 use std::{
     process::Command,
     sync::{Arc, Weak},
@@ -435,9 +438,13 @@ impl MiniCluster {
         let querier_flight =
             influxdb_iox_client::flight::Client::new(self.ingester().ingester_grpc_connection());
 
+        let ticket = Ticket {
+            ticket: query.encode_to_vec().into(),
+        };
+
         let mut performed_query = querier_flight
             .into_inner()
-            .do_get(query.encode_to_vec())
+            .do_get(ticket)
             .await?
             .into_inner();
 
@@ -649,7 +656,7 @@ static GLOBAL_SHARED_SERVERS2_NEVER_PERSIST: Lazy<Mutex<Option<SharedServers>>> 
     Lazy::new(|| Mutex::new(None));
 
 async fn next_message(
-    performed_query: &mut FlightDataStream,
+    performed_query: &mut FlightDataDecoder,
 ) -> Option<(DecodedPayload, IngesterQueryResponseMetadata)> {
     let DecodedFlightData { inner, payload } = performed_query.next().await.transpose().unwrap()?;
 
