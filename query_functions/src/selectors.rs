@@ -1,19 +1,100 @@
-//! Implementaton of InfluxDB "Selector" Functions
+//! ## Overview
 //!
-//! Selector functions are similar to aggregate functions in that they
-//! collapse down an input set of rows into just one.
+//! *Selector functions* are special IOx SQL aggregate functions,
+//! designed to provide the same semantics as the [selector functions]
+//! in [InfluxQL]
 //!
-//! Selector functions are different than aggregate functions because
-//! they also return multiple column values rather than a single
-//! scalar. Selector functions return the entire row that was
-//! "selected" from the timeseries (value and time pair).
+//! Selector functions are similar to standard aggregate functions in
+//! that they collapse (aggregate) an input set of rows into a single
+//! row.
 //!
-//! Note: At the time of writing, DataFusion aggregate functions have
-//! no way to handle aggregates that produce multiple columns.
+//! Selector functions are different than regular aggregate functions
+//! because they rely on and return a `time` in addition to the
+//! `value`. Time is implicit in InfluxQL, but not in SQL, so the
+//! selector function invocation is slightly different in IOx SQL than
+//! in InfluxQL.
 //!
-//! This module implements a workaround of "do the aggregation twice
-//! with two distinct functions" to get something working. It should
-//! should be removed when DataFusion / Arrow has proper support
+//! Each selector function returns a two part value, the `value` of
+//! the first argument as well as the value for the corresponding
+//! second argument, which must timestamp.
+//!
+//! ## Example
+//!
+//! Given the following input:
+//!
+//! ```text
+//! +----------------------+-------------+
+//! | time                 | water_level |
+//! +----------------------+-------------+
+//! | 2019-08-28T07:22:00Z | 9.8         |
+//! | 2019-08-28T07:23:00Z | 9.7         |
+//! | 2019-08-28T07:24:00Z | 10.00       |
+//! | 2019-08-28T07:25:00Z | 9.9         |
+//! +----------------------+-------------+
+//! ```
+//!
+//! Using the SQL `min` aggregate function (not a selector) finds the
+//! minimum `water_level` value, `9.7` in this case:
+//!
+//! ```sql
+//! select min(water_level) from "h2o_feet";
+//!
+//! +-------------+
+//! | water_level |
+//! +-------------+
+//! | 9.7         |
+//! +-------------+
+//! ```
+//!
+//! There is no easy way in SQL to determine at which value of `time`
+//! the minimum value occurred, however `selector_min` returns this as well:
+//!
+//! ```sql
+//! select selector_min(water_level, time) from "h2o_feet";
+//!
+//! +----------------------------------------------+
+//! | selector_min(water_level,time)               |
+//! +----------------------------------------------+
+//! | {"value": 9.7, "time": 2019-08-28T07:23:00Z} |
+//! +----------------------------------------------+
+//! ```
+//!
+//! Note that the output is a `struct` with two fields, `value` and
+//! `time`. To access the values, you can use the field reference
+//! `['field_name']` syntax (note the use of single quotes `'` around
+//! the field names):
+//!
+//! ```sql
+//! select
+//!   selector_min(water_level, time)['time'],
+//!   selector_min(water_level, time)['value']
+//! from "h2o_feet";
+//! +----------------------------------------+-----------------------------------------+
+//! | selector_first(water_level,time)[time] | selector_first(water_level,time)[value] |
+//! +----------------------------------------+-----------------------------------------+
+//! | 2019-08-28T07:23:00Z                   | 9.7                                     |
+//! +----------------------------------------+-----------------------------------------+
+//! ```
+//!
+//! ## Supported Selectors
+//!
+//! IOx supports the following selectors:
+//!
+//! 1. `selector_first`: `time` and `value` of the row with earliest `time` in the group
+//! 2. `selector_last`: `time` and `value` of the row with latest `time` in the group
+//! 3. `selector_min`: `time` and `value` of the row with smallest `value` in the group
+//! 4. `selector_max`: `time` and `value` of the row with largest `value` in the group
+//!
+//! For `selector_first` / `selector_last`, if there are multiple
+//! rows with same minimum / maximum timestamp, the value returned is
+//! arbitrary
+//!
+//! For `selector_min` / `selector_max`, if there are multiple rows
+//! with the same minimum / maximum value, the value with the smallest
+//! timestamp is chosen.
+//!
+//! [InfluxQL]: https://docs.influxdata.com/influxdb/v1.8/query_language/
+//! [selector functions]: https://docs.influxdata.com/influxdb/v1.8/query_language/functions/#selectors
 use std::{fmt::Debug, sync::Arc};
 
 use arrow::{
@@ -28,7 +109,7 @@ use datafusion::{
     scalar::ScalarValue,
 };
 
-// Internal implementations of the selector functions
+/// Internal implementations of the selector functions
 mod internal;
 use internal::{
     BooleanFirstSelector, BooleanLastSelector, BooleanMaxSelector, BooleanMinSelector,
@@ -60,7 +141,7 @@ pub fn register_selector_aggregates(ctx: &SessionContext) {
 /// ```
 ///
 /// If there are multiple rows with the minimum timestamp value, the
-/// value is arbitrary
+/// value returned is arbitrary
 pub fn struct_selector_first() -> AggregateUDF {
     make_uda(
         "selector_first",
@@ -134,10 +215,6 @@ pub fn struct_selector_max() -> AggregateUDF {
 /// Returns a DataFusion user defined aggregate function for computing
 /// one field of the first() selector function.
 ///
-/// Note that until <https://issues.apache.org/jira/browse/ARROW-10945>
-/// is fixed, selector functions must be computed using two separate
-/// function calls, one each for the value and time part
-///
 /// first(value_column, timestamp_column) -> value and timestamp
 ///
 /// timestamp is the minimum value of the timestamp_column
@@ -161,10 +238,6 @@ pub fn selector_first(data_type: &DataType, output: SelectorOutput) -> Aggregate
 
 /// Returns a DataFusion user defined aggregate function for computing
 /// one field of the last() selector function.
-///
-/// Note that until <https://issues.apache.org/jira/browse/ARROW-10945>
-/// is fixed, selector functions must be computed using two separate
-/// function calls, one each for the value and time part
 ///
 /// selector_last(data_column, timestamp_column) -> value and timestamp
 ///
@@ -190,10 +263,6 @@ pub fn selector_last(data_type: &DataType, output: SelectorOutput) -> AggregateU
 /// Returns a DataFusion user defined aggregate function for computing
 /// one field of the min() selector function.
 ///
-/// Note that until <https://issues.apache.org/jira/browse/ARROW-10945>
-/// is fixed, selector functions must be computed using two separate
-/// function calls, one each for the value and time part
-///
 /// selector_min(data_column, timestamp_column) -> value and timestamp
 ///
 /// value is the minimum value of the data_column
@@ -217,10 +286,6 @@ pub fn selector_min(data_type: &DataType, output: SelectorOutput) -> AggregateUD
 
 /// Returns a DataFusion user defined aggregate function for computing
 /// one field of the max() selector function.
-///
-/// Note that until <https://issues.apache.org/jira/browse/ARROW-10945>
-/// is fixed, selector functions must be computed using two separate
-/// function calls, one each for the value and time part
 ///
 /// selector_max(data_column, timestamp_column) -> value and timestamp
 ///
@@ -258,8 +323,8 @@ struct FactoryBuilder {
 
     output_type: SelectorOutput,
 
-    // If the selector output is "time" we can't determine the
-    // accumuator type from the return type, so hold we pass the data type explicitly
+    /// If the selector output is "time" we can't determine the
+    /// accumuator type from the return type, so hold we pass the data type explicitly
     value_type: Option<DataType>,
 }
 

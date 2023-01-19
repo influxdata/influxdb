@@ -24,7 +24,7 @@ pub mod group_by;
 /// Regular Expressions
 mod regex;
 
-/// Flux selector expressions
+/// Selector Functions
 pub mod selectors;
 
 /// window_bounds expressions
