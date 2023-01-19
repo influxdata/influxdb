@@ -13,4 +13,13 @@ pub struct Compactor2Config {
         action
     )]
     pub compaction_partition_concurrency: NonZeroUsize,
+
+    /// Partitions with recent created files these last minutes are selected for compaction.
+    #[clap(
+        long = "compaction_partition_minute_threshold",
+        env = "INFLUXDB_IOX_COMPACTION_PARTITION_MINUTE_THRESHOLD",
+        default_value = "10",
+        action
+    )]
+    pub compaction_partition_minute_threshold: u64,
 }

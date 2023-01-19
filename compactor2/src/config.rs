@@ -1,6 +1,7 @@
 //! Config-related stuff.
 use std::{num::NonZeroUsize, sync::Arc};
 
+use backoff::BackoffConfig;
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
 use iox_time::TimeProvider;
@@ -24,6 +25,12 @@ pub struct Config {
     /// Time provider.
     pub time_provider: Arc<dyn TimeProvider>,
 
+    /// Backoff config
+    pub backoff_config: BackoffConfig,
+
     /// Number of partitions that should be compacted in parallel.
     pub partition_concurrency: NonZeroUsize,
+
+    /// Partitions with recent created files these last minutes are selected for compaction.
+    pub partition_minute_threshold: u64,
 }

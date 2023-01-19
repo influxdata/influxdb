@@ -134,7 +134,9 @@ pub fn create_compactor2_server_type(
         parquet_store,
         exec,
         time_provider,
+        backoff_config: backoff::BackoffConfig::default(),
         partition_concurrency: compactor_config.compaction_partition_concurrency,
+        partition_minute_threshold: compactor_config.compaction_partition_minute_threshold,
     });
     Arc::new(Compactor2ServerType::new(
         compactor,

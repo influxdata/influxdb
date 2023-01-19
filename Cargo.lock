@@ -994,6 +994,7 @@ dependencies = [
 name = "compactor2"
 version = "0.1.0"
 dependencies = [
+ "backoff",
  "data_types",
  "futures",
  "iox_catalog",
@@ -2985,6 +2986,7 @@ name = "ioxd_compactor2"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "backoff",
  "clap_blocks",
  "compactor2",
  "hyper",
