@@ -2502,6 +2502,7 @@ name = "influxdb_iox_client"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "arrow-flight",
  "arrow_util",
  "bytes",
  "client_util",
@@ -2627,6 +2628,7 @@ name = "ingester"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "arrow-flight",
  "arrow_util",
  "assert_matches",
  "async-trait",
@@ -2642,7 +2644,6 @@ dependencies = [
  "generated_types",
  "hashbrown 0.13.2",
  "hyper",
- "iox_arrow_flight",
  "iox_catalog",
  "iox_query",
  "iox_time",
@@ -4558,6 +4559,7 @@ name = "query_tests"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "arrow-flight",
  "arrow_util",
  "async-trait",
  "backoff",

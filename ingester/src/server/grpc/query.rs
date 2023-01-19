@@ -4,30 +4,24 @@ use std::{
         atomic::{AtomicU64, Ordering},
         Arc,
     },
-    task::Poll,
 };
 
 use arrow::error::ArrowError;
-use data_types::{NamespaceId, TableId};
-use flatbuffers::FlatBufferBuilder;
-use futures::Stream;
-use generated_types::influxdata::iox::ingester::v1::{self as proto};
-use iox_arrow_flight::{
-    encode::flight_data_from_arrow_batch, flight_service_server::FlightService as Flight, Action,
-    ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo, HandshakeRequest,
-    HandshakeResponse, IpcMessage, PutResult, SchemaAsIpc, SchemaResult, Ticket,
+use arrow_flight::{
+    flight_service_server::FlightService as Flight, Action, ActionType, Criteria, Empty,
+    FlightData, FlightDescriptor, FlightInfo, HandshakeRequest, HandshakeResponse, PutResult,
+    SchemaResult, Ticket,
 };
+use data_types::{NamespaceId, TableId};
+use futures::{Stream, TryStreamExt};
+use generated_types::influxdata::iox::ingester::v1::{self as proto};
 use observability_deps::tracing::*;
-use pin_project::pin_project;
 use prost::Message;
 use snafu::{ResultExt, Snafu};
 use tonic::{Request, Response, Streaming};
 use trace::{ctx::SpanContext, span::SpanExt};
 
-use crate::{
-    handler::IngestHandler,
-    querier_handler::{FlatIngesterQueryResponse, FlatIngesterQueryResponseStream},
-};
+use crate::handler::IngestHandler;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
@@ -157,7 +151,7 @@ impl<I: IngestHandler + Send + Sync + 'static> Flight for FlightService<I> {
     type ListFlightsStream = TonicStream<FlightInfo>;
     type DoGetStream = TonicStream<FlightData>;
     type DoPutStream = TonicStream<PutResult>;
-    type DoActionStream = TonicStream<iox_arrow_flight::Result>;
+    type DoActionStream = TonicStream<arrow_flight::Result>;
     type ListActionsStream = TonicStream<ActionType>;
     type DoExchangeStream = TonicStream<FlightData>;
 
@@ -204,8 +198,10 @@ impl<I: IngestHandler + Send + Sync + 'static> Flight for FlightService<I> {
                 },
             })?;
 
-        let output = GetStream::new(query_response.flatten());
-
+        let output = query_response
+            .flatten()
+            // map FlightError --> tonic::Status
+            .map_err(|e| e.into());
         Ok(Response::new(Box::pin(output) as Self::DoGetStream))
     }
 
@@ -262,273 +258,5 @@ impl<I: IngestHandler + Send + Sync + 'static> Flight for FlightService<I> {
         _request: Request<Streaming<FlightData>>,
     ) -> Result<Response<Self::DoExchangeStream>, tonic::Status> {
         Err(tonic::Status::unimplemented("Not yet implemented"))
-    }
-}
-
-#[pin_project]
-struct GetStream {
-    #[pin]
-    inner: Pin<Box<dyn Stream<Item = Result<FlatIngesterQueryResponse, ArrowError>> + Send>>,
-    done: bool,
-    buffer: Vec<FlightData>,
-}
-
-impl GetStream {
-    fn new(inner: FlatIngesterQueryResponseStream) -> Self {
-        Self {
-            inner,
-            done: false,
-            buffer: vec![],
-        }
-    }
-}
-
-impl Stream for GetStream {
-    type Item = Result<FlightData, tonic::Status>;
-
-    fn poll_next(
-        self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
-        let this = self.project();
-
-        if !this.buffer.is_empty() {
-            let next = this.buffer.remove(0);
-            return Poll::Ready(Some(Ok(next)));
-        }
-
-        if *this.done {
-            Poll::Ready(None)
-        } else {
-            match this.inner.poll_next(cx) {
-                Poll::Pending => Poll::Pending,
-                Poll::Ready(None) => {
-                    *this.done = true;
-                    Poll::Ready(None)
-                }
-                Poll::Ready(Some(Err(e))) => {
-                    *this.done = true;
-                    let e = Error::QueryStream { source: e }.into();
-                    Poll::Ready(Some(Err(e)))
-                }
-                Poll::Ready(Some(Ok(FlatIngesterQueryResponse::StartPartition {
-                    partition_id,
-                    status,
-                }))) => {
-                    let mut bytes = bytes::BytesMut::new();
-                    let app_metadata = proto::IngesterQueryResponseMetadata {
-                        partition_id: partition_id.get(),
-                        status: Some(proto::PartitionStatus {
-                            parquet_max_sequence_number: status
-                                .parquet_max_sequence_number
-                                .map(|x| x.get()),
-                        }),
-                        // These fields are only used in ingester2.
-                        ingester_uuid: String::new(),
-                        completed_persistence_count: 0,
-                    };
-                    prost::Message::encode(&app_metadata, &mut bytes)
-                        .context(SerializationSnafu)?;
-
-                    let flight_data = FlightData::new(
-                        None,
-                        IpcMessage(build_none_flight_msg().into()),
-                        bytes.to_vec(),
-                        vec![],
-                    );
-                    Poll::Ready(Some(Ok(flight_data)))
-                }
-                Poll::Ready(Some(Ok(FlatIngesterQueryResponse::StartSnapshot { schema }))) => {
-                    let options = arrow::ipc::writer::IpcWriteOptions::default();
-                    let flight_data: FlightData = SchemaAsIpc::new(&schema, &options).into();
-                    Poll::Ready(Some(Ok(flight_data)))
-                }
-                Poll::Ready(Some(Ok(FlatIngesterQueryResponse::RecordBatch { batch }))) => {
-                    let options = arrow::ipc::writer::IpcWriteOptions::default();
-                    let (mut flight_dictionaries, flight_batch) =
-                        flight_data_from_arrow_batch(&batch, &options);
-                    std::mem::swap(this.buffer, &mut flight_dictionaries);
-                    this.buffer.push(flight_batch);
-                    let next = this.buffer.remove(0);
-                    Poll::Ready(Some(Ok(next)))
-                }
-            }
-        }
-    }
-}
-
-fn build_none_flight_msg() -> Vec<u8> {
-    let mut fbb = FlatBufferBuilder::new();
-
-    let mut message = arrow::ipc::MessageBuilder::new(&mut fbb);
-    message.add_version(arrow::ipc::MetadataVersion::V5);
-    message.add_header_type(arrow::ipc::MessageHeader::NONE);
-    message.add_bodyLength(0);
-
-    let data = message.finish();
-    fbb.finish(data, None);
-
-    fbb.finished_data().to_vec()
-}
-
-#[cfg(test)]
-mod tests {
-    use arrow::{error::ArrowError, ipc::MessageHeader};
-    use data_types::PartitionId;
-    use futures::StreamExt;
-    use generated_types::influxdata::iox::ingester::v1::{self as proto};
-    use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
-    use schema::Projection;
-
-    use super::*;
-    use crate::querier_handler::{FlatIngesterQueryResponse, PartitionStatus};
-
-    #[tokio::test]
-    async fn test_get_stream_empty() {
-        assert_get_stream(vec![], vec![]).await;
-    }
-
-    #[tokio::test]
-    async fn test_get_stream_all_types() {
-        let batch = lp_to_mutable_batch("table z=1 0")
-            .1
-            .to_arrow(Projection::All)
-            .unwrap();
-        let schema = batch.schema();
-
-        assert_get_stream(
-            vec![
-                Ok(FlatIngesterQueryResponse::StartPartition {
-                    partition_id: PartitionId::new(1),
-                    status: PartitionStatus {
-                        parquet_max_sequence_number: None,
-                    },
-                }),
-                Ok(FlatIngesterQueryResponse::StartSnapshot { schema }),
-                Ok(FlatIngesterQueryResponse::RecordBatch { batch }),
-            ],
-            vec![
-                Ok(DecodedFlightData {
-                    header_type: MessageHeader::NONE,
-                    app_metadata: proto::IngesterQueryResponseMetadata {
-                        partition_id: 1,
-                        status: Some(proto::PartitionStatus {
-                            parquet_max_sequence_number: None,
-                        }),
-                        // These fields are only used in ingester2.
-                        ingester_uuid: String::new(),
-                        completed_persistence_count: 0,
-                    },
-                }),
-                Ok(DecodedFlightData {
-                    header_type: MessageHeader::Schema,
-                    app_metadata: proto::IngesterQueryResponseMetadata::default(),
-                }),
-                Ok(DecodedFlightData {
-                    header_type: MessageHeader::RecordBatch,
-                    app_metadata: proto::IngesterQueryResponseMetadata::default(),
-                }),
-            ],
-        )
-        .await;
-    }
-
-    #[tokio::test]
-    async fn test_get_stream_shortcuts_err() {
-        assert_get_stream(
-            vec![
-                Ok(FlatIngesterQueryResponse::StartPartition {
-                    partition_id: PartitionId::new(1),
-                    status: PartitionStatus {
-                        parquet_max_sequence_number: None,
-                    },
-                }),
-                Err(ArrowError::IoError("foo".into())),
-                Ok(FlatIngesterQueryResponse::StartPartition {
-                    partition_id: PartitionId::new(1),
-                    status: PartitionStatus {
-                        parquet_max_sequence_number: None,
-                    },
-                }),
-            ],
-            vec![
-                Ok(DecodedFlightData {
-                    header_type: MessageHeader::NONE,
-                    app_metadata: proto::IngesterQueryResponseMetadata {
-                        partition_id: 1,
-                        status: Some(proto::PartitionStatus {
-                            parquet_max_sequence_number: None,
-                        }),
-                        // These fields are only used in ingester2.
-                        ingester_uuid: String::new(),
-                        completed_persistence_count: 0,
-                    },
-                }),
-                Err(tonic::Code::Internal),
-            ],
-        )
-        .await;
-    }
-
-    #[tokio::test]
-    async fn test_get_stream_dictionary_batches() {
-        let batch = lp_to_mutable_batch("table,x=\"foo\",y=\"bar\" z=1 0")
-            .1
-            .to_arrow(Projection::All)
-            .unwrap();
-
-        assert_get_stream(
-            vec![Ok(FlatIngesterQueryResponse::RecordBatch { batch })],
-            vec![
-                Ok(DecodedFlightData {
-                    header_type: MessageHeader::DictionaryBatch,
-                    app_metadata: proto::IngesterQueryResponseMetadata::default(),
-                }),
-                Ok(DecodedFlightData {
-                    header_type: MessageHeader::DictionaryBatch,
-                    app_metadata: proto::IngesterQueryResponseMetadata::default(),
-                }),
-                Ok(DecodedFlightData {
-                    header_type: MessageHeader::RecordBatch,
-                    app_metadata: proto::IngesterQueryResponseMetadata::default(),
-                }),
-            ],
-        )
-        .await;
-    }
-
-    struct DecodedFlightData {
-        header_type: MessageHeader,
-        app_metadata: proto::IngesterQueryResponseMetadata,
-    }
-
-    async fn assert_get_stream(
-        inputs: Vec<Result<FlatIngesterQueryResponse, ArrowError>>,
-        expected: Vec<Result<DecodedFlightData, tonic::Code>>,
-    ) {
-        let inner = Box::pin(futures::stream::iter(inputs));
-        let stream = GetStream::new(inner);
-        let actual: Vec<_> = stream.collect().await;
-        assert_eq!(actual.len(), expected.len());
-
-        for (actual, expected) in actual.into_iter().zip(expected) {
-            match (actual, expected) {
-                (Ok(actual), Ok(expected)) => {
-                    let header_type = arrow::ipc::root_as_message(&actual.data_header[..])
-                        .unwrap()
-                        .header_type();
-                    assert_eq!(header_type, expected.header_type);
-
-                    let app_metadata: proto::IngesterQueryResponseMetadata =
-                        prost::Message::decode(&actual.app_metadata[..]).unwrap();
-                    assert_eq!(app_metadata, expected.app_metadata);
-                }
-                (Err(actual), Err(expected)) => {
-                    assert_eq!(actual.code(), expected);
-                }
-                (Ok(_), Err(_)) => panic!("Actual is Ok but expected is Err"),
-                (Err(_), Ok(_)) => panic!("Actual is Err but expected is Ok"),
-            }
-        }
     }
 }

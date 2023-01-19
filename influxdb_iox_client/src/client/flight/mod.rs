@@ -38,9 +38,16 @@ pub enum Error {
     #[error(transparent)]
     ArrowError(#[from] arrow::error::ArrowError),
 
-    /// An error involving an Arrow operation occurred.
+    /// An error involving an Arrow Flight operation occurred.
     #[error(transparent)]
     ArrowFlightError(#[from] iox_arrow_flight::FlightError),
+
+    /// An error involving an Arrow Flight operation occurred
+    /// (exists alongsize ArrowFlightError until
+    /// <https://github.com/influxdata/influxdb_iox/issues/6620>
+    /// is complete)
+    #[error(transparent)]
+    ApacheArrowFlightError(#[from] arrow_flight::error::FlightError),
 
     /// The data contained invalid Flatbuffers.
     #[error("Invalid Flatbuffer: `{0}`")]

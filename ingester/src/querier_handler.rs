@@ -3,16 +3,19 @@
 use std::{pin::Pin, sync::Arc};
 
 use arrow::{error::ArrowError, record_batch::RecordBatch};
+use arrow_flight::{
+    decode::{DecodedPayload, FlightDataDecoder},
+    encode::FlightDataEncoderBuilder,
+    error::FlightError,
+    FlightData, IpcMessage,
+};
 use arrow_util::test_util::equalize_batch_schemas;
 use data_types::{NamespaceId, PartitionId, SequenceNumber, TableId};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::MemoryStream;
-use futures::{Stream, StreamExt, TryStreamExt};
+use flatbuffers::FlatBufferBuilder;
+use futures::{stream::BoxStream, Stream, StreamExt, TryStreamExt};
 use generated_types::ingester::IngesterQueryRequest;
-use iox_arrow_flight::encode::{
-    prepare_batch_for_flight, prepare_schema_for_flight, split_batch_for_grpc_response,
-    GRPC_TARGET_MAX_BATCH_SIZE_BYTES,
-};
 use observability_deps::tracing::*;
 use schema::Projection;
 use snafu::{ensure, Snafu};
@@ -116,75 +119,79 @@ impl std::fmt::Debug for IngesterQueryResponse {
     }
 }
 
+fn encode_partition(
+    // Partition ID.
+    partition_id: PartitionId,
+    // Partition persistence status.
+    status: PartitionStatus,
+) -> std::result::Result<FlightData, FlightError> {
+    use generated_types::influxdata::iox::ingester::v1 as proto;
+    let mut bytes = bytes::BytesMut::new();
+    let app_metadata = proto::IngesterQueryResponseMetadata {
+        partition_id: partition_id.get(),
+        status: Some(proto::PartitionStatus {
+            parquet_max_sequence_number: status.parquet_max_sequence_number.map(|x| x.get()),
+        }),
+        // These fields are only used in ingester2.
+        ingester_uuid: String::new(),
+        completed_persistence_count: 0,
+    };
+    prost::Message::encode(&app_metadata, &mut bytes)
+        .map_err(|e| FlightError::from_external_error(Box::new(e)))?;
+
+    Ok(FlightData::new(
+        None,
+        IpcMessage(build_none_flight_msg().into()),
+        bytes.to_vec(),
+        vec![],
+    ))
+}
+
+fn build_none_flight_msg() -> Vec<u8> {
+    let mut fbb = FlatBufferBuilder::new();
+
+    let mut message = arrow::ipc::MessageBuilder::new(&mut fbb);
+    message.add_version(arrow::ipc::MetadataVersion::V5);
+    message.add_header_type(arrow::ipc::MessageHeader::NONE);
+    message.add_bodyLength(0);
+
+    let data = message.finish();
+    fbb.finish(data, None);
+
+    fbb.finished_data().to_vec()
+}
+
 impl IngesterQueryResponse {
     /// Make a response
     pub(crate) fn new(partitions: IngesterQueryPartitionStream) -> Self {
         Self { partitions }
     }
 
-    /// Flattens the data according to the wire protocol.
-    pub fn flatten(self) -> FlatIngesterQueryResponseStream {
+    /// Flattens the stream of IngesterPartitions into a stream of FlightData
+    pub fn flatten(self) -> BoxStream<'static, std::result::Result<FlightData, FlightError>> {
         self.partitions
             .flat_map(|partition_res| match partition_res {
                 Ok(partition) => {
                     let head = futures::stream::once(async move {
-                        Ok(FlatIngesterQueryResponse::StartPartition {
-                            partition_id: partition.id,
-                            status: partition.status,
-                        })
+                        encode_partition(partition.id, partition.status)
                     });
+
                     let tail = partition
                         .snapshots
                         .flat_map(|snapshot_res| match snapshot_res {
                             Ok(snapshot) => {
-                                let schema =
-                                    Arc::new(prepare_schema_for_flight(&snapshot.schema()));
+                                let snapshot = snapshot.map_err(FlightError::Arrow);
 
-                                let schema_captured = Arc::clone(&schema);
-                                let head = futures::stream::once(async {
-                                    Ok(FlatIngesterQueryResponse::StartSnapshot {
-                                        schema: schema_captured,
-                                    })
-                                });
-
-                                let tail = snapshot.flat_map(move |batch_res| match batch_res {
-                                    Ok(batch) => {
-                                        let batch =
-                                            prepare_batch_for_flight(&batch, Arc::clone(&schema))
-                                                .map_err(|e| {
-                                                    ArrowError::ExternalError(Box::new(e))
-                                                });
-
-                                        match batch {
-                                            Ok(batch) => {
-                                                let batches = split_batch_for_grpc_response(
-                                                    batch,
-                                                    GRPC_TARGET_MAX_BATCH_SIZE_BYTES,
-                                                );
-                                                futures::stream::iter(batches)
-                                                    .map(|batch| {
-                                                        Ok(FlatIngesterQueryResponse::RecordBatch {
-                                                            batch,
-                                                        })
-                                                    })
-                                                    .boxed()
-                                            }
-                                            Err(e) => {
-                                                futures::stream::once(async { Err(e) }).boxed()
-                                            }
-                                        }
-                                    }
-                                    Err(e) => futures::stream::once(async { Err(e) }).boxed(),
-                                });
-
-                                head.chain(tail).boxed()
+                                FlightDataEncoderBuilder::new().build(snapshot).boxed()
                             }
-                            Err(e) => futures::stream::once(async { Err(e) }).boxed(),
+                            Err(e) => {
+                                futures::stream::once(async { Err(FlightError::Arrow(e)) }).boxed()
+                            }
                         });
 
                     head.chain(tail).boxed()
                 }
-                Err(e) => futures::stream::once(async { Err(e) }).boxed(),
+                Err(e) => futures::stream::once(async { Err(FlightError::Arrow(e)) }).boxed(),
             })
             .boxed()
     }
@@ -202,17 +209,18 @@ impl IngesterQueryResponse {
         let mut snapshot_schema = None;
         let mut batches = vec![];
 
-        let mut stream = self.flatten();
+        let mut stream = FlightDataDecoder::new(self.flatten());
+
         while let Some(msg) = stream.try_next().await.unwrap() {
-            match msg {
-                FlatIngesterQueryResponse::StartPartition { .. } => (),
-                FlatIngesterQueryResponse::RecordBatch { batch } => {
+            match msg.payload {
+                DecodedPayload::None => {}
+                DecodedPayload::RecordBatch(batch) => {
                     let last_schema = snapshot_schema.as_ref().unwrap();
                     assert_eq!(&batch.schema(), last_schema);
                     batches.push(batch);
                 }
-                FlatIngesterQueryResponse::StartSnapshot { schema } => {
-                    snapshot_schema = Some(Arc::clone(&schema));
+                DecodedPayload::Schema(schema) => {
+                    snapshot_schema = Some(schema);
                 }
             }
         }
@@ -222,10 +230,6 @@ impl IngesterQueryResponse {
         equalize_batch_schemas(batches).unwrap()
     }
 }
-
-/// Flattened version of [`IngesterQueryResponse`].
-pub type FlatIngesterQueryResponseStream =
-    Pin<Box<dyn Stream<Item = Result<FlatIngesterQueryResponse, ArrowError>> + Send>>;
 
 /// Element within the flat wire protocol.
 #[derive(Debug, PartialEq)]
@@ -385,104 +389,14 @@ pub async fn prepare_data_to_querier(
 
 #[cfg(test)]
 mod tests {
-    use std::task::{Context, Poll};
 
-    use arrow::{datatypes::SchemaRef, record_batch::RecordBatch};
     use arrow_util::assert_batches_sorted_eq;
     use assert_matches::assert_matches;
-    use datafusion::{
-        physical_plan::RecordBatchStream,
-        prelude::{col, lit},
-    };
-    use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
+    use datafusion::prelude::{col, lit};
     use predicate::Predicate;
 
     use super::*;
     use crate::test_util::make_ingester_data;
-
-    #[tokio::test]
-    async fn test_ingester_query_response_flatten() {
-        let batch_1_1 = lp_to_batch("table x=1 0");
-        let batch_1_2 = lp_to_batch("table x=2 1");
-        let batch_2 = lp_to_batch("table y=1 10");
-        let batch_3 = lp_to_batch("table z=1 10");
-
-        let schema_1 = batch_1_1.schema();
-        let schema_2 = batch_2.schema();
-        let schema_3 = batch_3.schema();
-
-        let response = IngesterQueryResponse::new(Box::pin(futures::stream::iter([
-            Ok(IngesterQueryPartition::new(
-                Box::pin(futures::stream::iter([
-                    Ok(Box::pin(TestRecordBatchStream::new(
-                        vec![
-                            Ok(batch_1_1.clone()),
-                            Err(ArrowError::NotYetImplemented("not yet implemeneted".into())),
-                            Ok(batch_1_2.clone()),
-                        ],
-                        Arc::clone(&schema_1),
-                    )) as _),
-                    Err(ArrowError::InvalidArgumentError("invalid arg".into())),
-                    Ok(Box::pin(TestRecordBatchStream::new(
-                        vec![Ok(batch_2.clone())],
-                        Arc::clone(&schema_2),
-                    )) as _),
-                    Ok(Box::pin(TestRecordBatchStream::new(vec![], Arc::clone(&schema_3))) as _),
-                ])),
-                PartitionId::new(2),
-                PartitionStatus {
-                    parquet_max_sequence_number: None,
-                },
-            )),
-            Err(ArrowError::IoError("some io error".into())),
-            Ok(IngesterQueryPartition::new(
-                Box::pin(futures::stream::iter([])),
-                PartitionId::new(1),
-                PartitionStatus {
-                    parquet_max_sequence_number: None,
-                },
-            )),
-        ])));
-
-        let actual: Vec<_> = response.flatten().collect().await;
-        let expected = vec![
-            Ok(FlatIngesterQueryResponse::StartPartition {
-                partition_id: PartitionId::new(2),
-                status: PartitionStatus {
-                    parquet_max_sequence_number: None,
-                },
-            }),
-            Ok(FlatIngesterQueryResponse::StartSnapshot { schema: schema_1 }),
-            Ok(FlatIngesterQueryResponse::RecordBatch { batch: batch_1_1 }),
-            Err(ArrowError::NotYetImplemented("not yet implemeneted".into())),
-            Ok(FlatIngesterQueryResponse::RecordBatch { batch: batch_1_2 }),
-            Err(ArrowError::InvalidArgumentError("invalid arg".into())),
-            Ok(FlatIngesterQueryResponse::StartSnapshot { schema: schema_2 }),
-            Ok(FlatIngesterQueryResponse::RecordBatch { batch: batch_2 }),
-            Ok(FlatIngesterQueryResponse::StartSnapshot { schema: schema_3 }),
-            Err(ArrowError::IoError("some io error".into())),
-            Ok(FlatIngesterQueryResponse::StartPartition {
-                partition_id: PartitionId::new(1),
-                status: PartitionStatus {
-                    parquet_max_sequence_number: None,
-                },
-            }),
-        ];
-
-        assert_eq!(actual.len(), expected.len());
-        for (actual, expected) in actual.into_iter().zip(expected) {
-            match (actual, expected) {
-                (Ok(actual), Ok(expected)) => {
-                    assert_eq!(actual, expected);
-                }
-                (Err(_), Err(_)) => {
-                    // cannot compare `ArrowError`, but it's unlikely that someone changed the error
-                }
-                (Ok(_), Err(_)) => panic!("Actual is Ok but expected is Err"),
-                (Err(_), Ok(_)) => panic!("Actual is Err but expected is Ok"),
-            }
-        }
-    }
 
     #[tokio::test]
     async fn test_prepare_data_to_querier() {
@@ -636,45 +550,5 @@ mod tests {
                 .unwrap_err();
             assert_matches!(err, Error::NamespaceNotFound { .. });
         }
-    }
-
-    pub struct TestRecordBatchStream {
-        schema: SchemaRef,
-        batches: Vec<Result<RecordBatch, ArrowError>>,
-    }
-
-    impl TestRecordBatchStream {
-        pub fn new(batches: Vec<Result<RecordBatch, ArrowError>>, schema: SchemaRef) -> Self {
-            Self { schema, batches }
-        }
-    }
-
-    impl RecordBatchStream for TestRecordBatchStream {
-        fn schema(&self) -> SchemaRef {
-            Arc::clone(&self.schema)
-        }
-    }
-
-    impl futures::Stream for TestRecordBatchStream {
-        type Item = Result<RecordBatch, ArrowError>;
-
-        fn poll_next(
-            mut self: std::pin::Pin<&mut Self>,
-            _: &mut Context<'_>,
-        ) -> Poll<Option<Self::Item>> {
-            if self.batches.is_empty() {
-                Poll::Ready(None)
-            } else {
-                Poll::Ready(Some(self.batches.remove(0)))
-            }
-        }
-
-        fn size_hint(&self) -> (usize, Option<usize>) {
-            (self.batches.len(), Some(self.batches.len()))
-        }
-    }
-
-    fn lp_to_batch(lp: &str) -> RecordBatch {
-        lp_to_mutable_batch(lp).1.to_arrow(Projection::All).unwrap()
     }
 }
