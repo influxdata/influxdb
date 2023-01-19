@@ -13,6 +13,6 @@
 
 pub mod compact;
 pub mod compactor;
+mod components;
 pub mod config;
 mod driver;
-mod rules;

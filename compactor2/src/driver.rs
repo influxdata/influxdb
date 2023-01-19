@@ -4,29 +4,31 @@ use backoff::Backoff;
 use data_types::{ParquetFile, PartitionId};
 use futures::StreamExt;
 use observability_deps::tracing::{error, info};
-use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 
-use crate::{compact::compact_files, config::Config, rules::Rules};
+use crate::{compact::compact_files, components::Components, config::Config};
 
-pub async fn compact(config: &Config, rules: &Arc<Rules>) {
-    let partition_ids = get_partition_ids(config).await;
-    // TODO: implementing ID-based sharding / hash-partitioning so we can run multiple compactors in parallel
-    let partition_ids = randomize_partition_order(partition_ids, 1234);
+pub async fn compact(config: &Config, components: &Arc<Components>) {
+    let partition_ids = components.partitions_source.fetch().await;
 
     futures::stream::iter(partition_ids)
         .map(|partition_id| {
             let config = config.clone();
-            let rules = Arc::clone(rules);
+            let components = Arc::clone(components);
 
             async move {
                 let files = get_parquet_files(&config, partition_id).await;
 
                 let files = files
                     .into_iter()
-                    .filter(|file| rules.file_filters.iter().all(|filter| filter.apply(file)))
+                    .filter(|file| {
+                        components
+                            .file_filters
+                            .iter()
+                            .all(|filter| filter.apply(file))
+                    })
                     .collect::<Vec<_>>();
 
-                if !rules
+                if !components
                     .partition_filters
                     .iter()
                     .all(|filter| filter.apply(&files))
@@ -60,31 +62,6 @@ pub async fn compact(config: &Config, rules: &Arc<Rules>) {
         .await;
 }
 
-/// Get partition IDs from catalog.
-///
-/// This method performs retries.
-///
-/// This should only perform basic filtering. It MUST NOT inspect individual parquet files.
-async fn get_partition_ids(config: &Config) -> Vec<PartitionId> {
-    let time_minutes_ago = config
-        .time_provider
-        .minutes_ago(config.partition_minute_threshold);
-    let partitions = Backoff::new(&config.backoff_config)
-        .retry_all_errors("partitions_to_compact", || async {
-            config
-                .catalog
-                .repositories()
-                .await
-                .partitions()
-                .partitions_to_compact(time_minutes_ago.into())
-                .await
-        })
-        .await
-        .expect("retry forever");
-
-    partitions
-}
-
 /// Get parquet files for given partition.
 ///
 /// This method performs retries.
@@ -103,10 +80,4 @@ async fn get_parquet_files(config: &Config, partition: PartitionId) -> Vec<Parqu
         .expect("retry forever");
 
     parquet_files
-}
-
-fn randomize_partition_order(mut partitions: Vec<PartitionId>, seed: u64) -> Vec<PartitionId> {
-    let mut rng = StdRng::seed_from_u64(seed);
-    partitions.shuffle(&mut rng);
-    partitions
 }

@@ -994,6 +994,7 @@ dependencies = [
 name = "compactor2"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "backoff",
  "data_types",
  "futures",
@@ -1005,6 +1006,7 @@ dependencies = [
  "parquet_file",
  "rand",
  "snafu",
+ "test_helpers",
  "tokio",
  "tokio-util",
  "workspace-hack",

@@ -6,6 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+async-trait = "0.1.61"
 backoff = { path = "../backoff" }
 data_types = { path = "../data_types" }
 futures = "0.3"
@@ -22,3 +23,4 @@ tokio-util = { version = "0.7.4" }
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
+test_helpers = { path = "../test_helpers"}
