@@ -7,6 +7,10 @@ use std::sync::Arc;
 use crate::config::Config;
 
 use super::{
+    partition_error_sink::{
+        catalog::CatalogPartitionErrorSink, logging::LoggingPartitionErrorSinkWrapper,
+        metrics::MetricsPartitionErrorSinkWrapper,
+    },
     partition_files_source::catalog::CatalogPartitionFilesSource,
     partitions_source::{
         catalog::CatalogPartitionsSource, logging::LoggingPartitionsSourceWrapper,
@@ -38,5 +42,14 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         )),
         file_filters: vec![],
         partition_filters: vec![],
+        partition_error_sink: Arc::new(LoggingPartitionErrorSinkWrapper::new(
+            MetricsPartitionErrorSinkWrapper::new(
+                CatalogPartitionErrorSink::new(
+                    config.backoff_config.clone(),
+                    Arc::clone(&config.catalog),
+                ),
+                &config.metric_registry,
+            ),
+        )),
     })
 }

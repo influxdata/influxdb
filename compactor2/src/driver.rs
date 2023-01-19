@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use futures::StreamExt;
-use observability_deps::tracing::{error, info};
+use observability_deps::tracing::info;
 
 use crate::{compact::compact_files, components::Components, config::Config};
 
@@ -39,12 +39,10 @@ pub async fn compact(config: &Config, components: &Arc<Components>) {
                 }
 
                 if let Err(e) = compact_files(&files, &config.catalog).await {
-                    error!(
-                        %e,
-                        partition_id=partition_id.get(),
-                        "Error while compacting partition",
-                    );
-                    // TODO: mark partition as "cannot compact"
+                    components
+                        .partition_error_sink
+                        .record(partition_id, &e.to_string())
+                        .await;
                     return;
                 }
                 info!(
