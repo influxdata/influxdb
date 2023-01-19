@@ -117,14 +117,20 @@ impl TestCase {
                 .iter()
                 // When the `Ingester` and `Parquet` `ChunkStage`s are removed, this map can be
                 // removed.
-                .map(|step| match (chunk_stage, step) {
+                .flat_map(|step| match (chunk_stage, step) {
                     // If we're using the old architecture and the test steps include
                     // `WaitForPersist2`, swap it with `WaitForPersist` instead.
                     (ChunkStage::Ingester, Step::WaitForPersisted2 { .. })
                     | (ChunkStage::Parquet, Step::WaitForPersisted2 { .. }) => {
-                        &Step::WaitForPersisted
+                        vec![&Step::WaitForPersisted]
                     }
-                    (_, other) => other,
+                    // If we're using the old architecture and the test steps include
+                    // `WriteLineProtocol`, wait for the data to be readable after writing.
+                    (ChunkStage::Ingester, Step::WriteLineProtocol { .. })
+                    | (ChunkStage::Parquet, Step::WriteLineProtocol { .. }) => {
+                        vec![step, &Step::WaitForReadable]
+                    }
+                    (_, other) => vec![other],
                 });
 
             let test_step = Step::QueryAndCompare {
