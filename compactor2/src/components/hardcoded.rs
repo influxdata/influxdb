@@ -16,9 +16,13 @@ use super::{
         metrics::MetricsPartitionErrorSinkWrapper,
     },
     partition_files_source::catalog::CatalogPartitionFilesSource,
-    partition_filter::{and::AndPartitionFilter, has_files::HasFilesPartitionFilter},
+    partition_filter::{
+        and::AndPartitionFilter, has_files::HasFilesPartitionFilter,
+        metrics::MetricsPartitionFilterWrapper,
+    },
     partitions_source::{
         catalog::CatalogPartitionsSource, logging::LoggingPartitionsSourceWrapper,
+        metrics::MetricsPartitionsSourceWrapper,
         randomize_order::RandomizeOrderPartitionsSourcesWrapper,
     },
     Components,
@@ -31,14 +35,17 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
 
     Arc::new(Components {
         partitions_source: Arc::new(LoggingPartitionsSourceWrapper::new(
-            RandomizeOrderPartitionsSourcesWrapper::new(
-                CatalogPartitionsSource::new(
-                    config.backoff_config.clone(),
-                    Arc::clone(&config.catalog),
-                    config.partition_minute_threshold,
-                    Arc::clone(&config.time_provider),
+            MetricsPartitionsSourceWrapper::new(
+                RandomizeOrderPartitionsSourcesWrapper::new(
+                    CatalogPartitionsSource::new(
+                        config.backoff_config.clone(),
+                        Arc::clone(&config.catalog),
+                        config.partition_minute_threshold,
+                        Arc::clone(&config.time_provider),
+                    ),
+                    1234,
                 ),
-                1234,
+                &config.metric_registry,
             ),
         )),
         partition_files_source: Arc::new(CatalogPartitionFilesSource::new(
@@ -46,9 +53,10 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             Arc::clone(&config.catalog),
         )),
         files_filter: Arc::new(FilesFilterChain::new(vec![])),
-        partition_filter: Arc::new(AndPartitionFilter::new(vec![Arc::new(
-            HasFilesPartitionFilter::new(),
-        )])),
+        partition_filter: Arc::new(MetricsPartitionFilterWrapper::new(
+            AndPartitionFilter::new(vec![Arc::new(HasFilesPartitionFilter::new())]),
+            &config.metric_registry,
+        )),
         partition_error_sink: Arc::new(LoggingPartitionErrorSinkWrapper::new(
             MetricsPartitionErrorSinkWrapper::new(
                 CatalogPartitionErrorSink::new(

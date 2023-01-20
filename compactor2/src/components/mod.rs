@@ -17,6 +17,7 @@ pub mod partition_error_sink;
 pub mod partition_files_source;
 pub mod partition_filter;
 pub mod partitions_source;
+pub mod report;
 pub mod tables_source;
 
 #[derive(Debug)]

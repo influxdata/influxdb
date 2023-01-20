@@ -5,6 +5,7 @@ use data_types::{Partition, PartitionId};
 
 pub mod catalog;
 pub mod logging;
+pub mod metrics;
 pub mod mock;
 pub mod randomize_order;
 
