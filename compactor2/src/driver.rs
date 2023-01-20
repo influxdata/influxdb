@@ -76,7 +76,6 @@ pub async fn compact(config: &Config, components: &Arc<Components>) {
                 //    . identify right files for hot/cold compaction
                 //    . filter right amount of files
                 //    . compact many steps hot/cold (need more thinking)
-                // This function currently assumes input files are all L0 and L1
                 match compact_files(
                     Arc::clone(&files),
                     Arc::new(partition_info),

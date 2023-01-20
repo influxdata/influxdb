@@ -44,6 +44,15 @@ impl ParquetFileBuilder {
         }
     }
 
+    pub fn with_compaction_level(self, level: CompactionLevel) -> Self {
+        Self {
+            file: ParquetFile {
+                compaction_level: level,
+                ..self.file
+            },
+        }
+    }
+
     pub fn build(self) -> ParquetFile {
         self.file
     }

@@ -4,13 +4,16 @@
 
 use std::sync::Arc;
 
+use data_types::CompactionLevel;
+
 use crate::config::Config;
 
 use super::{
     commit::{
         catalog::CatalogCommit, logging::LoggingCommitWrapper, metrics::MetricsCommitWrapper,
     },
-    files_filter::chain::FilesFilterChain,
+    file_filter::{and::AndFileFilter, level_range::LevelRangeFileFilter},
+    files_filter::{chain::FilesFilterChain, per_file::PerFileFilesFilter},
     partition_error_sink::{
         catalog::CatalogPartitionErrorSink, logging::LoggingPartitionErrorSinkWrapper,
         metrics::MetricsPartitionErrorSinkWrapper,
@@ -52,7 +55,13 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             config.backoff_config.clone(),
             Arc::clone(&config.catalog),
         )),
-        files_filter: Arc::new(FilesFilterChain::new(vec![])),
+        files_filter: Arc::new(FilesFilterChain::new(vec![Arc::new(
+            PerFileFilesFilter::new(AndFileFilter::new(vec![Arc::new(
+                LevelRangeFileFilter::new(
+                    CompactionLevel::Initial..=CompactionLevel::FileNonOverlapped,
+                ),
+            )])),
+        )])),
         partition_filter: Arc::new(MetricsPartitionFilterWrapper::new(
             AndPartitionFilter::new(vec![Arc::new(HasFilesPartitionFilter::new())]),
             &config.metric_registry,

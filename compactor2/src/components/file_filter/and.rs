@@ -10,7 +10,6 @@ pub struct AndFileFilter {
 }
 
 impl AndFileFilter {
-    #[allow(dead_code)] // not used anywhere
     pub fn new(filters: Vec<Arc<dyn FileFilter>>) -> Self {
         Self { filters }
     }
