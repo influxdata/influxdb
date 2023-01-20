@@ -41,7 +41,7 @@ impl IntoIterator for ChunkStage {
 
 /// Which architecture is being used in this test run. This enum and running the tests twice is temporary until the Kafkaful architecture is retired.
 #[derive(Debug, Copy, Clone)]
-enum IoxArchitecture {
+pub enum IoxArchitecture {
     /// Use the "standard" MiniCluster that uses ingester, router, querier, compactor with a write
     /// buffer (aka Kafka). This is slated for retirement soon.
     Kafkaful,

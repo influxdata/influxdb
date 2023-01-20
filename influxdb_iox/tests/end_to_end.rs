@@ -6,3 +6,4 @@
 // The tests are defined in the submodules of [`end_to_end_cases`]
 
 mod end_to_end_cases;
+mod query_tests2;
