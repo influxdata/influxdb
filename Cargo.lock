@@ -2774,20 +2774,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iox_arrow_flight"
-version = "0.1.0"
-dependencies = [
- "arrow",
- "arrow-flight",
- "futures",
- "futures-util",
- "prost 0.11.6",
- "prost-types 0.11.6",
- "tonic",
- "workspace-hack",
-]
-
-[[package]]
 name = "iox_catalog"
 version = "0.1.0"
 dependencies = [
@@ -5147,6 +5133,7 @@ name = "service_grpc_flight"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "arrow-flight",
  "arrow_util",
  "assert_matches",
  "bytes",
@@ -5154,7 +5141,6 @@ dependencies = [
  "datafusion",
  "futures",
  "generated_types",
- "iox_arrow_flight",
  "iox_query",
  "metric",
  "observability_deps",

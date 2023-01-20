@@ -1,9 +1,9 @@
 //! Ticket handling for the native IOx Flight API
 
+use arrow_flight::Ticket;
 use bytes::Bytes;
 use generated_types::influxdata::iox::querier::v1 as proto;
 use generated_types::influxdata::iox::querier::v1::read_info::QueryType;
-use iox_arrow_flight::Ticket;
 use observability_deps::tracing::trace;
 use prost::Message;
 use serde::Deserialize;
