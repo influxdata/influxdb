@@ -29,7 +29,7 @@ use write_summary::ShardProgress;
 
 use crate::{
     data::IngesterData,
-    lifecycle::{run_lifecycle_manager, LifecycleConfig, LifecycleManager},
+    lifecycle::{run_lifecycle_manager, LifecycleConfig, LifecycleHandleImpl, LifecycleManager},
     poison::PoisonCabinet,
     querier_handler::{prepare_data_to_querier, IngesterQueryResponse},
     stream_handler::{
@@ -75,6 +75,9 @@ pub trait IngestHandler: Send + Sync {
 
     /// Shut down background workers.
     fn shutdown(&self);
+
+    /// Persist everything immediately.
+    async fn persist_all(&self);
 }
 
 /// A [`JoinHandle`] that can be cloned
@@ -95,6 +98,8 @@ pub struct IngestHandlerImpl<T = SystemProvider> {
 
     /// Future that resolves when the background worker exits
     join_handles: Vec<(String, SharedJoinHandle)>,
+
+    lifecycle_handle: LifecycleHandleImpl,
 
     /// A token that is used to trigger shutdown of the background worker
     shutdown: CancellationToken,
@@ -267,6 +272,7 @@ impl IngestHandlerImpl {
             data,
             topic,
             join_handles,
+            lifecycle_handle,
             shutdown,
             query_duration_success,
             query_duration_error_not_found,
@@ -370,6 +376,13 @@ impl IngestHandler for IngestHandlerImpl {
         shard_indexes: Vec<ShardIndex>,
     ) -> BTreeMap<ShardIndex, ShardProgress> {
         self.data.progresses(shard_indexes).await
+    }
+
+    /// Persist everything immediately. This is called by the `PersistService` gRPC API in tests
+    /// asserting on persisted data, and should probably not be used in production. May behave in
+    /// unexpected ways if used concurrently with writes or lifecycle persists.
+    async fn persist_all(&self) {
+        self.lifecycle_handle.state.lock().persist_everything_now = true;
     }
 }
 

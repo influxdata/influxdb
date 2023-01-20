@@ -241,6 +241,27 @@ impl MiniCluster {
             .with_compactor_config(compactor_config)
     }
 
+    /// Create a non-shared "standard" MiniCluster that has a router, ingester set to essentially
+    /// never persist data (except on-demand), and querier. Save config for a compactor, but the
+    /// compactor should be run on-demand in tests using `compactor run-once` rather than using
+    /// `run compactor`.
+    pub async fn create_non_shared_standard_never_persist(database_url: String) -> Self {
+        let router_config = TestConfig::new_router(&database_url);
+        let ingester_config = TestConfig::new_ingester_never_persist(&router_config);
+        let querier_config = TestConfig::new_querier(&ingester_config);
+        let compactor_config = TestConfig::new_compactor(&ingester_config);
+
+        // Set up the cluster  ====================================
+        Self::new()
+            .with_router(router_config)
+            .await
+            .with_ingester(ingester_config)
+            .await
+            .with_querier(querier_config)
+            .await
+            .with_compactor_config(compactor_config)
+    }
+
     /// Create a non-shared "version 2" "standard" MiniCluster that has a router, ingester, querier.
     pub async fn create_non_shared2(database_url: String) -> Self {
         let ingester_config = TestConfig::new_ingester2(&database_url);
