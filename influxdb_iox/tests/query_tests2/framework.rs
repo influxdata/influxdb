@@ -66,10 +66,10 @@ impl TestCase {
             for chunk_stage in self.chunk_stage {
                 info!("Using IoxArchitecture::{arch:?} and ChunkStage::{chunk_stage:?}");
 
-                // Setup that differs by architecture and chunk stage. These need to be non-shared
-                // clusters; if they're shared, then the tests that run in parallel and persist at
-                // particular times mess with each other because persistence applies to everything in
-                // the ingester.
+                // Setup that differs by architecture and chunk stage. In the Kafka architecture,
+                // these need to be non-shared clusters; if they're shared, then the tests that run
+                // in parallel and persist at particular times mess with each other because
+                // persistence applies to everything in the ingester.
                 let mut cluster = match (arch, chunk_stage) {
                     (IoxArchitecture::Kafkaful, ChunkStage::Ingester) => {
                         MiniCluster::create_non_shared_standard_never_persist(database_url.clone())
@@ -79,10 +79,10 @@ impl TestCase {
                         MiniCluster::create_non_shared_standard(database_url.clone()).await
                     }
                     (IoxArchitecture::Kafkaless, ChunkStage::Ingester) => {
-                        MiniCluster::create_non_shared2_never_persist(database_url.clone()).await
+                        MiniCluster::create_shared2_never_persist(database_url.clone()).await
                     }
                     (IoxArchitecture::Kafkaless, ChunkStage::Parquet) => {
-                        MiniCluster::create_non_shared2(database_url.clone()).await
+                        MiniCluster::create_shared2(database_url.clone()).await
                     }
                     (_, ChunkStage::All) => unreachable!("See `impl IntoIterator for ChunkStage`"),
                 };

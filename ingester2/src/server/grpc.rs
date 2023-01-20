@@ -120,6 +120,7 @@ where
         PersistServiceServer::new(PersistHandler::new(
             Arc::clone(&self.buffer),
             Arc::clone(&self.persist_handle),
+            Arc::clone(&self.catalog),
         ))
     }
 

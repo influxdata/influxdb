@@ -494,7 +494,10 @@ impl MiniCluster {
         let mut ingester_client =
             influxdb_iox_client::ingester::Client::new(self.ingester().ingester_grpc_connection());
 
-        ingester_client.persist().await.unwrap();
+        ingester_client
+            .persist(self.namespace().into())
+            .await
+            .unwrap();
     }
 
     /// Get a reference to the mini cluster's other servers.

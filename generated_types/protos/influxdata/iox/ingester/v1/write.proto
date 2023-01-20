@@ -18,6 +18,9 @@ service PersistService {
   rpc Persist(PersistRequest) returns (PersistResponse);
 }
 
-message PersistRequest {}
+message PersistRequest {
+  // The namespace to persist
+  string namespace = 1;
+}
 
 message PersistResponse {}

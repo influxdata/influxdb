@@ -98,7 +98,7 @@ trait InfluxRpcTest: Send + Sync + 'static {
                         .await
                 }
                 IoxArchitecture::Kafkaless => {
-                    MiniCluster::create_non_shared2_never_persist(database_url.clone()).await
+                    MiniCluster::create_shared2_never_persist(database_url.clone()).await
                 }
             };
 
