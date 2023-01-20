@@ -3,17 +3,19 @@
 mod request;
 
 use arrow::error::ArrowError;
-use data_types::NamespaceNameError;
-use datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
-use futures::{ready, stream::BoxStream, Stream, StreamExt, TryStreamExt};
-use generated_types::influxdata::iox::querier::v1 as proto;
-use iox_arrow_flight::{
+use arrow_flight::{
+    encode::{FlightDataEncoder, FlightDataEncoderBuilder},
+    error::FlightError,
     flight_descriptor::DescriptorType,
     flight_service_server::{FlightService as Flight, FlightServiceServer as FlightServer},
     sql::{CommandStatementQuery, ProstMessageExt},
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightEndpoint, FlightInfo,
-    HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, StreamEncoderBuilder, Ticket,
+    HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
 };
+use data_types::NamespaceNameError;
+use datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
+use futures::{ready, Stream, StreamExt, TryStreamExt};
+use generated_types::influxdata::iox::querier::v1 as proto;
 use iox_query::{
     exec::{ExecutionContextProvider, IOxSessionContext},
     QueryCompletedToken, QueryNamespace,
@@ -235,7 +237,7 @@ where
     type ListFlightsStream = TonicStream<FlightInfo>;
     type DoGetStream = TonicStream<FlightData>;
     type DoPutStream = TonicStream<PutResult>;
-    type DoActionStream = TonicStream<iox_arrow_flight::Result>;
+    type DoActionStream = TonicStream<arrow_flight::Result>;
     type ListActionsStream = TonicStream<ActionType>;
     type DoExchangeStream = TonicStream<FlightData>;
 
@@ -461,7 +463,7 @@ where
 /// Wrapper over a FlightDataEncodeStream that adds IOx specfic
 /// metadata and records completion
 struct GetStream {
-    inner: BoxStream<'static, Result<FlightData, tonic::Status>>,
+    inner: FlightDataEncoder,
     #[allow(dead_code)]
     permit: InstrumentedAsyncOwnedSemaphorePermit,
     query_completed_token: QueryCompletedToken,
@@ -478,28 +480,18 @@ impl GetStream {
     ) -> Result<Self, tonic::Status> {
         let app_metadata = proto::AppMetadata {};
 
-        // setup inner stream
-        let builder = StreamEncoderBuilder::new().with_metadata(app_metadata.encode_to_vec());
-
-        let schema = physical_plan.schema();
-
         let query_results = ctx
             .execute_stream(Arc::clone(&physical_plan))
             .await
             .context(QuerySnafu {
                 namespace_name: namespace_name.clone(),
             })?
-            // Convert from Arrow errors to tonic errors
-            .map_err(move |e| {
-                Error::Query {
-                    namespace_name: namespace_name.clone(),
-                    source: e.into(),
-                }
-                .into()
-            })
-            .boxed();
+            .map_err(FlightError::from);
 
-        let inner = builder.build(schema, query_results);
+        // setup inner stream
+        let inner = FlightDataEncoderBuilder::new()
+            .with_metadata(app_metadata.encode_to_vec().into())
+            .build(query_results);
 
         Ok(Self {
             inner,
@@ -534,10 +526,23 @@ impl Stream for GetStream {
                 }
                 Some(Err(e)) => {
                     self.done = true;
-                    return Poll::Ready(Some(Err(e)));
+                    return Poll::Ready(Some(Err(flight_error_to_status(e))));
                 }
             }
         }
+    }
+}
+
+// TODO remove this after
+// https://github.com/apache/arrow-rs/issues/3566
+fn flight_error_to_status(e: FlightError) -> tonic::Status {
+    // Special error code translation logic for finding root of chain:
+    if let FlightError::Arrow(e) = e {
+        let msg = e.to_string();
+        let code = datafusion_error_to_tonic_code(&DataFusionError::from(e));
+        tonic::Status::new(code, msg)
+    } else {
+        tonic::Status::from(e)
     }
 }
 

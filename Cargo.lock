@@ -997,6 +997,7 @@ dependencies = [
  "async-trait",
  "backoff",
  "data_types",
+ "datafusion",
  "futures",
  "iox_catalog",
  "iox_query",
@@ -1004,7 +1005,9 @@ dependencies = [
  "metric",
  "observability_deps",
  "parquet_file",
+ "predicate",
  "rand",
+ "schema",
  "snafu",
  "test_helpers",
  "tokio",
@@ -2774,20 +2777,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iox_arrow_flight"
-version = "0.1.0"
-dependencies = [
- "arrow",
- "arrow-flight",
- "futures",
- "futures-util",
- "prost 0.11.6",
- "prost-types 0.11.6",
- "tonic",
- "workspace-hack",
-]
-
-[[package]]
 name = "iox_catalog"
 version = "0.1.0"
 dependencies = [
@@ -3574,6 +3563,18 @@ version = "0.24.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fa52e972a9a719cecb6864fb88568781eb706bac2cd1d4f04a648542dbf78069"
 dependencies = [
+ "bitflags",
+ "cfg-if",
+ "libc",
+]
+
+[[package]]
+name = "nix"
+version = "0.25.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f346ff70e7dbfd675fe90590b92d59ef2de15a8779ae305ebcbfd3f0caf59be4"
+dependencies = [
+ "autocfg",
  "bitflags",
  "cfg-if",
  "libc",
@@ -4750,11 +4751,11 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.11.13"
+version = "0.11.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68cc60575865c7831548863cc02356512e3f1dc2f3f82cb837d7fc4cc8f3c97c"
+checksum = "21eed90ec8570952d53b772ecf8f206aa1ec9a3d76b2521c56c42973f2d91ee9"
 dependencies = [
- "base64 0.13.1",
+ "base64 0.21.0",
  "bytes",
  "encoding_rs",
  "futures-core",
@@ -4783,6 +4784,7 @@ dependencies = [
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "wasm-streams",
  "web-sys",
  "webpki-roots",
  "winreg",
@@ -4945,9 +4947,9 @@ checksum = "5583e89e108996506031660fe09baa5011b9dd0341b89029313006d1fb508d70"
 
 [[package]]
 name = "rustyline"
-version = "10.1.0"
+version = "10.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5fc2d30f0bb29c4308f902d4a147b2d6cb022b59771463d9785f37e21f544df7"
+checksum = "c1e83c32c3f3c33b08496e0d1df9ea8c64d39adb8eb36a1ebb1440c690697aef"
 dependencies = [
  "bitflags",
  "cfg-if",
@@ -4956,7 +4958,7 @@ dependencies = [
  "libc",
  "log",
  "memchr",
- "nix 0.26.2",
+ "nix 0.25.1",
  "scopeguard",
  "unicode-segmentation",
  "unicode-width",
@@ -5111,6 +5113,7 @@ name = "service_grpc_flight"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "arrow-flight",
  "arrow_util",
  "assert_matches",
  "bytes",
@@ -5118,7 +5121,6 @@ dependencies = [
  "datafusion",
  "futures",
  "generated_types",
- "iox_arrow_flight",
  "iox_query",
  "metric",
  "observability_deps",
@@ -6472,6 +6474,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c38c045535d93ec4f0b4defec448e4291638ee608530863b1e2ba115d4fff7f"
 
 [[package]]
+name = "wasm-streams"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6bbae3363c08332cadccd13b67db371814cd214c2524020932f0804b8cf7c078"
+dependencies = [
+ "futures-util",
+ "js-sys",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
 name = "web-sys"
 version = "0.3.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6660,7 +6675,6 @@ dependencies = [
  "log",
  "md-5",
  "memchr",
- "nix 0.26.2",
  "nom",
  "num-integer",
  "num-traits",

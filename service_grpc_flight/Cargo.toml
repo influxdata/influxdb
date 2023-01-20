@@ -21,9 +21,9 @@ tracker = { path = "../tracker" }
 
 # Crates.io dependencies, in alphabetical order
 arrow = { workspace = true, features = ["prettyprint"] }
+arrow-flight = { workspace = true, features=["flight-sql-experimental"] }
 bytes = "1.3"
 futures = "0.3"
-iox_arrow_flight = { path = "../iox_arrow_flight" }
 prost = "0.11"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.91"

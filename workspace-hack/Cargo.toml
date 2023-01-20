@@ -67,7 +67,7 @@ rand_core = { version = "0.6", default-features = false, features = ["alloc", "g
 regex = { version = "1", features = ["aho-corasick", "memchr", "perf", "perf-cache", "perf-dfa", "perf-inline", "perf-literal", "std", "unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
 regex-automata = { version = "0.1", features = ["regex-syntax", "std"] }
 regex-syntax = { version = "0.6", features = ["unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
-reqwest = { version = "0.11", default-features = false, features = ["__rustls", "__tls", "hyper-rustls", "json", "rustls", "rustls-pemfile", "rustls-tls", "rustls-tls-webpki-roots", "serde_json", "stream", "tokio-rustls", "tokio-util", "webpki-roots"] }
+reqwest = { version = "0.11", default-features = false, features = ["__rustls", "__tls", "hyper-rustls", "json", "rustls", "rustls-pemfile", "rustls-tls", "rustls-tls-webpki-roots", "serde_json", "stream", "tokio-rustls", "tokio-util", "wasm-streams", "webpki-roots"] }
 ring = { version = "0.16", features = ["alloc", "dev_urandom_fallback", "once_cell", "std"] }
 serde = { version = "1", features = ["derive", "rc", "serde_derive", "std"] }
 serde_json = { version = "1", features = ["raw_value", "std"] }
@@ -148,7 +148,6 @@ uuid = { version = "1", features = ["getrandom", "rng", "std", "v4"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
 io-lifetimes = { version = "1", features = ["close", "libc", "windows-sys"] }
-nix = { version = "0.26", features = ["acct", "aio", "dir", "env", "event", "feature", "fs", "hostname", "inotify", "ioctl", "kmod", "memoffset", "mman", "mount", "mqueue", "net", "personality", "pin-utils", "poll", "process", "pthread", "ptrace", "quota", "reboot", "resource", "sched", "signal", "socket", "term", "time", "ucontext", "uio", "user", "zerocopy"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 rustix = { version = "0.36", features = ["fs", "io-lifetimes", "libc", "std", "termios", "use-libc-auxv"] }
 
@@ -157,7 +156,6 @@ once_cell = { version = "1", default-features = false, features = ["unstable"] }
 
 [target.x86_64-apple-darwin.dependencies]
 io-lifetimes = { version = "1", features = ["close", "libc", "windows-sys"] }
-nix = { version = "0.26", features = ["acct", "aio", "dir", "env", "event", "feature", "fs", "hostname", "inotify", "ioctl", "kmod", "memoffset", "mman", "mount", "mqueue", "net", "personality", "pin-utils", "poll", "process", "pthread", "ptrace", "quota", "reboot", "resource", "sched", "signal", "socket", "term", "time", "ucontext", "uio", "user", "zerocopy"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 rustix = { version = "0.36", features = ["fs", "io-lifetimes", "libc", "std", "termios", "use-libc-auxv"] }
 
@@ -166,7 +164,6 @@ once_cell = { version = "1", default-features = false, features = ["unstable"] }
 
 [target.aarch64-apple-darwin.dependencies]
 io-lifetimes = { version = "1", features = ["close", "libc", "windows-sys"] }
-nix = { version = "0.26", features = ["acct", "aio", "dir", "env", "event", "feature", "fs", "hostname", "inotify", "ioctl", "kmod", "memoffset", "mman", "mount", "mqueue", "net", "personality", "pin-utils", "poll", "process", "pthread", "ptrace", "quota", "reboot", "resource", "sched", "signal", "socket", "term", "time", "ucontext", "uio", "user", "zerocopy"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 rustix = { version = "0.36", features = ["fs", "io-lifetimes", "libc", "std", "termios", "use-libc-auxv"] }
 

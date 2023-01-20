@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 async-trait = "0.1.61"
 backoff = { path = "../backoff" }
+datafusion = { workspace = true }
 data_types = { path = "../data_types" }
 futures = "0.3"
 iox_catalog = { path = "../iox_catalog" }
@@ -16,7 +17,9 @@ iox_time = { path = "../iox_time" }
 metric = { path = "../metric" }
 observability_deps = { path = "../observability_deps" }
 parquet_file = { path = "../parquet_file" }
+predicate = { path = "../predicate" }
 rand = "0.8.3"
+schema = { path = "../schema" }
 snafu = "0.7"
 tokio = { version = "1", features = ["macros", "rt", "sync"] }
 tokio-util = { version = "0.7.4" }

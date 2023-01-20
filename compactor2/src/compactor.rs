@@ -9,7 +9,11 @@ use observability_deps::tracing::warn;
 use tokio::task::{JoinError, JoinHandle};
 use tokio_util::sync::CancellationToken;
 
-use crate::{components::hardcoded::hardcoded_components, config::Config, driver::compact};
+use crate::{
+    components::{hardcoded::hardcoded_components, report::log_components},
+    config::Config,
+    driver::compact,
+};
 
 /// A [`JoinHandle`] that can be cloned
 type SharedJoinHandle = Shared<BoxFuture<'static, Result<(), Arc<JoinError>>>>;
@@ -33,6 +37,7 @@ impl Compactor2 {
         let shutdown_captured = shutdown.clone();
 
         let components = hardcoded_components(&config);
+        log_components(&components);
 
         let worker = tokio::spawn(async move {
             tokio::select! {

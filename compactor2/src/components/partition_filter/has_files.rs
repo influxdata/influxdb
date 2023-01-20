@@ -22,3 +22,24 @@ impl PartitionFilter for HasFilesPartitionFilter {
         !files.is_empty()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::test_util::ParquetFileBuilder;
+
+    use super::*;
+
+    #[test]
+    fn test_display() {
+        assert_eq!(HasFilesPartitionFilter::new().to_string(), "has_files");
+    }
+
+    #[test]
+    fn test_apply() {
+        let filter = HasFilesPartitionFilter::new();
+        let f = ParquetFileBuilder::new(0).build();
+
+        assert!(!filter.apply(&[]));
+        assert!(filter.apply(&[f]));
+    }
+}
