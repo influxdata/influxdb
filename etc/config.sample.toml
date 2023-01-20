@@ -185,6 +185,9 @@
   # discover slow or resource intensive queries.  Setting the value to 0 disables the slow query logging.
   # log-queries-after = "0s"
 
+  # Enables the logging of queries that are killed as a result of exceeding `query-timeout`
+  # log-timedout-queries = false
+
   # The maximum number of points a SELECT can process.  A value of 0 will make
   # the maximum point count unlimited.  This will only be checked every second so queries will not
   # be aborted immediately when hitting the limit.
