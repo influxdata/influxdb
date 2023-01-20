@@ -33,4 +33,24 @@ pub struct Config {
 
     /// Partitions with recent created files these last minutes are selected for compaction.
     pub partition_minute_threshold: u64,
+
+    /// Desired max size of compacted parquet files
+    /// It is a target desired value than a guarantee
+    pub max_desired_file_size_bytes: u64,
+
+    /// Percentage of desired max file size.
+    /// If the estimated compacted result is too small, no need to split it.
+    /// This percentage is to determine how small it is:
+    ///    < percentage_max_file_size * max_desired_file_size_bytes:
+    /// This value must be between (0, 100)
+    pub percentage_max_file_size: u16,
+
+    /// Split file percentage
+    /// If the estimated compacted result is neither too small nor too large, it will be split
+    /// into 2 files determined by this percentage.
+    ///    . Too small means: < percentage_max_file_size * max_desired_file_size_bytes
+    ///    . Too large means: > max_desired_file_size_bytes
+    ///    . Any size in the middle will be considered neither too small nor too large
+    /// This value must be between (0, 100)
+    pub split_percentage: u16,
 }

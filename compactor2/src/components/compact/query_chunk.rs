@@ -11,7 +11,7 @@ use iox_query::{
     util::create_basic_summary,
     QueryChunk, QueryChunkData, QueryChunkMeta,
 };
-use observability_deps::tracing::trace;
+use observability_deps::tracing::debug;
 use parquet_file::{chunk::ParquetChunk, storage::ParquetStorage};
 use predicate::{delete_predicate::tombstones_to_delete_predicates, Predicate};
 use schema::{merge::SchemaMerger, sort::SortKey, Projection, Schema};
@@ -185,6 +185,7 @@ impl QueryChunk for QueryableParquetChunk {
 
     // Order of the chunk so they can be deduplicated correctly
     fn order(&self) -> ChunkOrder {
+        // TODO: If we chnage this design specified in driver.rs's compact functions, we will need to refine this
         // Currently, we only compact files of level_n with level_n+1 and produce level_n+1 files,
         // and with the strictly design that:
         //    . Level-0 files can overlap with any files.
@@ -254,12 +255,14 @@ pub fn to_queryable_parquet_chunk(
     let max_time = file.max_time;
     let compaction_level = file.compaction_level;
 
-    trace!(
-        parquet_file_id=?file.id,
-        parquet_file_namespace_id=?file.namespace_id,
-        parquet_file_table_id=?file.table_id,
-        parquet_file_partition_id=?file.partition_id,
-        parquet_file_object_store_id=?file.object_store_id,
+    // Make it debug for it to show up in prod's initial setup
+    let uuid = file.object_store_id;
+    debug!(
+        parquet_file_id = file.id.get(),
+        parquet_file_namespace_id = file.namespace_id.get(),
+        parquet_file_table_id = file.table_id.get(),
+        parquet_file_partition_id = file.partition_id.get(),
+        parquet_file_object_store_id = uuid.to_string().as_str(),
         "built parquet chunk from metadata"
     );
 

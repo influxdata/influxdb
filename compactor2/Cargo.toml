@@ -27,4 +27,6 @@ uuid = { version = "1", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
+arrow_util = { path = "../arrow_util" }
+iox_tests = { path = "../iox_tests" }
 test_helpers = { path = "../test_helpers"}

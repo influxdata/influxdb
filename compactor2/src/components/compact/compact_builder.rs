@@ -4,7 +4,7 @@ use std::{
 };
 
 use data_types::{CompactionLevel, ParquetFile, TimestampMinMax};
-use datafusion::logical_expr::LogicalPlan;
+use datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
 use iox_query::{
     exec::{Executor, ExecutorType},
     frontend::reorg::ReorgPlanner,
@@ -24,12 +24,18 @@ use super::partition::PartitionInfo;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
-pub(crate) enum Error {
+pub enum Error {
     #[snafu(display("Error building compact logical plan  {}", source))]
     CompactLogicalPlan {
         source: iox_query::frontend::reorg::Error,
     },
+
+    #[snafu(display("Error building compact physical plan  {}", source))]
+    CompactPhysicalPlan { source: DataFusionError },
 }
+
+/// Observer function (for testing) that is invoked on the physical plan to be run
+type PlanObserver = Box<dyn Fn(&dyn ExecutionPlan) + Send>;
 
 /// Builder for compaction plans
 pub(crate) struct CompactPlanBuilder {
@@ -43,6 +49,8 @@ pub(crate) struct CompactPlanBuilder {
     percentage_max_file_size: u16,
     split_percentage: u16,
     target_level: CompactionLevel,
+    // This is for plan observation for testing
+    plan_observer: Option<PlanObserver>,
 }
 
 impl CompactPlanBuilder {
@@ -59,17 +67,26 @@ impl CompactPlanBuilder {
             store: config.parquet_store.clone(),
             exec: Arc::clone(&config.exec),
             _time_provider: Arc::clone(&config.time_provider),
-            // TODO: make these configurable
-            max_desired_file_size_bytes: 100 * 1024 * 1024,
-            percentage_max_file_size: 30,
-            split_percentage: 90,
+            max_desired_file_size_bytes: config.max_desired_file_size_bytes,
+            percentage_max_file_size: config.percentage_max_file_size,
+            split_percentage: config.split_percentage,
             target_level: compaction_level,
+            plan_observer: None,
         }
     }
 
-    /// Builds a logical compact plan respecting the specified file boundaries
+    /// specify a function to call on the created physical plan, prior to its execution (used for testing)
+    #[cfg(test)]
+    #[allow(dead_code)]
+    pub fn with_plan_observer(mut self, plan_observer: PlanObserver) -> Self {
+        self.plan_observer = Some(plan_observer);
+        self
+    }
+
+    /// Builds a compact plan respecting the specified file boundaries
     /// This functon assumes that the compaction-levels of the files are  either target_level or target_level-1
-    pub fn build_logical_compact_plan(self) -> Result<LogicalPlan, Error> {
+    pub async fn build_compact_plan(self) -> Result<Arc<dyn ExecutionPlan>, Error> {
+        //Result<LogicalPlan, Error> {
         let Self {
             partition,
             files,
@@ -80,6 +97,7 @@ impl CompactPlanBuilder {
             percentage_max_file_size,
             split_percentage,
             target_level,
+            plan_observer,
         } = self;
 
         // total file size is the sum of the file sizes of the files to compact
@@ -143,6 +161,7 @@ impl CompactPlanBuilder {
         let (small_cutoff_bytes, large_cutoff_bytes) =
             Self::cutoff_bytes(max_desired_file_size_bytes, percentage_max_file_size);
 
+        // Build logical compact plan
         let ctx = exec.new_context(ExecutorType::Reorg);
         let plan = if total_size <= small_cutoff_bytes {
             // Compact everything into one file
@@ -196,7 +215,17 @@ impl CompactPlanBuilder {
             }
         };
 
-        Ok(plan)
+        // Build physical compact plan
+        let physical_plan = ctx
+            .create_physical_plan(&plan)
+            .await
+            .context(CompactPhysicalPlanSnafu)?;
+
+        if let Some(plan_observer) = plan_observer {
+            plan_observer(physical_plan.as_ref());
+        }
+
+        Ok(physical_plan)
     }
 
     // compute cut off bytes for files
@@ -268,5 +297,167 @@ impl CompactPlanBuilder {
         chunk_times
             .iter()
             .any(|&chunk| chunk.max >= min_time && chunk.min <= max_time)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use data_types::TimestampMinMax;
+
+    use crate::components::compact::compact_builder::CompactPlanBuilder;
+
+    #[test]
+    fn test_cutoff_bytes() {
+        let (small, large) = CompactPlanBuilder::cutoff_bytes(100, 30);
+        assert_eq!(small, 30);
+        assert_eq!(large, 130);
+
+        let (small, large) = CompactPlanBuilder::cutoff_bytes(100 * 1024 * 1024, 30);
+        assert_eq!(small, 30 * 1024 * 1024);
+        assert_eq!(large, 130 * 1024 * 1024);
+
+        let (small, large) = CompactPlanBuilder::cutoff_bytes(100, 60);
+        assert_eq!(small, 60);
+        assert_eq!(large, 160);
+    }
+
+    #[test]
+    fn test_compute_split_time() {
+        let min_time = 1;
+        let max_time = 11;
+        let total_size = 100;
+        let max_desired_file_size = 100;
+        let chunk_times = vec![TimestampMinMax {
+            min: min_time,
+            max: max_time,
+        }];
+
+        // no split
+        let result = CompactPlanBuilder::compute_split_time(
+            chunk_times.clone(),
+            min_time,
+            max_time,
+            total_size,
+            max_desired_file_size,
+        );
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], max_time);
+
+        // split 70% and 30%
+        let max_desired_file_size = 70;
+        let result = CompactPlanBuilder::compute_split_time(
+            chunk_times.clone(),
+            min_time,
+            max_time,
+            total_size,
+            max_desired_file_size,
+        );
+        // only need to store the last split time
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], 8); // = 1 (min_time) + 7
+
+        // split 40%, 40%, 20%
+        let max_desired_file_size = 40;
+        let result = CompactPlanBuilder::compute_split_time(
+            chunk_times,
+            min_time,
+            max_time,
+            total_size,
+            max_desired_file_size,
+        );
+        // store first and second split time
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0], 5); // = 1 (min_time) + 4
+        assert_eq!(result[1], 9); // = 5 (previous split_time) + 4
+    }
+
+    #[test]
+    fn compute_split_time_when_min_time_equals_max() {
+        // Imagine a customer is backfilling a large amount of data and for some reason, all the
+        // times on the data are exactly the same. That means the min_time and max_time will be the
+        // same, but the total_size will be greater than the desired size.
+        // We will not split it becasue the split has to stick to non-overlapped time range
+
+        let min_time = 1;
+        let max_time = 1;
+
+        let total_size = 200;
+        let max_desired_file_size = 100;
+        let chunk_times = vec![TimestampMinMax {
+            min: min_time,
+            max: max_time,
+        }];
+
+        let result = CompactPlanBuilder::compute_split_time(
+            chunk_times,
+            min_time,
+            max_time,
+            total_size,
+            max_desired_file_size,
+        );
+
+        // must return vector of one containing max_time
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], 1);
+    }
+
+    #[test]
+    fn compute_split_time_please_dont_explode() {
+        // degenerated case where the step size is so small that it is < 1 (but > 0). In this case we shall still
+        // not loop forever.
+        let min_time = 10;
+        let max_time = 20;
+
+        let total_size = 600000;
+        let max_desired_file_size = 10000;
+        let chunk_times = vec![TimestampMinMax {
+            min: min_time,
+            max: max_time,
+        }];
+
+        let result = CompactPlanBuilder::compute_split_time(
+            chunk_times,
+            min_time,
+            max_time,
+            total_size,
+            max_desired_file_size,
+        );
+        assert_eq!(result.len(), 9);
+    }
+
+    #[test]
+    fn compute_split_time_chunk_gaps() {
+        // When the chunks have large gaps, we should not introduce a splits that cause time ranges
+        // known to be empty.  Split T2 below should not exist.
+        //                   │               │
+        //┌────────────────┐                   ┌──────────────┐
+        //│    Chunk 1     │ │               │ │   Chunk 2    │
+        //└────────────────┘                   └──────────────┘
+        //                   │               │
+        //                Split T1       Split T2
+
+        // Create a scenario where naive splitting would produce 2 splits (3 chunks) as shown above, but
+        // the only chunk data present is in the highest and lowest quarters, similar to what's shown above.
+        let min_time = 1;
+        let max_time = 100;
+
+        let total_size = 200;
+        let max_desired_file_size = total_size / 3;
+        let chunk_times = vec![
+            TimestampMinMax { min: 1, max: 24 },
+            TimestampMinMax { min: 75, max: 100 },
+        ];
+
+        let result = CompactPlanBuilder::compute_split_time(
+            chunk_times,
+            min_time,
+            max_time,
+            total_size,
+            max_desired_file_size,
+        );
+
+        // must return vector of one, containing a Split T1 shown above.
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], 34);
     }
 }

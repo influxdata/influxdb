@@ -994,6 +994,7 @@ dependencies = [
 name = "compactor2"
 version = "0.1.0"
 dependencies = [
+ "arrow_util",
  "async-trait",
  "backoff",
  "data_types",
@@ -1001,6 +1002,7 @@ dependencies = [
  "futures",
  "iox_catalog",
  "iox_query",
+ "iox_tests",
  "iox_time",
  "metric",
  "observability_deps",

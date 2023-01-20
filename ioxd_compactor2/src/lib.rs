@@ -137,6 +137,9 @@ pub fn create_compactor2_server_type(
         backoff_config: backoff::BackoffConfig::default(),
         partition_concurrency: compactor_config.compaction_partition_concurrency,
         partition_minute_threshold: compactor_config.compaction_partition_minute_threshold,
+        max_desired_file_size_bytes: compactor_config.max_desired_file_size_bytes,
+        percentage_max_file_size: compactor_config.percentage_max_file_size,
+        split_percentage: compactor_config.split_percentage,
     });
     Arc::new(Compactor2ServerType::new(
         compactor,

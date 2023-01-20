@@ -22,14 +22,15 @@ pub struct PartitionInfo {
     /// Namespace ID
     pub namespace_id: NamespaceId,
 
+    /// Namespace name
+    pub namespace_name: String,
+
     /// Table.
     pub table: Arc<Table>,
 
     // Table schema
     pub table_schema: Arc<TableSchema>,
 
-    // /// Counts of the number of columns of each type, used for estimating arrow size
-    // pub column_type_counts: Vec<ColumnTypeCount>,
     /// Sort key of the partition
     pub sort_key: Option<SortKey>,
 
@@ -42,6 +43,7 @@ impl PartitionInfo {
     pub fn new(
         partition_id: PartitionId,
         namespace_id: NamespaceId,
+        namespace_name: String,
         table: Arc<Table>,
         table_schema: Arc<TableSchema>,
         sort_key: Option<SortKey>,
@@ -50,6 +52,7 @@ impl PartitionInfo {
         Self {
             partition_id,
             namespace_id,
+            namespace_name,
             table,
             table_schema,
             sort_key,

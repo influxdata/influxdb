@@ -1,22 +1,22 @@
 use std::{fmt::Display, sync::Arc};
 
 use async_trait::async_trait;
-use backoff::BackoffConfig;
-use data_types::{NamespaceId, NamespaceSchema};
+use backoff::{Backoff, BackoffConfig};
+use data_types::{Namespace, NamespaceId, NamespaceSchema};
 use iox_catalog::interface::{get_schema_by_id, Catalog};
 
 use super::NamespacesSource;
 
 #[derive(Debug)]
 pub struct CatalogNamespacesSource {
-    _backoff_config: BackoffConfig,
+    backoff_config: BackoffConfig,
     catalog: Arc<dyn Catalog>,
 }
 
 impl CatalogNamespacesSource {
     pub fn new(backoff_config: BackoffConfig, catalog: Arc<dyn Catalog>) -> Self {
         Self {
-            _backoff_config: backoff_config,
+            backoff_config,
             catalog,
         }
     }
@@ -30,7 +30,21 @@ impl Display for CatalogNamespacesSource {
 
 #[async_trait]
 impl NamespacesSource for CatalogNamespacesSource {
-    async fn fetch(&self, ns: NamespaceId) -> Option<NamespaceSchema> {
+    async fn fetch_by_id(&self, ns: NamespaceId) -> Option<Namespace> {
+        Backoff::new(&self.backoff_config)
+            .retry_all_errors("namespace_of_given_namespace_id", || async {
+                self.catalog
+                    .repositories()
+                    .await
+                    .namespaces()
+                    .get_by_id(ns)
+                    .await
+            })
+            .await
+            .expect("retry forever")
+    }
+
+    async fn fetch_schema_by_id(&self, ns: NamespaceId) -> Option<NamespaceSchema> {
         let mut repos = self.catalog.repositories().await;
 
         // todos:
@@ -39,10 +53,6 @@ impl NamespacesSource for CatalogNamespacesSource {
         //      and instead read and build TableSchema for a given TableId.
         let ns = get_schema_by_id(ns, repos.as_mut()).await;
 
-        if let Ok(ns) = ns {
-            return Some(ns);
-        } else {
-            return None;
-        }
+        ns.ok()
     }
 }

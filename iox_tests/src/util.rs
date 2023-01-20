@@ -957,6 +957,14 @@ pub struct TestParquetFile {
     pub size_override: Option<i64>,
 }
 
+impl From<TestParquetFile> for ParquetFile {
+    fn from(tpf: TestParquetFile) -> Self {
+        let TestParquetFile { parquet_file, .. } = tpf;
+
+        parquet_file
+    }
+}
+
 impl TestParquetFile {
     /// Make the parquet file deletable
     pub async fn flag_for_delete(&self) {
