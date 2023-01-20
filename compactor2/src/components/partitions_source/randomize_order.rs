@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use async_trait::async_trait;
-use data_types::PartitionId;
+use data_types::{Partition, PartitionId};
 use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 
 use super::PartitionsSource;
@@ -44,11 +44,19 @@ where
         partitions.shuffle(&mut rng);
         partitions
     }
+
+    // TODO: nothing randomized here and maybe  should have different trait for this?
+    async fn fetch_by_id(&self, partition_id: PartitionId) -> Option<Partition> {
+        let partition = self.inner.fetch_by_id(partition_id).await;
+        partition
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::components::partitions_source::mock::MockPartitionsSource;
+    use crate::{
+        components::partitions_source::mock::MockPartitionsSource, test_util::PartitionBuilder,
+    };
 
     use super::*;
 
@@ -68,15 +76,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_fetch_some() {
-        let ids = vec![
-            PartitionId::new(5),
-            PartitionId::new(1),
-            PartitionId::new(12),
-        ];
+        let p_1 = PartitionBuilder::new(5).build();
+        let p_2 = PartitionBuilder::new(1).build();
+        let p_3 = PartitionBuilder::new(12).build();
+        let partitions = vec![p_1.clone(), p_2.clone(), p_3.clone()];
 
         // shuffles
         let source = RandomizeOrderPartitionsSourcesWrapper::new(
-            MockPartitionsSource::new(ids.clone()),
+            MockPartitionsSource::new(partitions.clone()),
             123,
         );
         assert_eq!(
@@ -103,7 +110,7 @@ mod tests {
         // is deterministic with new source
         for _ in 0..100 {
             let source = RandomizeOrderPartitionsSourcesWrapper::new(
-                MockPartitionsSource::new(ids.clone()),
+                MockPartitionsSource::new(partitions.clone()),
                 123,
             );
             assert_eq!(
@@ -118,7 +125,7 @@ mod tests {
 
         // different seed => different output
         let source = RandomizeOrderPartitionsSourcesWrapper::new(
-            MockPartitionsSource::new(ids.clone()),
+            MockPartitionsSource::new(partitions.clone()),
             1234,
         );
         assert_eq!(

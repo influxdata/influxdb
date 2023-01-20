@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Display};
 
 use async_trait::async_trait;
-use data_types::PartitionId;
+use data_types::{Partition, PartitionId};
 
 pub mod catalog;
 pub mod logging;
@@ -17,4 +17,9 @@ pub trait PartitionsSource: Debug + Display + Send + Sync {
     ///
     /// This should only perform basic, efficient filtering. It MUST NOT inspect individual parquet files.
     async fn fetch(&self) -> Vec<PartitionId>;
+
+    /// Get partition for a given partition ID.
+    ///
+    /// This method performs retries.
+    async fn fetch_by_id(&self, partition_id: PartitionId) -> Option<Partition>;
 }

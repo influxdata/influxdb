@@ -62,5 +62,17 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             CatalogCommit::new(config.backoff_config.clone(), Arc::clone(&config.catalog)),
             &config.metric_registry,
         ))),
+        namespaces_source: Arc::new(
+            crate::components::namespaces_source::catalog::CatalogNamespacesSource::new(
+                config.backoff_config.clone(),
+                Arc::clone(&config.catalog),
+            ),
+        ),
+        tables_source: Arc::new(
+            crate::components::tables_source::catalog::CatalogTablesSource::new(
+                config.backoff_config.clone(),
+                Arc::clone(&config.catalog),
+            ),
+        ),
     })
 }
