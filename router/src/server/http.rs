@@ -153,6 +153,7 @@ impl From<&DmlError> for StatusCode {
             DmlError::RpcWrite(RpcWriteError::Upstream(_)) => StatusCode::INTERNAL_SERVER_ERROR,
             DmlError::RpcWrite(RpcWriteError::DeletesUnsupported) => StatusCode::NOT_IMPLEMENTED,
             DmlError::RpcWrite(RpcWriteError::Timeout(_)) => StatusCode::GATEWAY_TIMEOUT,
+            DmlError::RpcWrite(RpcWriteError::NoUpstream) => StatusCode::SERVICE_UNAVAILABLE,
         }
     }
 }
