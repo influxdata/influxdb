@@ -4825,6 +4825,7 @@ dependencies = [
  "bytes",
  "client_util",
  "criterion",
+ "crossbeam-utils",
  "data_types",
  "dml",
  "flate2",

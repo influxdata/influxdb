@@ -1,3 +1,4 @@
+mod circuit_breaker;
 mod client;
 
 use super::{DmlHandler, Partitioned};
