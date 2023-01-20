@@ -148,7 +148,6 @@ uuid = { version = "1", features = ["getrandom", "rng", "std", "v4"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
 io-lifetimes = { version = "1", features = ["close", "libc", "windows-sys"] }
-nix = { version = "0.26", features = ["acct", "aio", "dir", "env", "event", "feature", "fs", "hostname", "inotify", "ioctl", "kmod", "memoffset", "mman", "mount", "mqueue", "net", "personality", "pin-utils", "poll", "process", "pthread", "ptrace", "quota", "reboot", "resource", "sched", "signal", "socket", "term", "time", "ucontext", "uio", "user", "zerocopy"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 rustix = { version = "0.36", features = ["fs", "io-lifetimes", "libc", "std", "termios", "use-libc-auxv"] }
 
@@ -157,7 +156,6 @@ once_cell = { version = "1", default-features = false, features = ["unstable"] }
 
 [target.x86_64-apple-darwin.dependencies]
 io-lifetimes = { version = "1", features = ["close", "libc", "windows-sys"] }
-nix = { version = "0.26", features = ["acct", "aio", "dir", "env", "event", "feature", "fs", "hostname", "inotify", "ioctl", "kmod", "memoffset", "mman", "mount", "mqueue", "net", "personality", "pin-utils", "poll", "process", "pthread", "ptrace", "quota", "reboot", "resource", "sched", "signal", "socket", "term", "time", "ucontext", "uio", "user", "zerocopy"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 rustix = { version = "0.36", features = ["fs", "io-lifetimes", "libc", "std", "termios", "use-libc-auxv"] }
 
@@ -166,7 +164,6 @@ once_cell = { version = "1", default-features = false, features = ["unstable"] }
 
 [target.aarch64-apple-darwin.dependencies]
 io-lifetimes = { version = "1", features = ["close", "libc", "windows-sys"] }
-nix = { version = "0.26", features = ["acct", "aio", "dir", "env", "event", "feature", "fs", "hostname", "inotify", "ioctl", "kmod", "memoffset", "mman", "mount", "mqueue", "net", "personality", "pin-utils", "poll", "process", "pthread", "ptrace", "quota", "reboot", "resource", "sched", "signal", "socket", "term", "time", "ucontext", "uio", "user", "zerocopy"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 rustix = { version = "0.36", features = ["fs", "io-lifetimes", "libc", "std", "termios", "use-libc-auxv"] }
 
