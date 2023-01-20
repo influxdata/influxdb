@@ -7,7 +7,7 @@ use datafusion::{
     logical_expr::{
         expr_rewriter::{ExprRewritable, ExprRewriter, RewriteRecursion},
         expr_visitor::{ExprVisitable, ExpressionVisitor, Recursion},
-        Aggregate, BuiltinScalarFunction, Extension, LogicalPlan, Sort,
+        Aggregate, BuiltinScalarFunction, Extension, LogicalPlan,
     },
     optimizer::{optimizer::ApplyOrder, OptimizerConfig, OptimizerRule},
     prelude::{col, Expr},
@@ -36,8 +36,7 @@ use std::sync::Arc;
 /// Instead, the plan is transformed to this:
 /// ```text
 /// GapFill: groupBy=[[datebingapfill(IntervalDayTime("60000"), temps.time, TimestampNanosecond(0, None)))]], aggr=[[AVG(temps.temp)]], start=..., stop=...
-///   Sort: datebingapfill(IntervalDayTime("60000"), temps.time, TimestampNanosecond(0, None))
-///     Aggregate: groupBy=[[datebingapfill(IntervalDayTime("60000"), temps.time, TimestampNanosecond(0, None)))]], aggr=[[AVG(temps.temp)]]
+///   Aggregate: groupBy=[[datebingapfill(IntervalDayTime("60000"), temps.time, TimestampNanosecond(0, None)))]], aggr=[[AVG(temps.temp)]]
 /// ```
 /// This optimizer rule makes that transformation.
 pub struct HandleGapFill;
@@ -104,57 +103,34 @@ fn handle_aggregate(aggr: &Aggregate) -> Result<Option<LogicalPlan>> {
         return Ok(None);
     };
 
-    let orig_dbg_name = schema.fields()[dbg_idx].name();
-
     let new_aggr_plan = {
-        let new_aggr_plan =
-            Aggregate::try_new(Arc::clone(input), new_group_expr, aggr_expr.clone())?;
+        // Create the aggregate node with the same output schema as the orignal
+        // one. This means that there will be an output column called `date_bin_gapfill(...)`
+        // even though the actual expression populating that column will be `date_bin(...)`.
+        // This seems acceptable since it avoids having to deal with renaming downstream.
+        let new_aggr_plan = Aggregate::try_new_with_schema(
+            Arc::clone(input),
+            new_group_expr,
+            aggr_expr.clone(),
+            Arc::clone(schema),
+        )?;
         let new_aggr_plan = LogicalPlan::Aggregate(new_aggr_plan);
         check_node(&new_aggr_plan)?;
         new_aggr_plan
     };
 
-    let new_sort_plan = {
-        let mut sort_exprs: Vec<_> = new_aggr_plan
-            .schema()
-            .fields()
-            .iter()
-            .take(group_expr.len())
-            .map(|f| col(f.qualified_column()).sort(true, true))
-            .collect();
-        // ensure that date_bin_gapfill is the last sort expression.
-        let last_elm = sort_exprs.len() - 1;
-        sort_exprs.swap(dbg_idx, last_elm);
-
-        LogicalPlan::Sort(Sort {
-            expr: sort_exprs,
-            input: Arc::new(new_aggr_plan),
-            fetch: None,
-        })
-    };
-
     let new_gap_fill_plan = {
-        let mut new_group_expr: Vec<_> = new_sort_plan
+        let mut new_group_expr: Vec<_> = new_aggr_plan
             .schema()
             .fields()
             .iter()
-            .enumerate()
-            .map(|(i, f)| {
-                let e = Expr::Column(f.qualified_column());
-                if i == dbg_idx {
-                    // Make the column name look the same as in the original
-                    // Aggregate node.
-                    Expr::Alias(Box::new(e), orig_dbg_name.to_string())
-                } else {
-                    e
-                }
-            })
+            .map(|f| Expr::Column(f.qualified_column()))
             .collect();
         let aggr_expr = new_group_expr.split_off(group_expr.len());
-        let time_column = col(new_sort_plan.schema().fields()[dbg_idx].qualified_column());
+        let time_column = col(new_aggr_plan.schema().fields()[dbg_idx].qualified_column());
         LogicalPlan::Extension(Extension {
             node: Arc::new(GapFill::try_new(
-                Arc::new(new_sort_plan),
+                Arc::new(new_aggr_plan),
                 new_group_expr,
                 aggr_expr,
                 time_column,
@@ -397,18 +373,16 @@ mod test {
 
         let dbg_args = "IntervalDayTime(\"60000\"),temps.time,TimestampNanosecond(0, None)";
         let expected = format!(
-            "GapFill: groupBy=[[datebin({dbg_args}) AS date_bin_gapfill({dbg_args})]], aggr=[[AVG(temps.temp)]], time_column=datebin({dbg_args})\
-           \n  Sort: datebin({dbg_args}) ASC NULLS FIRST\
-           \n    Aggregate: groupBy=[[datebin(IntervalDayTime(\"60000\"), temps.time, TimestampNanosecond(0, None))]], aggr=[[AVG(temps.temp)]]\
-           \n      TableScan: temps");
+            "GapFill: groupBy=[[date_bin_gapfill({dbg_args})]], aggr=[[AVG(temps.temp)]], time_column=date_bin_gapfill({dbg_args})\
+           \n  Aggregate: groupBy=[[datebin(IntervalDayTime(\"60000\"), temps.time, TimestampNanosecond(0, None))]], aggr=[[AVG(temps.temp)]]\
+           \n    TableScan: temps");
         assert_optimized_plan_eq(&plan, &expected)?;
         Ok(())
     }
 
     #[test]
-    fn reordered_sort_exprs() -> Result<()> {
+    fn two_group_exprs() -> Result<()> {
         // grouping by date_bin_gapfill(...), loc
-        // but the sort node should have date_bin_gapfill last.
         let plan = LogicalPlanBuilder::from(table_scan()?)
             .aggregate(
                 vec![
@@ -421,10 +395,9 @@ mod test {
 
         let dbg_args = "IntervalDayTime(\"60000\"),temps.time,TimestampNanosecond(0, None)";
         let expected = format!(
-            "GapFill: groupBy=[[datebin({dbg_args}) AS date_bin_gapfill({dbg_args}), temps.loc]], aggr=[[AVG(temps.temp)]], time_column=datebin({dbg_args})\
-           \n  Sort: temps.loc ASC NULLS FIRST, datebin({dbg_args}) ASC NULLS FIRST\
-           \n    Aggregate: groupBy=[[datebin(IntervalDayTime(\"60000\"), temps.time, TimestampNanosecond(0, None)), temps.loc]], aggr=[[AVG(temps.temp)]]\
-           \n      TableScan: temps");
+            "GapFill: groupBy=[[date_bin_gapfill({dbg_args}), temps.loc]], aggr=[[AVG(temps.temp)]], time_column=date_bin_gapfill({dbg_args})\
+           \n  Aggregate: groupBy=[[datebin(IntervalDayTime(\"60000\"), temps.time, TimestampNanosecond(0, None)), temps.loc]], aggr=[[AVG(temps.temp)]]\
+           \n    TableScan: temps");
         assert_optimized_plan_eq(&plan, &expected)?;
         Ok(())
     }
@@ -466,10 +439,9 @@ mod test {
 
         let expected = format!(
             "Projection: date_bin_gapfill({dbg_args}), AVG(temps.temp)\
-           \n  GapFill: groupBy=[[datebin({dbg_args}) AS date_bin_gapfill({dbg_args})]], aggr=[[AVG(temps.temp)]], time_column=datebin({dbg_args})\
-           \n    Sort: datebin({dbg_args}) ASC NULLS FIRST\
-           \n      Aggregate: groupBy=[[datebin(IntervalDayTime(\"60000\"), temps.time, TimestampNanosecond(0, None))]], aggr=[[AVG(temps.temp)]]\
-           \n        TableScan: temps");
+           \n  GapFill: groupBy=[[date_bin_gapfill({dbg_args})]], aggr=[[AVG(temps.temp)]], time_column=date_bin_gapfill({dbg_args})\
+           \n    Aggregate: groupBy=[[datebin(IntervalDayTime(\"60000\"), temps.time, TimestampNanosecond(0, None))]], aggr=[[AVG(temps.temp)]]\
+           \n      TableScan: temps");
         assert_optimized_plan_eq(&plan, &expected)?;
         Ok(())
     }

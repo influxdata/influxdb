@@ -3,6 +3,7 @@
 
 use super::{
     cross_rt_stream::CrossRtStream,
+    gapfill::{plan_gap_fill, GapFill},
     non_null_checker::NonNullCheckerNode,
     seriesset::{series::Either, SeriesSet},
     split::StreamSplitNode,
@@ -142,6 +143,14 @@ impl ExtensionPlanner for IOxExtensionPlanner {
                 Arc::clone(&physical_inputs[0]),
                 split_exprs,
             )) as Arc<dyn ExecutionPlan>)
+        } else if let Some(gap_fill) = any.downcast_ref::<GapFill>() {
+            let gap_fill_exec = plan_gap_fill(
+                session_state.execution_props(),
+                gap_fill,
+                logical_inputs,
+                physical_inputs,
+            )?;
+            Some(Arc::new(gap_fill_exec) as Arc<dyn ExecutionPlan>)
         } else {
             None
         };
