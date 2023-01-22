@@ -22,6 +22,10 @@ use std::{
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
+// There is only one shard with index 1
+const TOPIC: &str = "iox-shared";
+const SHARD_INDEX: i32 = 1;
+
 pub struct Compactor2ServerType {
     compactor: Compactor2,
     metric_registry: Arc<Registry>,
@@ -119,7 +123,7 @@ impl HttpApiErrorSource for IoxHttpError {
 }
 
 /// Instantiate a compactor2 server that uses the RPC write path
-pub fn create_compactor2_server_type(
+pub async fn create_compactor2_server_type(
     common_state: &CommonServerState,
     metric_registry: Arc<metric::Registry>,
     catalog: Arc<dyn Catalog>,
@@ -128,19 +132,25 @@ pub fn create_compactor2_server_type(
     time_provider: Arc<dyn TimeProvider>,
     compactor_config: Compactor2Config,
 ) -> Arc<dyn ServerType> {
-    let compactor = Compactor2::start(compactor2::config::Config {
-        metric_registry: Arc::clone(&metric_registry),
-        catalog,
-        parquet_store,
-        exec,
-        time_provider,
-        backoff_config: backoff::BackoffConfig::default(),
-        partition_concurrency: compactor_config.compaction_partition_concurrency,
-        partition_minute_threshold: compactor_config.compaction_partition_minute_threshold,
-        max_desired_file_size_bytes: compactor_config.max_desired_file_size_bytes,
-        percentage_max_file_size: compactor_config.percentage_max_file_size,
-        split_percentage: compactor_config.split_percentage,
-    });
+    let compactor = Compactor2::start(
+        compactor2::config::Config::new(
+            Arc::clone(&metric_registry),
+            catalog,
+            parquet_store,
+            exec,
+            time_provider,
+            backoff::BackoffConfig::default(),
+            compactor_config.compaction_partition_concurrency,
+            compactor_config.compaction_partition_minute_threshold,
+            compactor_config.max_desired_file_size_bytes,
+            compactor_config.percentage_max_file_size,
+            compactor_config.split_percentage,
+            TOPIC.to_string(),
+            SHARD_INDEX,
+        )
+        .await,
+    );
+
     Arc::new(Compactor2ServerType::new(
         compactor,
         metric_registry,

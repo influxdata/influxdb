@@ -117,7 +117,8 @@ pub async fn command(config: Config) -> Result<(), Error> {
         exec,
         time_provider,
         config.compactor_config,
-    );
+    )
+    .await;
 
     info!("starting compactor");
 

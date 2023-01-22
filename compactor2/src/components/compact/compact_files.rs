@@ -56,7 +56,13 @@ pub async fn compact_files(
         .context(BuildCompactPlanSnafu)?;
 
     // execute the plan
-    let executor = CompactExecutor::new(plan, partition_info, config, compaction_level);
+    let executor = CompactExecutor::new(
+        plan,
+        config.shard_id,
+        partition_info,
+        config,
+        compaction_level,
+    );
     let compacted_files = executor.execute().await.context(ExecuteCompactPlanSnafu)?;
 
     Ok(compacted_files)
@@ -107,6 +113,8 @@ mod tests {
             ..
         } = setup;
 
+        let shard_id = config.shard_id;
+
         // By default, the config value is small, so the output file will be split
         let compacted_files = compact_files(
             Arc::clone(&files),
@@ -117,6 +125,11 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(compacted_files.len(), 2);
+        // check compaction level and shard_id
+        for file in &compacted_files {
+            assert_eq!(file.compaction_level, CompactionLevel::FileNonOverlapped);
+            assert_eq!(file.shard_id, shard_id);
+        }
 
         let mut config = (*config).clone();
 
@@ -134,5 +147,10 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(compacted_files.len(), 1);
+        // check compaction level and shard_id
+        for file in &compacted_files {
+            assert_eq!(file.compaction_level, CompactionLevel::FileNonOverlapped);
+            assert_eq!(file.shard_id, shard_id);
+        }
     }
 }

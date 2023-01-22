@@ -367,6 +367,7 @@ impl TestSetup {
         }
 
         let config = Arc::new(Config {
+            shard_id: shard.shard.id,
             metric_registry: catalog.metric_registry(),
             catalog: catalog.catalog(),
             parquet_store: catalog.parquet_store.clone(),

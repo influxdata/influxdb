@@ -19,7 +19,6 @@ use crate::config::Config;
 use super::partition::PartitionInfo;
 
 // fields no longer used but still exists in the catalog
-const SHARD_ID: ShardId = ShardId::new(0);
 const MAX_SEQUENCE_NUMBER: i64 = 0;
 
 /// Compaction errors.
@@ -41,6 +40,7 @@ pub enum Error {
 /// Executor of a plan
 pub(crate) struct CompactExecutor {
     // Partition of the plan to compact
+    shard_id: ShardId,
     partition: Arc<PartitionInfo>,
     plan: Arc<dyn ExecutionPlan>,
     store: ParquetStorage,
@@ -53,23 +53,25 @@ impl CompactExecutor {
     /// Create a new executor
     pub fn new(
         plan: Arc<dyn ExecutionPlan>,
+        shard_id: ShardId,
         partition: Arc<PartitionInfo>,
         config: Arc<Config>,
         target_level: CompactionLevel,
     ) -> Self {
         Self {
+            shard_id,
             partition,
             plan,
             store: config.parquet_store.clone(),
             exec: Arc::clone(&config.exec),
             time_provider: Arc::clone(&config.time_provider),
-
             target_level,
         }
     }
 
     pub async fn execute(self) -> Result<Vec<ParquetFileParams>, Error> {
         let Self {
+            shard_id,
             partition,
             plan,
             store,
@@ -113,7 +115,7 @@ impl CompactExecutor {
                     let meta = IoxMetadata {
                         object_store_id: Uuid::new_v4(),
                         creation_timestamp: time_provider.now(),
-                        shard_id: SHARD_ID,
+                        shard_id,
                         namespace_id: partition.namespace_id,
                         namespace_name: partition.namespace_name.clone().into(),
                         table_id: partition.table.id,

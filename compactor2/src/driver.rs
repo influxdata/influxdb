@@ -67,7 +67,7 @@ pub async fn compact(config: &Config, components: &Arc<Components>) {
                 }
                 let table = table.unwrap();
 
-                // TOD: after we have catalog funciton to read table schema, we should use it
+                // TODO: after we have catalog funciton to read table schema, we should use it
                 // and avoid reading namespace schema
                 let namespace = components
                     .namespaces_source
