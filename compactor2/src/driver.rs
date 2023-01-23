@@ -2,6 +2,7 @@ use std::{num::NonZeroUsize, sync::Arc};
 
 use data_types::{CompactionLevel, PartitionId};
 use futures::{stream::FuturesOrdered, StreamExt, TryStreamExt};
+use observability_deps::tracing::info;
 
 use crate::{components::Components, partition_info::PartitionInfo};
 
@@ -19,9 +20,6 @@ use crate::{components::Components, partition_info::PartitionInfo};
 //    . We can only compact different sets of files of the same partition concurrently into the same target_level.
 pub async fn compact(partition_concurrency: NonZeroUsize, components: &Arc<Components>) {
     let partition_ids = components.partitions_source.fetch().await;
-
-    // TODO: https://github.com/influxdata/influxdb_iox/issues/6657
-    // either here or before invoking this function to ignore this partition if it is in skipped_compactions
 
     futures::stream::iter(partition_ids)
         .map(|partition_id| {
@@ -54,6 +52,20 @@ async fn try_compact_partition(
     let delete_ids = files.iter().map(|f| f.id).collect::<Vec<_>>();
 
     if !components.partition_filter.apply(&files) {
+        return Ok(());
+    }
+
+    // Ignore partitions that are in skipped_compactions
+    if let Some(skipped_compaction) = components
+        .skipped_compactions_source
+        .fetch(partition_id)
+        .await
+    {
+        info!(
+            partition_id = partition_id.get(),
+            reason = skipped_compaction.reason,
+            "partition is in skipped_compactions, ignore compacting it"
+        );
         return Ok(());
     }
 
@@ -130,126 +142,4 @@ async fn try_compact_partition(
     components.commit.commit(&delete_ids, &create).await;
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use std::{num::NonZeroUsize, sync::Arc};
-
-    use arrow_util::assert_batches_sorted_eq;
-    use data_types::CompactionLevel;
-
-    use crate::{
-        components::hardcoded::hardcoded_components, driver::compact, test_util::TestSetup,
-    };
-
-    #[tokio::test]
-    async fn test_compact_no_file() {
-        test_helpers::maybe_start_logging();
-
-        // no files
-        let setup = TestSetup::new(false).await;
-
-        let files = setup.list_by_table_not_to_delete().await;
-        assert!(files.is_empty());
-
-        // compact
-        let config = Arc::clone(&setup.config);
-        let components = hardcoded_components(&config);
-        compact(NonZeroUsize::new(10).unwrap(), &components).await;
-
-        // verify catalog is still empty
-        let files = setup.list_by_table_not_to_delete().await;
-        assert!(files.is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_compact() {
-        test_helpers::maybe_start_logging();
-
-        // Create a test setup with 6 files
-        let setup = TestSetup::new(true).await;
-
-        // verify 6 files
-        let files = setup.list_by_table_not_to_delete().await;
-        assert_eq!(files.len(), 6);
-        //
-        // verify ID and compaction level of the files
-        let files_and_levels: Vec<_> = files
-            .iter()
-            .map(|f| (f.id.get(), f.compaction_level))
-            .collect();
-        assert_eq!(
-            files_and_levels,
-            vec![
-                (1, CompactionLevel::FileNonOverlapped),
-                (2, CompactionLevel::Initial),
-                (3, CompactionLevel::Initial),
-                (4, CompactionLevel::FileNonOverlapped),
-                (5, CompactionLevel::Initial),
-                (6, CompactionLevel::Initial),
-            ]
-        );
-
-        // compact
-        let config = Arc::clone(&setup.config);
-        let components = hardcoded_components(&config);
-        compact(NonZeroUsize::new(10).unwrap(), &components).await;
-
-        // verify number of files: 6 files are compacted into 2 files
-        let files = setup.list_by_table_not_to_delete().await;
-        assert_eq!(files.len(), 2);
-        //
-        // verify ID and compaction level of the files
-        let files_and_levels: Vec<_> = files
-            .iter()
-            .map(|f| (f.id.get(), f.compaction_level))
-            .collect();
-        println!("{:?}", files_and_levels);
-        assert_eq!(
-            files_and_levels,
-            vec![
-                (7, CompactionLevel::FileNonOverlapped),
-                (8, CompactionLevel::FileNonOverlapped),
-            ]
-        );
-
-        // verify the content of files
-        // Compacted smaller file with the later data
-        let mut files = setup.list_by_table_not_to_delete().await;
-        let file1 = files.pop().unwrap();
-        let batches = setup.read_parquet_file(file1).await;
-        assert_batches_sorted_eq!(
-            &[
-                "+-----------+------+------+------+-----------------------------+",
-                "| field_int | tag1 | tag2 | tag3 | time                        |",
-                "+-----------+------+------+------+-----------------------------+",
-                "| 210       |      | OH   | 21   | 1970-01-01T00:00:00.000136Z |",
-                "+-----------+------+------+------+-----------------------------+",
-            ],
-            &batches
-        );
-
-        // Compacted larger file with the earlier data
-        let file0 = files.pop().unwrap();
-        let batches = setup.read_parquet_file(file0).await;
-        assert_batches_sorted_eq!(
-            [
-                "+-----------+------+------+------+-----------------------------+",
-                "| field_int | tag1 | tag2 | tag3 | time                        |",
-                "+-----------+------+------+------+-----------------------------+",
-                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000006Z |",
-                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000010Z |",
-                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000068Z |",
-                "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z |",
-                "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000030Z |",
-                "| 22        |      | OH   | 21   | 1970-01-01T00:00:00.000036Z |",
-                "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
-                "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z |",
-                "| 99        | OR   |      |      | 1970-01-01T00:00:00.000012Z |",
-                "+-----------+------+------+------+-----------------------------+",
-            ],
-            &batches
-        );
-    }
 }

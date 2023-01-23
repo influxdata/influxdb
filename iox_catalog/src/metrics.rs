@@ -254,6 +254,7 @@ decorate!(
         "partition_most_recent_n" = most_recent_n(&mut self, n: usize, shards: &[ShardId]) -> Result<Vec<Partition>>;
         "partitions_with_recent_created_files" = partitions_with_recent_created_files(&mut self, time_in_the_past: Timestamp, max_num_partitions: usize) -> Result<Vec<PartitionParam>>;
         "partitions_to_compact" = partitions_to_compact(&mut self, recent_time: Timestamp) -> Result<Vec<PartitionId>>;
+        "get_in_skipped_compaction" = get_in_skipped_compaction(&mut self, partition_id: PartitionId) -> Result<Option<SkippedCompaction>>;
     ]
 );
 

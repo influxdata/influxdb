@@ -277,6 +277,21 @@ impl TestCatalog {
             .await
             .unwrap()
     }
+
+    /// Add a partition into skipped compaction
+    pub async fn add_to_skipped_compaction(
+        self: &Arc<Self>,
+        partition_id: PartitionId,
+        reason: &str,
+    ) {
+        let mut repos = self.catalog.repositories().await;
+
+        repos
+            .partitions()
+            .record_skipped_compaction(partition_id, reason, 0, 0, 0, 0, 0)
+            .await
+            .unwrap();
+    }
 }
 
 /// A test namespace

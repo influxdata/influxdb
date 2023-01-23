@@ -935,6 +935,18 @@ impl PartitionRepo for MemTxn {
         Ok(())
     }
 
+    async fn get_in_skipped_compaction(
+        &mut self,
+        partition_id: PartitionId,
+    ) -> Result<Option<SkippedCompaction>> {
+        let stage = self.stage();
+        Ok(stage
+            .skipped_compactions
+            .iter()
+            .find(|s| s.partition_id == partition_id)
+            .cloned())
+    }
+
     async fn list_skipped_compactions(&mut self) -> Result<Vec<SkippedCompaction>> {
         let stage = self.stage();
         Ok(stage.skipped_compactions.clone())

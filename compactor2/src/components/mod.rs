@@ -21,6 +21,7 @@ pub mod partition_files_source;
 pub mod partition_filter;
 pub mod partitions_source;
 pub mod report;
+pub mod skipped_compactions_source;
 pub mod tables_source;
 
 #[derive(Debug)]
@@ -36,4 +37,5 @@ pub struct Components {
     pub df_planner: Arc<dyn DataFusionPlanner>,
     pub df_plan_exec: Arc<dyn DataFusionPlanExec>,
     pub parquet_file_sink: Arc<dyn ParquetFileSink>,
+    pub skipped_compactions_source: Arc<dyn skipped_compactions_source::SkippedCompactionsSource>,
 }

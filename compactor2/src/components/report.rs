@@ -19,6 +19,7 @@ pub fn log_components(components: &Components) {
         df_planner,
         df_plan_exec,
         parquet_file_sink,
+        skipped_compactions_source,
     } = components;
 
     info!(
@@ -33,6 +34,7 @@ pub fn log_components(components: &Components) {
         %df_planner,
         %df_plan_exec,
         %parquet_file_sink,
+        %skipped_compactions_source,
         "component setup",
     );
 }

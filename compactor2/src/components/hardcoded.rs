@@ -40,6 +40,7 @@ use super::{
         metrics::MetricsPartitionsSourceWrapper,
         randomize_order::RandomizeOrderPartitionsSourcesWrapper,
     },
+    skipped_compactions_source::catalog::CatalogSkippedCompactionsSource,
     Components,
 };
 
@@ -116,6 +117,10 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
                 ),
                 Arc::clone(&config.exec),
             ),
+        )),
+        skipped_compactions_source: Arc::new(CatalogSkippedCompactionsSource::new(
+            config.backoff_config.clone(),
+            Arc::clone(&config.catalog),
         )),
     })
 }
