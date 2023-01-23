@@ -9,7 +9,7 @@ license.workspace = true
 arrow = { workspace = true, features = ["prettyprint"] }
 arrow-flight = { workspace = true }
 arrow_util = { path = "../arrow_util" }
-async-trait = "0.1.61"
+async-trait = "0.1.63"
 backoff = { path = "../backoff" }
 bytes = "1.3"
 chrono = { version = "0.4", default-features = false }
