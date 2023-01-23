@@ -58,3 +58,41 @@ where
             .map_err(|e| DataFusionError::External(e.into()))?
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
+    use schema::SchemaBuilder;
+
+    use crate::components::parquet_file_sink::{
+        mock::MockParquetFileSink, test_util::partition_info,
+    };
+
+    use super::*;
+
+    #[test]
+    fn test_display() {
+        let sink = DedicatedExecParquetFileSinkWrapper::new(
+            MockParquetFileSink::new(),
+            Arc::new(Executor::new_testing()),
+        );
+        assert_eq!(sink.to_string(), "dedicated_exec(mock)",)
+    }
+
+    #[tokio::test]
+    async fn test_panic() {
+        let sink = DedicatedExecParquetFileSinkWrapper::new(
+            MockParquetFileSink::new(),
+            Arc::new(Executor::new_testing()),
+        );
+        let schema = SchemaBuilder::new().build().unwrap().as_arrow();
+        let stream = Box::pin(RecordBatchStreamAdapter::new(
+            Arc::clone(&schema),
+            futures::stream::once(async move { panic!("foo") }),
+        ));
+        let partition = partition_info();
+        let level = CompactionLevel::FileNonOverlapped;
+        let err = sink.store(stream, partition, level).await.unwrap_err();
+        assert_eq!(err.to_string(), "External error: foo",);
+    }
+}

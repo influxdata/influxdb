@@ -6,7 +6,7 @@ use data_types::{NamespaceId, PartitionId, PartitionKey, Table, TableSchema};
 use schema::sort::SortKey;
 
 /// Information of a partition for compaction
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct PartitionInfo {
     /// the partition
     pub partition_id: PartitionId,
