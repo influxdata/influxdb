@@ -5,11 +5,9 @@ use futures::StreamExt;
 use observability_deps::tracing::info;
 
 use crate::{
-    components::{
-        compact::{compact_files::compact_files, partition::PartitionInfo},
-        Components,
-    },
+    components::{compact::compact_files::compact_files, Components},
     config::Config,
+    partition_info::PartitionInfo,
 };
 
 // TODO: modify this comments accordingly as we go
@@ -105,15 +103,15 @@ pub async fn compact(config: &Config, components: &Arc<Components>) {
                 }
                 let table_schema = table_schema.unwrap();
 
-                let partition_info = PartitionInfo::new(
+                let partition_info = PartitionInfo {
                     partition_id,
-                    table.namespace_id,
-                    namespace.name,
-                    Arc::new(table),
-                    Arc::new(table_schema.clone()),
-                    partition.sort_key(),
-                    partition.partition_key,
-                );
+                    namespace_id: table.namespace_id,
+                    namespace_name: namespace.name,
+                    table: Arc::new(table),
+                    table_schema: Arc::new(table_schema.clone()),
+                    sort_key: partition.sort_key(),
+                    partition_key: partition.partition_key,
+                };
 
                 let files = Arc::new(files);
 
@@ -126,6 +124,8 @@ pub async fn compact(config: &Config, components: &Arc<Components>) {
                     Arc::clone(&files),
                     Arc::new(partition_info),
                     Arc::new(config),
+                    Arc::clone(&components.df_plan_exec),
+                    Arc::clone(&components.parquet_file_sink),
                     CompactionLevel::FileNonOverlapped,
                 )
                 .await

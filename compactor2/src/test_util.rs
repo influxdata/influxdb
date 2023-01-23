@@ -13,8 +13,8 @@ use schema::sort::SortKey;
 use uuid::Uuid;
 
 use crate::{
-    components::{compact::partition::PartitionInfo, namespaces_source::mock::NamespaceWrapper},
-    config::Config,
+    components::namespaces_source::mock::NamespaceWrapper, config::Config,
+    partition_info::PartitionInfo,
 };
 
 #[derive(Debug)]
@@ -223,7 +223,7 @@ const SPLIT_PERCENTAGE: u16 = 80;
 
 pub struct TestSetup {
     pub files: Arc<Vec<ParquetFile>>,
-    pub partition_info: Arc<crate::components::compact::partition::PartitionInfo>,
+    pub partition_info: Arc<PartitionInfo>,
     pub catalog: Arc<TestCatalog>,
     pub table: Arc<TestTable>,
     pub config: Arc<Config>,
@@ -252,15 +252,15 @@ impl TestSetup {
         let sort_key = SortKey::from_columns(["tag1", "tag2", "tag3", "time"]);
         let partition = partition.update_sort_key(sort_key.clone()).await;
 
-        let candidate_partition = Arc::new(PartitionInfo::new(
-            partition.partition.id,
-            ns.namespace.id,
-            ns.namespace.name.clone(),
-            Arc::new(table.table.clone()),
-            Arc::new(table_schema),
-            partition.partition.sort_key(),
-            partition.partition.partition_key.clone(),
-        ));
+        let candidate_partition = Arc::new(PartitionInfo {
+            partition_id: partition.partition.id,
+            namespace_id: ns.namespace.id,
+            namespace_name: ns.namespace.name.clone(),
+            table: Arc::new(table.table.clone()),
+            table_schema: Arc::new(table_schema),
+            sort_key: partition.partition.sort_key(),
+            partition_key: partition.partition.partition_key.clone(),
+        });
 
         let mut parquet_files = vec![];
         if with_files {

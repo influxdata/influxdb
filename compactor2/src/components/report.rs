@@ -16,6 +16,8 @@ pub fn log_components(components: &Components) {
         commit,
         tables_source,
         namespaces_source,
+        df_plan_exec,
+        parquet_file_sink,
     } = components;
 
     info!(
@@ -27,6 +29,8 @@ pub fn log_components(components: &Components) {
         %commit,
         %tables_source,
         %namespaces_source,
+        %df_plan_exec,
+        %parquet_file_sink,
         "component setup",
     );
 }

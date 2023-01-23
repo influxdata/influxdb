@@ -4,12 +4,13 @@ use std::sync::Arc;
 use data_types::{CompactionLevel, ParquetFile, ParquetFileParams};
 use snafu::{ResultExt, Snafu};
 
-use crate::config::Config;
-
-use super::{
-    compact_builder::CompactPlanBuilder, compact_executor::CompactExecutor,
-    partition::PartitionInfo,
+use crate::{
+    components::{df_plan_exec::DataFusionPlanExec, parquet_file_sink::ParquetFileSink},
+    config::Config,
+    partition_info::PartitionInfo,
 };
+
+use super::{compact_builder::CompactPlanBuilder, compact_executor::CompactExecutor};
 
 /// Compaction errors.
 #[derive(Debug, Snafu)]
@@ -37,6 +38,8 @@ pub async fn compact_files(
     files: Arc<Vec<ParquetFile>>,
     partition_info: Arc<PartitionInfo>,
     config: Arc<Config>,
+    plan_exec: Arc<dyn DataFusionPlanExec>,
+    parquet_file_sink: Arc<dyn ParquetFileSink>,
     compaction_level: CompactionLevel,
 ) -> Result<Vec<ParquetFileParams>, Error> {
     if files.is_empty() {
@@ -55,14 +58,11 @@ pub async fn compact_files(
         .await
         .context(BuildCompactPlanSnafu)?;
 
+    let streams = plan_exec.exec(plan);
+
     // execute the plan
-    let executor = CompactExecutor::new(
-        plan,
-        config.shard_id,
-        partition_info,
-        config,
-        compaction_level,
-    );
+    let executor =
+        CompactExecutor::new(streams, partition_info, parquet_file_sink, compaction_level);
     let compacted_files = executor.execute().await.context(ExecuteCompactPlanSnafu)?;
 
     Ok(compacted_files)
@@ -73,7 +73,14 @@ mod tests {
     use data_types::CompactionLevel;
     use std::sync::Arc;
 
-    use crate::{components::compact::compact_files::compact_files, test_util::TestSetup};
+    use crate::{
+        components::{
+            compact::compact_files::compact_files,
+            df_plan_exec::{dedicated::DedicatedDataFusionPlanExec, DataFusionPlanExec},
+            parquet_file_sink::{object_store::ObjectStoreParquetFileSink, ParquetFileSink},
+        },
+        test_util::TestSetup,
+    };
 
     #[tokio::test]
     async fn test_compact_no_file() {
@@ -81,6 +88,8 @@ mod tests {
 
         // no files
         let setup = TestSetup::new(false).await;
+        let exec = exec(&setup);
+        let parquet_file_sink = parquet_file_sink(&setup);
         let TestSetup {
             files,
             partition_info,
@@ -92,6 +101,8 @@ mod tests {
             Arc::clone(&files),
             Arc::clone(&partition_info),
             Arc::clone(&config),
+            exec,
+            parquet_file_sink,
             CompactionLevel::FileNonOverlapped,
         )
         .await
@@ -106,6 +117,8 @@ mod tests {
 
         // Create a test setup with 6 files
         let setup = TestSetup::new(true).await;
+        let exec = exec(&setup);
+        let parquet_file_sink = parquet_file_sink(&setup);
         let TestSetup {
             files,
             partition_info,
@@ -120,6 +133,8 @@ mod tests {
             Arc::clone(&files),
             Arc::clone(&partition_info),
             Arc::clone(&config),
+            Arc::clone(&exec),
+            Arc::clone(&parquet_file_sink),
             CompactionLevel::FileNonOverlapped,
         )
         .await
@@ -142,6 +157,8 @@ mod tests {
             Arc::clone(&files),
             Arc::clone(&partition_info),
             Arc::new(config),
+            exec,
+            parquet_file_sink,
             CompactionLevel::FileNonOverlapped,
         )
         .await
@@ -152,5 +169,19 @@ mod tests {
             assert_eq!(file.compaction_level, CompactionLevel::FileNonOverlapped);
             assert_eq!(file.shard_id, shard_id);
         }
+    }
+
+    fn exec(setup: &TestSetup) -> Arc<dyn DataFusionPlanExec> {
+        Arc::new(DedicatedDataFusionPlanExec::new(Arc::clone(
+            &setup.config.exec,
+        )))
+    }
+
+    fn parquet_file_sink(setup: &TestSetup) -> Arc<dyn ParquetFileSink> {
+        Arc::new(ObjectStoreParquetFileSink::new(
+            setup.config.shard_id,
+            setup.config.parquet_store.clone(),
+            Arc::clone(&setup.config.time_provider),
+        ))
     }
 }

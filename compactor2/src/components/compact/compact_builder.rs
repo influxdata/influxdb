@@ -18,9 +18,8 @@ use snafu::{ResultExt, Snafu};
 use crate::{
     components::compact::query_chunk::{to_queryable_parquet_chunk, QueryableParquetChunk},
     config::Config,
+    partition_info::PartitionInfo,
 };
-
-use super::partition::PartitionInfo;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]

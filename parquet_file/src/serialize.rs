@@ -5,7 +5,7 @@
 use std::{io::Write, sync::Arc};
 
 use arrow::error::ArrowError;
-use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 use datafusion_util::config::BATCH_SIZE;
 use futures::{pin_mut, TryStreamExt};
 use observability_deps::tracing::{debug, trace, warn};
@@ -60,6 +60,19 @@ pub enum CodecError {
     /// Attempting to clone a handle to the provided write sink failed.
     #[error("failed to obtain writer handle clone: {0}")]
     CloneSink(std::io::Error),
+}
+
+impl From<CodecError> for DataFusionError {
+    fn from(value: CodecError) -> Self {
+        match value {
+            e @ (CodecError::NoRecordBatches
+            | CodecError::NoRows
+            | CodecError::MetadataSerialisation(_)
+            | CodecError::CloneSink(_)) => Self::External(Box::new(e)),
+            CodecError::Arrow(e) => Self::ArrowError(e),
+            CodecError::Writer(e) => Self::ParquetError(e),
+        }
+    }
 }
 
 /// An IOx-specific, streaming [`RecordBatch`] to parquet file encoder.
