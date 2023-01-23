@@ -2,7 +2,10 @@
 
 mod request;
 
-use arrow::error::ArrowError;
+use arrow::{
+    datatypes::SchemaRef, error::ArrowError, ipc::writer::IpcWriteOptions,
+    record_batch::RecordBatch,
+};
 use arrow_flight::{
     encode::{FlightDataEncoder, FlightDataEncoderBuilder},
     error::FlightError,
@@ -10,8 +13,9 @@ use arrow_flight::{
     flight_service_server::{FlightService as Flight, FlightServiceServer as FlightServer},
     sql::{CommandStatementQuery, ProstMessageExt},
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightEndpoint, FlightInfo,
-    HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
+    HandshakeRequest, HandshakeResponse, PutResult, SchemaAsIpc, SchemaResult, Ticket,
 };
+use bytes::Bytes;
 use data_types::NamespaceNameError;
 use datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
 use futures::{ready, Stream, StreamExt, TryStreamExt};
@@ -463,7 +467,7 @@ where
 /// Wrapper over a FlightDataEncodeStream that adds IOx specfic
 /// metadata and records completion
 struct GetStream {
-    inner: FlightDataEncoder,
+    inner: IOxFlightDataEncoder,
     #[allow(dead_code)]
     permit: InstrumentedAsyncOwnedSemaphorePermit,
     query_completed_token: QueryCompletedToken,
@@ -480,6 +484,8 @@ impl GetStream {
     ) -> Result<Self, tonic::Status> {
         let app_metadata = proto::AppMetadata {};
 
+        let schema = physical_plan.schema();
+
         let query_results = ctx
             .execute_stream(Arc::clone(&physical_plan))
             .await
@@ -489,7 +495,7 @@ impl GetStream {
             .map_err(FlightError::from);
 
         // setup inner stream
-        let inner = FlightDataEncoderBuilder::new()
+        let inner = IOxFlightDataEncoderBuilder::new(schema)
             .with_metadata(app_metadata.encode_to_vec().into())
             .build(query_results);
 
@@ -499,6 +505,94 @@ impl GetStream {
             query_completed_token,
             done: false,
         })
+    }
+}
+
+/// workaround for <https://github.com/apache/arrow-rs/issues/3591>
+///
+/// data encoder stream that always sends a Schema message even if the
+/// underlying stream is empty
+struct IOxFlightDataEncoder {
+    inner: FlightDataEncoder,
+    // The schema of the inner stream. Set to None when a schema
+    // message has been sent.
+    schema: Option<SchemaRef>,
+    done: bool,
+}
+
+impl IOxFlightDataEncoder {
+    fn new(inner: FlightDataEncoder, schema: SchemaRef) -> Self {
+        Self {
+            inner,
+            schema: Some(schema),
+            done: false,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct IOxFlightDataEncoderBuilder {
+    inner: FlightDataEncoderBuilder,
+    schema: SchemaRef,
+}
+
+impl IOxFlightDataEncoderBuilder {
+    fn new(schema: SchemaRef) -> Self {
+        Self {
+            inner: FlightDataEncoderBuilder::new(),
+            schema,
+        }
+    }
+
+    pub fn with_metadata(mut self, app_metadata: Bytes) -> Self {
+        self.inner = self.inner.with_metadata(app_metadata);
+        self
+    }
+
+    pub fn build<S>(self, input: S) -> IOxFlightDataEncoder
+    where
+        S: Stream<Item = arrow_flight::error::Result<RecordBatch>> + Send + 'static,
+    {
+        let Self { inner, schema } = self;
+
+        IOxFlightDataEncoder::new(inner.build(input), schema)
+    }
+}
+
+impl Stream for IOxFlightDataEncoder {
+    type Item = arrow_flight::error::Result<FlightData>;
+
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        loop {
+            if self.done {
+                return Poll::Ready(None);
+            }
+
+            let res = ready!(self.inner.poll_next_unpin(cx));
+            match res {
+                None => {
+                    self.done = true;
+                    // return a schema message if we haven't sent any data
+                    if let Some(schema) = self.schema.take() {
+                        let options = IpcWriteOptions::default();
+                        let data: FlightData = SchemaAsIpc::new(schema.as_ref(), &options).into();
+                        return Poll::Ready(Some(Ok(data)));
+                    }
+                }
+                Some(Ok(data)) => {
+                    // If any data is returned from the underlying stream no need to resend schema
+                    self.schema = None;
+                    return Poll::Ready(Some(Ok(data)));
+                }
+                Some(Err(e)) => {
+                    self.done = true;
+                    return Poll::Ready(Some(Err(e)));
+                }
+            }
+        }
     }
 }
 
@@ -533,7 +627,7 @@ impl Stream for GetStream {
     }
 }
 
-// TODO remove this after
+// TODO remove this when this is released:
 // https://github.com/apache/arrow-rs/issues/3566
 fn flight_error_to_status(e: FlightError) -> tonic::Status {
     // Special error code translation logic for finding root of chain:
