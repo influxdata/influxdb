@@ -413,7 +413,7 @@ mod tests {
     }
 
     /// Helper to calculate the number of errors needed to mark the circuit breaker as unhealthy.
-    fn errors_to_close(counters: &RequestCounter) -> usize {
+    fn errors_to_unhealthy(counters: &RequestCounter) -> usize {
         (counters.read().total() as f32 * MAX_ERROR_RATIO).ceil() as usize
     }
 
@@ -437,7 +437,7 @@ mod tests {
         assert_reset_is_nop(&c.requests);
 
         // Observe enough errors to become unhealthy
-        let n = errors_to_close(&c.requests);
+        let n = errors_to_unhealthy(&c.requests);
         for _ in 0..n {
             assert!(c.is_healthy());
             assert!(!c.should_probe());
@@ -497,7 +497,7 @@ mod tests {
         assert!(!c.should_probe());
 
         // Observe enough errors to become unhealthy
-        let n = errors_to_close(&c.requests);
+        let n = errors_to_unhealthy(&c.requests);
         for _ in 0..n {
             assert!(c.is_healthy());
             c.requests.observe::<(), ()>(&Err(()));
@@ -565,7 +565,7 @@ mod tests {
         assert_reset_is_nop(&c.requests);
 
         // Calculate how many errors are needed to mark the circuit breaker as unhealthy.
-        let n = errors_to_close(&c.requests);
+        let n = errors_to_unhealthy(&c.requests);
 
         // Ensure N-1 does not mark the circuit unhealthy.
         for _ in 0..(n - 1) {
