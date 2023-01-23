@@ -101,13 +101,15 @@ mod tests {
         // two returns a unhealthy state, one is healthy.
         let circuit_err_1 = Arc::new(MockCircuitBreaker::default());
         circuit_err_1.set_usable(false);
-        let client_err_1 = CircuitBreakingClient::new(Arc::new(MockWriteClient::default()))
-            .with_circuit_breaker(Arc::clone(&circuit_err_1));
+        let client_err_1 =
+            CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bananas")
+                .with_circuit_breaker(Arc::clone(&circuit_err_1));
 
         let circuit_err_2 = Arc::new(MockCircuitBreaker::default());
         circuit_err_2.set_usable(false);
-        let client_err_2 = CircuitBreakingClient::new(Arc::new(MockWriteClient::default()))
-            .with_circuit_breaker(Arc::clone(&circuit_err_2));
+        let client_err_2 =
+            CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bananas")
+                .with_circuit_breaker(Arc::clone(&circuit_err_2));
 
         assert_eq!(circuit_err_1.ok_count(), 0);
         assert_eq!(circuit_err_2.ok_count(), 0);
@@ -128,17 +130,19 @@ mod tests {
         // two returns a unhealthy state, one is healthy.
         let circuit_err_1 = Arc::new(MockCircuitBreaker::default());
         circuit_err_1.set_usable(false);
-        let client_err_1 = CircuitBreakingClient::new(Arc::new(MockWriteClient::default()))
-            .with_circuit_breaker(Arc::clone(&circuit_err_1));
+        let client_err_1 =
+            CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bananas")
+                .with_circuit_breaker(Arc::clone(&circuit_err_1));
 
         let circuit_err_2 = Arc::new(MockCircuitBreaker::default());
         circuit_err_2.set_usable(false);
-        let client_err_2 = CircuitBreakingClient::new(Arc::new(MockWriteClient::default()))
-            .with_circuit_breaker(Arc::clone(&circuit_err_2));
+        let client_err_2 =
+            CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bananas")
+                .with_circuit_breaker(Arc::clone(&circuit_err_2));
 
         let circuit_ok = Arc::new(MockCircuitBreaker::default());
         circuit_ok.set_usable(true);
-        let client_ok = CircuitBreakingClient::new(Arc::new(MockWriteClient::default()))
+        let client_ok = CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bananas")
             .with_circuit_breaker(Arc::clone(&circuit_ok));
 
         assert_eq!(circuit_ok.ok_count(), 0);
@@ -232,18 +236,21 @@ mod tests {
         // two returns a healthy state, one is unhealthy.
         let circuit_err = Arc::new(MockCircuitBreaker::default());
         circuit_err.set_usable(false);
-        let client_err = CircuitBreakingClient::new(Arc::new(MockWriteClient::default()))
-            .with_circuit_breaker(Arc::clone(&circuit_err));
+        let client_err =
+            CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bananas")
+                .with_circuit_breaker(Arc::clone(&circuit_err));
 
         let circuit_ok_1 = Arc::new(MockCircuitBreaker::default());
         circuit_ok_1.set_usable(true);
-        let client_ok_1 = CircuitBreakingClient::new(Arc::new(MockWriteClient::default()))
-            .with_circuit_breaker(Arc::clone(&circuit_ok_1));
+        let client_ok_1 =
+            CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bananas")
+                .with_circuit_breaker(Arc::clone(&circuit_ok_1));
 
         let circuit_ok_2 = Arc::new(MockCircuitBreaker::default());
         circuit_ok_2.set_usable(true);
-        let client_ok_2 = CircuitBreakingClient::new(Arc::new(MockWriteClient::default()))
-            .with_circuit_breaker(Arc::clone(&circuit_ok_2));
+        let client_ok_2 =
+            CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bananas")
+                .with_circuit_breaker(Arc::clone(&circuit_ok_2));
 
         let balancer = Balancer::new([client_err, client_ok_1, client_ok_2]);
 

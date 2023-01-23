@@ -262,11 +262,10 @@ pub async fn create_router2_server_type(
     // Hack to handle multiple ingester addresses separated by commas in potentially many uses of
     // the CLI arg
     let ingester_connections = router_config.ingester_addresses.join(",");
-    let ingester_connections = ingester_connections.split(',').map(|s| {
-        let endpoint = Endpoint::from_shared(format!("http://{s}"))
+    let ingester_connections = ingester_connections.split(',').map(|addr| {
+        let endpoint = Endpoint::from_shared(format!("http://{addr}"))
             .expect("invalid ingester connection address");
-
-        LazyConnector::new(endpoint)
+        (LazyConnector::new(endpoint), addr)
     });
 
     // Initialise the DML handler that sends writes to the ingester using the RPC write path.

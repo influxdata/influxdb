@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use generated_types::influxdata::iox::ingester::v1::WriteRequest;
@@ -36,8 +36,8 @@ pub(super) struct CircuitBreakingClient<T, C = CircuitBreaker> {
 }
 
 impl<T> CircuitBreakingClient<T> {
-    pub(super) fn new(inner: T) -> Self {
-        let state = CircuitBreaker::default();
+    pub(super) fn new(inner: T, endpoint: impl Into<Arc<str>>) -> Self {
+        let state = CircuitBreaker::new(endpoint);
         state.set_healthy();
         Self { inner, state }
     }
@@ -133,7 +133,7 @@ mod tests {
     #[tokio::test]
     async fn test_healthy() {
         let circuit_breaker = Arc::new(MockCircuitBreaker::default());
-        let wrapper = CircuitBreakingClient::new(MockWriteClient::default())
+        let wrapper = CircuitBreakingClient::new(MockWriteClient::default(), "bananas")
             .with_circuit_breaker(Arc::clone(&circuit_breaker));
 
         circuit_breaker.set_usable(true);
@@ -151,7 +151,7 @@ mod tests {
             MockWriteClient::default()
                 .with_ret(vec![Ok(()), Err(RpcWriteError::DeletesUnsupported)]),
         );
-        let wrapper = CircuitBreakingClient::new(Arc::clone(&mock_client))
+        let wrapper = CircuitBreakingClient::new(Arc::clone(&mock_client), "bananas")
             .with_circuit_breaker(Arc::clone(&circuit_breaker));
 
         assert_eq!(circuit_breaker.ok_count(), 0);
