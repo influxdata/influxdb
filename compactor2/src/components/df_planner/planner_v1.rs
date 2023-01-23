@@ -1,8 +1,10 @@
 use std::{
     cmp::{max, min},
+    fmt::Display,
     sync::Arc,
 };
 
+use async_trait::async_trait;
 use data_types::{CompactionLevel, ParquetFile, TimestampMinMax};
 use datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
 use iox_query::{
@@ -10,221 +12,45 @@ use iox_query::{
     frontend::reorg::ReorgPlanner,
     QueryChunk,
 };
-use iox_time::TimeProvider;
 use observability_deps::tracing::{debug, trace};
 use parquet_file::storage::ParquetStorage;
-use snafu::{ResultExt, Snafu};
 
 use crate::{
-    components::compact::query_chunk::{to_queryable_parquet_chunk, QueryableParquetChunk},
-    config::Config,
+    components::df_planner::query_chunk::{to_queryable_parquet_chunk, QueryableParquetChunk},
     partition_info::PartitionInfo,
 };
 
-#[derive(Debug, Snafu)]
-#[allow(missing_copy_implementations, missing_docs)]
-pub enum Error {
-    #[snafu(display("Error building compact logical plan  {}", source))]
-    CompactLogicalPlan {
-        source: iox_query::frontend::reorg::Error,
-    },
+use super::DataFusionPlanner;
 
-    #[snafu(display("Error building compact physical plan  {}", source))]
-    CompactPhysicalPlan { source: DataFusionError },
-}
-
-/// Observer function (for testing) that is invoked on the physical plan to be run
-type PlanObserver = Box<dyn Fn(&dyn ExecutionPlan) + Send>;
-
-/// Builder for compaction plans
-pub(crate) struct CompactPlanBuilder {
-    // Partition of files to compact
-    partition: Arc<PartitionInfo>,
-    files: Arc<Vec<ParquetFile>>,
+/// Builder for compaction plans.
+///
+/// This uses the first draft / version of how the compactor splits files / time ranges. There will probably future
+/// implementations (maybe called V2, but maybe it also gets a proper name).
+#[derive(Debug)]
+pub struct V1DataFusionPlanner {
     store: ParquetStorage,
     exec: Arc<Executor>,
-    _time_provider: Arc<dyn TimeProvider>,
     max_desired_file_size_bytes: u64,
     percentage_max_file_size: u16,
     split_percentage: u16,
-    target_level: CompactionLevel,
-    // This is for plan observation for testing
-    plan_observer: Option<PlanObserver>,
 }
 
-impl CompactPlanBuilder {
+impl V1DataFusionPlanner {
     /// Create a new compact plan builder.
     pub fn new(
-        files: Arc<Vec<ParquetFile>>,
-        partition: Arc<PartitionInfo>,
-        config: Arc<Config>,
-        compaction_level: CompactionLevel,
+        store: ParquetStorage,
+        exec: Arc<Executor>,
+        max_desired_file_size_bytes: u64,
+        percentage_max_file_size: u16,
+        split_percentage: u16,
     ) -> Self {
         Self {
-            partition,
-            files,
-            store: config.parquet_store.clone(),
-            exec: Arc::clone(&config.exec),
-            _time_provider: Arc::clone(&config.time_provider),
-            max_desired_file_size_bytes: config.max_desired_file_size_bytes,
-            percentage_max_file_size: config.percentage_max_file_size,
-            split_percentage: config.split_percentage,
-            target_level: compaction_level,
-            plan_observer: None,
-        }
-    }
-
-    /// specify a function to call on the created physical plan, prior to its execution (used for testing)
-    #[cfg(test)]
-    #[allow(dead_code)]
-    pub fn with_plan_observer(mut self, plan_observer: PlanObserver) -> Self {
-        self.plan_observer = Some(plan_observer);
-        self
-    }
-
-    /// Builds a compact plan respecting the specified file boundaries
-    /// This functon assumes that the compaction-levels of the files are  either target_level or target_level-1
-    pub async fn build_compact_plan(self) -> Result<Arc<dyn ExecutionPlan>, Error> {
-        //Result<LogicalPlan, Error> {
-        let Self {
-            partition,
-            files,
             store,
             exec,
-            _time_provider,
             max_desired_file_size_bytes,
             percentage_max_file_size,
             split_percentage,
-            target_level,
-            plan_observer,
-        } = self;
-
-        // total file size is the sum of the file sizes of the files to compact
-        let file_sizes = files.iter().map(|f| f.file_size_bytes).collect::<Vec<_>>();
-        let total_size: i64 = file_sizes.iter().sum();
-        let total_size = total_size as u64;
-
-        // Convert the input files into QueryableParquetChunk for making query plan
-        let query_chunks: Vec<_> = files
-            .iter()
-            .map(|file| {
-                to_queryable_parquet_chunk(
-                    file.clone(),
-                    store.clone(),
-                    &partition.table_schema,
-                    partition.sort_key.clone(),
-                    target_level,
-                )
-            })
-            .collect();
-
-        trace!(
-            n_query_chunks = query_chunks.len(),
-            "gathered parquet data to compact"
-        );
-
-        // Compute min/max time
-        // unwrap here will work because the len of the query_chunks already >= 1
-        let (head, tail) = query_chunks.split_first().unwrap();
-        let mut min_time = head.min_time();
-        let mut max_time = head.max_time();
-        for c in tail {
-            min_time = min(min_time, c.min_time());
-            max_time = max(max_time, c.max_time());
         }
-
-        // extract the min & max chunk times for filtering potential split times.
-        let chunk_times: Vec<_> = query_chunks
-            .iter()
-            .map(|c| TimestampMinMax::new(c.min_time(), c.max_time()))
-            .collect();
-
-        // Merge schema of the compacting chunks
-        let query_chunks: Vec<_> = query_chunks
-            .into_iter()
-            .map(|c| Arc::new(c) as Arc<dyn QueryChunk>)
-            .collect();
-        let merged_schema = QueryableParquetChunk::merge_schemas(&query_chunks);
-        debug!(
-            num_cols = merged_schema.as_arrow().fields().len(),
-            "Number of columns in the merged schema to build query plan"
-        );
-
-        // All partitions in the catalog MUST contain a sort key.
-        let sort_key = partition
-            .sort_key
-            .as_ref()
-            .expect("no partition sort key in catalog")
-            .filter_to(&merged_schema.primary_key(), partition.partition_id.get());
-
-        let (small_cutoff_bytes, large_cutoff_bytes) =
-            Self::cutoff_bytes(max_desired_file_size_bytes, percentage_max_file_size);
-
-        // Build logical compact plan
-        let ctx = exec.new_context(ExecutorType::Reorg);
-        let plan = if total_size <= small_cutoff_bytes {
-            // Compact everything into one file
-            ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
-                .compact_plan(
-                    Arc::from(partition.table.name.clone()),
-                    &merged_schema,
-                    query_chunks,
-                    sort_key,
-                )
-                .context(CompactLogicalPlanSnafu)?
-        } else {
-            let split_times = if small_cutoff_bytes < total_size && total_size <= large_cutoff_bytes
-            {
-                // Split compaction into two files, the earlier of split_percentage amount of
-                // max_desired_file_size_bytes, the later of the rest
-                vec![min_time + ((max_time - min_time) * split_percentage as i64) / 100]
-            } else {
-                // Split compaction into multiple files
-                Self::compute_split_time(
-                    chunk_times,
-                    min_time,
-                    max_time,
-                    total_size,
-                    max_desired_file_size_bytes,
-                )
-            };
-
-            if split_times.is_empty() || (split_times.len() == 1 && split_times[0] == max_time) {
-                // The split times might not have actually split anything, so in this case, compact
-                // everything into one file
-                ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
-                    .compact_plan(
-                        Arc::from(partition.table.name.clone()),
-                        &merged_schema,
-                        query_chunks,
-                        sort_key,
-                    )
-                    .context(CompactLogicalPlanSnafu)?
-            } else {
-                // split compact query plan
-                ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
-                    .split_plan(
-                        Arc::from(partition.table.name.clone()),
-                        &merged_schema,
-                        query_chunks,
-                        sort_key,
-                        split_times,
-                    )
-                    .context(CompactLogicalPlanSnafu)?
-            }
-        };
-
-        // Build physical compact plan
-        let physical_plan = ctx
-            .create_physical_plan(&plan)
-            .await
-            .context(CompactPhysicalPlanSnafu)?;
-
-        if let Some(plan_observer) = plan_observer {
-            plan_observer(physical_plan.as_ref());
-        }
-
-        Ok(physical_plan)
     }
 
     // compute cut off bytes for files
@@ -299,23 +125,179 @@ impl CompactPlanBuilder {
     }
 }
 
+impl Display for V1DataFusionPlanner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "v1")
+    }
+}
+
+#[async_trait]
+impl DataFusionPlanner for V1DataFusionPlanner {
+    async fn plan(
+        &self,
+        files: Vec<ParquetFile>,
+        partition: Arc<PartitionInfo>,
+        compaction_level: CompactionLevel,
+    ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
+        // total file size is the sum of the file sizes of the files to compact
+        let file_sizes = files.iter().map(|f| f.file_size_bytes).collect::<Vec<_>>();
+        let total_size: i64 = file_sizes.iter().sum();
+        let total_size = total_size as u64;
+
+        // Convert the input files into QueryableParquetChunk for making query plan
+        let query_chunks: Vec<_> = files
+            .iter()
+            .map(|file| {
+                to_queryable_parquet_chunk(
+                    file.clone(),
+                    self.store.clone(),
+                    &partition.table_schema,
+                    partition.sort_key.clone(),
+                    compaction_level,
+                )
+            })
+            .collect();
+
+        trace!(
+            n_query_chunks = query_chunks.len(),
+            "gathered parquet data to compact"
+        );
+
+        // Compute min/max time
+        // unwrap here will work because the len of the query_chunks already >= 1
+        let (head, tail) = query_chunks.split_first().unwrap();
+        let mut min_time = head.min_time();
+        let mut max_time = head.max_time();
+        for c in tail {
+            min_time = min(min_time, c.min_time());
+            max_time = max(max_time, c.max_time());
+        }
+
+        // extract the min & max chunk times for filtering potential split times.
+        let chunk_times: Vec<_> = query_chunks
+            .iter()
+            .map(|c| TimestampMinMax::new(c.min_time(), c.max_time()))
+            .collect();
+
+        // Merge schema of the compacting chunks
+        let query_chunks: Vec<_> = query_chunks
+            .into_iter()
+            .map(|c| Arc::new(c) as Arc<dyn QueryChunk>)
+            .collect();
+        let merged_schema = QueryableParquetChunk::merge_schemas(&query_chunks);
+        debug!(
+            num_cols = merged_schema.as_arrow().fields().len(),
+            "Number of columns in the merged schema to build query plan"
+        );
+
+        // All partitions in the catalog MUST contain a sort key.
+        let sort_key = partition
+            .sort_key
+            .as_ref()
+            .expect("no partition sort key in catalog")
+            .filter_to(&merged_schema.primary_key(), partition.partition_id.get());
+
+        let (small_cutoff_bytes, large_cutoff_bytes) = Self::cutoff_bytes(
+            self.max_desired_file_size_bytes,
+            self.percentage_max_file_size,
+        );
+
+        // Build logical compact plan
+        let ctx = self.exec.new_context(ExecutorType::Reorg);
+        let plan = if total_size <= small_cutoff_bytes {
+            // Compact everything into one file
+            ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
+                .compact_plan(
+                    Arc::from(partition.table.name.clone()),
+                    &merged_schema,
+                    query_chunks,
+                    sort_key,
+                )
+                .map_err(|e| {
+                    DataFusionError::Context(
+                        String::from("planner"),
+                        Box::new(DataFusionError::External(Box::new(e))),
+                    )
+                })?
+        } else {
+            let split_times = if small_cutoff_bytes < total_size && total_size <= large_cutoff_bytes
+            {
+                // Split compaction into two files, the earlier of split_percentage amount of
+                // max_desired_file_size_bytes, the later of the rest
+                vec![min_time + ((max_time - min_time) * self.split_percentage as i64) / 100]
+            } else {
+                // Split compaction into multiple files
+                Self::compute_split_time(
+                    chunk_times,
+                    min_time,
+                    max_time,
+                    total_size,
+                    self.max_desired_file_size_bytes,
+                )
+            };
+
+            if split_times.is_empty() || (split_times.len() == 1 && split_times[0] == max_time) {
+                // The split times might not have actually split anything, so in this case, compact
+                // everything into one file
+                ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
+                    .compact_plan(
+                        Arc::from(partition.table.name.clone()),
+                        &merged_schema,
+                        query_chunks,
+                        sort_key,
+                    )
+                    .map_err(|e| {
+                        DataFusionError::Context(
+                            String::from("planner"),
+                            Box::new(DataFusionError::External(Box::new(e))),
+                        )
+                    })?
+            } else {
+                // split compact query plan
+                ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
+                    .split_plan(
+                        Arc::from(partition.table.name.clone()),
+                        &merged_schema,
+                        query_chunks,
+                        sort_key,
+                        split_times,
+                    )
+                    .map_err(|e| {
+                        DataFusionError::Context(
+                            String::from("planner"),
+                            Box::new(DataFusionError::External(Box::new(e))),
+                        )
+                    })?
+            }
+        };
+
+        // Build physical compact plan
+        ctx.create_physical_plan(&plan).await.map_err(|e| {
+            DataFusionError::Context(
+                String::from("planner"),
+                Box::new(DataFusionError::External(Box::new(e))),
+            )
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use data_types::TimestampMinMax;
+    use super::*;
 
-    use crate::components::compact::compact_builder::CompactPlanBuilder;
+    use data_types::TimestampMinMax;
 
     #[test]
     fn test_cutoff_bytes() {
-        let (small, large) = CompactPlanBuilder::cutoff_bytes(100, 30);
+        let (small, large) = V1DataFusionPlanner::cutoff_bytes(100, 30);
         assert_eq!(small, 30);
         assert_eq!(large, 130);
 
-        let (small, large) = CompactPlanBuilder::cutoff_bytes(100 * 1024 * 1024, 30);
+        let (small, large) = V1DataFusionPlanner::cutoff_bytes(100 * 1024 * 1024, 30);
         assert_eq!(small, 30 * 1024 * 1024);
         assert_eq!(large, 130 * 1024 * 1024);
 
-        let (small, large) = CompactPlanBuilder::cutoff_bytes(100, 60);
+        let (small, large) = V1DataFusionPlanner::cutoff_bytes(100, 60);
         assert_eq!(small, 60);
         assert_eq!(large, 160);
     }
@@ -332,7 +314,7 @@ mod tests {
         }];
 
         // no split
-        let result = CompactPlanBuilder::compute_split_time(
+        let result = V1DataFusionPlanner::compute_split_time(
             chunk_times.clone(),
             min_time,
             max_time,
@@ -344,7 +326,7 @@ mod tests {
 
         // split 70% and 30%
         let max_desired_file_size = 70;
-        let result = CompactPlanBuilder::compute_split_time(
+        let result = V1DataFusionPlanner::compute_split_time(
             chunk_times.clone(),
             min_time,
             max_time,
@@ -357,7 +339,7 @@ mod tests {
 
         // split 40%, 40%, 20%
         let max_desired_file_size = 40;
-        let result = CompactPlanBuilder::compute_split_time(
+        let result = V1DataFusionPlanner::compute_split_time(
             chunk_times,
             min_time,
             max_time,
@@ -387,7 +369,7 @@ mod tests {
             max: max_time,
         }];
 
-        let result = CompactPlanBuilder::compute_split_time(
+        let result = V1DataFusionPlanner::compute_split_time(
             chunk_times,
             min_time,
             max_time,
@@ -414,7 +396,7 @@ mod tests {
             max: max_time,
         }];
 
-        let result = CompactPlanBuilder::compute_split_time(
+        let result = V1DataFusionPlanner::compute_split_time(
             chunk_times,
             min_time,
             max_time,
@@ -447,7 +429,7 @@ mod tests {
             TimestampMinMax { min: 75, max: 100 },
         ];
 
-        let result = CompactPlanBuilder::compute_split_time(
+        let result = V1DataFusionPlanner::compute_split_time(
             chunk_times,
             min_time,
             max_time,

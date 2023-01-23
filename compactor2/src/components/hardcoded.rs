@@ -19,6 +19,7 @@ use super::{
         catalog::CatalogCommit, logging::LoggingCommitWrapper, metrics::MetricsCommitWrapper,
     },
     df_plan_exec::dedicated::DedicatedDataFusionPlanExec,
+    df_planner::planner_v1::V1DataFusionPlanner,
     file_filter::{and::AndFileFilter, level_range::LevelRangeFileFilter},
     files_filter::{chain::FilesFilterChain, per_file::PerFileFilesFilter},
     parquet_file_sink::{
@@ -97,6 +98,13 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         tables_source: Arc::new(CatalogTablesSource::new(
             config.backoff_config.clone(),
             Arc::clone(&config.catalog),
+        )),
+        df_planner: Arc::new(V1DataFusionPlanner::new(
+            config.parquet_store.clone(),
+            Arc::clone(&config.exec),
+            config.max_desired_file_size_bytes,
+            config.percentage_max_file_size,
+            config.split_percentage,
         )),
         df_plan_exec: Arc::new(DedicatedDataFusionPlanExec::new(Arc::clone(&config.exec))),
         parquet_file_sink: Arc::new(LoggingParquetFileSinkWrapper::new(
