@@ -44,6 +44,7 @@ workspace-hack = { path = "../workspace-hack"}
 write_buffer = { path = "../write_buffer" }
 write_summary = { path = "../write_summary" }
 tower = { version = "0.4.13", features = ["balance"] }
+crossbeam-utils = "0.8.14"
 
 [dev-dependencies]
 assert_matches = "1.5"
