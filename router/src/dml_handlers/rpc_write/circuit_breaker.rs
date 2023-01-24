@@ -159,6 +159,11 @@ pub(crate) struct CircuitBreaker {
 
     /// A task to reset the request count at intervals of [`ERROR_WINDOW`].
     reset_task: JoinHandle<()>,
+
+    /// A string description of the endpoint this [`CircuitBreaker`] models.
+    ///
+    /// Used for logging context only.
+    endpoint: Arc<str>,
 }
 
 #[derive(Debug, Default)]
@@ -172,8 +177,8 @@ struct ProbeState {
     probes_started: u64,
 }
 
-impl Default for CircuitBreaker {
-    fn default() -> Self {
+impl CircuitBreaker {
+    pub(crate) fn new(endpoint: impl Into<Arc<str>>) -> Self {
         let requests = Arc::new(RequestCounter::default());
         let s = Self {
             requests: Arc::clone(&requests),
@@ -186,13 +191,12 @@ impl Default for CircuitBreaker {
                     reset_closed_state_counters(&requests);
                 }
             }),
+            endpoint: endpoint.into(),
         };
         s.set_healthy();
         s
     }
-}
 
-impl CircuitBreaker {
     /// Force-set the state of the circuit breaker to "closed" / healthy.
     pub(crate) fn set_healthy(&self) {
         self.requests.set(NUM_PROBES as u32, 0);
@@ -265,7 +269,7 @@ impl CircuitBreaker {
         match guard.probe_window_started_at {
             // It is time to begin probing again.
             Some(p) if now.duration_since(p) > PROBE_INTERVAL => {
-                debug!("remote unavailable, probing");
+                warn!(endpoint=%self.endpoint, "remote unavailable, probing");
 
                 // It should be impossible to have allowed more than NUM_PROBES
                 // requests through since the last time `guard.probes_started`
@@ -292,7 +296,10 @@ impl CircuitBreaker {
                 // If there have already been the configured number of probes,
                 // do not allow more.
                 if guard.probes_started >= NUM_PROBES {
-                    debug!("remote unavailable, probes exhausted");
+                    debug!(
+                        endpoint=%self.endpoint,
+                        "probes exhausted"
+                    );
                     return false;
                 }
             }
@@ -313,6 +320,7 @@ impl CircuitBreaker {
         debug!(
             nth_probe = guard.probes_started,
             max_probes = NUM_PROBES,
+            endpoint=%self.endpoint,
             "sending probe"
         );
 
@@ -456,7 +464,7 @@ mod tests {
 
     /// Return a new [`CircuitBreaker`] with the reset ticker disabled.
     fn new_no_reset() -> CircuitBreaker {
-        let c = CircuitBreaker::default();
+        let c = CircuitBreaker::new("bananas");
         c.reset_task.abort();
         c
     }
@@ -595,7 +603,7 @@ mod tests {
     /// ERROR_WINDOW periods from changing the circuit to open/unhealthy.
     #[tokio::test]
     async fn test_periodic_counter_reset() {
-        let c = CircuitBreaker::default();
+        let c = CircuitBreaker::new("bananas");
 
         // Assert the circuit breaker as healthy.
         assert!(c.is_healthy());

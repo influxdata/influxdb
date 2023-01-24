@@ -17,7 +17,7 @@ use hashbrown::HashMap;
 use mutable_batch::MutableBatch;
 use mutable_batch_pb::encode::encode_write;
 use observability_deps::tracing::*;
-use std::{fmt::Debug, time::Duration};
+use std::{fmt::Debug, sync::Arc, time::Duration};
 use thiserror::Error;
 use trace::ctx::SpanContext;
 
@@ -71,12 +71,18 @@ pub struct RpcWrite<C> {
 impl<C> RpcWrite<C> {
     /// Initialise a new [`RpcWrite`] that sends requests to an arbitrary
     /// downstream Ingester, using a round-robin strategy.
-    pub fn new(endpoints: impl IntoIterator<Item = C>) -> Self
+    pub fn new<N>(endpoints: impl IntoIterator<Item = (C, N)>, metrics: &metric::Registry) -> Self
     where
-        C: Send + Sync + Debug,
+        C: Send + Sync + Debug + 'static,
+        N: Into<Arc<str>>,
     {
         Self {
-            endpoints: Balancer::new(endpoints.into_iter().map(CircuitBreakingClient::new)),
+            endpoints: Balancer::new(
+                endpoints
+                    .into_iter()
+                    .map(|(client, name)| CircuitBreakingClient::new(client, name.into())),
+                Some(metrics),
+            ),
         }
     }
 }
@@ -84,7 +90,7 @@ impl<C> RpcWrite<C> {
 #[async_trait]
 impl<C> DmlHandler for RpcWrite<C>
 where
-    C: client::WriteClient,
+    C: client::WriteClient + 'static,
 {
     type WriteInput = Partitioned<HashMap<TableId, (String, MutableBatch)>>;
     type WriteOutput = Vec<DmlMeta>;
@@ -219,7 +225,10 @@ mod tests {
 
         // Init the write handler with a mock client to capture the rpc calls.
         let client = Arc::new(MockWriteClient::default());
-        let handler = RpcWrite::new([Arc::clone(&client)]);
+        let handler = RpcWrite::new(
+            [(Arc::clone(&client), "mock client")],
+            &metric::Registry::default(),
+        );
 
         // Drive the RPC writer
         let got = handler
@@ -271,7 +280,13 @@ mod tests {
                 .with_ret([Err(RpcWriteError::Upstream(tonic::Status::internal("")))]),
         );
         let client2 = Arc::new(MockWriteClient::default());
-        let handler = RpcWrite::new([Arc::clone(&client1), Arc::clone(&client2)]);
+        let handler = RpcWrite::new(
+            [
+                (Arc::clone(&client1), "client1"),
+                (Arc::clone(&client2), "client2"),
+            ],
+            &metric::Registry::default(),
+        );
 
         // Drive the RPC writer
         let got = handler

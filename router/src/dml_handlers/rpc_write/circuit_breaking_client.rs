@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use generated_types::influxdata::iox::ingester::v1::WriteRequest;
@@ -33,13 +33,31 @@ pub(super) struct CircuitBreakingClient<T, C = CircuitBreaker> {
     inner: T,
     /// The circuit-breaking logic.
     state: C,
+
+    /// A string description of the endpoint this [`CircuitBreakingClient`]
+    /// dispatches requests to.
+    ///
+    /// Used for metric context only.
+    endpoint_name: Arc<str>,
 }
 
 impl<T> CircuitBreakingClient<T> {
-    pub(super) fn new(inner: T) -> Self {
-        let state = CircuitBreaker::default();
+    pub(super) fn new(inner: T, endpoint_name: impl Into<Arc<str>>) -> Self {
+        let endpoint_name = endpoint_name.into();
+        let state = CircuitBreaker::new(Arc::clone(&endpoint_name));
         state.set_healthy();
-        Self { inner, state }
+        Self {
+            inner,
+            state,
+            endpoint_name,
+        }
+    }
+}
+
+impl<T, C> CircuitBreakingClient<T, C> {
+    /// Returns the name of the endpoint assigned at initialisation.
+    pub(crate) fn endpoint_name(&self) -> Arc<str> {
+        Arc::clone(&self.endpoint_name)
     }
 }
 
@@ -57,6 +75,7 @@ where
     pub(super) fn with_circuit_breaker<U>(self, breaker: U) -> CircuitBreakingClient<T, U> {
         CircuitBreakingClient {
             inner: self.inner,
+            endpoint_name: self.endpoint_name,
             state: breaker,
         }
     }
@@ -133,7 +152,7 @@ mod tests {
     #[tokio::test]
     async fn test_healthy() {
         let circuit_breaker = Arc::new(MockCircuitBreaker::default());
-        let wrapper = CircuitBreakingClient::new(MockWriteClient::default())
+        let wrapper = CircuitBreakingClient::new(MockWriteClient::default(), "bananas")
             .with_circuit_breaker(Arc::clone(&circuit_breaker));
 
         circuit_breaker.set_usable(true);
@@ -151,7 +170,7 @@ mod tests {
             MockWriteClient::default()
                 .with_ret(vec![Ok(()), Err(RpcWriteError::DeletesUnsupported)]),
         );
-        let wrapper = CircuitBreakingClient::new(Arc::clone(&mock_client))
+        let wrapper = CircuitBreakingClient::new(Arc::clone(&mock_client), "bananas")
             .with_circuit_breaker(Arc::clone(&circuit_breaker));
 
         assert_eq!(circuit_breaker.ok_count(), 0);
