@@ -197,13 +197,13 @@ impl PersistHandle {
         let persist_duration = metrics
             .register_metric::<DurationHistogram>(
                 "ingester_persist_active_duration",
-                "the distribution of persist job processing duration in nanoseconds",
+                "the distribution of persist job processing duration in seconds",
             )
             .recorder(&[]);
         let queue_duration = metrics
             .register_metric::<DurationHistogram>(
                 "ingester_persist_enqueue_duration",
-                "the distribution of duration a persist job spent enqueued, waiting to be processed in nanoseconds",
+                "the distribution of duration a persist job spent enqueued, waiting to be processed in seconds",
             )
             .recorder(&[]);
 
