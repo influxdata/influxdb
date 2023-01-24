@@ -164,7 +164,12 @@ pub(crate) struct CircuitBreaker {
 
 #[derive(Debug, Default)]
 struct ProbeState {
-    last_probe: Option<Instant>,
+    /// The instant at which this set of probes started to be sent.
+    ///
+    /// Up to [`NUM_PROBES`] SHOULD be sent in the time range between this
+    /// timestamp plus [`PROBE_INTERVAL`].
+    probe_window_started_at: Option<Instant>,
+    /// The number of probes sent so far in this [`PROBE_INTERVAL`].
     probes_started: u64,
 }
 
@@ -258,7 +263,7 @@ impl CircuitBreaker {
         let now = Instant::now();
 
         // Reset the probe count once per PROBE_INTERVAL.
-        match guard.last_probe {
+        match guard.probe_window_started_at {
             // It is time to begin probing again.
             Some(p) if now.duration_since(p) > PROBE_INTERVAL => {
                 debug!("remote unavailable, probing");
@@ -270,7 +275,7 @@ impl CircuitBreaker {
                 // `guard.probes_started` if it has reached `NUM_PROBES`.
                 assert!(guard.probes_started <= NUM_PROBES);
                 // Record the start of a probing interval.
-                guard.last_probe = Some(now);
+                guard.probe_window_started_at = Some(now);
                 // Reset the number of probes allowed.
                 guard.probes_started = 0;
 
@@ -295,7 +300,7 @@ impl CircuitBreaker {
             None => {
                 // First time this circuit breaker has entered the probing
                 // state; no start of a probe interval to check.
-                guard.last_probe = Some(now);
+                guard.probe_window_started_at = Some(now);
                 // It should be impossible to have started probes if we've never
                 // been in the probing state before.
                 assert_eq!(guard.probes_started, 0);
@@ -495,7 +500,7 @@ mod tests {
         assert_reset_is_nop(&c.requests);
 
         // Pretend it is time to probe again.
-        c.probes.lock().last_probe = Some(
+        c.probes.lock().probe_window_started_at = Some(
             Instant::now()
                 .checked_sub(PROBE_INTERVAL + Duration::from_nanos(1))
                 .expect("instant cannot roll back far enough - test issue, not code issue"),
@@ -565,7 +570,7 @@ mod tests {
         assert_reset_is_nop(&c.requests);
 
         // Pretend it is time to probe again.
-        c.probes.lock().last_probe = Some(
+        c.probes.lock().probe_window_started_at = Some(
             Instant::now()
                 .checked_sub(PROBE_INTERVAL + Duration::from_nanos(1))
                 .expect("instant cannot roll back far enough - test issue, not code issue"),
