@@ -32,12 +32,11 @@ pub async fn compact(partition_concurrency: NonZeroUsize, components: &Arc<Compo
 }
 
 async fn compact_partition(partition_id: PartitionId, components: Arc<Components>) {
-    if let Err(e) = try_compact_partition(partition_id, Arc::clone(&components)).await {
-        components
-            .partition_error_sink
-            .record(partition_id, e)
-            .await;
-    }
+    let res = try_compact_partition(partition_id, Arc::clone(&components)).await;
+    components
+        .partition_done_sink
+        .record(partition_id, res)
+        .await;
 }
 
 type Error = Box<dyn std::error::Error + Send + Sync>;

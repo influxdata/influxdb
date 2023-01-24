@@ -5,29 +5,29 @@ use data_types::PartitionId;
 
 use crate::error::{ErrorKind, ErrorKindExt};
 
-use super::PartitionErrorSink;
+use super::PartitionDoneSink;
 
 #[derive(Debug)]
-pub struct KindPartitionErrorSinkWrapper<T>
+pub struct ErrorKindPartitionDoneSinkWrapper<T>
 where
-    T: PartitionErrorSink,
+    T: PartitionDoneSink,
 {
     kind: HashSet<ErrorKind>,
     inner: T,
 }
 
-impl<T> KindPartitionErrorSinkWrapper<T>
+impl<T> ErrorKindPartitionDoneSinkWrapper<T>
 where
-    T: PartitionErrorSink,
+    T: PartitionDoneSink,
 {
     pub fn new(inner: T, kind: HashSet<ErrorKind>) -> Self {
         Self { kind, inner }
     }
 }
 
-impl<T> Display for KindPartitionErrorSinkWrapper<T>
+impl<T> Display for ErrorKindPartitionDoneSinkWrapper<T>
 where
-    T: PartitionErrorSink,
+    T: PartitionDoneSink,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut kinds = self.kind.iter().copied().collect::<Vec<_>>();
@@ -37,14 +37,21 @@ where
 }
 
 #[async_trait]
-impl<T> PartitionErrorSink for KindPartitionErrorSinkWrapper<T>
+impl<T> PartitionDoneSink for ErrorKindPartitionDoneSinkWrapper<T>
 where
-    T: PartitionErrorSink,
+    T: PartitionDoneSink,
 {
-    async fn record(&self, partition: PartitionId, e: Box<dyn std::error::Error + Send + Sync>) {
-        let kind = e.classify();
-        if self.kind.contains(&kind) {
-            self.inner.record(partition, e).await;
+    async fn record(
+        &self,
+        partition: PartitionId,
+        res: Result<(), Box<dyn std::error::Error + Send + Sync>>,
+    ) {
+        match res {
+            Ok(()) => self.inner.record(partition, Ok(())).await,
+            Err(e) if self.kind.contains(&e.classify()) => {
+                self.inner.record(partition, Err(e)).await;
+            }
+            _ => {}
         }
     }
 }
@@ -53,7 +60,7 @@ where
 mod tests {
     use std::{collections::HashMap, sync::Arc};
 
-    use crate::components::partition_error_sink::mock::MockPartitionErrorSink;
+    use crate::components::partition_done_sink::mock::MockPartitionDoneSink;
 
     use datafusion::error::DataFusionError;
     use object_store::Error as ObjectStoreError;
@@ -62,8 +69,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let sink = KindPartitionErrorSinkWrapper::new(
-            MockPartitionErrorSink::new(),
+        let sink = ErrorKindPartitionDoneSinkWrapper::new(
+            MockPartitionDoneSink::new(),
             HashSet::from([ErrorKind::ObjectStore, ErrorKind::OutOfMemory]),
         );
         assert_eq!(sink.to_string(), "kind([ObjectStore, OutOfMemory], mock)");
@@ -71,35 +78,39 @@ mod tests {
 
     #[tokio::test]
     async fn test_record() {
-        let inner = Arc::new(MockPartitionErrorSink::new());
-        let sink = KindPartitionErrorSinkWrapper::new(
+        let inner = Arc::new(MockPartitionDoneSink::new());
+        let sink = ErrorKindPartitionDoneSinkWrapper::new(
             Arc::clone(&inner),
             HashSet::from([ErrorKind::ObjectStore, ErrorKind::OutOfMemory]),
         );
 
         sink.record(
             PartitionId::new(1),
-            Box::new(ObjectStoreError::NotImplemented),
+            Err(Box::new(ObjectStoreError::NotImplemented)),
         )
         .await;
         sink.record(
             PartitionId::new(2),
-            Box::new(DataFusionError::ResourcesExhausted(String::from("foo"))),
+            Err(Box::new(DataFusionError::ResourcesExhausted(String::from(
+                "foo",
+            )))),
         )
         .await;
-        sink.record(PartitionId::new(3), "foo".into()).await;
+        sink.record(PartitionId::new(3), Err("foo".into())).await;
+        sink.record(PartitionId::new(4), Ok(())).await;
 
         assert_eq!(
             inner.errors(),
             HashMap::from([
                 (
                     PartitionId::new(1),
-                    String::from("Operation not yet implemented.")
+                    Err(String::from("Operation not yet implemented.")),
                 ),
                 (
                     PartitionId::new(2),
-                    String::from("Resources exhausted: foo")
+                    Err(String::from("Resources exhausted: foo")),
                 ),
+                (PartitionId::new(4), Ok(()),),
             ]),
         );
     }
