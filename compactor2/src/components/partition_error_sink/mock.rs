@@ -30,11 +30,11 @@ impl Display for MockPartitionErrorSink {
 
 #[async_trait]
 impl PartitionErrorSink for MockPartitionErrorSink {
-    async fn record(&self, partition: PartitionId, msg: &str) {
+    async fn record(&self, partition: PartitionId, e: Box<dyn std::error::Error + Send + Sync>) {
         self.last
             .lock()
             .expect("not poisoned")
-            .insert(partition, msg.to_owned());
+            .insert(partition, e.to_string());
     }
 }
 
@@ -53,9 +53,9 @@ mod tests {
 
         assert_eq!(sink.errors(), HashMap::default(),);
 
-        sink.record(PartitionId::new(1), "msg 1").await;
-        sink.record(PartitionId::new(2), "msg 2").await;
-        sink.record(PartitionId::new(1), "msg 3").await;
+        sink.record(PartitionId::new(1), "msg 1".into()).await;
+        sink.record(PartitionId::new(2), "msg 2".into()).await;
+        sink.record(PartitionId::new(1), "msg 3".into()).await;
 
         assert_eq!(
             sink.errors(),

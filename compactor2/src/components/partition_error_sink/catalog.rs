@@ -30,7 +30,9 @@ impl Display for CatalogPartitionErrorSink {
 
 #[async_trait]
 impl PartitionErrorSink for CatalogPartitionErrorSink {
-    async fn record(&self, partition: PartitionId, msg: &str) {
+    async fn record(&self, partition: PartitionId, e: Box<dyn std::error::Error + Send + Sync>) {
+        let msg = e.to_string();
+
         Backoff::new(&self.backoff_config)
             .retry_all_errors("store partition error in catalog", || async {
                 self.catalog
@@ -38,7 +40,7 @@ impl PartitionErrorSink for CatalogPartitionErrorSink {
                     .await
                     .partitions()
                     // TODO: remove stats from the catalog since the couple the catalog state to the algorithm implementation
-                    .record_skipped_compaction(partition, msg, 0, 0, 0, 0, 0)
+                    .record_skipped_compaction(partition, &msg, 0, 0, 0, 0, 0)
                     .await
             })
             .await

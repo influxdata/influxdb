@@ -1005,6 +1005,7 @@ dependencies = [
  "iox_tests",
  "iox_time",
  "metric",
+ "object_store",
  "observability_deps",
  "parquet_file",
  "predicate",

@@ -15,6 +15,7 @@ pub mod compactor;
 mod components;
 pub mod config;
 mod driver;
+mod error;
 mod partition_info;
 
 mod compactor_tests;
