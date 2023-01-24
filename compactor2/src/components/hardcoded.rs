@@ -27,9 +27,9 @@ use super::{
         dedicated::DedicatedExecParquetFileSinkWrapper, logging::LoggingParquetFileSinkWrapper,
         object_store::ObjectStoreParquetFileSink,
     },
-    partition_error_sink::{
-        catalog::CatalogPartitionErrorSink, kind::KindPartitionErrorSinkWrapper,
-        logging::LoggingPartitionErrorSinkWrapper, metrics::MetricsPartitionErrorSinkWrapper,
+    partition_done_sink::{
+        catalog::CatalogPartitionDoneSink, error_kind::ErrorKindPartitionDoneSinkWrapper,
+        logging::LoggingPartitionDoneSinkWrapper, metrics::MetricsPartitionDoneSinkWrapper,
     },
     partition_files_source::catalog::CatalogPartitionFilesSource,
     partition_filter::{
@@ -91,10 +91,10 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
                 &config.metric_registry,
             ),
         )),
-        partition_error_sink: Arc::new(LoggingPartitionErrorSinkWrapper::new(
-            MetricsPartitionErrorSinkWrapper::new(
-                KindPartitionErrorSinkWrapper::new(
-                    CatalogPartitionErrorSink::new(
+        partition_done_sink: Arc::new(LoggingPartitionDoneSinkWrapper::new(
+            MetricsPartitionDoneSinkWrapper::new(
+                ErrorKindPartitionDoneSinkWrapper::new(
+                    CatalogPartitionDoneSink::new(
                         config.backoff_config.clone(),
                         Arc::clone(&config.catalog),
                     ),

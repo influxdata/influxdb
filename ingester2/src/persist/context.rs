@@ -271,6 +271,10 @@ impl Context {
         let _ = self.complete.send(());
     }
 
+    pub(super) fn enqueued_at(&self) -> Instant {
+        self.enqueued_at
+    }
+
     pub(super) fn sort_key(&self) -> &SortKeyState {
         &self.sort_key
     }

@@ -33,12 +33,14 @@ use crate::{
         table::name_resolver::{TableNameProvider, TableNameResolver},
         BufferTree,
     },
+    dml_sink::{instrumentation::DmlSinkInstrumentation, tracing::DmlSinkTracing},
     ingest_state::IngestState,
     ingester_id::IngesterId,
     persist::{
         completion_observer::NopObserver, handle::PersistHandle,
         hot_partitions::HotPartitionPersister,
     },
+    query::{instrumentation::QueryExecInstrumentation, tracing::QueryExecTracing},
     server::grpc::GrpcDelegate,
     timestamp_oracle::TimestampOracle,
     wal::{rotate_task::periodic_rotation, wal_sink::WalSink},
@@ -323,7 +325,31 @@ where
         .map_err(|e| InitError::WalReplay(e.into()))?;
 
     // Build the chain of DmlSink that forms the write path.
-    let write_path = WalSink::new(Arc::clone(&buffer), Arc::clone(&wal));
+    let write_path = DmlSinkInstrumentation::new(
+        "write_apply",
+        DmlSinkTracing::new(
+            DmlSinkTracing::new(
+                WalSink::new(
+                    DmlSinkInstrumentation::new(
+                        "buffer",
+                        DmlSinkTracing::new(Arc::clone(&buffer), "buffer"),
+                        &metrics,
+                    ),
+                    Arc::clone(&wal),
+                ),
+                "wal",
+            ),
+            "write_apply",
+        ),
+        &metrics,
+    );
+
+    // And the chain of QueryExec that forms the read path.
+    let read_path = QueryExecInstrumentation::new(
+        "buffer",
+        QueryExecTracing::new(Arc::clone(&buffer), "buffer"),
+        &metrics,
+    );
 
     // Spawn a background thread to periodically rotate the WAL segment file.
     let rotation_task = tokio::spawn(periodic_rotation(
@@ -358,7 +384,7 @@ where
     Ok(IngesterGuard {
         rpc: GrpcDelegate::new(
             Arc::new(write_path),
-            Arc::clone(&buffer),
+            Arc::new(read_path),
             timestamp,
             ingest_state,
             ingester_id,

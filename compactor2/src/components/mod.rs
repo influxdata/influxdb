@@ -3,7 +3,7 @@ use std::sync::Arc;
 use self::{
     commit::Commit, df_plan_exec::DataFusionPlanExec, df_planner::DataFusionPlanner,
     files_filter::FilesFilter, namespaces_source::NamespacesSource,
-    parquet_file_sink::ParquetFileSink, partition_error_sink::PartitionErrorSink,
+    parquet_file_sink::ParquetFileSink, partition_done_sink::PartitionDoneSink,
     partition_files_source::PartitionFilesSource, partition_filter::PartitionFilter,
     partitions_source::PartitionsSource, tables_source::TablesSource,
 };
@@ -16,7 +16,7 @@ pub mod files_filter;
 pub mod hardcoded;
 pub mod namespaces_source;
 pub mod parquet_file_sink;
-pub mod partition_error_sink;
+pub mod partition_done_sink;
 pub mod partition_files_source;
 pub mod partition_filter;
 pub mod partitions_source;
@@ -30,7 +30,7 @@ pub struct Components {
     pub partition_files_source: Arc<dyn PartitionFilesSource>,
     pub files_filter: Arc<dyn FilesFilter>,
     pub partition_filter: Arc<dyn PartitionFilter>,
-    pub partition_error_sink: Arc<dyn PartitionErrorSink>,
+    pub partition_done_sink: Arc<dyn PartitionDoneSink>,
     pub commit: Arc<dyn Commit>,
     pub namespaces_source: Arc<dyn NamespacesSource>,
     pub tables_source: Arc<dyn TablesSource>,
