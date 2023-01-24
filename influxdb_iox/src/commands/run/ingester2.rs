@@ -7,11 +7,14 @@ use clap_blocks::{
     run_config::RunConfig,
 };
 use iox_query::exec::Executor;
+use iox_time::{SystemProvider, TimeProvider};
 use ioxd_common::{
     server_type::{CommonServerState, CommonServerStateError},
     Service,
 };
 use ioxd_ingester2::create_ingester_server_type;
+use object_store::DynObjectStore;
+use object_store_metrics::ObjectStoreMetrics;
 use observability_deps::tracing::*;
 use parquet_file::storage::{ParquetStorage, StorageId};
 use std::sync::Arc;
@@ -90,6 +93,7 @@ pub async fn command(config: Config) -> Result<()> {
     }
 
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
+    let time_provider = Arc::new(SystemProvider::new()) as Arc<dyn TimeProvider>;
     let metric_registry = setup_metric_registry();
 
     let catalog = config
@@ -103,6 +107,13 @@ pub async fn command(config: Config) -> Result<()> {
     ));
     let object_store = make_object_store(config.run_config.object_store_config())
         .map_err(Error::ObjectStoreParsing)?;
+
+    // Decorate the object store with a metric recorder.
+    let object_store: Arc<DynObjectStore> = Arc::new(ObjectStoreMetrics::new(
+        object_store,
+        Arc::clone(&time_provider),
+        &metric_registry,
+    ));
 
     let server_type = create_ingester_server_type(
         &common_state,
