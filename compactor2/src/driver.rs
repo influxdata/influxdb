@@ -35,7 +35,7 @@ async fn compact_partition(partition_id: PartitionId, components: Arc<Components
     if let Err(e) = try_compact_partition(partition_id, Arc::clone(&components)).await {
         components
             .partition_error_sink
-            .record(partition_id, &e.to_string())
+            .record(partition_id, e)
             .await;
     }
 }

@@ -2,7 +2,7 @@
 //!
 //! TODO: Make this a runtime-config.
 
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use data_types::CompactionLevel;
 
@@ -12,6 +12,7 @@ use crate::{
         tables_source::catalog::CatalogTablesSource,
     },
     config::Config,
+    error::ErrorKind,
 };
 
 use super::{
@@ -27,8 +28,8 @@ use super::{
         object_store::ObjectStoreParquetFileSink,
     },
     partition_error_sink::{
-        catalog::CatalogPartitionErrorSink, logging::LoggingPartitionErrorSinkWrapper,
-        metrics::MetricsPartitionErrorSinkWrapper,
+        catalog::CatalogPartitionErrorSink, kind::KindPartitionErrorSinkWrapper,
+        logging::LoggingPartitionErrorSinkWrapper, metrics::MetricsPartitionErrorSinkWrapper,
     },
     partition_files_source::catalog::CatalogPartitionFilesSource,
     partition_filter::{
@@ -92,9 +93,12 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         )),
         partition_error_sink: Arc::new(LoggingPartitionErrorSinkWrapper::new(
             MetricsPartitionErrorSinkWrapper::new(
-                CatalogPartitionErrorSink::new(
-                    config.backoff_config.clone(),
-                    Arc::clone(&config.catalog),
+                KindPartitionErrorSinkWrapper::new(
+                    CatalogPartitionErrorSink::new(
+                        config.backoff_config.clone(),
+                        Arc::clone(&config.catalog),
+                    ),
+                    HashSet::from([ErrorKind::OutOfMemory, ErrorKind::Unknown]),
                 ),
                 &config.metric_registry,
             ),
