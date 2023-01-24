@@ -343,7 +343,7 @@ fn is_probing(counts: RequestCounterValue) -> bool {
 fn is_healthy(counts: RequestCounterValue) -> bool {
     // Ensure there is never a division by 0 by adding 1 to both counters,
     // maintaining the same ratio between them.
-    let pcnt = counts.errors() as f32 / counts.successes() as f32;
+    let pcnt = (counts.errors() + 1) as f32 / (counts.successes() + 1) as f32;
     let ratio = pcnt < MAX_ERROR_RATIO;
 
     trace!(
