@@ -5,13 +5,12 @@ use backoff::Backoff;
 use data_types::{CompactionLevel, ParquetFileParams, SequenceNumber};
 use iox_catalog::interface::{get_table_schema_by_id, CasFailure, Catalog};
 use iox_query::exec::Executor;
-
 use iox_time::{SystemProvider, TimeProvider};
+use metric::DurationHistogram;
 use observability_deps::tracing::{debug, info, warn};
 use parquet_file::{metadata::IoxMetadata, storage::ParquetStorage};
-
 use schema::sort::SortKey;
-use tokio::sync::mpsc;
+use tokio::{sync::mpsc, time::Instant};
 use uuid::Uuid;
 
 use crate::persist::compact::compact_persisting_batch;
@@ -76,6 +75,8 @@ pub(super) async fn run_task<O>(
     worker_state: Arc<SharedWorkerState<O>>,
     global_queue: async_channel::Receiver<PersistRequest>,
     mut rx: mpsc::UnboundedReceiver<PersistRequest>,
+    queue_duration: DurationHistogram,
+    persist_duration: DurationHistogram,
 ) where
     O: PersistCompletionObserver,
 {
@@ -114,6 +115,10 @@ pub(super) async fn run_task<O>(
 
         let mut ctx = Context::new(req);
 
+        // Capture the time spent in the queue.
+        let started_at = Instant::now();
+        queue_duration.record(started_at.duration_since(ctx.enqueued_at()));
+
         // Compact the data, generate the parquet file from the result, and
         // upload it to object storage.
         //
@@ -136,6 +141,10 @@ pub(super) async fn run_task<O>(
         // observers.
         ctx.mark_complete(object_store_id, &worker_state.completion_observer)
             .await;
+
+        // Capture the time spent actively persisting.
+        let now = Instant::now();
+        persist_duration.record(now.duration_since(started_at));
     }
 }
 
