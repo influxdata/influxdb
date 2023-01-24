@@ -1,7 +1,10 @@
 //! Query planner wrapper for use in IOx services
 use std::sync::Arc;
 
-use datafusion::physical_plan::ExecutionPlan;
+use arrow_flight::sql::Any;
+use bytes::Bytes;
+use datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
+use flightsql::FlightSQLPlanner;
 use iox_query::{
     exec::IOxSessionContext,
     frontend::{influxrpc::InfluxRpcPlanner, sql::SqlQueryPlanner},
@@ -17,7 +20,7 @@ use predicate::rpc_predicate::InfluxRpcPredicate;
 ///
 /// Query planning was, at time of writing, a single threaded
 /// affair. In order to avoid tying up the tokio executor that is
-/// handling API requests, we plan queries using a separate thread
+/// handling API requests, IOx plan queries using a separate thread
 /// pool.
 pub struct Planner {
     /// Executors (whose threadpool to use)
@@ -57,6 +60,50 @@ impl Planner {
 
         self.ctx
             .run(async move { planner.query(database, &query, &ctx).await })
+            .await
+    }
+
+    /// Creates a plan for a `DoGet` FlightSQL message,
+    /// as described on [`FlightSQLPlanner::do_get`], on a
+    /// separate threadpool
+    pub async fn flight_sql_do_get<N>(
+        &self,
+        namespace_name: impl Into<String>,
+        namespace: Arc<N>,
+        msg: Any,
+    ) -> Result<Arc<dyn ExecutionPlan>>
+    where
+        N: QueryNamespace + 'static,
+    {
+        let namespace_name = namespace_name.into();
+        let ctx = self.ctx.child_ctx("planner flight_sql_do_get");
+
+        self.ctx
+            .run(async move {
+                FlightSQLPlanner::do_get(namespace_name, namespace, msg, &ctx)
+                    .await
+                    .map_err(DataFusionError::from)
+            })
+            .await
+    }
+
+    /// Creates the response for a `GetFlightInfo`  FlightSQL  message
+    /// as described on [`FlightSQLPlanner::get_flight_info`], on a
+    /// separate threadpool.
+    pub async fn flight_sql_get_flight_info(
+        &self,
+        namespace_name: impl Into<String>,
+        msg: Any,
+    ) -> Result<Bytes> {
+        let namespace_name = namespace_name.into();
+        let ctx = self.ctx.child_ctx("planner flight_sql_get_flight_info");
+
+        self.ctx
+            .run(async move {
+                FlightSQLPlanner::get_flight_info(namespace_name, msg, &ctx)
+                    .await
+                    .map_err(DataFusionError::from)
+            })
             .await
     }
 

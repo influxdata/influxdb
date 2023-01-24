@@ -27,6 +27,7 @@ pub struct GapFill {
     group_expr: Vec<Expr>,
     aggr_expr: Vec<Expr>,
     time_column: Expr,
+    stride: Expr,
 }
 
 impl GapFill {
@@ -35,12 +36,14 @@ impl GapFill {
         group_expr: Vec<Expr>,
         aggr_expr: Vec<Expr>,
         time_column: Expr,
+        stride: Expr,
     ) -> Result<Self> {
         Ok(Self {
             input,
             group_expr,
             aggr_expr,
             time_column,
+            stride,
         })
     }
 }
@@ -69,8 +72,8 @@ impl UserDefinedLogicalNode for GapFill {
     fn fmt_for_explain(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "GapFill: groupBy=[{:?}], aggr=[{:?}], time_column={}",
-            self.group_expr, self.aggr_expr, self.time_column
+            "GapFill: groupBy=[{:?}], aggr=[{:?}], time_column={}, stride={}",
+            self.group_expr, self.aggr_expr, self.time_column, self.stride
         )
     }
 
@@ -86,6 +89,7 @@ impl UserDefinedLogicalNode for GapFill {
             group_expr,
             aggr_expr,
             self.time_column.clone(),
+            self.stride.clone(),
         )
         .expect("should not fail");
         Arc::new(gapfill)
@@ -131,11 +135,19 @@ pub(crate) fn plan_gap_fill(
     let logical_time_column = gap_fill.time_column.try_into_col()?;
     let time_column = Column::new_with_schema(&logical_time_column.name, input_schema)?;
 
+    let stride = create_physical_expr(
+        &gap_fill.stride,
+        input_dfschema,
+        input_schema,
+        execution_props,
+    )?;
+
     GapFillExec::try_new(
         Arc::clone(&physical_inputs[0]),
         group_expr,
         aggr_expr,
         time_column,
+        stride,
     )
 }
 
@@ -151,6 +163,8 @@ pub struct GapFillExec {
     // The sort expressions for the required sort order of the input:
     // all of the group exressions, with the time column being last.
     sort_expr: Vec<PhysicalSortExpr>,
+    // The stride of the date bins
+    stride: Arc<dyn PhysicalExpr>,
 }
 
 impl GapFillExec {
@@ -159,6 +173,7 @@ impl GapFillExec {
         group_expr: Vec<Arc<dyn PhysicalExpr>>,
         aggr_expr: Vec<Arc<dyn PhysicalExpr>>,
         time_column: Column,
+        stride: Arc<dyn PhysicalExpr>,
     ) -> Result<Self> {
         let sort_expr = {
             let mut sort_expr: Vec<_> = group_expr
@@ -201,6 +216,7 @@ impl GapFillExec {
             aggr_expr,
             time_column,
             sort_expr,
+            stride,
         })
     }
 }
@@ -256,6 +272,7 @@ impl ExecutionPlan for GapFillExec {
                 self.group_expr.clone(),
                 self.aggr_expr.clone(),
                 self.time_column.clone(),
+                Arc::clone(&self.stride),
             )?)),
             _ => Err(DataFusionError::Internal(
                 "GapFillExec wrong number of children".to_string(),
@@ -283,9 +300,10 @@ impl ExecutionPlan for GapFillExec {
                 let aggr_expr: Vec<_> = self.aggr_expr.iter().map(|e| e.to_string()).collect();
                 write!(
                     f,
-                    "GapFillExec: group_expr=[{}], aggr_expr=[{}]",
+                    "GapFillExec: group_expr=[{}], aggr_expr=[{}], stride={}",
                     group_expr.join(", "),
-                    aggr_expr.join(", ")
+                    aggr_expr.join(", "),
+                    self.stride,
                 )
             }
         }
@@ -307,7 +325,8 @@ mod test {
         error::Result,
         logical_expr::{logical_plan, Extension},
         physical_plan::displayable,
-        prelude::col,
+        prelude::{col, lit},
+        scalar::ScalarValue,
         sql::TableReference,
     };
 
@@ -339,11 +358,12 @@ mod test {
             vec![col("loc"), col("time")],
             vec![col("temp")],
             col("time"),
+            lit(ScalarValue::IntervalDayTime(Some(60_000))),
         )?;
         let plan = LogicalPlan::Extension(Extension {
             node: Arc::new(gapfill),
         });
-        let expected = "GapFill: groupBy=[[loc, time]], aggr=[[temp]], time_column=time\
+        let expected = "GapFill: groupBy=[[loc, time]], aggr=[[temp]], time_column=time, stride=IntervalDayTime(\"60000\")\
                       \n  TableScan: temps";
         assert_eq!(expected, format!("{}", plan.display_indent()));
         Ok(())
@@ -382,7 +402,7 @@ mod test {
            \nGROUP BY minute;",
             format!(
                 "ProjectionExec: expr=[date_bin_gapfill({dbg_args})@0 as minute, AVG(temps.temp)@1 as AVG(temps.temp)]\
-               \n  GapFillExec: group_expr=[date_bin_gapfill({dbg_args})@0], aggr_expr=[AVG(temps.temp)@1]\
+               \n  GapFillExec: group_expr=[date_bin_gapfill({dbg_args})@0], aggr_expr=[AVG(temps.temp)@1], stride=60000\
                \n    SortExec: [date_bin_gapfill({dbg_args})@0 ASC]\
                \n      AggregateExec: mode=Final, gby=[date_bin_gapfill({dbg_args})@0 as date_bin_gapfill({dbg_args})], aggr=[AVG(temps.temp)]"
            ).as_str()
@@ -406,7 +426,7 @@ mod test {
            \nGROUP BY loc, minute, loczz;",
             format!(
                 "ProjectionExec: expr=[loc@0 as loc, date_bin_gapfill({dbg_args})@1 as minute, concat(Utf8(\"zz\"),temps.loc)@2 as loczz, AVG(temps.temp)@3 as AVG(temps.temp)]\
-               \n  GapFillExec: group_expr=[loc@0, date_bin_gapfill({dbg_args})@1, concat(Utf8(\"zz\"),temps.loc)@2], aggr_expr=[AVG(temps.temp)@3]\
+               \n  GapFillExec: group_expr=[loc@0, date_bin_gapfill({dbg_args})@1, concat(Utf8(\"zz\"),temps.loc)@2], aggr_expr=[AVG(temps.temp)@3], stride=60000\
                \n    SortExec: [loc@0 ASC,concat(Utf8(\"zz\"),temps.loc)@2 ASC,date_bin_gapfill({dbg_args})@1 ASC]\
                \n      AggregateExec: mode=Final, gby=[loc@0 as loc, date_bin_gapfill({dbg_args})@1 as date_bin_gapfill({dbg_args}), concat(Utf8(\"zz\"),temps.loc)@2 as concat(Utf8(\"zz\"),temps.loc)], aggr=[AVG(temps.temp)]"
            ).as_str()
