@@ -1,6 +1,7 @@
 use std::{fmt::Display, sync::Arc};
 
-use data_types::ParquetFile;
+use async_trait::async_trait;
+use data_types::{ParquetFile, PartitionId};
 
 use super::PartitionFilter;
 
@@ -28,8 +29,14 @@ impl Display for AndPartitionFilter {
     }
 }
 
+#[async_trait]
 impl PartitionFilter for AndPartitionFilter {
-    fn apply(&self, files: &[ParquetFile]) -> bool {
-        self.filters.iter().all(|filter| filter.apply(files))
+    async fn apply(&self, partition_id: PartitionId, files: &[ParquetFile]) -> bool {
+        for filter in &self.filters {
+            if !filter.apply(partition_id, files).await {
+                return false;
+            }
+        }
+        true
     }
 }

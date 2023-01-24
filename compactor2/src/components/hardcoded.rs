@@ -33,7 +33,8 @@ use super::{
     partition_files_source::catalog::CatalogPartitionFilesSource,
     partition_filter::{
         and::AndPartitionFilter, has_files::HasFilesPartitionFilter,
-        metrics::MetricsPartitionFilterWrapper,
+        logging::LoggingPartitionFilterWrapper, metrics::MetricsPartitionFilterWrapper,
+        never_skipped::NeverSkippedPartitionFilter,
     },
     partitions_source::{
         catalog::CatalogPartitionsSource, logging::LoggingPartitionsSourceWrapper,
@@ -75,9 +76,19 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
                 ),
             )])),
         )])),
-        partition_filter: Arc::new(MetricsPartitionFilterWrapper::new(
-            AndPartitionFilter::new(vec![Arc::new(HasFilesPartitionFilter::new())]),
-            &config.metric_registry,
+        partition_filter: Arc::new(LoggingPartitionFilterWrapper::new(
+            MetricsPartitionFilterWrapper::new(
+                AndPartitionFilter::new(vec![
+                    Arc::new(NeverSkippedPartitionFilter::new(
+                        CatalogSkippedCompactionsSource::new(
+                            config.backoff_config.clone(),
+                            Arc::clone(&config.catalog),
+                        ),
+                    )),
+                    Arc::new(HasFilesPartitionFilter::new()),
+                ]),
+                &config.metric_registry,
+            ),
         )),
         partition_error_sink: Arc::new(LoggingPartitionErrorSinkWrapper::new(
             MetricsPartitionErrorSinkWrapper::new(
@@ -117,10 +128,6 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
                 ),
                 Arc::clone(&config.exec),
             ),
-        )),
-        skipped_compactions_source: Arc::new(CatalogSkippedCompactionsSource::new(
-            config.backoff_config.clone(),
-            Arc::clone(&config.catalog),
         )),
     })
 }

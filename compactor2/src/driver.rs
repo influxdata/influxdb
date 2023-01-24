@@ -2,7 +2,6 @@ use std::{num::NonZeroUsize, sync::Arc};
 
 use data_types::{CompactionLevel, PartitionId};
 use futures::{stream::FuturesOrdered, StreamExt, TryStreamExt};
-use observability_deps::tracing::info;
 
 use crate::{components::Components, partition_info::PartitionInfo};
 
@@ -51,21 +50,11 @@ async fn try_compact_partition(
     let files = components.files_filter.apply(files);
     let delete_ids = files.iter().map(|f| f.id).collect::<Vec<_>>();
 
-    if !components.partition_filter.apply(&files) {
-        return Ok(());
-    }
-
-    // Ignore partitions that are in skipped_compactions
-    if let Some(skipped_compaction) = components
-        .skipped_compactions_source
-        .fetch(partition_id)
+    if !components
+        .partition_filter
+        .apply(partition_id, &files)
         .await
     {
-        info!(
-            partition_id = partition_id.get(),
-            reason = skipped_compaction.reason,
-            "partition is in skipped_compactions, ignore compacting it"
-        );
         return Ok(());
     }
 

@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use async_trait::async_trait;
-use data_types::ParquetFile;
+use data_types::{ParquetFile, PartitionId};
 use metric::{Registry, U64Counter};
 
 use super::PartitionFilter;
@@ -52,8 +52,8 @@ impl<T> PartitionFilter for MetricsPartitionFilterWrapper<T>
 where
     T: PartitionFilter,
 {
-    fn apply(&self, files: &[ParquetFile]) -> bool {
-        let res = self.inner.apply(files);
+    async fn apply(&self, partition_id: PartitionId, files: &[ParquetFile]) -> bool {
+        let res = self.inner.apply(partition_id, files).await;
         if res {
             self.pass_counter.inc(1);
         } else {
@@ -85,14 +85,15 @@ mod tests {
     async fn test_apply() {
         let registry = Registry::new();
         let filter = MetricsPartitionFilterWrapper::new(HasFilesPartitionFilter::new(), &registry);
+        let p_id = PartitionId::new(1);
         let f = ParquetFileBuilder::new(0).build();
 
         assert_eq!(pass_counter(&registry), 0);
         assert_eq!(filter_counter(&registry), 0);
 
-        assert!(!filter.apply(&[]));
-        assert!(!filter.apply(&[]));
-        assert!(filter.apply(&[f]));
+        assert!(!filter.apply(p_id, &[]).await);
+        assert!(!filter.apply(p_id, &[]).await);
+        assert!(filter.apply(p_id, &[f]).await);
 
         assert_eq!(pass_counter(&registry), 1);
         assert_eq!(filter_counter(&registry), 2);

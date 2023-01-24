@@ -37,5 +37,4 @@ pub struct Components {
     pub df_planner: Arc<dyn DataFusionPlanner>,
     pub df_plan_exec: Arc<dyn DataFusionPlanExec>,
     pub parquet_file_sink: Arc<dyn ParquetFileSink>,
-    pub skipped_compactions_source: Arc<dyn skipped_compactions_source::SkippedCompactionsSource>,
 }

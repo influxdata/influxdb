@@ -1,5 +1,8 @@
 use std::fmt::Display;
 
+use async_trait::async_trait;
+use data_types::PartitionId;
+
 use super::PartitionFilter;
 
 #[derive(Debug, Default)]
@@ -17,8 +20,9 @@ impl Display for HasFilesPartitionFilter {
     }
 }
 
+#[async_trait]
 impl PartitionFilter for HasFilesPartitionFilter {
-    fn apply(&self, files: &[data_types::ParquetFile]) -> bool {
+    async fn apply(&self, _partition_id: PartitionId, files: &[data_types::ParquetFile]) -> bool {
         !files.is_empty()
     }
 }
@@ -34,12 +38,13 @@ mod tests {
         assert_eq!(HasFilesPartitionFilter::new().to_string(), "has_files");
     }
 
-    #[test]
-    fn test_apply() {
+    #[tokio::test]
+    async fn test_apply() {
         let filter = HasFilesPartitionFilter::new();
         let f = ParquetFileBuilder::new(0).build();
+        let p_id = PartitionId::new(1);
 
-        assert!(!filter.apply(&[]));
-        assert!(filter.apply(&[f]));
+        assert!(!filter.apply(p_id, &[]).await);
+        assert!(filter.apply(p_id, &[f]).await);
     }
 }
