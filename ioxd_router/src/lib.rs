@@ -7,10 +7,6 @@ use iox_catalog::interface::Catalog;
 use ioxd_common::{
     add_service,
     http::error::{HttpApiError, HttpApiErrorSource},
-    reexport::{
-        generated_types::influxdata::iox::ingester::v1::write_service_client::WriteServiceClient,
-        tonic::transport::Channel,
-    },
     rpc::RpcBuilderInput,
     serve_builder,
     server_type::{CommonServerState, RpcError, ServerType},
@@ -38,7 +34,7 @@ use router::{
     },
     shard::Shard,
 };
-use sharder::{JumpHash, Sharder};
+use sharder::{JumpHash, RoundRobin, Sharder};
 use std::{
     collections::BTreeSet,
     fmt::{Debug, Display},
@@ -263,17 +259,14 @@ pub async fn create_router2_server_type(
 
     // Hack to handle multiple ingester addresses separated by commas in potentially many uses of
     // the CLI arg
-    let ingester_connections = router_config.ingester_addresses.join(",");
-    let ingester_connections = ingester_connections.split(',').map(|s| {
-        WriteServiceClient::new(
-            Channel::from_shared(format!("http://{s}"))
-                .expect("invalid ingester connection address")
-                .connect_lazy(),
-        )
-    });
+    let ingester_addresses = router_config.ingester_addresses.join(",");
+
+    let grpc_connections = router::dml_handlers::build_ingester_connection(
+        ingester_addresses.split(',').map(|s| format!("http://{s}")),
+    );
 
     // Initialise the DML handler that sends writes to the ingester using the RPC write path.
-    let rpc_writer = RpcWrite::new(ingester_connections);
+    let rpc_writer = RpcWrite::new(RoundRobin::new([grpc_connections]));
     let rpc_writer = InstrumentationDecorator::new("rpc_writer", &metrics, rpc_writer);
     // 1. END
 
