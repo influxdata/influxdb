@@ -27,7 +27,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.91"
 snafu = "0.7"
 tokio = { version = "1.24", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
-toml = "0.5.11"
+toml = "0.6.0"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 uuid = { version = "1", default_features = false }
