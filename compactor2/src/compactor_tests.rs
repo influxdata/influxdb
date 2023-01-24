@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use std::{num::NonZeroUsize, sync::Arc};
+    use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
     use arrow_util::assert_batches_sorted_eq;
     use data_types::CompactionLevel;
@@ -22,7 +22,12 @@ mod tests {
         // compact
         let config = Arc::clone(&setup.config);
         let components = hardcoded_components(&config);
-        compact(NonZeroUsize::new(10).unwrap(), &components).await;
+        compact(
+            NonZeroUsize::new(10).unwrap(),
+            Duration::from_secs(3_6000),
+            &components,
+        )
+        .await;
 
         // verify catalog is still empty
         let files = setup.list_by_table_not_to_delete().await;
@@ -60,7 +65,12 @@ mod tests {
         // compact
         let config = Arc::clone(&setup.config);
         let components = hardcoded_components(&config);
-        compact(NonZeroUsize::new(10).unwrap(), &components).await;
+        compact(
+            NonZeroUsize::new(10).unwrap(),
+            Duration::from_secs(3_6000),
+            &components,
+        )
+        .await;
 
         // verify number of files: 6 files are compacted into 2 files
         let files = setup.list_by_table_not_to_delete().await;
@@ -156,7 +166,12 @@ mod tests {
         // compact but nothing will be compacted because the partition is skipped
         let config = Arc::clone(&setup.config);
         let components = hardcoded_components(&config);
-        compact(NonZeroUsize::new(10).unwrap(), &components).await;
+        compact(
+            NonZeroUsize::new(10).unwrap(),
+            Duration::from_secs(3_6000),
+            &components,
+        )
+        .await;
 
         // verify still 6 files
         let files = setup.list_by_table_not_to_delete().await;

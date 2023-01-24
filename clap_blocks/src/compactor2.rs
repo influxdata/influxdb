@@ -85,4 +85,13 @@ pub struct Compactor2Config {
         action
     )]
     pub split_percentage: u16,
+
+    /// Maximum duration of the per-partition compaction task in seconds.
+    #[clap(
+        long = "compaction-partition-timeout-secs",
+        env = "INFLUXDB_IOX_COMPACTION_PARTITION_TIMEOUT_SECS",
+        default_value = "1800",
+        action
+    )]
+    pub partition_timeout_secs: u64,
 }

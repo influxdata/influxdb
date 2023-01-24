@@ -57,6 +57,9 @@ pub struct Config {
     ///    . Any size in the middle will be considered neither too small nor too large
     /// This value must be between (0, 100)
     pub split_percentage: u16,
+
+    /// Maximum duration of the per-partition compaction task in seconds.
+    pub partition_timeout_secs: u64,
 }
 
 impl Config {
@@ -76,6 +79,7 @@ impl Config {
         split_percentage: u16,
         topic_name: String,
         shard_index: i32,
+        partition_timeout_secs: u64,
     ) -> Self {
         // Get shardId from topic and shard_index
         // Fetch topic
@@ -130,6 +134,7 @@ impl Config {
             percentage_max_file_size,
             split_percentage,
             shard_id: shard.id,
+            partition_timeout_secs,
         }
     }
 }

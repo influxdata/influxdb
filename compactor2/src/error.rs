@@ -3,6 +3,7 @@
 use datafusion::{arrow::error::ArrowError, error::DataFusionError, parquet::errors::ParquetError};
 use object_store::Error as ObjectStoreError;
 use std::{error::Error, fmt::Display, sync::Arc};
+use tokio::time::error::Elapsed;
 
 /// What kind of error did we occur during compaction?
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -19,6 +20,9 @@ pub enum ErrorKind {
     /// The compactor shall retry (if possible) with a smaller set of files.
     OutOfMemory,
 
+    /// Partition took too long.
+    Timeout,
+
     /// Unknown/unexpected error.
     ///
     /// This will likely mark the affected partition as "skipped" and the compactor will no longer touch it.
@@ -28,7 +32,12 @@ pub enum ErrorKind {
 impl ErrorKind {
     /// Return all variants.
     pub fn variants() -> &'static [Self] {
-        &[Self::ObjectStore, Self::OutOfMemory, Self::Unknown]
+        &[
+            Self::ObjectStore,
+            Self::OutOfMemory,
+            Self::Timeout,
+            Self::Unknown,
+        ]
     }
 
     /// Return static name.
@@ -36,6 +45,7 @@ impl ErrorKind {
         match self {
             Self::ObjectStore => "object_store",
             Self::OutOfMemory => "out_of_memory",
+            Self::Timeout => "timeout",
             Self::Unknown => "unknown",
         }
     }
@@ -53,30 +63,40 @@ pub trait ErrorKindExt {
     fn classify(&self) -> ErrorKind;
 }
 
-impl ErrorKindExt for &ArrowError {
+impl ErrorKindExt for ArrowError {
     fn classify(&self) -> ErrorKind {
         if let Some(source) = self.source() {
             return source.classify();
         }
 
         match self {
-            ArrowError::ExternalError(e) => e.classify(),
+            Self::ExternalError(e) => e.classify(),
             // ArrowError is also mostly broken for many variants
             e => try_recover_unknown(e),
         }
     }
 }
 
-impl ErrorKindExt for &DataFusionError {
+impl ErrorKindExt for DataFusionError {
     fn classify(&self) -> ErrorKind {
         match self.find_root() {
-            DataFusionError::ArrowError(e) => e.classify(),
-            DataFusionError::External(e) => e.classify(),
-            DataFusionError::ObjectStore(e) => e.classify(),
-            DataFusionError::ParquetError(e) => e.classify(),
-            DataFusionError::ResourcesExhausted(_) => ErrorKind::OutOfMemory,
+            Self::ArrowError(e) => e.classify(),
+            Self::External(e) => e.classify(),
+            Self::ObjectStore(e) => e.classify(),
+            Self::ParquetError(e) => e.classify(),
+            Self::ResourcesExhausted(_) => ErrorKind::OutOfMemory,
             e => try_recover_unknown(e),
         }
+    }
+}
+
+impl ErrorKindExt for Elapsed {
+    fn classify(&self) -> ErrorKind {
+        if let Some(source) = self.source() {
+            return source.classify();
+        }
+
+        ErrorKind::Timeout
     }
 }
 
@@ -114,6 +134,12 @@ macro_rules! dispatch_body {
         } else if let Some(e) = $self.downcast_ref::<Arc<DataFusionError>>() {
             e.as_ref().classify()
         } else if let Some(e) = $self.downcast_ref::<Box<DataFusionError>>() {
+            e.as_ref().classify()
+        } else if let Some(e) = $self.downcast_ref::<Elapsed>() {
+            e.classify()
+        } else if let Some(e) = $self.downcast_ref::<Arc<Elapsed>>() {
+            e.as_ref().classify()
+        } else if let Some(e) = $self.downcast_ref::<Box<Elapsed>>() {
             e.as_ref().classify()
         } else if let Some(e) = $self.downcast_ref::<ObjectStoreError>() {
             e.classify()

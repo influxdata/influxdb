@@ -147,6 +147,7 @@ pub async fn create_compactor2_server_type(
             compactor_config.split_percentage,
             TOPIC.to_string(),
             SHARD_INDEX,
+            compactor_config.partition_timeout_secs,
         )
         .await,
     );

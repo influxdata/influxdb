@@ -414,6 +414,7 @@ impl TestSetup {
             max_desired_file_size_bytes: MAX_DESIRE_FILE_SIZE,
             percentage_max_file_size: PERCENTAGE_MAX_FILE_SIZE,
             split_percentage: SPLIT_PERCENTAGE,
+            partition_timeout_secs: 3_600,
         });
 
         Self {

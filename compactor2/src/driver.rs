@@ -1,4 +1,4 @@
-use std::{num::NonZeroUsize, sync::Arc};
+use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 use data_types::{CompactionLevel, PartitionId};
 use futures::{stream::FuturesOrdered, StreamExt, TryStreamExt};
@@ -17,22 +17,38 @@ use crate::{components::Components, partition_info::PartitionInfo};
 //      the other Level-N files. Hence we should never use `created_at` of Level-N+1 files to order
 //      them with Level-N files.
 //    . We can only compact different sets of files of the same partition concurrently into the same target_level.
-pub async fn compact(partition_concurrency: NonZeroUsize, components: &Arc<Components>) {
+pub async fn compact(
+    partition_concurrency: NonZeroUsize,
+    partition_timeout: Duration,
+    components: &Arc<Components>,
+) {
     let partition_ids = components.partitions_source.fetch().await;
 
     futures::stream::iter(partition_ids)
         .map(|partition_id| {
             let components = Arc::clone(components);
 
-            compact_partition(partition_id, components)
+            compact_partition(partition_id, partition_timeout, components)
         })
         .buffer_unordered(partition_concurrency.get())
         .collect::<()>()
         .await;
 }
 
-async fn compact_partition(partition_id: PartitionId, components: Arc<Components>) {
-    let res = try_compact_partition(partition_id, Arc::clone(&components)).await;
+async fn compact_partition(
+    partition_id: PartitionId,
+    partition_timeout: Duration,
+    components: Arc<Components>,
+) {
+    let res = tokio::time::timeout(
+        partition_timeout,
+        try_compact_partition(partition_id, Arc::clone(&components)),
+    )
+    .await;
+    let res = match res {
+        Ok(res) => res,
+        Err(e) => Err(Box::new(e) as _),
+    };
     components
         .partition_done_sink
         .record(partition_id, res)

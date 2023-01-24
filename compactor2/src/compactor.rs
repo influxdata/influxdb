@@ -1,5 +1,5 @@
 //! Main compactor entry point.
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use futures::{
     future::{BoxFuture, Shared},
@@ -44,7 +44,7 @@ impl Compactor2 {
                 _ = shutdown_captured.cancelled() => {}
                 _ = async {
                     loop {
-                        compact(config.partition_concurrency, &components).await;
+                        compact(config.partition_concurrency, Duration::from_secs(config.partition_timeout_secs), &components).await;
                         // TODO: implement throttling if there was no work to do
                     }
                 } => unreachable!(),
