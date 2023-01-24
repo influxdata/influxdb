@@ -7,10 +7,7 @@ use iox_catalog::interface::Catalog;
 use ioxd_common::{
     add_service,
     http::error::{HttpApiError, HttpApiErrorSource},
-    reexport::{
-        generated_types::influxdata::iox::ingester::v1::write_service_client::WriteServiceClient,
-        tonic::transport::Channel,
-    },
+    reexport::tonic::transport::Endpoint,
     rpc::RpcBuilderInput,
     serve_builder,
     server_type::{CommonServerState, RpcError, ServerType},
@@ -22,8 +19,9 @@ use object_store::DynObjectStore;
 use observability_deps::tracing::info;
 use router::{
     dml_handlers::{
-        DmlHandler, DmlHandlerChainExt, FanOutAdaptor, InstrumentationDecorator, Partitioner,
-        RetentionValidator, RpcWrite, SchemaValidator, ShardedWriteBuffer, WriteSummaryAdapter,
+        lazy_connector::LazyConnector, DmlHandler, DmlHandlerChainExt, FanOutAdaptor,
+        InstrumentationDecorator, Partitioner, RetentionValidator, RpcWrite, SchemaValidator,
+        ShardedWriteBuffer, WriteSummaryAdapter,
     },
     namespace_cache::{
         metrics::InstrumentedCache, MemoryNamespaceCache, NamespaceCache, ShardedCache,
@@ -265,11 +263,10 @@ pub async fn create_router2_server_type(
     // the CLI arg
     let ingester_connections = router_config.ingester_addresses.join(",");
     let ingester_connections = ingester_connections.split(',').map(|s| {
-        WriteServiceClient::new(
-            Channel::from_shared(format!("http://{s}"))
-                .expect("invalid ingester connection address")
-                .connect_lazy(),
-        )
+        let endpoint = Endpoint::from_shared(format!("http://{s}"))
+            .expect("invalid ingester connection address");
+
+        LazyConnector::new(endpoint)
     });
 
     // Initialise the DML handler that sends writes to the ingester using the RPC write path.

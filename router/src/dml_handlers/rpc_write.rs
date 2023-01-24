@@ -2,6 +2,7 @@ mod balancer;
 mod circuit_breaker;
 mod circuit_breaking_client;
 mod client;
+pub mod lazy_connector;
 
 use crate::dml_handlers::rpc_write::client::WriteClient;
 
@@ -38,7 +39,11 @@ pub enum RpcWriteError {
 
     /// There are no healthy ingesters to route a write to.
     #[error("no healthy upstream ingesters available")]
-    NoUpstream,
+    NoUpstreams,
+
+    /// The upstream connection is not established.
+    #[error("upstream {0} is not connected")]
+    UpstreamNotConnected(String),
 
     /// A delete request was rejected (not supported).
     #[error("deletes are not supported")]
@@ -161,7 +166,7 @@ where
     loop {
         match endpoints
             .next()
-            .ok_or(RpcWriteError::NoUpstream)?
+            .ok_or(RpcWriteError::NoUpstreams)?
             .write(req.clone())
             .await
         {
