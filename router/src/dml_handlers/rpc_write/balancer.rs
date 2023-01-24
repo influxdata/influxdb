@@ -177,6 +177,45 @@ mod tests {
         assert_eq!(circuit_err_2.err_count(), 0);
     }
 
+    /// An unhealthy node that recovers is yielded to the caller.
+    #[tokio::test]
+    async fn test_balancer_upstream_recovery() {
+        const BALANCER_CALLS: usize = 10;
+
+        // Initialise 3 RPC clients and configure their mock circuit breakers;
+        // two returns a unhealthy state, one is healthy.
+        let circuit = Arc::new(MockCircuitBreaker::default());
+        circuit.set_usable(false);
+        let client = CircuitBreakingClient::new(Arc::new(MockWriteClient::default()))
+            .with_circuit_breaker(Arc::clone(&circuit));
+
+        assert_eq!(circuit.ok_count(), 0);
+
+        let balancer = Balancer::new([client]);
+
+        let mut endpoints = balancer.endpoints();
+        assert_matches!(endpoints.next(), None);
+        assert_eq!(circuit.is_usable_count(), 1);
+
+        circuit.set_usable(true);
+
+        let mut endpoints = balancer.endpoints();
+        assert_matches!(endpoints.next(), Some(_));
+        assert_eq!(circuit.is_usable_count(), 2);
+
+        // The now-healthy client is constantly yielded.
+        const N: usize = 3;
+        for _ in 0..N {
+            endpoints
+                .next()
+                .expect("should yield healthy client")
+                .write(WriteRequest::default())
+                .await
+                .expect("should succeed");
+        }
+        assert_eq!(circuit.ok_count(), N);
+    }
+
     // Ensure the balancer round-robins across all healthy clients.
     //
     // Note this is a property test that asserts the even distribution of the
