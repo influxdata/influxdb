@@ -71,9 +71,9 @@ pub struct RpcWrite<C> {
 impl<C> RpcWrite<C> {
     /// Initialise a new [`RpcWrite`] that sends requests to an arbitrary
     /// downstream Ingester, using a round-robin strategy.
-    pub fn new<N>(endpoints: impl IntoIterator<Item = (C, N)>) -> Self
+    pub fn new<N>(endpoints: impl IntoIterator<Item = (C, N)>, metrics: &metric::Registry) -> Self
     where
-        C: Send + Sync + Debug,
+        C: Send + Sync + Debug + 'static,
         N: Into<Arc<str>>,
     {
         Self {
@@ -81,6 +81,7 @@ impl<C> RpcWrite<C> {
                 endpoints
                     .into_iter()
                     .map(|(client, name)| CircuitBreakingClient::new(client, name.into())),
+                Some(metrics),
             ),
         }
     }
@@ -89,7 +90,7 @@ impl<C> RpcWrite<C> {
 #[async_trait]
 impl<C> DmlHandler for RpcWrite<C>
 where
-    C: client::WriteClient,
+    C: client::WriteClient + 'static,
 {
     type WriteInput = Partitioned<HashMap<TableId, (String, MutableBatch)>>;
     type WriteOutput = Vec<DmlMeta>;
@@ -224,7 +225,10 @@ mod tests {
 
         // Init the write handler with a mock client to capture the rpc calls.
         let client = Arc::new(MockWriteClient::default());
-        let handler = RpcWrite::new([(Arc::clone(&client), "mock client")]);
+        let handler = RpcWrite::new(
+            [(Arc::clone(&client), "mock client")],
+            &metric::Registry::default(),
+        );
 
         // Drive the RPC writer
         let got = handler
@@ -276,10 +280,13 @@ mod tests {
                 .with_ret([Err(RpcWriteError::Upstream(tonic::Status::internal("")))]),
         );
         let client2 = Arc::new(MockWriteClient::default());
-        let handler = RpcWrite::new([
-            (Arc::clone(&client1), "client1"),
-            (Arc::clone(&client2), "client2"),
-        ]);
+        let handler = RpcWrite::new(
+            [
+                (Arc::clone(&client1), "client1"),
+                (Arc::clone(&client2), "client2"),
+            ],
+            &metric::Registry::default(),
+        );
 
         // Drive the RPC writer
         let got = handler

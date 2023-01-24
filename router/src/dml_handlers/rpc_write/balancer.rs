@@ -1,4 +1,9 @@
-use std::{cell::RefCell, cmp::max, fmt::Debug};
+use std::{borrow::Cow, cell::RefCell, cmp::max, fmt::Debug, sync::Arc, time::Duration};
+
+use futures::Future;
+use metric::U64Gauge;
+use observability_deps::tracing::warn;
+use tokio::task::JoinHandle;
 
 use super::{
     circuit_breaker::CircuitBreaker,
@@ -10,6 +15,10 @@ thread_local! {
     /// [`Balancer::endpoints()`].
     static COUNTER: RefCell<usize> = RefCell::new(0);
 }
+
+/// How often to re-evaluate the health of the [`Balancer`] endpoints for
+/// metrics / logging.
+const METRIC_EVAL_INTERVAL: Duration = Duration::from_secs(3);
 
 /// A set of health-checked gRPC endpoints, with an approximate round-robin
 /// distribution of load over healthy nodes.
@@ -26,19 +35,28 @@ thread_local! {
 /// threads) an approximately uniform distribution is achieved.
 #[derive(Debug)]
 pub(super) struct Balancer<T, C = CircuitBreaker> {
-    endpoints: Vec<CircuitBreakingClient<T, C>>,
+    endpoints: Arc<[CircuitBreakingClient<T, C>]>,
+
+    /// An optional metric exporter task that evaluates the state of this
+    /// [`Balancer`] every [`METRIC_EVAL_INTERVAL`].
+    metric_task: Option<JoinHandle<()>>,
 }
 
 impl<T, C> Balancer<T, C>
 where
-    T: Send + Sync + Debug,
-    C: CircuitBreakerState,
+    T: Send + Sync + Debug + 'static,
+    C: CircuitBreakerState + 'static,
 {
     /// Construct a new [`Balancer`] distributing work over the healthy
     /// `endpoints`.
-    pub(super) fn new(endpoints: impl IntoIterator<Item = CircuitBreakingClient<T, C>>) -> Self {
+    pub(super) fn new(
+        endpoints: impl IntoIterator<Item = CircuitBreakingClient<T, C>>,
+        metrics: Option<&metric::Registry>,
+    ) -> Self {
+        let endpoints = endpoints.into_iter().collect();
         Self {
-            endpoints: endpoints.into_iter().collect(),
+            metric_task: metrics.map(|m| tokio::spawn(metric_task(m, Arc::clone(&endpoints)))),
+            endpoints,
         }
     }
 
@@ -78,12 +96,93 @@ where
     }
 }
 
+/// Initialise the health metric exported by the RPC balancer, and return the
+/// health evaluation future that updates it.
+fn metric_task<T, C>(
+    metrics: &metric::Registry,
+    endpoints: Arc<[CircuitBreakingClient<T, C>]>,
+) -> impl Future<Output = ()> + Send
+where
+    T: Send + Sync + 'static,
+    C: CircuitBreakerState + 'static,
+{
+    let metric = metrics.register_metric::<U64Gauge>(
+        "rpc_balancer_endpoints_healthy",
+        "1 when the upstream is healthy, 0 otherwise",
+    );
+
+    metric_loop(metric, endpoints)
+}
+
+async fn metric_loop<T, C>(
+    metric: metric::Metric<U64Gauge>,
+    endpoints: Arc<[CircuitBreakingClient<T, C>]>,
+) where
+    T: Send + Sync + 'static,
+    C: CircuitBreakerState + 'static,
+{
+    // Map the endpoints into an endpoint and a metric.
+    let endpoints = endpoints
+        .iter()
+        .map(|c| {
+            let name = Cow::from(c.endpoint_name().to_string());
+            let metric = metric.recorder([("endpoint", name)]);
+            (c, metric)
+        })
+        .collect::<Vec<_>>();
+
+    // Periodically re-evaluate the health state of the balancer's endpoints.
+    let mut tick = tokio::time::interval(METRIC_EVAL_INTERVAL);
+
+    // And track the healthy / unhealthy endpoint names for logging context.
+    let mut healthy = vec![];
+    let mut unhealthy = vec![];
+    loop {
+        healthy.clear();
+        unhealthy.clear();
+        tick.tick().await;
+
+        for (client, metric) in &endpoints {
+            let value = match client.is_usable() {
+                true => {
+                    healthy.push(client.endpoint_name());
+                    1
+                }
+                false => {
+                    unhealthy.push(client.endpoint_name());
+                    0
+                }
+            };
+            metric.set(value);
+        }
+
+        // Emit a log entry if at least one endpoint is unavailable.
+        if !unhealthy.is_empty() {
+            warn!(
+                healthy = %healthy.join(","),
+                unhealthy = %unhealthy.join(","),
+                "upstream rpc endpoint(s) are unavailable"
+            );
+        }
+    }
+}
+
+impl<T, C> Drop for Balancer<T, C> {
+    fn drop(&mut self) {
+        if let Some(t) = self.metric_task.take() {
+            t.abort();
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
 
     use assert_matches::assert_matches;
     use generated_types::influxdata::iox::ingester::v1::WriteRequest;
+    use metric::{Attributes, Metric};
+    use test_helpers::timeout::FutureTimeout;
 
     use crate::dml_handlers::rpc_write::{
         circuit_breaking_client::mock::MockCircuitBreaker,
@@ -114,7 +213,7 @@ mod tests {
         assert_eq!(circuit_err_1.ok_count(), 0);
         assert_eq!(circuit_err_2.ok_count(), 0);
 
-        let balancer = Balancer::new([client_err_1, client_err_2]);
+        let balancer = Balancer::new([client_err_1, client_err_2], None);
         let mut endpoints = balancer.endpoints();
 
         assert_matches!(endpoints.next(), None);
@@ -149,7 +248,7 @@ mod tests {
         assert_eq!(circuit_err_1.ok_count(), 0);
         assert_eq!(circuit_err_2.ok_count(), 0);
 
-        let balancer = Balancer::new([client_err_1, client_ok, client_err_2]);
+        let balancer = Balancer::new([client_err_1, client_ok, client_err_2], None);
         let mut endpoints = balancer.endpoints();
 
         // Only the health client should be yielded, and it should cycle
@@ -190,12 +289,12 @@ mod tests {
         // two returns a unhealthy state, one is healthy.
         let circuit = Arc::new(MockCircuitBreaker::default());
         circuit.set_usable(false);
-        let client = CircuitBreakingClient::new(Arc::new(MockWriteClient::default()))
+        let client = CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "broken")
             .with_circuit_breaker(Arc::clone(&circuit));
 
         assert_eq!(circuit.ok_count(), 0);
 
-        let balancer = Balancer::new([client]);
+        let balancer = Balancer::new([client], None);
 
         let mut endpoints = balancer.endpoints();
         assert_matches!(endpoints.next(), None);
@@ -252,7 +351,7 @@ mod tests {
             CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bananas")
                 .with_circuit_breaker(Arc::clone(&circuit_ok_2));
 
-        let balancer = Balancer::new([client_err, client_ok_1, client_ok_2]);
+        let balancer = Balancer::new([client_err, client_ok_1, client_ok_2], None);
 
         for _ in 0..N {
             balancer
@@ -271,5 +370,70 @@ mod tests {
         assert_eq!(circuit_err.err_count(), 0);
         assert_eq!(circuit_ok_1.err_count(), 0);
         assert_eq!(circuit_ok_2.err_count(), 0);
+    }
+
+    // Ensure the metric task exports the correct "healthy" values.
+    #[tokio::test]
+    async fn test_metric_exporter() {
+        // Initialise 3 RPC clients and configure their mock circuit breakers;
+        // two returns a healthy state, one is unhealthy.
+        let circuit_err = Arc::new(MockCircuitBreaker::default());
+        circuit_err.set_usable(false);
+        let client_err =
+            CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bad-client")
+                .with_circuit_breaker(Arc::clone(&circuit_err));
+
+        let circuit_ok_1 = Arc::new(MockCircuitBreaker::default());
+        circuit_ok_1.set_usable(true);
+        let client_ok_1 =
+            CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "ok-client-1")
+                .with_circuit_breaker(Arc::clone(&circuit_ok_1));
+
+        let circuit_ok_2 = Arc::new(MockCircuitBreaker::default());
+        circuit_ok_2.set_usable(true);
+        let client_ok_2 =
+            CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "ok-client-2")
+                .with_circuit_breaker(Arc::clone(&circuit_ok_2));
+
+        let balancer = Balancer::new([client_err, client_ok_1, client_ok_2], None);
+
+        let metrics = metric::Registry::default();
+        let worker = tokio::spawn(metric_task(&metrics, Arc::clone(&balancer.endpoints)));
+
+        // Wait for the first state to converge to the expected value, or time
+        // out if it's never observed.
+
+        fn get_health_state(metrics: &metric::Registry, client: &'static str) -> Option<u64> {
+            Some(
+                metrics
+                    .get_instrument::<Metric<U64Gauge>>("rpc_balancer_endpoints_healthy")
+                    .expect("failed to read metric")
+                    .get_observer(&Attributes::from(&[("endpoint", client)]))?
+                    .fetch(),
+            )
+        }
+
+        async {
+            loop {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+                if !matches!(get_health_state(&metrics, "ok-client-1"), Some(1)) {
+                    continue;
+                }
+                if !matches!(get_health_state(&metrics, "ok-client-2"), Some(1)) {
+                    continue;
+                }
+                if !matches!(get_health_state(&metrics, "bad-client"), Some(0)) {
+                    continue;
+                }
+
+                break;
+            }
+        }
+        .with_timeout_panic(Duration::from_secs(5))
+        .await;
+
+        // The eval above observed the correct metric state.
+
+        worker.abort();
     }
 }

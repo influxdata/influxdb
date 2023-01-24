@@ -33,13 +33,31 @@ pub(super) struct CircuitBreakingClient<T, C = CircuitBreaker> {
     inner: T,
     /// The circuit-breaking logic.
     state: C,
+
+    /// A string description of the endpoint this [`CircuitBreakingClient`]
+    /// dispatches requests to.
+    ///
+    /// Used for metric context only.
+    endpoint_name: Arc<str>,
 }
 
 impl<T> CircuitBreakingClient<T> {
-    pub(super) fn new(inner: T, endpoint: impl Into<Arc<str>>) -> Self {
-        let state = CircuitBreaker::new(endpoint);
+    pub(super) fn new(inner: T, endpoint_name: impl Into<Arc<str>>) -> Self {
+        let endpoint_name = endpoint_name.into();
+        let state = CircuitBreaker::new(Arc::clone(&endpoint_name));
         state.set_healthy();
-        Self { inner, state }
+        Self {
+            inner,
+            state,
+            endpoint_name,
+        }
+    }
+}
+
+impl<T, C> CircuitBreakingClient<T, C> {
+    /// Returns the name of the endpoint assigned at initialisation.
+    pub(crate) fn endpoint_name(&self) -> Arc<str> {
+        Arc::clone(&self.endpoint_name)
     }
 }
 
@@ -57,6 +75,7 @@ where
     pub(super) fn with_circuit_breaker<U>(self, breaker: U) -> CircuitBreakingClient<T, U> {
         CircuitBreakingClient {
             inner: self.inner,
+            endpoint_name: self.endpoint_name,
             state: breaker,
         }
     }

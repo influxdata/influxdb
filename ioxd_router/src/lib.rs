@@ -269,7 +269,7 @@ pub async fn create_router2_server_type(
     });
 
     // Initialise the DML handler that sends writes to the ingester using the RPC write path.
-    let rpc_writer = RpcWrite::new(ingester_connections);
+    let rpc_writer = RpcWrite::new(ingester_connections, &metrics);
     let rpc_writer = InstrumentationDecorator::new("rpc_writer", &metrics, rpc_writer);
     // 1. END
 
