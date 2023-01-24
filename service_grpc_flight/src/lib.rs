@@ -1,4 +1,5 @@
-//! Implements the InfluxDB IOx Flight API using Arrow Flight and gRPC
+//! Implements the InfluxDB IOx Flight API and Arrow FlightSQL, based
+//! on Arrow Flight and gRPC. See [`FlightService`] for full detail.
 
 mod request;
 
@@ -11,7 +12,7 @@ use arrow_flight::{
     error::FlightError,
     flight_descriptor::DescriptorType,
     flight_service_server::{FlightService as Flight, FlightServiceServer as FlightServer},
-    sql::{CommandStatementQuery, ProstMessageExt},
+    sql::Any,
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightEndpoint, FlightInfo,
     HandshakeRequest, HandshakeResponse, PutResult, SchemaAsIpc, SchemaResult, Ticket,
 };
@@ -28,7 +29,7 @@ use observability_deps::tracing::{debug, info, warn};
 use prost::Message;
 use request::{IoxGetRequest, RunQuery};
 use service_common::{datafusion_error_to_tonic_code, planner::Planner, QueryNamespaceProvider};
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use std::{fmt::Debug, pin::Pin, sync::Arc, task::Poll, time::Instant};
 use tonic::{Request, Response, Streaming};
 use trace::{ctx::SpanContext, span::SpanExt};
@@ -51,11 +52,8 @@ pub enum Error {
     #[snafu(display("Internal creating encoding ticket: {}", source))]
     InternalCreatingTicket { source: request::Error },
 
-    #[snafu(display("Invalid query, could not parse '{}': {}", query, source))]
-    InvalidQuery {
-        query: String,
-        source: serde_json::Error,
-    },
+    #[snafu(display("Invalid handshake. No payload provided"))]
+    InvalidHandshake {},
 
     #[snafu(display("Namespace {} not found", namespace_name))]
     NamespaceNotFound { namespace_name: String },
@@ -89,17 +87,11 @@ pub enum Error {
         source: service_common::planner::Error,
     },
 
-    #[snafu(display("Error during protobuf serialization: {}", source))]
-    Serialization { source: prost::EncodeError },
+    #[snafu(display("Error while planning FlightSQL : {}", source))]
+    FlightSQLPlanning { source: flightsql::Error },
 
     #[snafu(display("Invalid protobuf: {}", source))]
     Deserialization { source: prost::DecodeError },
-
-    #[snafu(display("Invalid protobuf for type_url'{}': {}", type_url, source))]
-    DeserializationTypeKnown {
-        type_url: String,
-        source: prost::DecodeError,
-    },
 
     #[snafu(display("Unsupported message type: {}", description))]
     UnsupportedMessageType { description: String },
@@ -116,7 +108,7 @@ impl From<Error> for tonic::Status {
         match err {
             Error::NamespaceNotFound { .. }
             | Error::InvalidTicket { .. }
-            | Error::InvalidQuery { .. }
+            | Error::InvalidHandshake { .. }
             // TODO(edd): this should be `debug`. Keeping at info while IOx in early development
             | Error::InvalidNamespaceName { .. } => info!(e=%err, msg),
             Error::Query { .. } => info!(e=%err, msg),
@@ -124,11 +116,10 @@ impl From<Error> for tonic::Status {
             |Error::NoNamespaceHeader
             |Error::InvalidNamespaceHeader { .. }
             | Error::Planning { .. }
-            | Error::Serialization { .. }
             | Error::Deserialization { .. }
-            | Error::DeserializationTypeKnown { .. }
             | Error::InternalCreatingTicket { .. }
                 | Error::UnsupportedMessageType { .. }
+                | Error::FlightSQLPlanning { .. }
             => {
                 warn!(e=%err, msg)
             }
@@ -146,10 +137,8 @@ impl Error {
         let code = match self {
             Self::NamespaceNotFound { .. } => tonic::Code::NotFound,
             Self::InvalidTicket { .. }
-            | Self::InvalidQuery { .. }
-            | Self::Serialization { .. }
+            | Self::InvalidHandshake { .. }
             | Self::Deserialization { .. }
-            | Self::DeserializationTypeKnown { .. }
             | Self::NoNamespaceHeader
             | Self::InvalidNamespaceHeader { .. }
             | Self::InvalidNamespaceName { .. } => tonic::Code::InvalidArgument,
@@ -157,6 +146,18 @@ impl Error {
                 datafusion_error_to_tonic_code(&source)
             }
             Self::UnsupportedMessageType { .. } => tonic::Code::Unimplemented,
+            Error::FlightSQLPlanning { source } => match source {
+                flightsql::Error::DeserializationTypeKnown { .. }
+                | flightsql::Error::InvalidUtf8 { .. }
+                | flightsql::Error::UnsupportedMessageType { .. } => tonic::Code::InvalidArgument,
+                flightsql::Error::Flight { source: e } => return tonic::Status::from(e),
+                fs_err @ flightsql::Error::Arrow { .. } => {
+                    // wrap in Datafusion error to walk source stacks
+                    let df_error = DataFusionError::from(fs_err);
+                    datafusion_error_to_tonic_code(&df_error)
+                }
+                flightsql::Error::DataFusion { source } => datafusion_error_to_tonic_code(&source),
+            },
             Self::InternalCreatingTicket { .. } | Self::Optimize { .. } => tonic::Code::Internal,
         };
 
@@ -172,7 +173,105 @@ impl Error {
 
 type TonicStream<T> = Pin<Box<dyn Stream<Item = Result<T, tonic::Status>> + Send + 'static>>;
 
-/// Concrete implementation of the gRPC Arrow Flight Service API
+/// Concrete implementation of the IOx client protocol, implemented as
+/// a gRPC [Arrow Flight] Service API
+///
+/// # Tickets
+///
+/// Creating and serializing the `Ticket` structure used in IOx Arrow
+/// Flight API is handled by [`IoxGetRequest`]. See that for more
+/// details.
+///
+/// # Native IOx API ad-hoc query
+///
+/// To run a query with the native IOx API, a client needs to
+///
+/// 1. Encode the query string as a `Ticket` (see [`IoxGetRequest`]).
+///
+/// 2. Call the `DoGet` method with the `Ticket`,
+///
+/// 2. Recieve a stream of data encoded as [`FlightData`]
+///
+/// ```text
+///                                                      .───────.
+/// ╔═══════════╗                                       (         )
+/// ║           ║                                       │`───────'│
+/// ║  Client   ║                                       │   IOx   │
+/// ║           ║                                       │.───────.│
+/// ║           ║                                       (         )
+/// ╚═══════════╝                                        `───────'
+///       ┃ Creates a                                        ┃
+///     1 ┃ Ticket                                           ┃
+///       ┃                                                  ┃
+///       ┃                                                  ┃
+///     2 ┃                    DoGet(Ticket)                 ┃
+///       ┃━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━▶┃
+///       ┃                                                  ┃
+///       ┃                Stream of FightData               ┃
+///     3 ┃◀ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ┃
+/// ```
+///
+/// # FlightSQL
+///
+/// IOx also supports [Arrow FlightSQL]. In addition to `DoGet`,
+/// FlightSQL clients call additional Arrow Flight RPC methods such as
+/// `GetFlightInfo`, `GetSchema`, `DoPut`, and `DoAction`.
+///
+/// ## FlightSQL List tables (NOT YET IMPLEMENTED)
+///
+/// TODO sequence diagram for List Tables
+///
+/// ## FlightSQL ad-hoc query
+///
+/// To run an ad-hoc query, via FlightSQL, the client needs to
+///
+/// 1. Encode the query in a `CommandStatementQuery` FlightSQL
+/// structure in a [`FlightDescriptor`]
+///
+/// 2. Call the `GetFlightInfo` method with the the [`FlightDescriptor`]
+///
+/// 3. Receive a `Ticket` in the returned [`FlightInfo`]. The Ticket is
+/// opaque (uninterpreted) by the client. It contains an
+/// [`IoxGetRequest`] with the `CommandStatementQuery` request.
+///
+/// 4. Calls the `DoGet` method with the `Ticket` from the previous step.
+///
+/// 5. Recieve a stream of data encoded as [`FlightData`]
+///
+/// ```text
+///                                                      .───────.
+/// ╔═══════════╗                                       (         )
+/// ║           ║                                       │`───────'│
+/// ║ FlightSQL ║                                       │   IOx   │
+/// ║  Client   ║                                       │.───────.│
+/// ║           ║                                       (         )
+/// ╚═══════════╝                                        `───────'
+///       ┃ Creates a                                        ┃
+///     1 ┃ CommandStatementQuery                            ┃
+///       ┃                                                  ┃
+///       ┃                                                  ┃
+///       ┃                                                  ┃
+///     2 ┃       GetFlightInfo(CommandStatementQuery)       ┃
+///       ┃━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━▶┃
+///       ┃               FlightInfo{..Ticket{               ┃
+///       ┃                CommandStatementQuery             ┃
+///     3 ┃◀ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ┃
+///       ┃                                                  ┃
+///       ┃                                                  ┃
+///       ┃                  DoGet(Ticket)                   ┃
+///     4 ┃━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━▶┃
+///       ┃                                                  ┃
+///       ┃                Stream of FightData               ┃
+///     5 ┃◀ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ┃
+///       ┃                                                  ┃
+/// ```
+///
+/// ## FlightSQL Prepared Statement (NOT YET IMPLEMENTED)
+///
+/// TODO sequence diagram
+///
+/// [Arrow Flight]: https://arrow.apache.org/docs/format/Flight.html
+/// [Arrow FlightSQL]: https://arrow.apache.org/docs/format/FlightSql.html
 #[derive(Debug)]
 struct FlightService<S>
 where
@@ -192,7 +291,8 @@ impl<S> FlightService<S>
 where
     S: QueryNamespaceProvider,
 {
-    async fn run_query(
+    /// Implementation of the `DoGet` method
+    async fn run_do_get(
         &self,
         span_ctx: Option<SpanContext>,
         permit: InstrumentedAsyncOwnedSemaphorePermit,
@@ -223,6 +323,14 @@ where
                     .context(PlanningSnafu)?;
                 (token, plan)
             }
+            RunQuery::FlightSql(msg) => {
+                let token = db.record_query(&ctx, "flightsql", Box::new(msg.type_url.clone()));
+                let plan = Planner::new(&ctx)
+                    .flight_sql_do_get(&namespace, db, msg.clone())
+                    .await
+                    .context(PlanningSnafu)?;
+                (token, plan)
+            }
         };
 
         let output =
@@ -249,7 +357,9 @@ where
         &self,
         _request: Request<FlightDescriptor>,
     ) -> Result<Response<SchemaResult>, tonic::Status> {
-        Err(tonic::Status::unimplemented("Not yet implemented"))
+        Err(tonic::Status::unimplemented(
+            "Not yet implemented: get_schema",
+        ))
     }
 
     async fn do_get(
@@ -279,17 +389,17 @@ where
 
         // Log after we acquire the permit and are about to start execution
         let start = Instant::now();
-        info!(%namespace_name, %query, %trace, "Running SQL via flight do_get");
+        info!(%namespace_name, %query, %trace, "DoGet request");
 
         let response = self
-            .run_query(span_ctx, permit, query, namespace_name.to_string())
+            .run_do_get(span_ctx, permit, query, namespace_name.to_string())
             .await;
 
         if let Err(e) = &response {
-            info!(%namespace_name, %query, %trace, %e, "Error running SQL query");
+            info!(%namespace_name, %query, %trace, %e, "Error running DoGet");
         } else {
             let elapsed = Instant::now() - start;
-            debug!(%namespace_name, %query,%trace, ?elapsed, "Completed SQL query successfully");
+            debug!(%namespace_name, %query, %trace, ?elapsed, "Completed DoGet request");
         }
         response
     }
@@ -298,7 +408,12 @@ where
         &self,
         request: Request<Streaming<HandshakeRequest>>,
     ) -> Result<Response<Self::HandshakeStream>, tonic::Status> {
-        let request = request.into_inner().message().await?.unwrap();
+        let request = request
+            .into_inner()
+            .message()
+            .await?
+            .context(InvalidHandshakeSnafu)?;
+
         let response = HandshakeResponse {
             protocol_version: request.protocol_version,
             payload: request.payload,
@@ -311,20 +426,24 @@ where
         &self,
         _request: Request<Criteria>,
     ) -> Result<Response<Self::ListFlightsStream>, tonic::Status> {
-        Err(tonic::Status::unimplemented("Not yet implemented"))
+        Err(tonic::Status::unimplemented(
+            "Not yet implemented: list_flights",
+        ))
     }
 
-    /// Handles requests encoded in the FlightDescriptor
+    /// Handles `GetFlightInfo` RPC requests. The [`FlightDescriptor`]
+    /// is treated containing an FlightSQL command, encoded as a binary
+    /// ProtoBuf message.
     ///
-    /// IOx currently only processes "cmd" type Descriptors (not
-    /// paths) and attempts to decodes the [`FlightDescriptor::cmd`]
-    /// bytes as an encoded protobuf message
-    ///
-    ///
+    /// see [`FlightService`] for more details.
     async fn get_flight_info(
         &self,
         request: Request<FlightDescriptor>,
     ) -> Result<Response<FlightInfo>, tonic::Status> {
+        let external_span_ctx: Option<RequestLogContext> = request.extensions().get().cloned();
+        let span_ctx: Option<SpanContext> = request.extensions().get().cloned();
+        let trace = external_span_ctx.format_jaeger();
+
         // look for namespace information in headers
         let namespace_name = request
             .metadata()
@@ -336,111 +455,43 @@ where
             })
             .ok_or(Error::NoNamespaceHeader)??;
 
-        let request = request.into_inner();
+        let flight_descriptor = request.into_inner();
 
-        let cmd = match request.r#type() {
-            DescriptorType::Cmd => Ok(&request.cmd),
-            DescriptorType::Path => Err(Error::unsupported_message_type("FlightInfo with Path")),
-            DescriptorType::Unknown => Err(Error::unsupported_message_type(
-                "FlightInfo of unknown type",
-            )),
-        }?;
+        // extract the FlightSQL message
+        let msg = msg_from_descriptor(flight_descriptor.clone())?;
 
-        let message: prost_types::Any =
-            prost::Message::decode(cmd.as_ref()).context(DeserializationSnafu)?;
+        let type_url = &msg.type_url;
+        info!(%namespace_name, %type_url, %trace, "GetFlightInfo request");
 
-        let flight_info = self.dispatch(&namespace_name, request, message).await?;
-        Ok(tonic::Response::new(flight_info))
-    }
-
-    async fn do_put(
-        &self,
-        _request: Request<Streaming<FlightData>>,
-    ) -> Result<Response<Self::DoPutStream>, tonic::Status> {
-        Err(tonic::Status::unimplemented("Not yet implemented"))
-    }
-
-    async fn do_action(
-        &self,
-        _request: Request<Action>,
-    ) -> Result<Response<Self::DoActionStream>, tonic::Status> {
-        Err(tonic::Status::unimplemented("Not yet implemented"))
-    }
-
-    async fn list_actions(
-        &self,
-        _request: Request<Empty>,
-    ) -> Result<Response<Self::ListActionsStream>, tonic::Status> {
-        Err(tonic::Status::unimplemented("Not yet implemented"))
-    }
-
-    async fn do_exchange(
-        &self,
-        _request: Request<Streaming<FlightData>>,
-    ) -> Result<Response<Self::DoExchangeStream>, tonic::Status> {
-        Err(tonic::Status::unimplemented("Not yet implemented"))
-    }
-}
-
-impl<S> FlightService<S>
-where
-    S: QueryNamespaceProvider,
-{
-    /// Given a successfully decoded protobuf *Any* message, handles
-    /// recognized messages (e.g those defined by FlightSQL) and
-    /// creates the appropriate FlightData response
-    ///
-    /// Arguments
-    ///
-    /// namespace_name: is the target namespace of the request
-    ///
-    /// flight_descriptor: is the descriptor sent in the request (included in response)
-    ///
-    /// msg is the `cmd` field of the flight descriptor decoded as a protobuf  message
-    async fn dispatch(
-        &self,
-        namespace_name: &str,
-        flight_descriptor: FlightDescriptor,
-        msg: prost_types::Any,
-    ) -> Result<FlightInfo> {
-        fn try_unpack<T: ProstMessageExt>(msg: &prost_types::Any) -> Result<Option<T>> {
-            // Does the type URL match?
-            if T::type_url() != msg.type_url {
-                return Ok(None);
-            }
-            // type matched, so try and decode
-            let m = prost::Message::decode(&*msg.value).context(DeserializationTypeKnownSnafu {
-                type_url: &msg.type_url,
+        let db = self
+            .server
+            .db(&namespace_name, span_ctx.child_span("get namespace"))
+            .await
+            .ok_or_else(|| {
+                tonic::Status::not_found(format!("Unknown namespace: {namespace_name}"))
             })?;
-            Ok(Some(m))
-        }
 
-        // FlightSQL CommandStatementQuery
-        let (schema, ticket) = if let Some(cmd) = try_unpack::<CommandStatementQuery>(&msg)? {
-            let CommandStatementQuery { query } = cmd;
-            debug!(%namespace_name, %query, "Handling FlightSQL CommandStatementQuery");
+        let ctx = db.new_query_context(span_ctx);
+        let schema = Planner::new(&ctx)
+            .flight_sql_get_flight_info(&namespace_name, msg.clone())
+            .await
+            .context(PlanningSnafu);
 
-            // TODO is supposed to return a schema -- if clients
-            // actually expect the schema we'll have to plan the query
-            // here.
-            let schema = vec![];
-
-            // Create a ticket that can be passed to do_get to run the query
-            let ticket = IoxGetRequest::new(namespace_name, RunQuery::Sql(query))
-                .try_encode()
-                .context(InternalCreatingTicketSnafu)?;
-
-            (schema, ticket)
+        if let Err(e) = &schema {
+            info!(%namespace_name, %type_url, %trace, %e, "Error running GetFlightInfo");
         } else {
-            return Err(Error::unsupported_message_type(format!(
-                "Unsupported cmd message: {}",
-                msg.type_url
-            )));
+            debug!(%namespace_name, %type_url, %trace, "Completed GetFlightInfo request");
         };
+        let schema = schema?;
 
-        // form the response
+        // Form the response ticket (that the client will pass back to DoGet)
+        let ticket = IoxGetRequest::new(&namespace_name, RunQuery::FlightSql(msg))
+            .try_encode()
+            .context(InternalCreatingTicketSnafu)?;
 
-        // Arrow says "set to -1 if not known
+        // Flight says "Set these to -1 if unknown."
+        //
+        // https://github.com/apache/arrow-rs/blob/a0a5880665b1836890f6843b6b8772d81c463351/format/Flight.proto#L274-L276
         let total_records = -1;
         let total_bytes = -1;
 
@@ -454,13 +505,65 @@ where
             location: vec![],
         }];
 
-        Ok(FlightInfo {
-            schema: schema.into(),
+        let flight_info = FlightInfo {
+            schema,
+            // return descriptor we were passed
             flight_descriptor: Some(flight_descriptor),
             endpoint,
             total_records,
             total_bytes,
-        })
+        };
+
+        Ok(tonic::Response::new(flight_info))
+    }
+
+    async fn do_put(
+        &self,
+        _request: Request<Streaming<FlightData>>,
+    ) -> Result<Response<Self::DoPutStream>, tonic::Status> {
+        Err(tonic::Status::unimplemented("Not yet implemented: do_put"))
+    }
+
+    async fn do_action(
+        &self,
+        _request: Request<Action>,
+    ) -> Result<Response<Self::DoActionStream>, tonic::Status> {
+        Err(tonic::Status::unimplemented(
+            "Not yet implemented: do_action",
+        ))
+    }
+
+    async fn list_actions(
+        &self,
+        _request: Request<Empty>,
+    ) -> Result<Response<Self::ListActionsStream>, tonic::Status> {
+        Err(tonic::Status::unimplemented(
+            "Not yet implemented: list_actions",
+        ))
+    }
+
+    async fn do_exchange(
+        &self,
+        _request: Request<Streaming<FlightData>>,
+    ) -> Result<Response<Self::DoExchangeStream>, tonic::Status> {
+        Err(tonic::Status::unimplemented(
+            "Not yet implemented: do_exchange",
+        ))
+    }
+}
+
+/// Extracts an encoded Protobuf message from a [`FlightDescriptor`],
+/// as used in FlightSQL.
+fn msg_from_descriptor(flight_descriptor: FlightDescriptor) -> Result<Any> {
+    match flight_descriptor.r#type() {
+        DescriptorType::Cmd => {
+            let msg: Any = Message::decode(flight_descriptor.cmd).context(DeserializationSnafu)?;
+            Ok(msg)
+        }
+        DescriptorType::Path => Err(Error::unsupported_message_type("FlightInfo with Path")),
+        DescriptorType::Unknown => Err(Error::unsupported_message_type(
+            "FlightInfo of unknown type",
+        )),
     }
 }
 
