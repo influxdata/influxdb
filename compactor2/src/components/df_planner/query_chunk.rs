@@ -15,13 +15,7 @@ use observability_deps::tracing::debug;
 use parquet_file::{chunk::ParquetChunk, storage::ParquetStorage};
 use predicate::{delete_predicate::tombstones_to_delete_predicates, Predicate};
 use schema::{merge::SchemaMerger, sort::SortKey, Projection, Schema};
-use snafu::Snafu;
 use uuid::Uuid;
-
-/// Compaction errors.
-#[derive(Debug, Snafu)]
-#[allow(missing_copy_implementations, missing_docs)]
-pub enum Error {}
 
 /// QueryableParquetChunk that implements QueryChunk and QueryMetaChunk for building query plan
 #[derive(Debug, Clone)]

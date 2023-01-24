@@ -44,7 +44,7 @@ impl Compactor2 {
                 _ = shutdown_captured.cancelled() => {}
                 _ = async {
                     loop {
-                        compact(&config, &components).await;
+                        compact(config.partition_concurrency, &components).await;
                         // TODO: implement throttling if there was no work to do
                     }
                 } => unreachable!(),

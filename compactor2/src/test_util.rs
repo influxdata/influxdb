@@ -4,7 +4,7 @@ use backoff::BackoffConfig;
 use data_types::{
     ColumnId, ColumnSchema, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceId,
     NamespaceSchema, ParquetFile, ParquetFileId, Partition, PartitionId, PartitionKey, QueryPoolId,
-    SequenceNumber, ShardId, Table, TableId, TableSchema, Timestamp, TopicId,
+    SequenceNumber, ShardId, SkippedCompaction, Table, TableId, TableSchema, Timestamp, TopicId,
 };
 use datafusion::arrow::record_batch::RecordBatch;
 use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
@@ -13,8 +13,8 @@ use schema::sort::SortKey;
 use uuid::Uuid;
 
 use crate::{
-    components::{compact::partition::PartitionInfo, namespaces_source::mock::NamespaceWrapper},
-    config::Config,
+    components::namespaces_source::mock::NamespaceWrapper, config::Config,
+    partition_info::PartitionInfo,
 };
 
 #[derive(Debug)]
@@ -215,6 +215,41 @@ impl PartitionBuilder {
     }
 }
 
+#[derive(Debug)]
+pub struct SkippedCompactionBuilder {
+    skipped_compaction: SkippedCompaction,
+}
+
+impl SkippedCompactionBuilder {
+    pub fn new(id: i64) -> Self {
+        Self {
+            skipped_compaction: SkippedCompaction {
+                partition_id: PartitionId::new(id),
+                reason: "test skipped compaction".to_string(),
+                skipped_at: Timestamp::new(0),
+                num_files: 0,
+                limit_num_files: 0,
+                estimated_bytes: 0,
+                limit_bytes: 0,
+                limit_num_files_first_in_partition: 0,
+            },
+        }
+    }
+
+    pub fn with_reason(self, reason: &str) -> Self {
+        Self {
+            skipped_compaction: SkippedCompaction {
+                reason: reason.to_string(),
+                ..self.skipped_compaction
+            },
+        }
+    }
+
+    pub fn build(self) -> SkippedCompaction {
+        self.skipped_compaction
+    }
+}
+
 const SHARD_INDEX: i32 = 1;
 const PARTITION_MINUTE_THRESHOLD: u64 = 10;
 const MAX_DESIRE_FILE_SIZE: u64 = 100 * 1024;
@@ -223,7 +258,7 @@ const SPLIT_PERCENTAGE: u16 = 80;
 
 pub struct TestSetup {
     pub files: Arc<Vec<ParquetFile>>,
-    pub partition_info: Arc<crate::components::compact::partition::PartitionInfo>,
+    pub partition_info: Arc<PartitionInfo>,
     pub catalog: Arc<TestCatalog>,
     pub table: Arc<TestTable>,
     pub config: Arc<Config>,
@@ -252,15 +287,15 @@ impl TestSetup {
         let sort_key = SortKey::from_columns(["tag1", "tag2", "tag3", "time"]);
         let partition = partition.update_sort_key(sort_key.clone()).await;
 
-        let candidate_partition = Arc::new(PartitionInfo::new(
-            partition.partition.id,
-            ns.namespace.id,
-            ns.namespace.name.clone(),
-            Arc::new(table.table.clone()),
-            Arc::new(table_schema),
-            partition.partition.sort_key(),
-            partition.partition.partition_key.clone(),
-        ));
+        let candidate_partition = Arc::new(PartitionInfo {
+            partition_id: partition.partition.id,
+            namespace_id: ns.namespace.id,
+            namespace_name: ns.namespace.name.clone(),
+            table: Arc::new(table.table.clone()),
+            table_schema: Arc::new(table_schema),
+            sort_key: partition.partition.sort_key(),
+            partition_key: partition.partition.partition_key.clone(),
+        });
 
         let mut parquet_files = vec![];
         if with_files {

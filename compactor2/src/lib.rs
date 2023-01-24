@@ -15,6 +15,8 @@ pub mod compactor;
 mod components;
 pub mod config;
 mod driver;
+mod partition_info;
 
+mod compactor_tests;
 #[cfg(test)]
 mod test_util;

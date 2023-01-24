@@ -52,6 +52,18 @@ pub enum UploadError {
     Upload(#[from] object_store::Error),
 }
 
+impl From<UploadError> for DataFusionError {
+    fn from(value: UploadError) -> Self {
+        match value {
+            UploadError::Serialise(e) => {
+                Self::Context(String::from("serialize"), Box::new(e.into()))
+            }
+            UploadError::Metadata(e) => Self::External(Box::new(e)),
+            UploadError::Upload(e) => Self::ObjectStore(e),
+        }
+    }
+}
+
 /// ID for an object store hooked up into DataFusion.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct StorageId(&'static str);

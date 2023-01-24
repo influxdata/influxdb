@@ -819,9 +819,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.1.1"
+version = "4.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ec7a4128863c188deefe750ac1d1dfe66c236909f845af04beed823638dc1b2"
+checksum = "d8d93d855ce6a0aa87b8473ef9169482f40abaa2e9e0993024c35c902cbd5920"
 dependencies = [
  "bitflags",
  "clap_derive",
@@ -836,7 +836,7 @@ dependencies = [
 name = "clap_blocks"
 version = "0.1.0"
 dependencies = [
- "clap 4.1.1",
+ "clap 4.1.3",
  "data_types",
  "futures",
  "humantime",
@@ -1399,7 +1399,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "16.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=64fa312ecc5f32294e70fd7389e18cb41f25e732#64fa312ecc5f32294e70fd7389e18cb41f25e732"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=350cb47289a76e579b221fe374e4cf09db332569#350cb47289a76e579b221fe374e4cf09db332569"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
@@ -1445,7 +1445,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "16.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=64fa312ecc5f32294e70fd7389e18cb41f25e732#64fa312ecc5f32294e70fd7389e18cb41f25e732"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=350cb47289a76e579b221fe374e4cf09db332569#350cb47289a76e579b221fe374e4cf09db332569"
 dependencies = [
  "arrow",
  "chrono",
@@ -1458,7 +1458,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "16.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=64fa312ecc5f32294e70fd7389e18cb41f25e732#64fa312ecc5f32294e70fd7389e18cb41f25e732"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=350cb47289a76e579b221fe374e4cf09db332569#350cb47289a76e579b221fe374e4cf09db332569"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
@@ -1470,7 +1470,7 @@ dependencies = [
 [[package]]
 name = "datafusion-optimizer"
 version = "16.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=64fa312ecc5f32294e70fd7389e18cb41f25e732#64fa312ecc5f32294e70fd7389e18cb41f25e732"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=350cb47289a76e579b221fe374e4cf09db332569#350cb47289a76e579b221fe374e4cf09db332569"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1486,7 +1486,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "16.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=64fa312ecc5f32294e70fd7389e18cb41f25e732#64fa312ecc5f32294e70fd7389e18cb41f25e732"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=350cb47289a76e579b221fe374e4cf09db332569#350cb47289a76e579b221fe374e4cf09db332569"
 dependencies = [
  "ahash 0.8.2",
  "arrow",
@@ -1516,7 +1516,7 @@ dependencies = [
 [[package]]
 name = "datafusion-proto"
 version = "16.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=64fa312ecc5f32294e70fd7389e18cb41f25e732#64fa312ecc5f32294e70fd7389e18cb41f25e732"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=350cb47289a76e579b221fe374e4cf09db332569#350cb47289a76e579b221fe374e4cf09db332569"
 dependencies = [
  "arrow",
  "chrono",
@@ -1533,7 +1533,7 @@ dependencies = [
 [[package]]
 name = "datafusion-row"
 version = "16.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=64fa312ecc5f32294e70fd7389e18cb41f25e732#64fa312ecc5f32294e70fd7389e18cb41f25e732"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=350cb47289a76e579b221fe374e4cf09db332569#350cb47289a76e579b221fe374e4cf09db332569"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1544,7 +1544,7 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "16.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=64fa312ecc5f32294e70fd7389e18cb41f25e732#64fa312ecc5f32294e70fd7389e18cb41f25e732"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=350cb47289a76e579b221fe374e4cf09db332569#350cb47289a76e579b221fe374e4cf09db332569"
 dependencies = [
  "arrow-schema",
  "datafusion-common",
@@ -1925,7 +1925,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "chrono-english",
- "clap 4.1.1",
+ "clap 4.1.3",
  "clap_blocks",
  "data_types",
  "filetime",
@@ -2435,7 +2435,7 @@ dependencies = [
  "assert_cmd",
  "backtrace",
  "bytes",
- "clap 4.1.1",
+ "clap 4.1.3",
  "clap_blocks",
  "comfy-table",
  "compactor",
@@ -2814,7 +2814,7 @@ dependencies = [
  "bytes",
  "chrono",
  "chrono-english",
- "clap 4.1.1",
+ "clap 4.1.3",
  "criterion",
  "datafusion_util",
  "futures",
@@ -2917,7 +2917,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "chrono",
- "clap 4.1.1",
+ "clap 4.1.3",
  "clap_blocks",
  "data_types",
  "flate2",
@@ -3138,7 +3138,7 @@ name = "ioxd_test"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "clap 4.1.1",
+ "clap 4.1.3",
  "hyper",
  "ioxd_common",
  "metric",
@@ -3604,6 +3604,15 @@ checksum = "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a"
 dependencies = [
  "memchr",
  "minimal-lexical",
+]
+
+[[package]]
+name = "nom8"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae01545c9c7fc4486ab7debaf2aad7003ac19431791868fb2e8066df97fad2f8"
+dependencies = [
+ "memchr",
 ]
 
 [[package]]
@@ -5069,6 +5078,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_spanned"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c68e921cef53841b8925c2abadd27c9b891d9613bdc43d6b823062866df38e8"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "serde_urlencoded"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5930,11 +5948,36 @@ dependencies = [
 
 [[package]]
 name = "toml"
-version = "0.5.10"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1333c76748e868a4d9d1017b5ab53171dfd095f70c712fdb4653a406547f598f"
+checksum = "4fb9d890e4dc9298b70f740f615f2e05b9db37dce531f6b24fb77ac993f9f217"
 dependencies = [
  "serde",
+ "serde_spanned",
+ "toml_datetime",
+ "toml_edit",
+]
+
+[[package]]
+name = "toml_datetime"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4553f467ac8e3d374bc9a177a26801e5d0f9b211aa1673fb137a403afd1c9cf5"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "toml_edit"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "729bfd096e40da9c001f778f5cdecbd2957929a24e10e5883d9392220a751581"
+dependencies = [
+ "indexmap",
+ "nom8",
+ "serde",
+ "serde_spanned",
+ "toml_datetime",
 ]
 
 [[package]]
@@ -6079,7 +6122,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
- "clap 4.1.1",
+ "clap 4.1.3",
  "futures",
  "iox_time",
  "observability_deps",
@@ -6218,7 +6261,7 @@ dependencies = [
 name = "trogging"
 version = "0.1.0"
 dependencies = [
- "clap 4.1.1",
+ "clap 4.1.3",
  "is-terminal",
  "logfmt",
  "observability_deps",

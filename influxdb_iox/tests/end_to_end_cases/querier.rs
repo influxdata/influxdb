@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use arrow_util::assert_batches_sorted_eq;
 use assert_cmd::{assert::Assert, Command};
-use futures::{FutureExt, TryStreamExt};
+use futures::{FutureExt, StreamExt, TryStreamExt};
 use generated_types::{
     aggregate::AggregateType, read_group_request::Group, read_response::frame::Data,
 };
@@ -55,6 +55,57 @@ mod with_kafka {
                         "+------+------+--------------------------------+-----+",
                     ],
                 },
+            ],
+        )
+        .run()
+        .await
+    }
+
+    #[tokio::test]
+    async fn basic_empty() {
+        test_helpers::maybe_start_logging();
+        let database_url = maybe_skip_integration!();
+
+        let table_name = "the_table";
+
+        // Set up the cluster  ====================================
+        let mut cluster = MiniCluster::create_shared(database_url).await;
+
+        StepTest::new(
+            &mut cluster,
+            vec![
+                Step::WriteLineProtocol(format!(
+                    "{},tag1=A,tag2=B val=42i 123456\n\
+                     {},tag1=A,tag2=C val=43i 123457",
+                    table_name, table_name
+                )),
+                Step::WaitForReadable,
+                Step::AssertNotPersisted,
+                Step::Custom(Box::new(move |state: &mut StepTestState| {
+                    async move {
+                        // query returns no results
+                        let sql = format!("select * from {} where time > '2023-01-12'", table_name);
+                        let querier_connection =
+                            state.cluster().querier().querier_grpc_connection();
+                        let namespace = state.cluster().namespace();
+
+                        let mut client =
+                            influxdb_iox_client::flight::Client::new(querier_connection);
+
+                        let result_stream = client.sql(namespace.into(), sql).await.unwrap();
+
+                        let mut flight_stream = result_stream.into_inner();
+
+                        // no data is returned
+                        assert!(flight_stream.next().await.is_none());
+
+                        // even though there are no results, we should have still got the schema
+                        // otherwise other clients may complain
+                        // https://github.com/influxdata/influxdb_iox/pull/6668
+                        assert!(flight_stream.got_schema());
+                    }
+                    .boxed()
+                })),
             ],
         )
         .run()
@@ -959,6 +1010,71 @@ mod kafkaless_rpc_write {
                         "+------+------+--------------------------------+-----+",
                     ],
                 },
+            ],
+        )
+        .run()
+        .await
+    }
+
+    #[tokio::test]
+    async fn basic_empty() {
+        test_helpers::maybe_start_logging();
+        let database_url = maybe_skip_integration!();
+
+        let table_name = "the_table";
+
+        // Set up the cluster  ====================================
+        let ingester_config = TestConfig::new_ingester2(&database_url);
+        let router_config = TestConfig::new_router2(&ingester_config);
+        // specially create a querier2 config that is NOT connected to the ingester2
+        let querier_config = TestConfig::new_querier2_without_ingester2(&ingester_config);
+
+        let mut cluster = MiniCluster::new()
+            .with_ingester(ingester_config)
+            .await
+            .with_router(router_config)
+            .await
+            .with_querier(querier_config)
+            .await;
+
+        StepTest::new(
+            &mut cluster,
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(format!(
+                    "{},tag1=A,tag2=B val=42i 123456\n\
+                     {},tag1=A,tag2=C val=43i 123457",
+                    table_name, table_name
+                )),
+                // Wait for data to be persisted to parquet
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+                Step::Custom(Box::new(move |state: &mut StepTestState| {
+                    async move {
+                        // query returns no results
+                        let sql = format!("select * from {} where time > '2023-01-12'", table_name);
+                        let querier_connection =
+                            state.cluster().querier().querier_grpc_connection();
+                        let namespace = state.cluster().namespace();
+
+                        let mut client =
+                            influxdb_iox_client::flight::Client::new(querier_connection);
+
+                        let result_stream = client.sql(namespace.into(), sql).await.unwrap();
+
+                        let mut flight_stream = result_stream.into_inner();
+
+                        // no data is returned
+                        assert!(flight_stream.next().await.is_none());
+
+                        // even though there are no results, we should have still got the schema
+                        // otherwise other clients may complain
+                        // https://github.com/influxdata/influxdb_iox/pull/6668
+                        assert!(flight_stream.got_schema());
+                    }
+                    .boxed()
+                })),
             ],
         )
         .run()

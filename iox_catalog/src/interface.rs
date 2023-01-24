@@ -491,6 +491,12 @@ pub trait PartitionRepo: Send + Sync {
         limit_bytes: u64,
     ) -> Result<()>;
 
+    /// Get the record of a partition being skipped.
+    async fn get_in_skipped_compaction(
+        &mut self,
+        partition_id: PartitionId,
+    ) -> Result<Option<SkippedCompaction>>;
+
     /// List the records of compacting a partition being skipped. This is mostly useful for testing.
     async fn list_skipped_compactions(&mut self) -> Result<Vec<SkippedCompaction>>;
 
@@ -1757,6 +1763,15 @@ pub(crate) mod test_helpers {
         assert_eq!(skipped_compactions[0].limit_num_files, 2);
         assert_eq!(skipped_compactions[0].estimated_bytes, 10);
         assert_eq!(skipped_compactions[0].limit_bytes, 20);
+        //
+        let skipped_partition_record = repos
+            .partitions()
+            .get_in_skipped_compaction(other_partition.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(skipped_partition_record.partition_id, other_partition.id);
+        assert_eq!(skipped_partition_record.reason, "I am le tired");
 
         // Only save the last reason that any particular partition was skipped (really if the
         // partition appears in the skipped compactions, it shouldn't become a compaction candidate
@@ -1774,7 +1789,17 @@ pub(crate) mod test_helpers {
         assert_eq!(skipped_compactions[0].limit_num_files, 12);
         assert_eq!(skipped_compactions[0].estimated_bytes, 110);
         assert_eq!(skipped_compactions[0].limit_bytes, 120);
+        //
+        let skipped_partition_record = repos
+            .partitions()
+            .get_in_skipped_compaction(other_partition.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(skipped_partition_record.partition_id, other_partition.id);
+        assert_eq!(skipped_partition_record.reason, "I'm on fire");
 
+        // Delete the skipped compaction
         let deleted_skipped_compaction = repos
             .partitions()
             .delete_skipped_compactions(other_partition.id)
@@ -1788,6 +1813,13 @@ pub(crate) mod test_helpers {
         assert_eq!(deleted_skipped_compaction.limit_num_files, 12);
         assert_eq!(deleted_skipped_compaction.estimated_bytes, 110);
         assert_eq!(deleted_skipped_compaction.limit_bytes, 120);
+        //
+        let skipped_partition_record = repos
+            .partitions()
+            .get_in_skipped_compaction(other_partition.id)
+            .await
+            .unwrap();
+        assert!(skipped_partition_record.is_none());
 
         let not_deleted_skipped_compaction = repos
             .partitions()

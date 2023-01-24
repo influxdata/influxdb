@@ -6,14 +6,26 @@ use std::sync::Arc;
 
 use data_types::CompactionLevel;
 
-use crate::config::Config;
+use crate::{
+    components::{
+        namespaces_source::catalog::CatalogNamespacesSource,
+        tables_source::catalog::CatalogTablesSource,
+    },
+    config::Config,
+};
 
 use super::{
     commit::{
         catalog::CatalogCommit, logging::LoggingCommitWrapper, metrics::MetricsCommitWrapper,
     },
+    df_plan_exec::dedicated::DedicatedDataFusionPlanExec,
+    df_planner::planner_v1::V1DataFusionPlanner,
     file_filter::{and::AndFileFilter, level_range::LevelRangeFileFilter},
     files_filter::{chain::FilesFilterChain, per_file::PerFileFilesFilter},
+    parquet_file_sink::{
+        dedicated::DedicatedExecParquetFileSinkWrapper, logging::LoggingParquetFileSinkWrapper,
+        object_store::ObjectStoreParquetFileSink,
+    },
     partition_error_sink::{
         catalog::CatalogPartitionErrorSink, logging::LoggingPartitionErrorSinkWrapper,
         metrics::MetricsPartitionErrorSinkWrapper,
@@ -28,6 +40,7 @@ use super::{
         metrics::MetricsPartitionsSourceWrapper,
         randomize_order::RandomizeOrderPartitionsSourcesWrapper,
     },
+    skipped_compactions_source::catalog::CatalogSkippedCompactionsSource,
     Components,
 };
 
@@ -79,17 +92,35 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             CatalogCommit::new(config.backoff_config.clone(), Arc::clone(&config.catalog)),
             &config.metric_registry,
         ))),
-        namespaces_source: Arc::new(
-            crate::components::namespaces_source::catalog::CatalogNamespacesSource::new(
-                config.backoff_config.clone(),
-                Arc::clone(&config.catalog),
+        namespaces_source: Arc::new(CatalogNamespacesSource::new(
+            config.backoff_config.clone(),
+            Arc::clone(&config.catalog),
+        )),
+        tables_source: Arc::new(CatalogTablesSource::new(
+            config.backoff_config.clone(),
+            Arc::clone(&config.catalog),
+        )),
+        df_planner: Arc::new(V1DataFusionPlanner::new(
+            config.parquet_store.clone(),
+            Arc::clone(&config.exec),
+            config.max_desired_file_size_bytes,
+            config.percentage_max_file_size,
+            config.split_percentage,
+        )),
+        df_plan_exec: Arc::new(DedicatedDataFusionPlanExec::new(Arc::clone(&config.exec))),
+        parquet_file_sink: Arc::new(LoggingParquetFileSinkWrapper::new(
+            DedicatedExecParquetFileSinkWrapper::new(
+                ObjectStoreParquetFileSink::new(
+                    config.shard_id,
+                    config.parquet_store.clone(),
+                    Arc::clone(&config.time_provider),
+                ),
+                Arc::clone(&config.exec),
             ),
-        ),
-        tables_source: Arc::new(
-            crate::components::tables_source::catalog::CatalogTablesSource::new(
-                config.backoff_config.clone(),
-                Arc::clone(&config.catalog),
-            ),
-        ),
+        )),
+        skipped_compactions_source: Arc::new(CatalogSkippedCompactionsSource::new(
+            config.backoff_config.clone(),
+            Arc::clone(&config.catalog),
+        )),
     })
 }

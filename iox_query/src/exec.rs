@@ -205,7 +205,7 @@ impl Executor {
     }
 
     /// Return the execution pool  of the specified type
-    fn executor(&self, executor_type: ExecutorType) -> &DedicatedExecutor {
+    pub fn executor(&self, executor_type: ExecutorType) -> &DedicatedExecutor {
         match executor_type {
             ExecutorType::Query => &self.executors.query_exec,
             ExecutorType::Reorg => &self.executors.reorg_exec,
