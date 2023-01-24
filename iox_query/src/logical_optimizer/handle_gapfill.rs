@@ -97,11 +97,22 @@ fn handle_aggregate(aggr: &Aggregate) -> Result<Option<LogicalPlan>> {
     } = aggr;
 
     // new_group_expr has DATE_BIN_GAPFILL replaced with DATE_BIN.
-    let (new_group_expr, dbg_idx) = if let Some(v) = replace_date_bin_gapfill(group_expr)? {
+    let RewriteInfo {
+        new_group_expr,
+        date_bin_gapfill_index,
+        date_bin_gapfill_args,
+    } = if let Some(v) = replace_date_bin_gapfill(group_expr)? {
         v
     } else {
         return Ok(None);
     };
+
+    if date_bin_gapfill_args.len() != 3 {
+        return Err(DataFusionError::Plan(format!(
+            "DATE_BIN_GAPFILL expects 3 arguments, got {}",
+            date_bin_gapfill_args.len()
+        )));
+    }
 
     let new_aggr_plan = {
         // Create the aggregate node with the same output schema as the orignal
@@ -127,32 +138,52 @@ fn handle_aggregate(aggr: &Aggregate) -> Result<Option<LogicalPlan>> {
             .map(|f| Expr::Column(f.qualified_column()))
             .collect();
         let aggr_expr = new_group_expr.split_off(group_expr.len());
-        let time_column = col(new_aggr_plan.schema().fields()[dbg_idx].qualified_column());
+        let time_column =
+            col(new_aggr_plan.schema().fields()[date_bin_gapfill_index].qualified_column());
+        let stride = date_bin_gapfill_args
+            .into_iter()
+            .next()
+            .expect("there are three args");
         LogicalPlan::Extension(Extension {
             node: Arc::new(GapFill::try_new(
                 Arc::new(new_aggr_plan),
                 new_group_expr,
                 aggr_expr,
                 time_column,
+                stride,
             )?),
         })
     };
     Ok(Some(new_gap_fill_plan))
 }
 
+struct RewriteInfo {
+    // Group expressions with DATE_BIN_GAPFILL rewritten to DATE_BIN.
+    new_group_expr: Vec<Expr>,
+    // The index of the group expression that contained the call to DATE_BIN_GAPFILL.
+    date_bin_gapfill_index: usize,
+    // The arguments to the call to DATE_BIN_GAPFILL.
+    date_bin_gapfill_args: Vec<Expr>,
+}
+
 // Iterate over the group expression list.
-// If it finds no occurrences of date_bin_gapfill at the top of
-// each expression tree, it will return None.
-// If it finds such an occurrence, it will return a new expression list
-// with the date_bin_gapfill replaced with date_bin, and the index of
-// where the replacement occurred.
-fn replace_date_bin_gapfill(group_expr: &[Expr]) -> Result<Option<(Vec<Expr>, usize)>> {
+// If it finds no occurrences of date_bin_gapfill, it will return None.
+// If it finds more than one occurrence it will return an error.
+// Otherwise it will return a RewriteInfo for the optimizer rule to use.
+fn replace_date_bin_gapfill(group_expr: &[Expr]) -> Result<Option<RewriteInfo>> {
     let mut date_bin_gapfill_count = 0;
-    group_expr.iter().try_for_each(|e| -> Result<()> {
-        let fn_cnt = count_date_bin_gapfill(e)?;
-        date_bin_gapfill_count += fn_cnt;
-        Ok(())
-    })?;
+    let mut dbg_idx = None;
+    group_expr
+        .iter()
+        .enumerate()
+        .try_for_each(|(i, e)| -> Result<()> {
+            let fn_cnt = count_date_bin_gapfill(e)?;
+            date_bin_gapfill_count += fn_cnt;
+            if fn_cnt > 0 {
+                dbg_idx = Some(i);
+            }
+            Ok(())
+        })?;
     match date_bin_gapfill_count {
         0 => return Ok(None),
         2.. => {
@@ -162,30 +193,31 @@ fn replace_date_bin_gapfill(group_expr: &[Expr]) -> Result<Option<(Vec<Expr>, us
         }
         _ => (),
     }
+    let date_bin_gapfill_index = dbg_idx.expect("should be found exactly one call");
 
-    let group_expr = group_expr.to_owned();
-    let mut new_group_expr = Vec::with_capacity(group_expr.len());
-    let mut dbg_idx = None;
-
-    group_expr
-        .into_iter()
+    let mut rewriter = DateBinGapfillRewriter { args: None };
+    let group_expr = group_expr
+        .iter()
         .enumerate()
-        .try_for_each(|(i, e)| -> Result<()> {
-            let mut rewriter = DateBinGapfillRewriter { found: false };
-            new_group_expr.push(e.rewrite(&mut rewriter)?);
-            if rewriter.found {
-                dbg_idx = Some(i);
+        .map(|(i, e)| {
+            if i == date_bin_gapfill_index {
+                e.clone().rewrite(&mut rewriter)
+            } else {
+                Ok(e.clone())
             }
-            Ok(())
-        })?;
-    Ok(Some((
-        new_group_expr,
-        dbg_idx.expect("should have found a call to DATE_BIN_GAPFILL based on previous check"),
-    )))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let date_bin_gapfill_args = rewriter.args.expect("should have found args");
+
+    Ok(Some(RewriteInfo {
+        new_group_expr: group_expr,
+        date_bin_gapfill_index,
+        date_bin_gapfill_args,
+    }))
 }
 
 struct DateBinGapfillRewriter {
-    found: bool,
+    args: Option<Vec<Expr>>,
 }
 
 impl ExprRewriter for DateBinGapfillRewriter {
@@ -201,7 +233,7 @@ impl ExprRewriter for DateBinGapfillRewriter {
     fn mutate(&mut self, expr: Expr) -> Result<Expr> {
         match expr {
             Expr::ScalarUDF { fun, args } if fun.name == DATE_BIN_GAPFILL_UDF_NAME => {
-                self.found = true;
+                self.args = Some(args.clone());
                 Ok(Expr::ScalarFunction {
                     fun: BuiltinScalarFunction::DateBin,
                     args,
@@ -373,7 +405,7 @@ mod test {
 
         let dbg_args = "IntervalDayTime(\"60000\"),temps.time,TimestampNanosecond(0, None)";
         let expected = format!(
-            "GapFill: groupBy=[[date_bin_gapfill({dbg_args})]], aggr=[[AVG(temps.temp)]], time_column=date_bin_gapfill({dbg_args})\
+            "GapFill: groupBy=[[date_bin_gapfill({dbg_args})]], aggr=[[AVG(temps.temp)]], time_column=date_bin_gapfill({dbg_args}), stride=IntervalDayTime(\"60000\")\
            \n  Aggregate: groupBy=[[datebin(IntervalDayTime(\"60000\"), temps.time, TimestampNanosecond(0, None))]], aggr=[[AVG(temps.temp)]]\
            \n    TableScan: temps");
         assert_optimized_plan_eq(&plan, &expected)?;
@@ -395,7 +427,7 @@ mod test {
 
         let dbg_args = "IntervalDayTime(\"60000\"),temps.time,TimestampNanosecond(0, None)";
         let expected = format!(
-            "GapFill: groupBy=[[date_bin_gapfill({dbg_args}), temps.loc]], aggr=[[AVG(temps.temp)]], time_column=date_bin_gapfill({dbg_args})\
+            "GapFill: groupBy=[[date_bin_gapfill({dbg_args}), temps.loc]], aggr=[[AVG(temps.temp)]], time_column=date_bin_gapfill({dbg_args}), stride=IntervalDayTime(\"60000\")\
            \n  Aggregate: groupBy=[[datebin(IntervalDayTime(\"60000\"), temps.time, TimestampNanosecond(0, None)), temps.loc]], aggr=[[AVG(temps.temp)]]\
            \n    TableScan: temps");
         assert_optimized_plan_eq(&plan, &expected)?;
@@ -439,7 +471,7 @@ mod test {
 
         let expected = format!(
             "Projection: date_bin_gapfill({dbg_args}), AVG(temps.temp)\
-           \n  GapFill: groupBy=[[date_bin_gapfill({dbg_args})]], aggr=[[AVG(temps.temp)]], time_column=date_bin_gapfill({dbg_args})\
+           \n  GapFill: groupBy=[[date_bin_gapfill({dbg_args})]], aggr=[[AVG(temps.temp)]], time_column=date_bin_gapfill({dbg_args}), stride=IntervalDayTime(\"60000\")\
            \n    Aggregate: groupBy=[[datebin(IntervalDayTime(\"60000\"), temps.time, TimestampNanosecond(0, None))]], aggr=[[AVG(temps.temp)]]\
            \n      TableScan: temps");
         assert_optimized_plan_eq(&plan, &expected)?;
