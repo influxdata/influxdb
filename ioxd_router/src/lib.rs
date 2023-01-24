@@ -7,6 +7,7 @@ use iox_catalog::interface::Catalog;
 use ioxd_common::{
     add_service,
     http::error::{HttpApiError, HttpApiErrorSource},
+    reexport::tonic::transport::Endpoint,
     rpc::RpcBuilderInput,
     serve_builder,
     server_type::{CommonServerState, RpcError, ServerType},
@@ -18,8 +19,9 @@ use object_store::DynObjectStore;
 use observability_deps::tracing::info;
 use router::{
     dml_handlers::{
-        DmlHandler, DmlHandlerChainExt, FanOutAdaptor, InstrumentationDecorator, Partitioner,
-        RetentionValidator, RpcWrite, SchemaValidator, ShardedWriteBuffer, WriteSummaryAdapter,
+        lazy_connector::LazyConnector, DmlHandler, DmlHandlerChainExt, FanOutAdaptor,
+        InstrumentationDecorator, Partitioner, RetentionValidator, RpcWrite, SchemaValidator,
+        ShardedWriteBuffer, WriteSummaryAdapter,
     },
     namespace_cache::{
         metrics::InstrumentedCache, MemoryNamespaceCache, NamespaceCache, ShardedCache,
@@ -34,7 +36,7 @@ use router::{
     },
     shard::Shard,
 };
-use sharder::{JumpHash, RoundRobin, Sharder};
+use sharder::{JumpHash, Sharder};
 use std::{
     collections::BTreeSet,
     fmt::{Debug, Display},
@@ -259,14 +261,16 @@ pub async fn create_router2_server_type(
 
     // Hack to handle multiple ingester addresses separated by commas in potentially many uses of
     // the CLI arg
-    let ingester_addresses = router_config.ingester_addresses.join(",");
+    let ingester_connections = router_config.ingester_addresses.join(",");
+    let ingester_connections = ingester_connections.split(',').map(|s| {
+        let endpoint = Endpoint::from_shared(format!("http://{s}"))
+            .expect("invalid ingester connection address");
 
-    let grpc_connections = router::dml_handlers::build_ingester_connection(
-        ingester_addresses.split(',').map(|s| format!("http://{s}")),
-    );
+        LazyConnector::new(endpoint)
+    });
 
     // Initialise the DML handler that sends writes to the ingester using the RPC write path.
-    let rpc_writer = RpcWrite::new(RoundRobin::new([grpc_connections]));
+    let rpc_writer = RpcWrite::new(ingester_connections);
     let rpc_writer = InstrumentationDecorator::new("rpc_writer", &metrics, rpc_writer);
     // 1. END
 
