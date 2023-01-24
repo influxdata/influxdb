@@ -20,6 +20,8 @@ use tonic::transport::{Channel, Endpoint};
 use super::{client::WriteClient, RpcWriteError};
 
 const RETRY_INTERVAL: Duration = Duration::from_secs(1);
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(1);
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// How many consecutive errors must be observed before opening a new connection
 /// (at most once per [`RETRY_INTERVAL]).
@@ -48,6 +50,9 @@ pub struct LazyConnector {
 impl LazyConnector {
     /// Lazily connect to `addr`.
     pub fn new(addr: Endpoint) -> Self {
+        let addr = addr
+            .connect_timeout(CONNECT_TIMEOUT)
+            .timeout(REQUEST_TIMEOUT);
         let connection = Default::default();
 
         // Drive first connection by setting it above the connection limit.

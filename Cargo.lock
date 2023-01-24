@@ -1791,6 +1791,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "flightsql"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "arrow-flight",
+ "bytes",
+ "datafusion",
+ "futures",
+ "iox_query",
+ "observability_deps",
+ "prost 0.11.6",
+ "snafu",
+ "tokio",
+ "tonic",
+ "workspace-hack",
+]
+
+[[package]]
 name = "float-cmp"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5103,8 +5121,11 @@ dependencies = [
 name = "service_common"
 version = "0.1.0"
 dependencies = [
+ "arrow-flight",
  "async-trait",
+ "bytes",
  "datafusion",
+ "flightsql",
  "iox_query",
  "metric",
  "parking_lot 0.12.1",
@@ -5141,13 +5162,13 @@ dependencies = [
  "bytes",
  "data_types",
  "datafusion",
+ "flightsql",
  "futures",
  "generated_types",
  "iox_query",
  "metric",
  "observability_deps",
  "prost 0.11.6",
- "prost-types 0.11.6",
  "serde",
  "serde_json",
  "service_common",

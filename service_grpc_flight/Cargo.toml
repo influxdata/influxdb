@@ -10,9 +10,9 @@ license.workspace = true
 arrow_util = { path = "../arrow_util" }
 data_types = { path = "../data_types" }
 datafusion = { workspace = true }
+flightsql = { path = "../flightsql" }
 generated_types = { path = "../generated_types" }
 observability_deps = { path = "../observability_deps" }
-prost-types = { version = "0.11", features = ["std"] }
 iox_query = { path = "../iox_query" }
 service_common = { path = "../service_common" }
 trace = { path = "../trace"}

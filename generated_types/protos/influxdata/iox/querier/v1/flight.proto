@@ -3,26 +3,30 @@ package influxdata.iox.querier.v1;
 option go_package = "github.com/influxdata/iox/querier/v1";
 
 /*
- * Message definitions for the InfluxDB IOx Flight API
+ * Message definition for the native InfluxDB IOx Flight API
  *
- * These messages are what is sent to/from an InfluxDB IOx server's
- * `DoGet` endpoint as the opaque "Ticket" in Arrow Flight messages.
+ * ReadInfo is sent to an InfluxDB IOx Querier server's `DoGet` RPC
+ * method as the opaque "Ticket" in Arrow Flight messages.
  *
- * The bytes for the Tickets are created by encoding these messages
- * using the protobuf binary format.
+ * Tickets are created by encoding these messages using the protobuf
+ * binary format.
  *
- * Clients can construct these Ticket's directly to avoid making two
- * requests to run each query
+ * IOx clients can construct these Tickets directly to avoid making
+ * two RPC requests as typically required by Arrow Flight (a
+ * `GetFlightInfo` followed by a `DoGet`).
  */
-
-
-// Request for an IOx querier to execute a query on a user's behalf.
 message ReadInfo {
   // Namespace name.
   string namespace_name = 1;
 
-  // query text (either SQL or InfluxQL, depending on query_type)
+  // Query text (either SQL or InfluxQL, depending on query_type)
   string sql_query = 2;
+
+  // A FlightSQL command payload (serialized protobuf bytes). One of
+  // the messages defined in the [protobuf definition].
+  //
+  // [protobuf definition]: https://arrow.apache.org/docs/format/FlightSql.html#protocol-buffer-definitions
+  bytes flightsql_command = 4;
 
   // The type of query
   QueryType query_type = 3;
@@ -30,11 +34,18 @@ message ReadInfo {
   enum QueryType {
     // An unspecified query type. IOx may choose how to interpret sql_query.
     QUERY_TYPE_UNSPECIFIED = 0;
-    // SQL query.
+
+    // SQL query. `sql_query` contains a SQL query as text
     QUERY_TYPE_SQL = 1;
-    // InfluxQL query.
+
+    // InfluxQL query. `sql_query` contains an InfluxQL query as text
     QUERY_TYPE_INFLUX_QL = 2;
+
+    // FlightSQL message: `sql_query` is empty, flightsql_command
+    // contains a serialized FlightSQL message.
+    QUERY_TYPE_FLIGHT_SQL_MESSAGE = 3;
   }
+
 }
 
 // Message included in the DoGet response from the querier

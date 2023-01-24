@@ -312,16 +312,20 @@ impl IOxSessionContext {
         &self.inner
     }
 
+    /// Plan a SQL statement. This assumes that any tables referenced
+    /// in the SQL have been registered with this context. Use
+    /// `prepare_sql` to actually execute the query.
+    pub async fn plan_sql(&self, sql: &str) -> Result<LogicalPlan> {
+        let ctx = self.child_ctx("plan_sql");
+        debug!(text=%sql, "planning SQL query");
+        // NOTE can not use ctx.inner.sql() here as it also interprets DDL
+        ctx.inner.state().create_logical_plan(sql).await
+    }
+
     /// Prepare a SQL statement for execution. This assumes that any
     /// tables referenced in the SQL have been registered with this context
     pub async fn prepare_sql(&self, sql: &str) -> Result<Arc<dyn ExecutionPlan>> {
-        let ctx = self.child_ctx("prepare_sql");
-        debug!(text=%sql, "planning SQL query");
-
-        // NOTE can not use ctx.inner.sql() here as it also interprets DDL
-        #[allow(deprecated)]
-        let logical_plan = ctx.inner.state().create_logical_plan(sql).await?;
-        debug!(plan=%logical_plan.display_graphviz(), "logical plan");
+        let logical_plan = self.plan_sql(sql).await?;
 
         // Make nicer erorrs for unsupported SQL
         // (By default datafusion returns Internal Error)
@@ -347,6 +351,7 @@ impl IOxSessionContext {
             _ => (),
         }
 
+        let ctx = self.child_ctx("prepare_sql");
         ctx.create_physical_plan(&logical_plan).await
     }
 
