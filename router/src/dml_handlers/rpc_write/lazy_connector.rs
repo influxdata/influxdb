@@ -1,6 +1,12 @@
 //! A lazy connector for Tonic gRPC [`Channel`] instances.
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use generated_types::influxdata::iox::ingester::v1::{
@@ -15,6 +21,10 @@ use super::{client::WriteClient, RpcWriteError};
 
 const RETRY_INTERVAL: Duration = Duration::from_secs(1);
 
+/// How many consecutive errors must be observed before opening a new connection
+/// (at most once per [`RETRY_INTERVAL]).
+const RECONNECT_ERROR_COUNT: usize = 10;
+
 /// Lazy [`Channel`] connector.
 ///
 /// Connections are attempted in a background thread every [`RETRY_INTERVAL`].
@@ -27,6 +37,11 @@ const RETRY_INTERVAL: Duration = Duration::from_secs(1);
 pub struct LazyConnector {
     addr: Endpoint,
     connection: Arc<Mutex<Option<Channel>>>,
+
+    /// The number of request errors observed without a single success.
+    consecutive_errors: Arc<AtomicUsize>,
+    /// A task that periodically opens a new connection to `addr` when
+    /// `consecutive_errors` is more than [`RECONNECT_ERROR_COUNT`].
     connection_task: JoinHandle<()>,
 }
 
@@ -34,10 +49,18 @@ impl LazyConnector {
     /// Lazily connect to `addr`.
     pub fn new(addr: Endpoint) -> Self {
         let connection = Default::default();
+
+        // Drive first connection by setting it above the connection limit.
+        let consecutive_errors = Arc::new(AtomicUsize::new(RECONNECT_ERROR_COUNT + 1));
         Self {
             addr: addr.clone(),
             connection: Arc::clone(&connection),
-            connection_task: tokio::spawn(try_connect(addr, connection)),
+            connection_task: tokio::spawn(try_connect(
+                addr,
+                connection,
+                Arc::clone(&consecutive_errors),
+            )),
+            consecutive_errors,
         }
     }
 
@@ -58,8 +81,16 @@ impl WriteClient for LazyConnector {
         let conn =
             conn.ok_or_else(|| RpcWriteError::UpstreamNotConnected(self.addr.uri().to_string()))?;
 
-        WriteServiceClient::new(conn).write(op).await?;
-        Ok(())
+        match WriteServiceClient::new(conn).write(op).await {
+            Err(e) => {
+                self.consecutive_errors.fetch_add(1, Ordering::Relaxed);
+                return Err(e);
+            }
+            Ok(_) => {
+                self.consecutive_errors.store(0, Ordering::Relaxed);
+                Ok(())
+            }
+        }
     }
 }
 
@@ -69,19 +100,25 @@ impl Drop for LazyConnector {
     }
 }
 
-async fn try_connect(addr: Endpoint, connection: Arc<Mutex<Option<Channel>>>) {
+async fn try_connect(
+    addr: Endpoint,
+    connection: Arc<Mutex<Option<Channel>>>,
+    consecutive_errors: Arc<AtomicUsize>,
+) {
     loop {
-        match addr.connect().await {
-            Ok(v) => {
-                info!(endpoint = %addr.uri(), "connected to upstream ingester");
-                *connection.lock() = Some(v);
-                return;
+        if consecutive_errors.load(Ordering::Relaxed) > RECONNECT_ERROR_COUNT {
+            match addr.connect().await {
+                Ok(v) => {
+                    info!(endpoint = %addr.uri(), "connected to upstream ingester");
+                    *connection.lock() = Some(v);
+                    consecutive_errors.store(0, Ordering::Relaxed);
+                }
+                Err(e) => warn!(
+                    endpoint = %addr.uri(),
+                    error=%e,
+                    "failed to connect to upstream ingester"
+                ),
             }
-            Err(e) => warn!(
-                endpoint = %addr.uri(),
-                error=%e,
-                "failed to connect to upstream ingester"
-            ),
         }
         tokio::time::sleep(RETRY_INTERVAL).await;
     }
