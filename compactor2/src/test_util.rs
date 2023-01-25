@@ -410,6 +410,7 @@ impl TestSetup {
             exec: Arc::clone(&catalog.exec),
             backoff_config: BackoffConfig::default(),
             partition_concurrency: NonZeroUsize::new(1).unwrap(),
+            job_concurrency: NonZeroUsize::new(1).unwrap(),
             partition_minute_threshold: PARTITION_MINUTE_THRESHOLD,
             max_desired_file_size_bytes: MAX_DESIRE_FILE_SIZE,
             percentage_max_file_size: PERCENTAGE_MAX_FILE_SIZE,

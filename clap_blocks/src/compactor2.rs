@@ -6,13 +6,26 @@ use std::num::NonZeroUsize;
 #[derive(Debug, Clone, Copy, clap::Parser)]
 pub struct Compactor2Config {
     /// Number of partitions that should be compacted in parallel.
+    ///
+    /// This should usually be larger than the compaction job concurrency since one partition can spawn multiple compaction jobs.
     #[clap(
         long = "compaction-partition-concurrency",
         env = "INFLUXDB_IOX_COMPACTION_PARTITION_CONCURRENCY",
-        default_value = "10",
+        default_value = "100",
         action
     )]
     pub compaction_partition_concurrency: NonZeroUsize,
+
+    /// Number of concurrent compaction jobs.
+    ///
+    /// This should usually be smaller than the partition concurrency since one partition can spawn multiple compaction jobs.
+    #[clap(
+        long = "compaction-job-concurrency",
+        env = "INFLUXDB_IOX_COMPACTION_JOB_CONCURRENCY",
+        default_value = "10",
+        action
+    )]
+    pub compaction_job_concurrency: NonZeroUsize,
 
     /// Partitions with recent created files these last minutes are selected for compaction.
     #[clap(

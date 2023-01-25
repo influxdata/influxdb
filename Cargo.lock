@@ -1015,6 +1015,7 @@ dependencies = [
  "test_helpers",
  "tokio",
  "tokio-util",
+ "tracker",
  "uuid",
  "workspace-hack",
 ]

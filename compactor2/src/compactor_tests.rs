@@ -4,6 +4,7 @@ mod tests {
 
     use arrow_util::assert_batches_sorted_eq;
     use data_types::CompactionLevel;
+    use tracker::AsyncSemaphoreMetrics;
 
     use crate::{
         components::hardcoded::hardcoded_components, driver::compact, test_util::TestSetup,
@@ -20,14 +21,7 @@ mod tests {
         assert!(files.is_empty());
 
         // compact
-        let config = Arc::clone(&setup.config);
-        let components = hardcoded_components(&config);
-        compact(
-            NonZeroUsize::new(10).unwrap(),
-            Duration::from_secs(3_6000),
-            &components,
-        )
-        .await;
+        run_compact(&setup).await;
 
         // verify catalog is still empty
         let files = setup.list_by_table_not_to_delete().await;
@@ -63,14 +57,7 @@ mod tests {
         );
 
         // compact
-        let config = Arc::clone(&setup.config);
-        let components = hardcoded_components(&config);
-        compact(
-            NonZeroUsize::new(10).unwrap(),
-            Duration::from_secs(3_6000),
-            &components,
-        )
-        .await;
+        run_compact(&setup).await;
 
         // verify number of files: 6 files are compacted into 2 files
         let files = setup.list_by_table_not_to_delete().await;
@@ -164,14 +151,7 @@ mod tests {
             .await;
 
         // compact but nothing will be compacted because the partition is skipped
-        let config = Arc::clone(&setup.config);
-        let components = hardcoded_components(&config);
-        compact(
-            NonZeroUsize::new(10).unwrap(),
-            Duration::from_secs(3_6000),
-            &components,
-        )
-        .await;
+        run_compact(&setup).await;
 
         // verify still 6 files
         let files = setup.list_by_table_not_to_delete().await;
@@ -193,5 +173,20 @@ mod tests {
                 (6, CompactionLevel::Initial),
             ]
         );
+    }
+
+    async fn run_compact(setup: &TestSetup) {
+        let config = Arc::clone(&setup.config);
+        let components = hardcoded_components(&config);
+        let job_semaphore = Arc::new(
+            Arc::new(AsyncSemaphoreMetrics::new(&config.metric_registry, [])).new_semaphore(10),
+        );
+        compact(
+            NonZeroUsize::new(10).unwrap(),
+            Duration::from_secs(3_6000),
+            job_semaphore,
+            &components,
+        )
+        .await;
     }
 }

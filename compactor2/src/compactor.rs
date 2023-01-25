@@ -8,6 +8,7 @@ use futures::{
 use observability_deps::tracing::warn;
 use tokio::task::{JoinError, JoinHandle};
 use tokio_util::sync::CancellationToken;
+use tracker::AsyncSemaphoreMetrics;
 
 use crate::{
     components::{hardcoded::hardcoded_components, report::log_components},
@@ -39,12 +40,18 @@ impl Compactor2 {
         let components = hardcoded_components(&config);
         log_components(&components);
 
+        let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(
+            &config.metric_registry,
+            &[("semaphore", "job")],
+        ));
+        let job_semaphore = Arc::new(semaphore_metrics.new_semaphore(config.job_concurrency.get()));
+
         let worker = tokio::spawn(async move {
             tokio::select! {
                 _ = shutdown_captured.cancelled() => {}
                 _ = async {
                     loop {
-                        compact(config.partition_concurrency, Duration::from_secs(config.partition_timeout_secs), &components).await;
+                        compact(config.partition_concurrency, Duration::from_secs(config.partition_timeout_secs), Arc::clone(&job_semaphore), &components).await;
                         // TODO: implement throttling if there was no work to do
                     }
                 } => unreachable!(),

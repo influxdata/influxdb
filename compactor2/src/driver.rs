@@ -2,6 +2,7 @@ use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 use data_types::{CompactionLevel, PartitionId};
 use futures::{stream::FuturesOrdered, StreamExt, TryStreamExt};
+use tracker::InstrumentedAsyncSemaphore;
 
 use crate::{components::Components, partition_info::PartitionInfo};
 
@@ -20,6 +21,7 @@ use crate::{components::Components, partition_info::PartitionInfo};
 pub async fn compact(
     partition_concurrency: NonZeroUsize,
     partition_timeout: Duration,
+    job_semaphore: Arc<InstrumentedAsyncSemaphore>,
     components: &Arc<Components>,
 ) {
     let partition_ids = components.partitions_source.fetch().await;
@@ -28,7 +30,12 @@ pub async fn compact(
         .map(|partition_id| {
             let components = Arc::clone(components);
 
-            compact_partition(partition_id, partition_timeout, components)
+            compact_partition(
+                partition_id,
+                partition_timeout,
+                Arc::clone(&job_semaphore),
+                components,
+            )
         })
         .buffer_unordered(partition_concurrency.get())
         .collect::<()>()
@@ -38,11 +45,12 @@ pub async fn compact(
 async fn compact_partition(
     partition_id: PartitionId,
     partition_timeout: Duration,
+    job_semaphore: Arc<InstrumentedAsyncSemaphore>,
     components: Arc<Components>,
 ) {
     let res = tokio::time::timeout(
         partition_timeout,
-        try_compact_partition(partition_id, Arc::clone(&components)),
+        try_compact_partition(partition_id, job_semaphore, Arc::clone(&components)),
     )
     .await;
     let res = match res {
@@ -59,6 +67,7 @@ type Error = Box<dyn std::error::Error + Send + Sync>;
 
 async fn try_compact_partition(
     partition_id: PartitionId,
+    job_semaphore: Arc<InstrumentedAsyncSemaphore>,
     components: Arc<Components>,
 ) -> Result<(), Error> {
     let files = components.partition_files_source.fetch(partition_id).await;
@@ -73,6 +82,51 @@ async fn try_compact_partition(
         return Ok(());
     }
 
+    let partition_info = fetch_partition_info(partition_id, &components).await?;
+
+    // TODO: Need a wraper funtion to:
+    //    . split files into L0, L1 and L2
+    //    . identify right files for hot/cold compaction
+    //    . filter right amount of files
+    //    . compact many steps hot/cold (need more thinking)
+    let target_level = CompactionLevel::FileNonOverlapped;
+    let plan = components
+        .df_planner
+        .plan(files, Arc::clone(&partition_info), target_level)
+        .await?;
+    let streams = components.df_plan_exec.exec(plan);
+    let job = streams
+        .into_iter()
+        .map(|stream| {
+            components
+                .parquet_file_sink
+                .store(stream, Arc::clone(&partition_info), target_level)
+        })
+        // NB: FuturesOrdered allows the futures to run in parallel
+        .collect::<FuturesOrdered<_>>()
+        // Discard the streams that resulted in empty output / no file uploaded
+        // to the object store.
+        .try_filter_map(|v| futures::future::ready(Ok(v)))
+        // Collect all the persisted parquet files together.
+        .try_collect::<Vec<_>>();
+
+    let create = {
+        let _permit = job_semaphore
+            .acquire(None)
+            .await
+            .expect("semaphore not closed");
+        job.await?
+    };
+
+    components.commit.commit(&delete_ids, &create).await;
+
+    Ok(())
+}
+
+async fn fetch_partition_info(
+    partition_id: PartitionId,
+    components: &Arc<Components>,
+) -> Result<Arc<PartitionInfo>, Error> {
     // TODO: only read partition, table and its schema info the first time and cache them
     // Get info for the partition
     let partition = components
@@ -83,7 +137,7 @@ async fn try_compact_partition(
 
     let table = components
         .tables_source
-        .fetch(files[0].table_id)
+        .fetch(partition.table_id)
         .await
         .ok_or_else::<Error, _>(|| String::from("Cannot find table").into())?;
 
@@ -106,7 +160,7 @@ async fn try_compact_partition(
         .get(&table.name)
         .ok_or_else::<Error, _>(|| String::from("Cannot find table schema").into())?;
 
-    let partition_info = Arc::new(PartitionInfo {
+    Ok(Arc::new(PartitionInfo {
         partition_id,
         namespace_id: table.namespace_id,
         namespace_name: namespace.name,
@@ -114,36 +168,5 @@ async fn try_compact_partition(
         table_schema: Arc::new(table_schema.clone()),
         sort_key: partition.sort_key(),
         partition_key: partition.partition_key,
-    });
-
-    // TODO: Need a wraper funtion to:
-    //    . split files into L0, L1 and L2
-    //    . identify right files for hot/cold compaction
-    //    . filter right amount of files
-    //    . compact many steps hot/cold (need more thinking)
-    let target_level = CompactionLevel::FileNonOverlapped;
-    let plan = components
-        .df_planner
-        .plan(files, Arc::clone(&partition_info), target_level)
-        .await?;
-    let streams = components.df_plan_exec.exec(plan);
-    let create = streams
-        .into_iter()
-        .map(|stream| {
-            components
-                .parquet_file_sink
-                .store(stream, Arc::clone(&partition_info), target_level)
-        })
-        // NB: FuturesOrdered allows the futures to run in parallel
-        .collect::<FuturesOrdered<_>>()
-        // Discard the streams that resulted in empty output / no file uploaded
-        // to the object store.
-        .try_filter_map(|v| futures::future::ready(Ok(v)))
-        // Collect all the persisted parquet files together.
-        .try_collect::<Vec<_>>()
-        .await?;
-
-    components.commit.commit(&delete_ids, &create).await;
-
-    Ok(())
+    }))
 }

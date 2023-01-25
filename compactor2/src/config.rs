@@ -33,7 +33,14 @@ pub struct Config {
     pub backoff_config: BackoffConfig,
 
     /// Number of partitions that should be compacted in parallel.
+    ///
+    /// This should usually be larger than the compaction job concurrency since one partition can spawn multiple compaction jobs.
     pub partition_concurrency: NonZeroUsize,
+
+    /// Number of concurrent compaction jobs.
+    ///
+    /// This should usually be smaller than the partition concurrency since one partition can spawn multiple compaction jobs.
+    pub job_concurrency: NonZeroUsize,
 
     /// Partitions with recent created files these last minutes are selected for compaction.
     pub partition_minute_threshold: u64,
@@ -63,24 +70,15 @@ pub struct Config {
 }
 
 impl Config {
-    /// Create a new config.
-    #[allow(clippy::too_many_arguments)]
-    pub async fn new(
-        metric_registry: Arc<metric::Registry>,
+    /// Fetch shard ID.
+    ///
+    /// This is likely required to construct a [`Config`] object.
+    pub async fn fetch_shard_id(
         catalog: Arc<dyn Catalog>,
-        parquet_store: ParquetStorage,
-        exec: Arc<Executor>,
-        time_provider: Arc<dyn TimeProvider>,
         backoff_config: BackoffConfig,
-        partition_concurrency: NonZeroUsize,
-        partition_minute_threshold: u64,
-        max_desired_file_size_bytes: u64,
-        percentage_max_file_size: u16,
-        split_percentage: u16,
         topic_name: String,
         shard_index: i32,
-        partition_timeout_secs: u64,
-    ) -> Self {
+    ) -> ShardId {
         // Get shardId from topic and shard_index
         // Fetch topic
         let topic = Backoff::new(&backoff_config)
@@ -113,28 +111,14 @@ impl Config {
             .await
             .expect("retry forever");
 
-        if shard.is_none() {
-            panic!(
-                "Topic {} and Shard Index {} not found",
-                topic_name, shard_index
-            );
-        }
-        let shard = shard.unwrap();
-
-        Self {
-            metric_registry,
-            catalog,
-            parquet_store,
-            exec,
-            time_provider,
-            backoff_config,
-            partition_concurrency,
-            partition_minute_threshold,
-            max_desired_file_size_bytes,
-            percentage_max_file_size,
-            split_percentage,
-            shard_id: shard.id,
-            partition_timeout_secs,
+        match shard {
+            Some(shard) => shard.id,
+            None => {
+                panic!(
+                    "Topic {} and Shard Index {} not found",
+                    topic_name, shard_index
+                )
+            }
         }
     }
 }

@@ -1,6 +1,7 @@
 use async_trait::async_trait;
+use backoff::BackoffConfig;
 use clap_blocks::compactor2::Compactor2Config;
-use compactor2::compactor::Compactor2;
+use compactor2::{compactor::Compactor2, config::Config};
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
@@ -132,25 +133,30 @@ pub async fn create_compactor2_server_type(
     time_provider: Arc<dyn TimeProvider>,
     compactor_config: Compactor2Config,
 ) -> Arc<dyn ServerType> {
-    let compactor = Compactor2::start(
-        compactor2::config::Config::new(
-            Arc::clone(&metric_registry),
-            catalog,
-            parquet_store,
-            exec,
-            time_provider,
-            backoff::BackoffConfig::default(),
-            compactor_config.compaction_partition_concurrency,
-            compactor_config.compaction_partition_minute_threshold,
-            compactor_config.max_desired_file_size_bytes,
-            compactor_config.percentage_max_file_size,
-            compactor_config.split_percentage,
-            TOPIC.to_string(),
-            SHARD_INDEX,
-            compactor_config.partition_timeout_secs,
-        )
-        .await,
-    );
+    let backoff_config = BackoffConfig::default();
+    let shard_id = Config::fetch_shard_id(
+        Arc::clone(&catalog),
+        backoff_config.clone(),
+        TOPIC.to_string(),
+        SHARD_INDEX,
+    )
+    .await;
+    let compactor = Compactor2::start(Config {
+        shard_id,
+        metric_registry: Arc::clone(&metric_registry),
+        catalog,
+        parquet_store,
+        exec,
+        time_provider,
+        backoff_config,
+        partition_concurrency: compactor_config.compaction_partition_concurrency,
+        job_concurrency: compactor_config.compaction_job_concurrency,
+        partition_minute_threshold: compactor_config.compaction_partition_minute_threshold,
+        max_desired_file_size_bytes: compactor_config.max_desired_file_size_bytes,
+        percentage_max_file_size: compactor_config.percentage_max_file_size,
+        split_percentage: compactor_config.split_percentage,
+        partition_timeout_secs: compactor_config.partition_timeout_secs,
+    });
 
     Arc::new(Compactor2ServerType::new(
         compactor,
