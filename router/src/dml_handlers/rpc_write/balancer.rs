@@ -60,12 +60,13 @@ where
         }
     }
 
-    /// Return an (infinite) iterator of healthy [`CircuitBreakingClient`].
+    /// Return an (infinite) iterator of healthy [`CircuitBreakingClient`], and
+    /// at most one client needing a health probe.
     ///
-    /// A snapshot of healthy nodes is taken at call time and the health state
-    /// is evaluated at this point and the result is returned to the caller as
-    /// an infinite / cycling iterator. A node that becomes unavailable after
-    /// the snapshot was taken will continue to be returned by the iterator.
+    /// A snapshot of healthy nodes is taken at call time, the health state is
+    /// evaluated at this point and the result is returned to the caller as an
+    /// infinite / cycling iterator. A node that becomes unavailable after the
+    /// snapshot was taken will continue to be returned by the iterator.
     pub(super) fn endpoints(&self) -> impl Iterator<Item = &'_ CircuitBreakingClient<T, C>> {
         // Grab and increment the current counter.
         let counter = COUNTER.with(|cell| {
@@ -75,24 +76,45 @@ where
             new_value
         });
 
-        // Take a snapshot containing only healthy nodes.
+        // Build a set of only healthy nodes, and at most one node needing a
+        // health probe.
         //
-        // This ensures unhealthy nodes are not continuously (and unnecessarily)
-        // polled/probed in the iter cycle below. The low frequency and impact
-        // of a node becoming unavailable during a single request easily
-        // outweighs the trade-off of the constant health evaluation overhead.
-        let snapshot = self
-            .endpoints
-            .iter()
-            .filter(|e| e.is_usable())
-            .collect::<Vec<_>>();
+        // By doing this evaluation before returning the iterator, the health is
+        // evaluated only once per request.
+        //
+        // At most one node needing a health probe is returned to avoid one
+        // request having to make multiple RPC calls that are likely to fail -
+        // this smooths out the P99. The probe node is always requested first to
+        // drive recovery.
+        let mut probe = None;
+        let mut healthy = Vec::with_capacity(self.endpoints.len());
+        for e in &*self.endpoints {
+            if e.is_healthy() {
+                healthy.push(e);
+                continue;
+            }
 
-        // Reduce it to the range of [0, N) where N is the number of healthy
-        // clients in this balancer, ensuring not to calculate the remainder of
-        // a division by 0.
-        let idx = counter % max(snapshot.len(), 1);
+            // NOTE: if should_probe() returns true, the caller SHOULD issue a
+            // probe request - therefore it is added to the front of the
+            // iter/request queue.
+            if probe.is_none() && e.should_probe() {
+                probe = Some(e);
+            }
+        }
 
-        snapshot.into_iter().cycle().skip(idx)
+        // If there is a node to probe, ensure it is the first node to be tried
+        // (otherwise it might not get a request sent to it).
+        let idx = match probe.is_some() {
+            true => 0, // Run the probe first
+            false => {
+                // Reduce it to the range of [0, N) where N is the number of
+                // healthy clients in this balancer, ensuring not to calculate
+                // the remainder of a division by 0.
+                counter % max(healthy.len(), 1)
+            }
+        };
+
+        probe.into_iter().chain(healthy).cycle().skip(idx)
     }
 }
 
@@ -143,7 +165,7 @@ async fn metric_loop<T, C>(
         tick.tick().await;
 
         for (client, metric) in &endpoints {
-            let value = match client.is_usable() {
+            let value = match client.is_healthy() {
                 true => {
                     healthy.push(client.endpoint_name());
                     1
@@ -197,15 +219,17 @@ mod tests {
         const BALANCER_CALLS: usize = 10;
 
         // Initialise 3 RPC clients and configure their mock circuit breakers;
-        // two returns a unhealthy state, one is healthy.
+        // all are unhealthy and should not be probed.
         let circuit_err_1 = Arc::new(MockCircuitBreaker::default());
-        circuit_err_1.set_usable(false);
+        circuit_err_1.set_healthy(false);
+        circuit_err_1.set_should_probe(false);
         let client_err_1 =
             CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bananas")
                 .with_circuit_breaker(Arc::clone(&circuit_err_1));
 
         let circuit_err_2 = Arc::new(MockCircuitBreaker::default());
-        circuit_err_2.set_usable(false);
+        circuit_err_2.set_healthy(false);
+        circuit_err_2.set_should_probe(false);
         let client_err_2 =
             CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bananas")
                 .with_circuit_breaker(Arc::clone(&circuit_err_2));
@@ -219,6 +243,72 @@ mod tests {
         assert_matches!(endpoints.next(), None);
     }
 
+    /// When multiple nodes are unhealthy and available for probing, at most one
+    /// is returned for probing, and it is always returned before healthy nodes.
+    #[tokio::test]
+    async fn test_balancer_at_most_one_probe_first() {
+        // Initialise 3 RPC clients and configure their mock circuit breakers;
+        // all are unhealthy and should not be probed.
+        let circuit_err_1 = Arc::new(MockCircuitBreaker::default());
+        circuit_err_1.set_healthy(false);
+        circuit_err_1.set_should_probe(true);
+        let client_err_1 =
+            CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bananas")
+                .with_circuit_breaker(Arc::clone(&circuit_err_1));
+
+        let circuit_err_2 = Arc::new(MockCircuitBreaker::default());
+        circuit_err_2.set_healthy(false);
+        circuit_err_2.set_should_probe(true);
+        let client_err_2 =
+            CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bananas")
+                .with_circuit_breaker(Arc::clone(&circuit_err_2));
+        let circuit_ok = Arc::new(MockCircuitBreaker::default());
+        circuit_ok.set_healthy(true);
+        circuit_ok.set_should_probe(false);
+        let client_ok = CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bananas")
+            .with_circuit_breaker(Arc::clone(&circuit_ok));
+
+        let balancer = Balancer::new([client_err_1, client_err_2, client_ok], None);
+
+        let mut endpoints = balancer.endpoints();
+
+        // A bad client is yielded first
+        let _ = endpoints
+            .next()
+            .unwrap()
+            .write(WriteRequest::default())
+            .await;
+        assert!((circuit_err_1.ok_count() == 1) ^ (circuit_err_2.ok_count() == 1));
+        assert!(circuit_ok.ok_count() == 0);
+
+        // Followed by the good client
+        let _ = endpoints
+            .next()
+            .unwrap()
+            .write(WriteRequest::default())
+            .await;
+        assert!((circuit_err_1.ok_count() == 1) ^ (circuit_err_2.ok_count() == 1));
+        assert!(circuit_ok.ok_count() == 1);
+
+        // The bad client is yielded again
+        let _ = endpoints
+            .next()
+            .unwrap()
+            .write(WriteRequest::default())
+            .await;
+        assert!((circuit_err_1.ok_count() == 2) ^ (circuit_err_2.ok_count() == 2));
+        assert!(circuit_ok.ok_count() == 1);
+
+        // Followed by the good client again (the cycle continues)
+        let _ = endpoints
+            .next()
+            .unwrap()
+            .write(WriteRequest::default())
+            .await;
+        assert!((circuit_err_1.ok_count() == 2) ^ (circuit_err_2.ok_count() == 2));
+        assert!(circuit_ok.ok_count() == 2);
+    }
+
     /// A test that ensures only healthy clients are returned by the balancer,
     /// and that they are polled exactly once per request.
     #[tokio::test]
@@ -228,19 +318,21 @@ mod tests {
         // Initialise 3 RPC clients and configure their mock circuit breakers;
         // two returns a unhealthy state, one is healthy.
         let circuit_err_1 = Arc::new(MockCircuitBreaker::default());
-        circuit_err_1.set_usable(false);
+        circuit_err_1.set_healthy(false);
+        circuit_err_1.set_should_probe(false);
         let client_err_1 =
             CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bananas")
                 .with_circuit_breaker(Arc::clone(&circuit_err_1));
 
         let circuit_err_2 = Arc::new(MockCircuitBreaker::default());
-        circuit_err_2.set_usable(false);
+        circuit_err_2.set_healthy(false);
+        circuit_err_2.set_should_probe(false);
         let client_err_2 =
             CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bananas")
                 .with_circuit_breaker(Arc::clone(&circuit_err_2));
 
         let circuit_ok = Arc::new(MockCircuitBreaker::default());
-        circuit_ok.set_usable(true);
+        circuit_ok.set_healthy(true);
         let client_ok = CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bananas")
             .with_circuit_breaker(Arc::clone(&circuit_ok));
 
@@ -268,9 +360,9 @@ mod tests {
         // There health of the endpoints should not be constantly re-evaluated
         // by a single request (reducing overhead / hot spinning - in the
         // probing phase this would serialise clients).
-        assert_eq!(circuit_ok.is_usable_count(), 1);
-        assert_eq!(circuit_err_1.is_usable_count(), 1);
-        assert_eq!(circuit_err_1.is_usable_count(), 1);
+        assert_eq!(circuit_ok.is_healthy_count(), 1);
+        assert_eq!(circuit_err_1.is_healthy_count(), 1);
+        assert_eq!(circuit_err_1.is_healthy_count(), 1);
 
         // The other clients should not have been invoked.
         assert_eq!(circuit_err_1.ok_count(), 0);
@@ -288,8 +380,9 @@ mod tests {
         // Initialise 3 RPC clients and configure their mock circuit breakers;
         // two returns a unhealthy state, one is healthy.
         let circuit = Arc::new(MockCircuitBreaker::default());
-        circuit.set_usable(false);
-        let client = CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "broken")
+        circuit.set_healthy(false);
+        circuit.set_should_probe(false);
+        let client = CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bananas")
             .with_circuit_breaker(Arc::clone(&circuit));
 
         assert_eq!(circuit.ok_count(), 0);
@@ -298,13 +391,13 @@ mod tests {
 
         let mut endpoints = balancer.endpoints();
         assert_matches!(endpoints.next(), None);
-        assert_eq!(circuit.is_usable_count(), 1);
+        assert_eq!(circuit.is_healthy_count(), 1);
 
-        circuit.set_usable(true);
+        circuit.set_healthy(true);
 
         let mut endpoints = balancer.endpoints();
         assert_matches!(endpoints.next(), Some(_));
-        assert_eq!(circuit.is_usable_count(), 2);
+        assert_eq!(circuit.is_healthy_count(), 2);
 
         // The now-healthy client is constantly yielded.
         const N: usize = 3;
@@ -334,19 +427,19 @@ mod tests {
         // Initialise 3 RPC clients and configure their mock circuit breakers;
         // two returns a healthy state, one is unhealthy.
         let circuit_err = Arc::new(MockCircuitBreaker::default());
-        circuit_err.set_usable(false);
+        circuit_err.set_healthy(false);
         let client_err =
             CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bananas")
                 .with_circuit_breaker(Arc::clone(&circuit_err));
 
         let circuit_ok_1 = Arc::new(MockCircuitBreaker::default());
-        circuit_ok_1.set_usable(true);
+        circuit_ok_1.set_healthy(true);
         let client_ok_1 =
             CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bananas")
                 .with_circuit_breaker(Arc::clone(&circuit_ok_1));
 
         let circuit_ok_2 = Arc::new(MockCircuitBreaker::default());
-        circuit_ok_2.set_usable(true);
+        circuit_ok_2.set_healthy(true);
         let client_ok_2 =
             CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bananas")
                 .with_circuit_breaker(Arc::clone(&circuit_ok_2));
@@ -376,26 +469,28 @@ mod tests {
     #[tokio::test]
     async fn test_metric_exporter() {
         // Initialise 3 RPC clients and configure their mock circuit breakers;
-        // two returns a healthy state, one is unhealthy.
-        let circuit_err = Arc::new(MockCircuitBreaker::default());
-        circuit_err.set_usable(false);
-        let client_err =
-            CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bad-client")
-                .with_circuit_breaker(Arc::clone(&circuit_err));
+        // one unhealthy, one unhealthy but waiting to be probed, and one healthy.
+        let circuit_err_1 = Arc::new(MockCircuitBreaker::default());
+        circuit_err_1.set_healthy(false);
+        circuit_err_1.set_should_probe(false);
+        let client_err_1 =
+            CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bad-client-1")
+                .with_circuit_breaker(Arc::clone(&circuit_err_1));
 
-        let circuit_ok_1 = Arc::new(MockCircuitBreaker::default());
-        circuit_ok_1.set_usable(true);
-        let client_ok_1 =
-            CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "ok-client-1")
-                .with_circuit_breaker(Arc::clone(&circuit_ok_1));
+        let circuit_err_2 = Arc::new(MockCircuitBreaker::default());
+        circuit_err_2.set_healthy(false);
+        circuit_err_2.set_should_probe(true);
+        let client_err_2 =
+            CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bad-client-2")
+                .with_circuit_breaker(Arc::clone(&circuit_err_2));
 
-        let circuit_ok_2 = Arc::new(MockCircuitBreaker::default());
-        circuit_ok_2.set_usable(true);
-        let client_ok_2 =
-            CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "ok-client-2")
-                .with_circuit_breaker(Arc::clone(&circuit_ok_2));
+        let circuit_ok = Arc::new(MockCircuitBreaker::default());
+        circuit_ok.set_healthy(true);
+        let client_ok =
+            CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "ok-client")
+                .with_circuit_breaker(Arc::clone(&circuit_ok));
 
-        let balancer = Balancer::new([client_err, client_ok_1, client_ok_2], None);
+        let balancer = Balancer::new([client_err_1, client_err_2, client_ok], None);
 
         let metrics = metric::Registry::default();
         let worker = tokio::spawn(metric_task(&metrics, Arc::clone(&balancer.endpoints)));
@@ -416,13 +511,13 @@ mod tests {
         async {
             loop {
                 tokio::time::sleep(Duration::from_millis(50)).await;
-                if !matches!(get_health_state(&metrics, "ok-client-1"), Some(1)) {
+                if !matches!(get_health_state(&metrics, "ok-client"), Some(1)) {
                     continue;
                 }
-                if !matches!(get_health_state(&metrics, "ok-client-2"), Some(1)) {
+                if !matches!(get_health_state(&metrics, "bad-client-1"), Some(0)) {
                     continue;
                 }
-                if !matches!(get_health_state(&metrics, "bad-client"), Some(0)) {
+                if !matches!(get_health_state(&metrics, "bad-client-2"), Some(0)) {
                     continue;
                 }
 
@@ -433,6 +528,16 @@ mod tests {
         .await;
 
         // The eval above observed the correct metric state.
+
+        // Ensure no should_probe() calls were made - the caller has no
+        // intention of probing.
+        assert_eq!(circuit_err_1.should_probe_count(), 0);
+        assert_eq!(circuit_err_2.should_probe_count(), 0);
+        assert_eq!(circuit_ok.should_probe_count(), 0);
+
+        assert!(circuit_err_1.is_healthy_count() > 0);
+        assert!(circuit_err_2.is_healthy_count() > 0);
+        assert!(circuit_ok.is_healthy_count() > 0);
 
         worker.abort();
     }
