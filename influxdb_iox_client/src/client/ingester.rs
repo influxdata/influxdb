@@ -21,11 +21,11 @@ impl Client {
         }
     }
 
-    /// Instruct the ingester to persist its data to Parquet. Will block until the data has
-    /// persisted, which is useful in tests asserting on persisted data. May behave in unexpected
-    /// ways if used concurrently with writes and ingester WAL rotations.
-    pub async fn persist(&mut self) -> Result<(), Error> {
-        self.inner.persist(PersistRequest {}).await?;
+    /// Instruct the ingester to persist its data for the specified namespace to Parquet. Useful in
+    /// tests asserting on persisted data. May behave in unexpected ways if used concurrently with
+    /// writes and ingester WAL rotations.
+    pub async fn persist(&mut self, namespace: String) -> Result<(), Error> {
+        self.inner.persist(PersistRequest { namespace }).await?;
 
         Ok(())
     }

@@ -81,6 +81,7 @@ workspace-hack = { path = "../workspace-hack"}
 # In alphabetical order
 arrow_util = { path = "../arrow_util" }
 assert_cmd = "2.0.8"
+async-trait = "0.1"
 predicate = { path = "../predicate" }
 predicates = "2.1.0"
 tempfile = "3.1.0"

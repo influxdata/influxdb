@@ -903,16 +903,7 @@ mod kafkaless_rpc_write {
         let table_name = "the_table";
 
         // Set up the cluster  ====================================
-        let ingester_config = TestConfig::new_ingester2_never_persist(&database_url);
-        let router_config = TestConfig::new_router2(&ingester_config);
-        let querier_config = TestConfig::new_querier2(&ingester_config);
-        let mut cluster = MiniCluster::new()
-            .with_ingester(ingester_config)
-            .await
-            .with_router(router_config)
-            .await
-            .with_querier(querier_config)
-            .await;
+        let mut cluster = MiniCluster::create_shared2_never_persist(database_url).await;
 
         StepTest::new(
             &mut cluster,
@@ -951,16 +942,7 @@ mod kafkaless_rpc_write {
         let table_name = "the_table";
 
         // Set up the cluster  ====================================
-        let ingester_config = TestConfig::new_ingester2_never_persist(&database_url);
-        let router_config = TestConfig::new_router2(&ingester_config);
-        let querier_config = TestConfig::new_querier2(&ingester_config);
-        let mut cluster = MiniCluster::new()
-            .with_ingester(ingester_config)
-            .await
-            .with_router(router_config)
-            .await
-            .with_querier(querier_config)
-            .await;
+        let mut cluster = MiniCluster::create_shared2_never_persist(database_url).await;
 
         StepTest::new(
             &mut cluster,

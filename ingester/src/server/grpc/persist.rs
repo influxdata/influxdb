@@ -25,6 +25,9 @@ impl<I: IngestHandler + 'static> PersistService for PersistHandler<I> {
         &self,
         _request: Request<proto::PersistRequest>,
     ) -> Result<Response<proto::PersistResponse>, tonic::Status> {
+        // Even though the request specifies the namespace, persist everything. This means tests
+        // that use this API need to be using non-shared MiniClusters in order to avoid messing
+        // with each others' states.
         self.ingest_handler.persist_all().await;
 
         Ok(Response::new(proto::PersistResponse {}))

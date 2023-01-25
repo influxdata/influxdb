@@ -2453,6 +2453,7 @@ dependencies = [
  "arrow-flight",
  "arrow_util",
  "assert_cmd",
+ "async-trait",
  "backtrace",
  "bytes",
  "clap 4.1.4",
