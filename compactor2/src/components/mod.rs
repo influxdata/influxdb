@@ -2,15 +2,16 @@ use std::sync::Arc;
 
 use self::{
     commit::Commit, df_plan_exec::DataFusionPlanExec, df_planner::DataFusionPlanner,
-    files_filter::FilesFilter, namespaces_source::NamespacesSource,
+    divide_initial::DivideInitial, files_filter::FilesFilter, namespaces_source::NamespacesSource,
     parquet_file_sink::ParquetFileSink, partition_done_sink::PartitionDoneSink,
     partition_files_source::PartitionFilesSource, partition_filter::PartitionFilter,
-    partitions_source::PartitionsSource, tables_source::TablesSource,
+    partitions_source::PartitionsSource, round_split::RoundSplit, tables_source::TablesSource,
 };
 
 pub mod commit;
 pub mod df_plan_exec;
 pub mod df_planner;
+pub mod divide_initial;
 pub mod file_filter;
 pub mod files_filter;
 pub mod hardcoded;
@@ -21,6 +22,7 @@ pub mod partition_files_source;
 pub mod partition_filter;
 pub mod partitions_source;
 pub mod report;
+pub mod round_split;
 pub mod skipped_compactions_source;
 pub mod tables_source;
 
@@ -37,4 +39,6 @@ pub struct Components {
     pub df_planner: Arc<dyn DataFusionPlanner>,
     pub df_plan_exec: Arc<dyn DataFusionPlanExec>,
     pub parquet_file_sink: Arc<dyn ParquetFileSink>,
+    pub round_split: Arc<dyn RoundSplit>,
+    pub divide_initial: Arc<dyn DivideInitial>,
 }

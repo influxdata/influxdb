@@ -21,6 +21,7 @@ use super::{
     },
     df_plan_exec::dedicated::DedicatedDataFusionPlanExec,
     df_planner::planner_v1::V1DataFusionPlanner,
+    divide_initial::single_branch::SingleBranchDivideInitial,
     file_filter::{and::AndFileFilter, level_range::LevelRangeFileFilter},
     files_filter::{chain::FilesFilterChain, per_file::PerFileFilesFilter},
     parquet_file_sink::{
@@ -34,14 +35,15 @@ use super::{
     partition_files_source::catalog::CatalogPartitionFilesSource,
     partition_filter::{
         and::AndPartitionFilter, has_files::HasFilesPartitionFilter,
-        logging::LoggingPartitionFilterWrapper, metrics::MetricsPartitionFilterWrapper,
-        never_skipped::NeverSkippedPartitionFilter,
+        has_matching_file::HasMatchingFilePartitionFilter, logging::LoggingPartitionFilterWrapper,
+        metrics::MetricsPartitionFilterWrapper, never_skipped::NeverSkippedPartitionFilter,
     },
     partitions_source::{
         catalog::CatalogPartitionsSource, logging::LoggingPartitionsSourceWrapper,
         metrics::MetricsPartitionsSourceWrapper,
         randomize_order::RandomizeOrderPartitionsSourcesWrapper,
     },
+    round_split::all_now::AllNowRoundSplit,
     skipped_compactions_source::catalog::CatalogSkippedCompactionsSource,
     Components,
 };
@@ -84,6 +86,11 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
                         CatalogSkippedCompactionsSource::new(
                             config.backoff_config.clone(),
                             Arc::clone(&config.catalog),
+                        ),
+                    )),
+                    Arc::new(HasMatchingFilePartitionFilter::new(
+                        LevelRangeFileFilter::new(
+                            CompactionLevel::Initial..=CompactionLevel::Initial,
                         ),
                     )),
                     Arc::new(HasFilesPartitionFilter::new()),
@@ -133,5 +140,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
                 Arc::clone(&config.exec),
             ),
         )),
+        round_split: Arc::new(AllNowRoundSplit::new()),
+        divide_initial: Arc::new(SingleBranchDivideInitial::new()),
     })
 }
