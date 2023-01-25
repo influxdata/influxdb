@@ -158,7 +158,7 @@ impl GrpcRequestBuilder {
     ///         comparison:REGEX
     /// >
     /// ```
-    pub fn regex_predicate(
+    fn regex_predicate(
         self,
         tag_name: impl Into<String>,
         pattern: impl Into<String>,
