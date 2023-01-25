@@ -1,15 +1,13 @@
 use super::{run_data_test, run_no_data_test, InfluxRpcTest};
-use async_trait::async_trait;
 use futures::{prelude::*, FutureExt};
 use generated_types::{
-    google::protobuf::Empty,
-    measurement_fields_response::{FieldType, MessageField},
-    offsets_response::PartitionOffsetResponse,
-    OffsetsResponse,
+    google::protobuf::Empty, offsets_response::PartitionOffsetResponse, OffsetsResponse,
 };
 use influxdb_storage_client::tag_key_bytes_to_strings;
 use std::sync::Arc;
-use test_helpers_end_to_end::{DataGenerator, GrpcRequestBuilder, MiniCluster, StepTestState};
+use test_helpers_end_to_end::{DataGenerator, GrpcRequestBuilder, StepTestState};
+
+mod measurement_fields;
 
 #[tokio::test]
 /// Validate that capabilities storage endpoint is hooked up
@@ -242,122 +240,4 @@ async fn measurement_tag_values() {
         }),
     )
     .await
-}
-
-#[tokio::test]
-async fn measurement_fields() {
-    let generator = Arc::new(DataGenerator::new());
-    run_data_test(
-        Arc::clone(&generator),
-        Box::new(move |state: &mut StepTestState| {
-            let generator = Arc::clone(&generator);
-            async move {
-                let mut storage_client = state.cluster().querier_storage_client();
-
-                let measurement_fields_request = GrpcRequestBuilder::new()
-                    .source(state.cluster())
-                    .timestamp_range(generator.min_time(), generator.max_time())
-                    .tag_predicate("host", "server01")
-                    .build_measurement_fields("cpu_load_short");
-
-                let ns_since_epoch = generator.ns_since_epoch();
-                let measurement_fields_response = storage_client
-                    .measurement_fields(measurement_fields_request)
-                    .await
-                    .unwrap();
-                let responses: Vec<_> = measurement_fields_response
-                    .into_inner()
-                    .try_collect()
-                    .await
-                    .unwrap();
-
-                let fields = &responses[0].fields;
-                assert_eq!(fields.len(), 1);
-
-                let field = &fields[0];
-                assert_eq!(field.key, "value");
-                assert_eq!(field.r#type(), FieldType::Float);
-                assert_eq!(field.timestamp, ns_since_epoch + 4);
-            }
-            .boxed()
-        }),
-    )
-    .await
-}
-
-#[tokio::test]
-async fn field_columns_nonexistent_table_with_predicate() {
-    Arc::new(MeasurementFieldsTest {
-        setup_name: "TwoMeasurementsManyFields",
-        table_name: "NoSuchTable",
-        request: GrpcRequestBuilder::new().tag_predicate("state", "MA"),
-        expected_fields: vec![],
-    })
-    .run()
-    .await;
-}
-
-#[tokio::test]
-async fn field_columns_existing_table_with_predicate() {
-    Arc::new(MeasurementFieldsTest {
-        setup_name: "TwoMeasurementsManyFields",
-        table_name: "h2o",
-        request: GrpcRequestBuilder::new().tag_predicate("state", "MA"),
-        expected_fields: vec![
-            MessageField {
-                key: "moisture".into(),
-                r#type: FieldType::Float.into(),
-                timestamp: 100000,
-            },
-            MessageField {
-                key: "other_temp".into(),
-                r#type: FieldType::Float.into(),
-                timestamp: 250,
-            },
-            MessageField {
-                key: "temp".into(),
-                r#type: FieldType::Float.into(),
-                timestamp: 100000,
-            },
-        ],
-    })
-    .run()
-    .await;
-}
-
-#[derive(Debug)]
-struct MeasurementFieldsTest {
-    setup_name: &'static str,
-    table_name: &'static str,
-    request: GrpcRequestBuilder,
-    expected_fields: Vec<MessageField>,
-}
-
-#[async_trait]
-impl InfluxRpcTest for MeasurementFieldsTest {
-    fn setup_name(&self) -> &'static str {
-        self.setup_name
-    }
-
-    async fn request_and_assert(&self, cluster: &MiniCluster) {
-        let mut storage_client = cluster.querier_storage_client();
-
-        let measurement_fields_request = self
-            .request
-            .clone()
-            .source(cluster)
-            .build_measurement_fields(self.table_name);
-
-        let measurement_fields_response = storage_client
-            .measurement_fields(measurement_fields_request)
-            .await
-            .unwrap();
-        let responses: Vec<_> = measurement_fields_response
-            .into_inner()
-            .try_collect()
-            .await
-            .unwrap();
-
-        assert_eq!(responses[0].fields, self.expected_fields);
-    }
 }

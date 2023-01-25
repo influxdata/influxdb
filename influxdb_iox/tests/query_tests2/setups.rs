@@ -247,6 +247,26 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                 .collect::<Vec<_>>(),
         ),
         (
+            "OneMeasurementManyFields",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "h2o,tag1=foo,tag2=bar field1=70.6,field3=2 100",
+                        "h2o,tag1=foo,tag2=bar field1=70.4,field2=\"ss\" 100",
+                        "h2o,tag1=foo,tag2=bar field1=70.5,field2=\"ss\" 100",
+                        "h2o,tag1=foo,tag2=bar field1=70.6,field4=true 1000",
+                        "h2o,tag1=foo,tag2=bar field1=70.3,field5=false 3000",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+            ],
+        ),
+        (
             "TwoMeasurementsManyFields",
             vec![
                 Step::RecordNumParquetFiles,
@@ -433,6 +453,23 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                 },
                 // c5: ingester stage & doesn't overlap with any
                 Step::WriteLineProtocol("h2o,state=CA,city=Andover temp=67.3 500".into()),
+            ],
+        ),
+        (
+            "MeasurementWithMaxTime",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(format!(
+                    "cpu,host=server01 value=100 {}",
+                    // This is the maximum timestamp that can be represented in the InfluxDB data
+                    // model:
+                    // <https://github.com/influxdata/influxdb/blob/540bb66e1381a48a6d1ede4fc3e49c75a7d9f4af/models/time.go#L12-L34>
+                    i64::MAX - 1, // 9223372036854775806
+                )),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
             ],
         ),
         (
