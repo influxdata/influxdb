@@ -23,7 +23,7 @@ mod tests {
     };
     use iox_query::exec::Executor;
     use lazy_static::lazy_static;
-    use metric::{Attributes, DurationHistogram, Metric, U64Counter};
+    use metric::{Attributes, DurationHistogram, Metric, U64Counter, U64Gauge};
     use object_store::{memory::InMemory, ObjectMeta, ObjectStore};
     use parking_lot::Mutex;
     use parquet_file::{
@@ -117,6 +117,18 @@ mod tests {
 
         // And finally return the namespace
         buf.partitions().next().unwrap()
+    }
+
+    #[track_caller]
+    pub(super) fn assert_metric_gauge(metrics: &metric::Registry, name: &'static str, value: u64) {
+        let v = metrics
+            .get_instrument::<Metric<U64Gauge>>(name)
+            .expect("failed to read metric")
+            .get_observer(&Attributes::from([]))
+            .expect("failed to get observer")
+            .fetch();
+
+        assert_eq!(v, value, "metric {name} had value {v} want {value}");
     }
 
     #[track_caller]
