@@ -270,6 +270,48 @@ jobs:
           command: cargo test --workspace
       - cache_save
 
+  # end to end test for JDBC
+  test-flight-sql-jdbc:
+    # setup multiple docker images (see https://circleci.com/docs/2.0/configuration-reference/#docker)
+    docker:
+      - image: quay.io/influxdb/rust:ci
+      - image: postgres
+        environment:
+          POSTGRES_HOST_AUTH_METHOD: trust
+    resource_class: 2xlarge+ # use of a smaller executor tends crashes on link
+    environment:
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      RUSTFLAGS: "-C debuginfo=1"
+      # https://github.com/rust-lang/cargo/issues/10280
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      RUST_BACKTRACE: "1"
+      # Run integration tests
+      TEST_INTEGRATION: 1
+      INFLUXDB_IOX_INTEGRATION_LOCAL: 1
+      POSTGRES_USER: postgres
+      TEST_INFLUXDB_IOX_CATALOG_DSN: "postgres://postgres@localhost/iox_shared"
+      # When removing this, also remove the ignore on the test in trogging/src/cli.rs
+      RUST_LOG: debug,,hyper::proto::h1=info,h2=info
+      LOG_FILTER: debug,,hyper::proto::h1=info,h2=info
+      # Run the actual test
+      TEST_INFLUXDB_JDBC: "true"
+    steps:
+      - checkout
+      - run:
+          name: Install javac
+          command: |
+            sudo apt-get update
+            sudo apt-get install openjdk-11-jdk -y
+      - rust_components
+      - cache_restore
+      - run:
+          name: Cargo test
+          command: cargo test --test end_to_end  jdbc
+
+
   # end to end tests with Heappy (heap profiling enabled)
   test_heappy:
     docker:
@@ -565,6 +607,7 @@ workflows:
       - build_dev
       - doc
       - workspace_hack_checks
+      - test-flight-sql-jdbc
       - build_release:
           filters:
             branches:

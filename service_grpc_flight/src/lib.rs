@@ -43,14 +43,6 @@ use tracker::InstrumentedAsyncOwnedSemaphorePermit;
 /// for discussion on adding support to FlightSQL itself.
 const IOX_FLIGHT_SQL_NAMESPACE_HEADER: &str = "iox-namespace-name";
 
-/// Environment variable to take the FlightSQL name from
-/// TODO move this to a proper CLI / Config argument
-/// so it is more discoverable / documented
-///
-/// Any value set in this environment variable will be overridden
-/// per-request by the `iox-namespace-name` header.
-const IOX_FLIGHT_SQL_NAMESPACE_ENV_NAME: &str = "INFLUXDB_IOX_DEFAULT_FLIGHT_SQL_NAMESPACE";
-
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -76,9 +68,7 @@ pub enum Error {
         source: DataFusionError,
     },
 
-    #[snafu(display(
-        "no default flightsql namespace set and no 'iox-namespace-name' header in request"
-    ))]
+    #[snafu(display("no 'iox-namespace-name' header in request"))]
     NoFlightSqlNamespace,
 
     #[snafu(display("Invalid 'iox-namespace-name' header in request: {}", source))]
@@ -655,18 +645,12 @@ fn msg_from_descriptor(flight_descriptor: FlightDescriptor) -> Result<Any> {
     }
 }
 
-/// Figure out the namespace for this request, in this order:
-///
-/// 1. The [`IOX_FLIGHT_SQL_NAMESPACE_HEADER`], for example "iox-namespace-name=the_name";
-/// 2. The environment variable IOX_FLIGHT_SQL_NAMESPACE_ENV_NAME
+/// Figure out the namespace for this request by checking
+/// the "iox-namespace-name=the_name";
 fn get_flightsql_namespace(metadata: &MetadataMap) -> Result<String> {
     if let Some(v) = metadata.get(IOX_FLIGHT_SQL_NAMESPACE_HEADER) {
         let v = v.to_str().context(InvalidNamespaceHeaderSnafu)?;
         return Ok(v.to_string());
-    }
-
-    if let Ok(v) = std::env::var(IOX_FLIGHT_SQL_NAMESPACE_ENV_NAME) {
-        return Ok(v);
     }
 
     NoFlightSqlNamespaceSnafu.fail()
