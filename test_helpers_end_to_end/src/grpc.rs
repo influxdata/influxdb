@@ -93,11 +93,11 @@ impl GrpcRequestBuilder {
         comparison: Comparison,
     ) -> Self {
         let predicate = Predicate {
-            root: Some(Node {
-                node_type: NodeType::ComparisonExpression as i32,
-                children: vec![tag_ref_node(tag_name.into()), string_value_node(tag_value)],
-                value: Some(Value::Comparison(comparison as _)),
-            }),
+            root: Some(comparison_expression_node(
+                tag_ref_node(tag_name.into()),
+                comparison,
+                string_value_node(tag_value),
+            )),
         };
         self.predicate(predicate)
     }
@@ -105,11 +105,11 @@ impl GrpcRequestBuilder {
     /// Create a predicate representing _f=field_name in the horrible gRPC structs
     pub fn field_predicate(self, field_name: impl Into<String>) -> Self {
         let predicate = Predicate {
-            root: Some(Node {
-                node_type: NodeType::ComparisonExpression as i32,
-                children: vec![tag_ref_node([255].to_vec()), string_value_node(field_name)],
-                value: Some(Value::Comparison(Comparison::Equal as _)),
-            }),
+            root: Some(comparison_expression_node(
+                tag_ref_node([255].to_vec()),
+                Comparison::Equal,
+                string_value_node(field_name),
+            )),
         };
         self.predicate(predicate)
     }
@@ -117,14 +117,11 @@ impl GrpcRequestBuilder {
     /// Create a predicate representing _m=measurement_name in the horrible gRPC structs
     pub fn measurement_predicate(self, measurement_name: impl Into<String>) -> Self {
         let predicate = Predicate {
-            root: Some(Node {
-                node_type: NodeType::ComparisonExpression as i32,
-                children: vec![
-                    tag_ref_node([00].to_vec()),
-                    string_value_node(measurement_name),
-                ],
-                value: Some(Value::Comparison(Comparison::Equal as _)),
-            }),
+            root: Some(comparison_expression_node(
+                tag_ref_node([00].to_vec()),
+                Comparison::Equal,
+                string_value_node(measurement_name),
+            )),
         };
         self.predicate(predicate)
     }
@@ -168,18 +165,15 @@ impl GrpcRequestBuilder {
         comparison: Comparison,
     ) -> Self {
         let predicate = Predicate {
-            root: Some(Node {
-                node_type: NodeType::ComparisonExpression as i32,
-                children: vec![
-                    tag_ref_node(tag_name.into()),
-                    Node {
-                        node_type: NodeType::Literal as i32,
-                        children: vec![],
-                        value: Some(Value::RegexValue(pattern.into())),
-                    },
-                ],
-                value: Some(Value::Comparison(comparison as _)),
-            }),
+            root: Some(comparison_expression_node(
+                tag_ref_node(tag_name.into()),
+                comparison,
+                Node {
+                    node_type: NodeType::Literal as i32,
+                    children: vec![],
+                    value: Some(Value::RegexValue(pattern.into())),
+                },
+            )),
         };
         self.predicate(predicate)
     }
@@ -377,5 +371,13 @@ fn string_value_node(value: impl Into<String>) -> Node {
         node_type: NodeType::Literal as i32,
         children: vec![],
         value: Some(Value::StringValue(value.into())),
+    }
+}
+
+fn comparison_expression_node(lhs: Node, comparison: Comparison, rhs: Node) -> Node {
+    Node {
+        node_type: NodeType::ComparisonExpression as i32,
+        children: vec![lhs, rhs],
+        value: Some(Value::Comparison(comparison as _)),
     }
 }
