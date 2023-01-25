@@ -14,7 +14,7 @@ use prost::Message;
 pub struct GrpcRequestBuilder {
     read_source: Option<generated_types::google::protobuf::Any>,
     range: Option<TimestampRange>,
-    predicate: Option<Predicate>,
+    pub predicate: Option<Predicate>,
 
     // for read_group requests
     group: Option<Group>,
@@ -126,6 +126,16 @@ impl GrpcRequestBuilder {
         self.combine_predicate(Logical::And, node)
     }
 
+    /// Add `_f!=field_name` to the predicate in the horrible gRPC structs
+    pub fn not_field_predicate(self, field_name: impl Into<String>) -> Self {
+        let node = comparison_expression_node(
+            tag_ref_node([255].to_vec()),
+            Comparison::NotEqual,
+            string_value_node(field_name),
+        );
+        self.combine_predicate(Logical::And, node)
+    }
+
     /// Add `_m=measurement_name` to the predicate in the horrible gRPC structs
     pub fn measurement_predicate(self, measurement_name: impl Into<String>) -> Self {
         let node = comparison_expression_node(
@@ -195,7 +205,7 @@ impl GrpcRequestBuilder {
 
     /// Combine any existing predicate with the specified logical operator and node. If there is no
     /// existing predicate, set the predicate to only the specified node.
-    fn combine_predicate(mut self, operator: Logical, new_node: Node) -> Self {
+    pub fn combine_predicate(mut self, operator: Logical, new_node: Node) -> Self {
         let old_predicate = self.predicate.take();
 
         let combined_predicate = match old_predicate {
