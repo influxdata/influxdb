@@ -10,16 +10,21 @@ use super::{circuit_breaker::CircuitBreaker, client::WriteClient, RpcWriteError}
 pub(super) trait CircuitBreakerState: Send + Sync + Debug {
     /// Returns `true` if this client can be used to make a request with an
     /// expectation of success.
-    fn is_usable(&self) -> bool;
+    fn is_healthy(&self) -> bool;
+    /// Returns `true` if this client should be used to attempt a request,
+    /// expecting failure.
+    fn should_probe(&self) -> bool;
     /// Record the result of a request made by this client.
     fn observe<T, E>(&self, r: &Result<T, E>);
 }
 
 impl CircuitBreakerState for CircuitBreaker {
-    fn is_usable(&self) -> bool {
-        self.is_healthy() || self.should_probe()
+    fn is_healthy(&self) -> bool {
+        self.is_healthy()
     }
-
+    fn should_probe(&self) -> bool {
+        self.should_probe()
+    }
     fn observe<T, E>(&self, r: &Result<T, E>) {
         self.observe(r)
     }
@@ -67,8 +72,11 @@ where
 {
     /// Returns `true` if this client can be used to make a request with an
     /// expectation of success.
-    pub(super) fn is_usable(&self) -> bool {
-        self.state.is_usable()
+    pub(super) fn is_healthy(&self) -> bool {
+        self.state.is_healthy()
+    }
+    pub(super) fn should_probe(&self) -> bool {
+        self.state.should_probe()
     }
 
     #[cfg(test)]
@@ -104,15 +112,20 @@ pub(crate) mod mock {
 
     #[derive(Debug, Default)]
     pub(crate) struct MockCircuitBreaker {
-        is_usable: AtomicBool,
-        is_usable_calls: AtomicUsize,
+        is_healthy: AtomicBool,
+        is_healthy_calls: AtomicUsize,
+        should_probe: AtomicBool,
+        should_probe_calls: AtomicUsize,
         ok: AtomicUsize,
         err: AtomicUsize,
     }
 
     impl MockCircuitBreaker {
-        pub(crate) fn set_usable(&self, healthy: bool) {
-            self.is_usable.store(healthy, Ordering::Relaxed);
+        pub(crate) fn set_healthy(&self, healthy: bool) {
+            self.is_healthy.store(healthy, Ordering::Relaxed);
+        }
+        pub(crate) fn set_should_probe(&self, should_probe: bool) {
+            self.should_probe.store(should_probe, Ordering::Relaxed);
         }
         pub(crate) fn ok_count(&self) -> usize {
             self.ok.load(Ordering::Relaxed)
@@ -120,15 +133,18 @@ pub(crate) mod mock {
         pub(crate) fn err_count(&self) -> usize {
             self.err.load(Ordering::Relaxed)
         }
-        pub(crate) fn is_usable_count(&self) -> usize {
-            self.is_usable_calls.load(Ordering::Relaxed)
+        pub(crate) fn is_healthy_count(&self) -> usize {
+            self.is_healthy_calls.load(Ordering::Relaxed)
+        }
+        pub(crate) fn should_probe_count(&self) -> usize {
+            self.should_probe_calls.load(Ordering::Relaxed)
         }
     }
 
     impl CircuitBreakerState for Arc<MockCircuitBreaker> {
-        fn is_usable(&self) -> bool {
-            self.is_usable_calls.fetch_add(1, Ordering::Relaxed);
-            self.is_usable.load(Ordering::Relaxed)
+        fn is_healthy(&self) -> bool {
+            self.is_healthy_calls.fetch_add(1, Ordering::Relaxed);
+            self.is_healthy.load(Ordering::Relaxed)
         }
 
         fn observe<T, E>(&self, r: &Result<T, E>) {
@@ -137,6 +153,11 @@ pub(crate) mod mock {
                 Err(_) => &self.err,
             }
             .fetch_add(1, Ordering::Relaxed);
+        }
+
+        fn should_probe(&self) -> bool {
+            self.should_probe_calls.fetch_add(1, Ordering::Relaxed);
+            self.should_probe.load(Ordering::Relaxed)
         }
     }
 }
@@ -155,12 +176,19 @@ mod tests {
         let wrapper = CircuitBreakingClient::new(MockWriteClient::default(), "bananas")
             .with_circuit_breaker(Arc::clone(&circuit_breaker));
 
-        circuit_breaker.set_usable(true);
-        assert_eq!(wrapper.is_usable(), circuit_breaker.is_usable());
-        circuit_breaker.set_usable(false);
-        assert_eq!(wrapper.is_usable(), circuit_breaker.is_usable());
-        circuit_breaker.set_usable(true);
-        assert_eq!(wrapper.is_usable(), circuit_breaker.is_usable());
+        circuit_breaker.set_healthy(true);
+        assert_eq!(wrapper.is_healthy(), circuit_breaker.is_healthy());
+        circuit_breaker.set_healthy(false);
+        assert_eq!(wrapper.is_healthy(), circuit_breaker.is_healthy());
+        circuit_breaker.set_healthy(true);
+        assert_eq!(wrapper.is_healthy(), circuit_breaker.is_healthy());
+
+        circuit_breaker.set_should_probe(true);
+        assert_eq!(wrapper.should_probe(), circuit_breaker.should_probe());
+        circuit_breaker.set_should_probe(false);
+        assert_eq!(wrapper.should_probe(), circuit_breaker.should_probe());
+        circuit_breaker.set_should_probe(true);
+        assert_eq!(wrapper.should_probe(), circuit_breaker.should_probe());
     }
 
     #[tokio::test]
