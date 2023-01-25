@@ -19,6 +19,8 @@ pub fn log_components(components: &Components) {
         df_planner,
         df_plan_exec,
         parquet_file_sink,
+        round_split,
+        divide_initial,
     } = components;
 
     info!(
@@ -33,6 +35,8 @@ pub fn log_components(components: &Components) {
         %df_planner,
         %df_plan_exec,
         %parquet_file_sink,
+        %round_split,
+        %divide_initial,
         "component setup",
     );
 }

@@ -1,7 +1,8 @@
-use std::{num::NonZeroUsize, sync::Arc, time::Duration};
+use std::{future::Future, num::NonZeroUsize, sync::Arc, time::Duration};
 
-use data_types::{CompactionLevel, PartitionId};
-use futures::{stream::FuturesOrdered, StreamExt, TryStreamExt};
+use data_types::{CompactionLevel, ParquetFile, ParquetFileParams, PartitionId};
+use datafusion::physical_plan::SendableRecordBatchStream;
+use futures::{stream::FuturesOrdered, StreamExt, TryFutureExt, TryStreamExt};
 use tracker::InstrumentedAsyncSemaphore;
 
 use crate::{components::Components, partition_info::PartitionInfo};
@@ -70,57 +71,82 @@ async fn try_compact_partition(
     job_semaphore: Arc<InstrumentedAsyncSemaphore>,
     components: Arc<Components>,
 ) -> Result<(), Error> {
-    let files = components.partition_files_source.fetch(partition_id).await;
-    let files = components.files_filter.apply(files);
-    let delete_ids = files.iter().map(|f| f.id).collect::<Vec<_>>();
+    let mut files = components.partition_files_source.fetch(partition_id).await;
 
-    if !components
-        .partition_filter
-        .apply(partition_id, &files)
-        .await
-    {
-        return Ok(());
-    }
+    // fetch partition info only if we need it
+    let mut lazy_partition_info = None;
 
-    let partition_info = fetch_partition_info(partition_id, &components).await?;
+    loop {
+        files = components.files_filter.apply(files);
 
-    // TODO: Need a wraper funtion to:
-    //    . split files into L0, L1 and L2
-    //    . identify right files for hot/cold compaction
-    //    . filter right amount of files
-    //    . compact many steps hot/cold (need more thinking)
-    let target_level = CompactionLevel::FileNonOverlapped;
-    let plan = components
-        .df_planner
-        .plan(files, Arc::clone(&partition_info), target_level)
-        .await?;
-    let streams = components.df_plan_exec.exec(plan);
-    let job = streams
-        .into_iter()
-        .map(|stream| {
-            components
-                .parquet_file_sink
-                .store(stream, Arc::clone(&partition_info), target_level)
-        })
-        // NB: FuturesOrdered allows the futures to run in parallel
-        .collect::<FuturesOrdered<_>>()
-        // Discard the streams that resulted in empty output / no file uploaded
-        // to the object store.
-        .try_filter_map(|v| futures::future::ready(Ok(v)))
-        // Collect all the persisted parquet files together.
-        .try_collect::<Vec<_>>();
-
-    let create = {
-        let _permit = job_semaphore
-            .acquire(None)
+        if !components
+            .partition_filter
+            .apply(partition_id, &files)
             .await
-            .expect("semaphore not closed");
-        job.await?
-    };
+        {
+            return Ok(());
+        }
 
-    components.commit.commit(&delete_ids, &create).await;
+        // fetch partition info
+        if lazy_partition_info.is_none() {
+            lazy_partition_info = Some(fetch_partition_info(partition_id, &components).await?);
+        }
+        let partition_info = lazy_partition_info.as_ref().expect("just fetched");
 
-    Ok(())
+        let (files_now, files_later) = components.round_split.split(files);
+
+        let mut branches = components.divide_initial.divide(files_now);
+
+        let mut files_next = files_later;
+        while let Some(branch) = branches.pop() {
+            let delete_ids = branch.iter().map(|f| f.id).collect::<Vec<_>>();
+
+            let create = {
+                // draw semaphore BEFORE creating the DataFusion plan and drop it directly AFTER finishing the
+                // DataFusion computation (but BEFORE doing any additional external IO).
+                //
+                // We guard the DataFusion planning (that doesn't perform any IO) via the semaphore as well in case
+                // DataFusion ever starts to pre-allocate buffers during the physical planning. To the best of our
+                // knowledge, this is currently (2023-01-25) not the case but if this ever changes, then we are prepared.
+                let _permit = job_semaphore
+                    .acquire(None)
+                    .await
+                    .expect("semaphore not closed");
+
+                // TODO: Need a wraper funtion to:
+                //    . split files into L0, L1 and L2
+                //    . identify right files for hot/cold compaction
+                //    . filter right amount of files
+                //    . compact many steps hot/cold (need more thinking)
+                let target_level = CompactionLevel::FileNonOverlapped;
+                let plan = components
+                    .df_planner
+                    .plan(branch, Arc::clone(partition_info), target_level)
+                    .await?;
+                let streams = components.df_plan_exec.exec(plan);
+                let job = stream_into_file_sink(
+                    streams,
+                    Arc::clone(partition_info),
+                    target_level,
+                    Arc::clone(&components),
+                );
+
+                // TODO: react to OOM and try to divide branch
+                job.await?
+            };
+
+            let ids = components.commit.commit(&delete_ids, &create).await;
+
+            files_next.extend(
+                create
+                    .into_iter()
+                    .zip(ids)
+                    .map(|(params, id)| ParquetFile::from_params(params, id)),
+            );
+        }
+
+        files = files_next;
+    }
 }
 
 async fn fetch_partition_info(
@@ -169,4 +195,32 @@ async fn fetch_partition_info(
         sort_key: partition.sort_key(),
         partition_key: partition.partition_key,
     }))
+}
+
+fn stream_into_file_sink(
+    streams: Vec<SendableRecordBatchStream>,
+    partition_info: Arc<PartitionInfo>,
+    target_level: CompactionLevel,
+    components: Arc<Components>,
+) -> impl Future<Output = Result<Vec<ParquetFileParams>, Error>> {
+    streams
+        .into_iter()
+        .map(move |stream| {
+            let components = Arc::clone(&components);
+            let partition_info = Arc::clone(&partition_info);
+            async move {
+                components
+                    .parquet_file_sink
+                    .store(stream, partition_info, target_level)
+                    .await
+            }
+        })
+        // NB: FuturesOrdered allows the futures to run in parallel
+        .collect::<FuturesOrdered<_>>()
+        // Discard the streams that resulted in empty output / no file uploaded
+        // to the object store.
+        .try_filter_map(|v| futures::future::ready(Ok(v)))
+        // Collect all the persisted parquet files together.
+        .try_collect::<Vec<_>>()
+        .map_err(|e| Box::new(e) as _)
 }
