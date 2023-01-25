@@ -446,6 +446,8 @@ impl RequestCounterValue {
 
 #[cfg(test)]
 mod tests {
+    use rand::random;
+
     use super::*;
 
     /// Assert that calling [`reset_closed_state_counters`] does nothing.
@@ -637,5 +639,69 @@ mod tests {
         // But the final error observation in this window does.
         c.requests.observe::<(), ()>(&Err(()));
         assert!(!c.is_healthy());
+    }
+
+    /// A multi-threaded fuzz test that ensures no matter what sequence of
+    /// events occur, the circuit can always be driven healthy by probing
+    /// successfully.
+    #[tokio::test]
+    async fn test_recovery_fuzz() {
+        const OBSERVATIONS_PER_THREAD: usize = 100_000;
+        const N_THREADS: usize = 20;
+
+        let c = Arc::new(new_no_reset());
+
+        assert!(c.is_healthy());
+        assert!(!c.should_probe());
+
+        let handles = (0..N_THREADS)
+            .map(|_| {
+                std::thread::spawn({
+                    let c = Arc::clone(&c);
+                    move || {
+                        for _ in 0..OBSERVATIONS_PER_THREAD {
+                            if c.is_healthy() || c.should_probe() {
+                                if random::<bool>() {
+                                    c.observe::<(), ()>(&Ok(()))
+                                } else {
+                                    c.observe::<(), ()>(&Err(()))
+                                }
+                            }
+                            // Every now and again (with a 1 in 50 probability),
+                            // the error window advances and the counters are
+                            // reset.
+                            if (random::<usize>() % 50) == 0 {
+                                reset_closed_state_counters(&c.requests);
+                            }
+                        }
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
+
+        // Wait for the threads to complete driving the circuit breaker.
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        // Pretend time advanced, ensuring the circuit breaker will start
+        // probing if needed.
+        c.probes.lock().probe_window_started_at = Some(
+            Instant::now()
+                .checked_sub(PROBE_INTERVAL + Duration::from_nanos(1))
+                .expect("instant cannot roll back far enough - test issue, not code issue"),
+        );
+
+        // Drive successful probes if needed.
+        for _ in 0..NUM_PROBES {
+            if c.should_probe() {
+                c.requests.observe::<(), ()>(&Ok(()));
+            }
+        }
+
+        // Invariant: The circuit breaker must be healthy, either because it was
+        // healthy at the end of the fuzz threads, or because it was
+        // successfully probed and driven healthy afterwards.
+        assert!(c.is_healthy(), "{:?}", c);
     }
 }
