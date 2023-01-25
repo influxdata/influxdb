@@ -96,11 +96,7 @@ impl GrpcRequestBuilder {
             root: Some(Node {
                 node_type: NodeType::ComparisonExpression as i32,
                 children: vec![
-                    Node {
-                        node_type: NodeType::TagRef as i32,
-                        children: vec![],
-                        value: Some(Value::TagRefValue(tag_name.into().into())),
-                    },
+                    tag_ref_node(tag_name.into()),
                     Node {
                         node_type: NodeType::Literal as i32,
                         children: vec![],
@@ -119,11 +115,7 @@ impl GrpcRequestBuilder {
             root: Some(Node {
                 node_type: NodeType::ComparisonExpression as i32,
                 children: vec![
-                    Node {
-                        node_type: NodeType::TagRef as i32,
-                        children: vec![],
-                        value: Some(Value::TagRefValue([255].to_vec())),
-                    },
+                    tag_ref_node([255].to_vec()),
                     Node {
                         node_type: NodeType::Literal as i32,
                         children: vec![],
@@ -142,11 +134,7 @@ impl GrpcRequestBuilder {
             root: Some(Node {
                 node_type: NodeType::ComparisonExpression as i32,
                 children: vec![
-                    Node {
-                        node_type: NodeType::TagRef as i32,
-                        children: vec![],
-                        value: Some(Value::TagRefValue([00].to_vec())),
-                    },
+                    tag_ref_node([00].to_vec()),
                     Node {
                         node_type: NodeType::Literal as i32,
                         children: vec![],
@@ -162,19 +150,19 @@ impl GrpcRequestBuilder {
     /// Set predicate to tag_name ~= /pattern/
     pub fn regex_match_predicate(
         self,
-        tag_key_name: impl Into<String>,
+        tag_name: impl Into<String>,
         pattern: impl Into<String>,
     ) -> Self {
-        self.regex_predicate(tag_key_name, pattern, Comparison::Regex)
+        self.regex_predicate(tag_name, pattern, Comparison::Regex)
     }
 
     /// Set predicate to tag_name !~ /pattern/
     pub fn not_regex_match_predicate(
         self,
-        tag_key_name: impl Into<String>,
+        tag_name: impl Into<String>,
         pattern: impl Into<String>,
     ) -> Self {
-        self.regex_predicate(tag_key_name, pattern, Comparison::NotRegex)
+        self.regex_predicate(tag_name, pattern, Comparison::NotRegex)
     }
 
     /// Set predicate to `tag_name <op> /pattern/`
@@ -193,7 +181,7 @@ impl GrpcRequestBuilder {
     /// ```
     pub fn regex_predicate(
         self,
-        tag_key_name: impl Into<String>,
+        tag_name: impl Into<String>,
         pattern: impl Into<String>,
         comparison: Comparison,
     ) -> Self {
@@ -201,11 +189,7 @@ impl GrpcRequestBuilder {
             root: Some(Node {
                 node_type: NodeType::ComparisonExpression as i32,
                 children: vec![
-                    Node {
-                        node_type: NodeType::TagRef as i32,
-                        children: vec![],
-                        value: Some(Value::TagRefValue(tag_key_name.into().into())),
-                    },
+                    tag_ref_node(tag_name.into()),
                     Node {
                         node_type: NodeType::Literal as i32,
                         children: vec![],
@@ -395,5 +379,13 @@ impl GrpcRequestBuilder {
             window: None,
             tag_key_meta_names: TagKeyMetaNames::Text as i32,
         })
+    }
+}
+
+fn tag_ref_node(tag_name: impl Into<Vec<u8>>) -> Node {
+    Node {
+        node_type: NodeType::TagRef as i32,
+        children: vec![],
+        value: Some(Value::TagRefValue(tag_name.into())),
     }
 }
