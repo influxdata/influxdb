@@ -71,9 +71,27 @@ impl GrpcRequestBuilder {
         }
     }
 
-    /// Set predicate to be  `tag_name=tag_value` in the horrible gRPC
-    /// structs
+    /// Set predicate to be `tag_name=tag_value` in the horrible gRPC structs
     pub fn tag_predicate(self, tag_name: impl Into<String>, tag_value: impl Into<String>) -> Self {
+        self.tag_comparison_predicate(tag_name, tag_value, Comparison::Equal)
+    }
+
+    /// Set predicate to be `tag_name!=tag_value` in the horrible gRPC structs
+    pub fn not_tag_predicate(
+        self,
+        tag_name: impl Into<String>,
+        tag_value: impl Into<String>,
+    ) -> Self {
+        self.tag_comparison_predicate(tag_name, tag_value, Comparison::NotEqual)
+    }
+
+    /// Set predicate to `tag_name <op> value` where `<op>` is `Equal` or `NotEqual`
+    fn tag_comparison_predicate(
+        self,
+        tag_name: impl Into<String>,
+        tag_value: impl Into<String>,
+        comparison: Comparison,
+    ) -> Self {
         let predicate = Predicate {
             root: Some(Node {
                 node_type: NodeType::ComparisonExpression as i32,
@@ -89,7 +107,7 @@ impl GrpcRequestBuilder {
                         value: Some(Value::StringValue(tag_value.into())),
                     },
                 ],
-                value: Some(Value::Comparison(Comparison::Equal as _)),
+                value: Some(Value::Comparison(comparison as _)),
             }),
         };
         self.predicate(predicate)
