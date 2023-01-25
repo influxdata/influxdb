@@ -887,7 +887,7 @@ async fn query_ingester() {
                     // something like "wrong query protocol" or
                     // "invalid message" as the querier requires a
                     // different message format Ticket in the flight protocol
-                    let expected = "Unknown namespace: ";
+                    let expected = "Namespace '' not found";
 
                     // Validate that the error message contains a reasonable error
                     Command::cargo_bin("influxdb_iox")

@@ -1,5 +1,6 @@
 use clap_blocks::{
-    catalog_dsn::CatalogDsnConfig, object_store::make_object_store, run_config::RunConfig,
+    catalog_dsn::CatalogDsnConfig, garbage_collector::GarbageCollectorConfig,
+    object_store::make_object_store, run_config::RunConfig,
 };
 use iox_time::SystemProvider;
 use ioxd_common::{
@@ -26,7 +27,7 @@ pub struct Config {
     catalog_dsn: CatalogDsnConfig,
 
     #[clap(flatten)]
-    pub sub_config: gc::SubConfig,
+    pub sub_config: GarbageCollectorConfig,
 }
 
 pub async fn command(config: Config) -> Result<()> {

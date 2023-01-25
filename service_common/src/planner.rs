@@ -87,6 +87,30 @@ impl Planner {
             .await
     }
 
+    /// Creates a plan for a `DoAction` FlightSQL message,
+    /// as described on [`FlightSQLPlanner::do_action`], on a
+    /// separate threadpool
+    pub async fn flight_sql_do_action<N>(
+        &self,
+        namespace_name: impl Into<String>,
+        namespace: Arc<N>,
+        msg: Any,
+    ) -> Result<Bytes>
+    where
+        N: QueryNamespace + 'static,
+    {
+        let namespace_name = namespace_name.into();
+        let ctx = self.ctx.child_ctx("planner flight_sql_do_get");
+
+        self.ctx
+            .run(async move {
+                FlightSQLPlanner::do_action(namespace_name, namespace, msg, &ctx)
+                    .await
+                    .map_err(DataFusionError::from)
+            })
+            .await
+    }
+
     /// Creates the response for a `GetFlightInfo`  FlightSQL  message
     /// as described on [`FlightSQLPlanner::get_flight_info`], on a
     /// separate threadpool.
