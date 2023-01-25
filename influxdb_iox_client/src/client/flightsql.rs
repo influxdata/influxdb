@@ -21,12 +21,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
+use arrow::datatypes::{Schema, SchemaRef};
 use arrow_flight::{
     decode::FlightRecordBatchStream,
     error::{FlightError, Result},
-    sql::{CommandStatementQuery, ProstMessageExt},
-    FlightClient, FlightDescriptor, FlightInfo, Ticket,
+    sql::{
+        ActionCreatePreparedStatementRequest, ActionCreatePreparedStatementResult, Any,
+        CommandPreparedStatementQuery, CommandStatementQuery, ProstMessageExt,
+    },
+    Action, FlightClient, FlightDescriptor, FlightInfo, IpcMessage, Ticket,
 };
+use bytes::Bytes;
+use futures_util::TryStreamExt;
 use prost::Message;
 use tonic::metadata::MetadataMap;
 use tonic::transport::Channel;
@@ -92,15 +100,15 @@ impl FlightSqlClient {
     }
 
     /// Send `cmd`, encoded as protobuf, to the FlightSQL server
-    async fn get_flight_info_for_command<M: ProstMessageExt>(
+    async fn get_flight_info_for_command(
         &mut self,
-        cmd: M,
+        cmd: arrow_flight::sql::Any,
     ) -> Result<FlightInfo> {
-        let descriptor = FlightDescriptor::new_cmd(cmd.as_any().encode_to_vec());
+        let descriptor = FlightDescriptor::new_cmd(cmd.encode_to_vec());
         self.inner.get_flight_info(descriptor).await
     }
 
-    /// Execute a SQL query on the server using `CommandStatementQuery.
+    /// Execute a SQL query on the server using [`CommandStatementQuery`]
     ///
     /// This involves two round trips
     ///
@@ -112,7 +120,14 @@ impl FlightSqlClient {
     ///
     /// This implementation does not support alternate endpoints
     pub async fn query(&mut self, query: String) -> Result<FlightRecordBatchStream> {
-        let cmd = CommandStatementQuery { query };
+        let msg = CommandStatementQuery { query };
+        self.do_get_with_cmd(msg.as_any()).await
+    }
+
+    async fn do_get_with_cmd(
+        &mut self,
+        cmd: arrow_flight::sql::Any,
+    ) -> Result<FlightRecordBatchStream> {
         let FlightInfo {
             schema: _,
             flight_descriptor: _,
@@ -155,5 +170,131 @@ impl FlightSqlClient {
             .ticket;
 
         self.inner.do_get(Ticket { ticket }).await
+    }
+
+    /// Create a prepared statement for execution.
+    ///
+    /// Sends a [`ActionCreatePreparedStatementRequest`] message to
+    /// the `DoAction` endpoint of the FlightSQL server, and returns
+    /// the handle from the server.
+    ///
+    /// See [`Self::execute`] to run a previously prepared statement
+    pub async fn prepare(&mut self, query: String) -> Result<PreparedStatement> {
+        let cmd = ActionCreatePreparedStatementRequest { query };
+
+        let request = Action {
+            r#type: "CreatePreparedStatement".into(),
+            body: cmd.as_any().encode_to_vec().into(),
+        };
+
+        let mut results: Vec<Bytes> = self.inner.do_action(request).await?.try_collect().await?;
+
+        if results.len() != 1 {
+            return Err(FlightError::ProtocolError(format!(
+                "Expected 1 response for preparing a statement, got {}",
+                results.len()
+            )));
+        }
+        let result = results.pop().unwrap();
+
+        // decode the response
+        let response: arrow_flight::sql::Any = Message::decode(result.as_ref())
+            .map_err(|e| FlightError::ExternalError(Box::new(e)))?;
+
+        let ActionCreatePreparedStatementResult {
+            prepared_statement_handle,
+            dataset_schema,
+            parameter_schema,
+        } = Any::unpack(&response)?.ok_or_else(|| {
+            FlightError::ProtocolError(format!(
+                "Expected ActionCreatePreparedStatementResult message but got {} instead",
+                response.type_url
+            ))
+        })?;
+
+        Ok(PreparedStatement::new(
+            prepared_statement_handle,
+            schema_bytes_to_schema(dataset_schema)?,
+            schema_bytes_to_schema(parameter_schema)?,
+        ))
+    }
+
+    /// Execute a SQL query on the server using [`CommandStatementQuery`]
+    ///
+    /// This involves two round trips
+    ///
+    /// Step 1: send a [`CommandStatementQuery`] message to the
+    /// `GetFlightInfo` endpoint of the FlightSQL server to receive a
+    /// FlightInfo descriptor.
+    ///
+    /// Step 2: Fetch the results described in the [`FlightInfo`]
+    ///
+    /// This implementation does not support alternate endpoints
+    pub async fn execute(
+        &mut self,
+        statement: PreparedStatement,
+    ) -> Result<FlightRecordBatchStream> {
+        let PreparedStatement {
+            prepared_statement_handle,
+            dataset_schema: _,
+            parameter_schema: _,
+        } = statement;
+        // TODO handle parameters (via DoPut)
+
+        let cmd = CommandPreparedStatementQuery {
+            prepared_statement_handle,
+        };
+
+        self.do_get_with_cmd(cmd.as_any()).await
+    }
+}
+
+fn schema_bytes_to_schema(schema: Bytes) -> Result<SchemaRef> {
+    let schema = if schema.is_empty() {
+        Schema::empty()
+    } else {
+        Schema::try_from(IpcMessage(schema))?
+    };
+
+    Ok(Arc::new(schema))
+}
+
+/// represents a "prepared statement handle" on the server
+#[derive(Debug, Clone)]
+pub struct PreparedStatement {
+    /// The handle returned from the server
+    prepared_statement_handle: Bytes,
+
+    /// Schema for the result of the query
+    dataset_schema: SchemaRef,
+
+    /// Schema of parameters, if any
+    parameter_schema: SchemaRef,
+}
+
+impl PreparedStatement {
+    /// The handle returned from the server
+    /// Schema for the result of the query
+    /// Schema of parameters, if any
+    fn new(
+        prepared_statement_handle: Bytes,
+        dataset_schema: SchemaRef,
+        parameter_schema: SchemaRef,
+    ) -> Self {
+        Self {
+            prepared_statement_handle,
+            dataset_schema,
+            parameter_schema,
+        }
+    }
+
+    /// Return the schema of the query
+    pub fn get_dataset_schema(&self) -> SchemaRef {
+        Arc::clone(&self.dataset_schema)
+    }
+
+    /// Return the schema needed for the parameters
+    pub fn get_parameter_schema(&self) -> SchemaRef {
+        Arc::clone(&self.parameter_schema)
     }
 }

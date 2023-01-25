@@ -4,7 +4,11 @@ use std::{string::FromUtf8Error, sync::Arc};
 use arrow::{error::ArrowError, ipc::writer::IpcWriteOptions};
 use arrow_flight::{
     error::FlightError,
-    sql::{Any, CommandPreparedStatementQuery, CommandStatementQuery, ProstMessageExt},
+    sql::{
+        ActionClosePreparedStatementRequest, ActionCreatePreparedStatementRequest,
+        ActionCreatePreparedStatementResult, Any, CommandPreparedStatementQuery,
+        CommandStatementQuery,
+    },
     IpcMessage, SchemaAsIpc,
 };
 use bytes::Bytes;
@@ -23,8 +27,8 @@ pub enum Error {
         source: prost::DecodeError,
     },
 
-    #[snafu(display("Query was not valid UTF-8: {}", source))]
-    InvalidUtf8 { source: FromUtf8Error },
+    #[snafu(display("Invalid PreparedStatement handle (invalid UTF-8:) {}", source))]
+    InvalidHandle { source: FromUtf8Error },
 
     #[snafu(display("{}", source))]
     Flight { source: FlightError },
@@ -37,13 +41,22 @@ pub enum Error {
 
     #[snafu(display("Unsupported FlightSQL message type: {}", description))]
     UnsupportedMessageType { description: String },
+
+    #[snafu(display("Protocol error. Method {} does not expect '{:?}'", method, cmd))]
+    Protocol { cmd: String, method: &'static str },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 impl From<FlightError> for Error {
-    fn from(value: FlightError) -> Self {
-        Self::Flight { source: value }
+    fn from(source: FlightError) -> Self {
+        Self::Flight { source }
+    }
+}
+
+impl From<ArrowError> for Error {
+    fn from(source: ArrowError) -> Self {
+        Self::Arrow { source }
     }
 }
 
@@ -75,11 +88,19 @@ impl FlightSQLPlanner {
         let namespace_name = namespace_name.into();
         debug!(%namespace_name, type_url=%msg.type_url, "Handling flightsql get_flight_info");
 
-        match FlightSQLCommand::try_new(&msg)? {
-            FlightSQLCommand::CommandStatementQuery(query)
-            | FlightSQLCommand::CommandPreparedStatementQuery(query) => {
+        let cmd = FlightSQLCommand::try_new(&msg)?;
+        match cmd {
+            FlightSQLCommand::CommandStatementQuery(query) => {
                 Self::get_schema_for_query(&query, ctx).await
             }
+            FlightSQLCommand::CommandPreparedStatementQuery(handle) => {
+                Self::get_schema_for_query(&handle.query, ctx).await
+            }
+            _ => ProtocolSnafu {
+                cmd: format!("{cmd:?}"),
+                method: "GetFlightInfo",
+            }
+            .fail(),
         }
     }
 
@@ -108,43 +129,144 @@ impl FlightSQLPlanner {
         ctx: &IOxSessionContext,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let namespace_name = namespace_name.into();
-        debug!(%namespace_name, type_url=%msg.type_url, "Handling flightsql plan to run an actual query");
+        debug!(%namespace_name, type_url=%msg.type_url, "Handling flightsql do_get");
 
-        match FlightSQLCommand::try_new(&msg)? {
+        let cmd = FlightSQLCommand::try_new(&msg)?;
+        match cmd {
             FlightSQLCommand::CommandStatementQuery(query) => {
                 debug!(%query, "Planning FlightSQL query");
                 ctx.prepare_sql(&query).await.context(DataFusionSnafu)
             }
-            FlightSQLCommand::CommandPreparedStatementQuery(query) => {
+            FlightSQLCommand::CommandPreparedStatementQuery(handle) => {
+                let query = &handle.query;
                 debug!(%query, "Planning FlightSQL prepared query");
-                ctx.prepare_sql(&query).await.context(DataFusionSnafu)
+                ctx.prepare_sql(query).await.context(DataFusionSnafu)
             }
+            _ => ProtocolSnafu {
+                cmd: format!("{cmd:?}"),
+                method: "DoGet",
+            }
+            .fail(),
+        }
+    }
+
+    /// Handles the action specified in `msg` and returns bytes for
+    /// the [`arrow_flight::Result`] (not the same as a rust
+    /// [`Result`]!)
+    pub async fn do_action(
+        namespace_name: impl Into<String>,
+        _database: Arc<dyn QueryNamespace>,
+        msg: Any,
+        ctx: &IOxSessionContext,
+    ) -> Result<Bytes> {
+        let namespace_name = namespace_name.into();
+        debug!(%namespace_name, type_url=%msg.type_url, "Handling flightsql do_action");
+
+        let cmd = FlightSQLCommand::try_new(&msg)?;
+        match cmd {
+            FlightSQLCommand::ActionCreatePreparedStatementRequest(query) => {
+                debug!(%query, "Creating prepared statement");
+
+                // todo run the planner here and actually figure out parameter schemas
+                // see https://github.com/apache/arrow-datafusion/pull/4701
+                let parameter_schema = vec![];
+
+                let dataset_schema = Self::get_schema_for_query(&query, ctx).await?;
+                let handle = PreparedStatementHandle::new(query);
+
+                let result = ActionCreatePreparedStatementResult {
+                    prepared_statement_handle: Bytes::from(handle),
+                    dataset_schema,
+                    parameter_schema: Bytes::from(parameter_schema),
+                };
+
+                let msg = Any::pack(&result)?;
+                Ok(msg.encode_to_vec().into())
+            }
+            FlightSQLCommand::ActionClosePreparedStatementRequest(handle) => {
+                let query = &handle.query;
+                debug!(%query, "Closing prepared statement");
+
+                // Nothing really to do
+                Ok(Bytes::new())
+            }
+            _ => ProtocolSnafu {
+                cmd: format!("{cmd:?}"),
+                method: "DoAction",
+            }
+            .fail(),
         }
     }
 }
 
-/// Decoded and validated FlightSQL command
+/// Represents a prepared statement "handle". IOx passes all state
+/// required to run the prepared statement back and forth to the
+/// client so any querier instance can run it
+#[derive(Debug, Clone)]
+struct PreparedStatementHandle {
+    /// The raw SQL query text
+    query: String,
+}
+
+impl PreparedStatementHandle {
+    fn new(query: String) -> Self {
+        Self { query }
+    }
+}
+
+/// Decode bytes to a PreparedStatementHandle
+impl TryFrom<Bytes> for PreparedStatementHandle {
+    type Error = Error;
+
+    fn try_from(handle: Bytes) -> Result<Self, Self::Error> {
+        // Note: in IOx  handles are the entire decoded query
+        let query = String::from_utf8(handle.to_vec()).context(InvalidHandleSnafu)?;
+        Ok(Self { query })
+    }
+}
+
+/// Encode a PreparedStatementHandle as Bytes
+impl From<PreparedStatementHandle> for Bytes {
+    fn from(value: PreparedStatementHandle) -> Self {
+        Bytes::from(value.query.into_bytes())
+    }
+}
+
+/// Decoded /  validated FlightSQL command messages
 #[derive(Debug, Clone)]
 enum FlightSQLCommand {
     CommandStatementQuery(String),
-    CommandPreparedStatementQuery(String),
+    /// Run a prepared statement
+    CommandPreparedStatementQuery(PreparedStatementHandle),
+    /// Create a prepared statement
+    ActionCreatePreparedStatementRequest(String),
+    /// Close a prepared statement
+    ActionClosePreparedStatementRequest(PreparedStatementHandle),
 }
 
 impl FlightSQLCommand {
-    /// Figure out and decode the specific FlightSQL command in `msg`
+    /// Figure out and decode the specific FlightSQL command in `msg` and decode it to a native IOx / Rust struct
     fn try_new(msg: &Any) -> Result<Self> {
-        if let Some(decoded_cmd) = try_unpack::<CommandStatementQuery>(msg)? {
+        if let Some(decoded_cmd) = Any::unpack::<CommandStatementQuery>(msg)? {
             let CommandStatementQuery { query } = decoded_cmd;
             Ok(Self::CommandStatementQuery(query))
-        } else if let Some(decoded_cmd) = try_unpack::<CommandPreparedStatementQuery>(msg)? {
+        } else if let Some(decoded_cmd) = Any::unpack::<CommandPreparedStatementQuery>(msg)? {
             let CommandPreparedStatementQuery {
                 prepared_statement_handle,
             } = decoded_cmd;
 
-            // handle should be a decoded query
-            let query =
-                String::from_utf8(prepared_statement_handle.to_vec()).context(InvalidUtf8Snafu)?;
-            Ok(Self::CommandPreparedStatementQuery(query))
+            let handle = PreparedStatementHandle::try_from(prepared_statement_handle)?;
+            Ok(Self::CommandPreparedStatementQuery(handle))
+        } else if let Some(decoded_cmd) = Any::unpack::<ActionCreatePreparedStatementRequest>(msg)?
+        {
+            let ActionCreatePreparedStatementRequest { query } = decoded_cmd;
+            Ok(Self::ActionCreatePreparedStatementRequest(query))
+        } else if let Some(decoded_cmd) = Any::unpack::<ActionClosePreparedStatementRequest>(msg)? {
+            let ActionClosePreparedStatementRequest {
+                prepared_statement_handle,
+            } = decoded_cmd;
+            let handle = PreparedStatementHandle::try_from(prepared_statement_handle)?;
+            Ok(Self::ActionClosePreparedStatementRequest(handle))
         } else {
             UnsupportedMessageTypeSnafu {
                 description: &msg.type_url,
@@ -152,18 +274,4 @@ impl FlightSQLCommand {
             .fail()
         }
     }
-}
-
-/// try to unpack the [`arrow_flight::sql::Any`] as type `T`, returning Ok(None) if
-/// the type is wrong or Err if an error occurs
-fn try_unpack<T: ProstMessageExt>(msg: &Any) -> Result<Option<T>> {
-    // Does the type URL match?
-    if T::type_url() != msg.type_url {
-        return Ok(None);
-    }
-    // type matched, so try and decode
-    let m = Message::decode(&*msg.value).context(DeserializationTypeKnownSnafu {
-        type_url: &msg.type_url,
-    })?;
-    Ok(Some(m))
 }
