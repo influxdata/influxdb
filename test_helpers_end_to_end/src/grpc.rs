@@ -95,14 +95,7 @@ impl GrpcRequestBuilder {
         let predicate = Predicate {
             root: Some(Node {
                 node_type: NodeType::ComparisonExpression as i32,
-                children: vec![
-                    tag_ref_node(tag_name.into()),
-                    Node {
-                        node_type: NodeType::Literal as i32,
-                        children: vec![],
-                        value: Some(Value::StringValue(tag_value.into())),
-                    },
-                ],
+                children: vec![tag_ref_node(tag_name.into()), string_value_node(tag_value)],
                 value: Some(Value::Comparison(comparison as _)),
             }),
         };
@@ -114,14 +107,7 @@ impl GrpcRequestBuilder {
         let predicate = Predicate {
             root: Some(Node {
                 node_type: NodeType::ComparisonExpression as i32,
-                children: vec![
-                    tag_ref_node([255].to_vec()),
-                    Node {
-                        node_type: NodeType::Literal as i32,
-                        children: vec![],
-                        value: Some(Value::StringValue(field_name.into())),
-                    },
-                ],
+                children: vec![tag_ref_node([255].to_vec()), string_value_node(field_name)],
                 value: Some(Value::Comparison(Comparison::Equal as _)),
             }),
         };
@@ -135,11 +121,7 @@ impl GrpcRequestBuilder {
                 node_type: NodeType::ComparisonExpression as i32,
                 children: vec![
                     tag_ref_node([00].to_vec()),
-                    Node {
-                        node_type: NodeType::Literal as i32,
-                        children: vec![],
-                        value: Some(Value::StringValue(measurement_name.into())),
-                    },
+                    string_value_node(measurement_name),
                 ],
                 value: Some(Value::Comparison(Comparison::Equal as _)),
             }),
@@ -387,5 +369,13 @@ fn tag_ref_node(tag_name: impl Into<Vec<u8>>) -> Node {
         node_type: NodeType::TagRef as i32,
         children: vec![],
         value: Some(Value::TagRefValue(tag_name.into())),
+    }
+}
+
+fn string_value_node(value: impl Into<String>) -> Node {
+    Node {
+        node_type: NodeType::Literal as i32,
+        children: vec![],
+        value: Some(Value::StringValue(value.into())),
     }
 }
