@@ -1,9 +1,9 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use iox_catalog::interface::Catalog;
 use iox_query::{exec::Executor, QueryChunkMeta};
-use metric::{DurationHistogram, U64Counter, U64Gauge};
+use metric::{DurationHistogram, DurationHistogramOptions, U64Counter, U64Gauge, DURATION_MAX};
 use observability_deps::tracing::*;
 use parking_lot::Mutex;
 use parquet_file::storage::ParquetStorage;
@@ -201,9 +201,22 @@ impl PersistHandle {
             )
             .recorder(&[]);
         let queue_duration = metrics
-            .register_metric::<DurationHistogram>(
+            .register_metric_with_options::<DurationHistogram, _>(
                 "ingester_persist_enqueue_duration",
                 "the distribution of duration a persist job spent enqueued, waiting to be processed in seconds",
+                || DurationHistogramOptions::new([
+                    Duration::from_millis(500),
+                    Duration::from_secs(1),
+                    Duration::from_secs(2),
+                    Duration::from_secs(4),
+                    Duration::from_secs(8),
+                    Duration::from_secs(16),
+                    Duration::from_secs(32),
+                    Duration::from_secs(64),
+                    Duration::from_secs(128),
+                    Duration::from_secs(256),
+                    DURATION_MAX,
+                ])
             )
             .recorder(&[]);
 
