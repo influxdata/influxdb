@@ -31,7 +31,7 @@ use request::{IoxGetRequest, RunQuery};
 use service_common::{datafusion_error_to_tonic_code, planner::Planner, QueryNamespaceProvider};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{fmt::Debug, pin::Pin, sync::Arc, task::Poll, time::Instant};
-use tonic::{Request, Response, Streaming};
+use tonic::{metadata::MetadataMap, Request, Response, Streaming};
 use trace::{ctx::SpanContext, span::SpanExt};
 use trace_http::ctx::{RequestLogContext, RequestLogContextExt};
 use tracker::InstrumentedAsyncOwnedSemaphorePermit;
@@ -42,6 +42,14 @@ use tracker::InstrumentedAsyncOwnedSemaphorePermit;
 /// See <https://lists.apache.org/thread/fd6r1n7vt91sg2c7fr35wcrsqz6x4645>
 /// for discussion on adding support to FlightSQL itself.
 const IOX_FLIGHT_SQL_NAMESPACE_HEADER: &str = "iox-namespace-name";
+
+/// Environment variable to take the FlightSQL name from
+/// TODO move this to a proper CLI / Config argument
+/// so it is more discoverable / documented
+///
+/// Any value set in this environment variable will be overridden
+/// per-request by the `iox-namespace-name` header.
+const IOX_FLIGHT_SQL_NAMESPACE_ENV_NAME: &str = "INFLUXDB_IOX_DEFAULT_FLIGHT_SQL_NAMESPACE";
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
@@ -55,7 +63,7 @@ pub enum Error {
     #[snafu(display("Invalid handshake. No payload provided"))]
     InvalidHandshake {},
 
-    #[snafu(display("Namespace {} not found", namespace_name))]
+    #[snafu(display("Namespace '{}' not found", namespace_name))]
     NamespaceNotFound { namespace_name: String },
 
     #[snafu(display(
@@ -68,8 +76,10 @@ pub enum Error {
         source: DataFusionError,
     },
 
-    #[snafu(display("no 'iox-namespace-name' header in request"))]
-    NoNamespaceHeader,
+    #[snafu(display(
+        "no default flightsql namespace set and no 'iox-namespace-name' header in request"
+    ))]
+    NoFlightSqlNamespace,
 
     #[snafu(display("Invalid 'iox-namespace-name' header in request: {}", source))]
     InvalidNamespaceHeader {
@@ -113,7 +123,7 @@ impl From<Error> for tonic::Status {
             | Error::InvalidNamespaceName { .. } => info!(e=%err, msg),
             Error::Query { .. } => info!(e=%err, msg),
             Error::Optimize { .. }
-            |Error::NoNamespaceHeader
+            |Error::NoFlightSqlNamespace
             |Error::InvalidNamespaceHeader { .. }
             | Error::Planning { .. }
             | Error::Deserialization { .. }
@@ -139,7 +149,7 @@ impl Error {
             Self::InvalidTicket { .. }
             | Self::InvalidHandshake { .. }
             | Self::Deserialization { .. }
-            | Self::NoNamespaceHeader
+            | Self::NoFlightSqlNamespace
             | Self::InvalidNamespaceHeader { .. }
             | Self::InvalidNamespaceName { .. } => tonic::Code::InvalidArgument,
             Self::Planning { source, .. } | Self::Query { source, .. } => {
@@ -148,7 +158,8 @@ impl Error {
             Self::UnsupportedMessageType { .. } => tonic::Code::Unimplemented,
             Error::FlightSQLPlanning { source } => match source {
                 flightsql::Error::DeserializationTypeKnown { .. }
-                | flightsql::Error::InvalidUtf8 { .. }
+                | flightsql::Error::InvalidHandle { .. }
+                | flightsql::Error::Protocol { .. }
                 | flightsql::Error::UnsupportedMessageType { .. } => tonic::Code::InvalidArgument,
                 flightsql::Error::Flight { source: e } => return tonic::Status::from(e),
                 fs_err @ flightsql::Error::Arrow { .. } => {
@@ -266,9 +277,55 @@ type TonicStream<T> = Pin<Box<dyn Stream<Item = Result<T, tonic::Status>> + Send
 ///       ┃                                                  ┃
 /// ```
 ///
-/// ## FlightSQL Prepared Statement (NOT YET IMPLEMENTED)
+/// ## FlightSQL Prepared Statement (no bind parameters like $1, etc)
 ///
-/// TODO sequence diagram
+/// To run a prepared query, via FlightSQL, the client undertakes a
+/// few more steps:
+///
+/// 1. Encode the query in a `ActionCreatePreparedStatementRequest`
+/// request structure
+///
+/// 2. Call `DoAction` method with the the request
+///
+/// 3. Receive a `ActionCreatePreparedStatementResponse`, which contains
+/// a prepared statement "handle".
+///
+/// 4. Encode the handle in a `CommandPreparedStatementQuery`
+/// FlightSQL structure in a [`FlightDescriptor`] and call the
+/// `GetFlightInfo` method with the the [`FlightDescriptor`]
+///
+/// 5. Steps 5,6,7 proceed the same as for a FlightSQL ad-hoc query
+///
+/// ```text
+///                                                      .───────.
+/// ╔═══════════╗                                       (         )
+/// ║           ║                                       │`───────'│
+/// ║ FlightSQL ║                                       │   IOx   │
+/// ║  Client   ║                                       │.───────.│
+/// ║           ║                                       (         )
+/// ╚═══════════╝                                        `───────'
+///       ┃ Creates                                          ┃
+///     1 ┃ ActionCreatePreparedStatementRequest             ┃
+///       ┃                                                  ┃
+///       ┃                                                  ┃
+///       ┃  DoAction(ActionCreatePreparedStatementRequest)  ┃
+///     2 ┃━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━▶┃
+///       ┃                                                  ┃
+///       ┃  Result(ActionCreatePreparedStatementResponse)   ┃
+///     3 ┃◀ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ┃
+///       ┃                                                  ┃
+///       ┃  GetFlightInfo(CommandPreparedStatementQuery)    ┃
+///     4 ┃━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━▶┃
+///       ┃  FlightInfo(..Ticket{                            ┃
+///       ┃     CommandPreparedStatementQuery})              ┃
+///     5 ┃◀ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ┃
+///       ┃                                                  ┃
+///       ┃                  DoGet(Ticket)                   ┃
+///     6 ┃━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━▶┃
+///       ┃                                                  ┃
+///       ┃                Stream of FightData               ┃
+///     7 ┃◀ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ┃
+/// ```
 ///
 /// [Arrow Flight]: https://arrow.apache.org/docs/format/Flight.html
 /// [Arrow FlightSQL]: https://arrow.apache.org/docs/format/FlightSql.html
@@ -303,7 +360,9 @@ where
             .server
             .db(&namespace, span_ctx.child_span("get namespace"))
             .await
-            .ok_or_else(|| tonic::Status::not_found(format!("Unknown namespace: {namespace}")))?;
+            .context(NamespaceNotFoundSnafu {
+                namespace_name: &namespace,
+            })?;
 
         let ctx = db.new_query_context(span_ctx);
         let (query_completed_token, physical_plan) = match query {
@@ -444,17 +503,7 @@ where
         let span_ctx: Option<SpanContext> = request.extensions().get().cloned();
         let trace = external_span_ctx.format_jaeger();
 
-        // look for namespace information in headers
-        let namespace_name = request
-            .metadata()
-            .get(IOX_FLIGHT_SQL_NAMESPACE_HEADER)
-            .map(|v| {
-                v.to_str()
-                    .context(InvalidNamespaceHeaderSnafu)
-                    .map(|s| s.to_string())
-            })
-            .ok_or(Error::NoNamespaceHeader)??;
-
+        let namespace_name = get_flightsql_namespace(request.metadata())?;
         let flight_descriptor = request.into_inner();
 
         // extract the FlightSQL message
@@ -467,8 +516,8 @@ where
             .server
             .db(&namespace_name, span_ctx.child_span("get namespace"))
             .await
-            .ok_or_else(|| {
-                tonic::Status::not_found(format!("Unknown namespace: {namespace_name}"))
+            .context(NamespaceNotFoundSnafu {
+                namespace_name: &namespace_name,
             })?;
 
         let ctx = db.new_query_context(span_ctx);
@@ -521,16 +570,55 @@ where
         &self,
         _request: Request<Streaming<FlightData>>,
     ) -> Result<Response<Self::DoPutStream>, tonic::Status> {
+        info!("Handling flightsql do_put body");
+
         Err(tonic::Status::unimplemented("Not yet implemented: do_put"))
     }
 
     async fn do_action(
         &self,
-        _request: Request<Action>,
+        request: Request<Action>,
     ) -> Result<Response<Self::DoActionStream>, tonic::Status> {
-        Err(tonic::Status::unimplemented(
-            "Not yet implemented: do_action",
-        ))
+        let external_span_ctx: Option<RequestLogContext> = request.extensions().get().cloned();
+        let span_ctx: Option<SpanContext> = request.extensions().get().cloned();
+        let trace = external_span_ctx.format_jaeger();
+
+        let namespace_name = get_flightsql_namespace(request.metadata())?;
+        let Action {
+            r#type: action_type,
+            body,
+        } = request.into_inner();
+
+        // extract the FlightSQL message
+        let msg: Any = Message::decode(body).context(DeserializationSnafu)?;
+
+        let type_url = msg.type_url.to_string();
+        info!(%namespace_name, %action_type, %type_url, %trace, "DoAction request");
+
+        let db = self
+            .server
+            .db(&namespace_name, span_ctx.child_span("get namespace"))
+            .await
+            .context(NamespaceNotFoundSnafu {
+                namespace_name: &namespace_name,
+            })?;
+
+        let ctx = db.new_query_context(span_ctx);
+        let body = Planner::new(&ctx)
+            .flight_sql_do_action(&namespace_name, db, msg)
+            .await
+            .context(PlanningSnafu);
+
+        if let Err(e) = &body {
+            info!(%namespace_name, %type_url, %trace, %e, "Error running DoAction");
+        } else {
+            debug!(%namespace_name, %type_url, %trace, "Completed DoAction request");
+        };
+
+        let result = arrow_flight::Result { body: body? };
+        let stream = futures::stream::iter([Ok(result)]);
+
+        Ok(Response::new(stream.boxed()))
     }
 
     async fn list_actions(
@@ -565,6 +653,23 @@ fn msg_from_descriptor(flight_descriptor: FlightDescriptor) -> Result<Any> {
             "FlightInfo of unknown type",
         )),
     }
+}
+
+/// Figure out the namespace for this request, in this order:
+///
+/// 1. The [`IOX_FLIGHT_SQL_NAMESPACE_HEADER`], for example "iox-namespace-name=the_name";
+/// 2. The environment variable IOX_FLIGHT_SQL_NAMESPACE_ENV_NAME
+fn get_flightsql_namespace(metadata: &MetadataMap) -> Result<String> {
+    if let Some(v) = metadata.get(IOX_FLIGHT_SQL_NAMESPACE_HEADER) {
+        let v = v.to_str().context(InvalidNamespaceHeaderSnafu)?;
+        return Ok(v.to_string());
+    }
+
+    if let Ok(v) = std::env::var(IOX_FLIGHT_SQL_NAMESPACE_ENV_NAME) {
+        return Ok(v);
+    }
+
+    NoFlightSqlNamespaceSnafu.fail()
 }
 
 /// Wrapper over a FlightDataEncodeStream that adds IOx specfic

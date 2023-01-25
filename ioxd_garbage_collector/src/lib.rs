@@ -38,7 +38,7 @@ use tokio::{select, sync::broadcast, task::JoinError, time};
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
-pub use garbage_collector::{Config, SubConfig};
+pub use garbage_collector::Config;
 
 /// The object store garbage collection server
 pub struct Server {
