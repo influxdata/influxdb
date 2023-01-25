@@ -3,7 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use iox_catalog::interface::Catalog;
 use iox_query::{exec::Executor, QueryChunkMeta};
-use metric::{DurationHistogram, U64Counter};
+use metric::{DurationHistogram, U64Counter, U64Gauge};
 use observability_deps::tracing::*;
 use parking_lot::Mutex;
 use parquet_file::storage::ParquetStorage;
@@ -206,6 +206,25 @@ impl PersistHandle {
                 "the distribution of duration a persist job spent enqueued, waiting to be processed in seconds",
             )
             .recorder(&[]);
+
+        // Set the values of static metrics exporting the configured capacity
+        // of the persist system.
+        //
+        // This allows dashboards/alerts to calculate saturation.
+        metrics
+            .register_metric::<U64Gauge>(
+                "ingester_persist_max_parallelism",
+                "the maximum parallelism of persist tasks (number of workers)",
+            )
+            .recorder(&[])
+            .set(n_workers as _);
+        metrics
+            .register_metric::<U64Gauge>(
+                "ingester_persist_max_queue_depth",
+                "the maximum parallelism of persist tasks (number of workers)",
+            )
+            .recorder(&[])
+            .set(persist_queue_depth as _);
 
         // Initialise the global queue.
         //
@@ -459,7 +478,7 @@ mod tests {
         ingest_state::IngestStateError,
         persist::{
             completion_observer::{mock::MockCompletionObserver, NopObserver},
-            tests::assert_metric_counter,
+            tests::{assert_metric_counter, assert_metric_gauge},
         },
         test_util::make_write_op,
     };
@@ -930,5 +949,28 @@ mod tests {
 
         // And the counter shows two persist ops.
         assert_metric_counter(&metrics, "ingester_persist_enqueued_jobs", 2);
+    }
+
+    /// Export metrics showing the static config values.
+    #[tokio::test]
+    async fn test_static_config_metrics() {
+        let storage = ParquetStorage::new(Arc::new(InMemory::default()), StorageId::from("iox"));
+        let metrics = Arc::new(metric::Registry::default());
+        let catalog = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
+        let ingest_state = Arc::new(IngestState::default());
+
+        let _handle = PersistHandle::new(
+            5,
+            42,
+            Arc::clone(&ingest_state),
+            Arc::clone(&EXEC),
+            storage,
+            catalog,
+            NopObserver::default(),
+            &metrics,
+        );
+
+        assert_metric_gauge(&metrics, "ingester_persist_max_parallelism", 5);
+        assert_metric_gauge(&metrics, "ingester_persist_max_queue_depth", 42);
     }
 }
