@@ -105,10 +105,10 @@ impl QuerierNamespace {
         exec: Arc<Executor>,
         ingester_connection: Option<Arc<dyn IngesterConnection>>,
         sharder: Arc<JumpHash<Arc<ShardIndex>>>,
-        rpc_write: bool,
+        write_rpc: bool,
     ) -> Self {
         let time_provider = catalog_cache.time_provider();
-        let chunk_adapter = Arc::new(ChunkAdapter::new(catalog_cache, metric_registry, rpc_write));
+        let chunk_adapter = Arc::new(ChunkAdapter::new(catalog_cache, metric_registry, write_rpc));
         let query_log = Arc::new(QueryLog::new(10, time_provider));
         let prune_metrics = Arc::new(PruneMetrics::new(&chunk_adapter.metric_registry()));
 

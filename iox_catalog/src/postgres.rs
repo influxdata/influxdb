@@ -1689,6 +1689,7 @@ impl ParquetFileRepo for PostgresTxn {
             compaction_level,
             created_at,
             column_set,
+            max_l0_created_at,
         } = parquet_file_params;
 
         let rec = sqlx::query_as::<_, ParquetFile>(
@@ -1696,8 +1697,8 @@ impl ParquetFileRepo for PostgresTxn {
 INSERT INTO parquet_file (
     shard_id, table_id, partition_id, object_store_id,
     max_sequence_number, min_time, max_time, file_size_bytes,
-    row_count, compaction_level, created_at, namespace_id, column_set )
-VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 )
+    row_count, compaction_level, created_at, namespace_id, column_set, max_l0_created_at )
+VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14 )
 RETURNING *;
         "#,
         )
@@ -1714,6 +1715,7 @@ RETURNING *;
         .bind(created_at) // $11
         .bind(namespace_id) // $12
         .bind(column_set) // $13
+        .bind(max_l0_created_at) // $14
         .fetch_one(&mut self.inner)
         .await
         .map_err(|e| {
@@ -1776,7 +1778,7 @@ RETURNING *;
             r#"
 SELECT id, shard_id, namespace_id, table_id, partition_id, object_store_id,
        max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
-       row_count, compaction_level, created_at, column_set
+       row_count, compaction_level, created_at, column_set, max_l0_created_at
 FROM parquet_file
 WHERE shard_id = $1
   AND max_sequence_number > $2
@@ -1802,7 +1804,8 @@ SELECT parquet_file.id, parquet_file.shard_id, parquet_file.namespace_id,
        parquet_file.table_id, parquet_file.partition_id, parquet_file.object_store_id,
        parquet_file.max_sequence_number, parquet_file.min_time,
        parquet_file.max_time, parquet_file.to_delete, parquet_file.file_size_bytes,
-       parquet_file.row_count, parquet_file.compaction_level, parquet_file.created_at, parquet_file.column_set
+       parquet_file.row_count, parquet_file.compaction_level, parquet_file.created_at, parquet_file.column_set,
+       parquet_file.max_l0_created_at
 FROM parquet_file
 INNER JOIN table_name on table_name.id = parquet_file.table_id
 WHERE table_name.namespace_id = $1
@@ -1822,7 +1825,7 @@ WHERE table_name.namespace_id = $1
             r#"
 SELECT id, shard_id, namespace_id, table_id, partition_id, object_store_id,
        max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
-       row_count, compaction_level, created_at, column_set
+       row_count, compaction_level, created_at, column_set, max_l0_created_at
 FROM parquet_file
 WHERE table_id = $1 AND to_delete IS NULL;
              "#,
@@ -1882,7 +1885,7 @@ RETURNING id;
             r#"
 SELECT id, shard_id, namespace_id, table_id, partition_id, object_store_id,
        max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
-       row_count, compaction_level, created_at, column_set
+       row_count, compaction_level, created_at, column_set, max_l0_created_at
 FROM parquet_file
 WHERE parquet_file.shard_id = $1
   AND parquet_file.compaction_level = $2
@@ -1909,7 +1912,7 @@ WHERE parquet_file.shard_id = $1
             r#"
 SELECT id, shard_id, namespace_id, table_id, partition_id, object_store_id,
        max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
-       row_count, compaction_level, created_at, column_set
+       row_count, compaction_level, created_at, column_set, max_l0_created_at
 FROM parquet_file
 WHERE parquet_file.shard_id = $1
   AND parquet_file.table_id = $2
@@ -2115,7 +2118,7 @@ LIMIT $4;
             r#"
 SELECT id, shard_id, namespace_id, table_id, partition_id, object_store_id,
        max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
-       row_count, compaction_level, created_at, column_set
+       row_count, compaction_level, created_at, column_set, max_l0_created_at
 FROM parquet_file
 WHERE parquet_file.partition_id = $1
   AND parquet_file.to_delete IS NULL;
@@ -2250,7 +2253,7 @@ WHERE table_id = $1
             r#"
 SELECT id, shard_id, namespace_id, table_id, partition_id, object_store_id,
        max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
-       row_count, compaction_level, created_at, column_set
+       row_count, compaction_level, created_at, column_set, max_l0_created_at
 FROM parquet_file
 WHERE object_store_id = $1;
              "#,
@@ -3148,6 +3151,7 @@ mod tests {
             compaction_level: CompactionLevel::Initial, // level of file of new writes
             created_at: time_now,
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+            max_l0_created_at: time_now,
         };
         let f1 = postgres
             .repositories()

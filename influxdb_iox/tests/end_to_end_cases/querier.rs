@@ -3,12 +3,18 @@ mod multi_ingester;
 
 use std::time::Duration;
 
+use arrow::datatypes::{DataType, SchemaRef};
+use arrow_flight::{
+    decode::{DecodedFlightData, DecodedPayload},
+    error::FlightError,
+};
 use arrow_util::assert_batches_sorted_eq;
 use assert_cmd::{assert::Assert, Command};
 use futures::{FutureExt, StreamExt, TryStreamExt};
 use generated_types::{
     aggregate::AggregateType, read_group_request::Group, read_response::frame::Data,
 };
+use influxdb_iox_client::flight::IOxRecordBatchStream;
 use predicates::prelude::*;
 use test_helpers::assert_contains;
 use test_helpers_end_to_end::{
@@ -92,7 +98,7 @@ mod with_kafka {
                         let mut client =
                             influxdb_iox_client::flight::Client::new(querier_connection);
 
-                        let result_stream = client.sql(namespace.into(), sql).await.unwrap();
+                        let result_stream = client.sql(namespace, &sql).await.unwrap();
 
                         let mut flight_stream = result_stream.into_inner();
 
@@ -103,6 +109,15 @@ mod with_kafka {
                         // otherwise other clients may complain
                         // https://github.com/influxdata/influxdb_iox/pull/6668
                         assert!(flight_stream.got_schema());
+
+                        // run the query again and ensure there are no dictionaries
+                        let result_stream = client.sql(namespace, sql).await.unwrap();
+                        verify_schema(result_stream).await;
+
+                        // run a query that does return results and ensure there are no dictionaries
+                        let sql = format!("select * from {table_name}");
+                        let result_stream = client.sql(namespace, sql).await.unwrap();
+                        verify_schema(result_stream).await;
                     }
                     .boxed()
                 })),
@@ -1043,7 +1058,7 @@ mod kafkaless_rpc_write {
                         let mut client =
                             influxdb_iox_client::flight::Client::new(querier_connection);
 
-                        let result_stream = client.sql(namespace.into(), sql).await.unwrap();
+                        let result_stream = client.sql(namespace, &sql).await.unwrap();
 
                         let mut flight_stream = result_stream.into_inner();
 
@@ -1054,6 +1069,15 @@ mod kafkaless_rpc_write {
                         // otherwise other clients may complain
                         // https://github.com/influxdata/influxdb_iox/pull/6668
                         assert!(flight_stream.got_schema());
+
+                        // run the query again and ensure there are no dictionaries
+                        let result_stream = client.sql(namespace, sql).await.unwrap();
+                        verify_schema(result_stream).await;
+
+                        // run a query that does return results and ensure there are no dictionaries
+                        let sql = format!("select * from {table_name}");
+                        let result_stream = client.sql(namespace, sql).await.unwrap();
+                        verify_schema(result_stream).await;
                     }
                     .boxed()
                 })),
@@ -1173,5 +1197,38 @@ mod kafkaless_rpc_write {
         ];
 
         StepTest::new(&mut cluster, steps).run().await
+    }
+}
+
+/// Some clients, such as the golang ones, can not decode
+/// dictinary encoded Flight data.  This function asserts that all
+/// schemas received in the stream are unpacked
+pub(crate) async fn verify_schema(stream: IOxRecordBatchStream) {
+    let flight_stream = stream.into_inner().into_inner();
+
+    let decoded_data: Result<Vec<DecodedFlightData>, FlightError> =
+        flight_stream.try_collect().await;
+
+    // no errors
+    let decoded_data = decoded_data.unwrap();
+
+    // the schema should not have any dictionary encoded batches in it
+    // as go clients can't deal with this
+    for DecodedFlightData { inner: _, payload } in decoded_data {
+        match payload {
+            DecodedPayload::None => {}
+            DecodedPayload::Schema(s) => assert_no_dictionaries(s),
+            DecodedPayload::RecordBatch(b) => assert_no_dictionaries(b.schema()),
+        }
+    }
+}
+
+fn assert_no_dictionaries(schema: SchemaRef) {
+    for field in schema.fields() {
+        let dt = field.data_type();
+        assert!(
+            !matches!(dt, DataType::Dictionary(_, _)),
+            "Found unexpected dictionary in schema: {schema:#?}"
+        );
     }
 }

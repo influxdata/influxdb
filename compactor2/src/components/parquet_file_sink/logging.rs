@@ -3,6 +3,7 @@ use std::{fmt::Display, sync::Arc};
 use async_trait::async_trait;
 use data_types::{CompactionLevel, ParquetFileParams};
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
+use iox_time::Time;
 use observability_deps::tracing::{info, warn};
 
 use crate::partition_info::PartitionInfo;
@@ -45,10 +46,11 @@ where
         stream: SendableRecordBatchStream,
         partition: Arc<PartitionInfo>,
         level: CompactionLevel,
+        max_l0_created_at: Time,
     ) -> Result<Option<ParquetFileParams>, DataFusionError> {
         let res = self
             .inner
-            .store(stream, Arc::clone(&partition), level)
+            .store(stream, Arc::clone(&partition), level, max_l0_created_at)
             .await;
         match &res {
             Ok(Some(f)) => {

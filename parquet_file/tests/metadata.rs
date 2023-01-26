@@ -62,6 +62,7 @@ async fn test_decoded_iox_metadata() {
         max_sequence_number: SequenceNumber::new(11),
         compaction_level: CompactionLevel::FileNonOverlapped,
         sort_key: None,
+        max_l0_created_at: Time::from_timestamp_nanos(42),
     };
 
     let mut schema_builder = SchemaBuilder::new();
@@ -203,6 +204,7 @@ async fn test_empty_parquet_file_panic() {
         max_sequence_number: SequenceNumber::new(11),
         compaction_level: CompactionLevel::FileNonOverlapped,
         sort_key: None,
+        max_l0_created_at: Time::from_timestamp_nanos(42),
     };
 
     let batch = RecordBatch::try_from_iter(data).unwrap();
@@ -297,6 +299,7 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
         max_sequence_number: SequenceNumber::new(11),
         compaction_level: CompactionLevel::FileNonOverlapped,
         sort_key: Some(sort_key),
+        max_l0_created_at: Time::from_timestamp_nanos(42),
     };
 
     let mut schema_builder = SchemaBuilder::new();
@@ -385,6 +388,7 @@ async fn test_derive_parquet_file_params() {
         max_sequence_number: SequenceNumber::new(11),
         compaction_level: CompactionLevel::FileNonOverlapped,
         sort_key: None,
+        max_l0_created_at: Time::from_timestamp_nanos(1234),
     };
 
     // Build a schema that contains the IOx metadata, ensuring it is correctly
@@ -433,6 +437,7 @@ async fn test_derive_parquet_file_params() {
     assert_eq!(catalog_data.row_count, 3);
     assert_eq!(catalog_data.min_time, Timestamp::new(1646917692000000000));
     assert_eq!(catalog_data.max_time, Timestamp::new(1653311292000000000));
+    assert_eq!(catalog_data.max_l0_created_at, Timestamp::new(1234));
 }
 
 fn to_string_array(strs: &[&str]) -> ArrayRef {

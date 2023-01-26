@@ -8,7 +8,7 @@ use data_types::{
 };
 use datafusion::arrow::record_batch::RecordBatch;
 use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
-use iox_time::{SystemProvider, TimeProvider};
+use iox_time::TimeProvider;
 use parquet_file::storage::{ParquetStorage, StorageId};
 use schema::sort::SortKey;
 use uuid::Uuid;
@@ -42,6 +42,7 @@ impl ParquetFileBuilder {
                 compaction_level: CompactionLevel::FileNonOverlapped,
                 created_at: Timestamp::new(0),
                 column_set: ColumnSet::new(vec![]),
+                max_l0_created_at: Timestamp::new(0),
             },
         }
     }
@@ -298,14 +299,13 @@ impl TestSetup {
             partition_key: partition.partition.partition_key.clone(),
         });
 
+        let time_provider = Arc::<iox_time::MockProvider>::clone(&catalog.time_provider);
         let mut parquet_files = vec![];
         if with_files {
-            let time = SystemProvider::new();
-            let time_16_minutes_ago = time.minutes_ago(16);
-            let time_5_minutes_ago = time.minutes_ago(5);
-            let time_2_minutes_ago = time.minutes_ago(2);
-            let time_1_minute_ago = time.minutes_ago(1);
-            let time_now = time.now();
+            let time_1_minute_future = time_provider.minutes_into_future(1);
+            let time_2_minutes_future = time_provider.minutes_into_future(2);
+            let time_3_minutes_future = time_provider.minutes_into_future(3);
+            let time_5_minutes_future = time_provider.minutes_into_future(5);
 
             // L1 file
             let lp = vec![
@@ -315,7 +315,8 @@ impl TestSetup {
             .join("\n");
             let builder = TestParquetFileBuilder::default()
                 .with_line_protocol(&lp)
-                .with_creation_time(time_1_minute_ago)
+                .with_creation_time(time_3_minutes_future)
+                .with_max_l0_created_at(time_1_minute_future)
                 .with_compaction_level(CompactionLevel::FileNonOverlapped); // Prev compaction
             let level_1_file_1_minute_ago = partition.create_parquet_file(builder).await.into();
 
@@ -329,7 +330,8 @@ impl TestSetup {
             .join("\n");
             let builder = TestParquetFileBuilder::default()
                 .with_line_protocol(&lp)
-                .with_creation_time(time_16_minutes_ago)
+                .with_creation_time(time_2_minutes_future)
+                .with_max_l0_created_at(time_2_minutes_future)
                 .with_compaction_level(CompactionLevel::Initial);
             let level_0_file_16_minutes_ago = partition.create_parquet_file(builder).await.into();
 
@@ -342,7 +344,8 @@ impl TestSetup {
             .join("\n");
             let builder = TestParquetFileBuilder::default()
                 .with_line_protocol(&lp)
-                .with_creation_time(time_5_minutes_ago)
+                .with_creation_time(time_5_minutes_future)
+                .with_max_l0_created_at(time_5_minutes_future)
                 .with_compaction_level(CompactionLevel::Initial);
             let level_0_file_5_minutes_ago = partition.create_parquet_file(builder).await.into();
 
@@ -356,9 +359,10 @@ impl TestSetup {
             .join("\n");
             let builder = TestParquetFileBuilder::default()
                 .with_line_protocol(&lp)
-                .with_creation_time(time_1_minute_ago)
+                .with_creation_time(time_5_minutes_future)
+                .with_max_l0_created_at(time_3_minutes_future)
                 .with_compaction_level(CompactionLevel::FileNonOverlapped); // Prev compaction
-            let level_1_file_1_minute_ago_with_duplicates =
+            let level_1_file_1_minute_ago_with_duplicates: ParquetFile =
                 partition.create_parquet_file(builder).await.into();
 
             // L0 file
@@ -367,7 +371,8 @@ impl TestSetup {
                 .with_line_protocol(&lp)
                 .with_min_time(0)
                 .with_max_time(36000)
-                .with_creation_time(time_now)
+                .with_creation_time(time_5_minutes_future)
+                .with_max_l0_created_at(time_5_minutes_future)
                 // Will put the group size between "small" and "large"
                 .with_size_override(50 * 1024 * 1024)
                 .with_compaction_level(CompactionLevel::Initial);
@@ -383,7 +388,8 @@ impl TestSetup {
                 .with_line_protocol(&lp)
                 .with_min_time(36001)
                 .with_max_time(136000)
-                .with_creation_time(time_2_minutes_ago)
+                .with_creation_time(time_2_minutes_future)
+                .with_max_l0_created_at(time_2_minutes_future)
                 // Will put the group size two multiples over "large"
                 .with_size_override(180 * 1024 * 1024)
                 .with_compaction_level(CompactionLevel::Initial);
@@ -411,7 +417,7 @@ impl TestSetup {
                 Arc::new(object_store::memory::InMemory::new()),
                 StorageId::from("scratchpad"),
             ),
-            time_provider: Arc::<iox_time::MockProvider>::clone(&catalog.time_provider),
+            time_provider,
             exec: Arc::clone(&catalog.exec),
             backoff_config: BackoffConfig::default(),
             partition_concurrency: NonZeroUsize::new(1).unwrap(),

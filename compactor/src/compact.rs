@@ -884,6 +884,7 @@ pub mod tests {
             compaction_level: CompactionLevel::Initial, // level of file of new writes
             created_at: time_9_hour_ago,                // create cold files by default
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+            max_l0_created_at: time_9_hour_ago,
         };
 
         // Note: The order of the test cases below is important and should not be changed

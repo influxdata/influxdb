@@ -360,6 +360,12 @@ impl From<iox_time::Time> for Timestamp {
     }
 }
 
+impl From<Timestamp> for iox_time::Time {
+    fn from(time: Timestamp) -> iox_time::Time {
+        iox_time::Time::from_timestamp_nanos(time.get())
+    }
+}
+
 impl Add for Timestamp {
     type Output = Self;
 
@@ -1105,6 +1111,8 @@ pub struct ParquetFile {
     /// The columns that are present in the table-wide schema are sorted according to the partition
     /// sort key. The occur in the parquet file according to this order.
     pub column_set: ColumnSet,
+    /// the max of created_at of all L0 files needed for file/chunk ordering for deduplication
+    pub max_l0_created_at: Timestamp,
 }
 
 impl ParquetFile {
@@ -1128,6 +1136,7 @@ impl ParquetFile {
             compaction_level: params.compaction_level,
             created_at: params.created_at,
             column_set: params.column_set,
+            max_l0_created_at: params.max_l0_created_at,
         }
     }
 
@@ -1167,6 +1176,8 @@ pub struct ParquetFileParams {
     pub created_at: Timestamp,
     /// columns in this file.
     pub column_set: ColumnSet,
+    /// the max of created_at of all L0 files
+    pub max_l0_created_at: Timestamp,
 }
 
 impl From<ParquetFile> for ParquetFileParams {
@@ -1185,6 +1196,7 @@ impl From<ParquetFile> for ParquetFileParams {
             compaction_level: value.compaction_level,
             created_at: value.created_at,
             column_set: value.column_set,
+            max_l0_created_at: value.max_l0_created_at,
         }
     }
 }

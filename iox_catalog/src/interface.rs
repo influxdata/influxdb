@@ -2114,6 +2114,7 @@ pub(crate) mod test_helpers {
         let min_time = Timestamp::new(10);
         let max_time = Timestamp::new(20);
         let max_sequence_number = SequenceNumber::new(140);
+        let max_l0_created_at = Timestamp::new(0);
 
         let parquet_file_params = ParquetFileParams {
             shard_id: shard.id,
@@ -2129,6 +2130,7 @@ pub(crate) mod test_helpers {
             compaction_level: CompactionLevel::Initial,
             created_at: Timestamp::new(1),
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+            max_l0_created_at,
         };
         let parquet_file = repos
             .parquet_files()
@@ -2345,6 +2347,7 @@ pub(crate) mod test_helpers {
             compaction_level: CompactionLevel::Initial,
             created_at: Timestamp::new(1),
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+            max_l0_created_at: Timestamp::new(1),
         };
         let parquet_file = repos
             .parquet_files()
@@ -2863,6 +2866,7 @@ pub(crate) mod test_helpers {
             compaction_level: CompactionLevel::Initial,
             created_at: Timestamp::new(1),
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+            max_l0_created_at: Timestamp::new(1),
         };
 
         let parquet_file = repos
@@ -3007,6 +3011,7 @@ pub(crate) mod test_helpers {
             compaction_level: CompactionLevel::Initial,
             created_at: Timestamp::new(1),
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+            max_l0_created_at: Timestamp::new(1),
         };
         let parquet_file = repos
             .parquet_files()
@@ -3198,6 +3203,7 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
 
+        let time_now = Timestamp::from(catalog.time_provider().now());
         let time_five_hour_ago = Timestamp::from(catalog.time_provider().hours_ago(5));
         let time_8_hours_ago = Timestamp::from(catalog.time_provider().hours_ago(8));
         let time_38_hour_ago = Timestamp::from(catalog.time_provider().hours_ago(38));
@@ -3270,6 +3276,7 @@ pub(crate) mod test_helpers {
             compaction_level: CompactionLevel::Initial,
             created_at: time_38_hour_ago,
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+            max_l0_created_at: time_now,
         };
         let delete_l0_file = repos
             .parquet_files()
@@ -3903,6 +3910,7 @@ pub(crate) mod test_helpers {
             compaction_level: CompactionLevel::Initial,
             created_at: time_three_hour_ago,
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+            max_l0_created_at: time_now,
         };
 
         // create a deleted L0 file that was created 3 hours ago
@@ -4319,6 +4327,7 @@ pub(crate) mod test_helpers {
             compaction_level: CompactionLevel::Initial,
             created_at: time_now,
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+            max_l0_created_at: time_now,
         };
         let delete_l0_file = repos
             .parquet_files()
@@ -4716,6 +4725,7 @@ pub(crate) mod test_helpers {
             compaction_level: CompactionLevel::FileNonOverlapped,
             created_at: time_now,
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+            max_l0_created_at: time_now,
         };
         let delete_l1_file = repos
             .parquet_files()
@@ -4932,6 +4942,7 @@ pub(crate) mod test_helpers {
             compaction_level: CompactionLevel::Initial,
             created_at: Timestamp::new(1),
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+            max_l0_created_at: Timestamp::new(1),
         };
 
         let parquet_file = repos
@@ -5053,6 +5064,7 @@ pub(crate) mod test_helpers {
             compaction_level: CompactionLevel::Initial,
             created_at: Timestamp::new(1),
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+            max_l0_created_at: Timestamp::new(1),
         };
         let parquet_file = repos
             .parquet_files()
@@ -5179,6 +5191,7 @@ pub(crate) mod test_helpers {
             compaction_level: CompactionLevel::Initial,
             created_at: Timestamp::new(1),
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+            max_l0_created_at: Timestamp::new(1),
         };
         let p1 = repos
             .parquet_files()
@@ -5364,6 +5377,7 @@ pub(crate) mod test_helpers {
             compaction_level: CompactionLevel::Initial,
             created_at: Timestamp::new(1),
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+            max_l0_created_at: Timestamp::new(1),
         };
         let p1_n1 = repos
             .parquet_files()
@@ -5499,6 +5513,7 @@ pub(crate) mod test_helpers {
             compaction_level: CompactionLevel::Initial,
             created_at: Timestamp::new(1),
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+            max_l0_created_at: Timestamp::new(1),
         };
         let p1_n2 = repos
             .parquet_files()

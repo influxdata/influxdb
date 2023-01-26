@@ -13,6 +13,7 @@ use datafusion::{
     physical_plan::SendableRecordBatchStream,
 };
 use futures::TryStreamExt;
+use iox_time::Time;
 use uuid::Uuid;
 
 use crate::partition_info::PartitionInfo;
@@ -57,6 +58,7 @@ impl ParquetFileSink for MockParquetFileSink {
         stream: SendableRecordBatchStream,
         partition: Arc<PartitionInfo>,
         level: CompactionLevel,
+        max_l0_created_at: Time,
     ) -> Result<Option<ParquetFileParams>, DataFusionError> {
         let schema = stream.schema();
         let batches: Vec<_> = stream.try_collect().await?;
@@ -76,6 +78,7 @@ impl ParquetFileSink for MockParquetFileSink {
             compaction_level: level,
             created_at: Timestamp::new(1),
             column_set: ColumnSet::new(vec![]),
+            max_l0_created_at: max_l0_created_at.into(),
         });
         guard.push(StoredFile {
             batches,
@@ -118,13 +121,14 @@ mod tests {
             .as_arrow();
         let partition = partition_info();
         let level = CompactionLevel::FileNonOverlapped;
+        let max_l0_created_at = Time::from_timestamp_nanos(1);
 
         let stream = Box::pin(RecordBatchStreamAdapter::new(
             Arc::clone(&schema),
             futures::stream::empty(),
         ));
         assert_eq!(
-            sink.store(stream, Arc::clone(&partition), level)
+            sink.store(stream, Arc::clone(&partition), level, max_l0_created_at)
                 .await
                 .unwrap(),
             None,
@@ -137,7 +141,7 @@ mod tests {
             futures::stream::once(async move { Ok(record_batch_captured) }),
         ));
         assert_eq!(
-            sink.store(stream, Arc::clone(&partition), level)
+            sink.store(stream, Arc::clone(&partition), level, max_l0_created_at)
                 .await
                 .unwrap(),
             None,
@@ -154,7 +158,7 @@ mod tests {
             futures::stream::once(async move { Ok(record_batch_captured) }),
         ));
         assert_eq!(
-            sink.store(stream, Arc::clone(&partition), level)
+            sink.store(stream, Arc::clone(&partition), level, max_l0_created_at)
                 .await
                 .unwrap(),
             Some(ParquetFileParams {
@@ -170,7 +174,8 @@ mod tests {
                 row_count: 1,
                 compaction_level: CompactionLevel::FileNonOverlapped,
                 created_at: Timestamp::new(1),
-                column_set: ColumnSet::new([])
+                column_set: ColumnSet::new([]),
+                max_l0_created_at: max_l0_created_at.into(),
             }),
         );
 

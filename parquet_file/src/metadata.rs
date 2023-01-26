@@ -297,6 +297,12 @@ pub struct IoxMetadata {
 
     /// Sort key of this chunk
     pub sort_key: Option<SortKey>,
+
+    /// Max timestamp of creation timestamp of L0 files
+    /// If this metadata is for an L0 file, this value will be the same as the `creation_timestamp`
+    /// If this metadata is for an L1/L2 file, this value will be the max of all L0 files
+    ///  that are compacted into this file
+    pub max_l0_created_at: Time,
 }
 
 impl IoxMetadata {
@@ -341,6 +347,7 @@ impl IoxMetadata {
             max_sequence_number: self.max_sequence_number.get(),
             sort_key,
             compaction_level: self.compaction_level as i32,
+            max_l0_created_at: Some(self.max_l0_created_at.date_time().into()),
         };
 
         let mut buf = Vec::new();
@@ -359,6 +366,8 @@ impl IoxMetadata {
         // extract creation timestamp
         let creation_timestamp =
             decode_timestamp_from_field(proto_msg.creation_timestamp, "creation_timestamp")?;
+        let max_l0_created_at =
+            decode_timestamp_from_field(proto_msg.max_l0_created_at, "max_l0_created_at")?;
 
         // extract strings
         let namespace_name = Arc::from(proto_msg.namespace_name.as_ref());
@@ -395,6 +404,7 @@ impl IoxMetadata {
                     compaction_level: proto_msg.compaction_level,
                 },
             )?,
+            max_l0_created_at,
         })
     }
 
@@ -416,6 +426,7 @@ impl IoxMetadata {
             max_sequence_number: SequenceNumber::new(1),
             compaction_level: CompactionLevel::Initial,
             sort_key: None,
+            max_l0_created_at: Time::from_timestamp_nanos(creation_timestamp_ns),
         }
     }
 
@@ -503,6 +514,7 @@ impl IoxMetadata {
             row_count: row_count.try_into().expect("row count overflows i64"),
             created_at: Timestamp::from(self.creation_timestamp),
             column_set: ColumnSet::new(columns),
+            max_l0_created_at: Timestamp::from(self.max_l0_created_at),
         }
     }
 
@@ -1001,9 +1013,11 @@ mod tests {
 
         let sort_key = SortKeyBuilder::new().with_col("sort_col").build();
 
+        let create_time = Time::from_timestamp(3234, 0).unwrap();
+
         let iox_metadata = IoxMetadata {
             object_store_id,
-            creation_timestamp: Time::from_timestamp(3234, 0).unwrap(),
+            creation_timestamp: create_time,
             namespace_id: NamespaceId::new(2),
             namespace_name: Arc::from("hi"),
             shard_id: ShardId::new(1),
@@ -1014,6 +1028,7 @@ mod tests {
             max_sequence_number: SequenceNumber::new(6),
             compaction_level: CompactionLevel::Initial,
             sort_key: Some(sort_key),
+            max_l0_created_at: create_time,
         };
 
         let proto = iox_metadata.to_protobuf().unwrap();
@@ -1038,6 +1053,7 @@ mod tests {
             max_sequence_number: SequenceNumber::new(11),
             compaction_level: CompactionLevel::FileNonOverlapped,
             sort_key: None,
+            max_l0_created_at: Time::from_timestamp_nanos(42),
         };
 
         let array = StringArray::from_iter([Some("bananas")]);
