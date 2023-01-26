@@ -153,7 +153,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        namespace_cache::MemoryNamespaceCache, namespace_resolver::mock::MockNamespaceResolver,
+        namespace_cache::MemoryNamespaceCache,
+        namespace_resolver::{mock::MockNamespaceResolver, NamespaceSchemaResolver},
     };
 
     /// Common retention period value we'll use in tests
@@ -299,7 +300,7 @@ mod tests {
 
         // First drive the population of the catalog
         let creator = NamespaceAutocreation::new(
-            MockNamespaceResolver::default().with_mapping(ns.clone(), NamespaceId::new(1)),
+            NamespaceSchemaResolver::new(Arc::clone(&catalog), Arc::clone(&cache)),
             Arc::clone(&cache),
             Arc::clone(&catalog),
             TopicId::new(42),
@@ -314,7 +315,7 @@ mod tests {
 
         // Now try in "reject" mode.
         let creator = NamespaceAutocreation::new(
-            MockNamespaceResolver::default().with_mapping(ns.clone(), NamespaceId::new(1)),
+            NamespaceSchemaResolver::new(Arc::clone(&catalog), Arc::clone(&cache)),
             cache,
             Arc::clone(&catalog),
             TopicId::new(42),
