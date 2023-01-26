@@ -7,7 +7,13 @@ use iox_catalog::interface::Catalog;
 use ioxd_common::{
     add_service,
     http::error::{HttpApiError, HttpApiErrorSource},
-    reexport::tonic::transport::Endpoint,
+    reexport::{
+        generated_types::influxdata::iox::{
+            catalog::v1::catalog_service_server, object_store::v1::object_store_service_server,
+            schema::v1::schema_service_server,
+        },
+        tonic::transport::Endpoint,
+    },
     rpc::RpcBuilderInput,
     serve_builder,
     server_type::{CommonServerState, RpcError, ServerType},
@@ -207,9 +213,20 @@ where
     /// [`RpcWriteGrpcDelegate`]: router::server::grpc::RpcWriteGrpcDelegate
     async fn server_grpc(self: Arc<Self>, builder_input: RpcBuilderInput) -> Result<(), RpcError> {
         let builder = setup_builder!(builder_input, self);
-        add_service!(builder, self.server.grpc().schema_service());
-        add_service!(builder, self.server.grpc().catalog_service());
-        add_service!(builder, self.server.grpc().object_store_service());
+        add_service!(
+            builder,
+            schema_service_server::SchemaServiceServer::new(self.server.grpc().schema_service())
+        );
+        add_service!(
+            builder,
+            catalog_service_server::CatalogServiceServer::new(self.server.grpc().catalog_service())
+        );
+        add_service!(
+            builder,
+            object_store_service_server::ObjectStoreServiceServer::new(
+                self.server.grpc().object_store_service()
+            )
+        );
         serve_builder!(builder);
 
         Ok(())
