@@ -419,7 +419,7 @@ pub async fn create_router2_server_type(
     // 5. START: Initialize the gRPC API delegate that creates the services relevant to the RPC
     //    write router path and use it to create the relevant `RpcWriteRouterServer` and
     //    `RpcWriteRouterServerType`.
-    let grpc = RpcWriteGrpcDelegate::new(catalog, object_store);
+    let grpc = RpcWriteGrpcDelegate::new(catalog, object_store, topic_id, query_id);
 
     let router_server =
         RpcWriteRouterServer::new(http, grpc, metrics, common_state.trace_collector());
