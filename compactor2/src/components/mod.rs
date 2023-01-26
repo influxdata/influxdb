@@ -28,7 +28,7 @@ pub mod scratchpad;
 pub mod skipped_compactions_source;
 pub mod tables_source;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Components {
     pub partitions_source: Arc<dyn PartitionsSource>,
     pub partition_files_source: Arc<dyn PartitionFilesSource>,

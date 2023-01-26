@@ -1,4 +1,9 @@
-use std::{collections::BTreeMap, num::NonZeroUsize, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashSet},
+    num::NonZeroUsize,
+    sync::Arc,
+    time::Duration,
+};
 
 use backoff::BackoffConfig;
 use data_types::{
@@ -7,8 +12,10 @@ use data_types::{
     SequenceNumber, ShardId, SkippedCompaction, Table, TableId, TableSchema, Timestamp, TopicId,
 };
 use datafusion::arrow::record_batch::RecordBatch;
+use futures::TryStreamExt;
 use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
 use iox_time::TimeProvider;
+use object_store::{path::Path, DynObjectStore};
 use parquet_file::storage::{ParquetStorage, StorageId};
 use schema::sort::SortKey;
 use uuid::Uuid;
@@ -253,21 +260,33 @@ impl SkippedCompactionBuilder {
 }
 
 const SHARD_INDEX: i32 = 1;
-const PARTITION_MINUTE_THRESHOLD: u64 = 10;
+const PARTITION_THRESHOLD: Duration = Duration::from_secs(10 * 60); // 10min
 const MAX_DESIRE_FILE_SIZE: u64 = 100 * 1024;
 const PERCENTAGE_MAX_FILE_SIZE: u16 = 5;
 const SPLIT_PERCENTAGE: u16 = 80;
 
-pub struct TestSetup {
-    pub files: Arc<Vec<ParquetFile>>,
-    pub partition_info: Arc<PartitionInfo>,
-    pub catalog: Arc<TestCatalog>,
-    pub table: Arc<TestTable>,
-    pub config: Arc<Config>,
+#[derive(Debug, Default)]
+pub struct TestSetupBuilder {
+    with_files: bool,
+    shadow_mode: bool,
 }
 
-impl TestSetup {
-    pub async fn new(with_files: bool) -> Self {
+impl TestSetupBuilder {
+    pub fn with_files(self) -> Self {
+        Self {
+            with_files: true,
+            ..self
+        }
+    }
+
+    pub fn with_shadow_mode(self) -> Self {
+        Self {
+            shadow_mode: true,
+            ..self
+        }
+    }
+
+    pub async fn build(self) -> TestSetup {
         let catalog = TestCatalog::new();
         let ns = catalog.create_namespace_1hr_retention("ns").await;
         let shard = ns.create_shard(SHARD_INDEX).await;
@@ -301,7 +320,7 @@ impl TestSetup {
 
         let time_provider = Arc::<iox_time::MockProvider>::clone(&catalog.time_provider);
         let mut parquet_files = vec![];
-        if with_files {
+        if self.with_files {
             let time_1_minute_future = time_provider.minutes_into_future(1);
             let time_2_minutes_future = time_provider.minutes_into_future(2);
             let time_3_minutes_future = time_provider.minutes_into_future(3);
@@ -423,20 +442,37 @@ impl TestSetup {
             partition_concurrency: NonZeroUsize::new(1).unwrap(),
             job_concurrency: NonZeroUsize::new(1).unwrap(),
             partition_scratchpad_concurrency: NonZeroUsize::new(1).unwrap(),
-            partition_minute_threshold: PARTITION_MINUTE_THRESHOLD,
+            partition_threshold: PARTITION_THRESHOLD,
             max_desired_file_size_bytes: MAX_DESIRE_FILE_SIZE,
             percentage_max_file_size: PERCENTAGE_MAX_FILE_SIZE,
             split_percentage: SPLIT_PERCENTAGE,
-            partition_timeout_secs: 3_600,
+            partition_timeout: Duration::from_secs(3_600),
+            partition_filter: None,
+            shadow_mode: self.shadow_mode,
+            ignore_partition_skip_marker: false,
         });
 
-        Self {
+        TestSetup {
             files: Arc::new(parquet_files),
             partition_info: candidate_partition,
             catalog,
             table,
             config,
         }
+    }
+}
+
+pub struct TestSetup {
+    pub files: Arc<Vec<ParquetFile>>,
+    pub partition_info: Arc<PartitionInfo>,
+    pub catalog: Arc<TestCatalog>,
+    pub table: Arc<TestTable>,
+    pub config: Arc<Config>,
+}
+
+impl TestSetup {
+    pub fn builder() -> TestSetupBuilder {
+        TestSetupBuilder::default()
     }
 
     /// Get the catalog files stored in the catalog
@@ -451,4 +487,37 @@ impl TestSetup {
         assert_eq!(file.table_id, self.table.table.id);
         self.table.read_parquet_file(file).await
     }
+}
+
+pub async fn list_object_store(store: &Arc<DynObjectStore>) -> HashSet<Path> {
+    store
+        .list(None)
+        .await
+        .unwrap()
+        .map_ok(|f| f.location)
+        .try_collect::<HashSet<_>>()
+        .await
+        .unwrap()
+}
+
+pub fn partition_info() -> Arc<PartitionInfo> {
+    let namespace_id = NamespaceId::new(2);
+    let table_id = TableId::new(3);
+
+    Arc::new(PartitionInfo {
+        partition_id: PartitionId::new(1),
+        namespace_id,
+        namespace_name: String::from("ns"),
+        table: Arc::new(Table {
+            id: table_id,
+            namespace_id,
+            name: String::from("table"),
+        }),
+        table_schema: Arc::new(TableSchema {
+            id: table_id,
+            columns: BTreeMap::from([]),
+        }),
+        sort_key: None,
+        partition_key: PartitionKey::from("pk"),
+    })
 }

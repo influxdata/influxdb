@@ -18,6 +18,8 @@ mod driver;
 mod error;
 mod partition_info;
 
+#[cfg(test)]
 mod compactor_tests;
+
 #[cfg(test)]
 mod test_util;

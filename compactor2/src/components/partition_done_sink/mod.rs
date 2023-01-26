@@ -27,7 +27,7 @@ pub trait PartitionDoneSink: Debug + Display + Send + Sync {
 #[async_trait]
 impl<T> PartitionDoneSink for Arc<T>
 where
-    T: PartitionDoneSink,
+    T: PartitionDoneSink + ?Sized,
 {
     async fn record(
         &self,
