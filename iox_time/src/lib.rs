@@ -193,6 +193,12 @@ pub trait TimeProvider: std::fmt::Debug + Send + Sync + 'static {
     /// Sleep until given time.
     fn sleep_until(&self, t: Time) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>;
 
+    /// Return a time that is the specified number of minutes in the future relative to this
+    /// provider's `now`.
+    fn minutes_into_future(&self, minutes: u64) -> Time {
+        self.now() + Duration::from_secs(60 * minutes)
+    }
+
     /// Return a time that is the specified number of minutes in the past relative to this
     /// provider's `now`.
     fn minutes_ago(&self, minutes_ago: u64) -> Time {
@@ -609,6 +615,18 @@ mod test {
         let min_ago = provider.minutes_ago(82);
         assert_eq!(min_ago, Time::from_timestamp_nanos(1657147080000000000));
         assert_eq!(min_ago.to_rfc3339(), ago);
+    }
+
+    #[test]
+    fn test_minutes_into_future() {
+        let now = "2022-07-07T00:00:00+00:00";
+        let future = "2022-07-07T00:10:00+00:00";
+
+        let provider = MockProvider::new(Time::from_rfc3339(now).unwrap());
+
+        let min_future = provider.minutes_into_future(10);
+        assert_eq!(min_future, Time::from_timestamp_nanos(1657152600000000000));
+        assert_eq!(min_future.to_rfc3339(), future);
     }
 
     #[test]

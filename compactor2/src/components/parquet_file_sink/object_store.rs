@@ -3,7 +3,7 @@ use std::{fmt::Display, sync::Arc};
 use async_trait::async_trait;
 use data_types::{CompactionLevel, ParquetFileParams, SequenceNumber, ShardId};
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
-use iox_time::TimeProvider;
+use iox_time::{Time, TimeProvider};
 use parquet_file::{
     metadata::IoxMetadata,
     serialize::CodecError,
@@ -52,6 +52,7 @@ impl ParquetFileSink for ObjectStoreParquetFileSink {
         stream: SendableRecordBatchStream,
         partition: Arc<PartitionInfo>,
         level: CompactionLevel,
+        max_l0_created_at: Time,
     ) -> Result<Option<ParquetFileParams>, DataFusionError> {
         let meta = IoxMetadata {
             object_store_id: Uuid::new_v4(),
@@ -66,6 +67,7 @@ impl ParquetFileSink for ObjectStoreParquetFileSink {
             max_sequence_number: SequenceNumber::new(MAX_SEQUENCE_NUMBER),
             compaction_level: level,
             sort_key: partition.sort_key.clone(),
+            max_l0_created_at,
         };
 
         // Stream the record batches from the compaction exec, serialize

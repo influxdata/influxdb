@@ -193,7 +193,7 @@ impl QueryChunk for QueryableParquetChunk {
         //    . We can only compact different sets of files of the same partition concurrently into the same target_level.
         // We can use the following rules to set order of the chunk of its (compaction_level, target_level) as follows:
         //    . compaction_level < target_level : the order is `created_at`
-        //    . compaction_level == target_level : order is `0` to make sure it is in the front of the ordered list.
+        //    . compaction_level == target_level : order is 0 to make sure it is in the front of the ordered list.
         //      This means that the chunk of `compaction_level == target_level` will be in arbitrary order and will be
         //      fine as long as they are in front of the chunks of `compaction_level < target_level`
 

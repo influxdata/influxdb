@@ -1836,6 +1836,7 @@ mod tests {
                 compaction_level,
                 created_at: Timestamp::new(12),
                 column_set: ColumnSet::new(std::iter::empty()),
+                max_l0_created_at: Timestamp::new(12),
             };
             // Estimated arrow bytes for one file with a tag, a time and 11 rows = 1176
             CompactorParquetFile::new(f, ESTIMATED_STREAM_BYTES, (file_size_bytes * 2) as u64)

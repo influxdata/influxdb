@@ -3,6 +3,7 @@ use std::{future::Future, num::NonZeroUsize, sync::Arc, time::Duration};
 use data_types::{CompactionLevel, ParquetFile, ParquetFileParams, PartitionId};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{stream::FuturesOrdered, StreamExt, TryFutureExt, TryStreamExt};
+use iox_time::Time;
 use parquet_file::ParquetFilePath;
 use tracker::InstrumentedAsyncSemaphore;
 
@@ -115,6 +116,13 @@ async fn try_compact_partition(
         while let Some(branch) = branches.pop() {
             let delete_ids = branch.iter().map(|f| f.id).collect::<Vec<_>>();
 
+            // compute max_l0_created_at
+            let max_l0_created_at = branch
+                .iter()
+                .map(|f| f.max_l0_created_at)
+                .max()
+                .expect("max_l0_created_at should have value");
+
             // stage files
             let input_paths: Vec<ParquetFilePath> = branch.iter().map(|f| f.into()).collect();
             let input_uuids_inpad = scratchpad_ctx.load_to_scratchpad(&input_paths).await;
@@ -154,6 +162,7 @@ async fn try_compact_partition(
                     streams,
                     Arc::clone(partition_info),
                     target_level,
+                    max_l0_created_at.into(),
                     Arc::clone(&components),
                 );
 
@@ -242,6 +251,7 @@ fn stream_into_file_sink(
     streams: Vec<SendableRecordBatchStream>,
     partition_info: Arc<PartitionInfo>,
     target_level: CompactionLevel,
+    max_l0_created_at: Time,
     components: Arc<Components>,
 ) -> impl Future<Output = Result<Vec<ParquetFileParams>, Error>> {
     streams
@@ -252,7 +262,7 @@ fn stream_into_file_sink(
             async move {
                 components
                     .parquet_file_sink
-                    .store(stream, partition_info, target_level)
+                    .store(stream, partition_info, target_level, max_l0_created_at)
                     .await
             }
         })

@@ -219,6 +219,7 @@ mod tests {
             max_sequence_number: SequenceNumber::new(11),
             compaction_level: CompactionLevel::FileNonOverlapped,
             sort_key: None,
+            max_l0_created_at: Time::from_timestamp_nanos(42),
         };
 
         let batch = RecordBatch::try_from_iter([("a", to_string_array(&["value"]))]).unwrap();

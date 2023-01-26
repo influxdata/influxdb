@@ -38,4 +38,6 @@ message ParquetFile {
     int64 created_at = 15;
     // Set of columns within this parquet file.
     repeated int64 column_set = 16;
+    // max creation timestamp of all L0s this parquet file is compacted to
+    int64 max_l0_created_at = 18;
 }

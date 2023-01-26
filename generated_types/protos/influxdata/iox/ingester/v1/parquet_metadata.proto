@@ -52,6 +52,9 @@ message IoxMetadata {
 
   // the compaction level of the file
   int32 compaction_level = 16;
+
+  // max creation time of all L0 files this file is compacted to
+  google.protobuf.Timestamp max_l0_created_at = 18;
 }
 
 // Sort key of a chunk.

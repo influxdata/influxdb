@@ -6,6 +6,7 @@ use std::{
 use async_trait::async_trait;
 use data_types::{CompactionLevel, ParquetFileParams};
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
+use iox_time::Time;
 
 use crate::partition_info::PartitionInfo;
 
@@ -24,5 +25,6 @@ pub trait ParquetFileSink: Debug + Display + Send + Sync {
         stream: SendableRecordBatchStream,
         partition: Arc<PartitionInfo>,
         level: CompactionLevel,
+        max_l0_created_at: Time,
     ) -> Result<Option<ParquetFileParams>, DataFusionError>;
 }

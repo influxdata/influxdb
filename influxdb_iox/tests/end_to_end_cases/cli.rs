@@ -405,14 +405,14 @@ async fn write_and_query() {
                         .arg("../test_fixtures/lineproto/air_and_water.lp")
                         // gzipped line protocol ('m0')
                         .arg("../test_fixtures/lineproto/read_filter.lp.gz")
-                         // iox formatted parquet ('cpu' measurement)
+                        // iox formatted parquet ('cpu' measurement)
                         .arg("../test_fixtures/cpu.parquet")
                         .assert()
                         .success()
                         // this number is the total size of
                         // uncompressed line protocol stored in all
                         // three files
-                        .stdout(predicate::str::contains("1137058 Bytes OK"));
+                        .stdout(predicate::str::contains("889317 Bytes OK"));
                 }
                 .boxed()
             })),

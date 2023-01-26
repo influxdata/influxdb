@@ -450,9 +450,10 @@ impl Persister for IngesterData {
         let object_store_id = Uuid::new_v4();
 
         // Construct the metadata for this parquet file.
+        let time_now = SystemProvider::new().now();
         let iox_metadata = IoxMetadata {
             object_store_id,
-            creation_timestamp: SystemProvider::new().now(),
+            creation_timestamp: time_now,
             shard_id,
             namespace_id,
             namespace_name: Arc::clone(&*namespace.namespace_name().get().await),
@@ -463,6 +464,7 @@ impl Persister for IngesterData {
             max_sequence_number: batch_sequence_number_range.inclusive_max().unwrap(),
             compaction_level: CompactionLevel::Initial,
             sort_key: Some(data_sort_key),
+            max_l0_created_at: time_now,
         };
 
         // Save the compacted data to a parquet file in object storage.
@@ -1120,7 +1122,7 @@ mod tests {
         // different, the file may change slightly from time to time
         //
         // https://github.com/influxdata/influxdb_iox/issues/5434
-        let expected_size = 1252;
+        let expected_size = 1265;
         let allowable_delta = 10;
         let size_delta = (pf.file_size_bytes - expected_size).abs();
         assert!(

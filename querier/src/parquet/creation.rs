@@ -212,7 +212,7 @@ impl ChunkAdapter {
         let chunk_id = ChunkId::from(Uuid::from_u128(parquet_file.id.get() as _));
 
         let order = if self.rpc_write {
-            ChunkOrder::new(parquet_file.created_at.get())
+            ChunkOrder::new(parquet_file.max_l0_created_at.get())
         } else {
             ChunkOrder::new(parquet_file.max_sequence_number.get())
         };

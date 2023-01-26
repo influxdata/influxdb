@@ -253,9 +253,10 @@ where
     );
 
     // Construct the metadata for this parquet file.
+    let time_now = SystemProvider::new().now();
     let iox_metadata = IoxMetadata {
         object_store_id,
-        creation_timestamp: SystemProvider::new().now(),
+        creation_timestamp: time_now,
         shard_id: ctx.transition_shard_id(),
         namespace_id: ctx.namespace_id(),
         namespace_name: Arc::clone(&*ctx.namespace_name().get().await),
@@ -266,6 +267,7 @@ where
         max_sequence_number: SequenceNumber::new(0), // TODO: not ordered!
         compaction_level: CompactionLevel::Initial,
         sort_key: Some(data_sort_key),
+        max_l0_created_at: time_now,
     };
 
     // Save the compacted data to a parquet file in object storage.

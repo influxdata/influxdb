@@ -365,6 +365,7 @@ async fn load_parquet_files(
                         .expect("compaction level should be valid"),
                     created_at: Timestamp::new(p.created_at),
                     column_set: ColumnSet::new(p.column_set.into_iter().map(ColumnId::new)),
+                    max_l0_created_at: Timestamp::new(p.max_l0_created_at),
                 };
 
                 repos.parquet_files().create(params).await?
@@ -579,6 +580,7 @@ mod tests {
                 compaction_level: CompactionLevel::Initial as i32,
                 created_at: created_at.get(),
                 column_set: vec![1, 2],
+                max_l0_created_at: created_at.get(),
             }],
         )
         .await
@@ -603,6 +605,7 @@ mod tests {
             compaction_level: CompactionLevel::Initial,
             created_at,
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+            max_l0_created_at: created_at,
         }];
         assert_eq!(expected, files);
     }

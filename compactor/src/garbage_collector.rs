@@ -185,6 +185,7 @@ mod tests {
             created_at: Timestamp::new(1),
             compaction_level: CompactionLevel::Initial,
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+            max_l0_created_at: Timestamp::new(1),
         };
         let parquet_file = txn
             .parquet_files()
@@ -265,6 +266,7 @@ mod tests {
             created_at: Timestamp::new(1),
             compaction_level: CompactionLevel::Initial,
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+            max_l0_created_at: Timestamp::new(1),
         };
         let parquet_file = txn
             .parquet_files()
@@ -349,6 +351,7 @@ mod tests {
             created_at: Timestamp::new(1),
             compaction_level: CompactionLevel::Initial,
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+            max_l0_created_at: Timestamp::new(1),
         };
         let parquet_file = txn
             .parquet_files()

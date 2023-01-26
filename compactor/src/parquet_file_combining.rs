@@ -650,9 +650,10 @@ impl CompactPlan {
                         .context(ExecuteCompactPlanSnafu)?;
                     trace!(partition = i, "built result stream for partition");
 
+                    let time_now = time_provider.now();
                     let meta = IoxMetadata {
                         object_store_id: Uuid::new_v4(),
-                        creation_timestamp: time_provider.now(),
+                        creation_timestamp: time_now,
                         shard_id: partition.shard_id(),
                         namespace_id: partition.namespace_id(),
                         namespace_name: partition.namespace.name.clone().into(),
@@ -663,6 +664,7 @@ impl CompactPlan {
                         max_sequence_number,
                         compaction_level: target_level,
                         sort_key: Some(sort_key.clone()),
+                        max_l0_created_at: time_now,
                     };
 
                     debug!(

@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use data_types::{CompactionLevel, ParquetFileParams};
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 use iox_query::exec::{Executor, ExecutorType};
+use iox_time::Time;
 
 use crate::partition_info::PartitionInfo;
 
@@ -49,11 +50,16 @@ where
         stream: SendableRecordBatchStream,
         partition: Arc<PartitionInfo>,
         level: CompactionLevel,
+        max_l0_created_at: Time,
     ) -> Result<Option<ParquetFileParams>, DataFusionError> {
         let inner = Arc::clone(&self.inner);
         self.exec
             .executor(ExecutorType::Reorg)
-            .spawn(async move { inner.store(stream, partition, level).await })
+            .spawn(async move {
+                inner
+                    .store(stream, partition, level, max_l0_created_at)
+                    .await
+            })
             .await
             .map_err(|e| DataFusionError::External(e.into()))?
     }
@@ -92,7 +98,11 @@ mod tests {
         ));
         let partition = partition_info();
         let level = CompactionLevel::FileNonOverlapped;
-        let err = sink.store(stream, partition, level).await.unwrap_err();
+        let max_l0_created_at = Time::from_timestamp_nanos(0);
+        let err = sink
+            .store(stream, partition, level, max_l0_created_at)
+            .await
+            .unwrap_err();
         assert_eq!(err.to_string(), "External error: foo",);
     }
 }

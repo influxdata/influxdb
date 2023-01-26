@@ -182,6 +182,7 @@ fn to_parquet_file(p: data_types::ParquetFile) -> ParquetFile {
         compaction_level: p.compaction_level as i32,
         created_at: p.created_at.get(),
         column_set: p.column_set.iter().map(|id| id.get()).collect(),
+        max_l0_created_at: p.max_l0_created_at.get(),
     }
 }
 
@@ -257,6 +258,7 @@ mod tests {
                 compaction_level: CompactionLevel::Initial,
                 created_at: Timestamp::new(2343),
                 column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+                max_l0_created_at: Timestamp::new(2343),
             };
             let p2params = ParquetFileParams {
                 object_store_id: Uuid::new_v4(),
