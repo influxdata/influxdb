@@ -76,6 +76,22 @@ impl GrpcRequestBuilder {
         self.tag_comparison_predicate(tag_name, tag_value, Comparison::Equal)
     }
 
+    /// For all `(tag_name, tag_value)` pairs, add `tag_name=tag_value OR tag_name=tag_value ...`
+    /// to the predicate.
+    pub fn or_tag_predicates(
+        self,
+        tags: impl Iterator<Item = (impl Into<String>, impl Into<String>)>,
+    ) -> Self {
+        tags.into_iter().fold(self, |acc, (tag_name, tag_value)| {
+            let node = comparison_expression_node(
+                tag_ref_node(tag_name.into()),
+                Comparison::Equal,
+                string_value_node(tag_value),
+            );
+            acc.combine_predicate(Logical::Or, node)
+        })
+    }
+
     /// Add `tag_name!=tag_value` to the predicate in the horrible gRPC structs
     pub fn not_tag_predicate(
         self,
