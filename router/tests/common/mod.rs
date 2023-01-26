@@ -4,6 +4,7 @@ use std::{collections::BTreeSet, iter, string::String, sync::Arc};
 
 use data_types::{PartitionTemplate, QueryPoolId, TableId, TemplatePart, TopicId};
 use hashbrown::HashMap;
+use hyper::{Body, Request, Response};
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use metric::Registry;
 use mutable_batch::MutableBatch;
@@ -199,5 +200,23 @@ impl TestContext {
             .expect("query failed")
             .expect("no table entry for the specified namespace/table name pair")
             .id
+    }
+
+    /// A helper method to write LP to this [`TestContext`].
+    pub async fn write_lp(
+        &self,
+        org: &str,
+        bucket: &str,
+        lp: impl Into<String>,
+    ) -> Result<Response<Body>, router::server::http::Error> {
+        let request = Request::builder()
+            .uri(format!(
+                "https://bananas.example/api/v2/write?org={org}&bucket={bucket}"
+            ))
+            .method("POST")
+            .body(Body::from(lp.into()))
+            .expect("failed to construct HTTP request");
+
+        self.http_delegate().route(request).await
     }
 }

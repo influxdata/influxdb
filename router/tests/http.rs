@@ -24,19 +24,10 @@ async fn test_write_ok() {
         .timestamp_nanos()
         .to_string();
     let lp = "platanos,tag1=A,tag2=B val=42i ".to_string() + &now;
-
-    let request = Request::builder()
-        .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
-        .method("POST")
-        .body(Body::from(lp))
-        .expect("failed to construct HTTP request");
-
     let response = ctx
-        .http_delegate()
-        .route(request)
+        .write_lp("bananas", "test", lp)
         .await
-        .expect("LP write request failed");
-
+        .expect("write failed");
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
     // Check the write buffer observed the correct write.
@@ -109,20 +100,13 @@ async fn test_write_outside_retention_period() {
         (SystemProvider::default().now().timestamp_nanos() - 2 * 3_600 * 1_000_000_000).to_string();
     let lp = "apple,tag1=AAA,tag2=BBB val=422i ".to_string() + &two_hours_ago;
 
-    let request = Request::builder()
-        .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
-        .method("POST")
-        .body(Body::from(lp))
-        .expect("failed to construct HTTP request");
-
-    let err = ctx
-        .http_delegate()
-        .route(request)
+    let response = ctx
+        .write_lp("bananas", "test", lp)
         .await
-        .expect_err("LP write request should fail");
+        .expect_err("write should fail");
 
     assert_matches!(
-        &err,
+        &response,
         router::server::http::Error::DmlHandler(
             DmlError::Retention(
                 RetentionError::OutsideRetention(e))
@@ -130,7 +114,7 @@ async fn test_write_outside_retention_period() {
             assert_eq!(e, "apple");
         }
     );
-    assert_eq!(err.as_status_code(), StatusCode::FORBIDDEN);
+    assert_eq!(response.as_status_code(), StatusCode::FORBIDDEN);
 }
 
 #[tokio::test]
@@ -144,17 +128,10 @@ async fn test_schema_conflict() {
         .to_string();
     let lp = "platanos,tag1=A,tag2=B val=42i ".to_string() + &now;
 
-    let request = Request::builder()
-        .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
-        .method("POST")
-        .body(Body::from(lp))
-        .expect("failed to construct HTTP request");
-
     let response = ctx
-        .http_delegate()
-        .route(request)
+        .write_lp("bananas", "test", lp)
         .await
-        .expect("LP write request failed");
+        .expect("write should succeed");
 
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
@@ -164,17 +141,10 @@ async fn test_schema_conflict() {
         .to_string();
     let lp = "platanos,tag1=A,tag2=B val=42.0 ".to_string() + &now;
 
-    let request = Request::builder()
-        .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
-        .method("POST")
-        .body(Body::from(lp))
-        .expect("failed to construct HTTP request");
-
     let err = ctx
-        .http_delegate()
-        .route(request)
+        .write_lp("bananas", "test", lp)
         .await
-        .expect_err("LP write request should fail");
+        .expect_err("write should fail");
 
     assert_matches!(
         &err,
@@ -209,17 +179,11 @@ async fn test_rejected_ns() {
         .to_string();
     let lp = "platanos,tag1=A,tag2=B val=42i ".to_string() + &now;
 
-    let request = Request::builder()
-        .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
-        .method("POST")
-        .body(Body::from(lp))
-        .expect("failed to construct HTTP request");
-
     let err = ctx
-        .http_delegate()
-        .route(request)
+        .write_lp("bananas", "test", lp)
         .await
-        .expect_err("should error");
+        .expect_err("write should fail");
+
     assert_matches!(
         err,
         router::server::http::Error::NamespaceResolver(
@@ -243,16 +207,10 @@ async fn test_schema_limit() {
     let lp = "platanos,tag1=A,tag2=B val=42i ".to_string() + &now;
 
     // Drive the creation of the namespace
-    let request = Request::builder()
-        .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
-        .method("POST")
-        .body(Body::from(lp))
-        .expect("failed to construct HTTP request");
     let response = ctx
-        .http_delegate()
-        .route(request)
+        .write_lp("bananas", "test", lp)
         .await
-        .expect("LP write request failed");
+        .expect("write should succeed");
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
     // Update the table limit
@@ -271,16 +229,10 @@ async fn test_schema_limit() {
         .to_string();
     let lp = "platanos2,tag1=A,tag2=B val=42i ".to_string() + &now;
 
-    let request = Request::builder()
-        .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
-        .method("POST")
-        .body(Body::from(lp))
-        .expect("failed to construct HTTP request");
     let err = ctx
-        .http_delegate()
-        .route(request)
+        .write_lp("bananas", "test", lp)
         .await
-        .expect_err("LP write request should fail");
+        .expect_err("write should fail");
 
     assert_matches!(
         &err,
@@ -353,17 +305,10 @@ async fn test_write_propagate_ids() {
 
     };
 
-    let request = Request::builder()
-        .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
-        .method("POST")
-        .body(Body::from(lp))
-        .expect("failed to construct HTTP request");
-
     let response = ctx
-        .http_delegate()
-        .route(request)
+        .write_lp("bananas", "test", lp)
         .await
-        .expect("LP write request failed");
+        .expect("write should succeed");
 
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
