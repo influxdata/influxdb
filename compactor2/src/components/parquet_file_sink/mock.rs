@@ -100,7 +100,7 @@ mod tests {
     };
     use schema::SchemaBuilder;
 
-    use crate::components::parquet_file_sink::test_util::partition_info;
+    use crate::test_util::partition_info;
 
     use super::*;
 

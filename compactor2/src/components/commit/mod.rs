@@ -30,7 +30,7 @@ pub trait Commit: Debug + Display + Send + Sync {
 #[async_trait]
 impl<T> Commit for Arc<T>
 where
-    T: Commit,
+    T: Commit + ?Sized,
 {
     async fn commit(
         &self,

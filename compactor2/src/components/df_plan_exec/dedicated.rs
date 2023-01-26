@@ -50,15 +50,7 @@ impl DataFusionPlanExec for DedicatedDataFusionPlanExec {
 
 #[cfg(test)]
 mod tests {
-    use std::any::Any;
-
-    use datafusion::{
-        arrow::datatypes::SchemaRef,
-        execution::context::TaskContext,
-        physical_expr::PhysicalSortExpr,
-        physical_plan::{Partitioning, Statistics},
-    };
-    use schema::SchemaBuilder;
+    use crate::components::df_planner::panic::PanicPlan;
 
     use super::*;
 
@@ -76,53 +68,5 @@ mod tests {
         let stream = streams.pop().unwrap();
         let err = stream.try_collect::<Vec<_>>().await.unwrap_err();
         assert_eq!(err.to_string(), "External error: foo");
-    }
-
-    #[derive(Debug)]
-    struct PanicPlan;
-
-    impl ExecutionPlan for PanicPlan {
-        fn as_any(&self) -> &dyn Any {
-            self as _
-        }
-
-        fn schema(&self) -> SchemaRef {
-            SchemaBuilder::new().build().unwrap().as_arrow()
-        }
-
-        fn output_partitioning(&self) -> Partitioning {
-            Partitioning::UnknownPartitioning(1)
-        }
-
-        fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
-            None
-        }
-
-        fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
-            vec![]
-        }
-
-        fn with_new_children(
-            self: Arc<Self>,
-            children: Vec<Arc<dyn ExecutionPlan>>,
-        ) -> datafusion::error::Result<Arc<dyn ExecutionPlan>> {
-            assert!(children.is_empty());
-            Ok(self)
-        }
-
-        fn execute(
-            &self,
-            partition: usize,
-            _context: Arc<TaskContext>,
-        ) -> datafusion::error::Result<SendableRecordBatchStream> {
-            assert_eq!(partition, 0);
-            let stream = futures::stream::once(async move { panic!("foo") });
-            let stream = RecordBatchStreamAdapter::new(self.schema(), stream);
-            Ok(Box::pin(stream))
-        }
-
-        fn statistics(&self) -> Statistics {
-            unimplemented!()
-        }
     }
 }

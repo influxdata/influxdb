@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use data_types::{ParquetFile, PartitionId};
 
 pub mod and;
+pub mod by_id;
 pub mod has_files;
 pub mod has_matching_file;
 pub mod logging;
