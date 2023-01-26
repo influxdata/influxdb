@@ -125,7 +125,7 @@ impl From<tonic::Status> for Error {
 ///
 /// // results is a stream of RecordBatches
 /// let query_results = client
-///     .sql("my_namespace".into(), "select * from cpu_load".into())
+///     .sql("my_namespace", "select * from cpu_load")
 ///     .await
 ///     .expect("query request should work");
 ///
