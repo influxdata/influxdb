@@ -2,7 +2,7 @@
 //!
 //! TODO: Make this a runtime-config.
 
-use std::{collections::HashSet, sync::Arc};
+use std::sync::Arc;
 
 use data_types::CompactionLevel;
 use object_store::memory::InMemory;
@@ -136,7 +136,19 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             MetricsPartitionDoneSinkWrapper::new(
                 ErrorKindPartitionDoneSinkWrapper::new(
                     partition_done_sink,
-                    HashSet::from([ErrorKind::OutOfMemory, ErrorKind::Unknown]),
+                    ErrorKind::variants()
+                        .iter()
+                        .filter(|kind| {
+                            // use explicit match statement so we never forget to add new variants
+                            match kind {
+                                ErrorKind::OutOfMemory
+                                | ErrorKind::Timeout
+                                | ErrorKind::Unknown => true,
+                                ErrorKind::ObjectStore => false,
+                            }
+                        })
+                        .copied()
+                        .collect(),
                 ),
                 &config.metric_registry,
             ),
