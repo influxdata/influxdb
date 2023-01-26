@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 use std::{collections::BTreeSet, iter, string::String, sync::Arc};
 
 use data_types::{PartitionTemplate, QueryPoolId, TableId, TemplatePart, TopicId};
