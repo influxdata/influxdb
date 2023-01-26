@@ -4,7 +4,9 @@
 mod request;
 
 use arrow::{
-    datatypes::SchemaRef, error::ArrowError, ipc::writer::IpcWriteOptions,
+    datatypes::{DataType, Field, Schema, SchemaRef},
+    error::ArrowError,
+    ipc::writer::IpcWriteOptions,
     record_batch::RecordBatch,
 };
 use arrow_flight::{
@@ -732,7 +734,7 @@ impl IOxFlightDataEncoderBuilder {
     fn new(schema: SchemaRef) -> Self {
         Self {
             inner: FlightDataEncoderBuilder::new(),
-            schema,
+            schema: prepare_schema_for_flight(schema),
         }
     }
 
@@ -786,6 +788,29 @@ impl Stream for IOxFlightDataEncoder {
             }
         }
     }
+}
+
+/// Prepare an arrow Schema for transport over the Arrow Flight protocol
+///
+/// Convert dictionary types to underlying types
+///
+/// See hydrate_dictionary for more information
+fn prepare_schema_for_flight(schema: SchemaRef) -> SchemaRef {
+    let fields = schema
+        .fields()
+        .iter()
+        .map(|field| match field.data_type() {
+            DataType::Dictionary(_, value_type) => Field::new(
+                field.name(),
+                value_type.as_ref().clone(),
+                field.is_nullable(),
+            )
+            .with_metadata(field.metadata().clone()),
+            _ => field.clone(),
+        })
+        .collect();
+
+    Arc::new(Schema::new(fields))
 }
 
 impl Stream for GetStream {
