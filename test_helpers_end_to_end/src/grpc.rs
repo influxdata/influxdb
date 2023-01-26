@@ -71,12 +71,12 @@ impl GrpcRequestBuilder {
         }
     }
 
-    /// Set predicate to be `tag_name=tag_value` in the horrible gRPC structs
+    /// Add `tag_name=tag_value` to the predicate in the horrible gRPC structs
     pub fn tag_predicate(self, tag_name: impl Into<String>, tag_value: impl Into<String>) -> Self {
         self.tag_comparison_predicate(tag_name, tag_value, Comparison::Equal)
     }
 
-    /// Set predicate to be `tag_name!=tag_value` in the horrible gRPC structs
+    /// Add `tag_name!=tag_value` to the predicate in the horrible gRPC structs
     pub fn not_tag_predicate(
         self,
         tag_name: impl Into<String>,
@@ -85,48 +85,42 @@ impl GrpcRequestBuilder {
         self.tag_comparison_predicate(tag_name, tag_value, Comparison::NotEqual)
     }
 
-    /// Set predicate to `tag_name <op> value` where `<op>` is `Equal` or `NotEqual`
+    /// Add `tag_name <op> value` to the predicate where `<op>` is `Equal` or `NotEqual`
     fn tag_comparison_predicate(
         self,
         tag_name: impl Into<String>,
         tag_value: impl Into<String>,
         comparison: Comparison,
     ) -> Self {
-        let predicate = Predicate {
-            root: Some(comparison_expression_node(
-                tag_ref_node(tag_name.into()),
-                comparison,
-                string_value_node(tag_value),
-            )),
-        };
-        self.combine_predicate(predicate)
+        let node = comparison_expression_node(
+            tag_ref_node(tag_name.into()),
+            comparison,
+            string_value_node(tag_value),
+        );
+        self.combine_predicate(Logical::And, node)
     }
 
-    /// Create a predicate representing _f=field_name in the horrible gRPC structs
+    /// Add `_f=field_name` to the predicate in the horrible gRPC structs
     pub fn field_predicate(self, field_name: impl Into<String>) -> Self {
-        let predicate = Predicate {
-            root: Some(comparison_expression_node(
-                tag_ref_node([255].to_vec()),
-                Comparison::Equal,
-                string_value_node(field_name),
-            )),
-        };
-        self.combine_predicate(predicate)
+        let node = comparison_expression_node(
+            tag_ref_node([255].to_vec()),
+            Comparison::Equal,
+            string_value_node(field_name),
+        );
+        self.combine_predicate(Logical::And, node)
     }
 
-    /// Create a predicate representing _m=measurement_name in the horrible gRPC structs
+    /// Add `_m=measurement_name` to the predicate in the horrible gRPC structs
     pub fn measurement_predicate(self, measurement_name: impl Into<String>) -> Self {
-        let predicate = Predicate {
-            root: Some(comparison_expression_node(
-                tag_ref_node([00].to_vec()),
-                Comparison::Equal,
-                string_value_node(measurement_name),
-            )),
-        };
-        self.combine_predicate(predicate)
+        let node = comparison_expression_node(
+            tag_ref_node([00].to_vec()),
+            Comparison::Equal,
+            string_value_node(measurement_name),
+        );
+        self.combine_predicate(Logical::And, node)
     }
 
-    /// Set predicate to tag_name ~= /pattern/
+    /// Add `tag_name ~= /pattern/` to the predicate
     pub fn regex_match_predicate(
         self,
         tag_name: impl Into<String>,
@@ -135,7 +129,7 @@ impl GrpcRequestBuilder {
         self.regex_predicate(tag_name, pattern, Comparison::Regex)
     }
 
-    /// Set predicate to tag_name !~ /pattern/
+    /// Add `tag_name !~ /pattern/` to the predicate
     pub fn not_regex_match_predicate(
         self,
         tag_name: impl Into<String>,
@@ -144,9 +138,7 @@ impl GrpcRequestBuilder {
         self.regex_predicate(tag_name, pattern, Comparison::NotRegex)
     }
 
-    /// Set predicate to `tag_name <op> /pattern/`
-    ///
-    /// where op is `Regex` or `NotRegEx`
+    /// Add `tag_name <op> /pattern/` to the predicate, where op is `Regex` or `NotRegEx`.
     /// The constitution of this request was formed by looking at a real request
     /// made to storage, which looked like this:
     ///
@@ -164,18 +156,16 @@ impl GrpcRequestBuilder {
         pattern: impl Into<String>,
         comparison: Comparison,
     ) -> Self {
-        let predicate = Predicate {
-            root: Some(comparison_expression_node(
-                tag_ref_node(tag_name.into()),
-                comparison,
-                Node {
-                    node_type: NodeType::Literal as i32,
-                    children: vec![],
-                    value: Some(Value::RegexValue(pattern.into())),
-                },
-            )),
-        };
-        self.combine_predicate(predicate)
+        let node = comparison_expression_node(
+            tag_ref_node(tag_name.into()),
+            comparison,
+            Node {
+                node_type: NodeType::Literal as i32,
+                children: vec![],
+                value: Some(Value::RegexValue(pattern.into())),
+            },
+        );
+        self.combine_predicate(Logical::And, node)
     }
 
     /// Set the predicate being created, panicking if this would overwrite an existing predicate
@@ -187,26 +177,24 @@ impl GrpcRequestBuilder {
         }
     }
 
-    /// Combine any existing predicate with "AND".
-    fn combine_predicate(mut self, predicate: Predicate) -> Self {
+    /// Combine any existing predicate with the specified logical operator and node. If there is no
+    /// existing predicate, set the predicate to only the specified node.
+    fn combine_predicate(mut self, operator: Logical, new_node: Node) -> Self {
         let old_predicate = self.predicate.take();
 
-        let combined_predicate = match (old_predicate, predicate) {
-            (
-                Some(Predicate {
-                    root: Some(old_node),
-                }),
-                Predicate {
-                    root: Some(new_node),
-                },
-            ) => Predicate {
+        let combined_predicate = match old_predicate {
+            Some(Predicate {
+                root: Some(old_node),
+            }) => Predicate {
                 root: Some(Node {
                     node_type: NodeType::LogicalExpression as i32,
                     children: vec![old_node, new_node],
-                    value: Some(Value::Logical(Logical::And as i32)),
+                    value: Some(Value::Logical(operator as i32)),
                 }),
             },
-            (_, predicate) => predicate,
+            _ => Predicate {
+                root: Some(new_node),
+            },
         };
 
         Self {
@@ -225,7 +213,7 @@ impl GrpcRequestBuilder {
         }
     }
 
-    /// set the specified grouping method on a read_group request
+    /// Set the specified grouping method on a read_group request
     pub fn group(self, group: Group) -> Self {
         assert!(self.group.is_none(), "Overwriting existing group");
         Self {
@@ -234,7 +222,8 @@ impl GrpcRequestBuilder {
         }
     }
 
-    /// set the specified grouping grouping aggregate on a read_group or read_window_aggregate request
+    /// Set the specified grouping grouping aggregate on a read_group or read_window_aggregate
+    /// request
     pub fn aggregate_type(self, aggregate_type: AggregateType) -> Self {
         assert!(
             self.aggregate_type.is_none(),
@@ -246,7 +235,7 @@ impl GrpcRequestBuilder {
         }
     }
 
-    /// set the window_every field for a read_window_aggregate request
+    /// Set the window_every field for a read_window_aggregate request
     pub fn window_every(self, window_every: i64) -> Self {
         assert!(
             self.window_every.is_none(),
@@ -258,7 +247,7 @@ impl GrpcRequestBuilder {
         }
     }
 
-    /// set the offset field for a read_window_aggregate request
+    /// Set the offset field for a read_window_aggregate request
     pub fn offset(self, offset: i64) -> Self {
         assert!(self.offset.is_none(), "Overwriting existing offset");
         Self {
