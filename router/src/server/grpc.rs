@@ -24,14 +24,25 @@ use crate::shard::Shard;
 pub struct RpcWriteGrpcDelegate {
     catalog: Arc<dyn Catalog>,
     object_store: Arc<DynObjectStore>,
+
+    // Temporary values during kafka -> kafkaless transition.
+    topic_id: TopicId,
+    query_id: QueryPoolId,
 }
 
 impl RpcWriteGrpcDelegate {
     /// Create a new gRPC handler
-    pub fn new(catalog: Arc<dyn Catalog>, object_store: Arc<DynObjectStore>) -> Self {
+    pub fn new(
+        catalog: Arc<dyn Catalog>,
+        object_store: Arc<DynObjectStore>,
+        topic_id: TopicId,
+        query_id: QueryPoolId,
+    ) -> Self {
         Self {
             catalog,
             object_store,
+            topic_id,
+            query_id,
         }
     }
 
@@ -67,6 +78,19 @@ impl RpcWriteGrpcDelegate {
         object_store_service_server::ObjectStoreServiceServer::new(ObjectStoreService::new(
             Arc::clone(&self.catalog),
             Arc::clone(&self.object_store),
+        ))
+    }
+
+    /// Acquire a [`NamespaceService`] gRPC service implementation.
+    ///
+    /// [`NamespaceService`]: generated_types::influxdata::iox::namespace::v1::namespace_service_server::NamespaceService.
+    pub fn namespace_service(
+        &self,
+    ) -> namespace_service_server::NamespaceServiceServer<NamespaceService> {
+        namespace_service_server::NamespaceServiceServer::new(NamespaceService::new(
+            Arc::clone(&self.catalog),
+            Some(self.topic_id),
+            Some(self.query_id),
         ))
     }
 }
