@@ -87,10 +87,8 @@ impl TestCase {
                     (_, ChunkStage::All) => unreachable!("See `impl IntoIterator for ChunkStage`"),
                 };
 
-                // TEMPORARY: look in `query_tests` for all case files; change this if we decide to
-                // move them
                 let given_input_path: PathBuf = self.input.into();
-                let mut input_path = PathBuf::from("../query_tests/");
+                let mut input_path = PathBuf::from("tests/query_tests2/");
                 input_path.push(given_input_path);
                 let contents = fs::read_to_string(&input_path).unwrap_or_else(|_| {
                     panic!("Could not read test case file `{}`", input_path.display())
