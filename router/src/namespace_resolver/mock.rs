@@ -36,10 +36,10 @@ impl NamespaceResolver for MockNamespaceResolver {
         &self,
         namespace: &NamespaceName<'static>,
     ) -> Result<NamespaceId, super::Error> {
-        Ok(*self
-            .map
-            .lock()
-            .get(namespace)
-            .expect("mock namespace resolver does not have ID"))
+        Ok(*self.map.lock().get(namespace).ok_or(super::Error::Lookup(
+            iox_catalog::interface::Error::NamespaceNotFoundByName {
+                name: namespace.to_string(),
+            },
+        ))?)
     }
 }

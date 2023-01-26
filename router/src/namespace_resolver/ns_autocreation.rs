@@ -91,15 +91,27 @@ where
         if self.cache.get_schema(namespace).is_none() {
             trace!(%namespace, "namespace not found in cache");
 
-            let mut repos = self.catalog.repositories().await;
-
             match self.action {
                 MissingNamespaceAction::Reject => {
-                    debug!(%namespace, "namespace not in catalog and autocreation disabled");
-                    return Err(NamespaceCreationError::Reject(namespace.into()).into());
+                    // The namespace is not cached, but may exist in the
+                    // catalog. Delegate discovery down to the inner handler,
+                    // and map the lookup error to a reject error.
+                    match self.inner.get_namespace_id(namespace).await {
+                        Ok(v) => return Ok(v),
+                        Err(super::Error::Lookup(
+                            iox_catalog::interface::Error::NamespaceNotFoundByName { .. },
+                        )) => {
+                            warn!(%namespace, "namespace not in catalog and auto-creation disabled");
+                            return Err(NamespaceCreationError::Reject(namespace.into()).into());
+                        }
+                        Err(e) => return Err(e),
+                    }
                 }
                 MissingNamespaceAction::AutoCreate(retention_period_ns) => {
-                    match repos
+                    match self
+                        .catalog
+                        .repositories()
+                        .await
                         .namespaces()
                         .create(
                             namespace.as_str(),
@@ -141,7 +153,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        namespace_cache::MemoryNamespaceCache, namespace_resolver::mock::MockNamespaceResolver,
+        namespace_cache::MemoryNamespaceCache,
+        namespace_resolver::{mock::MockNamespaceResolver, NamespaceSchemaResolver},
     };
 
     /// Common retention period value we'll use in tests
@@ -256,7 +269,7 @@ mod tests {
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
 
         let creator = NamespaceAutocreation::new(
-            MockNamespaceResolver::default().with_mapping(ns.clone(), NamespaceId::new(1)),
+            MockNamespaceResolver::default(),
             cache,
             Arc::clone(&catalog),
             TopicId::new(42),
@@ -275,5 +288,46 @@ mod tests {
         // Make double-sure it wasn't created in the catalog
         let mut repos = catalog.repositories().await;
         assert_matches!(repos.namespaces().get_by_name(ns.as_str()).await, Ok(None));
+    }
+
+    #[tokio::test]
+    async fn test_reject_exists_in_catalog() {
+        let ns = NamespaceName::try_from("bananas").unwrap();
+
+        let cache = Arc::new(MemoryNamespaceCache::default());
+        let metrics = Arc::new(metric::Registry::new());
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
+
+        // First drive the population of the catalog
+        let creator = NamespaceAutocreation::new(
+            NamespaceSchemaResolver::new(Arc::clone(&catalog), Arc::clone(&cache)),
+            Arc::clone(&cache),
+            Arc::clone(&catalog),
+            TopicId::new(42),
+            QueryPoolId::new(42),
+            MissingNamespaceAction::AutoCreate(TEST_RETENTION_PERIOD_NS),
+        );
+
+        let created_id = creator
+            .get_namespace_id(&ns)
+            .await
+            .expect("handler should succeed");
+
+        // Now try in "reject" mode.
+        let creator = NamespaceAutocreation::new(
+            NamespaceSchemaResolver::new(Arc::clone(&catalog), Arc::clone(&cache)),
+            cache,
+            Arc::clone(&catalog),
+            TopicId::new(42),
+            QueryPoolId::new(42),
+            MissingNamespaceAction::Reject,
+        );
+
+        // It should not autocreate because we specified "rejection" behaviour, above
+        let id = creator
+            .get_namespace_id(&ns)
+            .await
+            .expect("should allow existing namespace from catalog");
+        assert_eq!(created_id, id);
     }
 }
