@@ -106,7 +106,8 @@ pub struct SchemaValidator<C = Arc<InstrumentedCache<MemoryNamespaceCache>>> {
     catalog: Arc<dyn Catalog>,
     cache: C,
 
-    service_limit_hit: U64Counter,
+    service_limit_hit_tables: U64Counter,
+    service_limit_hit_columns: U64Counter,
     schema_conflict: U64Counter,
 }
 
@@ -116,12 +117,13 @@ impl<C> SchemaValidator<C> {
     ///
     /// Schemas are cached in `ns_cache`.
     pub fn new(catalog: Arc<dyn Catalog>, ns_cache: C, metrics: &metric::Registry) -> Self {
-        let service_limit_hit = metrics
-            .register_metric::<U64Counter>(
-                "schema_validation_service_limit_reached",
-                "number of requests that have hit the namespace table/column limit",
-            )
-            .recorder(&[]);
+        let service_limit_hit = metrics.register_metric::<U64Counter>(
+            "schema_validation_service_limit_reached",
+            "number of requests that have hit the namespace table/column limit",
+        );
+        let service_limit_hit_tables = service_limit_hit.recorder(&[("limit", "table")]);
+        let service_limit_hit_columns = service_limit_hit.recorder(&[("limit", "column")]);
+
         let schema_conflict = metrics
             .register_metric::<U64Counter>(
                 "schema_validation_schema_conflict",
@@ -132,7 +134,8 @@ impl<C> SchemaValidator<C> {
         Self {
             catalog,
             cache: ns_cache,
-            service_limit_hit,
+            service_limit_hit_tables,
+            service_limit_hit_columns,
             schema_conflict,
         }
     }
@@ -211,7 +214,7 @@ where
                 error=%e,
                 "service protection limit reached"
             );
-            self.service_limit_hit.inc(1);
+            self.service_limit_hit_columns.inc(1);
             SchemaError::ServiceLimit(Box::new(e))
         })?;
 
@@ -242,15 +245,25 @@ where
                     SchemaError::Conflict(e)
                 }
                 // Service limits
-                CatalogError::ColumnCreateLimitError { .. }
-                | CatalogError::TableCreateLimitError { .. } => {
+                CatalogError::ColumnCreateLimitError { table_id, .. } => {
+                    warn!(
+                        %namespace,
+                        %namespace_id,
+                        %table_id,
+                        error=%e,
+                        "service protection limit reached (columns)"
+                    );
+                    self.service_limit_hit_columns.inc(1);
+                    SchemaError::ServiceLimit(Box::new(e.into_err()))
+                }
+                CatalogError::TableCreateLimitError { .. } => {
                     warn!(
                         %namespace,
                         %namespace_id,
                         error=%e,
-                        "service protection limit reached"
+                        "service protection limit reached (tables)"
                     );
-                    self.service_limit_hit.inc(1);
+                    self.service_limit_hit_tables.inc(1);
                     SchemaError::ServiceLimit(Box::new(e.into_err()))
                 }
                 _ => {
@@ -697,7 +710,7 @@ mod tests {
             .expect_err("request should fail");
 
         assert_matches!(err, SchemaError::ServiceLimit(_));
-        assert_eq!(1, handler.service_limit_hit.fetch());
+        assert_eq!(1, handler.service_limit_hit_tables.fetch());
     }
 
     #[tokio::test]
@@ -734,7 +747,7 @@ mod tests {
             .expect_err("request should fail");
 
         assert_matches!(err, SchemaError::ServiceLimit(_));
-        assert_eq!(1, handler.service_limit_hit.fetch());
+        assert_eq!(1, handler.service_limit_hit_columns.fetch());
     }
 
     #[tokio::test]
@@ -765,7 +778,7 @@ mod tests {
             .expect_err("request should fail");
 
         assert_matches!(err, SchemaError::ServiceLimit(_));
-        assert_eq!(1, handler.service_limit_hit.fetch());
+        assert_eq!(1, handler.service_limit_hit_columns.fetch());
     }
 
     #[tokio::test]
