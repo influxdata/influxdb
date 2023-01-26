@@ -16,7 +16,7 @@ pub mod common;
 
 #[tokio::test]
 async fn test_write_ok() {
-    let ctx = TestContext::new(true, None);
+    let ctx = TestContext::new(true, None).await;
 
     // Write data inside retention period
     let now = SystemProvider::default()
@@ -32,7 +32,7 @@ async fn test_write_ok() {
         .expect("failed to construct HTTP request");
 
     let response = ctx
-        .delegate()
+        .http_delegate()
         .route(request)
         .await
         .expect("LP write request failed");
@@ -102,7 +102,7 @@ async fn test_write_ok() {
 
 #[tokio::test]
 async fn test_write_outside_retention_period() {
-    let ctx = TestContext::new(true, TEST_RETENTION_PERIOD_NS);
+    let ctx = TestContext::new(true, TEST_RETENTION_PERIOD_NS).await;
 
     // Write data outside retention period into a new table
     let two_hours_ago =
@@ -116,7 +116,7 @@ async fn test_write_outside_retention_period() {
         .expect("failed to construct HTTP request");
 
     let err = ctx
-        .delegate()
+        .http_delegate()
         .route(request)
         .await
         .expect_err("LP write request should fail");
@@ -135,7 +135,7 @@ async fn test_write_outside_retention_period() {
 
 #[tokio::test]
 async fn test_schema_conflict() {
-    let ctx = TestContext::new(true, None);
+    let ctx = TestContext::new(true, None).await;
 
     // data inside the retention period
     let now = SystemProvider::default()
@@ -151,7 +151,7 @@ async fn test_schema_conflict() {
         .expect("failed to construct HTTP request");
 
     let response = ctx
-        .delegate()
+        .http_delegate()
         .route(request)
         .await
         .expect("LP write request failed");
@@ -171,7 +171,7 @@ async fn test_schema_conflict() {
         .expect("failed to construct HTTP request");
 
     let err = ctx
-        .delegate()
+        .http_delegate()
         .route(request)
         .await
         .expect_err("LP write request should fail");
@@ -201,7 +201,7 @@ async fn test_schema_conflict() {
 
 #[tokio::test]
 async fn test_rejected_ns() {
-    let ctx = TestContext::new(false, None);
+    let ctx = TestContext::new(false, None).await;
 
     let now = SystemProvider::default()
         .now()
@@ -216,7 +216,7 @@ async fn test_rejected_ns() {
         .expect("failed to construct HTTP request");
 
     let err = ctx
-        .delegate()
+        .http_delegate()
         .route(request)
         .await
         .expect_err("should error");
@@ -234,7 +234,7 @@ async fn test_rejected_ns() {
 
 #[tokio::test]
 async fn test_schema_limit() {
-    let ctx = TestContext::new(true, None);
+    let ctx = TestContext::new(true, None).await;
 
     let now = SystemProvider::default()
         .now()
@@ -249,7 +249,7 @@ async fn test_schema_limit() {
         .body(Body::from(lp))
         .expect("failed to construct HTTP request");
     let response = ctx
-        .delegate()
+        .http_delegate()
         .route(request)
         .await
         .expect("LP write request failed");
@@ -277,7 +277,7 @@ async fn test_schema_limit() {
         .body(Body::from(lp))
         .expect("failed to construct HTTP request");
     let err = ctx
-        .delegate()
+        .http_delegate()
         .route(request)
         .await
         .expect_err("LP write request should fail");
@@ -300,7 +300,7 @@ async fn test_schema_limit() {
 
 #[tokio::test]
 async fn test_write_propagate_ids() {
-    let ctx = TestContext::new(true, None);
+    let ctx = TestContext::new(true, None).await;
 
     // Create the namespace and a set of tables.
     let ns = ctx
@@ -360,7 +360,7 @@ async fn test_write_propagate_ids() {
         .expect("failed to construct HTTP request");
 
     let response = ctx
-        .delegate()
+        .http_delegate()
         .route(request)
         .await
         .expect("LP write request failed");
@@ -381,7 +381,7 @@ async fn test_write_propagate_ids() {
 
 #[tokio::test]
 async fn test_delete_propagate_ids() {
-    let ctx = TestContext::new(true, None);
+    let ctx = TestContext::new(true, None).await;
 
     // Create the namespace and a set of tables.
     let ns = ctx
@@ -411,7 +411,7 @@ async fn test_delete_propagate_ids() {
         .expect("failed to construct HTTP request");
 
     let response = ctx
-        .delegate()
+        .http_delegate()
         .route(request)
         .await
         .expect("delete request failed");

@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use std::{collections::BTreeSet, iter, string::String, sync::Arc};
 
 use data_types::{PartitionTemplate, QueryPoolId, TableId, TemplatePart, TopicId};
@@ -5,6 +7,7 @@ use hashbrown::HashMap;
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use metric::Registry;
 use mutable_batch::MutableBatch;
+use object_store::memory::InMemory;
 use router::{
     dml_handlers::{
         Chain, DmlHandlerChainExt, FanOutAdaptor, InstrumentationDecorator, Partitioned,
@@ -12,7 +15,7 @@ use router::{
     },
     namespace_cache::{MemoryNamespaceCache, ShardedCache},
     namespace_resolver::{MissingNamespaceAction, NamespaceAutocreation, NamespaceSchemaResolver},
-    server::http::HttpDelegate,
+    server::{grpc::RpcWriteGrpcDelegate, http::HttpDelegate},
     shard::Shard,
 };
 use sharder::JumpHash;
@@ -32,8 +35,10 @@ pub const TEST_QUERY_POOL_ID: i64 = 1;
 /// Common retention period value we'll use in tests
 pub const TEST_RETENTION_PERIOD_NS: Option<i64> = Some(3_600 * 1_000_000_000);
 
+#[derive(Debug)]
 pub struct TestContext {
-    delegate: HttpDelegateStack,
+    http_delegate: HttpDelegateStack,
+    grpc_delegate: RpcWriteGrpcDelegate,
     catalog: Arc<dyn Catalog>,
     write_buffer_state: Arc<MockBufferSharedState>,
     metrics: Arc<Registry>,
@@ -70,7 +75,7 @@ type HttpDelegateStack = HttpDelegate<
 /// A [`router`] stack configured with the various DML handlers using mock
 /// catalog / write buffer backends.
 impl TestContext {
-    pub fn new(autocreate_ns: bool, ns_autocreate_retention_period_ns: Option<i64>) -> Self {
+    pub async fn new(autocreate_ns: bool, ns_autocreate_retention_period_ns: Option<i64>) -> Self {
         let metrics = Arc::new(metric::Registry::default());
         let time = iox_time::MockProvider::new(
             iox_time::Time::from_timestamp_millis(668563200000).unwrap(),
@@ -132,19 +137,33 @@ impl TestContext {
             },
         );
 
-        let delegate = HttpDelegate::new(1024, 100, namespace_resolver, handler_stack, &metrics);
+        let http_delegate =
+            HttpDelegate::new(1024, 100, namespace_resolver, handler_stack, &metrics);
+
+        let grpc_delegate = RpcWriteGrpcDelegate::new(
+            Arc::clone(&catalog),
+            Arc::new(InMemory::default()),
+            TopicId::new(TEST_TOPIC_ID),
+            QueryPoolId::new(TEST_QUERY_POOL_ID),
+        );
 
         Self {
-            delegate,
+            http_delegate,
+            grpc_delegate,
             catalog,
             write_buffer_state,
             metrics,
         }
     }
 
-    /// Get a reference to the test context's delegate.
-    pub fn delegate(&self) -> &HttpDelegateStack {
-        &self.delegate
+    /// Get a reference to the test context's http delegate.
+    pub fn http_delegate(&self) -> &HttpDelegateStack {
+        &self.http_delegate
+    }
+
+    /// Get a reference to the test context's grpc delegate.
+    pub fn grpc_delegate(&self) -> &RpcWriteGrpcDelegate {
+        &self.grpc_delegate
     }
 
     /// Get a reference to the test context's catalog.
@@ -180,11 +199,5 @@ impl TestContext {
             .expect("query failed")
             .expect("no table entry for the specified namespace/table name pair")
             .id
-    }
-}
-
-impl Default for TestContext {
-    fn default() -> Self {
-        Self::new(true, None)
     }
 }
