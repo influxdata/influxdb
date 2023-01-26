@@ -1,7 +1,7 @@
 use crate::MiniCluster;
 use generated_types::{
     aggregate::AggregateType,
-    node::{Comparison, Type as NodeType, Value},
+    node::{Comparison, Logical, Type as NodeType, Value},
     read_group_request::Group,
     Aggregate, MeasurementFieldsRequest, MeasurementNamesRequest, MeasurementTagKeysRequest,
     MeasurementTagValuesRequest, Node, Predicate, ReadFilterRequest, ReadGroupRequest, ReadSource,
@@ -99,7 +99,7 @@ impl GrpcRequestBuilder {
                 string_value_node(tag_value),
             )),
         };
-        self.predicate(predicate)
+        self.combine_predicate(predicate)
     }
 
     /// Create a predicate representing _f=field_name in the horrible gRPC structs
@@ -111,7 +111,7 @@ impl GrpcRequestBuilder {
                 string_value_node(field_name),
             )),
         };
-        self.predicate(predicate)
+        self.combine_predicate(predicate)
     }
 
     /// Create a predicate representing _m=measurement_name in the horrible gRPC structs
@@ -123,7 +123,7 @@ impl GrpcRequestBuilder {
                 string_value_node(measurement_name),
             )),
         };
-        self.predicate(predicate)
+        self.combine_predicate(predicate)
     }
 
     /// Set predicate to tag_name ~= /pattern/
@@ -175,14 +175,42 @@ impl GrpcRequestBuilder {
                 },
             )),
         };
-        self.predicate(predicate)
+        self.combine_predicate(predicate)
     }
 
-    /// Set the predicate being crated
+    /// Set the predicate being created, panicking if this would overwrite an existing predicate
     pub fn predicate(self, predicate: Predicate) -> Self {
         assert!(self.predicate.is_none(), "Overwriting existing predicate");
         Self {
             predicate: Some(predicate),
+            ..self
+        }
+    }
+
+    /// Combine any existing predicate with "AND".
+    fn combine_predicate(mut self, predicate: Predicate) -> Self {
+        let old_predicate = self.predicate.take();
+
+        let combined_predicate = match (old_predicate, predicate) {
+            (
+                Some(Predicate {
+                    root: Some(old_node),
+                }),
+                Predicate {
+                    root: Some(new_node),
+                },
+            ) => Predicate {
+                root: Some(Node {
+                    node_type: NodeType::LogicalExpression as i32,
+                    children: vec![old_node, new_node],
+                    value: Some(Value::Logical(Logical::And as i32)),
+                }),
+            },
+            (_, predicate) => predicate,
+        };
+
+        Self {
+            predicate: Some(combined_predicate),
             ..self
         }
     }
