@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use async_trait::async_trait;
-use data_types::{Partition, PartitionId};
+use data_types::PartitionId;
 use observability_deps::tracing::{info, warn};
 
 use super::PartitionsSource;
@@ -45,24 +45,13 @@ where
         }
         partitions
     }
-
-    async fn fetch_by_id(&self, partition_id: PartitionId) -> Option<Partition> {
-        let partition = self.inner.fetch_by_id(partition_id).await;
-        info!(%partition_id, "Fetch a partition",);
-        if partition.is_none() {
-            warn!(%partition_id, "Partition not found",);
-        }
-        partition
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use test_helpers::tracing::TracingCapture;
 
-    use crate::{
-        components::partitions_source::mock::MockPartitionsSource, test_util::PartitionBuilder,
-    };
+    use crate::components::partitions_source::mock::MockPartitionsSource;
 
     use super::*;
 
@@ -86,22 +75,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_fetch_some() {
-        let p_1 = PartitionBuilder::new(5).build();
-        let p_2 = PartitionBuilder::new(1).build();
-        let p_3 = PartitionBuilder::new(12).build();
-        let partitions = vec![p_1.clone(), p_2.clone(), p_3.clone()];
+        let p_1 = PartitionId::new(5);
+        let p_2 = PartitionId::new(1);
+        let p_3 = PartitionId::new(12);
+        let partitions = vec![p_1, p_2, p_3];
 
         let source =
             LoggingPartitionsSourceWrapper::new(MockPartitionsSource::new(partitions.clone()));
         let capture = TracingCapture::new();
-        assert_eq!(
-            source.fetch().await,
-            vec![
-                PartitionId::new(5),
-                PartitionId::new(1),
-                PartitionId::new(12),
-            ]
-        );
+        assert_eq!(source.fetch().await, partitions,);
         // just the ordinary log message, no warning
         assert_eq!(
             capture.to_string(),

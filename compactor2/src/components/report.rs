@@ -9,6 +9,7 @@ pub fn log_components(components: &Components) {
     // use struct unpack so we don't forget any members
     let Components {
         partitions_source,
+        partition_source,
         partition_files_source,
         files_filter,
         partition_filter,
@@ -26,6 +27,7 @@ pub fn log_components(components: &Components) {
 
     info!(
         %partitions_source,
+        %partition_source,
         %partition_files_source,
         %files_filter,
         %partition_filter,

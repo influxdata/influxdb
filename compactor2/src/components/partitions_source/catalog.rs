@@ -2,7 +2,7 @@ use std::{fmt::Display, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
-use data_types::{Partition, PartitionId};
+use data_types::PartitionId;
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
 
@@ -50,20 +50,6 @@ impl PartitionsSource for CatalogPartitionsSource {
                     .await
                     .partitions()
                     .partitions_to_compact(cutoff.into())
-                    .await
-            })
-            .await
-            .expect("retry forever")
-    }
-
-    async fn fetch_by_id(&self, partition_id: PartitionId) -> Option<Partition> {
-        Backoff::new(&self.backoff_config)
-            .retry_all_errors("partition_by_id", || async {
-                self.catalog
-                    .repositories()
-                    .await
-                    .partitions()
-                    .get_by_id(partition_id)
                     .await
             })
             .await

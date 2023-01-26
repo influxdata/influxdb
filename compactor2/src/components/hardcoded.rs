@@ -22,7 +22,7 @@ use super::{
         mock::MockCommit, Commit,
     },
     df_plan_exec::dedicated::DedicatedDataFusionPlanExec,
-    df_planner::planner_v1::V1DataFusionPlanner,
+    df_planner::{logging::LoggingDataFusionPlannerWrapper, planner_v1::V1DataFusionPlanner},
     divide_initial::single_branch::SingleBranchDivideInitial,
     file_filter::{and::AndFileFilter, level_range::LevelRangeFileFilter},
     files_filter::{chain::FilesFilterChain, per_file::PerFileFilesFilter},
@@ -42,10 +42,14 @@ use super::{
         metrics::MetricsPartitionFilterWrapper, never_skipped::NeverSkippedPartitionFilter,
         PartitionFilter,
     },
+    partition_source::{
+        catalog::CatalogPartitionSource, logging::LoggingPartitionSourceWrapper,
+        metrics::MetricsPartitionSourceWrapper,
+    },
     partitions_source::{
         catalog::CatalogPartitionsSource, logging::LoggingPartitionsSourceWrapper,
-        metrics::MetricsPartitionsSourceWrapper,
-        randomize_order::RandomizeOrderPartitionsSourcesWrapper,
+        metrics::MetricsPartitionsSourceWrapper, mock::MockPartitionsSource,
+        randomize_order::RandomizeOrderPartitionsSourcesWrapper, PartitionsSource,
     },
     round_split::all_now::AllNowRoundSplit,
     scratchpad::{ignore_writes_object_store::IgnoreWrites, prod::ProdScratchpadGen},
@@ -57,6 +61,17 @@ use super::{
 pub fn hardcoded_components(config: &Config) -> Arc<Components> {
     // TODO: partitions source: Implementing ID-based sharding / hash-partitioning so we can run multiple compactors in
     //       parallel. This should be a wrapper around the existing partions source.
+
+    let partitions_source: Arc<dyn PartitionsSource> = if let Some(ids) = &config.partition_filter {
+        Arc::new(MockPartitionsSource::new(ids.iter().cloned().collect()))
+    } else {
+        Arc::new(CatalogPartitionsSource::new(
+            config.backoff_config.clone(),
+            Arc::clone(&config.catalog),
+            config.partition_threshold,
+            Arc::clone(&config.time_provider),
+        ))
+    };
 
     let mut partition_filters: Vec<Arc<dyn PartitionFilter>> = vec![];
     if let Some(ids) = &config.partition_filter {
@@ -103,14 +118,15 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
     Arc::new(Components {
         partitions_source: Arc::new(LoggingPartitionsSourceWrapper::new(
             MetricsPartitionsSourceWrapper::new(
-                RandomizeOrderPartitionsSourcesWrapper::new(
-                    CatalogPartitionsSource::new(
-                        config.backoff_config.clone(),
-                        Arc::clone(&config.catalog),
-                        config.partition_threshold,
-                        Arc::clone(&config.time_provider),
-                    ),
-                    1234,
+                RandomizeOrderPartitionsSourcesWrapper::new(partitions_source, 1234),
+                &config.metric_registry,
+            ),
+        )),
+        partition_source: Arc::new(LoggingPartitionSourceWrapper::new(
+            MetricsPartitionSourceWrapper::new(
+                CatalogPartitionSource::new(
+                    config.backoff_config.clone(),
+                    Arc::clone(&config.catalog),
                 ),
                 &config.metric_registry,
             ),
@@ -165,12 +181,14 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             config.backoff_config.clone(),
             Arc::clone(&config.catalog),
         )),
-        df_planner: Arc::new(V1DataFusionPlanner::new(
-            config.parquet_store_scratchpad.clone(),
-            Arc::clone(&config.exec),
-            config.max_desired_file_size_bytes,
-            config.percentage_max_file_size,
-            config.split_percentage,
+        df_planner: Arc::new(LoggingDataFusionPlannerWrapper::new(
+            V1DataFusionPlanner::new(
+                config.parquet_store_scratchpad.clone(),
+                Arc::clone(&config.exec),
+                config.max_desired_file_size_bytes,
+                config.percentage_max_file_size,
+                config.split_percentage,
+            ),
         )),
         df_plan_exec: Arc::new(DedicatedDataFusionPlanExec::new(Arc::clone(&config.exec))),
         parquet_file_sink: Arc::new(LoggingParquetFileSinkWrapper::new(

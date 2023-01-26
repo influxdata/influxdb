@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use async_trait::async_trait;
-use data_types::{Partition, PartitionId};
+use data_types::PartitionId;
 use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 
 use super::PartitionsSource;
@@ -44,19 +44,11 @@ where
         partitions.shuffle(&mut rng);
         partitions
     }
-
-    // TODO: nothing randomized here and maybe  should have different trait for this?
-    async fn fetch_by_id(&self, partition_id: PartitionId) -> Option<Partition> {
-        let partition = self.inner.fetch_by_id(partition_id).await;
-        partition
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        components::partitions_source::mock::MockPartitionsSource, test_util::PartitionBuilder,
-    };
+    use crate::components::partitions_source::mock::MockPartitionsSource;
 
     use super::*;
 
@@ -76,35 +68,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_fetch_some() {
-        let p_1 = PartitionBuilder::new(5).build();
-        let p_2 = PartitionBuilder::new(1).build();
-        let p_3 = PartitionBuilder::new(12).build();
-        let partitions = vec![p_1.clone(), p_2.clone(), p_3.clone()];
+        let p_1 = PartitionId::new(5);
+        let p_2 = PartitionId::new(1);
+        let p_3 = PartitionId::new(12);
+        let partitions = vec![p_1, p_2, p_3];
 
         // shuffles
         let source = RandomizeOrderPartitionsSourcesWrapper::new(
             MockPartitionsSource::new(partitions.clone()),
             123,
         );
-        assert_eq!(
-            source.fetch().await,
-            vec![
-                PartitionId::new(12),
-                PartitionId::new(1),
-                PartitionId::new(5),
-            ],
-        );
+        assert_eq!(source.fetch().await, vec![p_3, p_2, p_1,],);
 
         // is deterministic in same source
         for _ in 0..100 {
-            assert_eq!(
-                source.fetch().await,
-                vec![
-                    PartitionId::new(12),
-                    PartitionId::new(1),
-                    PartitionId::new(5),
-                ],
-            );
+            assert_eq!(source.fetch().await, vec![p_3, p_2, p_1,],);
         }
 
         // is deterministic with new source
@@ -113,14 +91,7 @@ mod tests {
                 MockPartitionsSource::new(partitions.clone()),
                 123,
             );
-            assert_eq!(
-                source.fetch().await,
-                vec![
-                    PartitionId::new(12),
-                    PartitionId::new(1),
-                    PartitionId::new(5),
-                ],
-            );
+            assert_eq!(source.fetch().await, vec![p_3, p_2, p_1,],);
         }
 
         // different seed => different output
@@ -128,13 +99,6 @@ mod tests {
             MockPartitionsSource::new(partitions.clone()),
             1234,
         );
-        assert_eq!(
-            source.fetch().await,
-            vec![
-                PartitionId::new(1),
-                PartitionId::new(12),
-                PartitionId::new(5),
-            ],
-        );
+        assert_eq!(source.fetch().await, vec![p_2, p_3, p_1,],);
     }
 }
