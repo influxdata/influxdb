@@ -9,8 +9,8 @@ use ioxd_common::{
     http::error::{HttpApiError, HttpApiErrorSource},
     reexport::{
         generated_types::influxdata::iox::{
-            catalog::v1::catalog_service_server, object_store::v1::object_store_service_server,
-            schema::v1::schema_service_server,
+            catalog::v1::catalog_service_server, namespace::v1::namespace_service_server,
+            object_store::v1::object_store_service_server, schema::v1::schema_service_server,
         },
         tonic::transport::Endpoint,
     },
@@ -225,6 +225,12 @@ where
             builder,
             object_store_service_server::ObjectStoreServiceServer::new(
                 self.server.grpc().object_store_service()
+            )
+        );
+        add_service!(
+            builder,
+            namespace_service_server::NamespaceServiceServer::new(
+                self.server.grpc().namespace_service()
             )
         );
         serve_builder!(builder);
