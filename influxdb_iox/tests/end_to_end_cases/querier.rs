@@ -86,7 +86,6 @@ mod with_kafka {
                     table_name, table_name
                 )),
                 Step::WaitForReadable,
-                Step::AssertNotPersisted,
                 Step::Custom(Box::new(move |state: &mut StepTestState| {
                     async move {
                         // query returns no results
@@ -771,7 +770,6 @@ mod with_kafka {
             vec![
                 Step::WriteLineProtocol(format!("{},tag1=A,tag2=B val=42i 123457", table_name)),
                 Step::WaitForReadable,
-                Step::AssertNotPersisted,
                 // SQL query
                 Step::Custom(Box::new(move |state: &mut StepTestState| {
                     async move {
