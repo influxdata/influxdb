@@ -44,6 +44,7 @@ use super::{
         randomize_order::RandomizeOrderPartitionsSourcesWrapper,
     },
     round_split::all_now::AllNowRoundSplit,
+    scratchpad::prod::ProdScratchpadGen,
     skipped_compactions_source::catalog::CatalogSkippedCompactionsSource,
     Components,
 };
@@ -123,7 +124,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             Arc::clone(&config.catalog),
         )),
         df_planner: Arc::new(V1DataFusionPlanner::new(
-            config.parquet_store.clone(),
+            config.parquet_store_scratchpad.clone(),
             Arc::clone(&config.exec),
             config.max_desired_file_size_bytes,
             config.percentage_max_file_size,
@@ -134,7 +135,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             DedicatedExecParquetFileSinkWrapper::new(
                 ObjectStoreParquetFileSink::new(
                     config.shard_id,
-                    config.parquet_store.clone(),
+                    config.parquet_store_scratchpad.clone(),
                     Arc::clone(&config.time_provider),
                 ),
                 Arc::clone(&config.exec),
@@ -142,5 +143,11 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         )),
         round_split: Arc::new(AllNowRoundSplit::new()),
         divide_initial: Arc::new(SingleBranchDivideInitial::new()),
+        scratchpad_gen: Arc::new(ProdScratchpadGen::new(
+            config.partition_scratchpad_concurrency,
+            config.backoff_config.clone(),
+            Arc::clone(config.parquet_store_real.object_store()),
+            Arc::clone(config.parquet_store_scratchpad.object_store()),
+        )),
     })
 }

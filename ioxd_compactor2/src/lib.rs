@@ -124,11 +124,13 @@ impl HttpApiErrorSource for IoxHttpError {
 }
 
 /// Instantiate a compactor2 server that uses the RPC write path
+#[allow(clippy::too_many_arguments)]
 pub async fn create_compactor2_server_type(
     common_state: &CommonServerState,
     metric_registry: Arc<metric::Registry>,
     catalog: Arc<dyn Catalog>,
-    parquet_store: ParquetStorage,
+    parquet_store_real: ParquetStorage,
+    parquet_store_scratchpad: ParquetStorage,
     exec: Arc<Executor>,
     time_provider: Arc<dyn TimeProvider>,
     compactor_config: Compactor2Config,
@@ -145,12 +147,15 @@ pub async fn create_compactor2_server_type(
         shard_id,
         metric_registry: Arc::clone(&metric_registry),
         catalog,
-        parquet_store,
+        parquet_store_real,
+        parquet_store_scratchpad,
         exec,
         time_provider,
         backoff_config,
         partition_concurrency: compactor_config.compaction_partition_concurrency,
         job_concurrency: compactor_config.compaction_job_concurrency,
+        partition_scratchpad_concurrency: compactor_config
+            .compaction_partition_scratchpad_concurrency,
         partition_minute_threshold: compactor_config.compaction_partition_minute_threshold,
         max_desired_file_size_bytes: compactor_config.max_desired_file_size_bytes,
         percentage_max_file_size: compactor_config.percentage_max_file_size,

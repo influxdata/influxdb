@@ -3,9 +3,13 @@ use std::{future::Future, num::NonZeroUsize, sync::Arc, time::Duration};
 use data_types::{CompactionLevel, ParquetFile, ParquetFileParams, PartitionId};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{stream::FuturesOrdered, StreamExt, TryFutureExt, TryStreamExt};
+use parquet_file::ParquetFilePath;
 use tracker::InstrumentedAsyncSemaphore;
 
-use crate::{components::Components, partition_info::PartitionInfo};
+use crate::{
+    components::{scratchpad::Scratchpad, Components},
+    partition_info::PartitionInfo,
+};
 
 // TODO: modify this comments accordingly as we go
 // Currently, we only compact files of level_n with level_n+1 and produce level_n+1 files,
@@ -49,9 +53,16 @@ async fn compact_partition(
     job_semaphore: Arc<InstrumentedAsyncSemaphore>,
     components: Arc<Components>,
 ) {
+    let mut scratchpad = components.scratchpad_gen.pad();
+
     let res = tokio::time::timeout(
         partition_timeout,
-        try_compact_partition(partition_id, job_semaphore, Arc::clone(&components)),
+        try_compact_partition(
+            partition_id,
+            job_semaphore,
+            Arc::clone(&components),
+            scratchpad.as_mut(),
+        ),
     )
     .await;
     let res = match res {
@@ -62,6 +73,8 @@ async fn compact_partition(
         .partition_done_sink
         .record(partition_id, res)
         .await;
+
+    scratchpad.clean().await;
 }
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -70,6 +83,7 @@ async fn try_compact_partition(
     partition_id: PartitionId,
     job_semaphore: Arc<InstrumentedAsyncSemaphore>,
     components: Arc<Components>,
+    scratchpad_ctx: &mut dyn Scratchpad,
 ) -> Result<(), Error> {
     let mut files = components.partition_files_source.fetch(partition_id).await;
 
@@ -101,6 +115,18 @@ async fn try_compact_partition(
         while let Some(branch) = branches.pop() {
             let delete_ids = branch.iter().map(|f| f.id).collect::<Vec<_>>();
 
+            // stage files
+            let input_paths: Vec<ParquetFilePath> = branch.iter().map(|f| f.into()).collect();
+            let input_uuids_inpad = scratchpad_ctx.load_to_scratchpad(&input_paths).await;
+            let branch_inpad: Vec<_> = branch
+                .into_iter()
+                .zip(input_uuids_inpad)
+                .map(|(f, uuid)| ParquetFile {
+                    object_store_id: uuid,
+                    ..f
+                })
+                .collect();
+
             let create = {
                 // draw semaphore BEFORE creating the DataFusion plan and drop it directly AFTER finishing the
                 // DataFusion computation (but BEFORE doing any additional external IO).
@@ -121,7 +147,7 @@ async fn try_compact_partition(
                 let target_level = CompactionLevel::FileNonOverlapped;
                 let plan = components
                     .df_planner
-                    .plan(branch, Arc::clone(partition_info), target_level)
+                    .plan(branch_inpad, Arc::clone(partition_info), target_level)
                     .await?;
                 let streams = components.df_plan_exec.exec(plan);
                 let job = stream_into_file_sink(
@@ -134,6 +160,21 @@ async fn try_compact_partition(
                 // TODO: react to OOM and try to divide branch
                 job.await?
             };
+
+            // upload files to real object store
+            let output_files: Vec<ParquetFilePath> = create.iter().map(|p| p.into()).collect();
+            let output_uuids = scratchpad_ctx.make_public(&output_files).await;
+            let create: Vec<_> = create
+                .into_iter()
+                .zip(output_uuids)
+                .map(|(f, uuid)| ParquetFileParams {
+                    object_store_id: uuid,
+                    ..f
+                })
+                .collect();
+
+            // clean scratchpad
+            scratchpad_ctx.clean_from_scratchpad(&input_paths).await;
 
             let ids = components.commit.commit(&delete_ids, &create).await;
 

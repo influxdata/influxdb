@@ -20,8 +20,11 @@ pub struct Config {
     /// Central catalog.
     pub catalog: Arc<dyn Catalog>,
 
-    /// Store holding the parquet files.
-    pub parquet_store: ParquetStorage,
+    /// Store holding the actual parquet files.
+    pub parquet_store_real: ParquetStorage,
+
+    /// Store holding temporary files.
+    pub parquet_store_scratchpad: ParquetStorage,
 
     /// Executor.
     pub exec: Arc<Executor>,
@@ -41,6 +44,9 @@ pub struct Config {
     ///
     /// This should usually be smaller than the partition concurrency since one partition can spawn multiple compaction jobs.
     pub job_concurrency: NonZeroUsize,
+
+    /// Number of jobs PER PARTITION that move files in and out of the scratchpad.
+    pub partition_scratchpad_concurrency: NonZeroUsize,
 
     /// Partitions with recent created files these last minutes are selected for compaction.
     pub partition_minute_threshold: u64,

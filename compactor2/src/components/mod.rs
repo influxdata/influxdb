@@ -5,7 +5,8 @@ use self::{
     divide_initial::DivideInitial, files_filter::FilesFilter, namespaces_source::NamespacesSource,
     parquet_file_sink::ParquetFileSink, partition_done_sink::PartitionDoneSink,
     partition_files_source::PartitionFilesSource, partition_filter::PartitionFilter,
-    partitions_source::PartitionsSource, round_split::RoundSplit, tables_source::TablesSource,
+    partitions_source::PartitionsSource, round_split::RoundSplit, scratchpad::ScratchpadGen,
+    tables_source::TablesSource,
 };
 
 pub mod commit;
@@ -23,6 +24,7 @@ pub mod partition_filter;
 pub mod partitions_source;
 pub mod report;
 pub mod round_split;
+pub mod scratchpad;
 pub mod skipped_compactions_source;
 pub mod tables_source;
 
@@ -41,4 +43,5 @@ pub struct Components {
     pub parquet_file_sink: Arc<dyn ParquetFileSink>,
     pub round_split: Arc<dyn RoundSplit>,
     pub divide_initial: Arc<dyn DivideInitial>,
+    pub scratchpad_gen: Arc<dyn ScratchpadGen>,
 }

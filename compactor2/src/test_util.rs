@@ -9,6 +9,7 @@ use data_types::{
 use datafusion::arrow::record_batch::RecordBatch;
 use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
 use iox_time::{SystemProvider, TimeProvider};
+use parquet_file::storage::{ParquetStorage, StorageId};
 use schema::sort::SortKey;
 use uuid::Uuid;
 
@@ -405,12 +406,17 @@ impl TestSetup {
             shard_id: shard.shard.id,
             metric_registry: catalog.metric_registry(),
             catalog: catalog.catalog(),
-            parquet_store: catalog.parquet_store.clone(),
+            parquet_store_real: catalog.parquet_store.clone(),
+            parquet_store_scratchpad: ParquetStorage::new(
+                Arc::new(object_store::memory::InMemory::new()),
+                StorageId::from("scratchpad"),
+            ),
             time_provider: Arc::<iox_time::MockProvider>::clone(&catalog.time_provider),
             exec: Arc::clone(&catalog.exec),
             backoff_config: BackoffConfig::default(),
             partition_concurrency: NonZeroUsize::new(1).unwrap(),
             job_concurrency: NonZeroUsize::new(1).unwrap(),
+            partition_scratchpad_concurrency: NonZeroUsize::new(1).unwrap(),
             partition_minute_threshold: PARTITION_MINUTE_THRESHOLD,
             max_desired_file_size_bytes: MAX_DESIRE_FILE_SIZE,
             percentage_max_file_size: PERCENTAGE_MAX_FILE_SIZE,

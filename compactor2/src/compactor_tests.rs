@@ -4,6 +4,7 @@ mod tests {
 
     use arrow_util::assert_batches_sorted_eq;
     use data_types::CompactionLevel;
+    use iox_query::exec::ExecutorType;
     use tracker::AsyncSemaphoreMetrics;
 
     use crate::{
@@ -181,6 +182,20 @@ mod tests {
         let job_semaphore = Arc::new(
             Arc::new(AsyncSemaphoreMetrics::new(&config.metric_registry, [])).new_semaphore(10),
         );
+
+        // register scratchpad store
+        setup
+            .catalog
+            .exec()
+            .new_context(ExecutorType::Reorg)
+            .inner()
+            .runtime_env()
+            .register_object_store(
+                "iox",
+                config.parquet_store_scratchpad.id(),
+                Arc::clone(config.parquet_store_scratchpad.object_store()),
+            );
+
         compact(
             NonZeroUsize::new(10).unwrap(),
             Duration::from_secs(3_6000),

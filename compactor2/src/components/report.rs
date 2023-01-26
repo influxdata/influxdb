@@ -21,6 +21,7 @@ pub fn log_components(components: &Components) {
         parquet_file_sink,
         round_split,
         divide_initial,
+        scratchpad_gen,
     } = components;
 
     info!(
@@ -37,6 +38,7 @@ pub fn log_components(components: &Components) {
         %parquet_file_sink,
         %round_split,
         %divide_initial,
+        %scratchpad_gen,
         "component setup",
     );
 }

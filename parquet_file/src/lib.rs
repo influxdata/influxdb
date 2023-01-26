@@ -20,7 +20,7 @@ pub mod metadata;
 pub mod serialize;
 pub mod storage;
 
-use data_types::{NamespaceId, ParquetFile, PartitionId, ShardId, TableId};
+use data_types::{NamespaceId, ParquetFile, ParquetFileParams, PartitionId, ShardId, TableId};
 use object_store::path::Path;
 use uuid::Uuid;
 
@@ -71,6 +71,19 @@ impl ParquetFilePath {
             &format!("{}.parquet", object_store_id),
         ])
     }
+
+    /// Get object store ID.
+    pub fn objest_store_id(&self) -> Uuid {
+        self.object_store_id
+    }
+
+    /// Set new object store ID.
+    pub fn with_object_store_id(self, object_store_id: Uuid) -> Self {
+        Self {
+            object_store_id,
+            ..self
+        }
+    }
 }
 
 impl From<&Self> for ParquetFilePath {
@@ -93,6 +106,18 @@ impl From<&crate::metadata::IoxMetadata> for ParquetFilePath {
 
 impl From<&ParquetFile> for ParquetFilePath {
     fn from(f: &ParquetFile) -> Self {
+        Self {
+            namespace_id: f.namespace_id,
+            table_id: f.table_id,
+            shard_id: f.shard_id,
+            partition_id: f.partition_id,
+            object_store_id: f.object_store_id,
+        }
+    }
+}
+
+impl From<&ParquetFileParams> for ParquetFilePath {
+    fn from(f: &ParquetFileParams) -> Self {
         Self {
             namespace_id: f.namespace_id,
             table_id: f.table_id,

@@ -27,6 +27,15 @@ pub struct Compactor2Config {
     )]
     pub compaction_job_concurrency: NonZeroUsize,
 
+    /// Number of jobs PER PARTITION that move files in and out of the scratchpad.
+    #[clap(
+        long = "compaction-partition-scratchpad-concurrency",
+        env = "INFLUXDB_IOX_COMPACTION_PARTITION_SCRATCHPAD_CONCURRENCY",
+        default_value = "10",
+        action
+    )]
+    pub compaction_partition_scratchpad_concurrency: NonZeroUsize,
+
     /// Partitions with recent created files these last minutes are selected for compaction.
     #[clap(
         long = "compaction_partition_minute_threshold",
