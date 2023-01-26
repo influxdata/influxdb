@@ -125,7 +125,7 @@ impl From<tonic::Status> for Error {
 ///
 /// // results is a stream of RecordBatches
 /// let query_results = client
-///     .sql("my_namespace".into(), "select * from cpu_load".into())
+///     .sql("my_namespace", "select * from cpu_load")
 ///     .await
 ///     .expect("query request should work");
 ///
@@ -173,12 +173,12 @@ impl Client {
     /// a struct that can stream Arrow [`RecordBatch`] results.
     pub async fn sql(
         &mut self,
-        namespace_name: String,
-        sql_query: String,
+        namespace_name: impl Into<String> + Send,
+        sql_query: impl Into<String> + Send,
     ) -> Result<IOxRecordBatchStream, Error> {
         let request = ReadInfo {
-            namespace_name,
-            sql_query,
+            namespace_name: namespace_name.into(),
+            sql_query: sql_query.into(),
             query_type: QueryType::Sql.into(),
             flightsql_command: vec![],
         };
@@ -190,12 +190,12 @@ impl Client {
     /// a struct that can stream Arrow [`RecordBatch`] results.
     pub async fn influxql(
         &mut self,
-        namespace_name: String,
-        influxql_query: String,
+        namespace_name: impl Into<String> + Send,
+        influxql_query: impl Into<String> + Send,
     ) -> Result<IOxRecordBatchStream, Error> {
         let request = ReadInfo {
-            namespace_name,
-            sql_query: influxql_query,
+            namespace_name: namespace_name.into(),
+            sql_query: influxql_query.into(),
             query_type: QueryType::InfluxQl.into(),
             flightsql_command: vec![],
         };
