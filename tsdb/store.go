@@ -1926,19 +1926,7 @@ func (s *Store) TagValues(ctx context.Context, auth query.FineAuthorizer, shardI
 	}
 
 	// take out the _name = 'mymeasurement' clause from 'FROM' clause
-	measurementExpr, remainingExpr, err := influxql.PartitionExpr(influxql.CloneExpr(cond), func(e influxql.Expr) (bool, error) {
-		switch e := e.(type) {
-		case *influxql.BinaryExpr:
-			switch e.Op {
-			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
-				tag, ok := e.LHS.(*influxql.VarRef)
-				if ok && tag.Val == "_name" {
-					return true, nil
-				}
-			}
-		}
-		return false, nil
-	})
+	measurementExpr, remainingExpr, err := influxql.PartitionExpr(influxql.CloneExpr(cond), checkForMeasurementClause)
 	if err != nil {
 		return nil, err
 	}
@@ -2090,6 +2078,22 @@ func makeTagValues(tv tagValues) TagValues {
 		}
 	}
 	return result
+}
+
+func checkForMeasurementClause(e influxql.Expr) (bool, error) {
+	switch e := e.(type) {
+	case *influxql.ParenExpr:
+		return checkForMeasurementClause(e.Expr)
+	case *influxql.BinaryExpr:
+		switch e.Op {
+		case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
+			tag, ok := e.LHS.(*influxql.VarRef)
+			if ok && tag.Val == "_name" {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 func (s *Store) monitorShards() {
