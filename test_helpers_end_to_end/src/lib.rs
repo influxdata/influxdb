@@ -22,10 +22,7 @@ pub use client::*;
 pub use config::TestConfig;
 pub use data_generator::DataGenerator;
 pub use error::{check_flight_error, check_tonic_status};
-pub use grpc::{
-    comparison_expression_node, field_ref_node, float_value_node, string_value_node, tag_ref_node,
-    GrpcRequestBuilder,
-};
+pub use grpc::GrpcRequestBuilder;
 pub use mini_cluster::MiniCluster;
 pub use server_fixture::{ServerFixture, TestServer};
 pub use server_type::{AddAddrEnv, ServerType};

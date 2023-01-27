@@ -26,6 +26,33 @@ pub struct GrpcRequestBuilder {
     offset: Option<i64>,
 }
 
+/// Trait for converting various literal rust values to their
+/// corresponding Nodes in GRPC
+pub trait GrpcLiteral {
+    fn make_node(&self) -> Node;
+}
+
+impl GrpcLiteral for f64 {
+    fn make_node(&self) -> Node {
+        Node {
+            node_type: NodeType::Literal.into(),
+            children: vec![],
+            value: Some(Value::FloatValue(*self)),
+        }
+    }
+}
+
+impl GrpcLiteral for &str {
+    fn make_node(&self) -> Node {
+        string_value_node(*self)
+    }
+}
+impl GrpcLiteral for &String {
+    fn make_node(&self) -> Node {
+        string_value_node(self.as_str())
+    }
+}
+
 impl GrpcRequestBuilder {
     pub fn new() -> Self {
         Default::default()
@@ -130,6 +157,13 @@ impl GrpcRequestBuilder {
         self.combine_predicate(Logical::And, node)
     }
 
+    /// Add `_value=val` to the predicate in the horrible gRPC structs
+    pub fn field_value_predicate<L: GrpcLiteral>(self, l: L) -> Self {
+        let node =
+            comparison_expression_node(field_ref_node("_value"), Comparison::Equal, l.make_node());
+        self.combine_predicate(Logical::And, node)
+    }
+
     /// Add `_f=field_name` to the predicate in the horrible gRPC structs
     pub fn field_predicate(self, field_name: impl Into<String>) -> Self {
         let node = comparison_expression_node(
@@ -137,6 +171,12 @@ impl GrpcRequestBuilder {
             Comparison::Equal,
             string_value_node(field_name),
         );
+        self.combine_predicate(Logical::And, node)
+    }
+
+    /// Add `<lit>=<lit>` to the predicate in the horrible gRPC structs
+    pub fn lit_lit_predicate<L1: GrpcLiteral, L2: GrpcLiteral>(self, l1: L1, l2: L2) -> Self {
+        let node = comparison_expression_node(l1.make_node(), Comparison::Equal, l2.make_node());
         self.combine_predicate(Logical::And, node)
     }
 
@@ -436,14 +476,6 @@ pub fn string_value_node(value: impl Into<String>) -> Node {
         node_type: NodeType::Literal as i32,
         children: vec![],
         value: Some(Value::StringValue(value.into())),
-    }
-}
-
-pub fn float_value_node(value: f64) -> Node {
-    Node {
-        node_type: NodeType::Literal as i32,
-        children: vec![],
-        value: Some(Value::FloatValue(value)),
     }
 }
 

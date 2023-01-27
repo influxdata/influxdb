@@ -2,17 +2,13 @@ use super::{dump::dump_data_frames, read_group_data, run_data_test, InfluxRpcTes
 use async_trait::async_trait;
 use futures::{prelude::*, FutureExt};
 use generated_types::{
-    node::{Comparison, Logical, Type as NodeType, Value},
-    read_response::frame::Data,
-    storage_client::StorageClient,
-    Node, Predicate, ReadFilterRequest,
+    node::Logical, read_response::frame::Data, storage_client::StorageClient, ReadFilterRequest,
 };
 use influxdb_iox_client::connection::GrpcConnection;
 use std::sync::Arc;
 use test_helpers_end_to_end::{
-    comparison_expression_node, field_ref_node, float_value_node, maybe_skip_integration,
-    string_value_node, tag_ref_node, DataGenerator, GrpcRequestBuilder, MiniCluster, Step,
-    StepTest, StepTestState,
+    maybe_skip_integration, DataGenerator, GrpcRequestBuilder, MiniCluster, Step, StepTest,
+    StepTestState,
 };
 
 #[tokio::test]
@@ -670,19 +666,11 @@ async fn measurement_predicates() {
 
 #[tokio::test]
 async fn predicate_no_columns() {
-    // Predicate with no columns, only literals. This is not really valid and doesn't deserve to
-    // have a nice helper method on the builder
-    let predicate = Predicate {
-        root: Some(comparison_expression_node(
-            string_value_node("foo"),
-            Comparison::Equal,
-            string_value_node("foo"),
-        )),
-    };
-
     Arc::new(ReadFilterTest {
         setup_name: "TwoMeasurements",
-        request: GrpcRequestBuilder::new().predicate(predicate),
+        request: GrpcRequestBuilder::new()
+            // Predicate with no columns, only literals.
+            .lit_lit_predicate("foo", "foo"),
         expected_results: vec![
             "SeriesFrame, tags: _field=user,_measurement=cpu,region=west, type: 0",
             "FloatPointsFrame, timestamps: [100, 150], values: \"23.2,21\"",
@@ -863,27 +851,11 @@ async fn data_plan_order() {
 
 #[tokio::test]
 async fn filter_on_value() {
-    let node1 = comparison_expression_node(
-        field_ref_node("_value"),
-        Comparison::Equal,
-        float_value_node(1.77),
-    );
-    let node2 = comparison_expression_node(
-        tag_ref_node([255].to_vec()),
-        Comparison::Equal,
-        string_value_node("load4"),
-    );
-    let predicate = Predicate {
-        root: Some(Node {
-            node_type: NodeType::LogicalExpression as i32,
-            children: vec![node1, node2],
-            value: Some(Value::Logical(Logical::And as i32)),
-        }),
-    };
-
     Arc::new(ReadFilterTest {
         setup_name: "MeasurementsForDefect2845",
-        request: GrpcRequestBuilder::new().predicate(predicate),
+        request: GrpcRequestBuilder::new()
+            .field_value_predicate(1.77)
+            .field_predicate("load4"),
         expected_results: vec![
             "SeriesFrame, tags: _field=load4,_measurement=system,host=host.local, type: 0",
             "FloatPointsFrame, timestamps: [1527018806000000000, 1527018826000000000], \
