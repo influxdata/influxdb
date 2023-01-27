@@ -482,42 +482,6 @@ async fn exact_timestamp_range_predicate_multiple_results() {
 //     // evaluates to no rows, rather than all rows.
 // }
 
-// #[tokio::test]
-// async fn invalid_tag_predicate() {
-//     // This is how the test existed in query_tests:
-//
-//     let v = ScalarValue::Binary(Some(vec![]));
-//     let predicate = Predicate::new()
-//         // region > <binary> (region is a tag(string) column, so this predicate is invalid)
-//         .with_expr(col("region").gt(lit(v)));
-//     let predicate = InfluxRpcPredicate::new(None, predicate);
-//
-//     let expected_error = "Dictionary(Int32, Utf8) > Binary' can't be evaluated because there isn't a common type to coerce the types to";
-//
-//     run_read_filter_error_case(TwoMeasurements {}, predicate, expected_error).await;
-//
-//     // I don't know how to translate this query to a `generated_types::Predicate`.
-// }
-
-// #[tokio::test]
-// async fn test_read_filter_invalid_predicate_case() {
-//     // This is how the test existed in query_tests:
-//
-//     let v = ScalarValue::Binary(Some(vec![]));
-//     let predicate = Predicate::new()
-//         // https://github.com/influxdata/influxdb_iox/issues/3635
-//         // model what happens when a field is treated like a tag
-//         // CASE WHEN system" IS NULL THEN '' ELSE system END = binary;
-//         .with_expr(make_empty_tag_ref_expr("system").eq(lit(v)));
-//     let predicate = InfluxRpcPredicate::new(None, predicate);
-//
-//     let expected_error = "gRPC planner got error creating predicates: Error during planning: 'Utf8 = Binary' can't be evaluated because there isn't a common type to coerce the types to";
-//
-//     run_read_filter_error_case(TwoMeasurements {}, predicate, expected_error).await;
-//
-//     // I don't know how to translate this query to a `generated_types::Predicate`.
-// }
-
 #[tokio::test]
 async fn unknown_columns_in_predicate_no_results() {
     Arc::new(ReadFilterTest {
@@ -546,19 +510,6 @@ async fn tag_predicate_containing_field() {
     .run()
     .await;
 }
-
-// #[tokio::test]
-// async fn tag_predicate_containing_field_coerce_number() {
-//     // This is how the test existed in query tests:
-//
-//     // Same as above except for the predicate compares to an integer literal.
-//     let predicate = Predicate::new().with_expr(make_empty_tag_ref_expr("fld").eq(lit(200)));
-//     let predicate = InfluxRpcPredicate::new(None, predicate);
-//     let expected_results = vec![];
-//     run_read_filter_test_case(StringFieldWithNumericValue {}, predicate, expected_results).await;
-//
-//     // I don't know how to create a tag predicate using an integer literal.
-// }
 
 #[tokio::test]
 async fn tag_predicates() {
