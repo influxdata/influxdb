@@ -337,7 +337,9 @@ pub async fn create_router2_server_type(
     // Add a write partitioner into the handler stack that splits by the date
     // portion of the write's timestamp.
     let partitioner = Partitioner::new(PartitionTemplate {
-        parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],
+        parts: vec![TemplatePart::TimeFormat(
+            router_config.partition_key_pattern.clone(),
+        )],
     });
     let partitioner = InstrumentationDecorator::new("partitioner", &metrics, partitioner);
 
