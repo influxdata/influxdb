@@ -87,7 +87,7 @@ impl ParquetFilesForCompaction {
         size_overrides: &HashMap<ParquetFileId, i64>,
     ) -> Result<Option<Self>, PartitionFilesFromPartitionError> {
         let partition_id = partition.id();
-        info!(
+        debug!(
             partition_id = partition_id.get(),
             "finding parquet files for compaction"
         );
