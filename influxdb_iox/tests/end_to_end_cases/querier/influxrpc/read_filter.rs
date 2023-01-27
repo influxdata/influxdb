@@ -2,16 +2,17 @@ use super::{dump::dump_data_frames, read_group_data, run_data_test, InfluxRpcTes
 use async_trait::async_trait;
 use futures::{prelude::*, FutureExt};
 use generated_types::{
-    node::{Comparison, Logical},
+    node::{Comparison, Logical, Type as NodeType, Value},
     read_response::frame::Data,
     storage_client::StorageClient,
-    Predicate, ReadFilterRequest,
+    Node, Predicate, ReadFilterRequest,
 };
 use influxdb_iox_client::connection::GrpcConnection;
 use std::sync::Arc;
 use test_helpers_end_to_end::{
-    comparison_expression_node, maybe_skip_integration, string_value_node, DataGenerator,
-    GrpcRequestBuilder, MiniCluster, Step, StepTest, StepTestState,
+    comparison_expression_node, field_ref_node, float_value_node, maybe_skip_integration,
+    string_value_node, tag_ref_node, DataGenerator, GrpcRequestBuilder, MiniCluster, Step,
+    StepTest, StepTestState,
 };
 
 #[tokio::test]
@@ -860,25 +861,38 @@ async fn data_plan_order() {
     .await;
 }
 
-// #[tokio::test]
-// async fn filter_on_value() {
-//     // This is how the test existed in query tests:
-//
-//     test_helpers::maybe_start_logging();
-//
-//     let predicate = Predicate::default()
-//         .with_expr(col("_value").eq(lit(1.77)))
-//         .with_expr(col("_field").eq(lit("load4")));
-//     let predicate = InfluxRpcPredicate::new(None, predicate);
-//
-//     let expected_results = vec![
-//         "Series tags={_field=load4, _measurement=system, host=host.local}\n  FloatPoints timestamps: [1527018806000000000, 1527018826000000000], values: [1.77, 1.77]",
-//     ];
-//
-//     run_read_filter_test_case(MeasurementsForDefect2845 {}, predicate, expected_results).await;
-//
-//     // I can't figure out how to create a `_value=` expression.
-// }
+#[tokio::test]
+async fn filter_on_value() {
+    let node1 = comparison_expression_node(
+        field_ref_node("_value"),
+        Comparison::Equal,
+        float_value_node(1.77),
+    );
+    let node2 = comparison_expression_node(
+        tag_ref_node([255].to_vec()),
+        Comparison::Equal,
+        string_value_node("load4"),
+    );
+    let predicate = Predicate {
+        root: Some(Node {
+            node_type: NodeType::LogicalExpression as i32,
+            children: vec![node1, node2],
+            value: Some(Value::Logical(Logical::And as i32)),
+        }),
+    };
+
+    Arc::new(ReadFilterTest {
+        setup_name: "MeasurementsForDefect2845",
+        request: GrpcRequestBuilder::new().predicate(predicate),
+        expected_results: vec![
+            "SeriesFrame, tags: _field=load4,_measurement=system,host=host.local, type: 0",
+            "FloatPointsFrame, timestamps: [1527018806000000000, 1527018826000000000], \
+            values: \"1.77,1.77\"",
+        ],
+    })
+    .run()
+    .await;
+}
 
 #[tokio::test]
 #[should_panic(expected = "Unsupported _field predicate")]

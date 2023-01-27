@@ -415,6 +415,14 @@ impl GrpcRequestBuilder {
     }
 }
 
+pub fn field_ref_node(field_name: impl Into<String>) -> Node {
+    Node {
+        node_type: NodeType::FieldRef.into(),
+        children: vec![],
+        value: Some(Value::FieldRefValue(field_name.into())),
+    }
+}
+
 pub fn tag_ref_node(tag_name: impl Into<Vec<u8>>) -> Node {
     Node {
         node_type: NodeType::TagRef as i32,
@@ -428,6 +436,14 @@ pub fn string_value_node(value: impl Into<String>) -> Node {
         node_type: NodeType::Literal as i32,
         children: vec![],
         value: Some(Value::StringValue(value.into())),
+    }
+}
+
+pub fn float_value_node(value: f64) -> Node {
+    Node {
+        node_type: NodeType::Literal as i32,
+        children: vec![],
+        value: Some(Value::FloatValue(value)),
     }
 }
 
