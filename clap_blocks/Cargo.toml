@@ -9,6 +9,7 @@ license.workspace = true
 clap = { version = "4", features = ["derive", "env"] }
 data_types = { path = "../data_types" }
 futures = "0.3"
+http = "0.2.8"
 humantime = "2.1.0"
 iox_catalog = { path = "../iox_catalog" }
 iox_time = { path = "../iox_time" }

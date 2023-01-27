@@ -839,6 +839,7 @@ dependencies = [
  "clap 4.1.4",
  "data_types",
  "futures",
+ "http",
  "humantime",
  "iox_catalog",
  "iox_time",
