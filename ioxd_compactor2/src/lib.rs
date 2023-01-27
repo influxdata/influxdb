@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use backoff::BackoffConfig;
 use clap_blocks::compactor2::Compactor2Config;
 use compactor2::{compactor::Compactor2, config::Config};
-use data_types::PartitionId;
+use data_types::{PartitionId, TRANSITION_SHARD_NUMBER};
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
@@ -27,7 +27,7 @@ use trace::TraceCollector;
 
 // There is only one shard with index 1
 const TOPIC: &str = "iox-shared";
-const TRANSITION_SHARD_INDEX: i32 = 1234; // see ingester2 crate
+const TRANSITION_SHARD_INDEX: i32 = TRANSITION_SHARD_NUMBER;
 
 pub struct Compactor2ServerType {
     compactor: Compactor2,
