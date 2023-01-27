@@ -288,7 +288,10 @@ pub async fn create_router2_server_type(
     let ingester_connections = ingester_connections.split(',').map(|addr| {
         let endpoint = Endpoint::from_shared(format!("http://{addr}"))
             .expect("invalid ingester connection address");
-        (LazyConnector::new(endpoint), addr)
+        (
+            LazyConnector::new(endpoint, router_config.rpc_write_timeout_seconds),
+            addr,
+        )
     });
 
     // Initialise the DML handler that sends writes to the ingester using the RPC write path.
