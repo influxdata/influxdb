@@ -2,13 +2,16 @@ use super::{dump::dump_data_frames, read_group_data, run_data_test, InfluxRpcTes
 use async_trait::async_trait;
 use futures::{prelude::*, FutureExt};
 use generated_types::{
-    node::Logical, read_response::frame::Data, storage_client::StorageClient, ReadFilterRequest,
+    node::{Comparison, Logical},
+    read_response::frame::Data,
+    storage_client::StorageClient,
+    Predicate, ReadFilterRequest,
 };
 use influxdb_iox_client::connection::GrpcConnection;
 use std::sync::Arc;
 use test_helpers_end_to_end::{
-    maybe_skip_integration, DataGenerator, GrpcRequestBuilder, MiniCluster, Step, StepTest,
-    StepTestState,
+    comparison_expression_node, maybe_skip_integration, string_value_node, DataGenerator,
+    GrpcRequestBuilder, MiniCluster, Step, StepTest, StepTestState,
 };
 
 #[tokio::test]
@@ -664,22 +667,31 @@ async fn measurement_predicates() {
     .await;
 }
 
-// #[tokio::test]
-// async fn predicate_no_columns() {
-//     // This is how the test existed in query tests:
-//     // predicate with no columns,
-//     let predicate = Predicate::default().with_expr(lit("foo").eq(lit("foo")));
-//     let predicate = InfluxRpcPredicate::new(None, predicate);
-//
-//     let expected_results = vec![
-//         "Series tags={_field=user, _measurement=cpu, region=west}\n  FloatPoints timestamps: [100, 150], values: [23.2, 21.0]",
-//         "Series tags={_field=bytes, _measurement=disk, region=east}\n  IntegerPoints timestamps: [200], values: [99]",
-//     ];
-//
-//     run_read_filter_test_case(TwoMeasurements {}, predicate, expected_results).await;
-//
-//     // I don't know how to create a tag predicate using a string literal.
-// }
+#[tokio::test]
+async fn predicate_no_columns() {
+    // Predicate with no columns, only literals. This is not really valid and doesn't deserve to
+    // have a nice helper method on the builder
+    let predicate = Predicate {
+        root: Some(comparison_expression_node(
+            string_value_node("foo"),
+            Comparison::Equal,
+            string_value_node("foo"),
+        )),
+    };
+
+    Arc::new(ReadFilterTest {
+        setup_name: "TwoMeasurements",
+        request: GrpcRequestBuilder::new().predicate(predicate),
+        expected_results: vec![
+            "SeriesFrame, tags: _field=user,_measurement=cpu,region=west, type: 0",
+            "FloatPointsFrame, timestamps: [100, 150], values: \"23.2,21\"",
+            "SeriesFrame, tags: _field=bytes,_measurement=disk,region=east, type: 1",
+            "IntegerPointsFrame, timestamps: [200], values: \"99\"",
+        ],
+    })
+    .run()
+    .await;
+}
 
 #[tokio::test]
 async fn tag_regex_match_predicates() {
