@@ -116,6 +116,20 @@ impl GrpcRequestBuilder {
         self.combine_predicate(Logical::And, node)
     }
 
+    /// Add `tag_name1=tag_name2` to the predicate
+    pub fn tag_to_tag_predicate(
+        self,
+        tag_name1: impl Into<String>,
+        tag_name2: impl Into<String>,
+    ) -> Self {
+        let node = comparison_expression_node(
+            tag_ref_node(tag_name1.into()),
+            Comparison::Equal,
+            tag_ref_node(tag_name2.into()),
+        );
+        self.combine_predicate(Logical::And, node)
+    }
+
     /// Add `_f=field_name` to the predicate in the horrible gRPC structs
     pub fn field_predicate(self, field_name: impl Into<String>) -> Self {
         let node = comparison_expression_node(

@@ -446,41 +446,21 @@ async fn exact_timestamp_range_predicate_multiple_results() {
     .await;
 }
 
-// #[tokio::test]
-// async fn tag_predicate_always_true() {
-//     // This is how the test existed in query_tests:
-//
-//     let predicate = Predicate::new()
-//         // region = region
-//         .with_expr(col("region").eq(col("region")));
-//     let predicate = InfluxRpcPredicate::new(None, predicate);
-//
-//     // expect both series to be returned
-//     let expected_results = vec![
-//         "Series tags={_field=user, _measurement=cpu, region=west}\n  FloatPoints timestamps: [100, 150], values: [23.2, 21.0]",
-//         "Series tags={_field=bytes, _measurement=disk, region=east}\n  IntegerPoints timestamps: [200], values: [99]",
-//     ];
-//
-//     run_read_filter_test_case(TwoMeasurements {}, predicate, expected_results).await;
-//
-//    // Translated, this test is:
-//
-//     Arc::new(ReadFilterTest {
-//         setup_name: "TwoMeasurements",
-//         request: GrpcRequestBuilder::new().tag_predicate("region", "region"),
-//         expected_results: vec![
-//             "SeriesFrame, tags: _field=user,_measurement=cpu,region=west, type: 0",
-//             "FloatPointsFrame, timestamps: [100, 150], values: \"23.2,21\"",
-//             "SeriesFrame, tags: _field=bytes,_measurement=disk,region=east, type: 1",
-//             "IntegerPointsFrame, timestamps: [200], values: \"99\"",
-//         ],
-//     })
-//     .run()
-//     .await;
-//
-//     // This fails because the tag predicate now means 'column region = literal "region"' which
-//     // evaluates to no rows, rather than all rows.
-// }
+#[tokio::test]
+async fn tag_predicate_always_true() {
+    Arc::new(ReadFilterTest {
+        setup_name: "TwoMeasurements",
+        request: GrpcRequestBuilder::new().tag_to_tag_predicate("region", "region"),
+        expected_results: vec![
+            "SeriesFrame, tags: _field=user,_measurement=cpu,region=west, type: 0",
+            "FloatPointsFrame, timestamps: [100, 150], values: \"23.2,21\"",
+            "SeriesFrame, tags: _field=bytes,_measurement=disk,region=east, type: 1",
+            "IntegerPointsFrame, timestamps: [200], values: \"99\"",
+        ],
+    })
+    .run()
+    .await;
+}
 
 #[tokio::test]
 async fn unknown_columns_in_predicate_no_results() {
