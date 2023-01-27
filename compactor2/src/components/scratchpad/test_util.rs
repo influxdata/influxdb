@@ -1,13 +1,22 @@
 use std::{collections::HashSet, sync::Arc};
 
 use data_types::{NamespaceId, PartitionId, ShardId, TableId};
-use futures::TryStreamExt;
-use object_store::{memory::InMemory, path::Path, DynObjectStore};
+use object_store::{memory::InMemory, DynObjectStore};
 use parquet_file::ParquetFilePath;
 use uuid::Uuid;
 
-pub fn stores() -> (Arc<DynObjectStore>, Arc<DynObjectStore>) {
-    (Arc::new(InMemory::new()), Arc::new(InMemory::new()))
+use crate::test_util::list_object_store;
+
+pub fn stores() -> (
+    Arc<DynObjectStore>,
+    Arc<DynObjectStore>,
+    Arc<DynObjectStore>,
+) {
+    (
+        Arc::new(InMemory::new()),
+        Arc::new(InMemory::new()),
+        Arc::new(InMemory::new()),
+    )
 }
 
 pub fn file_path(i: u128) -> ParquetFilePath {
@@ -20,17 +29,7 @@ pub fn file_path(i: u128) -> ParquetFilePath {
     )
 }
 
-pub async fn get_content(store: &Arc<DynObjectStore>) -> HashSet<Path> {
-    store
-        .list(None)
-        .await
-        .unwrap()
-        .map_ok(|f| f.location)
-        .try_collect::<HashSet<_>>()
-        .await
-        .unwrap()
-}
-
+#[track_caller]
 pub async fn assert_content<const N: usize>(
     store: &Arc<DynObjectStore>,
     files: [&ParquetFilePath; N],
@@ -39,6 +38,8 @@ pub async fn assert_content<const N: usize>(
         .iter()
         .map(|f| f.object_store_path())
         .collect::<HashSet<_>>();
-    let actual = get_content(store).await;
+    assert_eq!(expected.len(), N, "duplicate files in expected clause");
+
+    let actual = list_object_store(store).await;
     assert_eq!(actual, expected);
 }

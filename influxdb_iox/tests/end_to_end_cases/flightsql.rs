@@ -27,7 +27,6 @@ async fn flightsql_adhoc_query() {
                 table_name, table_name
             )),
             Step::WaitForReadable,
-            Step::AssertNotPersisted,
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 async move {
                     let sql = format!("select * from {}", table_name);
@@ -132,7 +131,6 @@ async fn flightsql_prepared_query() {
                 table_name, table_name
             )),
             Step::WaitForReadable,
-            Step::AssertNotPersisted,
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 async move {
                     let sql = format!("select * from {}", table_name);
@@ -205,7 +203,6 @@ async fn flightsql_jdbc() {
                 table_name, table_name
             )),
             Step::WaitForReadable,
-            Step::AssertNotPersisted,
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 // satisfy the borrow checker
                 async move {

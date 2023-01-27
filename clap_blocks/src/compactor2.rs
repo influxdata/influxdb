@@ -3,7 +3,7 @@
 use std::num::NonZeroUsize;
 
 /// CLI config for compactor2
-#[derive(Debug, Clone, Copy, clap::Parser)]
+#[derive(Debug, Clone, clap::Parser)]
 pub struct Compactor2Config {
     /// Number of partitions that should be compacted in parallel.
     ///
@@ -116,4 +116,36 @@ pub struct Compactor2Config {
         action
     )]
     pub partition_timeout_secs: u64,
+
+    /// Filter partitions to the given set of IDs.
+    ///
+    /// This is mostly useful for debugging.
+    #[clap(
+        long = "compaction-partition-filter",
+        env = "INFLUXDB_IOX_COMPACTION_PARTITION_FILTER",
+        action
+    )]
+    pub partition_filter: Option<Vec<i64>>,
+
+    /// Shadow mode.
+    ///
+    /// This will NOT write / commit any output to the object store or catalog.
+    ///
+    /// This is mostly useful for debugging.
+    #[clap(
+        long = "compaction-shadow-mode",
+        env = "INFLUXDB_IOX_COMPACTION_SHADOW_MODE",
+        action
+    )]
+    pub shadow_mode: bool,
+
+    /// Ignores "partition marked w/ error and shall be skipped" entries in the catalog.
+    ///
+    /// This is mostly useful for debugging.
+    #[clap(
+        long = "compaction-ignore-partition-skip-marker",
+        env = "INFLUXDB_IOX_COMPACTION_IGNORE_PARTITION_SKIP_MARKER",
+        action
+    )]
+    pub ignore_partition_skip_marker: bool,
 }

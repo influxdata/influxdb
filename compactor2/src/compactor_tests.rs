@@ -8,7 +8,11 @@ mod tests {
     use tracker::AsyncSemaphoreMetrics;
 
     use crate::{
-        components::hardcoded::hardcoded_components, driver::compact, test_util::TestSetup,
+        components::{
+            df_planner::panic::PanicDataFusionPlanner, hardcoded::hardcoded_components, Components,
+        },
+        driver::compact,
+        test_util::{list_object_store, TestSetup},
     };
 
     #[tokio::test]
@@ -16,7 +20,7 @@ mod tests {
         test_helpers::maybe_start_logging();
 
         // no files
-        let setup = TestSetup::new(false).await;
+        let setup = TestSetup::builder().build().await;
 
         let files = setup.list_by_table_not_to_delete().await;
         assert!(files.is_empty());
@@ -34,7 +38,7 @@ mod tests {
         test_helpers::maybe_start_logging();
 
         // Create a test setup with 6 files
-        let setup = TestSetup::new(true).await;
+        let setup = TestSetup::builder().with_files().build().await;
 
         // verify 6 files
         let files = setup.list_by_table_not_to_delete().await;
@@ -155,7 +159,7 @@ mod tests {
         test_helpers::maybe_start_logging();
 
         // Create a test setup with 6 files
-        let setup = TestSetup::new(true).await;
+        let setup = TestSetup::builder().with_files().build().await;
 
         // verify 6 files
         let files = setup.list_by_table_not_to_delete().await;
@@ -209,9 +213,118 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn test_partition_fail() {
+        test_helpers::maybe_start_logging();
+
+        // Create a test setup with 6 files
+        let setup = TestSetup::builder().with_files().build().await;
+
+        let catalog_files_pre = setup.list_by_table_not_to_delete().await;
+        assert!(!catalog_files_pre.is_empty());
+
+        let object_store_files_pre = list_object_store(&setup.catalog.object_store).await;
+        assert!(!object_store_files_pre.is_empty());
+
+        run_compact_failing(&setup).await;
+
+        let catalog_files_post = setup.list_by_table_not_to_delete().await;
+        assert_eq!(catalog_files_pre, catalog_files_post);
+
+        let object_store_files_post = list_object_store(&setup.catalog.object_store).await;
+        assert_eq!(object_store_files_pre, object_store_files_post);
+
+        let skipped = setup
+            .catalog
+            .catalog
+            .repositories()
+            .await
+            .partitions()
+            .list_skipped_compactions()
+            .await
+            .unwrap();
+        assert_eq!(skipped.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_shadow_mode() {
+        test_helpers::maybe_start_logging();
+
+        // Create a test setup with 6 files
+        let setup = TestSetup::builder()
+            .with_files()
+            .with_shadow_mode()
+            .build()
+            .await;
+
+        let catalog_files_pre = setup.list_by_table_not_to_delete().await;
+        assert!(!catalog_files_pre.is_empty());
+
+        let object_store_files_pre = list_object_store(&setup.catalog.object_store).await;
+        assert!(!object_store_files_pre.is_empty());
+
+        run_compact(&setup).await;
+
+        let catalog_files_post = setup.list_by_table_not_to_delete().await;
+        assert_eq!(catalog_files_pre, catalog_files_post);
+
+        let object_store_files_post = list_object_store(&setup.catalog.object_store).await;
+        assert_eq!(object_store_files_pre, object_store_files_post);
+    }
+
+    #[tokio::test]
+    async fn test_shadow_mode_partition_fail() {
+        test_helpers::maybe_start_logging();
+
+        // Create a test setup with 6 files
+        let setup = TestSetup::builder()
+            .with_files()
+            .with_shadow_mode()
+            .build()
+            .await;
+
+        let catalog_files_pre = setup.list_by_table_not_to_delete().await;
+        assert!(!catalog_files_pre.is_empty());
+
+        let object_store_files_pre = list_object_store(&setup.catalog.object_store).await;
+        assert!(!object_store_files_pre.is_empty());
+
+        run_compact_failing(&setup).await;
+
+        let catalog_files_post = setup.list_by_table_not_to_delete().await;
+        assert_eq!(catalog_files_pre, catalog_files_post);
+
+        let object_store_files_post = list_object_store(&setup.catalog.object_store).await;
+        assert_eq!(object_store_files_pre, object_store_files_post);
+
+        let skipped = setup
+            .catalog
+            .catalog
+            .repositories()
+            .await
+            .partitions()
+            .list_skipped_compactions()
+            .await
+            .unwrap();
+        assert_eq!(skipped, vec![]);
+    }
+
     async fn run_compact(setup: &TestSetup) {
+        let components = hardcoded_components(&setup.config);
+        run_compact_impl(setup, components).await;
+    }
+
+    async fn run_compact_failing(setup: &TestSetup) {
+        let components = hardcoded_components(&setup.config);
+        let components = Arc::new(Components {
+            df_planner: Arc::new(PanicDataFusionPlanner::new()),
+            ..components.as_ref().clone()
+        });
+        run_compact_impl(setup, components).await;
+    }
+
+    async fn run_compact_impl(setup: &TestSetup, components: Arc<Components>) {
         let config = Arc::clone(&setup.config);
-        let components = hardcoded_components(&config);
         let job_semaphore = Arc::new(
             Arc::new(AsyncSemaphoreMetrics::new(&config.metric_registry, [])).new_semaphore(10),
         );

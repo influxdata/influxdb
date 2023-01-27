@@ -1,7 +1,41 @@
-use super::framework::{ChunkStage, TestCase};
+//! This module contains data driven tests that run sql queries from input files on disk.
+//!
+//! # Cookbook: Adding a new Test
+//!
+//! How to make a new test:
+//!
+//! 1. Add a new file .sql to the `cases/in` directory
+//! 2. Run the tests (e.g. `TEST_INTEGRATION=1 TEST_INFLUXDB_IOX_CATALOG_DSN=postgresql://postgres@localhost:5432/postgres cargo test --test end_to_end`)
+//! 3. You will get a failure message that contains commands of how to update the expected output file
+//!
+//! ## Example output
+//!
+//! ```
+//! Possibly helpful commands:
+//!   # See diff
+//!   diff -du "cases/in/pushdown.expected" "cases/out/pushdown.out"
+//!   # Update expected
+//!   cp -f "cases/in/pushdown.out" "cases/out/pushdown.expected"
+//! ```
+//!
+//! # Cookbook: Adding a new test scenario
+//!
+//! Each test can be defined in terms of a "setup" (a set of actions
+//! taken to prepare the state of database) which are defined in setups.rs.
+//!
+//! In the future, we envision more fine grained control of these
+//! setups (by implementing some of the database commands as IOX_TEST
+//! commands), but for now they are hard coded.
+//!
+//! The SQL files refer to the setups with a specially formatted comment:
+//!
+//! ```sql
+//! -- IOX_SETUP: OneMeasurementFourChunksWithDuplicates
+//! ```
+//!
+//! To add a new setup, follow the pattern in `influxdb_iox/tests/query_tests2/setups.rs`.
 
-// TODO: Generate these tests from the files on disk.
-// See <https://github.com/influxdata/influxdb_iox/issues/6610>.
+use super::framework::{ChunkStage, TestCase};
 
 #[tokio::test]
 async fn basic() {
@@ -76,21 +110,18 @@ async fn duplicates_parquet_many() {
 }
 
 #[tokio::test]
-#[ignore]
 async fn new_sql_system_tables() {
-    unimplemented!("Test snapshot might need updating?");
-    // test_helpers::maybe_start_logging();
-    //
-    // TestCase {
-    //     input: "cases/in/new_sql_system_tables.sql",
-    //     chunk_stage: ChunkStage::Ingester,
-    // }
-    // .run()
-    // .await;
+    test_helpers::maybe_start_logging();
+
+    TestCase {
+        input: "cases/in/new_sql_system_tables.sql",
+        chunk_stage: ChunkStage::Ingester,
+    }
+    .run()
+    .await;
 }
 
 #[tokio::test]
-#[ignore]
 async fn periods() {
     test_helpers::maybe_start_logging();
 
@@ -129,7 +160,6 @@ async fn retention() {
 }
 
 #[tokio::test]
-#[ignore]
 async fn selectors() {
     test_helpers::maybe_start_logging();
 

@@ -206,7 +206,7 @@ async fn fetch_partition_info(
     // TODO: only read partition, table and its schema info the first time and cache them
     // Get info for the partition
     let partition = components
-        .partitions_source
+        .partition_source
         .fetch_by_id(partition_id)
         .await
         .ok_or_else::<Error, _>(|| String::from("Cannot find partition info").into())?;

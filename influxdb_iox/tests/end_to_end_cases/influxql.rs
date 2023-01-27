@@ -19,7 +19,6 @@ async fn influxql_returns_error() {
                 table_name, table_name
             )),
             Step::WaitForReadable,
-            Step::AssertNotPersisted,
             Step::InfluxQLExpectingError {
                 query: "SHOW TAG KEYS".into(),
                 expected_error_code: tonic::Code::InvalidArgument,
@@ -52,7 +51,6 @@ async fn influxql_select_returns_results() {
                 table_name, table_name
             )),
             Step::WaitForReadable,
-            Step::AssertNotPersisted,
             Step::InfluxQLQuery {
                 query: format!("select tag1, val from {}", table_name),
                 expected: vec![

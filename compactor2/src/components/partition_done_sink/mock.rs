@@ -11,7 +11,6 @@ pub struct MockPartitionDoneSink {
 }
 
 impl MockPartitionDoneSink {
-    #[allow(dead_code)] // not used anywhere
     pub fn new() -> Self {
         Self::default()
     }

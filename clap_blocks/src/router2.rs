@@ -34,7 +34,9 @@ pub struct Router2Config {
     #[clap(
         long = "ingester-addresses",
         env = "INFLUXDB_IOX_INGESTER_ADDRESSES",
-        required = true
+        required = true,
+        num_args=1..,
+        value_delimiter = ','
     )]
     pub ingester_addresses: Vec<String>,
 

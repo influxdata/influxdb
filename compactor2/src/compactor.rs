@@ -1,11 +1,11 @@
 //! Main compactor entry point.
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use futures::{
     future::{BoxFuture, Shared},
     FutureExt, TryFutureExt,
 };
-use observability_deps::tracing::warn;
+use observability_deps::tracing::{info, warn};
 use tokio::task::{JoinError, JoinHandle};
 use tokio_util::sync::CancellationToken;
 use tracker::AsyncSemaphoreMetrics;
@@ -34,6 +34,10 @@ pub struct Compactor2 {
 impl Compactor2 {
     /// Start compactor.
     pub fn start(config: Config) -> Self {
+        if config.shadow_mode {
+            info!("Starting in shadow mode");
+        }
+
         let shutdown = CancellationToken::new();
         let shutdown_captured = shutdown.clone();
 
@@ -51,7 +55,7 @@ impl Compactor2 {
                 _ = shutdown_captured.cancelled() => {}
                 _ = async {
                     loop {
-                        compact(config.partition_concurrency, Duration::from_secs(config.partition_timeout_secs), Arc::clone(&job_semaphore), &components).await;
+                        compact(config.partition_concurrency, config.partition_timeout, Arc::clone(&job_semaphore), &components).await;
                         // TODO: implement throttling if there was no work to do
                     }
                 } => unreachable!(),

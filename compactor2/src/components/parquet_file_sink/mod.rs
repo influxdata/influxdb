@@ -15,9 +15,6 @@ pub mod logging;
 pub mod mock;
 pub mod object_store;
 
-#[cfg(test)]
-mod test_util;
-
 #[async_trait]
 pub trait ParquetFileSink: Debug + Display + Send + Sync {
     async fn store(

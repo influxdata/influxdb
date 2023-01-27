@@ -211,7 +211,7 @@ pub struct QuerierConfig {
     /// "http://10.10.10.1:8083,http://10.10.10.2:8083"
     ///
     /// for multiple addresses.
-    #[clap(long = "ingester-addresses", env = "INFLUXDB_IOX_INGESTER_ADDRESSES")]
+    #[clap(long = "ingester-addresses", env = "INFLUXDB_IOX_INGESTER_ADDRESSES", num_args=1.., value_delimiter = ',')]
     pub ingester_addresses: Vec<String>,
 
     /// Size of the RAM cache used to store catalog metadata information in bytes.
@@ -464,6 +464,32 @@ mod tests {
             actual.ingester_addresses().unwrap(),
             IngesterAddresses::None,
         ));
+    }
+
+    #[test]
+    fn test_ingester_addresses_list() {
+        let actual = QuerierConfig::try_parse_from([
+            "my_binary",
+            "--ingester-addresses",
+            "http://ingester-0:8082",
+        ])
+        .unwrap();
+
+        let expected = IngesterAddresses::List(vec!["http://ingester-0:8082".into()]);
+        assert_eq!(actual.ingester_addresses().unwrap(), expected);
+
+        let actual = QuerierConfig::try_parse_from([
+            "my_binary",
+            "--ingester-addresses",
+            "http://ingester-0:8082,http://ingester-1:8082",
+        ])
+        .unwrap();
+
+        let expected = IngesterAddresses::List(vec![
+            "http://ingester-0:8082".into(),
+            "http://ingester-1:8082".into(),
+        ]);
+        assert_eq!(actual.ingester_addresses().unwrap(), expected);
     }
 
     #[test]

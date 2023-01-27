@@ -1,8 +1,8 @@
 //! Config-related stuff.
-use std::{num::NonZeroUsize, sync::Arc};
+use std::{collections::HashSet, num::NonZeroUsize, sync::Arc, time::Duration};
 
 use backoff::{Backoff, BackoffConfig};
-use data_types::{ShardId, ShardIndex};
+use data_types::{PartitionId, ShardId, ShardIndex};
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
 use iox_time::TimeProvider;
@@ -48,8 +48,8 @@ pub struct Config {
     /// Number of jobs PER PARTITION that move files in and out of the scratchpad.
     pub partition_scratchpad_concurrency: NonZeroUsize,
 
-    /// Partitions with recent created files these last minutes are selected for compaction.
-    pub partition_minute_threshold: u64,
+    /// Partitions with recent created files this recent duration are selected for compaction.
+    pub partition_threshold: Duration,
 
     /// Desired max size of compacted parquet files
     /// It is a target desired value than a guarantee
@@ -71,8 +71,25 @@ pub struct Config {
     /// This value must be between (0, 100)
     pub split_percentage: u16,
 
-    /// Maximum duration of the per-partition compaction task in seconds.
-    pub partition_timeout_secs: u64,
+    /// Maximum duration of the per-partition compaction task.
+    pub partition_timeout: Duration,
+
+    /// Filter partitions to the given set of IDs.
+    ///
+    /// This is mostly useful for debugging.
+    pub partition_filter: Option<HashSet<PartitionId>>,
+
+    /// Shadow mode.
+    ///
+    /// This will NOT write / commit any output to the object store or catalog.
+    ///
+    /// This is mostly useful for debugging.
+    pub shadow_mode: bool,
+
+    /// Ignores "partition marked w/ error and shall be skipped" entries in the catalog.
+    ///
+    /// This is mostly useful for debugging.
+    pub ignore_partition_skip_marker: bool,
 }
 
 impl Config {

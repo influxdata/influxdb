@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use backoff::BackoffConfig;
 use clap_blocks::compactor2::Compactor2Config;
 use compactor2::{compactor::Compactor2, config::Config};
+use data_types::PartitionId;
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
@@ -19,6 +20,7 @@ use parquet_file::storage::ParquetStorage;
 use std::{
     fmt::{Debug, Display},
     sync::Arc,
+    time::Duration,
 };
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
@@ -156,11 +158,18 @@ pub async fn create_compactor2_server_type(
         job_concurrency: compactor_config.compaction_job_concurrency,
         partition_scratchpad_concurrency: compactor_config
             .compaction_partition_scratchpad_concurrency,
-        partition_minute_threshold: compactor_config.compaction_partition_minute_threshold,
+        partition_threshold: Duration::from_secs(
+            compactor_config.compaction_partition_minute_threshold * 60,
+        ),
         max_desired_file_size_bytes: compactor_config.max_desired_file_size_bytes,
         percentage_max_file_size: compactor_config.percentage_max_file_size,
         split_percentage: compactor_config.split_percentage,
-        partition_timeout_secs: compactor_config.partition_timeout_secs,
+        partition_timeout: Duration::from_secs(compactor_config.partition_timeout_secs),
+        partition_filter: compactor_config
+            .partition_filter
+            .map(|parts| parts.into_iter().map(PartitionId::new).collect()),
+        shadow_mode: compactor_config.shadow_mode,
+        ignore_partition_skip_marker: compactor_config.ignore_partition_skip_marker,
     });
 
     Arc::new(Compactor2ServerType::new(

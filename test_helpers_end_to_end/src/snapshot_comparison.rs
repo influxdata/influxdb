@@ -136,6 +136,14 @@ fn make_output_path(input: &Path) -> Result<PathBuf, OutputPathError> {
     // go one level down (from parent dir to out-dir)
     out.push("out");
 
+    // make best effort attempt to create output directory if it
+    // doesn't exist (it does not on a fresh checkout)
+    if !out.exists() {
+        if let Err(e) = std::fs::create_dir(&out) {
+            panic!("Could not create output directory {out:?}: {e}");
+        }
+    }
+
     // set file name and ext
     out.push(stem);
     out.set_extension("out");
