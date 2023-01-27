@@ -254,8 +254,8 @@ impl ExecutionPlan for GapFillExec {
         vec![Some(&self.sort_expr)]
     }
 
-    fn maintains_input_order(&self) -> bool {
-        true
+    fn maintains_input_order(&self) -> Vec<bool> {
+        vec![true]
     }
 
     fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
