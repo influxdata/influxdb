@@ -259,7 +259,7 @@ impl SkippedCompactionBuilder {
     }
 }
 
-const SHARD_INDEX: i32 = 1;
+const SHARD_INDEX: i32 = 1234;
 const PARTITION_THRESHOLD: Duration = Duration::from_secs(10 * 60); // 10min
 const MAX_DESIRE_FILE_SIZE: u64 = 100 * 1024;
 const PERCENTAGE_MAX_FILE_SIZE: u16 = 5;

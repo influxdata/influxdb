@@ -27,7 +27,7 @@ use trace::TraceCollector;
 
 // There is only one shard with index 1
 const TOPIC: &str = "iox-shared";
-const SHARD_INDEX: i32 = 1;
+const TRANSITION_SHARD_INDEX: i32 = 1234; // see ingester2 crate
 
 pub struct Compactor2ServerType {
     compactor: Compactor2,
@@ -142,7 +142,7 @@ pub async fn create_compactor2_server_type(
         Arc::clone(&catalog),
         backoff_config.clone(),
         TOPIC.to_string(),
-        SHARD_INDEX,
+        TRANSITION_SHARD_INDEX,
     )
     .await;
     let compactor = Compactor2::start(Config {

@@ -54,7 +54,7 @@ pub enum BufferError {
 /// During the testing of ingest replica, the catalog will require a ShardIndex for
 /// various operations. This is a const value for these occasions. Look up the ShardId for this
 /// ShardIndex when needed.
-const TRANSITION_SHARD_INDEX: ShardIndex = ShardIndex::new(1);
+const TRANSITION_SHARD_INDEX: ShardIndex = ShardIndex::new(1234);
 
 /// Acquire opaque handles to the IngestReplica RPC service implementations.
 ///
