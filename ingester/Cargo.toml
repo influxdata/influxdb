@@ -41,7 +41,7 @@ schema = { path = "../schema" }
 service_grpc_catalog = { path = "../service_grpc_catalog"}
 snafu = "0.7"
 thiserror = "1.0"
-tokio = { version = "1.24", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.25", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7.4" }
 tonic = { version = "0.8" }
 trace = { path = "../trace" }

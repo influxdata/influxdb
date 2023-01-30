@@ -42,7 +42,7 @@ service_grpc_catalog = { version = "0.1.0", path = "../service_grpc_catalog" }
 sharder = { version = "0.1.0", path = "../sharder" }
 thiserror = "1.0.38"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"], optional = true }
-tokio = { version = "1.24", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.25", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tonic = "0.8.3"
 trace = { version = "0.1.0", path = "../trace" }
 uuid = "1.2.2"

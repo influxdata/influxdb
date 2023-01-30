@@ -26,6 +26,6 @@ async-trait = "0.1"
 hashbrown = { workspace = true }
 hyper = "0.14"
 thiserror = "1.0.38"
-tokio = { version = "1.24", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+tokio = { version = "1.25", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util = { version = "0.7.4" }
 workspace-hack = { path = "../workspace-hack"}
