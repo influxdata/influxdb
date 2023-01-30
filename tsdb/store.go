@@ -2087,9 +2087,13 @@ func checkForMeasurementClause(e influxql.Expr) (bool, error) {
 	case *influxql.BinaryExpr:
 		switch e.Op {
 		case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
-			tag, ok := e.LHS.(*influxql.VarRef)
-			if ok && tag.Val == "_name" {
-				return true, nil
+			switch t := e.LHS.(type) {
+			case *influxql.ParenExpr:
+				return checkForMeasurementClause(t.Expr)
+			case *influxql.VarRef:
+				if t.Val == "_name" {
+					return true, nil
+				}
 			}
 		}
 	}
