@@ -244,7 +244,7 @@ fn partition_metrics(metrics: MetricsSet) -> HashMap<Option<usize>, MetricsSet> 
     let mut hashmap = HashMap::<_, MetricsSet>::new();
     for metric in metrics.iter() {
         hashmap
-            .entry(*metric.partition())
+            .entry(metric.partition())
             .or_default()
             .push(Arc::clone(metric))
     }
