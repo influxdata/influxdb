@@ -967,6 +967,7 @@ pub(crate) mod test_helpers {
         test_tombstone(Arc::clone(&catalog)).await;
         test_tombstones_by_parquet_file(Arc::clone(&catalog)).await;
         test_parquet_file(Arc::clone(&catalog)).await;
+        test_parquet_file_delete_broken(Arc::clone(&catalog)).await;
         test_parquet_file_compaction_level_0(Arc::clone(&catalog)).await;
         test_parquet_file_compaction_level_1(Arc::clone(&catalog)).await;
         test_recent_highest_throughput_partitions(Arc::clone(&catalog)).await;
@@ -2811,6 +2812,97 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert!(ids.is_empty());
+    }
+
+    async fn test_parquet_file_delete_broken(catalog: Arc<dyn Catalog>) {
+        let mut repos = catalog.repositories().await;
+        let topic = repos.topics().create_or_get("foo").await.unwrap();
+        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
+        let namespace_1 = repos
+            .namespaces()
+            .create("retention_broken_1", None, topic.id, pool.id)
+            .await
+            .unwrap();
+        let namespace_2 = repos
+            .namespaces()
+            .create("retention_broken_2", Some(1), topic.id, pool.id)
+            .await
+            .unwrap();
+        let table_1 = repos
+            .tables()
+            .create_or_get("test_table", namespace_1.id)
+            .await
+            .unwrap();
+        let table_2 = repos
+            .tables()
+            .create_or_get("test_table", namespace_2.id)
+            .await
+            .unwrap();
+        let shard = repos
+            .shards()
+            .create_or_get(&topic, ShardIndex::new(1))
+            .await
+            .unwrap();
+        let partition_1 = repos
+            .partitions()
+            .create_or_get("one".into(), shard.id, table_1.id)
+            .await
+            .unwrap();
+        let partition_2 = repos
+            .partitions()
+            .create_or_get("one".into(), shard.id, table_2.id)
+            .await
+            .unwrap();
+
+        let parquet_file_params_1 = ParquetFileParams {
+            shard_id: shard.id,
+            namespace_id: namespace_1.id,
+            table_id: table_1.id,
+            partition_id: partition_1.id,
+            object_store_id: Uuid::new_v4(),
+            max_sequence_number: SequenceNumber::new(140),
+            min_time: Timestamp::new(1),
+            max_time: Timestamp::new(10),
+            file_size_bytes: 1337,
+            row_count: 0,
+            compaction_level: CompactionLevel::Initial,
+            created_at: Timestamp::new(1),
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+            max_l0_created_at: Timestamp::new(1),
+        };
+        let parquet_file_params_2 = ParquetFileParams {
+            shard_id: shard.id,
+            namespace_id: namespace_2.id,
+            table_id: table_2.id,
+            partition_id: partition_2.id,
+            object_store_id: Uuid::new_v4(),
+            max_sequence_number: SequenceNumber::new(140),
+            min_time: Timestamp::new(1),
+            max_time: Timestamp::new(10),
+            file_size_bytes: 1337,
+            row_count: 0,
+            compaction_level: CompactionLevel::Initial,
+            created_at: Timestamp::new(1),
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+            max_l0_created_at: Timestamp::new(1),
+        };
+        let _parquet_file_1 = repos
+            .parquet_files()
+            .create(parquet_file_params_1.clone())
+            .await
+            .unwrap();
+        let parquet_file_2 = repos
+            .parquet_files()
+            .create(parquet_file_params_2.clone())
+            .await
+            .unwrap();
+
+        let ids = repos
+            .parquet_files()
+            .flag_for_delete_by_retention()
+            .await
+            .unwrap();
+        assert_eq!(ids, vec![parquet_file_2.id]);
     }
 
     async fn test_parquet_file_compaction_level_0(catalog: Arc<dyn Catalog>) {

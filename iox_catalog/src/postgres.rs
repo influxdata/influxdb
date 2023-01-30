@@ -1752,9 +1752,10 @@ RETURNING *;
                 UPDATE parquet_file
                 SET to_delete = $1
                 FROM namespace
-                WHERE retention_period_ns IS NOT NULL
-                AND to_delete IS NULL
-                AND max_time < $1 - retention_period_ns
+                WHERE namespace.retention_period_ns IS NOT NULL
+                AND parquet_file.to_delete IS NULL
+                AND parquet_file.max_time < $1 - namespace.retention_period_ns
+                AND namespace.id = parquet_file.namespace_id
                 RETURNING parquet_file.id;
             "#,
         )
