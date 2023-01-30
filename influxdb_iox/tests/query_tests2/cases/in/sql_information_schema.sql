@@ -8,6 +8,10 @@ SELECT * from information_schema.tables where table_schema != 'system';
 -- IOX_COMPARE: sorted
 SELECT * from information_schema.columns where table_name = 'h2o' OR table_name = 'o2';
 
--- validate we have access to SHOW SCHEMA for listing columns names
+-- validate we have access to SHOW TABLE for listing columns names
+-- IOX_COMPARE: sorted
+SHOW TABLES;
+
+-- validate we have access to SHOW COLUMNs for listing columns names
 -- IOX_COMPARE: sorted
 SHOW COLUMNS FROM h2o;

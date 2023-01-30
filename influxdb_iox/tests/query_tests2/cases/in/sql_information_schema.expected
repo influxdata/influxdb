@@ -28,6 +28,19 @@
 | public        | iox          | o2         | temp        | 3                |                | YES         | Float64                     |                          |                        | 24                | 2                       |               |                    |               |
 | public        | iox          | o2         | time        | 4                |                | NO          | Timestamp(Nanosecond, None) |                          |                        |                   |                         |               |                    |               |
 +---------------+--------------+------------+-------------+------------------+----------------+-------------+-----------------------------+--------------------------+------------------------+-------------------+-------------------------+---------------+--------------------+---------------+
+-- SQL: SHOW TABLES;
+-- Results After Sorting
++---------------+--------------------+-------------+------------+
+| table_catalog | table_schema       | table_name  | table_type |
++---------------+--------------------+-------------+------------+
+| public        | information_schema | columns     | VIEW       |
+| public        | information_schema | df_settings | VIEW       |
+| public        | information_schema | tables      | VIEW       |
+| public        | information_schema | views       | VIEW       |
+| public        | iox                | h2o         | BASE TABLE |
+| public        | iox                | o2          | BASE TABLE |
+| public        | system             | queries     | BASE TABLE |
++---------------+--------------------+-------------+------------+
 -- SQL: SHOW COLUMNS FROM h2o;
 -- Results After Sorting
 +---------------+--------------+------------+-------------+-----------------------------+-------------+
