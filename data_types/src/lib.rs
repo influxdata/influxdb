@@ -37,6 +37,13 @@ use std::{
 };
 use uuid::Uuid;
 
+/// Magic number to be used shard indices and shard ids in "kafkaless".
+pub const TRANSITION_SHARD_NUMBER: i32 = 1234;
+/// In kafkaless mode all new persisted data uses this shard id.
+pub const TRANSITION_SHARD_ID: ShardId = ShardId::new(TRANSITION_SHARD_NUMBER as i64);
+/// In kafkaless mode all new persisted data uses this shard index.
+pub const TRANSITION_SHARD_INDEX: ShardIndex = ShardIndex::new(TRANSITION_SHARD_NUMBER);
+
 /// Compaction levels
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash, sqlx::Type)]
 #[repr(i16)]

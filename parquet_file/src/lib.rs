@@ -24,6 +24,9 @@ use data_types::{NamespaceId, ParquetFile, ParquetFileParams, PartitionId, Shard
 use object_store::path::Path;
 use uuid::Uuid;
 
+// Ingester2 creates partitions in this shard.
+const TRANSITION_SHARD_ID: ShardId = ShardId::new(1234);
+
 /// Location of a Parquet file within a namespace's object store.
 /// The exact format is an implementation detail and is subject to change.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Ord, PartialOrd)]
@@ -62,14 +65,22 @@ impl ParquetFilePath {
             partition_id,
             object_store_id,
         } = self;
-
-        Path::from_iter([
-            namespace_id.to_string().as_str(),
-            table_id.to_string().as_str(),
-            shard_id.to_string().as_str(),
-            partition_id.to_string().as_str(),
-            &format!("{}.parquet", object_store_id),
-        ])
+        if shard_id == &TRANSITION_SHARD_ID {
+            Path::from_iter([
+                namespace_id.to_string().as_str(),
+                table_id.to_string().as_str(),
+                partition_id.to_string().as_str(),
+                &format!("{}.parquet", object_store_id),
+            ])
+        } else {
+            Path::from_iter([
+                namespace_id.to_string().as_str(),
+                table_id.to_string().as_str(),
+                shard_id.to_string().as_str(),
+                partition_id.to_string().as_str(),
+                &format!("{}.parquet", object_store_id),
+            ])
+        }
     }
 
     /// Get object store ID.
@@ -145,6 +156,22 @@ mod tests {
         assert_eq!(
             path.to_string(),
             "1/2/3/4/00000000-0000-0000-0000-000000000000.parquet".to_string(),
+        );
+    }
+
+    #[test]
+    fn parquet_file_without_shard_id() {
+        let pfp = ParquetFilePath::new(
+            NamespaceId::new(1),
+            TableId::new(2),
+            TRANSITION_SHARD_ID,
+            PartitionId::new(4),
+            Uuid::nil(),
+        );
+        let path = pfp.object_store_path();
+        assert_eq!(
+            path.to_string(),
+            "1/2/4/00000000-0000-0000-0000-000000000000.parquet".to_string(),
         );
     }
 }

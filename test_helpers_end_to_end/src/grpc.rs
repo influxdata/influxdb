@@ -1,7 +1,7 @@
 use crate::MiniCluster;
 use generated_types::{
     aggregate::AggregateType,
-    node::{Comparison, Type as NodeType, Value},
+    node::{Comparison, Logical, Type as NodeType, Value},
     read_group_request::Group,
     Aggregate, MeasurementFieldsRequest, MeasurementNamesRequest, MeasurementTagKeysRequest,
     MeasurementTagValuesRequest, Node, Predicate, ReadFilterRequest, ReadGroupRequest, ReadSource,
@@ -14,7 +14,7 @@ use prost::Message;
 pub struct GrpcRequestBuilder {
     read_source: Option<generated_types::google::protobuf::Any>,
     range: Option<TimestampRange>,
-    predicate: Option<Predicate>,
+    pub predicate: Option<Predicate>,
 
     // for read_group requests
     group: Option<Group>,
@@ -24,6 +24,33 @@ pub struct GrpcRequestBuilder {
 
     window_every: Option<i64>,
     offset: Option<i64>,
+}
+
+/// Trait for converting various literal rust values to their
+/// corresponding Nodes in GRPC
+pub trait GrpcLiteral {
+    fn make_node(&self) -> Node;
+}
+
+impl GrpcLiteral for f64 {
+    fn make_node(&self) -> Node {
+        Node {
+            node_type: NodeType::Literal.into(),
+            children: vec![],
+            value: Some(Value::FloatValue(*self)),
+        }
+    }
+}
+
+impl GrpcLiteral for &str {
+    fn make_node(&self) -> Node {
+        string_value_node(*self)
+    }
+}
+impl GrpcLiteral for &String {
+    fn make_node(&self) -> Node {
+        string_value_node(self.as_str())
+    }
 }
 
 impl GrpcRequestBuilder {
@@ -71,97 +98,127 @@ impl GrpcRequestBuilder {
         }
     }
 
-    /// Set predicate to be  `tag_name=tag_value` in the horrible gRPC
-    /// structs
+    /// Add `tag_name=tag_value` to the predicate in the horrible gRPC structs
     pub fn tag_predicate(self, tag_name: impl Into<String>, tag_value: impl Into<String>) -> Self {
-        let predicate = Predicate {
-            root: Some(Node {
-                node_type: NodeType::ComparisonExpression as i32,
-                children: vec![
-                    Node {
-                        node_type: NodeType::TagRef as i32,
-                        children: vec![],
-                        value: Some(Value::TagRefValue(tag_name.into().into())),
-                    },
-                    Node {
-                        node_type: NodeType::Literal as i32,
-                        children: vec![],
-                        value: Some(Value::StringValue(tag_value.into())),
-                    },
-                ],
-                value: Some(Value::Comparison(Comparison::Equal as _)),
-            }),
-        };
-        self.predicate(predicate)
+        self.tag_comparison_predicate(tag_name, tag_value, Comparison::Equal)
     }
 
-    /// Create a predicate representing _f=field_name in the horrible gRPC structs
+    /// For all `(tag_name, tag_value)` pairs, add `tag_name=tag_value OR tag_name=tag_value ...`
+    /// to the predicate.
+    pub fn or_tag_predicates(
+        self,
+        tags: impl Iterator<Item = (impl Into<String>, impl Into<String>)>,
+    ) -> Self {
+        tags.into_iter().fold(self, |acc, (tag_name, tag_value)| {
+            let node = comparison_expression_node(
+                tag_ref_node(tag_name.into()),
+                Comparison::Equal,
+                string_value_node(tag_value),
+            );
+            acc.combine_predicate(Logical::Or, node)
+        })
+    }
+
+    /// Add `tag_name!=tag_value` to the predicate in the horrible gRPC structs
+    pub fn not_tag_predicate(
+        self,
+        tag_name: impl Into<String>,
+        tag_value: impl Into<String>,
+    ) -> Self {
+        self.tag_comparison_predicate(tag_name, tag_value, Comparison::NotEqual)
+    }
+
+    /// Add `tag_name <op> value` to the predicate where `<op>` is `Equal` or `NotEqual`
+    fn tag_comparison_predicate(
+        self,
+        tag_name: impl Into<String>,
+        tag_value: impl Into<String>,
+        comparison: Comparison,
+    ) -> Self {
+        let node = comparison_expression_node(
+            tag_ref_node(tag_name.into()),
+            comparison,
+            string_value_node(tag_value),
+        );
+        self.combine_predicate(Logical::And, node)
+    }
+
+    /// Add `tag_name1=tag_name2` to the predicate
+    pub fn tag_to_tag_predicate(
+        self,
+        tag_name1: impl Into<String>,
+        tag_name2: impl Into<String>,
+    ) -> Self {
+        let node = comparison_expression_node(
+            tag_ref_node(tag_name1.into()),
+            Comparison::Equal,
+            tag_ref_node(tag_name2.into()),
+        );
+        self.combine_predicate(Logical::And, node)
+    }
+
+    /// Add `_value=val` to the predicate in the horrible gRPC structs
+    pub fn field_value_predicate<L: GrpcLiteral>(self, l: L) -> Self {
+        let node =
+            comparison_expression_node(field_ref_node("_value"), Comparison::Equal, l.make_node());
+        self.combine_predicate(Logical::And, node)
+    }
+
+    /// Add `_f=field_name` to the predicate in the horrible gRPC structs
     pub fn field_predicate(self, field_name: impl Into<String>) -> Self {
-        let predicate = Predicate {
-            root: Some(Node {
-                node_type: NodeType::ComparisonExpression as i32,
-                children: vec![
-                    Node {
-                        node_type: NodeType::TagRef as i32,
-                        children: vec![],
-                        value: Some(Value::TagRefValue([255].to_vec())),
-                    },
-                    Node {
-                        node_type: NodeType::Literal as i32,
-                        children: vec![],
-                        value: Some(Value::StringValue(field_name.into())),
-                    },
-                ],
-                value: Some(Value::Comparison(Comparison::Equal as _)),
-            }),
-        };
-        self.predicate(predicate)
+        let node = comparison_expression_node(
+            tag_ref_node([255].to_vec()),
+            Comparison::Equal,
+            string_value_node(field_name),
+        );
+        self.combine_predicate(Logical::And, node)
     }
 
-    /// Create a predicate representing _m=measurement_name in the horrible gRPC structs
+    /// Add `<lit>=<lit>` to the predicate in the horrible gRPC structs
+    pub fn lit_lit_predicate<L1: GrpcLiteral, L2: GrpcLiteral>(self, l1: L1, l2: L2) -> Self {
+        let node = comparison_expression_node(l1.make_node(), Comparison::Equal, l2.make_node());
+        self.combine_predicate(Logical::And, node)
+    }
+
+    /// Add `_f!=field_name` to the predicate in the horrible gRPC structs
+    pub fn not_field_predicate(self, field_name: impl Into<String>) -> Self {
+        let node = comparison_expression_node(
+            tag_ref_node([255].to_vec()),
+            Comparison::NotEqual,
+            string_value_node(field_name),
+        );
+        self.combine_predicate(Logical::And, node)
+    }
+
+    /// Add `_m=measurement_name` to the predicate in the horrible gRPC structs
     pub fn measurement_predicate(self, measurement_name: impl Into<String>) -> Self {
-        let predicate = Predicate {
-            root: Some(Node {
-                node_type: NodeType::ComparisonExpression as i32,
-                children: vec![
-                    Node {
-                        node_type: NodeType::TagRef as i32,
-                        children: vec![],
-                        value: Some(Value::TagRefValue([00].to_vec())),
-                    },
-                    Node {
-                        node_type: NodeType::Literal as i32,
-                        children: vec![],
-                        value: Some(Value::StringValue(measurement_name.into())),
-                    },
-                ],
-                value: Some(Value::Comparison(Comparison::Equal as _)),
-            }),
-        };
-        self.predicate(predicate)
+        let node = comparison_expression_node(
+            tag_ref_node([00].to_vec()),
+            Comparison::Equal,
+            string_value_node(measurement_name),
+        );
+        self.combine_predicate(Logical::And, node)
     }
 
-    /// Set predicate to tag_name ~= /pattern/
+    /// Add `tag_name ~= /pattern/` to the predicate
     pub fn regex_match_predicate(
         self,
-        tag_key_name: impl Into<String>,
+        tag_name: impl Into<String>,
         pattern: impl Into<String>,
     ) -> Self {
-        self.regex_predicate(tag_key_name, pattern, Comparison::Regex)
+        self.regex_predicate(tag_name, pattern, Comparison::Regex)
     }
 
-    /// Set predicate to tag_name !~ /pattern/
+    /// Add `tag_name !~ /pattern/` to the predicate
     pub fn not_regex_match_predicate(
         self,
-        tag_key_name: impl Into<String>,
+        tag_name: impl Into<String>,
         pattern: impl Into<String>,
     ) -> Self {
-        self.regex_predicate(tag_key_name, pattern, Comparison::NotRegex)
+        self.regex_predicate(tag_name, pattern, Comparison::NotRegex)
     }
 
-    /// Set predicate to `tag_name <op> /pattern/`
-    ///
-    /// where op is `Regex` or `NotRegEx`
+    /// Add `tag_name <op> /pattern/` to the predicate, where op is `Regex` or `NotRegEx`.
     /// The constitution of this request was formed by looking at a real request
     /// made to storage, which looked like this:
     ///
@@ -173,38 +230,55 @@ impl GrpcRequestBuilder {
     ///         comparison:REGEX
     /// >
     /// ```
-    pub fn regex_predicate(
+    fn regex_predicate(
         self,
-        tag_key_name: impl Into<String>,
+        tag_name: impl Into<String>,
         pattern: impl Into<String>,
         comparison: Comparison,
     ) -> Self {
-        let predicate = Predicate {
-            root: Some(Node {
-                node_type: NodeType::ComparisonExpression as i32,
-                children: vec![
-                    Node {
-                        node_type: NodeType::TagRef as i32,
-                        children: vec![],
-                        value: Some(Value::TagRefValue(tag_key_name.into().into())),
-                    },
-                    Node {
-                        node_type: NodeType::Literal as i32,
-                        children: vec![],
-                        value: Some(Value::RegexValue(pattern.into())),
-                    },
-                ],
-                value: Some(Value::Comparison(comparison as _)),
-            }),
-        };
-        self.predicate(predicate)
+        let node = comparison_expression_node(
+            tag_ref_node(tag_name.into()),
+            comparison,
+            Node {
+                node_type: NodeType::Literal as i32,
+                children: vec![],
+                value: Some(Value::RegexValue(pattern.into())),
+            },
+        );
+        self.combine_predicate(Logical::And, node)
     }
 
-    /// Set the predicate being crated
+    /// Set the predicate being created, panicking if this would overwrite an existing predicate
     pub fn predicate(self, predicate: Predicate) -> Self {
         assert!(self.predicate.is_none(), "Overwriting existing predicate");
         Self {
             predicate: Some(predicate),
+            ..self
+        }
+    }
+
+    /// Combine any existing predicate with the specified logical operator and node. If there is no
+    /// existing predicate, set the predicate to only the specified node.
+    pub fn combine_predicate(mut self, operator: Logical, new_node: Node) -> Self {
+        let old_predicate = self.predicate.take();
+
+        let combined_predicate = match old_predicate {
+            Some(Predicate {
+                root: Some(old_node),
+            }) => Predicate {
+                root: Some(Node {
+                    node_type: NodeType::LogicalExpression as i32,
+                    children: vec![old_node, new_node],
+                    value: Some(Value::Logical(operator as i32)),
+                }),
+            },
+            _ => Predicate {
+                root: Some(new_node),
+            },
+        };
+
+        Self {
+            predicate: Some(combined_predicate),
             ..self
         }
     }
@@ -219,7 +293,7 @@ impl GrpcRequestBuilder {
         }
     }
 
-    /// set the specified grouping method on a read_group request
+    /// Set the specified grouping method on a read_group request
     pub fn group(self, group: Group) -> Self {
         assert!(self.group.is_none(), "Overwriting existing group");
         Self {
@@ -228,7 +302,8 @@ impl GrpcRequestBuilder {
         }
     }
 
-    /// set the specified grouping grouping aggregate on a read_group or read_window_aggregate request
+    /// Set the specified grouping grouping aggregate on a read_group or read_window_aggregate
+    /// request
     pub fn aggregate_type(self, aggregate_type: AggregateType) -> Self {
         assert!(
             self.aggregate_type.is_none(),
@@ -240,7 +315,7 @@ impl GrpcRequestBuilder {
         }
     }
 
-    /// set the window_every field for a read_window_aggregate request
+    /// Set the window_every field for a read_window_aggregate request
     pub fn window_every(self, window_every: i64) -> Self {
         assert!(
             self.window_every.is_none(),
@@ -252,7 +327,7 @@ impl GrpcRequestBuilder {
         }
     }
 
-    /// set the offset field for a read_window_aggregate request
+    /// Set the offset field for a read_window_aggregate request
     pub fn offset(self, offset: i64) -> Self {
         assert!(self.offset.is_none(), "Overwriting existing offset");
         Self {
@@ -377,5 +452,37 @@ impl GrpcRequestBuilder {
             window: None,
             tag_key_meta_names: TagKeyMetaNames::Text as i32,
         })
+    }
+}
+
+pub fn field_ref_node(field_name: impl Into<String>) -> Node {
+    Node {
+        node_type: NodeType::FieldRef.into(),
+        children: vec![],
+        value: Some(Value::FieldRefValue(field_name.into())),
+    }
+}
+
+pub fn tag_ref_node(tag_name: impl Into<Vec<u8>>) -> Node {
+    Node {
+        node_type: NodeType::TagRef as i32,
+        children: vec![],
+        value: Some(Value::TagRefValue(tag_name.into())),
+    }
+}
+
+pub fn string_value_node(value: impl Into<String>) -> Node {
+    Node {
+        node_type: NodeType::Literal as i32,
+        children: vec![],
+        value: Some(Value::StringValue(value.into())),
+    }
+}
+
+pub fn comparison_expression_node(lhs: Node, comparison: Comparison, rhs: Node) -> Node {
+    Node {
+        node_type: NodeType::ComparisonExpression as i32,
+        children: vec![lhs, rhs],
+        value: Some(Value::Comparison(comparison as _)),
     }
 }

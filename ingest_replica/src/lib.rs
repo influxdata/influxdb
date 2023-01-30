@@ -31,7 +31,7 @@ use crate::{buffer::Buffer, cache::SchemaCache, grpc::GrpcDelegate};
 use arrow_flight::flight_service_server::{FlightService, FlightServiceServer};
 use async_trait::async_trait;
 use data_types::sequence_number_set::SequenceNumberSet;
-use data_types::{NamespaceId, PartitionId, SequenceNumber, ShardIndex, TableId};
+use data_types::{NamespaceId, PartitionId, SequenceNumber, TableId, TRANSITION_SHARD_INDEX};
 use generated_types::influxdata::iox::ingester::v1::replication_service_server::{
     ReplicationService, ReplicationServiceServer,
 };
@@ -50,11 +50,6 @@ pub enum BufferError {
     #[error("mutable batch error: {0}")]
     MutableBatch(#[from] mutable_batch::Error),
 }
-
-/// During the testing of ingest replica, the catalog will require a ShardIndex for
-/// various operations. This is a const value for these occasions. Look up the ShardId for this
-/// ShardIndex when needed.
-const TRANSITION_SHARD_INDEX: ShardIndex = ShardIndex::new(1);
 
 /// Acquire opaque handles to the IngestReplica RPC service implementations.
 ///

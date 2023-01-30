@@ -10,6 +10,7 @@ use data_types::{
     ColumnId, ColumnSchema, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceId,
     NamespaceSchema, ParquetFile, ParquetFileId, Partition, PartitionId, PartitionKey, QueryPoolId,
     SequenceNumber, ShardId, SkippedCompaction, Table, TableId, TableSchema, Timestamp, TopicId,
+    TRANSITION_SHARD_NUMBER,
 };
 use datafusion::arrow::record_batch::RecordBatch;
 use futures::TryStreamExt;
@@ -259,7 +260,7 @@ impl SkippedCompactionBuilder {
     }
 }
 
-const SHARD_INDEX: i32 = 1;
+const SHARD_INDEX: i32 = TRANSITION_SHARD_NUMBER;
 const PARTITION_THRESHOLD: Duration = Duration::from_secs(10 * 60); // 10min
 const MAX_DESIRE_FILE_SIZE: u64 = 100 * 1024;
 const PERCENTAGE_MAX_FILE_SIZE: u16 = 5;

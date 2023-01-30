@@ -506,5 +506,144 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                 },
             ],
         ),
+        (
+            "TwoMeasurementsMultiSeries",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        // Data is deliberately not in series order.
+                        "h2o,state=CA,city=LA temp=90.0 200",
+                        "h2o,state=MA,city=Boston temp=72.4 250",
+                        "h2o,state=MA,city=Boston temp=70.4 100",
+                        "h2o,state=CA,city=LA temp=90.0 350",
+                        "o2,state=MA,city=Boston temp=53.4,reading=51 250",
+                        "o2,state=MA,city=Boston temp=50.4,reading=50 100",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 2,
+                },
+            ],
+        ),
+        (
+            // This recreates the test case for <https://github.com/influxdata/idpe/issues/16238>.
+            "StringFieldWithNumericValue",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    ["m,tag0=foo fld=\"200\" 1000", "m,tag0=foo fld=\"404\" 1050"].join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+            ],
+        ),
+        (
+            "MeasurementStatusCode",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "status_code,url=http://www.example.com value=404 1527018806000000000",
+                        "status_code,url=https://influxdb.com value=418 1527018816000000000",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+            ],
+        ),
+        (
+            "TwoMeasurementsMultiTagValue",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "h2o,state=MA,city=Boston temp=70.4 100",
+                        "h2o,state=MA,city=Lowell temp=75.4 100",
+                        "h2o,state=CA,city=LA temp=90.0 200",
+                        "o2,state=MA,city=Boston temp=50.4,reading=50 100",
+                        "o2,state=KS,city=Topeka temp=60.4,reading=60 100",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 2,
+                },
+            ],
+        ),
+        (
+            "MeasurementsSortableTags",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "h2o,zz_tag=A,state=MA,city=Kingston temp=70.1 800",
+                        "h2o,state=MA,city=Kingston,zz_tag=B temp=70.2 100",
+                        "h2o,state=CA,city=Boston temp=70.3 250",
+                        "h2o,state=MA,city=Boston,zz_tag=A temp=70.4 1000",
+                        "h2o,state=MA,city=Boston temp=70.5,other=5.0 250",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+            ],
+        ),
+        (
+            // See issue: https://github.com/influxdata/influxdb_iox/issues/2845
+            "MeasurementsForDefect2845",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "system,host=host.local load1=1.83 1527018806000000000",
+                        "system,host=host.local load1=1.63 1527018816000000000",
+                        "system,host=host.local load3=1.72 1527018806000000000",
+                        "system,host=host.local load4=1.77 1527018806000000000",
+                        "system,host=host.local load4=1.78 1527018816000000000",
+                        "system,host=host.local load4=1.77 1527018826000000000",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+            ],
+        ),
+        (
+            "EndToEndTest",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "cpu_load_short,host=server01,region=us-west value=0.64 0000",
+                        "cpu_load_short,host=server01 value=27.99 1000",
+                        "cpu_load_short,host=server02,region=us-west value=3.89 2000",
+                        "cpu_load_short,host=server01,region=us-east value=1234567.891011 3000",
+                        "cpu_load_short,host=server01,region=us-west value=0.000003 4000",
+                        "system,host=server03 uptime=1303385 5000",
+                        "swap,host=server01,name=disk0 in=3,out=4 6000",
+                        "status active=t 7000",
+                        "attributes color=\"blue\" 8000",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 5,
+                },
+            ],
+        ),
     ])
 });
