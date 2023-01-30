@@ -971,6 +971,10 @@ impl MockIngester {
 
 #[async_trait]
 impl IngesterFlightClient for MockIngester {
+    async fn invalidate_connection(&self, _ingester_address: Arc<str>) {
+        // no cache
+    }
+
     async fn query(
         &self,
         _ingester_address: Arc<str>,

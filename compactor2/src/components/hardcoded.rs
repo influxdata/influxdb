@@ -39,6 +39,7 @@ use super::{
     partition_filter::{
         and::AndPartitionFilter, by_id::ByIdPartitionFilter, has_files::HasFilesPartitionFilter,
         has_matching_file::HasMatchingFilePartitionFilter, logging::LoggingPartitionFilterWrapper,
+        max_files::MaxFilesPartitionFilter, max_parquet_bytes::MaxParquetBytesPartitionFilter,
         metrics::MetricsPartitionFilterWrapper, never_skipped::NeverSkippedPartitionFilter,
         PartitionFilter,
     },
@@ -90,6 +91,12 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         LevelRangeFileFilter::new(CompactionLevel::Initial..=CompactionLevel::Initial),
     )));
     partition_filters.push(Arc::new(HasFilesPartitionFilter::new()));
+    partition_filters.push(Arc::new(MaxFilesPartitionFilter::new(
+        config.max_input_files_per_partition,
+    )));
+    partition_filters.push(Arc::new(MaxParquetBytesPartitionFilter::new(
+        config.max_input_parquet_bytes_per_partition,
+    )));
 
     let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.shadow_mode {
         Arc::new(MockPartitionDoneSink::new())

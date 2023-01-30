@@ -3,6 +3,7 @@ use self::{
     flight_client::{
         Error as FlightClientError, FlightClientImpl, FlightError, IngesterFlightClient,
     },
+    invalidate_on_error::InvalidateOnErrorFlightClient,
     test_util::MockIngesterConnection,
 };
 use crate::cache::{namespace::CachedTable, CatalogCache};
@@ -45,6 +46,7 @@ use uuid::Uuid;
 
 mod circuit_breaker;
 pub(crate) mod flight_client;
+mod invalidate_on_error;
 pub(crate) mod test_util;
 
 #[derive(Debug, Snafu)]
@@ -382,6 +384,7 @@ impl IngesterConnectionImpl {
         open_circuit_after_n_errors: u64,
     ) -> Self {
         let flight_client = Arc::new(FlightClientImpl::new());
+        let flight_client = Arc::new(InvalidateOnErrorFlightClient::new(flight_client));
         let flight_client = Arc::new(CircuitBreakerFlightClient::new(
             flight_client,
             catalog_cache.time_provider(),
@@ -438,6 +441,7 @@ impl IngesterConnectionImpl {
         open_circuit_after_n_errors: u64,
     ) -> Self {
         let flight_client = Arc::new(FlightClientImpl::new());
+        let flight_client = Arc::new(InvalidateOnErrorFlightClient::new(flight_client));
         let flight_client = Arc::new(CircuitBreakerFlightClient::new(
             flight_client,
             catalog_cache.time_provider(),
@@ -2146,6 +2150,10 @@ mod tests {
 
     #[async_trait]
     impl IngesterFlightClient for MockFlightClient {
+        async fn invalidate_connection(&self, _ingester_address: Arc<str>) {
+            // no cache
+        }
+
         async fn query(
             &self,
             ingester_address: Arc<str>,
