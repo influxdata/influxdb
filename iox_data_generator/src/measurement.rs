@@ -1,13 +1,20 @@
 //! Generating a set of points for one measurement configuration
 
-use crate::{field::FieldGeneratorImpl, specification, substitution, tag_pair::TagPair};
+#![allow(clippy::result_large_err)]
 
-use crate::tag_set::{GeneratedTagSets, TagSet};
+use crate::{
+    field::FieldGeneratorImpl,
+    specification, substitution,
+    tag_pair::TagPair,
+    tag_set::{GeneratedTagSets, TagSet},
+};
 use influxdb2_client::models::WriteDataPoint;
 use serde_json::json;
 use snafu::{OptionExt, ResultExt, Snafu};
-use std::fmt::Debug;
-use std::sync::{Arc, Mutex};
+use std::{
+    fmt::Debug,
+    sync::{Arc, Mutex},
+};
 
 /// Measurement-specific Results
 pub type Result<T, E = Error> = std::result::Result<T, E>;
