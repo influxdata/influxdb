@@ -645,5 +645,291 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                 },
             ],
         ),
+        (
+            "OneMeasurementNoTags2",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(["m0 foo=1.0 1", "m0 foo=2.0 2"].join("\n")),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+            ],
+        ),
+        (
+            "OneMeasurementForAggs",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "h2o,state=MA,city=Boston temp=70.4 100",
+                        "h2o,state=MA,city=Boston temp=72.4 250",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "h2o,state=CA,city=LA temp=90.0 200",
+                        "h2o,state=CA,city=LA temp=90.0 350",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+            ],
+        ),
+        (
+            "TwoMeasurementForAggs",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "h2o,state=MA,city=Boston temp=70.4 100",
+                        "h2o,state=MA,city=Boston temp=72.4 250",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "o2,state=CA,city=LA temp=90.0 200",
+                        "o2,state=CA,city=LA temp=90.0 350",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+            ],
+        ),
+        (
+            "AnotherMeasurementForAggs",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "h2o,state=MA,city=Cambridge temp=80 50",
+                        "h2o,state=MA,city=Cambridge temp=81 100",
+                        "h2o,state=MA,city=Cambridge temp=82 200",
+                        "h2o,state=MA,city=Boston temp=70 300",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "h2o,state=MA,city=Boston temp=71 400",
+                        "h2o,state=CA,city=LA temp=90,humidity=10 500",
+                        "h2o,state=CA,city=LA temp=91,humidity=11 600",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+            ],
+        ),
+        (
+            "MeasurementForSelectors",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    ["h2o,state=MA,city=Cambridge f=8.0,i=8i,b=true,s=\"d\" 1000"].join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "h2o,state=MA,city=Cambridge f=7.0,i=7i,b=true,s=\"c\" 2000",
+                        "h2o,state=MA,city=Cambridge f=6.0,i=6i,b=false,s=\"b\" 3000",
+                        "h2o,state=MA,city=Cambridge f=5.0,i=5i,b=false,s=\"a\" 4000",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+            ],
+        ),
+        (
+            "MeasurementForMin",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "h2o,state=MA,city=Cambridge f=8.0,i=8i,b=false,s=\"c\" 1000",
+                        "h2o,state=MA,city=Cambridge f=7.0,i=7i,b=true,s=\"a\" 2000",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "h2o,state=MA,city=Cambridge f=6.0,i=6i,b=true,s=\"z\" 3000",
+                        "h2o,state=MA,city=Cambridge f=5.0,i=5i,b=false,s=\"c\" 4000",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+            ],
+        ),
+        (
+            "MeasurementForMax",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "h2o,state=MA,city=Cambridge f=8.0,i=8i,b=true,s=\"c\" 1000",
+                        "h2o,state=MA,city=Cambridge f=7.0,i=7i,b=false,s=\"d\" 2000",
+                        "h2o,state=MA,city=Cambridge f=6.0,i=6i,b=true,s=\"a\" 3000",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    ["h2o,state=MA,city=Cambridge f=5.0,i=5i,b=false,s=\"z\" 4000"].join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+            ],
+        ),
+        (
+            "MeasurementForGroupKeys",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "h2o,state=MA,city=Cambridge temp=80 50",
+                        "h2o,state=MA,city=Cambridge temp=81 100",
+                        "h2o,state=MA,city=Cambridge temp=82 200",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "h2o,state=MA,city=Boston temp=70 300",
+                        "h2o,state=MA,city=Boston temp=71 400",
+                        "h2o,state=CA,city=LA temp=90,humidity=10 500",
+                        "h2o,state=CA,city=LA temp=91,humidity=11 600",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+            ],
+        ),
+        (
+            "MeasurementForGroupByField",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "system,host=local,region=A load1=1.1,load2=2.1 100",
+                        "system,host=local,region=A load1=1.2,load2=2.2 200",
+                        "system,host=remote,region=B load1=10.1,load2=2.1 100",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "system,host=remote,region=B load1=10.2,load2=20.2 200",
+                        "system,host=local,region=C load1=100.1,load2=200.1 100",
+                        "aa_system,host=local,region=C load1=100.1,load2=200.1 100",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+            ],
+        ),
+        (
+            "TwoMeasurementsManyFieldsOneChunk",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "h2o,state=MA,city=Boston temp=70.4 50",
+                        "h2o,state=MA,city=Boston other_temp=70.4 250",
+                        "h2o,state=CA,city=Boston other_temp=72.4 350",
+                        "o2,state=MA,city=Boston temp=53.4,reading=51 50",
+                        "o2,state=CA temp=79.0 300",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 2,
+                },
+            ],
+        ),
+        (
+            "MeasurementForDefect2691",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "system,host=host.local load1=1.83 1527018806000000000",
+                        "system,host=host.local load1=1.63 1527018816000000000",
+                        "system,host=host.local load3=1.72 1527018806000000000",
+                        "system,host=host.local load4=1.77 1527018806000000000",
+                        "system,host=host.local load4=1.78 1527018816000000000",
+                        "system,host=host.local load4=1.77 1527018826000000000",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+            ],
+        ),
     ])
 });

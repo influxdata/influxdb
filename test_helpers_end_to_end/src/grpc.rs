@@ -164,6 +164,21 @@ impl GrpcRequestBuilder {
         self.combine_predicate(Logical::And, node)
     }
 
+    /// For all values, add `_value=val OR _value=val ...` to the predicate.
+    pub fn or_field_value_predicates<L: GrpcLiteral>(
+        self,
+        values: impl Iterator<Item = L>,
+    ) -> Self {
+        values.into_iter().fold(self, |acc, value| {
+            let node = comparison_expression_node(
+                field_ref_node("_value"),
+                Comparison::Equal,
+                value.make_node(),
+            );
+            acc.combine_predicate(Logical::Or, node)
+        })
+    }
+
     /// Add `_f=field_name` to the predicate in the horrible gRPC structs
     pub fn field_predicate(self, field_name: impl Into<String>) -> Self {
         let node = comparison_expression_node(

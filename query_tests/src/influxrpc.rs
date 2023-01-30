@@ -1,4 +1,3 @@
-pub mod read_group;
 pub mod read_window_aggregate;
 pub mod table_names;
 pub mod tag_keys;
