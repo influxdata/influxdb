@@ -16,8 +16,7 @@ impl std::str::FromStr for LogFormat {
             "json" => Ok(Self::Json),
             "logfmt" => Ok(Self::Logfmt),
             _ => Err(format!(
-                "Invalid log format '{}'. Valid options: full, pretty, json, logfmt",
-                s
+                "Invalid log format '{s}'. Valid options: full, pretty, json, logfmt"
             )),
         }
     }
@@ -48,8 +47,7 @@ impl std::str::FromStr for LogDestination {
             "stdout" => Ok(Self::Stdout),
             "stderr" => Ok(Self::Stderr),
             _ => Err(format!(
-                "Invalid log destination '{}'. Valid options: stdout, stderr",
-                s
+                "Invalid log destination '{s}'. Valid options: stdout, stderr"
             )),
         }
     }

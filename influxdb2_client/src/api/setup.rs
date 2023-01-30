@@ -143,8 +143,7 @@ mod tests {
             .match_header("Content-Type", "application/json")
             .match_body(
                 format!(
-                    r#"{{"username":"{}","org":"{}","bucket":"{}","password":"{}","retentionPeriodHrs":{}}}"#,
-                    username, org, bucket, password, retention_period_hrs
+                    r#"{{"username":"{username}","org":"{org}","bucket":"{bucket}","password":"{password}","retentionPeriodHrs":{retention_period_hrs}}}"#
                 ).as_str(),
             )
             .create();
@@ -175,12 +174,11 @@ mod tests {
         let retention_period_hrs = 1;
 
         let mock_server = mock("POST", "/api/v2/setup/user")
-            .match_header("Authorization", format!("Token {}", token).as_str())
+            .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Content-Type", "application/json")
             .match_body(
                 format!(
-                    r#"{{"username":"{}","org":"{}","bucket":"{}","password":"{}","retentionPeriodHrs":{}}}"#,
-                    username, org, bucket, password, retention_period_hrs
+                    r#"{{"username":"{username}","org":"{org}","bucket":"{bucket}","password":"{password}","retentionPeriodHrs":{retention_period_hrs}}}"#
                 ).as_str(),
             )
             .create();
@@ -210,11 +208,8 @@ mod tests {
         let mock_server = mock("POST", "/api/v2/setup")
             .match_header("Content-Type", "application/json")
             .match_body(
-                format!(
-                    r#"{{"username":"{}","org":"{}","bucket":"{}"}}"#,
-                    username, org, bucket,
-                )
-                .as_str(),
+                format!(r#"{{"username":"{username}","org":"{org}","bucket":"{bucket}"}}"#,)
+                    .as_str(),
             )
             .create();
 
@@ -235,14 +230,11 @@ mod tests {
         let bucket = "some-bucket";
 
         let mock_server = mock("POST", "/api/v2/setup/user")
-            .match_header("Authorization", format!("Token {}", token).as_str())
+            .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Content-Type", "application/json")
             .match_body(
-                format!(
-                    r#"{{"username":"{}","org":"{}","bucket":"{}"}}"#,
-                    username, org, bucket,
-                )
-                .as_str(),
+                format!(r#"{{"username":"{username}","org":"{org}","bucket":"{bucket}"}}"#,)
+                    .as_str(),
             )
             .create();
 

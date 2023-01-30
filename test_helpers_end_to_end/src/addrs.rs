@@ -23,7 +23,7 @@ pub struct Address {
 impl Address {
     fn new() -> Self {
         let bind_addr = Self::get_free_port().to_string();
-        let client_base = format!("http://{}", bind_addr);
+        let client_base = format!("http://{bind_addr}");
 
         Self {
             bind_addr: bind_addr.into(),

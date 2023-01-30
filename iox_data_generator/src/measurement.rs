@@ -281,7 +281,7 @@ impl Measurement {
             }
         }
 
-        writeln!(w, " {}", timestamp)
+        writeln!(w, " {timestamp}")
     }
 }
 
@@ -468,8 +468,7 @@ mod test {
         assert_eq!(
             line_protocol,
             format!(
-                "measurement,some_name=some_value,tag_name=tag_value field_name=1i {}\n",
-                fake_now
+                "measurement,some_name=some_value,tag_name=tag_value field_name=1i {fake_now}\n"
             )
         );
 
@@ -511,8 +510,7 @@ mod test {
         assert_eq!(
             line_protocol,
             format!(
-                "measurement,some_name=some_value 1,some_name2=some_value 2 field_name=1i {}\n",
-                fake_now
+                "measurement,some_name=some_value 1,some_name2=some_value 2 field_name=1i {fake_now}\n"
             )
         );
     }
@@ -573,8 +571,7 @@ mod test {
         assert_eq!(
             line_protocol,
             format!(
-                "m1,foo=1,reg=data-1 val=3i {}\nm1,foo=2,reg=data-1 val=3i {}\nm1,foo=3,reg=data-3 val=3i {}\n",
-                fake_now, fake_now, fake_now
+                "m1,foo=1,reg=data-1 val=3i {fake_now}\nm1,foo=2,reg=data-1 val=3i {fake_now}\nm1,foo=3,reg=data-3 val=3i {fake_now}\n"
             )
         );
     }
@@ -636,8 +633,7 @@ mod test {
         assert_eq!(
             line_protocol,
             format!(
-                "m1,foo=foo-1,hello=world1 val=3i {}\nm1,foo=foo-2,hello=world1 val=3i {}\n",
-                fake_now, fake_now
+                "m1,foo=foo-1,hello=world1 val=3i {fake_now}\nm1,foo=foo-2,hello=world1 val=3i {fake_now}\n"
             )
         );
     }
@@ -649,7 +645,7 @@ mod test {
                 let mut split = line.splitn(2, ' ');
                 split.next();
                 let after_space = split.next().unwrap();
-                let prefix = format!(",{}=", field_name);
+                let prefix = format!(",{field_name}=");
                 let after = after_space.rsplit_once(&prefix).unwrap().1;
                 after.split_once(',').map_or(after, |x| x.0)
             })

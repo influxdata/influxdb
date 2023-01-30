@@ -1178,11 +1178,11 @@ mod test {
         }
 
         fn push_pre(&mut self, name: &str, n: impl Debug) {
-            self.0.push(format!("pre_visit_{}: {:?}", name, n));
+            self.0.push(format!("pre_visit_{name}: {n:?}"));
         }
 
         fn push_post(&mut self, name: &str, n: impl Debug) {
-            self.0.push(format!("post_visit_{}: {:?}", name, n));
+            self.0.push(format!("post_visit_{name}: {n:?}"));
         }
     }
 

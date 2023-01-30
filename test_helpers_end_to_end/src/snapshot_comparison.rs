@@ -80,14 +80,14 @@ pub async fn run(
             .expect("input path missing extension")
             .to_str()
             .expect("input path extension is not valid UTF-8");
-        p.set_extension(format!("{}.expected", ext));
+        p.set_extension(format!("{ext}.expected"));
         p
     };
 
-    println!("Running case in {:?}", input_path);
-    println!("  writing output to {:?}", output_path);
-    println!("  expected output in {:?}", expected_path);
-    println!("Processing contents:\n{}", contents);
+    println!("Running case in {input_path:?}");
+    println!("  writing output to {output_path:?}");
+    println!("  expected output in {expected_path:?}");
+    println!("Processing contents:\n{contents}");
 
     let queries = TestQueries::from_lines(contents.lines());
 

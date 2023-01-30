@@ -99,7 +99,7 @@ mod tests {
             .iter()
             .map(|f| (f.id.get(), f.compaction_level))
             .collect();
-        println!("{:?}", files_and_levels);
+        println!("{files_and_levels:?}");
         assert_eq!(
             files_and_levels,
             vec![

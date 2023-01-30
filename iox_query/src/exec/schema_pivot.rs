@@ -223,8 +223,7 @@ impl ExecutionPlan for SchemaPivotExec {
 
         if self.output_partitioning().partition_count() <= partition {
             return Err(Error::Internal(format!(
-                "SchemaPivotExec invalid partition {}",
-                partition
+                "SchemaPivotExec invalid partition {partition}"
             )));
         }
 
@@ -369,8 +368,7 @@ mod tests {
         assert_eq!(
             case.pivot().await,
             case.expected_output(),
-            "TestCase: {:?}",
-            case
+            "TestCase: {case:?}"
         );
     }
 
@@ -386,8 +384,7 @@ mod tests {
         assert_eq!(
             case.pivot().await,
             case.expected_output(),
-            "TestCase: {:?}",
-            case
+            "TestCase: {case:?}"
         );
     }
 
@@ -403,8 +400,7 @@ mod tests {
         assert_eq!(
             case.pivot().await,
             case.expected_output(),
-            "TestCase: {:?}",
-            case
+            "TestCase: {case:?}"
         );
     }
 
@@ -426,8 +422,7 @@ mod tests {
         assert_eq!(
             case.pivot().await,
             case.expected_output(),
-            "TestCase: {:?}",
-            case
+            "TestCase: {case:?}"
         );
     }
 
@@ -449,8 +444,7 @@ mod tests {
         assert_eq!(
             case.pivot().await,
             case.expected_output(),
-            "TestCase: {:?}",
-            case
+            "TestCase: {case:?}"
         );
     }
 

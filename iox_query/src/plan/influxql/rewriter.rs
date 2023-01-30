@@ -24,7 +24,7 @@ use std::ops::{ControlFlow, Deref};
 fn parse_regex(re: &Regex) -> Result<regex::Regex> {
     let pattern = clean_non_meta_escapes(re.as_str());
     regex::Regex::new(&pattern).map_err(|e| {
-        DataFusionError::External(format!("invalid regular expression '{}': {}", re, e).into())
+        DataFusionError::External(format!("invalid regular expression '{re}': {e}").into())
     })
 }
 
@@ -359,7 +359,7 @@ fn rewrite_field_list(
                     match args.first() {
                         Some(Expr::Wildcard(Some(WildcardType::Tag))) => {
                             return Err(DataFusionError::External(
-                                format!("unable to use tag as wildcard in {}()", name).into(),
+                                format!("unable to use tag as wildcard in {name}()").into(),
                             ));
                         }
                         Some(Expr::Wildcard(_)) => {
@@ -471,7 +471,7 @@ fn rewrite_field_list_aliases(field_list: &mut FieldList) -> Result<()> {
                 Some(count) => {
                     let mut count = *count;
                     loop {
-                        let resolved_name = format!("{}_{}", name, count);
+                        let resolved_name = format!("{name}_{count}");
                         if column_aliases.contains_key(resolved_name.as_str()) {
                             count += 1;
                         } else {

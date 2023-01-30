@@ -187,7 +187,7 @@ impl <H: AgentSyncHandler> TProcessor for AgentSyncProcessor<H> {
           thrift::Error::Application(
             ApplicationError::new(
               ApplicationErrorKind::UnknownMethod,
-              format!("unknown method {}", method)
+              format!("unknown method {method}")
             )
           )
         )

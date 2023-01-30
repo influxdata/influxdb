@@ -1084,8 +1084,7 @@ mod test {
             assert_eq!(
                 metrics.len(),
                 1,
-                "expected only one duplicate metric, found {:?}",
-                metrics
+                "expected only one duplicate metric, found {metrics:?}"
             );
             metrics[0].value().as_usize()
         }

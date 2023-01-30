@@ -117,7 +117,7 @@ impl RecordBatchDeduplicator {
                     // Key column of last_batch of this index
                     let last_batch_array = last_batch.column(index);
                     if last_batch_array.len() == 0 {
-                        panic!("Key column, {}, of last_batch has no data", name);
+                        panic!("Key column, {name}, of last_batch has no data");
                     }
                     arrow::compute::SortColumn {
                         values: Arc::clone(last_batch_array),
@@ -139,7 +139,7 @@ impl RecordBatchDeduplicator {
                     // Key column of current batch of this index
                     let array = batch.column(index);
                     if array.len() == 0 {
-                        panic!("Key column, {}, of current batch has no data", name);
+                        panic!("Key column, {name}, of current batch has no data");
                     }
                     arrow::compute::SortColumn {
                         values: Arc::clone(array),

@@ -36,7 +36,7 @@ pub fn classify_response<B>(response: &http::Response<B>) -> (Cow<'static, str>,
             ("internal server error".into(), Classification::ServerErr)
         }
         _ => (
-            format!("unexpected status code: {}", status).into(),
+            format!("unexpected status code: {status}").into(),
             Classification::ServerErr,
         ),
     }
@@ -80,7 +80,7 @@ pub fn classify_headers(
                 15 => ("data loss".into(), Classification::ServerErr),
                 16 => ("unauthenticated".into(), Classification::ClientErr),
                 _ => (
-                    format!("unrecognised status code: {}", value).into(),
+                    format!("unrecognised status code: {value}").into(),
                     Classification::ServerErr,
                 ),
             }

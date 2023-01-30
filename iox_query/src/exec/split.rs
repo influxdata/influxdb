@@ -252,7 +252,7 @@ impl ExecutionPlan for StreamSplitExec {
             State::Running { streams } => {
                 assert!(partition < streams.len());
                 let stream = streams[partition].take().unwrap_or_else(|| {
-                    panic!("Error executing stream #{} of StreamSplitExec", partition);
+                    panic!("Error executing stream #{partition} of StreamSplitExec");
                 });
                 trace!(partition, "End SplitExec::execute");
                 Ok(stream)
@@ -449,7 +449,7 @@ fn compute_batch(
             match val {
                 Some(true) => input_batch.clone(),
                 Some(false) => empty_record_batch,
-                _ => panic!("mismatched boolean values: {:?}", val),
+                _ => panic!("mismatched boolean values: {val:?}"),
             }
         }
         _ => {

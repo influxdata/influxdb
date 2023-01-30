@@ -77,7 +77,7 @@ impl TableProvider for QuerierTable {
 
         let provider = match builder.build() {
             Ok(provider) => provider,
-            Err(e) => panic!("unexpected error: {:?}", e),
+            Err(e) => panic!("unexpected error: {e:?}"),
         };
 
         provider.scan(ctx, projection, filters, limit).await

@@ -59,7 +59,7 @@ impl MiniCluster {
     pub fn new() -> Self {
         let org_id = rand_id();
         let bucket_id = rand_id();
-        let namespace = format!("{}_{}", org_id, bucket_id);
+        let namespace = format!("{org_id}_{bucket_id}");
 
         Self {
             org_id,
@@ -82,7 +82,7 @@ impl MiniCluster {
     ) -> Self {
         let org_id = rand_id();
         let bucket_id = rand_id();
-        let namespace = format!("{}_{}", org_id, bucket_id);
+        let namespace = format!("{org_id}_{bucket_id}");
 
         Self {
             router,
@@ -470,7 +470,7 @@ impl MiniCluster {
             .into_inner();
 
         let (msg, app_metadata) = next_message(&mut performed_query).await.unwrap();
-        assert!(matches!(msg, DecodedPayload::None), "{:?}", msg);
+        assert!(matches!(msg, DecodedPayload::None), "{msg:?}");
 
         let schema = next_message(&mut performed_query)
             .await
@@ -694,13 +694,13 @@ async fn next_message(
 fn unwrap_schema(msg: DecodedPayload) -> SchemaRef {
     match msg {
         DecodedPayload::Schema(s) => s,
-        _ => panic!("Unexpected message type: {:?}", msg),
+        _ => panic!("Unexpected message type: {msg:?}"),
     }
 }
 
 fn unwrap_record_batch(msg: DecodedPayload) -> RecordBatch {
     match msg {
         DecodedPayload::RecordBatch(b) => b,
-        _ => panic!("Unexpected message type: {:?}", msg),
+        _ => panic!("Unexpected message type: {msg:?}"),
     }
 }

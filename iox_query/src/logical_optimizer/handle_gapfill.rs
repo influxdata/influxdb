@@ -304,8 +304,7 @@ fn check_node(node: &LogicalPlan) -> Result<()> {
         let count = count_date_bin_gapfill(expr)?;
         if count > 0 {
             Err(DataFusionError::Plan(format!(
-                "{} may only be used as a GROUP BY expression",
-                DATE_BIN_GAPFILL_UDF_NAME
+                "{DATE_BIN_GAPFILL_UDF_NAME} may only be used as a GROUP BY expression"
             )))
         } else {
             Ok(())

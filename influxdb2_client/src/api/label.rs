@@ -148,7 +148,7 @@ mod tests {
         let token = "some-token";
 
         let mock_server = mock("GET", BASE_PATH)
-            .match_header("Authorization", format!("Token {}", token).as_str())
+            .match_header("Authorization", format!("Token {token}").as_str())
             .create();
 
         let client = Client::new(mockito::server_url(), token);
@@ -163,8 +163,8 @@ mod tests {
         let token = "some-token";
         let org_id = "some-org_id";
 
-        let mock_server = mock("GET", format!("{}?orgID={}", BASE_PATH, org_id).as_str())
-            .match_header("Authorization", format!("Token {}", token).as_str())
+        let mock_server = mock("GET", format!("{BASE_PATH}?orgID={org_id}").as_str())
+            .match_header("Authorization", format!("Token {token}").as_str())
             .create();
 
         let client = Client::new(mockito::server_url(), token);
@@ -179,8 +179,8 @@ mod tests {
         let token = "some-token";
         let label_id = "some-id";
 
-        let mock_server = mock("GET", format!("{}/{}", BASE_PATH, label_id).as_str())
-            .match_header("Authorization", format!("Token {}", token).as_str())
+        let mock_server = mock("GET", format!("{BASE_PATH}/{label_id}").as_str())
+            .match_header("Authorization", format!("Token {token}").as_str())
             .create();
 
         let client = Client::new(mockito::server_url(), token);
@@ -199,12 +199,11 @@ mod tests {
         properties.insert("some-key".to_string(), "some-value".to_string());
 
         let mock_server = mock("POST", BASE_PATH)
-            .match_header("Authorization", format!("Token {}", token).as_str())
+            .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Content-Type", "application/json")
             .match_body(
                 format!(
-                    r#"{{"orgID":"{}","name":"{}","properties":{{"some-key":"some-value"}}}}"#,
-                    org_id, name
+                    r#"{{"orgID":"{org_id}","name":"{name}","properties":{{"some-key":"some-value"}}}}"#
                 )
                 .as_str(),
             )
@@ -224,9 +223,9 @@ mod tests {
         let name = "some-user";
 
         let mock_server = mock("POST", BASE_PATH)
-            .match_header("Authorization", format!("Token {}", token).as_str())
+            .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Content-Type", "application/json")
-            .match_body(format!(r#"{{"orgID":"{}","name":"{}"}}"#, org_id, name).as_str())
+            .match_body(format!(r#"{{"orgID":"{org_id}","name":"{name}"}}"#).as_str())
             .create();
 
         let client = Client::new(mockito::server_url(), token);
@@ -244,15 +243,11 @@ mod tests {
         let mut properties = HashMap::new();
         properties.insert("some-key".to_string(), "some-value".to_string());
 
-        let mock_server = mock("PATCH", format!("{}/{}", BASE_PATH, label_id).as_str())
-            .match_header("Authorization", format!("Token {}", token).as_str())
+        let mock_server = mock("PATCH", format!("{BASE_PATH}/{label_id}").as_str())
+            .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Content-Type", "application/json")
             .match_body(
-                format!(
-                    r#"{{"name":"{}","properties":{{"some-key":"some-value"}}}}"#,
-                    name
-                )
-                .as_str(),
+                format!(r#"{{"name":"{name}","properties":{{"some-key":"some-value"}}}}"#).as_str(),
             )
             .create();
 
@@ -270,8 +265,8 @@ mod tests {
         let token = "some-token";
         let label_id = "some-label_id";
 
-        let mock_server = mock("PATCH", format!("{}/{}", BASE_PATH, label_id).as_str())
-            .match_header("Authorization", format!("Token {}", token).as_str())
+        let mock_server = mock("PATCH", format!("{BASE_PATH}/{label_id}").as_str())
+            .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Content-Type", "application/json")
             .match_body("{}")
             .create();
@@ -288,8 +283,8 @@ mod tests {
         let token = "some-token";
         let label_id = "some-label_id";
 
-        let mock_server = mock("DELETE", format!("{}/{}", BASE_PATH, label_id).as_str())
-            .match_header("Authorization", format!("Token {}", token).as_str())
+        let mock_server = mock("DELETE", format!("{BASE_PATH}/{label_id}").as_str())
+            .match_header("Authorization", format!("Token {token}").as_str())
             .create();
 
         let client = Client::new(mockito::server_url(), token);

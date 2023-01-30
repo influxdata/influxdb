@@ -29,7 +29,7 @@ impl From<tonic::transport::Error> for RpcError {
         use std::error::Error;
         let details = source
             .source()
-            .map(|e| format!(" ({})", e))
+            .map(|e| format!(" ({e})"))
             .unwrap_or_else(|| "".to_string());
 
         Self::TransportError { source, details }

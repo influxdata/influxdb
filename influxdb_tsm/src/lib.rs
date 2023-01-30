@@ -41,7 +41,7 @@ impl TryFrom<u8> for BlockType {
             3 => Ok(Self::Str),
             4 => Ok(Self::Unsigned),
             _ => Err(TsmError {
-                description: format!("{:?} is invalid block type", value),
+                description: format!("{value:?} is invalid block type"),
             }),
         }
     }
@@ -120,7 +120,7 @@ impl error::Error for TsmError {
 impl From<io::Error> for TsmError {
     fn from(e: io::Error) -> Self {
         Self {
-            description: format!("TODO - io error: {} ({:?})", e, e),
+            description: format!("TODO - io error: {e} ({e:?})"),
         }
     }
 }
@@ -128,7 +128,7 @@ impl From<io::Error> for TsmError {
 impl From<std::str::Utf8Error> for TsmError {
     fn from(e: std::str::Utf8Error) -> Self {
         Self {
-            description: format!("TODO - utf8 error: {} ({:?})", e, e),
+            description: format!("TODO - utf8 error: {e} ({e:?})"),
         }
     }
 }
@@ -141,7 +141,7 @@ mod tests {
     fn influx_id() {
         let id = InfluxId::new_str("20aa9b0").unwrap();
         assert_eq!(id, InfluxId(34_253_232));
-        assert_eq!(format!("{}", id), "00000000020aa9b0");
+        assert_eq!(format!("{id}"), "00000000020aa9b0");
     }
 
     #[test]

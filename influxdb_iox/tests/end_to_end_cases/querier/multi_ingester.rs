@@ -63,7 +63,7 @@ async fn basic_multi_ingesters() {
 
     // pick 100 table names to spread across both ingesters
     let lp_data = (0..100)
-        .map(|i| format!("table_{},tag1=A,tag2=B val={}i 123456", i, i))
+        .map(|i| format!("table_{i},tag1=A,tag2=B val={i}i 123456"))
         .collect::<Vec<_>>()
         .join("\n");
 
@@ -83,8 +83,7 @@ async fn basic_multi_ingesters() {
                             ShardStatus::Persisted | ShardStatus::Readable
                         )
                     }),
-                    "Not all shards were readable or persisted. Combined responses: {:?}",
-                    combined_response
+                    "Not all shards were readable or persisted. Combined responses: {combined_response:?}"
                 );
             }
             .boxed()
@@ -114,21 +113,20 @@ async fn basic_multi_ingesters() {
     .into_iter()
     // read all the data back out
     .chain((0..100).map(|i| Step::VerifiedQuery {
-        sql: format!("select * from table_{}", i),
+        sql: format!("select * from table_{i}"),
         verify: Box::new(move |batches: Vec<RecordBatch>| {
-            println!("Verifing contents of table_{}", i);
+            println!("Verifing contents of table_{i}");
             // results look like this:
             // "+------+------+--------------------------------+-----+",
             // "| tag1 | tag2 | time                           | val |",
             // "+------+------+--------------------------------+-----+",
             // "| A    | B    | 1970-01-01T00:00:00.000123456Z | val |",
             // "+------+------+--------------------------------+-----+",
-            assert_eq!(batches.len(), 1, "{:?}", batches);
+            assert_eq!(batches.len(), 1, "{batches:?}");
             assert_eq!(
                 batches[0].schema().fields()[3].name(),
                 "val",
-                "{:?}",
-                batches
+                "{batches:?}"
             );
             let array = as_primitive_array::<Int64Type>(batches[0].column(3));
             assert_eq!(array.len(), 1);
@@ -162,14 +160,14 @@ async fn get_multi_ingester_readable_combined_response(
             match combined_response {
                 Ok(combined_response) => {
                     if all_readable(&combined_response) {
-                        println!("All data is readable: {:?}", combined_response);
+                        println!("All data is readable: {combined_response:?}");
                         return combined_response;
                     } else {
-                        println!("retrying, not yet readable: {:?}", combined_response);
+                        println!("retrying, not yet readable: {combined_response:?}");
                     }
                 }
                 Err(e) => {
-                    println!("retrying, error getting token status: {}", e);
+                    println!("retrying, error getting token status: {e}");
                 }
             }
             interval.tick().await;

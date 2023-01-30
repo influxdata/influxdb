@@ -291,10 +291,7 @@ pub struct AlreadyExists {
 
 impl AlreadyExists {
     pub fn new(resource_type: ResourceType, resource_name: String) -> Self {
-        let description = format!(
-            "Resource {}/{} already exists",
-            resource_type, resource_name
-        );
+        let description = format!("Resource {resource_type}/{resource_name} already exists");
 
         Self {
             resource_type,
@@ -369,7 +366,7 @@ pub struct NotFound {
 
 impl NotFound {
     pub fn new(resource_type: ResourceType, resource_name: String) -> Self {
-        let description = format!("Resource {}/{} not found", resource_type, resource_name);
+        let description = format!("Resource {resource_type}/{resource_name} not found");
 
         Self {
             resource_type,

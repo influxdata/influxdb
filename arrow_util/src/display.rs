@@ -56,9 +56,9 @@ fn array_value_to_string(column: &ArrayRef, row: usize) -> Result<String> {
                 dur_column
                     .value(row)
                     .try_into()
-                    .map_err(|e| ArrowError::InvalidArgumentError(format!("{:?}", e)))?,
+                    .map_err(|e| ArrowError::InvalidArgumentError(format!("{e:?}")))?,
             );
-            Ok(format!("{:?}", duration))
+            Ok(format!("{duration:?}"))
         }
         _ => {
             // fallback to arrow's default printing for other types
@@ -188,8 +188,7 @@ mod tests {
         let actual: Vec<&str> = table.lines().collect();
         assert_eq!(
             expected, actual,
-            "Expected:\n\n{:#?}\nActual:\n\n{:#?}\n",
-            expected, actual
+            "Expected:\n\n{expected:#?}\nActual:\n\n{actual:#?}\n"
         );
     }
 

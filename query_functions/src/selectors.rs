@@ -416,8 +416,7 @@ impl FactoryBuilder {
                 },
                 // Catch
                 (selector_type, value_type) => return Err(DataFusionError::Internal(format!(
-                    "Unhandled selector type. Expected value type of f64/i64/u64/string/bool, got {:?} for {:?}",
-                    selector_type, value_type,
+                    "Unhandled selector type. Expected value type of f64/i64/u64/string/bool, got {selector_type:?} for {value_type:?}",
                 ))),
             };
             Ok(accumulator)
@@ -528,8 +527,7 @@ fn make_uda(name: &str, factory_builder: FactoryBuilder) -> AggregateUDF {
         let time_type = &arg_types[1];
         if time_type != &TIME_DATA_TYPE() {
             return Err(DataFusionError::Plan(format!(
-                "{} second argument must be a timestamp, but got {}",
-                captured_name, time_type
+                "{captured_name} second argument must be a timestamp, but got {time_type}"
             )));
         }
         let return_type = output_type.return_type(input_type);
@@ -718,8 +716,7 @@ mod test {
 
             assert_eq!(
                 expected, actual,
-                "\n\nEXPECTED:\n{:#?}\nACTUAL:\n{:#?}\n",
-                expected, actual
+                "\n\nEXPECTED:\n{expected:#?}\nACTUAL:\n{actual:#?}\n"
             );
         }
     }
@@ -796,8 +793,7 @@ mod test {
 
             assert_eq!(
                 expected, actual,
-                "\n\nEXPECTED:\n{:#?}\nACTUAL:\n{:#?}\n",
-                expected, actual
+                "\n\nEXPECTED:\n{expected:#?}\nACTUAL:\n{actual:#?}\n"
             );
         }
     }
@@ -874,8 +870,7 @@ mod test {
 
             assert_eq!(
                 expected, actual,
-                "\n\nEXPECTED:\n{:#?}\nACTUAL:\n{:#?}\n",
-                expected, actual
+                "\n\nEXPECTED:\n{expected:#?}\nACTUAL:\n{actual:#?}\n"
             );
         }
     }
@@ -952,8 +947,7 @@ mod test {
 
             assert_eq!(
                 expected, actual,
-                "\n\nEXPECTED:\n{:#?}\nACTUAL:\n{:#?}\n",
-                expected, actual
+                "\n\nEXPECTED:\n{expected:#?}\nACTUAL:\n{actual:#?}\n"
             );
         }
     }
@@ -1270,14 +1264,13 @@ mod test {
 
     /// Runs the expr using `run_plan` and compares the result to `expected`
     async fn run_case(expr: Expr, expected: Vec<&'static str>) {
-        println!("Running case for {}", expr);
+        println!("Running case for {expr}");
 
         let actual = run_plan(vec![expr.clone()]).await;
 
         assert_eq!(
             expected, actual,
-            "\n\nexpr: {}\n\nEXPECTED:\n{:#?}\nACTUAL:\n{:#?}\n",
-            expr, expected, actual
+            "\n\nexpr: {expr}\n\nEXPECTED:\n{expected:#?}\nACTUAL:\n{actual:#?}\n"
         );
     }
 
@@ -1373,14 +1366,13 @@ mod test {
                 results, p_results,
                 "Mismatch with permutation.\n\
                         Input1 \n\n\
-                        {}\n\n\
+                        {input_string}\n\n\
                         produces output:\n\n\
-                        {:#?}\n\n\
+                        {results:#?}\n\n\
                         Input 2\n\n\
-                        {}\n\n\
+                        {p_input_string}\n\n\
                         produces output:\n\n\
-                        {:#?}\n\n",
-                input_string, results, p_input_string, p_results
+                        {p_results:#?}\n\n"
             );
         }
 

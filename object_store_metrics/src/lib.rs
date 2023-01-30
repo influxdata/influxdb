@@ -598,7 +598,7 @@ mod tests {
             .fetch();
 
         let hit_count = histogram.sample_count();
-        assert!(hit_count > 0, "metric {} did not record any calls", name);
+        assert!(hit_count > 0, "metric {name} did not record any calls");
     }
 
     fn assert_counter_value<const N: usize>(
@@ -816,7 +816,7 @@ mod tests {
                     .expect("failed to read file data");
                 assert_eq!(contents, &data);
             }
-            v => panic!("not a file: {:?}", v),
+            v => panic!("not a file: {v:?}"),
         }
 
         assert_counter_value(&metrics, "object_store_transfer_bytes", [("op", "get")], 5);
@@ -877,7 +877,7 @@ mod tests {
         let got = store.get(&path).await.expect("should read stream");
         match got {
             GetResult::Stream(mut stream) => while (stream.next().await).is_some() {},
-            v => panic!("not a stream: {:?}", v),
+            v => panic!("not a stream: {v:?}"),
         }
 
         assert_counter_value(&metrics, "object_store_transfer_bytes", [("op", "get")], 5);

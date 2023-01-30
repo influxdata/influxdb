@@ -56,7 +56,7 @@ impl FromStr for JaegerTag {
         let parts = s.split('=').collect::<Vec<_>>();
         match *parts {
             [key, value] if !key.is_empty() && !value.is_empty() => Ok(Self::new(key, value)),
-            _ => Err(format!("invalid key=value pair ({})", s).into()),
+            _ => Err(format!("invalid key=value pair ({s})").into()),
         }
     }
 }

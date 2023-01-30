@@ -473,8 +473,7 @@ mod tests {
 
         assert_eq!(
             &rewritten_expr, expected,
-            "Mismatch rewriting\nInput: {}\nRewritten: {}\nExpected: {}",
-            expr, rewritten_expr, expected
+            "Mismatch rewriting\nInput: {expr}\nRewritten: {rewritten_expr}\nExpected: {expected}"
         );
     }
 

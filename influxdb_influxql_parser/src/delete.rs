@@ -34,12 +34,12 @@ impl Display for DeleteStatement {
 
         match self {
             Self::FromWhere { from, condition } => {
-                write!(f, " {}", from)?;
+                write!(f, " {from}")?;
                 if let Some(where_clause) = condition {
-                    write!(f, " {}", where_clause)?;
+                    write!(f, " {where_clause}")?;
                 }
             }
-            Self::Where(where_clause) => write!(f, " {}", where_clause)?,
+            Self::Where(where_clause) => write!(f, " {where_clause}")?,
         };
 
         Ok(())

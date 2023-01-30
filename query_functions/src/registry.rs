@@ -41,16 +41,14 @@ impl FunctionRegistry for IOxFunctionRegistry {
             regex::REGEX_NOT_MATCH_UDF_NAME => Ok(regex::REGEX_NOT_MATCH_UDF.clone()),
             window::WINDOW_BOUNDS_UDF_NAME => Ok(window::WINDOW_BOUNDS_UDF.clone()),
             _ => Err(DataFusionError::Plan(format!(
-                "IOx FunctionRegistry does not contain function '{}'",
-                name
+                "IOx FunctionRegistry does not contain function '{name}'"
             ))),
         }
     }
 
     fn udaf(&self, name: &str) -> DataFusionResult<Arc<AggregateUDF>> {
         Err(DataFusionError::Plan(format!(
-            "IOx FunctionRegistry does not contain user defined aggregate function '{}'",
-            name
+            "IOx FunctionRegistry does not contain user defined aggregate function '{name}'"
         )))
     }
 }

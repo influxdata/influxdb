@@ -131,7 +131,7 @@ impl Config {
             .expect("retry forever");
 
         if topic.is_none() {
-            panic!("Topic {} not found", topic_name);
+            panic!("Topic {topic_name} not found");
         }
         let topic = topic.unwrap();
 
@@ -151,10 +151,7 @@ impl Config {
         match shard {
             Some(shard) => shard.id,
             None => {
-                panic!(
-                    "Topic {} and Shard Index {} not found",
-                    topic_name, shard_index
-                )
+                panic!("Topic {topic_name} and Shard Index {shard_index} not found")
             }
         }
     }

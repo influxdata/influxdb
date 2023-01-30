@@ -331,7 +331,7 @@ async fn do_read_filter_test(
                 async move {
                     let mut storage_client = state.cluster().querier_storage_client();
 
-                    println!("Sending read_filter request with {:#?}", request_builder);
+                    println!("Sending read_filter request with {request_builder:#?}");
 
                     let read_filter_request =
                         request_builder.source(state.cluster()).build_read_filter();
@@ -341,8 +341,7 @@ async fn do_read_filter_test(
 
                     assert_eq!(
                         expected_frames, actual_frames,
-                        "\n\nExpected:\n{:#?}\n\nActual:\n{:#?}\n\n",
-                        expected_frames, actual_frames,
+                        "\n\nExpected:\n{expected_frames:#?}\n\nActual:\n{actual_frames:#?}\n\n",
                     );
                 }
                 .boxed()

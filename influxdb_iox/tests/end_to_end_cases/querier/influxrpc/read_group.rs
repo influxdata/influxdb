@@ -324,7 +324,7 @@ async fn do_read_group_test(
                         .into_grpc_connection();
                     let mut storage_client = StorageClient::new(grpc_connection);
 
-                    println!("Sending read_group request with {:#?}", request_builder);
+                    println!("Sending read_group request with {request_builder:#?}");
 
                     let read_group_request =
                         request_builder.source(state.cluster()).build_read_group();
@@ -334,8 +334,7 @@ async fn do_read_group_test(
 
                     assert_eq!(
                         expected_frames, actual_frames,
-                        "\n\nExpected:\n{:#?}\n\nActual:\n{:#?}\n\n",
-                        expected_frames, actual_frames,
+                        "\n\nExpected:\n{expected_frames:#?}\n\nActual:\n{actual_frames:#?}\n\n",
                     );
                 }
                 .boxed()

@@ -225,12 +225,12 @@ impl<'a> Display for ParsedLine<'a> {
                 }
                 first = false;
                 escape_and_write_value(f, field_name.as_str(), FIELD_KEY_DELIMITERS)?;
-                write!(f, "={}", field_value)?;
+                write!(f, "={field_value}")?;
             }
         }
 
         if let Some(timestamp) = self.timestamp {
-            write!(f, " {}", timestamp)?
+            write!(f, " {timestamp}")?
         }
         Ok(())
     }
@@ -281,8 +281,7 @@ impl<'a> Series<'a> {
         let mut series_base = self.measurement.to_string();
         for (tag_key, tag_value) in self.tag_set.unwrap_or_default() {
             use std::fmt::Write;
-            write!(&mut series_base, ",{}={}", tag_key, tag_value)
-                .expect("Could not append string");
+            write!(&mut series_base, ",{tag_key}={tag_value}").expect("Could not append string");
         }
         series_base
     }
@@ -307,8 +306,7 @@ impl<'a> Series<'a> {
         let mut series_base = self.measurement.to_string();
         for (tag_key, tag_value) in unique_sorted_tag_set {
             use std::fmt::Write;
-            write!(&mut series_base, ",{}={}", tag_key, tag_value)
-                .expect("Could not append string");
+            write!(&mut series_base, ",{tag_key}={tag_value}").expect("Could not append string");
         }
 
         Ok(series_base)
@@ -363,11 +361,11 @@ impl<'a> FieldValue<'a> {
 impl<'a> Display for FieldValue<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::I64(v) => write!(f, "{}i", v),
-            Self::U64(v) => write!(f, "{}u", v),
-            Self::F64(v) => write!(f, "{}", v),
+            Self::I64(v) => write!(f, "{v}i"),
+            Self::U64(v) => write!(f, "{v}u"),
+            Self::F64(v) => write!(f, "{v}"),
             Self::String(v) => escape_and_write_value(f, v, FIELD_VALUE_STRING_DELIMITERS),
-            Self::Boolean(v) => write!(f, "{}", v),
+            Self::Boolean(v) => write!(f, "{v}"),
         }
     }
 }
@@ -1062,7 +1060,7 @@ fn escape_and_write_value(
 
     for (idx, delim) in value.match_indices(escaping_specification) {
         let s = &value[last..idx];
-        write!(f, r#"{}\{}"#, s, delim)?;
+        write!(f, r#"{s}\{delim}"#)?;
         last = idx + delim.len();
     }
 
@@ -1454,8 +1452,7 @@ mod test {
 
         assert!(
             matches!(parsed, Err(super::Error::CannotParseEntireLine { .. })),
-            "Wrong error: {:?}",
-            parsed,
+            "Wrong error: {parsed:?}",
         );
     }
 
@@ -1529,40 +1526,35 @@ mod test {
         let parsed = parse(input);
         assert!(
             matches!(parsed, Err(super::Error::CannotParseEntireLine { .. })),
-            "Wrong error: {:?}",
-            parsed,
+            "Wrong error: {parsed:?}",
         );
 
         let input = "m0 field=-1.234456e+ 1615869152385000000";
         let parsed = parse(input);
         assert!(
             matches!(parsed, Err(super::Error::CannotParseEntireLine { .. })),
-            "Wrong error: {:?}",
-            parsed,
+            "Wrong error: {parsed:?}",
         );
 
         let input = "m0 field=-1.234456E 1615869152385000000";
         let parsed = parse(input);
         assert!(
             matches!(parsed, Err(super::Error::CannotParseEntireLine { .. })),
-            "Wrong error: {:?}",
-            parsed,
+            "Wrong error: {parsed:?}",
         );
 
         let input = "m0 field=-1.234456E+ 1615869152385000000";
         let parsed = parse(input);
         assert!(
             matches!(parsed, Err(super::Error::CannotParseEntireLine { .. })),
-            "Wrong error: {:?}",
-            parsed,
+            "Wrong error: {parsed:?}",
         );
 
         let input = "m0 field=-1.234456E-";
         let parsed = parse(input);
         assert!(
             matches!(parsed, Err(super::Error::CannotParseEntireLine { .. })),
-            "Wrong error: {:?}",
-            parsed,
+            "Wrong error: {parsed:?}",
         );
     }
 
@@ -1585,8 +1577,7 @@ mod test {
 
         assert!(
             matches!(parsed, Err(super::Error::IntegerValueInvalid { .. })),
-            "Wrong error: {:?}",
-            parsed,
+            "Wrong error: {parsed:?}",
         );
     }
 
@@ -1597,8 +1588,7 @@ mod test {
 
         assert!(
             matches!(parsed, Err(super::Error::UIntegerValueInvalid { .. })),
-            "Wrong error: {:?}",
-            parsed,
+            "Wrong error: {parsed:?}",
         );
     }
 
@@ -1729,8 +1719,7 @@ bar value2=2i 123"#;
 
         assert!(
             matches!(parsed, Err(super::Error::TimestampValueInvalid { .. })),
-            "Wrong error: {:?}",
-            parsed,
+            "Wrong error: {parsed:?}",
         );
     }
 
@@ -2273,10 +2262,7 @@ her"#,
         let actual_value = if let FieldValue::F64(v) = field_value {
             *v
         } else {
-            panic!(
-                "field {} had value {:?}, expected F64",
-                field_name, field_value
-            );
+            panic!("field {field_name} had value {field_value:?}, expected F64");
         };
 
         assert!(approximately_equal(expected_value, actual_value));

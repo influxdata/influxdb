@@ -58,16 +58,15 @@ impl<'a, W: Write> metric::Reporter for PrometheusTextEncoder<'a, W> {
         assert!(self.metric.is_none(), "metric already in progress");
 
         let (name, metric_type) = match kind {
-            MetricKind::U64Counter => (format!("{}_total", metric_name), MetricType::COUNTER),
+            MetricKind::U64Counter => (format!("{metric_name}_total"), MetricType::COUNTER),
             MetricKind::U64Gauge => (metric_name.to_string(), MetricType::GAUGE),
             MetricKind::U64Histogram => (metric_name.to_string(), MetricType::HISTOGRAM),
-            MetricKind::DurationCounter => (
-                format!("{}_seconds_total", metric_name),
-                MetricType::COUNTER,
-            ),
-            MetricKind::DurationGauge => (format!("{}_seconds", metric_name), MetricType::GAUGE),
+            MetricKind::DurationCounter => {
+                (format!("{metric_name}_seconds_total"), MetricType::COUNTER)
+            }
+            MetricKind::DurationGauge => (format!("{metric_name}_seconds"), MetricType::GAUGE),
             MetricKind::DurationHistogram => {
-                (format!("{}_seconds", metric_name), MetricType::HISTOGRAM)
+                (format!("{metric_name}_seconds"), MetricType::HISTOGRAM)
             }
         };
 
@@ -285,7 +284,7 @@ foo_total{tag1="value",tag2="value2"} 7
 "#
         .trim_start();
 
-        assert_eq!(&buffer, expected, "{}", buffer);
+        assert_eq!(&buffer, expected, "{buffer}");
 
         // no errors
         assert_not_contains!(tracing_capture.to_string(), "error");

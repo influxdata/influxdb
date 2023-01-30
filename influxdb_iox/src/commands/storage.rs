@@ -389,8 +389,7 @@ mod test_super {
             let got = parse_range(input).unwrap();
             assert_eq!(
                 got, exp,
-                "got {:?} for input {:?}, expected {:?}",
-                got, input, exp
+                "got {got:?} for input {input:?}, expected {exp:?}"
             );
         }
     }

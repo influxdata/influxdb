@@ -16,12 +16,11 @@ pub async fn test_tracing_sql() {
         &mut cluster,
         vec![
             Step::WriteLineProtocol(format!(
-                "{},tag1=A,tag2=B val=42i 123456\n\
-                 {},tag1=A,tag2=C val=43i 123457",
-                table_name, table_name
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
             )),
             Step::Query {
-                sql: format!("select * from {}", table_name),
+                sql: format!("select * from {table_name}"),
                 expected: vec![
                     "+------+------+--------------------------------+-----+",
                     "| tag1 | tag2 | time                           | val |",
@@ -61,9 +60,8 @@ pub async fn test_tracing_storage_api() {
         &mut cluster,
         vec![
             Step::WriteLineProtocol(format!(
-                "{},tag1=A,tag2=B val=42i 123456\n\
-                 {},tag1=A,tag2=C val=43i 123457",
-                table_name, table_name
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
             )),
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 let cluster = state.cluster();
@@ -116,12 +114,11 @@ pub async fn test_tracing_create_trace() {
         &mut cluster,
         vec![
             Step::WriteLineProtocol(format!(
-                "{},tag1=A,tag2=B val=42i 123456\n\
-                 {},tag1=A,tag2=C val=43i 123457",
-                table_name, table_name
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
             )),
             Step::Query {
-                sql: format!("select * from {}", table_name),
+                sql: format!("select * from {table_name}"),
                 expected: vec![
                     "+------+------+--------------------------------+-----+",
                     "| tag1 | tag2 | time                           | val |",

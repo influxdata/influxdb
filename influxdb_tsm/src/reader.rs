@@ -669,7 +669,7 @@ where
                 }
             }
             None => Err(TsmError {
-                description: format!("cannot decode block {:?} with no associated decoder", block),
+                description: format!("cannot decode block {block:?} with no associated decoder"),
             }),
         }
     }
@@ -741,7 +741,7 @@ mod tests {
                         String::from_utf8_lossy(entry.key.as_slice())
                     );
                 }
-                Err(e) => panic!("{:?} {:?}", e, got_blocks),
+                Err(e) => panic!("{e:?} {got_blocks:?}"),
             }
         }
 
@@ -797,7 +797,7 @@ mod tests {
                     assert_eq!(ts.len(), 509);
                     assert_eq!(values.len(), 509);
                 }
-                other => panic!("should not have decoded {:?}", other),
+                other => panic!("should not have decoded {other:?}"),
             }
         }
     }

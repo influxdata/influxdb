@@ -240,8 +240,7 @@ mod tests {
 
         assert_eq!(
             expected_schema, merged_schema,
-            "\nExpected:\n{:#?}\nActual:\n{:#?}",
-            expected_schema, merged_schema
+            "\nExpected:\n{expected_schema:#?}\nActual:\n{merged_schema:#?}"
         );
     }
 
@@ -268,8 +267,7 @@ mod tests {
 
         assert_eq!(
             expected_schema, merged_schema,
-            "\nExpected:\n{:#?}\nActual:\n{:#?}",
-            expected_schema, merged_schema
+            "\nExpected:\n{expected_schema:#?}\nActual:\n{merged_schema:#?}"
         );
     }
 
@@ -300,8 +298,7 @@ mod tests {
 
         assert_eq!(
             expected_schema, merged_schema,
-            "\nExpected:\n{:#?}\nActual:\n{:#?}",
-            expected_schema, merged_schema
+            "\nExpected:\n{expected_schema:#?}\nActual:\n{merged_schema:#?}"
         );
     }
 
@@ -330,8 +327,7 @@ mod tests {
 
         assert_eq!(
             expected_schema, merged_schema,
-            "\nExpected:\n{:#?}\nActual:\n{:#?}",
-            expected_schema, merged_schema
+            "\nExpected:\n{expected_schema:#?}\nActual:\n{merged_schema:#?}"
         );
     }
 

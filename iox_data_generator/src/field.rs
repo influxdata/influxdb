@@ -354,7 +354,7 @@ impl UptimeFieldGenerator {
         hours %= 24;
         minutes %= 60;
 
-        format!("{} day{}, {:02}:{:02}", days, days_plural, hours, minutes)
+        format!("{days} day{days_plural}, {hours:02}:{minutes:02}")
     }
 }
 
@@ -376,11 +376,7 @@ mod test {
         let expected = i64_fields[0];
 
         // All the values generated will always be the same.
-        assert!(
-            i64_fields.iter().all(|f| *f == expected),
-            "{:?}",
-            i64_fields
-        );
+        assert!(i64_fields.iter().all(|f| *f == expected), "{i64_fields:?}");
 
         // If the specification has n for the start and n+1 for the end of the range...
         let mut i64fg =
@@ -392,11 +388,7 @@ mod test {
 
         // All the values generated will also always be the same, because the end of the
         // range is exclusive.
-        assert!(
-            i64_fields.iter().all(|f| *f == expected),
-            "{:?}",
-            i64_fields
-        );
+        assert!(i64_fields.iter().all(|f| *f == expected), "{i64_fields:?}");
     }
 
     #[test]
@@ -408,7 +400,7 @@ mod test {
 
         let val = i64fg.generate_value();
 
-        assert!(range.contains(&val), "`{}` was not in the range", val);
+        assert!(range.contains(&val), "`{val}` was not in the range");
     }
 
     #[test]
@@ -421,9 +413,9 @@ mod test {
         let val3 = i64fg.generate_value();
         let val4 = i64fg.generate_value();
 
-        assert!(val1 < val2, "`{}` < `{}` was false", val1, val2);
-        assert!(val2 < val3, "`{}` < `{}` was false", val2, val3);
-        assert!(val3 < val4, "`{}` < `{}` was false", val3, val4);
+        assert!(val1 < val2, "`{val1}` < `{val2}` was false");
+        assert!(val2 < val3, "`{val2}` < `{val3}` was false");
+        assert!(val3 < val4, "`{val3}` < `{val4}` was false");
     }
 
     #[test]
@@ -450,8 +442,7 @@ mod test {
 
         assert!(
             resulting_range.contains(&val),
-            "`{}` was not in the range",
-            val
+            "`{val}` was not in the range"
         );
     }
 
@@ -471,9 +462,9 @@ mod test {
         let val3 = i64fg.generate_value();
         let val4 = i64fg.generate_value();
 
-        assert!(val1 < val2, "`{}` < `{}` was false", val1, val2);
-        assert!(val2 < val3, "`{}` < `{}` was false", val2, val3);
-        assert!(val4 < val3, "`{}` < `{}` was false", val4, val3);
+        assert!(val1 < val2, "`{val1}` < `{val2}` was false");
+        assert!(val2 < val3, "`{val2}` < `{val3}` was false");
+        assert!(val4 < val3, "`{val4}` < `{val3}` was false");
     }
 
     #[test]
@@ -491,8 +482,7 @@ mod test {
             f64_fields
                 .iter()
                 .all(|f| approximately_equal(*f, start_and_end)),
-            "{:?}",
-            f64_fields
+            "{f64_fields:?}"
         );
     }
 
@@ -502,7 +492,7 @@ mod test {
         let mut f64fg = F64FieldGenerator::new("f64fg", &range, SmallRng::from_entropy());
 
         let val = f64fg.generate_value();
-        assert!(range.contains(&val), "`{}` was not in the range", val);
+        assert!(range.contains(&val), "`{val}` was not in the range");
     }
 
     #[test]

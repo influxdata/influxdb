@@ -161,7 +161,7 @@ where
                 self.query_request_limit_rejected.inc(1);
                 return Err(Error::RequestLimit)?;
             }
-            Err(e) => panic!("request limiter error: {}", e),
+            Err(e) => panic!("request limiter error: {e}"),
         };
 
         let ticket = request.into_inner();

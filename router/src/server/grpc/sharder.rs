@@ -164,7 +164,7 @@ mod tests {
         for i in 0..100 {
             let resp = svc
                 .map_to_shard(Request::new(MapToShardRequest {
-                    table_name: format!("{}", i),
+                    table_name: format!("{i}"),
                     namespace_name: "bananas".to_string(),
                 }))
                 .await

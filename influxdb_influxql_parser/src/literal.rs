@@ -103,17 +103,17 @@ impl From<Regex> for Literal {
 impl Display for Literal {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Integer(v) => write!(f, "{}", v),
-            Self::Unsigned(v) => write!(f, "{}", v),
-            Self::Float(v) => write!(f, "{}", v),
+            Self::Integer(v) => write!(f, "{v}"),
+            Self::Unsigned(v) => write!(f, "{v}"),
+            Self::Float(v) => write!(f, "{v}"),
             Self::String(v) => {
                 f.write_char('\'')?;
                 write_escaped!(f, v, '\n' => "\\n", '\\' => "\\\\", '\'' => "\\'", '"' => "\\\"");
                 f.write_char('\'')
             }
             Self::Boolean(v) => write!(f, "{}", if *v { "true" } else { "false" }),
-            Self::Duration(v) => write!(f, "{}", v),
-            Self::Regex(v) => write!(f, "{}", v),
+            Self::Duration(v) => write!(f, "{v}"),
+            Self::Regex(v) => write!(f, "{v}"),
             Self::Timestamp(ts) => write!(f, "{}", ts.to_rfc3339()),
         }
     }
@@ -274,7 +274,7 @@ impl Display for Duration {
                 for (div, unit) in DIVISORS.iter().filter(|(div, _)| v > *div) {
                     let units = i / div;
                     if units > 0 {
-                        write!(f, "{}{}", units, unit)?;
+                        write!(f, "{units}{unit}")?;
                         i -= units * div;
                     }
                 }

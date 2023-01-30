@@ -69,15 +69,13 @@ fn regex_match_expr_impl(matches: bool) -> ScalarFunctionImplementation {
             // second arg was array (not constant)
             ColumnarValue::Array(_) => {
                 return Err(DataFusionError::NotImplemented(format!(
-                    "regex_match({}) with non scalar patterns not yet implemented",
-                    matches
+                    "regex_match({matches}) with non scalar patterns not yet implemented"
                 )))
             }
             ColumnarValue::Scalar(ScalarValue::Utf8(pattern)) => pattern,
             ColumnarValue::Scalar(arg) => {
                 return Err(DataFusionError::Internal(format!(
-                    "Expected string pattern to regex match({}), got: {:?}",
-                    matches, arg
+                    "Expected string pattern to regex match({matches}), got: {arg:?}"
                 )))
             }
         };
@@ -93,7 +91,7 @@ fn regex_match_expr_impl(matches: bool) -> ScalarFunctionImplementation {
         let pattern = clean_non_meta_escapes(pattern);
 
         let pattern = regex::Regex::new(&pattern).map_err(|e| {
-            DataFusionError::Internal(format!("error compiling regex pattern: {}", e))
+            DataFusionError::Internal(format!("error compiling regex pattern: {e}"))
         })?;
 
         match &args[0] {
@@ -114,8 +112,7 @@ fn regex_match_expr_impl(matches: bool) -> ScalarFunctionImplementation {
                 Ok(ColumnarValue::Scalar(ScalarValue::Boolean(res)))
             }
             ColumnarValue::Scalar(v) => Err(DataFusionError::Internal(format!(
-                "regex_match({}) expected first argument to be utf8, got ('{}')",
-                matches, v
+                "regex_match({matches}) expected first argument to be utf8, got ('{v}')"
             ))),
         }
     };
@@ -301,8 +298,7 @@ mod test {
 
             assert_eq!(
                 expected, actual,
-                "\n\nEXPECTED:\n{:#?}\nACTUAL:\n{:#?}\n",
-                expected, actual
+                "\n\nEXPECTED:\n{expected:#?}\nACTUAL:\n{actual:#?}\n"
             );
         }
     }
@@ -384,8 +380,7 @@ mod test {
             let cleaned_pattern = clean_non_meta_escapes(pattern);
             assert_eq!(
                 cleaned_pattern, expected,
-                "Expected '{}' to be cleaned to '{}', got '{}'",
-                pattern, expected, cleaned_pattern
+                "Expected '{pattern}' to be cleaned to '{expected}', got '{cleaned_pattern}'"
             );
         }
     }

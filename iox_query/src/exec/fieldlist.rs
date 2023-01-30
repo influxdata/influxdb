@@ -220,8 +220,7 @@ mod tests {
 
         assert_eq!(
             expected, actual,
-            "Expected:\n{:#?}\nActual:\n{:#?}",
-            expected, actual
+            "Expected:\n{expected:#?}\nActual:\n{actual:#?}"
         );
 
         // expect same even if the timestamp order is different
@@ -236,8 +235,7 @@ mod tests {
 
         assert_eq!(
             expected, actual,
-            "Expected:\n{:#?}\nActual:\n{:#?}",
-            expected, actual
+            "Expected:\n{expected:#?}\nActual:\n{actual:#?}"
         );
     }
 
@@ -275,8 +273,7 @@ mod tests {
 
         assert_eq!(
             expected, actual,
-            "Expected:\n{:#?}\nActual:\n{:#?}",
-            expected, actual
+            "Expected:\n{expected:#?}\nActual:\n{actual:#?}"
         );
     }
 
@@ -300,8 +297,7 @@ mod tests {
 
         assert_eq!(
             expected, actual,
-            "Expected:\n{:#?}\nActual:\n{:#?}",
-            expected, actual
+            "Expected:\n{expected:#?}\nActual:\n{actual:#?}"
         );
     }
 
@@ -341,8 +337,7 @@ mod tests {
 
         assert_eq!(
             expected, actual,
-            "Expected:\n{:#?}\nActual:\n{:#?}",
-            expected, actual
+            "Expected:\n{expected:#?}\nActual:\n{actual:#?}"
         );
     }
 
@@ -378,8 +373,7 @@ mod tests {
 
         assert_eq!(
             expected, actual,
-            "Expected:\n{:#?}\nActual:\n{:#?}",
-            expected, actual
+            "Expected:\n{expected:#?}\nActual:\n{actual:#?}"
         );
 
         let field1_later = Field {
@@ -400,8 +394,7 @@ mod tests {
 
         assert_eq!(
             expected, actual,
-            "Expected:\n{:#?}\nActual:\n{:#?}",
-            expected, actual
+            "Expected:\n{expected:#?}\nActual:\n{actual:#?}"
         );
 
         // Now, try to add a field that has a different type
@@ -425,9 +418,7 @@ mod tests {
 
         assert!(
             actual_error.contains(expected_error),
-            "Can not find expected '{}' in actual '{}'",
-            expected_error,
-            actual_error
+            "Can not find expected '{expected_error}' in actual '{actual_error}'"
         );
     }
 }

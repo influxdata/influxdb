@@ -129,7 +129,7 @@ impl<W: Write> FieldPrinter<W> {
             Level::ERROR => "error",
         };
 
-        write!(writer, r#"level={}"#, level_str).ok();
+        write!(writer, r#"level={level_str}"#).ok();
 
         Self {
             writer,
@@ -156,11 +156,11 @@ impl<W: Write> FieldPrinter<W> {
 
         if let Some(module_path) = metadata.module_path() {
             if metadata.target() != module_path {
-                write!(self.writer, " module_path=\"{}\"", module_path).ok();
+                write!(self.writer, " module_path=\"{module_path}\"").ok();
             }
         }
         if let (Some(file), Some(line)) = (metadata.file(), metadata.line()) {
-            write!(self.writer, " location=\"{}:{}\"", file, line).ok();
+            write!(self.writer, " location=\"{file}:{line}\"").ok();
         }
     }
 
@@ -174,7 +174,7 @@ impl<W: Write> FieldPrinter<W> {
             .expect("System time should have been after the epoch")
             .as_nanos();
 
-        write!(self.writer, " time={:?}", ns_since_epoch).ok();
+        write!(self.writer, " time={ns_since_epoch:?}").ok();
     }
 }
 
@@ -229,7 +229,7 @@ impl<W: Write> Visit for FieldPrinter<W> {
     fn record_error(&mut self, field: &Field, value: &(dyn std::error::Error + 'static)) {
         let field_name = translate_field_name(field.name());
 
-        let debug_formatted = format!("{:?}", value);
+        let debug_formatted = format!("{value:?}");
         write!(
             self.writer,
             " {}={:?}",
@@ -238,7 +238,7 @@ impl<W: Write> Visit for FieldPrinter<W> {
         )
         .ok();
 
-        let display_formatted = format!("{}", value);
+        let display_formatted = format!("{value}");
         write!(
             self.writer,
             " {}.display={}",
@@ -250,7 +250,7 @@ impl<W: Write> Visit for FieldPrinter<W> {
 
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
         // Note this appears to be invoked via `debug!` and `info! macros
-        let formatted_value = format!("{:?}", value);
+        let formatted_value = format!("{value:?}");
         write!(
             self.writer,
             " {}={}",
@@ -301,7 +301,7 @@ fn needs_quotes_and_escaping(value: &str) -> bool {
 /// escape any characters in name as needed, otherwise return string as is
 fn quote_and_escape(value: &'_ str) -> Cow<'_, str> {
     if needs_quotes_and_escaping(value) {
-        Cow::Owned(format!("{:?}", value))
+        Cow::Owned(format!("{value:?}"))
     } else {
         Cow::Borrowed(value)
     }

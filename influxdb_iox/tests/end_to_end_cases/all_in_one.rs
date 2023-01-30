@@ -12,7 +12,7 @@ async fn smoke() {
 
     let org = rand_name();
     let bucket = rand_name();
-    let namespace = format!("{}_{}", org, bucket);
+    let namespace = format!("{org}_{bucket}");
     let table_name = "test_table";
 
     // Set up all_in_one ====================================
@@ -22,7 +22,7 @@ async fn smoke() {
     let all_in_one = ServerFixture::create(test_config).await;
 
     // Write some data into the v2 HTTP API ==============
-    let lp = format!("{},tag1=A,tag2=B val=42i 123456", table_name);
+    let lp = format!("{table_name},tag1=A,tag2=B val=42i 123456");
 
     let response = write_to_router(lp, org, bucket, all_in_one.router_http_base()).await;
     assert_eq!(
@@ -32,7 +32,7 @@ async fn smoke() {
     );
 
     // run query
-    let sql = format!("select * from {}", table_name);
+    let sql = format!("select * from {table_name}");
     let batches = run_sql(sql, namespace, all_in_one.querier_grpc_connection()).await;
 
     let expected = [
@@ -52,7 +52,7 @@ async fn ephemeral_mode() {
 
     let org = rand_name();
     let bucket = rand_name();
-    let namespace = format!("{}_{}", org, bucket);
+    let namespace = format!("{org}_{bucket}");
     let table_name = "test_table";
 
     // Set up all_in_one ====================================
@@ -67,7 +67,7 @@ async fn ephemeral_mode() {
         .now()
         .timestamp_nanos()
         .to_string();
-    let lp = format!("{},tag1=A,tag2=B val=42i {}", table_name, now);
+    let lp = format!("{table_name},tag1=A,tag2=B val=42i {now}");
 
     let response = write_to_router(lp, org, bucket, all_in_one.router_http_base()).await;
     assert_eq!(
@@ -78,7 +78,7 @@ async fn ephemeral_mode() {
 
     // run query
     // do not select time becasue it changes every time
-    let sql = format!("select tag1, tag2, val from {}", table_name);
+    let sql = format!("select tag1, tag2, val from {table_name}");
     let batches = run_sql(sql, namespace, all_in_one.querier_grpc_connection()).await;
 
     let expected = [

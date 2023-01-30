@@ -145,7 +145,7 @@ impl WriteBufferConfigFactory {
             .read()
             .get(name)
             .cloned()
-            .ok_or_else::<WriteBufferError, _>(|| format!("Unknown mock ID: {}", name).into())
+            .ok_or_else::<WriteBufferError, _>(|| format!("Unknown mock ID: {name}").into())
     }
 
     /// Returns a new [`WriteBufferWriting`] for the provided [`WriteBufferConnection`]
@@ -198,7 +198,7 @@ impl WriteBufferConfigFactory {
                 }
             },
             other => {
-                return Err(format!("Unknown write buffer type: {}", other).into());
+                return Err(format!("Unknown write buffer type: {other}").into());
             }
         };
 
@@ -249,7 +249,7 @@ impl WriteBufferConfigFactory {
                 }
             },
             other => {
-                return Err(format!("Unknown write buffer type: {}", other).into());
+                return Err(format!("Unknown write buffer type: {other}").into());
             }
         };
 

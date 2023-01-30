@@ -390,7 +390,7 @@ impl fmt::Display for Predicate {
         if !self.exprs.is_empty() {
             write!(f, " exprs: [")?;
             for (i, expr) in self.exprs.iter().enumerate() {
-                write!(f, "{}", expr)?;
+                write!(f, "{expr}")?;
                 if i < self.exprs.len() - 1 {
                     write!(f, ", ")?;
                 }

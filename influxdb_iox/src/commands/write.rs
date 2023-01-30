@@ -118,11 +118,11 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             match res {
                 Ok(Ok(lp_data)) => Some(lp_data),
                 Ok(Err(e)) => {
-                    eprintln!("WARNING: ignoring error : {}", e);
+                    eprintln!("WARNING: ignoring error : {e}");
                     None
                 }
                 Err(e) => {
-                    eprintln!("WARNING: ignoring task fail: {}", e);
+                    eprintln!("WARNING: ignoring task fail: {e}");
                     None
                 }
             }

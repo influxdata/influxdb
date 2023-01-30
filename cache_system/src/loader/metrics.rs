@@ -87,9 +87,7 @@ where
             let size_bytes = (seen.m() + 7) / 8;
             assert!(
                 size_bytes <= BOUND_SIZE_BYTES,
-                "size of bloom filter should be <= {} bytes but is {} bytes",
-                BOUND_SIZE_BYTES,
-                size_bytes,
+                "size of bloom filter should be <= {BOUND_SIZE_BYTES} bytes but is {size_bytes} bytes",
             );
 
             seen

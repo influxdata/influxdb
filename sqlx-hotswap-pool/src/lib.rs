@@ -223,7 +223,7 @@ mod tests {
                         .await
                         .expect("failed to create schema");
 
-                    let search_path_query = format!("SET search_path TO {}", captured_schema_name);
+                    let search_path_query = format!("SET search_path TO {captured_schema_name}");
                     c.execute(sqlx::query(&search_path_query)).await?;
                     Ok(())
                 })

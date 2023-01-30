@@ -119,7 +119,7 @@ mod tests {
 
         for &(input, expected_output) in &success_cases {
             let actual_output = input.try_into().unwrap();
-            assert_eq!(expected_output, actual_output, "input was `{}`", input);
+            assert_eq!(expected_output, actual_output, "input was `{input}`");
         }
 
         let failure_cases = [
@@ -142,7 +142,7 @@ mod tests {
             let actual_output: Result<Id, Error> = input.try_into();
             let actual_output: Error = actual_output.unwrap_err();
             let actual_output = actual_output.to_string();
-            assert_eq!(expected_output, actual_output, "input was `{}`", input);
+            assert_eq!(expected_output, actual_output, "input was `{input}`");
         }
     }
 

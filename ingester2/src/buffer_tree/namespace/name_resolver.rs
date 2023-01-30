@@ -50,8 +50,7 @@ impl NamespaceNameResolver {
                     .await?
                     .unwrap_or_else(|| {
                         panic!(
-                            "resolving namespace name for non-existent namespace id {}",
-                            namespace_id
+                            "resolving namespace name for non-existent namespace id {namespace_id}"
                         )
                     })
                     .name

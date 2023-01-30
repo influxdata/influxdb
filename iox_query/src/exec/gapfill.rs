@@ -445,11 +445,7 @@ mod test {
 
         let expected = expected.split('\n');
         expected.zip(actual_iter).for_each(|(expected, actual)| {
-            assert_eq!(
-                expected, actual,
-                "\ncomplete plan was:\n{:?}\n",
-                actual_plan
-            )
+            assert_eq!(expected, actual, "\ncomplete plan was:\n{actual_plan:?}\n")
         });
         Ok(())
     }

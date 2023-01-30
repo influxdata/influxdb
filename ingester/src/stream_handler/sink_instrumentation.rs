@@ -295,9 +295,9 @@ mod tests {
     ) -> Observation {
         metrics
             .get_instrument::<Metric<T>>(name)
-            .unwrap_or_else(|| panic!("did not find metric {}", name))
+            .unwrap_or_else(|| panic!("did not find metric {name}"))
             .get_observer(attrs)
-            .unwrap_or_else(|| panic!("failed to match {} attributes", name))
+            .unwrap_or_else(|| panic!("failed to match {name} attributes"))
             .observe()
     }
 

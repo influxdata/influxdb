@@ -74,9 +74,9 @@ mod tests {
 
         let mock_server = mock(
             "POST",
-            format!("/api/v2/write?bucket={}&org={}", bucket, org).as_str(),
+            format!("/api/v2/write?bucket={bucket}&org={org}").as_str(),
         )
-        .match_header("Authorization", format!("Token {}", token).as_str())
+        .match_header("Authorization", format!("Token {token}").as_str())
         .match_body(
             "\
 cpu,host=server01 usage=0.5
