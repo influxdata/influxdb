@@ -43,11 +43,40 @@ pub enum Error {
     CircuitBroken { ingester_address: String },
 }
 
+impl Error {
+    /// Checks if this is a connection / ingester-state error.
+    ///
+    /// This can lead to cutting the connection or breaking/opening the circuit.
+    pub fn is_upstream_error(&self) -> bool {
+        match self {
+            Self::Flight {
+                source:
+                    _source @ influxdb_iox_client::flight::Error::ArrowFlightError(
+                        arrow_flight::error::FlightError::Tonic(e),
+                    ),
+            } => !matches!(
+                e.code(),
+                tonic::Code::NotFound | tonic::Code::ResourceExhausted
+            ),
+            Self::Connecting { .. } | Self::Handshake { .. } | Self::Flight { .. } => true,
+            // do NOT break circuit for client-side errors
+            Self::CreatingRequest { .. } => false,
+            // circuit broken, not an upstream error
+            Self::CircuitBroken { .. } => false,
+        }
+    }
+}
+
 /// Abstract Flight client interface for Ingester.
 ///
 /// May use an internal connection pool.
 #[async_trait]
 pub trait IngesterFlightClient: Debug + Send + Sync + 'static {
+    /// Invalidate connection to given ingester.
+    ///
+    /// This is a no-op if there is no active connection to the given ingester.
+    async fn invalidate_connection(&self, ingester_address: Arc<str>);
+
     /// Send query to given ingester.
     async fn query(
         &self,
@@ -95,6 +124,14 @@ impl FlightClientImpl {
 
 #[async_trait]
 impl IngesterFlightClient for FlightClientImpl {
+    async fn invalidate_connection(&self, ingester_address: Arc<str>) {
+        let maybe_conn = self.connections.lock().remove(ingester_address.as_ref());
+
+        if let Some(conn) = maybe_conn {
+            conn.close().await;
+        }
+    }
+
     async fn query(
         &self,
         ingester_addr: Arc<str>,
@@ -278,6 +315,14 @@ impl CachedConnection {
             *maybe_connection = Some(connection.clone());
             Ok(connection)
         }
+    }
+
+    /// Close connection
+    async fn close(&self) {
+        let mut maybe_connection = self.maybe_connection.lock().await;
+
+        // dropping the channel seems to be enough to close it.
+        maybe_connection.take();
     }
 }
 

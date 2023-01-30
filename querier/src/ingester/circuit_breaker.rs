@@ -256,6 +256,10 @@ impl CircuitBreakerFlightClient {
 
 #[async_trait]
 impl IngesterFlightClient for CircuitBreakerFlightClient {
+    async fn invalidate_connection(&self, ingester_address: Arc<str>) {
+        self.inner.invalidate_connection(ingester_address).await;
+    }
+
     async fn query(
         &self,
         ingester_addr: Arc<str>,
@@ -358,25 +362,7 @@ impl IngesterFlightClient for CircuitBreakerFlightClient {
         let res = fut.await;
 
         let is_error = if let Err(e) = &res {
-            match e {
-                FlightClientError::Flight {
-                    source:
-                        _source @ influxdb_iox_client::flight::Error::ArrowFlightError(
-                            arrow_flight::error::FlightError::Tonic(e),
-                        ),
-                } => !matches!(
-                    e.code(),
-                    tonic::Code::NotFound | tonic::Code::ResourceExhausted
-                ),
-                FlightClientError::Connecting { .. }
-                | FlightClientError::Handshake { .. }
-                | FlightClientError::Flight { .. } => true,
-                // do NOT break circuit for client-side errors
-                FlightClientError::CreatingRequest { .. } => false,
-                FlightClientError::CircuitBroken { .. } => {
-                    unreachable!("circuit breaker wrapped into circuit breaker")
-                }
-            }
+            e.is_upstream_error()
         } else {
             false
         };
@@ -1039,6 +1025,10 @@ mod tests {
 
     #[async_trait]
     impl IngesterFlightClient for MockClient {
+        async fn invalidate_connection(&self, _ingester_address: Arc<str>) {
+            // no cache
+        }
+
         async fn query(
             &self,
             _ingester_addr: Arc<str>,
