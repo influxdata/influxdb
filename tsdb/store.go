@@ -1868,6 +1868,15 @@ func isTagKeyClause(e influxql.Expr) (bool, error) {
 	case *influxql.BinaryExpr:
 		switch e.Op {
 		case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
+			switch t := e.LHS.(type) {
+			case *influxql.ParenExpr:
+				if tag, ok := t.Expr.(*influxql.VarRef); ok {
+					return tag.Val == "_tagKey", nil
+				}
+				return isTagKeyClause(t.Expr)
+			case *influxql.VarRef:
+				return t.Val == "_tagKey", nil
+			}
 			tag, ok := e.LHS.(*influxql.VarRef)
 			if ok && tag.Val == "_tagKey" {
 				return true, nil
@@ -2094,9 +2103,7 @@ func checkForMeasurementClause(e influxql.Expr) (bool, error) {
 				}
 				return checkForMeasurementClause(t.Expr)
 			case *influxql.VarRef:
-				if t.Val == "_name" {
-					return true, nil
-				}
+				return t.Val == "_name", nil
 			}
 		}
 	}
