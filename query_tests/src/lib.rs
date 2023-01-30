@@ -6,8 +6,6 @@
 // Actual tests
 
 #[cfg(test)]
-pub mod influxrpc;
-#[cfg(test)]
 pub mod sql;
 #[cfg(test)]
 pub mod table_schema;
