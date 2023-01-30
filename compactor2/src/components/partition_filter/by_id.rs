@@ -28,3 +28,26 @@ impl PartitionFilter for ByIdPartitionFilter {
         self.ids.contains(&partition_id)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_display() {
+        assert_eq!(
+            ByIdPartitionFilter::new(HashSet::default()).to_string(),
+            "by_id"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_apply() {
+        let filter =
+            ByIdPartitionFilter::new(HashSet::from([PartitionId::new(1), PartitionId::new(10)]));
+
+        assert!(filter.apply(PartitionId::new(1), &[]).await);
+        assert!(filter.apply(PartitionId::new(10), &[]).await);
+        assert!(!filter.apply(PartitionId::new(2), &[]).await);
+    }
+}

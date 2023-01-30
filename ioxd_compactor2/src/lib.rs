@@ -170,6 +170,9 @@ pub async fn create_compactor2_server_type(
             .map(|parts| parts.into_iter().map(PartitionId::new).collect()),
         shadow_mode: compactor_config.shadow_mode,
         ignore_partition_skip_marker: compactor_config.ignore_partition_skip_marker,
+        max_input_files_per_partition: compactor_config.max_input_files_per_partition,
+        max_input_parquet_bytes_per_partition: compactor_config
+            .max_input_parquet_bytes_per_partition,
     });
 
     Arc::new(Compactor2ServerType::new(

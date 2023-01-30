@@ -73,6 +73,15 @@ impl ParquetFileBuilder {
         }
     }
 
+    pub fn with_file_size_bytes(self, file_size_bytes: i64) -> Self {
+        Self {
+            file: ParquetFile {
+                file_size_bytes,
+                ..self.file
+            },
+        }
+    }
+
     pub fn build(self) -> ParquetFile {
         self.file
     }
@@ -451,6 +460,8 @@ impl TestSetupBuilder {
             partition_filter: None,
             shadow_mode: self.shadow_mode,
             ignore_partition_skip_marker: false,
+            max_input_files_per_partition: usize::MAX,
+            max_input_parquet_bytes_per_partition: usize::MAX,
         });
 
         TestSetup {
