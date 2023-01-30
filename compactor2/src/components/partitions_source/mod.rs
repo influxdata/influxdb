@@ -10,6 +10,7 @@ pub mod catalog;
 pub mod logging;
 pub mod metrics;
 pub mod mock;
+pub mod not_empty;
 pub mod randomize_order;
 
 /// A source of [partitions](PartitionId) that may potentially need compacting.

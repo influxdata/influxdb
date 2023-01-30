@@ -2,7 +2,7 @@
 //!
 //! TODO: Make this a runtime-config.
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use data_types::CompactionLevel;
 use object_store::memory::InMemory;
@@ -50,6 +50,7 @@ use super::{
     partitions_source::{
         catalog::CatalogPartitionsSource, logging::LoggingPartitionsSourceWrapper,
         metrics::MetricsPartitionsSourceWrapper, mock::MockPartitionsSource,
+        not_empty::NotEmptyPartitionsSourceWrapper,
         randomize_order::RandomizeOrderPartitionsSourcesWrapper, PartitionsSource,
     },
     round_split::all_now::AllNowRoundSplit,
@@ -123,11 +124,15 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
     };
 
     Arc::new(Components {
-        partitions_source: Arc::new(LoggingPartitionsSourceWrapper::new(
-            MetricsPartitionsSourceWrapper::new(
+        // Note: Place "not empty" wrapper at the very last so that the logging and metric wrapper work even when there
+        //       is not data.
+        partitions_source: Arc::new(NotEmptyPartitionsSourceWrapper::new(
+            LoggingPartitionsSourceWrapper::new(MetricsPartitionsSourceWrapper::new(
                 RandomizeOrderPartitionsSourcesWrapper::new(partitions_source, 1234),
                 &config.metric_registry,
-            ),
+            )),
+            Duration::from_secs(5),
+            Arc::clone(&config.time_provider),
         )),
         partition_source: Arc::new(LoggingPartitionSourceWrapper::new(
             MetricsPartitionSourceWrapper::new(

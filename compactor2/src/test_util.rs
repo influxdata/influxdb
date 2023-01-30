@@ -1,10 +1,12 @@
 use std::{
     collections::{BTreeMap, HashSet},
+    future::Future,
     num::NonZeroUsize,
     sync::Arc,
     time::Duration,
 };
 
+use async_trait::async_trait;
 use backoff::BackoffConfig;
 use data_types::{
     ColumnId, ColumnSchema, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceId,
@@ -532,4 +534,36 @@ pub fn partition_info() -> Arc<PartitionInfo> {
         sort_key: None,
         partition_key: PartitionKey::from("pk"),
     })
+}
+
+#[async_trait]
+pub trait AssertFutureExt {
+    type Output;
+
+    async fn assert_pending(&mut self);
+    async fn poll_timeout(self) -> Self::Output;
+}
+
+#[async_trait]
+impl<F> AssertFutureExt for F
+where
+    F: Future + Send + Unpin,
+{
+    type Output = F::Output;
+
+    async fn assert_pending(&mut self) {
+        tokio::select! {
+            biased;
+            _ = self => {
+                panic!("not pending")
+            }
+            _ = tokio::time::sleep(Duration::from_millis(10)) => {}
+        }
+    }
+
+    async fn poll_timeout(self) -> Self::Output {
+        tokio::time::timeout(Duration::from_millis(10), self)
+            .await
+            .expect("timeout")
+    }
 }

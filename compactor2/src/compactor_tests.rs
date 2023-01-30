@@ -12,7 +12,7 @@ mod tests {
             df_planner::panic::PanicDataFusionPlanner, hardcoded::hardcoded_components, Components,
         },
         driver::compact,
-        test_util::{list_object_store, TestSetup},
+        test_util::{list_object_store, AssertFutureExt, TestSetup},
     };
 
     #[tokio::test]
@@ -26,7 +26,10 @@ mod tests {
         assert!(files.is_empty());
 
         // compact
-        run_compact(&setup).await;
+        // This wil wait for files forever.
+        let fut = run_compact(&setup);
+        tokio::pin!(fut);
+        fut.assert_pending().await;
 
         // verify catalog is still empty
         let files = setup.list_by_table_not_to_delete().await;
