@@ -29,7 +29,7 @@ snafu = "0.7"
 sqlx = { version = "0.6", features = [ "runtime-tokio-rustls" , "postgres", "uuid" ] }
 tempfile = "3.1.0"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
-tokio = { version = "1.24", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+tokio = { version = "1.25", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util = "0.7"
 tonic = "0.8"
 uuid = "1"

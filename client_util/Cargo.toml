@@ -15,5 +15,5 @@ tower = "0.4"
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
-tokio = { version = "1.24", features = ["macros", "parking_lot", "rt-multi-thread"] }
+tokio = { version = "1.25", features = ["macros", "parking_lot", "rt-multi-thread"] }
 mockito = "0.31"
