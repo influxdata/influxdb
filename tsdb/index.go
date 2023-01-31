@@ -2862,9 +2862,16 @@ func (is IndexSet) tagValuesByKeyAndExpr(auth query.FineAuthorizer, name []byte,
 		case *influxql.BinaryExpr:
 			switch e.Op {
 			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
-				tag, ok := e.LHS.(*influxql.VarRef)
-				if ok && tag.Val == "value" {
-					return true, nil
+				switch t := e.LHS.(type) {
+				case *influxql.ParenExpr:
+					tag, ok := t.Expr.(*influxql.VarRef)
+					if ok && tag.Val == "value" {
+						return true, nil
+					}
+				case *influxql.VarRef:
+					if t.Val == "value" {
+						return true, nil
+					}
 				}
 			}
 		}
