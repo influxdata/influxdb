@@ -85,32 +85,12 @@ impl namespace_service_server::NamespaceService for NamespaceService {
 
     async fn delete_namespace(
         &self,
-        request: Request<DeleteNamespaceRequest>,
+        _request: Request<DeleteNamespaceRequest>,
     ) -> Result<Response<DeleteNamespaceResponse>, Status> {
-        if self.topic_id.is_none() || self.query_id.is_none() {
-            return Err(Status::invalid_argument("topic_id or query_id not set"));
-        }
-        let mut repos = self.catalog.repositories().await;
-        let DeleteNamespaceRequest {
-            name: namespace_name,
-        } = request.into_inner();
-
-        debug!(%namespace_name, "Deleting namespace");
-        repos
-            .namespaces()
-            .delete(&namespace_name)
-            .await
-            .map_err(|e| match e {
-                iox_catalog::interface::Error::NamespaceNotFoundByName { name: _ } => {
-                    Status::not_found(e.to_string())
-                }
-                _ => {
-                    warn!(error=%e, %namespace_name, "failed to delete namespace");
-                    Status::internal(e.to_string())
-                }
-            })?;
-
-        Ok(Response::new(DeleteNamespaceResponse {}))
+        warn!("call to namespace delete - unimplemented");
+        Err(Status::unimplemented(
+            "namespace delete is not yet supported",
+        ))
     }
 
     async fn update_namespace_retention(
