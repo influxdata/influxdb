@@ -5,7 +5,7 @@ use std::sync::Arc;
 use data_types::{Namespace as CatalogNamespace, QueryPoolId, TopicId};
 use generated_types::influxdata::iox::namespace::v1::*;
 use iox_catalog::interface::Catalog;
-use observability_deps::tracing::{debug, warn};
+use observability_deps::tracing::{debug, info, warn};
 use tonic::{Request, Response, Status};
 
 /// Implementation of the gRPC namespace service
@@ -80,6 +80,12 @@ impl namespace_service_server::NamespaceService for NamespaceService {
                 Status::internal(e.to_string())
             })?;
 
+        info!(
+            namespace_name,
+            namespace_id = %namespace.id,
+            "created namespace"
+        );
+
         Ok(Response::new(create_namespace_to_proto(namespace)))
     }
 
@@ -114,6 +120,14 @@ impl namespace_service_server::NamespaceService for NamespaceService {
                 warn!(error=%e, %namespace_name, "failed to update namespace retention");
                 Status::not_found(e.to_string())
             })?;
+
+        info!(
+            namespace_name,
+            retention_period_ns,
+            namespace_id = %namespace.id,
+            "updated namespace retention"
+        );
+
         Ok(Response::new(UpdateNamespaceRetentionResponse {
             namespace: Some(namespace_to_proto(namespace)),
         }))
