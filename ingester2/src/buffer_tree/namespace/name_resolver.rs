@@ -48,7 +48,12 @@ impl NamespaceNameResolver {
                     .namespaces()
                     .get_by_id(namespace_id)
                     .await?
-                    .expect("resolving namespace name for non-existent namespace id")
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "resolving namespace name for non-existent namespace id {}",
+                            namespace_id
+                        )
+                    })
                     .name
                     .into();
 
