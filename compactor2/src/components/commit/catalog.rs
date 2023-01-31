@@ -2,7 +2,7 @@ use std::{fmt::Display, sync::Arc};
 
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
-use data_types::{ParquetFileId, ParquetFileParams};
+use data_types::{ParquetFileId, ParquetFileParams, PartitionId};
 use iox_catalog::interface::Catalog;
 
 use super::Commit;
@@ -32,6 +32,7 @@ impl Display for CatalogCommit {
 impl Commit for CatalogCommit {
     async fn commit(
         &self,
+        _partition_id: PartitionId,
         delete: &[ParquetFileId],
         create: &[ParquetFileParams],
     ) -> Vec<ParquetFileId> {

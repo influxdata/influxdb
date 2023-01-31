@@ -4,7 +4,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use data_types::{ParquetFileId, ParquetFileParams};
+use data_types::{ParquetFileId, ParquetFileParams, PartitionId};
 
 pub mod catalog;
 pub mod logging;
@@ -22,6 +22,7 @@ pub trait Commit: Debug + Display + Send + Sync {
     /// visible. Commits are always all-or-nothing.
     async fn commit(
         &self,
+        partition_id: PartitionId,
         delete: &[ParquetFileId],
         create: &[ParquetFileParams],
     ) -> Vec<ParquetFileId>;
@@ -34,9 +35,10 @@ where
 {
     async fn commit(
         &self,
+        partition_id: PartitionId,
         delete: &[ParquetFileId],
         create: &[ParquetFileParams],
     ) -> Vec<ParquetFileId> {
-        self.as_ref().commit(delete, create).await
+        self.as_ref().commit(partition_id, delete, create).await
     }
 }

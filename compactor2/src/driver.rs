@@ -185,7 +185,10 @@ async fn try_compact_partition(
             // clean scratchpad
             scratchpad_ctx.clean_from_scratchpad(&input_paths).await;
 
-            let ids = components.commit.commit(&delete_ids, &create).await;
+            let ids = components
+                .commit
+                .commit(partition_id, &delete_ids, &create)
+                .await;
 
             files_next.extend(
                 create

@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use async_trait::async_trait;
-use data_types::{ParquetFileId, ParquetFileParams};
+use data_types::{ParquetFileId, ParquetFileParams, PartitionId};
 use metric::{Registry, U64Counter};
 
 use super::Commit;
@@ -65,11 +65,12 @@ where
 {
     async fn commit(
         &self,
+        partition_id: PartitionId,
         delete: &[ParquetFileId],
         create: &[ParquetFileParams],
     ) -> Vec<ParquetFileId> {
         // Perform commit first and report status AFTERWARDS.
-        let created = self.inner.commit(delete, create).await;
+        let created = self.inner.commit(partition_id, delete, create).await;
 
         self.create_counter.inc(created.len() as u64);
         self.delete_counter.inc(delete.len() as u64);
@@ -112,12 +113,20 @@ mod tests {
         assert_eq!(commit_counter(&registry), 0);
 
         let ids = commit
-            .commit(&[ParquetFileId::new(1)], &[created.clone().into()])
+            .commit(
+                PartitionId::new(1),
+                &[ParquetFileId::new(1)],
+                &[created.clone().into()],
+            )
             .await;
         assert_eq!(ids, vec![ParquetFileId::new(1000)]);
 
         let ids = commit
-            .commit(&[ParquetFileId::new(2), ParquetFileId::new(3)], &[])
+            .commit(
+                PartitionId::new(2),
+                &[ParquetFileId::new(2), ParquetFileId::new(3)],
+                &[],
+            )
             .await;
         assert_eq!(ids, vec![]);
 
@@ -129,10 +138,12 @@ mod tests {
             inner.history(),
             vec![
                 CommitHistoryEntry {
+                    partition_id: PartitionId::new(1),
                     delete: vec![ParquetFileId::new(1)],
                     created: vec![created],
                 },
                 CommitHistoryEntry {
+                    partition_id: PartitionId::new(2),
                     delete: vec![ParquetFileId::new(2), ParquetFileId::new(3)],
                     created: vec![],
                 },
