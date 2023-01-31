@@ -29,7 +29,7 @@ const CACHE_ID: &str = "partition";
 type CacheT = Box<
     dyn Cache<
         K = PartitionId,
-        V = CachedPartition,
+        V = Option<CachedPartition>,
         GetExtra = (Arc<CachedTable>, Option<Span>),
         PeekExtra = ((), Option<Span>),
     >,
@@ -39,7 +39,7 @@ type CacheT = Box<
 #[derive(Debug)]
 pub struct PartitionCache {
     cache: CacheT,
-    remove_if_handle: RemoveIfHandle<PartitionId, CachedPartition>,
+    remove_if_handle: RemoveIfHandle<PartitionId, Option<CachedPartition>>,
 }
 
 impl PartitionCache {
@@ -68,17 +68,16 @@ impl PartitionCache {
                                 .await
                         })
                         .await
-                        .expect("retry forever")
-                        .expect("partition gone from catalog?!");
+                        .expect("retry forever")?;
 
                     let sort_key = partition.sort_key().map(|sort_key| {
                         Arc::new(PartitionSortKey::new(sort_key, &extra.column_id_map_rev))
                     });
 
-                    CachedPartition {
+                    Some(CachedPartition {
                         shard_id: partition.shard_id,
                         sort_key,
-                    }
+                    })
                 }
             });
         let loader = Arc::new(MetricsLoader::new(
@@ -96,8 +95,12 @@ impl PartitionCache {
         backend.add_policy(LruPolicy::new(
             ram_pool,
             CACHE_ID,
-            Arc::new(FunctionEstimator::new(|k, v: &CachedPartition| {
-                RamSize(size_of_val(k) + size_of_val(v) + v.size())
+            Arc::new(FunctionEstimator::new(|k, v: &Option<CachedPartition>| {
+                RamSize(
+                    size_of_val(k)
+                        + size_of_val(v)
+                        + v.as_ref().map(|v| v.size()).unwrap_or_default(),
+                )
             })),
         ));
 
@@ -121,11 +124,11 @@ impl PartitionCache {
         cached_table: Arc<CachedTable>,
         partition_id: PartitionId,
         span: Option<Span>,
-    ) -> ShardId {
+    ) -> Option<ShardId> {
         self.cache
             .get(partition_id, (cached_table, span))
             .await
-            .shard_id
+            .map(|p| p.shard_id)
     }
 
     /// Get sort key
@@ -143,7 +146,7 @@ impl PartitionCache {
                 &self.cache,
                 partition_id,
                 |cached_partition| {
-                    if let Some(sort_key) = &cached_partition.sort_key {
+                    if let Some(sort_key) = &cached_partition.and_then(|p| p.sort_key) {
                         should_cover
                             .iter()
                             .any(|col| !sort_key.column_set.contains(col))
@@ -155,7 +158,7 @@ impl PartitionCache {
                 (cached_table, span),
             )
             .await
-            .sort_key
+            .and_then(|p| p.sort_key)
     }
 }
 
@@ -261,17 +264,35 @@ mod tests {
             true,
         );
 
-        let id1 = cache.shard_id(Arc::clone(&cached_table), p1.id, None).await;
+        let id1 = cache
+            .shard_id(Arc::clone(&cached_table), p1.id, None)
+            .await
+            .unwrap();
         assert_eq!(id1, s1.shard.id);
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
 
-        let id2 = cache.shard_id(Arc::clone(&cached_table), p2.id, None).await;
+        let id2 = cache
+            .shard_id(Arc::clone(&cached_table), p2.id, None)
+            .await
+            .unwrap();
         assert_eq!(id2, s2.shard.id);
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
 
-        let id1 = cache.shard_id(Arc::clone(&cached_table), p1.id, None).await;
+        let id1 = cache
+            .shard_id(Arc::clone(&cached_table), p1.id, None)
+            .await
+            .unwrap();
         assert_eq!(id1, s1.shard.id);
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
+
+        // non-existing partition
+        for _ in 0..2 {
+            let res = cache
+                .shard_id(Arc::clone(&cached_table), PartitionId::new(i64::MAX), None)
+                .await;
+            assert_eq!(res, None);
+            assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
+        }
     }
 
     #[tokio::test]
@@ -346,6 +367,20 @@ mod tests {
             sort_key1b.as_ref().unwrap()
         ));
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
+
+        // non-existing partition
+        for _ in 0..2 {
+            let res = cache
+                .sort_key(
+                    Arc::clone(&cached_table),
+                    PartitionId::new(i64::MAX),
+                    &Vec::new(),
+                    None,
+                )
+                .await;
+            assert_eq!(res, None);
+            assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
+        }
     }
 
     #[tokio::test]

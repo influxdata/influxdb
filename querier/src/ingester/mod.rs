@@ -580,13 +580,46 @@ async fn execute(
     decoder.finalize().await
 }
 
+/// Current partition used while decoding the ingester response stream.
+#[derive(Debug)]
+enum CurrentPartition {
+    /// There exists a partition.
+    Some(IngesterPartition),
+
+    /// There is no existing partition.
+    None,
+
+    /// Skip the current partition (e.g. because it is gone from the catalog).
+    Skip,
+}
+
+impl CurrentPartition {
+    fn take(&mut self) -> Option<IngesterPartition> {
+        let mut tmp = Self::None;
+        std::mem::swap(&mut tmp, self);
+
+        match tmp {
+            Self::None | Self::Skip => None,
+            Self::Some(p) => Some(p),
+        }
+    }
+
+    fn is_skip(&self) -> bool {
+        matches!(self, Self::Skip)
+    }
+
+    fn is_some(&self) -> bool {
+        matches!(self, Self::Some(_))
+    }
+}
+
 /// Helper to disassemble the data from the ingester Apache Flight arrow stream.
 ///
 /// This should be used AFTER the stream was drained because we will perform some catalog IO and
 /// this should likely not block the ingester.
 struct IngesterStreamDecoder {
     finished_partitions: HashMap<PartitionId, IngesterPartition>,
-    current_partition: Option<IngesterPartition>,
+    current_partition: CurrentPartition,
     current_chunk: Option<(Schema, Vec<RecordBatch>)>,
     ingester_address: Arc<str>,
     catalog_cache: Arc<CatalogCache>,
@@ -604,7 +637,7 @@ impl IngesterStreamDecoder {
     ) -> Self {
         Self {
             finished_partitions: HashMap::new(),
-            current_partition: None,
+            current_partition: CurrentPartition::None,
             current_chunk: None,
             ingester_address,
             catalog_cache,
@@ -620,8 +653,11 @@ impl IngesterStreamDecoder {
                 .current_partition
                 .take()
                 .expect("Partition should have been checked before chunk creation");
-            self.current_partition =
-                Some(current_partition.try_add_chunk(ChunkId::new(), schema, batches)?);
+            self.current_partition = CurrentPartition::Some(current_partition.try_add_chunk(
+                ChunkId::new(),
+                schema,
+                batches,
+            )?);
         }
 
         Ok(())
@@ -705,6 +741,11 @@ impl IngesterStreamDecoder {
                     )
                     .await;
 
+                let Some(shard_id) = shard_id else {
+                    self.current_partition = CurrentPartition::Skip;
+                    return Ok(())
+                };
+
                 // Use a temporary empty partition sort key. We are going to fetch this AFTER we
                 // know all chunks because then we are able to detect all relevant primary key
                 // columns that the sort key must cover.
@@ -731,9 +772,13 @@ impl IngesterStreamDecoder {
                     None,
                     partition_sort_key,
                 );
-                self.current_partition = Some(partition);
+                self.current_partition = CurrentPartition::Some(partition);
             }
             DecodedPayload::Schema(schema) => {
+                if self.current_partition.is_skip() {
+                    return Ok(());
+                }
+
                 self.flush_chunk()?;
                 ensure!(
                     self.current_partition.is_some(),
@@ -755,6 +800,10 @@ impl IngesterStreamDecoder {
                 self.current_chunk = Some((schema, vec![]));
             }
             DecodedPayload::RecordBatch(batch) => {
+                if self.current_partition.is_skip() {
+                    return Ok(());
+                }
+
                 let current_chunk =
                     self.current_chunk
                         .as_mut()
@@ -1425,6 +1474,57 @@ mod tests {
     async fn test_flight_no_partitions() {
         let mock_flight_client = Arc::new(
             MockFlightClient::new([("addr1", Ok(MockQueryData { results: vec![] }))]).await,
+        );
+        let ingester_conn = mock_flight_client.ingester_conn().await;
+        let partitions = get_partitions(&ingester_conn, &[1]).await.unwrap();
+        assert!(partitions.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_flight_unknown_partitions() {
+        let record_batch = lp_to_record_batch("table foo=1 1");
+
+        let schema = record_batch.schema();
+
+        let mock_flight_client = Arc::new(
+            MockFlightClient::new([(
+                "addr1",
+                Ok(MockQueryData {
+                    results: vec![
+                        metadata(
+                            1000,
+                            Some(PartitionStatus {
+                                parquet_max_sequence_number: Some(11),
+                            }),
+                        ),
+                        metadata(
+                            1001,
+                            Some(PartitionStatus {
+                                parquet_max_sequence_number: Some(11),
+                            }),
+                        ),
+                        Ok((
+                            DecodedPayload::Schema(Arc::clone(&schema)),
+                            IngesterQueryResponseMetadata::default(),
+                        )),
+                        metadata(
+                            1002,
+                            Some(PartitionStatus {
+                                parquet_max_sequence_number: Some(11),
+                            }),
+                        ),
+                        Ok((
+                            DecodedPayload::Schema(Arc::clone(&schema)),
+                            IngesterQueryResponseMetadata::default(),
+                        )),
+                        Ok((
+                            DecodedPayload::RecordBatch(record_batch),
+                            IngesterQueryResponseMetadata::default(),
+                        )),
+                    ],
+                }),
+            )])
+            .await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
         let partitions = get_partitions(&ingester_conn, &[1]).await.unwrap();
