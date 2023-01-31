@@ -5127,7 +5127,6 @@ dependencies = [
 name = "service_common"
 version = "0.1.0"
 dependencies = [
- "arrow-flight",
  "async-trait",
  "bytes",
  "datafusion",

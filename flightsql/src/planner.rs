@@ -27,13 +27,12 @@ impl FlightSQLPlanner {
     /// Returns the schema, in Arrow IPC encoded form, for the request in msg.
     pub async fn get_flight_info(
         namespace_name: impl Into<String>,
-        msg: Any,
+        cmd: FlightSQLCommand,
         ctx: &IOxSessionContext,
     ) -> Result<Bytes> {
         let namespace_name = namespace_name.into();
-        debug!(%namespace_name, type_url=%msg.type_url, "Handling flightsql get_flight_info");
+        debug!(%namespace_name, %cmd, "Handling flightsql get_flight_info");
 
-        let cmd = FlightSQLCommand::try_new(&msg)?;
         match cmd {
             FlightSQLCommand::CommandStatementQuery(query) => {
                 Self::get_schema_for_query(&query, ctx).await
@@ -71,13 +70,12 @@ impl FlightSQLPlanner {
     pub async fn do_get(
         namespace_name: impl Into<String>,
         _database: Arc<dyn QueryNamespace>,
-        msg: Any,
+        cmd: FlightSQLCommand,
         ctx: &IOxSessionContext,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let namespace_name = namespace_name.into();
-        debug!(%namespace_name, type_url=%msg.type_url, "Handling flightsql do_get");
+        debug!(%namespace_name, %cmd, "Handling flightsql do_get");
 
-        let cmd = FlightSQLCommand::try_new(&msg)?;
         match cmd {
             FlightSQLCommand::CommandStatementQuery(query) => {
                 debug!(%query, "Planning FlightSQL query");
@@ -102,13 +100,12 @@ impl FlightSQLPlanner {
     pub async fn do_action(
         namespace_name: impl Into<String>,
         _database: Arc<dyn QueryNamespace>,
-        msg: Any,
+        cmd: FlightSQLCommand,
         ctx: &IOxSessionContext,
     ) -> Result<Bytes> {
         let namespace_name = namespace_name.into();
-        debug!(%namespace_name, type_url=%msg.type_url, "Handling flightsql do_action");
+        debug!(%namespace_name, %cmd, "Handling flightsql do_action");
 
-        let cmd = FlightSQLCommand::try_new(&msg)?;
         match cmd {
             FlightSQLCommand::ActionCreatePreparedStatementRequest(query) => {
                 debug!(%query, "Creating prepared statement");

@@ -4,6 +4,7 @@ use std::string::FromUtf8Error;
 use arrow::error::ArrowError;
 use arrow_flight::error::FlightError;
 use datafusion::error::DataFusionError;
+use prost::DecodeError;
 use snafu::Snafu;
 
 #[allow(clippy::enum_variant_names)]
@@ -11,11 +12,9 @@ use snafu::Snafu;
 // allow Snafu 's to be used in the crate
 #[snafu(visibility(pub(crate)))]
 pub enum Error {
-    #[snafu(display("Invalid protobuf for type_url '{}': {}", type_url, source))]
-    DeserializationTypeKnown {
-        type_url: String,
-        source: prost::DecodeError,
-    },
+    #[snafu(display("Invalid protobuf: {}", source))]
+    #[snafu(context(false))]
+    Decode { source: DecodeError },
 
     #[snafu(display("Invalid PreparedStatement handle (invalid UTF-8:) {}", source))]
     InvalidHandle { source: FromUtf8Error },

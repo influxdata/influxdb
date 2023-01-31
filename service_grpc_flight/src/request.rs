@@ -1,19 +1,26 @@
 //! Ticket handling for the native IOx Flight API
 
-use arrow_flight::{sql::Any, Ticket};
+use arrow_flight::Ticket;
 use bytes::Bytes;
+use flightsql::FlightSQLCommand;
 use generated_types::influxdata::iox::querier::v1 as proto;
 use generated_types::influxdata::iox::querier::v1::read_info::QueryType;
 use observability_deps::tracing::trace;
-use prost::{DecodeError, Message};
+use prost::Message;
 use serde::Deserialize;
-use snafu::Snafu;
+use snafu::{ResultExt, Snafu};
 use std::fmt::{Debug, Display, Formatter};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Invalid ticket"))]
     Invalid,
+    #[snafu(display("Invalid ticket content: {}", msg))]
+    InvalidContent { msg: String },
+    #[snafu(display("Invalid Flight SQL ticket: {}", source))]
+    FlightSQL { source: flightsql::Error },
+    #[snafu(display("Invalid Protobuf: {}", source))]
+    Decode { source: prost::DecodeError },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -35,9 +42,9 @@ pub enum RunQuery {
     /// InfluxQL
     InfluxQL(String),
     /// Execute a FlightSQL command. The payload is an encoded
-    /// FlightSql Command*. message that was received at the
+    /// FlightSQL Command*. message that was received at the
     /// get_flight_info endpoint
-    FlightSql(Any),
+    FlightSQL(FlightSQLCommand),
 }
 
 impl Display for RunQuery {
@@ -45,7 +52,7 @@ impl Display for RunQuery {
         match self {
             Self::Sql(s) => Display::fmt(s, f),
             Self::InfluxQL(s) => Display::fmt(s, f),
-            Self::FlightSql(s) => write!(f, "FlightSql({})", s.type_url),
+            Self::FlightSQL(s) => Display::fmt(s, f),
         }
     }
 }
@@ -95,11 +102,14 @@ impl IoxGetRequest {
                 query_type: QueryType::InfluxQl.into(),
                 flightsql_command: vec![],
             },
-            RunQuery::FlightSql(flightsql_command) => proto::ReadInfo {
+            RunQuery::FlightSQL(flightsql_command) => proto::ReadInfo {
                 namespace_name,
                 sql_query: "".into(),
                 query_type: QueryType::FlightSqlMessage.into(),
-                flightsql_command: flightsql_command.encode_to_vec(),
+                flightsql_command: flightsql_command
+                    .try_encode()
+                    .context(FlightSQLSnafu)?
+                    .into(),
             },
         };
 
@@ -138,8 +148,8 @@ impl IoxGetRequest {
         })
     }
 
-    fn decode_protobuf(ticket: Bytes) -> Result<Self, DecodeError> {
-        let read_info = proto::ReadInfo::decode(ticket)?;
+    fn decode_protobuf(ticket: Bytes) -> Result<Self, Error> {
+        let read_info = proto::ReadInfo::decode(ticket).context(DecodeSnafu)?;
 
         let query_type = read_info.query_type();
         let proto::ReadInfo {
@@ -154,28 +164,32 @@ impl IoxGetRequest {
             query: match query_type {
                 QueryType::Unspecified | QueryType::Sql => {
                     if !flightsql_command.is_empty() {
-                        return Err(DecodeError::new(
-                            "QueryType::Sql contained non empty flightsql_command",
-                        ));
+                        return InvalidContentSnafu {
+                            msg: "QueryType::Sql contained non empty flightsql_command",
+                        }
+                        .fail();
                     }
                     RunQuery::Sql(sql_query)
                 }
                 QueryType::InfluxQl => {
                     if !flightsql_command.is_empty() {
-                        return Err(DecodeError::new(
-                            "QueryType::InfluxQl contained non empty flightsql_command",
-                        ));
+                        return InvalidContentSnafu {
+                            msg: "QueryType::InfluxQl contained non empty flightsql_command",
+                        }
+                        .fail();
                     }
                     RunQuery::InfluxQL(sql_query)
                 }
                 QueryType::FlightSqlMessage => {
                     if !sql_query.is_empty() {
-                        return Err(DecodeError::new(
-                            "QueryType::FlightSqlMessage contained non empty sql_query",
-                        ));
+                        return InvalidContentSnafu {
+                            msg: "QueryType::FlightSqlMessage contained non empty sql_query",
+                        }
+                        .fail();
                     }
-                    let cmd = prost::Message::decode(flightsql_command.as_ref())?;
-                    RunQuery::FlightSql(cmd)
+                    let cmd = FlightSQLCommand::try_decode(flightsql_command.into())
+                        .context(FlightSQLSnafu)?;
+                    RunQuery::FlightSQL(cmd)
                 }
             },
         })
@@ -192,7 +206,6 @@ impl IoxGetRequest {
 
 #[cfg(test)]
 mod tests {
-    use arrow_flight::sql::CommandStatementQuery;
     use assert_matches::assert_matches;
     use generated_types::influxdata::iox::querier::v1::read_info::QueryType;
 
@@ -362,14 +375,11 @@ mod tests {
 
     #[test]
     fn round_trip_flightsql() {
-        let cmd = Any::pack(&CommandStatementQuery {
-            query: "select * from foo".into(),
-        })
-        .unwrap();
+        let cmd = FlightSQLCommand::CommandStatementQuery("select * from foo".into());
 
         let request = IoxGetRequest {
             namespace_name: "foo_blarg".into(),
-            query: RunQuery::FlightSql(cmd),
+            query: RunQuery::FlightSQL(cmd),
         };
 
         let ticket = request.clone().try_encode().expect("encoding failed");

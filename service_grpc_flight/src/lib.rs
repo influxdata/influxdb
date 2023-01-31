@@ -14,13 +14,13 @@ use arrow_flight::{
     error::FlightError,
     flight_descriptor::DescriptorType,
     flight_service_server::{FlightService as Flight, FlightServiceServer as FlightServer},
-    sql::Any,
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightEndpoint, FlightInfo,
     HandshakeRequest, HandshakeResponse, PutResult, SchemaAsIpc, SchemaResult, Ticket,
 };
 use bytes::Bytes;
 use data_types::NamespaceNameError;
 use datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
+use flightsql::FlightSQLCommand;
 use futures::{ready, Stream, StreamExt, TryStreamExt};
 use generated_types::influxdata::iox::querier::v1 as proto;
 use iox_query::{
@@ -71,7 +71,7 @@ pub enum Error {
     },
 
     #[snafu(display("no 'iox-namespace-name' header in request"))]
-    NoFlightSqlNamespace,
+    NoFlightSQLNamespace,
 
     #[snafu(display("Invalid 'iox-namespace-name' header in request: {}", source))]
     InvalidNamespaceHeader {
@@ -89,8 +89,8 @@ pub enum Error {
         source: service_common::planner::Error,
     },
 
-    #[snafu(display("Error while planning FlightSQL : {}", source))]
-    FlightSQLPlanning { source: flightsql::Error },
+    #[snafu(display("Error while planning Flight SQL : {}", source))]
+    FlightSQL { source: flightsql::Error },
 
     #[snafu(display("Invalid protobuf: {}", source))]
     Deserialization { source: prost::DecodeError },
@@ -115,13 +115,13 @@ impl From<Error> for tonic::Status {
             | Error::InvalidNamespaceName { .. } => info!(e=%err, msg),
             Error::Query { .. } => info!(e=%err, msg),
             Error::Optimize { .. }
-            |Error::NoFlightSqlNamespace
+            |Error::NoFlightSQLNamespace
             |Error::InvalidNamespaceHeader { .. }
             | Error::Planning { .. }
             | Error::Deserialization { .. }
             | Error::InternalCreatingTicket { .. }
                 | Error::UnsupportedMessageType { .. }
-                | Error::FlightSQLPlanning { .. }
+                | Error::FlightSQL { .. }
             => {
                 warn!(e=%err, msg)
             }
@@ -141,16 +141,16 @@ impl Error {
             Self::InvalidTicket { .. }
             | Self::InvalidHandshake { .. }
             | Self::Deserialization { .. }
-            | Self::NoFlightSqlNamespace
+            | Self::NoFlightSQLNamespace
             | Self::InvalidNamespaceHeader { .. }
             | Self::InvalidNamespaceName { .. } => tonic::Code::InvalidArgument,
             Self::Planning { source, .. } | Self::Query { source, .. } => {
                 datafusion_error_to_tonic_code(&source)
             }
             Self::UnsupportedMessageType { .. } => tonic::Code::Unimplemented,
-            Error::FlightSQLPlanning { source } => match source {
-                flightsql::Error::DeserializationTypeKnown { .. }
-                | flightsql::Error::InvalidHandle { .. }
+            Error::FlightSQL { source } => match source {
+                flightsql::Error::InvalidHandle { .. }
+                | flightsql::Error::Decode { .. }
                 | flightsql::Error::Protocol { .. }
                 | flightsql::Error::UnsupportedMessageType { .. } => tonic::Code::InvalidArgument,
                 flightsql::Error::Flight { source: e } => return tonic::Status::from(e),
@@ -171,6 +171,12 @@ impl Error {
         Self::UnsupportedMessageType {
             description: description.into(),
         }
+    }
+}
+
+impl From<flightsql::Error> for Error {
+    fn from(source: flightsql::Error) -> Self {
+        Self::FlightSQL { source }
     }
 }
 
@@ -374,8 +380,8 @@ where
                     .context(PlanningSnafu)?;
                 (token, plan)
             }
-            RunQuery::FlightSql(msg) => {
-                let token = db.record_query(&ctx, "flightsql", Box::new(msg.type_url.clone()));
+            RunQuery::FlightSQL(msg) => {
+                let token = db.record_query(&ctx, "flightsql", Box::new(msg.to_string()));
                 let plan = Planner::new(&ctx)
                     .flight_sql_do_get(&namespace, db, msg.clone())
                     .await
@@ -499,10 +505,9 @@ where
         let flight_descriptor = request.into_inner();
 
         // extract the FlightSQL message
-        let msg = msg_from_descriptor(flight_descriptor.clone())?;
+        let cmd = cmd_from_descriptor(flight_descriptor.clone())?;
 
-        let type_url = &msg.type_url;
-        info!(%namespace_name, %type_url, %trace, "GetFlightInfo request");
+        info!(%namespace_name, %cmd, %trace, "GetFlightInfo request");
 
         let db = self
             .server
@@ -514,19 +519,19 @@ where
 
         let ctx = db.new_query_context(span_ctx);
         let schema = Planner::new(&ctx)
-            .flight_sql_get_flight_info(&namespace_name, msg.clone())
+            .flight_sql_get_flight_info(&namespace_name, cmd.clone())
             .await
             .context(PlanningSnafu);
 
         if let Err(e) = &schema {
-            info!(%namespace_name, %type_url, %trace, %e, "Error running GetFlightInfo");
+            info!(%namespace_name, %cmd, %trace, %e, "Error running GetFlightInfo");
         } else {
-            debug!(%namespace_name, %type_url, %trace, "Completed GetFlightInfo request");
+            debug!(%namespace_name, %cmd, %trace, "Completed GetFlightInfo request");
         };
         let schema = schema?;
 
         // Form the response ticket (that the client will pass back to DoGet)
-        let ticket = IoxGetRequest::new(&namespace_name, RunQuery::FlightSql(msg))
+        let ticket = IoxGetRequest::new(&namespace_name, RunQuery::FlightSQL(cmd))
             .try_encode()
             .context(InternalCreatingTicketSnafu)?;
 
@@ -582,10 +587,9 @@ where
         } = request.into_inner();
 
         // extract the FlightSQL message
-        let msg: Any = Message::decode(body).context(DeserializationSnafu)?;
+        let cmd = FlightSQLCommand::try_decode(body).context(FlightSQLSnafu)?;
 
-        let type_url = msg.type_url.to_string();
-        info!(%namespace_name, %action_type, %type_url, %trace, "DoAction request");
+        info!(%namespace_name, %action_type, %cmd, %trace, "DoAction request");
 
         let db = self
             .server
@@ -597,14 +601,14 @@ where
 
         let ctx = db.new_query_context(span_ctx);
         let body = Planner::new(&ctx)
-            .flight_sql_do_action(&namespace_name, db, msg)
+            .flight_sql_do_action(&namespace_name, db, cmd.clone())
             .await
             .context(PlanningSnafu);
 
         if let Err(e) = &body {
-            info!(%namespace_name, %type_url, %trace, %e, "Error running DoAction");
+            info!(%namespace_name, %cmd, %trace, %e, "Error running DoAction");
         } else {
-            debug!(%namespace_name, %type_url, %trace, "Completed DoAction request");
+            debug!(%namespace_name, %cmd, %trace, "Completed DoAction request");
         };
 
         let result = arrow_flight::Result { body: body? };
@@ -634,12 +638,9 @@ where
 
 /// Extracts an encoded Protobuf message from a [`FlightDescriptor`],
 /// as used in FlightSQL.
-fn msg_from_descriptor(flight_descriptor: FlightDescriptor) -> Result<Any> {
+fn cmd_from_descriptor(flight_descriptor: FlightDescriptor) -> Result<FlightSQLCommand> {
     match flight_descriptor.r#type() {
-        DescriptorType::Cmd => {
-            let msg: Any = Message::decode(flight_descriptor.cmd).context(DeserializationSnafu)?;
-            Ok(msg)
-        }
+        DescriptorType::Cmd => Ok(FlightSQLCommand::try_decode(flight_descriptor.cmd)?),
         DescriptorType::Path => Err(Error::unsupported_message_type("FlightInfo with Path")),
         DescriptorType::Unknown => Err(Error::unsupported_message_type(
             "FlightInfo of unknown type",
@@ -655,7 +656,7 @@ fn get_flightsql_namespace(metadata: &MetadataMap) -> Result<String> {
         return Ok(v.to_string());
     }
 
-    NoFlightSqlNamespaceSnafu.fail()
+    NoFlightSQLNamespaceSnafu.fail()
 }
 
 /// Wrapper over a FlightDataEncodeStream that adds IOx specfic

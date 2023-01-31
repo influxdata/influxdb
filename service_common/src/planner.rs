@@ -1,10 +1,9 @@
 //! Query planner wrapper for use in IOx services
 use std::sync::Arc;
 
-use arrow_flight::sql::Any;
 use bytes::Bytes;
 use datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
-use flightsql::FlightSQLPlanner;
+use flightsql::{FlightSQLCommand, FlightSQLPlanner};
 use iox_query::{
     exec::IOxSessionContext,
     frontend::{influxrpc::InfluxRpcPlanner, sql::SqlQueryPlanner},
@@ -70,7 +69,7 @@ impl Planner {
         &self,
         namespace_name: impl Into<String>,
         namespace: Arc<N>,
-        msg: Any,
+        cmd: FlightSQLCommand,
     ) -> Result<Arc<dyn ExecutionPlan>>
     where
         N: QueryNamespace + 'static,
@@ -80,7 +79,7 @@ impl Planner {
 
         self.ctx
             .run(async move {
-                FlightSQLPlanner::do_get(namespace_name, namespace, msg, &ctx)
+                FlightSQLPlanner::do_get(namespace_name, namespace, cmd, &ctx)
                     .await
                     .map_err(DataFusionError::from)
             })
@@ -94,7 +93,7 @@ impl Planner {
         &self,
         namespace_name: impl Into<String>,
         namespace: Arc<N>,
-        msg: Any,
+        cmd: FlightSQLCommand,
     ) -> Result<Bytes>
     where
         N: QueryNamespace + 'static,
@@ -104,7 +103,7 @@ impl Planner {
 
         self.ctx
             .run(async move {
-                FlightSQLPlanner::do_action(namespace_name, namespace, msg, &ctx)
+                FlightSQLPlanner::do_action(namespace_name, namespace, cmd, &ctx)
                     .await
                     .map_err(DataFusionError::from)
             })
@@ -117,14 +116,14 @@ impl Planner {
     pub async fn flight_sql_get_flight_info(
         &self,
         namespace_name: impl Into<String>,
-        msg: Any,
+        cmd: FlightSQLCommand,
     ) -> Result<Bytes> {
         let namespace_name = namespace_name.into();
         let ctx = self.ctx.child_ctx("planner flight_sql_get_flight_info");
 
         self.ctx
             .run(async move {
-                FlightSQLPlanner::get_flight_info(namespace_name, msg, &ctx)
+                FlightSQLPlanner::get_flight_info(namespace_name, cmd, &ctx)
                     .await
                     .map_err(DataFusionError::from)
             })
