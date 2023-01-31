@@ -40,7 +40,12 @@ impl SortKeyResolver {
                     .partitions()
                     .get_by_id(self.partition_id)
                     .await?
-                    .expect("resolving sort key for non-existent partition")
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "resolving sort key for non-existent partition ID {}",
+                            self.partition_id
+                        )
+                    })
                     .sort_key();
 
                 Result::<_, iox_catalog::interface::Error>::Ok(s)
