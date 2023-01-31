@@ -148,16 +148,25 @@ impl ExecutionPlan for RecordBatchesExec {
     }
 
     fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let total_groups = self.batches.len();
+
+        let total_batches = self
+            .batches
+            .iter()
+            .map(|(_schema, batches)| batches.len())
+            .sum::<usize>();
+
+        let total_rows = self
+            .batches
+            .iter()
+            .flat_map(|(_schema, batches)| batches.iter().map(|batch| batch.num_rows()))
+            .sum::<usize>();
+
         match t {
             DisplayFormatType::Default => {
                 write!(
                     f,
-                    "RecordBatchesExec: batches_groups={} batches={}",
-                    self.batches.len(),
-                    self.batches
-                        .iter()
-                        .map(|(_schema, batches)| batches.len())
-                        .sum::<usize>(),
+                    "RecordBatchesExec: batches_groups={total_groups} batches={total_batches} total_rows={total_rows}",
                 )
             }
         }

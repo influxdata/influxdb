@@ -2930,7 +2930,7 @@ mod test {
 
         // Plan is very simple with one single RecordBatchesExec that includes 4 chunks
         let plan_str = format!("{}", displayable(plan.as_ref()).indent());
-        let expected_plan = "RecordBatchesExec: batches_groups=4 batches=4\n";
+        let expected_plan = "RecordBatchesExec: batches_groups=4 batches=4 total_rows=22\n";
         assert_eq!(plan_str, expected_plan);
 
         let batch = test_collect(plan).await;
