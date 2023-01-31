@@ -76,6 +76,9 @@ pub async fn run(
         if q.normalized_metrics() {
             output.push("-- Results After Normalizing Metrics".into())
         }
+        if q.normalized_filters() {
+            output.push("-- Results After Normalizing Filters".into())
+        }
 
         let results = run_query(cluster, q).await?;
         output.extend(results);
@@ -264,6 +267,25 @@ async fn run_query(cluster: &MiniCluster, query: &Query) -> Result<Vec<String>> 
             .collect();
     }
 
+    // normalize Filters, if requested
+    //
+    // Converts:
+    // FilterExec: time@2 < -9223372036854775808 OR time@2 > 1640995204240217000
+    //
+    // to
+    // FilterExec: <REDACTED>
+    if query.normalized_filters() {
+        let filter_regex = Regex::new("FilterExec: .*").expect("filter regex");
+        current_results = current_results
+            .into_iter()
+            .map(|s| {
+                filter_regex
+                    .replace_all(&s, |_: &Captures| "FilterExec: <REDACTED>")
+                    .to_string()
+            })
+            .collect();
+    }
+
     Ok(current_results)
 }
 
@@ -277,8 +299,15 @@ pub struct Query {
     /// If true, replace UUIDs with static placeholders.
     normalized_uuids: bool,
 
-    /// If true, normalize timings in queries by replacing them with static placeholders.
+    /// If true, normalize timings in queries by replacing them with
+    /// static placeholders, for example:
+    ///
+    /// `1s`     -> `1.234ms`
     normalized_metrics: bool,
+
+    /// if true, normalize filter predicates for explain plans
+    /// `FilterExec: <REDACTED>`
+    normalized_filters: bool,
 
     /// The SQL string
     sql: String,
@@ -292,6 +321,7 @@ impl Query {
             sorted_compare: false,
             normalized_uuids: false,
             normalized_metrics: false,
+            normalized_filters: false,
             sql,
         }
     }
@@ -320,6 +350,11 @@ impl Query {
     /// Use normalized timing values
     pub fn normalized_metrics(&self) -> bool {
         self.normalized_metrics
+    }
+
+    /// Use normalized filter plans
+    pub fn normalized_filters(&self) -> bool {
+        self.normalized_filters
     }
 }
 
@@ -351,6 +386,10 @@ impl QueryBuilder {
 
     fn normalize_metrics(&mut self) {
         self.query.normalized_metrics = true;
+    }
+
+    fn normalize_filters(&mut self) {
+        self.query.normalized_filters = true;
     }
 
     fn is_empty(&self) -> bool {
@@ -395,6 +434,9 @@ impl TestQueries {
                         }
                         "metrics" => {
                             builder.normalize_metrics();
+                        }
+                        "filters" => {
+                            builder.normalize_filters();
                         }
                         _ => {}
                     }

@@ -5,12 +5,12 @@
  SELECT * FROM cpu order by host, load, time;
 
  -- should see only 2 chunks with predicate pushed down to ParquetExec
- -- IOX_COMPARE: uuid
+ -- IOX_COMPARE: uuid, filters
  EXPLAIN SELECT * FROM cpu order by host, load, time;
 
  -- should return 2 rows
  SELECT * FROM cpu WHERE host != 'b' ORDER BY host,time;
 
  -- should see only 2 chunks with predicate pushed down to ParquetExec
- -- IOX_COMPARE: uuid
+ -- IOX_COMPARE: uuid, filters
  EXPLAIN SELECT * FROM cpu WHERE host != 'b' ORDER BY host,time;

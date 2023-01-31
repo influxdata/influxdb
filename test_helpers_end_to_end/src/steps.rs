@@ -174,6 +174,11 @@ pub enum Step {
     /// know about the ingester, so the test needs to ask the ingester directly.
     WaitForPersistedAccordingToIngester,
 
+    /// Set the namespace retention interval to a retention period,
+    /// specified in ns relative to `now()`.  `None` represents infinite retention
+    /// (i.e. never drop data).
+    SetRetention(Option<i64>),
+
     /// Run one hot and one cold compaction operation and wait for it to finish.
     Compact,
 
@@ -357,6 +362,17 @@ where
                     info!("====Begin running compaction");
                     state.cluster.run_compaction();
                     info!("====Done running compaction");
+                }
+                Step::SetRetention(retention_period_ns) => {
+                    info!("====Begin setting retention period to {retention_period_ns:?}");
+                    let namespace = state.cluster().namespace();
+                    let router_connection = state.cluster().router().router_grpc_connection();
+                    let mut client = influxdb_iox_client::namespace::Client::new(router_connection);
+                    client
+                        .update_namespace_retention(namespace, *retention_period_ns)
+                        .await
+                        .expect("Error updating retention period");
+                    info!("====Done setting retention period");
                 }
                 Step::Query { sql, expected } => {
                     info!("====Begin running SQL query: {}", sql);

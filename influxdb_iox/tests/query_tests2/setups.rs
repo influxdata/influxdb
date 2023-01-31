@@ -5,6 +5,7 @@
 //! -- IOX_SETUP: [test name]
 //! ```
 
+use iox_time::{SystemProvider, Time, TimeProvider};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use test_helpers_end_to_end::Step;
@@ -13,6 +14,9 @@ use test_helpers_end_to_end::Step;
 pub type SetupName = &'static str;
 /// The steps that should be run when this setup is chosen.
 pub type SetupSteps = Vec<Step>;
+
+/// timestamps for the retention test
+static RETENTION_SETUP: Lazy<RetentionSetup> = Lazy::new(RetentionSetup::new);
 
 /// All possible setups for the [`TestCase`][crate::TestCase]s to use, indexed by name
 pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
@@ -998,6 +1002,30 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
             ],
         ),
         (
+            "ThreeChunksWithRetention",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(RETENTION_SETUP.lp_partially_inside.clone()),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(RETENTION_SETUP.lp_fully_inside.clone()),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(RETENTION_SETUP.lp_fully_outside.clone()),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+                Step::SetRetention(Some(RETENTION_SETUP.retention_period_ns)),
+            ],
+        ),
+        (
             // Test data to validate fix for
             // <https://github.com/influxdata/influxdb_iox/issues/2890>
             "MeasurementForDefect2890",
@@ -1025,3 +1053,77 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
         ),
     ])
 });
+
+/// Holds parameters for retention period. Tests based on this need to
+/// be run within the hour of being created.
+///
+/// ```text                  (cut off)                    (now)
+/// time: -----------------------|--------------------------|>
+///
+/// partially_inside:   |-----------------|
+///
+/// fully_inside:                 +1h |-----------|
+///
+/// fully_outside: |---------|
+/// ```
+///
+/// Note this setup is only good for 1 hour after it was created.
+struct RetentionSetup {
+    /// the retention period, relative to now() that the three data
+    /// chunks fall inside/outside
+    retention_period_ns: i64,
+
+    /// lineprotocol data partially inside retention
+    lp_partially_inside: String,
+
+    /// lineprotocol data fully inside (included in query)
+    lp_fully_inside: String,
+
+    /// lineprotocol data fully outside (excluded from query)
+    lp_fully_outside: String,
+}
+
+impl RetentionSetup {
+    fn new() -> Self {
+        let retention_period_1_hour_ns = 3600 * 1_000_000_000;
+
+        // Data is relative to this particular time stamp
+        let cutoff = Time::from_rfc3339("2022-01-01T00:00:00+00:00")
+            .unwrap()
+            .timestamp_nanos();
+        // Timestamp 1 hour later than the cutoff, so the data will be retained for 1 hour
+        let inside_retention = cutoff + retention_period_1_hour_ns;
+        let outside_retention = cutoff - 10; // before retention
+
+        let lp_partially_inside = format!(
+            "cpu,host=a load=1 {inside_retention}\n\
+             cpu,host=aa load=11 {outside_retention}"
+        );
+
+        let lp_fully_inside = format!(
+            "cpu,host=b load=2 {inside_retention}\n\
+             cpu,host=bb load=21 {inside_retention}"
+        );
+
+        let lp_fully_outside = format!(
+            "cpu,host=z load=3 {outside_retention}\n\
+             cpu,host=zz load=31 {outside_retention}"
+        );
+
+        // Set retention period to be at the cutoff date. Note that
+        // since real world time advances, after 1 hour of real world
+        // time the data that is inside the retention interval will
+        // move outside (and thus not appear in queries).
+        //
+        // Thus this setup is only valid for 1 hour.
+        let retention_period_ns = SystemProvider::new().now().timestamp_nanos() - cutoff;
+
+        Self {
+            // translate the retention period to be relative to now
+            retention_period_ns,
+            lp_partially_inside,
+            lp_fully_inside,
+            lp_fully_outside,
+        }
+    }
+}

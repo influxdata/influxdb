@@ -146,17 +146,15 @@ async fn pushdown() {
 }
 
 #[tokio::test]
-#[ignore]
 async fn retention() {
-    unimplemented!("See <https://github.com/influxdata/influxdb_iox/issues/6592>");
-    // test_helpers::maybe_start_logging();
-    //
-    // TestCase {
-    //     input: "cases/in/retention.sql",
-    //     chunk_stage: ChunkStage::Parquet,
-    // }
-    // .run()
-    // .await;
+    test_helpers::maybe_start_logging();
+
+    TestCase {
+        input: "cases/in/retention.sql",
+        chunk_stage: ChunkStage::Parquet,
+    }
+    .run()
+    .await;
 }
 
 #[tokio::test]
