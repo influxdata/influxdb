@@ -1416,9 +1416,20 @@ func (is IndexSet) measurementNamesByExpr(auth query.FineAuthorizer, expr influx
 	case *influxql.BinaryExpr:
 		switch e.Op {
 		case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
-			tag, ok := e.LHS.(*influxql.VarRef)
-			if !ok {
-				return nil, fmt.Errorf("left side of '%s' must be a tag key", e.Op.String())
+			var tag *influxql.VarRef
+			var ok bool
+
+			switch t := e.LHS.(type) {
+			case *influxql.ParenExpr:
+				tag, ok = t.Expr.(*influxql.VarRef)
+				if !ok {
+					return is.measurementNamesByExpr(auth, t.Expr)
+				}
+			default:
+				tag, ok = e.LHS.(*influxql.VarRef)
+				if !ok {
+					return nil, fmt.Errorf("left side of '%s' must be a tag key", e.Op.String())
+				}
 			}
 
 			// Retrieve value or regex expression from RHS.
