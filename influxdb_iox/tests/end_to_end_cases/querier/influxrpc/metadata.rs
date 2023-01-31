@@ -9,6 +9,7 @@ use test_helpers_end_to_end::{DataGenerator, GrpcRequestBuilder, StepTestState};
 
 mod measurement_fields;
 mod measurement_names;
+mod tag_keys;
 
 #[tokio::test]
 /// Validate that capabilities storage endpoint is hooked up
@@ -47,39 +48,6 @@ async fn offsets() {
         }
         .boxed()
     }))
-    .await
-}
-
-#[tokio::test]
-async fn tag_keys() {
-    let generator = Arc::new(DataGenerator::new());
-    run_data_test(
-        Arc::clone(&generator),
-        Box::new(move |state: &mut StepTestState| {
-            let generator = Arc::clone(&generator);
-            async move {
-                let mut storage_client = state.cluster().querier_storage_client();
-
-                let tag_keys_request = GrpcRequestBuilder::new()
-                    .source(state.cluster())
-                    .timestamp_range(generator.min_time(), generator.max_time())
-                    .tag_predicate("host", "server01")
-                    .build_tag_keys();
-
-                let tag_keys_response = storage_client.tag_keys(tag_keys_request).await.unwrap();
-                let responses: Vec<_> = tag_keys_response.into_inner().try_collect().await.unwrap();
-
-                let keys = &responses[0].values;
-                let keys: Vec<_> = keys
-                    .iter()
-                    .map(|v| tag_key_bytes_to_strings(v.clone()))
-                    .collect();
-
-                assert_eq!(keys, vec!["_m(0x00)", "host", "name", "region", "_f(0xff)"]);
-            }
-            .boxed()
-        }),
-    )
     .await
 }
 

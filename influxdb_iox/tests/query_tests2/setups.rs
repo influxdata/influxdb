@@ -335,6 +335,38 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
             ],
         ),
         (
+            "TwoMeasurementsManyNulls",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "h2o,state=CA,city=LA,county=LA temp=70.4 100",
+                        "h2o,state=MA,city=Boston,county=Suffolk temp=72.4 250",
+                        "o2,state=MA,city=Boston temp=50.4 200",
+                        "o2,state=CA temp=79.0 300",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 2,
+                },
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "o2,state=NY temp=60.8 400",
+                        "o2,state=NY,city=NYC temp=61.0 500",
+                        "o2,state=NY,city=NYC,borough=Brooklyn temp=61.0 600",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+            ],
+        ),
+        (
             "PeriodsInNames",
             vec![Step::WriteLineProtocol(
                 [
@@ -646,6 +678,25 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                 Step::Persist,
                 Step::WaitForPersisted2 {
                     expected_increase: 5,
+                },
+            ],
+        ),
+        (
+            "OneMeasurementNoTags",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "h2o temp=70.4 100",
+                        "h2o temp=72.4 250",
+                        "h2o temp=50.4 200",
+                        "h2o level=200.0 300",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
                 },
             ],
         ),
