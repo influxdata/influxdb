@@ -168,4 +168,26 @@ pub struct Compactor2Config {
         action
     )]
     pub max_input_parquet_bytes_per_partition: usize,
+
+    /// Number of shards.
+    ///
+    /// If this is set then the shard ID MUST also be set. If both are not provided, sharding is disabled.
+    #[clap(
+        long = "compaction-shard-count",
+        env = "INFLUXDB_IOX_COMPACTION_SHARD_COUNT",
+        action
+    )]
+    pub shard_count: Option<usize>,
+
+    /// Shard ID.
+    ///
+    /// Starts at 0, must be smaller than the number of shard.
+    ///
+    /// If this is set then the shard count MUST also be set. If both are not provided, sharding is disabled.
+    #[clap(
+        long = "compaction-shard-id",
+        env = "INFLUXDB_IOX_COMPACTION_SHARD_ID",
+        action
+    )]
+    pub shard_id: Option<usize>,
 }

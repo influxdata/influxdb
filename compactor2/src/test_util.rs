@@ -464,6 +464,7 @@ impl TestSetupBuilder {
             ignore_partition_skip_marker: false,
             max_input_files_per_partition: usize::MAX,
             max_input_parquet_bytes_per_partition: usize::MAX,
+            shard_config: None,
         });
 
         TestSetup {

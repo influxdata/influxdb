@@ -1013,6 +1013,7 @@ dependencies = [
  "predicate",
  "rand",
  "schema",
+ "sharder",
  "snafu",
  "test_helpers",
  "tokio",

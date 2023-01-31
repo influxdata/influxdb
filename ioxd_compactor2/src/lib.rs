@@ -1,7 +1,10 @@
 use async_trait::async_trait;
 use backoff::BackoffConfig;
 use clap_blocks::compactor2::Compactor2Config;
-use compactor2::{compactor::Compactor2, config::Config};
+use compactor2::{
+    compactor::Compactor2,
+    config::{Config, ShardConfig},
+};
 use data_types::{PartitionId, TRANSITION_SHARD_NUMBER};
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
@@ -145,6 +148,16 @@ pub async fn create_compactor2_server_type(
         TRANSITION_SHARD_INDEX,
     )
     .await;
+
+    assert!(
+        compactor_config.shard_id.is_some() == compactor_config.shard_count.is_some(),
+        "must provide or not provide shard ID and count"
+    );
+    let shard_config = compactor_config.shard_id.map(|shard_id| ShardConfig {
+        shard_id,
+        n_shards: compactor_config.shard_count.expect("just checked"),
+    });
+
     let compactor = Compactor2::start(Config {
         shard_id,
         metric_registry: Arc::clone(&metric_registry),
@@ -173,6 +186,7 @@ pub async fn create_compactor2_server_type(
         max_input_files_per_partition: compactor_config.max_input_files_per_partition,
         max_input_parquet_bytes_per_partition: compactor_config
             .max_input_parquet_bytes_per_partition,
+        shard_config,
     });
 
     Arc::new(Compactor2ServerType::new(

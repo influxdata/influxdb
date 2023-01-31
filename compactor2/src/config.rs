@@ -98,6 +98,9 @@ pub struct Config {
     /// Maximum input bytes (in parquet) per partition. If there is more data, we ignore the partition (for now) as a
     /// self-protection mechanism.
     pub max_input_parquet_bytes_per_partition: usize,
+
+    /// Shard config (if sharding should be enabled).
+    pub shard_config: Option<ShardConfig>,
 }
 
 impl Config {
@@ -152,4 +155,17 @@ impl Config {
             }
         }
     }
+}
+
+/// Shard config.
+#[derive(Debug, Clone)]
+#[allow(missing_copy_implementations)]
+pub struct ShardConfig {
+    /// Number of shards.
+    pub n_shards: usize,
+
+    /// Shard ID.
+    ///
+    /// Starts as 0 and must be smaller than the number of shards.
+    pub shard_id: usize,
 }

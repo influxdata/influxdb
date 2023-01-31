@@ -41,7 +41,7 @@ use super::{
         has_matching_file::HasMatchingFilePartitionFilter, logging::LoggingPartitionFilterWrapper,
         max_files::MaxFilesPartitionFilter, max_parquet_bytes::MaxParquetBytesPartitionFilter,
         metrics::MetricsPartitionFilterWrapper, never_skipped::NeverSkippedPartitionFilter,
-        PartitionFilter,
+        shard::ShardPartitionFilter, PartitionFilter,
     },
     partition_source::{
         catalog::CatalogPartitionSource, logging::LoggingPartitionSourceWrapper,
@@ -79,6 +79,13 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
     if let Some(ids) = &config.partition_filter {
         // filter as early as possible, so we don't need any catalog lookups for the filtered partitions
         partition_filters.push(Arc::new(ByIdPartitionFilter::new(ids.clone())));
+    }
+    if let Some(shard_config) = &config.shard_config {
+        // add shard filter before performing any catalog IO
+        partition_filters.push(Arc::new(ShardPartitionFilter::new(
+            shard_config.n_shards,
+            shard_config.shard_id,
+        )));
     }
     if !config.ignore_partition_skip_marker {
         partition_filters.push(Arc::new(NeverSkippedPartitionFilter::new(
