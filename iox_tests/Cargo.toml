@@ -26,4 +26,4 @@ schema = { path = "../schema" }
 sharder = { path = "../sharder" }
 uuid = { version = "1", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
-futures = "0.3.25"
+futures = "0.3.26"
