@@ -931,5 +931,97 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                 },
             ],
         ),
+        (
+            "MeasurementForWindowAggregate",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "h2o,state=MA,city=Boston temp=70.0 100",
+                        "h2o,state=MA,city=Boston temp=71.0 200",
+                        "h2o,state=MA,city=Boston temp=72.0 300",
+                        "h2o,state=MA,city=Boston temp=73.0 400",
+                        "h2o,state=MA,city=Boston temp=74.0 500",
+                        "h2o,state=MA,city=Cambridge temp=80.0 100",
+                        "h2o,state=MA,city=Cambridge temp=81.0 200",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "h2o,state=MA,city=Cambridge temp=82.0 300",
+                        "h2o,state=MA,city=Cambridge temp=83.0 400",
+                        "h2o,state=MA,city=Cambridge temp=84.0 500",
+                        "h2o,state=CA,city=LA temp=90.0 100",
+                        "h2o,state=CA,city=LA temp=91.0 200",
+                        "h2o,state=CA,city=LA temp=92.0 300",
+                        "h2o,state=CA,city=LA temp=93.0 400",
+                        "h2o,state=CA,city=LA temp=94.0 500",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+            ],
+        ),
+        (
+            // Test data to validate fix for
+            // <https://github.com/influxdata/influxdb_iox/issues/2697>
+            "MeasurementForDefect2697",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "mm,section=1a bar=5.0 1609459201000000011",
+                        "mm,section=1a bar=0.28 1609459201000000031",
+                        "mm,section=2b bar=4.0 1609459201000000009",
+                        "mm,section=2b bar=6.0 1609459201000000015",
+                        "mm,section=2b bar=1.2 1609459201000000022",
+                        "mm,section=1a foo=1.0 1609459201000000001",
+                        "mm,section=1a foo=3.0 1609459201000000005",
+                        "mm,section=1a foo=11.24 1609459201000000024",
+                        "mm,section=2b foo=2.0 1609459201000000002",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+            ],
+        ),
+        (
+            // Test data to validate fix for
+            // <https://github.com/influxdata/influxdb_iox/issues/2890>
+            "MeasurementForDefect2890",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "mm foo=2.0 1609459201000000001",
+                        "mm foo=2.0 1609459201000000002",
+                        "mm foo=3.0 1609459201000000005",
+                        "mm foo=11.24 1609459201000000024",
+                        "mm bar=4.0 1609459201000000009",
+                        "mm bar=5.0 1609459201000000011",
+                        "mm bar=6.0 1609459201000000015",
+                        "mm bar=1.2 1609459201000000022",
+                        "mm bar=2.8 1609459201000000031",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+            ],
+        ),
     ])
 });

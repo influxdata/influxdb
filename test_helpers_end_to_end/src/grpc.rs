@@ -215,6 +215,16 @@ impl GrpcRequestBuilder {
         self.combine_predicate(Logical::And, node)
     }
 
+    /// Add `_m!=measurement_name` to the predicate in the horrible gRPC structs
+    pub fn not_measurement_predicate(self, measurement_name: impl Into<String>) -> Self {
+        let node = comparison_expression_node(
+            tag_ref_node([00].to_vec()),
+            Comparison::NotEqual,
+            string_value_node(measurement_name),
+        );
+        self.combine_predicate(Logical::And, node)
+    }
+
     /// Add `tag_name ~= /pattern/` to the predicate
     pub fn regex_match_predicate(
         self,
