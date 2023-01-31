@@ -8,6 +8,7 @@ use std::sync::Arc;
 use test_helpers_end_to_end::{DataGenerator, GrpcRequestBuilder, StepTestState};
 
 mod measurement_fields;
+mod measurement_names;
 
 #[tokio::test]
 /// Validate that capabilities storage endpoint is hooked up
@@ -113,48 +114,6 @@ async fn tag_values() {
                     .collect();
 
                 assert_eq!(values, vec!["server01"]);
-            }
-            .boxed()
-        }),
-    )
-    .await
-}
-
-#[tokio::test]
-async fn measurement_names() {
-    let generator = Arc::new(DataGenerator::new());
-    run_data_test(
-        Arc::clone(&generator),
-        Box::new(move |state: &mut StepTestState| {
-            let generator = Arc::clone(&generator);
-            async move {
-                let mut storage_client = state.cluster().querier_storage_client();
-
-                let measurement_names_request = GrpcRequestBuilder::new()
-                    .source(state.cluster())
-                    .timestamp_range(generator.min_time(), generator.max_time())
-                    .build_measurement_names();
-
-                let measurement_names_response = storage_client
-                    .measurement_names(measurement_names_request)
-                    .await
-                    .unwrap();
-                let responses: Vec<_> = measurement_names_response
-                    .into_inner()
-                    .try_collect()
-                    .await
-                    .unwrap();
-
-                let values = &responses[0].values;
-                let values: Vec<_> = values
-                    .iter()
-                    .map(|s| std::str::from_utf8(s).unwrap())
-                    .collect();
-
-                assert_eq!(
-                    values,
-                    vec!["attributes", "cpu_load_short", "status", "swap", "system"]
-                );
             }
             .boxed()
         }),

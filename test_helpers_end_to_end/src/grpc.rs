@@ -42,11 +42,22 @@ impl GrpcLiteral for f64 {
     }
 }
 
+impl GrpcLiteral for i64 {
+    fn make_node(&self) -> Node {
+        Node {
+            node_type: NodeType::Literal.into(),
+            children: vec![],
+            value: Some(Value::IntValue(*self)),
+        }
+    }
+}
+
 impl GrpcLiteral for &str {
     fn make_node(&self) -> Node {
         string_value_node(*self)
     }
 }
+
 impl GrpcLiteral for &String {
     fn make_node(&self) -> Node {
         string_value_node(self.as_str())
@@ -391,7 +402,7 @@ impl GrpcRequestBuilder {
         tonic::Request::new(MeasurementNamesRequest {
             source: self.read_source,
             range: self.range,
-            predicate: None,
+            predicate: self.predicate,
         })
     }
 
