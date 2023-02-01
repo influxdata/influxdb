@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use data_types::PartitionId;
 use observability_deps::tracing::{error, info};
 
-use crate::error::ErrorKindExt;
+use crate::error::{DynError, ErrorKindExt};
 
 use super::PartitionDoneSink;
 
@@ -39,11 +39,7 @@ impl<T> PartitionDoneSink for LoggingPartitionDoneSinkWrapper<T>
 where
     T: PartitionDoneSink,
 {
-    async fn record(
-        &self,
-        partition: PartitionId,
-        res: Result<(), Box<dyn std::error::Error + Send + Sync>>,
-    ) {
+    async fn record(&self, partition: PartitionId, res: Result<(), DynError>) {
         match &res {
             Ok(()) => {
                 info!(partition_id = partition.get(), "Finished partition",);

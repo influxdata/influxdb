@@ -3,6 +3,8 @@ use std::{fmt::Display, sync::Arc};
 use async_trait::async_trait;
 use data_types::{ParquetFile, PartitionId};
 
+use crate::error::DynError;
+
 use super::PartitionFilter;
 
 #[derive(Debug)]
@@ -31,12 +33,16 @@ impl Display for AndPartitionFilter {
 
 #[async_trait]
 impl PartitionFilter for AndPartitionFilter {
-    async fn apply(&self, partition_id: PartitionId, files: &[ParquetFile]) -> bool {
+    async fn apply(
+        &self,
+        partition_id: PartitionId,
+        files: &[ParquetFile],
+    ) -> Result<bool, DynError> {
         for filter in &self.filters {
-            if !filter.apply(partition_id, files).await {
-                return false;
+            if !filter.apply(partition_id, files).await? {
+                return Ok(false);
             }
         }
-        true
+        Ok(true)
     }
 }

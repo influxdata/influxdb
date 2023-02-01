@@ -3,6 +3,8 @@ use std::{collections::HashMap, fmt::Display, sync::Mutex};
 use async_trait::async_trait;
 use data_types::PartitionId;
 
+use crate::error::DynError;
+
 use super::PartitionDoneSink;
 
 #[derive(Debug, Default)]
@@ -29,11 +31,7 @@ impl Display for MockPartitionDoneSink {
 
 #[async_trait]
 impl PartitionDoneSink for MockPartitionDoneSink {
-    async fn record(
-        &self,
-        partition: PartitionId,
-        res: Result<(), Box<dyn std::error::Error + Send + Sync>>,
-    ) {
+    async fn record(&self, partition: PartitionId, res: Result<(), DynError>) {
         self.last
             .lock()
             .expect("not poisoned")

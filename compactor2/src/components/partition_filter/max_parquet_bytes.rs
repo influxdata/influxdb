@@ -3,6 +3,8 @@ use std::fmt::Display;
 use async_trait::async_trait;
 use data_types::{ParquetFile, PartitionId};
 
+use crate::error::{DynError, ErrorKind, SimpleError};
+
 use super::PartitionFilter;
 
 #[derive(Debug)]
@@ -24,18 +26,34 @@ impl Display for MaxParquetBytesPartitionFilter {
 
 #[async_trait]
 impl PartitionFilter for MaxParquetBytesPartitionFilter {
-    async fn apply(&self, _partition_id: PartitionId, files: &[ParquetFile]) -> bool {
-        files
+    async fn apply(
+        &self,
+        partition_id: PartitionId,
+        files: &[ParquetFile],
+    ) -> Result<bool, DynError> {
+        let sum = files
             .iter()
             .map(|f| usize::try_from(f.file_size_bytes).unwrap_or(0))
-            .sum::<usize>()
-            <= self.max_parquet_bytes
+            .sum::<usize>();
+
+        if sum <= self.max_parquet_bytes {
+            Ok(true)
+        } else {
+            Err(SimpleError::new(
+                ErrorKind::OutOfMemory,
+                format!(
+                    "partition {} has {} parquet file bytes, limit is {}",
+                    partition_id, sum, self.max_parquet_bytes
+                ),
+            )
+            .into())
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::test_util::ParquetFileBuilder;
+    use crate::{error::ErrorKindExt, test_util::ParquetFileBuilder};
 
     use super::*;
 
@@ -55,9 +73,15 @@ mod tests {
         let f3 = ParquetFileBuilder::new(3).with_file_size_bytes(3).build();
         let p_id = PartitionId::new(1);
 
-        assert!(filter.apply(p_id, &[]).await);
-        assert!(filter.apply(p_id, &[f1.clone()]).await);
-        assert!(filter.apply(p_id, &[f1.clone(), f3.clone()]).await);
-        assert!(!filter.apply(p_id, &[f1, f2]).await);
+        assert!(filter.apply(p_id, &[]).await.unwrap());
+        assert!(filter.apply(p_id, &[f1.clone()]).await.unwrap());
+        assert!(filter.apply(p_id, &[f1.clone(), f3.clone()]).await.unwrap());
+
+        let err = filter.apply(p_id, &[f1, f2]).await.unwrap_err();
+        assert_eq!(err.classify(), ErrorKind::OutOfMemory);
+        assert_eq!(
+            err.to_string(),
+            "partition 1 has 11 parquet file bytes, limit is 10"
+        );
     }
 }

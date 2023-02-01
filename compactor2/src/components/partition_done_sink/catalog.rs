@@ -5,6 +5,8 @@ use backoff::{Backoff, BackoffConfig};
 use data_types::PartitionId;
 use iox_catalog::interface::Catalog;
 
+use crate::error::DynError;
+
 use super::PartitionDoneSink;
 
 #[derive(Debug)]
@@ -30,11 +32,7 @@ impl Display for CatalogPartitionDoneSink {
 
 #[async_trait]
 impl PartitionDoneSink for CatalogPartitionDoneSink {
-    async fn record(
-        &self,
-        partition: PartitionId,
-        res: Result<(), Box<dyn std::error::Error + Send + Sync>>,
-    ) {
+    async fn record(&self, partition: PartitionId, res: Result<(), DynError>) {
         if let Err(e) = res {
             let msg = e.to_string();
 

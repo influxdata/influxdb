@@ -4,6 +4,8 @@ use async_trait::async_trait;
 use data_types::{ParquetFile, PartitionId};
 use metric::{Registry, U64Counter};
 
+use crate::error::DynError;
+
 use super::PartitionFilter;
 
 #[derive(Debug)]
@@ -13,6 +15,7 @@ where
 {
     pass_counter: U64Counter,
     filter_counter: U64Counter,
+    error_counter: U64Counter,
     inner: T,
 }
 
@@ -27,12 +30,13 @@ where
         );
 
         let pass_counter = metric.recorder(&[("result", "pass")]);
-
         let filter_counter = metric.recorder(&[("result", "filter")]);
+        let error_counter = metric.recorder(&[("result", "error")]);
 
         Self {
             pass_counter,
             filter_counter,
+            error_counter,
             inner,
         }
     }
@@ -52,12 +56,22 @@ impl<T> PartitionFilter for MetricsPartitionFilterWrapper<T>
 where
     T: PartitionFilter,
 {
-    async fn apply(&self, partition_id: PartitionId, files: &[ParquetFile]) -> bool {
+    async fn apply(
+        &self,
+        partition_id: PartitionId,
+        files: &[ParquetFile],
+    ) -> Result<bool, DynError> {
         let res = self.inner.apply(partition_id, files).await;
-        if res {
-            self.pass_counter.inc(1);
-        } else {
-            self.filter_counter.inc(1);
+        match res {
+            Ok(true) => {
+                self.pass_counter.inc(1);
+            }
+            Ok(false) => {
+                self.filter_counter.inc(1);
+            }
+            Err(_) => {
+                self.error_counter.inc(1);
+            }
         }
         res
     }
@@ -90,13 +104,15 @@ mod tests {
 
         assert_eq!(pass_counter(&registry), 0);
         assert_eq!(filter_counter(&registry), 0);
+        assert_eq!(error_counter(&registry), 0);
 
-        assert!(!filter.apply(p_id, &[]).await);
-        assert!(!filter.apply(p_id, &[]).await);
-        assert!(filter.apply(p_id, &[f]).await);
+        assert!(!filter.apply(p_id, &[]).await.unwrap());
+        assert!(!filter.apply(p_id, &[]).await.unwrap());
+        assert!(filter.apply(p_id, &[f]).await.unwrap());
 
         assert_eq!(pass_counter(&registry), 1);
         assert_eq!(filter_counter(&registry), 2);
+        assert_eq!(error_counter(&registry), 0);
     }
 
     fn pass_counter(registry: &Registry) -> u64 {
@@ -113,6 +129,15 @@ mod tests {
             .get_instrument::<Metric<U64Counter>>("iox_compactor_partition_filter_count")
             .expect("instrument not found")
             .get_observer(&Attributes::from(&[("result", "filter")]))
+            .expect("observer not found")
+            .fetch()
+    }
+
+    fn error_counter(registry: &Registry) -> u64 {
+        registry
+            .get_instrument::<Metric<U64Counter>>("iox_compactor_partition_filter_count")
+            .expect("instrument not found")
+            .get_observer(&Attributes::from(&[("result", "error")]))
             .expect("observer not found")
             .fetch()
     }

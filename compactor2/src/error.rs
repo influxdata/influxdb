@@ -57,6 +57,33 @@ impl Display for ErrorKind {
     }
 }
 
+/// A simple error that can be used to convey information.
+#[derive(Debug)]
+pub struct SimpleError {
+    kind: ErrorKind,
+    msg: String,
+}
+
+impl SimpleError {
+    pub fn new(kind: ErrorKind, msg: impl Into<String>) -> Self {
+        Self {
+            kind,
+            msg: msg.into(),
+        }
+    }
+}
+
+impl Display for SimpleError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.msg)
+    }
+}
+
+impl std::error::Error for SimpleError {}
+
+/// Dynamic error type that is used throughout the stack.
+pub type DynError = Box<dyn std::error::Error + Send + Sync>;
+
 /// Extension trait for normal errors to support classification.
 pub trait ErrorKindExt {
     /// Classify error.
@@ -121,6 +148,12 @@ impl ErrorKindExt for ParquetError {
     }
 }
 
+impl ErrorKindExt for SimpleError {
+    fn classify(&self) -> ErrorKind {
+        self.kind
+    }
+}
+
 macro_rules! dispatch_body {
     ($self:ident) => {
         if let Some(e) = $self.downcast_ref::<ArrowError>() {
@@ -152,6 +185,12 @@ macro_rules! dispatch_body {
         } else if let Some(e) = $self.downcast_ref::<Arc<ParquetError>>() {
             e.as_ref().classify()
         } else if let Some(e) = $self.downcast_ref::<Box<ParquetError>>() {
+            e.as_ref().classify()
+        } else if let Some(e) = $self.downcast_ref::<SimpleError>() {
+            e.classify()
+        } else if let Some(e) = $self.downcast_ref::<Arc<SimpleError>>() {
+            e.as_ref().classify()
+        } else if let Some(e) = $self.downcast_ref::<Box<SimpleError>>() {
             e.as_ref().classify()
         } else if let Some(e) = $self.downcast_ref::<Arc<dyn std::error::Error>>() {
             e.as_ref().classify()
@@ -234,6 +273,137 @@ where
     if s.contains("Resources exhausted") {
         return ErrorKind::OutOfMemory;
     }
+    if s.contains("deadline has elapsed") {
+        return ErrorKind::Timeout;
+    }
 
     ErrorKind::Unknown
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::*;
+
+    #[test]
+    fn test_classify() {
+        // simple root causes
+        assert_eq!(
+            ObjectStoreError::NotImplemented.classify(),
+            ErrorKind::ObjectStore,
+        );
+        assert_eq!(
+            DataFusionError::ResourcesExhausted(String::from("foo")).classify(),
+            ErrorKind::OutOfMemory,
+        );
+        assert_eq!(elapsed().classify(), ErrorKind::Timeout,);
+        assert_eq!(
+            SimpleError::new(ErrorKind::Timeout, "foo").classify(),
+            ErrorKind::Timeout,
+        );
+        assert_eq!(
+            Box::<dyn std::error::Error>::from(String::from("foo")).classify(),
+            ErrorKind::Unknown,
+        );
+
+        // string fallbacks
+        assert_eq!(
+            Box::<dyn std::error::Error>::from(
+                DataFusionError::ObjectStore(ObjectStoreError::NotImplemented).to_string()
+            )
+            .classify(),
+            ErrorKind::ObjectStore,
+        );
+        assert_eq!(
+            Box::<dyn std::error::Error>::from(
+                DataFusionError::ResourcesExhausted(String::from("foo")).to_string()
+            )
+            .classify(),
+            ErrorKind::OutOfMemory,
+        );
+        assert_eq!(
+            Box::<dyn std::error::Error>::from(elapsed().to_string()).classify(),
+            ErrorKind::Timeout,
+        );
+
+        // dyn downcast
+        assert_eq!(
+            (Box::new(ObjectStoreError::NotImplemented) as Box<dyn std::error::Error>).classify(),
+            ErrorKind::ObjectStore,
+        );
+        assert_eq!(
+            (Box::new(DataFusionError::ResourcesExhausted(String::from("foo")))
+                as Box<dyn std::error::Error>)
+                .classify(),
+            ErrorKind::OutOfMemory,
+        );
+        assert_eq!(
+            (Box::new(elapsed()) as Box<dyn std::error::Error>).classify(),
+            ErrorKind::Timeout,
+        );
+        assert_eq!(
+            (Box::new(SimpleError::new(ErrorKind::Timeout, "foo")) as Box<dyn std::error::Error>)
+                .classify(),
+            ErrorKind::Timeout,
+        );
+
+        // dyn downcast in Arc
+        assert_eq!(
+            (Box::new(Arc::new(ObjectStoreError::NotImplemented)) as Box<dyn std::error::Error>)
+                .classify(),
+            ErrorKind::ObjectStore,
+        );
+        assert_eq!(
+            (Box::new(Arc::new(DataFusionError::ResourcesExhausted(String::from(
+                "foo"
+            )))) as Box<dyn std::error::Error>)
+                .classify(),
+            ErrorKind::OutOfMemory,
+        );
+        assert_eq!(
+            (Box::new(Arc::new(elapsed())) as Box<dyn std::error::Error>).classify(),
+            ErrorKind::Timeout,
+        );
+        assert_eq!(
+            (Box::new(Arc::new(SimpleError::new(ErrorKind::Timeout, "foo")))
+                as Box<dyn std::error::Error>)
+                .classify(),
+            ErrorKind::Timeout,
+        );
+
+        // dyn downcast in Box
+        assert_eq!(
+            (Box::new(Box::new(ObjectStoreError::NotImplemented)) as Box<dyn std::error::Error>)
+                .classify(),
+            ErrorKind::ObjectStore,
+        );
+        assert_eq!(
+            (Box::new(Box::new(DataFusionError::ResourcesExhausted(String::from(
+                "foo"
+            )))) as Box<dyn std::error::Error>)
+                .classify(),
+            ErrorKind::OutOfMemory,
+        );
+        assert_eq!(
+            (Box::new(Box::new(elapsed())) as Box<dyn std::error::Error>).classify(),
+            ErrorKind::Timeout,
+        );
+        assert_eq!(
+            (Box::new(Box::new(SimpleError::new(ErrorKind::Timeout, "foo")))
+                as Box<dyn std::error::Error>)
+                .classify(),
+            ErrorKind::Timeout,
+        );
+    }
+
+    /// [`Elapsed`] has no public constructor, so we need to trigger it.
+    fn elapsed() -> Elapsed {
+        tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(async {
+                tokio::time::timeout(Duration::from_secs(0), futures::future::pending::<()>()).await
+            })
+            .unwrap_err()
+    }
 }

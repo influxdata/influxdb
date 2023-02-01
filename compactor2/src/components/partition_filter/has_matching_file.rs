@@ -3,7 +3,7 @@ use std::fmt::Display;
 use async_trait::async_trait;
 use data_types::{ParquetFile, PartitionId};
 
-use crate::components::file_filter::FileFilter;
+use crate::{components::file_filter::FileFilter, error::DynError};
 
 use super::PartitionFilter;
 
@@ -38,8 +38,12 @@ impl<T> PartitionFilter for HasMatchingFilePartitionFilter<T>
 where
     T: FileFilter,
 {
-    async fn apply(&self, _partition_id: PartitionId, files: &[ParquetFile]) -> bool {
-        files.iter().any(|file| self.filter.apply(file))
+    async fn apply(
+        &self,
+        _partition_id: PartitionId,
+        files: &[ParquetFile],
+    ) -> Result<bool, DynError> {
+        Ok(files.iter().any(|file| self.filter.apply(file)))
     }
 }
 
@@ -74,15 +78,21 @@ mod tests {
             .build();
 
         // empty
-        assert!(!filter.apply(PartitionId::new(1), &[]).await);
+        assert!(!filter.apply(PartitionId::new(1), &[]).await.unwrap());
 
         // all matching
-        assert!(filter.apply(PartitionId::new(1), &[f1.clone()]).await);
+        assert!(filter
+            .apply(PartitionId::new(1), &[f1.clone()])
+            .await
+            .unwrap());
 
         // none matching
-        assert!(!filter.apply(PartitionId::new(1), &[f2.clone()]).await);
+        assert!(!filter
+            .apply(PartitionId::new(1), &[f2.clone()])
+            .await
+            .unwrap());
 
         // some matching
-        assert!(filter.apply(PartitionId::new(1), &[f1, f2]).await);
+        assert!(filter.apply(PartitionId::new(1), &[f1, f2]).await.unwrap());
     }
 }
