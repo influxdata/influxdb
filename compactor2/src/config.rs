@@ -101,6 +101,9 @@ pub struct Config {
 
     /// Shard config (if sharding should be enabled).
     pub shard_config: Option<ShardConfig>,
+
+    /// Version of the compaction algorithm.
+    pub compact_version: AlgoVersion,
 }
 
 impl Config {
@@ -168,4 +171,16 @@ pub struct ShardConfig {
     ///
     /// Starts as 0 and must be smaller than the number of shards.
     pub shard_id: usize,
+}
+
+/// Algorithm version used by the compactor
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum AlgoVersion {
+    /// Compacts partitions in single DataFusion job, prone to reject "too large" partitions.
+    Naive,
+
+    /// Aware of hot and cold partitions and also checks for file overlaps.
+    ///
+    /// NOT yet ready for production.
+    HotCold,
 }

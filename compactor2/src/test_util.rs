@@ -24,7 +24,8 @@ use schema::sort::SortKey;
 use uuid::Uuid;
 
 use crate::{
-    components::namespaces_source::mock::NamespaceWrapper, config::Config,
+    components::namespaces_source::mock::NamespaceWrapper,
+    config::{AlgoVersion, Config},
     partition_info::PartitionInfo,
 };
 
@@ -277,10 +278,21 @@ const MAX_DESIRE_FILE_SIZE: u64 = 100 * 1024;
 const PERCENTAGE_MAX_FILE_SIZE: u16 = 5;
 const SPLIT_PERCENTAGE: u16 = 80;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct TestSetupBuilder {
     with_files: bool,
     shadow_mode: bool,
+    compact_version: AlgoVersion,
+}
+
+impl Default for TestSetupBuilder {
+    fn default() -> Self {
+        Self {
+            with_files: false,
+            shadow_mode: false,
+            compact_version: AlgoVersion::Naive,
+        }
+    }
 }
 
 impl TestSetupBuilder {
@@ -465,6 +477,7 @@ impl TestSetupBuilder {
             max_input_files_per_partition: usize::MAX,
             max_input_parquet_bytes_per_partition: usize::MAX,
             shard_config: None,
+            compact_version: self.compact_version,
         });
 
         TestSetup {

@@ -1,6 +1,26 @@
 //! CLI config for compactor2-related commands
 
-use std::num::NonZeroUsize;
+use std::{fmt::Display, num::NonZeroUsize};
+
+use clap::ValueEnum;
+
+/// Algorithm version used by the compactor
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Default, ValueEnum)]
+pub enum CompactorAlgoVersion {
+    // Note: clap only keeps the first line for the help text, so try to be brief.
+    /// Compacts partitions in single DataFusion job, prone to reject "too large" partitions. Default.
+    #[default]
+    Naive,
+
+    /// Aware of hot and cold partitions and also checks for file overlaps. NOT yet ready for production.
+    HotCold,
+}
+
+impl Display for CompactorAlgoVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
 
 /// CLI config for compactor2
 #[derive(Debug, Clone, clap::Parser)]
@@ -190,4 +210,13 @@ pub struct Compactor2Config {
         action
     )]
     pub shard_id: Option<usize>,
+
+    /// Version of the compaction algorithm.
+    #[clap(
+        long = "compaction-compact-version",
+        env = "INFLUXDB_IOX_COMPACTION_COMPACT_VERSION",
+        default_value_t = CompactorAlgoVersion::default(),
+        value_enum
+    )]
+    pub compact_version: CompactorAlgoVersion,
 }
