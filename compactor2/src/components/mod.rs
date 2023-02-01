@@ -16,6 +16,7 @@ pub mod divide_initial;
 pub mod file_filter;
 pub mod files_filter;
 pub mod hardcoded;
+pub mod id_only_partition_filter;
 pub mod namespaces_source;
 pub mod parquet_file_sink;
 pub mod partition_done_sink;

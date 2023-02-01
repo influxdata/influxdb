@@ -1,9 +1,8 @@
 use std::{collections::HashSet, fmt::Display};
 
-use async_trait::async_trait;
-use data_types::{ParquetFile, PartitionId};
+use data_types::PartitionId;
 
-use super::PartitionFilter;
+use super::IdOnlyPartitionFilter;
 
 #[derive(Debug)]
 pub struct ByIdPartitionFilter {
@@ -22,9 +21,8 @@ impl Display for ByIdPartitionFilter {
     }
 }
 
-#[async_trait]
-impl PartitionFilter for ByIdPartitionFilter {
-    async fn apply(&self, partition_id: PartitionId, _files: &[ParquetFile]) -> bool {
+impl IdOnlyPartitionFilter for ByIdPartitionFilter {
+    fn apply(&self, partition_id: PartitionId) -> bool {
         self.ids.contains(&partition_id)
     }
 }
@@ -41,13 +39,13 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn test_apply() {
+    #[test]
+    fn test_apply() {
         let filter =
             ByIdPartitionFilter::new(HashSet::from([PartitionId::new(1), PartitionId::new(10)]));
 
-        assert!(filter.apply(PartitionId::new(1), &[]).await);
-        assert!(filter.apply(PartitionId::new(10), &[]).await);
-        assert!(!filter.apply(PartitionId::new(2), &[]).await);
+        assert!(filter.apply(PartitionId::new(1)));
+        assert!(filter.apply(PartitionId::new(10)));
+        assert!(!filter.apply(PartitionId::new(2)));
     }
 }

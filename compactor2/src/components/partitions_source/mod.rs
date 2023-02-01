@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use data_types::PartitionId;
 
 pub mod catalog;
+pub mod filter;
 pub mod logging;
 pub mod metrics;
 pub mod mock;
