@@ -26,6 +26,10 @@ use super::{
     divide_initial::single_branch::SingleBranchDivideInitial,
     file_filter::{and::AndFileFilter, level_range::LevelRangeFileFilter},
     files_filter::{chain::FilesFilterChain, per_file::PerFileFilesFilter},
+    id_only_partition_filter::{
+        and::AndIdOnlyPartitionFilter, by_id::ByIdPartitionFilter, shard::ShardPartitionFilter,
+        IdOnlyPartitionFilter,
+    },
     parquet_file_sink::{
         dedicated::DedicatedExecParquetFileSinkWrapper, logging::LoggingParquetFileSinkWrapper,
         object_store::ObjectStoreParquetFileSink,
@@ -37,20 +41,20 @@ use super::{
     },
     partition_files_source::catalog::CatalogPartitionFilesSource,
     partition_filter::{
-        and::AndPartitionFilter, by_id::ByIdPartitionFilter, has_files::HasFilesPartitionFilter,
+        and::AndPartitionFilter, has_files::HasFilesPartitionFilter,
         has_matching_file::HasMatchingFilePartitionFilter, logging::LoggingPartitionFilterWrapper,
         max_files::MaxFilesPartitionFilter, max_parquet_bytes::MaxParquetBytesPartitionFilter,
         metrics::MetricsPartitionFilterWrapper, never_skipped::NeverSkippedPartitionFilter,
-        shard::ShardPartitionFilter, PartitionFilter,
+        PartitionFilter,
     },
     partition_source::{
         catalog::CatalogPartitionSource, logging::LoggingPartitionSourceWrapper,
         metrics::MetricsPartitionSourceWrapper,
     },
     partitions_source::{
-        catalog::CatalogPartitionsSource, logging::LoggingPartitionsSourceWrapper,
-        metrics::MetricsPartitionsSourceWrapper, mock::MockPartitionsSource,
-        not_empty::NotEmptyPartitionsSourceWrapper,
+        catalog::CatalogPartitionsSource, filter::FilterPartitionsSourceWrapper,
+        logging::LoggingPartitionsSourceWrapper, metrics::MetricsPartitionsSourceWrapper,
+        mock::MockPartitionsSource, not_empty::NotEmptyPartitionsSourceWrapper,
         randomize_order::RandomizeOrderPartitionsSourcesWrapper, PartitionsSource,
     },
     round_split::all_now::AllNowRoundSplit,
@@ -75,18 +79,24 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         ))
     };
 
-    let mut partition_filters: Vec<Arc<dyn PartitionFilter>> = vec![];
+    let mut id_only_partition_filters: Vec<Arc<dyn IdOnlyPartitionFilter>> = vec![];
     if let Some(ids) = &config.partition_filter {
         // filter as early as possible, so we don't need any catalog lookups for the filtered partitions
-        partition_filters.push(Arc::new(ByIdPartitionFilter::new(ids.clone())));
+        id_only_partition_filters.push(Arc::new(ByIdPartitionFilter::new(ids.clone())));
     }
     if let Some(shard_config) = &config.shard_config {
         // add shard filter before performing any catalog IO
-        partition_filters.push(Arc::new(ShardPartitionFilter::new(
+        id_only_partition_filters.push(Arc::new(ShardPartitionFilter::new(
             shard_config.n_shards,
             shard_config.shard_id,
         )));
     }
+    let partitions_source = FilterPartitionsSourceWrapper::new(
+        AndIdOnlyPartitionFilter::new(id_only_partition_filters),
+        partitions_source,
+    );
+
+    let mut partition_filters: Vec<Arc<dyn PartitionFilter>> = vec![];
     if !config.ignore_partition_skip_marker {
         partition_filters.push(Arc::new(NeverSkippedPartitionFilter::new(
             CatalogSkippedCompactionsSource::new(

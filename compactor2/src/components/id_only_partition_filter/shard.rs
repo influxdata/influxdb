@@ -1,10 +1,9 @@
 use std::fmt::Display;
 
-use async_trait::async_trait;
-use data_types::{ParquetFile, PartitionId};
+use data_types::PartitionId;
 use sharder::JumpHash;
 
-use super::PartitionFilter;
+use super::IdOnlyPartitionFilter;
 
 #[derive(Debug)]
 pub struct ShardPartitionFilter {
@@ -29,9 +28,8 @@ impl Display for ShardPartitionFilter {
     }
 }
 
-#[async_trait]
-impl PartitionFilter for ShardPartitionFilter {
-    async fn apply(&self, partition_id: PartitionId, _files: &[ParquetFile]) -> bool {
+impl IdOnlyPartitionFilter for ShardPartitionFilter {
+    fn apply(&self, partition_id: PartitionId) -> bool {
         *self.jump_hash.hash(partition_id) == self.shard_id
     }
 }
@@ -51,8 +49,8 @@ mod tests {
         ShardPartitionFilter::new(1, 1);
     }
 
-    #[tokio::test]
-    async fn test_apply() {
+    #[test]
+    fn test_apply() {
         let n_shards = 3usize;
         let mut filters = (0..n_shards)
             .map(|shard_id| (ShardPartitionFilter::new(n_shards, shard_id), 0))
@@ -63,7 +61,7 @@ mod tests {
 
             let mut hit = false;
             for (filter, counter) in &mut filters {
-                if filter.apply(pid, &[]).await {
+                if filter.apply(pid) {
                     assert!(!hit, "only one hit allowed");
                     hit = true;
                     *counter += 1;
