@@ -17,6 +17,7 @@ use crate::{
 };
 
 use super::{
+    combos::unique_partitions::unique_partitions,
     commit::{
         catalog::CatalogCommit, logging::LoggingCommitWrapper, metrics::MetricsCommitWrapper,
         mock::MockCommit, Commit,
@@ -116,6 +117,26 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             Arc::clone(&config.catalog),
         ))
     };
+    let partition_done_sink =
+        LoggingPartitionDoneSinkWrapper::new(MetricsPartitionDoneSinkWrapper::new(
+            ErrorKindPartitionDoneSinkWrapper::new(
+                partition_done_sink,
+                ErrorKind::variants()
+                    .iter()
+                    .filter(|kind| {
+                        // use explicit match statement so we never forget to add new variants
+                        match kind {
+                            ErrorKind::OutOfMemory | ErrorKind::Timeout | ErrorKind::Unknown => {
+                                true
+                            }
+                            ErrorKind::ObjectStore => false,
+                        }
+                    })
+                    .copied()
+                    .collect(),
+            ),
+            &config.metric_registry,
+        ));
 
     let commit: Arc<dyn Commit> = if config.shadow_mode {
         Arc::new(MockCommit::new())
@@ -131,6 +152,9 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
     } else {
         Arc::clone(config.parquet_store_real.object_store())
     };
+
+    let (partitions_source, partition_done_sink) =
+        unique_partitions(partitions_source, partition_done_sink);
 
     Arc::new(Components {
         // Note: Place "not empty" wrapper at the very last so that the logging and metric wrapper work even when there
@@ -169,27 +193,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
                 &config.metric_registry,
             ),
         )),
-        partition_done_sink: Arc::new(LoggingPartitionDoneSinkWrapper::new(
-            MetricsPartitionDoneSinkWrapper::new(
-                ErrorKindPartitionDoneSinkWrapper::new(
-                    partition_done_sink,
-                    ErrorKind::variants()
-                        .iter()
-                        .filter(|kind| {
-                            // use explicit match statement so we never forget to add new variants
-                            match kind {
-                                ErrorKind::OutOfMemory
-                                | ErrorKind::Timeout
-                                | ErrorKind::Unknown => true,
-                                ErrorKind::ObjectStore => false,
-                            }
-                        })
-                        .copied()
-                        .collect(),
-                ),
-                &config.metric_registry,
-            ),
-        )),
+        partition_done_sink: Arc::new(partition_done_sink),
         commit: Arc::new(LoggingCommitWrapper::new(MetricsCommitWrapper::new(
             commit,
             &config.metric_registry,

@@ -9,6 +9,7 @@ use self::{
     round_split::RoundSplit, scratchpad::ScratchpadGen, tables_source::TablesSource,
 };
 
+pub mod combos;
 pub mod commit;
 pub mod df_plan_exec;
 pub mod df_planner;

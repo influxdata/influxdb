@@ -99,7 +99,7 @@ level = INFO; message = Finished partition; partition_id = 3; ",
         );
 
         assert_eq!(
-            inner.errors(),
+            inner.results(),
             HashMap::from([
                 (
                     PartitionId::new(1),
