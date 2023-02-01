@@ -64,7 +64,7 @@ impl namespace_service_server::NamespaceService for NamespaceService {
             retention_period_ns,
         } = request.into_inner();
 
-        let retention_period_ns = map_retention_period(retention_period_ns);
+        let retention_period_ns = map_retention_period(retention_period_ns)?;
 
         debug!(%namespace_name, ?retention_period_ns, "Creating namespace");
 
@@ -112,7 +112,7 @@ impl namespace_service_server::NamespaceService for NamespaceService {
             retention_period_ns,
         } = request.into_inner();
 
-        let retention_period_ns = map_retention_period(retention_period_ns);
+        let retention_period_ns = map_retention_period(retention_period_ns)?;
 
         debug!(%namespace_name, ?retention_period_ns, "Updating namespace retention");
 
@@ -162,27 +162,34 @@ fn create_namespace_to_proto(namespace: CatalogNamespace) -> CreateNamespaceResp
 /// 0 is always mapped to [`None`], indicating infinite retention.
 ///
 /// Negative retention periods are rejected with an error.
-fn map_retention_period(v: Option<i64>) -> Option<i64> {
+fn map_retention_period(v: Option<i64>) -> Result<Option<i64>, Status> {
     match v {
-        Some(0) => None,
-        Some(v) => Some(v),
-        None => None,
+        Some(0) => Ok(None),
+        Some(v @ 1..) => Ok(Some(v)),
+        Some(_v @ ..=0) => Err(Status::invalid_argument(
+            "invalid negative retention period",
+        )),
+        None => Ok(None),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use tonic::Code;
 
-    use assert_matches::assert_matches;
+    use super::*;
 
     #[test]
     fn test_retention_mapping() {
-        assert_matches!(map_retention_period(None), None);
-        assert_matches!(map_retention_period(Some(0)), None);
-        assert_matches!(map_retention_period(Some(1)), Some(1));
-        assert_matches!(map_retention_period(Some(42)), Some(42));
-        assert_matches!(map_retention_period(Some(-1)), Some(-1));
-        assert_matches!(map_retention_period(Some(-42)), Some(-42));
+        assert_matches::assert_matches!(map_retention_period(None), Ok(None));
+        assert_matches::assert_matches!(map_retention_period(Some(0)), Ok(None));
+        assert_matches::assert_matches!(map_retention_period(Some(1)), Ok(Some(1)));
+        assert_matches::assert_matches!(map_retention_period(Some(42)), Ok(Some(42)));
+        assert_matches::assert_matches!(map_retention_period(Some(-1)), Err(e) => {
+            assert_eq!(e.code(), Code::InvalidArgument)
+        });
+        assert_matches::assert_matches!(map_retention_period(Some(-42)), Err(e) => {
+            assert_eq!(e.code(), Code::InvalidArgument)
+        });
     }
 }
