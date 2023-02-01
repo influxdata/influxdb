@@ -789,14 +789,14 @@ pub fn displayable_predicate(pred: Option<&RPCPredicate>) -> impl fmt::Display +
     Wrapper(pred)
 }
 
-fn format_predicate<'a>(pred: &'a RPCPredicate, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+fn format_predicate(pred: &RPCPredicate, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match &pred.root {
         Some(r) => format_node(r, f),
         None => write!(f, "root: <NONE>"),
     }
 }
 
-fn format_node<'a>(node: &'a RPCNode, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+fn format_node(node: &RPCNode, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     // Note for "ParenExpresion" value is None
     let value = node.value.as_ref();
 
@@ -833,14 +833,14 @@ fn format_node<'a>(node: &'a RPCNode, f: &mut fmt::Formatter<'_>) -> fmt::Result
     Ok(())
 }
 
-fn format_opt_value<'a>(value: Option<&'a RPCValue>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+fn format_opt_value(value: Option<&RPCValue>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     if let Some(value) = value {
         format_value(value, f)
     } else {
         Ok(())
     }
 }
-fn format_value<'a>(value: &'a RPCValue, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+fn format_value(value: &RPCValue, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     use RPCValue::*;
     match value {
         StringValue(s) => write!(f, "\"{s}\""),
