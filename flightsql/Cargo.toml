@@ -13,7 +13,7 @@ observability_deps = { path = "../observability_deps" }
 iox_query = { path = "../iox_query" }
 
 # Crates.io dependencies, in alphabetical order
-bytes = "1.3"
+bytes = "1.4"
 futures = "0.3"
 snafu = "0.7"
 prost = "0.11"

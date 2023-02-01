@@ -14,7 +14,7 @@ format = ["arrow", "arrow_util"]
 arrow = { workspace = true, optional = true }
 arrow-flight = { workspace = true, optional = true, features=["flight-sql-experimental"] }
 arrow_util = { path = "../arrow_util", optional = true }
-bytes = "1.3"
+bytes = "1.4"
 client_util = { path = "../client_util" }
 futures-util = { version = "0.3", optional = true }
 influxdb_line_protocol = { path = "../influxdb_line_protocol"}
