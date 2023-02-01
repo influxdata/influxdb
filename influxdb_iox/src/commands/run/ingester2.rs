@@ -16,6 +16,7 @@ use ioxd_ingester2::create_ingester_server_type;
 use object_store::DynObjectStore;
 use object_store_metrics::ObjectStoreMetrics;
 use observability_deps::tracing::*;
+use panic_logging::make_panics_fatal;
 use parquet_file::storage::{ParquetStorage, StorageId};
 use std::sync::Arc;
 use thiserror::Error;
@@ -91,6 +92,9 @@ pub async fn command(config: Config) -> Result<()> {
              `INFLUXDB_IOX_RPC_MODE` or run the `ingester` command."
         );
     }
+
+    // Ensure panics are fatal when running in this server mode.
+    make_panics_fatal();
 
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
     let time_provider = Arc::new(SystemProvider::new()) as Arc<dyn TimeProvider>;
