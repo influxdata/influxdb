@@ -14,6 +14,7 @@ iox_catalog = { path = "../iox_catalog" }
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
+assert_matches = "1.5.0"
 iox_tests = { path = "../iox_tests" }
 metric = { path = "../metric" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
