@@ -138,12 +138,12 @@ async fn timestamp_range_and_measurement_predicates() {
 #[tokio::test]
 async fn timestamp_range_and_tag_predicates() {
     Arc::new(TagValuesTest {
-        setup_name: "TwoMeasurementsManyNulls",
-        tag_key: "state",
+        setup_name: "MeasurementsSortableTags",
+        tag_key: "zz_tag",
         request: GrpcRequestBuilder::new()
-            .timestamp_range(150, 301)
+            .timestamp_range(700, 900)
             .tag_predicate("state", "MA"),
-        expected_values: vec!["MA"],
+        expected_values: vec!["A"],
     })
     .run()
     .await;
@@ -152,12 +152,12 @@ async fn timestamp_range_and_tag_predicates() {
 #[tokio::test]
 async fn measurement_and_tag_predicate() {
     Arc::new(TagValuesTest {
-        setup_name: "TwoMeasurementsManyNulls",
+        setup_name: "TwoMeasurementsMultiTagValue",
         tag_key: "city",
         request: GrpcRequestBuilder::new()
-            .measurement_predicate("o2")
+            .measurement_predicate("h2o")
             .tag_predicate("state", "MA"),
-        expected_values: vec!["Boston"],
+        expected_values: vec!["Boston", "Lowell"],
     })
     .run()
     .await;
