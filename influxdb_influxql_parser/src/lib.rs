@@ -17,9 +17,9 @@
 use crate::common::{statement_terminator, ws0};
 use crate::internal::Error as InternalError;
 use crate::statement::{statement, Statement};
+use common::ParseError;
 use nom::combinator::eof;
 use nom::Offset;
-use std::fmt::{Debug, Display, Formatter};
 
 #[cfg(test)]
 mod test_util;
@@ -47,20 +47,6 @@ pub mod statement;
 pub mod string;
 pub mod visit;
 pub mod visit_mut;
-
-/// A error returned when parsing an InfluxQL query using
-/// [`parse_statements`] fails.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParseError {
-    message: String,
-    pos: usize,
-}
-
-impl Display for ParseError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} at pos {}", self.message, self.pos)
-    }
-}
 
 /// ParseResult is type that represents the success or failure of parsing
 /// a given input into a set of InfluxQL statements.

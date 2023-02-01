@@ -16,6 +16,19 @@ use nom::sequence::{delimited, pair, preceded, terminated};
 use std::fmt::{Display, Formatter};
 use std::ops::{Deref, DerefMut};
 
+/// A error returned when parsing an InfluxQL query, expressions.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParseError {
+    pub(crate) message: String,
+    pub(crate) pos: usize,
+}
+
+impl Display for ParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} at pos {}", self.message, self.pos)
+    }
+}
+
 /// Represents a measurement name as either an identifier or a regular expression.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MeasurementName {

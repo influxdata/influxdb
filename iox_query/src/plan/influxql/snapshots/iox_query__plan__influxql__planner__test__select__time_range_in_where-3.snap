@@ -1,0 +1,5 @@
+---
+source: iox_query/src/plan/influxql/planner.rs
+expression: "plan(\"SELECT foo, f64_field FROM data where time > '2004-04-09T'\").await"
+---
+Error during planning: invalid expression "'2004-04-09T'": '2004-04-09T' is not a valid timestamp

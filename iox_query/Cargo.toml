@@ -19,6 +19,7 @@ arrow = { workspace = true, features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 async-trait = "0.1"
 chrono = { version = "0.4", default-features = false }
+chrono-tz = { version = "0.8" }
 data_types = { path = "../data_types" }
 datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }

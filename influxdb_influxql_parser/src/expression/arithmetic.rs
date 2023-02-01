@@ -14,6 +14,7 @@ use nom::character::complete::char;
 use nom::combinator::{cut, map, opt, value};
 use nom::multi::{many0, separated_list0};
 use nom::sequence::{delimited, pair, preceded, separated_pair, terminated, tuple};
+use num_traits::cast;
 use std::fmt::{Display, Formatter, Write};
 use std::ops::Neg;
 
@@ -274,6 +275,58 @@ pub enum BinaryOperator {
     BitwiseOr,
     /// Represents the `^` or bitwise-xor operator.
     BitwiseXor,
+}
+
+impl BinaryOperator {
+    fn reduce_number<T>(&self, lhs: T, rhs: T) -> T
+    where
+        T: num_traits::NumOps,
+        T: num_traits::identities::Zero,
+    {
+        match self {
+            Self::Add => lhs + rhs,
+            Self::Sub => lhs - rhs,
+            Self::Mul => lhs * rhs,
+            // Divide by zero yields zero per
+            // https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L5216-L5218
+            Self::Div if rhs.is_zero() => T::zero(),
+            Self::Div => lhs / rhs,
+            Self::Mod => lhs % rhs,
+            _ => unreachable!(),
+        }
+    }
+
+    /// Return a value by applying the operation defined by the receiver.
+    pub fn reduce<T: num_traits::int::PrimInt>(&self, lhs: T, rhs: T) -> T {
+        match self {
+            Self::Add | Self::Sub | Self::Mul | Self::Div | Self::Mod => {
+                self.reduce_number(lhs, rhs)
+            }
+            Self::BitwiseAnd => lhs & rhs,
+            Self::BitwiseOr => lhs | rhs,
+            Self::BitwiseXor => lhs ^ rhs,
+        }
+    }
+
+    /// Return a value by applying the operation defined by the receiver or [`None`]
+    /// if the operation is not supported.
+    pub fn try_reduce<T, U>(&self, lhs: T, rhs: U) -> Option<T>
+    where
+        T: num_traits::Float,
+        U: num_traits::NumOps,
+        U: num_traits::NumCast,
+    {
+        match self {
+            Self::Add | Self::Sub | Self::Mul | Self::Div | Self::Mod => Some(self.reduce_number(
+                lhs,
+                match cast(rhs) {
+                    Some(v) => v,
+                    None => return None,
+                },
+            )),
+            _ => None,
+        }
+    }
 }
 
 impl Display for BinaryOperator {
@@ -877,5 +930,56 @@ mod test {
         assert!(!Boolean.is_tag_type());
         assert!(!Field.is_tag_type());
         assert!(!Tag.is_field_type());
+    }
+
+    #[test]
+    fn test_binary_operator_reduce() {
+        use BinaryOperator::*;
+
+        //
+        // Integer, Integer
+        //
+
+        // Numeric operations
+        assert_eq!(Add.reduce(10, 2), 12);
+        assert_eq!(Sub.reduce(10, 2), 8);
+        assert_eq!(Mul.reduce(10, 2), 20);
+        assert_eq!(Div.reduce(10, 2), 5);
+        // Divide by zero yields zero
+        assert_eq!(Div.reduce(10, 0), 0);
+        assert_eq!(Mod.reduce(10, 2), 0);
+        // Bitwise operations
+        assert_eq!(BitwiseAnd.reduce(0b1111, 0b1010), 0b1010);
+        assert_eq!(BitwiseOr.reduce(0b0101, 0b1010), 0b1111);
+        assert_eq!(BitwiseXor.reduce(0b1101, 0b1010), 0b0111);
+
+        //
+        // Float, Float
+        //
+
+        assert_eq!(Add.try_reduce(10.0, 2.0).unwrap(), 12.0);
+        assert_eq!(Sub.try_reduce(10.0, 2.0).unwrap(), 8.0);
+        assert_eq!(Mul.try_reduce(10.0, 2.0).unwrap(), 20.0);
+        assert_eq!(Div.try_reduce(10.0, 2.0).unwrap(), 5.0);
+        // Divide by zero yields zero
+        assert_eq!(Div.try_reduce(10.0, 0.0).unwrap(), 0.0);
+        assert_eq!(Mod.try_reduce(10.0, 2.0).unwrap(), 0.0);
+
+        // Bitwise operations
+        assert!(BitwiseAnd.try_reduce(1.0, 1.0).is_none());
+        assert!(BitwiseOr.try_reduce(1.0, 1.0).is_none());
+        assert!(BitwiseXor.try_reduce(1.0, 1.0).is_none());
+
+        //
+        // Float, Integer
+        //
+
+        assert_eq!(Add.try_reduce(10.0, 2).unwrap(), 12.0);
+        assert_eq!(Sub.try_reduce(10.0, 2).unwrap(), 8.0);
+        assert_eq!(Mul.try_reduce(10.0, 2).unwrap(), 20.0);
+        assert_eq!(Div.try_reduce(10.0, 2).unwrap(), 5.0);
+        // Divide by zero yields zero
+        assert_eq!(Div.try_reduce(10.0, 0).unwrap(), 0.0);
+        assert_eq!(Mod.try_reduce(10.0, 2).unwrap(), 0.0);
     }
 }

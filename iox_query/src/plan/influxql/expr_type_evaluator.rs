@@ -47,7 +47,8 @@ impl<'a> TypeEvaluator<'a> {
             | Expr::Distinct(_)
             | Expr::Wildcard(_)
             | Expr::Literal(Literal::Duration(_))
-            | Expr::Literal(Literal::Regex(_)) => None,
+            | Expr::Literal(Literal::Regex(_))
+            | Expr::Literal(Literal::Timestamp(_)) => None,
         })
     }
 

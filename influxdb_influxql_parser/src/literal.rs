@@ -5,6 +5,7 @@ use crate::internal::{map_error, map_fail, ParseResult};
 use crate::keywords::keyword;
 use crate::string::{regex, single_quoted_string, Regex};
 use crate::{impl_tuple_clause, write_escaped};
+use chrono::{DateTime, FixedOffset};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{char, digit0, digit1};
@@ -52,6 +53,9 @@ pub enum Literal {
 
     /// Unescaped regular expression literal.
     Regex(Regex),
+
+    /// A timestamp identified in a time range expression of a conditional expression.
+    Timestamp(DateTime<FixedOffset>),
 }
 
 impl From<String> for Literal {
@@ -110,6 +114,7 @@ impl Display for Literal {
             Self::Boolean(v) => write!(f, "{}", if *v { "true" } else { "false" }),
             Self::Duration(v) => write!(f, "{}", v),
             Self::Regex(v) => write!(f, "{}", v),
+            Self::Timestamp(ts) => write!(f, "{}", ts.to_rfc3339()),
         }
     }
 }

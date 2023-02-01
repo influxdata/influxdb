@@ -504,19 +504,8 @@ pub(crate) fn rewrite_statement(
 #[cfg(test)]
 mod test {
     use crate::plan::influxql::rewriter::{has_wildcards, rewrite_statement};
-    use crate::plan::influxql::test_utils::MockNamespace;
-    use influxdb_influxql_parser::parse_statements;
-    use influxdb_influxql_parser::select::SelectStatement;
-    use influxdb_influxql_parser::statement::Statement;
+    use crate::plan::influxql::test_utils::{parse_select, MockNamespace};
     use test_helpers::assert_contains;
-
-    fn parse_select(s: &str) -> SelectStatement {
-        let statements = parse_statements(s).unwrap();
-        match statements.first() {
-            Some(Statement::Select(sel)) => *sel.clone(),
-            _ => unreachable!(),
-        }
-    }
 
     #[test]
     fn test_rewrite_statement() {
