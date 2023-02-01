@@ -110,7 +110,7 @@ pub struct TopicId(i64);
 
 #[allow(missing_docs)]
 impl TopicId {
-    pub fn new(v: i64) -> Self {
+    pub const fn new(v: i64) -> Self {
         Self(v)
     }
     pub fn get(&self) -> i64 {

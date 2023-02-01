@@ -940,12 +940,17 @@ pub async fn list_schemas(
 
 #[cfg(test)]
 pub(crate) mod test_helpers {
-    use crate::{validate_or_insert_schema, DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES};
+    use crate::{
+        validate_or_insert_schema, DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
+        SHARED_TOPIC_ID,
+    };
 
     use super::*;
     use ::test_helpers::{assert_contains, tracing::TracingCapture};
     use assert_matches::assert_matches;
-    use data_types::{ColumnId, ColumnSet, CompactionLevel};
+    use data_types::{
+        ColumnId, ColumnSet, CompactionLevel, TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX,
+    };
     use metric::{Attributes, DurationHistogram, Metric};
     use std::{
         ops::{Add, DerefMut},
@@ -995,6 +1000,25 @@ pub(crate) mod test_helpers {
     async fn test_setup(catalog: Arc<dyn Catalog>) {
         catalog.setup().await.expect("first catalog setup");
         catalog.setup().await.expect("second catalog setup");
+
+        if std::env::var("INFLUXDB_IOX_RPC_MODE").is_ok() {
+            let transition_shard = catalog
+                .repositories()
+                .await
+                .shards()
+                .get_by_topic_id_and_shard_index(SHARED_TOPIC_ID, TRANSITION_SHARD_INDEX)
+                .await
+                .expect("transition shard");
+
+            assert_matches!(
+                transition_shard,
+                Some(Shard {
+                    id,
+                    shard_index,
+                    ..
+                }) if id == TRANSITION_SHARD_ID && shard_index == TRANSITION_SHARD_INDEX
+            );
+        }
     }
 
     async fn test_topic(catalog: Arc<dyn Catalog>) {
