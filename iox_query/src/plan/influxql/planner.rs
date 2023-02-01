@@ -2,12 +2,14 @@ use crate::plan::influxql::planner_time_range_expression::time_range_to_df_expr;
 use crate::plan::influxql::rewriter::rewrite_statement;
 use crate::plan::influxql::util::binary_operator_to_df_operator;
 use crate::{DataFusionError, IOxSessionContext, QueryNamespace};
-use datafusion::common::{DFSchema, Result, ScalarValue};
+use arrow::datatypes::DataType;
+use datafusion::common::{DFSchema, DFSchemaRef, Result, ScalarValue};
 use datafusion::datasource::provider_as_source;
-use datafusion::logical_expr::expr_rewriter::normalize_col;
+use datafusion::logical_expr::expr_rewriter::{normalize_col, ExprRewritable, ExprRewriter};
 use datafusion::logical_expr::logical_plan::builder::project;
 use datafusion::logical_expr::{
-    lit, BinaryExpr, BuiltinScalarFunction, Expr, LogicalPlan, LogicalPlanBuilder, Operator,
+    lit, BinaryExpr, BuiltinScalarFunction, Expr, ExprSchemable, LogicalPlan, LogicalPlanBuilder,
+    Operator,
 };
 use datafusion::prelude::Column;
 use datafusion::sql::TableReference;
@@ -24,6 +26,8 @@ use influxdb_influxql_parser::{
     statement::Statement,
 };
 use once_cell::sync::Lazy;
+use query_functions::clean_non_meta_escapes;
+use schema::{InfluxColumnType, InfluxFieldType, Schema};
 use std::collections::HashSet;
 use std::ops::Deref;
 use std::str::FromStr;
@@ -300,15 +304,13 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 Literal::Duration(_) => {
                     Err(DataFusionError::NotImplemented("duration literal".into()))
                 }
-                Literal::Regex(_) => match scope {
+                Literal::Regex(re) => match scope {
                     // a regular expression in a projection list is unexpected,
                     // as it should have been expanded by the rewriter.
                     ExprScope::Projection => Err(DataFusionError::Internal(
                         "unexpected regular expression found in projection".into(),
                     )),
-                    ExprScope::Where => {
-                        Err(DataFusionError::NotImplemented("regular expression".into()))
-                    }
+                    ExprScope::Where => Ok(lit(clean_non_meta_escapes(re.as_str()))),
                 },
             },
             IQLExpr::Distinct(_) => Err(DataFusionError::NotImplemented("DISTINCT".into())),
@@ -392,6 +394,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             Some(where_clause) => {
                 let input_schema = plan.schema();
                 let filter_expr = self.conditional_to_df_expr(&where_clause, input_schema, tz)?;
+                let filter_expr = rewrite_conditional_expr(filter_expr, input_schema)?;
                 let plan = LogicalPlanBuilder::from(plan)
                     .filter(filter_expr)?
                     .build()?;
@@ -434,6 +437,88 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             LogicalPlanBuilder::scan(&table_name, provider_as_source(provider), None)?.build()
         } else {
             LogicalPlanBuilder::empty(false).build()
+        }
+    }
+}
+
+fn schema_from_df(schema: &DFSchema) -> Result<Schema> {
+    let s: Arc<arrow::datatypes::Schema> = Arc::new(schema.into());
+    s.try_into().map_err(|err| {
+        DataFusionError::Internal(format!(
+            "unable to convert DataFusion schema to IOx schema: {}",
+            err
+        ))
+    })
+}
+
+/// Perform a series of passes to rewrite `expr` in compliance with InfluxQL behavior
+/// in an effort to ensure the query executes without error.
+fn rewrite_conditional_expr(expr: Expr, schema: &DFSchemaRef) -> Result<Expr> {
+    let iox_schema = schema_from_df(schema)?;
+    // NOTE: Future passes will be added to rewrite
+    // * non-existent columns,
+    // * conditional expressions of incompatible types,
+    // * etc
+    expr.rewrite(&mut FixRegularExpressions {
+        df_schema: Arc::clone(schema),
+        iox_schema,
+    })
+}
+
+/// Rewrite regex conditional expressions to match InfluxQL behaviour.
+struct FixRegularExpressions {
+    df_schema: DFSchemaRef,
+    iox_schema: Schema,
+}
+
+impl ExprRewriter for FixRegularExpressions {
+    fn mutate(&mut self, expr: Expr) -> Result<Expr> {
+        match expr {
+            // InfluxQL evaluates regular expression conditions to false if the column is numeric
+            // or the column doesn't exist.
+            Expr::BinaryExpr(BinaryExpr {
+                left,
+                op: op @ (Operator::RegexMatch | Operator::RegexNotMatch),
+                right,
+            }) => {
+                if let Expr::Column(ref col) = *left {
+                    if let Some(idx) = self.iox_schema.find_index_of(&col.name) {
+                        let (col_type, _) = self.iox_schema.field(idx);
+                        match col_type {
+                            InfluxColumnType::Tag => {
+                                // Regular expressions expect to be compared with a Utf8
+                                let left =
+                                    Box::new(left.cast_to(&DataType::Utf8, &self.df_schema)?);
+                                Ok(Expr::BinaryExpr(BinaryExpr { left, op, right }))
+                            }
+                            InfluxColumnType::Field(InfluxFieldType::String) => {
+                                Ok(Expr::BinaryExpr(BinaryExpr { left, op, right }))
+                            }
+                            // Any other column type should evaluate to false
+                            _ => Ok(lit(false)),
+                        }
+                    } else {
+                        // If the field does not exist, evaluate to false
+                        Ok(lit(false))
+                    }
+                } else {
+                    // If this is not a simple column expression, evaluate to false,
+                    // to be consistent with InfluxQL.
+                    //
+                    // References:
+                    //
+                    // * https://github.com/influxdata/influxdb/blob/9308b6586a44e5999180f64a96cfb91e372f04dd/tsdb/index.go#L2487-L2488
+                    // * https://github.com/influxdata/influxdb/blob/9308b6586a44e5999180f64a96cfb91e372f04dd/tsdb/index.go#L2509-L2510
+                    //
+                    // The query engine does not correctly evaluate tag keys and values, always evaluating to false.
+                    //
+                    // Reference example:
+                    //
+                    // * `SELECT f64 FROM m0 WHERE tag0 = '' + tag0`
+                    Ok(lit(false))
+                }
+            }
+            _ => Ok(expr),
         }
     }
 }
@@ -592,6 +677,30 @@ mod test {
             // time on the right-hand side
             assert_snapshot!(
                 plan("SELECT foo, f64_field FROM data where  now() - 10s < time").await
+            );
+
+            // Regular expression equality tests
+
+            assert_snapshot!(plan("SELECT foo, f64_field FROM data where foo =~ /f/").await);
+
+            // regular expression for a numeric field is rewritten to `false`
+            assert_snapshot!(plan("SELECT foo, f64_field FROM data where f64_field =~ /f/").await);
+
+            // regular expression for a non-existent field is rewritten to `false`
+            assert_snapshot!(
+                plan("SELECT foo, f64_field FROM data where non_existent =~ /f/").await
+            );
+
+            // Regular expression inequality tests
+
+            assert_snapshot!(plan("SELECT foo, f64_field FROM data where foo !~ /f/").await);
+
+            // regular expression for a numeric field is rewritten to `false`
+            assert_snapshot!(plan("SELECT foo, f64_field FROM data where f64_field !~ /f/").await);
+
+            // regular expression for a non-existent field is rewritten to `false`
+            assert_snapshot!(
+                plan("SELECT foo, f64_field FROM data where non_existent !~ /f/").await
             );
         }
     }
