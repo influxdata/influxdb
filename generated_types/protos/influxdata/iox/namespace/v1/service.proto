@@ -27,7 +27,10 @@ message CreateNamespaceRequest {
   // Name of the namespace to be created
   string name = 1;
 
-  // Retention period ns
+  // Retention period in nanoseconds.
+  //
+  // NULL means "infinite retention", and 0 is mapped to NULL. Negative values
+  // are rejected.
   optional int64 retention_period_ns = 2;
 }
 
@@ -47,7 +50,10 @@ message UpdateNamespaceRetentionRequest {
   // Name of the namespace to be set
   string name = 1;
 
-  // Retention period ns
+  // Retention period in nanoseconds.
+  //
+  // NULL means "infinite retention", and 0 is mapped to NULL. Negative values
+  // are rejected.
   optional int64 retention_period_ns = 2;
 }
 
@@ -62,6 +68,8 @@ message Namespace {
   // Name of the Namespace
   string name = 2;
 
-  // Retention period ns
+  // Retention period in nanoseconds.
+  //
+  // NULL means "infinite retention".
   optional int64 retention_period_ns = 3;
 }
