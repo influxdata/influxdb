@@ -96,7 +96,7 @@ mod tests {
         sink.record(PartitionId::new(4), Ok(())).await;
 
         assert_eq!(
-            inner.errors(),
+            inner.results(),
             HashMap::from([
                 (
                     PartitionId::new(1),
