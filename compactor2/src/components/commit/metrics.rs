@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use async_trait::async_trait;
-use data_types::{ParquetFileId, ParquetFileParams, PartitionId};
+use data_types::{CompactionLevel, ParquetFileId, ParquetFileParams, PartitionId};
 use metric::{Registry, U64Counter};
 
 use super::Commit;
@@ -12,6 +12,7 @@ where
     T: Commit,
 {
     create_counter: U64Counter,
+    upgrade_counter: U64Counter,
     delete_counter: U64Counter,
     commit_counter: U64Counter,
     inner: T,
@@ -28,6 +29,12 @@ where
                 "Number of files created by the compactor",
             )
             .recorder(&[]);
+        let upgrade_counter = registry
+            .register_metric::<U64Counter>(
+                "iox_compactor_file_upgrade_count",
+                "Number of files upgraded by the compactor",
+            )
+            .recorder(&[]);
         let delete_counter = registry
             .register_metric::<U64Counter>(
                 "iox_compactor_file_delete_count",
@@ -42,6 +49,7 @@ where
             .recorder(&[]);
         Self {
             create_counter,
+            upgrade_counter,
             delete_counter,
             commit_counter,
             inner,
@@ -67,16 +75,22 @@ where
         &self,
         partition_id: PartitionId,
         delete: &[ParquetFileId],
+        upgrade: &[ParquetFileId],
         create: &[ParquetFileParams],
+        target_level: CompactionLevel,
     ) -> Vec<ParquetFileId> {
         // Perform commit first and report status AFTERWARDS.
-        let created = self.inner.commit(partition_id, delete, create).await;
+        let ids = self
+            .inner
+            .commit(partition_id, delete, upgrade, create, target_level)
+            .await;
 
-        self.create_counter.inc(created.len() as u64);
+        self.create_counter.inc(ids.len() as u64);
+        self.upgrade_counter.inc(upgrade.len() as u64);
         self.delete_counter.inc(delete.len() as u64);
         self.commit_counter.inc(1);
 
-        created
+        ids
     }
 }
 
@@ -109,6 +123,7 @@ mod tests {
         let created = ParquetFileBuilder::new(1000).with_partition(1).build();
 
         assert_eq!(create_counter(&registry), 0);
+        assert_eq!(upgrade_counter(&registry), 0);
         assert_eq!(delete_counter(&registry), 0);
         assert_eq!(commit_counter(&registry), 0);
 
@@ -116,7 +131,9 @@ mod tests {
             .commit(
                 PartitionId::new(1),
                 &[ParquetFileId::new(1)],
+                &[ParquetFileId::new(2)],
                 &[created.clone().into()],
+                CompactionLevel::FileNonOverlapped,
             )
             .await;
         assert_eq!(ids, vec![ParquetFileId::new(1000)]);
@@ -125,12 +142,15 @@ mod tests {
             .commit(
                 PartitionId::new(2),
                 &[ParquetFileId::new(2), ParquetFileId::new(3)],
+                &[ParquetFileId::new(4)],
                 &[],
+                CompactionLevel::Final,
             )
             .await;
         assert_eq!(ids, vec![]);
 
         assert_eq!(create_counter(&registry), 1);
+        assert_eq!(upgrade_counter(&registry), 2);
         assert_eq!(delete_counter(&registry), 3);
         assert_eq!(commit_counter(&registry), 2);
 
@@ -140,12 +160,16 @@ mod tests {
                 CommitHistoryEntry {
                     partition_id: PartitionId::new(1),
                     delete: vec![ParquetFileId::new(1)],
+                    upgrade: vec![ParquetFileId::new(2)],
                     created: vec![created],
+                    target_level: CompactionLevel::FileNonOverlapped,
                 },
                 CommitHistoryEntry {
                     partition_id: PartitionId::new(2),
                     delete: vec![ParquetFileId::new(2), ParquetFileId::new(3)],
+                    upgrade: vec![ParquetFileId::new(4)],
                     created: vec![],
+                    target_level: CompactionLevel::Final,
                 },
             ]
         );
@@ -154,6 +178,15 @@ mod tests {
     fn create_counter(registry: &Registry) -> u64 {
         registry
             .get_instrument::<Metric<U64Counter>>("iox_compactor_file_create_count")
+            .expect("instrument not found")
+            .get_observer(&Attributes::from([]))
+            .expect("observer not found")
+            .fetch()
+    }
+
+    fn upgrade_counter(registry: &Registry) -> u64 {
+        registry
+            .get_instrument::<Metric<U64Counter>>("iox_compactor_file_upgrade_count")
             .expect("instrument not found")
             .get_observer(&Attributes::from([]))
             .expect("observer not found")

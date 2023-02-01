@@ -2,7 +2,7 @@ use std::{fmt::Display, sync::Arc};
 
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
-use data_types::{ParquetFileId, ParquetFileParams, PartitionId};
+use data_types::{CompactionLevel, ParquetFileId, ParquetFileParams, PartitionId};
 use iox_catalog::interface::Catalog;
 
 use super::Commit;
@@ -34,8 +34,13 @@ impl Commit for CatalogCommit {
         &self,
         _partition_id: PartitionId,
         delete: &[ParquetFileId],
+        upgrade: &[ParquetFileId],
         create: &[ParquetFileParams],
+        target_level: CompactionLevel,
     ) -> Vec<ParquetFileId> {
+        // Either upgrade or (delete & create) must not empty
+        assert!(!upgrade.is_empty() || (!delete.is_empty() && !create.is_empty()));
+
         Backoff::new(&self.backoff_config)
             .retry_all_errors("commit parquet file changes", || async {
                 let mut txn = self.catalog.start_transaction().await?;
@@ -45,6 +50,10 @@ impl Commit for CatalogCommit {
                 for file in delete {
                     parquet_files.flag_for_delete(*file).await?;
                 }
+
+                parquet_files
+                    .update_compaction_level(upgrade, target_level)
+                    .await?;
 
                 let mut ids = Vec::with_capacity(create.len());
                 for file in create {

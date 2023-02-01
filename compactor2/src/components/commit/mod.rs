@@ -4,7 +4,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use data_types::{ParquetFileId, ParquetFileParams, PartitionId};
+use data_types::{CompactionLevel, ParquetFileId, ParquetFileParams, PartitionId};
 
 pub mod catalog;
 pub mod logging;
@@ -14,7 +14,7 @@ pub mod mock;
 /// Ensures that the file change (i.e. deletion and creation) are committed to the catalog.
 #[async_trait]
 pub trait Commit: Debug + Display + Send + Sync {
-    /// Commmit deletions and creations in a single transaction.
+    /// Commmit deletions, upgrades and creations in a single transaction.
     ///
     /// Returns the IDs for the created files.
     ///
@@ -24,7 +24,9 @@ pub trait Commit: Debug + Display + Send + Sync {
         &self,
         partition_id: PartitionId,
         delete: &[ParquetFileId],
+        upgrade: &[ParquetFileId],
         create: &[ParquetFileParams],
+        target_level: CompactionLevel,
     ) -> Vec<ParquetFileId>;
 }
 
@@ -37,8 +39,12 @@ where
         &self,
         partition_id: PartitionId,
         delete: &[ParquetFileId],
+        upgrade: &[ParquetFileId],
         create: &[ParquetFileParams],
+        target_level: CompactionLevel,
     ) -> Vec<ParquetFileId> {
-        self.as_ref().commit(partition_id, delete, create).await
+        self.as_ref()
+            .commit(partition_id, delete, upgrade, create, target_level)
+            .await
     }
 }

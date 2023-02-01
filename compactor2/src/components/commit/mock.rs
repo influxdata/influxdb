@@ -7,7 +7,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use data_types::{ParquetFile, ParquetFileId, ParquetFileParams, PartitionId};
+use data_types::{CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, PartitionId};
 
 use super::Commit;
 
@@ -15,7 +15,9 @@ use super::Commit;
 pub struct CommitHistoryEntry {
     pub partition_id: PartitionId,
     pub delete: Vec<ParquetFileId>,
+    pub upgrade: Vec<ParquetFileId>,
     pub created: Vec<ParquetFile>,
+    pub target_level: CompactionLevel,
 }
 
 #[derive(Debug)]
@@ -51,7 +53,9 @@ impl Commit for MockCommit {
         &self,
         partition_id: PartitionId,
         delete: &[ParquetFileId],
+        upgrade: &[ParquetFileId],
         create: &[ParquetFileParams],
+        target_level: CompactionLevel,
     ) -> Vec<ParquetFileId> {
         let (created, ids): (Vec<_>, Vec<_>) = create
             .iter()
@@ -68,7 +72,9 @@ impl Commit for MockCommit {
             .push(CommitHistoryEntry {
                 partition_id,
                 delete: delete.to_vec(),
+                upgrade: upgrade.to_vec(),
                 created,
+                target_level,
             });
 
         ids
@@ -99,7 +105,9 @@ mod tests {
             .commit(
                 PartitionId::new(1),
                 &[ParquetFileId::new(1), ParquetFileId::new(2)],
+                &[ParquetFileId::new(3), ParquetFileId::new(4)],
                 &[created_1_1.clone().into(), created_1_2.clone().into()],
+                CompactionLevel::FileNonOverlapped,
             )
             .await;
         assert_eq!(
@@ -111,7 +119,9 @@ mod tests {
             .commit(
                 PartitionId::new(2),
                 &[ParquetFileId::new(3)],
+                &[],
                 &[created_2_1.clone().into()],
+                CompactionLevel::Final,
             )
             .await;
         assert_eq!(ids, vec![ParquetFileId::new(1002)]);
@@ -124,14 +134,22 @@ mod tests {
                     ParquetFileId::new(6),
                     ParquetFileId::new(7),
                 ],
+                &[],
                 &[created_1_3.clone().into()],
+                CompactionLevel::FileNonOverlapped,
             )
             .await;
         assert_eq!(ids, vec![ParquetFileId::new(1003)]);
 
         // simulate fill implosion of the file (this may happen w/ delete predicates)
         let ids = commit
-            .commit(PartitionId::new(1), &[ParquetFileId::new(8)], &[])
+            .commit(
+                PartitionId::new(1),
+                &[ParquetFileId::new(8)],
+                &[],
+                &[],
+                CompactionLevel::FileNonOverlapped,
+            )
             .await;
         assert_eq!(ids, vec![]);
 
@@ -141,12 +159,16 @@ mod tests {
                 CommitHistoryEntry {
                     partition_id: PartitionId::new(1),
                     delete: vec![ParquetFileId::new(1), ParquetFileId::new(2)],
+                    upgrade: vec![ParquetFileId::new(3), ParquetFileId::new(4)],
                     created: vec![created_1_1, created_1_2],
+                    target_level: CompactionLevel::FileNonOverlapped,
                 },
                 CommitHistoryEntry {
                     partition_id: PartitionId::new(2),
                     delete: vec![ParquetFileId::new(3)],
+                    upgrade: vec![],
                     created: vec![created_2_1],
+                    target_level: CompactionLevel::Final,
                 },
                 CommitHistoryEntry {
                     partition_id: PartitionId::new(1),
@@ -155,12 +177,16 @@ mod tests {
                         ParquetFileId::new(6),
                         ParquetFileId::new(7)
                     ],
+                    upgrade: vec![],
                     created: vec![created_1_3],
+                    target_level: CompactionLevel::FileNonOverlapped,
                 },
                 CommitHistoryEntry {
                     partition_id: PartitionId::new(1),
                     delete: vec![ParquetFileId::new(8)],
+                    upgrade: vec![],
                     created: vec![],
+                    target_level: CompactionLevel::FileNonOverlapped,
                 },
             ]
         )
