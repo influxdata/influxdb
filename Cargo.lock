@@ -5231,6 +5231,7 @@ dependencies = [
 name = "service_grpc_namespace"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "data_types",
  "generated_types",
  "iox_catalog",
