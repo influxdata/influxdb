@@ -1,9 +1,9 @@
 use async_trait::async_trait;
 use backoff::BackoffConfig;
-use clap_blocks::compactor2::Compactor2Config;
+use clap_blocks::compactor2::{Compactor2Config, CompactorAlgoVersion};
 use compactor2::{
     compactor::Compactor2,
-    config::{Config, ShardConfig},
+    config::{AlgoVersion, Config, ShardConfig},
 };
 use data_types::{PartitionId, TRANSITION_SHARD_NUMBER};
 use hyper::{Body, Request, Response};
@@ -158,6 +158,11 @@ pub async fn create_compactor2_server_type(
         n_shards: compactor_config.shard_count.expect("just checked"),
     });
 
+    let compact_version = match compactor_config.compact_version {
+        CompactorAlgoVersion::Naive => AlgoVersion::Naive,
+        CompactorAlgoVersion::HotCold => AlgoVersion::HotCold,
+    };
+
     let compactor = Compactor2::start(Config {
         shard_id,
         metric_registry: Arc::clone(&metric_registry),
@@ -187,6 +192,7 @@ pub async fn create_compactor2_server_type(
         max_input_parquet_bytes_per_partition: compactor_config
             .max_input_parquet_bytes_per_partition,
         shard_config,
+        compact_version,
     });
 
     Arc::new(Compactor2ServerType::new(

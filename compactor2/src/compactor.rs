@@ -11,7 +11,10 @@ use tokio_util::sync::CancellationToken;
 use tracker::AsyncSemaphoreMetrics;
 
 use crate::{
-    components::{hardcoded::hardcoded_components, report::log_components},
+    components::{
+        hardcoded::hardcoded_components,
+        report::{log_components, log_config},
+    },
     config::Config,
     driver::compact,
 };
@@ -34,9 +37,8 @@ pub struct Compactor2 {
 impl Compactor2 {
     /// Start compactor.
     pub fn start(config: Config) -> Self {
-        if config.shadow_mode {
-            info!("Starting in shadow mode");
-        }
+        info!("compactor starting");
+        log_config(&config);
 
         let shutdown = CancellationToken::new();
         let shutdown_captured = shutdown.clone();
