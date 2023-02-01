@@ -18,7 +18,7 @@ impl MockPartitionDoneSink {
     }
 
     #[allow(dead_code)] // not used anywhere
-    pub fn errors(&self) -> HashMap<PartitionId, Result<(), String>> {
+    pub fn results(&self) -> HashMap<PartitionId, Result<(), String>> {
         self.last.lock().expect("not poisoned").clone()
     }
 }
@@ -52,7 +52,7 @@ mod tests {
     async fn test_record() {
         let sink = MockPartitionDoneSink::new();
 
-        assert_eq!(sink.errors(), HashMap::default(),);
+        assert_eq!(sink.results(), HashMap::default(),);
 
         sink.record(PartitionId::new(1), Err("msg 1".into())).await;
         sink.record(PartitionId::new(2), Err("msg 2".into())).await;
@@ -60,7 +60,7 @@ mod tests {
         sink.record(PartitionId::new(3), Ok(())).await;
 
         assert_eq!(
-            sink.errors(),
+            sink.results(),
             HashMap::from([
                 (PartitionId::new(1), Err(String::from("msg 3"))),
                 (PartitionId::new(2), Err(String::from("msg 2"))),

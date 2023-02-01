@@ -15,7 +15,8 @@
 
 use crate::interface::{ColumnTypeMismatchSnafu, Error, RepoCollection, Result, Transaction};
 use data_types::{
-    ColumnType, NamespaceSchema, QueryPool, Shard, ShardId, ShardIndex, TableSchema, TopicMetadata,
+    ColumnType, NamespaceSchema, QueryPool, Shard, ShardId, ShardIndex, TableSchema, TopicId,
+    TopicMetadata,
 };
 use mutable_batch::MutableBatch;
 use std::{
@@ -25,6 +26,7 @@ use std::{
 use thiserror::Error;
 
 const SHARED_TOPIC_NAME: &str = "iox-shared";
+const SHARED_TOPIC_ID: TopicId = TopicId::new(1);
 const SHARED_QUERY_POOL: &str = SHARED_TOPIC_NAME;
 const TIME_COLUMN: &str = "time";
 

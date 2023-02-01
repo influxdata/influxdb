@@ -8,7 +8,7 @@ use crate::{
         TombstoneRepo, TopicMetadataRepo, Transaction,
     },
     metrics::MetricDecorator,
-    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
+    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES, SHARED_TOPIC_ID, SHARED_TOPIC_NAME,
 };
 use async_trait::async_trait;
 use data_types::{
@@ -16,7 +16,7 @@ use data_types::{
     ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, PartitionParam,
     ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex,
     SkippedCompaction, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId, TopicId,
-    TopicMetadata,
+    TopicMetadata, TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, info, warn};
@@ -291,6 +291,39 @@ impl Catalog for PostgresCatalog {
             .run(&self.pool)
             .await
             .map_err(|e| Error::Setup { source: e.into() })?;
+
+        if std::env::var("INFLUXDB_IOX_RPC_MODE").is_ok() {
+            // We need to manually insert the topic here so that we can create the transition shard below.
+            sqlx::query(
+                r#"
+INSERT INTO topic (name)
+VALUES ($1)
+ON CONFLICT ON CONSTRAINT topic_name_unique
+DO NOTHING;
+            "#,
+            )
+            .bind(SHARED_TOPIC_NAME)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| Error::Setup { source: e })?;
+
+            // The transition shard must exist and must have magic ID and INDEX.
+            sqlx::query(
+                r#"
+INSERT INTO shard (id, topic_id, shard_index, min_unpersisted_sequence_number)
+OVERRIDING SYSTEM VALUE
+VALUES ($1, $2, $3, 0)
+ON CONFLICT ON CONSTRAINT shard_unique
+DO NOTHING;
+            "#,
+            )
+            .bind(TRANSITION_SHARD_ID)
+            .bind(SHARED_TOPIC_ID)
+            .bind(TRANSITION_SHARD_INDEX)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| Error::Setup { source: e })?;
+        }
 
         Ok(())
     }

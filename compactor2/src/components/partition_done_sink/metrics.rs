@@ -119,7 +119,7 @@ mod tests {
         assert_eq!(error_counter(&registry, "object_store"), 1);
 
         assert_eq!(
-            inner.errors(),
+            inner.results(),
             HashMap::from([
                 (
                     PartitionId::new(1),

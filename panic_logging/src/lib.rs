@@ -113,6 +113,22 @@ fn tracing_panic_hook(other_hook: &PanicFunctionPtr, panic_info: &PanicInfo<'_>)
     other_hook(panic_info)
 }
 
+/// Ensure panics are fatal events by exiting the process with an exit code of
+/// 1 after calling the existing panic handler, if any.
+pub fn make_panics_fatal() {
+    let existing = panic::take_hook();
+
+    panic::set_hook(Box::new(move |info| {
+        // Call the existing panic hook.
+        existing(info);
+        // Exit the process.
+        //
+        // NOTE: execution may not reach this point if another hook
+        // kills the process first.
+        std::process::exit(1);
+    }));
+}
+
 #[cfg(test)]
 mod tests {
     use metric::{Attributes, Metric};

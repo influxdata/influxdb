@@ -12,11 +12,12 @@ use crate::{
         namespaces_source::catalog::CatalogNamespacesSource,
         tables_source::catalog::CatalogTablesSource,
     },
-    config::Config,
+    config::{AlgoVersion, Config},
     error::ErrorKind,
 };
 
 use super::{
+    combos::unique_partitions::unique_partitions,
     commit::{
         catalog::CatalogCommit, logging::LoggingCommitWrapper, metrics::MetricsCommitWrapper,
         mock::MockCommit, Commit,
@@ -97,6 +98,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
     );
 
     let mut partition_filters: Vec<Arc<dyn PartitionFilter>> = vec![];
+    partition_filters.push(Arc::new(HasFilesPartitionFilter::new()));
     if !config.ignore_partition_skip_marker {
         partition_filters.push(Arc::new(NeverSkippedPartitionFilter::new(
             CatalogSkippedCompactionsSource::new(
@@ -105,16 +107,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             ),
         )));
     }
-    partition_filters.push(Arc::new(HasMatchingFilePartitionFilter::new(
-        LevelRangeFileFilter::new(CompactionLevel::Initial..=CompactionLevel::Initial),
-    )));
-    partition_filters.push(Arc::new(HasFilesPartitionFilter::new()));
-    partition_filters.push(Arc::new(MaxFilesPartitionFilter::new(
-        config.max_input_files_per_partition,
-    )));
-    partition_filters.push(Arc::new(MaxParquetBytesPartitionFilter::new(
-        config.max_input_parquet_bytes_per_partition,
-    )));
+    partition_filters.append(&mut version_specific_partition_filters(config));
 
     let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.shadow_mode {
         Arc::new(MockPartitionDoneSink::new())
@@ -124,6 +117,26 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             Arc::clone(&config.catalog),
         ))
     };
+    let partition_done_sink =
+        LoggingPartitionDoneSinkWrapper::new(MetricsPartitionDoneSinkWrapper::new(
+            ErrorKindPartitionDoneSinkWrapper::new(
+                partition_done_sink,
+                ErrorKind::variants()
+                    .iter()
+                    .filter(|kind| {
+                        // use explicit match statement so we never forget to add new variants
+                        match kind {
+                            ErrorKind::OutOfMemory | ErrorKind::Timeout | ErrorKind::Unknown => {
+                                true
+                            }
+                            ErrorKind::ObjectStore => false,
+                        }
+                    })
+                    .copied()
+                    .collect(),
+            ),
+            &config.metric_registry,
+        ));
 
     let commit: Arc<dyn Commit> = if config.shadow_mode {
         Arc::new(MockCommit::new())
@@ -139,6 +152,9 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
     } else {
         Arc::clone(config.parquet_store_real.object_store())
     };
+
+    let (partitions_source, partition_done_sink) =
+        unique_partitions(partitions_source, partition_done_sink);
 
     Arc::new(Components {
         // Note: Place "not empty" wrapper at the very last so that the logging and metric wrapper work even when there
@@ -177,27 +193,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
                 &config.metric_registry,
             ),
         )),
-        partition_done_sink: Arc::new(LoggingPartitionDoneSinkWrapper::new(
-            MetricsPartitionDoneSinkWrapper::new(
-                ErrorKindPartitionDoneSinkWrapper::new(
-                    partition_done_sink,
-                    ErrorKind::variants()
-                        .iter()
-                        .filter(|kind| {
-                            // use explicit match statement so we never forget to add new variants
-                            match kind {
-                                ErrorKind::OutOfMemory
-                                | ErrorKind::Timeout
-                                | ErrorKind::Unknown => true,
-                                ErrorKind::ObjectStore => false,
-                            }
-                        })
-                        .copied()
-                        .collect(),
-                ),
-                &config.metric_registry,
-            ),
-        )),
+        partition_done_sink: Arc::new(partition_done_sink),
         commit: Arc::new(LoggingCommitWrapper::new(MetricsCommitWrapper::new(
             commit,
             &config.metric_registry,
@@ -240,4 +236,36 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             scratchpad_store_output,
         )),
     })
+}
+
+fn version_specific_partition_filters(config: &Config) -> Vec<Arc<dyn PartitionFilter>> {
+    match config.compact_version {
+        AlgoVersion::Naive => {
+            vec![
+                Arc::new(HasMatchingFilePartitionFilter::new(
+                    LevelRangeFileFilter::new(CompactionLevel::Initial..=CompactionLevel::Initial),
+                )),
+                Arc::new(MaxFilesPartitionFilter::new(
+                    config.max_input_files_per_partition,
+                )),
+                Arc::new(MaxParquetBytesPartitionFilter::new(
+                    config.max_input_parquet_bytes_per_partition,
+                )),
+            ]
+        }
+        AlgoVersion::HotCold => {
+            // identical for now
+            vec![
+                Arc::new(HasMatchingFilePartitionFilter::new(
+                    LevelRangeFileFilter::new(CompactionLevel::Initial..=CompactionLevel::Initial),
+                )),
+                Arc::new(MaxFilesPartitionFilter::new(
+                    config.max_input_files_per_partition,
+                )),
+                Arc::new(MaxParquetBytesPartitionFilter::new(
+                    config.max_input_parquet_bytes_per_partition,
+                )),
+            ]
+        }
+    }
 }
