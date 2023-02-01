@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use data_types::PartitionId;
 use metric::{Registry, U64Counter};
 
-use crate::error::{ErrorKind, ErrorKindExt};
+use crate::error::{DynError, ErrorKind, ErrorKindExt};
 
 use super::PartitionDoneSink;
 
@@ -60,11 +60,7 @@ impl<T> PartitionDoneSink for MetricsPartitionDoneSinkWrapper<T>
 where
     T: PartitionDoneSink,
 {
-    async fn record(
-        &self,
-        partition: PartitionId,
-        res: Result<(), Box<dyn std::error::Error + Send + Sync>>,
-    ) {
+    async fn record(&self, partition: PartitionId, res: Result<(), DynError>) {
         match &res {
             Ok(()) => {
                 self.ok_counter.inc(1);

@@ -2,7 +2,9 @@ use std::fmt::Display;
 
 use async_trait::async_trait;
 use data_types::{ParquetFile, PartitionId};
-use observability_deps::tracing::{debug, info};
+use observability_deps::tracing::{debug, error, info};
+
+use crate::error::DynError;
 
 use super::PartitionFilter;
 
@@ -37,12 +39,22 @@ impl<T> PartitionFilter for LoggingPartitionFilterWrapper<T>
 where
     T: PartitionFilter,
 {
-    async fn apply(&self, partition_id: PartitionId, files: &[ParquetFile]) -> bool {
+    async fn apply(
+        &self,
+        partition_id: PartitionId,
+        files: &[ParquetFile],
+    ) -> Result<bool, DynError> {
         let res = self.inner.apply(partition_id, files).await;
-        if !res {
-            info!(partition_id = partition_id.get(), "filtered partition");
-        } else {
-            debug!(partition_id = partition_id.get(), "NOT filtered partition");
+        match &res {
+            Ok(true) => {
+                debug!(partition_id = partition_id.get(), "NOT filtered partition");
+            }
+            Ok(false) => {
+                info!(partition_id = partition_id.get(), "filtered partition");
+            }
+            Err(e) => {
+                error!(partition_id = partition_id.get(), %e, "error filtering filtered partition");
+            }
         }
         res
     }
@@ -74,8 +86,8 @@ mod tests {
 
         let capture = TracingCapture::new();
 
-        assert!(!filter.apply(p_id1, &[]).await);
-        assert!(filter.apply(p_id2, &[f]).await);
+        assert!(!filter.apply(p_id1, &[]).await.unwrap());
+        assert!(filter.apply(p_id2, &[f]).await.unwrap());
 
         assert_eq!(
             capture.to_string(),

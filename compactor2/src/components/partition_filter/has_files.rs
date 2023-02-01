@@ -3,6 +3,8 @@ use std::fmt::Display;
 use async_trait::async_trait;
 use data_types::PartitionId;
 
+use crate::error::DynError;
+
 use super::PartitionFilter;
 
 #[derive(Debug, Default)]
@@ -22,8 +24,12 @@ impl Display for HasFilesPartitionFilter {
 
 #[async_trait]
 impl PartitionFilter for HasFilesPartitionFilter {
-    async fn apply(&self, _partition_id: PartitionId, files: &[data_types::ParquetFile]) -> bool {
-        !files.is_empty()
+    async fn apply(
+        &self,
+        _partition_id: PartitionId,
+        files: &[data_types::ParquetFile],
+    ) -> Result<bool, DynError> {
+        Ok(!files.is_empty())
     }
 }
 
@@ -44,7 +50,7 @@ mod tests {
         let f = ParquetFileBuilder::new(0).build();
         let p_id = PartitionId::new(1);
 
-        assert!(!filter.apply(p_id, &[]).await);
-        assert!(filter.apply(p_id, &[f]).await);
+        assert!(!filter.apply(p_id, &[]).await.unwrap());
+        assert!(filter.apply(p_id, &[f]).await.unwrap());
     }
 }

@@ -3,7 +3,7 @@ use std::{collections::HashSet, fmt::Display};
 use async_trait::async_trait;
 use data_types::PartitionId;
 
-use crate::error::{ErrorKind, ErrorKindExt};
+use crate::error::{DynError, ErrorKind, ErrorKindExt};
 
 use super::PartitionDoneSink;
 
@@ -41,11 +41,7 @@ impl<T> PartitionDoneSink for ErrorKindPartitionDoneSinkWrapper<T>
 where
     T: PartitionDoneSink,
 {
-    async fn record(
-        &self,
-        partition: PartitionId,
-        res: Result<(), Box<dyn std::error::Error + Send + Sync>>,
-    ) {
+    async fn record(&self, partition: PartitionId, res: Result<(), DynError>) {
         match res {
             Ok(()) => self.inner.record(partition, Ok(())).await,
             Err(e) if self.kind.contains(&e.classify()) => {

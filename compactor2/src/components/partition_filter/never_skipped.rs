@@ -3,7 +3,7 @@ use std::fmt::Display;
 use async_trait::async_trait;
 use data_types::{ParquetFile, PartitionId};
 
-use crate::components::skipped_compactions_source::SkippedCompactionsSource;
+use crate::{components::skipped_compactions_source::SkippedCompactionsSource, error::DynError};
 
 use super::PartitionFilter;
 
@@ -38,8 +38,12 @@ impl<T> PartitionFilter for NeverSkippedPartitionFilter<T>
 where
     T: SkippedCompactionsSource,
 {
-    async fn apply(&self, partition_id: PartitionId, _files: &[ParquetFile]) -> bool {
-        self.source.fetch(partition_id).await.is_none()
+    async fn apply(
+        &self,
+        partition_id: PartitionId,
+        _files: &[ParquetFile],
+    ) -> Result<bool, DynError> {
+        Ok(self.source.fetch(partition_id).await.is_none())
     }
 }
 

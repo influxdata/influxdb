@@ -9,6 +9,7 @@ use tracker::InstrumentedAsyncSemaphore;
 
 use crate::{
     components::{scratchpad::Scratchpad, Components},
+    error::DynError,
     partition_info::PartitionInfo,
 };
 
@@ -78,14 +79,12 @@ async fn compact_partition(
     scratchpad.clean().await;
 }
 
-type Error = Box<dyn std::error::Error + Send + Sync>;
-
 async fn try_compact_partition(
     partition_id: PartitionId,
     job_semaphore: Arc<InstrumentedAsyncSemaphore>,
     components: Arc<Components>,
     scratchpad_ctx: &mut dyn Scratchpad,
-) -> Result<(), Error> {
+) -> Result<(), DynError> {
     let mut files = components.partition_files_source.fetch(partition_id).await;
 
     // fetch partition info only if we need it
@@ -97,7 +96,7 @@ async fn try_compact_partition(
         if !components
             .partition_filter
             .apply(partition_id, &files)
-            .await
+            .await?
         {
             return Ok(());
         }
@@ -205,20 +204,20 @@ async fn try_compact_partition(
 async fn fetch_partition_info(
     partition_id: PartitionId,
     components: &Arc<Components>,
-) -> Result<Arc<PartitionInfo>, Error> {
+) -> Result<Arc<PartitionInfo>, DynError> {
     // TODO: only read partition, table and its schema info the first time and cache them
     // Get info for the partition
     let partition = components
         .partition_source
         .fetch_by_id(partition_id)
         .await
-        .ok_or_else::<Error, _>(|| String::from("Cannot find partition info").into())?;
+        .ok_or_else::<DynError, _>(|| String::from("Cannot find partition info").into())?;
 
     let table = components
         .tables_source
         .fetch(partition.table_id)
         .await
-        .ok_or_else::<Error, _>(|| String::from("Cannot find table").into())?;
+        .ok_or_else::<DynError, _>(|| String::from("Cannot find table").into())?;
 
     // TODO: after we have catalog funciton to read table schema, we should use it
     // and avoid reading namespace schema
@@ -226,18 +225,18 @@ async fn fetch_partition_info(
         .namespaces_source
         .fetch_by_id(table.namespace_id)
         .await
-        .ok_or_else::<Error, _>(|| String::from("Cannot find namespace").into())?;
+        .ok_or_else::<DynError, _>(|| String::from("Cannot find namespace").into())?;
 
     let namespace_schema = components
         .namespaces_source
         .fetch_schema_by_id(table.namespace_id)
         .await
-        .ok_or_else::<Error, _>(|| String::from("Cannot find namespace schema").into())?;
+        .ok_or_else::<DynError, _>(|| String::from("Cannot find namespace schema").into())?;
 
     let table_schema = namespace_schema
         .tables
         .get(&table.name)
-        .ok_or_else::<Error, _>(|| String::from("Cannot find table schema").into())?;
+        .ok_or_else::<DynError, _>(|| String::from("Cannot find table schema").into())?;
 
     Ok(Arc::new(PartitionInfo {
         partition_id,
@@ -256,7 +255,7 @@ fn stream_into_file_sink(
     target_level: CompactionLevel,
     max_l0_created_at: Time,
     components: Arc<Components>,
-) -> impl Future<Output = Result<Vec<ParquetFileParams>, Error>> {
+) -> impl Future<Output = Result<Vec<ParquetFileParams>, DynError>> {
     streams
         .into_iter()
         .map(move |stream| {
