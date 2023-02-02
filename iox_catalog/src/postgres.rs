@@ -405,6 +405,10 @@ async fn new_raw_pool(
                 }
                 let search_path_query = format!("SET search_path TO {},public;", schema_name);
                 c.execute(sqlx::query(&search_path_query)).await?;
+
+                // Ensure explicit timezone selection, instead of deferring to
+                // the server value.
+                c.execute("SET timezone = 'UTC';").await?;
                 Ok(())
             })
         })
@@ -2556,8 +2560,15 @@ mod tests {
         maybe_skip_integration!();
 
         let postgres = setup_db().await;
-        let postgres: Arc<dyn Catalog> = Arc::new(postgres);
 
+        // Validate the connection time zone is the expected UTC value.
+        let tz: String = sqlx::query_scalar("SHOW TIME ZONE;")
+            .fetch_one(&postgres.pool)
+            .await
+            .expect("read application_name");
+        assert_eq!(tz, "UTC");
+
+        let postgres: Arc<dyn Catalog> = Arc::new(postgres);
         crate::interface::test_helpers::test_catalog(postgres).await;
     }
 
