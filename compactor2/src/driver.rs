@@ -222,133 +222,267 @@ async fn try_compact_partition(
 
         let mut files_next = files_later;
         while let Some(branch) = branches.pop() {
-            let target_level = CompactionLevel::FileNonOverlapped;
-            let delete_ids = branch.iter().map(|f| f.id).collect::<Vec<_>>();
-
-            // compute max_l0_created_at
-            let max_l0_created_at = branch
-                .iter()
-                .map(|f| f.max_l0_created_at)
-                .max()
-                .expect("max_l0_created_at should have value");
-
-            // stage files
             let input_paths: Vec<ParquetFilePath> = branch.iter().map(|f| f.into()).collect();
-            let input_uuids_inpad = scratchpad_ctx.load_to_scratchpad(&input_paths).await;
-            let branch_inpad: Vec<_> = branch
-                .into_iter()
-                .zip(input_uuids_inpad)
-                .map(|(f, uuid)| ParquetFile {
-                    object_store_id: uuid,
-                    ..f
-                })
-                .collect();
 
-            let create = {
-                // draw semaphore BEFORE creating the DataFusion plan and drop it directly AFTER finishing the
-                // DataFusion computation (but BEFORE doing any additional external IO).
-                //
-                // We guard the DataFusion planning (that doesn't perform any IO) via the semaphore as well in case
-                // DataFusion ever starts to pre-allocate buffers during the physical planning. To the best of our
-                // knowledge, this is currently (2023-01-25) not the case but if this ever changes, then we are prepared.
-                let _permit = job_semaphore
-                    .acquire(None)
-                    .await
-                    .expect("semaphore not closed");
+            // Identify the target level and files that should be compacted, upgraded, and
+            // kept for next round of compaction
+            let compaction_plan = buil_compaction_plan(branch, Arc::clone(&components))?;
+            let ids_to_delete = compaction_plan
+                .files_to_compact
+                .iter()
+                .map(|f| f.id)
+                .collect::<Vec<_>>();
 
-                // TODO: Need a wraper funtion to:
-                //    . split files into L0, L1 and L2
-                //    . identify right files for hot/cold compaction
-                //    . filter right amount of files
-                //    . compact many steps hot/cold (need more thinking)
-                let plan = components
-                    .df_planner
-                    .plan(branch_inpad, Arc::clone(partition_info), target_level)
-                    .await?;
-                let streams = components.df_plan_exec.exec(plan);
-                let job = stream_into_file_sink(
-                    streams,
-                    Arc::clone(partition_info),
-                    target_level,
-                    max_l0_created_at.into(),
-                    Arc::clone(&components),
-                );
-
-                // TODO: react to OOM and try to divide branch
-                job.await?
-            };
-
-            // The minimum to add in this PR for reviewers to go with the idea
-            // TODO: refactor the code above to create these values
-            let higher_level_files = vec![];
-            let compact_result = CompactResult {
-                non_overlapping_files: vec![],
-                upgraded_files: vec![],
-                created_file_params: create,
-                deleted_ids: delete_ids,
-            };
+            // Compact
+            let created_file_params = compact_files(
+                compaction_plan.files_to_compact,
+                partition_info,
+                &components,
+                compaction_plan.target_level,
+                Arc::clone(&job_semaphore),
+                scratchpad_ctx,
+            )
+            .await?;
 
             // upload files to real object store
-            let create = compact_result.created_file_params;
-            let output_files: Vec<ParquetFilePath> = create.iter().map(|p| p.into()).collect();
-            let output_uuids = scratchpad_ctx.make_public(&output_files).await;
-            let create: Vec<_> = create
-                .into_iter()
-                .zip(output_uuids)
-                .map(|(f, uuid)| ParquetFileParams {
-                    object_store_id: uuid,
-                    ..f
-                })
-                .collect();
+            let created_file_params =
+                upload_files_to_object_store(created_file_params, scratchpad_ctx).await;
 
             // clean scratchpad
             scratchpad_ctx.clean_from_scratchpad(&input_paths).await;
 
-            // Update the catalog to refelct the newly created files, soft delete the compacted files and
+            // Update the catalog to reflect the newly created files, soft delete the compacted files and
             // update the the upgraded files
-            let upgraded_ids = compact_result
-                .upgraded_files
-                .iter()
-                .map(|f| f.id)
-                .collect::<Vec<_>>();
-            let deleted_ids = compact_result.deleted_ids;
-            let create_ids = components
-                .commit
-                .commit(
-                    partition_id,
-                    &deleted_ids,
-                    &upgraded_ids,
-                    &create,
-                    target_level,
-                )
-                .await;
+            let (created_files, upgraded_files) = update_catalog(
+                Arc::clone(&components),
+                partition_id,
+                ids_to_delete,
+                compaction_plan.files_to_upgrade,
+                created_file_params,
+                compaction_plan.target_level,
+            )
+            .await;
 
-            // Extend created files, files_higher_level, overlapped_files and upgraded_files to files_next
-            files_next.extend(
-                create
-                    .into_iter()
-                    .zip(create_ids)
-                    .map(|(params, id)| ParquetFile::from_params(params, id)),
-            );
-            files_next.extend(higher_level_files);
-            files_next.extend(compact_result.upgraded_files);
-            files_next.extend(compact_result.non_overlapping_files);
+            // Extend created files, upgraded files and files_to_keep to files_next
+            files_next.extend(created_files);
+            files_next.extend(upgraded_files);
+            files_next.extend(compaction_plan.files_to_keep);
         }
 
         files = files_next;
     }
 }
 
-/// Struct to store result of compaction results
-struct CompactResult {
-    /// files of target_level that do not overlap with (target_level - 1)
-    non_overlapping_files: Vec<ParquetFile>,
-    /// files of (target_level -1) that will be upgraded to target_level
-    upgraded_files: Vec<ParquetFile>,
-    /// result of compaction of [files_compact - (files_non_overlap + files_upgrade)]
+/// Each CompactionPlan specifies the target level and files that should be compacted, upgraded, and
+/// kept for next round of compaction
+struct CompactionPlan {
+    /// Target level to compact to
+    target_level: CompactionLevel,
+    /// Small and/or overlapped files to compact
+    files_to_compact: Vec<ParquetFile>,
+    /// Non-overlapped and large enough files to upgrade
+    files_to_upgrade: Vec<ParquetFile>,
+    /// Non-overlapped or higher-target-level files to keep for next round of compaction
+    files_to_keep: Vec<ParquetFile>,
+}
+
+/// Build compaction plan for a given set of files
+/// This function will determine the target level to compact to and split the files into
+/// files_to_compact, files_to_upgrade, and files_to_keep
+///
+/// Example:
+///  . Input:
+///                 |--L0.1--| |--L0.2--| |--L0.3--|  |--L0.4--| --L0.5--|
+///      |--L1.1--|           |--L1.2--|             |--L1.3--|             |--L1.4--|
+///    |---L2.1--|  
+///
+///   .Output
+///     . target_level = 1
+///     . files_to_keep = [L2.1, L1.1, L1.4]
+///     . files_to_upgrade = [L0.1, L0.5]
+///     . files_to_compact = [L0.2, L0.3, L0.4, L1.2, L1.3]
+///
+fn buil_compaction_plan(
+    files: Vec<ParquetFile>,
+    _components: Arc<Components>,
+) -> Result<CompactionPlan, DynError> {
+    // TODO : Detect target level to compact to
+    //    target = 1 if there are L0 files
+    //    target = 2 if there are L1 files but no L0 file
+    // let target_level = components.target_level_detection.detect(&branch);
+    let target_level = CompactionLevel::FileNonOverlapped;
+
+    // Split files into files_to_compact, files_to_upgrade, and files_to_keep
+    //
+    // Since output of one compaction is used as input of next compaction, all files that are not
+    // compacted or upgraded are still kept to consider in next round of compaction
+
+    // TODO: Split atctual files to compact from its higher-target-level files
+    // The higher-target-level files are kept for next round of compaction
+    // let (compacted_files, higher_level_files) = components.target_level_split.apply(branch, target_level);
+    let (files_to_compact, mut files_to_keep) = (files, vec![]);
+
+    // To have efficient compaction performance, we do not need to compact eligible non-overlapped file
+    // Example:
+    //                |--L0.1--|             |--L0.2--|
+    //  |--L1.1--| |--L1.2--|    |--L1.3--|              |--L1.4--|
+    //
+    //  (L1.1, L1.3, L1.4) do not overlap with nay L0s but only (L1.1, L1.4) are eligible non-overlpped files.
+    //  (L1.2, L1.3) must be compacted with L0s to produce the right non-overlapping L1s
+    //
+    // TODO: Find eligible non-overlapped files
+    // The non-overlapped files are kept for next round of compaction
+    // let (non_overlapping_files, mut files_to_compact) = components.non_overlapped_split.apply(files_to_compact, target_level.prev());
+    let (non_overlapped_files, files_to_compact) = (vec![], files_to_compact);
+    files_to_keep.extend(non_overlapped_files);
+
+    // Similarly, to avoid expensive compaction, we will upgrade eligible files
+    // Example:
+    //             |--L0.1--| |--L0.2--| |--L0.3--|  |--L0.4--| --L0.5--|
+    //                       |--L1.1--|             |--L1.2--|
+    //
+    //  (L0.1, L0.3, L0.5) are non-overlaped files but only (L0.1, L0.5) are eligible to upgrade.
+    //  (L0.2, L0.3, L0.4) must be compacted with L1s to produce the right non-overlapping L1s
+    // Eligible files to upgrade also need to be large enough (> max_desired_file_size) unless it is the only file left
+    //
+    // TODO: Find eligible upgradable files
+    // let (files_to_upgrade, mut files_to_compact) = components.upgrade_create_split.apply(files_to_compact, target_level.prev());
+    let (files_to_upgrade, files_to_compact) = (vec![], files_to_compact);
+
+    Ok(CompactionPlan {
+        target_level,
+        files_to_compact,
+        files_to_upgrade,
+        files_to_keep,
+    })
+}
+
+/// Compact into the given target_level
+/// This function assumes the input files only include overlapped files of `target_level - 1`
+/// and files of target_level.
+async fn compact_files(
+    files: Vec<ParquetFile>,
+    partition_info: &Arc<PartitionInfo>,
+    components: &Arc<Components>,
+    target_level: CompactionLevel,
+    job_semaphore: Arc<InstrumentedAsyncSemaphore>,
+    scratchpad_ctx: &mut dyn Scratchpad,
+) -> Result<Vec<ParquetFileParams>, DynError> {
+    if files.is_empty() {
+        return Ok(vec![]);
+    }
+
+    // compute max_l0_created_at
+    let max_l0_created_at = files
+        .iter()
+        .map(|f| f.max_l0_created_at)
+        .max()
+        .expect("max_l0_created_at should have value");
+
+    // stage files
+    let input_paths: Vec<ParquetFilePath> = files.iter().map(|f| f.into()).collect();
+    let input_uuids_inpad = scratchpad_ctx.load_to_scratchpad(&input_paths).await;
+    let branch_inpad: Vec<_> = files
+        .into_iter()
+        .zip(input_uuids_inpad)
+        .map(|(f, uuid)| ParquetFile {
+            object_store_id: uuid,
+            ..f
+        })
+        .collect();
+
+    let create = {
+        // draw semaphore BEFORE creating the DataFusion plan and drop it directly AFTER finishing the
+        // DataFusion computation (but BEFORE doing any additional external IO).
+        //
+        // We guard the DataFusion planning (that doesn't perform any IO) via the semaphore as well in case
+        // DataFusion ever starts to pre-allocate buffers during the physical planning. To the best of our
+        // knowledge, this is currently (2023-01-25) not the case but if this ever changes, then we are prepared.
+        let _permit = job_semaphore
+            .acquire(None)
+            .await
+            .expect("semaphore not closed");
+
+        let plan = components
+            .df_planner
+            .plan(branch_inpad, Arc::clone(partition_info), target_level)
+            .await?;
+        let streams = components.df_plan_exec.exec(plan);
+        let job = stream_into_file_sink(
+            streams,
+            Arc::clone(partition_info),
+            target_level,
+            max_l0_created_at.into(),
+            Arc::clone(components),
+        );
+
+        // TODO: react to OOM and try to divide branch
+        job.await?
+    };
+
+    Ok(create)
+}
+
+async fn upload_files_to_object_store(
     created_file_params: Vec<ParquetFileParams>,
-    /// ids of files in [files_compact - (files_non_overlap + files_upgrade)]
-    deleted_ids: Vec<ParquetFileId>,
+    scratchpad_ctx: &mut dyn Scratchpad,
+) -> Vec<ParquetFileParams> {
+    // Ipload files to real object store
+    let output_files: Vec<ParquetFilePath> = created_file_params.iter().map(|p| p.into()).collect();
+    let output_uuids = scratchpad_ctx.make_public(&output_files).await;
+
+    // Update file params with object_store_id
+    created_file_params
+        .into_iter()
+        .zip(output_uuids)
+        .map(|(f, uuid)| ParquetFileParams {
+            object_store_id: uuid,
+            ..f
+        })
+        .collect()
+}
+
+/// Update the catalog to create, soft delete and upgrade corresponding given input
+/// to provided target level
+/// Return created and upgraded files
+async fn update_catalog(
+    components: Arc<Components>,
+    partition_id: PartitionId,
+    ids_to_delete: Vec<ParquetFileId>,
+    files_to_upgrade: Vec<ParquetFile>,
+    file_params_to_create: Vec<ParquetFileParams>,
+    target_level: CompactionLevel,
+) -> (Vec<ParquetFile>, Vec<ParquetFile>) {
+    let ids_to_upgrade = files_to_upgrade.iter().map(|f| f.id).collect::<Vec<_>>();
+
+    let created_ids = components
+        .commit
+        .commit(
+            partition_id,
+            &ids_to_delete,
+            &ids_to_upgrade,
+            &file_params_to_create,
+            target_level,
+        )
+        .await;
+
+    // Update created ids to their corresponding file params
+    let created_file_params = file_params_to_create
+        .into_iter()
+        .zip(created_ids)
+        .map(|(params, id)| ParquetFile::from_params(params, id))
+        .collect::<Vec<_>>();
+
+    // Update compaction_level for the files_to_upgrade
+    let upgraded_files = files_to_upgrade
+        .into_iter()
+        .map(|mut f| {
+            f.compaction_level = target_level;
+            f
+        })
+        .collect::<Vec<_>>();
+
+    (created_file_params, upgraded_files)
 }
 
 async fn fetch_partition_info(

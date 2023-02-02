@@ -238,13 +238,13 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
     })
 }
 
-// This is the stop compaction condition
+// This is the conditions to stop compact.
 // Same condition for all versions to protect the system from OOMs
 // . Number of files > max_input_files_per_partition
 // . Total size of files > max_input_parquet_bytes_per_partition
 fn version_specific_partition_filters(config: &Config) -> Vec<Arc<dyn PartitionFilter>> {
     match config.compact_version {
-        // No L0 files to compact
+        // No L0 files
         AlgoVersion::Naive => {
             vec![
                 Arc::new(HasMatchingFilePartitionFilter::new(
@@ -258,12 +258,11 @@ fn version_specific_partition_filters(config: &Config) -> Vec<Arc<dyn PartitionF
                 )),
             ]
         }
-        // TODO: Change this to reflect ot stop compaction condition
+        // TODO: Change this to reflect the stop compaction condition
         //  . One file
         //  . All files are L2
-        //  . A combination of L2s and a few small L1s (will have specific numbers)
-        //      This is the middle stage when we suspect there are more coming L0s to get compacted
-        //        with L1s before they are large enough to get compacted with other L2s and into L2s
+        //  . Have overlapping files
+        //  . Number L1 files > max_num_files
         AlgoVersion::HotCold => {
             // identical for now
             vec![
