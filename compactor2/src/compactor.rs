@@ -58,6 +58,7 @@ impl Compactor2 {
                 _ = async {
                     loop {
                         compact(config.partition_concurrency, config.partition_timeout, Arc::clone(&job_semaphore), &components).await;
+                        // TODO: implement throttling if there was no work to do
                     }
                 } => unreachable!(),
             }
