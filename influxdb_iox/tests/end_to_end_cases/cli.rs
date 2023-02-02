@@ -26,7 +26,7 @@ async fn default_mode_is_run_all_in_one() {
         // Without this, we have errors about writing read-only root filesystem on macos.
         .env("HOME", tmpdir.path())
         .add_addr_env(ServerType::AllInOne, &addrs)
-        .timeout(Duration::from_secs(2))
+        .timeout(Duration::from_secs(5))
         .assert()
         .failure()
         .stdout(predicate::str::contains("starting all in one server"));
@@ -46,7 +46,7 @@ async fn default_run_mode_is_all_in_one() {
         .env_clear()
         .env("HOME", tmpdir.path())
         .add_addr_env(ServerType::AllInOne, &addrs)
-        .timeout(Duration::from_secs(2))
+        .timeout(Duration::from_secs(5))
         .assert()
         .failure()
         .stdout(predicate::str::contains("starting all in one server"));

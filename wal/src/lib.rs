@@ -23,6 +23,7 @@ use generated_types::{
         WalOpBatch as ProtoWalOpBatch,
     },
 };
+use observability_deps::tracing::info;
 use parking_lot::Mutex;
 use prost::Message;
 use snafu::prelude::*;
@@ -210,6 +211,7 @@ impl Wal {
     /// mechanism is not supported.
     pub async fn new(root: impl Into<PathBuf>) -> Result<Arc<Self>> {
         let root = root.into();
+        info!(wal_dir=?root, "Initalizing Write Ahead Log (WAL)");
         tokio::fs::create_dir_all(&root)
             .await
             .context(UnableToCreateWalDirSnafu { path: &root })?;

@@ -20,7 +20,6 @@ pub async fn test_tracing_sql() {
                  {},tag1=A,tag2=C val=43i 123457",
                 table_name, table_name
             )),
-            Step::WaitForReadable,
             Step::Query {
                 sql: format!("select * from {}", table_name),
                 expected: vec![
@@ -66,7 +65,6 @@ pub async fn test_tracing_storage_api() {
                  {},tag1=A,tag2=C val=43i 123457",
                 table_name, table_name
             )),
-            Step::WaitForReadable,
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 let cluster = state.cluster();
                 let mut storage_client = cluster.querier_storage_client();
@@ -122,7 +120,6 @@ pub async fn test_tracing_create_trace() {
                  {},tag1=A,tag2=C val=43i 123457",
                 table_name, table_name
             )),
-            Step::WaitForReadable,
             Step::Query {
                 sql: format!("select * from {}", table_name),
                 expected: vec![

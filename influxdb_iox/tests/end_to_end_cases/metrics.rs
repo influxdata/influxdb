@@ -14,7 +14,6 @@ pub async fn test_metrics() {
         &mut cluster,
         vec![
             Step::WriteLineProtocol(lp),
-            Step::WaitForReadable,
             Step::VerifiedMetrics(Box::new(|_state, metrics| {
                 let metrics_lines: Vec<_> = metrics.trim().split('\n').collect();
 
