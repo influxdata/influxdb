@@ -61,6 +61,10 @@ use super::{
     round_split::all_now::AllNowRoundSplit,
     scratchpad::{ignore_writes_object_store::IgnoreWrites, prod::ProdScratchpadGen},
     skipped_compactions_source::catalog::CatalogSkippedCompactionsSource,
+    target_level::{
+        hot_cold::HotColdTargetLevelDetection, naive::NaiveTargetLevelDetection,
+        TargetLevelDetection,
+    },
     Components,
 };
 
@@ -235,6 +239,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             Arc::clone(config.parquet_store_scratchpad.object_store()),
             scratchpad_store_output,
         )),
+        target_level_detection: version_specific_target_level_detection(config),
     })
 }
 
@@ -277,5 +282,12 @@ fn version_specific_partition_filters(config: &Config) -> Vec<Arc<dyn PartitionF
                 )),
             ]
         }
+    }
+}
+
+fn version_specific_target_level_detection(config: &Config) -> Arc<dyn TargetLevelDetection> {
+    match config.compact_version {
+        AlgoVersion::Naive => Arc::new(NaiveTargetLevelDetection::new()),
+        AlgoVersion::HotCold => Arc::new(HotColdTargetLevelDetection::new()),
     }
 }

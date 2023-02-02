@@ -252,7 +252,7 @@ async fn try_compact_partition(
             scratchpad_ctx.clean_from_scratchpad(&input_paths).await;
 
             // Update the catalog to reflect the newly created files, soft delete the compacted files and
-            // update the the upgraded files
+            // update the upgraded files
             let (created_files, upgraded_files) = update_catalog(
                 Arc::clone(&components),
                 partition_id,
@@ -304,13 +304,12 @@ struct CompactionPlan {
 ///
 fn buil_compaction_plan(
     files: Vec<ParquetFile>,
-    _components: Arc<Components>,
+    components: Arc<Components>,
 ) -> Result<CompactionPlan, DynError> {
-    // TODO : Detect target level to compact to
-    //    target = 1 if there are L0 files
-    //    target = 2 if there are L1 files but no L0 file
-    // let target_level = components.target_level_detection.detect(&branch);
-    let target_level = CompactionLevel::FileNonOverlapped;
+    // Detect target level to compact to
+    let target_level = components.target_level_detection.detect(&files);
+    assert!(target_level.is_some(), "No target level is detected");
+    let target_level = target_level.unwrap();
 
     // Split files into files_to_compact, files_to_upgrade, and files_to_keep
     //

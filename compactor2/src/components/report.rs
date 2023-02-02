@@ -92,6 +92,7 @@ pub fn log_components(components: &Components) {
         round_split,
         divide_initial,
         scratchpad_gen,
+        target_level_detection,
     } = components;
 
     info!(
@@ -110,6 +111,7 @@ pub fn log_components(components: &Components) {
         %round_split,
         %divide_initial,
         %scratchpad_gen,
+        %target_level_detection,
         "component setup",
     );
 }
