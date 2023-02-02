@@ -17,7 +17,7 @@ use crate::{
 };
 
 use super::{
-    combos::unique_partitions::unique_partitions,
+    combos::{throttle_partition::throttle_partition, unique_partitions::unique_partitions},
     commit::{
         catalog::CatalogCommit, logging::LoggingCommitWrapper, metrics::MetricsCommitWrapper,
         mock::MockCommit, Commit,
@@ -155,6 +155,13 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
 
     let (partitions_source, partition_done_sink) =
         unique_partitions(partitions_source, partition_done_sink);
+    let (partitions_source, commit, partition_done_sink) = throttle_partition(
+        partitions_source,
+        commit,
+        partition_done_sink,
+        Arc::clone(&config.time_provider),
+        Duration::from_secs(60),
+    );
 
     Arc::new(Components {
         // Note: Place "not empty" wrapper at the very last so that the logging and metric wrapper work even when there
