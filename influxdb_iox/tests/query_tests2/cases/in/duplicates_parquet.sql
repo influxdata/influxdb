@@ -1,10 +1,12 @@
 -- Test for predicate push down explains
 -- IOX_SETUP: OneMeasurementFourChunksWithDuplicatesParquetOnly
 
+-- IOX_COMPARE: sorted
+select time, state, city, min_temp, max_temp, area from h2o order by time, state, city;
+
 -- Plan with order by
 -- IOX_COMPARE: uuid
 explain select time, state, city, min_temp, max_temp, area from h2o order by time, state, city;
-
 
 -- plan without order by
 -- IOX_COMPARE: uuid

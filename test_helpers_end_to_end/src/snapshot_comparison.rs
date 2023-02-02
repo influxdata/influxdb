@@ -89,8 +89,9 @@ pub async fn run(
     })?;
 
     // Now, compare to expected results
-    let expected_data = fs::read_to_string(&expected_path)
-        .context(ReadingExpectedFileSnafu { path: &input_path })?;
+    let expected_data = fs::read_to_string(&expected_path).context(ReadingExpectedFileSnafu {
+        path: &expected_path,
+    })?;
     let expected_contents: Vec<_> = expected_data.lines().map(|s| s.to_string()).collect();
 
     if expected_contents != output {

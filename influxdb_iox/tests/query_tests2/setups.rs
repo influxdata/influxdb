@@ -367,6 +367,18 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
             ],
         ),
         (
+            "OneMeasurementWithTags",
+            vec![Step::WriteLineProtocol(
+                [
+                    "cpu,foo=me bar=1 10",
+                    "cpu,foo=you bar=2 20",
+                    "cpu,foo=me bar=1 30",
+                    "cpu,foo=me bar=1 40",
+                ]
+                .join("\n"),
+            )],
+        ),
+        (
             "PeriodsInNames",
             vec![Step::WriteLineProtocol(
                 [
@@ -1093,6 +1105,89 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                         "mm bar=6.0 1609459201000000015",
                         "mm bar=1.2 1609459201000000022",
                         "mm bar=2.8 1609459201000000031",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+            ],
+        ),
+        (
+            // Single measurement that has several different chunks with different (but
+            // compatible) schemas
+            "MultiChunkSchemaMerge",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "cpu,region=west user=23.2,system=5.0 100",
+                        "cpu,region=west user=21.0,system=6.0 150",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "cpu,region=east,host=foo user=23.2 100",
+                        "cpu,region=west,host=bar user=21.0 250",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+            ],
+        ),
+        (
+            "TwoMeasurementsUnsignedType",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        "restaurant,town=andover count=40000u 100",
+                        "restaurant,town=reading count=632u 120",
+                        "school,town=reading count=17u 150",
+                        "school,town=andover count=25u 160",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+            ],
+        ),
+        (
+            // This has two chunks with different tag/key sets for queries whose columns do not
+            // include keys
+            "OneMeasurementTwoChunksDifferentTagSet",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        // tag: state
+                        "h2o,state=MA temp=70.4 50",
+                        "h2o,state=MA other_temp=70.4 250",
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        // tag: city
+                        "h2o,city=Boston other_temp=72.4 350",
+                        "h2o,city=Boston temp=53.4,reading=51 50",
                     ]
                     .join("\n"),
                 ),

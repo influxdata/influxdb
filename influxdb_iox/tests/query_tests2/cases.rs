@@ -228,3 +228,75 @@ async fn two_chunks_missing_columns() {
     .run()
     .await;
 }
+
+#[tokio::test]
+async fn schema_merge() {
+    test_helpers::maybe_start_logging();
+
+    TestCase {
+        input: "cases/in/schema_merge.sql",
+        chunk_stage: ChunkStage::Ingester,
+    }
+    .run()
+    .await;
+}
+
+#[tokio::test]
+async fn restaurant() {
+    test_helpers::maybe_start_logging();
+
+    TestCase {
+        input: "cases/in/restaurant.sql",
+        chunk_stage: ChunkStage::All,
+    }
+    .run()
+    .await;
+}
+
+#[tokio::test]
+async fn union_all() {
+    test_helpers::maybe_start_logging();
+
+    TestCase {
+        input: "cases/in/union_all.sql",
+        chunk_stage: ChunkStage::All,
+    }
+    .run()
+    .await;
+}
+
+#[tokio::test]
+async fn aggregates() {
+    test_helpers::maybe_start_logging();
+
+    TestCase {
+        input: "cases/in/aggregates.sql",
+        chunk_stage: ChunkStage::All,
+    }
+    .run()
+    .await;
+}
+
+#[tokio::test]
+async fn aggregates_with_nulls() {
+    test_helpers::maybe_start_logging();
+
+    TestCase {
+        input: "cases/in/aggregates_with_nulls.sql",
+        chunk_stage: ChunkStage::Ingester,
+    }
+    .run()
+    .await;
+}
+
+#[tokio::test]
+async fn different_tag_sets() {
+    test_helpers::maybe_start_logging();
+
+    TestCase {
+        input: "cases/in/different_tag_sets.sql",
+        chunk_stage: ChunkStage::Ingester,
+    }
+    .run()
+    .await;
+}
