@@ -113,6 +113,11 @@ func (w *writer) Write(data []byte, attempts int) (backoff time.Duration, err er
 	res, postWriteErr := PostWrite(ctx, conf, data, w.clientTimeout)
 	res, msg, ok := normalizeResponse(res, postWriteErr)
 	if !ok {
+		// Update Response info:
+		if err := w.configStore.UpdateResponseInfo(ctx, w.replicationID, res.StatusCode, msg); err != nil {
+			w.logger.Debug("failed to update config store with latest remote write response info", zap.Error(err))
+			return w.backoff(attempts), err
+		}
 		// bail out
 		return w.backoff(attempts), postWriteErr
 	}

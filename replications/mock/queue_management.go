@@ -120,6 +120,21 @@ func (mr *MockDurableQueueManagerMockRecorder) InitializeQueue(arg0, arg1, arg2,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitializeQueue", reflect.TypeOf((*MockDurableQueueManager)(nil).InitializeQueue), arg0, arg1, arg2, arg3, arg4)
 }
 
+// RemainingQueueSizes mocks base method.
+func (m *MockDurableQueueManager) RemainingQueueSizes(arg0 []platform.ID) (map[platform.ID]int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemainingQueueSizes", arg0)
+	ret0, _ := ret[0].(map[platform.ID]int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RemainingQueueSizes indicates an expected call of RemainingQueueSizes.
+func (mr *MockDurableQueueManagerMockRecorder) RemainingQueueSizes(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemainingQueueSizes", reflect.TypeOf((*MockDurableQueueManager)(nil).RemainingQueueSizes), arg0)
+}
+
 // StartReplicationQueues mocks base method.
 func (m *MockDurableQueueManager) StartReplicationQueues(arg0 map[platform.ID]*influxdb.TrackedReplication) error {
 	m.ctrl.T.Helper()

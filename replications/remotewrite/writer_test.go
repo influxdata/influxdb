@@ -80,10 +80,9 @@ func TestWrite(t *testing.T) {
 		testConfig := &influxdb.ReplicationHTTPConfig{
 			RemoteURL: "not a good URL",
 		}
-
 		w, configStore, _ := testWriter(t)
-
 		configStore.EXPECT().GetFullHTTPConfig(gomock.Any(), testID).Return(testConfig, nil)
+		configStore.EXPECT().UpdateResponseInfo(gomock.Any(), testID, int(0), gomock.Any())
 		_, actualErr := w.Write([]byte{}, 1)
 		require.Error(t, actualErr)
 	})

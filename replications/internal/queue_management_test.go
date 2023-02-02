@@ -417,6 +417,11 @@ func TestEnqueueData(t *testing.T) {
 	require.NoError(t, err)
 	// Empty queues are 8 bytes for the footer.
 	require.Equal(t, map[platform.ID]int64{id1: 8}, sizes)
+	// Remaining queue should initially be empty:
+	rsizes, err := qm.RemainingQueueSizes([]platform.ID{id1})
+	require.NoError(t, err)
+	// Empty queue = 0 bytes:
+	require.Equal(t, map[platform.ID]int64{id1: 0}, rsizes)
 
 	data := "some fake data"
 
@@ -430,6 +435,11 @@ func TestEnqueueData(t *testing.T) {
 	sizes, err = qm.CurrentQueueSizes([]platform.ID{id1})
 	require.NoError(t, err)
 	require.Greater(t, sizes[id1], int64(8))
+	rsizes, err = qm.RemainingQueueSizes([]platform.ID{id1})
+	require.NoError(t, err)
+	require.Greater(t, rsizes[id1], int64(0))
+	// Difference between disk size and queue should only be footer size
+	require.Equal(t, sizes[id1]-rsizes[id1], int64(8))
 
 	written, err := qm.replicationQueues[id1].queue.Current()
 	require.NoError(t, err)
@@ -481,8 +491,17 @@ func TestSendWrite(t *testing.T) {
 	require.True(t, scan.Next())
 	require.Equal(t, []byte(points[pointIndex]), scan.Bytes())
 	require.NoError(t, scan.Err())
+	// Initial Queue size should be size of data + footer
+	rsizesI, err := qm.RemainingQueueSizes([]platform.ID{id1})
+	require.NoError(t, err)
+	require.Equal(t, rsizesI[id1], int64(8+len(points[pointIndex])))
 	// Send the write to the "remote" with a success
 	rq.SendWrite()
+	// Queue becomes empty after write:
+	rsizesJ, err := qm.RemainingQueueSizes([]platform.ID{id1})
+	require.NoError(t, err)
+	require.Equal(t, rsizesJ[id1], int64(0))
+
 	// Make sure the data is no longer in the queue
 	_, err = rq.queue.NewScanner()
 	require.Equal(t, io.EOF, err)
@@ -496,9 +515,15 @@ func TestSendWrite(t *testing.T) {
 	require.True(t, scan.Next())
 	require.Equal(t, []byte(points[pointIndex]), scan.Bytes())
 	require.NoError(t, scan.Err())
+	rsizesI, err = qm.RemainingQueueSizes([]platform.ID{id1})
+	require.NoError(t, err)
 	// Send the write to the "remote" with a FAILURE
 	shouldFailThisWrite = true
 	rq.SendWrite()
+	// Queue size should not have decreased if write has failed:
+	rsizesJ, err = qm.RemainingQueueSizes([]platform.ID{id1})
+	require.NoError(t, err)
+	require.Equal(t, rsizesJ[id1], rsizesI[id1])
 	// Make sure the data is still in the queue
 	scan, err = rq.queue.NewScanner()
 	require.NoError(t, err)
@@ -508,6 +533,11 @@ func TestSendWrite(t *testing.T) {
 	// Send the write to the "remote" again, with a SUCCESS
 	shouldFailThisWrite = false
 	rq.SendWrite()
+	// Queue Becomes empty after a successful write
+	rsizesJ, err = qm.RemainingQueueSizes([]platform.ID{id1})
+	require.NoError(t, err)
+	require.Equal(t, rsizesJ[id1], int64(0))
+
 	// Make sure the data is no longer in the queue
 	_, err = rq.queue.NewScanner()
 	require.Equal(t, io.EOF, err)
