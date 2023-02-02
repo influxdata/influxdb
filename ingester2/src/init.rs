@@ -320,9 +320,10 @@ where
     let wal = Wal::new(wal_directory).await.map_err(InitError::WalInit)?;
 
     // Replay the WAL log files, if any.
-    let max_sequence_number = wal_replay::replay(&wal, &buffer, Arc::clone(&persist_handle))
-        .await
-        .map_err(|e| InitError::WalReplay(e.into()))?;
+    let max_sequence_number =
+        wal_replay::replay(&wal, &buffer, Arc::clone(&persist_handle), &metrics)
+            .await
+            .map_err(|e| InitError::WalReplay(e.into()))?;
 
     // Build the chain of DmlSink that forms the write path.
     let write_path = DmlSinkInstrumentation::new(

@@ -64,9 +64,14 @@ fn wal_replay_bench(c: &mut Criterion) {
                 let persist = ingester2::persist::queue::benches::MockPersistQueue::default();
 
                 // Replay the wal into the NOP.
-                ingester2::benches::replay(&wal, &sink, Arc::new(persist))
-                    .await
-                    .expect("WAL replay error");
+                ingester2::benches::replay(
+                    &wal,
+                    &sink,
+                    Arc::new(persist),
+                    &metric::Registry::default(),
+                )
+                .await
+                .expect("WAL replay error");
             },
             // Use the WAL for one test invocation only, and re-create a new one
             // for the next iteration.
