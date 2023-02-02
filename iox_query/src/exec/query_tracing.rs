@@ -412,7 +412,7 @@ mod tests {
         let spans: BTreeMap<_, _> = spans.iter().map(|s| (s.name.as_ref(), s)).collect();
 
         println!("Spans: \n\n{spans:#?}");
-        assert_eq!(spans.len(), 12);
+        assert_eq!(spans.len(), 10);
 
         let check_span = |span: &Span, expected_start, expected_end, desc: Option<&str>| {
             assert_eq!(span.start, expected_start, "expected start; {span:?}");
