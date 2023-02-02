@@ -39,7 +39,7 @@ ENV CURL_FLAGS="--proto =https --tlsv1.2 -sSf"
 # Install InfluxDB 2.0 OSS to enable integration tests of the influxdb2_client crate
 ENV INFLUXDB2_VERSION=2.0.4
 ENV INFLUXDB2_DOWNLOAD_BASE="https://dl.influxdata.com/influxdb/releases"
-RUN curl ${CURL_FLAGS} https://repos.influxdata.com/influxdb2.key | gpg --import - \
+RUN curl ${CURL_FLAGS} https://repos.influxdata.com/influxdata-archive_compat.key | gpg --import - \
     && curl ${CURL_FLAGS} -o influxdb2.tar.gz ${INFLUXDB2_DOWNLOAD_BASE}/influxdb2-${INFLUXDB2_VERSION}-linux-amd64.tar.gz \
     && curl ${CURL_FLAGS} -O ${INFLUXDB2_DOWNLOAD_BASE}/influxdb2-${INFLUXDB2_VERSION}-linux-amd64.tar.gz.asc \
     && gpg --verify influxdb2-${INFLUXDB2_VERSION}-linux-amd64.tar.gz.asc influxdb2.tar.gz \
