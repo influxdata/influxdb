@@ -79,19 +79,19 @@ async fn compact_partition(
     scratchpad.clean().await;
 }
 
-/// Main function to compact files of a single partitions.
+/// Main function to compact files of a single partition.
 ///
-/// Output: The output is one of the stop conditions of the loop
-///   . Version 1:
-///      - One L0 file (no need to compact it)
-///      - One or many L1 files. The size of each file is estimated to be under a
-///        config max_desired_file_size
-///   . Version 2:
-///      - One file
-///      - All files are L2
-///      - A combination of L2s and a few small L1s
-///        This is the middle stage when we suspect there are more coming L0s to get compacted
-///        with L1s before they are large enough to get compacted with other L2s and into L2s
+/// Input: any files in the partitions (L0s, L1s, L2s)
+/// Output:
+/// 1. No overlapped  L0 files
+/// 2. Up to N non-overlapped L1 and L2 files,  subject to  the total size of the files.
+///
+/// N: config max_number_of_files
+///
+/// Note that since individual files also have a maximum size limit, the
+/// actual number of files can be more than  N.  Also since the Parquet format
+/// features high and variable compression (page splits, RLE, zstd compression),
+/// splits are based on estimated output file sizes which may deviate from actual file sizes
 ///
 /// Algorithms
 ///
