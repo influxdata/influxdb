@@ -179,44 +179,41 @@ impl Connections {
             .clone()
     }
 
-    /// (re)establish channels to all gRPC services that were started
-    /// with the specified test config
+    /// (re)establish channels to all gRPC services that were started with the specified test config
     async fn reconnect(&mut self, test_config: &TestConfig) -> Result<(), String> {
         let server_type = test_config.server_type();
 
         self.router_grpc_connection = match server_type {
-            ServerType::AllInOne | ServerType::Router | ServerType::Router2 => {
+            ServerType::AllInOne | ServerType::Router2 => {
                 let client_base = test_config.addrs().router_grpc_api().client_base();
                 Some(
                     grpc_channel(test_config, client_base.as_ref())
                         .await
-                        .map_err(|e| format!("Can not connect to router at {client_base}: {e}"))?,
+                        .map_err(|e| format!("Cannot connect to router at {client_base}: {e}"))?,
                 )
             }
             _ => None,
         };
 
         self.ingester_grpc_connection = match server_type {
-            ServerType::AllInOne | ServerType::Ingester | ServerType::Ingester2 => {
+            ServerType::AllInOne | ServerType::Ingester2 => {
                 let client_base = test_config.addrs().ingester_grpc_api().client_base();
                 Some(
                     grpc_channel(test_config, client_base.as_ref())
                         .await
-                        .map_err(|e| {
-                            format!("Can not connect to ingester at {client_base}: {e}")
-                        })?,
+                        .map_err(|e| format!("Cannot connect to ingester at {client_base}: {e}"))?,
                 )
             }
             _ => None,
         };
 
         self.querier_grpc_connection = match server_type {
-            ServerType::AllInOne | ServerType::Querier | ServerType::Querier2 => {
+            ServerType::AllInOne | ServerType::Querier2 => {
                 let client_base = test_config.addrs().querier_grpc_api().client_base();
                 Some(
                     grpc_channel(test_config, client_base.as_ref())
                         .await
-                        .map_err(|e| format!("Can not connect to querier at {client_base}: {e}"))?,
+                        .map_err(|e| format!("Cannot connect to querier at {client_base}: {e}"))?,
                 )
             }
             _ => None,
@@ -479,13 +476,13 @@ impl TestServer {
             }
 
             match server_type {
-                ServerType::Compactor | ServerType::Compactor2 => {
+                ServerType::Compactor2 => {
                     unimplemented!(
                         "Don't use a long-running compactor and gRPC in e2e tests; use \
                         `influxdb_iox compactor run-once` instead"
                     );
                 }
-                ServerType::Router | ServerType::Router2 => {
+                ServerType::Router2 => {
                     if check_catalog_service_health(
                         server_type,
                         connections.router_grpc_connection(),
@@ -495,7 +492,7 @@ impl TestServer {
                         return;
                     }
                 }
-                ServerType::Ingester | ServerType::Ingester2 => {
+                ServerType::Ingester2 => {
                     if check_arrow_service_health(
                         server_type,
                         connections.ingester_grpc_connection(),
@@ -505,7 +502,7 @@ impl TestServer {
                         return;
                     }
                 }
-                ServerType::Querier | ServerType::Querier2 => {
+                ServerType::Querier2 => {
                     if check_arrow_service_health(
                         server_type,
                         connections.querier_grpc_connection(),
