@@ -6,8 +6,6 @@
     clippy::use_self,
     clippy::clone_on_ref_ptr
 )]
-// TEMP until everything is fleshed out
-#![allow(dead_code)]
 
 //! # WAL
 //!
@@ -480,6 +478,7 @@ pub struct WriteSummary {
     /// Which segment file this entry was written to
     pub segment_id: SegmentId,
     /// Checksum for the compressed data written to segment
+    #[allow(dead_code)]
     checksum: u32,
 }
 
