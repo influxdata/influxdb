@@ -13,9 +13,9 @@
 //! ```
 //! Possibly helpful commands:
 //!   # See diff
-//!   diff -du "cases/in/pushdown.expected" "cases/out/pushdown.out"
+//!   diff -du "cases/in/pushdown.sql.expected" "cases/out/pushdown.sql.out"
 //!   # Update expected
-//!   cp -f "cases/in/pushdown.out" "cases/out/pushdown.expected"
+//!   cp -f "cases/in/pushdown.sql.out" "cases/out/pushdown.sql.expected"
 //! ```
 //!
 //! # Cookbook: Adding a new test scenario
@@ -299,4 +299,20 @@ async fn different_tag_sets() {
     }
     .run()
     .await;
+}
+
+mod influxql {
+    use super::*;
+
+    #[tokio::test]
+    async fn issue_6112() {
+        test_helpers::maybe_start_logging();
+
+        TestCase {
+            input: "cases/in/issue_6112.influxql",
+            chunk_stage: ChunkStage::All,
+        }
+        .run()
+        .await;
+    }
 }

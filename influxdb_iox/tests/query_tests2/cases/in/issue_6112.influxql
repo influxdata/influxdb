@@ -1,0 +1,123 @@
+-- Query tests derived from https://github.com/influxdata/influxdb_iox/issues/6112
+-- IOX_SETUP: InfluxQLSelectSupport
+
+--
+-- Single measurement queries
+--
+
+-- Projection wildcard, all tags and fields
+-- IOX_COMPARE: sorted
+SELECT * FROM m0;
+
+-- Projection wildcard, only tags
+-- IOX_COMPARE: sorted
+SELECT *::tag, f64 FROM m0;
+
+-- Projection wildcard, only fields
+-- IOX_COMPARE: sorted
+SELECT *::field FROM m0;
+
+-- Projection regex, mixture of tags and fields
+-- IOX_COMPARE: sorted
+SELECT /64|tag0/ FROM m0;
+
+-- Projection specific tags and fields
+-- IOX_COMPARE: sorted
+SELECT f64, tag0 FROM m0;
+
+-- Explicitly select time column
+-- IOX_COMPARE: sorted
+SELECT f64, tag0, time FROM m0;
+
+-- Validate some math functions
+-- IOX_COMPARE: sorted
+SELECT f64, floor(f64), ceil(f64) FROM m0;
+
+-- Validate all scalar functions
+-- -- IOX_COMPARE: sorted
+-- TODO(sgc): log expects two arguments
+-- TODO(sgc): asin and acos should cast NaN to NULL
+-- SELECT f64, abs(f64), sin(f64), cos(f64), tan(f64),
+--        asin(f64), acos(f64), atan(f64), atan2(f64, 1),
+--        exp(f64), log(f64), ln(f64), log2(f64),
+--        log10(f64), sqrt(f64), pow(f64, 2), floor(f64),
+--        ceil(f64), round(f64)
+-- FROM m0 LIMIT 1;
+
+-- arithmetic operators
+-- IOX_COMPARE: sorted
+SELECT f64, f64 * 2, i64, i64 + i64 FROM m0;
+
+-- bitwise operators
+-- IOX_COMPARE: sorted
+SELECT i64, i64 & 1 FROM m0;
+
+-- Automatic type coercion integer → float
+-- IOX_COMPARE: sorted
+SELECT f64 + i64 FROM m0;
+
+
+-- Type cast postfix operator
+-- -- IOX_COMPARE: sorted
+-- TODO(sgc): cast operator not implemented
+-- SELECT f64, f64::integer FROM m0;
+
+-- Column alias behaviour
+-- IOX_COMPARE: sorted
+SELECT f64 AS f64_2, f64, f64, f64 FROM m0 LIMIT 1;
+
+--
+-- WHERE clause
+--
+
+-- Single tag
+-- IOX_COMPARE: sorted
+SELECT tag0, f64 FROM m0 WHERE tag0 = 'val00';
+
+-- IOX_COMPARE: sorted
+SELECT tag0, f64 FROM m0 WHERE tag0 =~ /^val0(1|2)/;
+
+-- Conjunction (AND)
+-- IOX_COMPARE: sorted
+SELECT /tag(0|1)/, f64 FROM m0 WHERE tag0 = 'val00' AND tag1 = 'val10';
+
+-- Disjunction (OR)
+-- IOX_COMPARE: sorted
+SELECT /tag(0|1)/, f64 FROM m0 WHERE tag0 = 'val00' OR tag1 = 'val10';
+
+-- arithmetic
+-- IOX_COMPARE: sorted
+SELECT f64 FROM m0 WHERE f64 > 10 + 10;
+
+-- bitwise
+-- IOX_COMPARE: sorted
+SELECT i64 FROM m0 WHERE i64 & 1 = 0;
+
+-- time bounds
+
+-- timestamp format %Y-%M-%D
+-- IOX_COMPARE: sorted
+SELECT i64 FROM m0 WHERE time > '2022-10-31';
+
+-- timestamp format %Y-%M-%D %h:%m:%s
+-- IOX_COMPARE: sorted
+SELECT i64 FROM m0 WHERE time > '2022-10-31 02:00:10';
+
+-- now() and duration
+-- NOTE: 100000d is > 270 years, so this test should be ok for a while.
+--       However, if this test is still in use in 270 years and it starts failing,
+--       try increasing the number of days 😂
+-- IOX_COMPARE: sorted
+SELECT i64 FROM m0 WHERE time > now() - 100000d;
+
+-- NOT NULL test
+-- WHERE tag1 != '' is the equivalent to tag1 IS NOT NULL
+-- TODO(sgc): This is working, but likely by accident
+-- IOX_COMPARE: sorted
+SELECT tag1, f64 FROM m0 WHERE tag1 != '';
+
+-- NULL test
+-- WHERE tag1 = '' is the equivalent to tag1 IS NULL
+-- TODO(sgc): Not working, as expected
+-- -- IOX_COMPARE: sorted
+-- SELECT tag1, f64 FROM m0 WHERE tag1 = '';
