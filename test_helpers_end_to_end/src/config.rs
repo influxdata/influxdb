@@ -1,5 +1,4 @@
 use crate::{addrs::BindAddresses, ServerType, UdpCapture};
-use data_types::ShardIndex;
 use http::{header::HeaderName, HeaderValue};
 use rand::Rng;
 use std::{collections::HashMap, sync::Arc};
@@ -23,9 +22,6 @@ pub struct TestConfig {
     /// Catalog schema name
     catalog_schema_name: String,
 
-    /// Write buffer directory, if needed
-    write_buffer_dir: Option<Arc<TempDir>>,
-
     /// Object store directory, if needed.
     object_store_dir: Option<Arc<TempDir>>,
 
@@ -38,7 +34,7 @@ pub struct TestConfig {
 
 impl TestConfig {
     /// Create a new TestConfig. Tests should use one of the specific
-    /// configuration setup below, such as [new_router](Self::new_router).
+    /// configuration setup below, such as [new_router2](Self::new_router2).
     fn new(
         server_type: ServerType,
         dsn: Option<String>,
@@ -50,19 +46,10 @@ impl TestConfig {
             server_type,
             dsn,
             catalog_schema_name: catalog_schema_name.into(),
-            write_buffer_dir: None,
             object_store_dir: None,
             wal_dir: None,
             addrs: Arc::new(BindAddresses::default()),
         }
-    }
-
-    /// Create a minimal router configuration
-    pub fn new_router(dsn: impl Into<String>) -> Self {
-        let dsn = Some(dsn.into());
-        Self::new(ServerType::Router, dsn, random_catalog_schema_name())
-            .with_new_write_buffer()
-            .with_new_object_store()
     }
 
     /// Create a minimal router2 configuration sharing configuration with the ingester2 config
@@ -86,35 +73,6 @@ impl TestConfig {
         )
     }
 
-    /// Create a minimal ingester configuration, using the dsn and
-    /// write buffer configuration from other
-    pub fn new_ingester(other: &TestConfig) -> Self {
-        Self::new(
-            ServerType::Ingester,
-            other.dsn().to_owned(),
-            other.catalog_schema_name(),
-        )
-        .with_existing_write_buffer(other)
-        .with_existing_object_store(other)
-        .with_default_ingester_options()
-    }
-
-    /// Create a minimal ingester configuration, using the dsn and write buffer configuration from
-    /// `other`. Set the persistence options such that it will likely never persist, to be able to
-    /// test when data only exists in the ingester's memory.
-    pub fn new_ingester_never_persist(other: &TestConfig) -> Self {
-        Self::new(
-            ServerType::Ingester,
-            other.dsn().to_owned(),
-            other.catalog_schema_name(),
-        )
-        .with_existing_write_buffer(other)
-        .with_existing_object_store(other)
-        .with_default_ingester_options()
-        // No test writes this much data, so with this threshold, the ingester will never persist.
-        .with_ingester_persist_memory_threshold(1_000_000)
-    }
-
     /// Create a minimal ingester2 configuration, using the dsn configuration specified. Set the
     /// persistence options such that it will persist as quickly as possible.
     pub fn new_ingester2(dsn: impl Into<String>) -> Self {
@@ -122,7 +80,6 @@ impl TestConfig {
         Self::new(ServerType::Ingester2, dsn, random_catalog_schema_name())
             .with_new_object_store()
             .with_new_wal()
-            .with_default_ingester_options()
             .with_env("INFLUXDB_IOX_WAL_ROTATION_PERIOD_SECONDS", "1")
     }
 
@@ -134,20 +91,8 @@ impl TestConfig {
         Self::new(ServerType::Ingester2, dsn, random_catalog_schema_name())
             .with_new_object_store()
             .with_new_wal()
-            .with_default_ingester_options()
             // I didn't run my tests for a day, because that would be too long
             .with_env("INFLUXDB_IOX_WAL_ROTATION_PERIOD_SECONDS", "86400")
-    }
-
-    /// Create a minimal querier configuration from the specified
-    /// ingester configuration, using the same dsn and object store,
-    /// and pointing at the specified ingester
-    pub fn new_querier(ingester_config: &TestConfig) -> Self {
-        assert_eq!(ingester_config.server_type(), ServerType::Ingester);
-
-        Self::new_querier_without_ingester(ingester_config)
-            // Configure to talk with the ingester
-            .with_ingester_mapping(ingester_config.ingester_base().as_ref())
     }
 
     /// Create a minimal querier2 configuration from the specified ingester2 configuration, using
@@ -161,18 +106,6 @@ impl TestConfig {
         )
     }
 
-    /// Create a minimal compactor configuration, using the dsn
-    /// configuration from other
-    pub fn new_compactor(other: &TestConfig) -> Self {
-        Self::new(
-            ServerType::Compactor,
-            other.dsn().to_owned(),
-            other.catalog_schema_name(),
-        )
-        .with_existing_object_store(other)
-        .with_default_compactor_options()
-    }
-
     /// Create a minimal compactor configuration, using the dsn configuration from other
     pub fn new_compactor2(other: &TestConfig) -> Self {
         Self::new(
@@ -181,21 +114,6 @@ impl TestConfig {
             other.catalog_schema_name(),
         )
         .with_existing_object_store(other)
-        .with_default_compactor_options()
-    }
-
-    /// Create a minimal querier configuration from the specified
-    /// ingester configuration, using the same dsn and object store
-    pub fn new_querier_without_ingester(ingester_config: &TestConfig) -> Self {
-        Self::new(
-            ServerType::Querier,
-            ingester_config.dsn().to_owned(),
-            ingester_config.catalog_schema_name(),
-        )
-        .with_existing_object_store(ingester_config)
-        .with_shard_to_ingesters_mapping("{\"ignoreAll\": true}")
-        // Hard code query threads so query plans do not vary based on environment
-        .with_env("INFLUXDB_IOX_NUM_QUERY_THREADS", "4")
     }
 
     /// Create a minimal querier2 configuration from the specified ingester2 configuration, using
@@ -214,9 +132,7 @@ impl TestConfig {
 
     /// Create a minimal all in one configuration
     pub fn new_all_in_one(dsn: Option<String>) -> Self {
-        Self::new(ServerType::AllInOne, dsn, random_catalog_schema_name())
-            .with_new_object_store()
-            .with_default_ingester_options()
+        Self::new(ServerType::AllInOne, dsn, random_catalog_schema_name()).with_new_object_store()
     }
 
     /// Configure tracing capture
@@ -248,64 +164,6 @@ impl TestConfig {
         &self.catalog_schema_name
     }
 
-    /// Adds default ingester options
-    fn with_default_ingester_options(self) -> Self {
-        self.with_env("INFLUXDB_IOX_PAUSE_INGEST_SIZE_BYTES", "2000000")
-            .with_ingester_persist_memory_threshold(10)
-            .with_shard(ShardIndex::new(0))
-    }
-
-    /// Sets memory threshold for ingester.
-    pub fn with_ingester_persist_memory_threshold(self, bytes: u64) -> Self {
-        self.with_env(
-            "INFLUXDB_IOX_PERSIST_MEMORY_THRESHOLD_BYTES",
-            bytes.to_string(),
-        )
-    }
-
-    /// Adds an ingester that ingests from the specified shard
-    pub fn with_shard(self, shard_index: ShardIndex) -> Self {
-        self.with_env(
-            "INFLUXDB_IOX_SHARD_INDEX_RANGE_START",
-            shard_index.to_string(),
-        )
-        .with_env(
-            "INFLUXDB_IOX_SHARD_INDEX_RANGE_END",
-            shard_index.to_string(),
-        )
-    }
-
-    /// Adds the ingester mapping configuration; shard index 0 is mapped to the specified
-    /// ingester address
-    pub fn with_ingester_mapping(self, ingester_address: &str) -> Self {
-        let mut mapping_json = String::from(
-            r#"{
-              "ingesters": {
-                "i1": {
-                  "addr": ""#,
-        );
-        mapping_json += ingester_address;
-        mapping_json += r#""}
-              },
-              "shards": {
-                "0": {
-                  "ingester": "i1"
-                }
-            }
-        }"#;
-
-        self.with_shard_to_ingesters_mapping(&mapping_json)
-    }
-
-    pub fn with_shard_to_ingesters_mapping(self, mapping_json: &str) -> Self {
-        self.with_env("INFLUXDB_IOX_SHARD_TO_INGESTERS", mapping_json)
-    }
-
-    /// Adds default compactor options
-    fn with_default_compactor_options(self) -> Self {
-        self.with_shard(ShardIndex::new(0))
-    }
-
     /// add a name=value environment variable when starting the server
     ///
     /// Should not be called directly, but instead all mapping to
@@ -324,7 +182,7 @@ impl TestConfig {
         let value = match other.env.get(&name) {
             Some(v) => v.clone(),
             None => panic!(
-                "Can not copy {} from existing config. Available values are: {:#?}",
+                "Cannot copy {} from existing config. Available values are: {:#?}",
                 name, other.env
             ),
         };
@@ -332,36 +190,8 @@ impl TestConfig {
         self.with_env(name, value)
     }
 
-    /// Configures a new write buffer with 1 shard
-    pub fn with_new_write_buffer(self) -> Self {
-        self.with_new_write_buffer_shards(1)
-    }
-
-    /// Configures a new write buffer with the specified number of shards
-    pub fn with_new_write_buffer_shards(mut self, n_shards: u64) -> Self {
-        let tmpdir = TempDir::new().expect("can not create tmp dir");
-        let write_buffer_string = tmpdir.path().display().to_string();
-        self.write_buffer_dir = Some(Arc::new(tmpdir));
-
-        self.with_env("INFLUXDB_IOX_WRITE_BUFFER_TYPE", "file")
-            .with_env(
-                "INFLUXDB_IOX_WRITE_BUFFER_AUTO_CREATE_TOPICS",
-                n_shards.to_string(),
-            )
-            .with_env("INFLUXDB_IOX_WRITE_BUFFER_ADDR", write_buffer_string)
-    }
-
-    /// Configures this TestConfig to use the same write buffer as other
-    pub fn with_existing_write_buffer(mut self, other: &TestConfig) -> Self {
-        // copy the the directory, if any
-        self.write_buffer_dir = other.write_buffer_dir.clone();
-        self.copy_env("INFLUXDB_IOX_WRITE_BUFFER_TYPE", other)
-            .copy_env("INFLUXDB_IOX_WRITE_BUFFER_AUTO_CREATE_TOPICS", other)
-            .copy_env("INFLUXDB_IOX_WRITE_BUFFER_ADDR", other)
-    }
-
-    // add a name=value http header to all client requests made to the server
-    pub fn with_client_header(mut self, name: impl AsRef<str>, value: impl AsRef<str>) -> Self {
+    /// add a name=value http header to all client requests made to the server
+    fn with_client_header(mut self, name: impl AsRef<str>, value: impl AsRef<str>) -> Self {
         self.client_headers.push((
             name.as_ref().parse().expect("valid header name"),
             value.as_ref().parse().expect("valid header value"),
@@ -370,7 +200,7 @@ impl TestConfig {
     }
 
     /// Configures a new WAL
-    pub fn with_new_wal(mut self) -> Self {
+    fn with_new_wal(mut self) -> Self {
         let tmpdir = TempDir::new().expect("cannot create tmp dir");
 
         let wal_string = tmpdir.path().display().to_string();
@@ -379,7 +209,7 @@ impl TestConfig {
     }
 
     /// Configures a new object store
-    pub fn with_new_object_store(mut self) -> Self {
+    fn with_new_object_store(mut self) -> Self {
         let tmpdir = TempDir::new().expect("cannot create tmp dir");
 
         let object_store_string = tmpdir.path().display().to_string();
@@ -389,34 +219,16 @@ impl TestConfig {
     }
 
     /// Configures this TestConfig to use the same object store as other
-    pub fn with_existing_object_store(mut self, other: &TestConfig) -> Self {
+    fn with_existing_object_store(mut self, other: &TestConfig) -> Self {
         // copy a reference to the temp dir, if any
         self.object_store_dir = other.object_store_dir.clone();
         self.copy_env("INFLUXDB_IOX_OBJECT_STORE", other)
             .copy_env("INFLUXDB_IOX_DB_DIR", other)
     }
 
-    /// Configures ingester to panic in flight `do_get` requests.
-    pub fn with_ingester_flight_do_get_panic(self, times: u64) -> Self {
-        self.with_env("INFLUXDB_IOX_FLIGHT_DO_GET_PANIC", times.to_string())
-    }
-
-    /// Configures querier->ingester connection circuit breaker threshold (number of consecutive errors)
-    pub fn with_querier_ingester_circuit_breaker_threshold(self, errors: u64) -> Self {
-        self.with_env(
-            "INFLUXDB_IOX_INGESTER_CIRCUIT_BREAKER_THRESHOLD",
-            errors.to_string(),
-        )
-    }
-
     /// Configure maximum per-table query bytes for the querier.
     pub fn with_querier_mem_pool_bytes(self, bytes: usize) -> Self {
         self.with_env("INFLUXDB_IOX_EXEC_MEM_POOL_BYTES", bytes.to_string())
-    }
-
-    /// Changes the log to JSON for easier parsing.
-    pub fn with_json_logs(self) -> Self {
-        self.with_env("LOG_FORMAT", "json")
     }
 
     /// Get the test config's server type.
@@ -444,7 +256,7 @@ impl TestConfig {
 
     /// return the base ingester gRPC address, such as
     /// `http://localhost:8082/`
-    pub fn ingester_base(&self) -> Arc<str> {
+    fn ingester_base(&self) -> Arc<str> {
         self.addrs().ingester_grpc_api().client_base()
     }
 }
