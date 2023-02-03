@@ -69,11 +69,11 @@ impl MiniCluster {
         }
     }
 
-    /// Create a new MiniCluster that shares the same underlying
-    /// servers but has a new unique namespace and set of connections
+    /// Create a new MiniCluster that shares the same underlying servers but has a new unique
+    /// namespace and set of connections
     ///
     /// Note this is an internal implementation -- please use
-    /// [`create_shared`](Self::create_shared), and [`new`](Self::new) to create new MiniClusters.
+    /// [`create_shared2`](Self::create_shared2) and [`new`](Self::new) to create new MiniClusters.
     fn new_from_fixtures(
         router: Option<ServerFixture>,
         ingester: Option<ServerFixture>,
@@ -96,48 +96,6 @@ impl MiniCluster {
             namespace,
             namespace_id: Default::default(),
         }
-    }
-
-    /// Create a "standard" shared MiniCluster that has a router, ingester,
-    /// querier (but no compactor as that should be run on-demand in tests)
-    ///
-    /// Note: Since the underlying server processes are shared across multiple
-    /// tests so all users of this MiniCluster should only modify
-    /// their namespace
-    pub async fn create_shared(database_url: String) -> Self {
-        let start = Instant::now();
-        let mut shared_servers = GLOBAL_SHARED_SERVERS.lock().await;
-        debug!(mutex_wait=?start.elapsed(), "creating standard cluster");
-
-        // try to reuse existing server processes
-        if let Some(shared) = shared_servers.take() {
-            if let Some(cluster) = shared.creatable_cluster().await {
-                debug!("Reusing existing cluster");
-
-                // Put the server back
-                *shared_servers = Some(shared);
-                let start = Instant::now();
-                // drop the lock prior to calling create() to allow
-                // others to proceed
-                std::mem::drop(shared_servers);
-                let new_self = cluster.create().await;
-                info!(
-                    total_wait=?start.elapsed(),
-                    "created new new mini cluster from existing cluster"
-                );
-                return new_self;
-            } else {
-                info!("some server proceses of previous cluster have already returned");
-            }
-        }
-
-        // Have to make a new one
-        info!("Create a new server");
-        let new_cluster = Self::create_non_shared_standard(database_url).await;
-
-        // Update the shared servers to point at the newly created server proesses
-        *shared_servers = Some(SharedServers::new(&new_cluster));
-        new_cluster
     }
 
     /// Create a "standard" shared MiniCluster that has a router, ingester, and querier (but no
@@ -262,11 +220,14 @@ impl MiniCluster {
             .with_compactor_config(compactor_config)
     }
 
-    /// Create a non-shared "version 2" "standard" MiniCluster that has a router, ingester, querier.
+    /// Create a non-shared "version 2" "standard" MiniCluster that has a router, ingester,
+    /// querier. Save config for a compactor, but the compactor should be run on-demand in tests
+    /// using `compactor run-once` rather than using `run compactor`.
     pub async fn create_non_shared2(database_url: String) -> Self {
         let ingester_config = TestConfig::new_ingester2(&database_url);
         let router_config = TestConfig::new_router2(&ingester_config);
         let querier_config = TestConfig::new_querier2(&ingester_config);
+        let compactor_config = TestConfig::new_compactor2(&ingester_config);
 
         // Set up the cluster  ====================================
         Self::new()
@@ -276,14 +237,18 @@ impl MiniCluster {
             .await
             .with_querier(querier_config)
             .await
+            .with_compactor_config(compactor_config)
     }
 
     /// Create a non-shared "version 2" MiniCluster that has a router, ingester set to essentially
-    /// never persist data (except on-demand), and querier.
+    /// never persist data (except on-demand), and querier. Save config for a compactor, but the
+    /// compactor should be run on-demand in tests using `compactor run-once` rather than using
+    /// `run compactor`.
     pub async fn create_non_shared2_never_persist(database_url: String) -> Self {
         let ingester_config = TestConfig::new_ingester2_never_persist(&database_url);
         let router_config = TestConfig::new_router2(&ingester_config);
         let querier_config = TestConfig::new_querier2(&ingester_config);
+        let compactor_config = TestConfig::new_compactor2(&ingester_config);
 
         // Set up the cluster  ====================================
         Self::new()
@@ -293,14 +258,15 @@ impl MiniCluster {
             .await
             .with_querier(querier_config)
             .await
+            .with_compactor_config(compactor_config)
     }
 
     /// Create an all-(minus compactor)-in-one server with the specified configuration
     pub async fn create_all_in_one(test_config: TestConfig) -> Self {
         Self::new()
-            .with_router(test_config.clone())
-            .await
             .with_ingester(test_config.clone())
+            .await
+            .with_router(test_config.clone())
             .await
             .with_querier(test_config.clone())
             .await
@@ -672,7 +638,6 @@ fn server_from_weak(server: Option<&Weak<TestServer>>) -> Option<Option<Arc<Test
     }
 }
 
-static GLOBAL_SHARED_SERVERS: Lazy<Mutex<Option<SharedServers>>> = Lazy::new(|| Mutex::new(None));
 // For the new server versions. `GLOBAL_SHARED_SERVERS` can be removed and this can be renamed
 // when the migration to router2/etc is complete.
 static GLOBAL_SHARED_SERVERS2: Lazy<Mutex<Option<SharedServers>>> = Lazy::new(|| Mutex::new(None));

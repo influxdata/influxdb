@@ -8,7 +8,7 @@ use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, Step, StepTes
 #[tokio::test]
 pub async fn test_panic() {
     let database_url = maybe_skip_integration!();
-    let mut cluster = MiniCluster::create_shared(database_url).await;
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
 
     StepTest::new(
         &mut cluster,

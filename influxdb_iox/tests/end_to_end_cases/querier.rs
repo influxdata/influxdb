@@ -1,5 +1,4 @@
 pub(crate) mod influxrpc;
-mod multi_ingester;
 
 use arrow::datatypes::{DataType, SchemaRef};
 use arrow_flight::{

@@ -244,16 +244,19 @@ async fn remote_partition_and_get_from_store_and_pull() {
     // The test below assumes a specific partition id, so use a
     // non-shared one here so concurrent tests don't interfere with
     // each other
-    let mut cluster = MiniCluster::create_non_shared_standard(database_url).await;
+    let mut cluster = MiniCluster::create_non_shared2(database_url).await;
 
     StepTest::new(
         &mut cluster,
         vec![
+            Step::RecordNumParquetFiles,
             Step::WriteLineProtocol(String::from(
                 "my_awesome_table,tag1=A,tag2=B val=42i 123456",
             )),
             // wait for partitions to be persisted
-            Step::WaitForPersisted,
+            Step::WaitForPersisted2 {
+                expected_increase: 1,
+            },
             // Run the 'remote partition' command
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {

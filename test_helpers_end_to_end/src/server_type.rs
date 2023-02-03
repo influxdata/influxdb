@@ -10,6 +10,7 @@ pub enum ServerType {
     Querier,
     Querier2,
     Compactor,
+    Compactor2,
 }
 
 impl ServerType {
@@ -24,6 +25,7 @@ impl ServerType {
             Self::Querier => "querier",
             Self::Querier2 => "querier",
             Self::Compactor => "compactor",
+            Self::Compactor2 => "compactor2",
         }
     }
 }
@@ -145,6 +147,17 @@ fn addr_envs(server_type: ServerType, addrs: &BindAddresses) -> Vec<(&'static st
                 "INFLUXDB_IOX_GRPC_BIND_ADDR",
                 addrs.compactor_grpc_api().bind_addr().to_string(),
             ),
+        ],
+        ServerType::Compactor2 => vec![
+            (
+                "INFLUXDB_IOX_BIND_ADDR",
+                addrs.router_http_api().bind_addr().to_string(),
+            ),
+            (
+                "INFLUXDB_IOX_GRPC_BIND_ADDR",
+                addrs.compactor_grpc_api().bind_addr().to_string(),
+            ),
+            ("INFLUXDB_IOX_RPC_MODE", "2".to_string()),
         ],
     }
 }

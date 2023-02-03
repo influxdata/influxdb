@@ -479,7 +479,7 @@ impl TestServer {
             }
 
             match server_type {
-                ServerType::Compactor => {
+                ServerType::Compactor | ServerType::Compactor2 => {
                     unimplemented!(
                         "Don't use a long-running compactor and gRPC in e2e tests; use \
                         `influxdb_iox compactor run-once` instead"

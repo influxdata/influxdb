@@ -173,6 +173,17 @@ impl TestConfig {
         .with_default_compactor_options()
     }
 
+    /// Create a minimal compactor configuration, using the dsn configuration from other
+    pub fn new_compactor2(other: &TestConfig) -> Self {
+        Self::new(
+            ServerType::Compactor2,
+            other.dsn().to_owned(),
+            other.catalog_schema_name(),
+        )
+        .with_existing_object_store(other)
+        .with_default_compactor_options()
+    }
+
     /// Create a minimal querier configuration from the specified
     /// ingester configuration, using the same dsn and object store
     pub fn new_querier_without_ingester(ingester_config: &TestConfig) -> Self {
@@ -204,7 +215,6 @@ impl TestConfig {
     /// Create a minimal all in one configuration
     pub fn new_all_in_one(dsn: Option<String>) -> Self {
         Self::new(ServerType::AllInOne, dsn, random_catalog_schema_name())
-            .with_new_write_buffer()
             .with_new_object_store()
             .with_default_ingester_options()
     }
