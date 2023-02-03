@@ -430,7 +430,7 @@ impl Config {
             max_input_parquet_bytes_per_partition: 268_435_456, // 256 MB
             shard_count: None,
             shard_id: None,
-            compact_version: CompactorAlgoVersion::Naive,
+            compact_version: CompactorAlgoVersion::AllAtOnce,
         };
 
         let querier_config = QuerierConfig {
