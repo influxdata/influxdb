@@ -125,7 +125,10 @@ func (p Provider) WriterFor(ctx context.Context, conf influxdb.Config) (influxdb
 	// err will be set if we are not authorized, we don't care about the other return values.
 	_, _, err = authorizer.AuthorizeWrite(ctx, influxdb2.BucketsResourceType, bucketID, reqOrgID)
 	if err != nil {
-		return nil, err
+		return nil, &errors.Error{
+			Code: errors.EForbidden,
+			Msg:  "user not authorized to write",
+		}
 	}
 
 	return &localPointsWriter{
