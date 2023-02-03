@@ -98,14 +98,38 @@ pub async fn run(
         let expected_path = make_absolute(&expected_path);
         let output_path = make_absolute(&output_path);
 
-        println!("Expected output does not match actual output");
-        println!("  expected output in {:?}", expected_path);
-        println!("  actual output in {:?}", output_path);
-        println!("Possibly helpful commands:");
-        println!("  # See diff");
-        println!("  diff -du {:?} {:?}", expected_path, output_path);
-        println!("  # Update expected");
-        println!("  cp -f {:?} {:?}", output_path, expected_path);
+        if std::env::var("CI")
+            .map(|value| value == "true")
+            .unwrap_or(false)
+        {
+            // In CI, print out the contents because it's inconvenient to access the files and
+            // you're not going to update the files there.
+            println!("Expected output does not match actual output");
+            println!(
+                "Diff: \n\n{}",
+                String::from_utf8(
+                    std::process::Command::new("diff")
+                        .arg("-du")
+                        .arg(&expected_path)
+                        .arg(&output_path)
+                        .output()
+                        .unwrap()
+                        .stdout
+                )
+                .unwrap()
+            );
+        } else {
+            // When you're not in CI, print out instructions for analyzing the content or updating
+            // the snapshot.
+            println!("Expected output does not match actual output");
+            println!("  expected output in {expected_path:?}");
+            println!("  actual output in {output_path:?}");
+            println!("Possibly helpful commands:");
+            println!("  # See diff");
+            println!("  diff -du {expected_path:?} {output_path:?}");
+            println!("  # Update expected");
+            println!("  cp -f {output_path:?} {expected_path:?}");
+        }
 
         OutputMismatchSnafu {
             output_path,
@@ -191,7 +215,7 @@ async fn run_query(cluster: &MiniCluster, query: &Query) -> Result<Vec<String>> 
     if query.normalized_uuids() {
         let regex_uuid = Regex::new("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
             .expect("UUID regex");
-        let regex_dirs = Regex::new(r#"[0-9]+/[0-9]+/[0-9]+/[0-9+]"#).expect("directory regex");
+        let regex_dirs = Regex::new(r#"[0-9]+/[0-9]+/[0-9]+/[0-9]+"#).expect("directory regex");
 
         let mut seen: HashMap<String, u128> = HashMap::new();
         current_results = current_results
