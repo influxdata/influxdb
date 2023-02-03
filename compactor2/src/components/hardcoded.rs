@@ -28,7 +28,9 @@ use super::{
     file_filter::{and::AndFileFilter, level_range::LevelRangeFileFilter},
     files_filter::{chain::FilesFilterChain, per_file::PerFileFilesFilter},
     files_split::{
+        all_at_once_non_overlap_split::AllAtOnceNonOverlapSplit,
         all_at_once_target_level_split::AllAtOnceTargetLevelSplit,
+        target_level_non_overlap_split::TargetLevelNonOverlapSplit,
         target_level_target_level_split::TargetLevelTargetLevelSplit, FilesSplit,
     },
     id_only_partition_filter::{
@@ -246,6 +248,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         )),
         target_level_chooser: version_specific_target_level_chooser(config),
         target_level_split: version_specific_target_level_split(config),
+        non_overlap_split: version_specific_non_ovverlapping_split(config),
     })
 }
 
@@ -291,6 +294,7 @@ fn version_specific_partition_filters(config: &Config) -> Vec<Arc<dyn PartitionF
     }
 }
 
+// Choose the terget level to compact to
 fn version_specific_target_level_chooser(config: &Config) -> Arc<dyn TargetLevelChooser> {
     match config.compact_version {
         AlgoVersion::AllAtOnce => Arc::new(AllAtOnceTargetLevelChooser::new()),
@@ -300,9 +304,18 @@ fn version_specific_target_level_chooser(config: &Config) -> Arc<dyn TargetLevel
     }
 }
 
+// Split the files into `[<=target level]` and `[>target level]`
 fn version_specific_target_level_split(config: &Config) -> Arc<dyn FilesSplit> {
     match config.compact_version {
         AlgoVersion::AllAtOnce => Arc::new(AllAtOnceTargetLevelSplit::new()),
         AlgoVersion::TargetLevel => Arc::new(TargetLevelTargetLevelSplit::new()),
+    }
+}
+
+// Split the files into `[overlapping]` and `[non_overlapping]`
+fn version_specific_non_ovverlapping_split(config: &Config) -> Arc<dyn FilesSplit> {
+    match config.compact_version {
+        AlgoVersion::AllAtOnce => Arc::new(AllAtOnceNonOverlapSplit::new()),
+        AlgoVersion::TargetLevel => Arc::new(TargetLevelNonOverlapSplit::new()),
     }
 }

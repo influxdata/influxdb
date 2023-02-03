@@ -35,7 +35,9 @@ impl FilesSplit for TargetLevelTargetLevelSplit {
 #[cfg(test)]
 mod tests {
 
-    use crate::test_util::create_overlapped_files;
+    use crate::test_util::{
+        create_l0_files, create_l1_files, create_l2_files, create_overlapped_files,
+    };
 
     use super::*;
 
@@ -59,16 +61,7 @@ mod tests {
 
     #[test]
     fn test_apply_partial_empty_files_l0() {
-        // ------------------------------
-        // Create 8 files with all levels
-        let files = create_overlapped_files();
-        assert_eq!(files.len(), 8);
-        //
-        // Only keep files of CompactionLevel::Initial
-        let files = files
-            .into_iter()
-            .filter(|f| f.compaction_level == CompactionLevel::Initial)
-            .collect::<Vec<_>>();
+        let files = create_l0_files();
         assert_eq!(files.len(), 3);
 
         let split = TargetLevelTargetLevelSplit::new();
@@ -87,16 +80,7 @@ mod tests {
 
     #[test]
     fn test_apply_partial_empty_files_l1() {
-        // ------------------------------
-        // Create 8 files with all levels
-        let files = create_overlapped_files();
-        assert_eq!(files.len(), 8);
-        //
-        // Only keep files of CompactionLevel::FileNonOverlapped
-        let files = files
-            .into_iter()
-            .filter(|f| f.compaction_level == CompactionLevel::FileNonOverlapped)
-            .collect::<Vec<_>>();
+        let files = create_l1_files();
         assert_eq!(files.len(), 3);
 
         let split = TargetLevelTargetLevelSplit::new();
@@ -115,16 +99,7 @@ mod tests {
 
     #[test]
     fn test_apply_partial_empty_files_l2() {
-        // ------------------------------
-        // Create 8 files with all levels
-        let files = create_overlapped_files();
-        assert_eq!(files.len(), 8);
-        //
-        // Only keep files of CompactionLevel::Final
-        let files = files
-            .into_iter()
-            .filter(|f| f.compaction_level == CompactionLevel::Final)
-            .collect::<Vec<_>>();
+        let files = create_l2_files();
         assert_eq!(files.len(), 2);
 
         let split = TargetLevelTargetLevelSplit::new();
@@ -164,7 +139,6 @@ mod tests {
 
     #[test]
     fn test_apply_terget_level_l1() {
-        // ------------------------------
         // Test target level is FileNonOverlapped
         let files = create_overlapped_files();
         assert_eq!(files.len(), 8);
@@ -186,7 +160,6 @@ mod tests {
 
     #[test]
     fn test_apply_taget_level_l2() {
-        // ------------------------------
         // Test target level is Final
         let files = create_overlapped_files();
         assert_eq!(files.len(), 8);

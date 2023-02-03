@@ -94,6 +94,7 @@ pub fn log_components(components: &Components) {
         scratchpad_gen,
         target_level_chooser,
         target_level_split,
+        non_overlap_split,
     } = components;
 
     info!(
@@ -114,6 +115,7 @@ pub fn log_components(components: &Components) {
         %scratchpad_gen,
         %target_level_chooser,
         %target_level_split,
+        %non_overlap_split,
         "component setup",
     );
 }

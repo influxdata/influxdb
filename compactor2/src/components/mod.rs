@@ -54,4 +54,5 @@ pub struct Components {
     pub scratchpad_gen: Arc<dyn ScratchpadGen>,
     pub target_level_chooser: Arc<dyn TargetLevelChooser>,
     pub target_level_split: Arc<dyn files_split::FilesSplit>,
+    pub non_overlap_split: Arc<dyn files_split::FilesSplit>,
 }

@@ -57,7 +57,6 @@ mod tests {
 
     #[test]
     fn test_apply() {
-        // ------------------------------
         // Create 8 files with all levels
         let files = create_overlapped_files();
         assert_eq!(files.len(), 8);

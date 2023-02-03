@@ -323,18 +323,11 @@ fn buil_compaction_plan(
         .apply(files_to_compact, target_level);
 
     // To have efficient compaction performance, we do not need to compact eligible non-overlapped file
-    // Example:
-    //                |--L0.1--|             |--L0.2--|
-    //  |--L1.1--| |--L1.2--|    |--L1.3--|              |--L1.4--|
-    //
-    //  (L1.1, L1.3, L1.4) do not overlap with nay L0s but only (L1.1, L1.4) are eligible non-overlpped files.
-    //  (L1.2, L1.3) must be compacted with L0s to produce the right non-overlapping L1s
-    //
-    // TODO: Find eligible non-overlapped files
-    // The non-overlapped files are kept for next round of compaction
-    // let (non_overlapping_files, mut files_to_compact) = components.non_overlapped_split.apply(files_to_compact, target_level.prev());
-    let (non_overlapped_files, files_to_compact) = (vec![], files_to_compact);
-    files_to_keep.extend(non_overlapped_files);
+    // Find eligible non-overlapped files and keep for next round of compaction
+    let (files_to_compact, non_overlapping_files) = components
+        .non_overlap_split
+        .apply(files_to_compact, target_level);
+    files_to_keep.extend(non_overlapping_files);
 
     // Similarly, to avoid expensive compaction, we will upgrade eligible files
     // Example:
