@@ -16,7 +16,7 @@ async fn flightsql_adhoc_query() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared(database_url).await;
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -26,7 +26,6 @@ async fn flightsql_adhoc_query() {
                  {},tag1=A,tag2=C val=43i 123457",
                 table_name, table_name
             )),
-            Step::WaitForReadable,
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 async move {
                     let sql = format!("select * from {}", table_name);
@@ -72,7 +71,7 @@ async fn flightsql_adhoc_query_error() {
     let database_url = maybe_skip_integration!();
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared(database_url).await;
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -82,7 +81,6 @@ async fn flightsql_adhoc_query_error() {
                  foo,tag1=A,tag2=C val=43i 123457"
                     .to_string(),
             ),
-            Step::WaitForReadable,
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 async move {
                     let sql = String::from("select * from incorrect_table");
@@ -120,7 +118,7 @@ async fn flightsql_prepared_query() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared(database_url).await;
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -130,7 +128,6 @@ async fn flightsql_prepared_query() {
                  {},tag1=A,tag2=C val=43i 123457",
                 table_name, table_name
             )),
-            Step::WaitForReadable,
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 async move {
                     let sql = format!("select * from {}", table_name);
@@ -192,7 +189,7 @@ async fn flightsql_jdbc() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared(database_url).await;
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -202,7 +199,6 @@ async fn flightsql_jdbc() {
                  {},tag1=A,tag2=C val=43i 123457",
                 table_name, table_name
             )),
-            Step::WaitForReadable,
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 // satisfy the borrow checker
                 async move {

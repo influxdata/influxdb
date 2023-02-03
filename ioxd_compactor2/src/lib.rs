@@ -159,8 +159,8 @@ pub async fn create_compactor2_server_type(
     });
 
     let compact_version = match compactor_config.compact_version {
-        CompactorAlgoVersion::Naive => AlgoVersion::Naive,
-        CompactorAlgoVersion::HotCold => AlgoVersion::HotCold,
+        CompactorAlgoVersion::AllAtOnce => AlgoVersion::AllAtOnce,
+        CompactorAlgoVersion::TargetLevel => AlgoVersion::TargetLevel,
     };
 
     let compactor = Compactor2::start(Config {

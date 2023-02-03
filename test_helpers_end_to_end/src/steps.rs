@@ -1,3 +1,4 @@
+use crate::snapshot_comparison::Language;
 use crate::{
     check_flight_error, get_write_token, run_influxql, run_sql, snapshot_comparison,
     token_is_persisted, try_run_influxql, try_run_sql, wait_for_persisted, wait_for_readable,
@@ -225,6 +226,14 @@ pub enum Step {
         expected: Vec<&'static str>,
     },
 
+    /// Read the InfluxQL queries in the specified file and verify that the results match the expected
+    /// results in the corresponding expected file
+    InfluxQLQueryAndCompare {
+        input_path: PathBuf,
+        setup_name: String,
+        contents: String,
+    },
+
     /// Run an InfluxQL query that's expected to fail using the FlightSQL interface and verify that the
     /// request returns the expected error code and message
     InfluxQLExpectingError {
@@ -391,16 +400,20 @@ where
                     setup_name,
                     contents,
                 } => {
-                    info!("====Begin running queries in file {}", input_path.display());
+                    info!(
+                        "====Begin running SQL queries in file {}",
+                        input_path.display()
+                    );
                     snapshot_comparison::run(
                         state.cluster,
                         input_path.into(),
                         setup_name.into(),
                         contents.into(),
+                        Language::Sql,
                     )
                     .await
                     .unwrap();
-                    info!("====Done running queries");
+                    info!("====Done running SQL queries");
                 }
                 Step::QueryExpectingError {
                     sql,
@@ -444,6 +457,26 @@ where
                     .await;
                     assert_batches_sorted_eq!(expected, &batches);
                     info!("====Done running");
+                }
+                Step::InfluxQLQueryAndCompare {
+                    input_path,
+                    setup_name,
+                    contents,
+                } => {
+                    info!(
+                        "====Begin running InfluxQL queries in file {}",
+                        input_path.display()
+                    );
+                    snapshot_comparison::run(
+                        state.cluster,
+                        input_path.into(),
+                        setup_name.into(),
+                        contents.into(),
+                        Language::InfluxQL,
+                    )
+                    .await
+                    .unwrap();
+                    info!("====Done running InfluxQL queries");
                 }
                 Step::InfluxQLExpectingError {
                     query,

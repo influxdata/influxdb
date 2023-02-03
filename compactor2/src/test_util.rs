@@ -290,7 +290,7 @@ impl Default for TestSetupBuilder {
         Self {
             with_files: false,
             shadow_mode: false,
-            compact_version: AlgoVersion::Naive,
+            compact_version: AlgoVersion::AllAtOnce,
         }
     }
 }

@@ -8,12 +8,12 @@ use clap::ValueEnum;
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Default, ValueEnum)]
 pub enum CompactorAlgoVersion {
     // Note: clap only keeps the first line for the help text, so try to be brief.
-    /// Compacts partitions in single DataFusion job, prone to reject "too large" partitions. Default.
+    /// Compacts all files of a partition in single DataFusion job, prone to reject "too large" partitions. Default.
     #[default]
-    Naive,
+    AllAtOnce,
 
-    /// Aware of hot and cold partitions and also checks for file overlaps. NOT yet ready for production.
-    HotCold,
+    /// Repeat to compact to higher level until reaching the highest level. NOT yet ready for production
+    TargetLevel,
 }
 
 impl Display for CompactorAlgoVersion {

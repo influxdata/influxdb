@@ -1197,6 +1197,32 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                 },
             ],
         ),
+        (
+            // This is the dataset defined by https://github.com/influxdata/influxdb_iox/issues/6112
+            "InfluxQLSelectSupport",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    r#"
+                    m0,tag0=val00 f64=10.1,i64=101i,str="hi" 1667181600000000000
+                    m0,tag0=val00 f64=21.2,i64=211i,str="hi" 1667181610000000000
+                    m0,tag0=val00 f64=11.2,i64=191i,str="lo" 1667181620000000000
+                    m0,tag0=val00 f64=19.2,i64=392i,str="lo" 1667181630000000000
+                    m0,tag0=val01 f64=11.3,i64=211i,str="lo" 1667181600000000000
+                    m0,tag0=val02 f64=10.4,i64=101i,str="lo" 1667181600000000000
+                    m0,tag0=val00,tag1=val10 f64=18.9,i64=211i,str="lo" 1667181610000000000
+                    m1,tag0=val00 f64=100.5,i64=1001i,str="hi" 1667181600000000000
+                    m1,tag0=val00 f64=200.6,i64=2001i,str="lo" 1667181610000000000
+                    m1,tag0=val01 f64=101.7,i64=1011i,str="lo" 1667181600000000000
+                    "#
+                    .to_string(),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 2,
+                },
+            ],
+        ),
     ])
 });
 

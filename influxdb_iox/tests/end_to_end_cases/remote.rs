@@ -16,20 +16,29 @@ async fn remote_store_get_table() {
     let table_name = "my_awesome_table";
     let other_table_name = "my_ordinary_table";
 
-    let mut cluster = MiniCluster::create_shared(database_url).await;
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
 
     StepTest::new(
         &mut cluster,
         vec![
             // Persist some data
+            Step::RecordNumParquetFiles,
             Step::WriteLineProtocol(format!("{table_name},tag1=A,tag2=B val=42i 123456")),
-            Step::WaitForPersisted,
+            Step::WaitForPersisted2 {
+                expected_increase: 1,
+            },
             // Persist some more data for the same table in a 2nd Parquet file
+            Step::RecordNumParquetFiles,
             Step::WriteLineProtocol(format!("{table_name},tag1=C,tag2=B val=9000i 789000")),
-            Step::WaitForPersisted,
+            Step::WaitForPersisted2 {
+                expected_increase: 1,
+            },
             // Persist some more data for a different table
+            Step::RecordNumParquetFiles,
             Step::WriteLineProtocol(format!("{other_table_name},tag1=A,tag2=B val=42i 123456")),
-            Step::WaitForPersisted,
+            Step::WaitForPersisted2 {
+                expected_increase: 1,
+            },
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 async move {
                     let router_addr = state.cluster().router().router_grpc_base().to_string();

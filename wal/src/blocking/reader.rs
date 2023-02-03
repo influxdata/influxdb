@@ -82,10 +82,7 @@ where
             }
         );
 
-        Ok(Some(SegmentEntry {
-            checksum: expected_checksum,
-            data,
-        }))
+        Ok(Some(SegmentEntry { data }))
     }
 
     pub fn next_batch(&mut self) -> Result<Option<Vec<SequencedWalOp>>> {
@@ -235,12 +232,10 @@ mod tests {
 
         let entry_output_1 = reader.one_entry().unwrap().unwrap();
         let expected_1 = SegmentEntry::from(&entry_input_1);
-        assert_eq!(entry_output_1.checksum, expected_1.checksum);
         assert_eq!(entry_output_1.data, expected_1.data);
 
         let entry_output_2 = reader.one_entry().unwrap().unwrap();
         let expected_2 = SegmentEntry::from(&entry_input_2);
-        assert_eq!(entry_output_2.checksum, expected_2.checksum);
         assert_eq!(entry_output_2.data, expected_2.data);
 
         let entry = reader.one_entry().unwrap();
@@ -321,7 +316,6 @@ mod tests {
         // A bad checksum won't corrupt further entries
         let entry_output_2 = reader.one_entry().unwrap().unwrap();
         let expected_2 = SegmentEntry::from(&good_entry_input);
-        assert_eq!(entry_output_2.checksum, expected_2.checksum);
         assert_eq!(entry_output_2.data, expected_2.data);
 
         let entry = reader.one_entry().unwrap();
@@ -417,7 +411,6 @@ mod tests {
     impl From<&FakeSegmentEntry> for SegmentEntry {
         fn from(fake: &FakeSegmentEntry) -> Self {
             Self {
-                checksum: fake.checksum(),
                 data: fake.uncompressed_data.clone(),
             }
         }

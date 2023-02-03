@@ -5,6 +5,7 @@
 use std::process::Command;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("cargo:rerun-if-env-changed=GIT_HASH");
     // Populate env!(GIT_HASH) with the current git commit
     println!("cargo:rustc-env=GIT_HASH={}", get_git_hash());
 

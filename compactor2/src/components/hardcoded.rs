@@ -251,7 +251,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
 fn version_specific_partition_filters(config: &Config) -> Vec<Arc<dyn PartitionFilter>> {
     match config.compact_version {
         // No L0 files
-        AlgoVersion::Naive => {
+        AlgoVersion::AllAtOnce => {
             vec![
                 Arc::new(HasMatchingFilePartitionFilter::new(
                     LevelRangeFileFilter::new(CompactionLevel::Initial..=CompactionLevel::Initial),
@@ -269,7 +269,7 @@ fn version_specific_partition_filters(config: &Config) -> Vec<Arc<dyn PartitionF
         //  . All files are L2
         //  . Have overlapping files
         //  . Number L1 files > max_num_files
-        AlgoVersion::HotCold => {
+        AlgoVersion::TargetLevel => {
             // identical for now
             vec![
                 Arc::new(HasMatchingFilePartitionFilter::new(

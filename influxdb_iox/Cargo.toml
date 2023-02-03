@@ -66,6 +66,7 @@ once_cell = { version = "1.17", features = ["parking_lot"] }
 rustyline = { version = "10.1", default-features = false }
 serde_json = "1.0.91"
 snafu = "0.7"
+tempfile = "3.1.0"
 thiserror = "1.0.38"
 tikv-jemalloc-ctl = { version = "0.5.0", optional = true }
 tokio = { version = "1.25", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
@@ -84,7 +85,6 @@ assert_cmd = "2.0.8"
 async-trait = "0.1"
 predicate = { path = "../predicate" }
 predicates = "2.1.0"
-tempfile = "3.1.0"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
 test_helpers_end_to_end = { path = "../test_helpers_end_to_end" }
 

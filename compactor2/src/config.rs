@@ -176,11 +176,14 @@ pub struct ShardConfig {
 /// Algorithm version used by the compactor
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum AlgoVersion {
-    /// Compacts partitions in single DataFusion job, prone to reject "too large" partitions.
-    Naive,
+    /// Compact all files of a partition in a single DataFusion job that
+    /// prone to reject "too large" partitions.
+    AllAtOnce,
 
-    /// Aware of hot and cold partitions and also checks for file overlaps.
+    /// Repeat compacting files to higher levels until reaching the highest level.
+    /// Each compact job also ignores eligible  non-overlapping files and
+    /// upgrades upgradable files which make a single Datafusion job a lot smaller.
     ///
     /// NOT yet ready for production.
-    HotCold,
+    TargetLevel,
 }

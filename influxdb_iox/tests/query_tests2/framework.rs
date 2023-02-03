@@ -89,7 +89,7 @@ impl TestCase {
 
                 let given_input_path: PathBuf = self.input.into();
                 let mut input_path = PathBuf::from("tests/query_tests2/");
-                input_path.push(given_input_path);
+                input_path.push(given_input_path.clone());
                 let contents = fs::read_to_string(&input_path).unwrap_or_else(|_| {
                     panic!("Could not read test case file `{}`", input_path.display())
                 });
@@ -120,10 +120,21 @@ impl TestCase {
                         (_, other) => vec![other],
                     });
 
-                let test_step = Step::QueryAndCompare {
-                    input_path,
-                    setup_name: setup_name.into(),
-                    contents,
+                let test_step = match given_input_path.extension() {
+                    Some(ext) if ext == "sql" => Step::QueryAndCompare {
+                        input_path,
+                        setup_name: setup_name.into(),
+                        contents,
+                    },
+                    Some(ext) if ext == "influxql" => Step::InfluxQLQueryAndCompare {
+                        input_path,
+                        setup_name: setup_name.into(),
+                        contents,
+                    },
+                    _ => panic!(
+                        "invalid language extension for path {}: expected sql or influxql",
+                        self.input
+                    ),
                 };
 
                 // Run the tests

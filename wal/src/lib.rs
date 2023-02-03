@@ -6,8 +6,6 @@
     clippy::use_self,
     clippy::clone_on_ref_ptr
 )]
-// TEMP until everything is fleshed out
-#![allow(dead_code)]
 
 //! # WAL
 //!
@@ -23,6 +21,7 @@ use generated_types::{
         WalOpBatch as ProtoWalOpBatch,
     },
 };
+use observability_deps::tracing::info;
 use parking_lot::Mutex;
 use prost::Message;
 use snafu::prelude::*;
@@ -210,6 +209,7 @@ impl Wal {
     /// mechanism is not supported.
     pub async fn new(root: impl Into<PathBuf>) -> Result<Arc<Self>> {
         let root = root.into();
+        info!(wal_dir=?root, "Initalizing Write Ahead Log (WAL)");
         tokio::fs::create_dir_all(&root)
             .await
             .context(UnableToCreateWalDirSnafu { path: &root })?;
@@ -452,8 +452,6 @@ impl From<SequencedWalOp> for ProtoSequencedWalOp {
 /// Raw, uncompressed and unstructured data for a Segment entry with a checksum.
 #[derive(Debug, Eq, PartialEq)]
 pub struct SegmentEntry {
-    /// The CRC checksum of the uncompressed data
-    checksum: u32,
     /// The uncompressed data
     pub data: Vec<u8>,
 }
@@ -477,8 +475,6 @@ pub struct WriteSummary {
     pub bytes_written: usize,
     /// Which segment file this entry was written to
     pub segment_id: SegmentId,
-    /// Checksum for the compressed data written to segment
-    checksum: u32,
 }
 
 /// Reader for a closed segment file

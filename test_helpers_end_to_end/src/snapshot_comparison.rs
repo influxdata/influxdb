@@ -1,7 +1,8 @@
-use crate::{run_sql, MiniCluster};
+use crate::{run_influxql, run_sql, MiniCluster};
 use arrow_util::{display::pretty_format_batches, test_util::sort_record_batch};
 use regex::{Captures, Regex};
 use snafu::{OptionExt, ResultExt, Snafu};
+use std::fmt::{Display, Formatter};
 use std::{
     collections::HashMap,
     fs,
@@ -45,15 +46,41 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+#[derive(Debug, Clone, Copy, Default)]
+pub enum Language {
+    #[default]
+    Sql,
+    InfluxQL,
+}
+
+impl Display for Language {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Language::Sql => Display::fmt("SQL", f),
+            Language::InfluxQL => Display::fmt("InfluxQL", f),
+        }
+    }
+}
+
 pub async fn run(
     cluster: &mut MiniCluster,
     input_path: PathBuf,
     setup_name: String,
     contents: String,
+    language: Language,
 ) -> Result<()> {
     // create output and expected output
     let output_path = make_output_path(&input_path)?;
-    let expected_path = input_path.with_extension("expected");
+    let expected_path = {
+        let mut p = input_path.clone();
+        let ext = p
+            .extension()
+            .expect("input path missing extension")
+            .to_str()
+            .expect("input path extension is not valid UTF-8");
+        p.set_extension(format!("{}.expected", ext));
+        p
+    };
 
     println!("Running case in {:?}", input_path);
     println!("  writing output to {:?}", output_path);
@@ -66,7 +93,7 @@ pub async fn run(
     output.push(format!("-- Test Setup: {setup_name}"));
 
     for q in queries.iter() {
-        output.push(format!("-- SQL: {}", q.sql()));
+        output.push(format!("-- {}: {}", language, q.text()));
         if q.sorted_compare() {
             output.push("-- Results After Sorting".into())
         }
@@ -80,7 +107,7 @@ pub async fn run(
             output.push("-- Results After Normalizing Filters".into())
         }
 
-        let results = run_query(cluster, q).await?;
+        let results = run_query(cluster, q, language).await?;
         output.extend(results);
     }
 
@@ -98,14 +125,38 @@ pub async fn run(
         let expected_path = make_absolute(&expected_path);
         let output_path = make_absolute(&output_path);
 
-        println!("Expected output does not match actual output");
-        println!("  expected output in {:?}", expected_path);
-        println!("  actual output in {:?}", output_path);
-        println!("Possibly helpful commands:");
-        println!("  # See diff");
-        println!("  diff -du {:?} {:?}", expected_path, output_path);
-        println!("  # Update expected");
-        println!("  cp -f {:?} {:?}", output_path, expected_path);
+        if std::env::var("CI")
+            .map(|value| value == "true")
+            .unwrap_or(false)
+        {
+            // In CI, print out the contents because it's inconvenient to access the files and
+            // you're not going to update the files there.
+            println!("Expected output does not match actual output");
+            println!(
+                "Diff: \n\n{}",
+                String::from_utf8(
+                    std::process::Command::new("diff")
+                        .arg("-du")
+                        .arg(&expected_path)
+                        .arg(&output_path)
+                        .output()
+                        .unwrap()
+                        .stdout
+                )
+                .unwrap()
+            );
+        } else {
+            // When you're not in CI, print out instructions for analyzing the content or updating
+            // the snapshot.
+            println!("Expected output does not match actual output");
+            println!("  expected output in {expected_path:?}");
+            println!("  actual output in {output_path:?}");
+            println!("Possibly helpful commands:");
+            println!("  # See diff");
+            println!("  diff -du {expected_path:?} {output_path:?}");
+            println!("  # Update expected");
+            println!("  cp -f {output_path:?} {expected_path:?}");
+        }
 
         OutputMismatchSnafu {
             output_path,
@@ -122,15 +173,21 @@ pub enum OutputPathError {
     #[snafu(display("Input path has no file stem: '{:?}'", path))]
     NoFileStem { path: PathBuf },
 
+    #[snafu(display("Input path missing file extension: '{:?}'", path))]
+    MissingFileExt { path: PathBuf },
+
     #[snafu(display("Input path has no parent?!: '{:?}'", path))]
     NoParent { path: PathBuf },
 }
 
 /// Return output path for input path.
 ///
-/// This converts `some/prefix/in/foo.sql` (or other file extensions) to `some/prefix/out/foo.out`.
+/// This converts `some/prefix/in/foo.sql` (or other file extensions) to `some/prefix/out/foo.sql.out`.
 fn make_output_path(input: &Path) -> Result<PathBuf, OutputPathError> {
     let stem = input.file_stem().context(NoFileStemSnafu { path: input })?;
+    let ext = input
+        .extension()
+        .context(MissingFileExtSnafu { path: input })?;
 
     // go two levels up (from file to dir, from dir to parent dir)
     let parent = input.parent().context(NoParentSnafu { path: input })?;
@@ -150,7 +207,10 @@ fn make_output_path(input: &Path) -> Result<PathBuf, OutputPathError> {
 
     // set file name and ext
     out.push(stem);
-    out.set_extension("out");
+    out.set_extension(format!(
+        "{}.out",
+        ext.to_str().expect("extension is not valid UTF-8")
+    ));
 
     Ok(out)
 }
@@ -162,15 +222,31 @@ fn make_absolute(path: &Path) -> PathBuf {
     absolute
 }
 
-async fn run_query(cluster: &MiniCluster, query: &Query) -> Result<Vec<String>> {
-    let sql = query.sql();
+async fn run_query(
+    cluster: &MiniCluster,
+    query: &Query,
+    language: Language,
+) -> Result<Vec<String>> {
+    let query_text = query.text();
 
-    let mut results = run_sql(
-        sql,
-        cluster.namespace(),
-        cluster.querier().querier_grpc_connection(),
-    )
-    .await;
+    let mut results = match language {
+        Language::Sql => {
+            run_sql(
+                query_text,
+                cluster.namespace(),
+                cluster.querier().querier_grpc_connection(),
+            )
+            .await
+        }
+        Language::InfluxQL => {
+            run_influxql(
+                query_text,
+                cluster.namespace(),
+                cluster.querier().querier_grpc_connection(),
+            )
+            .await
+        }
+    };
 
     // compare against sorted results, if requested
     if query.sorted_compare() && !results.is_empty() {
@@ -191,7 +267,7 @@ async fn run_query(cluster: &MiniCluster, query: &Query) -> Result<Vec<String>> 
     if query.normalized_uuids() {
         let regex_uuid = Regex::new("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
             .expect("UUID regex");
-        let regex_dirs = Regex::new(r#"[0-9]+/[0-9]+/[0-9]+/[0-9+]"#).expect("directory regex");
+        let regex_dirs = Regex::new(r#"[0-9]+/[0-9]+/[0-9]+/[0-9]+"#).expect("directory regex");
 
         let mut seen: HashMap<String, u128> = HashMap::new();
         current_results = current_results
@@ -310,20 +386,20 @@ pub struct Query {
     /// `FilterExec: <REDACTED>`
     normalized_filters: bool,
 
-    /// The SQL string
-    sql: String,
+    /// The query string
+    text: String,
 }
 
 impl Query {
     #[cfg(test)]
-    fn new(sql: impl Into<String>) -> Self {
-        let sql = sql.into();
+    fn new(text: impl Into<String>) -> Self {
+        let text = text.into();
         Self {
             sorted_compare: false,
             normalized_uuids: false,
             normalized_metrics: false,
             normalized_filters: false,
-            sql,
+            text,
         }
     }
 
@@ -333,9 +409,9 @@ impl Query {
         self
     }
 
-    /// Get a reference to the query's sql.
-    pub fn sql(&self) -> &str {
-        self.sql.as_ref()
+    /// Get a reference to the query text.
+    pub fn text(&self) -> &str {
+        self.text.as_ref()
     }
 
     /// Get the query's sorted compare.
@@ -370,11 +446,11 @@ impl QueryBuilder {
     }
 
     fn push_str(&mut self, s: &str) {
-        self.query.sql.push_str(s)
+        self.query.text.push_str(s)
     }
 
     fn push(&mut self, c: char) {
-        self.query.sql.push(c)
+        self.query.text.push(c)
     }
 
     fn sorted_compare(&mut self) {
@@ -394,7 +470,7 @@ impl QueryBuilder {
     }
 
     fn is_empty(&self) -> bool {
-        self.query.sql.is_empty()
+        self.query.text.is_empty()
     }
 
     /// Creates a Query and resets this builder to default

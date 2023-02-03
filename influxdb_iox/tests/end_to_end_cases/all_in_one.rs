@@ -2,8 +2,7 @@ use arrow_util::assert_batches_sorted_eq;
 use http::StatusCode;
 use iox_time::{SystemProvider, TimeProvider};
 use test_helpers_end_to_end::{
-    get_write_token, maybe_skip_integration, rand_name, run_sql, wait_for_persisted,
-    write_to_router, ServerFixture, TestConfig,
+    maybe_skip_integration, rand_name, run_sql, write_to_router, ServerFixture, TestConfig,
 };
 
 #[tokio::test]
@@ -26,11 +25,11 @@ async fn smoke() {
     let lp = format!("{},tag1=A,tag2=B val=42i 123456", table_name);
 
     let response = write_to_router(lp, org, bucket, all_in_one.router_http_base()).await;
-
-    // wait for data to be persisted to parquet
-    assert_eq!(response.status(), StatusCode::NO_CONTENT);
-    let write_token = get_write_token(&response);
-    wait_for_persisted(write_token, all_in_one.querier_grpc_connection()).await;
+    assert_eq!(
+        response.status(),
+        StatusCode::NO_CONTENT,
+        "response: {response:?}"
+    );
 
     // run query
     let sql = format!("select * from {}", table_name);
@@ -48,6 +47,7 @@ async fn smoke() {
 
 #[tokio::test]
 async fn ephemeral_mode() {
+    // this test does not require / use a posgres database
     test_helpers::maybe_start_logging();
 
     let org = rand_name();
@@ -70,11 +70,11 @@ async fn ephemeral_mode() {
     let lp = format!("{},tag1=A,tag2=B val=42i {}", table_name, now);
 
     let response = write_to_router(lp, org, bucket, all_in_one.router_http_base()).await;
-
-    // wait for data to be persisted to parquet
-    assert_eq!(response.status(), StatusCode::NO_CONTENT);
-    let write_token = get_write_token(&response);
-    wait_for_persisted(write_token, all_in_one.querier_grpc_connection()).await;
+    assert_eq!(
+        response.status(),
+        StatusCode::NO_CONTENT,
+        "response: {response:?}"
+    );
 
     // run query
     // do not select time becasue it changes every time

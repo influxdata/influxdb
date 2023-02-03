@@ -3,32 +3,36 @@
 use crate::process_info::setup_metric_registry;
 
 use super::main;
+use clap_blocks::compactor2::CompactorAlgoVersion;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig,
-    compactor::CompactorConfig,
-    ingester::IngesterConfig,
+    compactor2::Compactor2Config,
+    ingester2::Ingester2Config,
     object_store::{make_object_store, ObjectStoreConfig},
     querier::{IngesterAddresses, QuerierConfig},
-    router::RouterConfig,
+    router2::Router2Config,
     run_config::RunConfig,
     socket_addr::SocketAddr,
-    write_buffer::WriteBufferConfig,
 };
-use data_types::{IngesterMapping, ShardIndex};
 use iox_query::exec::{Executor, ExecutorConfig};
 use iox_time::{SystemProvider, TimeProvider};
 use ioxd_common::{
     server_type::{CommonServerState, CommonServerStateError},
     Service,
 };
-use ioxd_compactor::create_compactor_server_type;
-use ioxd_ingester::create_ingester_server_type;
+use ioxd_compactor2::create_compactor2_server_type as create_compactor_server_type;
+use ioxd_ingester2::create_ingester_server_type;
 use ioxd_querier::{create_querier_server_type, QuerierServerTypeArgs};
-use ioxd_router::create_router_server_type;
+use ioxd_router::create_router2_server_type;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
+use once_cell::sync::Lazy;
 use parquet_file::storage::{ParquetStorage, StorageId};
+use std::num::NonZeroUsize;
+use std::path::PathBuf;
+use std::time::Duration;
 use std::{collections::HashMap, sync::Arc};
+use tempfile::TempDir;
 use thiserror::Error;
 use trace_exporters::TracingConfig;
 use trogging::cli::LoggingConfig;
@@ -82,6 +86,10 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// Use a static so the directory lasts the entire process
+static DEFAULT_WAL_DIRECTORY: Lazy<TempDir> =
+    Lazy::new(|| TempDir::new().expect("Could not create a temporary directory for WAL"));
 
 /// The intention is to keep the number of options on this Config
 /// object as small as possible. For more complex configurations and
@@ -177,87 +185,55 @@ pub struct Config {
     #[clap(flatten)]
     catalog_dsn: CatalogDsnConfig,
 
-    /// The ingester will continue to pull data and buffer it from the write buffer
-    /// as long as it is below this size. If it hits this size it will pause
-    /// ingest from the write buffer until persistence goes below this threshold.
-    /// The default value is 100 GB (in bytes).
+    /// The number of seconds between WAL file rotations.
     #[clap(
-        long = "pause-ingest-size-bytes",
-        env = "INFLUXDB_IOX_PAUSE_INGEST_SIZE_BYTES",
-        default_value = "107374182400",
-        action
-    )]
-    pub pause_ingest_size_bytes: usize,
-
-    /// Once the ingester crosses this threshold of data buffered across
-    /// all shards, it will pick the largest partitions and persist
-    /// them until it falls below this threshold. An ingester running in
-    /// a steady state is expected to take up this much memory.
-    /// The default value is 1 GB (in bytes).
-    #[clap(
-        long = "persist-memory-threshold-bytes",
-        env = "INFLUXDB_IOX_PERSIST_MEMORY_THRESHOLD_BYTES",
-        default_value = "1073741824",
-        action
-    )]
-    pub persist_memory_threshold_bytes: usize,
-
-    /// If the total bytes written to an individual partition crosses
-    /// this size threshold, it will be persisted.  The default value
-    /// is 300MB (in bytes).
-    ///
-    /// NOTE: This number is related, but *NOT* the same as the size
-    /// of the memory used to keep the partition buffered.
-    #[clap(
-        long = "persist-partition-size-threshold-bytes",
-        env = "INFLUXDB_IOX_PERSIST_PARTITION_SIZE_THRESHOLD_BYTES",
-        default_value = "314572800",
-        action
-    )]
-    pub persist_partition_size_threshold_bytes: usize,
-
-    /// If a partition has had data buffered for longer than this period of time
-    /// it will be persisted. This puts an upper bound on how far back the
-    /// ingester may need to read in the write buffer on restart or recovery. The default value
-    /// is 30 minutes (in seconds).
-    #[clap(
-        long = "persist-partition-age-threshold-seconds",
-        env = "INFLUXDB_IOX_PERSIST_PARTITION_AGE_THRESHOLD_SECONDS",
-        default_value = "1800",
-        action
-    )]
-    pub persist_partition_age_threshold_seconds: u64,
-
-    /// If a partition has had data buffered and hasn't received a write for this
-    /// period of time, it will be persisted. The default value is 300 seconds (5 minutes).
-    #[clap(
-        long = "persist-partition-cold-threshold-seconds",
-        env = "INFLUXDB_IOX_PERSIST_PARTITION_COLD_THRESHOLD_SECONDS",
+        long = "wal-rotation-period-seconds",
+        env = "INFLUXDB_IOX_WAL_ROTATION_PERIOD_SECONDS",
         default_value = "300",
         action
     )]
-    pub persist_partition_cold_threshold_seconds: u64,
+    pub wal_rotation_period_seconds: u64,
 
-    /// The memory budget assigned to this compactor.
-    ///
-    /// For each partition candidate, we will estimate the memory needed to compact each
-    /// file and only add more files if their needed estimated memory is below this memory
-    /// budget. Since we must compact L1 files that overlapped with L0 files, if their
-    /// total estimated memory does not allow us to compact a part of a partition at all,
-    /// we will not compact it and will log the partition and its related information in a
-    /// table in our catalog for further diagnosis of the issue.
-    ///
-    /// The number of candidates compacted concurrently is also decided using this
-    /// estimation and budget.
-    ///
-    /// Default is 300MB (314572800 = 300*1024*1024)
+    /// Sets how many queries the ingester will handle simultaneously before
+    /// rejecting further incoming requests.
     #[clap(
-        long = "compaction-memory-budget-bytes",
-        env = "INFLUXDB_IOX_COMPACTION_MEMORY_BUDGET_BYTES",
-        default_value = "314572800",
+        long = "concurrent-query-limit",
+        env = "INFLUXDB_IOX_CONCURRENT_QUERY_LIMIT",
+        default_value = "20",
         action
     )]
-    pub compaction_memory_budget_bytes: u64,
+    pub concurrent_query_limit: usize,
+
+    /// The maximum number of persist tasks that can run simultaneously.
+    #[clap(
+        long = "persist-max-parallelism",
+        env = "INFLUXDB_IOX_PERSIST_MAX_PARALLELISM",
+        default_value = "5",
+        action
+    )]
+    pub persist_max_parallelism: usize,
+
+    /// The maximum number of persist tasks that can be queued at any one time.
+    ///
+    /// Once this limit is reached, ingest is blocked until the persist backlog
+    /// is reduced.
+    #[clap(
+        long = "persist-queue-depth",
+        env = "INFLUXDB_IOX_PERSIST_QUEUE_DEPTH",
+        default_value = "250",
+        action
+    )]
+    pub persist_queue_depth: usize,
+
+    /// The limit at which a partition's estimated persistence cost causes it to
+    /// be queued for persistence.
+    #[clap(
+        long = "persist-hot-partition-cost",
+        env = "INFLUXDB_IOX_PERSIST_HOT_PARTITION_COST",
+        default_value = "20000000", // 20,000,000
+        action
+    )]
+    pub persist_hot_partition_cost: usize,
 
     /// The address on which IOx will serve Router HTTP API requests
     #[clap(
@@ -354,12 +330,11 @@ impl Config {
             max_http_request_size,
             object_store_config,
             catalog_dsn,
-            pause_ingest_size_bytes,
-            persist_memory_threshold_bytes,
-            persist_partition_size_threshold_bytes,
-            persist_partition_age_threshold_seconds,
-            persist_partition_cold_threshold_seconds,
-            compaction_memory_budget_bytes,
+            wal_rotation_period_seconds,
+            concurrent_query_limit,
+            persist_max_parallelism,
+            persist_queue_depth,
+            persist_hot_partition_cost,
             router_http_bind_address,
             router_grpc_bind_address,
             querier_grpc_bind_address,
@@ -381,7 +356,12 @@ impl Config {
             }
         };
 
-        let write_buffer_config = WriteBufferConfig::new(QUERY_POOL_NAME, database_directory);
+        // if data directory is specified, default to data-dir/wal
+        // otherwise use a per-process temporary directory
+        let wal_directory = database_directory
+            .map(|database_directory| database_directory.join("wal"))
+            .unwrap_or_else(|| PathBuf::from(DEFAULT_WAL_DIRECTORY.path()));
+
         let catalog_dsn = if catalog_dsn.dsn.is_none() {
             CatalogDsnConfig::new_memory()
         } else {
@@ -409,68 +389,55 @@ impl Config {
             .clone()
             .with_grpc_bind_address(compactor_grpc_bind_address);
 
-        // All-in-one mode only supports one write buffer partition.
-        let shard_index_range_start = 0;
-        let shard_index_range_end = 0;
-
-        // Use whatever data is available in the write buffer rather than erroring if the sequence
-        // number has not been retained in the write buffer.
-        let skip_to_oldest_available = true;
-
-        let ingester_config = IngesterConfig {
-            shard_index_range_start,
-            shard_index_range_end,
-            pause_ingest_size_bytes,
-            persist_memory_threshold_bytes,
-            persist_partition_size_threshold_bytes,
-            persist_partition_age_threshold_seconds,
-            persist_partition_cold_threshold_seconds,
-            skip_to_oldest_available,
-            test_flight_do_get_panic: 0,
-            concurrent_request_limit: 10,
-            persist_partition_rows_max: 500_000,
+        let ingester_config = Ingester2Config {
+            wal_directory,
+            wal_rotation_period_seconds,
+            concurrent_query_limit,
+            persist_max_parallelism,
+            persist_queue_depth,
+            persist_hot_partition_cost,
         };
 
-        let router_config = RouterConfig {
+        let router_config = Router2Config {
             query_pool_name: QUERY_POOL_NAME.to_string(),
             http_request_limit: 1_000,
+            ingester_addresses: vec![ingester_grpc_bind_address.to_string()],
             new_namespace_retention_hours: None, // infinite retention
             namespace_autocreation_enabled: true,
+            partition_key_pattern: "%Y-%m-%d".to_string(),
+            topic: QUERY_POOL_NAME.to_string(),
+            rpc_write_timeout_seconds: Duration::new(3, 0),
         };
 
         // create a CompactorConfig for the all in one server based on
         // settings from other configs. Can't use `#clap(flatten)` as the
         // parameters are redundant with ingester's
-        let compactor_config = CompactorConfig {
-            topic: QUERY_POOL_NAME.to_string(),
-            shard_index_range_start,
-            shard_index_range_end,
+        let compactor_config = Compactor2Config {
+            compaction_partition_concurrency: NonZeroUsize::new(1).unwrap(),
+            compaction_job_concurrency: NonZeroUsize::new(1).unwrap(),
+            compaction_partition_scratchpad_concurrency: NonZeroUsize::new(1).unwrap(),
+            compaction_partition_minute_threshold: 10,
+            query_exec_thread_count: 1,
+            exec_mem_pool_bytes,
             max_desired_file_size_bytes: 30_000,
             percentage_max_file_size: 30,
             split_percentage: 80,
-            max_number_partitions_per_shard: 1,
-            min_number_recent_ingested_files_per_partition: 1,
-            hot_multiple: 4,
-            warm_multiple: 1,
-            memory_budget_bytes: compaction_memory_budget_bytes,
-            min_num_rows_allocated_per_record_batch_to_datafusion_plan: 100,
-            max_num_compacting_files: 20,
-            max_num_compacting_files_first_in_partition: 40,
-            minutes_without_new_writes_to_be_cold: 10,
-            cold_partition_candidates_hours_threshold: 24,
-            hot_compaction_hours_threshold_1: 4,
-            hot_compaction_hours_threshold_2: 24,
-            max_parallel_partitions: 20,
-            warm_partition_candidates_hours_threshold: 24,
-            warm_compaction_small_size_threshold_bytes: 15_000,
-            warm_compaction_min_small_file_count: 10,
+            partition_timeout_secs: 0,
+            partition_filter: None,
+            shadow_mode: false,
+            ignore_partition_skip_marker: false,
+            max_input_files_per_partition: 200,
+            max_input_parquet_bytes_per_partition: 268_435_456, // 256 MB
+            shard_count: None,
+            shard_id: None,
+            compact_version: CompactorAlgoVersion::AllAtOnce,
         };
 
         let querier_config = QuerierConfig {
             num_query_threads: None,       // will be ignored
             shard_to_ingesters_file: None, // will be ignored
             shard_to_ingesters: None,      // will be ignored
-            ingester_addresses: vec![],    // will be ignored
+            ingester_addresses: vec![ingester_grpc_bind_address.to_string()], // will be ignored
             ram_pool_metadata_bytes: querier_ram_pool_metadata_bytes,
             ram_pool_data_bytes: querier_ram_pool_data_bytes,
             max_concurrent_queries: querier_max_concurrent_queries,
@@ -486,7 +453,6 @@ impl Config {
             compactor_run_config,
 
             catalog_dsn,
-            write_buffer_config,
             ingester_config,
             router_config,
             compactor_config,
@@ -504,10 +470,9 @@ struct SpecializedConfig {
     compactor_run_config: RunConfig,
 
     catalog_dsn: CatalogDsnConfig,
-    write_buffer_config: WriteBufferConfig,
-    ingester_config: IngesterConfig,
-    router_config: RouterConfig,
-    compactor_config: CompactorConfig,
+    ingester_config: Ingester2Config,
+    router_config: Router2Config,
+    compactor_config: Compactor2Config,
     querier_config: QuerierConfig,
 }
 
@@ -518,7 +483,6 @@ pub async fn command(config: Config) -> Result<()> {
         ingester_run_config,
         compactor_run_config,
         catalog_dsn,
-        write_buffer_config,
         ingester_config,
         router_config,
         compactor_config,
@@ -558,24 +522,23 @@ pub async fn command(config: Config) -> Result<()> {
     let num_threads = num_cpus::get();
     info!(%num_threads, "Creating shared query executor");
 
-    let parquet_store = ParquetStorage::new(Arc::clone(&object_store), StorageId::from("iox"));
+    let parquet_store_real = ParquetStorage::new(Arc::clone(&object_store), StorageId::from("iox"));
     let exec = Arc::new(Executor::new_with_config(ExecutorConfig {
         num_threads,
         target_query_partitions: num_threads,
         object_stores: HashMap::from([(
-            parquet_store.id(),
-            Arc::clone(parquet_store.object_store()),
+            parquet_store_real.id(),
+            Arc::clone(parquet_store_real.object_store()),
         )]),
         mem_pool_size: querier_config.exec_mem_pool_bytes,
     }));
 
     info!("starting router");
-    let router = create_router_server_type(
+    let router = create_router2_server_type(
         &common_state,
         Arc::clone(&metrics),
         Arc::clone(&catalog),
         Arc::clone(&object_store),
-        &write_buffer_config,
         &router_config,
     )
     .await?;
@@ -583,37 +546,37 @@ pub async fn command(config: Config) -> Result<()> {
     info!("starting ingester");
     let ingester = create_ingester_server_type(
         &common_state,
-        Arc::clone(&metrics),
         Arc::clone(&catalog),
-        Arc::clone(&object_store),
+        Arc::clone(&metrics),
+        &ingester_config,
         Arc::clone(&exec),
-        &write_buffer_config,
-        ingester_config,
+        parquet_store_real.clone(),
     )
-    .await?;
+    .await
+    .expect("failed to start ingester");
 
     info!("starting compactor");
+    let parquet_store_scratchpad = ParquetStorage::new(
+        Arc::new(object_store::memory::InMemory::new()),
+        StorageId::from("iox_scratchpad"),
+    );
+
     let compactor = create_compactor_server_type(
         &common_state,
         Arc::clone(&metrics),
         Arc::clone(&catalog),
-        parquet_store,
+        parquet_store_real,
+        parquet_store_scratchpad,
         Arc::clone(&exec),
         Arc::clone(&time_provider),
         compactor_config,
     )
-    .await?;
+    .await;
 
-    let ingester_addresses = IngesterAddresses::ByShardIndex(
-        [(
-            ShardIndex::new(0),
-            IngesterMapping::Addr(Arc::from(
-                format!("http://{}", ingester_run_config.grpc_bind_address).as_str(),
-            )),
-        )]
-        .into_iter()
-        .collect(),
-    );
+    let ingester_addresses = IngesterAddresses::List(vec![Arc::from(
+        format!("http://{}", ingester_run_config.grpc_bind_address).as_str(),
+    )]);
+
     info!(?ingester_addresses, "starting querier");
     let querier = create_querier_server_type(QuerierServerTypeArgs {
         common_state: &common_state,
@@ -624,7 +587,7 @@ pub async fn command(config: Config) -> Result<()> {
         time_provider,
         ingester_addresses,
         querier_config,
-        rpc_write: false,
+        rpc_write: true,
     })
     .await?;
 

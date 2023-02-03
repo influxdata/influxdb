@@ -8,7 +8,7 @@ async fn influxql_returns_error() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared(database_url).await;
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -18,7 +18,6 @@ async fn influxql_returns_error() {
                  {},tag1=A,tag2=C val=43i 123457",
                 table_name, table_name
             )),
-            Step::WaitForReadable,
             Step::InfluxQLExpectingError {
                 query: "SHOW TAG KEYS".into(),
                 expected_error_code: tonic::Code::InvalidArgument,
@@ -40,7 +39,7 @@ async fn influxql_select_returns_results() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared(database_url).await;
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -50,7 +49,6 @@ async fn influxql_select_returns_results() {
                  {},tag1=A,tag2=C val=43i 123457",
                 table_name, table_name
             )),
-            Step::WaitForReadable,
             Step::InfluxQLQuery {
                 query: format!("select tag1, val from {}", table_name),
                 expected: vec![
