@@ -1,9 +1,11 @@
 use crate::{run_influxql, run_sql, MiniCluster};
 use arrow_util::{display::pretty_format_batches, test_util::sort_record_batch};
+use once_cell::sync::Lazy;
 use regex::{Captures, Regex};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::fmt::{Display, Formatter};
 use std::{
+    borrow::Cow,
     collections::HashMap,
     fs,
     path::{Path, PathBuf},
@@ -222,6 +224,29 @@ fn make_absolute(path: &Path) -> PathBuf {
     absolute
 }
 
+/// Replace table row separators of flexible width with fixed with. This is required
+/// because the original timing values may differ in "printed width", so the table
+/// cells have different widths and hence the separators / borders. E.g.:
+///
+///   `+--+--+`     -> `----------`
+///   `+--+------+` -> `----------`
+///
+/// Note that we're kinda inexact with our regex here, but it gets the job done.
+static REGEX_LINESEP: Lazy<Regex> = Lazy::new(|| Regex::new(r#"[+-]{6,}"#).expect("linesep regex"));
+
+/// Similar to the row separator issue above, the table columns are right-padded
+/// with spaces. Due to the different "printed width" of the timing values, we need
+/// to normalize this padding as well. E.g.:
+///
+///   `        |`  -> `    |`
+///   `         |` -> `    |`
+static REGEX_COL: Lazy<Regex> = Lazy::new(|| Regex::new(r#"\s+\|"#).expect("col regex"));
+
+fn normalize_for_variable_width(s: Cow<str>) -> String {
+    let s = REGEX_LINESEP.replace_all(&s, "----------");
+    REGEX_COL.replace_all(&s, "    |").to_string()
+}
+
 async fn run_query(
     cluster: &MiniCluster,
     query: &Query,
@@ -273,17 +298,17 @@ async fn run_query(
         current_results = current_results
             .into_iter()
             .map(|s| {
-                let s = regex_uuid
-                    .replace_all(&s, |s: &Captures| {
-                        let next = seen.len() as u128;
-                        Uuid::from_u128(
-                            *seen
-                                .entry(s.get(0).unwrap().as_str().to_owned())
-                                .or_insert(next),
-                        )
-                        .to_string()
-                    })
-                    .to_string();
+                let s = regex_uuid.replace_all(&s, |s: &Captures| {
+                    let next = seen.len() as u128;
+                    Uuid::from_u128(
+                        *seen
+                            .entry(s.get(0).unwrap().as_str().to_owned())
+                            .or_insert(next),
+                    )
+                    .to_string()
+                });
+
+                let s = normalize_for_variable_width(s);
 
                 regex_dirs.replace_all(&s, "1/1/1/1").to_string()
             })
@@ -296,8 +321,6 @@ async fn run_query(
         // why/how the regexes are used.
         let regex_metrics = Regex::new(r#"metrics=\[([^\]]*)\]"#).expect("metrics regex");
         let regex_timing = Regex::new(r#"[0-9]+(\.[0-9]+)?.s"#).expect("timing regex");
-        let regex_linesep = Regex::new(r#"[+-]{6,}"#).expect("linesep regex");
-        let regex_col = Regex::new(r#"\s+\|"#).expect("col regex");
 
         current_results = current_results
             .into_iter()
@@ -309,23 +332,7 @@ async fn run_query(
                 //   `10.2μs` -> `1.234ms`
                 let s = regex_timing.replace_all(&s, "1.234ms");
 
-                // Replace table row separators of flexible width with fixed with. This is required
-                // because the original timing values may differ in "printed width", so the table
-                // cells have different widths and hence the separators / borders. E.g.:
-                //
-                //   `+--+--+`     -> `----------`
-                //   `+--+------+` -> `----------`
-                //
-                // Note that we're kinda inexact with our regex here, but it gets the job done.
-                let s = regex_linesep.replace_all(&s, "----------");
-
-                // Similar to the row separator issue above, the table columns are right-padded
-                // with spaces. Due to the different "printed width" of the timing values, we need
-                // to normalize this padding as well. E.g.:
-                //
-                //   `        |`  -> `    |`
-                //   `         |` -> `    |`
-                let s = regex_col.replace_all(&s, "    |");
+                let s = normalize_for_variable_width(s);
 
                 // Metrics are currently ordered by value (not by key), so different timings may
                 // reorder them. We "parse" the list and normalize the sorting. E.g.:
