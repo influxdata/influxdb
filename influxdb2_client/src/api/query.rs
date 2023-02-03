@@ -155,7 +155,7 @@ mod tests {
         let token = "some-token";
 
         let mock_server = mock("GET", "/api/v2/query/suggestions")
-            .match_header("Authorization", format!("Token {}", token).as_str())
+            .match_header("Authorization", format!("Token {token}").as_str())
             .create();
 
         let client = Client::new(mockito::server_url(), token);
@@ -178,7 +178,7 @@ mod tests {
             )
             .as_str(),
         )
-        .match_header("Authorization", format!("Token {}", token).as_str())
+        .match_header("Authorization", format!("Token {token}").as_str())
         .create();
 
         let client = Client::new(mockito::server_url(), token);
@@ -194,7 +194,7 @@ mod tests {
         let org = "some-org";
         let query: Option<Query> = Some(Query::new("some-influx-query-string".to_string()));
         let mock_server = mock("POST", "/api/v2/query")
-            .match_header("Authorization", format!("Token {}", token).as_str())
+            .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Accepting-Encoding", "identity")
             .match_header("Content-Type", "application/json")
             .match_query(Matcher::UrlEncoded("org".into(), org.into()))
@@ -219,7 +219,7 @@ mod tests {
         let query: Option<Query> = None;
 
         let mock_server = mock("POST", "/api/v2/query")
-            .match_header("Authorization", format!("Token {}", token).as_str())
+            .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Accepting-Encoding", "identity")
             .match_header("Content-Type", "application/json")
             .match_query(Matcher::UrlEncoded("org".into(), org.into()))
@@ -242,7 +242,7 @@ mod tests {
         let token = "some-token";
         let query: Option<Query> = Some(Query::new("some-influx-query-string".to_string()));
         let mock_server = mock("POST", "/api/v2/query/analyze")
-            .match_header("Authorization", format!("Token {}", token).as_str())
+            .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Content-Type", "application/json")
             .match_body(
                 serde_json::to_string(&query.clone().unwrap_or_default())
@@ -263,7 +263,7 @@ mod tests {
         let token = "some-token";
         let query: Option<Query> = None;
         let mock_server = mock("POST", "/api/v2/query/analyze")
-            .match_header("Authorization", format!("Token {}", token).as_str())
+            .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Content-Type", "application/json")
             .match_body(
                 serde_json::to_string(&query.clone().unwrap_or_default())
@@ -285,7 +285,7 @@ mod tests {
         let language_request: Option<LanguageRequest> =
             Some(LanguageRequest::new("some-influx-query-string".to_string()));
         let mock_server = mock("POST", "/api/v2/query/ast")
-            .match_header("Authorization", format!("Token {}", token).as_str())
+            .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Content-Type", "application/json")
             .match_body(
                 serde_json::to_string(&language_request.clone().unwrap_or_default())
@@ -306,7 +306,7 @@ mod tests {
         let token = "some-token";
         let language_request: Option<LanguageRequest> = None;
         let mock_server = mock("POST", "/api/v2/query/ast")
-            .match_header("Authorization", format!("Token {}", token).as_str())
+            .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Content-Type", "application/json")
             .match_body(
                 serde_json::to_string(&language_request.clone().unwrap_or_default())
@@ -328,7 +328,7 @@ mod tests {
         let org = "some-org";
         let query: Option<Query> = Some(Query::new("some-influx-query-string".to_string()));
         let mock_server = mock("POST", "/api/v2/query")
-            .match_header("Authorization", format!("Token {}", token).as_str())
+            .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Accepting-Encoding", "identity")
             .match_header("Content-Type", "application/json")
             .match_query(Matcher::UrlEncoded("org".into(), org.into()))

@@ -403,7 +403,7 @@ async fn new_raw_pool(
                         .execute(&mut *c)
                         .await?;
                 }
-                let search_path_query = format!("SET search_path TO {},public;", schema_name);
+                let search_path_query = format!("SET search_path TO {schema_name},public;");
                 c.execute(sqlx::query(&search_path_query)).await?;
 
                 // Ensure explicit timezone selection, instead of deferring to
@@ -2532,7 +2532,7 @@ mod tests {
 
         // Create the test schema
         pg.pool
-            .execute(format!("CREATE SCHEMA {};", schema_name).as_str())
+            .execute(format!("CREATE SCHEMA {schema_name};").as_str())
             .await
             .expect("failed to create test schema");
 
@@ -2540,8 +2540,7 @@ mod tests {
         pg.pool
             .execute(
                 format!(
-                    "GRANT USAGE ON SCHEMA {} TO public; GRANT CREATE ON SCHEMA {} TO public;",
-                    schema_name, schema_name
+                    "GRANT USAGE ON SCHEMA {schema_name} TO public; GRANT CREATE ON SCHEMA {schema_name} TO public;"
                 )
                 .as_str(),
             )
@@ -2879,7 +2878,7 @@ mod tests {
         // fetch dsn from envvar
         let test_dsn = std::env::var("TEST_INFLUXDB_IOX_CATALOG_DSN").unwrap();
         create_db(&test_dsn).await;
-        eprintln!("TEST_DSN={}", test_dsn);
+        eprintln!("TEST_DSN={test_dsn}");
 
         // create a temp file to store the initial dsn
         let mut dsn_file = NamedTempFile::new().expect("create temp file");
@@ -2889,7 +2888,7 @@ mod tests {
 
         const TEST_APPLICATION_NAME: &str = "test_application_name";
         let dsn_good = format!("dsn-file://{}", dsn_file.path().display());
-        eprintln!("dsn_good={}", dsn_good);
+        eprintln!("dsn_good={dsn_good}");
 
         // create a hot swap pool with test application name and dsn file pointing to tmp file.
         // we will later update this file and the pool should be replaced.
@@ -2919,7 +2918,7 @@ mod tests {
             .write_all(test_dsn.as_bytes())
             .expect("write temp file");
         new_dsn_file
-            .write_all(format!("?application_name={}", TEST_APPLICATION_NAME_NEW).as_bytes())
+            .write_all(format!("?application_name={TEST_APPLICATION_NAME_NEW}").as_bytes())
             .expect("write temp file");
         new_dsn_file
             .persist(dsn_file.path())

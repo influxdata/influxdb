@@ -90,7 +90,7 @@ fn reduce_expr(expr: &Expr, tz: Option<chrono_tz::Tz>) -> ExprResult {
         Expr::Call { name, .. } => {
             if !name.eq_ignore_ascii_case("now") {
                 return Err(DataFusionError::Plan(
-                    format!("invalid function call '{}'", name),
+                    format!("invalid function call '{name}'"),
                 ));
             }
             Ok(DFExpr::ScalarFunction {
@@ -109,14 +109,12 @@ fn reduce_expr(expr: &Expr, tz: Option<chrono_tz::Tz>) -> ExprResult {
             ))),
             Literal::Duration(v) => Ok(lit(ScalarValue::new_interval_mdn(0, 0, **v))),
             _ => Err(DataFusionError::Plan(format!(
-                "found literal '{}', expected duration, float, integer, or timestamp string",
-                val
+                "found literal '{val}', expected duration, float, integer, or timestamp string"
             ))),
         },
 
         Expr::VarRef { .. } | Expr::BindParameter(_) | Expr::Wildcard(_) | Expr::Distinct(_) => Err(DataFusionError::Plan(format!(
-            "found symbol '{}', expected now() or a literal duration, float, integer and timestamp string",
-            expr
+            "found symbol '{expr}', expected now() or a literal duration, float, integer and timestamp string"
         ))),
     }
 }
@@ -182,8 +180,7 @@ fn reduce_binary_lhs_duration_df_expr(
                     Ok(lit(ScalarValue::new_interval_mdn(0, 0, (lhs - *d) as i64)))
                 }
                 _ => Err(DataFusionError::Plan(format!(
-                    "found operator '{}', expected +, -",
-                    op
+                    "found operator '{op}', expected +, -"
                 ))),
             },
             // durations may only be scaled by float literals
@@ -198,8 +195,7 @@ fn reduce_binary_lhs_duration_df_expr(
                     Ok(lit(ScalarValue::new_interval_mdn(0, 0, lhs as i64 / *v)))
                 }
                 _ => Err(DataFusionError::Plan(format!(
-                    "found operator '{}', expected *, /",
-                    op
+                    "found operator '{op}', expected *, /"
                 ))),
             },
             // A timestamp may be added to a duration
@@ -215,8 +211,7 @@ fn reduce_binary_lhs_duration_df_expr(
             // This should not occur, as all the DataFusion literal values created by this process
             // are handled above.
             _ => Err(DataFusionError::Internal(format!(
-                "unexpected DataFusion literal '{}' for duration expression",
-                rhs
+                "unexpected DataFusion literal '{rhs}' for duration expression"
             ))),
         },
         DFExpr::ScalarFunction { .. } => reduce_binary_scalar_df_expr(
@@ -301,7 +296,7 @@ fn reduce_binary_lhs_timestamp_df_expr(
             BinaryOperator::Add => Ok(lit(ScalarValue::TimestampNanosecond(Some(lhs + *d as i64), None))),
             BinaryOperator::Sub => Ok(lit(ScalarValue::TimestampNanosecond(Some(lhs - *d as i64), None))),
             _ => Err(DataFusionError::Plan(
-                format!("invalid operator '{}' for timestamp and duration: expected +, -", op),
+                format!("invalid operator '{op}' for timestamp and duration: expected +, -"),
             )),
         }
         DFExpr::Literal(ScalarValue::Int64(_))
@@ -316,7 +311,7 @@ fn reduce_binary_lhs_timestamp_df_expr(
             tz,
         ),
         _ => Err(DataFusionError::Plan(
-            format!("invalid expression '{}': expected duration, integer or timestamp string", rhs),
+            format!("invalid expression '{rhs}': expected duration, integer or timestamp string"),
         )),
     }
 }
@@ -338,8 +333,7 @@ fn reduce_binary_scalar_df_expr(lhs: &DFExpr, op: BinaryOperator, rhs: &DFExpr) 
             right: Box::new(rhs.clone()),
         })),
         _ => Err(DataFusionError::Plan(format!(
-            "found operator '{}', expected +, -",
-            op
+            "found operator '{op}', expected +, -"
         ))),
     }
 }
@@ -356,8 +350,7 @@ fn expr_to_interval_df_expr(expr: &DFExpr, tz: Option<chrono_tz::Tz>) -> ExprRes
             DFExpr::Literal(ScalarValue::Utf8(Some(s))) => parse_timestamp_nanos(s, tz)?,
             _ => {
                 return Err(DataFusionError::Plan(format!(
-                    "unable to cast '{}' to duration",
-                    expr
+                    "unable to cast '{expr}' to duration"
                 )))
             }
         },
@@ -388,8 +381,7 @@ fn reduce_binary_lhs_string_df_expr(
             reduce_binary_lhs_timestamp_df_expr(parse_timestamp_nanos(lhs, tz)?, op, rhs, tz)
         }
         _ => Err(DataFusionError::Plan(format!(
-            "found '{}', expected duration, integer or timestamp string",
-            rhs
+            "found '{rhs}', expected duration, integer or timestamp string"
         ))),
     }
 }
@@ -397,7 +389,7 @@ fn reduce_binary_lhs_string_df_expr(
 fn parse_timestamp_nanos(s: &str, tz: Option<chrono_tz::Tz>) -> Result<i64> {
     parse_timestamp(s, tz)
         .map(|ts| ts.timestamp_nanos())
-        .map_err(|_| DataFusionError::Plan(format!("'{}' is not a valid timestamp", s)))
+        .map_err(|_| DataFusionError::Plan(format!("'{s}' is not a valid timestamp")))
 }
 
 /// Parse s as a timestamp in the specified timezone and return the timestamp

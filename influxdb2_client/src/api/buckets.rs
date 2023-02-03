@@ -47,14 +47,10 @@ mod tests {
         let token = "some-token";
 
         let mock_server = mock("POST", "/api/v2/buckets")
-            .match_header("Authorization", format!("Token {}", token).as_str())
+            .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Content-Type", "application/json")
             .match_body(
-                format!(
-                    r#"{{"orgID":"{}","name":"{}","retentionRules":[]}}"#,
-                    org_id, bucket
-                )
-                .as_str(),
+                format!(r#"{{"orgID":"{org_id}","name":"{bucket}","retentionRules":[]}}"#).as_str(),
             )
             .create();
 

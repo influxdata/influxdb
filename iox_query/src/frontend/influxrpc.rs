@@ -1813,7 +1813,7 @@ impl AggExprs {
                 field_name,
             )?);
 
-            let time_column_name = format!("{}_{}", TIME_COLUMN_NAME, field_name);
+            let time_column_name = format!("{TIME_COLUMN_NAME}_{field_name}");
 
             agg_exprs.push(make_selector_expr(
                 agg,
@@ -2578,8 +2578,7 @@ mod tests {
 
         assert_eq!(
             actual_predicate, expected_predicate,
-            "\nActual: {:?}\nExpected: {:?}",
-            actual_predicate, expected_predicate
+            "\nActual: {actual_predicate:?}\nExpected: {expected_predicate:?}"
         );
     }
 }

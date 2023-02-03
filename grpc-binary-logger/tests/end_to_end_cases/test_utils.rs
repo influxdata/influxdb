@@ -31,7 +31,7 @@ impl Fixture {
         let addr: SocketAddr = "127.0.0.1:0".parse()?;
         let listener = tokio::net::TcpListener::bind(addr).await?;
         let local_addr = listener.local_addr()?;
-        let local_addr = format!("http://{}", local_addr);
+        let local_addr = format!("http://{local_addr}");
 
         tokio::spawn(async move {
             Server::builder()
@@ -66,7 +66,7 @@ impl Drop for Fixture {
         let (tmp_tx, _) = tokio::sync::oneshot::channel();
         let shutdown_tx = std::mem::replace(&mut self.shutdown_tx, tmp_tx);
         if let Err(e) = shutdown_tx.send(()) {
-            eprintln!("error shutting down text fixture: {:?}", e);
+            eprintln!("error shutting down text fixture: {e:?}");
         }
     }
 }

@@ -616,10 +616,9 @@ mod tests {
         // C1: partially inside retention
         let lp = format!(
             "
-                cpu,host=a load=1 {}\n
-                cpu,host=aa load=11 {}\n
-            ",
-            inside_retention, outside_retention
+                cpu,host=a load=1 {inside_retention}\n
+                cpu,host=aa load=11 {outside_retention}\n
+            "
         );
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp)
@@ -631,10 +630,9 @@ mod tests {
         // C2: fully inside retention
         let lp = format!(
             "
-            cpu,host=b load=2 {}\n
-            cpu,host=bb load=21 {}\n
-            ",
-            inside_retention, inside_retention
+            cpu,host=b load=2 {inside_retention}\n
+            cpu,host=bb load=21 {inside_retention}\n
+            "
         );
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp)
@@ -646,10 +644,9 @@ mod tests {
         // C3: fully outside retention
         let lp = format!(
             "
-            cpu,host=z load=0 {}\n
-            cpu,host=zz load=01 {}\n
-            ",
-            outside_retention, outside_retention
+            cpu,host=z load=0 {outside_retention}\n
+            cpu,host=zz load=01 {outside_retention}\n
+            "
         );
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp)

@@ -281,7 +281,7 @@ mod tests {
         for (name, pred, expected) in cases {
             let plan = simple_filter_plan(pred)?;
             let actual = find_time_range(&plan, &time_col)?;
-            assert_eq!(expected, actual, "test case `{}` failed", name);
+            assert_eq!(expected, actual, "test case `{name}` failed");
         }
         Ok(())
     }

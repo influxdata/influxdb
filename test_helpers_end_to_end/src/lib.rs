@@ -91,7 +91,7 @@ fn dump_log_to_stdout(server_type: &str, log_path: &std::path::Path) {
             break;
         }
         if let Ok(str) = std::str::from_utf8(&buffer[..read]) {
-            print!("{}", str);
+            print!("{str}");
         } else {
             info!(
                 "\n\n-- ERROR IN TRANSFER -- please see {:?} for raw contents ---\n\n",

@@ -36,8 +36,8 @@ impl fmt::Display for ExtendedOnClause {
         f.write_str("ON ")?;
 
         match self {
-            Self::Database(db) => write!(f, "{}", db),
-            Self::DatabaseRetentionPolicy(db, rp) => write!(f, "{}.{}", db, rp),
+            Self::Database(db) => write!(f, "{db}"),
+            Self::DatabaseRetentionPolicy(db, rp) => write!(f, "{db}.{rp}"),
             Self::AllDatabases => write!(f, "*"),
             Self::AllDatabasesAndRetentionPolicies => write!(f, "*.*"),
         }
@@ -98,23 +98,23 @@ impl fmt::Display for ShowMeasurementsStatement {
         write!(f, "SHOW MEASUREMENTS")?;
 
         if let Some(ref on_clause) = self.on {
-            write!(f, " {}", on_clause)?;
+            write!(f, " {on_clause}")?;
         }
 
         if let Some(ref with_clause) = self.with_measurement {
-            write!(f, " {}", with_clause)?;
+            write!(f, " {with_clause}")?;
         }
 
         if let Some(ref where_clause) = self.condition {
-            write!(f, " {}", where_clause)?;
+            write!(f, " {where_clause}")?;
         }
 
         if let Some(ref limit) = self.limit {
-            write!(f, " {}", limit)?;
+            write!(f, " {limit}")?;
         }
 
         if let Some(ref offset) = self.offset {
-            write!(f, " {}", offset)?;
+            write!(f, " {offset}")?;
         }
 
         Ok(())
@@ -135,8 +135,8 @@ impl fmt::Display for WithMeasurementClause {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str("WITH MEASUREMENT ")?;
         match self {
-            Self::Equals(ref name) => write!(f, "= {}", name),
-            Self::Regex(ref re) => write!(f, "=~ {}", re),
+            Self::Equals(ref name) => write!(f, "= {name}"),
+            Self::Regex(ref re) => write!(f, "=~ {re}"),
         }
     }
 }

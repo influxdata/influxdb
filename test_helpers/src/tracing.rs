@@ -88,12 +88,12 @@ struct StringVisitor {
 impl StringVisitor {
     fn record_kv(&mut self, key: &str, value: &str) {
         use std::fmt::Write;
-        write!(self.string, "{} = {}; ", key, value).unwrap();
+        write!(self.string, "{key} = {value}; ").unwrap();
     }
 }
 
 impl tracing::field::Visit for StringVisitor {
     fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
-        self.record_kv(field.name(), &format!("{:?}", value))
+        self.record_kv(field.name(), &format!("{value:?}"))
     }
 }

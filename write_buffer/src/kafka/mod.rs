@@ -124,7 +124,7 @@ impl WriteBufferWriting for RSKafkaProducer {
             .producers
             .get(&shard_index)
             .ok_or_else::<WriteBufferError, _>(|| {
-                format!("Unknown shard index: {}", shard_index).into()
+                format!("Unknown shard index: {shard_index}").into()
             })?;
 
         Ok(producer.produce(operation).await?)
@@ -390,7 +390,7 @@ impl WriteBufferReading for RSKafkaConsumer {
             .partition_clients
             .get(&shard_index)
             .ok_or_else::<WriteBufferError, _>(|| {
-                format!("Unknown shard index: {}", shard_index).into()
+                format!("Unknown shard index: {shard_index}").into()
             })?;
 
         Ok(Box::new(RSKafkaStreamHandler {
@@ -411,7 +411,7 @@ impl WriteBufferReading for RSKafkaConsumer {
             .partition_clients
             .get(&shard_index)
             .ok_or_else::<WriteBufferError, _>(|| {
-                format!("Unknown shard index: {}", shard_index).into()
+                format!("Unknown shard index: {shard_index}").into()
             })?;
 
         let watermark = partition_client.get_offset(OffsetAt::Latest).await?;

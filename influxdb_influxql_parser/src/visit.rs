@@ -1241,13 +1241,13 @@ mod test {
 
         fn push_pre(self, name: &str, n: impl Debug) -> Self {
             let mut s = self.0;
-            s.push(format!("pre_visit_{}: {:?}", name, n));
+            s.push(format!("pre_visit_{name}: {n:?}"));
             Self(s)
         }
 
         fn push_post(self, name: &str, n: impl Debug) -> Self {
             let mut s = self.0;
-            s.push(format!("post_visit_{}: {:?}", name, n));
+            s.push(format!("post_visit_{name}: {n:?}"));
             Self(s)
         }
     }

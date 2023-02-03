@@ -105,7 +105,8 @@ pub enum Error {
     WriteInfo {
         ingester_address: String,
         write_token: String,
-        source: influxdb_iox_client::error::Error,
+        #[snafu(source(from(influxdb_iox_client::error::Error, Box::new)))]
+        source: Box<influxdb_iox_client::error::Error>,
     },
 
     #[snafu(display(

@@ -120,7 +120,7 @@ mod test {
             let mut calls = Vec::new();
             let mut call_no = 0;
             super::walk_expression::<()>(expr, &mut |n| {
-                calls.push(format!("{}: {:?}", call_no, n));
+                calls.push(format!("{call_no}: {n:?}"));
                 call_no += 1;
                 std::ops::ControlFlow::Continue(())
             });
@@ -137,7 +137,7 @@ mod test {
         walk_expression_mut::<()>(expr, &mut |e| {
             match e {
                 ExpressionMut::Arithmetic(n) => match n {
-                    Expr::VarRef { name, .. } => *name = format!("c_{}", name).into(),
+                    Expr::VarRef { name, .. } => *name = format!("c_{name}").into(),
                     Expr::Literal(Literal::Integer(v)) => *v *= 10,
                     Expr::Literal(Literal::Regex(v)) => *v = format!("c_{}", v.0).into(),
                     _ => {}
@@ -160,7 +160,7 @@ mod test {
             let mut calls = Vec::new();
             let mut call_no = 0;
             super::walk_expr::<()>(&expr, &mut |n| {
-                calls.push(format!("{}: {:?}", call_no, n));
+                calls.push(format!("{call_no}: {n:?}"));
                 call_no += 1;
                 std::ops::ControlFlow::Continue(())
             });
@@ -178,7 +178,7 @@ mod test {
             let mut calls = Vec::new();
             let mut call_no = 0;
             super::walk_expr_mut::<()>(&mut expr, &mut |n| {
-                calls.push(format!("{}: {:?}", call_no, n));
+                calls.push(format!("{call_no}: {n:?}"));
                 call_no += 1;
                 std::ops::ControlFlow::Continue(())
             });
@@ -194,7 +194,7 @@ mod test {
         let (_, mut expr) = arithmetic_expression("foo + bar + 5").unwrap();
         walk_expr_mut::<()>(&mut expr, &mut |e| {
             match e {
-                Expr::VarRef { name, .. } => *name = format!("c_{}", name).into(),
+                Expr::VarRef { name, .. } => *name = format!("c_{name}").into(),
                 Expr::Literal(Literal::Integer(v)) => *v *= 10,
                 _ => {}
             }

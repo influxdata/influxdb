@@ -623,8 +623,7 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(
             expected_lines, actual_lines,
-            "\n\nexpected:\n\n{:#?}\nactual:\n\n{:#?}\n\n",
-            expected_lines, actual_lines
+            "\n\nexpected:\n\n{expected_lines:#?}\nactual:\n\n{actual_lines:#?}\n\n"
         );
     }
 

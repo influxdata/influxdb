@@ -692,7 +692,7 @@ impl std::fmt::Display for ColumnType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = self.as_str();
 
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 
@@ -1374,7 +1374,7 @@ impl DeletePredicate {
             if !out.is_empty() {
                 write!(&mut out, " AND ").expect("writing to a string shouldn't fail");
             }
-            write!(&mut out, "{}", expr).expect("writing to a string shouldn't fail");
+            write!(&mut out, "{expr}").expect("writing to a string shouldn't fail");
         }
         out
     }
@@ -1763,9 +1763,7 @@ impl ColumnSummary {
         let total_count = self.total_count();
         assert!(
             total_count <= len,
-            "trying to shrink column stats from {} to {}",
-            total_count,
-            len
+            "trying to shrink column stats from {total_count} to {len}"
         );
         let delta = len - total_count;
         self.stats.update_for_nulls(delta);
@@ -2363,7 +2361,7 @@ pub struct TimestampMinMax {
 impl TimestampMinMax {
     /// Create a new TimestampMinMax. Panics if min > max.
     pub fn new(min: i64, max: i64) -> Self {
-        assert!(min <= max, "expected min ({}) <= max ({})", min, max);
+        assert!(min <= max, "expected min ({min}) <= max ({max})");
         Self { min, max }
     }
 
@@ -2415,13 +2413,13 @@ mod tests {
         // Random chunk IDs use UUID-format
         let id_random = ChunkId::new();
         let inner: Uuid = id_random.get();
-        assert_eq!(format!("{:?}", id_random), format!("ChunkId({})", inner));
-        assert_eq!(format!("{}", id_random), format!("ChunkId({})", inner));
+        assert_eq!(format!("{id_random:?}"), format!("ChunkId({inner})"));
+        assert_eq!(format!("{id_random}"), format!("ChunkId({inner})"));
 
         // Deterministic IDs use integer format
         let id_test = ChunkId::new_test(42);
-        assert_eq!(format!("{:?}", id_test), "ChunkId(42)");
-        assert_eq!(format!("{}", id_test), "ChunkId(42)");
+        assert_eq!(format!("{id_test:?}"), "ChunkId(42)");
+        assert_eq!(format!("{id_test}"), "ChunkId(42)");
     }
 
     #[test]
@@ -3346,7 +3344,7 @@ mod tests {
         ];
 
         for (name, range) in cases {
-            println!("case: {}", name);
+            println!("case: {name}");
             assert!(!range.contains(i64::MIN));
             assert!(!range.contains(i64::MIN + 1));
             assert!(range.contains(MIN_NANO_TIME));

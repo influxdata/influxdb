@@ -190,9 +190,7 @@ impl Connections {
                 Some(
                     grpc_channel(test_config, client_base.as_ref())
                         .await
-                        .map_err(|e| {
-                            format!("Can not connect to router at {}: {}", client_base, e)
-                        })?,
+                        .map_err(|e| format!("Can not connect to router at {client_base}: {e}"))?,
                 )
             }
             _ => None,
@@ -205,7 +203,7 @@ impl Connections {
                     grpc_channel(test_config, client_base.as_ref())
                         .await
                         .map_err(|e| {
-                            format!("Can not connect to ingester at {}: {}", client_base, e)
+                            format!("Can not connect to ingester at {client_base}: {e}")
                         })?,
                 )
             }
@@ -218,9 +216,7 @@ impl Connections {
                 Some(
                     grpc_channel(test_config, client_base.as_ref())
                         .await
-                        .map_err(|e| {
-                            format!("Can not connect to querier at {}: {}", client_base, e)
-                        })?,
+                        .map_err(|e| format!("Can not connect to querier at {client_base}: {e}"))?,
                 )
             }
             _ => None,

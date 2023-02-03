@@ -376,7 +376,7 @@ pub mod test_util {
         match (a, b) {
             (DmlOperation::Write(a), DmlOperation::Write(b)) => assert_writes_eq(a, b),
             (DmlOperation::Delete(a), DmlOperation::Delete(b)) => assert_eq!(a, b),
-            (a, b) => panic!("a != b, {:?} vs {:?}", a, b),
+            (a, b) => panic!("a != b, {a:?} vs {b:?}"),
         }
     }
 
@@ -384,7 +384,7 @@ pub mod test_util {
     pub fn assert_write_op_eq(a: &DmlOperation, b: &DmlWrite) {
         match a {
             DmlOperation::Write(a) => assert_writes_eq(a, b),
-            _ => panic!("unexpected operation: {:?}", a),
+            _ => panic!("unexpected operation: {a:?}"),
         }
     }
 
@@ -411,8 +411,7 @@ pub mod test_util {
             assert_eq!(
                 pretty_format_batches(&[a_batch.to_arrow(Projection::All).unwrap()]).unwrap(),
                 pretty_format_batches(&[b_batch.to_arrow(Projection::All).unwrap()]).unwrap(),
-                "batches for table \"{}\" differ",
-                table_id
+                "batches for table \"{table_id}\" differ"
             );
         }
     }
@@ -421,7 +420,7 @@ pub mod test_util {
     pub fn assert_delete_op_eq(a: &DmlOperation, b: &DmlDelete) {
         match a {
             DmlOperation::Delete(a) => assert_eq!(a, b),
-            _ => panic!("unexpected operation: {:?}", a),
+            _ => panic!("unexpected operation: {a:?}"),
         }
     }
 

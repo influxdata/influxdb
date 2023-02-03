@@ -73,17 +73,17 @@ impl WriteSummary {
     pub fn try_from_token(token: &str) -> Result<Self, String> {
         let data = BASE64_STANDARD
             .decode(token)
-            .map_err(|e| format!("Invalid write token, invalid base64: {}", e))?;
+            .map_err(|e| format!("Invalid write token, invalid base64: {e}"))?;
 
         let json = String::from_utf8(data)
-            .map_err(|e| format!("Invalid write token, non utf8 data in write token: {}", e))?;
+            .map_err(|e| format!("Invalid write token, non utf8 data in write token: {e}"))?;
 
         let proto = serde_json::from_str::<proto::WriteSummary>(&json)
-            .map_err(|e| format!("Invalid write token, protobuf decode error: {}", e))?;
+            .map_err(|e| format!("Invalid write token, protobuf decode error: {e}"))?;
 
         proto
             .try_into()
-            .map_err(|e| format!("Invalid write token, invalid content: {}", e))
+            .map_err(|e| format!("Invalid write token, invalid content: {e}"))
     }
 
     /// return what shard indexes from the write buffer were present in this write summary
@@ -295,10 +295,9 @@ mod tests {
 
         assert!(
             !token.contains("sequenceNumbers"),
-            "token not obscured: {}",
-            token
+            "token not obscured: {token}"
         );
-        assert!(!token.contains("shards"), "token not obscured: {}", token);
+        assert!(!token.contains("shards"), "token not obscured: {token}");
     }
 
     #[test]

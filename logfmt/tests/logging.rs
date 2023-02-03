@@ -276,7 +276,7 @@ fn normalize_spans(lines: Vec<String>) -> Vec<String> {
         .enumerate()
         .fold(lines, |lines, (idx, orig_id)| {
             // replace old span
-            let new_id = format!(" span=SPAN{} ", idx);
+            let new_id = format!(" span=SPAN{idx} ");
             let re = Regex::new(&orig_id).unwrap();
             lines
                 .into_iter()
@@ -340,7 +340,7 @@ impl CapturedWriter {
 impl fmt::Display for CapturedWriter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for s in self.to_strings() {
-            writeln!(f, "{}", s)?
+            writeln!(f, "{s}")?
         }
         Ok(())
     }

@@ -93,7 +93,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
 
     let formatted_result = format.format(&batches)?;
 
-    println!("{}", formatted_result);
+    println!("{formatted_result}");
 
     Ok(())
 }

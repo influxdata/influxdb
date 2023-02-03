@@ -44,7 +44,7 @@ mod with_kafka {
         StepTest::new(
             &mut cluster,
             vec![
-                Step::WriteLineProtocol(format!("{},tag1=A,tag2=B val=42i 123456", table_name)),
+                Step::WriteLineProtocol(format!("{table_name},tag1=A,tag2=B val=42i 123456")),
                 Step::WaitForPersisted,
                 Step::WriteLineProtocol(String::from("other_table,tag1=A,tag2=B val=42i 123456")),
                 Step::WaitForPersisted,
@@ -54,7 +54,7 @@ mod with_kafka {
                     state.cluster_mut().restart_ingester().boxed()
                 })),
                 Step::Query {
-                    sql: format!("select * from {}", table_name),
+                    sql: format!("select * from {table_name}"),
                     expected: vec![
                         "+------+------+--------------------------------+-----+",
                         "| tag1 | tag2 | time                           | val |",
@@ -95,16 +95,15 @@ mod with_kafka {
             &mut cluster,
             vec![
                 Step::WriteLineProtocol(format!(
-                    "{},tag1=A,tag2=B val=42i 123456\n\
-                     {},tag1=A,tag2=C val=43i 123457",
-                    table_name, table_name
+                    "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                     {table_name},tag1=A,tag2=C val=43i 123457"
                 )),
                 Step::WaitForReadable,
                 Step::AssertNotPersisted,
                 Step::Custom(Box::new(move |state: &mut StepTestState| {
                     async move {
                         // Ingester panics but querier will retry.
-                        let sql = format!("select * from {} where tag2='B'", table_name);
+                        let sql = format!("select * from {table_name} where tag2='B'");
                         let batches = run_sql(
                             sql,
                             state.cluster().namespace(),
@@ -180,12 +179,12 @@ mod with_kafka {
                     "x".repeat(10_000),
                 )),
                 Step::WaitForPersisted,
-                Step::WriteLineProtocol(format!("{},tag=A val=3i 3", table_name)),
+                Step::WriteLineProtocol(format!("{table_name},tag=A val=3i 3")),
                 Step::WaitForReadable,
                 Step::AssertLastNotPersisted,
                 // circuit breaker will prevent ingester from being queried, so we only get the persisted data
                 Step::Query {
-                    sql: format!("select tag,val,time from {} where tag='A'", table_name),
+                    sql: format!("select tag,val,time from {table_name} where tag='A'"),
                     expected: vec![
                         "+-----+-----+--------------------------------+",
                         "| tag | val | time                           |",
@@ -208,10 +207,8 @@ mod with_kafka {
                         // wait for circuit breaker to close circuits again
                         tokio::time::timeout(Duration::from_secs(10), async {
                             loop {
-                                let sql = format!(
-                                    "select tag,val,time from {} where tag='A'",
-                                    table_name
-                                );
+                                let sql =
+                                    format!("select tag,val,time from {table_name} where tag='A'");
                                 let batches = run_sql(
                                     sql,
                                     state.cluster().namespace(),
@@ -339,11 +336,11 @@ mod with_kafka {
             &mut cluster,
             vec![
                 // create persisted chunk with a single tag column
-                Step::WriteLineProtocol(format!("{},tag=A val=\"foo\" 1", table_name)),
+                Step::WriteLineProtocol(format!("{table_name},tag=A val=\"foo\" 1")),
                 Step::WaitForPersisted,
                 // query to prime the querier caches with partition sort key
                 Step::Query {
-                    sql: format!("select * from {}", table_name),
+                    sql: format!("select * from {table_name}"),
                     expected: vec![
                         "+-----+--------------------------------+-----+",
                         "| tag | time                           | val |",
@@ -353,7 +350,7 @@ mod with_kafka {
                     ],
                 },
                 // create 2nd chunk with an additional tag column (which will be included in the partition sort key)
-                Step::WriteLineProtocol(format!("{},tag=A,tag2=B val=\"bar\" 1\n", table_name)),
+                Step::WriteLineProtocol(format!("{table_name},tag=A,tag2=B val=\"bar\" 1\n")),
                 Step::WaitForPersisted,
                 // in the original bug the querier would now panic with:
                 //
@@ -361,10 +358,7 @@ mod with_kafka {
                 //
                 // Note that we cannot query tag2 because the schema is cached for a while.
                 Step::Query {
-                    sql: format!(
-                        "select tag, val from {} where tag='A' order by val",
-                        table_name
-                    ),
+                    sql: format!("select tag, val from {table_name} where tag='A' order by val"),
                     expected: vec![
                         "+-----+-----+",
                         "| tag | val |",
@@ -537,15 +531,13 @@ mod with_kafka {
         StepTest::new(
             &mut cluster,
             vec![
-                Step::WriteLineProtocol(format!("{},tag1=A,tag2=B val=42i 123457", table_name)),
+                Step::WriteLineProtocol(format!("{table_name},tag1=A,tag2=B val=42i 123457")),
                 Step::WaitForReadable,
                 // SQL query
                 Step::Custom(Box::new(move |state: &mut StepTestState| {
                     async move {
-                        let sql = format!(
-                            "select tag1, sum(val) as val from {} group by tag1",
-                            table_name
-                        );
+                        let sql =
+                            format!("select tag1, sum(val) as val from {table_name} group by tag1");
                         let err = try_run_sql(
                             &sql,
                             state.cluster().namespace(),
@@ -677,12 +669,11 @@ mod kafkaless_rpc_write {
             &mut cluster,
             vec![
                 Step::WriteLineProtocol(format!(
-                    "{},tag1=A,tag2=B val=42i 123456\n\
-                     {},tag1=A,tag2=C val=43i 123457",
-                    table_name, table_name
+                    "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                     {table_name},tag1=A,tag2=C val=43i 123457"
                 )),
                 Step::Query {
-                    sql: format!("select * from {}", table_name),
+                    sql: format!("select * from {table_name}"),
                     expected: vec![
                         "+------+------+--------------------------------+-----+",
                         "| tag1 | tag2 | time                           | val |",
@@ -717,9 +708,8 @@ mod kafkaless_rpc_write {
             vec![
                 Step::RecordNumParquetFiles,
                 Step::WriteLineProtocol(format!(
-                    "{},tag1=A,tag2=B val=42i 123456\n\
-                     {},tag1=A,tag2=C val=43i 123457",
-                    table_name, table_name
+                    "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                     {table_name},tag1=A,tag2=C val=43i 123457"
                 )),
                 // This should_panic if the ingester setup is correct
                 Step::WaitForPersisted2 {
@@ -745,13 +735,13 @@ mod kafkaless_rpc_write {
             &mut cluster,
             vec![
                 Step::RecordNumParquetFiles,
-                Step::WriteLineProtocol(format!("{},tag1=A,tag2=B val=42i 123456", table_name)),
+                Step::WriteLineProtocol(format!("{table_name},tag1=A,tag2=B val=42i 123456")),
                 // Wait for data to be persisted to parquet
                 Step::WaitForPersisted2 {
                     expected_increase: 1,
                 },
                 Step::Query {
-                    sql: format!("select * from {}", table_name),
+                    sql: format!("select * from {table_name}"),
                     expected: vec![
                         "+------+------+--------------------------------+-----+",
                         "| tag1 | tag2 | time                           | val |",
@@ -792,9 +782,8 @@ mod kafkaless_rpc_write {
             vec![
                 Step::RecordNumParquetFiles,
                 Step::WriteLineProtocol(format!(
-                    "{},tag1=A,tag2=B val=42i 123456\n\
-                     {},tag1=A,tag2=C val=43i 123457",
-                    table_name, table_name
+                    "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                     {table_name},tag1=A,tag2=C val=43i 123457"
                 )),
                 // Wait for data to be persisted to parquet
                 Step::WaitForPersisted2 {
@@ -803,7 +792,7 @@ mod kafkaless_rpc_write {
                 Step::Custom(Box::new(move |state: &mut StepTestState| {
                     async move {
                         // query returns no results
-                        let sql = format!("select * from {} where time > '2023-01-12'", table_name);
+                        let sql = format!("select * from {table_name} where time > '2023-01-12'");
                         let querier_connection =
                             state.cluster().querier().querier_grpc_connection();
                         let namespace = state.cluster().namespace();
@@ -866,12 +855,12 @@ mod kafkaless_rpc_write {
             &mut cluster,
             vec![
                 Step::RecordNumParquetFiles,
-                Step::WriteLineProtocol(format!("{},tag1=A,tag2=B val=42i 123456", table_name)),
+                Step::WriteLineProtocol(format!("{table_name},tag1=A,tag2=B val=42i 123456")),
                 Step::WaitForPersisted2 {
                     expected_increase: 1,
                 },
                 Step::Query {
-                    sql: format!("select * from {}", table_name),
+                    sql: format!("select * from {table_name}"),
                     expected: vec![
                         "+------+------+--------------------------------+-----+",
                         "| tag1 | tag2 | time                           | val |",
@@ -902,13 +891,13 @@ mod kafkaless_rpc_write {
 
         let steps = vec![
             Step::RecordNumParquetFiles,
-            Step::WriteLineProtocol(format!("{},tag1=A,tag2=B val=42i 123456", table_name)),
+            Step::WriteLineProtocol(format!("{table_name},tag1=A,tag2=B val=42i 123456")),
             // Wait for data to be persisted to parquet
             Step::WaitForPersisted2 {
                 expected_increase: 1,
             },
             Step::Query {
-                sql: format!("select * from {}", table_name),
+                sql: format!("select * from {table_name}"),
                 expected: vec![
                     "+------+------+--------------------------------+-----+",
                     "| tag1 | tag2 | time                           | val |",
@@ -919,7 +908,7 @@ mod kafkaless_rpc_write {
             },
             // second query, should be the same result
             Step::Query {
-                sql: format!("select * from {}", table_name),
+                sql: format!("select * from {table_name}"),
                 expected: vec![
                     "+------+------+--------------------------------+-----+",
                     "| tag1 | tag2 | time                           | val |",
@@ -930,14 +919,14 @@ mod kafkaless_rpc_write {
             },
             Step::RecordNumParquetFiles,
             // write another parquet file that has non duplicated data
-            Step::WriteLineProtocol(format!("{},tag1=B,tag2=A val=43i 789101112", table_name)),
+            Step::WriteLineProtocol(format!("{table_name},tag1=B,tag2=A val=43i 789101112")),
             // Wait for data to be persisted to parquet
             Step::WaitForPersisted2 {
                 expected_increase: 1,
             },
             // query should correctly see the data in the second parquet file
             Step::Query {
-                sql: format!("select * from {}", table_name),
+                sql: format!("select * from {table_name}"),
                 expected: vec![
                     "+------+------+--------------------------------+-----+",
                     "| tag1 | tag2 | time                           | val |",

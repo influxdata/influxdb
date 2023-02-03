@@ -190,7 +190,7 @@ impl WriteBufferWriting for FileBufferProducer {
             .dirs
             .get(&shard_index)
             .ok_or_else::<WriteBufferError, _>(|| {
-                format!("Unknown shard index: {}", shard_index).into()
+                format!("Unknown shard index: {shard_index}").into()
             })?;
 
         // measure time
@@ -208,7 +208,7 @@ impl WriteBufferWriting for FileBufferProducer {
         );
 
         for (name, value) in iox_headers.headers() {
-            message.extend(format!("{}: {}\n", name, value).into_bytes())
+            message.extend(format!("{name}: {value}\n").into_bytes())
         }
 
         message.extend(b"\n");
@@ -366,7 +366,7 @@ impl WriteBufferReading for FileBufferConsumer {
             .dirs
             .get(&shard_index)
             .ok_or_else::<WriteBufferError, _>(|| {
-                format!("Unknown shard index: {}", shard_index).into()
+                format!("Unknown shard index: {shard_index}").into()
             })?;
 
         Ok(Box::new(FileBufferStreamHandler {
@@ -386,7 +386,7 @@ impl WriteBufferReading for FileBufferConsumer {
             .dirs
             .get(&shard_index)
             .ok_or_else::<WriteBufferError, _>(|| {
-                format!("Unknown shard index: {}", shard_index).into()
+                format!("Unknown shard index: {shard_index}").into()
             })?;
         let committed = path.join("committed");
 

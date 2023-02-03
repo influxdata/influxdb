@@ -621,7 +621,7 @@ impl Persister for IngesterData {
             .expect("retry forever");
 
         // Record metrics
-        let attributes = Attributes::from([("shard_id", format!("{}", shard_id).into())]);
+        let attributes = Attributes::from([("shard_id", format!("{shard_id}").into())]);
         self.persisted_file_size_bytes
             .recorder(attributes)
             .record(file_size as u64);

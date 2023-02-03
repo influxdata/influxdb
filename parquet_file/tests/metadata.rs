@@ -105,7 +105,7 @@ async fn test_decoded_iox_metadata() {
 
     // Repro of 4714
     let row_group_meta = decoded.parquet_row_group_metadata();
-    println!("ow_group_meta: {:#?}", row_group_meta);
+    println!("ow_group_meta: {row_group_meta:#?}");
     assert_eq!(row_group_meta.len(), 1);
     assert_eq!(row_group_meta[0].columns().len(), 3); // time and some_field
     assert!(row_group_meta[0].column(0).statistics().is_some()); // There is statistics for "time"
@@ -115,7 +115,7 @@ async fn test_decoded_iox_metadata() {
     let schema = decoded.read_schema().unwrap();
     let (_, field) = schema.field(0);
     assert_eq!(field.name(), "time");
-    println!("schema: {:#?}", schema);
+    println!("schema: {schema:#?}");
 
     let col_summary = decoded
         .read_statistics(&schema)

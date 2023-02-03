@@ -23,9 +23,7 @@ pub async fn test_metrics() {
                     .count();
                 assert!(
                     catalog_op_metrics_count >= 180,
-                    "Expected at least 180 catalog op metrics, got: {}\n\n{}",
-                    catalog_op_metrics_count,
-                    metrics
+                    "Expected at least 180 catalog op metrics, got: {catalog_op_metrics_count}\n\n{metrics}"
                 );
 
                 let process_metrics_count = metrics_lines
@@ -34,8 +32,7 @@ pub async fn test_metrics() {
                     .count();
                 assert!(
                     process_metrics_count >= 1,
-                    "Expected `process_start_time_seconds` metric but found none: \n\n{}",
-                    metrics
+                    "Expected `process_start_time_seconds` metric but found none: \n\n{metrics}"
                 );
             })),
         ],

@@ -59,7 +59,7 @@ where
     T: std::fmt::Display,
 {
     v.iter()
-        .map(|item| format!("{}", item))
+        .map(|item| format!("{item}"))
         .collect::<Vec<_>>()
         .join(",")
 }

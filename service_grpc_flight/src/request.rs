@@ -139,7 +139,7 @@ impl IoxGetRequest {
         let ReadInfoJson {
             namespace_name,
             sql_query,
-        } = serde_json::from_str(&json_str).map_err(|e| format!("JSON parse error: {}", e))?;
+        } = serde_json::from_str(&json_str).map_err(|e| format!("JSON parse error: {e}"))?;
 
         Ok(Self {
             namespace_name,

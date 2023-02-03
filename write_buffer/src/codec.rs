@@ -65,14 +65,12 @@ impl IoxHeaders {
                     Ok(CONTENT_TYPE_PROTOBUF) => Some(ContentType::Protobuf),
                     Ok(c) => {
                         return Err(WriteBufferError::invalid_data(format!(
-                            "Unknown message format: {}",
-                            c
+                            "Unknown message format: {c}"
                         )))
                     }
                     Err(e) => {
                         return Err(WriteBufferError::invalid_data(format!(
-                            "Error decoding content type header: {}",
-                            e
+                            "Error decoding content type header: {e}"
                         )))
                     }
                 };
@@ -92,8 +90,7 @@ impl IoxHeaders {
                             Ok(Some(ctx)) => ctx.sampled.then_some(ctx),
                             Err(e) => {
                                 return Err(WriteBufferError::invalid_data(format!(
-                                    "Error decoding trace context: {}",
-                                    e
+                                    "Error decoding trace context: {e}"
                                 )))
                             }
                         };
@@ -156,7 +153,7 @@ pub fn decode(
             let meta = DmlMeta::sequenced(sequence, producer_ts, headers.span_context, bytes_read);
 
             let payload: WriteBufferPayload = prost::Message::decode(data)
-                .map_err(|e| format!("failed to decode WriteBufferPayload: {}", e))?;
+                .map_err(|e| format!("failed to decode WriteBufferPayload: {e}"))?;
 
             let payload = payload.payload.ok_or_else(|| "no payload".to_string())?;
 
@@ -164,8 +161,7 @@ pub fn decode(
                 Payload::Write(write) => {
                     let tables = decode_database_batch(&write).map_err(|e| {
                         WriteBufferError::invalid_data(format!(
-                            "failed to decode database batch: {}",
-                            e
+                            "failed to decode database batch: {e}"
                         ))
                     })?;
 

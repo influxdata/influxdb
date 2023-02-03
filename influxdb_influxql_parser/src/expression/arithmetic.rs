@@ -137,29 +137,29 @@ impl Display for Expr {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::VarRef { name, data_type } => {
-                write!(f, "{}", name)?;
+                write!(f, "{name}")?;
                 if let Some(d) = data_type {
-                    write!(f, "::{}", d)?;
+                    write!(f, "::{d}")?;
                 }
             }
-            Self::BindParameter(v) => write!(f, "{}", v)?,
-            Self::Literal(v) => write!(f, "{}", v)?,
-            Self::Binary { lhs, op, rhs } => write!(f, "{} {} {}", lhs, op, rhs)?,
-            Self::Nested(e) => write!(f, "({})", e)?,
+            Self::BindParameter(v) => write!(f, "{v}")?,
+            Self::Literal(v) => write!(f, "{v}")?,
+            Self::Binary { lhs, op, rhs } => write!(f, "{lhs} {op} {rhs}")?,
+            Self::Nested(e) => write!(f, "({e})")?,
             Self::Call { name, args } => {
-                write!(f, "{}(", name)?;
+                write!(f, "{name}(")?;
                 if !args.is_empty() {
                     let args = args.as_slice();
                     write!(f, "{}", args[0])?;
                     for arg in &args[1..] {
-                        write!(f, ", {}", arg)?;
+                        write!(f, ", {arg}")?;
                     }
                 }
                 write!(f, ")")?;
             }
-            Self::Wildcard(Some(dt)) => write!(f, "*::{}", dt)?,
+            Self::Wildcard(Some(dt)) => write!(f, "*::{dt}")?,
             Self::Wildcard(None) => f.write_char('*')?,
-            Self::Distinct(ident) => write!(f, "DISTINCT {}", ident)?,
+            Self::Distinct(ident) => write!(f, "DISTINCT {ident}")?,
         }
 
         Ok(())

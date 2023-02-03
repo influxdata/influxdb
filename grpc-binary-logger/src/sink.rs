@@ -47,7 +47,7 @@ impl Sink for DebugSink {
     type Error = ();
 
     fn write(&self, data: GrpcLogEntry, _error_logger: impl ErrorLogger<Self::Error>) {
-        eprintln!("{:?}", data);
+        eprintln!("{data:?}");
     }
 }
 

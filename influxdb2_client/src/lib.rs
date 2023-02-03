@@ -150,7 +150,7 @@ impl Client {
         let auth_header = if token.is_empty() {
             None
         } else {
-            Some(format!("Token {}", token))
+            Some(format!("Token {token}"))
         };
 
         Self {

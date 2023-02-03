@@ -886,7 +886,7 @@ mod tests {
         let schema = test_schema();
         let inputs = parse_to_iterators(schema, &["one,ten,10.0,1,1000", "one,ten,10.1,2,2000"]);
         for (i, input) in inputs.into_iter().enumerate() {
-            println!("Stream {}", i);
+            println!("Stream {i}");
 
             let table_name = "foo";
             let tag_columns = [];
@@ -921,7 +921,7 @@ mod tests {
 
         // send no values in the int_field colum
         for (i, input) in inputs.into_iter().enumerate() {
-            println!("Stream {}", i);
+            println!("Stream {i}");
 
             let table_name = "foo";
             let tag_columns = [];
@@ -954,7 +954,7 @@ mod tests {
         let inputs = parse_to_iterators(schema, &["one,ten,10.0,1,1000", "one,ten,10.1,2,2000"]);
 
         for (i, input) in inputs.into_iter().enumerate() {
-            println!("Stream {}", i);
+            println!("Stream {i}");
 
             // test with one tag column, one series
             let table_name = "bar";
@@ -995,7 +995,7 @@ mod tests {
         );
 
         for (i, input) in inputs.into_iter().enumerate() {
-            println!("Stream {}", i);
+            println!("Stream {i}");
 
             // test with one tag column, one series
             let table_name = "bar";
@@ -1039,7 +1039,7 @@ mod tests {
         );
 
         for (i, input) in inputs.into_iter().enumerate() {
-            println!("Stream {}", i);
+            println!("Stream {i}");
 
             let table_name = "foo";
             let tag_columns = ["tag_a"];
@@ -1097,7 +1097,7 @@ mod tests {
         );
 
         for (i, input) in inputs.into_iter().enumerate() {
-            println!("Stream {}", i);
+            println!("Stream {i}");
 
             let table_name = "foo";
             let tag_columns = ["tag_a", "tag_b"];
@@ -1255,15 +1255,14 @@ mod tests {
         let first_batch = reader.next().expect("Reading first batch");
         assert!(
             first_batch.is_ok(),
-            "Can not parse record batch from csv: {:?}",
-            first_batch
+            "Can not parse record batch from csv: {first_batch:?}"
         );
         assert!(
             reader.next().is_none(),
             "Unexpected batch while parsing csv"
         );
 
-        println!("batch: \n{:#?}", first_batch);
+        println!("batch: \n{first_batch:#?}");
 
         first_batch.unwrap()
     }
@@ -1293,7 +1292,7 @@ mod tests {
     }
 
     fn split_lines(lines: &[&str]) -> Vec<Vec<String>> {
-        println!("** Input data:\n{:#?}\n\n", lines);
+        println!("** Input data:\n{lines:#?}\n\n");
         if lines.is_empty() {
             return vec![vec![], vec![String::from("")]];
         }

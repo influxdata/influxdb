@@ -241,7 +241,7 @@ pub fn now_ns() -> i64 {
 fn org_and_bucket_from_database(database: &str) -> (&str, &str) {
     let parts = database.split('_').collect::<Vec<_>>();
     if parts.len() != 2 {
-        panic!("error parsing org and bucket from {}", database);
+        panic!("error parsing org and bucket from {database}");
     }
 
     (parts[0], parts[1])
@@ -327,8 +327,7 @@ agents = [{name = "foo", sampling_interval = "10s"}]
         let data_points: Vec<_> = data_points.collect();
         assert!(
             data_points.is_empty(),
-            "expected no data points, got {:?}",
-            data_points
+            "expected no data points, got {data_points:?}"
         );
 
         Ok(())

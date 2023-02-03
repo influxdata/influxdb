@@ -308,7 +308,7 @@ impl IngestHandler for IngestHandlerImpl {
                 self.query_request_limit_rejected.inc(1);
                 return Err(crate::querier_handler::Error::RequestLimit);
             }
-            Err(e) => panic!("request limiter error: {}", e),
+            Err(e) => panic!("request limiter error: {e}"),
         };
 
         // TEMP(alamb): Log details about what was requested

@@ -1170,7 +1170,7 @@ mod tests {
         /// return metrics reported by compaction
         fn extract_byte_metrics(&self) -> ExtractedByteMetrics {
             let shard_id = self.candidate_partition.shard_id();
-            let attributes = Attributes::from([("shard_id", format!("{}", shard_id).into())]);
+            let attributes = Attributes::from([("shard_id", format!("{shard_id}").into())]);
 
             let (sample_count, buckets_with_counts) =
                 if let Some(observer) = self.metric.get_observer(&attributes) {
@@ -1339,7 +1339,7 @@ mod tests {
         ];
 
         for order in file_orders {
-            println!("Testing order {:?}", order);
+            println!("Testing order {order:?}");
 
             let test_setup = TestSetup::new_for_sort().await;
             let parquet_files = test_setup.input_files();

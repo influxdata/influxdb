@@ -167,7 +167,7 @@ impl PointsWriterBuilder {
         let host = if host.starts_with("http") {
             host
         } else {
-            format!("http://{}", host)
+            format!("http://{host}")
         };
 
         let mut client = influxdb2_client::Client::new(host, token.into());
@@ -482,9 +482,8 @@ agents = [{name = "foo", sampling_interval = "1s"}]
         let line_protocol = points_writer_builder.written_data("foo");
 
         let expected_line_protocol = format!(
-            r#"cpu val=3i {}
-"#,
-            now
+            r#"cpu val=3i {now}
+"#
         );
         assert_eq!(line_protocol, expected_line_protocol);
 

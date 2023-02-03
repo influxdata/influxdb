@@ -116,8 +116,7 @@ fn window_bounds_udf(args: &[ColumnarValue]) -> DataFusionResult<ColumnarValue> 
     let arg = match &args[0] {
         ColumnarValue::Scalar(v) => {
             return Err(DataFusionError::NotImplemented(format!(
-                "window_bounds against scalar arguments ({:?}) not yet implemented",
-                v
+                "window_bounds against scalar arguments ({v:?}) not yet implemented"
             )))
         }
         ColumnarValue::Array(arr) => arr,
@@ -214,8 +213,7 @@ impl TryFrom<EncodedWindowDuration> for WindowDuration {
                 } else {
                     return Err(DataFusionError::Internal(format!(
                         "Invalid variable WindowDuration encoding. Expected int64 for months \
-                             but got '{:?}'",
-                        field1
+                             but got '{field1:?}'"
                     )));
                 };
 
@@ -224,8 +222,7 @@ impl TryFrom<EncodedWindowDuration> for WindowDuration {
                 } else {
                     return Err(DataFusionError::Internal(format!(
                         "Invalid variable WindowDuration encoding. Expected bool for negative \
-                             but got '{:?}'",
-                        field2
+                             but got '{field2:?}'"
                     )));
                 };
 
@@ -237,8 +234,7 @@ impl TryFrom<EncodedWindowDuration> for WindowDuration {
                 } else {
                     return Err(DataFusionError::Internal(format!(
                         "Invalid fixed WindowDuration encoding. Expected int64 for nanoseconds \
-                             but got '{:?}'",
-                        field1
+                             but got '{field1:?}'"
                     )));
                 };
 
@@ -246,8 +242,7 @@ impl TryFrom<EncodedWindowDuration> for WindowDuration {
                 } else {
                     return Err(DataFusionError::Internal(format!(
                         "Invalid fixed WindowDuration encoding. Expected Null bool in field2 \
-                             but got '{:?}'",
-                        field2
+                             but got '{field2:?}'"
                     )));
                 };
 
@@ -255,8 +250,7 @@ impl TryFrom<EncodedWindowDuration> for WindowDuration {
             }
             _ => Err(DataFusionError::Internal(format!(
                 "Invalid WindowDuration encoding. Expected string 'variable' or 'fixed' but \
-                    got '{:?}'",
-                ty
+                    got '{ty:?}'"
             ))),
         }
     }
@@ -293,8 +287,7 @@ mod tests {
 
         assert_eq!(
             &expected_array, &bounds_array,
-            "Expected:\n{:?}\nActual:\n{:?}",
-            expected_array, bounds_array,
+            "Expected:\n{expected_array:?}\nActual:\n{bounds_array:?}",
         );
     }
 

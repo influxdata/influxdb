@@ -136,7 +136,7 @@ where
             let measurement_name = Arc::clone(&measurement_name);
             tokio::task::spawn(async move {
                 batch
-                    .map_err(|e| format!("Something bad happened reading batch: {}", e))
+                    .map_err(|e| format!("Something bad happened reading batch: {e}"))
                     .and_then(|batch| convert_to_lines(&measurement_name, &iox_schema, &batch))
             })
         })

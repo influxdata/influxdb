@@ -184,8 +184,7 @@ async fn pprof_home(req: Request<Body>) -> Result<Response<Body>, ApplicationErr
         PProfAllocsArgs::default_seconds()
     );
     Ok(Response::new(Body::from(format!(
-        r#"<a href="{}">http://{}{}</a><br><a href="{}">http://{}{}</a>"#,
-        profile_cmd, host, profile_cmd, allocs_cmd, host, allocs_cmd,
+        r#"<a href="{profile_cmd}">http://{host}{profile_cmd}</a><br><a href="{allocs_cmd}">http://{host}{allocs_cmd}</a>"#,
     ))))
 }
 

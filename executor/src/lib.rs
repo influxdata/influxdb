@@ -512,8 +512,7 @@ mod tests {
 
                 assert!(
                     tname.starts_with("Test DedicatedExecutor"),
-                    "Invalid thread name: {}",
-                    tname,
+                    "Invalid thread name: {tname}",
                 );
 
                 25usize

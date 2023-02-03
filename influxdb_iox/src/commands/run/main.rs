@@ -129,7 +129,7 @@ pub async fn main(
             grpc_bind_address,
             server_type,
         } = service;
-        let server_type_name = format!("{:?}", server_type);
+        let server_type_name = format!("{server_type:?}");
         let handle = tokio::spawn(async move {
             let trace_exporter = common_state.trace_exporter();
             info!(?grpc_bind_address, ?server_type, "Binding gRPC services");

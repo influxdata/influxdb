@@ -169,7 +169,7 @@ fn send_metrics_to_tracing(
                 if per_partition_tracing {
                     if let Some(partition) = partition {
                         let mut partition_span =
-                            operator_span.child(format!("{} ({})", operator_name, partition));
+                            operator_span.child(format!("{operator_name} ({partition})"));
 
                         partition_span.start = Some(partition_start_time);
                         partition_span.end = Some(partition_end_time);
@@ -323,8 +323,7 @@ impl std::str::FromStr for BooleanFlag {
             "yes" | "y" | "true" | "t" | "1" => Ok(Self::True),
             "no" | "n" | "false" | "f" | "0" => Ok(Self::False),
             _ => Err(format!(
-                "Invalid boolean flag '{}'. Valid options: yes, no, y, n, true, false, t, f, 1, 0",
-                s
+                "Invalid boolean flag '{s}'. Valid options: yes, no, y, n, true, false, t, f, 1, 0"
             )),
         }
     }
@@ -363,7 +362,7 @@ mod tests {
         assert_eq!(spans.len(), 1);
 
         // name is truncated to the operator name
-        assert_eq!(spans[0].name, "TestExec - Foo", "span: {:#?}", spans);
+        assert_eq!(spans[0].name, "TestExec - Foo", "span: {spans:#?}");
     }
 
     // children and time propagation
@@ -412,12 +411,12 @@ mod tests {
         let spans = traces.spans();
         let spans: BTreeMap<_, _> = spans.iter().map(|s| (s.name.as_ref(), s)).collect();
 
-        println!("Spans: \n\n{:#?}", spans);
-        assert_eq!(spans.len(), 12);
+        println!("Spans: \n\n{spans:#?}");
+        assert_eq!(spans.len(), 10);
 
         let check_span = |span: &Span, expected_start, expected_end, desc: Option<&str>| {
-            assert_eq!(span.start, expected_start, "expected start; {:?}", span);
-            assert_eq!(span.end, expected_end, "expected end; {:?}", span);
+            assert_eq!(span.start, expected_start, "expected start; {span:?}");
+            assert_eq!(span.end, expected_end, "expected end; {span:?}");
             assert_eq!(span.metadata.get("desc").map(|x| x.string().unwrap()), desc);
         };
 
@@ -427,7 +426,6 @@ mod tests {
             Some(ts4),
             Some("TestExec - exec"),
         );
-        check_span(spans["TestExec - exec (1)"], Some(ts1), Some(ts4), None);
 
         check_span(
             spans["TestExec - child1"],
@@ -435,7 +433,6 @@ mod tests {
             Some(ts4),
             Some("TestExec - child1: foo"),
         );
-        check_span(spans["TestExec - child1 (1)"], Some(ts2), Some(ts4), None);
 
         check_span(
             spans["TestExec - child2"],
@@ -484,8 +481,7 @@ mod tests {
         assert_eq!(
             spans[0].metadata.get("missing_statistics"),
             Some(&MetaValue::String("true".into())),
-            "spans: {:#?}",
-            spans
+            "spans: {spans:#?}"
         );
     }
 
@@ -513,15 +509,13 @@ mod tests {
             assert_eq!(
                 span.metadata.get("output_rows"),
                 Some(&MetaValue::Int(output_row)),
-                "span: {:#?}",
-                span
+                "span: {span:#?}"
             );
 
             assert_eq!(
                 span.metadata.get("elapsed_compute_nanos"),
                 Some(&MetaValue::Int(nanos)),
-                "spans: {:#?}",
-                span
+                "spans: {span:#?}"
             );
         };
 

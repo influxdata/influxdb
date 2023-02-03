@@ -97,7 +97,7 @@ async fn do_read_window_aggregate_test(
                         .source(state.cluster())
                         .build_read_window_aggregate();
 
-                    println!("Sending read_window_aggregate request {:#?}", request);
+                    println!("Sending read_window_aggregate request {request:#?}");
 
                     let response = storage_client.read_window_aggregate(request).await.unwrap();
                     let responses: Vec<_> = response.into_inner().try_collect().await.unwrap();
@@ -111,8 +111,7 @@ async fn do_read_window_aggregate_test(
 
                     assert_eq!(
                         expected_frames, actual_frames,
-                        "\n\nExpected:\n{:#?}\nActual:\n{:#?}",
-                        expected_frames, actual_frames,
+                        "\n\nExpected:\n{expected_frames:#?}\nActual:\n{actual_frames:#?}",
                     );
                 }
                 .boxed()

@@ -18,8 +18,7 @@ async fn crud() {
     let closed = wal.closed_segments();
     assert!(
         closed.is_empty(),
-        "Expected empty closed segments; got {:?}",
-        closed
+        "Expected empty closed segments; got {closed:?}"
     );
 
     // Can write an entry to the open segment
@@ -38,8 +37,7 @@ async fn crud() {
     let closed = wal.closed_segments();
     assert!(
         closed.is_empty(),
-        "Expected empty closed segments; got {:?}",
-        closed
+        "Expected empty closed segments; got {closed:?}"
     );
 
     // Can't read entries from the open segment; have to rotate first
@@ -63,8 +61,7 @@ async fn crud() {
     let closed = wal.closed_segments();
     assert!(
         closed.is_empty(),
-        "Expected empty closed segments; got {:?}",
-        closed
+        "Expected empty closed segments; got {closed:?}"
     );
 }
 
@@ -207,6 +204,6 @@ async fn unwrap_summary(mut res: watch::Receiver<Option<WriteResult>>) -> WriteS
 
     match res.borrow().clone().unwrap() {
         WriteResult::Ok(summary) => summary,
-        WriteResult::Err(err) => panic!("error getting write summary: {}", err),
+        WriteResult::Err(err) => panic!("error getting write summary: {err}"),
     }
 }

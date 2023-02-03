@@ -296,12 +296,12 @@ async fn test_write_propagate_ids() {
         .to_string();
     let lp = format! {
         "
-            platanos,tag1=A,tag2=B val=42i {}\n\
-            another,tag1=A,tag2=B val=42i {}\n\
-            test,tag1=A,tag2=B val=42i {}\n\
-            platanos,tag1=A,tag2=B val=42i {}\n\
-            table,tag1=A,tag2=B val=42i {}\n\
-        ", now, now, now, now, now
+            platanos,tag1=A,tag2=B val=42i {now}\n\
+            another,tag1=A,tag2=B val=42i {now}\n\
+            test,tag1=A,tag2=B val=42i {now}\n\
+            platanos,tag1=A,tag2=B val=42i {now}\n\
+            table,tag1=A,tag2=B val=42i {now}\n\
+        "
 
     };
 

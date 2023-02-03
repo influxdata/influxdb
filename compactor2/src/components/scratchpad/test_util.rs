@@ -29,7 +29,6 @@ pub fn file_path(i: u128) -> ParquetFilePath {
     )
 }
 
-#[track_caller]
 pub async fn assert_content<const N: usize>(
     store: &Arc<DynObjectStore>,
     files: [&ParquetFilePath; N],

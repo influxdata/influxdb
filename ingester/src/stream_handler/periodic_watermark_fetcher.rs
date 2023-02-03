@@ -242,7 +242,7 @@ mod tests {
                     Some(42) => break,
                     // The mock is configured to return 42 - any other value
                     // is incorrect.
-                    Some(v) => panic!("observed unexpected value {}", v),
+                    Some(v) => panic!("observed unexpected value {v}"),
                     None => tokio::time::sleep(Duration::from_millis(10)).await,
                 }
             }

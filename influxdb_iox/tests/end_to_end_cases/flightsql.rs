@@ -22,13 +22,12 @@ async fn flightsql_adhoc_query() {
         &mut cluster,
         vec![
             Step::WriteLineProtocol(format!(
-                "{},tag1=A,tag2=B val=42i 123456\n\
-                 {},tag1=A,tag2=C val=43i 123457",
-                table_name, table_name
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
             )),
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 async move {
-                    let sql = format!("select * from {}", table_name);
+                    let sql = format!("select * from {table_name}");
                     let expected = vec![
                         "+------+------+--------------------------------+-----+",
                         "| tag1 | tag2 | time                           | val |",
@@ -124,13 +123,12 @@ async fn flightsql_prepared_query() {
         &mut cluster,
         vec![
             Step::WriteLineProtocol(format!(
-                "{},tag1=A,tag2=B val=42i 123456\n\
-                 {},tag1=A,tag2=C val=43i 123457",
-                table_name, table_name
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
             )),
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 async move {
-                    let sql = format!("select * from {}", table_name);
+                    let sql = format!("select * from {table_name}");
                     let expected = vec![
                         "+------+------+--------------------------------+-----+",
                         "| tag1 | tag2 | time                           | val |",
@@ -195,9 +193,8 @@ async fn flightsql_jdbc() {
         &mut cluster,
         vec![
             Step::WriteLineProtocol(format!(
-                "{},tag1=A,tag2=B val=42i 123456\n\
-                 {},tag1=A,tag2=C val=43i 123457",
-                table_name, table_name
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
             )),
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 // satisfy the borrow checker

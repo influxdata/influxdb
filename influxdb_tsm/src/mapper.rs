@@ -299,12 +299,12 @@ impl Display for MeasurementTable {
         for (tagset, field_key_blocks) in &self.tag_set_fields_blocks {
             write!(f, "\t")?;
             for (key, value) in tagset {
-                write!(f, "{}={} ", key, value)?;
+                write!(f, "{key}={value} ")?;
             }
 
             writeln!(f, "\n\tField Keys:")?;
             for (field_key, blocks) in field_key_blocks {
-                writeln!(f, "\t{}", field_key)?;
+                writeln!(f, "\t{field_key}")?;
                 for block in blocks {
                     writeln!(
                         f,

@@ -171,7 +171,7 @@ impl Error {
         let description = description.into();
 
         Self::InvalidArgument(ServerError {
-            message: format!("Invalid argument for '{}': {}", field_name, description),
+            message: format!("Invalid argument for '{field_name}': {description}"),
             details: Some(FieldViolation {
                 field: field_name,
                 description,

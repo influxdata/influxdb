@@ -241,7 +241,7 @@ impl Agent {
                     }
                 }
                 Err(e) => {
-                    eprintln!("Error writing points: {}", e);
+                    eprintln!("Error writing points: {e}");
                     stats.error_count += 1;
                 }
             }
@@ -412,7 +412,7 @@ mod test {
 
                 let points = agent.generate().await?.into_iter().flatten();
                 let points: Vec<_> = points.collect();
-                assert!(points.is_empty(), "expected no points, got {:?}", points);
+                assert!(points.is_empty(), "expected no points, got {points:?}");
 
                 Ok(())
             }
@@ -426,7 +426,7 @@ mod test {
 
                 let points = agent.generate().await?.into_iter().flatten();
                 let points: Vec<_> = points.collect();
-                assert!(points.is_empty(), "expected no points, got {:?}", points);
+                assert!(points.is_empty(), "expected no points, got {points:?}");
 
                 Ok(())
             }
@@ -440,7 +440,7 @@ mod test {
 
                 let points = agent.generate().await?.into_iter().flatten();
                 let points: Vec<_> = points.collect();
-                assert!(points.is_empty(), "expected no points, got {:?}", points);
+                assert!(points.is_empty(), "expected no points, got {points:?}");
 
                 Ok(())
             }
@@ -458,7 +458,7 @@ mod test {
 
                 let points = agent.generate().await?.into_iter().flatten();
                 let points: Vec<_> = points.collect();
-                assert!(points.is_empty(), "expected no points, got {:?}", points);
+                assert!(points.is_empty(), "expected no points, got {points:?}");
 
                 Ok(())
             }
@@ -472,7 +472,7 @@ mod test {
 
                 let points = agent.generate().await?.into_iter().flatten();
                 let points: Vec<_> = points.collect();
-                assert!(points.is_empty(), "expected no points, got {:?}", points);
+                assert!(points.is_empty(), "expected no points, got {points:?}");
 
                 Ok(())
             }
@@ -486,7 +486,7 @@ mod test {
 
                 let points = agent.generate().await?.into_iter().flatten();
                 let points: Vec<_> = points.collect();
-                assert!(points.is_empty(), "expected no points, got {:?}", points);
+                assert!(points.is_empty(), "expected no points, got {points:?}");
 
                 Ok(())
             }
@@ -533,7 +533,7 @@ mod test {
 
                 let points = agent.generate().await?.into_iter().flatten();
                 let points: Vec<_> = points.collect();
-                assert!(points.is_empty(), "expected no points, got {:?}", points);
+                assert!(points.is_empty(), "expected no points, got {points:?}");
 
                 Ok(())
             }
@@ -551,7 +551,7 @@ mod test {
 
                 let points = agent.generate().await?.into_iter().flatten();
                 let points: Vec<_> = points.collect();
-                assert!(points.is_empty(), "expected no points, got {:?}", points);
+                assert!(points.is_empty(), "expected no points, got {points:?}");
 
                 Ok(())
             }
@@ -569,7 +569,7 @@ mod test {
 
                 let points = agent.generate().await?.into_iter().flatten();
                 let points: Vec<_> = points.collect();
-                assert!(points.is_empty(), "expected no points, got {:?}", points);
+                assert!(points.is_empty(), "expected no points, got {points:?}");
 
                 Ok(())
             }

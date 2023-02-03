@@ -22,9 +22,9 @@ impl<I: Display> Display for Error<I> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Syntax { input: _, message } => {
-                write!(f, "Syntax error: {}", message)
+                write!(f, "Syntax error: {message}")
             }
-            Self::Nom(_, kind) => write!(f, "nom error: {:?}", kind),
+            Self::Nom(_, kind) => write!(f, "nom error: {kind:?}"),
         }
     }
 }

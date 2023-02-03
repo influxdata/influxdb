@@ -745,7 +745,7 @@ impl TestChunk {
         let batch =
             RecordBatch::try_new(self.schema.as_arrow(), columns).expect("made record batch");
         if !self.quiet {
-            println!("TestChunk batch data: {:#?}", batch);
+            println!("TestChunk batch data: {batch:#?}");
         }
 
         self.table_data.push(Arc::new(batch));
@@ -785,7 +785,7 @@ impl TestChunk {
         let batch =
             RecordBatch::try_new(self.schema.as_arrow(), columns).expect("made record batch");
         if !self.quiet {
-            println!("TestChunk batch data: {:#?}", batch);
+            println!("TestChunk batch data: {batch:#?}");
         }
 
         self.table_data.push(Arc::new(batch));

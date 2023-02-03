@@ -31,7 +31,7 @@ impl InfluxQLQueryPlanner {
         debug!(text=%query, "planning InfluxQL query");
 
         let mut statements = parse_statements(query)
-            .map_err(|e| DataFusionError::External(format!("{}", e).into()))?;
+            .map_err(|e| DataFusionError::External(format!("{e}").into()))?;
 
         if statements.len() != 1 {
             return Err(DataFusionError::NotImplemented(

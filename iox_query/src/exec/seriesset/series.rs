@@ -83,7 +83,7 @@ impl fmt::Display for Series {
             } else {
                 first = false;
             }
-            write!(f, "{}", tag)
+            write!(f, "{tag}")
         })?;
         writeln!(f, "}}")?;
         write!(f, "  {}", self.data)
@@ -213,28 +213,23 @@ impl fmt::Display for Data {
         match self {
             Self::FloatPoints { timestamps, values } => write!(
                 f,
-                "FloatPoints timestamps: {:?}, values: {:?}",
-                timestamps, values
+                "FloatPoints timestamps: {timestamps:?}, values: {values:?}"
             ),
             Self::IntegerPoints { timestamps, values } => write!(
                 f,
-                "IntegerPoints timestamps: {:?}, values: {:?}",
-                timestamps, values
+                "IntegerPoints timestamps: {timestamps:?}, values: {values:?}"
             ),
             Self::UnsignedPoints { timestamps, values } => write!(
                 f,
-                "UnsignedPoints timestamps: {:?}, values: {:?}",
-                timestamps, values
+                "UnsignedPoints timestamps: {timestamps:?}, values: {values:?}"
             ),
             Self::BooleanPoints { timestamps, values } => write!(
                 f,
-                "BooleanPoints timestamps: {:?}, values: {:?}",
-                timestamps, values
+                "BooleanPoints timestamps: {timestamps:?}, values: {values:?}"
             ),
             Self::StringPoints { timestamps, values } => write!(
                 f,
-                "StringPoints timestamps: {:?}, values: {:?}",
-                timestamps, values
+                "StringPoints timestamps: {timestamps:?}, values: {values:?}"
             ),
         }
     }
@@ -453,7 +448,7 @@ fn fmt_strings(f: &mut fmt::Formatter<'_>, strings: &[Arc<str>]) -> fmt::Result 
         } else {
             first = false;
         }
-        write!(f, "{}", item)
+        write!(f, "{item}")
     })
 }
 
@@ -547,8 +542,7 @@ mod tests {
 
         assert_eq!(
             series_strings, expected,
-            "Expected:\n{:#?}\nActual:\n{:#?}",
-            expected, series_strings
+            "Expected:\n{expected:#?}\nActual:\n{series_strings:#?}"
         );
     }
 
@@ -587,8 +581,7 @@ mod tests {
 
         assert_eq!(
             series_strings, expected,
-            "Expected:\n{:#?}\nActual:\n{:#?}",
-            expected, series_strings
+            "Expected:\n{expected:#?}\nActual:\n{series_strings:#?}"
         );
     }
 
@@ -628,8 +621,7 @@ mod tests {
 
         assert_eq!(
             series_strings, expected,
-            "Expected:\n{:#?}\nActual:\n{:#?}",
-            expected, series_strings
+            "Expected:\n{expected:#?}\nActual:\n{series_strings:#?}"
         );
     }
 
@@ -676,8 +668,7 @@ mod tests {
 
         assert_eq!(
             series_strings, expected,
-            "Expected:\n{:#?}\nActual:\n{:#?}",
-            expected, series_strings
+            "Expected:\n{expected:#?}\nActual:\n{series_strings:#?}"
         );
     }
 
@@ -732,8 +723,7 @@ mod tests {
 
         assert_eq!(
             series_strings, expected,
-            "Expected:\n{:#?}\nActual:\n{:#?}",
-            expected, series_strings
+            "Expected:\n{expected:#?}\nActual:\n{series_strings:#?}"
         );
     }
 

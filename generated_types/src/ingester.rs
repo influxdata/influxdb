@@ -10,14 +10,14 @@ use snafu::{ResultExt, Snafu};
 fn expr_to_bytes_violation(field: impl Into<String>, e: DataFusionError) -> FieldViolation {
     FieldViolation {
         field: field.into(),
-        description: format!("Error converting Expr to bytes: {}", e),
+        description: format!("Error converting Expr to bytes: {e}"),
     }
 }
 
 fn expr_from_bytes_violation(field: impl Into<String>, e: DataFusionError) -> FieldViolation {
     FieldViolation {
         field: field.into(),
-        description: format!("Error creating Expr from bytes: {}", e),
+        description: format!("Error creating Expr from bytes: {e}"),
     }
 }
 
@@ -168,7 +168,7 @@ impl TryFrom<proto::Predicate> for Predicate {
                 // try to convert to ValueExpr
                 expr.try_into().map_err(|e| FieldViolation {
                     field: "expr".into(),
-                    description: format!("Internal: Serialized expr a valid ValueExpr: {:?}", e),
+                    description: format!("Internal: Serialized expr a valid ValueExpr: {e:?}"),
                 })
             })
             .collect::<Result<Vec<ValueExpr>, FieldViolation>>()?;

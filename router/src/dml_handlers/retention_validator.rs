@@ -213,7 +213,7 @@ mod tests {
             .to_string();
         let line2 = "bananas,tag1=AA,tag2=BB val=422i ".to_string() + &two_hours_ago;
         // a lp with 2 lines, one inside and one outside retention period
-        let lp = format!("{}\n{}", line1, line2);
+        let lp = format!("{line1}\n{line2}");
 
         let writes = lp_to_writes(&lp);
         let result = handler
@@ -249,7 +249,7 @@ mod tests {
             .to_string();
         let line2 = "apple,tag1=AA,tag2=BB val=422i ".to_string() + &two_hours_ago;
         // a lp with 2 lines, one inside and one outside retention period
-        let lp = format!("{}\n{}", line1, line2);
+        let lp = format!("{line1}\n{line2}");
 
         let writes = lp_to_writes(&lp);
         let result = handler

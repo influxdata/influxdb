@@ -1292,7 +1292,7 @@ pub mod test_utils {
                 let writer = Arc::clone(&writer);
 
                 async move {
-                    let entry = format!("upc,region=east user={} {}", i, i);
+                    let entry = format!("upc,region=east user={i} {i}");
 
                     write(
                         writer.as_ref(),

@@ -130,7 +130,7 @@ impl Client {
         let (org_id, bucket_id) = split_namespace(namespace.as_ref()).map_err(|e| {
             Error::invalid_argument(
                 "namespace",
-                format!("Could not find valid org_id and bucket_id: {}", e),
+                format!("Could not find valid org_id and bucket_id: {e}"),
             )
         })?;
 

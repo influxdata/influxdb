@@ -282,7 +282,7 @@ mod test {
             "<=" => RPCComparison::Lte,
             "~" => RPCComparison::Regex,
             "!~" => RPCComparison::NotRegex,
-            _ => panic!("invalid comparator string: {:?}", cmp),
+            _ => panic!("invalid comparator string: {cmp:?}"),
         }
     }
 
@@ -296,7 +296,7 @@ mod test {
     // N.B, does not support spaces in tag keys or values.
     fn make_tag_expr(input: &str) -> RPCNode {
         let parts = input.split_whitespace().collect::<Vec<_>>();
-        assert_eq!(parts.len(), 3, "invalid input string: {:?}", input);
+        assert_eq!(parts.len(), 3, "invalid input string: {input:?}");
 
         let comparison = rpc_op_from_str(parts[1]);
         let is_regex =
@@ -378,7 +378,7 @@ mod test {
         let ops = vec!["=", "!=", ">", ">=", "<", "<=", "~", "!~"];
         let exprs = ops
             .into_iter()
-            .map(|op| format!("server {} 'abc'", op))
+            .map(|op| format!("server {op} 'abc'"))
             .collect::<Vec<_>>();
 
         for expr_str in exprs {
@@ -458,19 +458,19 @@ mod test {
         for op in ops {
             let exprs = vec![
                 (
-                    make_sql_expr(&format!("server::field {} 100", op)),
+                    make_sql_expr(&format!("server::field {op} 100")),
                     make_field_expr_i64("server", op, 100_i64),
                 ),
                 (
-                    make_sql_expr(&format!("server::field {} 100.0", op)),
+                    make_sql_expr(&format!("server::field {op} 100.0")),
                     make_field_expr_f64("server", op, 100.0),
                 ),
                 (
-                    make_sql_expr(&format!("server::field {} true", op)),
+                    make_sql_expr(&format!("server::field {op} true")),
                     make_field_expr_bool("server", op, true),
                 ),
                 (
-                    make_sql_expr(&format!("server::field {} 'Mice'", op)),
+                    make_sql_expr(&format!("server::field {op} 'Mice'")),
                     make_field_expr_str("server", op, "Mice".to_owned()),
                 ),
             ];

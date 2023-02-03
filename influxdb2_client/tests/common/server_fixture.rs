@@ -173,21 +173,21 @@ impl TestServer {
     fn new() -> Self {
         let ready = Mutex::new(ServerState::Started);
         let http_port = NEXT_PORT.fetch_add(1, SeqCst);
-        let http_base = format!("http://127.0.0.1:{}", http_port);
+        let http_base = format!("http://127.0.0.1:{http_port}");
 
         let temp_dir = test_helpers::tmp_dir().unwrap();
 
         let mut log_path = temp_dir.path().to_path_buf();
-        log_path.push(format!("influxdb_server_fixture_{}.log", http_port));
+        log_path.push(format!("influxdb_server_fixture_{http_port}.log"));
 
         let mut bolt_path = temp_dir.path().to_path_buf();
-        bolt_path.push(format!("influxd_{}.bolt", http_port));
+        bolt_path.push(format!("influxd_{http_port}.bolt"));
 
         let mut engine_path = temp_dir.path().to_path_buf();
-        engine_path.push(format!("influxd_{}_engine", http_port));
+        engine_path.push(format!("influxd_{http_port}_engine"));
 
         println!("****************");
-        println!("Server Logging to {:?}", log_path);
+        println!("Server Logging to {log_path:?}");
         println!("****************");
         let log_file = File::create(log_path).expect("Opening log file");
 
@@ -201,7 +201,7 @@ impl TestServer {
         let (server_process, docker_name) = if local {
             let cmd = Command::new("influxd")
                 .arg("--http-bind-address")
-                .arg(format!(":{}", http_port))
+                .arg(format!(":{http_port}"))
                 .arg("--bolt-path")
                 .arg(bolt_path)
                 .arg("--engine-path")
@@ -214,7 +214,7 @@ impl TestServer {
             (cmd, None)
         } else {
             let ci_image = "quay.io/influxdb/rust:ci";
-            let container_name = format!("influxdb2_{}", http_port);
+            let container_name = format!("influxdb2_{http_port}");
 
             Command::new("docker")
                 .arg("container")
@@ -222,7 +222,7 @@ impl TestServer {
                 .arg("--name")
                 .arg(&container_name)
                 .arg("--publish")
-                .arg(format!("{}:8086", http_port))
+                .arg(format!("{http_port}:8086"))
                 .arg("--rm")
                 .arg("--pull")
                 .arg("always")
@@ -272,11 +272,11 @@ impl TestServer {
             loop {
                 match client.get(&url).send().await {
                     Ok(resp) => {
-                        println!("Successfully got a response from HTTP: {:?}", resp);
+                        println!("Successfully got a response from HTTP: {resp:?}");
                         return;
                     }
                     Err(e) => {
-                        println!("Waiting for HTTP server to be up: {}", e);
+                        println!("Waiting for HTTP server to be up: {e}");
                     }
                 }
                 interval.tick().await;
@@ -287,14 +287,14 @@ impl TestServer {
 
         match capped_check.await {
             Ok(_) => {
-                println!("Successfully started {}", self);
+                println!("Successfully started {self}");
                 *ready = ServerState::Ready;
             }
             Err(e) => {
                 // tell others that this server had some problem
                 *ready = ServerState::Error;
                 std::mem::drop(ready);
-                panic!("Server was not ready in required time: {}", e);
+                panic!("Server was not ready in required time: {e}");
             }
         }
 
@@ -324,7 +324,7 @@ impl TestServer {
                 Err(e) => {
                     *ready = ServerState::Error;
                     std::mem::drop(ready);
-                    panic!("Could not onboard: {}", e);
+                    panic!("Could not onboard: {e}");
                 }
             }
         }

@@ -21,7 +21,7 @@ impl<'a> Display for Projection<'a> {
             Projection::All => write!(f, "*")?,
             Projection::Some(cols) => {
                 for (i, col) in cols.iter().enumerate() {
-                    write!(f, "{}", col)?;
+                    write!(f, "{col}")?;
                     if i < cols.len() - 1 {
                         write!(f, ",")?;
                     }
@@ -82,7 +82,7 @@ mod test_super {
         ];
 
         for (selection, exp) in selections {
-            assert_eq!(format!("{}", selection).as_str(), exp);
+            assert_eq!(format!("{selection}").as_str(), exp);
         }
     }
 }

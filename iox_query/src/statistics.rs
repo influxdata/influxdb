@@ -173,7 +173,7 @@ mod test {
 
         let expected = DFStatistics {
             num_rows: Some(3),
-            total_byte_size: Some(444),
+            total_byte_size: Some(412),
             column_statistics: Some(vec![df_c1_stats.clone(), df_c2_stats.clone()]),
             is_exact: true,
         };
@@ -250,7 +250,7 @@ mod test {
 
         let expected = DFStatistics {
             num_rows: Some(3),
-            total_byte_size: Some(236),
+            total_byte_size: Some(220),
             column_statistics: Some(vec![df_c_stats]),
             is_exact: true,
         };

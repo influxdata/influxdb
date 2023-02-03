@@ -702,6 +702,6 @@ mod tests {
         // Invariant: The circuit breaker must be healthy, either because it was
         // healthy at the end of the fuzz threads, or because it was
         // successfully probed and driven healthy afterwards.
-        assert!(c.is_healthy(), "{:?}", c);
+        assert!(c.is_healthy(), "{c:?}");
     }
 }

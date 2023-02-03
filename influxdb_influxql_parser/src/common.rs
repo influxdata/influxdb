@@ -78,22 +78,22 @@ impl Display for QualifiedMeasurementName {
                 database: None,
                 retention_policy: None,
                 name,
-            } => write!(f, "{}", name),
+            } => write!(f, "{name}"),
             Self {
                 database: Some(db),
                 retention_policy: None,
                 name,
-            } => write!(f, "{}..{}", db, name),
+            } => write!(f, "{db}..{name}"),
             Self {
                 database: None,
                 retention_policy: Some(rp),
                 name,
-            } => write!(f, "{}.{}", rp, name),
+            } => write!(f, "{rp}.{name}"),
             Self {
                 database: Some(db),
                 retention_policy: Some(rp),
                 name,
-            } => write!(f, "{}.{}.{}", db, rp, name),
+            } => write!(f, "{db}.{rp}.{name}"),
         }
     }
 }
@@ -847,7 +847,7 @@ mod tests {
         fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
             Display::fmt(self.head(), f)?;
             for arg in self.tail() {
-                write!(f, ", {}", arg)?;
+                write!(f, ", {arg}")?;
             }
             Ok(())
         }
@@ -888,7 +888,7 @@ mod tests {
             if let Some(first) = self.head() {
                 Display::fmt(first, f)?;
                 for arg in self.tail() {
-                    write!(f, ", {}", arg)?;
+                    write!(f, ", {arg}")?;
                 }
             }
 

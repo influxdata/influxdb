@@ -297,7 +297,7 @@ impl WriteBufferWriting for MockBufferForWriting {
         let writes_vec = writes
             .get_mut(&shard_index)
             .ok_or_else::<WriteBufferError, _>(|| {
-                format!("Unknown shard index: {}", shard_index).into()
+                format!("Unknown shard index: {shard_index}").into()
             })?;
 
         let sequence_number = writes_vec.max_seqno.map(|n| n + 1).unwrap_or(0);
@@ -569,7 +569,7 @@ impl WriteBufferReading for MockBufferForReading {
         shard_index: ShardIndex,
     ) -> Result<Box<dyn WriteBufferStreamHandler>, WriteBufferError> {
         if shard_index.get() as u32 >= self.n_shards {
-            return Err(format!("Unknown shard index: {}", shard_index).into());
+            return Err(format!("Unknown shard index: {shard_index}").into());
         }
 
         Ok(Box::new(MockBufferStreamHandler {
@@ -590,7 +590,7 @@ impl WriteBufferReading for MockBufferForReading {
         let entry_vec = entries
             .get(&shard_index)
             .ok_or_else::<WriteBufferError, _>(|| {
-                format!("Unknown shard index: {}", shard_index).into()
+                format!("Unknown shard index: {shard_index}").into()
             })?;
         let watermark = entry_vec.max_seqno.map(|n| n + 1).unwrap_or(0);
 

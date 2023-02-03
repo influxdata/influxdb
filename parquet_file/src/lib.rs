@@ -69,7 +69,7 @@ impl ParquetFilePath {
                 namespace_id.to_string().as_str(),
                 table_id.to_string().as_str(),
                 partition_id.to_string().as_str(),
-                &format!("{}.parquet", object_store_id),
+                &format!("{object_store_id}.parquet"),
             ])
         } else {
             Path::from_iter([
@@ -77,7 +77,7 @@ impl ParquetFilePath {
                 table_id.to_string().as_str(),
                 shard_id.to_string().as_str(),
                 partition_id.to_string().as_str(),
-                &format!("{}.parquet", object_store_id),
+                &format!("{object_store_id}.parquet"),
             ])
         }
     }

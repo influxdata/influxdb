@@ -231,13 +231,12 @@ fn main() -> Result<(), std::io::Error> {
                 builder = builder.header(key, value);
 
                 // Emit trace id information
-                println!("Trace ID set to {}", trace_id);
+                println!("Trace ID set to {trace_id}");
             }
 
             if let Some(token) = config.token.as_ref() {
                 let key = http::header::HeaderName::from_str("Authorization").unwrap();
-                let value =
-                    http::header::HeaderValue::from_str(&format!("Token {}", token)).unwrap();
+                let value = http::header::HeaderValue::from_str(&format!("Token {token}")).unwrap();
                 debug!(name=?key, value=?value, "Setting token header");
                 builder = builder.header(key, value);
             }
@@ -245,7 +244,7 @@ fn main() -> Result<(), std::io::Error> {
             match builder.build(&host).await {
                 Ok(connection) => connection,
                 Err(e) => {
-                    eprintln!("Error connecting to {}: {}", host, e);
+                    eprintln!("Error connecting to {host}: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
@@ -255,7 +254,7 @@ fn main() -> Result<(), std::io::Error> {
             match r {
                 Ok(guard) => guard,
                 Err(e) => {
-                    eprintln!("Initializing logs failed: {}", e);
+                    eprintln!("Initializing logs failed: {e}");
                     std::process::exit(ReturnCode::Failure as _);
                 }
             }
@@ -265,7 +264,7 @@ fn main() -> Result<(), std::io::Error> {
             None => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 if let Err(e) = all_in_one::command(config.all_in_one_config).await {
-                    eprintln!("Server command failed: {}", e);
+                    eprintln!("Server command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
@@ -273,7 +272,7 @@ fn main() -> Result<(), std::io::Error> {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 let connection = connection().await;
                 if let Err(e) = commands::remote::command(connection, config).await {
-                    eprintln!("{}", e);
+                    eprintln!("{e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
@@ -281,7 +280,7 @@ fn main() -> Result<(), std::io::Error> {
                 let _tracing_guard =
                     handle_init_logs(init_logs_and_tracing(log_verbose_count, &config));
                 if let Err(e) = commands::run::command(*config).await {
-                    eprintln!("Server command failed: {}", e);
+                    eprintln!("Server command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
@@ -289,7 +288,7 @@ fn main() -> Result<(), std::io::Error> {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 let connection = connection().await;
                 if let Err(e) = commands::sql::command(connection, config).await {
-                    eprintln!("{}", e);
+                    eprintln!("{e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
@@ -297,28 +296,28 @@ fn main() -> Result<(), std::io::Error> {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 let connection = connection().await;
                 if let Err(e) = commands::storage::command(connection, config).await {
-                    eprintln!("{}", e);
+                    eprintln!("{e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
             Some(Command::Catalog(config)) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 if let Err(e) = commands::catalog::command(config).await {
-                    eprintln!("{}", e);
+                    eprintln!("{e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
             Some(Command::Compactor(config)) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 if let Err(e) = commands::compactor::command(*config).await {
-                    eprintln!("{}", e);
+                    eprintln!("{e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
             Some(Command::Debug(config)) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 if let Err(e) = commands::debug::command(connection, config).await {
-                    eprintln!("{}", e);
+                    eprintln!("{e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
@@ -326,7 +325,7 @@ fn main() -> Result<(), std::io::Error> {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 let connection = connection().await;
                 if let Err(e) = commands::write::command(connection, config).await {
-                    eprintln!("{}", e);
+                    eprintln!("{e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
@@ -334,7 +333,7 @@ fn main() -> Result<(), std::io::Error> {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 let connection = connection().await;
                 if let Err(e) = commands::query::command(connection, config).await {
-                    eprintln!("{}", e);
+                    eprintln!("{e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
@@ -342,7 +341,7 @@ fn main() -> Result<(), std::io::Error> {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 let connection = connection().await;
                 if let Err(e) = commands::query_ingester::command(connection, config).await {
-                    eprintln!("{}", e);
+                    eprintln!("{e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
@@ -350,7 +349,7 @@ fn main() -> Result<(), std::io::Error> {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 let connection = connection().await;
                 if let Err(e) = commands::import::command(connection, config).await {
-                    eprintln!("{}", e);
+                    eprintln!("{e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
@@ -358,7 +357,7 @@ fn main() -> Result<(), std::io::Error> {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 let connection = connection().await;
                 if let Err(e) = commands::namespace::command(connection, config).await {
-                    eprintln!("{}", e);
+                    eprintln!("{e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
@@ -392,18 +391,13 @@ fn get_runtime(num_threads: Option<usize>) -> Result<Runtime, std::io::Error> {
     match num_threads {
         None => Runtime::new(),
         Some(num_threads) => {
-            println!(
-                "Setting number of threads to '{}' per command line request",
-                num_threads
-            );
+            println!("Setting number of threads to '{num_threads}' per command line request");
 
             let thread_counter = Arc::new(AtomicUsize::new(1));
             match num_threads {
                 0 => {
-                    let msg = format!(
-                        "Invalid num-threads: '{}' must be greater than zero",
-                        num_threads
-                    );
+                    let msg =
+                        format!("Invalid num-threads: '{num_threads}' must be greater than zero");
                     Err(std::io::Error::new(kind, msg))
                 }
                 1 => Builder::new_current_thread().enable_all().build(),
@@ -431,7 +425,7 @@ fn load_dotenv() {
             // be applied when initialising the Config struct.
         }
         Err(e) => {
-            eprintln!("FATAL Error loading config from: {}", e);
+            eprintln!("FATAL Error loading config from: {e}");
             eprintln!("Aborting");
             std::process::exit(1);
         }
@@ -453,7 +447,7 @@ unsafe extern "C" fn signal_handler(sig: i32) {
     use std::process::abort;
     let name = std::thread::current()
         .name()
-        .map(|n| format!(" for thread \"{}\"", n))
+        .map(|n| format!(" for thread \"{n}\""))
         .unwrap_or_else(|| "".to_owned());
     eprintln!(
         "Signal {}, Stack trace{}\n{:?}",
@@ -510,8 +504,7 @@ where
                 Ok(Self { key, value })
             }
             None => Err(format!(
-                "Invalid key value pair - expected 'KEY:VALUE' got '{}'",
-                s
+                "Invalid key value pair - expected 'KEY:VALUE' got '{s}'"
             )),
         }
     }

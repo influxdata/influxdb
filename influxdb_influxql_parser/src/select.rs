@@ -75,39 +75,39 @@ impl Display for SelectStatement {
         write!(f, "SELECT {} {}", self.fields, self.from)?;
 
         if let Some(where_clause) = &self.condition {
-            write!(f, " {}", where_clause)?;
+            write!(f, " {where_clause}")?;
         }
 
         if let Some(group_by) = &self.group_by {
-            write!(f, " {}", group_by)?;
+            write!(f, " {group_by}")?;
         }
 
         if let Some(fill_clause) = &self.fill {
-            write!(f, " {}", fill_clause)?;
+            write!(f, " {fill_clause}")?;
         }
 
         if let Some(order_by) = &self.order_by {
-            write!(f, " {}", order_by)?;
+            write!(f, " {order_by}")?;
         }
 
         if let Some(limit) = &self.limit {
-            write!(f, " {}", limit)?;
+            write!(f, " {limit}")?;
         }
 
         if let Some(offset) = &self.offset {
-            write!(f, " {}", offset)?;
+            write!(f, " {offset}")?;
         }
 
         if let Some(slimit) = &self.series_limit {
-            write!(f, " {}", slimit)?;
+            write!(f, " {slimit}")?;
         }
 
         if let Some(soffset) = &self.series_offset {
-            write!(f, " {}", soffset)?;
+            write!(f, " {soffset}")?;
         }
 
         if let Some(tz_clause) = &self.timezone {
-            write!(f, " {}", tz_clause)?;
+            write!(f, " {tz_clause}")?;
         }
 
         Ok(())
@@ -180,7 +180,7 @@ impl Display for MeasurementSelection {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::Name(ref name) => fmt::Display::fmt(name, f),
-            Self::Subquery(ref subquery) => write!(f, "({})", subquery),
+            Self::Subquery(ref subquery) => write!(f, "({subquery})"),
         }
     }
 }
@@ -207,9 +207,9 @@ pub type FromMeasurementClause = ZeroOrMore<MeasurementSelection>;
 impl Display for FromMeasurementClause {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         if let Some(first) = self.head() {
-            write!(f, "FROM {}", first)?;
+            write!(f, "FROM {first}")?;
             for arg in self.tail() {
-                write!(f, ", {}", arg)?;
+                write!(f, ", {arg}")?;
             }
         }
 
@@ -232,9 +232,9 @@ pub type GroupByClause = ZeroOrMore<Dimension>;
 impl Display for GroupByClause {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         if let Some(first) = self.head() {
-            write!(f, "GROUP BY {}", first)?;
+            write!(f, "GROUP BY {first}")?;
             for arg in self.tail() {
-                write!(f, ", {}", arg)?;
+                write!(f, ", {arg}")?;
             }
         }
 
@@ -317,8 +317,8 @@ impl Display for Dimension {
             Self::Time {
                 interval,
                 offset: Some(offset),
-            } => write!(f, "TIME({}, {})", interval, offset),
-            Self::Time { interval, .. } => write!(f, "TIME({})", interval),
+            } => write!(f, "TIME({interval}, {offset})"),
+            Self::Time { interval, .. } => write!(f, "TIME({interval})"),
             Self::Tag(v) => Display::fmt(v, f),
             Self::Regex(v) => Display::fmt(v, f),
             Self::Wildcard => f.write_char('*'),
@@ -439,7 +439,7 @@ impl Display for Field {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         Display::fmt(&self.expr, f)?;
         if let Some(alias) = &self.alias {
-            write!(f, " AS {}", alias)?;
+            write!(f, " AS {alias}")?;
         }
         Ok(())
     }
@@ -492,7 +492,7 @@ impl Display for FieldList {
         if let Some(first) = self.head() {
             Display::fmt(first, f)?;
             for arg in self.tail() {
-                write!(f, ", {}", arg)?;
+                write!(f, ", {arg}")?;
             }
         }
 

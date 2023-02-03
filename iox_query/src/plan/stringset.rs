@@ -173,7 +173,7 @@ mod tests {
         if let StringSetPlan::Known(ss) = plan {
             assert_eq!(ss, empty_ss)
         } else {
-            panic!("unexpected type: {:?}", plan)
+            panic!("unexpected type: {plan:?}")
         }
     }
 
@@ -190,7 +190,7 @@ mod tests {
         if let StringSetPlan::Known(ss) = plan {
             assert_eq!(ss, expected_ss)
         } else {
-            panic!("unexpected type: {:?}", plan)
+            panic!("unexpected type: {plan:?}")
         }
     }
 

@@ -328,7 +328,7 @@ mod tests {
 
         for i in 0..10_000_000 {
             let bucket = hasher.shard(
-                format!("{}", i).as_str(),
+                format!("{i}").as_str(),
                 &namespace,
                 &MutableBatch::default(),
             );
@@ -342,7 +342,7 @@ mod tests {
 
         // Expect that the number of values of each bucket are all within ±0.05%
         // of the total 10M values
-        assert!(max - min < 5000, "min: {}, max: {}", min, max);
+        assert!(max - min < 5000, "min: {min}, max: {max}");
     }
 
     #[test]

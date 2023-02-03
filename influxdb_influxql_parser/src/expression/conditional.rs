@@ -98,8 +98,8 @@ impl Display for ConditionalExpression {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Expr(v) => fmt::Display::fmt(v, f),
-            Self::Binary { lhs, op, rhs } => write!(f, "{} {} {}", lhs, op, rhs),
-            Self::Grouped(v) => write!(f, "({})", v),
+            Self::Binary { lhs, op, rhs } => write!(f, "{lhs} {op} {rhs}"),
+            Self::Grouped(v) => write!(f, "({v})"),
         }
     }
 }

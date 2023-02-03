@@ -409,7 +409,7 @@ where
     /// # Panic
     /// Panics when the member with the specified ID is unknown (or was already unregistered).
     fn unregister_member(&mut self, id: &str) {
-        assert!(self.members.remove(id).is_some(), "Member '{}' unknown", id);
+        assert!(self.members.remove(id).is_some(), "Member '{id}' unknown");
     }
 
     /// Add used resource too pool.

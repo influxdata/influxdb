@@ -26,8 +26,7 @@ async fn capabilities() {
             assert_eq!(
                 capabilities_response.caps.len(),
                 4,
-                "Response: {:?}",
-                capabilities_response
+                "Response: {capabilities_response:?}"
             );
         }
         .boxed()

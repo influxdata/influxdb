@@ -39,7 +39,7 @@ pub async fn write_to_router(
 
 /// Extracts the write token from the specified response (to the /api/v2/write api)
 pub fn get_write_token(response: &Response<Body>) -> String {
-    let message = format!("no write token in {:?}", response);
+    let message = format!("no write token in {response:?}");
     response
         .headers()
         .get("X-IOx-Write-Token")

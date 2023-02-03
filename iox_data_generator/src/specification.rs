@@ -405,8 +405,7 @@ impl From<FieldSpecIntermediate> for FieldSpec {
         } else {
             panic!(
                 "Can't tell what type of field value you're trying to specify with this \
-                configuration: `{:?}",
-                value
+                configuration: `{value:?}"
             );
         };
 
@@ -643,7 +642,7 @@ mod test {
 
         for s in schemas {
             if let Err(e) = DataSpec::from_str(s) {
-                panic!("error {:?} on\n{}", e, s)
+                panic!("error {e:?} on\n{s}")
             }
         }
     }
@@ -685,8 +684,7 @@ agents = [{name = "foo", sampling_interval = "10s"}]
                 field_spec,
                 FieldValueSpec::String { replacements, .. } if replacements.is_empty()
             ),
-            "expected a String field with empty replacements; was {:?}",
-            field_spec
+            "expected a String field with empty replacements; was {field_spec:?}"
         );
     }
 

@@ -303,8 +303,7 @@ fn parse_tsm_field_key_value(rem_key: impl Iterator<Item = u8>) -> Result<String
         _ => ParsingFieldKeySnafu {
             details: format!(
                 "Delimiter not found before end of stream reached. \
-                                  Still in state {:?}",
-                state
+                                  Still in state {state:?}"
             ),
         }
         .fail(),
@@ -893,13 +892,11 @@ mod tests {
             Ok(field_key) => {
                 assert_eq!(
                     field_key, expected_field_key,
-                    "Unexpected field key parsing '{}'",
-                    input
+                    "Unexpected field key parsing '{input}'"
                 );
             }
             Err(e) => panic!(
-                "Unexpected error while parsing field key '{}', got '{}', expected '{}'",
-                input, e, expected_field_key
+                "Unexpected error while parsing field key '{input}', got '{e}', expected '{expected_field_key}'"
             ),
         }
     }
@@ -910,20 +907,16 @@ mod tests {
         match result {
             Ok(field_key) => {
                 panic!(
-                    "Unexpected success parsing field key '{}'. \
-                        Expected error '{}', got  '{}'",
-                    input, expected_error, field_key
+                    "Unexpected success parsing field key '{input}'. \
+                        Expected error '{expected_error}', got  '{field_key}'"
                 );
             }
             Err(err) => {
                 let err_str = err.to_string();
                 assert!(
                     err_str.contains(expected_error),
-                    "Did not find expected error while parsing '{}'. \
-                     Expected '{}' but actual error was '{}'",
-                    input,
-                    expected_error,
-                    err_str
+                    "Did not find expected error while parsing '{input}'. \
+                     Expected '{expected_error}' but actual error was '{err_str}'"
                 );
             }
         }
@@ -942,19 +935,17 @@ mod tests {
 
         match result {
             Ok(tag_key) => {
-                assert_eq!(tag_key, expected_tag_key, "while parsing input '{}'", input);
+                assert_eq!(tag_key, expected_tag_key, "while parsing input '{input}'");
             }
             Err(err) => {
                 panic!(
-                    "Got error '{}', expected parsed tag key: '{:?}' while parsing '{}'",
-                    err, expected_tag_key, input
+                    "Got error '{err}', expected parsed tag key: '{expected_tag_key:?}' while parsing '{input}'"
                 );
             }
         }
         assert_eq!(
             remaining_input, expected_remaining_input,
-            "remaining input was not correct while parsing input '{}'",
-            input
+            "remaining input was not correct while parsing input '{input}'"
         );
     }
 
@@ -972,24 +963,20 @@ mod tests {
         match result {
             Ok(tag_key) => {
                 panic!(
-                    "Got parsed key {:?}, expected failure {} while parsing input '{}'",
-                    tag_key, expected_error, input
+                    "Got parsed key {tag_key:?}, expected failure {expected_error} while parsing input '{input}'"
                 );
             }
             Err(err) => {
                 let err_str = err.to_string();
                 assert!(
                     err_str.contains(expected_error),
-                    "Did not find expected error '{}' in actual error '{}'",
-                    expected_error,
-                    err_str
+                    "Did not find expected error '{expected_error}' in actual error '{err_str}'"
                 );
             }
         }
         assert_eq!(
             remaining_input, expected_remaining_input,
-            "remaining input was not correct while parsing input '{}'",
-            input
+            "remaining input was not correct while parsing input '{input}'"
         );
     }
 
@@ -1008,22 +995,19 @@ mod tests {
             Ok(tag_value) => {
                 assert_eq!(
                     tag_value, expected_tag_value,
-                    "while parsing input '{}'",
-                    input
+                    "while parsing input '{input}'"
                 );
             }
             Err(err) => {
                 panic!(
-                    "Got error '{}', expected parsed tag_value: '{:?}' while parsing input '{}",
-                    err, expected_tag_value, input
+                    "Got error '{err}', expected parsed tag_value: '{expected_tag_value:?}' while parsing input '{input}"
                 );
             }
         }
 
         assert_eq!(
             remaining_input, expected_remaining_input,
-            "remaining input was not correct while parsing input '{}'",
-            input
+            "remaining input was not correct while parsing input '{input}'"
         );
     }
 
@@ -1041,25 +1025,21 @@ mod tests {
         match result {
             Ok(tag_value) => {
                 panic!(
-                    "Got parsed tag_value {:?}, expected failure {} while parsing input '{}'",
-                    tag_value, expected_error, input
+                    "Got parsed tag_value {tag_value:?}, expected failure {expected_error} while parsing input '{input}'"
                 );
             }
             Err(err) => {
                 let err_str = err.to_string();
                 assert!(
                     err_str.contains(expected_error),
-                    "Did not find expected error '{}' in actual error '{}'",
-                    expected_error,
-                    err_str
+                    "Did not find expected error '{expected_error}' in actual error '{err_str}'"
                 );
             }
         }
 
         assert_eq!(
             remaining_input, expected_remaining_input,
-            "remaining input was not correct while parsing input '{}'",
-            input
+            "remaining input was not correct while parsing input '{input}'"
         );
     }
 }

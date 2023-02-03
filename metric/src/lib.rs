@@ -227,7 +227,7 @@ impl Registry {
         let instrument = match instruments.entry(name) {
             Entry::Occupied(o) => match o.get().as_any().downcast_ref::<I>() {
                 Some(instrument) => instrument.clone(),
-                None => panic!("instrument {} registered with two different types", name),
+                None => panic!("instrument {name} registered with two different types"),
             },
             Entry::Vacant(v) => {
                 let instrument = create();
@@ -248,7 +248,7 @@ impl Registry {
             .get(name)
             .map(|instrument| match instrument.as_any().downcast_ref::<I>() {
                 Some(metric) => metric.clone(),
-                None => panic!("instrument {} registered with two different types", name),
+                None => panic!("instrument {name} registered with two different types"),
             })
     }
 
@@ -484,8 +484,7 @@ pub fn assert_legal_key(s: &str) {
     assert!(!s.is_empty(), "string must not be empty");
     assert!(
         s.chars().all(|c| matches!(c, '0'..='9' | 'a'..='z' | '_')),
-        "string must be [0-9a-z_]+ got: \"{}\"",
-        s
+        "string must be [0-9a-z_]+ got: \"{s}\""
     )
 }
 

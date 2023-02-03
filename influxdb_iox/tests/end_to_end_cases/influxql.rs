@@ -14,9 +14,8 @@ async fn influxql_returns_error() {
         &mut cluster,
         vec![
             Step::WriteLineProtocol(format!(
-                "{},tag1=A,tag2=B val=42i 123456\n\
-                 {},tag1=A,tag2=C val=43i 123457",
-                table_name, table_name
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
             )),
             Step::InfluxQLExpectingError {
                 query: "SHOW TAG KEYS".into(),
@@ -45,12 +44,11 @@ async fn influxql_select_returns_results() {
         &mut cluster,
         vec![
             Step::WriteLineProtocol(format!(
-                "{},tag1=A,tag2=B val=42i 123456\n\
-                 {},tag1=A,tag2=C val=43i 123457",
-                table_name, table_name
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
             )),
             Step::InfluxQLQuery {
-                query: format!("select tag1, val from {}", table_name),
+                query: format!("select tag1, val from {table_name}"),
                 expected: vec![
                     "+--------------------------------+------+-----+",
                     "| time                           | tag1 | val |",

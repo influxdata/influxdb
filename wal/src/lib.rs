@@ -606,8 +606,7 @@ mod tests {
         let closed = wal.closed_segments();
         assert!(
             closed.is_empty(),
-            "Expected empty closed segments; got {:?}",
-            closed
+            "Expected empty closed segments; got {closed:?}"
         );
 
         // No writes, but rotating is totally fine
@@ -628,8 +627,7 @@ mod tests {
         let closed = wal.closed_segments();
         assert!(
             closed.is_empty(),
-            "Expected empty closed segments; got {:?}",
-            closed
+            "Expected empty closed segments; got {closed:?}"
         );
     }
 

@@ -242,7 +242,7 @@ impl Error {
             Ok(()) => (),
             Err(e) => {
                 error!(e=%e, "failed to serialized InfluxDBError");
-                return Status::unknown(format!("failed to serialize InfluxDB error: {}", e));
+                return Status::unknown(format!("failed to serialize InfluxDB error: {e}"));
             }
         }
 
@@ -430,10 +430,8 @@ where
             aggregate,
         } = req;
 
-        let aggregate_string = format!(
-            "aggregate: {:?}, group: {:?}, group_keys: {:?}",
-            aggregate, group, group_keys
-        );
+        let aggregate_string =
+            format!("aggregate: {aggregate:?}, group: {group:?}, group_keys: {group_keys:?}");
 
         let group = expr::convert_group_type(group).context(ConvertingReadGroupTypeSnafu {
             aggregate_string: &aggregate_string,
@@ -512,8 +510,7 @@ where
         } = req;
 
         let aggregate_string = format!(
-            "aggregate: {:?}, window_every: {:?}, offset: {:?}, window: {:?}",
-            aggregate, window_every, offset, window
+            "aggregate: {aggregate:?}, window_every: {window_every:?}, offset: {offset:?}, window: {window:?}"
         );
 
         let gby_agg = expr::make_read_window_aggregate(aggregate, window_every, offset, window)
@@ -1117,7 +1114,7 @@ async fn measurement_name_impl<N>(
 where
     N: QueryNamespace + ExecutionContextProvider + 'static,
 {
-    let rpc_predicate_string = format!("{:?}", rpc_predicate);
+    let rpc_predicate_string = format!("{rpc_predicate:?}");
     let db_name = db_name.as_str();
 
     let predicate = InfluxRpcPredicateBuilder::default()
@@ -1161,7 +1158,7 @@ async fn tag_keys_impl<N>(
 where
     N: QueryNamespace + ExecutionContextProvider + 'static,
 {
-    let rpc_predicate_string = format!("{:?}", rpc_predicate);
+    let rpc_predicate_string = format!("{rpc_predicate:?}");
     let db_name = db_name.as_str();
 
     let predicate = InfluxRpcPredicateBuilder::default()
@@ -1204,7 +1201,7 @@ async fn tag_values_impl<N>(
 where
     N: QueryNamespace + ExecutionContextProvider + 'static,
 {
-    let rpc_predicate_string = format!("{:?}", rpc_predicate);
+    let rpc_predicate_string = format!("{rpc_predicate:?}");
 
     let predicate = InfluxRpcPredicateBuilder::default()
         .set_range(range)
@@ -1385,7 +1382,7 @@ where
 {
     let db_name = db_name.as_str();
 
-    let rpc_predicate_string = format!("{:?}", rpc_predicate);
+    let rpc_predicate_string = format!("{rpc_predicate:?}");
 
     let predicate = InfluxRpcPredicateBuilder::default()
         .set_range(range)
@@ -1451,7 +1448,7 @@ async fn field_names_impl<N>(
 where
     N: QueryNamespace + ExecutionContextProvider + 'static,
 {
-    let rpc_predicate_string = format!("{:?}", rpc_predicate);
+    let rpc_predicate_string = format!("{rpc_predicate:?}");
 
     let predicate = InfluxRpcPredicateBuilder::default()
         .set_range(range)
@@ -1637,7 +1634,7 @@ where
             // This buffering is unfortunate but `Formatter` doesn't implement `std::io::Write`
             match serde_json::to_string_pretty(&self.s) {
                 Ok(s) => f.write_str(&s),
-                Err(e) => write!(f, "error formatting: {}", e),
+                Err(e) => write!(f, "error formatting: {e}"),
             }
         }
     }
@@ -1742,7 +1739,7 @@ mod tests {
             .get_observer(&Attributes::from([
                 (
                     "path",
-                    format!("/influxdata.platform.storage.Storage/{}", path).into(),
+                    format!("/influxdata.platform.storage.Storage/{path}").into(),
                 ),
                 ("status", status.into()),
             ]))
@@ -1751,8 +1748,7 @@ mod tests {
 
         assert_eq!(
             observation, expected,
-            "\n\npath: {}\nstatus:{}\nobservation:{}\nexpected:{}\n\nAll metrics:\n\n{:#?}",
-            path, status, observation, expected, metrics
+            "\n\npath: {path}\nstatus:{status}\nobservation:{observation}\nexpected:{expected}\n\nAll metrics:\n\n{metrics:#?}"
         );
     }
 
@@ -2493,8 +2489,7 @@ mod tests {
 
             assert_eq!(
                 actual_tag_values, expected_tag_values,
-                "{} failed",
-                description
+                "{description} failed"
             );
         }
     }
@@ -2647,7 +2642,7 @@ mod tests {
 
         match &response {
             Ok(_) => {
-                panic!("Unexpected success: {:?}", response);
+                panic!("Unexpected success: {response:?}");
             }
             Err(status) => {
                 assert_eq!(status.code(), tonic::Code::Unknown);
@@ -2671,12 +2666,12 @@ mod tests {
 
             // Test response from storage server
             let response = fixture.iox_client.test_error(request).await;
-            assert!(response.is_err(), "Got an error response: {:?}", response);
+            assert!(response.is_err(), "Got an error response: {response:?}");
         }
 
         // Ensure there are still threads to answer actual client queries
         let caps = fixture.storage_client.capabilities().await.unwrap();
-        assert!(!caps.is_empty(), "Caps: {:?}", caps);
+        assert!(!caps.is_empty(), "Caps: {caps:?}");
     }
 
     #[tokio::test]
@@ -3431,7 +3426,7 @@ mod tests {
 
         // construct request
         for t in SemaphoredRequest::all() {
-            println!("Testing with request: {:?}", t);
+            println!("Testing with request: {t:?}");
             let service = StorageService {
                 db_store: Arc::clone(&test_storage),
             };
@@ -3587,7 +3582,7 @@ mod tests {
 
         let response = storage_client.read_filter(request).await.unwrap();
 
-        println!("Result is {:?}", response);
+        println!("Result is {response:?}");
         assert_eq!(response.metadata().get("storage-type").unwrap(), "iox");
     }
 
@@ -3624,7 +3619,7 @@ mod tests {
 
         let response = storage_client.read_filter(request).await.unwrap_err();
 
-        println!("Result is {:?}", response);
+        println!("Result is {response:?}");
         assert_eq!(response.metadata().get("storage-type").unwrap(), "iox");
     }
 
@@ -3809,10 +3804,7 @@ mod tests {
             // Pull the assigned port out of the socket
             let bind_addr = socket.local_addr().unwrap();
 
-            println!(
-                "Starting InfluxDB IOx storage test server on {:?}",
-                bind_addr
-            );
+            println!("Starting InfluxDB IOx storage test server on {bind_addr:?}");
 
             let trace_header_parser = trace_http::ctx::TraceHeaderParser::new();
 
@@ -3840,7 +3832,7 @@ mod tests {
 
             let client_connection = ConnectionBuilder::default()
                 .connect_timeout(std::time::Duration::from_secs(30))
-                .build(format!("http://{}", bind_addr))
+                .build(format!("http://{bind_addr}"))
                 .await
                 .unwrap();
 
@@ -3877,9 +3869,7 @@ mod tests {
 
             assert!(
                 actual_predicates.contains(expected_predicate),
-                "\nActual: {:?}\nExpected: {:?}",
-                actual_predicates,
-                expected_predicate
+                "\nActual: {actual_predicates:?}\nExpected: {expected_predicate:?}"
             );
         }
     }
