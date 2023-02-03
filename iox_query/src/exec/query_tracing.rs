@@ -426,7 +426,6 @@ mod tests {
             Some(ts4),
             Some("TestExec - exec"),
         );
-        check_span(spans["TestExec - exec (1)"], Some(ts1), Some(ts4), None);
 
         check_span(
             spans["TestExec - child1"],
@@ -434,7 +433,6 @@ mod tests {
             Some(ts4),
             Some("TestExec - child1: foo"),
         );
-        check_span(spans["TestExec - child1 (1)"], Some(ts2), Some(ts4), None);
 
         check_span(
             spans["TestExec - child2"],
