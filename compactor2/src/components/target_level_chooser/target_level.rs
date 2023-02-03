@@ -4,19 +4,19 @@ use data_types::CompactionLevel;
 
 use crate::components::level_exist::LevelExist;
 
-use super::TargetLevelDetection;
+use super::TargetLevelChooser;
 
 /// For TargetLevel version, we support compact (L0s + L1s) to L1s and (L1s + L2s) to L2s
 /// Target is the next level of the lowest level that has files
 #[derive(Debug)]
-pub struct TargetLevelTargetLevelDetection<T>
+pub struct TargetLevelTargetLevelChooser<T>
 where
     T: LevelExist,
 {
     inner: T,
 }
 
-impl<T> TargetLevelTargetLevelDetection<T>
+impl<T> TargetLevelTargetLevelChooser<T>
 where
     T: LevelExist,
 {
@@ -25,7 +25,7 @@ where
     }
 }
 
-impl<T> Display for TargetLevelTargetLevelDetection<T>
+impl<T> Display for TargetLevelTargetLevelChooser<T>
 where
     T: LevelExist,
 {
@@ -34,7 +34,7 @@ where
     }
 }
 
-impl<T> TargetLevelDetection for TargetLevelTargetLevelDetection<T>
+impl<T> TargetLevelChooser for TargetLevelTargetLevelChooser<T>
 where
     T: LevelExist,
 {
@@ -65,7 +65,7 @@ mod tests {
     #[test]
     fn test_display() {
         assert_eq!(
-            TargetLevelTargetLevelDetection::new(OneLevelExist::new()).to_string(),
+            TargetLevelTargetLevelChooser::new(OneLevelExist::new()).to_string(),
             "Target level detection for TargetLevel version"
         );
     }
@@ -73,14 +73,14 @@ mod tests {
     #[test]
     #[should_panic(expected = "Neither level-0 nor level-1 found in target level detection")]
     fn test_apply_empty() {
-        let target_level_detection = TargetLevelTargetLevelDetection::new(OneLevelExist::new());
+        let target_level_detection = TargetLevelTargetLevelChooser::new(OneLevelExist::new());
 
         target_level_detection.detect(&[]);
     }
 
     #[test]
     fn test_apply_only_l0() {
-        let target_level_detection = TargetLevelTargetLevelDetection::new(OneLevelExist::new());
+        let target_level_detection = TargetLevelTargetLevelChooser::new(OneLevelExist::new());
 
         let f0 = ParquetFileBuilder::new(0)
             .with_compaction_level(CompactionLevel::Initial)
@@ -94,7 +94,7 @@ mod tests {
 
     #[test]
     fn test_apply_only_l1() {
-        let target_level_detection = TargetLevelTargetLevelDetection::new(OneLevelExist::new());
+        let target_level_detection = TargetLevelTargetLevelChooser::new(OneLevelExist::new());
 
         let f1 = ParquetFileBuilder::new(1)
             .with_compaction_level(CompactionLevel::FileNonOverlapped)
@@ -106,7 +106,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Neither level-0 nor level-1 found in target level detection")]
     fn test_apply_only_l2() {
-        let target_level_detection = TargetLevelTargetLevelDetection::new(OneLevelExist::new());
+        let target_level_detection = TargetLevelTargetLevelChooser::new(OneLevelExist::new());
 
         let f2 = ParquetFileBuilder::new(2)
             .with_compaction_level(CompactionLevel::Final)
@@ -117,7 +117,7 @@ mod tests {
 
     #[test]
     fn test_apply_many_files() {
-        let target_level_detection = TargetLevelTargetLevelDetection::new(OneLevelExist::new());
+        let target_level_detection = TargetLevelTargetLevelChooser::new(OneLevelExist::new());
 
         let f0 = ParquetFileBuilder::new(0)
             .with_compaction_level(CompactionLevel::Initial)

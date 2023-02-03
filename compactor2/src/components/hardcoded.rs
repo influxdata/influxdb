@@ -62,9 +62,9 @@ use super::{
     round_split::all_now::AllNowRoundSplit,
     scratchpad::{ignore_writes_object_store::IgnoreWrites, prod::ProdScratchpadGen},
     skipped_compactions_source::catalog::CatalogSkippedCompactionsSource,
-    target_level_detection::{
-        all_at_once::AllAtOnceTargetLevelDetection, target_level::TargetLevelTargetLevelDetection,
-        TargetLevelDetection,
+    target_level_chooser::{
+        all_at_once::AllAtOnceTargetLevelChooser, target_level::TargetLevelTargetLevelChooser,
+        TargetLevelChooser,
     },
     Components,
 };
@@ -286,11 +286,11 @@ fn version_specific_partition_filters(config: &Config) -> Vec<Arc<dyn PartitionF
     }
 }
 
-fn version_specific_target_level_detection(config: &Config) -> Arc<dyn TargetLevelDetection> {
+fn version_specific_target_level_detection(config: &Config) -> Arc<dyn TargetLevelChooser> {
     match config.compact_version {
-        AlgoVersion::AllAtOnce => Arc::new(AllAtOnceTargetLevelDetection::new()),
+        AlgoVersion::AllAtOnce => Arc::new(AllAtOnceTargetLevelChooser::new()),
         AlgoVersion::TargetLevel => {
-            Arc::new(TargetLevelTargetLevelDetection::new(OneLevelExist::new()))
+            Arc::new(TargetLevelTargetLevelChooser::new(OneLevelExist::new()))
         }
     }
 }

@@ -2,24 +2,24 @@ use std::fmt::Display;
 
 use data_types::CompactionLevel;
 
-use super::TargetLevelDetection;
+use super::TargetLevelChooser;
 
 #[derive(Debug)]
-pub struct AllAtOnceTargetLevelDetection {}
+pub struct AllAtOnceTargetLevelChooser {}
 
-impl AllAtOnceTargetLevelDetection {
+impl AllAtOnceTargetLevelChooser {
     pub fn new() -> Self {
         Self {}
     }
 }
 
-impl Display for AllAtOnceTargetLevelDetection {
+impl Display for AllAtOnceTargetLevelChooser {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Target level detection for AllAtOnce version",)
     }
 }
 
-impl TargetLevelDetection for AllAtOnceTargetLevelDetection {
+impl TargetLevelChooser for AllAtOnceTargetLevelChooser {
     // For AllAtOnce version, we only compact (L0s + L1s) to L1s
     // The target level is always 1 and there must be at least one file in L0
     fn detect(&self, files: &[data_types::ParquetFile]) -> CompactionLevel {
@@ -44,7 +44,7 @@ mod tests {
     #[test]
     fn test_display() {
         assert_eq!(
-            AllAtOnceTargetLevelDetection::new().to_string(),
+            AllAtOnceTargetLevelChooser::new().to_string(),
             "Target level detection for AllAtOnce version"
         );
     }
@@ -52,7 +52,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Level-0 file not found in target level detection")]
     fn test_apply_empty() {
-        let target_level_detection = AllAtOnceTargetLevelDetection::new();
+        let target_level_detection = AllAtOnceTargetLevelChooser::new();
 
         target_level_detection.detect(&[]);
     }
@@ -60,7 +60,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Level-0 file not found in target level detection")]
     fn test_only_l1() {
-        let target_level_detection = AllAtOnceTargetLevelDetection::new();
+        let target_level_detection = AllAtOnceTargetLevelChooser::new();
 
         let f1 = ParquetFileBuilder::new(1)
             .with_compaction_level(CompactionLevel::FileNonOverlapped)
@@ -72,7 +72,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Level-0 file not found in target level detection")]
     fn test_only_l2() {
-        let target_level_detection = AllAtOnceTargetLevelDetection::new();
+        let target_level_detection = AllAtOnceTargetLevelChooser::new();
 
         let f2 = ParquetFileBuilder::new(2)
             .with_compaction_level(CompactionLevel::Final)
@@ -84,7 +84,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Level-0 file not found in target level detection")]
     fn test_only_l1_l2() {
-        let target_level_detection = AllAtOnceTargetLevelDetection::new();
+        let target_level_detection = AllAtOnceTargetLevelChooser::new();
 
         let f1 = ParquetFileBuilder::new(1)
             .with_compaction_level(CompactionLevel::FileNonOverlapped)
@@ -99,7 +99,7 @@ mod tests {
 
     #[test]
     fn test_apply() {
-        let target_level_detection = AllAtOnceTargetLevelDetection::new();
+        let target_level_detection = AllAtOnceTargetLevelChooser::new();
 
         let f0 = ParquetFileBuilder::new(0)
             .with_compaction_level(CompactionLevel::Initial)

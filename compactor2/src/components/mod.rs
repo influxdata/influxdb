@@ -7,7 +7,7 @@ use self::{
     partition_files_source::PartitionFilesSource, partition_filter::PartitionFilter,
     partition_source::PartitionSource, partitions_source::PartitionsSource,
     round_split::RoundSplit, scratchpad::ScratchpadGen, tables_source::TablesSource,
-    target_level_detection::TargetLevelDetection,
+    target_level_chooser::TargetLevelChooser,
 };
 
 pub mod combos;
@@ -32,7 +32,7 @@ pub mod round_split;
 pub mod scratchpad;
 pub mod skipped_compactions_source;
 pub mod tables_source;
-pub mod target_level_detection;
+pub mod target_level_chooser;
 
 #[derive(Debug, Clone)]
 pub struct Components {
@@ -51,5 +51,5 @@ pub struct Components {
     pub round_split: Arc<dyn RoundSplit>,
     pub divide_initial: Arc<dyn DivideInitial>,
     pub scratchpad_gen: Arc<dyn ScratchpadGen>,
-    pub target_level_detection: Arc<dyn TargetLevelDetection>,
+    pub target_level_detection: Arc<dyn TargetLevelChooser>,
 }
