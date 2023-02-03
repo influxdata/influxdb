@@ -7,8 +7,8 @@ use crate::components::level_filter::{one_level::OneLevelFilter, LevelFilter};
 use super::TargetLevelDetection;
 
 #[derive(Debug)]
-pub struct HotColdTargetLevelDetection {
-    level_filter: OneLevelFilter,
+pub struct HotColdTargetLevelDetection<T> where T: LevelFilter {
+    level_filter: T,
 }
 
 impl HotColdTargetLevelDetection {
@@ -31,7 +31,7 @@ impl TargetLevelDetection for HotColdTargetLevelDetection {
     fn detect(&self, files: &[data_types::ParquetFile]) -> Option<CompactionLevel> {
         // Start with initial level
         // If there are files in  this level, the compaction's target level will be the next level.
-        // Otherwiuse repeat until reaching the final level.
+        // Otherwise repeat until reaching the final level.
         let mut level = CompactionLevel::Initial;
         while level != CompactionLevel::Final {
             if self.level_filter.apply(files, level) {
