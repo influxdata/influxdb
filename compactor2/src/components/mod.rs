@@ -16,6 +16,7 @@ pub mod df_planner;
 pub mod divide_initial;
 pub mod file_filter;
 pub mod files_filter;
+pub mod files_split;
 pub mod hardcoded;
 pub mod id_only_partition_filter;
 pub mod namespaces_source;
@@ -48,4 +49,5 @@ pub struct Components {
     pub round_split: Arc<dyn RoundSplit>,
     pub divide_initial: Arc<dyn DivideInitial>,
     pub scratchpad_gen: Arc<dyn ScratchpadGen>,
+    pub target_level_split: Arc<dyn files_split::FilesSplit>,
 }
