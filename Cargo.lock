@@ -4595,49 +4595,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "query_tests"
-version = "0.1.0"
-dependencies = [
- "arrow",
- "arrow-flight",
- "arrow_util",
- "async-trait",
- "backoff",
- "data_types",
- "datafusion",
- "datafusion_util",
- "dml",
- "futures",
- "generated_types",
- "hashbrown 0.13.2",
- "influxdb_iox_client",
- "ingester",
- "insta",
- "iox_catalog",
- "iox_query",
- "iox_tests",
- "iox_time",
- "itertools",
- "mutable_batch",
- "mutable_batch_lp",
- "once_cell",
- "parquet_file",
- "predicate",
- "prost 0.11.6",
- "querier",
- "regex",
- "schema",
- "sharder",
- "snafu",
- "tempfile",
- "test_helpers",
- "tokio",
- "trace",
- "uuid",
- "workspace-hack",
-]
-
-[[package]]
 name = "quick-error"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
