@@ -1,7 +1,6 @@
 use crate::snapshot_comparison::Language;
 use crate::{
-    check_flight_error, get_write_token, run_influxql, run_sql, snapshot_comparison,
-    token_is_persisted, try_run_influxql, try_run_sql, wait_for_persisted, wait_for_readable,
+    check_flight_error, run_influxql, run_sql, snapshot_comparison, try_run_influxql, try_run_sql,
     MiniCluster,
 };
 use arrow::record_batch::RecordBatch;
@@ -26,9 +25,6 @@ pub struct StepTestState<'a> {
     /// The mini cluster
     cluster: &'a mut MiniCluster,
 
-    /// Tokens for all data written in WriteLineProtocol steps
-    write_tokens: Vec<String>,
-
     /// How many Parquet files the catalog service knows about for the mini cluster's namespace,
     /// for tracking when persistence has happened. If this is `None`, we haven't ever checked with
     /// the catalog service.
@@ -46,12 +42,6 @@ impl<'a> StepTestState<'a> {
     #[must_use]
     pub fn cluster_mut(&mut self) -> &mut &'a mut MiniCluster {
         &mut self.cluster
-    }
-
-    /// Get a reference to the step test state's write tokens.
-    #[must_use]
-    pub fn write_tokens(&self) -> &[String] {
-        self.write_tokens.as_ref()
     }
 
     /// Store the number of Parquet files the catalog has for the mini cluster's namespace.
@@ -145,18 +135,6 @@ pub enum Step {
     /// endpoint, assert the data was written successfully
     WriteLineProtocol(String),
 
-    /// Wait for all previously written data to be readable
-    WaitForReadable,
-
-    /// Assert that all previously written data is NOT persisted yet
-    AssertNotPersisted,
-
-    /// Assert that last previously written data is NOT persisted yet.
-    AssertLastNotPersisted,
-
-    /// Wait for all previously written data to be persisted
-    WaitForPersisted,
-
     /// Ask the catalog service how many Parquet files it has for this cluster's namespace. Do this
     /// before a write where you're interested in when the write has been persisted to Parquet;
     /// then after the write use `WaitForPersisted2` to observe the change in the number of Parquet
@@ -170,10 +148,6 @@ pub enum Step {
     /// of Parquet files in the catalog as specified for this cluster's namespace. Needed for
     /// router2/ingester2/querier2.
     WaitForPersisted2 { expected_increase: usize },
-
-    /// Ask the ingester if it has persisted the data. For use in tests where the querier doesn't
-    /// know about the ingester, so the test needs to ask the ingester directly.
-    WaitForPersistedAccordingToIngester,
 
     /// Set the namespace retention interval to a retention period,
     /// specified in ns relative to `now()`.  `None` represents infinite retention
@@ -226,16 +200,16 @@ pub enum Step {
         expected: Vec<&'static str>,
     },
 
-    /// Read the InfluxQL queries in the specified file and verify that the results match the expected
-    /// results in the corresponding expected file
+    /// Read the InfluxQL queries in the specified file and verify that the results match the
+    /// expected results in the corresponding expected file
     InfluxQLQueryAndCompare {
         input_path: PathBuf,
         setup_name: String,
         contents: String,
     },
 
-    /// Run an InfluxQL query that's expected to fail using the FlightSQL interface and verify that the
-    /// request returns the expected error code and message
+    /// Run an InfluxQL query that's expected to fail using the FlightSQL interface and verify that
+    /// the request returns the expected error code and message
     InfluxQLExpectingError {
         query: String,
         expected_error_code: tonic::Code,
@@ -283,7 +257,6 @@ where
 
         let mut state = StepTestState {
             cluster,
-            write_tokens: vec![],
             num_parquet_files: Default::default(),
         };
 
@@ -297,27 +270,7 @@ where
                     );
                     let response = state.cluster.write_to_router(line_protocol).await;
                     assert_eq!(response.status(), StatusCode::NO_CONTENT);
-                    let write_token = get_write_token(&response);
-                    info!("====Done writing line protocol, got token {}", write_token);
-                    state.write_tokens.push(write_token);
-                }
-                Step::WaitForReadable => {
-                    info!("====Begin waiting for all write tokens to be readable");
-                    let querier_grpc_connection =
-                        state.cluster().querier().querier_grpc_connection();
-                    for write_token in &state.write_tokens {
-                        wait_for_readable(write_token, querier_grpc_connection.clone()).await;
-                    }
-                    info!("====Done waiting for all write tokens to be readable");
-                }
-                Step::WaitForPersisted => {
-                    info!("====Begin waiting for all write tokens to be persisted");
-                    let querier_grpc_connection =
-                        state.cluster().querier().querier_grpc_connection();
-                    for write_token in &state.write_tokens {
-                        wait_for_persisted(write_token, querier_grpc_connection.clone()).await;
-                    }
-                    info!("====Done waiting for all write tokens to be persisted");
+                    info!("====Done writing line protocol");
                 }
                 // Get the current number of Parquet files in the cluster's namespace before
                 // starting a new write so we can observe a change when waiting for persistence.
@@ -334,38 +287,6 @@ where
                         .wait_for_num_parquet_file_change(*expected_increase)
                         .await;
                     info!("====Done waiting for a change in the number of Parquet files");
-                }
-                // Specifically for cases when the querier doesn't know about the ingester so the
-                // test needs to ask the ingester directly.
-                Step::WaitForPersistedAccordingToIngester => {
-                    info!("====Begin waiting for all write tokens to be persisted");
-                    let ingester_grpc_connection =
-                        state.cluster().ingester().ingester_grpc_connection();
-                    for write_token in &state.write_tokens {
-                        wait_for_persisted(write_token, ingester_grpc_connection.clone()).await;
-                    }
-                    info!("====Done waiting for all write tokens to be persisted");
-                }
-                Step::AssertNotPersisted => {
-                    info!("====Begin checking all tokens not persisted");
-                    let querier_grpc_connection =
-                        state.cluster().querier().querier_grpc_connection();
-                    for write_token in &state.write_tokens {
-                        let persisted =
-                            token_is_persisted(write_token, querier_grpc_connection.clone()).await;
-                        assert!(!persisted);
-                    }
-                    info!("====Done checking all tokens not persisted");
-                }
-                Step::AssertLastNotPersisted => {
-                    info!("====Begin checking last tokens not persisted");
-                    let querier_grpc_connection =
-                        state.cluster().querier().querier_grpc_connection();
-                    let write_token = state.write_tokens.last().expect("No data written yet");
-                    let persisted =
-                        token_is_persisted(write_token, querier_grpc_connection.clone()).await;
-                    assert!(!persisted);
-                    info!("====Done checking last tokens not persisted");
                 }
                 Step::Compact => {
                     info!("====Begin running compaction");
