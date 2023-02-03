@@ -324,7 +324,7 @@ async fn schema_cli() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
-    let mut cluster = MiniCluster::create_shared(database_url).await;
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -381,7 +381,7 @@ async fn write_and_query() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
-    let mut cluster = MiniCluster::create_shared(database_url).await;
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -456,7 +456,7 @@ async fn query_error_handling() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
-    let mut cluster = MiniCluster::create_shared(database_url).await;
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -495,7 +495,7 @@ async fn influxql_error_handling() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
-    let mut cluster = MiniCluster::create_shared(database_url).await;
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -618,7 +618,7 @@ async fn namespaces_cli() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
-    let mut cluster = MiniCluster::create_shared(database_url).await;
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -654,7 +654,7 @@ async fn namespaces_cli() {
 async fn namespace_retention() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
-    let mut cluster = MiniCluster::create_shared(database_url).await;
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -835,7 +835,7 @@ async fn query_ingester() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
-    let mut cluster = MiniCluster::create_shared(database_url).await;
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -843,7 +843,6 @@ async fn query_ingester() {
             Step::WriteLineProtocol(String::from(
                 "my_awesome_table2,tag1=A,tag2=B val=42i 123456",
             )),
-            Step::WaitForReadable,
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
                     let ingester_addr = state.cluster().ingester().ingester_grpc_base().to_string();
