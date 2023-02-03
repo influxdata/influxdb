@@ -288,8 +288,8 @@ fn version_specific_partition_filters(config: &Config) -> Vec<Arc<dyn PartitionF
 
 fn version_specific_target_level_detection(config: &Config) -> Arc<dyn TargetLevelDetection> {
     match config.compact_version {
-        AlgoVersion::Naive => Arc::new(AllAtOnceTargetLevelDetection::new()),
-        AlgoVersion::HotCold => {
+        AlgoVersion::AllAtOnce => Arc::new(AllAtOnceTargetLevelDetection::new()),
+        AlgoVersion::TargetLevel => {
             Arc::new(TargetLevelTargetLevelDetection::new(OneLevelExist::new()))
         }
     }
