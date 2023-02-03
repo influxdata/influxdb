@@ -308,8 +308,6 @@ fn buil_compaction_plan(
 ) -> Result<CompactionPlan, DynError> {
     // Detect target level to compact to
     let target_level = components.target_level_detection.detect(&files);
-    assert!(target_level.is_some(), "No target level is detected");
-    let target_level = target_level.unwrap();
 
     // Split files into files_to_compact, files_to_upgrade, and files_to_keep
     //

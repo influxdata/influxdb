@@ -2,24 +2,24 @@ use std::fmt::Display;
 
 use data_types::CompactionLevel;
 
-use super::LevelFilter;
+use super::LevelExist;
 
 #[derive(Debug)]
-pub struct OneLevelFilter {}
+pub struct OneLevelExist {}
 
-impl OneLevelFilter {
+impl OneLevelExist {
     pub fn new() -> Self {
         Self {}
     }
 }
 
-impl Display for OneLevelFilter {
+impl Display for OneLevelExist {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "one level",)
     }
 }
 
-impl LevelFilter for OneLevelFilter {
+impl LevelExist for OneLevelExist {
     fn apply(&self, files: &[data_types::ParquetFile], level: CompactionLevel) -> bool {
         files.iter().any(|f| f.compaction_level == level)
     }
@@ -33,12 +33,12 @@ mod tests {
 
     #[test]
     fn test_display() {
-        assert_eq!(OneLevelFilter::new().to_string(), "one level");
+        assert_eq!(OneLevelExist::new().to_string(), "one level");
     }
 
     #[test]
     fn test_apply() {
-        let filter = OneLevelFilter::new();
+        let filter = OneLevelExist::new();
 
         let f0 = ParquetFileBuilder::new(0)
             .with_compaction_level(CompactionLevel::Initial)

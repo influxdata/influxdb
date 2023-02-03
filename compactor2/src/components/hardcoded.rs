@@ -31,6 +31,7 @@ use super::{
         and::AndIdOnlyPartitionFilter, by_id::ByIdPartitionFilter, shard::ShardPartitionFilter,
         IdOnlyPartitionFilter,
     },
+    level_exist::one_level::OneLevelExist,
     parquet_file_sink::{
         dedicated::DedicatedExecParquetFileSinkWrapper, logging::LoggingParquetFileSinkWrapper,
         object_store::ObjectStoreParquetFileSink,
@@ -61,8 +62,8 @@ use super::{
     round_split::all_now::AllNowRoundSplit,
     scratchpad::{ignore_writes_object_store::IgnoreWrites, prod::ProdScratchpadGen},
     skipped_compactions_source::catalog::CatalogSkippedCompactionsSource,
-    target_level::{
-        hot_cold::HotColdTargetLevelDetection, naive::NaiveTargetLevelDetection,
+    target_level_detection::{
+        all_at_once::AllAtOnceTargetLevelDetection, target_level::TargetLevelTargetLevelDetection,
         TargetLevelDetection,
     },
     Components,
@@ -287,7 +288,9 @@ fn version_specific_partition_filters(config: &Config) -> Vec<Arc<dyn PartitionF
 
 fn version_specific_target_level_detection(config: &Config) -> Arc<dyn TargetLevelDetection> {
     match config.compact_version {
-        AlgoVersion::Naive => Arc::new(NaiveTargetLevelDetection::new()),
-        AlgoVersion::HotCold => Arc::new(HotColdTargetLevelDetection::new()),
+        AlgoVersion::Naive => Arc::new(AllAtOnceTargetLevelDetection::new()),
+        AlgoVersion::HotCold => {
+            Arc::new(TargetLevelTargetLevelDetection::new(OneLevelExist::new()))
+        }
     }
 }
