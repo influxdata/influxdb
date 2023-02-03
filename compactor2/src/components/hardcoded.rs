@@ -35,6 +35,7 @@ use super::{
         and::AndIdOnlyPartitionFilter, by_id::ByIdPartitionFilter, shard::ShardPartitionFilter,
         IdOnlyPartitionFilter,
     },
+    level_exist::one_level::OneLevelExist,
     parquet_file_sink::{
         dedicated::DedicatedExecParquetFileSinkWrapper, logging::LoggingParquetFileSinkWrapper,
         object_store::ObjectStoreParquetFileSink,
@@ -65,6 +66,10 @@ use super::{
     round_split::all_now::AllNowRoundSplit,
     scratchpad::{ignore_writes_object_store::IgnoreWrites, prod::ProdScratchpadGen},
     skipped_compactions_source::catalog::CatalogSkippedCompactionsSource,
+    target_level_chooser::{
+        all_at_once::AllAtOnceTargetLevelChooser, target_level::TargetLevelTargetLevelChooser,
+        TargetLevelChooser,
+    },
     Components,
 };
 
@@ -239,6 +244,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             Arc::clone(config.parquet_store_scratchpad.object_store()),
             scratchpad_store_output,
         )),
+        target_level_chooser: version_specific_target_level_chooser(config),
         target_level_split: version_specific_target_level_split(config),
     })
 }
@@ -281,6 +287,15 @@ fn version_specific_partition_filters(config: &Config) -> Vec<Arc<dyn PartitionF
                     config.max_input_parquet_bytes_per_partition,
                 )),
             ]
+        }
+    }
+}
+
+fn version_specific_target_level_chooser(config: &Config) -> Arc<dyn TargetLevelChooser> {
+    match config.compact_version {
+        AlgoVersion::AllAtOnce => Arc::new(AllAtOnceTargetLevelChooser::new()),
+        AlgoVersion::TargetLevel => {
+            Arc::new(TargetLevelTargetLevelChooser::new(OneLevelExist::new()))
         }
     }
 }
