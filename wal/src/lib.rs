@@ -477,9 +477,6 @@ pub struct WriteSummary {
     pub bytes_written: usize,
     /// Which segment file this entry was written to
     pub segment_id: SegmentId,
-    /// Checksum for the compressed data written to segment
-    #[allow(dead_code)]
-    checksum: u32,
 }
 
 /// Reader for a closed segment file
