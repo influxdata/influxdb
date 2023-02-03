@@ -1,6 +1,6 @@
 //! Tests of SQL queries that are expected to return particular errors.
 
-use crate::query_tests2::{framework::IoxArchitecture, setups::SETUPS};
+use crate::query_tests2::setups::SETUPS;
 use observability_deps::tracing::*;
 use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, Step, StepTest};
 
@@ -91,48 +91,23 @@ impl SqlErrorTest {
         let database_url = maybe_skip_integration!();
         let setup_name = self.setup_name;
 
-        for arch in [IoxArchitecture::Kafkaful, IoxArchitecture::Kafkaless] {
-            info!("Using IoxArchitecture::{arch:?} and setup {setup_name}");
+        info!("Using setup {setup_name}");
 
-            // Set up the cluster  ====================================
-            let mut cluster = match arch {
-                IoxArchitecture::Kafkaful => {
-                    MiniCluster::create_non_shared_standard_never_persist(database_url.clone())
-                        .await
-                }
-                IoxArchitecture::Kafkaless => {
-                    MiniCluster::create_shared2_never_persist(database_url.clone()).await
-                }
-            };
+        // Set up the cluster  ====================================
+        let mut cluster = MiniCluster::create_shared2_never_persist(database_url.clone()).await;
 
-            let setup_steps = SETUPS
-                .get(setup_name)
-                .unwrap_or_else(|| panic!("Could not find setup with key `{setup_name}`"))
-                .iter()
-                // When we've switched over to the Kafkaless architecture, this map can be
-                // removed.
-                .flat_map(|step| match (arch, step) {
-                    // If we're using the old architecture and the test steps include
-                    // `WaitForPersist2`, swap it with `WaitForPersist` instead.
-                    (IoxArchitecture::Kafkaful, Step::WaitForPersisted2 { .. }) => {
-                        vec![&Step::WaitForPersisted]
-                    }
-                    // If we're using the old architecture and the test steps include
-                    // `WriteLineProtocol`, wait for the data to be readable after writing.
-                    (IoxArchitecture::Kafkaful, Step::WriteLineProtocol { .. }) => {
-                        vec![step, &Step::WaitForReadable]
-                    }
-                    (_, other) => vec![other],
-                });
+        let setup_steps = SETUPS
+            .get(setup_name)
+            .unwrap_or_else(|| panic!("Could not find setup with key `{setup_name}`"))
+            .iter();
 
-            let test_step = Step::QueryExpectingError {
-                sql: self.sql.into(),
-                expected_error_code: self.expected_error_code,
-                expected_message: self.expected_message.into(),
-            };
-            StepTest::new(&mut cluster, setup_steps.chain(std::iter::once(&test_step)))
-                .run()
-                .await;
-        }
+        let test_step = Step::QueryExpectingError {
+            sql: self.sql.into(),
+            expected_error_code: self.expected_error_code,
+            expected_message: self.expected_message.into(),
+        };
+        StepTest::new(&mut cluster, setup_steps.chain(std::iter::once(&test_step)))
+            .run()
+            .await;
     }
 }

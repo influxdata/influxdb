@@ -39,17 +39,6 @@ impl IntoIterator for ChunkStage {
     }
 }
 
-/// Which architecture is being used in this test run. This enum and running the tests twice is temporary until the Kafkaful architecture is retired.
-#[derive(Debug, Copy, Clone)]
-pub enum IoxArchitecture {
-    /// Use the "standard" MiniCluster that uses ingester, router, querier, compactor with a write
-    /// buffer (aka Kafka). This is slated for retirement soon.
-    Kafkaful,
-    /// Use the "RPC write"/"version 2" MiniCluster that uses ingester2, router2, querier2 without
-    /// a write buffer. This will soon be the only architecture.
-    Kafkaless,
-}
-
 /// Struct to orchestrate the test setup and assertions based on the `.sql` file specified in the
 /// `input` field and the chunk stages specified in `chunk_stage`.
 #[derive(Debug)]
@@ -62,86 +51,57 @@ impl TestCase {
     pub async fn run(&self) {
         let database_url = maybe_skip_integration!();
 
-        for arch in [IoxArchitecture::Kafkaful, IoxArchitecture::Kafkaless] {
-            for chunk_stage in self.chunk_stage {
-                info!("Using IoxArchitecture::{arch:?} and ChunkStage::{chunk_stage:?}");
+        for chunk_stage in self.chunk_stage {
+            info!("Using ChunkStage::{chunk_stage:?}");
 
-                // Setup that differs by architecture and chunk stage. In the Kafka architecture,
-                // these need to be non-shared clusters; if they're shared, then the tests that run
-                // in parallel and persist at particular times mess with each other because
-                // persistence applies to everything in the ingester.
-                let mut cluster = match (arch, chunk_stage) {
-                    (IoxArchitecture::Kafkaful, ChunkStage::Ingester) => {
-                        MiniCluster::create_non_shared_standard_never_persist(database_url.clone())
-                            .await
-                    }
-                    (IoxArchitecture::Kafkaful, ChunkStage::Parquet) => {
-                        MiniCluster::create_non_shared_standard(database_url.clone()).await
-                    }
-                    (IoxArchitecture::Kafkaless, ChunkStage::Ingester) => {
-                        MiniCluster::create_shared2_never_persist(database_url.clone()).await
-                    }
-                    (IoxArchitecture::Kafkaless, ChunkStage::Parquet) => {
-                        MiniCluster::create_shared2(database_url.clone()).await
-                    }
-                    (_, ChunkStage::All) => unreachable!("See `impl IntoIterator for ChunkStage`"),
-                };
+            // Setup that differs by chunk stage.
+            let mut cluster = match chunk_stage {
+                ChunkStage::Ingester => {
+                    MiniCluster::create_shared2_never_persist(database_url.clone()).await
+                }
+                ChunkStage::Parquet => MiniCluster::create_shared2(database_url.clone()).await,
+                ChunkStage::All => unreachable!("See `impl IntoIterator for ChunkStage`"),
+            };
 
-                let given_input_path: PathBuf = self.input.into();
-                let mut input_path = PathBuf::from("tests/query_tests2/");
-                input_path.push(given_input_path.clone());
-                let contents = fs::read_to_string(&input_path).unwrap_or_else(|_| {
-                    panic!("Could not read test case file `{}`", input_path.display())
-                });
+            let given_input_path: PathBuf = self.input.into();
+            let mut input_path = PathBuf::from("tests/query_tests2/");
+            input_path.push(given_input_path.clone());
+            let contents = fs::read_to_string(&input_path).unwrap_or_else(|_| {
+                panic!("Could not read test case file `{}`", input_path.display())
+            });
 
-                let setup =
-                    TestSetup::try_from_lines(contents.lines()).expect("Could not get TestSetup");
-                let setup_name = setup.setup_name();
-                info!("Using setup {setup_name}");
+            let setup =
+                TestSetup::try_from_lines(contents.lines()).expect("Could not get TestSetup");
+            let setup_name = setup.setup_name();
+            info!("Using setup {setup_name}");
 
-                // Run the setup steps and the QueryAndCompare step
-                let setup_steps = super::setups::SETUPS
-                    .get(setup_name)
-                    .unwrap_or_else(|| panic!("Could not find setup with key `{setup_name}`"))
-                    .iter()
-                    // When we've switched over to the Kafkaless architecture, this map can be
-                    // removed.
-                    .flat_map(|step| match (arch, step) {
-                        // If we're using the old architecture and the test steps include
-                        // `WaitForPersist2`, swap it with `WaitForPersist` instead.
-                        (IoxArchitecture::Kafkaful, Step::WaitForPersisted2 { .. }) => {
-                            vec![&Step::WaitForPersisted]
-                        }
-                        // If we're using the old architecture and the test steps include
-                        // `WriteLineProtocol`, wait for the data to be readable after writing.
-                        (IoxArchitecture::Kafkaful, Step::WriteLineProtocol { .. }) => {
-                            vec![step, &Step::WaitForReadable]
-                        }
-                        (_, other) => vec![other],
-                    });
+            // Run the setup steps and the QueryAndCompare step
+            let setup_steps = super::setups::SETUPS
+                .get(setup_name)
+                .unwrap_or_else(|| panic!("Could not find setup with key `{setup_name}`"))
+                .iter();
 
-                let test_step = match given_input_path.extension() {
-                    Some(ext) if ext == "sql" => Step::QueryAndCompare {
-                        input_path,
-                        setup_name: setup_name.into(),
-                        contents,
-                    },
-                    Some(ext) if ext == "influxql" => Step::InfluxQLQueryAndCompare {
-                        input_path,
-                        setup_name: setup_name.into(),
-                        contents,
-                    },
-                    _ => panic!(
-                        "invalid language extension for path {}: expected sql or influxql",
-                        self.input
-                    ),
-                };
+            let test_step = match given_input_path.extension() {
+                Some(ext) if ext == "sql" => Step::QueryAndCompare {
+                    input_path,
+                    setup_name: setup_name.into(),
+                    contents,
+                },
+                Some(ext) if ext == "influxql" => Step::InfluxQLQueryAndCompare {
+                    input_path,
+                    setup_name: setup_name.into(),
+                    contents,
+                },
+                _ => panic!(
+                    "invalid language extension for path {}: expected sql or influxql",
+                    self.input
+                ),
+            };
 
-                // Run the tests
-                StepTest::new(&mut cluster, setup_steps.chain(std::iter::once(&test_step)))
-                    .run()
-                    .await;
-            }
+            // Run the tests
+            StepTest::new(&mut cluster, setup_steps.chain(std::iter::once(&test_step)))
+                .run()
+                .await;
         }
     }
 }
