@@ -632,15 +632,16 @@ impl NamespaceRepo for PostgresTxn {
     ) -> Result<Namespace> {
         let rec = sqlx::query_as::<_, Namespace>(
             r#"
-                INSERT INTO namespace ( name, topic_id, query_pool_id, retention_period_ns )
-                VALUES ( $1, $2, $3, $4 )
+                INSERT INTO namespace ( name, topic_id, query_pool_id, retention_period_ns, max_tables )
+                VALUES ( $1, $2, $3, $4, $5 )
                 RETURNING *;
             "#,
         )
         .bind(name) // $1
         .bind(topic_id) // $2
         .bind(query_pool_id) // $3
-        .bind(retention_period_ns); // $4
+        .bind(retention_period_ns) // $4
+        .bind(DEFAULT_MAX_TABLES); // $5
 
         let rec = rec.fetch_one(&mut self.inner).await.map_err(|e| {
             if is_unique_violation(&e) {
