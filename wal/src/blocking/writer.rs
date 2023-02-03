@@ -103,7 +103,6 @@ impl OpenSegmentFileWriter {
             total_bytes: self.bytes_written,
             bytes_written,
             segment_id: self.id,
-            checksum,
         })
     }
 

@@ -452,8 +452,6 @@ impl From<SequencedWalOp> for ProtoSequencedWalOp {
 /// Raw, uncompressed and unstructured data for a Segment entry with a checksum.
 #[derive(Debug, Eq, PartialEq)]
 pub struct SegmentEntry {
-    /// The CRC checksum of the uncompressed data
-    checksum: u32,
     /// The uncompressed data
     pub data: Vec<u8>,
 }
@@ -477,9 +475,6 @@ pub struct WriteSummary {
     pub bytes_written: usize,
     /// Which segment file this entry was written to
     pub segment_id: SegmentId,
-    /// Checksum for the compressed data written to segment
-    #[allow(dead_code)]
-    checksum: u32,
 }
 
 /// Reader for a closed segment file
