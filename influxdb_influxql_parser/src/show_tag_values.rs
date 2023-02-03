@@ -50,25 +50,25 @@ impl Display for ShowTagValuesStatement {
         write!(f, "SHOW TAG VALUES")?;
 
         if let Some(ref on_clause) = self.database {
-            write!(f, " {}", on_clause)?;
+            write!(f, " {on_clause}")?;
         }
 
         if let Some(ref from_clause) = self.from {
-            write!(f, " {}", from_clause)?;
+            write!(f, " {from_clause}")?;
         }
 
         write!(f, " {}", self.with_key)?;
 
         if let Some(ref where_clause) = self.condition {
-            write!(f, " {}", where_clause)?;
+            write!(f, " {where_clause}")?;
         }
 
         if let Some(ref limit) = self.limit {
-            write!(f, " {}", limit)?;
+            write!(f, " {limit}")?;
         }
 
         if let Some(ref offset) = self.offset {
-            write!(f, " {}", offset)?;
+            write!(f, " {offset}")?;
         }
 
         Ok(())
@@ -122,7 +122,7 @@ impl Display for InList {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         Display::fmt(self.head(), f)?;
         for arg in self.tail() {
-            write!(f, ", {}", arg)?;
+            write!(f, ", {arg}")?;
         }
         Ok(())
     }
@@ -148,11 +148,11 @@ impl Display for WithKeyClause {
         f.write_str("WITH KEY ")?;
 
         match self {
-            Self::Eq(v) => write!(f, "= {}", v),
-            Self::NotEq(v) => write!(f, "!= {}", v),
-            Self::EqRegex(v) => write!(f, "=~ {}", v),
-            Self::NotEqRegex(v) => write!(f, "=! {}", v),
-            Self::In(list) => write!(f, "IN ({})", list),
+            Self::Eq(v) => write!(f, "= {v}"),
+            Self::NotEq(v) => write!(f, "!= {v}"),
+            Self::EqRegex(v) => write!(f, "=~ {v}"),
+            Self::NotEqRegex(v) => write!(f, "=! {v}"),
+            Self::In(list) => write!(f, "IN ({list})"),
         }
     }
 }

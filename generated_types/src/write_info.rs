@@ -148,8 +148,7 @@ mod tests {
             output.merge(test.right);
             assert_eq!(
                 &output, test.expected,
-                "Mismatch\n\nOutput:\n{:#?}\n\nTest:\n{:#?}",
-                output, test
+                "Mismatch\n\nOutput:\n{output:#?}\n\nTest:\n{test:#?}"
             );
         }
     }

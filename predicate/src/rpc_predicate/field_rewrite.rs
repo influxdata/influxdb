@@ -90,8 +90,7 @@ impl FieldProjectionRewriter {
             // saw both _field and other column references, can't handle this case yet
             // https://github.com/influxdata/influxdb_iox/issues/5310
             (true, true) => Err(DataFusionError::Plan(format!(
-                "Unsupported _field predicate: {}",
-                expr
+                "Unsupported _field predicate: {expr}"
             ))),
             // Didn't see any references, or only non _field references, nothing to do
             (false, _) => Ok(expr),
@@ -139,9 +138,7 @@ impl FieldProjectionRewriter {
             .into_iter()
             .map(|expr| create_physical_expr(&expr, &input_df_schema, &input_schema, &props))
             .collect::<DataFusionResult<Vec<_>>>()
-            .map_err(|e| {
-                DataFusionError::Internal(format!("Unsupported _field predicate: {}", e))
-            })?;
+            .map_err(|e| DataFusionError::Internal(format!("Unsupported _field predicate: {e}")))?;
 
         // evaluate into a boolean array where each element is true if
         // the field name evaluated to true for all predicates, and
@@ -162,14 +159,10 @@ impl FieldProjectionRewriter {
             // └─────────┘  └─────────┘
             .map(|expr| match expr.evaluate(&batch) {
                 Ok(ColumnarValue::Array(arr)) => arr,
-                Ok(ColumnarValue::Scalar(s)) => panic!(
-                    "Unexpected result evaluating {:?} against {:?}: {:?}",
-                    expr, batch, s
-                ),
-                Err(e) => panic!(
-                    "Unexpected err evaluating {:?} against {:?}: {}",
-                    expr, batch, e
-                ),
+                Ok(ColumnarValue::Scalar(s)) => {
+                    panic!("Unexpected result evaluating {expr:?} against {batch:?}: {s:?}")
+                }
+                Err(e) => panic!("Unexpected err evaluating {expr:?} against {batch:?}: {e}"),
             })
             // Now combine the arrays using AND to get a single output
             // boolean array. For the example above, we would get
@@ -426,8 +419,7 @@ mod tests {
 
         for (input, exp_expr, exp_field_columns) in cases {
             println!(
-                "Running test\ninput: {:?}\nexpected_expr: {:?}\nexpected_field_columns: {:?}\n",
-                input, exp_expr, exp_field_columns
+                "Running test\ninput: {input:?}\nexpected_expr: {exp_expr:?}\nexpected_field_columns: {exp_field_columns:?}\n"
             );
             let mut rewriter = FieldProjectionRewriter::new(schema.clone());
 
@@ -466,10 +458,7 @@ mod tests {
         ];
 
         for (input, exp_error) in cases {
-            println!(
-                "Running test\ninput: {:?}\nexpected_error: {:?}\n",
-                input, exp_error
-            );
+            println!("Running test\ninput: {input:?}\nexpected_error: {exp_error:?}\n");
 
             let run_case = || {
                 let mut rewriter = FieldProjectionRewriter::new(schema.clone());

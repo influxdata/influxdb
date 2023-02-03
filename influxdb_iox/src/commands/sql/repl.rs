@@ -219,14 +219,14 @@ impl Repl {
                 ReplCommand::ShowNamespaces => {
                     self.list_namespaces()
                         .await
-                        .map_err(|e| println!("{}", e))
+                        .map_err(|e| println!("{e}"))
                         .ok();
                 }
                 ReplCommand::UseNamespace { db_name } => {
                     self.use_namespace(db_name);
                 }
                 ReplCommand::SqlCommand { sql } => {
-                    self.run_sql(sql).await.map_err(|e| println!("{}", e)).ok();
+                    self.run_sql(sql).await.map_err(|e| println!("{e}")).ok();
                 }
                 ReplCommand::Exit => {
                     info!("exiting at user request");
@@ -323,7 +323,7 @@ impl Repl {
         let total_rows: usize = batches.into_iter().map(|b| b.num_rows()).sum();
 
         if total_rows > 1 {
-            format!("{} rows", total_rows)
+            format!("{total_rows} rows")
         } else if total_rows == 0 {
             "no rows".to_string()
         } else {
@@ -333,14 +333,14 @@ impl Repl {
 
     fn use_namespace(&mut self, db_name: String) {
         info!(%db_name, "setting current namespace");
-        println!("You are now in remote mode, querying namespace {}", db_name);
+        println!("You are now in remote mode, querying namespace {db_name}");
         self.set_query_engine(QueryEngine::Remote(db_name));
     }
 
     fn set_query_engine(&mut self, query_engine: QueryEngine) {
         self.prompt = match &query_engine {
             QueryEngine::Remote(db_name) => {
-                format!("{}> ", db_name)
+                format!("{db_name}> ")
             }
         };
         self.query_engine = Some(query_engine)
@@ -363,7 +363,7 @@ impl Repl {
             .output_format
             .format(batches)
             .context(FormattingResultsSnafu)?;
-        println!("{}", formatted_results);
+        println!("{formatted_results}");
         Ok(())
     }
 }

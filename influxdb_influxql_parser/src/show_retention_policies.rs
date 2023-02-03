@@ -21,7 +21,7 @@ impl Display for ShowRetentionPoliciesStatement {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "SHOW RETENTION POLICIES")?;
         if let Some(ref database) = self.database {
-            write!(f, " {}", database)?;
+            write!(f, " {database}")?;
         }
         Ok(())
     }

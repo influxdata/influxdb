@@ -27,6 +27,10 @@ use super::{
     divide_initial::single_branch::SingleBranchDivideInitial,
     file_filter::{and::AndFileFilter, level_range::LevelRangeFileFilter},
     files_filter::{chain::FilesFilterChain, per_file::PerFileFilesFilter},
+    files_split::{
+        all_at_once_target_level_split::AllAtOnceTargetLevelSplit,
+        target_level_target_level_split::TargetLevelTargetLevelSplit, FilesSplit,
+    },
     id_only_partition_filter::{
         and::AndIdOnlyPartitionFilter, by_id::ByIdPartitionFilter, shard::ShardPartitionFilter,
         IdOnlyPartitionFilter,
@@ -240,7 +244,8 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             Arc::clone(config.parquet_store_scratchpad.object_store()),
             scratchpad_store_output,
         )),
-        target_level_detection: version_specific_target_level_detection(config),
+        target_level_chooser: version_specific_target_level_chooser(config),
+        target_level_split: version_specific_target_level_split(config),
     })
 }
 
@@ -286,11 +291,18 @@ fn version_specific_partition_filters(config: &Config) -> Vec<Arc<dyn PartitionF
     }
 }
 
-fn version_specific_target_level_detection(config: &Config) -> Arc<dyn TargetLevelChooser> {
+fn version_specific_target_level_chooser(config: &Config) -> Arc<dyn TargetLevelChooser> {
     match config.compact_version {
         AlgoVersion::AllAtOnce => Arc::new(AllAtOnceTargetLevelChooser::new()),
         AlgoVersion::TargetLevel => {
             Arc::new(TargetLevelTargetLevelChooser::new(OneLevelExist::new()))
         }
+    }
+}
+
+fn version_specific_target_level_split(config: &Config) -> Arc<dyn FilesSplit> {
+    match config.compact_version {
+        AlgoVersion::AllAtOnce => Arc::new(AllAtOnceTargetLevelSplit::new()),
+        AlgoVersion::TargetLevel => Arc::new(TargetLevelTargetLevelSplit::new()),
     }
 }

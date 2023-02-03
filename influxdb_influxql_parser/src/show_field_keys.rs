@@ -35,19 +35,19 @@ impl fmt::Display for ShowFieldKeysStatement {
         f.write_str("SHOW FIELD KEYS")?;
 
         if let Some(ref on_clause) = self.database {
-            write!(f, " {}", on_clause)?;
+            write!(f, " {on_clause}")?;
         }
 
         if let Some(ref expr) = self.from {
-            write!(f, " {}", expr)?;
+            write!(f, " {expr}")?;
         }
 
         if let Some(ref limit) = self.limit {
-            write!(f, " {}", limit)?;
+            write!(f, " {limit}")?;
         }
 
         if let Some(ref offset) = self.offset {
-            write!(f, " {}", offset)?;
+            write!(f, " {offset}")?;
         }
 
         Ok(())

@@ -2312,8 +2312,7 @@ pub(crate) mod test_helpers {
 
         assert_eq!(
             tombstones_ids, expected_ids,
-            "\ntombstones: {:#?}\nexpected: {:#?}\nparquet_file: {:#?}",
-            tombstones, expected, parquet_file
+            "\ntombstones: {tombstones:#?}\nexpected: {expected:#?}\nparquet_file: {parquet_file:#?}"
         );
 
         repos
@@ -3043,8 +3042,7 @@ pub(crate) mod test_helpers {
 
         assert_eq!(
             level_0_ids, expected_ids,
-            "\nlevel 0: {:#?}\nexpected: {:#?}",
-            level_0, expected,
+            "\nlevel 0: {level_0:#?}\nexpected: {expected:#?}",
         );
 
         // drop the namespace to avoid the created data in this tests from affecting other tests
@@ -3278,8 +3276,7 @@ pub(crate) mod test_helpers {
 
         assert_eq!(
             level_1_ids, expected_ids,
-            "\nlevel 1: {:#?}\nexpected: {:#?}",
-            level_1, expected,
+            "\nlevel 1: {level_1:#?}\nexpected: {expected:#?}",
         );
 
         // drop the namespace to avoid the created data in this tests from affecting other tests
@@ -3334,8 +3331,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert!(
             partitions.is_empty(),
-            "Expected no partitions, instead got {:#?}",
-            partitions,
+            "Expected no partitions, instead got {partitions:#?}",
         );
         // Across all shards
         let partitions = repos
@@ -3345,8 +3341,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert!(
             partitions.is_empty(),
-            "Expected no partitions, instead got {:#?}",
-            partitions,
+            "Expected no partitions, instead got {partitions:#?}",
         );
 
         // The DB has 1 partition, partition_1, but it does not have any files
@@ -3362,8 +3357,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert!(
             partitions.is_empty(),
-            "Expected no partitions, instead got {:#?}",
-            partitions,
+            "Expected no partitions, instead got {partitions:#?}",
         );
         // Across all shards
         let partitions = repos
@@ -3373,8 +3367,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert!(
             partitions.is_empty(),
-            "Expected no partitions, instead got {:#?}",
-            partitions,
+            "Expected no partitions, instead got {partitions:#?}",
         );
 
         // The partition_1 has one deleted file
@@ -3411,8 +3404,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert!(
             partitions.is_empty(),
-            "Expected no partitions, instead got {:#?}",
-            partitions,
+            "Expected no partitions, instead got {partitions:#?}",
         );
         // Across all shards
         let partitions = repos
@@ -3422,8 +3414,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert!(
             partitions.is_empty(),
-            "Expected no partitions, instead got {:#?}",
-            partitions,
+            "Expected no partitions, instead got {partitions:#?}",
         );
 
         // A hot_partition with one cold file and one hot file
@@ -3456,8 +3447,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert!(
             partitions.is_empty(),
-            "Expected no partitions, instead got {:#?}",
-            partitions,
+            "Expected no partitions, instead got {partitions:#?}",
         );
         // Across all shards
         let partitions = repos
@@ -3467,8 +3457,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert!(
             partitions.is_empty(),
-            "Expected no partitions, instead got {:#?}",
-            partitions,
+            "Expected no partitions, instead got {partitions:#?}",
         );
 
         // An already_compacted_partition that has only one non-deleted level 2 file, should never
@@ -3496,8 +3485,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert!(
             partitions.is_empty(),
-            "Expected no partitions, instead got {:#?}",
-            partitions,
+            "Expected no partitions, instead got {partitions:#?}",
         );
         // Across all shards
         let partitions = repos
@@ -3507,8 +3495,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert!(
             partitions.is_empty(),
-            "Expected no partitions, instead got {:#?}",
-            partitions,
+            "Expected no partitions, instead got {partitions:#?}",
         );
 
         // The partition_1 has one non-deleted level 0 file created 38 hours ago
@@ -5207,8 +5194,7 @@ pub(crate) mod test_helpers {
         expected_ids.sort();
         assert_eq!(
             level_0_ids, expected_ids,
-            "\nlevel 0: {:#?}\nexpected: {:#?}",
-            level_0, expected,
+            "\nlevel 0: {level_0:#?}\nexpected: {expected:#?}",
         );
 
         // Make parquet_file compaction level 1, attempt to mark the nonexistent file; operation
@@ -5232,8 +5218,7 @@ pub(crate) mod test_helpers {
         expected_ids.sort();
         assert_eq!(
             level_0_ids, expected_ids,
-            "\nlevel 0: {:#?}\nexpected: {:#?}",
-            level_0, expected,
+            "\nlevel 0: {level_0:#?}\nexpected: {expected:#?}",
         );
 
         // Level 1 parquet files for a shard should only contain parquet_file
@@ -5250,8 +5235,7 @@ pub(crate) mod test_helpers {
         expected_ids.sort();
         assert_eq!(
             level_1_ids, expected_ids,
-            "\nlevel 1: {:#?}\nexpected: {:#?}",
-            level_1, expected,
+            "\nlevel 1: {level_1:#?}\nexpected: {expected:#?}",
         );
 
         // remove namespace to avoid it from affecting later tests

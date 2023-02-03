@@ -488,7 +488,7 @@ mod tests {
         };
         let join_handle = tokio::task::spawn(server);
         let connection = Builder::default()
-            .build(format!("http://{}", bind_addr))
+            .build(format!("http://{bind_addr}"))
             .await
             .expect("failed to connect to server");
         (connection, join_handle, requests)

@@ -37,15 +37,13 @@ fn optimize_dict_col(
 ) -> Result<ArrayRef> {
     if key_type != &DataType::Int32 {
         return Err(ArrowError::NotYetImplemented(format!(
-            "truncating non-Int32 dictionaries not supported: {}",
-            key_type
+            "truncating non-Int32 dictionaries not supported: {key_type}"
         )));
     }
 
     if value_type != &DataType::Utf8 {
         return Err(ArrowError::NotYetImplemented(format!(
-            "truncating non-string dictionaries not supported: {}",
-            value_type
+            "truncating non-string dictionaries not supported: {value_type}"
         )));
     }
 

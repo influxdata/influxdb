@@ -42,7 +42,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub fn pretty_print_frames(frames: &[Data]) -> Result<()> {
     let rbs = frames_to_record_batches(frames)?;
     for (k, rb) in rbs {
-        println!("\n_measurement: {}", k);
+        println!("\n_measurement: {k}");
         println!("rows: {:?}\n", &rb.num_rows());
         print_batches(&[rb]).context(ArrowSnafu)?;
     }

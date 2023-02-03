@@ -462,14 +462,12 @@ mod tests {
 
         let actual_error = match results {
             Ok(_) => "Unexpected Ok".into(),
-            Err(e) => format!("{}", e),
+            Err(e) => format!("{e}"),
         };
         let expected_error = "unexpected null value";
         assert!(
             actual_error.contains(expected_error),
-            "expected error '{}' not found in '{:?}'",
-            expected_error,
-            actual_error,
+            "expected error '{expected_error}' not found in '{actual_error:?}'",
         );
     }
 
@@ -488,15 +486,13 @@ mod tests {
 
         let actual_error = match results {
             Ok(_) => "Unexpected Ok".into(),
-            Err(e) => format!("{}", e),
+            Err(e) => format!("{e}"),
         };
 
         let expected_error = "schema not a single Utf8";
         assert!(
             actual_error.contains(expected_error),
-            "expected error '{}' not found in '{:?}'",
-            expected_error,
-            actual_error
+            "expected error '{expected_error}' not found in '{actual_error:?}'"
         );
     }
 

@@ -141,13 +141,13 @@ async fn parquet_to_lp() {
                         .stdout
                         .clone();
 
-                    println!("Got output  {:?}", output);
+                    println!("Got output  {output:?}");
 
                     // test writing to output file as well
                     // Ensure files are actually wrote to the filesystem
                     let output_file =
                         tempfile::NamedTempFile::new().expect("Error making temp file");
-                    println!("Writing to  {:?}", output_file);
+                    println!("Writing to  {output_file:?}");
 
                     // convert to line protocol (to a file)
                     Command::cargo_bin("influxdb_iox")
@@ -165,9 +165,7 @@ async fn parquet_to_lp() {
                     let file_contents = String::from_utf8_lossy(&file_contents);
                     assert!(
                         predicate::str::contains(line_protocol).eval(&file_contents),
-                        "Could not file {} in {}",
-                        line_protocol,
-                        file_contents
+                        "Could not file {line_protocol} in {file_contents}"
                     );
                 }
                 .boxed()
@@ -347,7 +345,7 @@ async fn schema_cli() {
                     ];
 
                     for (addr_type, addr) in addrs {
-                        println!("Trying address {}: {}", addr_type, addr);
+                        println!("Trying address {addr_type}: {addr}");
 
                         // Validate the output of the schema CLI command
                         Command::cargo_bin("influxdb_iox")
@@ -588,7 +586,7 @@ async fn wait_for_query_result(
 
         let assert = match assert.try_success() {
             Err(e) => {
-                println!("Got err running command: {}, retrying", e);
+                println!("Got err running command: {e}, retrying");
                 continue;
             }
             Ok(a) => a,
@@ -596,20 +594,17 @@ async fn wait_for_query_result(
 
         match assert.try_stdout(predicate::str::contains(expected)) {
             Err(e) => {
-                println!("No match: {}, retrying", e);
+                println!("No match: {e}, retrying");
             }
             Ok(r) => {
-                println!("Success: {:?}", r);
+                println!("Success: {r:?}");
                 return;
             }
         }
         // sleep and try again
         tokio::time::sleep(Duration::from_secs(1)).await
     }
-    panic!(
-        "Did not find expected output {} within {:?}",
-        expected, max_wait_time
-    );
+    panic!("Did not find expected output {expected} within {max_wait_time:?}");
 }
 
 /// Test the namespace cli command

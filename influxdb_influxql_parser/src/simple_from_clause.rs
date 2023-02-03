@@ -70,7 +70,7 @@ impl Display for ShowFromClause {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "FROM {}", self.head())?;
         for arg in self.tail() {
-            write!(f, ", {}", arg)?;
+            write!(f, ", {arg}")?;
         }
         Ok(())
     }
@@ -94,7 +94,7 @@ impl Display for DeleteFromClause {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "FROM {}", self.head())?;
         for arg in self.tail() {
-            write!(f, ", {}", arg)?;
+            write!(f, ", {arg}")?;
         }
         Ok(())
     }

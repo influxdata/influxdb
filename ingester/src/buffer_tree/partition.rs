@@ -336,8 +336,7 @@ impl PartitionData {
             .expect("persisting batch must contain sequence numbers");
         assert_eq!(
             persisting_max, sequence_number,
-            "marking {:?} as persisted but persisting batch max is {:?}",
-            sequence_number, persisting_max
+            "marking {sequence_number:?} as persisted but persisting batch max is {persisting_max:?}"
         );
 
         // Additionally assert the persisting batch is ordered strictly before

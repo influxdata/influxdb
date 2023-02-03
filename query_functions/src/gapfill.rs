@@ -34,8 +34,7 @@ pub(crate) static DATE_BIN_GAPFILL: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
 fn unimplemented_scalar_impl(name: &'static str) -> ScalarFunctionImplementation {
     Arc::new(move |_| {
         Err(DataFusionError::NotImplemented(format!(
-            "{} is not yet implemented",
-            name
+            "{name} is not yet implemented"
         )))
     })
 }

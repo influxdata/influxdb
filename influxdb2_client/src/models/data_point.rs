@@ -287,9 +287,9 @@ impl WriteFieldValue for FieldValue {
 
         match self {
             Bool(v) => write!(w, "{}", if *v { "t" } else { "f" }),
-            F64(v) => write!(w, "{}", v),
-            I64(v) => write!(w, "{}i", v),
-            U64(v) => write!(w, "{}u", v),
+            F64(v) => write!(w, "{v}"),
+            I64(v) => write!(w, "{v}i"),
+            U64(v) => write!(w, "{v}u"),
             String(v) => {
                 w.write_all(br#"""#)?;
                 escape_and_write_value(v, FIELD_VALUE_STRING_DELIMITERS, &mut w)?;
@@ -310,7 +310,7 @@ impl WriteTimestamp for i64 {
     where
         W: io::Write,
     {
-        write!(w, "{}", self)
+        write!(w, "{self}")
     }
 }
 
@@ -332,7 +332,7 @@ where
 
     for (idx, delim) in value.match_indices(escaping_specification) {
         let s = &value[last..idx];
-        write!(w, r#"{}\{}"#, s, delim)?;
+        write!(w, r#"{s}\{delim}"#)?;
         last = idx + delim.len();
     }
 

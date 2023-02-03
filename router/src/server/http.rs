@@ -360,7 +360,7 @@ where
                 self.request_limit_rejected.inc(1);
                 return Err(Error::RequestLimit);
             }
-            Err(e) => panic!("request limiter error: {}", e),
+            Err(e) => panic!("request limiter error: {e}"),
         };
 
         // Route the request to a handler.
@@ -593,7 +593,7 @@ mod tests {
         if let Some(want) = value {
             assert_eq!(want, counter, "metric does not have expected value");
         } else {
-            assert!(counter > 0, "metric {} did not record any values", name);
+            assert!(counter > 0, "metric {name} did not record any values");
         }
     }
 

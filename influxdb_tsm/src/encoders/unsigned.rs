@@ -100,8 +100,7 @@ mod tests {
             assert_eq!(
                 &dst[0] >> 4,
                 Encoding::Rle as u8,
-                "didn't use rle on {:?}",
-                src
+                "didn't use rle on {src:?}"
             );
             let mut got = vec![];
             decode(&dst, &mut got).expect("failed to decode");

@@ -16,10 +16,7 @@ impl DataGenerator {
             .expect("Unable to represent system time");
 
         let points = vec![
-            format!(
-                "cpu_load_short,host=server01,region=us-west value=0.64 {}",
-                ns_since_epoch
-            ),
+            format!("cpu_load_short,host=server01,region=us-west value=0.64 {ns_since_epoch}"),
             format!(
                 "cpu_load_short,host=server01 value=27.99 {}",
                 ns_since_epoch + 1
@@ -58,7 +55,7 @@ impl DataGenerator {
     pub fn substitute_nanos(&self, lines: &[&str]) -> Vec<String> {
         let ns_since_epoch = self.ns_since_epoch;
         let substitutions = vec![
-            ("ns0", format!("{}", ns_since_epoch)),
+            ("ns0", format!("{ns_since_epoch}")),
             ("ns1", format!("{}", ns_since_epoch + 1)),
             ("ns2", format!("{}", ns_since_epoch + 2)),
             ("ns3", format!("{}", ns_since_epoch + 3)),

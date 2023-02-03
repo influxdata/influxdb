@@ -24,9 +24,8 @@ platforms = [
 # Don't search in these crates for dependencies, and don't have these crates depend on the
 # workspace-hack crate.
 #
-# Lists most bench- or test-only crates except for query_tests, as that crate is built often
-# and should share as many dependencies as possible. Also lists optional object_store dependencies
-# as those are usually off in development.
+# Lists most bench- or test-only crates. Also lists optional object_store dependencies as those are
+# usually off in development.
 [traversal-excludes]
 workspace-members = [
     "influxdb_iox_client",

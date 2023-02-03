@@ -342,7 +342,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                         Err(DataFusionError::NotImplemented("now".into()))
                     } else {
                         Err(DataFusionError::External(
-                            format!("invalid function call in condition: {}", name).into(),
+                            format!("invalid function call in condition: {name}").into(),
                         ))
                     }
                 }
@@ -445,8 +445,7 @@ fn schema_from_df(schema: &DFSchema) -> Result<Schema> {
     let s: Arc<arrow::datatypes::Schema> = Arc::new(schema.into());
     s.try_into().map_err(|err| {
         DataFusionError::Internal(format!(
-            "unable to convert DataFusion schema to IOx schema: {}",
-            err
+            "unable to convert DataFusion schema to IOx schema: {err}"
         ))
     })
 }

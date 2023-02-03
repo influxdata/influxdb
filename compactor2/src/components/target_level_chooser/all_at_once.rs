@@ -52,39 +52,39 @@ mod tests {
     #[test]
     #[should_panic(expected = "Level-0 file not found in target level detection")]
     fn test_apply_empty() {
-        let target_level_detection = AllAtOnceTargetLevelChooser::new();
+        let target_level_chooser = AllAtOnceTargetLevelChooser::new();
 
-        target_level_detection.detect(&[]);
+        target_level_chooser.detect(&[]);
     }
 
     #[test]
     #[should_panic(expected = "Level-0 file not found in target level detection")]
     fn test_only_l1() {
-        let target_level_detection = AllAtOnceTargetLevelChooser::new();
+        let target_level_chooser = AllAtOnceTargetLevelChooser::new();
 
         let f1 = ParquetFileBuilder::new(1)
             .with_compaction_level(CompactionLevel::FileNonOverlapped)
             .build();
 
-        target_level_detection.detect(&[f1]);
+        target_level_chooser.detect(&[f1]);
     }
 
     #[test]
     #[should_panic(expected = "Level-0 file not found in target level detection")]
     fn test_only_l2() {
-        let target_level_detection = AllAtOnceTargetLevelChooser::new();
+        let target_level_chooser = AllAtOnceTargetLevelChooser::new();
 
         let f2 = ParquetFileBuilder::new(2)
             .with_compaction_level(CompactionLevel::Final)
             .build();
 
-        target_level_detection.detect(&[f2]);
+        target_level_chooser.detect(&[f2]);
     }
 
     #[test]
     #[should_panic(expected = "Level-0 file not found in target level detection")]
     fn test_only_l1_l2() {
-        let target_level_detection = AllAtOnceTargetLevelChooser::new();
+        let target_level_chooser = AllAtOnceTargetLevelChooser::new();
 
         let f1 = ParquetFileBuilder::new(1)
             .with_compaction_level(CompactionLevel::FileNonOverlapped)
@@ -94,12 +94,12 @@ mod tests {
             .with_compaction_level(CompactionLevel::Final)
             .build();
 
-        target_level_detection.detect(&[f1, f2]);
+        target_level_chooser.detect(&[f1, f2]);
     }
 
     #[test]
     fn test_apply() {
-        let target_level_detection = AllAtOnceTargetLevelChooser::new();
+        let target_level_chooser = AllAtOnceTargetLevelChooser::new();
 
         let f0 = ParquetFileBuilder::new(0)
             .with_compaction_level(CompactionLevel::Initial)
@@ -113,21 +113,21 @@ mod tests {
 
         // list of one
         assert_eq!(
-            target_level_detection.detect(&[f0.clone()]),
+            target_level_chooser.detect(&[f0.clone()]),
             CompactionLevel::FileNonOverlapped
         );
 
         // list of many
         assert_eq!(
-            target_level_detection.detect(&[f1.clone(), f0.clone()]),
+            target_level_chooser.detect(&[f1.clone(), f0.clone()]),
             CompactionLevel::FileNonOverlapped
         );
         assert_eq!(
-            target_level_detection.detect(&[f2.clone(), f0.clone()]),
+            target_level_chooser.detect(&[f2.clone(), f0.clone()]),
             CompactionLevel::FileNonOverlapped
         );
         assert_eq!(
-            target_level_detection.detect(&[f2, f0, f1]),
+            target_level_chooser.detect(&[f2, f0, f1]),
             CompactionLevel::FileNonOverlapped
         );
     }

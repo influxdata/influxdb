@@ -252,8 +252,7 @@ impl ExecutionPlan for NonNullCheckerExec {
         debug!(partition, "Start NonNullCheckerExec::execute");
         if self.output_partitioning().partition_count() <= partition {
             return Err(Error::Internal(format!(
-                "NonNullCheckerExec invalid partition {}",
-                partition
+                "NonNullCheckerExec invalid partition {partition}"
             )));
         }
 

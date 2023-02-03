@@ -60,19 +60,19 @@ impl Display for CreateDatabaseStatement {
             f.write_str(" WITH")?;
 
             if let Some(v) = self.duration {
-                write!(f, " DURATION {}", v)?;
+                write!(f, " DURATION {v}")?;
             }
 
             if let Some(v) = self.replication {
-                write!(f, " REPLICATION {}", v)?;
+                write!(f, " REPLICATION {v}")?;
             }
 
             if let Some(v) = self.shard_duration {
-                write!(f, " SHARD DURATION {}", v)?;
+                write!(f, " SHARD DURATION {v}")?;
             }
 
             if let Some(v) = &self.retention_name {
-                write!(f, " NAME {}", v)?;
+                write!(f, " NAME {v}")?;
             }
         }
         Ok(())

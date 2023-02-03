@@ -308,8 +308,7 @@ mod tests {
 
         assert_eq!(
             dumped_frames, expected_frames,
-            "Expected:\n{:#?}\nActual:\n{:#?}",
-            expected_frames, dumped_frames
+            "Expected:\n{expected_frames:#?}\nActual:\n{dumped_frames:#?}"
         );
 
         //
@@ -337,8 +336,7 @@ mod tests {
 
         assert_eq!(
             dumped_frames, expected_frames,
-            "Expected:\n{:#?}\nActual:\n{:#?}",
-            expected_frames, dumped_frames
+            "Expected:\n{expected_frames:#?}\nActual:\n{dumped_frames:#?}"
         );
     }
 
@@ -370,8 +368,7 @@ mod tests {
 
         assert_eq!(
             dumped_frames, expected_frames,
-            "Expected:\n{:#?}\nActual:\n{:#?}",
-            expected_frames, dumped_frames
+            "Expected:\n{expected_frames:#?}\nActual:\n{dumped_frames:#?}"
         );
     }
 
@@ -440,8 +437,7 @@ mod tests {
         let actual = fieldlist_to_measurement_fields_response(input).unwrap();
         assert_eq!(
             actual, expected,
-            "Expected:\n{:#?}\nActual:\n{:#?}",
-            expected, actual
+            "Expected:\n{expected:#?}\nActual:\n{actual:#?}"
         );
     }
 
@@ -456,15 +452,13 @@ mod tests {
         };
         let result = fieldlist_to_measurement_fields_response(input);
         match result {
-            Ok(r) => panic!("Unexpected success: {:?}", r),
+            Ok(r) => panic!("Unexpected success: {r:?}"),
             Err(e) => {
                 let expected = "Unsupported field data type in gRPC data translation: Int8";
-                let actual = format!("{}", e);
+                let actual = format!("{e}");
                 assert!(
                     actual.contains(expected),
-                    "Could not find expected '{}' in actual '{}'",
-                    expected,
-                    actual
+                    "Could not find expected '{expected}' in actual '{actual}'"
                 );
             }
         }
@@ -578,7 +572,7 @@ mod tests {
         T: std::fmt::Display,
     {
         v.iter()
-            .map(|item| format!("{}", item))
+            .map(|item| format!("{item}"))
             .collect::<Vec<_>>()
             .join(",")
     }

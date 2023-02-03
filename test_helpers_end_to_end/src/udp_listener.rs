@@ -104,7 +104,7 @@ impl UdpCapture {
     pub async fn stop(self) {
         self.token.cancel();
         if let Err(e) = self.join_handle.await {
-            println!("Error waiting for shutdown of udp server: {}", e);
+            println!("Error waiting for shutdown of udp server: {e}");
         }
     }
 

@@ -28,10 +28,10 @@ impl std::str::FromStr for SocketAddr {
                 if let Some(addr) = addrs.next() {
                     Ok(Self(addr))
                 } else {
-                    Err(format!("Found no addresses for '{}'", s))
+                    Err(format!("Found no addresses for '{s}'"))
                 }
             }
-            Err(e) => Err(format!("Cannot parse socket address '{}': {}", s, e)),
+            Err(e) => Err(format!("Cannot parse socket address '{s}': {e}")),
         }
     }
 }

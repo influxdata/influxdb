@@ -430,11 +430,11 @@ struct Key<'a> {
 }
 
 fn child_values_key(parent: &str, child: &str) -> String {
-    format!("{}.{}", parent, child)
+    format!("{parent}.{child}")
 }
 
 fn has_one_values_key(parent: &str, child: &str) -> String {
-    format!("{}.{}", parent, child)
+    format!("{parent}.{child}")
 }
 
 /// A collection of tag key/value pairs
@@ -453,7 +453,7 @@ impl TagSet {
 impl std::fmt::Display for TagSet {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let s = self.tags.iter().map(|t| t.to_string()).join(",");
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 

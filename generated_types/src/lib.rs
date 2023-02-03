@@ -234,7 +234,7 @@ pub const ANY_TYPE_PREFIX: &str = "type.googleapis.com";
 /// This is the full Protobuf package and message name prefixed by
 /// "type.googleapis.com/"
 pub fn protobuf_type_url(protobuf_type: &str) -> String {
-    format!("{}/{}", ANY_TYPE_PREFIX, protobuf_type)
+    format!("{ANY_TYPE_PREFIX}/{protobuf_type}")
 }
 
 /// Protobuf file descriptor containing all generated types.

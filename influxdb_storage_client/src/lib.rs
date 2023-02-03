@@ -49,7 +49,7 @@ pub struct OrgAndBucket {
 impl OrgAndBucket {
     /// Create a new `OrgAndBucket` from the provided `org_id` and `bucket_id`
     pub fn new(org_id: NonZeroU64, bucket_id: NonZeroU64) -> Self {
-        let db_name = format!("{:016x}_{:016x}", org_id, bucket_id);
+        let db_name = format!("{org_id:016x}_{bucket_id:016x}");
 
         Self {
             org_id,

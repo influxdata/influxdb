@@ -45,7 +45,7 @@ where
         let persist_handle = self.persist_handle.clone();
         tokio::spawn(async move {
             // There is no need to await on the completion handle.
-            let _ = persist_handle.enqueue(partition, data).await;
+            persist_handle.enqueue(partition, data).await;
         });
     }
 }

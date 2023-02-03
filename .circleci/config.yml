@@ -269,8 +269,6 @@ jobs:
           name: Cargo test
           command: cargo test --workspace
       - cache_save
-      - store_artifacts:
-          path: influxdb_iox/tests/query_tests2/cases/out
 
   # end to end test for JDBC
   test-flight-sql-jdbc:

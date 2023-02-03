@@ -108,7 +108,7 @@ fn parse_predicate(predicate: &str) -> Result<Vec<DeleteExpr>> {
     let ast = Parser::parse_sql(&dialect, sql.as_str());
     match ast {
         Err(parse_err) => {
-            let error_str = format!("{}, {}", predicate, parse_err);
+            let error_str = format!("{predicate}, {parse_err}");
             Err(Error::InvalidSyntax { value: error_str })
         }
         Ok(mut stmt) => {
@@ -235,7 +235,7 @@ fn parse_time(input: &str) -> Result<i64> {
                 Ok(nano) => Ok(nano),
                 Err(nano_err) => {
                     // wrong format, return both error
-                    let error_str = format!("{}, {}", timestamp_err, nano_err);
+                    let error_str = format!("{timestamp_err}, {nano_err}");
                     Err(Error::InvalidTimestamp { value: error_str })
                 }
             }
@@ -372,7 +372,7 @@ mod tests {
         let pred = r#"city= Boston and cost !=100 and state != "MA" AND temp=87.5"#;
         let result = parse_predicate(pred).unwrap();
 
-        println!("{:#?}", result);
+        println!("{result:#?}");
 
         let expected = vec![
             DeleteExpr::new(

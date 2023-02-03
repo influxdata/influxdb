@@ -33,6 +33,6 @@ fn read_path(path: &str) -> (String, String) {
             (filename.to_string(), ret)
         }
         "lp" => (filename.to_string(), std::fs::read_to_string(path).unwrap()),
-        ext => panic!("Unrecognised extension: {}", ext),
+        ext => panic!("Unrecognised extension: {ext}"),
     }
 }

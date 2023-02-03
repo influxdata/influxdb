@@ -66,7 +66,7 @@ pub struct ValidationErrors(Vec<ValidationError>);
 impl Display for ValidationErrors {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.0.iter().fold(Ok(()), |result, e| {
-            result.and_then(|_| writeln!(f, "- {}", e))
+            result.and_then(|_| writeln!(f, "- {e}"))
         })
     }
 }
@@ -167,7 +167,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Schem
             // note that this will also apply the schema override, if the user provided one
             let merged_tsm_schema = merger.merge().map_err(SchemaCommandError::Merging)?;
             // just print the merged schema for now; we'll do more with this in future PRs
-            println!("Merged schema:\n{:?}", merged_tsm_schema);
+            println!("Merged schema:\n{merged_tsm_schema:?}");
 
             // don't proceed unless we produce a valid merged schema
             if let Err(errors) = validate_schema(&merged_tsm_schema) {

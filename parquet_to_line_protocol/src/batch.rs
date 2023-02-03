@@ -33,7 +33,7 @@ pub(crate) fn convert_to_lines(
         // need at least one field (to put builder into "AfterTag" mode
         let first_field = fields
             .next()
-            .ok_or_else(|| format!("Need at least one field, schema had none: {:?}", iox_schema))?;
+            .ok_or_else(|| format!("Need at least one field, schema had none: {iox_schema:?}"))?;
 
         let lp_fields = lp_tags.field(first_field.name, first_field);
 
@@ -168,8 +168,7 @@ fn timestamp_value<'a>(
 
     if !arr.is_valid(row_index) {
         Err(format!(
-            "TimestampValue was unexpectedly null at row {}",
-            row_index
+            "TimestampValue was unexpectedly null at row {row_index}"
         ))
     } else {
         Ok(arr.value(row_index))
@@ -241,8 +240,7 @@ m,tag2=multi_field bool_field=false,str_field="blargh" 610
 
         assert_eq!(
             lp, output_lp,
-            "\n\nInput:\n\n{}\n\nOutput:\n\n{}\n",
-            lp, output_lp
+            "\n\nInput:\n\n{lp}\n\nOutput:\n\n{output_lp}\n"
         )
     }
 }

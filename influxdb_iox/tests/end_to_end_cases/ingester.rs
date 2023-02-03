@@ -88,7 +88,7 @@ async fn ingester_flight_api() {
     let mut cluster = MiniCluster::create_non_shared2(database_url).await;
 
     // Write some data into the v2 HTTP API ==============
-    let lp = format!("{},tag1=A,tag2=B val=42i 123456", table_name);
+    let lp = format!("{table_name},tag1=A,tag2=B val=42i 123456");
     let response = cluster.write_to_router(lp).await;
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
@@ -123,12 +123,7 @@ async fn ingester_flight_api() {
         .iter()
         .enumerate()
         .for_each(|(i, b)| {
-            assert_eq!(
-                schema,
-                b.schema(),
-                "Schema mismatch for returned batch {}",
-                i
-            );
+            assert_eq!(schema, b.schema(), "Schema mismatch for returned batch {i}");
         });
 
     // Ensure the ingester UUID is the same in the next query
@@ -140,7 +135,7 @@ async fn ingester_flight_api() {
 
     // Populate the ingester with some data so it returns a successful
     // response containing the UUID.
-    let lp = format!("{},tag1=A,tag2=B val=42i 123456", table_name);
+    let lp = format!("{table_name},tag1=A,tag2=B val=42i 123456");
     let response = cluster.write_to_router(lp).await;
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
 

@@ -174,7 +174,6 @@ impl TestContext {
     /// # Panics
     ///
     /// Must not be called twice with the same `name`.
-    #[track_caller]
     pub async fn ensure_namespace(
         &mut self,
         name: &str,
@@ -211,7 +210,6 @@ impl TestContext {
     }
 
     /// A helper wrapper over [`Self::enqueue_write()`] for line-protocol.
-    #[track_caller]
     pub async fn write_lp(
         &mut self,
         namespace: &str,
@@ -374,7 +372,7 @@ impl TestContext {
 
         self.metrics
             .get_instrument::<Metric<T>>(name)
-            .unwrap_or_else(|| panic!("failed to find metric {}", name))
+            .unwrap_or_else(|| panic!("failed to find metric {name}"))
             .get_observer(&attrs)
             .unwrap_or_else(|| {
                 panic!(

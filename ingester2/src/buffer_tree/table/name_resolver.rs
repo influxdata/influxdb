@@ -50,8 +50,7 @@ impl TableNameResolver {
                     .await?
                     .unwrap_or_else(|| {
                         panic!(
-                            "resolving table name for non-existent table id {}",
-                            table_id
+                            "resolving table name for non-existent table id {table_id}"
                         )
                     })
                     .name

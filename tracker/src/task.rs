@@ -832,12 +832,10 @@ mod tests {
             let expected = expected.as_nanos() as usize;
 
             // std::thread::sleep is guaranteed to take at least as long as requested
-            assert!(actual > expected, "Expected {} got {}", expected, actual);
+            assert!(actual > expected, "Expected {expected} got {actual}");
             assert!(
                 actual < expected.saturating_add(epsilon),
-                "Expected {} got {}",
-                expected,
-                actual
+                "Expected {expected} got {actual}"
             );
         };
 
@@ -853,7 +851,7 @@ mod tests {
                     assert_fuzzy(cpu_nanos, expected_cpu);
                     assert_fuzzy(wall_nanos, expected_wall);
                 }
-                _ => panic!("expected complete got {:?}", status),
+                _ => panic!("expected complete got {status:?}"),
             }
         };
 

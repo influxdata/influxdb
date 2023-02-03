@@ -50,7 +50,7 @@ impl QueryChunk for QuerierParquetChunk {
         predicate: &Predicate,
         columns: Projection<'_>,
     ) -> Result<Option<StringSet>, DataFusionError> {
-        ctx.set_metadata("projection", format!("{}", columns));
+        ctx.set_metadata("projection", format!("{columns}"));
         ctx.set_metadata("predicate", format!("{}", &predicate));
         ctx.set_metadata("storage", "parquet");
 

@@ -740,8 +740,7 @@ impl Deduplicater {
             let chunk_sort_key = c.sort_key().expect("Chunk should have sort key");
             if !Self::sort_key_cover_and_same_order(partition_sort_key, chunk_sort_key) {
                 panic!(
-                    "Partition sort key {} does not cover or is sorted on the same order of the chunk sort key {}",
-                    partition_sort_key, chunk_sort_key
+                    "Partition sort key {partition_sort_key} does not cover or is sorted on the same order of the chunk sort key {chunk_sort_key}"
                 );
             }
         }
@@ -3277,7 +3276,7 @@ mod test {
         //             RecordBatchesExec: batches_groups=1 batches=1
         //         RecordBatchesExec: batches_groups=1 batches=1
         let plan_str = format!("{}", displayable(plan.as_ref()).indent());
-        println!("{}", plan_str);
+        println!("{plan_str}");
 
         //  Verify no SortExec because chunks are already sorted on the specified sort_key
         assert!(!plan_str.contains("SortExec"));
@@ -3519,7 +3518,7 @@ mod test {
         //     RecordBatchesExec: batches_groups=1 batches=1
         //     RecordBatchesExec: batches_groups=1 batches=1
         let plan_str = format!("{}", displayable(plan.as_ref()).indent());
-        println!("{}", plan_str);
+        println!("{plan_str}");
 
         //  Verify no SortExec because chunks are already sorted on the specified sort_key
         assert!(!plan_str.contains("SortExec"));

@@ -448,9 +448,9 @@ pub enum DecodedTagKey {
 impl std::fmt::Display for DecodedTagKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DecodedTagKey::Measurement => write!(f, "{}", MEASUREMENT_COLUMN_NAME),
-            DecodedTagKey::Field => write!(f, "{}", FIELD_COLUMN_NAME),
-            DecodedTagKey::Normal(s) => write!(f, "{}", s),
+            DecodedTagKey::Measurement => write!(f, "{MEASUREMENT_COLUMN_NAME}"),
+            DecodedTagKey::Field => write!(f, "{FIELD_COLUMN_NAME}"),
+            DecodedTagKey::Normal(s) => write!(f, "{s}"),
         }
     }
 }
@@ -789,14 +789,14 @@ pub fn displayable_predicate(pred: Option<&RPCPredicate>) -> impl fmt::Display +
     Wrapper(pred)
 }
 
-fn format_predicate<'a>(pred: &'a RPCPredicate, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+fn format_predicate(pred: &RPCPredicate, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match &pred.root {
         Some(r) => format_node(r, f),
         None => write!(f, "root: <NONE>"),
     }
 }
 
-fn format_node<'a>(node: &'a RPCNode, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+fn format_node(node: &RPCNode, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     // Note for "ParenExpresion" value is None
     let value = node.value.as_ref();
 
@@ -833,22 +833,22 @@ fn format_node<'a>(node: &'a RPCNode, f: &mut fmt::Formatter<'_>) -> fmt::Result
     Ok(())
 }
 
-fn format_opt_value<'a>(value: Option<&'a RPCValue>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+fn format_opt_value(value: Option<&RPCValue>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     if let Some(value) = value {
         format_value(value, f)
     } else {
         Ok(())
     }
 }
-fn format_value<'a>(value: &'a RPCValue, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+fn format_value(value: &RPCValue, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     use RPCValue::*;
     match value {
-        StringValue(s) => write!(f, "\"{}\"", s),
-        BoolValue(b) => write!(f, "{}", b),
-        IntValue(i) => write!(f, "{}", i),
-        UintValue(u) => write!(f, "{}", u),
-        FloatValue(fval) => write!(f, "{}", fval),
-        RegexValue(r) => write!(f, "RegEx:{}", r),
+        StringValue(s) => write!(f, "\"{s}\""),
+        BoolValue(b) => write!(f, "{b}"),
+        IntValue(i) => write!(f, "{i}"),
+        UintValue(u) => write!(f, "{u}"),
+        FloatValue(fval) => write!(f, "{fval}"),
+        RegexValue(r) => write!(f, "RegEx:{r}"),
         TagRefValue(bytes) => {
             let temp = String::from_utf8_lossy(bytes);
             let sval = match bytes.as_slice() {
@@ -856,9 +856,9 @@ fn format_value<'a>(value: &'a RPCValue, f: &mut fmt::Formatter<'_>) -> fmt::Res
                 TAG_KEY_FIELD => "_f[0xff]",
                 _ => &temp,
             };
-            write!(f, "TagRef:{}", sval)
+            write!(f, "TagRef:{sval}")
         }
-        FieldRefValue(d) => write!(f, "FieldRef:{}", d),
+        FieldRefValue(d) => write!(f, "FieldRef:{d}"),
         Logical(v) => format_logical(*v, f),
         Comparison(v) => format_comparison(*v, f),
     }
@@ -868,7 +868,7 @@ fn format_logical(v: i32, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match RPCLogical::from_i32(v) {
         Some(RPCLogical::And) => write!(f, "AND"),
         Some(RPCLogical::Or) => write!(f, "Or"),
-        None => write!(f, "UNKNOWN_LOGICAL:{}", v),
+        None => write!(f, "UNKNOWN_LOGICAL:{v}"),
     }
 }
 
@@ -883,7 +883,7 @@ fn format_comparison(v: i32, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Some(RPCComparison::Lte) => write!(f, "<="),
         Some(RPCComparison::Gt) => write!(f, ">"),
         Some(RPCComparison::Gte) => write!(f, ">="),
-        None => write!(f, "UNKNOWN_COMPARISON:{}", v),
+        None => write!(f, "UNKNOWN_COMPARISON:{v}"),
     }
 }
 
@@ -974,9 +974,7 @@ mod tests {
         let actual_error = res.unwrap_err().to_string();
         assert!(
             actual_error.contains(expected_error),
-            "expected '{}' not found in '{}'",
-            expected_error,
-            actual_error
+            "expected '{expected_error}' not found in '{actual_error}'"
         );
     }
 
@@ -998,8 +996,7 @@ mod tests {
 
         assert_eq!(
             &expected_expr, converted_expr,
-            "expected '{:#?}' doesn't match actual '{:#?}'",
-            expected_expr, converted_expr
+            "expected '{expected_expr:#?}' doesn't match actual '{converted_expr:#?}'"
         );
     }
 
@@ -1079,8 +1076,7 @@ mod tests {
 
         assert_eq!(
             predicate, expected,
-            "expected '{:#?}' doesn't match actual '{:#?}'",
-            predicate, expected,
+            "expected '{predicate:#?}' doesn't match actual '{expected:#?}'",
         );
     }
 
@@ -1102,9 +1098,7 @@ mod tests {
         let actual_error = res.unwrap_err().to_string();
         assert!(
             actual_error.contains(expected_error),
-            "expected '{}' not found in '{}'",
-            expected_error,
-            actual_error
+            "expected '{expected_error}' not found in '{actual_error}'"
         );
     }
 
@@ -1133,9 +1127,7 @@ mod tests {
         let actual_error = res.unwrap_err().to_string();
         assert!(
             actual_error.contains(expected_error),
-            "expected '{}' not found in '{}'",
-            expected_error,
-            actual_error
+            "expected '{expected_error}' not found in '{actual_error}'"
         );
     }
 
@@ -1164,9 +1156,7 @@ mod tests {
         let actual_error = res.unwrap_err().to_string();
         assert!(
             actual_error.contains(expected_error),
-            "expected '{}' not found in '{}'",
-            expected_error,
-            actual_error
+            "expected '{expected_error}' not found in '{actual_error}'"
         );
     }
 
@@ -1300,8 +1290,7 @@ mod tests {
 
         assert_eq!(
             &expected_expr, converted_expr,
-            "expected '{:#?}' doesn't match actual '{:#?}'",
-            expected_expr, converted_expr
+            "expected '{expected_expr:#?}' doesn't match actual '{converted_expr:#?}'"
         );
         assert_eq!(predicate.field_columns, None,);
         assert!(predicate.range.is_none());
@@ -1412,8 +1401,7 @@ mod tests {
 
         assert_eq!(
             &expr, converted_expr,
-            "expected '{:#?}' doesn't match actual '{:#?}'",
-            expr, converted_expr
+            "expected '{expr:#?}' doesn't match actual '{converted_expr:#?}'"
         );
         assert_eq!(predicate.field_columns, None,);
         assert!(predicate.range.is_none());
@@ -1449,8 +1437,7 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(
             &expected_expr, converted_expr,
-            "expected '{:#?}' doesn't match actual '{:#?}'",
-            expected_expr, converted_expr
+            "expected '{expected_expr:#?}' doesn't match actual '{converted_expr:#?}'"
         );
         assert_eq!(predicate.field_columns, None,);
         assert!(predicate.range.is_none());
@@ -1482,8 +1469,7 @@ mod tests {
 
         assert_eq!(
             &expected_expr, converted_expr,
-            "expected '{:#?}' doesn't match actual '{:#?}'",
-            expected_expr, converted_expr
+            "expected '{expected_expr:#?}' doesn't match actual '{converted_expr:#?}'"
         );
 
         assert_eq!(predicate.field_columns, Some(to_set(&["field1", "field2"])));

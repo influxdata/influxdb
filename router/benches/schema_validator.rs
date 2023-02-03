@@ -71,7 +71,7 @@ fn generate_lp(tables: usize, columns_per_table: usize) -> String {
     (0..tables)
         .map(|i| {
             let cols = (0..columns_per_table)
-                .map(|i| format!("val{}=42i", i))
+                .map(|i| format!("val{i}=42i"))
                 .collect::<Vec<_>>()
                 .join(",");
 

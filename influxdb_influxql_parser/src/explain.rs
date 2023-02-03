@@ -53,7 +53,7 @@ impl Display for ExplainStatement {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str("EXPLAIN ")?;
         if let Some(options) = &self.options {
-            write!(f, "{} ", options)?;
+            write!(f, "{options} ")?;
         }
         Display::fmt(&self.select, f)
     }

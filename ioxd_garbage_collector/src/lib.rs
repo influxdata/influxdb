@@ -182,7 +182,7 @@ impl<T> UnwrapOrReportExt<T> for Result<T> {
 
                 let mut message = String::new();
 
-                writeln!(message, "{}", e).unwrap();
+                writeln!(message, "{e}").unwrap();
                 for cause in ErrorCompat::iter_chain(&e).skip(1) {
                     writeln!(message, "Caused by: {cause}").unwrap();
                 }

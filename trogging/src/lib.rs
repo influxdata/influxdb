@@ -661,7 +661,7 @@ ERROR foo
             let mut buf = Vec::new();
             {
                 let mut lw = LimitedWriter(TEST_MAX_LINE_LENGTH, &mut buf);
-                write!(&mut lw, "{}", input).unwrap();
+                write!(&mut lw, "{input}").unwrap();
             }
             assert_eq!(std::str::from_utf8(&buf).unwrap(), want);
         }

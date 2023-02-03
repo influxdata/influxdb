@@ -39,7 +39,7 @@ impl<'a> Template<'a> {
     /// Renders this template to `out` for the row `idx`
     fn fmt_row<W: std::fmt::Write>(&self, out: &mut W, idx: usize) -> std::fmt::Result {
         match self {
-            Template::Table(table_name) => write!(out, "{}", table_name),
+            Template::Table(table_name) => write!(out, "{table_name}"),
             Template::Column(col, col_name) if col.valid.get(idx) => {
                 out.write_str(col_name)?;
                 out.write_char('_')?;
@@ -66,7 +66,7 @@ impl<'a> Template<'a> {
                 let formatted = Utc
                     .timestamp_nanos(t[idx])
                     .format_with_items(format.clone());
-                write!(out, "{}", formatted)
+                write!(out, "{formatted}")
             }
         }
     }
@@ -154,7 +154,7 @@ mod tests {
 
     fn make_rng() -> StdRng {
         let seed = rand::rngs::OsRng::default().next_u64();
-        println!("Seed: {}", seed);
+        println!("Seed: {seed}");
         StdRng::seed_from_u64(seed)
     }
 

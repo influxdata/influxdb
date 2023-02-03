@@ -364,7 +364,7 @@ mod tests {
         ];
 
         for (progress, expected) in cases {
-            println!("Comparing {:?} to {:?}", progress, expected);
+            println!("Comparing {progress:?} to {expected:?}");
             assert_eq!(
                 progress.min_buffered, expected.min_buffered,
                 "min buffered mismatch"

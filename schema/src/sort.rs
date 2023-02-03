@@ -216,8 +216,7 @@ impl SortKey {
             .collect();
         if !missing_from_catalog_key.is_empty() {
             panic!(
-                "Primary key column(s) found that don't appear in the catalog sort key [{:?}] of partition: {}. Sort key: {:?}",
-                missing_from_catalog_key, partition_id, self
+                "Primary key column(s) found that don't appear in the catalog sort key [{missing_from_catalog_key:?}] of partition: {partition_id}. Sort key: {self:?}"
             )
         }
 
@@ -255,10 +254,10 @@ impl SortKey {
         // Verify if time column in the sort key
         for key in [&key1, &key2] {
             match key.columns.get_index_of(TIME_COLUMN_NAME) {
-                None => panic!("Time column is not included in the sort key {:#?}", key),
+                None => panic!("Time column is not included in the sort key {key:#?}"),
                 Some(idx) => {
                     if idx < key.len() - 1 {
-                        panic!("Time column is not last in the sort key {:#?}", key)
+                        panic!("Time column is not last in the sort key {key:#?}")
                     }
                 }
             }
@@ -344,7 +343,7 @@ impl SortKey {
 impl Display for SortKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         for (i, (name, options)) in self.columns.iter().enumerate() {
-            write!(f, "{}", name)?;
+            write!(f, "{name}")?;
             if options.descending {
                 write!(f, " DESC")?;
             }

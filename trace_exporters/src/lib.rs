@@ -163,8 +163,7 @@ impl std::str::FromStr for TracesExporter {
             "none" => Ok(Self::None),
             "jaeger" => Ok(Self::Jaeger),
             _ => Err(format!(
-                "Invalid traces exporter '{}'. Valid options: none, jaeger",
-                s
+                "Invalid traces exporter '{s}'. Valid options: none, jaeger"
             )),
         }
     }

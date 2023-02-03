@@ -178,7 +178,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Buckets are only relevant if we're writing to the API
         match (config.org, config.bucket, config.database_list) {
             (Some(org), Some(bucket), None) => {
-                vec![format!("{}_{}", org, bucket)]
+                vec![format!("{org}_{bucket}")]
             }
             (None, None, Some(bucket_list)) => {
                 let f = File::open(bucket_list).expect("unable to open database_list file");
@@ -211,10 +211,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match result {
         Ok(total_points) => {
             if !config.print {
-                eprintln!("Submitted {} total points", total_points);
+                eprintln!("Submitted {total_points} total points");
             }
         }
-        Err(e) => eprintln!("Execution failed: \n{}", e),
+        Err(e) => eprintln!("Execution failed: \n{e}"),
     }
 
     Ok(())

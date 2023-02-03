@@ -505,7 +505,7 @@ impl IOxSessionContext {
 
                 let series: Vec<Series> = series_set
                     .try_into()
-                    .map_err(|e| Error::Execution(format!("Error converting to series: {}", e)))?;
+                    .map_err(|e| Error::Execution(format!("Error converting to series: {e}")))?;
                 Ok(Some(futures::stream::iter(series).map(Ok)))
             })
             .try_flatten();

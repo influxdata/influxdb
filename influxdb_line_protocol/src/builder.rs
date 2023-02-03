@@ -195,7 +195,7 @@ where
     /// can be changed when performing the request that carries the LP body.
     /// Setting the unit is outside of the scope of a line protocol builder.
     pub fn timestamp(self, ts: i64) -> LineProtocolBuilder<B, AfterTimestamp> {
-        self.write(format_args!(" {}", ts))
+        self.write(format_args!(" {ts}"))
     }
 
     /// Closing a line is required before starting a new one or finishing building the batch.
@@ -226,7 +226,7 @@ where
         use std::io::Write;
         // MutBuf's Write adapter is infallible.
         let mut writer = self.buf.writer();
-        write!(&mut writer, "{}", args).unwrap();
+        write!(&mut writer, "{args}").unwrap();
         LineProtocolBuilder {
             buf: writer.into_inner(),
             _marker: PhantomData,
@@ -254,7 +254,7 @@ impl<'a, const N: usize> fmt::Display for Escaped<'a, N> {
             if self.special_characters.contains(&ch) || ch == '\\' {
                 write!(f, "\\")?;
             }
-            write!(f, "{}", ch)?;
+            write!(f, "{ch}")?;
         }
         Ok(())
     }
@@ -305,25 +305,25 @@ impl FieldValue for &str {
 
 impl FieldValue for f64 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self)
+        write!(f, "{self}")
     }
 }
 
 impl FieldValue for bool {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self)
+        write!(f, "{self}")
     }
 }
 
 impl FieldValue for i64 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}i", self)
+        write!(f, "{self}i")
     }
 }
 
 impl FieldValue for u64 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}u", self)
+        write!(f, "{self}u")
     }
 }
 

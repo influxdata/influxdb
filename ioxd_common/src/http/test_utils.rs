@@ -23,7 +23,7 @@ pub async fn check_response(
 ) {
     // Print the response so if the test fails, we have a log of
     // what went wrong
-    println!("{} response: {:?}", description, response);
+    println!("{description} response: {response:?}");
 
     if let Ok(response) = response {
         let status = response.status();
@@ -36,13 +36,11 @@ pub async fn check_response(
         if let Some(expected_body) = expected_body {
             assert!(
                 body.contains(expected_body),
-                "Could not find expected in body.\n\nExpected:\n{}\n\nBody:\n{}",
-                expected_body,
-                body
+                "Could not find expected in body.\n\nExpected:\n{expected_body}\n\nBody:\n{body}"
             );
         }
     } else {
-        panic!("Unexpected error response: {:?}", response);
+        panic!("Unexpected error response: {response:?}");
     }
 }
 
@@ -56,7 +54,7 @@ pub async fn check_json_response<T: DeserializeOwned + Eq + Debug>(
 
     // Print the response so if the test fails, we have a log of
     // what went wrong
-    println!("{} response: {:?}", url, response);
+    println!("{url} response: {response:?}");
 
     if let Ok(response) = response {
         let status = response.status();
@@ -68,7 +66,7 @@ pub async fn check_json_response<T: DeserializeOwned + Eq + Debug>(
         assert_eq!(status, expected_status);
         body
     } else {
-        panic!("Unexpected error response: {:?}", response);
+        panic!("Unexpected error response: {response:?}");
     }
 }
 
@@ -118,7 +116,7 @@ where
             .await
             .unwrap();
         });
-        println!("Started server at {}", url);
+        println!("Started server at {url}");
 
         Self {
             join_handle,

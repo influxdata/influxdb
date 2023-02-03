@@ -97,7 +97,7 @@ impl From<tonic::transport::Error> for Error {
         use std::error::Error;
         let details = source
             .source()
-            .map(|e| format!(" ({})", e))
+            .map(|e| format!(" ({e})"))
             .unwrap_or_else(|| "".to_string());
 
         Self::TransportError { source, details }
@@ -271,7 +271,7 @@ mod tests {
             .unwrap()
             .into_http_connection();
 
-        let url = format!("{}/the_api", url);
+        let url = format!("{url}/the_api");
         println!("Sending to {url}");
 
         let m = mockito::mock("POST", "/the_api")

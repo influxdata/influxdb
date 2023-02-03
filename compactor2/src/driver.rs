@@ -306,18 +306,21 @@ fn buil_compaction_plan(
     files: Vec<ParquetFile>,
     components: Arc<Components>,
 ) -> Result<CompactionPlan, DynError> {
+    let files_to_compact = files;
+
     // Detect target level to compact to
-    let target_level = components.target_level_detection.detect(&files);
+    let target_level = components.target_level_chooser.detect(&files_to_compact);
 
     // Split files into files_to_compact, files_to_upgrade, and files_to_keep
     //
     // Since output of one compaction is used as input of next compaction, all files that are not
     // compacted or upgraded are still kept to consider in next round of compaction
 
-    // TODO: Split atctual files to compact from its higher-target-level files
+    // Split atctual files to compact from its higher-target-level files
     // The higher-target-level files are kept for next round of compaction
-    // let (compacted_files, higher_level_files) = components.target_level_split.apply(branch, target_level);
-    let (files_to_compact, mut files_to_keep) = (files, vec![]);
+    let (files_to_compact, mut files_to_keep) = components
+        .target_level_split
+        .apply(files_to_compact, target_level);
 
     // To have efficient compaction performance, we do not need to compact eligible non-overlapped file
     // Example:
