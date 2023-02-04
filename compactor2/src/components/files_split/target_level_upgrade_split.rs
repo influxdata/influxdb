@@ -3,7 +3,7 @@ use std::fmt::Display;
 use data_types::{CompactionLevel, ParquetFile};
 
 use super::FilesSplit;
-use crate::file_group::{overlaps_in_time, FilesTimeRange};
+use crate::file_group::{overlaps_in_time, split_by_level, FilesTimeRange};
 
 #[derive(Debug)]
 /// Split files into `[files_to_compact]` and `[files_to_upgrade]`
@@ -72,18 +72,9 @@ impl FilesSplit for TargetLevelUpgradeSplit {
         let mut files_to_compact = Vec::with_capacity(files.len());
 
         // Split files into levels
-        let mut target_level_files = Vec::with_capacity(files.len());
-        let mut prev_level_files = Vec::with_capacity(files.len());
         let prev_level = target_level.prev();
-        for file in files {
-            if file.compaction_level == target_level {
-                target_level_files.push(file);
-            } else if file.compaction_level == prev_level {
-                prev_level_files.push(file);
-            } else {
-                panic!("Unexpected compaction level: {}", file.compaction_level);
-            }
-        }
+        let (target_level_files, mut prev_level_files) =
+            split_by_level(files, target_level, prev_level);
 
         // compute time range of target_level_files, if any
         let target_time_range = FilesTimeRange::try_new(&target_level_files);
@@ -178,7 +169,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Unexpected compaction level: CompactionLevel::L2")]
+    #[should_panic(
+        expected = "Unexpected compaction level. Expected CompactionLevel::L1 or CompactionLevel::L0 but got CompactionLevel::L2."
+    )]
     fn test_unexpected_compaction_level_2() {
         let files = create_overlapped_files();
         let split = TargetLevelUpgradeSplit::new(MAX_SIZE);
@@ -187,7 +180,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Unexpected compaction level: CompactionLevel::L0")]
+    #[should_panic(
+        expected = "Unexpected compaction level. Expected CompactionLevel::L2 or CompactionLevel::L1 but got CompactionLevel::L0."
+    )]
     fn test_unexpected_compaction_level_0() {
         let files = create_overlapped_files();
         let split = TargetLevelUpgradeSplit::new(MAX_SIZE);

@@ -2,7 +2,7 @@ use std::{collections::VecDeque, fmt::Display};
 
 use data_types::{CompactionLevel, ParquetFile};
 
-use crate::file_group::FilesTimeRange;
+use crate::file_group::{split_by_level, FilesTimeRange};
 
 use super::FilesSplit;
 
@@ -67,18 +67,9 @@ impl FilesSplit for TargetLevelNonOverlapSplit {
         let num_files = files.len();
 
         // Split files into levels
-        let mut target_level_files = Vec::with_capacity(num_files);
-        let mut prev_level_files = Vec::with_capacity(num_files);
         let prev_level = target_level.prev();
-        for file in files {
-            if file.compaction_level == target_level {
-                target_level_files.push(file);
-            } else if file.compaction_level == prev_level {
-                prev_level_files.push(file);
-            } else {
-                panic!("Unexpected compaction level: {}", file.compaction_level);
-            }
-        }
+        let (mut target_level_files, prev_level_files) =
+            split_by_level(files, target_level, prev_level);
 
         // compute time range of prev_level_files
         let prev_level_range = if let Some(r) = FilesTimeRange::try_new(&prev_level_files) {
@@ -161,7 +152,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Unexpected compaction level: CompactionLevel::L2")]
+    #[should_panic(
+        expected = "Unexpected compaction level. Expected CompactionLevel::L1 or CompactionLevel::L0 but got CompactionLevel::L2."
+    )]
     fn test_unexpected_compaction_level_2() {
         let files = create_overlapped_files();
         let split = TargetLevelNonOverlapSplit::new();
@@ -170,7 +163,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Unexpected compaction level: CompactionLevel::L0")]
+    #[should_panic(
+        expected = "Unexpected compaction level. Expected CompactionLevel::L2 or CompactionLevel::L1 but got CompactionLevel::L0."
+    )]
     fn test_unexpected_compaction_level_0() {
         let files = create_overlapped_files();
         let split = TargetLevelNonOverlapSplit::new();

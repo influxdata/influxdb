@@ -1,6 +1,6 @@
 //! Utilities for working with groups of [`ParquetFile`]
 
-use data_types::{ParquetFile, Timestamp};
+use data_types::{CompactionLevel, ParquetFile, Timestamp};
 use std::cmp::{max, min};
 
 /// Represent the min/max time range for a group of [`ParquetFile`]s
@@ -41,6 +41,31 @@ pub fn overlaps_in_time<'a>(
     files: impl IntoIterator<Item = &'a ParquetFile>,
 ) -> bool {
     files.into_iter().any(|f| f.overlaps(file))
+}
+
+/// Divide a list of [`ParquetFile`]s into two lists based on the two levels
+///
+/// Panics if there any level other than the two levels is present
+pub fn split_by_level(
+    files: impl IntoIterator<Item = ParquetFile>,
+    first_level: CompactionLevel,
+    second_level: CompactionLevel,
+) -> (Vec<ParquetFile>, Vec<ParquetFile>) {
+    // Split files into levels
+    files
+        .into_iter()
+        .partition(|file| {
+            let file_level = file.compaction_level;
+            if file_level == first_level {
+                true
+            } else if file_level == second_level {
+                false
+            } else {
+                panic!(
+                    "Unexpected compaction level. Expected {first_level} or {second_level} but got {file_level}."
+                );
+            }
+        })
 }
 
 #[cfg(test)]
