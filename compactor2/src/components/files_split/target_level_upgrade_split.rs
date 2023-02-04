@@ -1,7 +1,4 @@
-use std::{
-    cmp::{max, min},
-    fmt::Display,
-};
+use std::fmt::Display;
 
 use data_types::{CompactionLevel, ParquetFile};
 
@@ -129,22 +126,13 @@ impl FilesSplit for TargetLevelUpgradeSplit {
         files_to_compact.extend(target_level_files);
 
         // Compute time range of files_to_compact again to check if the potential upgradable files
-        let mut min_max_range = None;
-        if !files_to_compact.is_empty() {
-            let mut min_time = files_to_compact[0].min_time;
-            let mut max_time = files_to_compact[0].max_time;
-            for file in &files_to_compact[1..] {
-                min_time = min(min_time, file.min_time);
-                max_time = max(max_time, file.max_time);
-            }
-            min_max_range = Some((min_time, max_time));
-        }
+        let to_compact_time_range = FilesTimeRange::try_new(&files_to_compact);
 
         // Go over all potential upgradable files and check if they are actually upgradable
         //  by not overlapping with the min_max_range of files_to_compact
         while let Some(file) = potential_upgradable_files.pop() {
-            if let Some((min_time, max_time)) = min_max_range {
-                if file.min_time > max_time || file.max_time < min_time {
+            if let Some(to_compact_time_range) = to_compact_time_range {
+                if !to_compact_time_range.contains(&file) {
                     files_to_upgrade.push(file);
                 } else {
                     files_to_compact.push(file);
