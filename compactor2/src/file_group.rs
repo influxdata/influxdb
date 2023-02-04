@@ -35,6 +35,14 @@ impl FilesTimeRange {
     }
 }
 
+/// returns true if the time range of `file` overlaps with any in `files`
+pub fn overlaps_in_time<'a>(
+    file: &ParquetFile,
+    files: impl IntoIterator<Item = &'a ParquetFile>,
+) -> bool {
+    files.into_iter().any(|f| f.overlaps(file))
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

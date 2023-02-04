@@ -6,6 +6,7 @@ use std::{
 use data_types::{CompactionLevel, ParquetFile};
 
 use super::FilesSplit;
+use crate::file_group::{overlaps_in_time, FilesTimeRange};
 
 #[derive(Debug)]
 /// Split files into `[files_to_compact]` and `[files_to_upgrade]`
@@ -54,7 +55,7 @@ impl FilesSplit for TargetLevelUpgradeSplit {
     /// . Even if L0.5 is large enough, it in the midle of L0.6 and the rest. L0.5 is only
     ///    eligible to upgrade if L0.6 is eligible (large enough), too.
     ///
-    /// Algorithm:    
+    /// Algorithm:
     ///    The non-overlappings files are files of the (target_level -1) files that:
     ///      1. Size >= max_desire_file_size
     ///      2. Completely outside the time range of all higher level files
@@ -87,17 +88,8 @@ impl FilesSplit for TargetLevelUpgradeSplit {
             }
         }
 
-        // compute time range of target_level_files
-        let mut target_time_range = None;
-        if !target_level_files.is_empty() {
-            let mut min_time = target_level_files[0].min_time;
-            let mut max_time = target_level_files[0].max_time;
-            for file in &target_level_files[1..] {
-                min_time = min(min_time, file.min_time);
-                max_time = max(max_time, file.max_time);
-            }
-            target_time_range = Some((min_time, max_time));
-        }
+        // compute time range of target_level_files, if any
+        let target_time_range = FilesTimeRange::try_new(&target_level_files);
 
         // Go go over all files of previous level and check if they are NOT eligible to upgrade
         // by hit one of this conditions
@@ -112,14 +104,12 @@ impl FilesSplit for TargetLevelUpgradeSplit {
             // size is small
             if file.file_size_bytes < self.max_desired_file_size_bytes as i64 {
                 files_to_compact.push(file);
-            } else if let Some((min_time, max_time)) = target_time_range {
+            } else if let Some(target_time_range) = target_time_range {
                 // overlap with target_level_files
-                if file.min_time <= max_time && file.max_time >= min_time ||
-                    // overlap with files in the same level
-                   ( prev_level_files.iter().any(|f| f.overlaps(&file)) ||
-                     files_to_compact
-                       .iter()
-                      .any(|f| f.overlaps(&file)))
+                if target_time_range.contains(&file) ||
+                // overlap with files in the same level
+                    overlaps_in_time(&file, &prev_level_files) ||
+                    overlaps_in_time(&file, &files_to_compact)
                 {
                     files_to_compact.push(file);
                 } else {
