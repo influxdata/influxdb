@@ -329,18 +329,10 @@ fn buil_compaction_plan(
         .apply(files_to_compact, target_level);
     files_to_keep.extend(non_overlapping_files);
 
-    // Similarly, to avoid expensive compaction, we will upgrade eligible files
-    // Example:
-    //             |--L0.1--| |--L0.2--| |--L0.3--|  |--L0.4--| --L0.5--|
-    //                       |--L1.1--|             |--L1.2--|
-    //
-    //  (L0.1, L0.3, L0.5) are non-overlaped files but only (L0.1, L0.5) are eligible to upgrade.
-    //  (L0.2, L0.3, L0.4) must be compacted with L1s to produce the right non-overlapping L1s
-    // Eligible files to upgrade also need to be large enough (> max_desired_file_size) unless it is the only file left
-    //
-    // TODO: Find eligible upgradable files
-    // let (files_to_upgrade, mut files_to_compact) = components.upgrade_create_split.apply(files_to_compact, target_level.prev());
-    let (files_to_upgrade, files_to_compact) = (vec![], files_to_compact);
+    // To have efficient compaction performance, we only need to uprade (catalog update only) eligible files
+    let (files_to_compact, files_to_upgrade) = components
+        .upgrade_split
+        .apply(files_to_compact, target_level);
 
     Ok(CompactionPlan {
         target_level,

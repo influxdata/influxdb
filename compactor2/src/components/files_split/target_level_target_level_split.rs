@@ -61,7 +61,7 @@ mod tests {
 
     #[test]
     fn test_apply_partial_empty_files_l0() {
-        let files = create_l0_files();
+        let files = create_l0_files(1);
         assert_eq!(files.len(), 3);
 
         let split = TargetLevelTargetLevelSplit::new();
@@ -80,7 +80,7 @@ mod tests {
 
     #[test]
     fn test_apply_partial_empty_files_l1() {
-        let files = create_l1_files();
+        let files = create_l1_files(1);
         assert_eq!(files.len(), 3);
 
         let split = TargetLevelTargetLevelSplit::new();
@@ -138,7 +138,7 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_terget_level_l1() {
+    fn test_apply_target_level_l1() {
         // Test target level is FileNonOverlapped
         let files = create_overlapped_files();
         assert_eq!(files.len(), 8);

@@ -200,7 +200,7 @@ mod tests {
 
     #[test]
     fn test_apply_one_level_empty() {
-        let files = create_l1_files();
+        let files = create_l1_files(1);
         assert_eq!(files.len(), 3);
 
         let split = TargetLevelNonOverlapSplit::new();
@@ -218,7 +218,7 @@ mod tests {
 
     #[test]
     fn test_apply_mix_1() {
-        let files = create_overlapped_l0_l1_files();
+        let files = create_overlapped_l0_l1_files(1);
         assert_eq!(files.len(), 6);
 
         // Input files:
@@ -250,7 +250,7 @@ mod tests {
 
     #[test]
     fn test_apply_mix_2() {
-        let files = create_overlapped_l1_l2_files();
+        let files = create_overlapped_l1_l2_files(1);
         assert_eq!(files.len(), 5);
 
         // Input files:
@@ -283,7 +283,7 @@ mod tests {
         //            |--L1.1--| |--L1.2--|    |--L1.3--|              |--L1.4--|
         //
         //  . Output: (overlap, non_overlap) = ( [L0.1, L0.2, L1.2, L1.3] , [L1.1, L1.4] )
-        let files = create_overlapped_files_2();
+        let files = create_overlapped_files_2(1);
         assert_eq!(files.len(), 6);
 
         let split = TargetLevelNonOverlapSplit::new();

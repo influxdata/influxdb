@@ -594,23 +594,46 @@ where
 
 // This setup will return files with ranges as follows:
 //                                  |--L0.1--|   |--L0.2--| |--L0.3--|
-// Size L0.3 is set large (100), the rest is default (1)
-pub fn create_l0_files() -> Vec<ParquetFile> {
-    // L0_1 overlaps with L1_2 and L1_3
+pub fn create_l0_files(size: i64) -> Vec<ParquetFile> {
     let l0_1 = ParquetFileBuilder::new(1)
         .with_compaction_level(CompactionLevel::Initial)
         .with_time_range(450, 620)
+        .with_file_size_bytes(size)
         .build();
-    // L0_2 overlaps with L1_3
     let l0_2 = ParquetFileBuilder::new(2)
         .with_compaction_level(CompactionLevel::Initial)
         .with_time_range(650, 750)
+        .with_file_size_bytes(size)
         .build();
-    // L0_3 overlaps with nothing
     let l0_3 = ParquetFileBuilder::new(3)
         .with_compaction_level(CompactionLevel::Initial)
         .with_time_range(800, 900)
-        .with_file_size_bytes(100)
+        .with_file_size_bytes(size)
+        .build();
+
+    // Put the files in random order
+    vec![l0_2, l0_1, l0_3]
+}
+
+// This setup will return files with ranges as follows:
+//              |--L0.1-----|
+//                |--L0.2--|   |--L0.3--|
+// L0.1 and L0.2 overlap, L0.3 is not overlapping
+pub fn create_overlapping_l0_files(size: i64) -> Vec<ParquetFile> {
+    let l0_1 = ParquetFileBuilder::new(1)
+        .with_compaction_level(CompactionLevel::Initial)
+        .with_time_range(100, 200)
+        .with_file_size_bytes(size)
+        .build();
+    let l0_2 = ParquetFileBuilder::new(2)
+        .with_compaction_level(CompactionLevel::Initial)
+        .with_time_range(150, 180)
+        .with_file_size_bytes(size)
+        .build();
+    let l0_3 = ParquetFileBuilder::new(3)
+        .with_compaction_level(CompactionLevel::Initial)
+        .with_time_range(800, 900)
+        .with_file_size_bytes(size)
         .build();
 
     // Put the files in random order
@@ -619,23 +642,59 @@ pub fn create_l0_files() -> Vec<ParquetFile> {
 
 // This setup will return files with ranges as follows:
 //                  |--L1.1--|  |--L1.2--|  |--L1.3--|
-// Size of L1.3 is set large (100), the rest is default (1)
-pub fn create_l1_files() -> Vec<ParquetFile> {
+pub fn create_l1_files(size: i64) -> Vec<ParquetFile> {
     let l1_1 = ParquetFileBuilder::new(11)
         .with_compaction_level(CompactionLevel::FileNonOverlapped)
         .with_time_range(250, 350)
+        .with_file_size_bytes(size)
         .build();
     let l1_2 = ParquetFileBuilder::new(12)
         .with_compaction_level(CompactionLevel::FileNonOverlapped)
         .with_time_range(400, 500)
+        .with_file_size_bytes(size)
         .build();
     let l1_3 = ParquetFileBuilder::new(13)
         .with_compaction_level(CompactionLevel::FileNonOverlapped)
         .with_time_range(600, 700)
-        .with_file_size_bytes(100)
+        .with_file_size_bytes(size)
         .build();
     // Put the files in random order
     vec![l1_3, l1_2, l1_1]
+}
+
+// This setup will return files with ranges as follows:
+//           |--L1.1--|  |--L1.2--|  |--L1.3--| |--L1.4--|  |--L1.5--|
+//  . small files (< size ): L1.1, L1.3
+//  . Large files (.= size): L1.2, L1.4, L1.5
+pub fn create_l1_files_mix_size(size: i64) -> Vec<ParquetFile> {
+    let l1_1 = ParquetFileBuilder::new(11)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(250, 350)
+        .with_file_size_bytes(size - 1)
+        .build();
+    let l1_2 = ParquetFileBuilder::new(12)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(400, 500)
+        .with_file_size_bytes(size + 1)
+        .build();
+    let l1_3 = ParquetFileBuilder::new(13)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(600, 700)
+        .with_file_size_bytes(size - 10)
+        .build();
+    let l1_4 = ParquetFileBuilder::new(14)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(800, 900)
+        .with_file_size_bytes(size)
+        .build();
+    let l1_5 = ParquetFileBuilder::new(15)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(1000, 1100)
+        .with_file_size_bytes(size + 100)
+        .build();
+
+    // Put the files in random order
+    vec![l1_5, l1_3, l1_2, l1_1, l1_4]
 }
 
 // This setup will return files with ranges as follows:
@@ -657,37 +716,40 @@ pub fn create_l2_files() -> Vec<ParquetFile> {
 // This setup will return files with ranges as follows:
 //                  |--L1.1--|  |--L1.2--|  |--L1.3--|
 //                                  |--L0.1--|   |--L0.2--| |--L0.3--|
-// Sizes of L1.3 and L0.3 are set large (100), the rest is default (1)
-pub fn create_overlapped_l0_l1_files() -> Vec<ParquetFile> {
+pub fn create_overlapped_l0_l1_files(size: i64) -> Vec<ParquetFile> {
     let l1_1 = ParquetFileBuilder::new(11)
         .with_compaction_level(CompactionLevel::FileNonOverlapped)
         .with_time_range(250, 350)
+        .with_file_size_bytes(size)
         .build();
     let l1_2 = ParquetFileBuilder::new(12)
         .with_compaction_level(CompactionLevel::FileNonOverlapped)
         .with_time_range(400, 500)
+        .with_file_size_bytes(size)
         .build();
     let l1_3 = ParquetFileBuilder::new(13)
         .with_compaction_level(CompactionLevel::FileNonOverlapped)
         .with_time_range(600, 700)
-        .with_file_size_bytes(100)
+        .with_file_size_bytes(size)
         .build();
 
     // L0_1 overlaps with L1_2 and L1_3
     let l0_1 = ParquetFileBuilder::new(1)
         .with_compaction_level(CompactionLevel::Initial)
         .with_time_range(450, 620)
+        .with_file_size_bytes(size)
         .build();
     // L0_2 overlaps with L1_3
     let l0_2 = ParquetFileBuilder::new(2)
         .with_compaction_level(CompactionLevel::Initial)
         .with_time_range(650, 750)
+        .with_file_size_bytes(size)
         .build();
     // L0_3 overlaps with nothing
     let l0_3 = ParquetFileBuilder::new(3)
         .with_compaction_level(CompactionLevel::Initial)
         .with_time_range(800, 900)
-        .with_file_size_bytes(100)
+        .with_file_size_bytes(size)
         .build();
 
     // Put the files in random order
@@ -697,30 +759,109 @@ pub fn create_overlapped_l0_l1_files() -> Vec<ParquetFile> {
 // This setup will return files with ranges as follows:
 //    |--L2.1--|  |--L2.2--|
 //                  |--L1.1--|  |--L1.2--|  |--L1.3--|
-// Sizes of L1.3 is set large (100), the rest is default (1)
-pub fn create_overlapped_l1_l2_files() -> Vec<ParquetFile> {
+pub fn create_overlapped_l1_l2_files(size: i64) -> Vec<ParquetFile> {
     let l2_1 = ParquetFileBuilder::new(21)
         .with_compaction_level(CompactionLevel::Final)
         .with_time_range(0, 100)
+        .with_file_size_bytes(size)
         .build();
     let l2_2 = ParquetFileBuilder::new(22)
         .with_compaction_level(CompactionLevel::Final)
         .with_time_range(200, 300)
+        .with_file_size_bytes(size)
         .build();
 
     // L1_1 overlaps with L2_1
     let l1_1 = ParquetFileBuilder::new(11)
         .with_compaction_level(CompactionLevel::FileNonOverlapped)
         .with_time_range(250, 350)
+        .with_file_size_bytes(size)
         .build();
     let l1_2 = ParquetFileBuilder::new(12)
         .with_compaction_level(CompactionLevel::FileNonOverlapped)
         .with_time_range(400, 500)
+        .with_file_size_bytes(size)
         .build();
     let l1_3 = ParquetFileBuilder::new(13)
         .with_compaction_level(CompactionLevel::FileNonOverlapped)
         .with_time_range(600, 700)
-        .with_file_size_bytes(100)
+        .with_file_size_bytes(size)
+        .build();
+
+    // Put the files in random order
+    vec![l1_3, l1_2, l2_1, l2_2, l1_1]
+}
+
+// This setup will return files with ranges as follows with mixed sizes:
+//    |--L2.1--|  |--L2.2--|
+//                  |--L1.1--|  |--L1.2--|  |--L1.3--|
+//  Small files (< size): [L1.3]
+//  Large files: [L2.1, L2.2, L1.1, L1.2]
+pub fn create_overlapped_l1_l2_files_mix_size(size: i64) -> Vec<ParquetFile> {
+    let l2_1 = ParquetFileBuilder::new(21)
+        .with_compaction_level(CompactionLevel::Final)
+        .with_time_range(0, 100)
+        .with_file_size_bytes(size)
+        .build();
+    let l2_2 = ParquetFileBuilder::new(22)
+        .with_compaction_level(CompactionLevel::Final)
+        .with_time_range(200, 300)
+        .with_file_size_bytes(size)
+        .build();
+
+    // L1_1 overlaps with L2_1
+    let l1_1 = ParquetFileBuilder::new(11)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(250, 350)
+        .with_file_size_bytes(size)
+        .build();
+    let l1_2 = ParquetFileBuilder::new(12)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(400, 500)
+        .with_file_size_bytes(size)
+        .build();
+    let l1_3 = ParquetFileBuilder::new(13)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(600, 700)
+        .with_file_size_bytes(size - 1)
+        .build();
+
+    // Put the files in random order
+    vec![l1_3, l1_2, l2_1, l2_2, l1_1]
+}
+
+// This setup will return files with ranges as follows with mixed sizes:
+//    |--L2.1--|  |--L2.2--|
+//                  |--L1.1--|  |--L1.2--|  |--L1.3--|
+//  Small files (< size): [L1.2]
+//  Large files: [L2.1, L2.2, L1.1, L1.3]
+pub fn create_overlapped_l1_l2_files_mix_size_2(size: i64) -> Vec<ParquetFile> {
+    let l2_1 = ParquetFileBuilder::new(21)
+        .with_compaction_level(CompactionLevel::Final)
+        .with_time_range(0, 100)
+        .with_file_size_bytes(size)
+        .build();
+    let l2_2 = ParquetFileBuilder::new(22)
+        .with_compaction_level(CompactionLevel::Final)
+        .with_time_range(200, 300)
+        .with_file_size_bytes(size)
+        .build();
+
+    // L1_1 overlaps with L2_1
+    let l1_1 = ParquetFileBuilder::new(11)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(250, 350)
+        .with_file_size_bytes(size)
+        .build();
+    let l1_2 = ParquetFileBuilder::new(12)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(400, 500)
+        .with_file_size_bytes(size - 1)
+        .build();
+    let l1_3 = ParquetFileBuilder::new(13)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(600, 700)
+        .with_file_size_bytes(size)
         .build();
 
     // Put the files in random order
@@ -781,34 +922,146 @@ pub fn create_overlapped_files() -> Vec<ParquetFile> {
 // This setup will return files with ranges as follows:
 ///                          |--L0.1--|             |--L0.2--|
 ///            |--L1.1--| |--L1.2--|    |--L1.3--|              |--L1.4--|
-pub fn create_overlapped_files_2() -> Vec<ParquetFile> {
+pub fn create_overlapped_files_2(size: i64) -> Vec<ParquetFile> {
     let l1_1 = ParquetFileBuilder::new(11)
         .with_compaction_level(CompactionLevel::FileNonOverlapped)
         .with_time_range(0, 100)
+        .with_file_size_bytes(size)
         .build();
     let l1_2 = ParquetFileBuilder::new(12)
         .with_compaction_level(CompactionLevel::FileNonOverlapped)
         .with_time_range(200, 300)
+        .with_file_size_bytes(size)
         .build();
     let l1_3 = ParquetFileBuilder::new(13)
         .with_compaction_level(CompactionLevel::FileNonOverlapped)
         .with_time_range(400, 500)
+        .with_file_size_bytes(size)
         .build();
     let l1_4 = ParquetFileBuilder::new(14)
         .with_compaction_level(CompactionLevel::FileNonOverlapped)
         .with_time_range(600, 700)
+        .with_file_size_bytes(size)
         .build();
     // L0_1 overlaps with L1_2
     let l0_1 = ParquetFileBuilder::new(1)
         .with_compaction_level(CompactionLevel::Initial)
         .with_time_range(250, 350)
+        .with_file_size_bytes(size)
         .build();
     // L0_2 not overlap but in the middle of L1_3 and L1_4
     let l0_2 = ParquetFileBuilder::new(2)
         .with_compaction_level(CompactionLevel::Initial)
         .with_time_range(520, 550)
+        .with_file_size_bytes(size)
         .build();
 
     // Put the files in random order
     vec![l1_3, l1_2, l1_1, l1_4, l0_2, l0_1]
+}
+
+// This setup will return files with ranges as follows:
+//             |--L0.1--| |--L0.2--| |--L0.3--|
+//                                              |--L0.4--|     |--L0.5--| |--L0.6--|
+//                        |--L1.1--|              |--L1.2--|
+pub fn create_overlapped_files_3(size: i64) -> Vec<ParquetFile> {
+    let l0_1 = ParquetFileBuilder::new(1)
+        .with_compaction_level(CompactionLevel::Initial)
+        .with_time_range(0, 100)
+        .with_file_size_bytes(size)
+        .build();
+    let l0_2 = ParquetFileBuilder::new(2)
+        .with_compaction_level(CompactionLevel::Initial)
+        .with_time_range(200, 300)
+        .with_file_size_bytes(size)
+        .build();
+    let l0_3 = ParquetFileBuilder::new(3)
+        .with_compaction_level(CompactionLevel::Initial)
+        .with_time_range(400, 500)
+        .with_file_size_bytes(size)
+        .build();
+    let l0_4 = ParquetFileBuilder::new(4)
+        .with_compaction_level(CompactionLevel::Initial)
+        .with_time_range(600, 700)
+        .with_file_size_bytes(size)
+        .build();
+    let l0_5 = ParquetFileBuilder::new(5)
+        .with_compaction_level(CompactionLevel::Initial)
+        .with_time_range(800, 900)
+        .with_file_size_bytes(size)
+        .build();
+    let l0_6 = ParquetFileBuilder::new(6)
+        .with_compaction_level(CompactionLevel::Initial)
+        .with_time_range(1000, 1100)
+        .with_file_size_bytes(size)
+        .build();
+    // L1_1 overlaps with L0_2
+    let l1_1 = ParquetFileBuilder::new(11)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(250, 350)
+        .with_file_size_bytes(size)
+        .build();
+    // L1_2 overlaps with L0_4
+    let l1_2 = ParquetFileBuilder::new(12)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(650, 750)
+        .with_file_size_bytes(size)
+        .build();
+
+    // Put the files in random order
+    vec![l0_3, l0_2, l0_1, l0_4, l0_5, l0_6, l1_1, l1_2]
+}
+
+// This setup will return files with ranges as follows:
+//             |--L0.1--| |--L0.2--| |--L0.3--|
+//                                              |--L0.4--|     |--L0.5--| |--L0.6--|
+//                        |--L1.1--|              |--L1.2--|
+// Small files (< size): L0.6
+// Large files: the rest
+pub fn create_overlapped_files_3_mix_size(size: i64) -> Vec<ParquetFile> {
+    let l0_1 = ParquetFileBuilder::new(1)
+        .with_compaction_level(CompactionLevel::Initial)
+        .with_time_range(0, 100)
+        .with_file_size_bytes(size)
+        .build();
+    let l0_2 = ParquetFileBuilder::new(2)
+        .with_compaction_level(CompactionLevel::Initial)
+        .with_time_range(200, 300)
+        .with_file_size_bytes(size)
+        .build();
+    let l0_3 = ParquetFileBuilder::new(3)
+        .with_compaction_level(CompactionLevel::Initial)
+        .with_time_range(400, 500)
+        .with_file_size_bytes(size)
+        .build();
+    let l0_4 = ParquetFileBuilder::new(4)
+        .with_compaction_level(CompactionLevel::Initial)
+        .with_time_range(600, 700)
+        .with_file_size_bytes(size)
+        .build();
+    let l0_5 = ParquetFileBuilder::new(5)
+        .with_compaction_level(CompactionLevel::Initial)
+        .with_time_range(800, 900)
+        .with_file_size_bytes(size)
+        .build();
+    let l0_6 = ParquetFileBuilder::new(6)
+        .with_compaction_level(CompactionLevel::Initial)
+        .with_time_range(1000, 1100)
+        .with_file_size_bytes(size - 1)
+        .build();
+    // L1_1 overlaps with L0_2
+    let l1_1 = ParquetFileBuilder::new(11)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(250, 350)
+        .with_file_size_bytes(size)
+        .build();
+    // L1_2 overlaps with L0_4
+    let l1_2 = ParquetFileBuilder::new(12)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(650, 750)
+        .with_file_size_bytes(size)
+        .build();
+
+    // Put the files in random order
+    vec![l0_3, l0_2, l0_1, l0_4, l0_5, l0_6, l1_1, l1_2]
 }

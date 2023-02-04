@@ -95,6 +95,7 @@ pub fn log_components(components: &Components) {
         target_level_chooser,
         target_level_split,
         non_overlap_split,
+        upgrade_split,
     } = components;
 
     info!(
@@ -116,6 +117,7 @@ pub fn log_components(components: &Components) {
         %target_level_chooser,
         %target_level_split,
         %non_overlap_split,
+        %upgrade_split,
         "component setup",
     );
 }

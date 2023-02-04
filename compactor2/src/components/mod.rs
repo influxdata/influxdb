@@ -55,4 +55,5 @@ pub struct Components {
     pub target_level_chooser: Arc<dyn TargetLevelChooser>,
     pub target_level_split: Arc<dyn files_split::FilesSplit>,
     pub non_overlap_split: Arc<dyn files_split::FilesSplit>,
+    pub upgrade_split: Arc<dyn files_split::FilesSplit>,
 }

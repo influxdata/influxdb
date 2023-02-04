@@ -30,8 +30,10 @@ use super::{
     files_split::{
         all_at_once_non_overlap_split::AllAtOnceNonOverlapSplit,
         all_at_once_target_level_split::AllAtOnceTargetLevelSplit,
+        all_at_once_upgrade_split::AllAtOnceUpgradeSplit,
         target_level_non_overlap_split::TargetLevelNonOverlapSplit,
-        target_level_target_level_split::TargetLevelTargetLevelSplit, FilesSplit,
+        target_level_target_level_split::TargetLevelTargetLevelSplit,
+        target_level_upgrade_split::TargetLevelUpgradeSplit, FilesSplit,
     },
     id_only_partition_filter::{
         and::AndIdOnlyPartitionFilter, by_id::ByIdPartitionFilter, shard::ShardPartitionFilter,
@@ -249,6 +251,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         target_level_chooser: version_specific_target_level_chooser(config),
         target_level_split: version_specific_target_level_split(config),
         non_overlap_split: version_specific_non_ovverlapping_split(config),
+        upgrade_split: version_specific_upgrade_split(config),
     })
 }
 
@@ -317,5 +320,15 @@ fn version_specific_non_ovverlapping_split(config: &Config) -> Arc<dyn FilesSpli
     match config.compact_version {
         AlgoVersion::AllAtOnce => Arc::new(AllAtOnceNonOverlapSplit::new()),
         AlgoVersion::TargetLevel => Arc::new(TargetLevelNonOverlapSplit::new()),
+    }
+}
+
+// Split the files into `[files_to_compact]` and `[files_to_upgrade]`
+fn version_specific_upgrade_split(config: &Config) -> Arc<dyn FilesSplit> {
+    match config.compact_version {
+        AlgoVersion::AllAtOnce => Arc::new(AllAtOnceUpgradeSplit::new()),
+        AlgoVersion::TargetLevel => Arc::new(TargetLevelUpgradeSplit::new(
+            config.max_desired_file_size_bytes,
+        )),
     }
 }

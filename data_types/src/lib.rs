@@ -1171,6 +1171,11 @@ impl ParquetFile {
         std::mem::size_of_val(self) + self.column_set.size()
             - std::mem::size_of_val(&self.column_set)
     }
+
+    /// Return true if the time range overlaps with the time range of the given file
+    pub fn overlaps(&self, other: &Self) -> bool {
+        self.min_time <= other.max_time && self.max_time >= other.min_time
+    }
 }
 
 /// Data for a parquet file to be inserted into the catalog.
