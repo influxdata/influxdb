@@ -431,6 +431,7 @@ impl Config {
             shard_count: None,
             shard_id: None,
             compact_version: CompactorAlgoVersion::AllAtOnce,
+            min_num_l1_files_to_compact: 1,
         };
 
         let querier_config = QuerierConfig {

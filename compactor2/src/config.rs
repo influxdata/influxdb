@@ -104,6 +104,10 @@ pub struct Config {
 
     /// Version of the compaction algorithm.
     pub compact_version: AlgoVersion,
+
+    /// Minimum number of L1 files to compact to L2
+    /// This is to prevent too many small files
+    pub min_num_l1_files_to_compact: usize,
 }
 
 impl Config {

@@ -20,7 +20,7 @@ impl MaxFilesPartitionFilter {
 
 impl Display for MaxFilesPartitionFilter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "max_files")
+        write!(f, "max_files({})", self.max_files)
     }
 }
 
@@ -56,7 +56,10 @@ mod tests {
 
     #[test]
     fn test_display() {
-        assert_eq!(MaxFilesPartitionFilter::new(10).to_string(), "max_files");
+        assert_eq!(
+            MaxFilesPartitionFilter::new(10).to_string(),
+            "max_files(10)"
+        );
     }
 
     #[tokio::test]

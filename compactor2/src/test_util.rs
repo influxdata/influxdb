@@ -287,6 +287,7 @@ const PARTITION_THRESHOLD: Duration = Duration::from_secs(10 * 60); // 10min
 const MAX_DESIRE_FILE_SIZE: u64 = 100 * 1024;
 const PERCENTAGE_MAX_FILE_SIZE: u16 = 5;
 const SPLIT_PERCENTAGE: u16 = 80;
+const MIN_NUM_L1_FILES_TO_COMPACT: usize = 2;
 
 #[derive(Debug)]
 pub struct TestSetupBuilder {
@@ -488,6 +489,7 @@ impl TestSetupBuilder {
             max_input_parquet_bytes_per_partition: usize::MAX,
             shard_config: None,
             compact_version: self.compact_version,
+            min_num_l1_files_to_compact: MIN_NUM_L1_FILES_TO_COMPACT,
         });
 
         TestSetup {
@@ -524,6 +526,18 @@ impl TestSetup {
     pub async fn read_parquet_file(&self, file: ParquetFile) -> Vec<RecordBatch> {
         assert_eq!(file.table_id, self.table.table.id);
         self.table.read_parquet_file(file).await
+    }
+
+    /// Set compact version
+    pub fn set_compact_version(&mut self, compact_version: AlgoVersion) {
+        let mut config = Arc::get_mut(&mut self.config).unwrap();
+        config.compact_version = compact_version;
+    }
+
+    /// set min_num_l1_files_to_compact
+    pub fn set_min_num_l1_files_to_compact(&mut self, min_num_l1_files_to_compact: usize) {
+        let mut config = Arc::get_mut(&mut self.config).unwrap();
+        config.min_num_l1_files_to_compact = min_num_l1_files_to_compact;
     }
 }
 

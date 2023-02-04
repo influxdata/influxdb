@@ -33,6 +33,7 @@ pub fn log_config(config: &Config) {
         max_input_parquet_bytes_per_partition,
         shard_config,
         compact_version,
+        min_num_l1_files_to_compact,
     } = &config;
 
     let (shard_cfg_n_shards, shard_cfg_shard_id) = match shard_config {
@@ -69,6 +70,7 @@ pub fn log_config(config: &Config) {
         ?shard_cfg_n_shards,
         ?shard_cfg_shard_id,
         ?compact_version,
+        min_num_l1_files_to_compact,
         "config",
     );
 }

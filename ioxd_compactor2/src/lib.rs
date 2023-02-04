@@ -193,6 +193,7 @@ pub async fn create_compactor2_server_type(
             .max_input_parquet_bytes_per_partition,
         shard_config,
         compact_version,
+        min_num_l1_files_to_compact: compactor_config.min_num_l1_files_to_compact,
     });
 
     Arc::new(Compactor2ServerType::new(

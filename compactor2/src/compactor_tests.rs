@@ -11,6 +11,7 @@ mod tests {
         components::{
             df_planner::panic::PanicDataFusionPlanner, hardcoded::hardcoded_components, Components,
         },
+        config::AlgoVersion,
         driver::compact,
         test_util::{list_object_store, AssertFutureExt, TestSetup},
     };
@@ -37,11 +38,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_compact() {
+    async fn test_compact_all_at_once() {
         test_helpers::maybe_start_logging();
 
         // Create a test setup with 6 files
-        let setup = TestSetup::builder().with_files().build().await;
+        let mut setup = TestSetup::builder().with_files().build().await;
+        setup.set_compact_version(AlgoVersion::AllAtOnce);
 
         // verify 6 files
         let files = setup.list_by_table_not_to_delete().await;
@@ -116,6 +118,129 @@ mod tests {
         assert_eq!(
             files_and_max_l0_created_ats,
             vec![(7, time_5_minutes_future), (8, time_5_minutes_future),]
+        );
+
+        // verify the content of files
+        // Compacted smaller file with the later data
+        let mut files = setup.list_by_table_not_to_delete().await;
+        let file1 = files.pop().unwrap();
+        let batches = setup.read_parquet_file(file1).await;
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+------+------+-----------------------------+",
+                "| field_int | tag1 | tag2 | tag3 | time                        |",
+                "+-----------+------+------+------+-----------------------------+",
+                "| 210       |      | OH   | 21   | 1970-01-01T00:00:00.000136Z |",
+                "+-----------+------+------+------+-----------------------------+",
+            ],
+            &batches
+        );
+
+        // Compacted larger file with the earlier data
+        let file0 = files.pop().unwrap();
+        let batches = setup.read_parquet_file(file0).await;
+        assert_batches_sorted_eq!(
+            [
+                "+-----------+------+------+------+-----------------------------+",
+                "| field_int | tag1 | tag2 | tag3 | time                        |",
+                "+-----------+------+------+------+-----------------------------+",
+                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000006Z |",
+                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000010Z |",
+                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000068Z |",
+                "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z |",
+                "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000030Z |",
+                "| 22        |      | OH   | 21   | 1970-01-01T00:00:00.000036Z |",
+                "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
+                "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z |",
+                "| 99        | OR   |      |      | 1970-01-01T00:00:00.000012Z |",
+                "+-----------+------+------+------+-----------------------------+",
+            ],
+            &batches
+        );
+    }
+
+    #[tokio::test]
+    async fn test_compact_target_level() {
+        test_helpers::maybe_start_logging();
+
+        // Create a test setup with 6 files
+        let mut setup = TestSetup::builder().with_files().build().await;
+        setup.set_compact_version(AlgoVersion::TargetLevel);
+        setup.set_min_num_l1_files_to_compact(2);
+
+        // verify 6 files
+        let files = setup.list_by_table_not_to_delete().await;
+        assert_eq!(files.len(), 6);
+        //
+        // verify ID and compaction level of the files
+        let files_and_levels: Vec<_> = files
+            .iter()
+            .map(|f| (f.id.get(), f.compaction_level))
+            .collect();
+        assert_eq!(
+            files_and_levels,
+            vec![
+                (1, CompactionLevel::FileNonOverlapped),
+                (2, CompactionLevel::Initial),
+                (3, CompactionLevel::Initial),
+                (4, CompactionLevel::FileNonOverlapped),
+                (5, CompactionLevel::Initial),
+                (6, CompactionLevel::Initial),
+            ]
+        );
+        // verify ID and max_l0_created_at
+        let time_provider = Arc::clone(&setup.config.time_provider);
+
+        let time_1_minute_future = time_provider.minutes_into_future(1).timestamp_nanos();
+        let time_2_minutes_future = time_provider.minutes_into_future(2).timestamp_nanos();
+        let time_3_minutes_future = time_provider.minutes_into_future(3).timestamp_nanos();
+        let time_5_minutes_future = time_provider.minutes_into_future(5).timestamp_nanos();
+
+        let files_and_max_l0_created_ats: Vec<_> = files
+            .iter()
+            .map(|f| (f.id.get(), f.max_l0_created_at.get()))
+            .collect();
+        assert_eq!(
+            files_and_max_l0_created_ats,
+            vec![
+                (1, time_1_minute_future),
+                (2, time_2_minutes_future),
+                (3, time_5_minutes_future),
+                (4, time_3_minutes_future),
+                (5, time_5_minutes_future),
+                (6, time_2_minutes_future),
+            ]
+        );
+
+        // compact
+        run_compact(&setup).await;
+
+        // verify number of files: 6 files are compacted into 2 files
+        let files = setup.list_by_table_not_to_delete().await;
+        assert_eq!(files.len(), 2);
+        //
+        // verify ID and compaction level of the files
+        let files_and_levels: Vec<_> = files
+            .iter()
+            .map(|f| (f.id.get(), f.compaction_level))
+            .collect();
+        println!("{files_and_levels:?}");
+        // This is the result of 2-round compaction fomr L0s -> L1s and then L1s -> L2s
+        // The first round will create two L1 files IDs 7 and 8
+        // The second round will create tow L2 file IDs 9 and 10
+        assert_eq!(
+            files_and_levels,
+            vec![(9, CompactionLevel::Final), (10, CompactionLevel::Final),]
+        );
+        // verify ID and max_l0_created_at
+        let files_and_max_l0_created_ats: Vec<_> = files
+            .iter()
+            .map(|f| (f.id.get(), f.max_l0_created_at.get()))
+            .collect();
+        // both files have max_l0_created time_5_minutes_future which is the max of all L0 input's max_l0_created_at
+        assert_eq!(
+            files_and_max_l0_created_ats,
+            vec![(9, time_5_minutes_future), (10, time_5_minutes_future),]
         );
 
         // verify the content of files

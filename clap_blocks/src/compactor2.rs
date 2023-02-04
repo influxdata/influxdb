@@ -219,4 +219,13 @@ pub struct Compactor2Config {
         value_enum
     )]
     pub compact_version: CompactorAlgoVersion,
+
+    /// Minimum number of L1 files to comapct to L2
+    #[clap(
+        long = "compaction-min-num-l1-files-to-compact",
+        env = "INFLUXDB_IOX_COMPACTION_MIN_NUM_L1_FILES_TO_COMPACT",
+        default_value = "10",
+        action
+    )]
+    pub min_num_l1_files_to_compact: usize,
 }

@@ -194,9 +194,6 @@ async fn try_compact_partition(
     let mut lazy_partition_info = None;
 
     loop {
-        // TODO: I do not think we need this in version 1 becasue we do not generate L2 files
-        // So either remove this or move it inside the partition filter for Naive version
-        // This filter will stop HotCold version from working correctly
         files = components.files_filter.apply(files);
 
         // This is the stop condition which will be different for different version of compaction
@@ -322,7 +319,7 @@ fn buil_compaction_plan(
         .target_level_split
         .apply(files_to_compact, target_level);
 
-    // To have efficient compaction performance, we do not need to compact eligible non-overlapped file
+    // To have efficient compaction performance, we do not need to compact eligible non-overlapped files
     // Find eligible non-overlapped files and keep for next round of compaction
     let (files_to_compact, non_overlapping_files) = components
         .non_overlap_split
