@@ -1,10 +1,8 @@
-use std::{
-    cmp::{max, min},
-    collections::VecDeque,
-    fmt::Display,
-};
+use std::{collections::VecDeque, fmt::Display};
 
 use data_types::{CompactionLevel, ParquetFile};
+
+use crate::file_group::FilesTimeRange;
 
 use super::FilesSplit;
 
@@ -49,7 +47,7 @@ impl FilesSplit for TargetLevelNonOverlapSplit {
     ///     . overlapping_files: [L0.1, L0.2, L1.2, L1.3]
     ///     . non_overlapping_files: [L1.1, L1.4]
     ///
-    /// Algorithm:    
+    /// Algorithm:
     ///    The non-overlappings files are files from 2 ends of the target level files that are
     ///    completely ouside the time range of all lower level files
     ///
@@ -66,13 +64,11 @@ impl FilesSplit for TargetLevelNonOverlapSplit {
     ) -> (Vec<ParquetFile>, Vec<ParquetFile>) {
         // Panic if given wrong target level, L0
         assert_ne!(target_level, CompactionLevel::Initial);
-
-        let mut non_overlapping_files = Vec::with_capacity(files.len());
-        let mut overlapping_files = Vec::with_capacity(files.len());
+        let num_files = files.len();
 
         // Split files into levels
-        let mut target_level_files = Vec::with_capacity(files.len());
-        let mut prev_level_files = Vec::with_capacity(files.len());
+        let mut target_level_files = Vec::with_capacity(num_files);
+        let mut prev_level_files = Vec::with_capacity(num_files);
         let prev_level = target_level.prev();
         for file in files {
             if file.compaction_level == target_level {
@@ -84,20 +80,13 @@ impl FilesSplit for TargetLevelNonOverlapSplit {
             }
         }
 
-        if prev_level_files.is_empty() {
+        // compute time range of prev_level_files
+        let prev_level_range = if let Some(r) = FilesTimeRange::try_new(&prev_level_files) {
+            r
+        } else {
             // No prev_level_files, all target_level_files are non_overlapping_files
             return (vec![], target_level_files);
-        }
-
-        // compute time range of prev_level_files
-        // split prev_level_files into one and the rest
-        let prev_level_files_tail = prev_level_files.split_off(1);
-        let mut min_time = prev_level_files[0].min_time;
-        let mut max_time = prev_level_files[0].max_time;
-        for file in &prev_level_files_tail {
-            min_time = min(min_time, file.min_time);
-            max_time = max(max_time, file.max_time);
-        }
+        };
 
         // Sort files of target level by min_time
         target_level_files.sort_by_key(|f| f.min_time);
@@ -107,11 +96,13 @@ impl FilesSplit for TargetLevelNonOverlapSplit {
 
         // Closure that checks if a file overlaps with any prev_level_files and add it
         // to overlapping_files or non_overlapping_files accordingly. Return true if ovelapping
+        let mut non_overlapping_files = Vec::with_capacity(num_files);
+        let mut overlapping_files = Vec::with_capacity(num_files);
         let mut check_overlapping_and_add = |file: ParquetFile| -> bool {
             let mut overlapping = false;
 
             // Check if file overlaps with (min_time, max_time)
-            if file.min_time <= max_time && file.max_time >= min_time {
+            if prev_level_range.contains(&file) {
                 overlapping = true;
                 overlapping_files.push(file);
             } else {
@@ -138,7 +129,6 @@ impl FilesSplit for TargetLevelNonOverlapSplit {
         // Add remaining files to overlapping_files
         overlapping_files.extend(target_level_files);
         overlapping_files.extend(prev_level_files);
-        overlapping_files.extend(prev_level_files_tail);
 
         (overlapping_files, non_overlapping_files)
     }

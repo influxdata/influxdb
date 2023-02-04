@@ -21,5 +21,6 @@ mod partition_info;
 #[cfg(test)]
 mod compactor_tests;
 
+pub mod file_group;
 #[cfg(test)]
 mod test_util;
