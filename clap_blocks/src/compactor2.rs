@@ -228,4 +228,12 @@ pub struct Compactor2Config {
         action
     )]
     pub min_num_l1_files_to_compact: usize,
+
+    /// Only process all discovered partitions once.
+    #[clap(
+        long = "compaction-process-once",
+        env = "INFLUXDB_IOX_COMPACTION_PROCESS_ONCE",
+        action
+    )]
+    pub process_once: bool,
 }

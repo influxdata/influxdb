@@ -490,6 +490,7 @@ impl TestSetupBuilder {
             shard_config: None,
             compact_version: self.compact_version,
             min_num_l1_files_to_compact: MIN_NUM_L1_FILES_TO_COMPACT,
+            process_once: true,
         });
 
         TestSetup {

@@ -61,6 +61,9 @@ use super::{
         catalog::CatalogPartitionSource, logging::LoggingPartitionSourceWrapper,
         metrics::MetricsPartitionSourceWrapper,
     },
+    partition_stream::{
+        endless::EndlessPartititionStream, once::OncePartititionStream, PartitionStream,
+    },
     partitions_source::{
         catalog::CatalogPartitionsSource, filter::FilterPartitionsSourceWrapper,
         logging::LoggingPartitionsSourceWrapper, metrics::MetricsPartitionsSourceWrapper,
@@ -177,17 +180,25 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         1,
     );
 
-    Arc::new(Components {
-        // Note: Place "not empty" wrapper at the very last so that the logging and metric wrapper work even when there
-        //       is not data.
-        partitions_source: Arc::new(NotEmptyPartitionsSourceWrapper::new(
-            LoggingPartitionsSourceWrapper::new(MetricsPartitionsSourceWrapper::new(
-                RandomizeOrderPartitionsSourcesWrapper::new(partitions_source, 1234),
-                &config.metric_registry,
-            )),
-            Duration::from_secs(5),
-            Arc::clone(&config.time_provider),
+    // Note: Place "not empty" wrapper at the very last so that the logging and metric wrapper work even when there
+    //       is not data.
+    let partitions_source = NotEmptyPartitionsSourceWrapper::new(
+        LoggingPartitionsSourceWrapper::new(MetricsPartitionsSourceWrapper::new(
+            RandomizeOrderPartitionsSourcesWrapper::new(partitions_source, 1234),
+            &config.metric_registry,
         )),
+        Duration::from_secs(5),
+        Arc::clone(&config.time_provider),
+    );
+
+    let partition_stream: Arc<dyn PartitionStream> = if config.process_once {
+        Arc::new(OncePartititionStream::new(partitions_source))
+    } else {
+        Arc::new(EndlessPartititionStream::new(partitions_source))
+    };
+
+    Arc::new(Components {
+        partition_stream,
         partition_source: Arc::new(LoggingPartitionSourceWrapper::new(
             MetricsPartitionSourceWrapper::new(
                 CatalogPartitionSource::new(

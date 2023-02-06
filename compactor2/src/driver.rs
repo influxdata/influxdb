@@ -31,9 +31,9 @@ pub async fn compact(
     job_semaphore: Arc<InstrumentedAsyncSemaphore>,
     components: &Arc<Components>,
 ) {
-    let partition_ids = components.partitions_source.fetch().await;
-
-    futures::stream::iter(partition_ids)
+    components
+        .partition_stream
+        .stream()
         .map(|partition_id| {
             let components = Arc::clone(components);
 

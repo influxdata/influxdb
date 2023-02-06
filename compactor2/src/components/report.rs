@@ -34,6 +34,7 @@ pub fn log_config(config: &Config) {
         shard_config,
         compact_version,
         min_num_l1_files_to_compact,
+        process_once,
     } = &config;
 
     let (shard_cfg_n_shards, shard_cfg_shard_id) = match shard_config {
@@ -71,6 +72,7 @@ pub fn log_config(config: &Config) {
         ?shard_cfg_shard_id,
         ?compact_version,
         min_num_l1_files_to_compact,
+        process_once,
         "config",
     );
 }
@@ -79,7 +81,7 @@ pub fn log_config(config: &Config) {
 pub fn log_components(components: &Components) {
     // use struct unpack so we don't forget any members
     let Components {
-        partitions_source,
+        partition_stream,
         partition_source,
         partition_files_source,
         files_filter,
@@ -101,7 +103,7 @@ pub fn log_components(components: &Components) {
     } = components;
 
     info!(
-        %partitions_source,
+        %partition_stream,
         %partition_source,
         %partition_files_source,
         %files_filter,

@@ -108,6 +108,9 @@ pub struct Config {
     /// Minimum number of L1 files to compact to L2
     /// This is to prevent too many small files
     pub min_num_l1_files_to_compact: usize,
+
+    /// Only process all discovered partitions once.
+    pub process_once: bool,
 }
 
 impl Config {

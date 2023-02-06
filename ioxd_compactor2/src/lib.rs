@@ -194,6 +194,7 @@ pub async fn create_compactor2_server_type(
         shard_config,
         compact_version,
         min_num_l1_files_to_compact: compactor_config.min_num_l1_files_to_compact,
+        process_once: compactor_config.process_once,
     });
 
     Arc::new(Compactor2ServerType::new(
