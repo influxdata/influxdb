@@ -8,7 +8,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use data_types::{CompactionLevel, ParquetFileId, ParquetFileParams, PartitionId};
+use data_types::{CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, PartitionId};
 use futures::StreamExt;
 use iox_time::{Time, TimeProvider};
 
@@ -214,8 +214,8 @@ where
     async fn commit(
         &self,
         partition_id: PartitionId,
-        delete: &[ParquetFileId],
-        upgrade: &[ParquetFileId],
+        delete: &[ParquetFile],
+        upgrade: &[ParquetFile],
         create: &[ParquetFileParams],
         target_level: CompactionLevel,
     ) -> Vec<ParquetFileId> {

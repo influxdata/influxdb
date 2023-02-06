@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use async_trait::async_trait;
-use data_types::{CompactionLevel, ParquetFileId, ParquetFileParams, PartitionId};
+use data_types::{CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, PartitionId};
 use metric::{Registry, U64Counter};
 
 use super::Commit;
@@ -74,8 +74,8 @@ where
     async fn commit(
         &self,
         partition_id: PartitionId,
-        delete: &[ParquetFileId],
-        upgrade: &[ParquetFileId],
+        delete: &[ParquetFile],
+        upgrade: &[ParquetFile],
         create: &[ParquetFileParams],
         target_level: CompactionLevel,
     ) -> Vec<ParquetFileId> {
@@ -120,6 +120,11 @@ mod tests {
         let inner = Arc::new(MockCommit::new());
         let commit = MetricsCommitWrapper::new(Arc::clone(&inner), &registry);
 
+        let existing_1 = ParquetFileBuilder::new(1).build();
+        let existing_2 = ParquetFileBuilder::new(2).build();
+        let existing_3 = ParquetFileBuilder::new(3).build();
+        let existing_4 = ParquetFileBuilder::new(4).build();
+
         let created = ParquetFileBuilder::new(1000).with_partition(1).build();
 
         assert_eq!(create_counter(&registry), 0);
@@ -130,8 +135,8 @@ mod tests {
         let ids = commit
             .commit(
                 PartitionId::new(1),
-                &[ParquetFileId::new(1)],
-                &[ParquetFileId::new(2)],
+                &[existing_1.clone()],
+                &[existing_2.clone()],
                 &[created.clone().into()],
                 CompactionLevel::FileNonOverlapped,
             )
@@ -141,8 +146,8 @@ mod tests {
         let ids = commit
             .commit(
                 PartitionId::new(2),
-                &[ParquetFileId::new(2), ParquetFileId::new(3)],
-                &[ParquetFileId::new(4)],
+                &[existing_2.clone(), existing_3.clone()],
+                &[existing_4.clone()],
                 &[],
                 CompactionLevel::Final,
             )
@@ -159,15 +164,15 @@ mod tests {
             vec![
                 CommitHistoryEntry {
                     partition_id: PartitionId::new(1),
-                    delete: vec![ParquetFileId::new(1)],
-                    upgrade: vec![ParquetFileId::new(2)],
+                    delete: vec![existing_1],
+                    upgrade: vec![existing_2.clone()],
                     created: vec![created],
                     target_level: CompactionLevel::FileNonOverlapped,
                 },
                 CommitHistoryEntry {
                     partition_id: PartitionId::new(2),
-                    delete: vec![ParquetFileId::new(2), ParquetFileId::new(3)],
-                    upgrade: vec![ParquetFileId::new(4)],
+                    delete: vec![existing_2, existing_3],
+                    upgrade: vec![existing_4],
                     created: vec![],
                     target_level: CompactionLevel::Final,
                 },

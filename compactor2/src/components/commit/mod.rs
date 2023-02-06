@@ -4,7 +4,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use data_types::{CompactionLevel, ParquetFileId, ParquetFileParams, PartitionId};
+use data_types::{CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, PartitionId};
 
 pub mod catalog;
 pub mod logging;
@@ -23,8 +23,8 @@ pub trait Commit: Debug + Display + Send + Sync {
     async fn commit(
         &self,
         partition_id: PartitionId,
-        delete: &[ParquetFileId],
-        upgrade: &[ParquetFileId],
+        delete: &[ParquetFile],
+        upgrade: &[ParquetFile],
         create: &[ParquetFileParams],
         target_level: CompactionLevel,
     ) -> Vec<ParquetFileId>;
@@ -38,8 +38,8 @@ where
     async fn commit(
         &self,
         partition_id: PartitionId,
-        delete: &[ParquetFileId],
-        upgrade: &[ParquetFileId],
+        delete: &[ParquetFile],
+        upgrade: &[ParquetFile],
         create: &[ParquetFileParams],
         target_level: CompactionLevel,
     ) -> Vec<ParquetFileId> {

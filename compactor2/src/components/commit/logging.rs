@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use async_trait::async_trait;
-use data_types::{CompactionLevel, ParquetFileId, ParquetFileParams, PartitionId};
+use data_types::{CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, PartitionId};
 use observability_deps::tracing::info;
 
 use super::Commit;
@@ -40,8 +40,8 @@ where
     async fn commit(
         &self,
         partition_id: PartitionId,
-        delete: &[ParquetFileId],
-        upgrade: &[ParquetFileId],
+        delete: &[ParquetFile],
+        upgrade: &[ParquetFile],
         create: &[ParquetFileParams],
         target_level: CompactionLevel,
     ) -> Vec<ParquetFileId> {
@@ -59,9 +59,9 @@ where
             partition_id=partition_id.get(),
             n_delete=delete.len(),
             n_upgrade=upgrade.len(),
-             n_create=created.len(),
-            delete=?delete.iter().map(|id| id.get()).collect::<Vec<_>>(),
-            upgrade=?upgrade.iter().map(|id| id.get()).collect::<Vec<_>>(),
+            n_create=created.len(),
+            delete=?delete.iter().map(|f| f.id.get()).collect::<Vec<_>>(),
+            upgrade=?upgrade.iter().map(|f| f.id.get()).collect::<Vec<_>>(),
             create=?created.iter().map(|id| id.get()).collect::<Vec<_>>(),
             "committed parquet file change",
         );
@@ -94,6 +94,10 @@ mod tests {
         let inner = Arc::new(MockCommit::new());
         let commit = LoggingCommitWrapper::new(Arc::clone(&inner));
 
+        let existing_1 = ParquetFileBuilder::new(1).build();
+        let existing_2 = ParquetFileBuilder::new(2).build();
+        let existing_3 = ParquetFileBuilder::new(3).build();
+
         let created_1 = ParquetFileBuilder::new(1000).with_partition(1).build();
         let created_2 = ParquetFileBuilder::new(1001).with_partition(1).build();
 
@@ -102,7 +106,7 @@ mod tests {
         let ids = commit
             .commit(
                 PartitionId::new(1),
-                &[ParquetFileId::new(1)],
+                &[existing_1.clone()],
                 &[],
                 &[created_1.clone().into(), created_2.clone().into()],
                 CompactionLevel::Final,
@@ -116,8 +120,8 @@ mod tests {
         let ids = commit
             .commit(
                 PartitionId::new(2),
-                &[ParquetFileId::new(2), ParquetFileId::new(3)],
-                &[ParquetFileId::new(1)],
+                &[existing_2.clone(), existing_3.clone()],
+                &[existing_1.clone()],
                 &[],
                 CompactionLevel::Final,
             )
@@ -126,7 +130,7 @@ mod tests {
 
         assert_eq!(
             capture.to_string(),
-            "level = INFO; message = committed parquet file change; target_level = Final; partition_id = 1; n_delete = 1; n_upgrade = 0; n_create = 2; delete = [1]; upgrade = []; create = [1000, 1001]; 
+            "level = INFO; message = committed parquet file change; target_level = Final; partition_id = 1; n_delete = 1; n_upgrade = 0; n_create = 2; delete = [1]; upgrade = []; create = [1000, 1001]; \n\
 level = INFO; message = committed parquet file change; target_level = Final; partition_id = 2; n_delete = 2; n_upgrade = 1; n_create = 0; delete = [2, 3]; upgrade = [1]; create = []; "
         );
 
@@ -135,15 +139,15 @@ level = INFO; message = committed parquet file change; target_level = Final; par
             vec![
                 CommitHistoryEntry {
                     partition_id: PartitionId::new(1),
-                    delete: vec![ParquetFileId::new(1)],
+                    delete: vec![existing_1.clone()],
                     upgrade: vec![],
                     created: vec![created_1, created_2],
                     target_level: CompactionLevel::Final,
                 },
                 CommitHistoryEntry {
                     partition_id: PartitionId::new(2),
-                    delete: vec![ParquetFileId::new(2), ParquetFileId::new(3)],
-                    upgrade: vec![ParquetFileId::new(1)],
+                    delete: vec![existing_2, existing_3],
+                    upgrade: vec![existing_1],
                     created: vec![],
                     target_level: CompactionLevel::Final,
                 },

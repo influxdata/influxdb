@@ -1,6 +1,6 @@
 use std::{future::Future, num::NonZeroUsize, sync::Arc, time::Duration};
 
-use data_types::{CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, PartitionId};
+use data_types::{CompactionLevel, ParquetFile, ParquetFileParams, PartitionId};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{stream::FuturesOrdered, StreamExt, TryFutureExt, TryStreamExt};
 use iox_time::Time;
@@ -224,15 +224,10 @@ async fn try_compact_partition(
             // Identify the target level and files that should be compacted, upgraded, and
             // kept for next round of compaction
             let compaction_plan = buil_compaction_plan(branch, Arc::clone(&components))?;
-            let ids_to_delete = compaction_plan
-                .files_to_compact
-                .iter()
-                .map(|f| f.id)
-                .collect::<Vec<_>>();
 
             // Compact
             let created_file_params = compact_files(
-                compaction_plan.files_to_compact,
+                &compaction_plan.files_to_compact,
                 partition_info,
                 &components,
                 compaction_plan.target_level,
@@ -253,7 +248,7 @@ async fn try_compact_partition(
             let (created_files, upgraded_files) = update_catalog(
                 Arc::clone(&components),
                 partition_id,
-                ids_to_delete,
+                compaction_plan.files_to_compact,
                 compaction_plan.files_to_upgrade,
                 created_file_params,
                 compaction_plan.target_level,
@@ -291,7 +286,7 @@ struct CompactionPlan {
 ///  . Input:
 ///                 |--L0.1--| |--L0.2--| |--L0.3--|  |--L0.4--| --L0.5--|
 ///      |--L1.1--|           |--L1.2--|             |--L1.3--|             |--L1.4--|
-///    |---L2.1--|  
+///    |---L2.1--|
 ///
 ///   .Output
 ///     . target_level = 1
@@ -343,7 +338,7 @@ fn buil_compaction_plan(
 /// This function assumes the input files only include overlapped files of `target_level - 1`
 /// and files of target_level.
 async fn compact_files(
-    files: Vec<ParquetFile>,
+    files: &[ParquetFile],
     partition_info: &Arc<PartitionInfo>,
     components: &Arc<Components>,
     target_level: CompactionLevel,
@@ -365,11 +360,11 @@ async fn compact_files(
     let input_paths: Vec<ParquetFilePath> = files.iter().map(|f| f.into()).collect();
     let input_uuids_inpad = scratchpad_ctx.load_to_scratchpad(&input_paths).await;
     let branch_inpad: Vec<_> = files
-        .into_iter()
+        .iter()
         .zip(input_uuids_inpad)
         .map(|(f, uuid)| ParquetFile {
             object_store_id: uuid,
-            ..f
+            ..f.clone()
         })
         .collect();
 
@@ -430,19 +425,17 @@ async fn upload_files_to_object_store(
 async fn update_catalog(
     components: Arc<Components>,
     partition_id: PartitionId,
-    ids_to_delete: Vec<ParquetFileId>,
+    files_to_delete: Vec<ParquetFile>,
     files_to_upgrade: Vec<ParquetFile>,
     file_params_to_create: Vec<ParquetFileParams>,
     target_level: CompactionLevel,
 ) -> (Vec<ParquetFile>, Vec<ParquetFile>) {
-    let ids_to_upgrade = files_to_upgrade.iter().map(|f| f.id).collect::<Vec<_>>();
-
     let created_ids = components
         .commit
         .commit(
             partition_id,
-            &ids_to_delete,
-            &ids_to_upgrade,
+            &files_to_delete,
+            &files_to_upgrade,
             &file_params_to_create,
             target_level,
         )
