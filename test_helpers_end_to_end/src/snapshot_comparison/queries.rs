@@ -1,22 +1,12 @@
+use arrow::record_batch::RecordBatch;
+
+use super::normalization::Normalizer;
+
 /// A query to run with optional annotations
 #[derive(Debug, PartialEq, Eq, Default)]
 pub struct Query {
-    /// If true, results are sorted first prior to comparison, meaning that differences in the
-    /// output order compared with expected order do not cause a diff
-    sorted_compare: bool,
-
-    /// If true, replace UUIDs with static placeholders.
-    normalized_uuids: bool,
-
-    /// If true, normalize timings in queries by replacing them with
-    /// static placeholders, for example:
-    ///
-    /// `1s`     -> `1.234ms`
-    normalized_metrics: bool,
-
-    /// if true, normalize filter predicates for explain plans
-    /// `FilterExec: <REDACTED>`
-    normalized_filters: bool,
+    /// Describes how query text should be normalized
+    normalizer: Normalizer,
 
     /// The query string
     text: String,
@@ -27,49 +17,49 @@ impl Query {
     fn new(text: impl Into<String>) -> Self {
         let text = text.into();
         Self {
-            sorted_compare: false,
-            normalized_uuids: false,
-            normalized_metrics: false,
-            normalized_filters: false,
+            normalizer: Normalizer::new(),
             text,
         }
     }
 
-    #[cfg(test)]
-    fn with_sorted_compare(mut self) -> Self {
-        self.sorted_compare = true;
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
+    pub fn with_sorted_compare(mut self) -> Self {
+        self.normalizer.sorted_compare = true;
         self
     }
 
-    /// Get a reference to the query text.
-    pub fn text(&self) -> &str {
-        self.text.as_ref()
+    pub fn with_normalized_uuids(mut self) -> Self {
+        self.normalizer.normalized_uuids = true;
+        self
     }
 
-    /// Get the query's sorted compare.
-    pub fn sorted_compare(&self) -> bool {
-        self.sorted_compare
+    pub fn with_normalize_metrics(mut self) -> Self {
+        self.normalizer.normalized_metrics = true;
+        self
     }
 
-    /// Get queries normalized UUID
-    pub fn normalized_uuids(&self) -> bool {
-        self.normalized_uuids
+    pub fn with_normalize_filters(mut self) -> Self {
+        self.normalizer.normalized_filters = true;
+        self
     }
 
-    /// Use normalized timing values
-    pub fn normalized_metrics(&self) -> bool {
-        self.normalized_metrics
+    /// Take the output of running the query and apply the specified normalizations to them
+    pub fn normalize_results(&self, results: Vec<RecordBatch>) -> Vec<String> {
+        self.normalizer.normalize_results(results)
     }
 
-    /// Use normalized filter plans
-    pub fn normalized_filters(&self) -> bool {
-        self.normalized_filters
+    /// Adds information on what normalizations were applied to the input
+    pub fn add_description(&self, output: &mut Vec<String>) {
+        self.normalizer.add_description(output)
     }
 }
 
 #[derive(Debug, Default)]
 struct QueryBuilder {
-    query: Query,
+    pub query: Query,
 }
 
 impl QueryBuilder {
@@ -83,22 +73,6 @@ impl QueryBuilder {
 
     fn push(&mut self, c: char) {
         self.query.text.push(c)
-    }
-
-    fn sorted_compare(&mut self) {
-        self.query.sorted_compare = true;
-    }
-
-    fn normalized_uuids(&mut self) {
-        self.query.normalized_uuids = true;
-    }
-
-    fn normalize_metrics(&mut self) {
-        self.query.normalized_metrics = true;
-    }
-
-    fn normalize_filters(&mut self) {
-        self.query.normalized_filters = true;
     }
 
     fn is_empty(&self) -> bool {
@@ -125,54 +99,57 @@ impl TestQueries {
         S: AsRef<str>,
     {
         let mut queries = vec![];
-        let mut builder = QueryBuilder::new();
 
-        lines.into_iter().for_each(|line| {
-            let line = line.as_ref().trim();
-            const COMPARE_STR: &str = "-- IOX_COMPARE: ";
-            if line.starts_with(COMPARE_STR) {
-                let (_, options) = line.split_at(COMPARE_STR.len());
-                for option in options.split(',') {
-                    let option = option.trim();
-                    match option {
-                        "sorted" => {
-                            builder.sorted_compare();
+        let mut builder = lines
+            .into_iter()
+            .fold(QueryBuilder::new(), |mut builder, line| {
+                let line = line.as_ref().trim();
+                const COMPARE_STR: &str = "-- IOX_COMPARE: ";
+                if line.starts_with(COMPARE_STR) {
+                    let (_, options) = line.split_at(COMPARE_STR.len());
+                    for option in options.split(',') {
+                        let option = option.trim();
+                        match option {
+                            "sorted" => {
+                                builder.query = builder.query.with_sorted_compare();
+                            }
+                            "uuid" => {
+                                builder.query = builder.query.with_normalized_uuids();
+                            }
+                            "metrics" => {
+                                builder.query = builder.query.with_normalize_metrics();
+                            }
+                            "filters" => {
+                                builder.query = builder.query.with_normalize_filters();
+                            }
+                            _ => {}
                         }
-                        "uuid" => {
-                            builder.normalized_uuids();
-                        }
-                        "metrics" => {
-                            builder.normalize_metrics();
-                        }
-                        "filters" => {
-                            builder.normalize_filters();
-                        }
-                        _ => {}
                     }
                 }
-            }
 
-            if line.starts_with("--") {
-                return;
-            }
-            if line.is_empty() {
-                return;
-            }
-
-            // replace newlines
-            if !builder.is_empty() {
-                builder.push(' ');
-            }
-            builder.push_str(line);
-
-            // declare queries when we see a semicolon at the end of the line
-            if line.ends_with(';') {
-                if let Some(q) = builder.build_and_reset() {
-                    queries.push(q);
+                if line.starts_with("--") {
+                    return builder;
                 }
-            }
-        });
+                if line.is_empty() {
+                    return builder;
+                }
 
+                // replace newlines
+                if !builder.is_empty() {
+                    builder.push(' ');
+                }
+                builder.push_str(line);
+
+                // declare queries when we see a semicolon at the end of the line
+                if line.ends_with(';') {
+                    if let Some(q) = builder.build_and_reset() {
+                        queries.push(q);
+                    }
+                }
+                builder
+            });
+
+        // get last one, if any
         if let Some(q) = builder.build_and_reset() {
             queries.push(q);
         }
