@@ -4,6 +4,7 @@ use data_types::{CompactionLevel, ParquetFile, ParquetFileParams, PartitionId};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{stream::FuturesOrdered, StreamExt, TryFutureExt, TryStreamExt};
 use iox_time::Time;
+use observability_deps::tracing::info;
 use parquet_file::ParquetFilePath;
 use tracker::InstrumentedAsyncSemaphore;
 
@@ -325,6 +326,14 @@ fn buil_compaction_plan(
     let (files_to_compact, files_to_upgrade) = components
         .upgrade_split
         .apply(files_to_compact, target_level);
+
+    info!(
+        target_level = target_level.to_string(),
+        files_to_compacts = files_to_compact.len(),
+        files_to_upgrade = files_to_upgrade.len(),
+        files_to_keep = files_to_keep.len(),
+        "Compaction Plan"
+    );
 
     Ok(CompactionPlan {
         target_level,
