@@ -36,9 +36,14 @@ impl PartitionFilter for MaxParquetBytesPartitionFilter {
             .map(|f| usize::try_from(f.file_size_bytes).unwrap_or(0))
             .sum::<usize>();
 
+        println!("===== max_parquet_bytes: {} bytes", sum);
+        println!("===== max_parquet_bytes: {} limit", self.max_parquet_bytes);
+
         if sum <= self.max_parquet_bytes {
+            println!("===== max_parquet_bytes: true");
             Ok(true)
         } else {
+            println!("===== max_parquet_bytes: false");
             Err(SimpleError::new(
                 ErrorKind::OutOfMemory,
                 format!(

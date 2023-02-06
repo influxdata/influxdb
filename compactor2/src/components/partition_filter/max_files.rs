@@ -31,9 +31,12 @@ impl PartitionFilter for MaxFilesPartitionFilter {
         partition_id: PartitionId,
         files: &[ParquetFile],
     ) -> Result<bool, DynError> {
+        println!("===== max_files: {} files", files.len());
         if files.len() <= self.max_files {
+            println!("===== max_files: true");
             Ok(true)
         } else {
+            println!("===== max_files: false");
             Err(SimpleError::new(
                 ErrorKind::OutOfMemory,
                 format!(

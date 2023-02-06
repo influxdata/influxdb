@@ -43,6 +43,7 @@ pub struct Components {
     pub partition_files_source: Arc<dyn PartitionFilesSource>,
     pub files_filter: Arc<dyn FilesFilter>,
     pub partition_filter: Arc<dyn PartitionFilter>,
+    pub partition_resource_limit_filter: Arc<dyn PartitionFilter>,
     pub partition_done_sink: Arc<dyn PartitionDoneSink>,
     pub commit: Arc<dyn Commit>,
     pub namespaces_source: Arc<dyn NamespacesSource>,

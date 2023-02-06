@@ -125,6 +125,14 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
     }
     partition_filters.append(&mut version_specific_partition_filters(config));
 
+    let mut partition_resource_limit_filters: Vec<Arc<dyn PartitionFilter>> = vec![];
+    partition_resource_limit_filters.push(Arc::new(MaxFilesPartitionFilter::new(
+        config.max_input_files_per_partition,
+    )));
+    partition_resource_limit_filters.push(Arc::new(MaxParquetBytesPartitionFilter::new(
+        config.max_input_parquet_bytes_per_partition,
+    )));
+
     let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.shadow_mode {
         Arc::new(MockPartitionDoneSink::new())
     } else {
@@ -265,6 +273,12 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         target_level_split: version_specific_target_level_split(config),
         non_overlap_split: version_specific_non_ovverlapping_split(config),
         upgrade_split: version_specific_upgrade_split(config),
+        partition_resource_limit_filter: Arc::new(LoggingPartitionFilterWrapper::new(
+            MetricsPartitionFilterWrapper::new(
+                AndPartitionFilter::new(partition_resource_limit_filters),
+                &config.metric_registry,
+            ),
+        )),
     })
 }
 
@@ -276,41 +290,23 @@ fn version_specific_partition_filters(config: &Config) -> Vec<Arc<dyn PartitionF
     match config.compact_version {
         // Must has L0
         AlgoVersion::AllAtOnce => {
-            vec![
-                Arc::new(HasMatchingFilePartitionFilter::new(
-                    LevelRangeFileFilter::new(CompactionLevel::Initial..=CompactionLevel::Initial),
-                )),
-                Arc::new(MaxFilesPartitionFilter::new(
-                    config.max_input_files_per_partition,
-                )),
-                Arc::new(MaxParquetBytesPartitionFilter::new(
-                    config.max_input_parquet_bytes_per_partition,
-                )),
-            ]
+            vec![Arc::new(HasMatchingFilePartitionFilter::new(
+                LevelRangeFileFilter::new(CompactionLevel::Initial..=CompactionLevel::Initial),
+            ))]
         }
         // (Has-L0) OR (num(L1) > N)
         AlgoVersion::TargetLevel => {
-            vec![
-                Arc::new(OrPartitionFilter::new(vec![
-                    Arc::new(HasMatchingFilePartitionFilter::new(
-                        LevelRangeFileFilter::new(
-                            CompactionLevel::Initial..=CompactionLevel::Initial,
-                        ),
-                    )),
-                    Arc::new(GreaterMatchingFilesPartitionFilter::new(
-                        LevelRangeFileFilter::new(
-                            CompactionLevel::FileNonOverlapped..=CompactionLevel::FileNonOverlapped,
-                        ),
-                        config.min_num_l1_files_to_compact,
-                    )),
-                ])),
-                Arc::new(MaxFilesPartitionFilter::new(
-                    config.max_input_files_per_partition,
+            vec![Arc::new(OrPartitionFilter::new(vec![
+                Arc::new(HasMatchingFilePartitionFilter::new(
+                    LevelRangeFileFilter::new(CompactionLevel::Initial..=CompactionLevel::Initial),
                 )),
-                Arc::new(MaxParquetBytesPartitionFilter::new(
-                    config.max_input_parquet_bytes_per_partition,
+                Arc::new(GreaterMatchingFilesPartitionFilter::new(
+                    LevelRangeFileFilter::new(
+                        CompactionLevel::FileNonOverlapped..=CompactionLevel::FileNonOverlapped,
+                    ),
+                    config.min_num_l1_files_to_compact,
                 )),
-            ]
+            ]))]
         }
     }
 }
