@@ -4,7 +4,6 @@
 
 use std::{io::Write, sync::Arc};
 
-use arrow::error::ArrowError;
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 use datafusion_util::config::BATCH_SIZE;
 use futures::{pin_mut, TryStreamExt};
@@ -47,7 +46,7 @@ pub enum CodecError {
 
     /// An arrow error during the plan execution.
     #[error(transparent)]
-    Arrow(#[from] ArrowError),
+    DataFusion(#[from] DataFusionError),
 
     /// Serialising the [`IoxMetadata`] to protobuf-encoded bytes failed.
     #[error("failed to serialize iox metadata: {0}")]
@@ -69,8 +68,8 @@ impl From<CodecError> for DataFusionError {
             | CodecError::NoRows
             | CodecError::MetadataSerialisation(_)
             | CodecError::CloneSink(_)) => Self::External(Box::new(e)),
-            CodecError::Arrow(e) => Self::ArrowError(e),
             CodecError::Writer(e) => Self::ParquetError(e),
+            CodecError::DataFusion(e) => e,
         }
     }
 }

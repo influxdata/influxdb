@@ -436,7 +436,7 @@ mod tests {
         assert_schema_check_fail(
             other_batch,
             schema,
-            "Arrow error: External error: Execution error: Failed to map column projection for field a. Incompatible data types Int64 and Utf8",
+            "Execution error: Failed to map column projection for field a. Incompatible data types Int64 and Utf8",
         ).await;
     }
 

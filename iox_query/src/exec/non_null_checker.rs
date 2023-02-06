@@ -45,12 +45,11 @@ use std::{
 use arrow::{
     array::{new_empty_array, StringArray},
     datatypes::{DataType, Field, Schema, SchemaRef},
-    error::Result as ArrowResult,
     record_batch::RecordBatch,
 };
 use datafusion::{
     common::{DFSchemaRef, ToDFSchema},
-    error::{DataFusionError as Error, Result},
+    error::{DataFusionError, Result},
     execution::context::TaskContext,
     logical_expr::{Expr, LogicalPlan, UserDefinedLogicalNode},
     physical_plan::{
@@ -237,7 +236,7 @@ impl ExecutionPlan for NonNullCheckerExec {
                 metrics: ExecutionPlanMetricsSet::new(),
                 value: Arc::clone(&self.value),
             })),
-            _ => Err(Error::Internal(
+            _ => Err(DataFusionError::Internal(
                 "NonNullCheckerExec wrong number of children".to_string(),
             )),
         }
@@ -251,7 +250,7 @@ impl ExecutionPlan for NonNullCheckerExec {
     ) -> Result<SendableRecordBatchStream> {
         debug!(partition, "Start NonNullCheckerExec::execute");
         if self.output_partitioning().partition_count() <= partition {
-            return Err(Error::Internal(format!(
+            return Err(DataFusionError::Internal(format!(
                 "NonNullCheckerExec invalid partition {partition}"
             )));
         }
@@ -300,8 +299,8 @@ async fn check_for_nulls(
     schema: SchemaRef,
     baseline_metrics: BaselineMetrics,
     value: Arc<str>,
-    tx: mpsc::Sender<ArrowResult<RecordBatch>>,
-) -> ArrowResult<()> {
+    tx: mpsc::Sender<Result<RecordBatch, DataFusionError>>,
+) -> Result<(), DataFusionError> {
     while let Some(input_batch) = input_stream.next().await.transpose()? {
         let timer = baseline_metrics.elapsed_compute().timer();
 
@@ -357,7 +356,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_single_column_null() {
-        let t1 = StringArray::from(vec![None, None, None]);
+        let t1 = StringArray::from(vec![None::<&str>, None, None]);
         let batch = RecordBatch::try_from_iter(vec![("t1", Arc::new(t1) as ArrayRef)]).unwrap();
 
         let results = check("the_value", vec![batch]).await;
@@ -373,8 +372,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_multi_column_non_null() {
-        let t1 = StringArray::from(vec![None, None, None]);
-        let t2 = StringArray::from(vec![None, None, Some("c")]);
+        let t1 = StringArray::from(vec![None::<&str>, None, None]);
+        let t2 = StringArray::from(vec![None::<&str>, None, Some("c")]);
         let batch = RecordBatch::try_from_iter(vec![
             ("t1", Arc::new(t1) as ArrayRef),
             ("t2", Arc::new(t2) as ArrayRef),
@@ -395,8 +394,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_multi_column_null() {
-        let t1 = StringArray::from(vec![None, None, None]);
-        let t2 = StringArray::from(vec![None, None, None]);
+        let t1 = StringArray::from(vec![None::<&str>, None, None]);
+        let t2 = StringArray::from(vec![None::<&str>, None, None]);
         let batch = RecordBatch::try_from_iter(vec![
             ("t1", Arc::new(t1) as ArrayRef),
             ("t2", Arc::new(t2) as ArrayRef),
@@ -417,8 +416,8 @@ mod tests {
     #[tokio::test]
     async fn test_multi_column_second_batch_non_null() {
         // this time only the second batch has a non null value
-        let t1 = StringArray::from(vec![None, None, None]);
-        let t2 = StringArray::from(vec![None, None, None]);
+        let t1 = StringArray::from(vec![None::<&str>, None, None]);
+        let t2 = StringArray::from(vec![None::<&str>, None, None]);
 
         let batch1 = RecordBatch::try_from_iter(vec![
             ("t1", Arc::new(t1) as ArrayRef),
@@ -426,7 +425,7 @@ mod tests {
         ])
         .unwrap();
 
-        let t1 = StringArray::from(vec![None]);
+        let t1 = StringArray::from(vec![None::<&str>]);
         let t2 = StringArray::from(vec![Some("f")]);
 
         let batch2 = RecordBatch::try_from_iter(vec![

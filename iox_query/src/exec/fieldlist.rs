@@ -285,7 +285,8 @@ mod tests {
         ]));
 
         // string array has no actual values, so should not be returned as a field
-        let string_array: ArrayRef = Arc::new(StringArray::from(vec![None, None, None, None]));
+        let string_array: ArrayRef =
+            Arc::new(StringArray::from(vec![None::<&str>, None, None, None]));
         let timestamp_array: ArrayRef = Arc::new(TimestampNanosecondArray::from_iter_values(vec![
             1000, 2000, 3000, 4000,
         ]));

@@ -435,7 +435,7 @@ impl IOxSessionContext {
         // dedicated executor because otherwise this may block the top-level tokio/tonic runtime which may lead to
         // requests timetouts (either for new requests, metrics or even for HTTP2 pings on the active connection).
         let schema = stream.schema();
-        let stream = CrossRtStream::new_with_arrow_error_stream(stream, self.exec.clone());
+        let stream = CrossRtStream::new_with_df_error_stream(stream, self.exec.clone());
         let stream = RecordBatchStreamAdapter::new(schema, stream);
         Ok(Box::pin(stream))
     }

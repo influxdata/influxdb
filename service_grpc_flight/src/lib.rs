@@ -11,7 +11,6 @@ use arrow::{
 };
 use arrow_flight::{
     encode::{FlightDataEncoder, FlightDataEncoderBuilder},
-    error::FlightError,
     flight_descriptor::DescriptorType,
     flight_service_server::{FlightService as Flight, FlightServiceServer as FlightServer},
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightEndpoint, FlightInfo,
@@ -687,7 +686,10 @@ impl GetStream {
             .context(QuerySnafu {
                 namespace_name: namespace_name.clone(),
             })?
-            .map_err(FlightError::from);
+            .map_err(|e| {
+                let code = datafusion_error_to_tonic_code(&e);
+                tonic::Status::new(code, e.to_string()).into()
+            });
 
         // setup inner stream
         let inner = IOxFlightDataEncoderBuilder::new(schema)
@@ -820,7 +822,7 @@ impl Stream for GetStream {
     fn poll_next(
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
+    ) -> Poll<Option<Self::Item>> {
         loop {
             if self.done {
                 return Poll::Ready(None);
@@ -838,23 +840,10 @@ impl Stream for GetStream {
                 }
                 Some(Err(e)) => {
                     self.done = true;
-                    return Poll::Ready(Some(Err(flight_error_to_status(e))));
+                    return Poll::Ready(Some(Err(e.into())));
                 }
             }
         }
-    }
-}
-
-// TODO remove this when this is released:
-// https://github.com/apache/arrow-rs/issues/3566
-fn flight_error_to_status(e: FlightError) -> tonic::Status {
-    // Special error code translation logic for finding root of chain:
-    if let FlightError::Arrow(e) = e {
-        let msg = e.to_string();
-        let code = datafusion_error_to_tonic_code(&DataFusionError::from(e));
-        tonic::Status::new(code, msg)
-    } else {
-        tonic::Status::from(e)
     }
 }
 

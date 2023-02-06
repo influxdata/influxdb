@@ -1122,7 +1122,7 @@ mod tests {
         // different, the file may change slightly from time to time
         //
         // https://github.com/influxdata/influxdb_iox/issues/5434
-        let expected_size = 1265;
+        let expected_size = 1345;
         let allowable_delta = 10;
         let size_delta = (pf.file_size_bytes - expected_size).abs();
         assert!(

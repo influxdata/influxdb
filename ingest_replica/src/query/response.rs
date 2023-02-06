@@ -4,7 +4,8 @@
 
 use std::{future, pin::Pin};
 
-use arrow::{error::ArrowError, record_batch::RecordBatch};
+use arrow::record_batch::RecordBatch;
+use datafusion::common::DataFusionError;
 use futures::{Stream, StreamExt};
 
 use super::partition_response::PartitionResponse;
@@ -49,7 +50,9 @@ impl QueryResponse {
     }
 
     /// Reduce the [`QueryResponse`] to a stream of [`RecordBatch`].
-    pub(crate) fn into_record_batches(self) -> impl Stream<Item = Result<RecordBatch, ArrowError>> {
+    pub(crate) fn into_record_batches(
+        self,
+    ) -> impl Stream<Item = Result<RecordBatch, DataFusionError>> {
         self.into_partition_stream()
             .filter_map(|partition| future::ready(partition.into_record_batch_stream()))
             .flatten()

@@ -67,6 +67,9 @@ mod tests {
         assert_eq!(streams.len(), 1);
         let stream = streams.pop().unwrap();
         let err = stream.try_collect::<Vec<_>>().await.unwrap_err();
-        assert_eq!(err.to_string(), "External error: foo");
+        assert_eq!(
+            err.to_string(),
+            "Join Error (panic)\ncaused by\nExternal error: foo"
+        );
     }
 }

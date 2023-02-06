@@ -318,7 +318,7 @@ fn encode_response(
 
             match partition.into_record_batch_stream() {
                 Some(stream) => {
-                    let stream = stream.map_err(FlightError::Arrow);
+                    let stream = stream.map_err(|e| FlightError::ExternalError(Box::new(e)));
 
                     let tail = FlightDataEncoderBuilder::new().build(stream);
 

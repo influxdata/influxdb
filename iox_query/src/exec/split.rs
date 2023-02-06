@@ -57,7 +57,6 @@ use arrow::{
     array::{as_boolean_array, Array, ArrayRef, BooleanArray},
     compute::{self, filter_record_batch},
     datatypes::SchemaRef,
-    error::{ArrowError, Result as ArrowResult},
     record_batch::RecordBatch,
 };
 use datafusion::{
@@ -336,9 +335,9 @@ impl StreamSplitExec {
 async fn split_the_stream(
     mut input_stream: SendableRecordBatchStream,
     split_exprs: Vec<Arc<dyn PhysicalExpr>>,
-    tx: Vec<Sender<ArrowResult<RecordBatch>>>,
+    tx: Vec<Sender<Result<RecordBatch, DataFusionError>>>,
     baseline_metrics: Vec<BaselineMetrics>,
-) -> std::result::Result<(), ArrowError> {
+) -> std::result::Result<(), DataFusionError> {
     assert_eq!(split_exprs.len() + 1, tx.len());
     assert_eq!(tx.len(), baseline_metrics.len());
 

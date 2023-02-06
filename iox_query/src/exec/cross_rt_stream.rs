@@ -7,7 +7,6 @@ use std::{
     task::{Context, Poll},
 };
 
-use arrow::error::ArrowError;
 use datafusion::error::DataFusionError;
 use executor::DedicatedExecutor;
 use futures::{future::BoxFuture, ready, FutureExt, Stream, StreamExt};
@@ -125,21 +124,6 @@ where
                 Box::new(DataFusionError::External(e.into())),
             )
         })
-    }
-}
-
-impl<X> CrossRtStream<Result<X, ArrowError>>
-where
-    X: Send + 'static,
-{
-    /// Create new stream based on an existing stream that transports [`Result`]s w/ [`ArrowError`]s.
-    ///
-    /// Also receives an executor that actually executes the underlying stream.
-    pub fn new_with_arrow_error_stream<S>(stream: S, exec: DedicatedExecutor) -> Self
-    where
-        S: Stream<Item = Result<X, ArrowError>> + Send + 'static,
-    {
-        Self::new_with_error_stream(stream, exec, |e| ArrowError::ExternalError(e.into()))
     }
 }
 

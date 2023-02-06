@@ -33,7 +33,6 @@ use datafusion::prelude::{lit, Column, Expr, SessionContext};
 use datafusion::{
     arrow::{
         datatypes::{Schema, SchemaRef},
-        error::Result as ArrowResult,
         record_batch::RecordBatch,
     },
     physical_plan::{RecordBatchStream, SendableRecordBatchStream},
@@ -143,8 +142,8 @@ impl RecordBatchStream for MemoryStream {
     }
 }
 
-impl futures::Stream for MemoryStream {
-    type Item = ArrowResult<RecordBatch>;
+impl Stream for MemoryStream {
+    type Item = Result<RecordBatch, DataFusionError>;
 
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,
@@ -179,7 +178,7 @@ pub struct AdapterStream<T> {
     task: Arc<WatchedTask>,
 }
 
-impl AdapterStream<ReceiverStream<ArrowResult<RecordBatch>>> {
+impl AdapterStream<ReceiverStream<Result<RecordBatch, DataFusionError>>> {
     /// Create a new stream which wraps the `inner` channel which produces
     /// [`RecordBatch`]es that each have the specified schema
     ///
@@ -187,7 +186,7 @@ impl AdapterStream<ReceiverStream<ArrowResult<RecordBatch>>> {
     /// object itself.
     pub fn adapt(
         schema: SchemaRef,
-        rx: Receiver<ArrowResult<RecordBatch>>,
+        rx: Receiver<Result<RecordBatch, DataFusionError>>,
         task: Arc<WatchedTask>,
     ) -> SendableRecordBatchStream {
         let inner = ReceiverStream::new(rx);
@@ -199,7 +198,7 @@ impl AdapterStream<ReceiverStream<ArrowResult<RecordBatch>>> {
     }
 }
 
-impl AdapterStream<UnboundedReceiverStream<ArrowResult<RecordBatch>>> {
+impl AdapterStream<UnboundedReceiverStream<Result<RecordBatch, DataFusionError>>> {
     /// Create a new stream which wraps the `inner` unbounded channel which
     /// produces [`RecordBatch`]es that each have the specified schema
     ///
@@ -207,7 +206,7 @@ impl AdapterStream<UnboundedReceiverStream<ArrowResult<RecordBatch>>> {
     /// object itself.
     pub fn adapt_unbounded(
         schema: SchemaRef,
-        rx: UnboundedReceiver<ArrowResult<RecordBatch>>,
+        rx: UnboundedReceiver<Result<RecordBatch, DataFusionError>>,
         task: Arc<WatchedTask>,
     ) -> SendableRecordBatchStream {
         let inner = UnboundedReceiverStream::new(rx);
@@ -221,9 +220,9 @@ impl AdapterStream<UnboundedReceiverStream<ArrowResult<RecordBatch>>> {
 
 impl<T> Stream for AdapterStream<T>
 where
-    T: Stream<Item = ArrowResult<RecordBatch>> + Unpin,
+    T: Stream<Item = Result<RecordBatch, DataFusionError>> + Unpin,
 {
-    type Item = ArrowResult<RecordBatch>;
+    type Item = Result<RecordBatch, DataFusionError>;
 
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,
@@ -235,7 +234,7 @@ where
 
 impl<T> RecordBatchStream for AdapterStream<T>
 where
-    T: Stream<Item = ArrowResult<RecordBatch>> + Unpin,
+    T: Stream<Item = Result<RecordBatch, DataFusionError>> + Unpin,
 {
     fn schema(&self) -> SchemaRef {
         Arc::clone(&self.schema)
@@ -316,11 +315,10 @@ pub async fn test_collect_partition(
 pub fn batch_filter(
     batch: &RecordBatch,
     predicate: &Arc<dyn PhysicalExpr>,
-) -> ArrowResult<RecordBatch> {
+) -> Result<RecordBatch, DataFusionError> {
     predicate
         .evaluate(batch)
         .map(|v| v.into_array(batch.num_rows()))
-        .map_err(DataFusionError::into)
         .and_then(|array| {
             array
                 .as_any()
@@ -329,10 +327,11 @@ pub fn batch_filter(
                     DataFusionError::Internal(
                         "Filter predicate evaluated to non-boolean value".to_string(),
                     )
-                    .into()
                 })
                 // apply filter array to record batch
-                .and_then(|filter_array| filter_record_batch(batch, filter_array))
+                .and_then(|filter_array| {
+                    filter_record_batch(batch, filter_array).map_err(DataFusionError::ArrowError)
+                })
         })
 }
 

@@ -3,6 +3,7 @@
 
 use arrow::record_batch::RecordBatch;
 use chrono::{DateTime, Utc};
+use datafusion::error::DataFusionError;
 use datafusion::physical_plan::{
     metrics::{MetricValue, MetricsSet},
     DisplayFormatType, ExecutionPlan, RecordBatchStream, SendableRecordBatchStream,
@@ -46,7 +47,7 @@ impl TracedStream {
     /// `physical_plan` into `span` when dropped.
     pub(crate) fn new(
         inner: SendableRecordBatchStream,
-        span: Option<trace::span::Span>,
+        span: Option<Span>,
         physical_plan: Arc<dyn ExecutionPlan>,
     ) -> Self {
         Self {
@@ -64,7 +65,7 @@ impl RecordBatchStream for TracedStream {
 }
 
 impl futures::Stream for TracedStream {
-    type Item = arrow::error::Result<RecordBatch>;
+    type Item = Result<RecordBatch, DataFusionError>;
 
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,

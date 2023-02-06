@@ -844,7 +844,7 @@ mod tests {
         let rb = Arc::new(
             RecordBatch::try_from_iter(vec![
                 ("x", to_string_array(vec!["a", "b"])),
-                ("y", to_string_array(vec![None, None])),
+                ("y", to_string_array(vec![None::<&str>, None])),
                 ("z", to_string_array(vec!["c", "c"])),
             ])
             .unwrap(),

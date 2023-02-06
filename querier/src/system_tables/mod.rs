@@ -2,6 +2,7 @@ use crate::query_log::QueryLog;
 use arrow::{datatypes::SchemaRef, error::Result as ArrowResult, record_batch::RecordBatch};
 use async_trait::async_trait;
 use data_types::NamespaceId;
+use datafusion::error::DataFusionError;
 use datafusion::{
     catalog::schema::SchemaProvider,
     datasource::TableProvider,
@@ -198,14 +199,15 @@ impl RecordBatchStream for SystemTableStream {
 }
 
 impl futures::Stream for SystemTableStream {
-    type Item = ArrowResult<RecordBatch>;
+    type Item = Result<RecordBatch, DataFusionError>;
 
     fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Poll::Ready(self.batches.next().map(|maybe_batch| {
-            maybe_batch.and_then(|batch| match &self.projection {
-                Some(projection) => batch.project(projection),
+            let batch = maybe_batch?;
+            match &self.projection {
+                Some(projection) => Ok(batch.project(projection)?),
                 None => Ok(batch),
-            })
+            }
         }))
     }
 }

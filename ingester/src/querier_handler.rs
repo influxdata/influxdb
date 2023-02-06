@@ -180,7 +180,8 @@ impl IngesterQueryResponse {
                         .snapshots
                         .flat_map(|snapshot_res| match snapshot_res {
                             Ok(snapshot) => {
-                                let snapshot = snapshot.map_err(FlightError::Arrow);
+                                let snapshot =
+                                    snapshot.map_err(|e| FlightError::ExternalError(Box::new(e)));
 
                                 FlightDataEncoderBuilder::new().build(snapshot).boxed()
                             }

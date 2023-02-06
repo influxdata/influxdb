@@ -169,7 +169,7 @@ async fn basic_empty() {
                     // even though there are no results, we should have still got the schema
                     // otherwise other clients may complain
                     // https://github.com/influxdata/influxdb_iox/pull/6668
-                    assert!(flight_stream.got_schema());
+                    assert!(flight_stream.schema().is_some());
 
                     // run the query again and ensure there are no dictionaries
                     let result_stream = client.sql(namespace, sql).await.unwrap();

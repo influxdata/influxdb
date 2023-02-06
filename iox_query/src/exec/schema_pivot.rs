@@ -28,9 +28,10 @@ use std::{
 use arrow::{
     array::StringArray,
     datatypes::{DataType, Field, Schema, SchemaRef},
-    error::{ArrowError, Result as ArrowResult},
+    error::ArrowError,
     record_batch::RecordBatch,
 };
+use datafusion::error::DataFusionError;
 use datafusion::{
     common::{DFSchemaRef, ToDFSchema},
     error::{DataFusionError as Error, Result},
@@ -278,9 +279,9 @@ async fn schema_pivot(
     mut input_stream: SendableRecordBatchStream,
     input_schema: SchemaRef,
     output_schema: SchemaRef,
-    tx: mpsc::Sender<ArrowResult<RecordBatch>>,
+    tx: mpsc::Sender<Result<RecordBatch, DataFusionError>>,
     baseline_metrics: BaselineMetrics,
-) -> ArrowResult<()> {
+) -> Result<(), DataFusionError> {
     let input_fields = input_schema.fields();
     let num_fields = input_fields.len();
     let mut field_indexes_with_seen_values = vec![false; num_fields];
@@ -334,8 +335,8 @@ async fn schema_pivot(
         .map(Some)
         .collect();
 
-    let batch = RecordBatch::try_new(output_schema, vec![Arc::new(column_names)])
-        .record_output(&baseline_metrics)?;
+    let batch = RecordBatch::try_new(output_schema, vec![Arc::new(column_names)])?
+        .record_output(&baseline_metrics);
 
     // and send the result back
     tx.send(Ok(batch))

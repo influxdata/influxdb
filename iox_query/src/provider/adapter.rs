@@ -7,9 +7,9 @@ use std::task::{Context, Poll};
 use arrow::{
     array::new_null_array,
     datatypes::{DataType, SchemaRef},
-    error::Result as ArrowResult,
     record_batch::RecordBatch,
 };
+use datafusion::error::DataFusionError;
 use datafusion::physical_plan::{
     metrics::BaselineMetrics, RecordBatchStream, SendableRecordBatchStream,
 };
@@ -195,7 +195,7 @@ impl SchemaAdapterStream {
     }
 
     /// Extends the record batch, if needed, so that it matches the schema
-    fn extend_batch(&self, batch: RecordBatch) -> ArrowResult<RecordBatch> {
+    fn extend_batch(&self, batch: RecordBatch) -> Result<RecordBatch, DataFusionError> {
         let output_columns = self
             .mappings
             .iter()
@@ -205,7 +205,10 @@ impl SchemaAdapterStream {
             })
             .collect::<Vec<_>>();
 
-        RecordBatch::try_new(Arc::clone(&self.output_schema), output_columns)
+        Ok(RecordBatch::try_new(
+            Arc::clone(&self.output_schema),
+            output_columns,
+        )?)
     }
 }
 
@@ -216,7 +219,7 @@ impl RecordBatchStream for SchemaAdapterStream {
 }
 
 impl Stream for SchemaAdapterStream {
-    type Item = ArrowResult<RecordBatch>;
+    type Item = Result<RecordBatch, DataFusionError>;
 
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,

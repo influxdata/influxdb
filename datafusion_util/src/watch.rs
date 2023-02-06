@@ -5,10 +5,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use datafusion::{
-    arrow::{error::ArrowError, record_batch::RecordBatch},
-    common::DataFusionError,
-};
+use datafusion::{arrow::record_batch::RecordBatch, common::DataFusionError};
 use observability_deps::tracing::debug;
 use pin_project::{pin_project, pinned_drop};
 use tokio::task::{JoinError, JoinHandle};
@@ -27,8 +24,8 @@ pub struct WatchedTask(#[pin] AutoAbortJoinHandle<()>);
 impl WatchedTask {
     pub fn new<F, S>(fut: F, tx: Vec<S>, description: &'static str) -> Arc<Self>
     where
-        F: Future<Output = Result<(), ArrowError>> + Send + 'static,
-        S: AbstractSender<T = Result<RecordBatch, ArrowError>>,
+        F: Future<Output = Result<(), DataFusionError>> + Send + 'static,
+        S: AbstractSender<T = Result<RecordBatch, DataFusionError>>,
     {
         let handle = AutoAbortJoinHandle::new(tokio::task::spawn(fut));
         let handle = AutoAbortJoinHandle(tokio::task::spawn(watch_task(description, tx, handle)));
@@ -39,7 +36,7 @@ impl WatchedTask {
 impl Future for WatchedTask {
     type Output = Result<(), JoinError>;
 
-    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
         this.0.poll(cx)
     }
@@ -53,9 +50,9 @@ impl Future for WatchedTask {
 async fn watch_task<S>(
     description: &'static str,
     tx: Vec<S>,
-    task: AutoAbortJoinHandle<Result<(), ArrowError>>,
+    task: AutoAbortJoinHandle<Result<(), DataFusionError>>,
 ) where
-    S: AbstractSender<T = Result<RecordBatch, ArrowError>>,
+    S: AbstractSender<T = Result<RecordBatch, DataFusionError>>,
 {
     let task_result = task.await;
 
@@ -71,7 +68,7 @@ async fn watch_task<S>(
             debug!(%e, %description, "Error in task itself");
             Some(DataFusionError::Context(
                 format!("Execution error for '{description}'"),
-                Box::new(DataFusionError::ArrowError(e)),
+                Box::new(e),
             ))
         }
         Ok(Ok(())) => {
@@ -88,7 +85,7 @@ async fn watch_task<S>(
             // wrong. Note we ignore errors sending this message
             // as that means the receiver has already been
             // shutdown and no one cares anymore lol
-            let err = ArrowError::ExternalError(Box::new(Arc::clone(&e)));
+            let err = DataFusionError::External(Box::new(Arc::clone(&e)));
             if tx.send(Err(err)).await.is_err() {
                 debug!(%description, "receiver hung up");
             }

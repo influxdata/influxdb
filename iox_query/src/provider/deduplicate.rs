@@ -4,10 +4,7 @@ mod key_ranges;
 
 use std::{fmt, sync::Arc};
 
-use arrow::{
-    error::{ArrowError, Result as ArrowResult},
-    record_batch::RecordBatch,
-};
+use arrow::{error::ArrowError, record_batch::RecordBatch};
 use datafusion_util::{watch::WatchedTask, AdapterStream};
 
 pub use self::algo::RecordBatchDeduplicator;
@@ -252,9 +249,9 @@ impl ExecutionPlan for DeduplicateExec {
 async fn deduplicate(
     mut input_stream: SendableRecordBatchStream,
     sort_keys: Vec<PhysicalSortExpr>,
-    tx: mpsc::Sender<ArrowResult<RecordBatch>>,
+    tx: mpsc::Sender<Result<RecordBatch, DataFusionError>>,
     deduplicate_metrics: DeduplicateMetrics,
-) -> ArrowResult<()> {
+) -> Result<(), DataFusionError> {
     let DeduplicateMetrics {
         baseline_metrics,
         num_dupes,
@@ -286,7 +283,7 @@ async fn deduplicate(
 
         // deduplicate data of the batch
         let timer = elapsed_compute.timer();
-        let output_batch = deduplicator.push(batch).record_output(&baseline_metrics)?;
+        let output_batch = deduplicator.push(batch)?.record_output(&baseline_metrics);
         timer.done();
         if output_batch.num_rows() > 0 {
             tx.send(Ok(output_batch))
@@ -1111,7 +1108,7 @@ mod test {
     #[derive(Debug)]
     struct DummyExec {
         schema: SchemaRef,
-        batches: Vec<ArrowResult<RecordBatch>>,
+        batches: Vec<Result<RecordBatch, ArrowError>>,
     }
 
     impl ExecutionPlan for DummyExec {
@@ -1160,7 +1157,7 @@ mod test {
                 .iter()
                 .map(|r| match r {
                     Ok(batch) => Ok(batch.clone()),
-                    Err(e) => Err(clone_error(e)),
+                    Err(e) => Err(DataFusionError::External(e.to_string().into())),
                 })
                 .collect();
             let tx_captured = tx.clone();
@@ -1180,14 +1177,6 @@ mod test {
         fn statistics(&self) -> Statistics {
             // don't know anything about the statistics
             Statistics::default()
-        }
-    }
-
-    fn clone_error(e: &ArrowError) -> ArrowError {
-        use ArrowError::*;
-        match e {
-            ComputeError(msg) => ComputeError(msg.to_string()),
-            _ => unimplemented!(),
         }
     }
 }

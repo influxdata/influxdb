@@ -1087,17 +1087,21 @@ mod tests {
         let iox_parquet_meta = IoxParquetMetaData::from_file_bytes(Bytes::from(bytes))
             .expect("should decode")
             .expect("should contain metadata");
+        assert_metadata(&iox_parquet_meta.decode().unwrap());
 
-        // And read the metadata directly from the file metadata returned from
-        // encoding.
+        // Read the metadata directly from the file metadata returned from
+        // encoding, should be the same
         let iox_from_file_meta = IoxParquetMetaData::try_from(file_meta)
             .expect("failed to decode IoxParquetMetaData from file metadata");
-        assert_eq!(iox_from_file_meta, iox_parquet_meta);
+        assert_metadata(&iox_from_file_meta.decode().unwrap());
 
         // Reproducer of https://github.com/influxdata/influxdb_iox/issues/4714
         // Convert IOx meta data back to parquet meta data and verify it is still the same
         let decoded = iox_from_file_meta.decode().unwrap();
+        assert_metadata(&decoded);
+    }
 
+    fn assert_metadata(decoded: &DecodedIoxParquetMetaData) {
         let new_file_meta = decoded.parquet_file_meta();
         assert!(new_file_meta.key_value_metadata().is_some());
 

@@ -331,7 +331,7 @@ impl Stream for SeriesSetConverterStream {
                         .poll_next_unpin(cx))
                     {
                         Some(Err(e)) => {
-                            return Poll::Ready(Some(Err(DataFusionError::ArrowError(e))));
+                            return Poll::Ready(Some(Err(e)));
                         }
                         Some(Ok(batch)) => {
                             // skip empty batches (simplifies our code further down below because we can always assume that
