@@ -3,7 +3,6 @@ mod all_in_one;
 // loading shared libraries: libjemalloc.so.2: cannot open shared object file: No such file or directory"
 #[cfg(not(feature = "heappy"))]
 mod cli;
-mod compactor;
 mod debug;
 mod error;
 mod flightsql;
