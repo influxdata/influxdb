@@ -15,6 +15,7 @@ mod mode_switching;
 mod namespace;
 mod querier;
 mod remote;
+mod router;
 mod schema;
 mod tracing;
 
