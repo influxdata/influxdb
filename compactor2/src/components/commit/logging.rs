@@ -57,9 +57,15 @@ where
         info!(
             target_level=?target_level,
             partition_id=partition_id.get(),
-            n_delete=delete.len(),
-            n_upgrade=upgrade.len(),
-            n_create=created.len(),
+            files_delete=delete.len(),
+            files_upgrade=upgrade.len(),
+            files_create=created.len(),
+            bytes_delete=delete.iter().map(|f| f.file_size_bytes).sum::<i64>(),
+            bytes_upgrade=upgrade.iter().map(|f| f.file_size_bytes).sum::<i64>(),
+            bytes_create=create.iter().map(|f| f.file_size_bytes).sum::<i64>(),
+            rows_delete=delete.iter().map(|f| f.row_count).sum::<i64>(),
+            rows_upgrade=upgrade.iter().map(|f| f.row_count).sum::<i64>(),
+            rows_create=create.iter().map(|f| f.row_count).sum::<i64>(),
             delete=?delete.iter().map(|f| f.id.get()).collect::<Vec<_>>(),
             upgrade=?upgrade.iter().map(|f| f.id.get()).collect::<Vec<_>>(),
             create=?created.iter().map(|id| id.get()).collect::<Vec<_>>(),
@@ -94,9 +100,18 @@ mod tests {
         let inner = Arc::new(MockCommit::new());
         let commit = LoggingCommitWrapper::new(Arc::clone(&inner));
 
-        let existing_1 = ParquetFileBuilder::new(1).build();
-        let existing_2 = ParquetFileBuilder::new(2).build();
-        let existing_3 = ParquetFileBuilder::new(3).build();
+        let existing_1 = ParquetFileBuilder::new(1)
+            .with_file_size_bytes(10_001)
+            .with_row_count(101)
+            .build();
+        let existing_2 = ParquetFileBuilder::new(2)
+            .with_file_size_bytes(10_002)
+            .with_row_count(102)
+            .build();
+        let existing_3 = ParquetFileBuilder::new(3)
+            .with_file_size_bytes(10_005)
+            .with_row_count(105)
+            .build();
 
         let created_1 = ParquetFileBuilder::new(1000).with_partition(1).build();
         let created_2 = ParquetFileBuilder::new(1001).with_partition(1).build();
@@ -130,8 +145,8 @@ mod tests {
 
         assert_eq!(
             capture.to_string(),
-            "level = INFO; message = committed parquet file change; target_level = Final; partition_id = 1; n_delete = 1; n_upgrade = 0; n_create = 2; delete = [1]; upgrade = []; create = [1000, 1001]; \n\
-level = INFO; message = committed parquet file change; target_level = Final; partition_id = 2; n_delete = 2; n_upgrade = 1; n_create = 0; delete = [2, 3]; upgrade = [1]; create = []; "
+            "level = INFO; message = committed parquet file change; target_level = Final; partition_id = 1; files_delete = 1; files_upgrade = 0; files_create = 2; bytes_delete = 10001; bytes_upgrade = 0; bytes_create = 2; rows_delete = 101; rows_upgrade = 0; rows_create = 2; delete = [1]; upgrade = []; create = [1000, 1001]; \n\
+level = INFO; message = committed parquet file change; target_level = Final; partition_id = 2; files_delete = 2; files_upgrade = 1; files_create = 0; bytes_delete = 20007; bytes_upgrade = 10001; bytes_create = 0; rows_delete = 207; rows_upgrade = 101; rows_create = 0; delete = [2, 3]; upgrade = [1]; create = []; "
         );
 
         assert_eq!(

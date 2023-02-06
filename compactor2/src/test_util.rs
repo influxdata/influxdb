@@ -95,6 +95,15 @@ impl ParquetFileBuilder {
         }
     }
 
+    pub fn with_row_count(self, row_count: i64) -> Self {
+        Self {
+            file: ParquetFile {
+                row_count,
+                ..self.file
+            },
+        }
+    }
+
     pub fn build(self) -> ParquetFile {
         self.file
     }
