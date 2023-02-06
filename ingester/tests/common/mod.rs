@@ -197,6 +197,7 @@ impl TestContext {
                         self.topic_id,
                         self.query_id,
                         iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE,
+                        iox_catalog::DEFAULT_MAX_TABLES,
                         retention_period_ns,
                     ),
                 )

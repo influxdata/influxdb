@@ -792,6 +792,7 @@ where
         namespace.topic_id,
         namespace.query_pool_id,
         namespace.max_columns_per_table,
+        namespace.max_tables,
         namespace.retention_period_ns,
     );
 
@@ -929,6 +930,7 @@ pub async fn list_schemas(
                 v.topic_id,
                 v.query_pool_id,
                 v.max_columns_per_table,
+                v.max_tables,
                 v.retention_period_ns,
             );
             ns.tables = joined.remove(&v.id)?;
@@ -5970,6 +5972,7 @@ pub(crate) mod test_helpers {
             topic.id,
             pool.id,
             namespace.max_columns_per_table,
+            namespace.max_tables,
             namespace.retention_period_ns,
         );
 

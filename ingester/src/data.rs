@@ -752,7 +752,8 @@ mod tests {
                     .await
                     .unwrap();
 
-                let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100, None);
+                let schema =
+                    NamespaceSchema::new(namespace.id, topic.id, query_pool.id, 100, 42, None);
 
                 let shard_index = ShardIndex::new(0);
                 let shard1 = repos

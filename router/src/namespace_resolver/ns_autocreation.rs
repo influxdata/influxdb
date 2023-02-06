@@ -176,6 +176,7 @@ mod tests {
                 query_pool_id: QueryPoolId::new(3),
                 tables: Default::default(),
                 max_columns_per_table: 4,
+                max_tables: 42,
                 retention_period_ns: None,
             },
         );

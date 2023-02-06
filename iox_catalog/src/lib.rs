@@ -281,6 +281,7 @@ mod tests {
                         namespace.topic_id,
                         namespace.query_pool_id,
                         namespace.max_columns_per_table,
+                        namespace.max_tables,
                         namespace.retention_period_ns,
                     );
 

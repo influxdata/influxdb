@@ -499,6 +499,8 @@ pub struct NamespaceSchema {
     pub tables: BTreeMap<String, TableSchema>,
     /// the number of columns per table this namespace allows
     pub max_columns_per_table: usize,
+    /// The maximum number of tables permitted in this namespace.
+    pub max_tables: usize,
     /// The retention period in ns.
     /// None represents infinite duration (i.e. never drop data).
     pub retention_period_ns: Option<i64>,
@@ -511,6 +513,7 @@ impl NamespaceSchema {
         topic_id: TopicId,
         query_pool_id: QueryPoolId,
         max_columns_per_table: i32,
+        max_tables: i32,
         retention_period_ns: Option<i64>,
     ) -> Self {
         Self {
@@ -519,6 +522,7 @@ impl NamespaceSchema {
             topic_id,
             query_pool_id,
             max_columns_per_table: max_columns_per_table as usize,
+            max_tables: max_tables as usize,
             retention_period_ns,
         }
     }
@@ -3479,6 +3483,7 @@ mod tests {
             query_pool_id: QueryPoolId::new(3),
             tables: BTreeMap::from([]),
             max_columns_per_table: 4,
+            max_tables: 42,
             retention_period_ns: None,
         };
         let schema2 = NamespaceSchema {
@@ -3487,6 +3492,7 @@ mod tests {
             query_pool_id: QueryPoolId::new(3),
             tables: BTreeMap::from([(String::from("foo"), TableSchema::new(TableId::new(1)))]),
             max_columns_per_table: 4,
+            max_tables: 42,
             retention_period_ns: None,
         };
         assert!(schema1.size() < schema2.size());
