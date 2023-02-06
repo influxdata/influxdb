@@ -2510,6 +2510,7 @@ dependencies = [
  "prost 0.11.6",
  "rustyline",
  "schema",
+ "serde",
  "serde_json",
  "sharder",
  "snafu",
