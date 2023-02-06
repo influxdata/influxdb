@@ -127,6 +127,7 @@ impl HttpApiError {
     pub fn response(&self) -> Response<Body> {
         Response::builder()
             .status(self.code.status_code())
+            .header("content-type", "application/json")
             .body(self.body())
             .unwrap()
     }
