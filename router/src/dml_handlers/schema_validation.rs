@@ -383,7 +383,7 @@ pub enum CachedServiceProtectionLimit {
     #[error(
         "couldn't create new table; namespace contains {existing_table_count} \
         existing tables, applying this write would result in \
-        {merged_table_count} columns, limit is {table_count_limit}"
+        {merged_table_count} tables, limit is {table_count_limit}"
     )]
     Table {
         /// Number of tables already in the namespace.

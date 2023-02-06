@@ -1549,7 +1549,7 @@ mod tests {
                 table_count_limit: 24,
             })))),
             "dml handler error: service limit reached: couldn't create new table; namespace contains 42 existing \
-            tables, applying this write would result in 4242 columns, limit is 24",
+            tables, applying this write would result in 4242 tables, limit is 24",
         ),
 
         (
