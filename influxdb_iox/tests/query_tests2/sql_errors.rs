@@ -26,10 +26,9 @@ async fn create_external_table() {
         // namespace needs to exist.
         setup_name: "OneMeasurementWithTags",
         sql: "CREATE EXTERNAL TABLE foo(ts TIMESTAMP) STORED AS CSV LOCATION '/tmp/foo.csv'",
-        expected_error_code: tonic::Code::Internal,
-        expected_message: "Error while planning query: Internal error: Unsupported logical plan: \
-        CreateExternalTable. This was likely caused by a bug in DataFusion's code and we would \
-        welcome that you file an bug report in our issue tracker",
+        expected_error_code: tonic::Code::InvalidArgument,
+        expected_message: "Error while planning query: This feature is not implemented: \
+                           Unsupported logical plan: CreateExternalTable",
     }
     .run()
     .await;
