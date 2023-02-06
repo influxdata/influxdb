@@ -10,7 +10,12 @@ pub mod target_level_target_level_split;
 pub mod target_level_upgrade_split;
 
 pub trait FilesSplit: Debug + Display + Send + Sync {
-    /// Split provided files into 2 groups of files. There will be different split needs:
+    /// Split provided files into 2 groups of files:
+    /// (files_to_compact, files_to_keep)
+    ///
+    /// Only files in files_to_compact are considered for compaction this round
+    ///
+    /// There will be different split needs:
     ///  . `[files <= target_level]` and `[files > target_level]`
     ///  . `[overlapping_files]` and `[non_overlapping_files]`
     ///  . `[files_to_upgrade]` and `[files_to_compact]`
