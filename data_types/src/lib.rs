@@ -854,11 +854,8 @@ impl From<&str> for PartitionKey {
     }
 }
 
-impl<DB> sqlx::Type<DB> for PartitionKey
-where
-    DB: sqlx::Database<TypeInfo = sqlx::postgres::PgTypeInfo>,
-{
-    fn type_info() -> DB::TypeInfo {
+impl sqlx::Type<sqlx::Postgres> for PartitionKey {
+    fn type_info() -> sqlx::postgres::PgTypeInfo {
         // Store this type as VARCHAR
         sqlx::postgres::PgTypeInfo::with_name("VARCHAR")
     }
@@ -879,6 +876,31 @@ impl sqlx::Decode<'_, sqlx::Postgres> for PartitionKey {
     ) -> Result<Self, Box<dyn std::error::Error + 'static + Send + Sync>> {
         Ok(Self(
             <String as sqlx::Decode<sqlx::Postgres>>::decode(value)?.into(),
+        ))
+    }
+}
+
+impl sqlx::Type<sqlx::Sqlite> for PartitionKey {
+    fn type_info() -> sqlx::sqlite::SqliteTypeInfo {
+        <String as sqlx::Type<sqlx::Sqlite>>::type_info()
+    }
+}
+
+impl sqlx::Encode<'_, sqlx::Sqlite> for PartitionKey {
+    fn encode_by_ref(
+        &self,
+        buf: &mut <sqlx::Sqlite as sqlx::database::HasArguments<'_>>::ArgumentBuffer,
+    ) -> sqlx::encode::IsNull {
+        <String as sqlx::Encode<sqlx::Sqlite>>::encode(self.0.to_string(), buf)
+    }
+}
+
+impl sqlx::Decode<'_, sqlx::Sqlite> for PartitionKey {
+    fn decode(
+        value: <sqlx::Sqlite as sqlx::database::HasValueRef<'_>>::ValueRef,
+    ) -> Result<Self, Box<dyn std::error::Error + 'static + Send + Sync>> {
+        Ok(Self(
+            <String as sqlx::Decode<sqlx::Sqlite>>::decode(value)?.into(),
         ))
     }
 }

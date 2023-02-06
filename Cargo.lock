@@ -1823,6 +1823,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "flume"
+version = "0.10.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1657b4441c3403d9f7b3409e47575237dac27b1b5726df654a6ecbf92f0f7577"
+dependencies = [
+ "futures-core",
+ "futures-sink",
+ "pin-project",
+ "spin 0.9.4",
+]
+
+[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2820,9 +2832,11 @@ dependencies = [
  "mutable_batch",
  "mutable_batch_lp",
  "observability_deps",
+ "parking_lot 0.12.1",
  "paste",
  "pretty_assertions",
  "rand",
+ "serde",
  "snafu",
  "sqlx",
  "sqlx-hotswap-pool",
@@ -3315,6 +3329,17 @@ name = "libm"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "348108ab3fba42ec82ff6e9564fc4ca0247bdccdc68dd8af9764bbc79c3c8ffb"
+
+[[package]]
+name = "libsqlite3-sys"
+version = "0.24.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "898745e570c7d0453cc1fbc4a701eb6c662ed54e8fec8b7d14be137ebeeb9d14"
+dependencies = [
+ "cc",
+ "pkg-config",
+ "vcpkg",
+]
 
 [[package]]
 name = "link-cplusplus"
@@ -5442,8 +5467,10 @@ dependencies = [
  "dotenvy",
  "either",
  "event-listener",
+ "flume",
  "futures-channel",
  "futures-core",
+ "futures-executor",
  "futures-intrusive",
  "futures-util",
  "hashlink",
@@ -5453,6 +5480,7 @@ dependencies = [
  "indexmap",
  "itoa 1.0.5",
  "libc",
+ "libsqlite3-sys",
  "log",
  "md-5",
  "memchr",
@@ -6373,6 +6401,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
 
 [[package]]
+name = "vcpkg"
+version = "0.2.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
+
+[[package]]
 name = "version_check"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6724,6 +6758,7 @@ dependencies = [
  "flate2",
  "futures-channel",
  "futures-core",
+ "futures-executor",
  "futures-io",
  "futures-sink",
  "futures-task",

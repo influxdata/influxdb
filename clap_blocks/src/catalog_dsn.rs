@@ -1,4 +1,5 @@
 //! Catalog-DSN-related configs.
+use iox_catalog::sqlite::{SqliteCatalog, SqliteConnectionOptions};
 use iox_catalog::{
     create_or_get_default_records,
     interface::Catalog,
@@ -14,6 +15,9 @@ use std::{ops::DerefMut, sync::Arc, time::Duration};
 pub enum Error {
     #[snafu(display("A Postgres connection string in --catalog-dsn is required."))]
     ConnectionStringRequired,
+
+    #[snafu(display("A SQLite connection string in --catalog-dsn is required."))]
+    ConnectionStringSqliteRequired,
 
     #[snafu(display("A catalog error occurred: {}", source))]
     Catalog {
@@ -44,7 +48,7 @@ fn default_hotswap_poll_interval_timeout() -> &'static str {
 }
 
 /// CLI config for catalog DSN.
-#[derive(Debug, Clone, clap::Parser)]
+#[derive(Debug, Clone, Default, clap::Parser)]
 pub struct CatalogDsnConfig {
     /// The type of catalog to use. "memory" is only useful for testing purposes.
     #[clap(
@@ -110,13 +114,17 @@ pub struct CatalogDsnConfig {
 }
 
 /// Catalog type.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum)]
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum)]
 pub enum CatalogType {
     /// PostgreSQL.
+    #[default]
     Postgres,
 
     /// In-memory.
     Memory,
+
+    /// SQLite.
+    Sqlite,
 }
 
 impl CatalogDsnConfig {
@@ -127,12 +135,7 @@ impl CatalogDsnConfig {
 
         Self {
             catalog_type_: CatalogType::Memory,
-            dsn: None,
-            max_catalog_connections: PostgresConnectionOptions::DEFAULT_MAX_CONNS,
-            postgres_schema_name: PostgresConnectionOptions::DEFAULT_SCHEMA_NAME.to_string(),
-            connect_timeout: PostgresConnectionOptions::DEFAULT_CONNECT_TIMEOUT,
-            idle_timeout: PostgresConnectionOptions::DEFAULT_IDLE_TIMEOUT,
-            hotswap_poll_interval: PostgresConnectionOptions::DEFAULT_HOTSWAP_POLL_INTERVAL,
+            ..Self::default()
         }
     }
 
@@ -148,6 +151,17 @@ impl CatalogDsnConfig {
             connect_timeout: PostgresConnectionOptions::DEFAULT_CONNECT_TIMEOUT,
             idle_timeout: PostgresConnectionOptions::DEFAULT_IDLE_TIMEOUT,
             hotswap_poll_interval: PostgresConnectionOptions::DEFAULT_HOTSWAP_POLL_INTERVAL,
+        }
+    }
+
+    /// Create a new Postgres instance for all-in-one mode if a catalog DSN is specified
+    pub fn new_sqlite(dsn: String) -> Self {
+        info!("Catalog: SQLite at `{}`", dsn);
+
+        Self {
+            catalog_type_: CatalogType::Sqlite,
+            dsn: Some(dsn),
+            ..Self::default()
         }
     }
 
@@ -188,6 +202,20 @@ impl CatalogDsnConfig {
                 txn.commit().await.context(CatalogSnafu)?;
 
                 Arc::new(mem) as Arc<dyn Catalog>
+            }
+            CatalogType::Sqlite => {
+                let options = SqliteConnectionOptions {
+                    dsn: self
+                        .dsn
+                        .as_ref()
+                        .context(ConnectionStringSqliteRequiredSnafu)?
+                        .clone(),
+                };
+                Arc::new(
+                    SqliteCatalog::connect(options, metrics)
+                        .await
+                        .context(CatalogSnafu)?,
+                ) as Arc<dyn Catalog>
             }
         };
 
