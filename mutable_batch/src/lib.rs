@@ -131,7 +131,7 @@ impl MutableBatch {
     }
 
     /// Returns an iterator over the columns in this batch in no particular order
-    pub fn columns(&self) -> impl Iterator<Item = (&String, &Column)> + '_ {
+    pub fn columns(&self) -> impl Iterator<Item = (&String, &Column)> + ExactSizeIterator + '_ {
         self.column_names
             .iter()
             .map(move |(name, idx)| (name, &self.columns[*idx]))
@@ -269,6 +269,7 @@ mod tests {
         let batch = batches.get("cpu").unwrap();
 
         assert_eq!(batch.size_data(), 128);
+        assert_eq!(batch.columns().len(), 5);
 
         let batches = lines_to_batches(
             "cpu,t1=hellomore,t2=world f1=1.1,f2=1i 1234\ncpu,t1=h,t2=w f1=2.2,f2=2i 1234",
@@ -277,6 +278,7 @@ mod tests {
         .unwrap();
         let batch = batches.get("cpu").unwrap();
         assert_eq!(batch.size_data(), 138);
+        assert_eq!(batch.columns().len(), 5);
     }
 
     #[test]
@@ -289,5 +291,6 @@ mod tests {
         let batch = batches.get("cpu").unwrap();
 
         assert_eq!(batch.size_data(), 124);
+        assert_eq!(batch.columns().len(), 5);
     }
 }
