@@ -349,11 +349,30 @@ fn validate_column_limits(
     schema: &NamespaceSchema,
 ) -> Result<(), OverColumnLimit> {
     for (table_name, batch) in batches {
-        let mut existing_columns = schema
-            .tables
-            .get(table_name)
-            .map(|t| t.column_names())
-            .unwrap_or_default();
+        // Get the column set for this table from the schema.
+        let mut existing_columns = match schema.tables.get(table_name).map(|t| t.column_names()) {
+            Some(v) => v,
+            None if batch.columns().len() > schema.max_columns_per_table => {
+                // If there are no existing columns, all the columns in
+                // write must be created - there's no need to perform a set
+                // union to discover the distinct column count.
+                return Err(OverColumnLimit {
+                    table_name: table_name.into(),
+                    merged_column_count: batch.columns().len(),
+                    existing_column_count: 0,
+                    max_columns_per_table: schema.max_columns_per_table,
+                });
+            }
+            None => {
+                // All the columns in this write are new, and they are less than
+                // the maximum permitted number of columns.
+                continue;
+            }
+        };
+
+        // The union of existing columns and new columns in this write must be
+        // calculated to derive the total distinct column count for this table
+        // after this write applied.
         let existing_column_count = existing_columns.len();
 
         let merged_column_count = {
