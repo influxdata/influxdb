@@ -10,6 +10,8 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/execute/table"
 	"github.com/influxdata/flux/execute/table/static"
+	influxdb2 "github.com/influxdata/influxdb/v2"
+	context2 "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -217,6 +219,87 @@ func TestProvider_SeriesCardinalityReader_MissingRequestContext(t *testing.T) {
 		},
 		nil,
 	)
+
+	require.Equal(t, wantErr, gotErr)
+}
+
+func TestWriterFor(t *testing.T) {
+	t.Parallel()
+
+	auth := influxdb2.Authorization{
+		Status: influxdb2.Active,
+		Permissions: []influxdb2.Permission{
+			{
+				Action: influxdb2.WriteAction,
+				Resource: influxdb2.Resource{
+					Type: influxdb2.BucketsResourceType,
+				},
+			},
+		},
+	}
+
+	provider := influxdb.Provider{
+		Reader:       storageflux.NewReader(&mock.ReadsStore{}),
+		BucketLookup: mock.BucketLookup{},
+	}
+
+	conf := influxdb.Config{
+		Bucket: influxdb.NameOrID{
+			Name: "my-bucket",
+		},
+	}
+
+	ctx := context.Background()
+	req := query.Request{
+		OrganizationID: platform.ID(2),
+	}
+	ctx = query.ContextWithRequest(ctx, &req)
+	ctx = context2.SetAuthorizer(ctx, &auth)
+
+	_, gotErr := provider.WriterFor(ctx, conf)
+
+	require.Nil(t, gotErr)
+}
+
+func TestWriterFor_Error(t *testing.T) {
+	t.Parallel()
+
+	auth := influxdb2.Authorization{
+		Status: influxdb2.Active,
+		Permissions: []influxdb2.Permission{
+			{
+				Action: influxdb2.ReadAction,
+				Resource: influxdb2.Resource{
+					Type: influxdb2.BucketsResourceType,
+				},
+			},
+		},
+	}
+
+	provider := influxdb.Provider{
+		Reader:       storageflux.NewReader(&mock.ReadsStore{}),
+		BucketLookup: mock.BucketLookup{},
+	}
+
+	conf := influxdb.Config{
+		Bucket: influxdb.NameOrID{
+			Name: "my-bucket",
+		},
+	}
+
+	ctx := context.Background()
+	req := query.Request{
+		OrganizationID: platform.ID(2),
+	}
+	ctx = query.ContextWithRequest(ctx, &req)
+	ctx = context2.SetAuthorizer(ctx, &auth)
+
+	_, gotErr := provider.WriterFor(ctx, conf)
+
+	wantErr := &errors.Error{
+		Code: errors.EForbidden,
+		Msg:  "user not authorized to write",
+	}
 
 	require.Equal(t, wantErr, gotErr)
 }
