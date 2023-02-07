@@ -409,7 +409,6 @@ impl TestSetupBuilder {
                 .with_line_protocol(&lp)
                 .with_creation_time(time_5_minutes_future)
                 .with_max_l0_created_at(time_5_minutes_future)
-                // .with_file_size_bytes(10)
                 .with_compaction_level(CompactionLevel::Initial);
             let level_0_file_5_minutes_ago = partition.create_parquet_file(builder).await.into();
 
