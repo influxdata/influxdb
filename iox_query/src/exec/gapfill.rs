@@ -1,6 +1,8 @@
 //! This module contains code that implements
 //! a gap-filling extension to DataFusion
 
+mod algo;
+
 use std::{
     fmt::{self, Debug},
     ops::{Bound, Range},
@@ -15,11 +17,15 @@ use datafusion::{
     logical_expr::{LogicalPlan, UserDefinedLogicalNode},
     physical_expr::{create_physical_expr, execution_props::ExecutionProps, PhysicalSortExpr},
     physical_plan::{
-        expressions::Column, DisplayFormatType, Distribution, ExecutionPlan, Partitioning,
-        PhysicalExpr, SendableRecordBatchStream, Statistics,
+        expressions::Column,
+        metrics::{BaselineMetrics, ExecutionPlanMetricsSet},
+        DisplayFormatType, Distribution, ExecutionPlan, Partitioning, PhysicalExpr,
+        SendableRecordBatchStream, Statistics,
     },
     prelude::Expr,
 };
+use datafusion_util::{watch::WatchedTask, AdapterStream};
+use tokio::sync::mpsc;
 
 /// A logical node that represents the gap filling operation.
 #[derive(Clone, Debug)]
@@ -31,15 +37,58 @@ pub struct GapFill {
 }
 
 /// Parameters to the GapFill operation
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct GapFillParams {
     /// The stride argument from the call to DATE_BIN_GAPFILL
     pub stride: Expr,
     /// The source time column
     pub time_column: Expr,
+    /// The origin argument from the call to DATE_BIN_GAPFILL
+    pub origin: Expr,
     /// The time range of the time column inferred from predicates
-    /// in overall the query
+    /// in the overall query
     pub time_range: Range<Bound<Expr>>,
+}
+
+impl GapFillParams {
+    // Extract the expressions so they can be optimized.
+    fn expressions(&self) -> Vec<Expr> {
+        vec![
+            self.stride.clone(),
+            self.time_column.clone(),
+            self.origin.clone(),
+            bound_extract(&self.time_range.start)
+                .unwrap_or_else(|| panic!("lower time bound is required"))
+                .clone(),
+            bound_extract(&self.time_range.end)
+                .unwrap_or_else(|| panic!("upper time bound is required"))
+                .clone(),
+        ]
+    }
+
+    #[allow(clippy::wrong_self_convention)] // follows convention of UserDefinedLogicalNode
+    fn from_template(&self, exprs: &[Expr]) -> Self {
+        assert!(
+            exprs.len() >= 3,
+            "should be a at least stride, source and origin in params"
+        );
+        let mut iter = exprs.iter().cloned();
+        let stride = iter.next().unwrap();
+        let time_column = iter.next().unwrap();
+        let origin = iter.next().unwrap();
+        let time_range = try_map_range(&self.time_range, |b| {
+            try_map_bound(b.as_ref(), |_| {
+                Ok(iter.next().expect("expr count should match template"))
+            })
+        })
+        .unwrap();
+        Self {
+            stride,
+            time_column,
+            origin,
+            time_range,
+        }
+    }
 }
 
 impl GapFill {
@@ -74,7 +123,8 @@ impl UserDefinedLogicalNode for GapFill {
     fn expressions(&self) -> Vec<Expr> {
         self.group_expr
             .iter()
-            .chain(self.aggr_expr.iter())
+            .chain(&self.aggr_expr)
+            .chain(&self.params.expressions())
             .cloned()
             .collect()
     }
@@ -97,14 +147,11 @@ impl UserDefinedLogicalNode for GapFill {
         inputs: &[LogicalPlan],
     ) -> Arc<dyn UserDefinedLogicalNode> {
         let mut group_expr: Vec<_> = exprs.to_vec();
-        let aggr_expr = group_expr.split_off(self.group_expr.len());
-        let gapfill = Self::try_new(
-            Arc::new(inputs[0].clone()),
-            group_expr,
-            aggr_expr,
-            self.params.clone(),
-        )
-        .expect("should not fail");
+        let mut aggr_expr = group_expr.split_off(self.group_expr.len());
+        let param_expr = aggr_expr.split_off(self.aggr_expr.len());
+        let params = self.params.from_template(&param_expr);
+        let gapfill = Self::try_new(Arc::new(inputs[0].clone()), group_expr, aggr_expr, params)
+            .expect("should not fail");
         Arc::new(gapfill)
     }
 }
@@ -162,9 +209,17 @@ pub(crate) fn plan_gap_fill(
         })
     })?;
 
+    let origin = create_physical_expr(
+        &gap_fill.params.origin,
+        input_dfschema,
+        input_schema,
+        execution_props,
+    )?;
+
     let params = GapFillExecParams {
         stride,
         time_column,
+        origin,
         time_range,
     };
     GapFillExec::try_new(
@@ -175,9 +230,9 @@ pub(crate) fn plan_gap_fill(
     )
 }
 
-fn try_map_range<T, U, F>(tr: &Range<T>, f: F) -> Result<Range<U>>
+fn try_map_range<T, U, F>(tr: &Range<T>, mut f: F) -> Result<Range<U>>
 where
-    F: Fn(&T) -> Result<U>,
+    F: FnMut(&T) -> Result<U>,
 {
     Ok(Range {
         start: f(&tr.start)?,
@@ -185,9 +240,9 @@ where
     })
 }
 
-fn try_map_bound<T, U, F>(bt: Bound<T>, f: F) -> Result<Bound<U>>
+fn try_map_bound<T, U, F>(bt: Bound<T>, mut f: F) -> Result<Bound<U>>
 where
-    F: FnOnce(T) -> Result<U>,
+    F: FnMut(T) -> Result<U>,
 {
     Ok(match bt {
         Bound::Excluded(t) => Bound::Excluded(f(t)?),
@@ -196,6 +251,12 @@ where
     })
 }
 
+fn bound_extract<T>(b: &Bound<T>) -> Option<&T> {
+    match b {
+        Bound::Included(t) | Bound::Excluded(t) => Some(t),
+        Bound::Unbounded => None,
+    }
+}
 /// A physical node for the gap-fill operation.
 pub struct GapFillExec {
     input: Arc<dyn ExecutionPlan>,
@@ -208,6 +269,8 @@ pub struct GapFillExec {
     sort_expr: Vec<PhysicalSortExpr>,
     // Parameters (besides streaming data) to gap filling
     params: GapFillExecParams,
+    /// Metrics reporting behavior during execution.
+    metrics: ExecutionPlanMetricsSet,
 }
 
 #[derive(Clone, Debug)]
@@ -216,7 +279,10 @@ struct GapFillExecParams {
     stride: Arc<dyn PhysicalExpr>,
     /// The timestamp column produced by date_bin
     time_column: Column,
-    /// The time range of timestamps in the time column
+    /// The origin argument from the all to DATE_BIN_GAPFILL
+    origin: Arc<dyn PhysicalExpr>,
+    /// The time range of source input to DATE_BIN_GAPFILL.
+    /// Inferred from predicates in the overall query.
     time_range: Range<Bound<Arc<dyn PhysicalExpr>>>,
 }
 
@@ -242,11 +308,9 @@ impl GapFillExec {
                 .iter()
                 .enumerate()
                 .find(|(_i, e)| {
-                    if let Some(col) = e.as_any().downcast_ref::<Column>() {
-                        col.index() == params.time_column.index()
-                    } else {
-                        false
-                    }
+                    e.as_any()
+                        .downcast_ref::<Column>()
+                        .map_or(false, |c| c.index() == params.time_column.index())
                 })
                 .map(|(i, _)| i);
 
@@ -268,6 +332,7 @@ impl GapFillExec {
             aggr_expr,
             sort_expr,
             params,
+            metrics: ExecutionPlanMetricsSet::new(),
         })
     }
 }
@@ -333,14 +398,29 @@ impl ExecutionPlan for GapFillExec {
     fn execute(
         &self,
         partition: usize,
-        _context: Arc<TaskContext>,
+        context: Arc<TaskContext>,
     ) -> Result<SendableRecordBatchStream> {
         if self.output_partitioning().partition_count() <= partition {
             return Err(DataFusionError::Internal(format!(
                 "GapFillExec invalid partition {partition}"
             )));
         }
-        Err(DataFusionError::NotImplemented("gap filling".to_string()))
+
+        let baseline_metrics = BaselineMetrics::new(&self.metrics, partition);
+        let output_batch_size = context.session_config().batch_size();
+        let input_stream = self.input.execute(partition, context)?;
+        let (tx, rx) = mpsc::channel(1);
+        let fut = algo::fill_gaps(
+            output_batch_size,
+            input_stream,
+            self.sort_expr.clone(),
+            self.aggr_expr.clone(),
+            self.params.clone(),
+            tx.clone(),
+            baseline_metrics,
+        );
+        let handle = WatchedTask::new(fut, vec![tx], "gapfill batches");
+        Ok(AdapterStream::adapt(self.schema(), rx, handle))
     }
 
     fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -405,6 +485,36 @@ mod test {
     }
 
     #[test]
+    fn test_from_template() -> Result<()> {
+        let scan = table_scan()?;
+        let gapfill = GapFill::try_new(
+            Arc::new(scan.clone()),
+            vec![col("loc"), col("time")],
+            vec![col("temp")],
+            GapFillParams {
+                stride: lit(ScalarValue::IntervalDayTime(Some(60_000))),
+                time_column: col("time"),
+                origin: lit_timestamp_nano(0),
+                time_range: Range {
+                    start: Bound::Included(lit_timestamp_nano(1000)),
+                    end: Bound::Excluded(lit_timestamp_nano(2000)),
+                },
+            },
+        )?;
+        let exprs = gapfill.expressions();
+        assert_eq!(8, exprs.len());
+        let gapfill_ft = gapfill.from_template(&exprs, &[scan]);
+        let gapfill_ft = gapfill_ft
+            .as_any()
+            .downcast_ref::<GapFill>()
+            .expect("should be a GapFill");
+        assert_eq!(gapfill.group_expr, gapfill_ft.group_expr);
+        assert_eq!(gapfill.aggr_expr, gapfill_ft.aggr_expr);
+        assert_eq!(gapfill.params, gapfill_ft.params);
+        Ok(())
+    }
+
+    #[test]
     fn fmt_logical_plan() -> Result<()> {
         // This test case does not make much sense but
         // just verifies we can construct a logical gapfill node
@@ -417,6 +527,7 @@ mod test {
             GapFillParams {
                 stride: lit(ScalarValue::IntervalDayTime(Some(60_000))),
                 time_column: col("time"),
+                origin: lit_timestamp_nano(0),
                 time_range: Range {
                     start: Bound::Included(lit_timestamp_nano(1000)),
                     end: Bound::Excluded(lit_timestamp_nano(2000)),

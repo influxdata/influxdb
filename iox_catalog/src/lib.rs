@@ -42,6 +42,7 @@ pub mod interface;
 pub mod mem;
 pub mod metrics;
 pub mod postgres;
+pub mod sqlite;
 
 /// An [`crate::interface::Error`] scoped to a single table for schema validation errors.
 #[derive(Debug, Error)]
