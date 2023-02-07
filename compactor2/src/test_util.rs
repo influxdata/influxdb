@@ -1,5 +1,5 @@
 mod display;
-pub(crate) use display::{assert_parquet_files, assert_parquet_files_split, format_files};
+pub(crate) use display::{format_files, format_files_split};
 
 use std::{
     collections::{BTreeMap, HashSet},

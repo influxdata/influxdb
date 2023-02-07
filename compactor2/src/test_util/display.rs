@@ -2,68 +2,29 @@ use std::collections::BTreeMap;
 
 use data_types::{CompactionLevel, ParquetFile};
 
-/// Compares the a vec of strs with the output of a set of parquet
-/// files. See docs on [`ParquetFileFormatter`] for example
-/// expected output.
-///
-/// Designed so that failure output can be directly copy/pasted
-/// into the test code as expected results.
-///
-/// Expects to be called about like this:
-/// assert_parquet_files!(expected_lines: &[&str], &files)
-#[track_caller]
-pub fn assert_parquet_files<'a>(
-    expected_lines: impl IntoIterator<Item = &'a str>,
-    files: &[ParquetFile],
-) {
-    let expected_lines: Vec<String> = expected_lines.into_iter().map(|s| s.to_string()).collect();
-
-    let actual_lines = readable_list_of_files(None, files);
-
-    assert_eq!(
-        expected_lines, actual_lines,
-        "\n\nexpected:\n\n{expected_lines:#?}\nactual:\n\n{actual_lines:#?}\n\n",
-    );
-}
-
-/// Compares the a vec of strs with the output of a set of parquet
-/// files. This is used to compare the results of splitting files into
-/// two groups. See docs on [`ParquetFileFormatter`] for example
-/// expected output.
-///
-/// Designed so that failure output can be directly copy/pasted
-/// into the test code as expected results.
-///
-/// Expects to be called about like this:
-/// assert_parquet_files_split!(expected_lines: &[&str], &files1, &files2)
-#[track_caller]
-pub fn assert_parquet_files_split<'a>(
-    expected_lines: impl IntoIterator<Item = &'a str>,
-    files1: &[ParquetFile],
-    files2: &[ParquetFile],
-) {
-    let expected_lines: Vec<String> = expected_lines.into_iter().map(|s| s.to_string()).collect();
-
-    let actual_lines_one = readable_list_of_files(Some("left".into()), files1);
-
-    let actual_lines_two = readable_list_of_files(Some("right".into()), files2);
-
-    let actual_lines: Vec<_> = actual_lines_one
-        .into_iter()
-        .chain(actual_lines_two.into_iter())
-        .collect();
-
-    assert_eq!(
-        expected_lines, actual_lines,
-        "\n\nexpected:\n\n{expected_lines:#?}\nactual:\n\n{actual_lines:#?}\n\n",
-    );
-}
-
+/// Formats the list of files in the manner described on
+/// [`ParquetFileFormatter`] into strings suitable for comparison with
+/// `insta`.
 pub fn format_files<'a>(
     title: impl Into<String>,
     files: impl IntoIterator<Item = &'a ParquetFile>,
 ) -> Vec<String> {
     readable_list_of_files(Some(title.into()), files)
+}
+
+/// Formats two lists of files in the manner described on
+/// [`ParquetFileFormatter`] into strings suitable for comparison with
+/// `insta`.
+pub fn format_files_split<'a>(
+    title1: impl Into<String>,
+    files1: impl IntoIterator<Item = &'a ParquetFile>,
+    title2: impl Into<String>,
+    files2: impl IntoIterator<Item = &'a ParquetFile>,
+) -> Vec<String> {
+    let strings1 = readable_list_of_files(Some(title1.into()), files1);
+    let strings2 = readable_list_of_files(Some(title2.into()), files2);
+
+    strings1.into_iter().chain(strings2.into_iter()).collect()
 }
 
 /// default width for printing
@@ -76,9 +37,8 @@ const DEFAULT_HEADING_WIDTH: usize = 20;
 /// parquet files arranged so they are lined up horizontally based on
 /// their relative time range.
 ///
-/// See docs on [`ParquetFileFormatter`]
-/// for examples.
-pub fn readable_list_of_files<'a>(
+/// See docs on [`ParquetFileFormatter`]z for examples.
+fn readable_list_of_files<'a>(
     title: Option<String>,
     files: impl IntoIterator<Item = &'a ParquetFile>,
 ) -> Vec<String> {
@@ -328,13 +288,16 @@ mod test {
                 .build(),
         ];
 
-        let expected = vec![
-            "L0                                                                                                  ",
-            "L0.1[0,0]           |-------------------------------------L0.1-------------------------------------|",
-            "L0.2[0,0]           |-------------------------------------L0.2-------------------------------------|",
-        ];
-
-        assert_parquet_files(expected, &files);
+        insta::assert_yaml_snapshot!(
+            format_files("display", &files),
+            @r###"
+        ---
+        - display
+        - "L0                                                                                                  "
+        - "L0.1[0,0]           |-------------------------------------L0.1-------------------------------------|"
+        - "L0.2[0,0]           |-------------------------------------L0.2-------------------------------------|"
+        "###
+        );
     }
 
     #[test]
@@ -352,15 +315,18 @@ mod test {
                 .build(),
         ];
 
-        let expected = vec![
-            "L0                                                                                                  ",
-            "L0.1[0,0]@1         |-------------------------------------L0.1-------------------------------------|",
-            "L0.2[0,0]@1         |-------------------------------------L0.2-------------------------------------|",
-            "L2                                                                                                  ",
-            "L2.3[0,0]@42        |-------------------------------------L2.3-------------------------------------|",
-        ];
-
-        assert_parquet_files(expected, &files);
+        insta::assert_yaml_snapshot!(
+            format_files("display", &files),
+            @r###"
+        ---
+        - display
+        - "L0                                                                                                  "
+        - "L0.1[0,0]@1         |-------------------------------------L0.1-------------------------------------|"
+        - "L0.2[0,0]@1         |-------------------------------------L0.2-------------------------------------|"
+        - "L2                                                                                                  "
+        - "L2.3[0,0]@42        |-------------------------------------L2.3-------------------------------------|"
+        "###
+        );
     }
 
     #[test]
@@ -382,13 +348,16 @@ mod test {
                 .build(),
         ];
 
-        let expected = vec![
-            "L0                                                                                                  ",
-            "L0.1[100,200]@1     |----------L0.1----------|                                                      ",
-            "L0.2[300,400]@1                                                          |----------L0.2----------| ",
-            "L0.11[150,350]@44                |-----------------------L0.11-----------------------|              ",
-        ];
-
-        assert_parquet_files(expected, &files);
+        insta::assert_yaml_snapshot!(
+            format_files("display", &files),
+            @r###"
+        ---
+        - display
+        - "L0                                                                                                  "
+        - "L0.1[100,200]@1     |----------L0.1----------|                                                      "
+        - "L0.2[300,400]@1                                                          |----------L0.2----------| "
+        - "L0.11[150,350]@44                |-----------------------L0.11-----------------------|              "
+        "###
+        );
     }
 }
