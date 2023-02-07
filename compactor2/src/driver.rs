@@ -231,16 +231,13 @@ async fn try_compact_partition(
             let compaction_plan = build_compaction_plan(branch, Arc::clone(&components))?;
 
             // Cannot run this plan and skip this partition because of over limit input num_files or size
-            // if !components
-            //     .partition_resource_limit_filter
-            //     .apply(partition_id, &compaction_plan.files_to_compact)
-            //     .await?
-            // {
-            //     println!(" ====== Partition {} is skipped because of over limit input num_files or size", partition_id);
-            //     return Ok(());
-            // }
-
-            println!("======== 1 ========");
+            if !components
+                .partition_resource_limit_filter
+                .apply(partition_id, &compaction_plan.files_to_compact)
+                .await?
+            {
+                return Ok(());
+            }
 
             // Compact
             let created_file_params = run_compaction_plan(
@@ -253,13 +250,9 @@ async fn try_compact_partition(
             )
             .await?;
 
-            println!("======== 2 ========");
-
             // upload files to real object store
             let created_file_params =
                 upload_files_to_object_store(created_file_params, scratchpad_ctx).await;
-
-            println!("======== 3 ========");
 
             // clean scratchpad
             scratchpad_ctx.clean_from_scratchpad(&input_paths).await;
@@ -276,14 +269,10 @@ async fn try_compact_partition(
             )
             .await;
 
-            println!("======== 4 ========");
-
             // Extend created files, upgraded files and files_to_keep to files_next
             files_next.extend(created_files);
             files_next.extend(upgraded_files);
             files_next.extend(compaction_plan.files_to_keep);
-
-            println!("======== 5 ========");
         }
 
         files = files_next;
@@ -382,14 +371,9 @@ async fn run_compaction_plan(
     job_semaphore: Arc<InstrumentedAsyncSemaphore>,
     scratchpad_ctx: &mut dyn Scratchpad,
 ) -> Result<Vec<ParquetFileParams>, DynError> {
-
-    println!("======== 1.1 ========");
-
     if files.is_empty() {
         return Ok(vec![]);
     }
-
-    println!("======== 1.2 ========");
 
     // compute max_l0_created_at
     let max_l0_created_at = files
@@ -397,8 +381,6 @@ async fn run_compaction_plan(
         .map(|f| f.max_l0_created_at)
         .max()
         .expect("max_l0_created_at should have value");
-
-    println!("======== 1.3 ========");
 
     // stage files
     let input_paths: Vec<ParquetFilePath> = files.iter().map(|f| f.into()).collect();
@@ -411,8 +393,6 @@ async fn run_compaction_plan(
             ..f.clone()
         })
         .collect();
-    
-    println!("======== 1.4 ========");
 
     let create = {
         // draw semaphore BEFORE creating the DataFusion plan and drop it directly AFTER finishing the
@@ -426,13 +406,10 @@ async fn run_compaction_plan(
             .await
             .expect("semaphore not closed");
 
-        println!("======== 1.5 ========");
-
         let plan = components
             .df_planner
             .plan(branch_inpad, Arc::clone(partition_info), target_level)
             .await?;
-        println!("======== 1.6 ========");
         let streams = components.df_plan_exec.exec(plan);
         let job = stream_into_file_sink(
             streams,
@@ -441,13 +418,10 @@ async fn run_compaction_plan(
             max_l0_created_at.into(),
             Arc::clone(components),
         );
-        println!("======== 1.7 ========");
 
         // TODO: react to OOM and try to divide branch
         job.await?
     };
-
-    println!("======== 1.8 ========");
 
     Ok(create)
 }

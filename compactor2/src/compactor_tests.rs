@@ -215,6 +215,11 @@ mod tests {
             ],
         );
 
+        // Ensure we have enough resource to compact the files
+        setup.set_max_input_files_per_partition(files.len() + 10);
+        let total_size = files.iter().map(|f| f.file_size_bytes).sum::<i64>();
+        setup.set_max_input_parquet_bytes_per_partition((total_size + 1000) as usize);
+
         // compact
         run_compact(&setup).await;
 
@@ -285,7 +290,6 @@ mod tests {
         setup.set_compact_version(AlgoVersion::TargetLevel);
         setup.set_min_num_l1_files_to_compact(2);
 
-
         // verify 6 files
         let files = setup.list_by_table_not_to_delete().await;
         assert_levels(
@@ -317,7 +321,6 @@ mod tests {
         // Ensure we have enough resource to compact the files
         setup.set_max_input_files_per_partition(files.len() + 10);
         let total_size = files.iter().map(|f| f.file_size_bytes).sum::<i64>();
-        println!("=======  total_size: {}", total_size);
         setup.set_max_input_parquet_bytes_per_partition((total_size + 1000) as usize);
 
         // compact

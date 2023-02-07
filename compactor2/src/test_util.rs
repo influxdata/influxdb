@@ -380,7 +380,6 @@ impl TestSetupBuilder {
                 .with_line_protocol(&lp)
                 .with_creation_time(time_3_minutes_future)
                 .with_max_l0_created_at(time_1_minute_future)
-                .with_file_size_bytes(10)
                 .with_compaction_level(CompactionLevel::FileNonOverlapped); // Prev compaction
             let level_1_file_1_minute_ago = partition.create_parquet_file(builder).await.into();
 
@@ -396,7 +395,6 @@ impl TestSetupBuilder {
                 .with_line_protocol(&lp)
                 .with_creation_time(time_2_minutes_future)
                 .with_max_l0_created_at(time_2_minutes_future)
-                .with_file_size_bytes(10)
                 .with_compaction_level(CompactionLevel::Initial);
             let level_0_file_16_minutes_ago = partition.create_parquet_file(builder).await.into();
 
@@ -411,7 +409,7 @@ impl TestSetupBuilder {
                 .with_line_protocol(&lp)
                 .with_creation_time(time_5_minutes_future)
                 .with_max_l0_created_at(time_5_minutes_future)
-                .with_file_size_bytes(10)
+                // .with_file_size_bytes(10)
                 .with_compaction_level(CompactionLevel::Initial);
             let level_0_file_5_minutes_ago = partition.create_parquet_file(builder).await.into();
 
@@ -427,7 +425,6 @@ impl TestSetupBuilder {
                 .with_line_protocol(&lp)
                 .with_creation_time(time_5_minutes_future)
                 .with_max_l0_created_at(time_3_minutes_future)
-                .with_file_size_bytes(10)
                 .with_compaction_level(CompactionLevel::FileNonOverlapped); // Prev compaction
             let level_1_file_1_minute_ago_with_duplicates: ParquetFile =
                 partition.create_parquet_file(builder).await.into();
@@ -440,7 +437,8 @@ impl TestSetupBuilder {
                 .with_max_time(36000)
                 .with_creation_time(time_5_minutes_future)
                 .with_max_l0_created_at(time_5_minutes_future)
-                .with_file_size_bytes(10)
+                // Will put the group size between "small" and "large"
+                .with_size_override(50 * 1024 * 1024)
                 .with_compaction_level(CompactionLevel::Initial);
             let medium_level_0_file_time_now = partition.create_parquet_file(builder).await.into();
 
@@ -456,7 +454,8 @@ impl TestSetupBuilder {
                 .with_max_time(136000)
                 .with_creation_time(time_2_minutes_future)
                 .with_max_l0_created_at(time_2_minutes_future)
-                .with_file_size_bytes(10)
+                // Will put the group size two multiples over "large"
+                .with_size_override(180 * 1024 * 1024)
                 .with_compaction_level(CompactionLevel::Initial);
             let large_level_0_file_2_2_minutes_ago =
                 partition.create_parquet_file(builder).await.into();

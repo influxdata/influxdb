@@ -125,13 +125,22 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
     }
     partition_filters.append(&mut version_specific_partition_filters(config));
 
-    let mut partition_resource_limit_filters: Vec<Arc<dyn PartitionFilter>> = vec![];
-    partition_resource_limit_filters.push(Arc::new(MaxFilesPartitionFilter::new(
-        config.max_input_files_per_partition,
-    )));
-    partition_resource_limit_filters.push(Arc::new(MaxParquetBytesPartitionFilter::new(
-        config.max_input_parquet_bytes_per_partition,
-    )));
+    // let mut partition_resource_limit_filters: Vec<Arc<dyn PartitionFilter>> = vec![];
+    // partition_resource_limit_filters.push(Arc::new(MaxFilesPartitionFilter::new(
+    //     config.max_input_files_per_partition,
+    // )));
+    // partition_resource_limit_filters.push(Arc::new(MaxParquetBytesPartitionFilter::new(
+    //     config.max_input_parquet_bytes_per_partition,
+    // )));
+
+    let partition_resource_limit_filters: Vec<Arc<dyn PartitionFilter>> = vec![
+        Arc::new(MaxFilesPartitionFilter::new(
+            config.max_input_files_per_partition,
+        )),
+        Arc::new(MaxParquetBytesPartitionFilter::new(
+            config.max_input_parquet_bytes_per_partition,
+        )),
+    ];
 
     let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.shadow_mode {
         Arc::new(MockPartitionDoneSink::new())
