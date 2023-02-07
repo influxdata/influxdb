@@ -214,8 +214,6 @@ mod tests {
     #[test]
     fn test_apply_mix_1() {
         let files = create_overlapped_l0_l1_files(1);
-        assert_eq!(files.len(), 6);
-
         insta::assert_yaml_snapshot!(
             format_files("initial", &files),
             @r###"
@@ -267,12 +265,20 @@ mod tests {
     #[test]
     fn test_apply_mix_2() {
         let files = create_overlapped_l1_l2_files(1);
-        assert_eq!(files.len(), 5);
-
-        // Input files:
-        //    |--L2.1--|  |--L2.2--|
-        //                  |--L1.1--|  |--L1.2--|  |--L1.3--|
-        // Output files: (overlap, non_overlap) = ( [L1.1, L1.2, L1.3, L2.2] , L2.1] )
+        insta::assert_yaml_snapshot!(
+            format_files("initial", &files),
+            @r###"
+        ---
+        - initial
+        - "L1                                                                                                  "
+        - "L1.13[600,700]                                                                          |--L1.13--| "
+        - "L1.12[400,500]                                                   |--L1.12--|                        "
+        - "L1.11[250,350]                                  |--L1.11--|                                         "
+        - "L2                                                                                                  "
+        - "L2.21[0,100]        |--L2.21--|                                                                     "
+        - "L2.22[200,300]                            |--L2.22--|                                               "
+        "###
+        );
 
         let split = TargetLevelNonOverlapSplit::new();
         let (overlap, non_overlap) = split.apply(files, CompactionLevel::Final);
@@ -309,7 +315,21 @@ mod tests {
         //
         //  . Output: (overlap, non_overlap) = ( [L0.1, L0.2, L1.2, L1.3] , [L1.1, L1.4] )
         let files = create_overlapped_files_2(1);
-        assert_eq!(files.len(), 6);
+        insta::assert_yaml_snapshot!(
+            format_files("initial", &files),
+            @r###"
+        ---
+        - initial
+        - "L0                                                                                                  "
+        - "L0.2[520,550]                                                                  |L0.2|               "
+        - "L0.1[250,350]                                   |--L0.1---|                                         "
+        - "L1                                                                                                  "
+        - "L1.13[400,500]                                                   |--L1.13--|                        "
+        - "L1.12[200,300]                            |--L1.12--|                                               "
+        - "L1.11[0,100]        |--L1.11--|                                                                     "
+        - "L1.14[600,700]                                                                          |--L1.14--| "
+        "###
+        );
 
         let split = TargetLevelNonOverlapSplit::new();
         let (overlap, non_overlap) = split.apply(files, CompactionLevel::FileNonOverlapped);
