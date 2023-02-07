@@ -1,3 +1,6 @@
+mod display;
+pub(crate) use display::{assert_parquet_files, assert_parquet_files_split};
+
 use std::{
     collections::{BTreeMap, HashSet},
     future::Future,

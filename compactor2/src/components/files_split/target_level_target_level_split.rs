@@ -36,7 +36,8 @@ impl FilesSplit for TargetLevelTargetLevelSplit {
 mod tests {
 
     use crate::test_util::{
-        create_l0_files, create_l1_files, create_l2_files, create_overlapped_files,
+        assert_parquet_files, assert_parquet_files_split, create_l0_files, create_l1_files,
+        create_l2_files, create_overlapped_files,
     };
 
     use super::*;
@@ -62,7 +63,13 @@ mod tests {
     #[test]
     fn test_apply_partial_empty_files_l0() {
         let files = create_l0_files(1);
-        assert_eq!(files.len(), 3);
+        let expected = vec![
+            "L0                                                                                                  ",
+            "L0.2[650,750]                                          |-----L0.2------|                            ",
+            "L0.1[450,620]       |------------L0.1------------|                                                  ",
+            "L0.3[800,900]                                                                     |-----L0.3------| ",
+        ];
+        assert_parquet_files(expected, &files);
 
         let split = TargetLevelTargetLevelSplit::new();
         let (lower, higher) = split.apply(files.clone(), CompactionLevel::Initial);
@@ -81,13 +88,19 @@ mod tests {
     #[test]
     fn test_apply_partial_empty_files_l1() {
         let files = create_l1_files(1);
-        assert_eq!(files.len(), 3);
+        let expected = vec![
+            "L1                                                                                                  ",
+            "L1.13[600,700]                                                                    |-----L1.13-----| ",
+            "L1.12[400,500]                                |-----L1.12-----|                                     ",
+            "L1.11[250,350]      |-----L1.11-----|                                                               ",
+        ];
+        assert_parquet_files(expected, &files);
 
         let split = TargetLevelTargetLevelSplit::new();
         let (lower, higher) = split.apply(files.clone(), CompactionLevel::Initial);
         assert_eq!(lower.len(), 0);
         assert_eq!(higher.len(), 3);
-        //
+
         let (lower, higher) = split.apply(files.clone(), CompactionLevel::FileNonOverlapped);
         assert_eq!(lower.len(), 3);
         assert_eq!(higher.len(), 0);
@@ -100,7 +113,12 @@ mod tests {
     #[test]
     fn test_apply_partial_empty_files_l2() {
         let files = create_l2_files();
-        assert_eq!(files.len(), 2);
+        let expected = vec![
+            "L2                                                                                                  ",
+            "L2.21[0,100]        |---------L2.21----------|                                                      ",
+            "L2.22[200,300]                                                           |---------L2.22----------| ",
+        ];
+        assert_parquet_files(expected, &files);
 
         let split = TargetLevelTargetLevelSplit::new();
         let (lower, higher) = split.apply(files.clone(), CompactionLevel::Initial);
@@ -120,10 +138,41 @@ mod tests {
     fn test_apply_target_level_0() {
         // Test target level Initial
         let files = create_overlapped_files();
-        assert_eq!(files.len(), 8);
+        let expected = vec![
+            "L0                                                                                                  ",
+            "L0.2[650,750]@1                                                              |-L0.2-|               ",
+            "L0.1[450,620]@1                                             |----L0.1-----|                         ",
+            "L0.3[800,900]@100                                                                          |-L0.3-| ",
+            "L1                                                                                                  ",
+            "L1.13[600,700]@100                                                       |L1.13-|                   ",
+            "L1.12[400,500]@1                                       |L1.12-|                                     ",
+            "L1.11[250,350]@1                          |L1.11-|                                                  ",
+            "L2                                                                                                  ",
+            "L2.21[0,100]@1      |L2.21-|                                                                        ",
+            "L2.22[200,300]@1                     |L2.22-|                                                       ",
+        ];
+        assert_parquet_files(expected, &files);
 
         let split = TargetLevelTargetLevelSplit::new();
         let (lower, higher) = split.apply(files, CompactionLevel::Initial);
+
+        let expected = vec![
+            "left",
+            "L0                                                                                                  ",
+            "L0.2[650,750]@1                                        |-----L0.2------|                            ",
+            "L0.1[450,620]@1     |------------L0.1------------|                                                  ",
+            "L0.3[800,900]@100                                                                 |-----L0.3------| ",
+            "right",
+            "L1                                                                                                  ",
+            "L1.13[600,700]@100                                                                      |--L1.13--| ",
+            "L1.12[400,500]@1                                                 |--L1.12--|                        ",
+            "L1.11[250,350]@1                                |--L1.11--|                                         ",
+            "L2                                                                                                  ",
+            "L2.21[0,100]@1      |--L2.21--|                                                                     ",
+            "L2.22[200,300]@1                          |--L2.22--|                                               ",
+        ];
+        assert_parquet_files_split(expected, &lower, &higher);
+
         // verify number of files
         assert_eq!(lower.len(), 3);
         assert_eq!(higher.len(), 5);
@@ -141,10 +190,41 @@ mod tests {
     fn test_apply_target_level_l1() {
         // Test target level is FileNonOverlapped
         let files = create_overlapped_files();
-        assert_eq!(files.len(), 8);
+        let expected = vec![
+            "L0                                                                                                  ",
+            "L0.2[650,750]@1                                                              |-L0.2-|               ",
+            "L0.1[450,620]@1                                             |----L0.1-----|                         ",
+            "L0.3[800,900]@100                                                                          |-L0.3-| ",
+            "L1                                                                                                  ",
+            "L1.13[600,700]@100                                                       |L1.13-|                   ",
+            "L1.12[400,500]@1                                       |L1.12-|                                     ",
+            "L1.11[250,350]@1                          |L1.11-|                                                  ",
+            "L2                                                                                                  ",
+            "L2.21[0,100]@1      |L2.21-|                                                                        ",
+            "L2.22[200,300]@1                     |L2.22-|                                                       ",
+        ];
+        assert_parquet_files(expected, &files);
 
         let split = TargetLevelTargetLevelSplit::new();
         let (lower, higher) = split.apply(files, CompactionLevel::FileNonOverlapped);
+
+        let expected = vec![
+            "left",
+            "L0                                                                                                  ",
+            "L0.2[650,750]@1                                                      |---L0.2---|                   ",
+            "L0.1[450,620]@1                             |-------L0.1-------|                                    ",
+            "L0.3[800,900]@100                                                                      |---L0.3---| ",
+            "L1                                                                                                  ",
+            "L1.13[600,700]@100                                             |--L1.13---|                         ",
+            "L1.12[400,500]@1                      |--L1.12---|                                                  ",
+            "L1.11[250,350]@1    |--L1.11---|                                                                    ",
+            "right",
+            "L2                                                                                                  ",
+            "L2.21[0,100]        |---------L2.21----------|                                                      ",
+            "L2.22[200,300]                                                           |---------L2.22----------| ",
+        ];
+        assert_parquet_files_split(expected, &lower, &higher);
+
         // verify number of files
         assert_eq!(lower.len(), 6);
         assert_eq!(higher.len(), 2);
@@ -162,11 +242,25 @@ mod tests {
     fn test_apply_taget_level_l2() {
         // Test target level is Final
         let files = create_overlapped_files();
-        assert_eq!(files.len(), 8);
+        let expected = vec![
+            "L0                                                                                                  ",
+            "L0.2[650,750]@1                                                              |-L0.2-|               ",
+            "L0.1[450,620]@1                                             |----L0.1-----|                         ",
+            "L0.3[800,900]@100                                                                          |-L0.3-| ",
+            "L1                                                                                                  ",
+            "L1.13[600,700]@100                                                       |L1.13-|                   ",
+            "L1.12[400,500]@1                                       |L1.12-|                                     ",
+            "L1.11[250,350]@1                          |L1.11-|                                                  ",
+            "L2                                                                                                  ",
+            "L2.21[0,100]@1      |L2.21-|                                                                        ",
+            "L2.22[200,300]@1                     |L2.22-|                                                       ",
+        ];
+        assert_parquet_files(expected, &files);
 
         let split = TargetLevelTargetLevelSplit::new();
         let (lower, higher) = split.apply(files, CompactionLevel::Final);
-        // verify number of files
+
+        // verify number of files (nothing in higher)
         assert_eq!(lower.len(), 8);
         assert_eq!(higher.len(), 0);
         // verify compaction level of files
