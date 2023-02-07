@@ -1003,6 +1003,7 @@ dependencies = [
  "data_types",
  "datafusion",
  "futures",
+ "insta",
  "iox_catalog",
  "iox_query",
  "iox_tests",
