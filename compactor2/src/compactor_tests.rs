@@ -13,7 +13,7 @@ mod tests {
         },
         config::AlgoVersion,
         driver::compact,
-        test_util::{list_object_store, AssertFutureExt, TestSetup},
+        test_util::{list_object_store, TestSetup},
     };
 
     #[tokio::test]
@@ -27,10 +27,7 @@ mod tests {
         assert!(files.is_empty());
 
         // compact
-        // This wil wait for files forever.
-        let fut = run_compact(&setup);
-        tokio::pin!(fut);
-        fut.assert_pending().await;
+        run_compact(&setup).await;
 
         // verify catalog is still empty
         let files = setup.list_by_table_not_to_delete().await;

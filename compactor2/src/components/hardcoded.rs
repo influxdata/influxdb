@@ -162,14 +162,21 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
 
     // Note: Place "not empty" wrapper at the very last so that the logging and metric wrapper work even when there
     //       is not data.
-    let partitions_source = NotEmptyPartitionsSourceWrapper::new(
+    let partitions_source =
         LoggingPartitionsSourceWrapper::new(MetricsPartitionsSourceWrapper::new(
             RandomizeOrderPartitionsSourcesWrapper::new(partitions_source, 1234),
             &config.metric_registry,
-        )),
-        Duration::from_secs(5),
-        Arc::clone(&config.time_provider),
-    );
+        ));
+    let partitions_source: Arc<dyn PartitionsSource> = if config.process_once {
+        // do not wrap into the "not empty" filter because we do NOT wanna throttle in this case but just exit early
+        Arc::new(partitions_source)
+    } else {
+        Arc::new(NotEmptyPartitionsSourceWrapper::new(
+            partitions_source,
+            Duration::from_secs(5),
+            Arc::clone(&config.time_provider),
+        ))
+    };
 
     let partition_stream: Arc<dyn PartitionStream> = if config.process_once {
         Arc::new(OncePartititionStream::new(partitions_source))

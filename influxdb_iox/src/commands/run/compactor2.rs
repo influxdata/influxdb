@@ -112,6 +112,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
     }));
     let time_provider = Arc::new(SystemProvider::new());
 
+    let process_once = config.compactor_config.process_once;
     let server_type = create_compactor2_server_type(
         &common_state,
         Arc::clone(&metric_registry),
@@ -127,5 +128,14 @@ pub async fn command(config: Config) -> Result<(), Error> {
     info!("starting compactor");
 
     let services = vec![Service::create(server_type, common_state.run_config())];
-    Ok(main::main(common_state, services, metric_registry).await?)
+
+    let res = main::main(common_state, services, metric_registry).await;
+    match res {
+        Ok(()) => Ok(()),
+        // compactor2 is allowed to shut itself down
+        Err(main::Error::Wrapper {
+            source: _source @ ioxd_common::Error::LostServer,
+        }) if process_once => Ok(()),
+        Err(e) => Err(e.into()),
+    }
 }
