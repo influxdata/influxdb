@@ -133,26 +133,6 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             Arc::clone(&config.catalog),
         ))
     };
-    let partition_done_sink =
-        LoggingPartitionDoneSinkWrapper::new(MetricsPartitionDoneSinkWrapper::new(
-            ErrorKindPartitionDoneSinkWrapper::new(
-                partition_done_sink,
-                ErrorKind::variants()
-                    .iter()
-                    .filter(|kind| {
-                        // use explicit match statement so we never forget to add new variants
-                        match kind {
-                            ErrorKind::OutOfMemory | ErrorKind::Timeout | ErrorKind::Unknown => {
-                                true
-                            }
-                            ErrorKind::ObjectStore => false,
-                        }
-                    })
-                    .copied()
-                    .collect(),
-            ),
-            &config.metric_registry,
-        ));
 
     let commit: Arc<dyn Commit> = if config.shadow_mode {
         Arc::new(MockCommit::new())
@@ -219,7 +199,27 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
                 &config.metric_registry,
             ),
         )),
-        partition_done_sink: Arc::new(partition_done_sink),
+        partition_done_sink: Arc::new(LoggingPartitionDoneSinkWrapper::new(
+            MetricsPartitionDoneSinkWrapper::new(
+                ErrorKindPartitionDoneSinkWrapper::new(
+                    partition_done_sink,
+                    ErrorKind::variants()
+                        .iter()
+                        .filter(|kind| {
+                            // use explicit match statement so we never forget to add new variants
+                            match kind {
+                                ErrorKind::OutOfMemory
+                                | ErrorKind::Timeout
+                                | ErrorKind::Unknown => true,
+                                ErrorKind::ObjectStore => false,
+                            }
+                        })
+                        .copied()
+                        .collect(),
+                ),
+                &config.metric_registry,
+            ),
+        )),
         commit: Arc::new(LoggingCommitWrapper::new(MetricsCommitWrapper::new(
             commit,
             &config.metric_registry,
