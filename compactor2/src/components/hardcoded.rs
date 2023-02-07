@@ -192,7 +192,8 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
     } else {
         Arc::new(EndlessPartititionStream::new(partitions_source))
     };
-
+    let partition_continue_conditions = "continue_conditions";
+    let partition_resource_limit_conditions = "resource_limit_conditions";
     Arc::new(Components {
         partition_stream,
         partition_source: Arc::new(LoggingPartitionSourceWrapper::new(
@@ -213,7 +214,9 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             MetricsPartitionFilterWrapper::new(
                 AndPartitionFilter::new(partition_filters),
                 &config.metric_registry,
+                partition_continue_conditions,
             ),
+            partition_continue_conditions,
         )),
         partition_done_sink: Arc::new(LoggingPartitionDoneSinkWrapper::new(
             MetricsPartitionDoneSinkWrapper::new(
@@ -285,7 +288,9 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             MetricsPartitionFilterWrapper::new(
                 AndPartitionFilter::new(partition_resource_limit_filters),
                 &config.metric_registry,
+                partition_resource_limit_conditions,
             ),
+            partition_resource_limit_conditions,
         )),
     })
 }

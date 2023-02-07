@@ -60,47 +60,27 @@ mod tests {
         // Set max num file to 4 (< num files) --> it won't get comapcted
         setup.set_max_input_files_per_partition(4);
 
-        // ----------------- For AllAtOnce version -----------------
-        setup.set_compact_version(AlgoVersion::AllAtOnce);
-        run_compact(&setup).await;
-        //
-        // read files and verify they are not compacted
-        let files = setup.list_by_table_not_to_delete().await;
-        assert_eq!(files.len(), 6);
-        //
-        // verify ID and compaction level of the files
-        assert_levels(
-            &files,
-            vec![
-                (1, CompactionLevel::FileNonOverlapped),
-                (2, CompactionLevel::Initial),
-                (3, CompactionLevel::Initial),
-                (4, CompactionLevel::FileNonOverlapped),
-                (5, CompactionLevel::Initial),
-                (6, CompactionLevel::Initial),
-            ],
-        );
-
-        // ----------------- For TargetLevel version -----------------
-        setup.set_compact_version(AlgoVersion::TargetLevel);
-        run_compact(&setup).await;
-        //
-        // read files and verify they are not compacted
-        let files = setup.list_by_table_not_to_delete().await;
-        assert_eq!(files.len(), 6);
-        //
-        // verify ID and compaction level of the files
-        assert_levels(
-            &files,
-            vec![
-                (1, CompactionLevel::FileNonOverlapped),
-                (2, CompactionLevel::Initial),
-                (3, CompactionLevel::Initial),
-                (4, CompactionLevel::FileNonOverlapped),
-                (5, CompactionLevel::Initial),
-                (6, CompactionLevel::Initial),
-            ],
-        );
+        for version in [AlgoVersion::AllAtOnce, AlgoVersion::TargetLevel] {
+            setup.set_compact_version(version);
+            run_compact(&setup).await;
+            //
+            // read files and verify they are not compacted
+            let files = setup.list_by_table_not_to_delete().await;
+            assert_eq!(files.len(), 6);
+            //
+            // verify ID and compaction level of the files
+            assert_levels(
+                &files,
+                vec![
+                    (1, CompactionLevel::FileNonOverlapped),
+                    (2, CompactionLevel::Initial),
+                    (3, CompactionLevel::Initial),
+                    (4, CompactionLevel::FileNonOverlapped),
+                    (5, CompactionLevel::Initial),
+                    (6, CompactionLevel::Initial),
+                ],
+            );
+        }
     }
 
     #[tokio::test]
@@ -113,6 +93,7 @@ mod tests {
         // verify 6 files
         let files = setup.list_by_table_not_to_delete().await;
         assert_eq!(files.len(), 6);
+
         // verify ID and compaction level of the files
         assert_levels(
             &files,
@@ -129,50 +110,30 @@ mod tests {
         // get total size of the files
         let total_size = files.iter().map(|f| f.file_size_bytes).sum::<i64>();
 
-        // Set max size < the input fie size
+        // Set max size < the input file size  --> it won't get compacted
         setup.set_max_input_parquet_bytes_per_partition((total_size - 1) as usize);
 
-        // ----------------- For AllAtOnce version -----------------
-        setup.set_compact_version(AlgoVersion::AllAtOnce);
-        run_compact(&setup).await;
-        //
-        // read files and verify they are not compacted
-        let files = setup.list_by_table_not_to_delete().await;
-        assert_eq!(files.len(), 6);
-        //
-        // verify ID and compaction level of the files
-        assert_levels(
-            &files,
-            vec![
-                (1, CompactionLevel::FileNonOverlapped),
-                (2, CompactionLevel::Initial),
-                (3, CompactionLevel::Initial),
-                (4, CompactionLevel::FileNonOverlapped),
-                (5, CompactionLevel::Initial),
-                (6, CompactionLevel::Initial),
-            ],
-        );
+        for version in [AlgoVersion::AllAtOnce, AlgoVersion::TargetLevel] {
+            setup.set_compact_version(version);
+            run_compact(&setup).await;
 
-        // ----------------- For TargetLevel version -----------------
-        setup.set_compact_version(AlgoVersion::TargetLevel);
-        run_compact(&setup).await;
-        //
-        // read files and verify they are not compacted
-        let files = setup.list_by_table_not_to_delete().await;
-        assert_eq!(files.len(), 6);
-        //
-        // verify ID and compaction level of the files
-        assert_levels(
-            &files,
-            vec![
-                (1, CompactionLevel::FileNonOverlapped),
-                (2, CompactionLevel::Initial),
-                (3, CompactionLevel::Initial),
-                (4, CompactionLevel::FileNonOverlapped),
-                (5, CompactionLevel::Initial),
-                (6, CompactionLevel::Initial),
-            ],
-        );
+            // read files and verify they are not compacted
+            let files = setup.list_by_table_not_to_delete().await;
+            assert_eq!(files.len(), 6);
+
+            // verify ID and compaction level of the files
+            assert_levels(
+                &files,
+                vec![
+                    (1, CompactionLevel::FileNonOverlapped),
+                    (2, CompactionLevel::Initial),
+                    (3, CompactionLevel::Initial),
+                    (4, CompactionLevel::FileNonOverlapped),
+                    (5, CompactionLevel::Initial),
+                    (6, CompactionLevel::Initial),
+                ],
+            );
+        }
     }
 
     #[tokio::test]
