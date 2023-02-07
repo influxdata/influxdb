@@ -1,3 +1,6 @@
+mod display;
+pub(crate) use display::{assert_parquet_files, assert_parquet_files_split};
+
 use std::{
     collections::{BTreeMap, HashSet},
     future::Future,
@@ -220,6 +223,7 @@ impl NamespaceBuilder {
                     query_pool_id,
                     tables,
                     max_columns_per_table: 10,
+                    max_tables: 42,
                     retention_period_ns: None,
                 },
             },

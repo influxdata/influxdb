@@ -111,13 +111,13 @@ where
                 registry,
                 METRIC_NAME_JOB_FILES,
                 "Number of files committed by the compactor, per job",
-                HistogramType::Bytes,
+                HistogramType::Files,
             ),
             job_bytes: Histogram::new(
                 registry,
                 METRIC_NAME_JOB_BYTES,
                 "Number of bytes committed by the compactor, per job",
-                HistogramType::Files,
+                HistogramType::Bytes,
             ),
             job_rows: Histogram::new(
                 registry,

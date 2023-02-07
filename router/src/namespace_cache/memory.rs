@@ -46,6 +46,7 @@ mod tests {
             query_pool_id: QueryPoolId::new(1234),
             tables: Default::default(),
             max_columns_per_table: 50,
+            max_tables: 24,
             retention_period_ns: Some(876),
         };
         assert!(cache.put_schema(ns.clone(), schema1.clone()).is_none());
@@ -57,6 +58,7 @@ mod tests {
             query_pool_id: QueryPoolId::new(2),
             tables: Default::default(),
             max_columns_per_table: 10,
+            max_tables: 42,
             retention_period_ns: Some(876),
         };
 

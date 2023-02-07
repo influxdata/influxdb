@@ -560,11 +560,14 @@ where
 mod tests {
     use super::*;
     use crate::{
-        dml_handlers::mock::{MockDmlHandler, MockDmlHandlerCall},
+        dml_handlers::{
+            mock::{MockDmlHandler, MockDmlHandlerCall},
+            CachedServiceProtectionLimit,
+        },
         namespace_resolver::{mock::MockNamespaceResolver, NamespaceCreationError},
     };
     use assert_matches::assert_matches;
-    use data_types::{NamespaceId, NamespaceNameError};
+    use data_types::{NamespaceId, NamespaceNameError, TableId};
     use flate2::{write::GzEncoder, Compression};
     use hyper::header::HeaderValue;
     use metric::{Attributes, Metric};
@@ -1526,6 +1529,44 @@ mod tests {
         (
             RequestLimit,
             "this service is overloaded, please try again later",
+        ),
+
+        (
+            DmlHandler(DmlError::Schema(SchemaError::ServiceLimit(Box::new(CachedServiceProtectionLimit::Column {
+                table_name: "bananas".to_string(),
+                existing_column_count: 42,
+                merged_column_count: 4242,
+                max_columns_per_table: 24,
+            })))),
+            "dml handler error: service limit reached: couldn't create columns in table `bananas`; table contains 42 \
+            existing columns, applying this write would result in 4242 columns, limit is 24",
+        ),
+
+        (
+            DmlHandler(DmlError::Schema(SchemaError::ServiceLimit(Box::new(CachedServiceProtectionLimit::Table {
+                existing_table_count: 42,
+                merged_table_count: 4242,
+                table_count_limit: 24,
+            })))),
+            "dml handler error: service limit reached: couldn't create new table; namespace contains 42 existing \
+            tables, applying this write would result in 4242 tables, limit is 24",
+        ),
+
+        (
+            DmlHandler(DmlError::Schema(SchemaError::ServiceLimit(Box::new(iox_catalog::interface::Error::ColumnCreateLimitError {
+                column_name: "bananas".to_string(),
+                table_id: TableId::new(42),
+            })))),
+            "dml handler error: service limit reached: couldn't create column bananas in table 42; limit reached on \
+            namespace",
+        ),
+
+        (
+            DmlHandler(DmlError::Schema(SchemaError::ServiceLimit(Box::new(iox_catalog::interface::Error::TableCreateLimitError {
+                table_name: "bananas".to_string(),
+                namespace_id: NamespaceId::new(42),
+            })))),
+            "dml handler error: service limit reached: couldn't create table bananas; limit reached on namespace 42",
         ),
     }
 }
