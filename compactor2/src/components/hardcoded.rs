@@ -52,6 +52,7 @@ use super::{
     partition_files_source::catalog::CatalogPartitionFilesSource,
     partition_filter::{
         and::AndPartitionFilter, greater_matching_files::GreaterMatchingFilesPartitionFilter,
+        greater_size_matching_files::GreaterSizeMatchingFilesPartitionFilter,
         has_files::HasFilesPartitionFilter, has_matching_file::HasMatchingFilePartitionFilter,
         logging::LoggingPartitionFilterWrapper, max_files::MaxFilesPartitionFilter,
         max_parquet_bytes::MaxParquetBytesPartitionFilter, metrics::MetricsPartitionFilterWrapper,
@@ -295,7 +296,9 @@ fn version_specific_partition_filters(config: &Config) -> Vec<Arc<dyn PartitionF
                 )),
             ]
         }
-        // (Has-L0) OR (num(L1) > N)
+        // (Has-L0) OR            -- to avoid overlaped files
+        // (num(L1) > N) OR       -- to avoid many files
+        // (total_size(L1) > max_desired_file_size)  -- to avoid compact and than split
         AlgoVersion::TargetLevel => {
             vec![
                 Arc::new(OrPartitionFilter::new(vec![
@@ -309,6 +312,12 @@ fn version_specific_partition_filters(config: &Config) -> Vec<Arc<dyn PartitionF
                             CompactionLevel::FileNonOverlapped..=CompactionLevel::FileNonOverlapped,
                         ),
                         config.min_num_l1_files_to_compact,
+                    )),
+                    Arc::new(GreaterSizeMatchingFilesPartitionFilter::new(
+                        LevelRangeFileFilter::new(
+                            CompactionLevel::FileNonOverlapped..=CompactionLevel::FileNonOverlapped,
+                        ),
+                        config.max_desired_file_size_bytes,
                     )),
                 ])),
                 Arc::new(MaxFilesPartitionFilter::new(

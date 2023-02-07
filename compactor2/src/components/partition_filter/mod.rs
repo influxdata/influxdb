@@ -7,6 +7,7 @@ use crate::error::DynError;
 
 pub mod and;
 pub mod greater_matching_files;
+pub mod greater_size_matching_files;
 pub mod has_files;
 pub mod has_matching_file;
 pub mod logging;
