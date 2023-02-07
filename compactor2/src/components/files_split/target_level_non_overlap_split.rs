@@ -130,7 +130,7 @@ mod tests {
 
     use crate::test_util::{
         create_l1_files, create_overlapped_files, create_overlapped_files_2,
-        create_overlapped_l0_l1_files, create_overlapped_l1_l2_files,
+        create_overlapped_l0_l1_files, create_overlapped_l1_l2_files, format_files,
     };
 
     use super::*;
@@ -186,7 +186,17 @@ mod tests {
     #[test]
     fn test_apply_one_level_empty() {
         let files = create_l1_files(1);
-        assert_eq!(files.len(), 3);
+        insta::assert_yaml_snapshot!(
+            format_files("initial", &files),
+            @r###"
+        ---
+        - initial
+        - "L1                                                                                                  "
+        - "L1.13[600,700]                                                                    |-----L1.13-----| "
+        - "L1.12[400,500]                                |-----L1.12-----|                                     "
+        - "L1.11[250,350]      |-----L1.11-----|                                                               "
+        "###
+        );
 
         let split = TargetLevelNonOverlapSplit::new();
 
@@ -206,27 +216,48 @@ mod tests {
         let files = create_overlapped_l0_l1_files(1);
         assert_eq!(files.len(), 6);
 
-        // Input files:
-        //                  |--L1.1--|  |--L1.2--|  |--L1.3--|
-        //                                  |--L0.1--|   |--L0.2--| |--L0.3--|
-        // Output files: (overlap, non_overlap) = ( [L0.1, L0.2, L0.3, L1.2, L1.3] , L1.1] )
+        insta::assert_yaml_snapshot!(
+            format_files("initial", &files),
+            @r###"
+        ---
+        - initial
+        - "L0                                                                                                  "
+        - "L0.2[650,750]                                                        |---L0.2---|                   "
+        - "L0.1[450,620]                               |-------L0.1-------|                                    "
+        - "L0.3[800,900]                                                                          |---L0.3---| "
+        - "L1                                                                                                  "
+        - "L1.13[600,700]                                                 |--L1.13---|                         "
+        - "L1.12[400,500]                        |--L1.12---|                                                  "
+        - "L1.11[250,350]      |--L1.11---|                                                                    "
+        "###
+        );
 
         let split = TargetLevelNonOverlapSplit::new();
         let (overlap, non_overlap) = split.apply(files, CompactionLevel::FileNonOverlapped);
-        assert_eq!(overlap.len(), 5);
-        assert_eq!(non_overlap.len(), 1);
-
-        // Verify overlapping files
-        // sort by id
-        let mut overlap = overlap;
-        overlap.sort_by(|a, b| a.id.cmp(&b.id));
-        assert_eq!(overlap[0].id.get(), 1);
-        assert_eq!(overlap[1].id.get(), 2);
-        assert_eq!(overlap[2].id.get(), 3);
-        assert_eq!(overlap[3].id.get(), 12);
-        assert_eq!(overlap[4].id.get(), 13);
+        insta::assert_yaml_snapshot!(
+            format_files("overlap", &overlap),
+            @r###"
+        ---
+        - overlap
+        - "L0                                                                                                  "
+        - "L0.2[650,750]                                               |-----L0.2-----|                        "
+        - "L0.1[450,620]               |----------L0.1-----------|                                             "
+        - "L0.3[800,900]                                                                       |-----L0.3-----|"
+        - "L1                                                                                                  "
+        - "L1.12[400,500]      |----L1.12-----|                                                                "
+        - "L1.13[600,700]                                      |----L1.13-----|                                "
+        "###
+        );
         // verify non-overlapping files
-        assert_eq!(non_overlap[0].id.get(), 11);
+        insta::assert_yaml_snapshot!(
+            format_files("non_overlap", &non_overlap),
+            @r###"
+        ---
+        - non_overlap
+        - "L1                                                                                                  "
+        - "L1.11[250,350]      |------------------------------------L1.11-------------------------------------|"
+        "###
+        );
     }
 
     //    |--L2.1--|  |--L2.2--|
@@ -245,19 +276,28 @@ mod tests {
 
         let split = TargetLevelNonOverlapSplit::new();
         let (overlap, non_overlap) = split.apply(files, CompactionLevel::Final);
-        assert_eq!(overlap.len(), 4);
-        assert_eq!(non_overlap.len(), 1);
-
-        // Verify overlapping files
-        // sort by id
-        let mut overlap = overlap;
-        overlap.sort_by(|a, b| a.id.cmp(&b.id));
-        assert_eq!(overlap[0].id.get(), 11);
-        assert_eq!(overlap[1].id.get(), 12);
-        assert_eq!(overlap[2].id.get(), 13);
-        assert_eq!(overlap[3].id.get(), 22);
-        // verify non-overlapping files
-        assert_eq!(non_overlap[0].id.get(), 21);
+        insta::assert_yaml_snapshot!(
+            format_files("overlap", &overlap),
+            @r###"
+        ---
+        - overlap
+        - "L1                                                                                                  "
+        - "L1.13[600,700]                                                                      |----L1.13-----|"
+        - "L1.12[400,500]                                      |----L1.12-----|                                "
+        - "L1.11[250,350]              |----L1.11-----|                                                        "
+        - "L2                                                                                                  "
+        - "L2.22[200,300]      |----L2.22-----|                                                                "
+        "###
+        );
+        insta::assert_yaml_snapshot!(
+            format_files("non_overlap", &non_overlap),
+            @r###"
+        ---
+        - non_overlap
+        - "L2                                                                                                  "
+        - "L2.21[0,100]        |------------------------------------L2.21-------------------------------------|"
+        "###
+        );
     }
 
     #[test]
@@ -273,22 +313,28 @@ mod tests {
 
         let split = TargetLevelNonOverlapSplit::new();
         let (overlap, non_overlap) = split.apply(files, CompactionLevel::FileNonOverlapped);
-        assert_eq!(overlap.len(), 4);
-        assert_eq!(non_overlap.len(), 2);
-
-        // Verify overlapping files
-        // sort by id
-        let mut overlap = overlap;
-        overlap.sort_by(|a, b| a.id.cmp(&b.id));
-        assert_eq!(overlap[0].id.get(), 1);
-        assert_eq!(overlap[1].id.get(), 2);
-        assert_eq!(overlap[2].id.get(), 12);
-        assert_eq!(overlap[3].id.get(), 13);
-        // verify non-overlapping files
-        // sort by id
-        let mut non_overlap = non_overlap;
-        non_overlap.sort_by(|a, b| a.id.cmp(&b.id));
-        assert_eq!(non_overlap[0].id.get(), 11);
-        assert_eq!(non_overlap[1].id.get(), 14);
+        insta::assert_yaml_snapshot!(
+            format_files("overlap", &overlap),
+            @r###"
+        ---
+        - overlap
+        - "L0                                                                                                  "
+        - "L0.2[520,550]                                                                                |L0.2| "
+        - "L0.1[250,350]                  |--------L0.1--------|                                               "
+        - "L1                                                                                                  "
+        - "L1.12[200,300]      |-------L1.12--------|                                                          "
+        - "L1.13[400,500]                                                   |-------L1.13--------|             "
+        "###
+        );
+        insta::assert_yaml_snapshot!(
+            format_files("non_overlap", &non_overlap),
+            @r###"
+        ---
+        - non_overlap
+        - "L1                                                                                                  "
+        - "L1.11[0,100]        |--L1.11--|                                                                     "
+        - "L1.14[600,700]                                                                          |--L1.14--| "
+        "###
+        );
     }
 }

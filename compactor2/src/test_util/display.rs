@@ -59,6 +59,13 @@ pub fn assert_parquet_files_split<'a>(
     );
 }
 
+pub fn format_files<'a>(
+    title: impl Into<String>,
+    files: impl IntoIterator<Item = &'a ParquetFile>,
+) -> Vec<String> {
+    readable_list_of_files(Some(title.into()), files)
+}
+
 /// default width for printing
 const DEFAULT_WIDTH: usize = 80;
 
