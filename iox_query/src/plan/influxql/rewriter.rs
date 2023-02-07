@@ -625,6 +625,22 @@ mod test {
             "SELECT usage_idle::float AS usage_idle FROM cpu GROUP BY host, region"
         );
 
+        // Does not include tags in projection when expanded in GROUP BY
+        let stmt = parse_select("SELECT * FROM cpu GROUP BY *");
+        let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+        assert_eq!(
+            stmt.to_string(),
+            "SELECT usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu GROUP BY host, region"
+        );
+
+        // Does include explicitly listed tags in projection
+        let stmt = parse_select("SELECT host, * FROM cpu GROUP BY *");
+        let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+        assert_eq!(
+            stmt.to_string(),
+            "SELECT host::tag AS host, usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu GROUP BY host, region"
+        );
+
         // Fallible
 
         // Invalid regex

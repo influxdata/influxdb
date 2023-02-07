@@ -1,5 +1,5 @@
 ---
-source: iox_query/src/plan/influxql.rs
-expression: "plan(\"SHOW DATABASES\")"
+source: iox_query/src/plan/influxql/planner.rs
+expression: "plan(\"SHOW MEASUREMENTS\").await"
 ---
-This feature is not implemented: SHOW DATABASES
+This feature is not implemented: SHOW MEASUREMENTS

@@ -1,5 +1,5 @@
 ---
-source: iox_query/src/plan/influxql.rs
-expression: "plan(\"SHOW MEASUREMENTS\")"
+source: iox_query/src/plan/influxql/planner.rs
+expression: "plan(\"SHOW RETENTION POLICIES\").await"
 ---
-This feature is not implemented: SHOW MEASUREMENTS
+This feature is not implemented: SHOW RETENTION POLICIES

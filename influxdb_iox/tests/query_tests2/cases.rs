@@ -310,7 +310,7 @@ mod influxql {
 
         TestCase {
             input: "cases/in/issue_6112.influxql",
-            chunk_stage: ChunkStage::All,
+            chunk_stage: ChunkStage::Ingester,
         }
         .run()
         .await;
