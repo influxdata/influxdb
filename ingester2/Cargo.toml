@@ -59,6 +59,7 @@ mutable_batch_lp = { path = "../mutable_batch_lp" }
 paste = "1.0.11"
 tempfile = "3.3.0"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
+tokio = { version = "1.25", features = ["macros", "time", "test-util"] }
 
 [features]
 benches = ["test_helpers"] # Export some internal types for benchmark purposes only.
