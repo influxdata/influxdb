@@ -199,6 +199,7 @@ mod tests {
             query_pool_id: QueryPoolId::new(1234),
             tables,
             max_columns_per_table: 100,
+            max_tables: 42,
             retention_period_ns: None,
         }
     }

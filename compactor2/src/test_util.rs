@@ -220,6 +220,7 @@ impl NamespaceBuilder {
                     query_pool_id,
                     tables,
                     max_columns_per_table: 10,
+                    max_tables: 42,
                     retention_period_ns: None,
                 },
             },
