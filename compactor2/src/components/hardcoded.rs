@@ -125,14 +125,6 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
     }
     partition_filters.append(&mut version_specific_partition_filters(config));
 
-    // let mut partition_resource_limit_filters: Vec<Arc<dyn PartitionFilter>> = vec![];
-    // partition_resource_limit_filters.push(Arc::new(MaxFilesPartitionFilter::new(
-    //     config.max_input_files_per_partition,
-    // )));
-    // partition_resource_limit_filters.push(Arc::new(MaxParquetBytesPartitionFilter::new(
-    //     config.max_input_parquet_bytes_per_partition,
-    // )));
-
     let partition_resource_limit_filters: Vec<Arc<dyn PartitionFilter>> = vec![
         Arc::new(MaxFilesPartitionFilter::new(
             config.max_input_files_per_partition,
@@ -292,9 +284,6 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
 }
 
 // Conditions to commpact this partittion
-// Same for all versions to protect the system from OOMs
-// . Number of files < max_input_files_per_partition
-// . Total size of files < max_input_parquet_bytes_per_partition
 fn version_specific_partition_filters(config: &Config) -> Vec<Arc<dyn PartitionFilter>> {
     match config.compact_version {
         // Must has L0
