@@ -558,6 +558,21 @@ impl TestSetup {
     pub fn test_times(&self) -> TestTimes {
         TestTimes::new(self.config.time_provider.as_ref())
     }
+
+    /// Set max_input_files_per_partition
+    pub fn set_max_input_files_per_partition(&mut self, max_input_files_per_partition: usize) {
+        let mut config = Arc::get_mut(&mut self.config).unwrap();
+        config.max_input_files_per_partition = max_input_files_per_partition;
+    }
+
+    /// Set max_input_parquet_bytes_per_partition
+    pub fn set_max_input_parquet_bytes_per_partition(
+        &mut self,
+        max_input_parquet_bytes_per_partition: usize,
+    ) {
+        let mut config = Arc::get_mut(&mut self.config).unwrap();
+        config.max_input_parquet_bytes_per_partition = max_input_parquet_bytes_per_partition;
+    }
 }
 
 /// A collection of nanosecond timestamps relative to now
