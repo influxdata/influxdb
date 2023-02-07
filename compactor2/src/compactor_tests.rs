@@ -328,7 +328,7 @@ mod tests {
 
         // verify number of files: 6 files are compacted into 2 files
         let files = setup.list_by_table_not_to_delete().await;
-        // assert_eq!(files.len(), 2);
+        assert_eq!(files.len(), 2);
 
         assert_levels(
             &files,
