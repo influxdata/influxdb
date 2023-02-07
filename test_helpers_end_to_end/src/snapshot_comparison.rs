@@ -3,7 +3,6 @@ mod queries;
 
 use crate::snapshot_comparison::queries::TestQueries;
 use crate::{run_influxql, run_sql, MiniCluster};
-use arrow_util::{display::pretty_format_batches, test_util::sort_record_batch};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::fmt::{Display, Formatter};
 use std::{
@@ -11,7 +10,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use self::normalization::normalize_results;
 use self::queries::Query;
 
 #[derive(Debug, Snafu)]
@@ -98,19 +96,7 @@ pub async fn run(
 
     for q in queries.iter() {
         output.push(format!("-- {}: {}", language, q.text()));
-        if q.sorted_compare() {
-            output.push("-- Results After Sorting".into())
-        }
-        if q.normalized_uuids() {
-            output.push("-- Results After Normalizing UUIDs".into())
-        }
-        if q.normalized_metrics() {
-            output.push("-- Results After Normalizing Metrics".into())
-        }
-        if q.normalized_filters() {
-            output.push("-- Results After Normalizing Filters".into())
-        }
-
+        q.add_description(&mut output);
         let results = run_query(cluster, q, language).await?;
         output.extend(results);
     }
@@ -233,7 +219,7 @@ async fn run_query(
 ) -> Result<Vec<String>> {
     let query_text = query.text();
 
-    let mut results = match language {
+    let results = match language {
         Language::Sql => {
             run_sql(
                 query_text,
@@ -252,22 +238,5 @@ async fn run_query(
         }
     };
 
-    // compare against sorted results, if requested
-    if query.sorted_compare() && !results.is_empty() {
-        let schema = results[0].schema();
-        let batch =
-            arrow::compute::concat_batches(&schema, &results).expect("concatenating batches");
-        results = vec![sort_record_batch(batch)];
-    }
-
-    let current_results = pretty_format_batches(&results)
-        .unwrap()
-        .trim()
-        .lines()
-        .map(|s| s.to_string())
-        .collect::<Vec<_>>();
-
-    let current_results = normalize_results(query, current_results);
-
-    Ok(current_results)
+    Ok(query.normalize_results(results))
 }

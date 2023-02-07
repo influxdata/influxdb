@@ -4,6 +4,7 @@ use data_types::{CompactionLevel, ParquetFile, ParquetFileParams, PartitionId};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{stream::FuturesOrdered, StreamExt, TryFutureExt, TryStreamExt};
 use iox_time::Time;
+use observability_deps::tracing::info;
 use parquet_file::ParquetFilePath;
 use tracker::InstrumentedAsyncSemaphore;
 
@@ -100,8 +101,8 @@ async fn compact_partition(
 /// The files are split into non-time-overlaped branches, each is compacted in parallel.
 /// The output of each branch is then combined and re-branch in next round until
 /// they should not be compacted based on defined stop conditions.
-//
-// Example: Partition has 7 files: f1, f2, f3, f4, f5, f6, f7
+///
+/// Example: Partition has 7 files: f1, f2, f3, f4, f5, f6, f7
 ///  Input: shown by their time range
 ///          |--f1--|               |----f3----|  |-f4-||-f5-||-f7-|
 ///               |------f2----------|                   |--f6--|
@@ -193,6 +194,7 @@ async fn try_compact_partition(
     // fetch partition info only if we need it
     let mut lazy_partition_info = None;
 
+    // loop for each "Round", consider each file in the partition
     loop {
         files = components.files_filter.apply(files);
 
@@ -218,15 +220,18 @@ async fn try_compact_partition(
         let mut branches = components.divide_initial.divide(files_now);
 
         let mut files_next = files_later;
+        // loop for each "Branch"
         while let Some(branch) = branches.pop() {
-            let input_paths: Vec<ParquetFilePath> = branch.iter().map(|f| f.into()).collect();
+            let input_paths: Vec<ParquetFilePath> =
+                branch.iter().map(ParquetFilePath::from).collect();
 
-            // Identify the target level and files that should be compacted, upgraded, and
-            // kept for next round of compaction
-            let compaction_plan = buil_compaction_plan(branch, Arc::clone(&components))?;
+            // Identify the target level and files that should be
+            // compacted together, upgraded, and kept for next round of
+            // compaction
+            let compaction_plan = build_compaction_plan(branch, Arc::clone(&components))?;
 
             // Compact
-            let created_file_params = compact_files(
+            let created_file_params = run_compaction_plan(
                 &compaction_plan.files_to_compact,
                 partition_info,
                 &components,
@@ -265,24 +270,30 @@ async fn try_compact_partition(
     }
 }
 
-/// Each CompactionPlan specifies the target level and files that should be compacted, upgraded, and
-/// kept for next round of compaction
+/// A CompactionPlan specifies the parameters for a single, which may
+/// generate one or more new parquet files. It includes the target
+/// [`CompactionLevel`], the specific files that should be compacted
+/// together to form new file(s), files that should be upgraded
+/// without chainging, files that should be left unmodified.
 struct CompactionPlan {
-    /// Target level to compact to
+    /// The target level of file resulting from compaction
     target_level: CompactionLevel,
-    /// Small and/or overlapped files to compact
+    /// Files which should be compacted into a new single parquet
+    /// file, often the small and/or overlapped files
     files_to_compact: Vec<ParquetFile>,
-    /// Non-overlapped and large enough files to upgrade
+    /// Non-overlapped files that should be upgraded to the target
+    /// level without rewriting (for example they are of sufficient
+    /// size)
     files_to_upgrade: Vec<ParquetFile>,
-    /// Non-overlapped or higher-target-level files to keep for next round of compaction
+    /// files which should not be modified. For example,
+    /// non-overlapped or higher-target-level files
     files_to_keep: Vec<ParquetFile>,
 }
 
-/// Build compaction plan for a given set of files
-/// This function will determine the target level to compact to and split the files into
-/// files_to_compact, files_to_upgrade, and files_to_keep
+/// Build [`CompactionPlan`] for a for a given set of files.
 ///
-/// Example:
+/// # Example:
+///
 ///  . Input:
 ///                 |--L0.1--| |--L0.2--| |--L0.3--|  |--L0.4--| --L0.5--|
 ///      |--L1.1--|           |--L1.2--|             |--L1.3--|             |--L1.4--|
@@ -294,7 +305,7 @@ struct CompactionPlan {
 ///     . files_to_upgrade = [L0.1, L0.5]
 ///     . files_to_compact = [L0.2, L0.3, L0.4, L1.2, L1.3]
 ///
-fn buil_compaction_plan(
+fn build_compaction_plan(
     files: Vec<ParquetFile>,
     components: Arc<Components>,
 ) -> Result<CompactionPlan, DynError> {
@@ -308,7 +319,7 @@ fn buil_compaction_plan(
     // Since output of one compaction is used as input of next compaction, all files that are not
     // compacted or upgraded are still kept to consider in next round of compaction
 
-    // Split atctual files to compact from its higher-target-level files
+    // Split actual files to compact from its higher-target-level files
     // The higher-target-level files are kept for next round of compaction
     let (files_to_compact, mut files_to_keep) = components
         .target_level_split
@@ -326,6 +337,14 @@ fn buil_compaction_plan(
         .upgrade_split
         .apply(files_to_compact, target_level);
 
+    info!(
+        target_level = target_level.to_string(),
+        files_to_compacts = files_to_compact.len(),
+        files_to_upgrade = files_to_upgrade.len(),
+        files_to_keep = files_to_keep.len(),
+        "Compaction Plan"
+    );
+
     Ok(CompactionPlan {
         target_level,
         files_to_compact,
@@ -334,10 +353,8 @@ fn buil_compaction_plan(
     })
 }
 
-/// Compact into the given target_level
-/// This function assumes the input files only include overlapped files of `target_level - 1`
-/// and files of target_level.
-async fn compact_files(
+/// Compact `files` into a new parquet file of the the given target_level
+async fn run_compaction_plan(
     files: &[ParquetFile],
     partition_info: &Arc<PartitionInfo>,
     components: &Arc<Components>,

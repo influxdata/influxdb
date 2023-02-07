@@ -5,5 +5,10 @@ use data_types::ParquetFile;
 pub mod single_branch;
 
 pub trait DivideInitial: Debug + Display + Send + Sync {
+    /// Divides a group of files that should be compacted into
+    /// potentially smaller groups called "branches",
+    ///
+    /// Each branch is compacted together in a single plan, and each
+    /// compact plan may produce one or more parquet files.
     fn divide(&self, files: Vec<ParquetFile>) -> Vec<Vec<ParquetFile>>;
 }

@@ -14,8 +14,10 @@ log = "0.4"
 metric = { version = "0.1.0", path = "../metric" }
 mutable_batch = { path = "../mutable_batch" }
 observability_deps = { path = "../observability_deps" }
+parking_lot = { version = "0.12" }
+serde = { version = "1.0", features = ["derive"] }
 snafu = "0.7"
-sqlx = { version = "0.6", features = [ "runtime-tokio-rustls" , "postgres", "uuid" ] }
+sqlx = { version = "0.6", features = [ "runtime-tokio-rustls" , "postgres", "uuid", "sqlite" ] }
 sqlx-hotswap-pool = { path = "../sqlx-hotswap-pool" }
 thiserror = "1.0.38"
 tokio = { version = "1.25", features = ["io-util", "macros", "parking_lot", "rt-multi-thread", "time"] }

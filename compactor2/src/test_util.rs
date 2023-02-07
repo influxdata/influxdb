@@ -550,6 +550,34 @@ impl TestSetup {
         let mut config = Arc::get_mut(&mut self.config).unwrap();
         config.min_num_l1_files_to_compact = min_num_l1_files_to_compact;
     }
+
+    /// return a set of times relative to config.time_provider.now()
+    pub fn test_times(&self) -> TestTimes {
+        TestTimes::new(self.config.time_provider.as_ref())
+    }
+}
+
+/// A collection of nanosecond timestamps relative to now
+pub struct TestTimes {
+    pub time_1_minute_future: i64,
+    pub time_2_minutes_future: i64,
+    pub time_3_minutes_future: i64,
+    pub time_5_minutes_future: i64,
+}
+
+impl TestTimes {
+    fn new(time_provider: &dyn TimeProvider) -> Self {
+        let time_1_minute_future = time_provider.minutes_into_future(1).timestamp_nanos();
+        let time_2_minutes_future = time_provider.minutes_into_future(2).timestamp_nanos();
+        let time_3_minutes_future = time_provider.minutes_into_future(3).timestamp_nanos();
+        let time_5_minutes_future = time_provider.minutes_into_future(5).timestamp_nanos();
+        Self {
+            time_1_minute_future,
+            time_2_minutes_future,
+            time_3_minutes_future,
+            time_5_minutes_future,
+        }
+    }
 }
 
 pub async fn list_object_store(store: &Arc<DynObjectStore>) -> HashSet<Path> {
