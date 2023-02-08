@@ -94,7 +94,7 @@ fn readable_list_of_files<'a>(
 #[derive(Debug, Default)]
 struct ParquetFileFormatter {
     /// should the size of the files be shown (if they are different)
-    show_size: bool,
+    file_size_seen: FileSizeSeen,
     /// width in characater
     row_heading_chars: usize,
     /// width, in characters, of the entire min/max timerange
@@ -107,9 +107,10 @@ struct ParquetFileFormatter {
     max_time: i64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 /// helper to track if there are multiple file sizes in a set of parquet files
 enum FileSizeSeen {
+    #[default]
     None,
     One(i64),
     Many,
@@ -149,15 +150,12 @@ impl ParquetFileFormatter {
                 file_size_seen.observe(file.file_size_bytes)
             });
 
-        // show the size if there are multiple sizes
-        let show_size = matches!(file_size_seen, FileSizeSeen::Many);
-
         let time_range = max_time - min_time;
 
         let ns_per_char = (time_range as f64) / (width_chars as f64);
 
         Self {
-            show_size,
+            file_size_seen,
             width_chars,
             ns_per_char,
             min_time,
@@ -179,9 +177,14 @@ impl ParquetFileFormatter {
     }
 
     fn format_level(&self, level: &CompactionLevel) -> String {
+        let level_heading = display_level(level);
+        let level_heading = match self.file_size_seen {
+            FileSizeSeen::One(sz) => format!("{level_heading}, all files {sz}b"),
+            _ => level_heading.into(),
+        };
+
         format!(
-            "{:width$}",
-            display_level(level),
+            "{level_heading:width$}",
             width = self.width_chars + self.row_heading_chars
         )
     }
@@ -206,7 +209,9 @@ impl ParquetFileFormatter {
         // Get compact display of the file, like 'L0.1'
         // add |--- ---| formatting (based on field width)
         let file_string = format!("|{:-^width$}|", display_file_id(file), width = field_width);
-        let row_heading = display_format(file, self.show_size);
+        // show indvidual file sizes if they are different
+        let show_size = matches!(self.file_size_seen, FileSizeSeen::Many);
+        let row_heading = display_format(file, show_size);
 
         // special case "zero" width times
         if self.min_time == self.max_time {
@@ -265,7 +270,7 @@ fn display_format(file: &ParquetFile, show_size: bool) -> String {
     let max_time = file.max_time.get(); // display as i64
     let sz = file.file_size_bytes;
     if show_size {
-        format!("{file_id}[{min_time},{max_time}]@{sz}")
+        format!("{file_id}[{min_time},{max_time}] {sz}b")
     } else {
         format!("{file_id}[{min_time},{max_time}]")
     }
@@ -293,7 +298,7 @@ mod test {
             @r###"
         ---
         - display
-        - "L0                                                                                                  "
+        - "L0, all files 1b                                                                                    "
         - "L0.1[0,0]           |-------------------------------------L0.1-------------------------------------|"
         - "L0.2[0,0]           |-------------------------------------L0.2-------------------------------------|"
         "###
@@ -321,10 +326,10 @@ mod test {
         ---
         - display
         - "L0                                                                                                  "
-        - "L0.1[0,0]@1         |-------------------------------------L0.1-------------------------------------|"
-        - "L0.2[0,0]@1         |-------------------------------------L0.2-------------------------------------|"
+        - "L0.1[0,0] 1b        |-------------------------------------L0.1-------------------------------------|"
+        - "L0.2[0,0] 1b        |-------------------------------------L0.2-------------------------------------|"
         - "L2                                                                                                  "
-        - "L2.3[0,0]@42        |-------------------------------------L2.3-------------------------------------|"
+        - "L2.3[0,0] 42b       |-------------------------------------L2.3-------------------------------------|"
         "###
         );
     }
@@ -354,9 +359,9 @@ mod test {
         ---
         - display
         - "L0                                                                                                  "
-        - "L0.1[100,200]@1     |----------L0.1----------|                                                      "
-        - "L0.2[300,400]@1                                                          |----------L0.2----------| "
-        - "L0.11[150,350]@44                |-----------------------L0.11-----------------------|              "
+        - "L0.1[100,200] 1b    |----------L0.1----------|                                                      "
+        - "L0.2[300,400] 1b                                                         |----------L0.2----------| "
+        - "L0.11[150,350] 44b               |-----------------------L0.11-----------------------|              "
         "###
         );
     }

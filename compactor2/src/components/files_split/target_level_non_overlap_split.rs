@@ -131,6 +131,7 @@ mod tests {
     use crate::test_util::{
         create_l1_files, create_overlapped_files, create_overlapped_files_2,
         create_overlapped_l0_l1_files, create_overlapped_l1_l2_files, format_files,
+        format_files_split,
     };
 
     use super::*;
@@ -191,7 +192,7 @@ mod tests {
             @r###"
         ---
         - initial
-        - "L1                                                                                                  "
+        - "L1, all files 1b                                                                                    "
         - "L1.13[600,700]                                                                    |-----L1.13-----| "
         - "L1.12[400,500]                                |-----L1.12-----|                                     "
         - "L1.11[250,350]      |-----L1.11-----|                                                               "
@@ -219,11 +220,11 @@ mod tests {
             @r###"
         ---
         - initial
-        - "L0                                                                                                  "
+        - "L0, all files 1b                                                                                    "
         - "L0.2[650,750]                                                        |---L0.2---|                   "
         - "L0.1[450,620]                               |-------L0.1-------|                                    "
         - "L0.3[800,900]                                                                          |---L0.3---| "
-        - "L1                                                                                                  "
+        - "L1, all files 1b                                                                                    "
         - "L1.13[600,700]                                                 |--L1.13---|                         "
         - "L1.12[400,500]                        |--L1.12---|                                                  "
         - "L1.11[250,350]      |--L1.11---|                                                                    "
@@ -233,26 +234,19 @@ mod tests {
         let split = TargetLevelNonOverlapSplit::new();
         let (overlap, non_overlap) = split.apply(files, CompactionLevel::FileNonOverlapped);
         insta::assert_yaml_snapshot!(
-            format_files("overlap", &overlap),
+            format_files_split("overlap", &overlap, "non_overlap", &non_overlap),
             @r###"
         ---
         - overlap
-        - "L0                                                                                                  "
+        - "L0, all files 1b                                                                                    "
         - "L0.2[650,750]                                               |-----L0.2-----|                        "
         - "L0.1[450,620]               |----------L0.1-----------|                                             "
         - "L0.3[800,900]                                                                       |-----L0.3-----|"
-        - "L1                                                                                                  "
+        - "L1, all files 1b                                                                                    "
         - "L1.12[400,500]      |----L1.12-----|                                                                "
         - "L1.13[600,700]                                      |----L1.13-----|                                "
-        "###
-        );
-        // verify non-overlapping files
-        insta::assert_yaml_snapshot!(
-            format_files("non_overlap", &non_overlap),
-            @r###"
-        ---
         - non_overlap
-        - "L1                                                                                                  "
+        - "L1, all files 1b                                                                                    "
         - "L1.11[250,350]      |------------------------------------L1.11-------------------------------------|"
         "###
         );
@@ -270,11 +264,11 @@ mod tests {
             @r###"
         ---
         - initial
-        - "L1                                                                                                  "
+        - "L1, all files 1b                                                                                    "
         - "L1.13[600,700]                                                                          |--L1.13--| "
         - "L1.12[400,500]                                                   |--L1.12--|                        "
         - "L1.11[250,350]                                  |--L1.11--|                                         "
-        - "L2                                                                                                  "
+        - "L2, all files 1b                                                                                    "
         - "L2.21[0,100]        |--L2.21--|                                                                     "
         - "L2.22[200,300]                            |--L2.22--|                                               "
         "###
@@ -283,24 +277,18 @@ mod tests {
         let split = TargetLevelNonOverlapSplit::new();
         let (overlap, non_overlap) = split.apply(files, CompactionLevel::Final);
         insta::assert_yaml_snapshot!(
-            format_files("overlap", &overlap),
+            format_files_split("overlap", &overlap, "non_overlap", &non_overlap),
             @r###"
         ---
         - overlap
-        - "L1                                                                                                  "
+        - "L1, all files 1b                                                                                    "
         - "L1.13[600,700]                                                                      |----L1.13-----|"
         - "L1.12[400,500]                                      |----L1.12-----|                                "
         - "L1.11[250,350]              |----L1.11-----|                                                        "
-        - "L2                                                                                                  "
+        - "L2, all files 1b                                                                                    "
         - "L2.22[200,300]      |----L2.22-----|                                                                "
-        "###
-        );
-        insta::assert_yaml_snapshot!(
-            format_files("non_overlap", &non_overlap),
-            @r###"
-        ---
         - non_overlap
-        - "L2                                                                                                  "
+        - "L2, all files 1b                                                                                    "
         - "L2.21[0,100]        |------------------------------------L2.21-------------------------------------|"
         "###
         );
@@ -320,10 +308,10 @@ mod tests {
             @r###"
         ---
         - initial
-        - "L0                                                                                                  "
+        - "L0, all files 1b                                                                                    "
         - "L0.2[520,550]                                                                  |L0.2|               "
         - "L0.1[250,350]                                   |--L0.1---|                                         "
-        - "L1                                                                                                  "
+        - "L1, all files 1b                                                                                    "
         - "L1.13[400,500]                                                   |--L1.13--|                        "
         - "L1.12[200,300]                            |--L1.12--|                                               "
         - "L1.11[0,100]        |--L1.11--|                                                                     "
@@ -334,24 +322,18 @@ mod tests {
         let split = TargetLevelNonOverlapSplit::new();
         let (overlap, non_overlap) = split.apply(files, CompactionLevel::FileNonOverlapped);
         insta::assert_yaml_snapshot!(
-            format_files("overlap", &overlap),
+            format_files_split("overlap", &overlap, "non_overlap", &non_overlap),
             @r###"
         ---
         - overlap
-        - "L0                                                                                                  "
+        - "L0, all files 1b                                                                                    "
         - "L0.2[520,550]                                                                                |L0.2| "
         - "L0.1[250,350]                  |--------L0.1--------|                                               "
-        - "L1                                                                                                  "
+        - "L1, all files 1b                                                                                    "
         - "L1.12[200,300]      |-------L1.12--------|                                                          "
         - "L1.13[400,500]                                                   |-------L1.13--------|             "
-        "###
-        );
-        insta::assert_yaml_snapshot!(
-            format_files("non_overlap", &non_overlap),
-            @r###"
-        ---
         - non_overlap
-        - "L1                                                                                                  "
+        - "L1, all files 1b                                                                                    "
         - "L1.11[0,100]        |--L1.11--|                                                                     "
         - "L1.14[600,700]                                                                          |--L1.14--| "
         "###
