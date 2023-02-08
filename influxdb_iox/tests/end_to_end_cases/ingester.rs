@@ -130,8 +130,8 @@ async fn ingester_flight_api() {
     let ingester_response = cluster.query_ingester(query.clone()).await.unwrap();
     assert_eq!(ingester_response.app_metadata.ingester_uuid, ingester_uuid);
 
-    // Restart the ingester
-    cluster.restart_ingester().await;
+    // Restart the ingesters
+    cluster.restart_ingesters().await;
 
     // Populate the ingester with some data so it returns a successful
     // response containing the UUID.

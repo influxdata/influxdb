@@ -36,8 +36,8 @@ pub struct MiniCluster {
     /// Standard optional router
     router: Option<ServerFixture>,
 
-    /// Standard optional ingester
-    ingester: Option<ServerFixture>,
+    /// Standard optional ingester(s)
+    ingesters: Vec<ServerFixture>,
 
     /// Standard optional querier
     querier: Option<ServerFixture>,
@@ -73,7 +73,7 @@ impl MiniCluster {
     /// [`create_shared2`](Self::create_shared2) and [`new`](Self::new) to create new MiniClusters.
     fn new_from_fixtures(
         router: Option<ServerFixture>,
-        ingester: Option<ServerFixture>,
+        ingesters: Vec<ServerFixture>,
         querier: Option<ServerFixture>,
         compactor_config: Option<TestConfig>,
     ) -> Self {
@@ -83,7 +83,7 @@ impl MiniCluster {
 
         Self {
             router,
-            ingester,
+            ingesters,
             querier,
             compactor_config,
 
@@ -237,7 +237,8 @@ impl MiniCluster {
 
     /// create an ingester with the specified configuration;
     pub async fn with_ingester(mut self, ingester_config: TestConfig) -> Self {
-        self.ingester = Some(ServerFixture::create(ingester_config).await);
+        self.ingesters
+            .push(ServerFixture::create(ingester_config).await);
         self
     }
 
@@ -257,22 +258,25 @@ impl MiniCluster {
         self.router.as_ref().expect("router not initialized")
     }
 
-    /// Retrieve the underlying ingester server, if set
+    /// Retrieve one of the underlying ingester servers, if there are any
     pub fn ingester(&self) -> &ServerFixture {
-        self.ingester.as_ref().expect("ingester not initialized")
+        self.ingesters.first().unwrap()
     }
 
-    /// Restart ingester.
+    /// Retrieve all of the underlying ingester servers
+    pub fn ingesters(&self) -> &[ServerFixture] {
+        &self.ingesters
+    }
+
+    /// Restart ingesters.
     ///
     /// This will break all currently connected clients!
-    pub async fn restart_ingester(&mut self) {
-        self.ingester = Some(
-            self.ingester
-                .take()
-                .expect("ingester not initialized")
-                .restart_server()
-                .await,
-        )
+    pub async fn restart_ingesters(&mut self) {
+        let mut restarted = Vec::with_capacity(self.ingesters.len());
+        for ingester in self.ingesters.drain(..) {
+            restarted.push(ingester.restart_server().await);
+        }
+        self.ingesters = restarted;
     }
 
     /// Retrieve the underlying querier server, if set
@@ -406,15 +410,17 @@ impl MiniCluster {
         })
     }
 
-    /// Ask the ingester to persist its data.
-    pub async fn persist_ingester(&self) {
-        let mut ingester_client =
-            influxdb_iox_client::ingester::Client::new(self.ingester().ingester_grpc_connection());
+    /// Ask all of the ingesters to persist their data.
+    pub async fn persist_ingesters(&self) {
+        for ingester in &self.ingesters {
+            let mut ingester_client =
+                influxdb_iox_client::ingester::Client::new(ingester.ingester_grpc_connection());
 
-        ingester_client
-            .persist(self.namespace().into())
-            .await
-            .unwrap();
+            ingester_client
+                .persist(self.namespace().into())
+                .await
+                .unwrap();
+        }
     }
 
     pub fn run_compaction(&self) {
@@ -488,7 +494,7 @@ pub struct IngesterResponse {
 #[derive(Clone)]
 struct SharedServers {
     router: Option<Weak<TestServer>>,
-    ingester: Option<Weak<TestServer>>,
+    ingesters: Vec<Weak<TestServer>>,
     querier: Option<Weak<TestServer>>,
     compactor_config: Option<TestConfig>,
 }
@@ -496,7 +502,7 @@ struct SharedServers {
 /// Deferred creation of a mini cluster
 struct CreatableMiniCluster {
     router: Option<Arc<TestServer>>,
-    ingester: Option<Arc<TestServer>>,
+    ingesters: Vec<Arc<TestServer>>,
     querier: Option<Arc<TestServer>>,
     compactor_config: Option<TestConfig>,
 }
@@ -513,28 +519,27 @@ impl CreatableMiniCluster {
     async fn create(self) -> MiniCluster {
         let Self {
             router,
-            ingester,
+            ingesters,
             querier,
             compactor_config,
         } = self;
 
-        let mut servers = [
-            create_if_needed(router),
-            create_if_needed(ingester),
-            create_if_needed(querier),
-        ]
-        .into_iter()
-        // Use futures ordered to run them all in parallel (hopfully)
-        .collect::<FuturesOrdered<_>>()
-        .collect::<Vec<Option<ServerFixture>>>()
-        .await
-        .into_iter();
+        let router_fixture = create_if_needed(router).await;
+        let ingester_fixtures = ingesters
+            .into_iter()
+            .map(|ingester| create_if_needed(Some(ingester)))
+            .collect::<FuturesOrdered<_>>()
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .flatten()
+            .collect();
+        let querier_fixture = create_if_needed(querier).await;
 
-        // ServerFixtures go in the same order as they came out
         MiniCluster::new_from_fixtures(
-            servers.next().unwrap(),
-            servers.next().unwrap(),
-            servers.next().unwrap(),
+            router_fixture,
+            ingester_fixtures,
+            querier_fixture,
             compactor_config,
         )
     }
@@ -545,7 +550,7 @@ impl SharedServers {
     pub fn new(cluster: &MiniCluster) -> Self {
         Self {
             router: cluster.router.as_ref().map(|c| c.weak()),
-            ingester: cluster.ingester.as_ref().map(|c| c.weak()),
+            ingesters: cluster.ingesters.iter().map(|c| c.weak()).collect(),
             querier: cluster.querier.as_ref().map(|c| c.weak()),
             compactor_config: cluster.compactor_config.clone(),
         }
@@ -559,7 +564,11 @@ impl SharedServers {
         // aren't present so that the cluster is recreated correctly
         Some(CreatableMiniCluster {
             router: server_from_weak(self.router.as_ref())?,
-            ingester: server_from_weak(self.ingester.as_ref())?,
+            ingesters: self
+                .ingesters
+                .iter()
+                .flat_map(|ingester| server_from_weak(Some(ingester)).unwrap())
+                .collect(),
             querier: server_from_weak(self.querier.as_ref())?,
             compactor_config: self.compactor_config.clone(),
         })
