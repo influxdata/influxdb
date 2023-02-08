@@ -464,7 +464,6 @@ mod test {
         physical_plan::displayable,
         prelude::{col, lit, lit_timestamp_nano},
         scalar::ScalarValue,
-        sql::TableReference,
     };
 
     fn schema() -> Schema {
@@ -546,10 +545,9 @@ mod test {
     async fn assert_explain(sql: &str, expected: &str) -> Result<()> {
         let executor = Executor::new_testing();
         let context = executor.new_context(ExecutorType::Query);
-        context.inner().register_table(
-            TableReference::Bare { table: "temps" },
-            Arc::new(EmptyTable::new(Arc::new(schema()))),
-        )?;
+        context
+            .inner()
+            .register_table("temps", Arc::new(EmptyTable::new(Arc::new(schema()))))?;
         let physical_plan = context.prepare_sql(sql).await?;
         let actual_plan = displayable(physical_plan.as_ref()).indent().to_string();
         let actual_iter = actual_plan.split('\n');
