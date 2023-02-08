@@ -207,6 +207,8 @@ pub async fn create_compactor2_server_type(
         compact_version,
         min_num_l1_files_to_compact: compactor_config.min_num_l1_files_to_compact,
         process_once: compactor_config.process_once,
+        simulate_without_object_store: false,
+        all_errors_are_fatal: false,
     });
 
     Arc::new(Compactor2ServerType::new(

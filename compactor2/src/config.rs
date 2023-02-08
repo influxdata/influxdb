@@ -109,6 +109,19 @@ pub struct Config {
 
     /// Only process all discovered partitions once.
     pub process_once: bool,
+
+    /// Simulate compactor w/o any object store interaction. No parquet
+    /// files will be read or written.
+    ///
+    /// This will still use the catalog
+    ///
+    /// This is mostly useful for testing.
+    pub simulate_without_object_store: bool,
+
+    /// Ensure that ALL errors (including object store errors) result in "skipped" partitions.
+    ///
+    /// This is mostly useful for testing.
+    pub all_errors_are_fatal: bool,
 }
 
 impl Config {

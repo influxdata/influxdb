@@ -35,6 +35,8 @@ pub fn log_config(config: &Config) {
         compact_version,
         min_num_l1_files_to_compact,
         process_once,
+        simulate_without_object_store,
+        all_errors_are_fatal,
     } = &config;
 
     let (shard_cfg_n_shards, shard_cfg_shard_id) = match shard_config {
@@ -73,6 +75,8 @@ pub fn log_config(config: &Config) {
         ?compact_version,
         min_num_l1_files_to_compact,
         process_once,
+        simulate_without_object_store,
+        all_errors_are_fatal,
         "config",
     );
 }

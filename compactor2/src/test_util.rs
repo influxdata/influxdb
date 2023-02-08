@@ -366,6 +366,8 @@ impl TestSetupBuilder<false> {
             compact_version: AlgoVersion::AllAtOnce,
             min_num_l1_files_to_compact: MIN_NUM_L1_FILES_TO_COMPACT,
             process_once: true,
+            simulate_without_object_store: false,
+            all_errors_are_fatal: true,
         };
 
         Self {
@@ -569,6 +571,16 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
         }
     }
 
+    pub fn simulate_without_object_store(self) -> Self {
+        Self {
+            config: Config {
+                simulate_without_object_store: true,
+                ..self.config
+            },
+            ..self
+        }
+    }
+
     pub async fn build(self) -> TestSetup {
         let candidate_partition = Arc::new(PartitionInfo {
             partition_id: self.partition.partition.id,
@@ -585,6 +597,7 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
             partition_info: candidate_partition,
             catalog: self.catalog,
             table: self.table,
+            partition: self.partition,
             config: Arc::new(self.config),
         }
     }
@@ -595,6 +608,7 @@ pub struct TestSetup {
     pub partition_info: Arc<PartitionInfo>,
     pub catalog: Arc<TestCatalog>,
     pub table: Arc<TestTable>,
+    pub partition: Arc<TestPartition>,
     pub config: Arc<Config>,
 }
 

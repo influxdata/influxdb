@@ -79,7 +79,7 @@ mod tests {
     #[test]
     fn test_display() {
         let sink = DedicatedExecParquetFileSinkWrapper::new(
-            MockParquetFileSink::new(),
+            MockParquetFileSink::new(true),
             Arc::new(Executor::new_testing()),
         );
         assert_eq!(sink.to_string(), "dedicated_exec(mock)",)
@@ -88,7 +88,7 @@ mod tests {
     #[tokio::test]
     async fn test_panic() {
         let sink = DedicatedExecParquetFileSinkWrapper::new(
-            MockParquetFileSink::new(),
+            MockParquetFileSink::new(true),
             Arc::new(Executor::new_testing()),
         );
         let schema = SchemaBuilder::new().build().unwrap().as_arrow();

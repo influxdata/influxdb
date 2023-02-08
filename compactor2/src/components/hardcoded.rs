@@ -22,7 +22,9 @@ use super::{
         catalog::CatalogCommit, logging::LoggingCommitWrapper, metrics::MetricsCommitWrapper,
         mock::MockCommit, Commit,
     },
-    df_plan_exec::dedicated::DedicatedDataFusionPlanExec,
+    df_plan_exec::{
+        dedicated::DedicatedDataFusionPlanExec, noop::NoopDataFusionPlanExec, DataFusionPlanExec,
+    },
     df_planner::{logging::LoggingDataFusionPlannerWrapper, planner_v1::V1DataFusionPlanner},
     divide_initial::single_branch::SingleBranchDivideInitial,
     file_filter::{and::AndFileFilter, level_range::LevelRangeFileFilter},
@@ -41,7 +43,7 @@ use super::{
     level_exist::one_level::OneLevelExist,
     parquet_file_sink::{
         dedicated::DedicatedExecParquetFileSinkWrapper, logging::LoggingParquetFileSinkWrapper,
-        object_store::ObjectStoreParquetFileSink,
+        mock::MockParquetFileSink, object_store::ObjectStoreParquetFileSink, ParquetFileSink,
     },
     partition_done_sink::{
         catalog::CatalogPartitionDoneSink, error_kind::ErrorKindPartitionDoneSinkWrapper,
@@ -73,7 +75,10 @@ use super::{
         randomize_order::RandomizeOrderPartitionsSourcesWrapper, PartitionsSource,
     },
     round_split::all_now::AllNowRoundSplit,
-    scratchpad::{ignore_writes_object_store::IgnoreWrites, prod::ProdScratchpadGen},
+    scratchpad::{
+        ignore_writes_object_store::IgnoreWrites, noop::NoopScratchpadGen, prod::ProdScratchpadGen,
+        ScratchpadGen,
+    },
     skipped_compactions_source::catalog::CatalogSkippedCompactionsSource,
     target_level_chooser::{
         all_at_once::AllAtOnceTargetLevelChooser, target_level::TargetLevelTargetLevelChooser,
@@ -173,6 +178,24 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         Duration::from_secs(60),
         1,
     );
+    let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.all_errors_are_fatal {
+        Arc::new(partition_done_sink)
+    } else {
+        Arc::new(ErrorKindPartitionDoneSinkWrapper::new(
+            partition_done_sink,
+            ErrorKind::variants()
+                .iter()
+                .filter(|kind| {
+                    // use explicit match statement so we never forget to add new variants
+                    match kind {
+                        ErrorKind::OutOfMemory | ErrorKind::Timeout | ErrorKind::Unknown => true,
+                        ErrorKind::ObjectStore => false,
+                    }
+                })
+                .copied()
+                .collect(),
+        ))
+    };
 
     // Note: Place "not empty" wrapper at the very last so that the logging and metric wrapper work even when there
     //       is not data.
@@ -199,6 +222,38 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
     };
     let partition_continue_conditions = "continue_conditions";
     let partition_resource_limit_conditions = "resource_limit_conditions";
+
+    let scratchpad_gen: Arc<dyn ScratchpadGen> = if config.simulate_without_object_store {
+        Arc::new(NoopScratchpadGen::new())
+    } else {
+        Arc::new(ProdScratchpadGen::new(
+            config.partition_scratchpad_concurrency,
+            config.backoff_config.clone(),
+            Arc::clone(config.parquet_store_real.object_store()),
+            Arc::clone(config.parquet_store_scratchpad.object_store()),
+            scratchpad_store_output,
+        ))
+    };
+    let df_plan_exec: Arc<dyn DataFusionPlanExec> = if config.simulate_without_object_store {
+        Arc::new(NoopDataFusionPlanExec::new())
+    } else {
+        Arc::new(DedicatedDataFusionPlanExec::new(Arc::clone(&config.exec)))
+    };
+    let parquet_file_sink: Arc<dyn ParquetFileSink> = if config.simulate_without_object_store {
+        Arc::new(MockParquetFileSink::new(false))
+    } else {
+        Arc::new(LoggingParquetFileSinkWrapper::new(
+            DedicatedExecParquetFileSinkWrapper::new(
+                ObjectStoreParquetFileSink::new(
+                    config.shard_id,
+                    config.parquet_store_scratchpad.clone(),
+                    Arc::clone(&config.time_provider),
+                ),
+                Arc::clone(&config.exec),
+            ),
+        ))
+    };
+
     Arc::new(Components {
         partition_stream,
         partition_source: Arc::new(LoggingPartitionSourceWrapper::new(
@@ -224,25 +279,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             partition_continue_conditions,
         )),
         partition_done_sink: Arc::new(LoggingPartitionDoneSinkWrapper::new(
-            MetricsPartitionDoneSinkWrapper::new(
-                ErrorKindPartitionDoneSinkWrapper::new(
-                    partition_done_sink,
-                    ErrorKind::variants()
-                        .iter()
-                        .filter(|kind| {
-                            // use explicit match statement so we never forget to add new variants
-                            match kind {
-                                ErrorKind::OutOfMemory
-                                | ErrorKind::Timeout
-                                | ErrorKind::Unknown => true,
-                                ErrorKind::ObjectStore => false,
-                            }
-                        })
-                        .copied()
-                        .collect(),
-                ),
-                &config.metric_registry,
-            ),
+            MetricsPartitionDoneSinkWrapper::new(partition_done_sink, &config.metric_registry),
         )),
         commit: Arc::new(LoggingCommitWrapper::new(MetricsCommitWrapper::new(
             commit,
@@ -265,26 +302,11 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
                 config.split_percentage,
             ),
         )),
-        df_plan_exec: Arc::new(DedicatedDataFusionPlanExec::new(Arc::clone(&config.exec))),
-        parquet_file_sink: Arc::new(LoggingParquetFileSinkWrapper::new(
-            DedicatedExecParquetFileSinkWrapper::new(
-                ObjectStoreParquetFileSink::new(
-                    config.shard_id,
-                    config.parquet_store_scratchpad.clone(),
-                    Arc::clone(&config.time_provider),
-                ),
-                Arc::clone(&config.exec),
-            ),
-        )),
+        df_plan_exec,
+        parquet_file_sink,
         round_split: Arc::new(AllNowRoundSplit::new()),
         divide_initial: Arc::new(SingleBranchDivideInitial::new()),
-        scratchpad_gen: Arc::new(ProdScratchpadGen::new(
-            config.partition_scratchpad_concurrency,
-            config.backoff_config.clone(),
-            Arc::clone(config.parquet_store_real.object_store()),
-            Arc::clone(config.parquet_store_scratchpad.object_store()),
-            scratchpad_store_output,
-        )),
+        scratchpad_gen,
         target_level_chooser: version_specific_target_level_chooser(config),
         target_level_split: version_specific_target_level_split(config),
         non_overlap_split: version_specific_non_ovverlapping_split(config),
