@@ -814,7 +814,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	})
 
 	if err != nil {
-		s.Logger.Error("error walking shards during deletion", zap.Error(err))
+		s.Logger.Error("error walking shards during DeleteShard operation", zap.Error(err))
 	}
 
 	// Remove any remaining series in the set from the series file, as they don't
@@ -825,7 +825,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 			ss.ForEach(func(id uint64) {
 				err = sfile.DeleteSeriesID(id)
 				if err != nil {
-					s.Logger.Error("error deleting series id", zap.Uint64("id", id), zap.Error(err))
+					s.Logger.Error("error deleting series id during DeleteShard operation", zap.Uint64("id", id), zap.Error(err))
 				}
 			})
 		}
