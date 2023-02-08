@@ -19,7 +19,9 @@ use data_types::{
 };
 use datafusion::arrow::record_batch::RecordBatch;
 use futures::TryStreamExt;
-use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
+use iox_tests::util::{
+    TestCatalog, TestNamespace, TestParquetFileBuilder, TestPartition, TestShard, TestTable,
+};
 use iox_time::TimeProvider;
 use object_store::{path::Path, DynObjectStore};
 use parquet_file::storage::{ParquetStorage, StorageId};
@@ -303,38 +305,18 @@ const SPLIT_PERCENTAGE: u16 = 80;
 const MIN_NUM_L1_FILES_TO_COMPACT: usize = 2;
 
 #[derive(Debug)]
-pub struct TestSetupBuilder {
-    with_files: bool,
-    shadow_mode: bool,
-    compact_version: AlgoVersion,
+pub struct TestSetupBuilder<const WITH_FILES: bool> {
+    config: Config,
+    catalog: Arc<TestCatalog>,
+    ns: Arc<TestNamespace>,
+    shard: Arc<TestShard>,
+    table: Arc<TestTable>,
+    partition: Arc<TestPartition>,
+    files: Vec<ParquetFile>,
 }
 
-impl Default for TestSetupBuilder {
-    fn default() -> Self {
-        Self {
-            with_files: false,
-            shadow_mode: false,
-            compact_version: AlgoVersion::AllAtOnce,
-        }
-    }
-}
-
-impl TestSetupBuilder {
-    pub fn with_files(self) -> Self {
-        Self {
-            with_files: true,
-            ..self
-        }
-    }
-
-    pub fn with_shadow_mode(self) -> Self {
-        Self {
-            shadow_mode: true,
-            ..self
-        }
-    }
-
-    pub async fn build(self) -> TestSetup {
+impl TestSetupBuilder<false> {
+    pub async fn new() -> Self {
         let catalog = TestCatalog::new();
         let ns = catalog.create_namespace_1hr_retention("ns").await;
         let shard = ns.create_shard(SHARD_INDEX).await;
@@ -344,7 +326,6 @@ impl TestSetupBuilder {
         table.create_column("tag2", ColumnType::Tag).await;
         table.create_column("tag3", ColumnType::Tag).await;
         table.create_column("time", ColumnType::Time).await;
-        let table_schema = table.catalog_schema().await;
 
         let partition = table
             .with_shard(&shard)
@@ -356,126 +337,7 @@ impl TestSetupBuilder {
         let sort_key = SortKey::from_columns(["tag1", "tag2", "tag3", "time"]);
         let partition = partition.update_sort_key(sort_key.clone()).await;
 
-        let candidate_partition = Arc::new(PartitionInfo {
-            partition_id: partition.partition.id,
-            namespace_id: ns.namespace.id,
-            namespace_name: ns.namespace.name.clone(),
-            table: Arc::new(table.table.clone()),
-            table_schema: Arc::new(table_schema),
-            sort_key: partition.partition.sort_key(),
-            partition_key: partition.partition.partition_key.clone(),
-        });
-
-        let time_provider = Arc::<iox_time::MockProvider>::clone(&catalog.time_provider);
-        let mut parquet_files = vec![];
-        if self.with_files {
-            let time_1_minute_future = time_provider.minutes_into_future(1);
-            let time_2_minutes_future = time_provider.minutes_into_future(2);
-            let time_3_minutes_future = time_provider.minutes_into_future(3);
-            let time_5_minutes_future = time_provider.minutes_into_future(5);
-
-            // L1 file
-            let lp = vec![
-                "table,tag2=PA,tag3=15 field_int=1601i 30000",
-                "table,tag2=OH,tag3=21 field_int=21i 36000", // will be eliminated due to duplicate
-            ]
-            .join("\n");
-            let builder = TestParquetFileBuilder::default()
-                .with_line_protocol(&lp)
-                .with_creation_time(time_3_minutes_future)
-                .with_max_l0_created_at(time_1_minute_future)
-                .with_compaction_level(CompactionLevel::FileNonOverlapped); // Prev compaction
-            let level_1_file_1_minute_ago = partition.create_parquet_file(builder).await.into();
-
-            // L0 file
-            let lp = vec![
-                "table,tag1=WA field_int=1000i 8000", // will be eliminated due to duplicate
-                "table,tag1=VT field_int=10i 10000", // latest L0 compared with duplicate in level_1_file_1_minute_ago_with_duplicates
-                // keep it
-                "table,tag1=UT field_int=70i 20000",
-            ]
-            .join("\n");
-            let builder = TestParquetFileBuilder::default()
-                .with_line_protocol(&lp)
-                .with_creation_time(time_2_minutes_future)
-                .with_max_l0_created_at(time_2_minutes_future)
-                .with_compaction_level(CompactionLevel::Initial);
-            let level_0_file_16_minutes_ago = partition.create_parquet_file(builder).await.into();
-
-            // L0 file
-            let lp = vec![
-                "table,tag1=WA field_int=1500i 8000", // latest duplicate and kept
-                "table,tag1=VT field_int=10i 6000",
-                "table,tag1=UT field_int=270i 25000",
-            ]
-            .join("\n");
-            let builder = TestParquetFileBuilder::default()
-                .with_line_protocol(&lp)
-                .with_creation_time(time_5_minutes_future)
-                .with_max_l0_created_at(time_5_minutes_future)
-                .with_compaction_level(CompactionLevel::Initial);
-            let level_0_file_5_minutes_ago = partition.create_parquet_file(builder).await.into();
-
-            // L1 file
-            let lp = vec![
-                "table,tag1=VT field_int=88i 10000", //  will be eliminated due to duplicate.
-                // Note: created time more recent than level_0_file_16_minutes_ago
-                // but always considered older ingested data
-                "table,tag1=OR field_int=99i 12000",
-            ]
-            .join("\n");
-            let builder = TestParquetFileBuilder::default()
-                .with_line_protocol(&lp)
-                .with_creation_time(time_5_minutes_future)
-                .with_max_l0_created_at(time_3_minutes_future)
-                .with_compaction_level(CompactionLevel::FileNonOverlapped); // Prev compaction
-            let level_1_file_1_minute_ago_with_duplicates: ParquetFile =
-                partition.create_parquet_file(builder).await.into();
-
-            // L0 file
-            let lp = vec!["table,tag2=OH,tag3=21 field_int=22i 36000"].join("\n");
-            let builder = TestParquetFileBuilder::default()
-                .with_line_protocol(&lp)
-                .with_min_time(0)
-                .with_max_time(36000)
-                .with_creation_time(time_5_minutes_future)
-                .with_max_l0_created_at(time_5_minutes_future)
-                // Will put the group size between "small" and "large"
-                .with_size_override(50 * 1024 * 1024)
-                .with_compaction_level(CompactionLevel::Initial);
-            let medium_level_0_file_time_now = partition.create_parquet_file(builder).await.into();
-
-            // L0 file
-            let lp = vec![
-                "table,tag1=VT field_int=10i 68000",
-                "table,tag2=OH,tag3=21 field_int=210i 136000",
-            ]
-            .join("\n");
-            let builder = TestParquetFileBuilder::default()
-                .with_line_protocol(&lp)
-                .with_min_time(36001)
-                .with_max_time(136000)
-                .with_creation_time(time_2_minutes_future)
-                .with_max_l0_created_at(time_2_minutes_future)
-                // Will put the group size two multiples over "large"
-                .with_size_override(180 * 1024 * 1024)
-                .with_compaction_level(CompactionLevel::Initial);
-            let large_level_0_file_2_2_minutes_ago =
-                partition.create_parquet_file(builder).await.into();
-
-            // Order here isn't relevant; the chunk order should ensure the level 1 files are ordered
-            // first, then the other files by max seq num.
-            parquet_files = vec![
-                level_1_file_1_minute_ago,
-                level_0_file_16_minutes_ago,
-                level_0_file_5_minutes_ago,
-                level_1_file_1_minute_ago_with_duplicates,
-                medium_level_0_file_time_now,
-                large_level_0_file_2_2_minutes_ago,
-            ];
-        }
-
-        let config = Arc::new(Config {
+        let config = Config {
             shard_id: shard.shard.id,
             metric_registry: catalog.metric_registry(),
             catalog: catalog.catalog(),
@@ -484,7 +346,7 @@ impl TestSetupBuilder {
                 Arc::new(object_store::memory::InMemory::new()),
                 StorageId::from("scratchpad"),
             ),
-            time_provider,
+            time_provider: catalog.time_provider(),
             exec: Arc::clone(&catalog.exec),
             backoff_config: BackoffConfig::default(),
             partition_concurrency: NonZeroUsize::new(1).unwrap(),
@@ -496,22 +358,234 @@ impl TestSetupBuilder {
             split_percentage: SPLIT_PERCENTAGE,
             partition_timeout: Duration::from_secs(3_600),
             partitions_source: PartitionsSourceConfig::CatalogRecentWrites,
-            shadow_mode: self.shadow_mode,
+            shadow_mode: false,
             ignore_partition_skip_marker: false,
             max_input_files_per_partition: usize::MAX,
             max_input_parquet_bytes_per_partition: usize::MAX,
             shard_config: None,
-            compact_version: self.compact_version,
+            compact_version: AlgoVersion::AllAtOnce,
             min_num_l1_files_to_compact: MIN_NUM_L1_FILES_TO_COMPACT,
             process_once: true,
+        };
+
+        Self {
+            config,
+            catalog,
+            ns,
+            shard,
+            table,
+            partition,
+            files: vec![],
+        }
+    }
+
+    pub async fn with_files(self) -> TestSetupBuilder<true> {
+        let time_provider = self.catalog.time_provider();
+        let time_1_minute_future = time_provider.minutes_into_future(1);
+        let time_2_minutes_future = time_provider.minutes_into_future(2);
+        let time_3_minutes_future = time_provider.minutes_into_future(3);
+        let time_5_minutes_future = time_provider.minutes_into_future(5);
+
+        // L1 file
+        let lp = vec![
+            "table,tag2=PA,tag3=15 field_int=1601i 30000",
+            "table,tag2=OH,tag3=21 field_int=21i 36000", // will be eliminated due to duplicate
+        ]
+        .join("\n");
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp)
+            .with_creation_time(time_3_minutes_future)
+            .with_max_l0_created_at(time_1_minute_future)
+            .with_compaction_level(CompactionLevel::FileNonOverlapped); // Prev compaction
+        let level_1_file_1_minute_ago = self.partition.create_parquet_file(builder).await.into();
+
+        // L0 file
+        let lp = vec![
+            "table,tag1=WA field_int=1000i 8000", // will be eliminated due to duplicate
+            "table,tag1=VT field_int=10i 10000", // latest L0 compared with duplicate in level_1_file_1_minute_ago_with_duplicates
+            // keep it
+            "table,tag1=UT field_int=70i 20000",
+        ]
+        .join("\n");
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp)
+            .with_creation_time(time_2_minutes_future)
+            .with_max_l0_created_at(time_2_minutes_future)
+            .with_compaction_level(CompactionLevel::Initial);
+        let level_0_file_16_minutes_ago = self.partition.create_parquet_file(builder).await.into();
+
+        // L0 file
+        let lp = vec![
+            "table,tag1=WA field_int=1500i 8000", // latest duplicate and kept
+            "table,tag1=VT field_int=10i 6000",
+            "table,tag1=UT field_int=270i 25000",
+        ]
+        .join("\n");
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp)
+            .with_creation_time(time_5_minutes_future)
+            .with_max_l0_created_at(time_5_minutes_future)
+            .with_compaction_level(CompactionLevel::Initial);
+        let level_0_file_5_minutes_ago = self.partition.create_parquet_file(builder).await.into();
+
+        // L1 file
+        let lp = vec![
+            "table,tag1=VT field_int=88i 10000", //  will be eliminated due to duplicate.
+            // Note: created time more recent than level_0_file_16_minutes_ago
+            // but always considered older ingested data
+            "table,tag1=OR field_int=99i 12000",
+        ]
+        .join("\n");
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp)
+            .with_creation_time(time_5_minutes_future)
+            .with_max_l0_created_at(time_3_minutes_future)
+            .with_compaction_level(CompactionLevel::FileNonOverlapped); // Prev compaction
+        let level_1_file_1_minute_ago_with_duplicates: ParquetFile =
+            self.partition.create_parquet_file(builder).await.into();
+
+        // L0 file
+        let lp = vec!["table,tag2=OH,tag3=21 field_int=22i 36000"].join("\n");
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp)
+            .with_min_time(0)
+            .with_max_time(36000)
+            .with_creation_time(time_5_minutes_future)
+            .with_max_l0_created_at(time_5_minutes_future)
+            // Will put the group size between "small" and "large"
+            .with_size_override(50 * 1024 * 1024)
+            .with_compaction_level(CompactionLevel::Initial);
+        let medium_level_0_file_time_now = self.partition.create_parquet_file(builder).await.into();
+
+        // L0 file
+        let lp = vec![
+            "table,tag1=VT field_int=10i 68000",
+            "table,tag2=OH,tag3=21 field_int=210i 136000",
+        ]
+        .join("\n");
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp)
+            .with_min_time(36001)
+            .with_max_time(136000)
+            .with_creation_time(time_2_minutes_future)
+            .with_max_l0_created_at(time_2_minutes_future)
+            // Will put the group size two multiples over "large"
+            .with_size_override(180 * 1024 * 1024)
+            .with_compaction_level(CompactionLevel::Initial);
+        let large_level_0_file_2_2_minutes_ago =
+            self.partition.create_parquet_file(builder).await.into();
+
+        // Order here isn't relevant; the chunk order should ensure the level 1 files are ordered
+        // first, then the other files by max seq num.
+        let files = vec![
+            level_1_file_1_minute_ago,
+            level_0_file_16_minutes_ago,
+            level_0_file_5_minutes_ago,
+            level_1_file_1_minute_ago_with_duplicates,
+            medium_level_0_file_time_now,
+            large_level_0_file_2_2_minutes_ago,
+        ];
+
+        TestSetupBuilder::<true> {
+            config: self.config,
+            catalog: self.catalog,
+            ns: self.ns,
+            shard: self.shard,
+            table: self.table,
+            partition: self.partition,
+            files,
+        }
+    }
+}
+
+impl TestSetupBuilder<true> {
+    pub fn with_max_input_files_per_partition_relative_to_n_files(self, delta: isize) -> Self {
+        Self {
+            config: Config {
+                max_input_parquet_bytes_per_partition: (self.files.len() as isize + delta) as usize,
+                ..self.config
+            },
+            ..self
+        }
+    }
+
+    /// Set max_input_parquet_bytes_per_partition
+    pub fn with_max_input_parquet_bytes_per_partition_relative_to_total_size(
+        self,
+        delta: isize,
+    ) -> Self {
+        let total_size = self.files.iter().map(|f| f.file_size_bytes).sum::<i64>();
+        Self {
+            config: Config {
+                max_input_parquet_bytes_per_partition: (total_size as isize + delta) as usize,
+                ..self.config
+            },
+            ..self
+        }
+    }
+}
+
+impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
+    pub fn with_shadow_mode(self) -> Self {
+        Self {
+            config: Config {
+                shadow_mode: true,
+                ..self.config
+            },
+            ..self
+        }
+    }
+
+    /// Set compact version
+    pub fn with_compact_version(self, compact_version: AlgoVersion) -> Self {
+        Self {
+            config: Config {
+                compact_version,
+                ..self.config
+            },
+            ..self
+        }
+    }
+
+    /// set min_num_l1_files_to_compact
+    pub fn with_min_num_l1_files_to_compact(self, min_num_l1_files_to_compact: usize) -> Self {
+        Self {
+            config: Config {
+                min_num_l1_files_to_compact,
+                ..self.config
+            },
+            ..self
+        }
+    }
+
+    /// Set max_input_files_per_partition
+    pub fn with_max_input_files_per_partition(self, max_input_files_per_partition: usize) -> Self {
+        Self {
+            config: Config {
+                max_input_files_per_partition,
+                ..self.config
+            },
+            ..self
+        }
+    }
+
+    pub async fn build(self) -> TestSetup {
+        let candidate_partition = Arc::new(PartitionInfo {
+            partition_id: self.partition.partition.id,
+            namespace_id: self.ns.namespace.id,
+            namespace_name: self.ns.namespace.name.clone(),
+            table: Arc::new(self.table.table.clone()),
+            table_schema: Arc::new(self.table.catalog_schema().await),
+            sort_key: self.partition.partition.sort_key(),
+            partition_key: self.partition.partition.partition_key.clone(),
         });
 
         TestSetup {
-            files: Arc::new(parquet_files),
+            files: Arc::new(self.files),
             partition_info: candidate_partition,
-            catalog,
-            table,
-            config,
+            catalog: self.catalog,
+            table: self.table,
+            config: Arc::new(self.config),
         }
     }
 }
@@ -525,8 +599,8 @@ pub struct TestSetup {
 }
 
 impl TestSetup {
-    pub fn builder() -> TestSetupBuilder {
-        TestSetupBuilder::default()
+    pub async fn builder() -> TestSetupBuilder<false> {
+        TestSetupBuilder::new().await
     }
 
     /// Get the catalog files stored in the catalog
@@ -542,36 +616,9 @@ impl TestSetup {
         self.table.read_parquet_file(file).await
     }
 
-    /// Set compact version
-    pub fn set_compact_version(&mut self, compact_version: AlgoVersion) {
-        let mut config = Arc::get_mut(&mut self.config).unwrap();
-        config.compact_version = compact_version;
-    }
-
-    /// set min_num_l1_files_to_compact
-    pub fn set_min_num_l1_files_to_compact(&mut self, min_num_l1_files_to_compact: usize) {
-        let mut config = Arc::get_mut(&mut self.config).unwrap();
-        config.min_num_l1_files_to_compact = min_num_l1_files_to_compact;
-    }
-
     /// return a set of times relative to config.time_provider.now()
     pub fn test_times(&self) -> TestTimes {
         TestTimes::new(self.config.time_provider.as_ref())
-    }
-
-    /// Set max_input_files_per_partition
-    pub fn set_max_input_files_per_partition(&mut self, max_input_files_per_partition: usize) {
-        let mut config = Arc::get_mut(&mut self.config).unwrap();
-        config.max_input_files_per_partition = max_input_files_per_partition;
-    }
-
-    /// Set max_input_parquet_bytes_per_partition
-    pub fn set_max_input_parquet_bytes_per_partition(
-        &mut self,
-        max_input_parquet_bytes_per_partition: usize,
-    ) {
-        let mut config = Arc::get_mut(&mut self.config).unwrap();
-        config.max_input_parquet_bytes_per_partition = max_input_parquet_bytes_per_partition;
     }
 }
 

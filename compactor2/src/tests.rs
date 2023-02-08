@@ -19,7 +19,7 @@ async fn test_compact_no_file() {
     test_helpers::maybe_start_logging();
 
     // no files
-    let setup = TestSetup::builder().build().await;
+    let setup = TestSetup::builder().await.build().await;
 
     let files = setup.list_by_table_not_to_delete().await;
     assert!(files.is_empty());
@@ -36,30 +36,34 @@ async fn test_compact_no_file() {
 async fn test_num_files_over_limit() {
     test_helpers::maybe_start_logging();
 
-    // Create a test setup with 6 files
-    let mut setup = TestSetup::builder().with_files().build().await;
-
-    // verify 6 files
-    let files = setup.list_by_table_not_to_delete().await;
-    assert_eq!(files.len(), 6);
-    // verify ID and compaction level of the files
-    assert_levels(
-        &files,
-        vec![
-            (1, CompactionLevel::FileNonOverlapped),
-            (2, CompactionLevel::Initial),
-            (3, CompactionLevel::Initial),
-            (4, CompactionLevel::FileNonOverlapped),
-            (5, CompactionLevel::Initial),
-            (6, CompactionLevel::Initial),
-        ],
-    );
-
-    // Set max num file to 4 (< num files) --> it won't get comapcted
-    setup.set_max_input_files_per_partition(4);
-
     for version in [AlgoVersion::AllAtOnce, AlgoVersion::TargetLevel] {
-        setup.set_compact_version(version);
+        // Create a test setup with 6 files
+        let setup = TestSetup::builder()
+            .await
+            .with_files()
+            .await
+            .with_compact_version(version)
+            // Set max num file to 4 (< num files) --> it won't get comapcted
+            .with_max_input_files_per_partition(4)
+            .build()
+            .await;
+
+        // verify 6 files
+        let files = setup.list_by_table_not_to_delete().await;
+        assert_eq!(files.len(), 6);
+        // verify ID and compaction level of the files
+        assert_levels(
+            &files,
+            vec![
+                (1, CompactionLevel::FileNonOverlapped),
+                (2, CompactionLevel::Initial),
+                (3, CompactionLevel::Initial),
+                (4, CompactionLevel::FileNonOverlapped),
+                (5, CompactionLevel::Initial),
+                (6, CompactionLevel::Initial),
+            ],
+        );
+
         run_compact(&setup).await;
         //
         // read files and verify they are not compacted
@@ -85,34 +89,35 @@ async fn test_num_files_over_limit() {
 async fn test_total_file_size_over_limit() {
     test_helpers::maybe_start_logging();
 
-    // Create a test setup with 6 files
-    let mut setup = TestSetup::builder().with_files().build().await;
-
-    // verify 6 files
-    let files = setup.list_by_table_not_to_delete().await;
-    assert_eq!(files.len(), 6);
-
-    // verify ID and compaction level of the files
-    assert_levels(
-        &files,
-        vec![
-            (1, CompactionLevel::FileNonOverlapped),
-            (2, CompactionLevel::Initial),
-            (3, CompactionLevel::Initial),
-            (4, CompactionLevel::FileNonOverlapped),
-            (5, CompactionLevel::Initial),
-            (6, CompactionLevel::Initial),
-        ],
-    );
-
-    // get total size of the files
-    let total_size = files.iter().map(|f| f.file_size_bytes).sum::<i64>();
-
-    // Set max size < the input file size  --> it won't get compacted
-    setup.set_max_input_parquet_bytes_per_partition((total_size - 1) as usize);
-
     for version in [AlgoVersion::AllAtOnce, AlgoVersion::TargetLevel] {
-        setup.set_compact_version(version);
+        // Create a test setup with 6 files
+        let setup = TestSetup::builder()
+            .await
+            .with_files()
+            .await
+            // Set max size < the input file size  --> it won't get compacted
+            .with_max_input_parquet_bytes_per_partition_relative_to_total_size(-1)
+            .with_compact_version(version)
+            .build()
+            .await;
+
+        // verify 6 files
+        let files = setup.list_by_table_not_to_delete().await;
+        assert_eq!(files.len(), 6);
+
+        // verify ID and compaction level of the files
+        assert_levels(
+            &files,
+            vec![
+                (1, CompactionLevel::FileNonOverlapped),
+                (2, CompactionLevel::Initial),
+                (3, CompactionLevel::Initial),
+                (4, CompactionLevel::FileNonOverlapped),
+                (5, CompactionLevel::Initial),
+                (6, CompactionLevel::Initial),
+            ],
+        );
+
         run_compact(&setup).await;
 
         // read files and verify they are not compacted
@@ -139,8 +144,16 @@ async fn test_compact_all_at_once() {
     test_helpers::maybe_start_logging();
 
     // Create a test setup with 6 files
-    let mut setup = TestSetup::builder().with_files().build().await;
-    setup.set_compact_version(AlgoVersion::AllAtOnce);
+    let setup = TestSetup::builder()
+        .await
+        .with_files()
+        .await
+        // Ensure we have enough resource to compact the files
+        .with_max_input_files_per_partition_relative_to_n_files(10)
+        .with_max_input_parquet_bytes_per_partition_relative_to_total_size(1000)
+        .with_compact_version(AlgoVersion::AllAtOnce)
+        .build()
+        .await;
 
     // verify 6 files
     // verify ID and compaction level of the files
@@ -170,11 +183,6 @@ async fn test_compact_all_at_once() {
             (6, times.time_2_minutes_future),
         ],
     );
-
-    // Ensure we have enough resource to compact the files
-    setup.set_max_input_files_per_partition(files.len() + 10);
-    let total_size = files.iter().map(|f| f.file_size_bytes).sum::<i64>();
-    setup.set_max_input_parquet_bytes_per_partition((total_size + 1000) as usize);
 
     // compact
     run_compact(&setup).await;
@@ -242,9 +250,17 @@ async fn test_compact_target_level() {
     test_helpers::maybe_start_logging();
 
     // Create a test setup with 6 files
-    let mut setup = TestSetup::builder().with_files().build().await;
-    setup.set_compact_version(AlgoVersion::TargetLevel);
-    setup.set_min_num_l1_files_to_compact(2);
+    let setup = TestSetup::builder()
+        .await
+        .with_files()
+        .await
+        // Ensure we have enough resource to compact the files
+        .with_max_input_files_per_partition_relative_to_n_files(10)
+        .with_max_input_parquet_bytes_per_partition_relative_to_total_size(1000)
+        .with_compact_version(AlgoVersion::TargetLevel)
+        .with_min_num_l1_files_to_compact(2)
+        .build()
+        .await;
 
     // verify 6 files
     let files = setup.list_by_table_not_to_delete().await;
@@ -273,11 +289,6 @@ async fn test_compact_target_level() {
             (6, times.time_2_minutes_future),
         ],
     );
-
-    // Ensure we have enough resource to compact the files
-    setup.set_max_input_files_per_partition(files.len() + 10);
-    let total_size = files.iter().map(|f| f.file_size_bytes).sum::<i64>();
-    setup.set_max_input_parquet_bytes_per_partition((total_size + 1000) as usize);
 
     // compact
     run_compact(&setup).await;
@@ -348,7 +359,7 @@ async fn test_skip_compact() {
     test_helpers::maybe_start_logging();
 
     // Create a test setup with 6 files
-    let setup = TestSetup::builder().with_files().build().await;
+    let setup = TestSetup::builder().await.with_files().await.build().await;
 
     let expected_files_and_levels = vec![
         (1, CompactionLevel::FileNonOverlapped),
@@ -382,7 +393,7 @@ async fn test_partition_fail() {
     test_helpers::maybe_start_logging();
 
     // Create a test setup with 6 files
-    let setup = TestSetup::builder().with_files().build().await;
+    let setup = TestSetup::builder().await.with_files().await.build().await;
 
     let catalog_files_pre = setup.list_by_table_not_to_delete().await;
     assert!(!catalog_files_pre.is_empty());
@@ -416,7 +427,9 @@ async fn test_shadow_mode() {
 
     // Create a test setup with 6 files
     let setup = TestSetup::builder()
+        .await
         .with_files()
+        .await
         .with_shadow_mode()
         .build()
         .await;
@@ -442,7 +455,9 @@ async fn test_shadow_mode_partition_fail() {
 
     // Create a test setup with 6 files
     let setup = TestSetup::builder()
+        .await
         .with_files()
+        .await
         .with_shadow_mode()
         .build()
         .await;
