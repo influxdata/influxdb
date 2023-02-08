@@ -169,9 +169,9 @@ func TestMeasurementFieldSliceSort(t *testing.T) {
 
 			// randomize order using fixed seed to
 			// ensure tests are deterministic on a given platform
-			rand.Seed(100)
+			seededRand := rand.New(rand.NewSource(100))
 			for i := 0; i < 5; i++ {
-				rand.Shuffle(len(got), func(i, j int) {
+				seededRand.Shuffle(len(got), func(i, j int) {
 					got[i], got[j] = got[j], got[i]
 				})
 

@@ -13,8 +13,10 @@ import (
 	"github.com/influxdata/influxql"
 )
 
+var seededRand *rand.Rand
+
 func init() {
-	rand.Seed(time.Now().UnixNano())
+	seededRand = rand.New(rand.NewSource(time.Now().UnixNano()))
 }
 
 func Test_Data_DropDatabase(t *testing.T) {
@@ -469,7 +471,7 @@ func randString(n int) string {
 	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 	b := make([]rune, n)
 	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
+		b[i] = letters[seededRand.Intn(len(letters))]
 	}
 	return string(b)
 }

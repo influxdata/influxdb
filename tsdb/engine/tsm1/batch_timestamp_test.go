@@ -1090,11 +1090,11 @@ func BenchmarkTimeArrayDecodeAllUncompressed(b *testing.B) {
 	}
 
 	for _, size := range benchmarks {
-		rand.Seed(int64(size * 1e3))
+		seededRand := rand.New(rand.NewSource(int64(size * 1e3)))
 
 		enc := NewTimeEncoder(size)
 		for i := 0; i < size; i++ {
-			enc.Write(values[rand.Int()%len(values)])
+			enc.Write(values[seededRand.Int()%len(values)])
 		}
 		bytes, _ := enc.Bytes()
 
@@ -1118,12 +1118,12 @@ func BenchmarkTimeArrayDecodeAllPackedSimple(b *testing.B) {
 		1000,
 	}
 	for _, size := range benchmarks {
-		rand.Seed(int64(size * 1e3))
+		seededRand := rand.New(rand.NewSource(int64(size * 1e3)))
 
 		enc := NewTimeEncoder(size)
 		for i := 0; i < size; i++ {
 			// Small amount of randomness prevents RLE from being used
-			enc.Write(int64(i*1000) + int64(rand.Intn(10)))
+			enc.Write(int64(i*1000) + int64(seededRand.Intn(10)))
 		}
 		bytes, _ := enc.Bytes()
 

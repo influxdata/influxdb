@@ -230,7 +230,7 @@ func BenchmarkTagKeysSet_UnionBytes(b *testing.B) {
 		bytes.Split([]byte("tag04,tag05"), commaB),
 	}
 
-	rand.Seed(20040409)
+	seededRand := rand.New(rand.NewSource(20040409))
 
 	tests := []int{
 		10,
@@ -245,7 +245,7 @@ func BenchmarkTagKeysSet_UnionBytes(b *testing.B) {
 			var km models.TagKeysSet
 			for i := 0; i < b.N; i++ {
 				for j := 0; j < n; j++ {
-					km.UnionBytes(keys[rand.Int()%len(keys)])
+					km.UnionBytes(keys[seededRand.Int()%len(keys)])
 				}
 				km.Clear()
 			}

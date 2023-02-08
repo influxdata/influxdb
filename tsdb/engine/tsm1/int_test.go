@@ -626,11 +626,11 @@ func BenchmarkIntegerBatch_DecodeAllUncompressed(b *testing.B) {
 	}
 
 	for _, bm := range benchmarks {
-		rand.Seed(int64(bm.n * 1e3))
+		seededRand := rand.New(rand.NewSource(int64(bm.n * 1e3)))
 
 		enc := NewIntegerEncoder(bm.n)
 		for i := 0; i < bm.n; i++ {
-			enc.Write(values[rand.Int()%len(values)])
+			enc.Write(values[seededRand.Int()%len(values)])
 		}
 		bytes, _ := enc.Bytes()
 
@@ -662,12 +662,12 @@ func BenchmarkIntegerBatch_DecodeAllPackedSimple(b *testing.B) {
 		{1000},
 	}
 	for _, bm := range benchmarks {
-		rand.Seed(int64(bm.n * 1e3))
+		seededRand := rand.New(rand.NewSource(int64(bm.n * 1e3)))
 
 		enc := NewIntegerEncoder(bm.n)
 		for i := 0; i < bm.n; i++ {
 			// Small amount of randomness prevents RLE from being used
-			enc.Write(int64(i) + int64(rand.Intn(10)))
+			enc.Write(int64(i) + int64(seededRand.Intn(10)))
 		}
 		bytes, _ := enc.Bytes()
 

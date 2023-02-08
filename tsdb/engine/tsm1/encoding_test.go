@@ -1554,12 +1554,12 @@ func BenchmarkDecodeFloatBlock(b *testing.B) {
 }
 
 func BenchmarkDecodeIntegerBlock(b *testing.B) {
-	rle := func(i int) int64 { return int64(i) }
-	s8b := func(i int) int64 { return int64(i + int(rand.Int31n(10))) }
+	rle := func(_ *rand.Rand, i int) int64 { return int64(i) }
+	s8b := func(r *rand.Rand, i int) int64 { return int64(i + int(r.Int31n(10))) }
 
 	cases := []struct {
 		enc string
-		gen func(i int) int64
+		gen func(r *rand.Rand, i int) int64
 		n   int
 	}{
 		{enc: "rle", gen: rle, n: 5},
@@ -1573,13 +1573,13 @@ func BenchmarkDecodeIntegerBlock(b *testing.B) {
 	}
 	for _, bm := range cases {
 		b.Run(fmt.Sprintf("%s_%d", bm.enc, bm.n), func(b *testing.B) {
-			rand.Seed(int64(bm.n * 1e3))
+			seededRand := rand.New(rand.NewSource(int64(bm.n * 1e3)))
 
 			valueCount := bm.n
 			times := getTimes(valueCount, 60, time.Second)
 			values := make([]tsm1.Value, len(times))
 			for i, t := range times {
-				values[i] = tsm1.NewValue(t, bm.gen(i))
+				values[i] = tsm1.NewValue(t, bm.gen(seededRand, i))
 			}
 
 			bytes, err := tsm1.Values(values).Encode(nil)
