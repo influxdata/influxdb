@@ -29,8 +29,8 @@ use std::{
 use tempfile::NamedTempFile;
 use tokio::sync::{Mutex, OnceCell};
 
-/// Structure that holds services and helpful accessors. Does not include compactor; that is always
-/// run separately on-demand in tests.
+/// Structure that holds services and helpful accessors. Does not start services for a compactor;
+/// that is always run separately on-demand in tests.
 #[derive(Debug, Default)]
 pub struct MiniCluster {
     /// Standard optional router
@@ -94,8 +94,9 @@ impl MiniCluster {
         }
     }
 
-    /// Create a "standard" shared MiniCluster that has a router, ingester, and querier (but no
-    /// compactor as that should be run on-demand in tests)
+    /// Create a "standard" shared MiniCluster that starts a router, ingester, and querier. Save
+    /// config for a compactor, but the compactor service should be run on-demand in tests using
+    /// `compactor run-once` rather than using `run compactor`.
     ///
     /// Note: Because the underlying server processes are shared across multiple tests, all users
     /// of this `MiniCluster` instance should only modify their own unique namespace.
@@ -135,8 +136,9 @@ impl MiniCluster {
     }
 
     /// Create a shared "version 2" MiniCluster that has a router, ingester set to essentially
-    /// never persist data (except on-demand), and querier (but no
-    /// compactor as that should be run on-demand in tests).
+    /// never persist data (except on-demand), and querier. Save config for a compactor, but the
+    /// compactor service should be run on-demand in tests using `compactor run-once` rather than
+    /// using `run compactor`.
     ///
     /// Note: Because the underlying server processes are shared across multiple tests, all users
     /// of this `MiniCluster` instance should only modify their own unique namespace.
@@ -176,8 +178,8 @@ impl MiniCluster {
     }
 
     /// Create a non-shared "version 2" "standard" MiniCluster that has a router, ingester,
-    /// querier. Save config for a compactor, but the compactor should be run on-demand in tests
-    /// using `compactor run-once` rather than using `run compactor`.
+    /// querier. Save config for a compactor, but the compactor service should be run on-demand in
+    /// tests using `compactor run-once` rather than using `run compactor`.
     pub async fn create_non_shared2(database_url: String) -> Self {
         let ingester_config = TestConfig::new_ingester2(&database_url);
         let router_config = TestConfig::new_router2(&ingester_config);
@@ -197,8 +199,8 @@ impl MiniCluster {
 
     /// Create a non-shared "version 2" MiniCluster that has a router, ingester set to essentially
     /// never persist data (except on-demand), and querier. Save config for a compactor, but the
-    /// compactor should be run on-demand in tests using `compactor run-once` rather than using
-    /// `run compactor`.
+    /// compactor service should be run on-demand in tests using `compactor run-once` rather than
+    /// using `run compactor`.
     pub async fn create_non_shared2_never_persist(database_url: String) -> Self {
         let ingester_config = TestConfig::new_ingester2_never_persist(&database_url);
         let router_config = TestConfig::new_router2(&ingester_config);
