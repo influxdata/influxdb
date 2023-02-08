@@ -30,9 +30,9 @@ where
             "Number of times the compactor fetched fresh partitions",
         );
 
-        let pass_counter = metric.recorder(&[(filter_type, "pass")]);
-        let filter_counter = metric.recorder(&[(filter_type, "filter")]);
-        let error_counter = metric.recorder(&[(filter_type, "error")]);
+        let pass_counter = metric.recorder(&[("result", "pass"), ("filter_type", filter_type)]);
+        let filter_counter = metric.recorder(&[("result", "filter"), ("filter_type", filter_type)]);
+        let error_counter = metric.recorder(&[("result", "error"), ("filter_type", filter_type)]);
 
         Self {
             pass_counter,
@@ -123,7 +123,10 @@ mod tests {
         registry
             .get_instrument::<Metric<U64Counter>>("iox_compactor_partition_filter_count")
             .expect("instrument not found")
-            .get_observer(&Attributes::from(&[("test", "pass")]))
+            .get_observer(&Attributes::from(&[
+                ("result", "pass"),
+                ("filter_type", "test"),
+            ]))
             .expect("observer not found")
             .fetch()
     }
@@ -132,7 +135,10 @@ mod tests {
         registry
             .get_instrument::<Metric<U64Counter>>("iox_compactor_partition_filter_count")
             .expect("instrument not found")
-            .get_observer(&Attributes::from(&[("test", "filter")]))
+            .get_observer(&Attributes::from(&[
+                ("result", "filter"),
+                ("filter_type", "test"),
+            ]))
             .expect("observer not found")
             .fetch()
     }
@@ -141,7 +147,10 @@ mod tests {
         registry
             .get_instrument::<Metric<U64Counter>>("iox_compactor_partition_filter_count")
             .expect("instrument not found")
-            .get_observer(&Attributes::from(&[("test", "error")]))
+            .get_observer(&Attributes::from(&[
+                ("result", "error"),
+                ("filter_type", "test"),
+            ]))
             .expect("observer not found")
             .fetch()
     }
