@@ -178,7 +178,7 @@ mod error;
 mod partition_info;
 
 #[cfg(test)]
-mod compactor_tests;
+mod tests;
 
 pub mod file_group;
 #[cfg(test)]
