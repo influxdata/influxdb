@@ -45,9 +45,6 @@ pub struct MiniCluster {
     /// Standard optional compactor configuration, to be used on-demand
     compactor_config: Option<TestConfig>,
 
-    /// Optional additional `ServerFixture`s that can be used for specific tests
-    other_servers: Vec<ServerFixture>,
-
     // Potentially helpful data
     org_id: String,
     bucket_id: String,
@@ -89,7 +86,6 @@ impl MiniCluster {
             ingester,
             querier,
             compactor_config,
-            other_servers: vec![],
 
             org_id,
             bucket_id,
@@ -251,12 +247,6 @@ impl MiniCluster {
 
     pub fn with_compactor_config(mut self, compactor_config: TestConfig) -> Self {
         self.compactor_config = Some(compactor_config);
-        self
-    }
-
-    /// create another server compactor with the specified configuration;
-    pub async fn with_other(mut self, config: TestConfig) -> Self {
-        self.other_servers.push(ServerFixture::create(config).await);
         self
     }
 
@@ -425,11 +415,6 @@ impl MiniCluster {
             .unwrap();
     }
 
-    /// Get a reference to the mini cluster's other servers.
-    pub fn other_servers(&self) -> &[ServerFixture] {
-        self.other_servers.as_ref()
-    }
-
     pub fn run_compaction(&self) {
         let (log_file, log_path) = NamedTempFile::new()
             .expect("opening log file")
@@ -556,10 +541,6 @@ impl CreatableMiniCluster {
 impl SharedServers {
     /// Save the server processes in this shared servers as weak references
     pub fn new(cluster: &MiniCluster) -> Self {
-        assert!(
-            cluster.other_servers.is_empty(),
-            "other servers not yet handled in shared mini clusters"
-        );
         Self {
             router: cluster.router.as_ref().map(|c| c.weak()),
             ingester: cluster.ingester.as_ref().map(|c| c.weak()),
