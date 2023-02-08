@@ -4,10 +4,15 @@ import (
 	"fmt"
 	"math/rand"
 	"time"
+
+	rand2 "github.com/influxdata/influxdb/v2/internal/rand"
 )
 
+var seededRand *rand.Rand
+
 func init() {
-	rand.Seed(time.Now().UnixNano())
+	lockedSource := rand2.NewLockedSourceFromSeed(time.Now().UnixNano())
+	seededRand = rand.New(lockedSource)
 }
 
 var (
@@ -878,5 +883,5 @@ var (
 // formatted as "adjective_surname". For example 'focused_turing'. If retry is non-zero, a random
 // integer between 0 and 10 will be added to the end of the name, e.g `focused_turing3`
 func GetRandomName() string {
-	return fmt.Sprintf("%s-%s", left[rand.Intn(len(left))], right[rand.Intn(len(right))])
+	return fmt.Sprintf("%s-%s", left[seededRand.Intn(len(left))], right[seededRand.Intn(len(right))])
 }
