@@ -1,5 +1,5 @@
 //! Config-related stuff.
-use std::{collections::HashSet, num::NonZeroUsize, sync::Arc, time::Duration};
+use std::{collections::HashSet, fmt::Display, num::NonZeroUsize, sync::Arc, time::Duration};
 
 use backoff::{Backoff, BackoffConfig};
 use data_types::{PartitionId, ShardId, ShardIndex};
@@ -74,10 +74,8 @@ pub struct Config {
     /// Maximum duration of the per-partition compaction task.
     pub partition_timeout: Duration,
 
-    /// Filter partitions to the given set of IDs.
-    ///
-    /// This is mostly useful for debugging.
-    pub partition_filter: Option<HashSet<PartitionId>>,
+    /// Source of partitions to consider for comapction.
+    pub partitions_source: PartitionsSourceConfig,
 
     /// Shadow mode.
     ///
@@ -190,4 +188,35 @@ pub enum AlgoVersion {
     ///
     /// NOT yet ready for production.
     TargetLevel,
+}
+
+/// Partitions source config.
+#[derive(Debug, Clone)]
+pub enum PartitionsSourceConfig {
+    /// Use the catalog to determine which partitions have recently received writes.
+    CatalogRecentWrites,
+
+    /// Use all partitions from the catalog.
+    ///
+    /// This does NOT consider if/when a partition received any writes.
+    CatalogAll,
+
+    /// Use a fixed set of partitions.
+    ///
+    /// This is mostly useful for debugging.
+    Fixed(HashSet<PartitionId>),
+}
+
+impl Display for PartitionsSourceConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::CatalogRecentWrites => write!(f, "catalog_recent_writes"),
+            Self::CatalogAll => write!(f, "catalog_all"),
+            Self::Fixed(p_ids) => {
+                let mut p_ids = p_ids.iter().copied().collect::<Vec<_>>();
+                p_ids.sort();
+                write!(f, "fixed({p_ids:?})")
+            }
+        }
+    }
 }

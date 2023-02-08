@@ -459,6 +459,9 @@ pub trait PartitionRepo: Send + Sync {
     /// return the partitions by table id
     async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>>;
 
+    /// return all partitions IDs
+    async fn list_ids(&mut self) -> Result<Vec<PartitionId>>;
+
     /// Update the sort key for the partition, setting it to `new_sort_key` iff
     /// the current value matches `old_sort_key`.
     ///
@@ -955,6 +958,7 @@ pub(crate) mod test_helpers {
     };
     use metric::{Attributes, DurationHistogram, Metric};
     use std::{
+        collections::BTreeSet,
         ops::{Add, DerefMut},
         sync::Arc,
         time::Duration,
@@ -1644,6 +1648,16 @@ pub(crate) mod test_helpers {
 
         created.insert(other_partition.id, other_partition.clone());
         assert_eq!(created, listed);
+
+        let listed = repos
+            .partitions()
+            .list_ids()
+            .await
+            .expect("failed to list partitions")
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(created.keys().copied().collect::<BTreeSet<_>>(), listed);
 
         // test list_by_namespace
         let namespace2 = repos

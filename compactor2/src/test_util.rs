@@ -28,7 +28,7 @@ use uuid::Uuid;
 
 use crate::{
     components::namespaces_source::mock::NamespaceWrapper,
-    config::{AlgoVersion, Config},
+    config::{AlgoVersion, Config, PartitionsSourceConfig},
     partition_info::PartitionInfo,
 };
 
@@ -495,7 +495,7 @@ impl TestSetupBuilder {
             percentage_max_file_size: PERCENTAGE_MAX_FILE_SIZE,
             split_percentage: SPLIT_PERCENTAGE,
             partition_timeout: Duration::from_secs(3_600),
-            partition_filter: None,
+            partitions_source: PartitionsSourceConfig::CatalogRecentWrites,
             shadow_mode: self.shadow_mode,
             ignore_partition_skip_marker: false,
             max_input_files_per_partition: usize::MAX,

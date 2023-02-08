@@ -10,6 +10,7 @@ pub struct ByIdPartitionFilter {
 }
 
 impl ByIdPartitionFilter {
+    #[allow(dead_code)] // not used anywhere
     pub fn new(ids: HashSet<PartitionId>) -> Self {
         Self { ids }
     }

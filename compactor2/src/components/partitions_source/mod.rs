@@ -6,7 +6,8 @@ use std::{
 use async_trait::async_trait;
 use data_types::PartitionId;
 
-pub mod catalog;
+pub mod catalog_all;
+pub mod catalog_to_compact;
 pub mod filter;
 pub mod logging;
 pub mod metrics;

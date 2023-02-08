@@ -12,7 +12,7 @@ use crate::{
         namespaces_source::catalog::CatalogNamespacesSource,
         tables_source::catalog::CatalogTablesSource,
     },
-    config::{AlgoVersion, Config},
+    config::{AlgoVersion, Config, PartitionsSourceConfig},
     error::ErrorKind,
 };
 
@@ -36,8 +36,7 @@ use super::{
         target_level_upgrade_split::TargetLevelUpgradeSplit, FilesSplit,
     },
     id_only_partition_filter::{
-        and::AndIdOnlyPartitionFilter, by_id::ByIdPartitionFilter, shard::ShardPartitionFilter,
-        IdOnlyPartitionFilter,
+        and::AndIdOnlyPartitionFilter, shard::ShardPartitionFilter, IdOnlyPartitionFilter,
     },
     level_exist::one_level::OneLevelExist,
     parquet_file_sink::{
@@ -66,9 +65,11 @@ use super::{
         endless::EndlessPartititionStream, once::OncePartititionStream, PartitionStream,
     },
     partitions_source::{
-        catalog::CatalogPartitionsSource, filter::FilterPartitionsSourceWrapper,
-        logging::LoggingPartitionsSourceWrapper, metrics::MetricsPartitionsSourceWrapper,
-        mock::MockPartitionsSource, not_empty::NotEmptyPartitionsSourceWrapper,
+        catalog_all::CatalogAllPartitionsSource,
+        catalog_to_compact::CatalogToCompactPartitionsSource,
+        filter::FilterPartitionsSourceWrapper, logging::LoggingPartitionsSourceWrapper,
+        metrics::MetricsPartitionsSourceWrapper, mock::MockPartitionsSource,
+        not_empty::NotEmptyPartitionsSourceWrapper,
         randomize_order::RandomizeOrderPartitionsSourcesWrapper, PartitionsSource,
     },
     round_split::all_now::AllNowRoundSplit,
@@ -86,22 +87,25 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
     // TODO: partitions source: Implementing ID-based sharding / hash-partitioning so we can run multiple compactors in
     //       parallel. This should be a wrapper around the existing partions source.
 
-    let partitions_source: Arc<dyn PartitionsSource> = if let Some(ids) = &config.partition_filter {
-        Arc::new(MockPartitionsSource::new(ids.iter().cloned().collect()))
-    } else {
-        Arc::new(CatalogPartitionsSource::new(
+    let partitions_source: Arc<dyn PartitionsSource> = match &config.partitions_source {
+        PartitionsSourceConfig::CatalogRecentWrites => {
+            Arc::new(CatalogToCompactPartitionsSource::new(
+                config.backoff_config.clone(),
+                Arc::clone(&config.catalog),
+                config.partition_threshold,
+                Arc::clone(&config.time_provider),
+            ))
+        }
+        PartitionsSourceConfig::CatalogAll => Arc::new(CatalogAllPartitionsSource::new(
             config.backoff_config.clone(),
             Arc::clone(&config.catalog),
-            config.partition_threshold,
-            Arc::clone(&config.time_provider),
-        ))
+        )),
+        PartitionsSourceConfig::Fixed(ids) => {
+            Arc::new(MockPartitionsSource::new(ids.iter().cloned().collect()))
+        }
     };
 
     let mut id_only_partition_filters: Vec<Arc<dyn IdOnlyPartitionFilter>> = vec![];
-    if let Some(ids) = &config.partition_filter {
-        // filter as early as possible, so we don't need any catalog lookups for the filtered partitions
-        id_only_partition_filters.push(Arc::new(ByIdPartitionFilter::new(ids.clone())));
-    }
     if let Some(shard_config) = &config.shard_config {
         // add shard filter before performing any catalog IO
         id_only_partition_filters.push(Arc::new(ShardPartitionFilter::new(
