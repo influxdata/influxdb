@@ -1,6 +1,6 @@
 //! Querier-related configs.
+use crate::ingester_address::IngesterAddress;
 use data_types::{IngesterMapping, ShardIndex};
-use http::Uri;
 use serde::Deserialize;
 use snafu::{ResultExt, Snafu};
 use std::{collections::HashMap, fs, io, path::PathBuf, str::FromStr, sync::Arc};
@@ -38,14 +38,10 @@ pub enum Error {
         name: Arc<str>,
     },
 
-    #[snafu(display("Could not parse ingester URI `{uri}`: {source}"))]
-    CouldNotParseIngesterUri {
-        uri: String,
-        source: http::uri::InvalidUri,
+    #[snafu(context(false))]
+    IngesterAddress {
+        source: crate::ingester_address::Error,
     },
-
-    #[snafu(display("Ingester URI `{uri}` is missing {item}"))]
-    IngesterUriMissingItem { uri: Uri, item: &'static str },
 }
 
 /// CLI config for querier configuration
@@ -310,14 +306,11 @@ impl QuerierConfig {
                 Ok(IngesterAddresses::ByShardIndex(map))
             }
         } else if !self.ingester_addresses.is_empty() {
-            self.ingester_addresses
-                .iter()
-                .try_for_each(|uri| validate_uri(uri))?;
             Ok(IngesterAddresses::List(
                 self.ingester_addresses
                     .iter()
-                    .map(|s| s.as_str().into())
-                    .collect(),
+                    .map(|addr| IngesterAddress::from_str(addr))
+                    .collect::<Result<Vec<_>, _>>()?,
             ))
         } else {
             Ok(IngesterAddresses::None)
@@ -410,20 +403,6 @@ fn deserialize_shard_ingester_map(
     Ok(map)
 }
 
-/// Validate that a URI parses and has a scheme (like "http") and a port.
-fn validate_uri(uri: &str) -> Result<(), Error> {
-    let uri = Uri::from_str(uri).context(CouldNotParseIngesterUriSnafu { uri })?;
-    match (uri.scheme(), uri.port()) {
-        (Some(_), Some(_)) => Ok(()),
-        (None, _) => IngesterUriMissingItemSnafu {
-            uri,
-            item: "scheme",
-        }
-        .fail(),
-        (_, None) => IngesterUriMissingItemSnafu { uri, item: "port" }.fail(),
-    }
-}
-
 /// Ingester addresses.
 #[derive(Debug, PartialEq, Eq)]
 pub enum IngesterAddresses {
@@ -431,7 +410,7 @@ pub enum IngesterAddresses {
     ByShardIndex(HashMap<ShardIndex, IngesterMapping>),
 
     /// A list of ingester2 addresses.
-    List(Vec<Arc<str>>),
+    List(Vec<IngesterAddress>),
 
     /// No connections, meaning only persisted data should be used.
     None,
@@ -498,23 +477,13 @@ mod tests {
         let actual = QuerierConfig::try_parse_from([
             "my_binary",
             "--ingester-addresses",
-            "http://ingester-0:8082",
-        ])
-        .unwrap();
-
-        let expected = IngesterAddresses::List(vec!["http://ingester-0:8082".into()]);
-        assert_eq!(actual.ingester_addresses().unwrap(), expected);
-
-        let actual = QuerierConfig::try_parse_from([
-            "my_binary",
-            "--ingester-addresses",
             "http://ingester-0:8082,http://ingester-1:8082",
         ])
         .unwrap();
 
         let expected = IngesterAddresses::List(vec![
-            "http://ingester-0:8082".into(),
-            "http://ingester-1:8082".into(),
+            IngesterAddress::from_str("http://ingester-0:8082").unwrap(),
+            IngesterAddress::from_str("http://ingester-1:8082").unwrap(),
         ]);
         assert_eq!(actual.ingester_addresses().unwrap(), expected);
     }
@@ -528,21 +497,7 @@ mod tests {
         ])
         .unwrap()
         .ingester_addresses();
-        assert_error!(actual, Error::CouldNotParseIngesterUri { .. });
-    }
-
-    #[test]
-    fn ingester_addresses_missing_items() {
-        let cases = vec![
-            "ingester-0:8082",   // missing schema
-            "http://ingester-0", // missing port
-        ];
-        for c in &cases {
-            let actual = QuerierConfig::try_parse_from(["my_binary", "--ingester-addresses", c])
-                .unwrap()
-                .ingester_addresses();
-            assert_error!(actual, Error::IngesterUriMissingItem { .. });
-        }
+        assert_error!(actual, Error::IngesterAddress { .. });
     }
 
     #[test]

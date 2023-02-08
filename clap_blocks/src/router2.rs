@@ -1,5 +1,6 @@
 //! CLI config for the router using the RPC write path
 
+use crate::ingester_address::IngesterAddress;
 use std::{num::ParseIntError, time::Duration};
 
 /// CLI config for the router using the RPC write path
@@ -40,7 +41,7 @@ pub struct Router2Config {
         num_args=1..,
         value_delimiter = ','
     )]
-    pub ingester_addresses: Vec<String>,
+    pub ingester_addresses: Vec<IngesterAddress>,
 
     /// Write buffer topic/database that should be used.
     // This isn't really relevant to the RPC write path and will be removed eventually.
