@@ -282,11 +282,9 @@ pub async fn create_router2_server_type(
     // 1. START: Different Setup Per Router Path: this part is only relevant to using RPC write
     //    path and should not be added to `create_router_server_type`.
 
-    // Hack to handle multiple ingester addresses separated by commas in potentially many uses of
-    // the CLI arg
-    let ingester_connections = router_config.ingester_addresses.join(",");
-    let ingester_connections = ingester_connections.split(',').map(|addr| {
-        let endpoint = Endpoint::from_shared(format!("http://{addr}"))
+    let ingester_connections = router_config.ingester_addresses.iter().map(|addr| {
+        let addr = addr.to_string();
+        let endpoint = Endpoint::from_shared(hyper::body::Bytes::from(addr.clone()))
             .expect("invalid ingester connection address");
         (
             LazyConnector::new(endpoint, router_config.rpc_write_timeout_seconds),

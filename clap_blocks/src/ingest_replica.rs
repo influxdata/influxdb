@@ -1,5 +1,7 @@
 //! CLI config for the ingest_replica
 
+use crate::ingester_address::IngesterAddress;
+
 /// CLI config for the ingest_replica
 #[derive(Debug, Clone, clap::Parser)]
 #[allow(missing_copy_implementations)]
@@ -21,7 +23,7 @@ pub struct IngestReplicaConfig {
         num_args=1..,
         value_delimiter = ','
     )]
-    pub ingester_addresses: Vec<String>,
+    pub ingester_addresses: Vec<IngesterAddress>,
 
     /// Sets how many queries the replica will handle simultaneously before
     /// rejecting further incoming requests.

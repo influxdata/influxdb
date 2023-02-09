@@ -3,11 +3,11 @@
 use crate::process_info::setup_metric_registry;
 
 use super::main;
-use clap_blocks::compactor2::CompactorAlgoVersion;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig,
-    compactor2::Compactor2Config,
+    compactor2::{Compactor2Config, CompactorAlgoVersion},
     ingester2::Ingester2Config,
+    ingester_address::IngesterAddress,
     object_store::{make_object_store, ObjectStoreConfig},
     querier::{IngesterAddresses, QuerierConfig},
     router2::Router2Config,
@@ -29,10 +29,9 @@ use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use once_cell::sync::Lazy;
 use parquet_file::storage::{ParquetStorage, StorageId};
-use std::num::NonZeroUsize;
-use std::path::PathBuf;
-use std::time::Duration;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap, num::NonZeroUsize, path::PathBuf, str::FromStr, sync::Arc, time::Duration,
+};
 use tempfile::TempDir;
 use thiserror::Error;
 use trace_exporters::TracingConfig;
@@ -402,7 +401,10 @@ impl Config {
         let router_config = Router2Config {
             query_pool_name: QUERY_POOL_NAME.to_string(),
             http_request_limit: 1_000,
-            ingester_addresses: vec![ingester_grpc_bind_address.to_string()],
+            ingester_addresses: vec![IngesterAddress::from_str(
+                &ingester_grpc_bind_address.to_string(),
+            )
+            .unwrap()],
             new_namespace_retention_hours: None, // infinite retention
             namespace_autocreation_enabled: true,
             partition_key_pattern: "%Y-%m-%d".to_string(),
@@ -581,9 +583,10 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .await;
 
-    let ingester_addresses = IngesterAddresses::List(vec![Arc::from(
-        format!("http://{}", ingester_run_config.grpc_bind_address).as_str(),
-    )]);
+    let ingester_addresses = IngesterAddresses::List(vec![IngesterAddress::from_str(
+        &ingester_run_config.grpc_bind_address.to_string(),
+    )
+    .unwrap()]);
 
     info!(?ingester_addresses, "starting querier");
     let querier = create_querier_server_type(QuerierServerTypeArgs {
