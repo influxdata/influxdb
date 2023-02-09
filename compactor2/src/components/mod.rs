@@ -3,7 +3,7 @@ use std::sync::Arc;
 use self::{
     commit::Commit, df_plan_exec::DataFusionPlanExec, df_planner::DataFusionPlanner,
     divide_initial::DivideInitial, files_filter::FilesFilter, ir_planner::IRPlanner,
-    namespaces_source::NamespacesSource, parquet_file_sink::ParquetFileSink,
+    namespaces_source::NamespacesSource, parquet_files_sink::ParquetFilesSink,
     partition_done_sink::PartitionDoneSink, partition_files_source::PartitionFilesSource,
     partition_filter::PartitionFilter, partition_source::PartitionSource,
     partition_stream::PartitionStream, round_split::RoundSplit, scratchpad::ScratchpadGen,
@@ -24,6 +24,7 @@ pub mod ir_planner;
 pub mod level_exist;
 pub mod namespaces_source;
 pub mod parquet_file_sink;
+pub mod parquet_files_sink;
 pub mod partition_done_sink;
 pub mod partition_files_source;
 pub mod partition_filter;
@@ -52,7 +53,7 @@ pub struct Components {
     pub ir_planner: Arc<dyn IRPlanner>,
     pub df_planner: Arc<dyn DataFusionPlanner>,
     pub df_plan_exec: Arc<dyn DataFusionPlanExec>,
-    pub parquet_file_sink: Arc<dyn ParquetFileSink>,
+    pub parquet_files_sink: Arc<dyn ParquetFilesSink>,
     pub round_split: Arc<dyn RoundSplit>,
     pub divide_initial: Arc<dyn DivideInitial>,
     pub scratchpad_gen: Arc<dyn ScratchpadGen>,

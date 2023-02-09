@@ -43,7 +43,7 @@ impl Display for V1DataFusionPlanner {
 impl DataFusionPlanner for V1DataFusionPlanner {
     async fn plan(
         &self,
-        ir: PlanIR,
+        ir: &PlanIR,
         partition: Arc<PartitionInfo>,
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
         let ctx = self.exec.new_context(ExecutorType::Reorg);
@@ -87,7 +87,7 @@ impl DataFusionPlanner for V1DataFusionPlanner {
                         &merged_schema,
                         query_chunks,
                         sort_key,
-                        split_times,
+                        split_times.clone(),
                     )
                     .map_err(|e| {
                         DataFusionError::Context(

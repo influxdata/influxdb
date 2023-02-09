@@ -16,7 +16,7 @@ use crate::{partition_info::PartitionInfo, plan_ir::PlanIR};
 pub trait DataFusionPlanner: Debug + Display + Send + Sync {
     async fn plan(
         &self,
-        ir: PlanIR,
+        ir: &PlanIR,
         partition: Arc<PartitionInfo>,
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError>;
 }
