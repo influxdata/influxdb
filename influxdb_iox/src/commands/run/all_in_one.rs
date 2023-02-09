@@ -14,6 +14,7 @@ use clap_blocks::{
     run_config::RunConfig,
     socket_addr::SocketAddr,
 };
+use compactor2::object_store::metrics::MetricsStore;
 use iox_query::exec::{Executor, ExecutorConfig};
 use iox_time::{SystemProvider, TimeProvider};
 use ioxd_common::{
@@ -560,7 +561,11 @@ pub async fn command(config: Config) -> Result<()> {
 
     info!("starting compactor");
     let parquet_store_scratchpad = ParquetStorage::new(
-        Arc::new(object_store::memory::InMemory::new()),
+        Arc::new(MetricsStore::new(
+            Arc::new(object_store::memory::InMemory::new()),
+            &metrics,
+            "scratchpad",
+        )),
         StorageId::from("iox_scratchpad"),
     );
 

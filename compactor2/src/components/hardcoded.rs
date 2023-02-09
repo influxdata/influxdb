@@ -14,6 +14,7 @@ use crate::{
     },
     config::{AlgoVersion, Config, PartitionsSourceConfig},
     error::ErrorKind,
+    object_store::ignore_writes::IgnoreWrites,
 };
 
 use super::{
@@ -25,7 +26,7 @@ use super::{
     df_plan_exec::{
         dedicated::DedicatedDataFusionPlanExec, noop::NoopDataFusionPlanExec, DataFusionPlanExec,
     },
-    df_planner::{logging::LoggingDataFusionPlannerWrapper, planner_v1::V1DataFusionPlanner},
+    df_planner::planner_v1::V1DataFusionPlanner,
     divide_initial::single_branch::SingleBranchDivideInitial,
     file_filter::{and::AndFileFilter, level_range::LevelRangeFileFilter},
     files_filter::{chain::FilesFilterChain, per_file::PerFileFilesFilter, FilesFilter},
@@ -40,6 +41,7 @@ use super::{
     id_only_partition_filter::{
         and::AndIdOnlyPartitionFilter, shard::ShardPartitionFilter, IdOnlyPartitionFilter,
     },
+    ir_planner::{logging::LoggingIRPlannerWrapper, planner_v1::V1IRPlanner},
     level_exist::one_level::OneLevelExist,
     parquet_file_sink::{
         dedicated::DedicatedExecParquetFileSinkWrapper, logging::LoggingParquetFileSinkWrapper,
@@ -75,10 +77,7 @@ use super::{
         randomize_order::RandomizeOrderPartitionsSourcesWrapper, PartitionsSource,
     },
     round_split::all_now::AllNowRoundSplit,
-    scratchpad::{
-        ignore_writes_object_store::IgnoreWrites, noop::NoopScratchpadGen, prod::ProdScratchpadGen,
-        ScratchpadGen,
-    },
+    scratchpad::{noop::NoopScratchpadGen, prod::ProdScratchpadGen, ScratchpadGen},
     skipped_compactions_source::catalog::CatalogSkippedCompactionsSource,
     target_level_chooser::{
         all_at_once::AllAtOnceTargetLevelChooser, target_level::TargetLevelTargetLevelChooser,
@@ -293,14 +292,14 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             config.backoff_config.clone(),
             Arc::clone(&config.catalog),
         )),
-        df_planner: Arc::new(LoggingDataFusionPlannerWrapper::new(
-            V1DataFusionPlanner::new(
-                config.parquet_store_scratchpad.clone(),
-                Arc::clone(&config.exec),
-                config.max_desired_file_size_bytes,
-                config.percentage_max_file_size,
-                config.split_percentage,
-            ),
+        ir_planner: Arc::new(LoggingIRPlannerWrapper::new(V1IRPlanner::new(
+            config.max_desired_file_size_bytes,
+            config.percentage_max_file_size,
+            config.split_percentage,
+        ))),
+        df_planner: Arc::new(V1DataFusionPlanner::new(
+            config.parquet_store_scratchpad.clone(),
+            Arc::clone(&config.exec),
         )),
         df_plan_exec,
         parquet_file_sink,

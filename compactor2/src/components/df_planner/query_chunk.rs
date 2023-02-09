@@ -1,10 +1,7 @@
 //! QueryableParquetChunk for building query plan
 use std::{any::Any, sync::Arc};
 
-use data_types::{
-    ChunkId, ChunkOrder, CompactionLevel, DeletePredicate, ParquetFile, PartitionId, TableSchema,
-    TableSummary, Timestamp, Tombstone,
-};
+use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId, TableSummary, Tombstone};
 use datafusion::error::DataFusionError;
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
@@ -17,6 +14,8 @@ use predicate::{delete_predicate::tombstones_to_delete_predicates, Predicate};
 use schema::{merge::SchemaMerger, sort::SortKey, Projection, Schema};
 use uuid::Uuid;
 
+use crate::{partition_info::PartitionInfo, plan_ir::FileIR};
+
 /// QueryableParquetChunk that implements QueryChunk and QueryMetaChunk for building query plan
 #[derive(Debug, Clone)]
 pub struct QueryableParquetChunk {
@@ -26,12 +25,9 @@ pub struct QueryableParquetChunk {
     // We do not yet support delete but we need this to work with the straight QueryChunkMeta
     delete_predicates: Vec<Arc<DeletePredicate>>,
     partition_id: PartitionId,
-    min_time: Timestamp,
-    max_time: Timestamp,
     sort_key: Option<SortKey>,
     partition_sort_key: Option<SortKey>,
-    compaction_level: CompactionLevel,
-    target_level: CompactionLevel,
+    order: ChunkOrder,
     summary: Arc<TableSummary>,
 }
 
@@ -42,12 +38,9 @@ impl QueryableParquetChunk {
         partition_id: PartitionId,
         data: Arc<ParquetChunk>,
         deletes: &[Tombstone],
-        min_time: Timestamp,
-        max_time: Timestamp,
         sort_key: Option<SortKey>,
         partition_sort_key: Option<SortKey>,
-        compaction_level: CompactionLevel,
-        target_level: CompactionLevel,
+        order: ChunkOrder,
     ) -> Self {
         let delete_predicates = tombstones_to_delete_predicates(deletes);
         let summary = Arc::new(create_basic_summary(
@@ -59,12 +52,9 @@ impl QueryableParquetChunk {
             data,
             delete_predicates,
             partition_id,
-            min_time,
-            max_time,
             sort_key,
             partition_sort_key,
-            compaction_level,
-            target_level,
+            order,
             summary,
         }
     }
@@ -78,24 +68,9 @@ impl QueryableParquetChunk {
         merger.build()
     }
 
-    /// Return min time
-    pub fn min_time(&self) -> i64 {
-        self.min_time.get()
-    }
-
-    /// Return max time
-    pub fn max_time(&self) -> i64 {
-        self.max_time.get()
-    }
-
     /// Return the parquet file's object store id
     pub fn object_store_id(&self) -> Uuid {
         self.data.object_store_id()
-    }
-
-    /// Return the creation time of the file
-    pub fn created_at(&self) -> Timestamp {
-        self.data.parquet_file().created_at
     }
 }
 
@@ -179,38 +154,7 @@ impl QueryChunk for QueryableParquetChunk {
 
     // Order of the chunk so they can be deduplicated correctly
     fn order(&self) -> ChunkOrder {
-        // TODO: If we chnage this design specified in driver.rs's compact functions, we will need to refine this
-        // Currently, we only compact files of level_n with level_n+1 and produce level_n+1 files,
-        // and with the strictly design that:
-        //    . Level-0 files can overlap with any files.
-        //    . Level-N files (N > 0) cannot overlap with any files in the same level.
-        //    . For Level-0 files, we always pick the smaller `created_at` files to compact (with
-        //      each other and overlapped L1 files) first.
-        //    . Level-N+1 files are results of compacting Level-N and/or Level-N+1 files, their `created_at`
-        //      can be after the `created_at` of other Level-N files but they may include data loaded before
-        //      the other Level-N files. Hence we should never use `created_at` of Level-N+1 files to order
-        //      them with Level-N files.
-        //    . We can only compact different sets of files of the same partition concurrently into the same target_level.
-        // We can use the following rules to set order of the chunk of its (compaction_level, target_level) as follows:
-        //    . compaction_level < target_level : the order is `created_at`
-        //    . compaction_level == target_level : order is 0 to make sure it is in the front of the ordered list.
-        //      This means that the chunk of `compaction_level == target_level` will be in arbitrary order and will be
-        //      fine as long as they are in front of the chunks of `compaction_level < target_level`
-
-        match (self.compaction_level, self.target_level) {
-            (CompactionLevel::Initial, CompactionLevel::FileNonOverlapped)
-            | (CompactionLevel::FileNonOverlapped, CompactionLevel::Final) => {
-                ChunkOrder::new(self.created_at().get())
-            }
-            (CompactionLevel::FileNonOverlapped, CompactionLevel::FileNonOverlapped)
-            | (CompactionLevel::Final, CompactionLevel::Final) => ChunkOrder::new(0),
-            _ => {
-                panic!(
-                    "Invalid compaction level combination: ({:?}, {:?})",
-                    self.compaction_level, self.target_level
-                );
-            }
-        }
+        self.order
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -218,21 +162,39 @@ impl QueryChunk for QueryableParquetChunk {
     }
 }
 
-/// Convert to a QueryableParquetChunk
-pub fn to_queryable_parquet_chunk(
-    file: ParquetFile,
+pub fn to_query_chunks(
+    files: Vec<FileIR>,
+    partition_info: &PartitionInfo,
     store: ParquetStorage,
-    table_schema: &TableSchema,
-    partition_sort_key: Option<SortKey>,
-    target_level: CompactionLevel,
+) -> Vec<Arc<dyn QueryChunk>> {
+    files
+        .into_iter()
+        .map(|file| {
+            Arc::new(to_queryable_parquet_chunk(
+                file,
+                partition_info,
+                store.clone(),
+            )) as _
+        })
+        .collect()
+}
+
+/// Convert to a QueryableParquetChunk
+fn to_queryable_parquet_chunk(
+    file: FileIR,
+    partition_info: &PartitionInfo,
+    store: ParquetStorage,
 ) -> QueryableParquetChunk {
-    let column_id_lookup = table_schema.column_id_map();
+    let column_id_lookup = partition_info.table_schema.column_id_map();
     let selection: Vec<_> = file
+        .file
         .column_set
         .iter()
         .flat_map(|id| column_id_lookup.get(id).copied())
         .collect();
-    let table_schema: Schema = table_schema
+    let table_schema: Schema = partition_info
+        .table_schema
+        .as_ref()
         .clone()
         .try_into()
         .expect("table schema is broken");
@@ -240,36 +202,31 @@ pub fn to_queryable_parquet_chunk(
         .select_by_names(&selection)
         .expect("schema in-sync");
     let pk = schema.primary_key();
-    let sort_key = partition_sort_key
+    let sort_key = partition_info
+        .sort_key
         .as_ref()
-        .map(|sk| sk.filter_to(&pk, file.partition_id.get()));
+        .map(|sk| sk.filter_to(&pk, partition_info.partition_id.get()));
 
-    let partition_id = file.partition_id;
-    let min_time = file.min_time;
-    let max_time = file.max_time;
-    let compaction_level = file.compaction_level;
+    let partition_id = partition_info.partition_id;
 
     // Make it debug for it to show up in prod's initial setup
-    let uuid = file.object_store_id;
+    let uuid = file.file.object_store_id;
     debug!(
-        parquet_file_id = file.id.get(),
-        parquet_file_namespace_id = file.namespace_id.get(),
-        parquet_file_table_id = file.table_id.get(),
-        parquet_file_partition_id = file.partition_id.get(),
+        parquet_file_id = file.file.id.get(),
+        parquet_file_namespace_id = file.file.namespace_id.get(),
+        parquet_file_table_id = file.file.table_id.get(),
+        parquet_file_partition_id = file.file.partition_id.get(),
         parquet_file_object_store_id = uuid.to_string().as_str(),
         "built parquet chunk from metadata"
     );
 
-    let parquet_chunk = ParquetChunk::new(Arc::new(file), schema, store);
+    let parquet_chunk = ParquetChunk::new(Arc::new(file.file), schema, store);
     QueryableParquetChunk::new(
         partition_id,
         Arc::new(parquet_chunk),
         &[],
-        min_time,
-        max_time,
         sort_key,
-        partition_sort_key,
-        compaction_level,
-        target_level,
+        partition_info.sort_key.clone(),
+        file.order,
     )
 }

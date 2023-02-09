@@ -11,6 +11,7 @@ license.workspace = true
 arrow-flight = { workspace = true }
 clap_blocks = { path = "../clap_blocks" }
 compactor = { path = "../compactor" }
+compactor2 = { path = "../compactor2" }
 data_types = { path = "../data_types" }
 datafusion = { workspace = true }
 generated_types = { path = "../generated_types" }

@@ -2472,6 +2472,7 @@ dependencies = [
  "clap_blocks",
  "comfy-table",
  "compactor",
+ "compactor2",
  "console-subscriber",
  "data_types",
  "datafusion",

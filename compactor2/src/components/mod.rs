@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use self::{
     commit::Commit, df_plan_exec::DataFusionPlanExec, df_planner::DataFusionPlanner,
-    divide_initial::DivideInitial, files_filter::FilesFilter, namespaces_source::NamespacesSource,
-    parquet_file_sink::ParquetFileSink, partition_done_sink::PartitionDoneSink,
-    partition_files_source::PartitionFilesSource, partition_filter::PartitionFilter,
-    partition_source::PartitionSource, partition_stream::PartitionStream, round_split::RoundSplit,
-    scratchpad::ScratchpadGen, tables_source::TablesSource,
-    target_level_chooser::TargetLevelChooser,
+    divide_initial::DivideInitial, files_filter::FilesFilter, ir_planner::IRPlanner,
+    namespaces_source::NamespacesSource, parquet_file_sink::ParquetFileSink,
+    partition_done_sink::PartitionDoneSink, partition_files_source::PartitionFilesSource,
+    partition_filter::PartitionFilter, partition_source::PartitionSource,
+    partition_stream::PartitionStream, round_split::RoundSplit, scratchpad::ScratchpadGen,
+    tables_source::TablesSource, target_level_chooser::TargetLevelChooser,
 };
 
 pub mod combos;
@@ -20,6 +20,7 @@ pub mod files_filter;
 pub mod files_split;
 pub mod hardcoded;
 pub mod id_only_partition_filter;
+pub mod ir_planner;
 pub mod level_exist;
 pub mod namespaces_source;
 pub mod parquet_file_sink;
@@ -48,6 +49,7 @@ pub struct Components {
     pub commit: Arc<dyn Commit>,
     pub namespaces_source: Arc<dyn NamespacesSource>,
     pub tables_source: Arc<dyn TablesSource>,
+    pub ir_planner: Arc<dyn IRPlanner>,
     pub df_planner: Arc<dyn DataFusionPlanner>,
     pub df_plan_exec: Arc<dyn DataFusionPlanExec>,
     pub parquet_file_sink: Arc<dyn ParquetFileSink>,
