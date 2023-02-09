@@ -2577,11 +2577,44 @@ mod tests {
         let tz: String = sqlx::query_scalar("SHOW TIME ZONE;")
             .fetch_one(&postgres.pool)
             .await
-            .expect("read application_name");
+            .expect("read time zone");
         assert_eq!(tz, "UTC");
 
+        let pool = postgres.pool.clone();
+        let schema_name = postgres.schema_name.clone();
+
         let postgres: Arc<dyn Catalog> = Arc::new(postgres);
-        crate::interface::test_helpers::test_catalog(postgres).await;
+
+        crate::interface::test_helpers::test_catalog(|| async {
+            // Clean the schema.
+            pool
+                .execute(format!("DROP SCHEMA {schema_name} CASCADE").as_str())
+                .await
+                .expect("failed to clean schema between tests");
+
+            // Recreate the test schema
+            pool
+                .execute(format!("CREATE SCHEMA {schema_name};").as_str())
+                .await
+                .expect("failed to create test schema");
+
+            // Ensure the test user has permission to interact with the test schema.
+            pool
+                .execute(
+                    format!(
+                        "GRANT USAGE ON SCHEMA {schema_name} TO public; GRANT CREATE ON SCHEMA {schema_name} TO public;"
+                    )
+                    .as_str(),
+                )
+                .await
+                .expect("failed to grant privileges to schema");
+
+            // Run the migrations against this random schema.
+            postgres.setup().await.expect("failed to initialise database");
+
+            Arc::clone(&postgres)
+        })
+        .await;
     }
 
     #[tokio::test]
