@@ -3,11 +3,10 @@ use std::sync::Arc;
 use self::{
     commit::Commit, df_plan_exec::DataFusionPlanExec, df_planner::DataFusionPlanner,
     divide_initial::DivideInitial, files_filter::FilesFilter, ir_planner::IRPlanner,
-    namespaces_source::NamespacesSource, parquet_files_sink::ParquetFilesSink,
-    partition_done_sink::PartitionDoneSink, partition_files_source::PartitionFilesSource,
-    partition_filter::PartitionFilter, partition_source::PartitionSource,
-    partition_stream::PartitionStream, round_split::RoundSplit, scratchpad::ScratchpadGen,
-    tables_source::TablesSource, target_level_chooser::TargetLevelChooser,
+    parquet_files_sink::ParquetFilesSink, partition_done_sink::PartitionDoneSink,
+    partition_files_source::PartitionFilesSource, partition_filter::PartitionFilter,
+    partition_info_source::PartitionInfoSource, partition_stream::PartitionStream,
+    round_split::RoundSplit, scratchpad::ScratchpadGen, target_level_chooser::TargetLevelChooser,
 };
 
 pub mod combos;
@@ -28,6 +27,7 @@ pub mod parquet_files_sink;
 pub mod partition_done_sink;
 pub mod partition_files_source;
 pub mod partition_filter;
+pub mod partition_info_source;
 pub mod partition_source;
 pub mod partition_stream;
 pub mod partitions_source;
@@ -41,15 +41,13 @@ pub mod target_level_chooser;
 #[derive(Debug, Clone)]
 pub struct Components {
     pub partition_stream: Arc<dyn PartitionStream>,
-    pub partition_source: Arc<dyn PartitionSource>,
+    pub partition_info_source: Arc<dyn PartitionInfoSource>,
     pub partition_files_source: Arc<dyn PartitionFilesSource>,
     pub files_filter: Arc<dyn FilesFilter>,
     pub partition_filter: Arc<dyn PartitionFilter>,
     pub partition_resource_limit_filter: Arc<dyn PartitionFilter>,
     pub partition_done_sink: Arc<dyn PartitionDoneSink>,
     pub commit: Arc<dyn Commit>,
-    pub namespaces_source: Arc<dyn NamespacesSource>,
-    pub tables_source: Arc<dyn TablesSource>,
     pub ir_planner: Arc<dyn IRPlanner>,
     pub df_planner: Arc<dyn DataFusionPlanner>,
     pub df_plan_exec: Arc<dyn DataFusionPlanExec>,

@@ -210,7 +210,7 @@ async fn try_compact_partition(
 
         // fetch partition info
         if lazy_partition_info.is_none() {
-            lazy_partition_info = Some(fetch_partition_info(partition_id, &components).await?);
+            lazy_partition_info = Some(components.partition_info_source.fetch(partition_id).await?);
         }
         let partition_info = lazy_partition_info.as_ref().expect("just fetched");
 
@@ -499,52 +499,4 @@ async fn update_catalog(
         .collect::<Vec<_>>();
 
     (created_file_params, upgraded_files)
-}
-
-async fn fetch_partition_info(
-    partition_id: PartitionId,
-    components: &Arc<Components>,
-) -> Result<Arc<PartitionInfo>, DynError> {
-    // TODO: only read partition, table and its schema info the first time and cache them
-    // Get info for the partition
-    let partition = components
-        .partition_source
-        .fetch_by_id(partition_id)
-        .await
-        .ok_or_else::<DynError, _>(|| String::from("Cannot find partition info").into())?;
-
-    let table = components
-        .tables_source
-        .fetch(partition.table_id)
-        .await
-        .ok_or_else::<DynError, _>(|| String::from("Cannot find table").into())?;
-
-    // TODO: after we have catalog funciton to read table schema, we should use it
-    // and avoid reading namespace schema
-    let namespace = components
-        .namespaces_source
-        .fetch_by_id(table.namespace_id)
-        .await
-        .ok_or_else::<DynError, _>(|| String::from("Cannot find namespace").into())?;
-
-    let namespace_schema = components
-        .namespaces_source
-        .fetch_schema_by_id(table.namespace_id)
-        .await
-        .ok_or_else::<DynError, _>(|| String::from("Cannot find namespace schema").into())?;
-
-    let table_schema = namespace_schema
-        .tables
-        .get(&table.name)
-        .ok_or_else::<DynError, _>(|| String::from("Cannot find table schema").into())?;
-
-    Ok(Arc::new(PartitionInfo {
-        partition_id,
-        namespace_id: table.namespace_id,
-        namespace_name: namespace.name,
-        table: Arc::new(table),
-        table_schema: Arc::new(table_schema.clone()),
-        sort_key: partition.sort_key(),
-        partition_key: partition.partition_key,
-    }))
 }
