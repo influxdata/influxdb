@@ -297,6 +297,7 @@ impl SkippedCompactionBuilder {
     }
 }
 
+// Default values for the test setup builder
 const SHARD_INDEX: i32 = TRANSITION_SHARD_NUMBER;
 const PARTITION_THRESHOLD: Duration = Duration::from_secs(10 * 60); // 10min
 const MAX_DESIRE_FILE_SIZE: u64 = 100 * 1024;
@@ -528,57 +529,42 @@ impl TestSetupBuilder<true> {
 }
 
 impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
-    pub fn with_shadow_mode(self) -> Self {
-        Self {
-            config: Config {
-                shadow_mode: true,
-                ..self.config
-            },
-            ..self
-        }
+    pub fn with_shadow_mode(mut self) -> Self {
+        self.config.shadow_mode = true;
+        self
     }
 
     /// Set compact version
-    pub fn with_compact_version(self, compact_version: AlgoVersion) -> Self {
-        Self {
-            config: Config {
-                compact_version,
-                ..self.config
-            },
-            ..self
-        }
+    pub fn with_compact_version(mut self, compact_version: AlgoVersion) -> Self {
+        self.config.compact_version = compact_version;
+        self
     }
 
     /// set min_num_l1_files_to_compact
-    pub fn with_min_num_l1_files_to_compact(self, min_num_l1_files_to_compact: usize) -> Self {
-        Self {
-            config: Config {
-                min_num_l1_files_to_compact,
-                ..self.config
-            },
-            ..self
-        }
+    pub fn with_min_num_l1_files_to_compact(mut self, min_num_l1_files_to_compact: usize) -> Self {
+        self.config.min_num_l1_files_to_compact = min_num_l1_files_to_compact;
+        self
     }
 
     /// Set max_input_files_per_partition
-    pub fn with_max_input_files_per_partition(self, max_input_files_per_partition: usize) -> Self {
-        Self {
-            config: Config {
-                max_input_files_per_partition,
-                ..self.config
-            },
-            ..self
-        }
+    pub fn with_max_input_files_per_partition(
+        mut self,
+        max_input_files_per_partition: usize,
+    ) -> Self {
+        self.config.max_input_files_per_partition = max_input_files_per_partition;
+        self
     }
 
-    pub fn simulate_without_object_store(self) -> Self {
-        Self {
-            config: Config {
-                simulate_without_object_store: true,
-                ..self.config
-            },
-            ..self
-        }
+    /// set simulate_without_object_store
+    pub fn simulate_without_object_store(mut self) -> Self {
+        self.config.simulate_without_object_store = true;
+        self
+    }
+
+    /// Set max_desired_file_size_bytes
+    pub fn with_max_desired_file_size_bytes(mut self, max_desired_file_size_bytes: u64) -> Self {
+        self.config.max_desired_file_size_bytes = max_desired_file_size_bytes;
+        self
     }
 
     pub async fn build(self) -> TestSetup {
