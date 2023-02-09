@@ -2371,9 +2371,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_catalog() {
-        let sqlite = setup_db().await;
-        let sqlite: Arc<dyn Catalog> = Arc::new(sqlite);
-        interface::test_helpers::test_catalog(sqlite).await;
+        interface::test_helpers::test_catalog(|| async {
+            let sqlite = setup_db().await;
+            let sqlite: Arc<dyn Catalog> = Arc::new(sqlite);
+            sqlite
+        })
+        .await;
     }
 
     #[tokio::test]
