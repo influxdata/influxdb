@@ -62,6 +62,7 @@ use super::{
         max_parquet_bytes::MaxParquetBytesPartitionFilter, metrics::MetricsPartitionFilterWrapper,
         never_skipped::NeverSkippedPartitionFilter, or::OrPartitionFilter, PartitionFilter,
     },
+    partition_info_source::sub_sources::SubSourcePartitionInfoSource,
     partition_source::{
         catalog::CatalogPartitionSource, logging::LoggingPartitionSourceWrapper,
         metrics::MetricsPartitionSourceWrapper,
@@ -256,13 +257,18 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
 
     Arc::new(Components {
         partition_stream,
-        partition_source: Arc::new(LoggingPartitionSourceWrapper::new(
-            MetricsPartitionSourceWrapper::new(
+        partition_info_source: Arc::new(SubSourcePartitionInfoSource::new(
+            LoggingPartitionSourceWrapper::new(MetricsPartitionSourceWrapper::new(
                 CatalogPartitionSource::new(
                     config.backoff_config.clone(),
                     Arc::clone(&config.catalog),
                 ),
                 &config.metric_registry,
+            )),
+            CatalogTablesSource::new(config.backoff_config.clone(), Arc::clone(&config.catalog)),
+            CatalogNamespacesSource::new(
+                config.backoff_config.clone(),
+                Arc::clone(&config.catalog),
             ),
         )),
         partition_files_source: Arc::new(CatalogPartitionFilesSource::new(
@@ -285,14 +291,6 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             commit,
             &config.metric_registry,
         ))),
-        namespaces_source: Arc::new(CatalogNamespacesSource::new(
-            config.backoff_config.clone(),
-            Arc::clone(&config.catalog),
-        )),
-        tables_source: Arc::new(CatalogTablesSource::new(
-            config.backoff_config.clone(),
-            Arc::clone(&config.catalog),
-        )),
         ir_planner: Arc::new(LoggingIRPlannerWrapper::new(V1IRPlanner::new(
             config.max_desired_file_size_bytes,
             config.percentage_max_file_size,

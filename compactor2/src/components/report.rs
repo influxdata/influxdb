@@ -86,15 +86,13 @@ pub fn log_components(components: &Components) {
     // use struct unpack so we don't forget any members
     let Components {
         partition_stream,
-        partition_source,
+        partition_info_source,
         partition_files_source,
         files_filter,
         partition_filter,
         partition_resource_limit_filter,
         partition_done_sink,
         commit,
-        tables_source,
-        namespaces_source,
         ir_planner,
         df_planner,
         df_plan_exec,
@@ -110,15 +108,13 @@ pub fn log_components(components: &Components) {
 
     info!(
         %partition_stream,
-        %partition_source,
+        %partition_info_source,
         %partition_files_source,
         %files_filter,
         %partition_filter,
         %partition_resource_limit_filter,
         %partition_done_sink,
         %commit,
-        %tables_source,
-        %namespaces_source,
         %ir_planner,
         %df_planner,
         %df_plan_exec,
