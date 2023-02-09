@@ -59,6 +59,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         ingester_path.join("write_info.proto"),
         ingester_path.join("write.proto"),
         ingester_path.join("replication.proto"),
+        ingester_path.join("persist.proto"),
         namespace_path.join("service.proto"),
         object_store_path.join("service.proto"),
         predicate_path.join("predicate.proto"),

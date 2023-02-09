@@ -1,0 +1,14 @@
+syntax = "proto3";
+package influxdata.iox.ingester.v1;
+option go_package = "github.com/influxdata/iox/ingester/v1";
+
+service PersistService {
+  rpc Persist(PersistRequest) returns (PersistResponse);
+}
+
+message PersistRequest {
+  // The namespace to persist
+  string namespace = 1;
+}
+
+message PersistResponse {}
