@@ -36,8 +36,8 @@ impl FilesSplit for TargetLevelTargetLevelSplit {
 mod tests {
 
     use crate::test_util::{
-        assert_parquet_files, assert_parquet_files_split, create_l0_files, create_l1_files,
-        create_l2_files, create_overlapped_files,
+        create_l0_files, create_l1_files, create_l2_files, create_overlapped_files, format_files,
+        format_files_split,
     };
 
     use super::*;
@@ -63,13 +63,17 @@ mod tests {
     #[test]
     fn test_apply_partial_empty_files_l0() {
         let files = create_l0_files(1);
-        let expected = vec![
-            "L0                                                                                                  ",
-            "L0.2[650,750]                                          |-----L0.2------|                            ",
-            "L0.1[450,620]       |------------L0.1------------|                                                  ",
-            "L0.3[800,900]                                                                     |-----L0.3------| ",
-        ];
-        assert_parquet_files(expected, &files);
+        insta::assert_yaml_snapshot!(
+            format_files("initial", &files),
+            @r###"
+        ---
+        - initial
+        - "L0, all files 1b                                                                                    "
+        - "L0.2[650,750]                                          |-----L0.2------|                            "
+        - "L0.1[450,620]       |------------L0.1------------|                                                  "
+        - "L0.3[800,900]                                                                     |-----L0.3------| "
+        "###
+        );
 
         let split = TargetLevelTargetLevelSplit::new();
         let (lower, higher) = split.apply(files.clone(), CompactionLevel::Initial);
@@ -88,13 +92,17 @@ mod tests {
     #[test]
     fn test_apply_partial_empty_files_l1() {
         let files = create_l1_files(1);
-        let expected = vec![
-            "L1                                                                                                  ",
-            "L1.13[600,700]                                                                    |-----L1.13-----| ",
-            "L1.12[400,500]                                |-----L1.12-----|                                     ",
-            "L1.11[250,350]      |-----L1.11-----|                                                               ",
-        ];
-        assert_parquet_files(expected, &files);
+        insta::assert_yaml_snapshot!(
+            format_files("initial", &files),
+            @r###"
+        ---
+        - initial
+        - "L1, all files 1b                                                                                    "
+        - "L1.13[600,700]                                                                    |-----L1.13-----| "
+        - "L1.12[400,500]                                |-----L1.12-----|                                     "
+        - "L1.11[250,350]      |-----L1.11-----|                                                               "
+        "###
+        );
 
         let split = TargetLevelTargetLevelSplit::new();
         let (lower, higher) = split.apply(files.clone(), CompactionLevel::Initial);
@@ -113,12 +121,16 @@ mod tests {
     #[test]
     fn test_apply_partial_empty_files_l2() {
         let files = create_l2_files();
-        let expected = vec![
-            "L2                                                                                                  ",
-            "L2.21[0,100]        |---------L2.21----------|                                                      ",
-            "L2.22[200,300]                                                           |---------L2.22----------| ",
-        ];
-        assert_parquet_files(expected, &files);
+        insta::assert_yaml_snapshot!(
+            format_files("initial", &files),
+            @r###"
+        ---
+        - initial
+        - "L2, all files 1b                                                                                    "
+        - "L2.21[0,100]        |---------L2.21----------|                                                      "
+        - "L2.22[200,300]                                                           |---------L2.22----------| "
+        "###
+        );
 
         let split = TargetLevelTargetLevelSplit::new();
         let (lower, higher) = split.apply(files.clone(), CompactionLevel::Initial);
@@ -138,40 +150,47 @@ mod tests {
     fn test_apply_target_level_0() {
         // Test target level Initial
         let files = create_overlapped_files();
-        let expected = vec![
-            "L0                                                                                                  ",
-            "L0.2[650,750]@1                                                              |-L0.2-|               ",
-            "L0.1[450,620]@1                                             |----L0.1-----|                         ",
-            "L0.3[800,900]@100                                                                          |-L0.3-| ",
-            "L1                                                                                                  ",
-            "L1.13[600,700]@100                                                       |L1.13-|                   ",
-            "L1.12[400,500]@1                                       |L1.12-|                                     ",
-            "L1.11[250,350]@1                          |L1.11-|                                                  ",
-            "L2                                                                                                  ",
-            "L2.21[0,100]@1      |L2.21-|                                                                        ",
-            "L2.22[200,300]@1                     |L2.22-|                                                       ",
-        ];
-        assert_parquet_files(expected, &files);
+        insta::assert_yaml_snapshot!(
+            format_files("initial", &files),
+            @r###"
+        ---
+        - initial
+        - "L0                                                                                                  "
+        - "L0.2[650,750] 1b                                                             |-L0.2-|               "
+        - "L0.1[450,620] 1b                                            |----L0.1-----|                         "
+        - "L0.3[800,900] 100b                                                                         |-L0.3-| "
+        - "L1                                                                                                  "
+        - "L1.13[600,700] 100b                                                      |L1.13-|                   "
+        - "L1.12[400,500] 1b                                      |L1.12-|                                     "
+        - "L1.11[250,350] 1b                         |L1.11-|                                                  "
+        - "L2                                                                                                  "
+        - "L2.21[0,100] 1b     |L2.21-|                                                                        "
+        - "L2.22[200,300] 1b                    |L2.22-|                                                       "
+        "###
+        );
 
         let split = TargetLevelTargetLevelSplit::new();
         let (lower, higher) = split.apply(files, CompactionLevel::Initial);
 
-        let expected = vec![
-            "left",
-            "L0                                                                                                  ",
-            "L0.2[650,750]@1                                        |-----L0.2------|                            ",
-            "L0.1[450,620]@1     |------------L0.1------------|                                                  ",
-            "L0.3[800,900]@100                                                                 |-----L0.3------| ",
-            "right",
-            "L1                                                                                                  ",
-            "L1.13[600,700]@100                                                                      |--L1.13--| ",
-            "L1.12[400,500]@1                                                 |--L1.12--|                        ",
-            "L1.11[250,350]@1                                |--L1.11--|                                         ",
-            "L2                                                                                                  ",
-            "L2.21[0,100]@1      |--L2.21--|                                                                     ",
-            "L2.22[200,300]@1                          |--L2.22--|                                               ",
-        ];
-        assert_parquet_files_split(expected, &lower, &higher);
+        insta::assert_yaml_snapshot!(
+            format_files_split("lower", &lower, "higher", &higher),
+            @r###"
+        ---
+        - lower
+        - "L0                                                                                                  "
+        - "L0.2[650,750] 1b                                       |-----L0.2------|                            "
+        - "L0.1[450,620] 1b    |------------L0.1------------|                                                  "
+        - "L0.3[800,900] 100b                                                                |-----L0.3------| "
+        - higher
+        - "L1                                                                                                  "
+        - "L1.13[600,700] 100b                                                                     |--L1.13--| "
+        - "L1.12[400,500] 1b                                                |--L1.12--|                        "
+        - "L1.11[250,350] 1b                               |--L1.11--|                                         "
+        - "L2                                                                                                  "
+        - "L2.21[0,100] 1b     |--L2.21--|                                                                     "
+        - "L2.22[200,300] 1b                         |--L2.22--|                                               "
+        "###
+        );
 
         // verify number of files
         assert_eq!(lower.len(), 3);
@@ -190,40 +209,47 @@ mod tests {
     fn test_apply_target_level_l1() {
         // Test target level is FileNonOverlapped
         let files = create_overlapped_files();
-        let expected = vec![
-            "L0                                                                                                  ",
-            "L0.2[650,750]@1                                                              |-L0.2-|               ",
-            "L0.1[450,620]@1                                             |----L0.1-----|                         ",
-            "L0.3[800,900]@100                                                                          |-L0.3-| ",
-            "L1                                                                                                  ",
-            "L1.13[600,700]@100                                                       |L1.13-|                   ",
-            "L1.12[400,500]@1                                       |L1.12-|                                     ",
-            "L1.11[250,350]@1                          |L1.11-|                                                  ",
-            "L2                                                                                                  ",
-            "L2.21[0,100]@1      |L2.21-|                                                                        ",
-            "L2.22[200,300]@1                     |L2.22-|                                                       ",
-        ];
-        assert_parquet_files(expected, &files);
+        insta::assert_yaml_snapshot!(
+            format_files("initial", &files),
+            @r###"
+        ---
+        - initial
+        - "L0                                                                                                  "
+        - "L0.2[650,750] 1b                                                             |-L0.2-|               "
+        - "L0.1[450,620] 1b                                            |----L0.1-----|                         "
+        - "L0.3[800,900] 100b                                                                         |-L0.3-| "
+        - "L1                                                                                                  "
+        - "L1.13[600,700] 100b                                                      |L1.13-|                   "
+        - "L1.12[400,500] 1b                                      |L1.12-|                                     "
+        - "L1.11[250,350] 1b                         |L1.11-|                                                  "
+        - "L2                                                                                                  "
+        - "L2.21[0,100] 1b     |L2.21-|                                                                        "
+        - "L2.22[200,300] 1b                    |L2.22-|                                                       "
+        "###
+        );
 
         let split = TargetLevelTargetLevelSplit::new();
         let (lower, higher) = split.apply(files, CompactionLevel::FileNonOverlapped);
 
-        let expected = vec![
-            "left",
-            "L0                                                                                                  ",
-            "L0.2[650,750]@1                                                      |---L0.2---|                   ",
-            "L0.1[450,620]@1                             |-------L0.1-------|                                    ",
-            "L0.3[800,900]@100                                                                      |---L0.3---| ",
-            "L1                                                                                                  ",
-            "L1.13[600,700]@100                                             |--L1.13---|                         ",
-            "L1.12[400,500]@1                      |--L1.12---|                                                  ",
-            "L1.11[250,350]@1    |--L1.11---|                                                                    ",
-            "right",
-            "L2                                                                                                  ",
-            "L2.21[0,100]        |---------L2.21----------|                                                      ",
-            "L2.22[200,300]                                                           |---------L2.22----------| ",
-        ];
-        assert_parquet_files_split(expected, &lower, &higher);
+        insta::assert_yaml_snapshot!(
+            format_files_split("lower", &lower, "higher", &higher),
+            @r###"
+        ---
+        - lower
+        - "L0                                                                                                  "
+        - "L0.2[650,750] 1b                                                     |---L0.2---|                   "
+        - "L0.1[450,620] 1b                            |-------L0.1-------|                                    "
+        - "L0.3[800,900] 100b                                                                     |---L0.3---| "
+        - "L1                                                                                                  "
+        - "L1.13[600,700] 100b                                            |--L1.13---|                         "
+        - "L1.12[400,500] 1b                     |--L1.12---|                                                  "
+        - "L1.11[250,350] 1b   |--L1.11---|                                                                    "
+        - higher
+        - "L2, all files 1b                                                                                    "
+        - "L2.21[0,100]        |---------L2.21----------|                                                      "
+        - "L2.22[200,300]                                                           |---------L2.22----------| "
+        "###
+        );
 
         // verify number of files
         assert_eq!(lower.len(), 6);
@@ -242,20 +268,24 @@ mod tests {
     fn test_apply_taget_level_l2() {
         // Test target level is Final
         let files = create_overlapped_files();
-        let expected = vec![
-            "L0                                                                                                  ",
-            "L0.2[650,750]@1                                                              |-L0.2-|               ",
-            "L0.1[450,620]@1                                             |----L0.1-----|                         ",
-            "L0.3[800,900]@100                                                                          |-L0.3-| ",
-            "L1                                                                                                  ",
-            "L1.13[600,700]@100                                                       |L1.13-|                   ",
-            "L1.12[400,500]@1                                       |L1.12-|                                     ",
-            "L1.11[250,350]@1                          |L1.11-|                                                  ",
-            "L2                                                                                                  ",
-            "L2.21[0,100]@1      |L2.21-|                                                                        ",
-            "L2.22[200,300]@1                     |L2.22-|                                                       ",
-        ];
-        assert_parquet_files(expected, &files);
+        insta::assert_yaml_snapshot!(
+            format_files("initial", &files),
+            @r###"
+        ---
+        - initial
+        - "L0                                                                                                  "
+        - "L0.2[650,750] 1b                                                             |-L0.2-|               "
+        - "L0.1[450,620] 1b                                            |----L0.1-----|                         "
+        - "L0.3[800,900] 100b                                                                         |-L0.3-| "
+        - "L1                                                                                                  "
+        - "L1.13[600,700] 100b                                                      |L1.13-|                   "
+        - "L1.12[400,500] 1b                                      |L1.12-|                                     "
+        - "L1.11[250,350] 1b                         |L1.11-|                                                  "
+        - "L2                                                                                                  "
+        - "L2.21[0,100] 1b     |L2.21-|                                                                        "
+        - "L2.22[200,300] 1b                    |L2.22-|                                                       "
+        "###
+        );
 
         let split = TargetLevelTargetLevelSplit::new();
         let (lower, higher) = split.apply(files, CompactionLevel::Final);

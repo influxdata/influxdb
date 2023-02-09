@@ -6,6 +6,7 @@ use std::{
 use datafusion::physical_plan::{ExecutionPlan, SendableRecordBatchStream};
 
 pub mod dedicated;
+pub mod noop;
 
 pub trait DataFusionPlanExec: Debug + Display + Send + Sync {
     /// Convert DataFusion [`ExecutionPlan`] to multiple output streams.

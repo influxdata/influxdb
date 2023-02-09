@@ -1,5 +1,5 @@
 ---
-source: iox_query/src/plan/influxql.rs
-expression: "plan(\"EXPLAIN SELECT bar FROM foo\")"
+source: iox_query/src/plan/influxql/planner.rs
+expression: "plan(\"SHOW DATABASES\").await"
 ---
-This feature is not implemented: EXPLAIN
+This feature is not implemented: SHOW DATABASES

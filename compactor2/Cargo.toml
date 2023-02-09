@@ -16,7 +16,7 @@ iox_catalog = { path = "../iox_catalog" }
 iox_query = { path = "../iox_query" }
 iox_time = { path = "../iox_time" }
 metric = { path = "../metric" }
-object_store = "0.5.2"
+object_store = "0.5.4"
 observability_deps = { path = "../observability_deps" }
 parquet_file = { path = "../parquet_file" }
 predicate = { path = "../predicate" }
@@ -34,3 +34,4 @@ workspace-hack = { path = "../workspace-hack"}
 arrow_util = { path = "../arrow_util" }
 iox_tests = { path = "../iox_tests" }
 test_helpers = { path = "../test_helpers"}
+insta = { version = "1.26.0", features = ["yaml"] }

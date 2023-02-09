@@ -12,7 +12,7 @@ use crate::{
         namespaces_source::catalog::CatalogNamespacesSource,
         tables_source::catalog::CatalogTablesSource,
     },
-    config::{AlgoVersion, Config},
+    config::{AlgoVersion, Config, PartitionsSourceConfig},
     error::ErrorKind,
 };
 
@@ -22,7 +22,9 @@ use super::{
         catalog::CatalogCommit, logging::LoggingCommitWrapper, metrics::MetricsCommitWrapper,
         mock::MockCommit, Commit,
     },
-    df_plan_exec::dedicated::DedicatedDataFusionPlanExec,
+    df_plan_exec::{
+        dedicated::DedicatedDataFusionPlanExec, noop::NoopDataFusionPlanExec, DataFusionPlanExec,
+    },
     df_planner::{logging::LoggingDataFusionPlannerWrapper, planner_v1::V1DataFusionPlanner},
     divide_initial::single_branch::SingleBranchDivideInitial,
     file_filter::{and::AndFileFilter, level_range::LevelRangeFileFilter},
@@ -36,13 +38,12 @@ use super::{
         target_level_upgrade_split::TargetLevelUpgradeSplit, FilesSplit,
     },
     id_only_partition_filter::{
-        and::AndIdOnlyPartitionFilter, by_id::ByIdPartitionFilter, shard::ShardPartitionFilter,
-        IdOnlyPartitionFilter,
+        and::AndIdOnlyPartitionFilter, shard::ShardPartitionFilter, IdOnlyPartitionFilter,
     },
     level_exist::one_level::OneLevelExist,
     parquet_file_sink::{
         dedicated::DedicatedExecParquetFileSinkWrapper, logging::LoggingParquetFileSinkWrapper,
-        object_store::ObjectStoreParquetFileSink,
+        mock::MockParquetFileSink, object_store::ObjectStoreParquetFileSink, ParquetFileSink,
     },
     partition_done_sink::{
         catalog::CatalogPartitionDoneSink, error_kind::ErrorKindPartitionDoneSinkWrapper,
@@ -52,6 +53,7 @@ use super::{
     partition_files_source::catalog::CatalogPartitionFilesSource,
     partition_filter::{
         and::AndPartitionFilter, greater_matching_files::GreaterMatchingFilesPartitionFilter,
+        greater_size_matching_files::GreaterSizeMatchingFilesPartitionFilter,
         has_files::HasFilesPartitionFilter, has_matching_file::HasMatchingFilePartitionFilter,
         logging::LoggingPartitionFilterWrapper, max_files::MaxFilesPartitionFilter,
         max_parquet_bytes::MaxParquetBytesPartitionFilter, metrics::MetricsPartitionFilterWrapper,
@@ -65,13 +67,18 @@ use super::{
         endless::EndlessPartititionStream, once::OncePartititionStream, PartitionStream,
     },
     partitions_source::{
-        catalog::CatalogPartitionsSource, filter::FilterPartitionsSourceWrapper,
-        logging::LoggingPartitionsSourceWrapper, metrics::MetricsPartitionsSourceWrapper,
-        mock::MockPartitionsSource, not_empty::NotEmptyPartitionsSourceWrapper,
+        catalog_all::CatalogAllPartitionsSource,
+        catalog_to_compact::CatalogToCompactPartitionsSource,
+        filter::FilterPartitionsSourceWrapper, logging::LoggingPartitionsSourceWrapper,
+        metrics::MetricsPartitionsSourceWrapper, mock::MockPartitionsSource,
+        not_empty::NotEmptyPartitionsSourceWrapper,
         randomize_order::RandomizeOrderPartitionsSourcesWrapper, PartitionsSource,
     },
     round_split::all_now::AllNowRoundSplit,
-    scratchpad::{ignore_writes_object_store::IgnoreWrites, prod::ProdScratchpadGen},
+    scratchpad::{
+        ignore_writes_object_store::IgnoreWrites, noop::NoopScratchpadGen, prod::ProdScratchpadGen,
+        ScratchpadGen,
+    },
     skipped_compactions_source::catalog::CatalogSkippedCompactionsSource,
     target_level_chooser::{
         all_at_once::AllAtOnceTargetLevelChooser, target_level::TargetLevelTargetLevelChooser,
@@ -85,22 +92,25 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
     // TODO: partitions source: Implementing ID-based sharding / hash-partitioning so we can run multiple compactors in
     //       parallel. This should be a wrapper around the existing partions source.
 
-    let partitions_source: Arc<dyn PartitionsSource> = if let Some(ids) = &config.partition_filter {
-        Arc::new(MockPartitionsSource::new(ids.iter().cloned().collect()))
-    } else {
-        Arc::new(CatalogPartitionsSource::new(
+    let partitions_source: Arc<dyn PartitionsSource> = match &config.partitions_source {
+        PartitionsSourceConfig::CatalogRecentWrites => {
+            Arc::new(CatalogToCompactPartitionsSource::new(
+                config.backoff_config.clone(),
+                Arc::clone(&config.catalog),
+                config.partition_threshold,
+                Arc::clone(&config.time_provider),
+            ))
+        }
+        PartitionsSourceConfig::CatalogAll => Arc::new(CatalogAllPartitionsSource::new(
             config.backoff_config.clone(),
             Arc::clone(&config.catalog),
-            config.partition_threshold,
-            Arc::clone(&config.time_provider),
-        ))
+        )),
+        PartitionsSourceConfig::Fixed(ids) => {
+            Arc::new(MockPartitionsSource::new(ids.iter().cloned().collect()))
+        }
     };
 
     let mut id_only_partition_filters: Vec<Arc<dyn IdOnlyPartitionFilter>> = vec![];
-    if let Some(ids) = &config.partition_filter {
-        // filter as early as possible, so we don't need any catalog lookups for the filtered partitions
-        id_only_partition_filters.push(Arc::new(ByIdPartitionFilter::new(ids.clone())));
-    }
     if let Some(shard_config) = &config.shard_config {
         // add shard filter before performing any catalog IO
         id_only_partition_filters.push(Arc::new(ShardPartitionFilter::new(
@@ -124,6 +134,15 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         )));
     }
     partition_filters.append(&mut version_specific_partition_filters(config));
+
+    let partition_resource_limit_filters: Vec<Arc<dyn PartitionFilter>> = vec![
+        Arc::new(MaxFilesPartitionFilter::new(
+            config.max_input_files_per_partition,
+        )),
+        Arc::new(MaxParquetBytesPartitionFilter::new(
+            config.max_input_parquet_bytes_per_partition,
+        )),
+    ];
 
     let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.shadow_mode {
         Arc::new(MockPartitionDoneSink::new())
@@ -159,22 +178,80 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         Duration::from_secs(60),
         1,
     );
+    let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.all_errors_are_fatal {
+        Arc::new(partition_done_sink)
+    } else {
+        Arc::new(ErrorKindPartitionDoneSinkWrapper::new(
+            partition_done_sink,
+            ErrorKind::variants()
+                .iter()
+                .filter(|kind| {
+                    // use explicit match statement so we never forget to add new variants
+                    match kind {
+                        ErrorKind::OutOfMemory | ErrorKind::Timeout | ErrorKind::Unknown => true,
+                        ErrorKind::ObjectStore => false,
+                    }
+                })
+                .copied()
+                .collect(),
+        ))
+    };
 
     // Note: Place "not empty" wrapper at the very last so that the logging and metric wrapper work even when there
     //       is not data.
-    let partitions_source = NotEmptyPartitionsSourceWrapper::new(
+    let partitions_source =
         LoggingPartitionsSourceWrapper::new(MetricsPartitionsSourceWrapper::new(
             RandomizeOrderPartitionsSourcesWrapper::new(partitions_source, 1234),
             &config.metric_registry,
-        )),
-        Duration::from_secs(5),
-        Arc::clone(&config.time_provider),
-    );
+        ));
+    let partitions_source: Arc<dyn PartitionsSource> = if config.process_once {
+        // do not wrap into the "not empty" filter because we do NOT wanna throttle in this case but just exit early
+        Arc::new(partitions_source)
+    } else {
+        Arc::new(NotEmptyPartitionsSourceWrapper::new(
+            partitions_source,
+            Duration::from_secs(5),
+            Arc::clone(&config.time_provider),
+        ))
+    };
 
     let partition_stream: Arc<dyn PartitionStream> = if config.process_once {
         Arc::new(OncePartititionStream::new(partitions_source))
     } else {
         Arc::new(EndlessPartititionStream::new(partitions_source))
+    };
+    let partition_continue_conditions = "continue_conditions";
+    let partition_resource_limit_conditions = "resource_limit_conditions";
+
+    let scratchpad_gen: Arc<dyn ScratchpadGen> = if config.simulate_without_object_store {
+        Arc::new(NoopScratchpadGen::new())
+    } else {
+        Arc::new(ProdScratchpadGen::new(
+            config.partition_scratchpad_concurrency,
+            config.backoff_config.clone(),
+            Arc::clone(config.parquet_store_real.object_store()),
+            Arc::clone(config.parquet_store_scratchpad.object_store()),
+            scratchpad_store_output,
+        ))
+    };
+    let df_plan_exec: Arc<dyn DataFusionPlanExec> = if config.simulate_without_object_store {
+        Arc::new(NoopDataFusionPlanExec::new())
+    } else {
+        Arc::new(DedicatedDataFusionPlanExec::new(Arc::clone(&config.exec)))
+    };
+    let parquet_file_sink: Arc<dyn ParquetFileSink> = if config.simulate_without_object_store {
+        Arc::new(MockParquetFileSink::new(false))
+    } else {
+        Arc::new(LoggingParquetFileSinkWrapper::new(
+            DedicatedExecParquetFileSinkWrapper::new(
+                ObjectStoreParquetFileSink::new(
+                    config.shard_id,
+                    config.parquet_store_scratchpad.clone(),
+                    Arc::clone(&config.time_provider),
+                ),
+                Arc::clone(&config.exec),
+            ),
+        ))
     };
 
     Arc::new(Components {
@@ -197,28 +274,12 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             MetricsPartitionFilterWrapper::new(
                 AndPartitionFilter::new(partition_filters),
                 &config.metric_registry,
+                partition_continue_conditions,
             ),
+            partition_continue_conditions,
         )),
         partition_done_sink: Arc::new(LoggingPartitionDoneSinkWrapper::new(
-            MetricsPartitionDoneSinkWrapper::new(
-                ErrorKindPartitionDoneSinkWrapper::new(
-                    partition_done_sink,
-                    ErrorKind::variants()
-                        .iter()
-                        .filter(|kind| {
-                            // use explicit match statement so we never forget to add new variants
-                            match kind {
-                                ErrorKind::OutOfMemory
-                                | ErrorKind::Timeout
-                                | ErrorKind::Unknown => true,
-                                ErrorKind::ObjectStore => false,
-                            }
-                        })
-                        .copied()
-                        .collect(),
-                ),
-                &config.metric_registry,
-            ),
+            MetricsPartitionDoneSinkWrapper::new(partition_done_sink, &config.metric_registry),
         )),
         commit: Arc::new(LoggingCommitWrapper::new(MetricsCommitWrapper::new(
             commit,
@@ -241,76 +302,56 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
                 config.split_percentage,
             ),
         )),
-        df_plan_exec: Arc::new(DedicatedDataFusionPlanExec::new(Arc::clone(&config.exec))),
-        parquet_file_sink: Arc::new(LoggingParquetFileSinkWrapper::new(
-            DedicatedExecParquetFileSinkWrapper::new(
-                ObjectStoreParquetFileSink::new(
-                    config.shard_id,
-                    config.parquet_store_scratchpad.clone(),
-                    Arc::clone(&config.time_provider),
-                ),
-                Arc::clone(&config.exec),
-            ),
-        )),
+        df_plan_exec,
+        parquet_file_sink,
         round_split: Arc::new(AllNowRoundSplit::new()),
         divide_initial: Arc::new(SingleBranchDivideInitial::new()),
-        scratchpad_gen: Arc::new(ProdScratchpadGen::new(
-            config.partition_scratchpad_concurrency,
-            config.backoff_config.clone(),
-            Arc::clone(config.parquet_store_real.object_store()),
-            Arc::clone(config.parquet_store_scratchpad.object_store()),
-            scratchpad_store_output,
-        )),
+        scratchpad_gen,
         target_level_chooser: version_specific_target_level_chooser(config),
         target_level_split: version_specific_target_level_split(config),
         non_overlap_split: version_specific_non_ovverlapping_split(config),
         upgrade_split: version_specific_upgrade_split(config),
+        partition_resource_limit_filter: Arc::new(LoggingPartitionFilterWrapper::new(
+            MetricsPartitionFilterWrapper::new(
+                AndPartitionFilter::new(partition_resource_limit_filters),
+                &config.metric_registry,
+                partition_resource_limit_conditions,
+            ),
+            partition_resource_limit_conditions,
+        )),
     })
 }
 
 // Conditions to commpact this partittion
-// Same for all versions to protect the system from OOMs
-// . Number of files < max_input_files_per_partition
-// . Total size of files < max_input_parquet_bytes_per_partition
 fn version_specific_partition_filters(config: &Config) -> Vec<Arc<dyn PartitionFilter>> {
     match config.compact_version {
         // Must has L0
         AlgoVersion::AllAtOnce => {
-            vec![
+            vec![Arc::new(HasMatchingFilePartitionFilter::new(
+                LevelRangeFileFilter::new(CompactionLevel::Initial..=CompactionLevel::Initial),
+            ))]
+        }
+        // (Has-L0) OR            -- to avoid overlaped files
+        // (num(L1) > N) OR       -- to avoid many files
+        // (total_size(L1) > max_desired_file_size)  -- to avoid compact and than split
+        AlgoVersion::TargetLevel => {
+            vec![Arc::new(OrPartitionFilter::new(vec![
                 Arc::new(HasMatchingFilePartitionFilter::new(
                     LevelRangeFileFilter::new(CompactionLevel::Initial..=CompactionLevel::Initial),
                 )),
-                Arc::new(MaxFilesPartitionFilter::new(
-                    config.max_input_files_per_partition,
+                Arc::new(GreaterMatchingFilesPartitionFilter::new(
+                    LevelRangeFileFilter::new(
+                        CompactionLevel::FileNonOverlapped..=CompactionLevel::FileNonOverlapped,
+                    ),
+                    config.min_num_l1_files_to_compact,
                 )),
-                Arc::new(MaxParquetBytesPartitionFilter::new(
-                    config.max_input_parquet_bytes_per_partition,
+                Arc::new(GreaterSizeMatchingFilesPartitionFilter::new(
+                    LevelRangeFileFilter::new(
+                        CompactionLevel::FileNonOverlapped..=CompactionLevel::FileNonOverlapped,
+                    ),
+                    config.max_desired_file_size_bytes,
                 )),
-            ]
-        }
-        // (Has-L0) OR (num(L1) > N)
-        AlgoVersion::TargetLevel => {
-            vec![
-                Arc::new(OrPartitionFilter::new(vec![
-                    Arc::new(HasMatchingFilePartitionFilter::new(
-                        LevelRangeFileFilter::new(
-                            CompactionLevel::Initial..=CompactionLevel::Initial,
-                        ),
-                    )),
-                    Arc::new(GreaterMatchingFilesPartitionFilter::new(
-                        LevelRangeFileFilter::new(
-                            CompactionLevel::FileNonOverlapped..=CompactionLevel::FileNonOverlapped,
-                        ),
-                        config.min_num_l1_files_to_compact,
-                    )),
-                ])),
-                Arc::new(MaxFilesPartitionFilter::new(
-                    config.max_input_files_per_partition,
-                )),
-                Arc::new(MaxParquetBytesPartitionFilter::new(
-                    config.max_input_parquet_bytes_per_partition,
-                )),
-            ]
+            ]))]
         }
     }
 }

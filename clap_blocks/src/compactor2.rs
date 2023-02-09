@@ -236,4 +236,12 @@ pub struct Compactor2Config {
         action
     )]
     pub process_once: bool,
+
+    /// Compact all partitions found in the catalog, no matter if/when the received writes.
+    #[clap(
+        long = "compaction-process-all-partitions",
+        env = "INFLUXDB_IOX_COMPACTION_PROCESS_ALL_PARTITIONS",
+        action
+    )]
+    pub process_all_partitions: bool,
 }

@@ -9,14 +9,15 @@ use iox_time::TimeProvider;
 use super::PartitionsSource;
 
 #[derive(Debug)]
-pub struct CatalogPartitionsSource {
+/// Returns all partitions that had a new parquet file written more than `threshold` ago.
+pub struct CatalogToCompactPartitionsSource {
     backoff_config: BackoffConfig,
     catalog: Arc<dyn Catalog>,
     threshold: Duration,
     time_provider: Arc<dyn TimeProvider>,
 }
 
-impl CatalogPartitionsSource {
+impl CatalogToCompactPartitionsSource {
     pub fn new(
         backoff_config: BackoffConfig,
         catalog: Arc<dyn Catalog>,
@@ -32,14 +33,14 @@ impl CatalogPartitionsSource {
     }
 }
 
-impl Display for CatalogPartitionsSource {
+impl Display for CatalogToCompactPartitionsSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "catalog")
+        write!(f, "catalog_to_compact")
     }
 }
 
 #[async_trait]
-impl PartitionsSource for CatalogPartitionsSource {
+impl PartitionsSource for CatalogToCompactPartitionsSource {
     async fn fetch(&self) -> Vec<PartitionId> {
         let cutoff = self.time_provider.now() - self.threshold;
 

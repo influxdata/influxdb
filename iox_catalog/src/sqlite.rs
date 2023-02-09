@@ -1114,6 +1114,18 @@ WHERE table_id = $1;
         .collect())
     }
 
+    async fn list_ids(&mut self) -> Result<Vec<PartitionId>> {
+        sqlx::query_as(
+            r#"
+            SELECT p.id as partition_id
+            FROM partition p
+            "#,
+        )
+        .fetch_all(self.inner.get_mut())
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
+    }
+
     /// Update the sort key for `partition_id` if and only if `old_sort_key`
     /// matches the current value in the database.
     ///

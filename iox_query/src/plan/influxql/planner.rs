@@ -3,16 +3,20 @@ use crate::plan::influxql::rewriter::rewrite_statement;
 use crate::plan::influxql::util::binary_operator_to_df_operator;
 use crate::{DataFusionError, IOxSessionContext, QueryNamespace};
 use arrow::datatypes::DataType;
-use datafusion::common::{DFSchema, DFSchemaRef, Result, ScalarValue};
+use datafusion::common::{DFSchema, DFSchemaRef, Result, ScalarValue, ToDFSchema};
 use datafusion::datasource::provider_as_source;
+use datafusion::logical_expr::expr::Sort;
 use datafusion::logical_expr::expr_rewriter::{normalize_col, ExprRewritable, ExprRewriter};
 use datafusion::logical_expr::logical_plan::builder::project;
+use datafusion::logical_expr::logical_plan::Analyze;
 use datafusion::logical_expr::{
-    lit, BinaryExpr, BuiltinScalarFunction, Expr, ExprSchemable, LogicalPlan, LogicalPlanBuilder,
-    Operator,
+    lit, BinaryExpr, BuiltinScalarFunction, Explain, Expr, ExprSchemable, LogicalPlan,
+    LogicalPlanBuilder, Operator, PlanType, ToStringifiedPlan,
 };
 use datafusion::prelude::Column;
 use datafusion::sql::TableReference;
+use influxdb_influxql_parser::common::OrderByClause;
+use influxdb_influxql_parser::explain::{ExplainOption, ExplainStatement};
 use influxdb_influxql_parser::expression::{
     BinaryOperator, ConditionalExpression, ConditionalOperator, VarRefDataType,
 };
@@ -29,6 +33,7 @@ use once_cell::sync::Lazy;
 use query_functions::clean_non_meta_escapes;
 use schema::{InfluxColumnType, InfluxFieldType, Schema};
 use std::collections::HashSet;
+use std::iter;
 use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -70,11 +75,8 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             Statement::DropMeasurement(_) => {
                 Err(DataFusionError::NotImplemented("DROP MEASUREMENT".into()))
             }
-            Statement::Explain(_) => Err(DataFusionError::NotImplemented("EXPLAIN".into())),
-            Statement::Select(select) => {
-                let select = rewrite_statement(self.database.as_meta(), &select)?;
-                self.select_statement_to_plan(select).await
-            }
+            Statement::Explain(explain) => self.explain_statement_to_plan(*explain).await,
+            Statement::Select(select) => self.select_statement_to_plan(*select).await,
             Statement::ShowDatabases(_) => {
                 Err(DataFusionError::NotImplemented("SHOW DATABASES".into()))
             }
@@ -96,8 +98,41 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         }
     }
 
+    async fn explain_statement_to_plan(&self, explain: ExplainStatement) -> Result<LogicalPlan> {
+        let plan = self.select_statement_to_plan(*explain.select).await?;
+        let plan = Arc::new(plan);
+        let schema = LogicalPlan::explain_schema();
+        let schema = schema.to_dfschema_ref()?;
+
+        let (analyze, verbose) = match explain.options {
+            Some(ExplainOption::AnalyzeVerbose) => (true, true),
+            Some(ExplainOption::Analyze) => (true, false),
+            Some(ExplainOption::Verbose) => (false, true),
+            None => (false, false),
+        };
+
+        if analyze {
+            Ok(LogicalPlan::Analyze(Analyze {
+                verbose,
+                input: plan,
+                schema,
+            }))
+        } else {
+            let stringified_plans = vec![plan.to_stringified(PlanType::InitialLogicalPlan)];
+            Ok(LogicalPlan::Explain(Explain {
+                verbose,
+                plan,
+                stringified_plans,
+                schema,
+                logical_optimization_succeeded: false,
+            }))
+        }
+    }
+
     /// Create a [`LogicalPlan`] from the specified InfluxQL `SELECT` statement.
     async fn select_statement_to_plan(&self, select: SelectStatement) -> Result<LogicalPlan> {
+        let select = rewrite_statement(self.database.as_meta(), &select)?;
+
         // Process FROM clause
         let plans = self.plan_from_tables(select.from).await?;
 
@@ -113,6 +148,27 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         }?;
         let tz = select.timezone.map(|tz| *tz);
         let plan = self.plan_where_clause(select.condition, plan, tz)?;
+
+        let plan = if select.group_by.is_none() {
+            LogicalPlanBuilder::from(plan)
+                .sort(iter::once(Expr::Sort(Sort {
+                    expr: Box::new(Expr::Column(Column {
+                        relation: None,
+                        name: "time".to_string(),
+                    })),
+                    asc: match select.order_by {
+                        // Default behaviour is to sort by time in ascending order if there is no ORDER BY
+                        None | Some(OrderByClause::Ascending) => true,
+                        Some(OrderByClause::Descending) => false,
+                    },
+                    nulls_first: false,
+                })))?
+                .build()
+        } else {
+            Err(DataFusionError::NotImplemented(
+                "GROUP BY not supported".into(),
+            ))
+        }?;
 
         // Process and validate the field expressions in the SELECT projection list
         let select_exprs = self.field_list_to_exprs(&plan, select.fields)?;
@@ -647,7 +703,6 @@ mod test {
         assert_snapshot!(plan("CREATE DATABASE foo").await);
         assert_snapshot!(plan("DELETE FROM foo").await);
         assert_snapshot!(plan("DROP MEASUREMENT foo").await);
-        assert_snapshot!(plan("EXPLAIN SELECT bar FROM foo").await);
         assert_snapshot!(plan("SHOW DATABASES").await);
         assert_snapshot!(plan("SHOW MEASUREMENTS").await);
         assert_snapshot!(plan("SHOW RETENTION POLICIES").await);
@@ -701,6 +756,14 @@ mod test {
             assert_snapshot!(
                 plan("SELECT foo, f64_field FROM data where non_existent !~ /f/").await
             );
+        }
+
+        #[tokio::test]
+        async fn test_explain() {
+            assert_snapshot!(plan("EXPLAIN SELECT foo, f64_field FROM data").await);
+            assert_snapshot!(plan("EXPLAIN VERBOSE SELECT foo, f64_field FROM data").await);
+            assert_snapshot!(plan("EXPLAIN ANALYZE SELECT foo, f64_field FROM data").await);
+            assert_snapshot!(plan("EXPLAIN ANALYZE VERBOSE SELECT foo, f64_field FROM data").await);
         }
     }
 

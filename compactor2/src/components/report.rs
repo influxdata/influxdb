@@ -26,7 +26,7 @@ pub fn log_config(config: &Config) {
         percentage_max_file_size,
         split_percentage,
         partition_timeout,
-        partition_filter,
+        partitions_source,
         shadow_mode,
         ignore_partition_skip_marker,
         max_input_files_per_partition,
@@ -35,6 +35,8 @@ pub fn log_config(config: &Config) {
         compact_version,
         min_num_l1_files_to_compact,
         process_once,
+        simulate_without_object_store,
+        all_errors_are_fatal,
     } = &config;
 
     let (shard_cfg_n_shards, shard_cfg_shard_id) = match shard_config {
@@ -63,7 +65,7 @@ pub fn log_config(config: &Config) {
         percentage_max_file_size,
         split_percentage,
         partition_timeout_secs=partition_timeout.as_secs_f32(),
-        partition_filter=?partition_filter.as_ref().map(|ids| ids.iter().map(|id| id.get()).collect::<Vec<_>>()),
+        %partitions_source,
         shadow_mode,
         ignore_partition_skip_marker,
         max_input_files_per_partition,
@@ -73,6 +75,8 @@ pub fn log_config(config: &Config) {
         ?compact_version,
         min_num_l1_files_to_compact,
         process_once,
+        simulate_without_object_store,
+        all_errors_are_fatal,
         "config",
     );
 }
@@ -86,6 +90,7 @@ pub fn log_components(components: &Components) {
         partition_files_source,
         files_filter,
         partition_filter,
+        partition_resource_limit_filter,
         partition_done_sink,
         commit,
         tables_source,
@@ -108,6 +113,7 @@ pub fn log_components(components: &Components) {
         %partition_files_source,
         %files_filter,
         %partition_filter,
+        %partition_resource_limit_filter,
         %partition_done_sink,
         %commit,
         %tables_source,

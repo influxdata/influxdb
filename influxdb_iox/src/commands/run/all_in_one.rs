@@ -433,6 +433,7 @@ impl Config {
             compact_version: CompactorAlgoVersion::AllAtOnce,
             min_num_l1_files_to_compact: 1,
             process_once: false,
+            process_all_partitions: false,
         };
 
         let querier_config = QuerierConfig {

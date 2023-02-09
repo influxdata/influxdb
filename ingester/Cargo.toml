@@ -28,7 +28,7 @@ iox_time = { path = "../iox_time" }
 metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch"}
 mutable_batch_lp = { path = "../mutable_batch_lp" }
-object_store = "0.5.2"
+object_store = "0.5.4"
 observability_deps = { path = "../observability_deps" }
 once_cell = "1"
 parking_lot = "0.12"

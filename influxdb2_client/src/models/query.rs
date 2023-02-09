@@ -3,6 +3,7 @@
 use crate::models::ast::Package;
 use crate::models::File;
 use serde::{Deserialize, Serialize};
+use serde_json::Number;
 use std::collections::HashMap;
 
 /// Query influx using the Flux language
@@ -23,6 +24,21 @@ pub struct Query {
     /// Default is the server's now time.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub now: Option<String>,
+
+    /// Params for use in query via params.param_name
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub params: Option<HashMap<String, Param>>,
+}
+
+/// Query Param Enum for Flux
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(untagged)]
+pub enum Param {
+    /// A number param
+    Number(Number),
+    /// A string param
+    String(String),
 }
 
 impl Query {

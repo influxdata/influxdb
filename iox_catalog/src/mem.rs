@@ -873,6 +873,14 @@ impl PartitionRepo for MemTxn {
         Ok(partitions)
     }
 
+    async fn list_ids(&mut self) -> Result<Vec<PartitionId>> {
+        let stage = self.stage();
+
+        let partitions: Vec<_> = stage.partitions.iter().map(|p| p.id).collect();
+
+        Ok(partitions)
+    }
+
     async fn cas_sort_key(
         &mut self,
         partition_id: PartitionId,

@@ -3,7 +3,7 @@ use backoff::BackoffConfig;
 use clap_blocks::compactor2::{Compactor2Config, CompactorAlgoVersion};
 use compactor2::{
     compactor::Compactor2,
-    config::{AlgoVersion, Config, ShardConfig},
+    config::{AlgoVersion, Config, PartitionsSourceConfig, ShardConfig},
 };
 use data_types::{PartitionId, TRANSITION_SHARD_NUMBER};
 use hyper::{Body, Request, Response};
@@ -163,6 +163,20 @@ pub async fn create_compactor2_server_type(
         CompactorAlgoVersion::TargetLevel => AlgoVersion::TargetLevel,
     };
 
+    let partitions_source = match (
+        compactor_config.partition_filter,
+        compactor_config.process_all_partitions,
+    ) {
+        (None, false) => PartitionsSourceConfig::CatalogRecentWrites,
+        (None, true) => PartitionsSourceConfig::CatalogAll,
+        (Some(ids), false) => {
+            PartitionsSourceConfig::Fixed(ids.into_iter().map(PartitionId::new).collect())
+        }
+        (Some(_), true) => panic!(
+            "provided partition ID filter and specific 'process all', this does not make sense"
+        ),
+    };
+
     let compactor = Compactor2::start(Config {
         shard_id,
         metric_registry: Arc::clone(&metric_registry),
@@ -183,9 +197,7 @@ pub async fn create_compactor2_server_type(
         percentage_max_file_size: compactor_config.percentage_max_file_size,
         split_percentage: compactor_config.split_percentage,
         partition_timeout: Duration::from_secs(compactor_config.partition_timeout_secs),
-        partition_filter: compactor_config
-            .partition_filter
-            .map(|parts| parts.into_iter().map(PartitionId::new).collect()),
+        partitions_source,
         shadow_mode: compactor_config.shadow_mode,
         ignore_partition_skip_marker: compactor_config.ignore_partition_skip_marker,
         max_input_files_per_partition: compactor_config.max_input_files_per_partition,
@@ -195,6 +207,8 @@ pub async fn create_compactor2_server_type(
         compact_version,
         min_num_l1_files_to_compact: compactor_config.min_num_l1_files_to_compact,
         process_once: compactor_config.process_once,
+        simulate_without_object_store: false,
+        all_errors_are_fatal: false,
     });
 
     Arc::new(Compactor2ServerType::new(

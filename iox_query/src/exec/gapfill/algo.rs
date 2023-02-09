@@ -155,9 +155,7 @@ mod tests {
         error::Result as ArrowResult,
         record_batch::RecordBatch,
     };
-    use datafusion::{
-        datasource::empty::EmptyTable, error::Result, from_slice::FromSlice, sql::TableReference,
-    };
+    use datafusion::{datasource::empty::EmptyTable, error::Result, from_slice::FromSlice};
 
     use crate::exec::{gapfill::GapFillExec, Executor, ExecutorType};
 
@@ -193,10 +191,9 @@ mod tests {
     async fn plan_statement_and_get_params(sql: &str) -> Result<GapFillParams> {
         let executor = Executor::new_testing();
         let context = executor.new_context(ExecutorType::Query);
-        context.inner().register_table(
-            TableReference::Bare { table: "t" },
-            Arc::new(EmptyTable::new(Arc::new(schema()))),
-        )?;
+        context
+            .inner()
+            .register_table("t", Arc::new(EmptyTable::new(Arc::new(schema()))))?;
         let physical_plan = context.prepare_sql(sql).await?;
         let gapfill_node = &physical_plan.children()[0];
         let gapfill_node = gapfill_node.as_any().downcast_ref::<GapFillExec>().unwrap();

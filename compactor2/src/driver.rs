@@ -230,6 +230,21 @@ async fn try_compact_partition(
             // compaction
             let compaction_plan = build_compaction_plan(branch, Arc::clone(&components))?;
 
+            // Cannot run this plan and skip this partition because of over limit of input num_files or size.
+            // The partition_resource_limit_filter will throw an error if one of the limits hit and will lead
+            // to the partition is added to the `skipped_compactions` catalog table for us to not bother
+            // compacting it again.
+            // TODO: After https://github.com/influxdata/idpe/issues/17090 is iplemented (aka V3), we will
+            //      split files to smaller branches and aslo compact L0s into fewer L0s to deal with all kinds
+            //      of conidtions even with limited resource. Then we will remove this resrouce limit check.
+            if !components
+                .partition_resource_limit_filter
+                .apply(partition_id, &compaction_plan.files_to_compact)
+                .await?
+            {
+                return Ok(());
+            }
+
             // Compact
             let created_file_params = run_compaction_plan(
                 &compaction_plan.files_to_compact,

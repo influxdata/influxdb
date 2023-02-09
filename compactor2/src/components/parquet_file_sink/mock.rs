@@ -28,15 +28,19 @@ pub struct StoredFile {
     pub schema: SchemaRef,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct MockParquetFileSink {
+    filter_empty_files: bool,
     records: Mutex<Vec<StoredFile>>,
 }
 
 impl MockParquetFileSink {
-    #[allow(dead_code)] // not used anywhere
-    pub fn new() -> Self {
-        Self::default()
+    /// If filter_empty_files is true, parquet files that have "0" rows will not be written to `ParquetFile`s in the catalog.
+    pub fn new(filter_empty_files: bool) -> Self {
+        Self {
+            filter_empty_files,
+            records: Default::default(),
+        }
     }
 
     #[allow(dead_code)] // not used anywhere
@@ -64,7 +68,7 @@ impl ParquetFileSink for MockParquetFileSink {
         let batches: Vec<_> = stream.try_collect().await?;
         let row_count = batches.iter().map(|b| b.num_rows()).sum::<usize>();
         let mut guard = self.records.lock().expect("not poisoned");
-        let out = (row_count > 0).then(|| ParquetFileParams {
+        let out = ((row_count > 0) || !self.filter_empty_files).then(|| ParquetFileParams {
             shard_id: ShardId::new(1),
             namespace_id: partition.namespace_id,
             table_id: partition.table.id,
@@ -106,12 +110,12 @@ mod tests {
 
     #[test]
     fn test_display() {
-        assert_eq!(MockParquetFileSink::new().to_string(), "mock");
+        assert_eq!(MockParquetFileSink::new(false).to_string(), "mock");
     }
 
     #[tokio::test]
-    async fn test_store() {
-        let sink = MockParquetFileSink::new();
+    async fn test_store_filter_empty() {
+        let sink = MockParquetFileSink::new(true);
 
         let schema = SchemaBuilder::new()
             .field("f", DataType::Int64)
@@ -201,5 +205,54 @@ mod tests {
         assert_eq!(records[2].schema, schema);
         assert_eq!(records[2].level, level);
         assert_eq!(records[2].partition, partition);
+    }
+
+    #[tokio::test]
+    async fn test_store_keep_empty() {
+        let sink = MockParquetFileSink::new(false);
+
+        let schema = SchemaBuilder::new()
+            .field("f", DataType::Int64)
+            .unwrap()
+            .build()
+            .unwrap()
+            .as_arrow();
+        let partition = partition_info();
+        let level = CompactionLevel::FileNonOverlapped;
+        let max_l0_created_at = Time::from_timestamp_nanos(1);
+
+        let stream = Box::pin(RecordBatchStreamAdapter::new(
+            Arc::clone(&schema),
+            futures::stream::empty(),
+        ));
+        assert_eq!(
+            sink.store(stream, Arc::clone(&partition), level, max_l0_created_at)
+                .await
+                .unwrap(),
+            Some(ParquetFileParams {
+                shard_id: ShardId::new(1),
+                namespace_id: NamespaceId::new(2),
+                table_id: TableId::new(3),
+                partition_id: PartitionId::new(1),
+                object_store_id: Uuid::from_u128(0),
+                max_sequence_number: SequenceNumber::new(0),
+                min_time: Timestamp::new(0),
+                max_time: Timestamp::new(0),
+                file_size_bytes: 1,
+                row_count: 1,
+                compaction_level: CompactionLevel::FileNonOverlapped,
+                created_at: Timestamp::new(1),
+                column_set: ColumnSet::new([]),
+                max_l0_created_at: max_l0_created_at.into(),
+            }),
+        );
+
+        let records = sink.records();
+        assert_eq!(records.len(), 1);
+
+        assert_eq!(records[0].batches.len(), 0);
+        assert_eq!(records[0].schema, schema);
+        assert_eq!(records[0].level, level);
+        assert_eq!(records[0].partition, partition);
     }
 }

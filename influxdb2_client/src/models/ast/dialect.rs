@@ -15,7 +15,7 @@ pub struct Dialect {
     pub delimiter: Option<String>,
     /// <https://www.w3.org/TR/2015/REC-tabular-data-model-20151217/#columns>
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub annotations: Option<Annotations>,
+    pub annotations: Option<Vec<Annotations>>,
     /// Character prefixed to comment strings
     #[serde(skip_serializing_if = "Option::is_none")]
     pub comment_prefix: Option<String>,
