@@ -176,6 +176,7 @@ pub mod config;
 mod driver;
 mod error;
 mod partition_info;
+mod plan_ir;
 
 #[cfg(test)]
 mod tests;

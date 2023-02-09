@@ -1,7 +1,6 @@
 use std::{any::Any, fmt::Display, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{CompactionLevel, ParquetFile};
 use datafusion::{
     arrow::datatypes::SchemaRef,
     error::DataFusionError,
@@ -14,7 +13,7 @@ use datafusion::{
 };
 use schema::SchemaBuilder;
 
-use crate::partition_info::PartitionInfo;
+use crate::{partition_info::PartitionInfo, plan_ir::PlanIR};
 
 use super::DataFusionPlanner;
 
@@ -38,9 +37,8 @@ impl Display for PanicDataFusionPlanner {
 impl DataFusionPlanner for PanicDataFusionPlanner {
     async fn plan(
         &self,
-        _files: Vec<ParquetFile>,
+        _ir: PlanIR,
         _partition: Arc<PartitionInfo>,
-        _compaction_level: CompactionLevel,
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
         Ok(Arc::new(PanicPlan))
     }
@@ -113,7 +111,7 @@ mod tests {
         let planner = PanicDataFusionPlanner::new();
         let partition = partition_info();
         let plan = planner
-            .plan(vec![], partition, CompactionLevel::FileNonOverlapped)
+            .plan(PlanIR::Compact { files: vec![] }, partition)
             .await
             .unwrap();
 

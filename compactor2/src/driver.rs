@@ -400,6 +400,11 @@ async fn run_compaction_plan(
         })
         .collect();
 
+    let plan_ir =
+        components
+            .ir_planner
+            .plan(branch_inpad, Arc::clone(partition_info), target_level);
+
     let create = {
         // draw semaphore BEFORE creating the DataFusion plan and drop it directly AFTER finishing the
         // DataFusion computation (but BEFORE doing any additional external IO).
@@ -414,7 +419,7 @@ async fn run_compaction_plan(
 
         let plan = components
             .df_planner
-            .plan(branch_inpad, Arc::clone(partition_info), target_level)
+            .plan(plan_ir, Arc::clone(partition_info))
             .await?;
         let streams = components.df_plan_exec.exec(plan);
         let job = stream_into_file_sink(
