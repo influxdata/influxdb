@@ -1,7 +1,7 @@
 use http::StatusCode;
 use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, TestConfig};
 
-/// Test the namespacea client
+/// Test the namespace client
 #[tokio::test]
 async fn querier_namespace_client() {
     test_helpers::maybe_start_logging();
@@ -9,9 +9,9 @@ async fn querier_namespace_client() {
 
     let table_name = "the_table";
 
-    let router_config = TestConfig::new_router(&database_url);
-    let ingester_config = TestConfig::new_ingester(&router_config);
-    let querier_config = TestConfig::new_querier(&ingester_config);
+    let ingester_config = TestConfig::new_ingester2(&database_url);
+    let router_config = TestConfig::new_router2(&ingester_config);
+    let querier_config = TestConfig::new_querier2(&ingester_config);
 
     // Set up the cluster  ====================================
     let cluster = MiniCluster::new()

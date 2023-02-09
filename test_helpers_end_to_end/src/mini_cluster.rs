@@ -29,8 +29,8 @@ use std::{
 use tempfile::NamedTempFile;
 use tokio::sync::{Mutex, OnceCell};
 
-/// Structure that holds services and helpful accessors. Does not include compactor; that is always
-/// run separately on-demand in tests.
+/// Structure that holds services and helpful accessors. Does not start services for a compactor;
+/// that is always run separately on-demand in tests.
 #[derive(Debug, Default)]
 pub struct MiniCluster {
     /// Standard optional router
@@ -44,9 +44,6 @@ pub struct MiniCluster {
 
     /// Standard optional compactor configuration, to be used on-demand
     compactor_config: Option<TestConfig>,
-
-    /// Optional additional `ServerFixture`s that can be used for specific tests
-    other_servers: Vec<ServerFixture>,
 
     // Potentially helpful data
     org_id: String,
@@ -69,11 +66,11 @@ impl MiniCluster {
         }
     }
 
-    /// Create a new MiniCluster that shares the same underlying
-    /// servers but has a new unique namespace and set of connections
+    /// Create a new MiniCluster that shares the same underlying servers but has a new unique
+    /// namespace and set of connections
     ///
     /// Note this is an internal implementation -- please use
-    /// [`create_shared`](Self::create_shared), and [`new`](Self::new) to create new MiniClusters.
+    /// [`create_shared2`](Self::create_shared2) and [`new`](Self::new) to create new MiniClusters.
     fn new_from_fixtures(
         router: Option<ServerFixture>,
         ingester: Option<ServerFixture>,
@@ -89,7 +86,6 @@ impl MiniCluster {
             ingester,
             querier,
             compactor_config,
-            other_servers: vec![],
 
             org_id,
             bucket_id,
@@ -98,50 +94,9 @@ impl MiniCluster {
         }
     }
 
-    /// Create a "standard" shared MiniCluster that has a router, ingester,
-    /// querier (but no compactor as that should be run on-demand in tests)
-    ///
-    /// Note: Since the underlying server processes are shared across multiple
-    /// tests so all users of this MiniCluster should only modify
-    /// their namespace
-    pub async fn create_shared(database_url: String) -> Self {
-        let start = Instant::now();
-        let mut shared_servers = GLOBAL_SHARED_SERVERS.lock().await;
-        debug!(mutex_wait=?start.elapsed(), "creating standard cluster");
-
-        // try to reuse existing server processes
-        if let Some(shared) = shared_servers.take() {
-            if let Some(cluster) = shared.creatable_cluster().await {
-                debug!("Reusing existing cluster");
-
-                // Put the server back
-                *shared_servers = Some(shared);
-                let start = Instant::now();
-                // drop the lock prior to calling create() to allow
-                // others to proceed
-                std::mem::drop(shared_servers);
-                let new_self = cluster.create().await;
-                info!(
-                    total_wait=?start.elapsed(),
-                    "created new new mini cluster from existing cluster"
-                );
-                return new_self;
-            } else {
-                info!("some server proceses of previous cluster have already returned");
-            }
-        }
-
-        // Have to make a new one
-        info!("Create a new server");
-        let new_cluster = Self::create_non_shared_standard(database_url).await;
-
-        // Update the shared servers to point at the newly created server proesses
-        *shared_servers = Some(SharedServers::new(&new_cluster));
-        new_cluster
-    }
-
-    /// Create a "standard" shared MiniCluster that has a router, ingester, and querier (but no
-    /// compactor as that should be run on-demand in tests)
+    /// Create a "standard" shared MiniCluster that starts a router, ingester, and querier. Save
+    /// config for a compactor, but the compactor service should be run on-demand in tests using
+    /// `compactor run-once` rather than using `run compactor`.
     ///
     /// Note: Because the underlying server processes are shared across multiple tests, all users
     /// of this `MiniCluster` instance should only modify their own unique namespace.
@@ -181,8 +136,9 @@ impl MiniCluster {
     }
 
     /// Create a shared "version 2" MiniCluster that has a router, ingester set to essentially
-    /// never persist data (except on-demand), and querier (but no
-    /// compactor as that should be run on-demand in tests).
+    /// never persist data (except on-demand), and querier. Save config for a compactor, but the
+    /// compactor service should be run on-demand in tests using `compactor run-once` rather than
+    /// using `run compactor`.
     ///
     /// Note: Because the underlying server processes are shared across multiple tests, all users
     /// of this `MiniCluster` instance should only modify their own unique namespace.
@@ -221,52 +177,14 @@ impl MiniCluster {
         new_cluster
     }
 
-    /// Create a non shared "standard" MiniCluster that has a router, ingester, querier. Save
-    /// config for a compactor, but the compactor should be run on-demand in tests using `compactor
-    /// run-once` rather than using `run compactor`.
-    pub async fn create_non_shared_standard(database_url: String) -> Self {
-        let router_config = TestConfig::new_router(&database_url);
-        let ingester_config = TestConfig::new_ingester(&router_config);
-        let querier_config = TestConfig::new_querier(&ingester_config);
-        let compactor_config = TestConfig::new_compactor(&ingester_config);
-
-        // Set up the cluster  ====================================
-        Self::new()
-            .with_router(router_config)
-            .await
-            .with_ingester(ingester_config)
-            .await
-            .with_querier(querier_config)
-            .await
-            .with_compactor_config(compactor_config)
-    }
-
-    /// Create a non-shared "standard" MiniCluster that has a router, ingester set to essentially
-    /// never persist data (except on-demand), and querier. Save config for a compactor, but the
-    /// compactor should be run on-demand in tests using `compactor run-once` rather than using
-    /// `run compactor`.
-    pub async fn create_non_shared_standard_never_persist(database_url: String) -> Self {
-        let router_config = TestConfig::new_router(&database_url);
-        let ingester_config = TestConfig::new_ingester_never_persist(&router_config);
-        let querier_config = TestConfig::new_querier(&ingester_config);
-        let compactor_config = TestConfig::new_compactor(&ingester_config);
-
-        // Set up the cluster  ====================================
-        Self::new()
-            .with_router(router_config)
-            .await
-            .with_ingester(ingester_config)
-            .await
-            .with_querier(querier_config)
-            .await
-            .with_compactor_config(compactor_config)
-    }
-
-    /// Create a non-shared "version 2" "standard" MiniCluster that has a router, ingester, querier.
+    /// Create a non-shared "version 2" "standard" MiniCluster that has a router, ingester,
+    /// querier. Save config for a compactor, but the compactor service should be run on-demand in
+    /// tests using `compactor run-once` rather than using `run compactor`.
     pub async fn create_non_shared2(database_url: String) -> Self {
         let ingester_config = TestConfig::new_ingester2(&database_url);
         let router_config = TestConfig::new_router2(&ingester_config);
         let querier_config = TestConfig::new_querier2(&ingester_config);
+        let compactor_config = TestConfig::new_compactor2(&ingester_config);
 
         // Set up the cluster  ====================================
         Self::new()
@@ -276,14 +194,18 @@ impl MiniCluster {
             .await
             .with_querier(querier_config)
             .await
+            .with_compactor_config(compactor_config)
     }
 
     /// Create a non-shared "version 2" MiniCluster that has a router, ingester set to essentially
-    /// never persist data (except on-demand), and querier.
+    /// never persist data (except on-demand), and querier. Save config for a compactor, but the
+    /// compactor service should be run on-demand in tests using `compactor run-once` rather than
+    /// using `run compactor`.
     pub async fn create_non_shared2_never_persist(database_url: String) -> Self {
         let ingester_config = TestConfig::new_ingester2_never_persist(&database_url);
         let router_config = TestConfig::new_router2(&ingester_config);
         let querier_config = TestConfig::new_querier2(&ingester_config);
+        let compactor_config = TestConfig::new_compactor2(&ingester_config);
 
         // Set up the cluster  ====================================
         Self::new()
@@ -293,14 +215,15 @@ impl MiniCluster {
             .await
             .with_querier(querier_config)
             .await
+            .with_compactor_config(compactor_config)
     }
 
     /// Create an all-(minus compactor)-in-one server with the specified configuration
     pub async fn create_all_in_one(test_config: TestConfig) -> Self {
         Self::new()
-            .with_router(test_config.clone())
-            .await
             .with_ingester(test_config.clone())
+            .await
+            .with_router(test_config.clone())
             .await
             .with_querier(test_config.clone())
             .await
@@ -326,12 +249,6 @@ impl MiniCluster {
 
     pub fn with_compactor_config(mut self, compactor_config: TestConfig) -> Self {
         self.compactor_config = Some(compactor_config);
-        self
-    }
-
-    /// create another server compactor with the specified configuration;
-    pub async fn with_other(mut self, config: TestConfig) -> Self {
-        self.other_servers.push(ServerFixture::create(config).await);
         self
     }
 
@@ -500,11 +417,6 @@ impl MiniCluster {
             .unwrap();
     }
 
-    /// Get a reference to the mini cluster's other servers.
-    pub fn other_servers(&self) -> &[ServerFixture] {
-        self.other_servers.as_ref()
-    }
-
     pub fn run_compaction(&self) {
         let (log_file, log_path) = NamedTempFile::new()
             .expect("opening log file")
@@ -631,10 +543,6 @@ impl CreatableMiniCluster {
 impl SharedServers {
     /// Save the server processes in this shared servers as weak references
     pub fn new(cluster: &MiniCluster) -> Self {
-        assert!(
-            cluster.other_servers.is_empty(),
-            "other servers not yet handled in shared mini clusters"
-        );
         Self {
             router: cluster.router.as_ref().map(|c| c.weak()),
             ingester: cluster.ingester.as_ref().map(|c| c.weak()),
@@ -672,7 +580,6 @@ fn server_from_weak(server: Option<&Weak<TestServer>>) -> Option<Option<Arc<Test
     }
 }
 
-static GLOBAL_SHARED_SERVERS: Lazy<Mutex<Option<SharedServers>>> = Lazy::new(|| Mutex::new(None));
 // For the new server versions. `GLOBAL_SHARED_SERVERS` can be removed and this can be renamed
 // when the migration to router2/etc is complete.
 static GLOBAL_SHARED_SERVERS2: Lazy<Mutex<Option<SharedServers>>> = Lazy::new(|| Mutex::new(None));

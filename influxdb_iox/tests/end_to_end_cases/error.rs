@@ -8,23 +8,12 @@ use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, Step, StepTes
 #[tokio::test]
 pub async fn test_panic() {
     let database_url = maybe_skip_integration!();
-    let mut cluster = MiniCluster::create_shared(database_url).await;
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
 
     StepTest::new(
         &mut cluster,
         vec![Step::Custom(Box::new(move |state: &mut StepTestState| {
             async move {
-                let router = state.cluster().router();
-                assert_panic_logging(router.router_grpc_connection(), router.log_path().await)
-                    .await;
-
-                let ingester = state.cluster().ingester();
-                assert_panic_logging(
-                    ingester.ingester_grpc_connection(),
-                    ingester.log_path().await,
-                )
-                .await;
-
                 let querier = state.cluster().querier();
                 assert_panic_logging(querier.querier_grpc_connection(), querier.log_path().await)
                     .await;
@@ -43,7 +32,7 @@ async fn assert_panic_logging(connection: Connection, log_path: Box<Path>) {
     if let influxdb_iox_client::error::Error::Internal(err) = err {
         assert_eq!(&err.message, "This is a test panic");
     } else {
-        panic!("wrong error type");
+        panic!("wrong error type. got {err:?}");
     }
 
     // check logs
