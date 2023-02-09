@@ -11,8 +11,8 @@ import (
 const MaxFieldValueLength = 1048576
 
 // ValidateFields will return a PartialWriteError if:
-//  - the point has inconsistent fields, or
-//  - the point has fields that are too long
+//   - the point has inconsistent fields, or
+//   - the point has fields that are too long
 func ValidateFields(mf *MeasurementFields, point models.Point, skipSizeValidation bool) error {
 	pointSize := point.StringSize()
 	iter := point.FieldIterator()

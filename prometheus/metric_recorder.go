@@ -20,7 +20,7 @@ type EventRecorder struct {
 // descriptive of the type of metric being recorded. Possible values may include write, query,
 // task, dashboard, etc.
 //
-// The general structure of the metrics produced from the metric recorder should be
+// # The general structure of the metrics produced from the metric recorder should be
 //
 // http_<subsystem>_request_count{org_id=<org_id>, status=<status>, endpoint=<endpoint>} ...
 // http_<subsystem>_request_bytes{org_id=<org_id>, status=<status>, endpoint=<endpoint>} ...

@@ -1620,6 +1620,7 @@ type ReadResponse_Frame struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to Data:
+	//
 	//	*ReadResponse_Frame_Group
 	//	*ReadResponse_Frame_Series
 	//	*ReadResponse_Frame_FloatPoints

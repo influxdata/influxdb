@@ -47,20 +47,20 @@ const MaxWritesPending = 1024
 // queues can have a max size configured such that when the size of all
 // segments on disk exceeds the size, write will fail.
 //
-// 	┌─────┐
-// 	│Head │
-// 	├─────┘
-// 	│
-// 	▼
-// 	┌─────────────────┐ ┌─────────────────┐┌─────────────────┐
-// 	│Segment 1 - 10MB │ │Segment 2 - 10MB ││Segment 3 - 10MB │
-// 	└─────────────────┘ └─────────────────┘└─────────────────┘
-// 	                                                         ▲
-// 	                                                         │
-// 	                                                         │
-// 	                                                    ┌─────┐
-// 	                                                    │Tail │
-// 	                                                    └─────┘
+//	┌─────┐
+//	│Head │
+//	├─────┘
+//	│
+//	▼
+//	┌─────────────────┐ ┌─────────────────┐┌─────────────────┐
+//	│Segment 1 - 10MB │ │Segment 2 - 10MB ││Segment 3 - 10MB │
+//	└─────────────────┘ └─────────────────┘└─────────────────┘
+//	                                                         ▲
+//	                                                         │
+//	                                                         │
+//	                                                    ┌─────┐
+//	                                                    │Tail │
+//	                                                    └─────┘
 type Queue struct {
 	mu sync.RWMutex
 
@@ -609,13 +609,13 @@ func (l *Queue) trimHead(force bool) error {
 // lengths + block with a single footer point to the position in the segment of the
 // current Head block.
 //
-// 	┌──────────────────────────┐ ┌──────────────────────────┐ ┌────────────┐
-// 	│         Block 1          │ │         Block 2          │ │   Footer   │
-// 	└──────────────────────────┘ └──────────────────────────┘ └────────────┘
-// 	┌────────────┐┌────────────┐ ┌────────────┐┌────────────┐ ┌────────────┐
-// 	│Block 1 Len ││Block 1 Body│ │Block 2 Len ││Block 2 Body│ │Head Offset │
-// 	│  8 bytes   ││  N bytes   │ │  8 bytes   ││  N bytes   │ │  8 bytes   │
-// 	└────────────┘└────────────┘ └────────────┘└────────────┘ └────────────┘
+//	┌──────────────────────────┐ ┌──────────────────────────┐ ┌────────────┐
+//	│         Block 1          │ │         Block 2          │ │   Footer   │
+//	└──────────────────────────┘ └──────────────────────────┘ └────────────┘
+//	┌────────────┐┌────────────┐ ┌────────────┐┌────────────┐ ┌────────────┐
+//	│Block 1 Len ││Block 1 Body│ │Block 2 Len ││Block 2 Body│ │Head Offset │
+//	│  8 bytes   ││  N bytes   │ │  8 bytes   ││  N bytes   │ │  8 bytes   │
+//	└────────────┘└────────────┘ └────────────┘└────────────┘ └────────────┘
 //
 // The footer holds the pointer to the Head entry at the end of the segment to allow writes
 // to seek to the end and write sequentially (vs having to seek back to the beginning of

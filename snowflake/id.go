@@ -6,13 +6,17 @@ import (
 	"sync"
 	"time"
 
+	rand2 "github.com/influxdata/influxdb/v2/internal/rand"
 	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/pkg/snowflake"
 )
 
+var seededRand *rand.Rand
+
 func init() {
-	rand.Seed(time.Now().UnixNano())
-	SetGlobalMachineID(rand.Intn(1023))
+	lockedSource := rand2.NewLockedSourceFromSeed(time.Now().UnixNano())
+	seededRand = rand.New(lockedSource)
+	SetGlobalMachineID(seededRand.Intn(1023))
 }
 
 var globalmachineID struct {
@@ -79,7 +83,8 @@ func NewIDGenerator(opts ...IDGeneratorOp) *IDGenerator {
 		f(gen)
 	}
 	if gen.Generator == nil {
-		gen.Generator = snowflake.New(rand.Intn(1023))
+		machineId := seededRand.Intn(1023)
+		gen.Generator = snowflake.New(machineId)
 	}
 	return gen
 }

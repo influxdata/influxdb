@@ -76,6 +76,8 @@ func combine(fns ...func() []uint64) func() []uint64 {
 // TestEncodeAll ensures 100% test coverage of simple8b.EncodeAll and
 // verifies all output by comparing the original input with the output of simple8b.DecodeAll
 func TestEncodeAll(t *testing.T) {
+	//lint:ignore SA1019 This function was deprecated for good reasons that aren't important to us since its just used for testing.
+	// Ignoring seems better than all the effort to address the underlying concern. https://github.com/golang/go/issues/56319
 	rand.Seed(0)
 
 	tests := []struct {

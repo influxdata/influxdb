@@ -39,24 +39,31 @@ const (
 // further help operators.
 //
 // To create a simple error,
-//     &Error{
-//         Code:ENotFound,
-//     }
+//
+//	&Error{
+//	    Code:ENotFound,
+//	}
+//
 // To show where the error happens, add Op.
-//     &Error{
-//         Code: ENotFound,
-//         Op: "bolt.FindUserByID"
-//     }
+//
+//	&Error{
+//	    Code: ENotFound,
+//	    Op: "bolt.FindUserByID"
+//	}
+//
 // To show an error with a unpredictable value, add the value in Msg.
-//     &Error{
-//        Code: EConflict,
-//        Message: fmt.Sprintf("organization with name %s already exist", aName),
-//     }
+//
+//	&Error{
+//	   Code: EConflict,
+//	   Message: fmt.Sprintf("organization with name %s already exist", aName),
+//	}
+//
 // To show an error wrapped with another error.
-//     &Error{
-//         Code:EInternal,
-//         Err: err,
-//     }.
+//
+//	&Error{
+//	    Code:EInternal,
+//	    Err: err,
+//	}.
 type Error struct {
 	Code string
 	Msg  string

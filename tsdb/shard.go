@@ -190,7 +190,7 @@ func (s *Shard) SetEnabled(enabled bool) {
 	s.mu.Unlock()
 }
 
-//! setEnabledNoLock performs actual work of SetEnabled. Must hold s.mu before calling.
+// ! setEnabledNoLock performs actual work of SetEnabled. Must hold s.mu before calling.
 func (s *Shard) setEnabledNoLock(enabled bool) {
 	// Prevent writes and queries
 	s.enabled = enabled

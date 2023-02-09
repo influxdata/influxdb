@@ -396,11 +396,11 @@ func TestQueue_TotalBytes(t *testing.T) {
 
 // This test verifies the queue will advance in the following scenario:
 //
-//    * There is one segment
-//    * The segment is not full
-//    * The segment record size entry is corrupted, resulting in
-//      currentRecordSize + pos > fileSize and
-//      therefore the Advance would fail.
+//   - There is one segment
+//   - The segment is not full
+//   - The segment record size entry is corrupted, resulting in
+//     currentRecordSize + pos > fileSize and
+//     therefore the Advance would fail.
 func TestQueue_AdvanceSingleCorruptSegment(t *testing.T) {
 	q, dir := newTestQueue(t, withVerify(func([]byte) error { return nil }))
 	defer os.RemoveAll(dir)

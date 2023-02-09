@@ -180,12 +180,12 @@ func Test_BooleanArrayDecodeAll_Multi_Compressed(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(fmt.Sprintf("%d_%0.2f", tc.n, tc.p), func(t *testing.T) {
-			rand.Seed(int64(tc.n * tc.n))
+			seededRand := rand.New(rand.NewSource(int64(tc.n * tc.n)))
 
 			enc := tsm1.NewBooleanEncoder(tc.n)
 			values := make([]bool, tc.n)
 			for i := range values {
-				values[i] = rand.Float64() < tc.p
+				values[i] = seededRand.Float64() < tc.p
 				enc.Write(values[i])
 			}
 

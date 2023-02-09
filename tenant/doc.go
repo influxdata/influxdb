@@ -11,13 +11,19 @@ allow us to make changes to this service without effecting any dependant service
 
 When a new request for the tenant service comes in it should follow this pattern:
 1 http_server_resource - this is where the request is parsed and rejected if the client didn't send
+
 	the right information
+
 2 middleware_resource_auth - We now confirm the user that generated the request has sufficient permission
+
 	to accomplish this task, in some cases we adjust the request if the user is without the correct permissions
+
 3 middleware_resource_metrics - Track RED metrics for this request
 4 middleware_resource_logging - add logging around request duration and status.
 5 service_resource - When a request reaches the service we verify the content for compatibility with the existing dataset,
+
 	for instance if a resource has a "orgID" we will ensure the organization exists
+
 6 storage_resource - Basic CRUD actions for the system.
 
 This pattern of api -> middleware -> service -> basic crud helps us to break down the responsibilities into digestible

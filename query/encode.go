@@ -72,9 +72,11 @@ func (e *NoContentEncoder) Encode(w io.Writer, results flux.ResultIterator) (int
 // Otherwise one can decode the response body to get the error. For example:
 // ```
 // _, err = csv.NewResultDecoder(csv.ResultDecoderConfig{}).Decode(bytes.NewReader(res))
-// if err != nil {
-//   // we got some runtime error
-// }
+//
+//	if err != nil {
+//	  // we got some runtime error
+//	}
+//
 // ```
 type NoContentWithErrorDialect struct {
 	csv.ResultEncoderConfig

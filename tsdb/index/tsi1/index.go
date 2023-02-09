@@ -55,7 +55,6 @@ func init() {
 //
 // NOTE: Currently, this must not be change once a database is created. Further,
 // it must also be a power of 2.
-//
 var DefaultPartitionN uint64 = 8
 
 // An IndexOption is a functional option for changing the configuration of

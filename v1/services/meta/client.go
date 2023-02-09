@@ -197,7 +197,6 @@ func (c *Client) CreateDatabase(name string) (*DatabaseInfo, error) {
 // This call is only idempotent when the caller provides the exact same
 // retention policy, and that retention policy is already the default for the
 // database.
-//
 func (c *Client) CreateDatabaseWithRetentionPolicy(name string, spec *RetentionPolicySpec) (*DatabaseInfo, error) {
 	if spec == nil {
 		return nil, errors.New("CreateDatabaseWithRetentionPolicy called with nil spec")

@@ -2,7 +2,6 @@ package tsm1
 
 import (
 	"fmt"
-	"math/rand"
 	"reflect"
 	"testing"
 	"testing/quick"
@@ -190,8 +189,6 @@ func BenchmarkStringDecoder_DecodeAll(b *testing.B) {
 		{1000, 10},
 	}
 	for _, bm := range benchmarks {
-		rand.Seed(int64(bm.n * 1e3))
-
 		s := NewStringEncoder(bm.n)
 		for c := 0; c < bm.n; c++ {
 			s.Write(testutil.MakeSentence(bm.w))

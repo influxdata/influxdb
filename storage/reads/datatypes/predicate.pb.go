@@ -200,6 +200,7 @@ type Node struct {
 	NodeType Node_Type `protobuf:"varint,1,opt,name=node_type,json=nodeType,proto3,enum=influxdata.platform.storage.Node_Type" json:"node_type,omitempty"` // [(gogoproto.customname) = "NodeType", (gogoproto.jsontag) = "nodeType"];
 	Children []*Node   `protobuf:"bytes,2,rep,name=children,proto3" json:"children,omitempty"`
 	// Types that are assignable to Value:
+	//
 	//	*Node_StringValue
 	//	*Node_BooleanValue
 	//	*Node_IntegerValue

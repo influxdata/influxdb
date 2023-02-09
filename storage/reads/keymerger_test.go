@@ -146,7 +146,7 @@ func BenchmarkKeyMerger_MergeKeys(b *testing.B) {
 		bytes.Split([]byte("tag04,tag05"), commaB),
 	}
 
-	rand.Seed(20040409)
+	seededRand := rand.New(rand.NewSource(20040409))
 
 	tests := []int{
 		10,
@@ -161,7 +161,7 @@ func BenchmarkKeyMerger_MergeKeys(b *testing.B) {
 			var km KeyMerger
 			for i := 0; i < b.N; i++ {
 				for j := 0; j < n; j++ {
-					km.MergeKeys(keys[rand.Int()%len(keys)])
+					km.MergeKeys(keys[seededRand.Int()%len(keys)])
 				}
 				km.Clear()
 			}
@@ -180,7 +180,7 @@ func BenchmarkKeyMerger_MergeTagKeys(b *testing.B) {
 		models.ParseTags([]byte("foo,tag04=v0,tag05=v0")),
 	}
 
-	rand.Seed(20040409)
+	seededRand := rand.New(rand.NewSource(20040409))
 
 	tests := []int{
 		10,
@@ -195,7 +195,7 @@ func BenchmarkKeyMerger_MergeTagKeys(b *testing.B) {
 			var km KeyMerger
 			for i := 0; i < b.N; i++ {
 				for j := 0; j < n; j++ {
-					km.MergeTagKeys(tags[rand.Int()%len(tags)])
+					km.MergeTagKeys(tags[seededRand.Int()%len(tags)])
 				}
 				km.Clear()
 			}

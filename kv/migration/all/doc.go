@@ -9,11 +9,11 @@
 //
 // This package is arranged like so:
 //
-//  doc.go - this piece of documentation.
-//  all.go - definition of Migration array referencing each of the name migrations in number migration files (below).
-//  migration.go - an implementation of migration.Spec for convenience.
-//  000X_migration_name.go (example) - N files contains the specific implementations of each migration enumerated in `all.go`.
-//  ...
+//	doc.go - this piece of documentation.
+//	all.go - definition of Migration array referencing each of the name migrations in number migration files (below).
+//	migration.go - an implementation of migration.Spec for convenience.
+//	000X_migration_name.go (example) - N files contains the specific implementations of each migration enumerated in `all.go`.
+//	...
 //
 // Managing this list of files and all.go can be fiddly.
 // There is a buildable cli utility called `kvmigrate` in the `internal/cmd/kvmigrate` package.
