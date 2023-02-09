@@ -47,6 +47,7 @@ use super::{
         dedicated::DedicatedExecParquetFileSinkWrapper, logging::LoggingParquetFileSinkWrapper,
         mock::MockParquetFileSink, object_store::ObjectStoreParquetFileSink, ParquetFileSink,
     },
+    parquet_files_sink::dispatch::DispatchParquetFilesSink,
     partition_done_sink::{
         catalog::CatalogPartitionDoneSink, error_kind::ErrorKindPartitionDoneSinkWrapper,
         logging::LoggingPartitionDoneSinkWrapper, metrics::MetricsPartitionDoneSinkWrapper,
@@ -302,7 +303,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             Arc::clone(&config.exec),
         )),
         df_plan_exec,
-        parquet_file_sink,
+        parquet_files_sink: Arc::new(DispatchParquetFilesSink::new(parquet_file_sink)),
         round_split: Arc::new(AllNowRoundSplit::new()),
         divide_initial: Arc::new(SingleBranchDivideInitial::new()),
         scratchpad_gen,

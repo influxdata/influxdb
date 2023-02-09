@@ -1,9 +1,7 @@
-use std::{future::Future, num::NonZeroUsize, sync::Arc, time::Duration};
+use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 use data_types::{CompactionLevel, ParquetFile, ParquetFileParams, PartitionId};
-use datafusion::physical_plan::SendableRecordBatchStream;
-use futures::{stream::FuturesOrdered, StreamExt, TryFutureExt, TryStreamExt};
-use iox_time::Time;
+use futures::StreamExt;
 use observability_deps::tracing::info;
 use parquet_file::ParquetFilePath;
 use tracker::InstrumentedAsyncSemaphore;
@@ -383,13 +381,6 @@ async fn run_compaction_plan(
         return Ok(vec![]);
     }
 
-    // compute max_l0_created_at
-    let max_l0_created_at = files
-        .iter()
-        .map(|f| f.max_l0_created_at)
-        .max()
-        .expect("max_l0_created_at should have value");
-
     // stage files
     let input_paths: Vec<ParquetFilePath> = files.iter().map(|f| f.into()).collect();
     let input_uuids_inpad = scratchpad_ctx.load_to_scratchpad(&input_paths).await;
@@ -425,15 +416,14 @@ async fn run_compaction_plan(
 
         let plan = components
             .df_planner
-            .plan(plan_ir, Arc::clone(partition_info))
+            .plan(&plan_ir, Arc::clone(partition_info))
             .await?;
         let streams = components.df_plan_exec.exec(plan);
-        let job = stream_into_file_sink(
+        let job = components.parquet_files_sink.stream_into_file_sink(
             streams,
             Arc::clone(partition_info),
             target_level,
-            max_l0_created_at.into(),
-            Arc::clone(components),
+            &plan_ir,
         );
 
         // TODO: react to OOM and try to divide branch
@@ -557,33 +547,4 @@ async fn fetch_partition_info(
         sort_key: partition.sort_key(),
         partition_key: partition.partition_key,
     }))
-}
-
-fn stream_into_file_sink(
-    streams: Vec<SendableRecordBatchStream>,
-    partition_info: Arc<PartitionInfo>,
-    target_level: CompactionLevel,
-    max_l0_created_at: Time,
-    components: Arc<Components>,
-) -> impl Future<Output = Result<Vec<ParquetFileParams>, DynError>> {
-    streams
-        .into_iter()
-        .map(move |stream| {
-            let components = Arc::clone(&components);
-            let partition_info = Arc::clone(&partition_info);
-            async move {
-                components
-                    .parquet_file_sink
-                    .store(stream, partition_info, target_level, max_l0_created_at)
-                    .await
-            }
-        })
-        // NB: FuturesOrdered allows the futures to run in parallel
-        .collect::<FuturesOrdered<_>>()
-        // Discard the streams that resulted in empty output / no file uploaded
-        // to the object store.
-        .try_filter_map(|v| futures::future::ready(Ok(v)))
-        // Collect all the persisted parquet files together.
-        .try_collect::<Vec<_>>()
-        .map_err(|e| Box::new(e) as _)
 }

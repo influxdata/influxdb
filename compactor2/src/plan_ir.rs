@@ -26,6 +26,13 @@ impl PlanIR {
             Self::Split { split_times, .. } => split_times.len() + 1,
         }
     }
+
+    pub fn input_files(&self) -> &[FileIR] {
+        match self {
+            Self::Compact { files } => files,
+            Self::Split { files, .. } => files,
+        }
+    }
 }
 
 impl Display for PlanIR {

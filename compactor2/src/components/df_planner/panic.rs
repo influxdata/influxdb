@@ -37,7 +37,7 @@ impl Display for PanicDataFusionPlanner {
 impl DataFusionPlanner for PanicDataFusionPlanner {
     async fn plan(
         &self,
-        _ir: PlanIR,
+        _ir: &PlanIR,
         _partition: Arc<PartitionInfo>,
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
         Ok(Arc::new(PanicPlan))
@@ -111,7 +111,7 @@ mod tests {
         let planner = PanicDataFusionPlanner::new();
         let partition = partition_info();
         let plan = planner
-            .plan(PlanIR::Compact { files: vec![] }, partition)
+            .plan(&PlanIR::Compact { files: vec![] }, partition)
             .await
             .unwrap();
 

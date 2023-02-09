@@ -163,12 +163,12 @@ impl QueryChunk for QueryableParquetChunk {
 }
 
 pub fn to_query_chunks(
-    files: Vec<FileIR>,
+    files: &[FileIR],
     partition_info: &PartitionInfo,
     store: ParquetStorage,
 ) -> Vec<Arc<dyn QueryChunk>> {
     files
-        .into_iter()
+        .iter()
         .map(|file| {
             Arc::new(to_queryable_parquet_chunk(
                 file,
@@ -181,7 +181,7 @@ pub fn to_query_chunks(
 
 /// Convert to a QueryableParquetChunk
 fn to_queryable_parquet_chunk(
-    file: FileIR,
+    file: &FileIR,
     partition_info: &PartitionInfo,
     store: ParquetStorage,
 ) -> QueryableParquetChunk {
@@ -220,7 +220,7 @@ fn to_queryable_parquet_chunk(
         "built parquet chunk from metadata"
     );
 
-    let parquet_chunk = ParquetChunk::new(Arc::new(file.file), schema, store);
+    let parquet_chunk = ParquetChunk::new(Arc::new(file.file.clone()), schema, store);
     QueryableParquetChunk::new(
         partition_id,
         Arc::new(parquet_chunk),
