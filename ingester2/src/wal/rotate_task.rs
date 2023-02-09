@@ -13,8 +13,8 @@ pub(crate) async fn periodic_rotation<T, P>(
     buffer: T,
     persist: P,
 ) where
-    T: PartitionIter + Sync,
-    P: PersistQueue + Clone,
+    T: PartitionIter + Sync + 'static,
+    P: PersistQueue + Clone + 'static,
 {
     let mut interval = tokio::time::interval(period);
 
@@ -78,36 +78,353 @@ pub(crate) async fn periodic_rotation<T, P>(
 
         tokio::time::sleep(Duration::from_secs(5)).await;
 
-        // Drain the BufferTree of partition data and persist each one.
+        // Do not block the ticker while partitions are persisted to ensure
+        // timely ticking.
         //
-        // Writes that landed into the partition buffer after the rotation but
-        // before the partition data is read will be included in the parquet
-        // file, but this is not a problem in the happy case (they will not
-        // appear in the next persist too).
+        // This ticker loop MUST make progress and periodically enqueue
+        // partition data to the persist system - this ensures that given a
+        // blocked persist system (i.e. object store outage) the persist queue
+        // grows until it reaches saturation and the ingester rejects writes. If
+        // the persist ticker does not make progress, the buffer tree grows
+        // instead of the persist queue, until the ingester OOMs.
         //
-        // In the case of an ingester crash after these partitions (with their
-        // extra writes) have been persisted, the ingester will replay them and
-        // re-persist them, causing a small number of duplicate writes to be
-        // present in object storage that must be asynchronously compacted later
-        // - a small price to pay for not having to block ingest while the WAL
-        // is rotated, all outstanding writes + queries complete, and all then
-        // partitions are marked as persisting.
-        persist_partitions(buffer.partition_iter(), &persist).await;
+        // There's no need to retain a handle to the task here; any panics are
+        // fatal, and nothing needs to wait for completion (except graceful
+        // shutdown, which works without having to wait for notifications from
+        // in-flight persists, but rather evaluates the buffer tree state to
+        // determine completeness instead). The spawned task eventually deletes
+        // the right WAL segment regardless of concurrent tasks.
+        tokio::spawn({
+            let persist = persist.clone();
+            let wal = Arc::clone(&wal);
+            let iter = buffer.partition_iter();
+            async move {
+                // Drain the BufferTree of partition data and persist each one.
+                //
+                // Writes that landed into the partition buffer after the rotation but
+                // before the partition data is read will be included in the parquet
+                // file, but this is not a problem in the happy case (they will not
+                // appear in the next persist too).
+                //
+                // In the case of an ingester crash after these partitions (with their
+                // extra writes) have been persisted, the ingester will replay them and
+                // re-persist them, causing a small number of duplicate writes to be
+                // present in object storage that must be asynchronously compacted later
+                // - a small price to pay for not having to block ingest while the WAL
+                // is rotated, all outstanding writes + queries complete, and all then
+                // partitions are marked as persisting.
 
-        debug!(
-            closed_id = %stats.id(),
-            "partitions persisted"
-        );
+                persist_partitions(iter, &persist).await;
 
-        wal.delete(stats.id())
-            .await
-            .expect("failed to drop wal segment");
+                debug!(
+                    closed_id = %stats.id(),
+                    "partitions persisted"
+                );
 
-        info!(
-            closed_id = %stats.id(),
-            "dropped persisted wal segment"
-        );
+                wal.delete(stats.id())
+                    .await
+                    .expect("failed to drop wal segment");
+
+                info!(
+                    closed_id = %stats.id(),
+                    "dropped persisted wal segment"
+                );
+            }
+        });
     }
 }
 
-// TODO(test): rotate task
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use assert_matches::assert_matches;
+    use async_trait::async_trait;
+    use data_types::{NamespaceId, PartitionId, PartitionKey, SequenceNumber, ShardId, TableId};
+    use lazy_static::lazy_static;
+    use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
+    use parking_lot::Mutex;
+    use tempfile::tempdir;
+    use test_helpers::timeout::FutureTimeout;
+    use tokio::sync::oneshot;
+
+    use crate::{
+        buffer_tree::{
+            namespace::NamespaceName,
+            partition::PartitionData,
+            partition::{persisting::PersistingData, SortKeyState},
+            table::TableName,
+        },
+        deferred_load::DeferredLoad,
+        persist::queue::mock::MockPersistQueue,
+    };
+
+    use super::*;
+
+    const PARTITION_ID: PartitionId = PartitionId::new(1);
+    const TRANSITION_SHARD_ID: ShardId = ShardId::new(84);
+    const TICK_INTERVAL: Duration = Duration::from_millis(10);
+
+    lazy_static! {
+        static ref PARTITION_KEY: PartitionKey = PartitionKey::from("platanos");
+        static ref TABLE_NAME: TableName = TableName::from("bananas");
+        static ref NAMESPACE_NAME: NamespaceName = NamespaceName::from("namespace-bananas");
+    }
+
+    #[tokio::test]
+    async fn test_persist() {
+        let mut p = PartitionData::new(
+            PARTITION_ID,
+            PARTITION_KEY.clone(),
+            NamespaceId::new(3),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                NAMESPACE_NAME.clone()
+            })),
+            TableId::new(4),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                TABLE_NAME.clone()
+            })),
+            SortKeyState::Provided(None),
+            TRANSITION_SHARD_ID,
+        );
+
+        // Perform a single write to populate the partition.
+        let mb = lp_to_mutable_batch(r#"bananas,city=London people=2,pigeons="millions" 10"#).1;
+        p.buffer_write(mb, SequenceNumber::new(1))
+            .expect("write should succeed");
+
+        // Wrap the partition in the lock.
+        assert_eq!(p.completed_persistence_count(), 0);
+        let p = Arc::new(Mutex::new(p));
+
+        // Initialise a mock persist queue to inspect the calls made to the
+        // persist subsystem.
+        let persist = Arc::new(MockPersistQueue::default());
+
+        // Initialise the WAL
+        let tmp_dir = tempdir().expect("no temp dir available");
+        let wal = wal::Wal::new(tmp_dir.path())
+            .await
+            .expect("failed to initialise WAL");
+
+        assert_eq!(wal.closed_segments().len(), 0);
+
+        // Start the rotation task
+        let handle = tokio::spawn(periodic_rotation(
+            Arc::clone(&wal),
+            TICK_INTERVAL,
+            vec![Arc::clone(&p)],
+            Arc::clone(&persist),
+        ));
+
+        tokio::time::pause();
+        tokio::time::advance(TICK_INTERVAL).await;
+        tokio::time::resume();
+
+        // Wait for the WAL to rotate, causing 1 closed segment to exist.
+        async {
+            loop {
+                if !wal.closed_segments().is_empty() {
+                    return;
+                }
+                tokio::task::yield_now().await;
+            }
+        }
+        .with_timeout_panic(Duration::from_secs(5))
+        .await;
+
+        // There should be exactly 1 segment.
+        let mut segment = wal.closed_segments();
+        assert_eq!(segment.len(), 1);
+        let segment = segment.pop().unwrap();
+
+        // Move past the hacky sleep.
+        tokio::time::pause();
+        tokio::time::advance(Duration::from_secs(10)).await;
+        tokio::time::resume();
+
+        // Wait for the WAL segment to be deleted, indicating the end of
+        // processing.
+        async {
+            loop {
+                match wal.closed_segments().pop() {
+                    Some(p) if p.id() != segment.id() => {
+                        // Rotation has occurred.
+                        break;
+                    }
+                    // Rotation has not yet occurred.
+                    Some(_) => tokio::task::yield_now().await,
+                    // The old file was deleted and no new one has yet taken its
+                    // place.
+                    None => break,
+                }
+            }
+        }
+        .with_timeout_panic(Duration::from_secs(5))
+        .await;
+
+        // Stop the worker and assert the state of the persist queue.
+        handle.abort();
+
+        assert_matches!(persist.calls().as_slice(), [got] => {
+            let guard = got.lock();
+            assert_eq!(guard.partition_id(), PARTITION_ID);
+        })
+    }
+
+    /// A [`PersistQueue`] implementation that never completes a persist task
+    /// and therefore never signals completion of any persist task.
+    ///
+    /// This simulates a persist system where all workers cannot make progress;
+    /// for example, an object store outage or catalog unavailability.
+    #[derive(Debug, Default)]
+    struct BlockedPersistQueue {
+        /// Observed PartitionData instances.
+        calls: Mutex<Vec<Arc<Mutex<PartitionData>>>>,
+        // The tx handles that callers are blocked waiting on.
+        tx: Mutex<Vec<oneshot::Sender<()>>>,
+    }
+
+    #[async_trait]
+    impl PersistQueue for BlockedPersistQueue {
+        #[allow(clippy::async_yields_async)]
+        async fn enqueue(
+            &self,
+            partition: Arc<Mutex<PartitionData>>,
+            _data: PersistingData,
+        ) -> oneshot::Receiver<()> {
+            self.calls.lock().push(Arc::clone(&partition));
+            let (tx, rx) = oneshot::channel();
+            self.tx.lock().push(tx);
+            rx
+        }
+    }
+
+    #[tokio::test]
+    async fn test_persist_ticks_when_blocked() {
+        let mut p = PartitionData::new(
+            PARTITION_ID,
+            PARTITION_KEY.clone(),
+            NamespaceId::new(3),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                NAMESPACE_NAME.clone()
+            })),
+            TableId::new(4),
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                TABLE_NAME.clone()
+            })),
+            SortKeyState::Provided(None),
+            TRANSITION_SHARD_ID,
+        );
+
+        // Perform a single write to populate the partition.
+        let mb = lp_to_mutable_batch(r#"bananas,city=London people=2,pigeons="millions" 10"#).1;
+        p.buffer_write(mb.clone(), SequenceNumber::new(1))
+            .expect("write should succeed");
+
+        // Wrap the partition in the lock.
+        assert_eq!(p.completed_persistence_count(), 0);
+        let p = Arc::new(Mutex::new(p));
+
+        // Initialise a mock persist queue that never completes.
+        let persist = Arc::new(BlockedPersistQueue::default());
+
+        // Initialise the WAL
+        let tmp_dir = tempdir().expect("no temp dir available");
+        let wal = wal::Wal::new(tmp_dir.path())
+            .await
+            .expect("failed to initialise WAL");
+
+        assert_eq!(wal.closed_segments().len(), 0);
+
+        // Start the rotation task
+        let handle = tokio::spawn(periodic_rotation(
+            Arc::clone(&wal),
+            TICK_INTERVAL,
+            vec![Arc::clone(&p)],
+            Arc::clone(&persist),
+        ));
+
+        tokio::time::pause();
+        tokio::time::advance(TICK_INTERVAL).await;
+        tokio::time::resume();
+
+        // Wait for the WAL to rotate, causing 1 closed segment to exist.
+        async {
+            loop {
+                if !wal.closed_segments().is_empty() {
+                    return;
+                }
+
+                tokio::task::yield_now().await;
+            }
+        }
+        .with_timeout_panic(Duration::from_secs(5))
+        .await;
+
+        // There should be exactly 1 segment.
+        let mut segment = wal.closed_segments();
+        assert_eq!(segment.len(), 1);
+        let segment = segment.pop().unwrap();
+
+        // Move past the hacky sleep.
+        tokio::time::pause();
+        tokio::time::advance(Duration::from_secs(10)).await;
+        tokio::time::resume();
+
+        // Wait for the WAL segment to be deleted, indicating the end of
+        // processing of the first loop.
+        async {
+            loop {
+                match wal.closed_segments().pop() {
+                    Some(closed) if closed.id() != segment.id() => {
+                        // Rotation has occurred.
+                        break closed;
+                    }
+                    // Rotation has not yet occurred.
+                    Some(_) => tokio::task::yield_now().await,
+                    // The old file was deleted and no new one has taken its
+                    // place.
+                    None => unreachable!(),
+                }
+            }
+        }
+        .with_timeout_panic(Duration::from_secs(5))
+        .await;
+
+        // Pause the ticker loop and buffer another write in the partition.
+        p.lock()
+            .buffer_write(mb, SequenceNumber::new(2))
+            .expect("write should succeed");
+
+        // Cause another tick to occur, driving the loop again.
+        tokio::time::pause();
+        tokio::time::advance(TICK_INTERVAL).await;
+        tokio::time::resume();
+
+        // Move past the sleep.
+        tokio::time::pause();
+        tokio::time::advance(Duration::from_secs(10)).await;
+        tokio::time::resume();
+
+        // Wait the second tick to complete.
+        async {
+            loop {
+                if persist.calls.lock().len() == 2 {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        }
+        .with_timeout_panic(Duration::from_secs(5))
+        .await;
+
+        // Stop the worker and assert the state of the persist queue.
+        handle.abort();
+
+        let calls = persist.calls.lock().clone();
+        assert_matches!(calls.as_slice(), [got1, got2] => {
+            assert!(Arc::ptr_eq(got1, got2));
+        })
+    }
+}
