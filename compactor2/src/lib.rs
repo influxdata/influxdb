@@ -175,6 +175,7 @@ mod components;
 pub mod config;
 mod driver;
 mod error;
+pub mod object_store;
 mod partition_info;
 mod plan_ir;
 

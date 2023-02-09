@@ -1,3 +1,4 @@
+//! Wrapper that ignores writes.
 use std::{fmt::Display, ops::Range, sync::Arc};
 
 use async_trait::async_trait;
@@ -9,12 +10,14 @@ use object_store::{
 use tokio::io::{sink, AsyncWrite};
 use uuid::Uuid;
 
+/// Store that pipes all writes to `/dev/null` but reads from an actual store.
 #[derive(Debug)]
 pub struct IgnoreWrites {
     inner: Arc<DynObjectStore>,
 }
 
 impl IgnoreWrites {
+    /// Creates new store that reads from the given inner store.
     pub fn new(inner: Arc<DynObjectStore>) -> Self {
         Self { inner }
     }

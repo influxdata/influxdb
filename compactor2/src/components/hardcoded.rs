@@ -14,6 +14,7 @@ use crate::{
     },
     config::{AlgoVersion, Config, PartitionsSourceConfig},
     error::ErrorKind,
+    object_store::ignore_writes::IgnoreWrites,
 };
 
 use super::{
@@ -76,10 +77,7 @@ use super::{
         randomize_order::RandomizeOrderPartitionsSourcesWrapper, PartitionsSource,
     },
     round_split::all_now::AllNowRoundSplit,
-    scratchpad::{
-        ignore_writes_object_store::IgnoreWrites, noop::NoopScratchpadGen, prod::ProdScratchpadGen,
-        ScratchpadGen,
-    },
+    scratchpad::{noop::NoopScratchpadGen, prod::ProdScratchpadGen, ScratchpadGen},
     skipped_compactions_source::catalog::CatalogSkippedCompactionsSource,
     target_level_chooser::{
         all_at_once::AllAtOnceTargetLevelChooser, target_level::TargetLevelTargetLevelChooser,

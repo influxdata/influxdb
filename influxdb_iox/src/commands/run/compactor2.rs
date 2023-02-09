@@ -1,5 +1,6 @@
 //! Command line options for running compactor2 in RPC write mode
 
+use compactor2::object_store::metrics::MetricsStore;
 use iox_query::exec::{Executor, ExecutorConfig};
 use iox_time::{SystemProvider, TimeProvider};
 use object_store::DynObjectStore;
@@ -97,7 +98,11 @@ pub async fn command(config: Config) -> Result<(), Error> {
 
     let parquet_store_real = ParquetStorage::new(object_store, StorageId::from("iox"));
     let parquet_store_scratchpad = ParquetStorage::new(
-        Arc::new(object_store::memory::InMemory::new()),
+        Arc::new(MetricsStore::new(
+            Arc::new(object_store::memory::InMemory::new()),
+            &metric_registry,
+            "scratchpad",
+        )),
         StorageId::from("iox_scratchpad"),
     );
 
