@@ -1794,7 +1794,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_catalog() {
-        let metrics = Arc::new(metric::Registry::default());
-        crate::interface::test_helpers::test_catalog(Arc::new(MemCatalog::new(metrics))).await;
+        crate::interface::test_helpers::test_catalog(|| async {
+            let metrics = Arc::new(metric::Registry::default());
+            let x: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
+            x
+        })
+        .await;
     }
 }

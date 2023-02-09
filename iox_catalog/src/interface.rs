@@ -956,6 +956,7 @@ pub(crate) mod test_helpers {
     use data_types::{
         ColumnId, ColumnSet, CompactionLevel, TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX,
     };
+    use futures::Future;
     use metric::{Attributes, DurationHistogram, Metric};
     use std::{
         collections::BTreeSet,
@@ -964,43 +965,64 @@ pub(crate) mod test_helpers {
         time::Duration,
     };
 
-    pub(crate) async fn test_catalog(catalog: Arc<dyn Catalog>) {
-        test_setup(Arc::clone(&catalog)).await;
-        test_partitions_with_recent_created_files(Arc::clone(&catalog)).await;
-        test_most_cold_files_partitions(Arc::clone(&catalog)).await;
-        test_topic(Arc::clone(&catalog)).await;
-        test_query_pool(Arc::clone(&catalog)).await;
-        test_namespace(Arc::clone(&catalog)).await;
-        test_table(Arc::clone(&catalog)).await;
-        test_column(Arc::clone(&catalog)).await;
-        test_shards(Arc::clone(&catalog)).await;
-        test_partition(Arc::clone(&catalog)).await;
-        test_tombstone(Arc::clone(&catalog)).await;
-        test_tombstones_by_parquet_file(Arc::clone(&catalog)).await;
-        test_parquet_file(Arc::clone(&catalog)).await;
-        test_parquet_file_delete_broken(Arc::clone(&catalog)).await;
-        test_parquet_file_compaction_level_0(Arc::clone(&catalog)).await;
-        test_parquet_file_compaction_level_1(Arc::clone(&catalog)).await;
-        test_recent_highest_throughput_partitions(Arc::clone(&catalog)).await;
-        test_partitions_with_small_l1_file_count(Arc::clone(&catalog)).await;
-        test_update_to_compaction_level_1(Arc::clone(&catalog)).await;
-        test_processed_tombstones(Arc::clone(&catalog)).await;
-        test_list_by_partiton_not_to_delete(Arc::clone(&catalog)).await;
-        test_txn_isolation(Arc::clone(&catalog)).await;
-        test_txn_drop(Arc::clone(&catalog)).await;
-        test_list_schemas(Arc::clone(&catalog)).await;
-        test_delete_namespace(Arc::clone(&catalog)).await;
+    pub(crate) async fn test_catalog<R, F>(clean_state: R)
+    where
+        R: Fn() -> F + Send + Sync,
+        F: Future<Output = Arc<dyn Catalog>> + Send,
+    {
+        test_setup(clean_state().await).await;
+        test_partitions_with_recent_created_files(clean_state().await).await;
+        test_most_cold_files_partitions(clean_state().await).await;
+        test_query_pool(clean_state().await).await;
+        test_column(clean_state().await).await;
+        test_partition(clean_state().await).await;
+        test_tombstone(clean_state().await).await;
+        test_tombstones_by_parquet_file(clean_state().await).await;
+        test_parquet_file(clean_state().await).await;
+        test_parquet_file_delete_broken(clean_state().await).await;
+        test_parquet_file_compaction_level_0(clean_state().await).await;
+        test_parquet_file_compaction_level_1(clean_state().await).await;
+        test_recent_highest_throughput_partitions(clean_state().await).await;
+        test_partitions_with_small_l1_file_count(clean_state().await).await;
+        test_update_to_compaction_level_1(clean_state().await).await;
+        test_processed_tombstones(clean_state().await).await;
+        test_list_by_partiton_not_to_delete(clean_state().await).await;
+        test_txn_isolation(clean_state().await).await;
+        test_txn_drop(clean_state().await).await;
+        test_list_schemas(clean_state().await).await;
+        test_delete_namespace(clean_state().await).await;
 
-        let metrics = catalog.metrics();
-        assert_metric_hit(&metrics, "topic_create_or_get");
-        assert_metric_hit(&metrics, "query_create_or_get");
-        assert_metric_hit(&metrics, "namespace_create");
-        assert_metric_hit(&metrics, "table_create_or_get");
-        assert_metric_hit(&metrics, "column_create_or_get");
-        assert_metric_hit(&metrics, "shard_create_or_get");
-        assert_metric_hit(&metrics, "partition_create_or_get");
-        assert_metric_hit(&metrics, "tombstone_create_or_get");
-        assert_metric_hit(&metrics, "parquet_create");
+        let catalog = clean_state().await;
+        test_topic(Arc::clone(&catalog)).await;
+        assert_metric_hit(&catalog.metrics(), "topic_create_or_get");
+
+        let catalog = clean_state().await;
+        test_namespace(Arc::clone(&catalog)).await;
+        assert_metric_hit(&catalog.metrics(), "namespace_create");
+
+        let catalog = clean_state().await;
+        test_table(Arc::clone(&catalog)).await;
+        assert_metric_hit(&catalog.metrics(), "table_create_or_get");
+
+        let catalog = clean_state().await;
+        test_column(Arc::clone(&catalog)).await;
+        assert_metric_hit(&catalog.metrics(), "column_create_or_get");
+
+        let catalog = clean_state().await;
+        test_shards(Arc::clone(&catalog)).await;
+        assert_metric_hit(&catalog.metrics(), "shard_create_or_get");
+
+        let catalog = clean_state().await;
+        test_partition(Arc::clone(&catalog)).await;
+        assert_metric_hit(&catalog.metrics(), "partition_create_or_get");
+
+        let catalog = clean_state().await;
+        test_tombstone(Arc::clone(&catalog)).await;
+        assert_metric_hit(&catalog.metrics(), "tombstone_create_or_get");
+
+        let catalog = clean_state().await;
+        test_parquet_file(Arc::clone(&catalog)).await;
+        assert_metric_hit(&catalog.metrics(), "parquet_create");
     }
 
     async fn test_setup(catalog: Arc<dyn Catalog>) {
