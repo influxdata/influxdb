@@ -35,7 +35,7 @@ impl FromStr for IngesterAddress {
         }
 
         let uri = if uri.scheme().is_none() {
-            Uri::from_str(&format!("http://{}", s))?
+            Uri::from_str(&format!("http://{s}"))?
         } else {
             uri
         };
