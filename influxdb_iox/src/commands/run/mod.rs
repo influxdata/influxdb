@@ -8,7 +8,6 @@ mod ingest_replica;
 mod ingester2;
 mod main;
 mod querier;
-mod router;
 mod router2;
 mod test;
 
@@ -23,9 +22,6 @@ pub enum Error {
 
     #[snafu(display("Error in querier subcommand: {}", source))]
     QuerierError { source: querier::Error },
-
-    #[snafu(display("Error in router subcommand: {}", source))]
-    RouterError { source: router::Error },
 
     #[snafu(display("Error in router2 subcommand: {}", source))]
     Router2Error { source: router2::Error },
@@ -62,7 +58,6 @@ impl Config {
             Some(Command::Compactor2(config)) => config.run_config.logging_config(),
             Some(Command::GarbageCollector(config)) => config.run_config.logging_config(),
             Some(Command::Querier(config)) => config.run_config.logging_config(),
-            Some(Command::Router(config)) => config.run_config.logging_config(),
             Some(Command::Router2(config)) => config.run_config.logging_config(),
             Some(Command::Ingester2(config)) => config.run_config.logging_config(),
             Some(Command::IngestReplica(config)) => config.run_config.logging_config(),
@@ -79,9 +74,6 @@ enum Command {
 
     /// Run the server in querier mode
     Querier(querier::Config),
-
-    /// Run the server in router mode
-    Router(router::Config),
 
     /// Run the server in router2 mode
     Router2(router2::Config),
@@ -114,7 +106,6 @@ pub async fn command(config: Config) -> Result<()> {
             .await
             .context(GarbageCollectorSnafu),
         Some(Command::Querier(config)) => querier::command(config).await.context(QuerierSnafu),
-        Some(Command::Router(config)) => router::command(config).await.context(RouterSnafu),
         Some(Command::Router2(config)) => router2::command(config).await.context(Router2Snafu),
         Some(Command::Ingester2(config)) => {
             ingester2::command(config).await.context(Ingester2Snafu)

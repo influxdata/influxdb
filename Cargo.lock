@@ -3247,7 +3247,6 @@ dependencies = [
  "metric",
  "mutable_batch",
  "object_store",
- "observability_deps",
  "router",
  "sharder",
  "thiserror",
@@ -3255,7 +3254,6 @@ dependencies = [
  "tokio-util",
  "trace",
  "workspace-hack",
- "write_buffer",
  "write_summary",
 ]
 
@@ -4860,10 +4858,8 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tonic",
- "tower",
  "trace",
  "workspace-hack",
- "write_buffer",
  "write_summary",
 ]
 

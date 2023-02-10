@@ -5,28 +5,23 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
-[dependencies]
-# Workspace dependencies, in alphabetical order
+[dependencies] # In alphabetical order
+async-trait = "0.1"
 authz = { path = "../authz" }
-data_types = { path = "../data_types" }
 clap_blocks = { path = "../clap_blocks" }
+data_types = { path = "../data_types" }
+hashbrown = { workspace = true }
+hyper = "0.14"
 iox_catalog = { path = "../iox_catalog" }
 ioxd_common = { path = "../ioxd_common" }
 metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch" }
 object_store = "0.5.6"
-observability_deps = { path = "../observability_deps" }
 router = { path = "../router" }
 sharder = { path = "../sharder" }
-trace = { path = "../trace" }
-write_buffer = { path = "../write_buffer" }
-write_summary = { path = "../write_summary" }
-
-# Crates.io dependencies, in alphabetical order
-async-trait = "0.1"
-hashbrown = { workspace = true }
-hyper = "0.14"
 thiserror = "1.0.40"
 tokio = { version = "1.27", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util = { version = "0.7.7" }
+trace = { path = "../trace" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
+write_summary = { path = "../write_summary" }
