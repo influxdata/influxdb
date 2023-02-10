@@ -14,7 +14,6 @@
 )]
 pub mod authz;
 pub mod catalog_dsn;
-pub mod compactor;
 pub mod compactor2;
 pub mod garbage_collector;
 pub mod ingest_replica;
