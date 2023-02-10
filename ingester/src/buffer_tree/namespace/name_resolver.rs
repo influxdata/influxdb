@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use backoff::{Backoff, BackoffConfig};
 use data_types::NamespaceId;
-use iox_catalog::interface::Catalog;
+use iox_catalog::interface::{Catalog, SoftDeletedRows};
 
 use super::NamespaceName;
 use crate::deferred_load::DeferredLoad;
@@ -46,7 +46,10 @@ impl NamespaceNameResolver {
                     .repositories()
                     .await
                     .namespaces()
-                    .get_by_id(namespace_id)
+                    // Accept soft-deleted namespaces to enable any writes for
+                    // it to flow through the system. Eventually the routers
+                    // will prevent new writes to the deleted namespace.
+                    .get_by_id(namespace_id, SoftDeletedRows::AllRows)
                     .await?
                     .expect("resolving namespace name for non-existent namespace id")
                     .name

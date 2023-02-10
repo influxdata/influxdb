@@ -5,7 +5,7 @@ use crate::{
 use generated_types::influxdata::iox::ingester::v1::{
     self as proto, persist_service_server::PersistService,
 };
-use iox_catalog::interface::Catalog;
+use iox_catalog::interface::{Catalog, SoftDeletedRows};
 use std::sync::Arc;
 use tonic::{Request, Response};
 
@@ -50,7 +50,7 @@ where
             .repositories()
             .await
             .namespaces()
-            .get_by_name(&request.namespace)
+            .get_by_name(&request.namespace, SoftDeletedRows::AllRows)
             .await
             .map_err(|e| tonic::Status::internal(e.to_string()))?
             .ok_or_else(|| tonic::Status::not_found(&request.namespace))?;

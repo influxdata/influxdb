@@ -6,6 +6,7 @@ use dml::DmlOperation;
 use futures::{stream::FuturesUnordered, StreamExt};
 use hashbrown::HashMap;
 use hyper::{Body, Request, StatusCode};
+use iox_catalog::interface::SoftDeletedRows;
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{Attributes, DurationHistogram, Metric, U64Counter};
 use router::dml_handlers::{DmlError, RetentionError, SchemaError};
@@ -44,7 +45,7 @@ async fn test_write_ok() {
         .repositories()
         .await
         .namespaces()
-        .get_by_name("bananas_test")
+        .get_by_name("bananas_test", SoftDeletedRows::ExcludeDeleted)
         .await
         .expect("query should succeed")
         .expect("namespace not found");

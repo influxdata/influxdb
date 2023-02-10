@@ -13,7 +13,9 @@ use data_types::{
 use datafusion::physical_plan::metrics::Count;
 use datafusion_util::MemoryStream;
 use iox_catalog::{
-    interface::{get_schema_by_id, get_table_schema_by_id, Catalog, PartitionRepo},
+    interface::{
+        get_schema_by_id, get_table_schema_by_id, Catalog, PartitionRepo, SoftDeletedRows,
+    },
     mem::MemCatalog,
 };
 use iox_query::{
@@ -342,9 +344,13 @@ impl TestNamespace {
     /// Get namespace schema for this namespace.
     pub async fn schema(&self) -> NamespaceSchema {
         let mut repos = self.catalog.catalog.repositories().await;
-        get_schema_by_id(self.namespace.id, repos.as_mut())
-            .await
-            .unwrap()
+        get_schema_by_id(
+            self.namespace.id,
+            repos.as_mut(),
+            SoftDeletedRows::ExcludeDeleted,
+        )
+        .await
+        .unwrap()
     }
 
     /// Set the number of columns per table allowed in this namespace.

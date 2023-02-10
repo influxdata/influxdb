@@ -3,7 +3,7 @@
 use crate::interface::{
     sealed::TransactionFinalize, CasFailure, ColumnRepo, NamespaceRepo, ParquetFileRepo,
     PartitionRepo, ProcessedTombstoneRepo, QueryPoolRepo, RepoCollection, Result, ShardRepo,
-    TableRepo, TombstoneRepo, TopicMetadataRepo,
+    SoftDeletedRows, TableRepo, TombstoneRepo, TopicMetadataRepo,
 };
 use async_trait::async_trait;
 use data_types::{
@@ -195,10 +195,10 @@ decorate!(
     methods = [
         "namespace_create" = create(&mut self, name: &str, retention_period_ns: Option<i64>, topic_id: TopicId, query_pool_id: QueryPoolId) -> Result<Namespace>;
         "namespace_update_retention_period" = update_retention_period(&mut self, name: &str, retention_period_ns: Option<i64>) -> Result<Namespace>;
-        "namespace_list" = list(&mut self) -> Result<Vec<Namespace>>;
-        "namespace_get_by_id" = get_by_id(&mut self, id: NamespaceId) -> Result<Option<Namespace>>;
-        "namespace_get_by_name" = get_by_name(&mut self, name: &str) -> Result<Option<Namespace>>;
-        "namespace_delete" = delete(&mut self, name: &str) -> Result<()>;
+        "namespace_list" = list(&mut self, deleted: SoftDeletedRows) -> Result<Vec<Namespace>>;
+        "namespace_get_by_id" = get_by_id(&mut self, id: NamespaceId, deleted: SoftDeletedRows) -> Result<Option<Namespace>>;
+        "namespace_get_by_name" = get_by_name(&mut self, name: &str, deleted: SoftDeletedRows) -> Result<Option<Namespace>>;
+        "namespace_soft_delete" = soft_delete(&mut self, name: &str) -> Result<()>;
         "namespace_update_table_limit" = update_table_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace>;
         "namespace_update_column_limit" = update_column_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace>;
     ]

@@ -7,7 +7,7 @@ use crate::{
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
 use data_types::{Namespace, ShardIndex};
-use iox_catalog::interface::Catalog;
+use iox_catalog::interface::{Catalog, SoftDeletedRows};
 use iox_query::exec::Executor;
 use service_common::QueryNamespaceProvider;
 use sharder::JumpHash;
@@ -189,7 +189,12 @@ impl QuerierDatabase {
         let catalog = &self.catalog_cache.catalog();
         Backoff::new(&self.backoff_config)
             .retry_all_errors("listing namespaces", || async {
-                catalog.repositories().await.namespaces().list().await
+                catalog
+                    .repositories()
+                    .await
+                    .namespaces()
+                    .list(SoftDeletedRows::ExcludeDeleted)
+                    .await
             })
             .await
             .expect("retry forever")

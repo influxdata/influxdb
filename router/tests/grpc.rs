@@ -5,6 +5,7 @@ use generated_types::influxdata::iox::namespace::v1::{
     namespace_service_server::NamespaceService, *,
 };
 use hyper::StatusCode;
+use iox_catalog::interface::SoftDeletedRows;
 use iox_time::{SystemProvider, TimeProvider};
 use router::{
     dml_handlers::{DmlError, RetentionError},
@@ -54,7 +55,7 @@ async fn test_namespace_create() {
             .repositories()
             .await
             .namespaces()
-            .list()
+            .list(SoftDeletedRows::AllRows)
             .await
             .expect("failed to query for existing namespaces");
         assert!(current.is_empty());
@@ -114,13 +115,14 @@ async fn test_namespace_create() {
             .repositories()
             .await
             .namespaces()
-            .list()
+            .list(SoftDeletedRows::ExcludeDeleted)
             .await
             .expect("query failure");
         assert_matches!(db_list.as_slice(), [ns] => {
             assert_eq!(ns.id.get(), got.id);
             assert_eq!(ns.name, got.name);
             assert_eq!(ns.retention_period_ns, got.retention_period_ns);
+            assert!(ns.deleted_at.is_none());
         });
     }
 
@@ -179,13 +181,14 @@ async fn test_create_namespace_0_retention_period() {
             .repositories()
             .await
             .namespaces()
-            .list()
+            .list(SoftDeletedRows::ExcludeDeleted)
             .await
             .expect("query failure");
         assert_matches!(db_list.as_slice(), [ns] => {
             assert_eq!(ns.id.get(), got.id);
             assert_eq!(ns.name, got.name);
             assert_eq!(ns.retention_period_ns, got.retention_period_ns);
+            assert!(ns.deleted_at.is_none());
         });
     }
 
@@ -237,7 +240,7 @@ async fn test_create_namespace_negative_retention_period() {
             .repositories()
             .await
             .namespaces()
-            .list()
+            .list(SoftDeletedRows::AllRows)
             .await
             .expect("query failure");
         assert!(db_list.is_empty());
@@ -321,13 +324,14 @@ async fn test_update_namespace_0_retention_period() {
             .repositories()
             .await
             .namespaces()
-            .list()
+            .list(SoftDeletedRows::ExcludeDeleted)
             .await
             .expect("query failure");
         assert_matches!(db_list.as_slice(), [ns] => {
             assert_eq!(ns.id.get(), got.id);
             assert_eq!(ns.name, got.name);
             assert_eq!(ns.retention_period_ns, got.retention_period_ns);
+            assert!(ns.deleted_at.is_none());
         });
     }
 
@@ -405,7 +409,7 @@ async fn test_update_namespace_negative_retention_period() {
             .repositories()
             .await
             .namespaces()
-            .list()
+            .list(SoftDeletedRows::ExcludeDeleted)
             .await
             .expect("query failure");
         assert_matches!(db_list.as_slice(), [ns] => {

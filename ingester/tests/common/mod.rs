@@ -12,7 +12,11 @@ use ingester::{
     lifecycle::LifecycleConfig,
     querier_handler::IngesterQueryResponse,
 };
-use iox_catalog::{interface::Catalog, mem::MemCatalog, validate_or_insert_schema};
+use iox_catalog::{
+    interface::{Catalog, SoftDeletedRows},
+    mem::MemCatalog,
+    validate_or_insert_schema,
+};
 use iox_query::exec::Executor;
 use iox_time::TimeProvider;
 use metric::{Attributes, Metric, MetricObserver};
@@ -224,7 +228,7 @@ impl TestContext {
             .repositories()
             .await
             .namespaces()
-            .get_by_name(namespace)
+            .get_by_name(namespace, SoftDeletedRows::AllRows)
             .await
             .expect("should be able to get namespace by name")
             .expect("namespace does not exist")
@@ -304,7 +308,7 @@ impl TestContext {
             .repositories()
             .await
             .namespaces()
-            .get_by_name(namespace)
+            .get_by_name(namespace, SoftDeletedRows::AllRows)
             .await
             .expect("should be able to get namespace by name")
             .expect("namespace does not exist")

@@ -15,7 +15,7 @@
 
 use data_types::{PartitionId, TableId};
 use generated_types::influxdata::iox::catalog::v1::*;
-use iox_catalog::interface::Catalog;
+use iox_catalog::interface::{Catalog, SoftDeletedRows};
 use observability_deps::tracing::*;
 use std::sync::Arc;
 use tonic::{Request, Response, Status};
@@ -90,7 +90,7 @@ impl catalog_service_server::CatalogService for CatalogService {
 
         let namespace = repos
             .namespaces()
-            .get_by_name(&req.namespace_name)
+            .get_by_name(&req.namespace_name, SoftDeletedRows::ExcludeDeleted)
             .await
             .map_err(|e| Status::unknown(e.to_string()))?
             .ok_or_else(|| {
@@ -136,7 +136,7 @@ impl catalog_service_server::CatalogService for CatalogService {
 
         let namespace = repos
             .namespaces()
-            .get_by_name(&req.namespace_name)
+            .get_by_name(&req.namespace_name, SoftDeletedRows::ExcludeDeleted)
             .await
             .map_err(|e| Status::unknown(e.to_string()))?
             .ok_or_else(|| {

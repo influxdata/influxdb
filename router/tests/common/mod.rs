@@ -3,7 +3,10 @@ use std::{collections::BTreeSet, iter, string::String, sync::Arc};
 use data_types::{PartitionTemplate, QueryPoolId, TableId, TemplatePart, TopicId};
 use hashbrown::HashMap;
 use hyper::{Body, Request, Response};
-use iox_catalog::{interface::Catalog, mem::MemCatalog};
+use iox_catalog::{
+    interface::{Catalog, SoftDeletedRows},
+    mem::MemCatalog,
+};
 use metric::Registry;
 use mutable_batch::MutableBatch;
 use object_store::memory::InMemory;
@@ -185,7 +188,7 @@ impl TestContext {
         let mut repos = self.catalog.repositories().await;
         let namespace_id = repos
             .namespaces()
-            .get_by_name(namespace)
+            .get_by_name(namespace, SoftDeletedRows::AllRows)
             .await
             .expect("query failed")
             .expect("namespace does not exist")
