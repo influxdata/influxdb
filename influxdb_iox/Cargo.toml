@@ -23,7 +23,6 @@ iox_catalog = { path = "../iox_catalog" }
 ioxd_common = { path = "../ioxd_common"}
 ioxd_compactor2 = { path = "../ioxd_compactor2"}
 ioxd_ingest_replica = { path = "../ioxd_ingest_replica" }
-ioxd_ingester = { path = "../ioxd_ingester"}
 ioxd_ingester2 = { path = "../ioxd_ingester2"}
 ioxd_garbage_collector = { path = "../ioxd_garbage_collector" }
 ioxd_querier = { path = "../ioxd_querier"}

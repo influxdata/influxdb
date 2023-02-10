@@ -83,9 +83,6 @@ pub enum Error {
     #[error("Router error: {0}")]
     Router(#[from] ioxd_router::Error),
 
-    #[error("Ingester error: {0}")]
-    Ingester(#[from] ioxd_ingester::Error),
-
     #[error("Querier error: {0}")]
     Querier(#[from] ioxd_querier::Error),
 
