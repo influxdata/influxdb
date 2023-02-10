@@ -1,4 +1,5 @@
 pub(crate) mod influxrpc;
+mod multi_ingester;
 
 use arrow::datatypes::{DataType, SchemaRef};
 use arrow_flight::{
@@ -323,10 +324,10 @@ async fn table_not_found_on_ingester() {
             Step::WaitForPersisted2 {
                 expected_increase: 1,
             },
-            // Restart the ingester so that it does not have any table data in memory
+            // Restart the ingesters so that they don't have any table data in memory
             // and so will return "not found" to the querier
             Step::Custom(Box::new(|state: &mut StepTestState| {
-                state.cluster_mut().restart_ingester().boxed()
+                state.cluster_mut().restart_ingesters().boxed()
             })),
             Step::Query {
                 sql: format!("select * from {table_name}"),

@@ -63,14 +63,7 @@ impl TestConfig {
         )
         .with_existing_object_store(ingester_config)
         .with_env("INFLUXDB_IOX_RPC_MODE", "2")
-        .with_env(
-            "INFLUXDB_IOX_INGESTER_ADDRESSES",
-            ingester_config
-                .addrs()
-                .ingester_grpc_api()
-                .bind_addr()
-                .as_ref(),
-        )
+        .with_ingester_addresses(&[ingester_config.ingester_base()])
     }
 
     /// Create a minimal ingester2 configuration, using the dsn configuration specified. Set the
@@ -95,15 +88,30 @@ impl TestConfig {
             .with_env("INFLUXDB_IOX_WAL_ROTATION_PERIOD_SECONDS", "86400")
     }
 
+    /// Create another ingester with the same dsn, catalog schema name, and object store, but with
+    /// its own WAL directory and own addresses.
+    pub fn another_ingester(ingester_config: &TestConfig) -> Self {
+        Self {
+            env: ingester_config.env.clone(),
+            client_headers: ingester_config.client_headers.clone(),
+            server_type: ServerType::Ingester2,
+            dsn: ingester_config.dsn.clone(),
+            catalog_schema_name: ingester_config.catalog_schema_name.clone(),
+            object_store_dir: None,
+            wal_dir: None,
+            addrs: Arc::new(BindAddresses::default()),
+        }
+        .with_existing_object_store(ingester_config)
+        .with_new_wal()
+    }
+
     /// Create a minimal querier2 configuration from the specified ingester2 configuration, using
     /// the same dsn and object store, and pointing at the specified ingester.
     pub fn new_querier2(ingester_config: &TestConfig) -> Self {
         assert_eq!(ingester_config.server_type(), ServerType::Ingester2);
 
-        Self::new_querier2_without_ingester2(ingester_config).with_env(
-            "INFLUXDB_IOX_INGESTER_ADDRESSES",
-            ingester_config.ingester_base().as_ref(),
-        )
+        Self::new_querier2_without_ingester2(ingester_config)
+            .with_ingester_addresses(&[ingester_config.ingester_base()])
     }
 
     /// Create a minimal compactor configuration, using the dsn configuration from other
@@ -152,6 +160,16 @@ impl TestConfig {
         // setup a custom debug name (to ensure it gets plumbed through)
         self.with_env("TRACES_EXPORTER_JAEGER_DEBUG_NAME", custom_debug_name)
             .with_client_header(custom_debug_name, "some-debug-id")
+    }
+
+    pub fn with_ingester_addresses(
+        self,
+        ingester_addresses: &[impl std::borrow::Borrow<str>],
+    ) -> Self {
+        self.with_env(
+            "INFLUXDB_IOX_INGESTER_ADDRESSES",
+            ingester_addresses.join(","),
+        )
     }
 
     // Get the catalog DSN URL if set.
@@ -256,7 +274,7 @@ impl TestConfig {
 
     /// return the base ingester gRPC address, such as
     /// `http://localhost:8082/`
-    fn ingester_base(&self) -> Arc<str> {
+    pub fn ingester_base(&self) -> Arc<str> {
         self.addrs().ingester_grpc_api().client_base()
     }
 }

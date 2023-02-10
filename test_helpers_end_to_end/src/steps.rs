@@ -277,9 +277,9 @@ where
                 Step::RecordNumParquetFiles => {
                     state.record_num_parquet_files().await;
                 }
-                // Ask the ingester to persist immediately through the persist service gRPC API
+                // Ask the ingesters to persist immediately through the persist service gRPC API
                 Step::Persist => {
-                    state.cluster().persist_ingester().await;
+                    state.cluster().persist_ingesters().await;
                 }
                 Step::WaitForPersisted2 { expected_increase } => {
                     info!("====Begin waiting for a change in the number of Parquet files");
