@@ -1,17 +1,11 @@
-use std::{num::NonZeroUsize, sync::Arc, time::Duration};
+use std::time::Duration;
 
 use arrow_util::assert_batches_sorted_eq;
 use data_types::{CompactionLevel, ParquetFile, PartitionId};
-use iox_query::exec::ExecutorType;
 use iox_tests::util::TestParquetFileBuilder;
-use tracker::AsyncSemaphoreMetrics;
 
 use crate::{
-    components::{
-        df_planner::panic::PanicDataFusionPlanner, hardcoded::hardcoded_components, Components,
-    },
     config::AlgoVersion,
-    driver::compact,
     test_util::{format_files, list_object_store, TestSetup},
 };
 
@@ -26,7 +20,7 @@ async fn test_compact_no_file() {
     assert!(files.is_empty());
 
     // compact
-    run_compact(&setup).await;
+    setup.run_compact().await;
 
     // verify catalog is still empty
     let files = setup.list_by_table_not_to_delete().await;
@@ -65,7 +59,7 @@ async fn test_num_files_over_limit() {
             ],
         );
 
-        run_compact(&setup).await;
+        setup.run_compact().await;
         //
         // read files and verify they are not compacted
         let files = setup.list_by_table_not_to_delete().await;
@@ -119,7 +113,7 @@ async fn test_total_file_size_over_limit() {
             ],
         );
 
-        run_compact(&setup).await;
+        setup.run_compact().await;
 
         // read files and verify they are not compacted
         let files = setup.list_by_table_not_to_delete().await;
@@ -186,7 +180,7 @@ async fn test_compact_all_at_once() {
     );
 
     // compact
-    run_compact(&setup).await;
+    setup.run_compact().await;
 
     // verify number of files: 6 files are compacted into 2 files
     let files = setup.list_by_table_not_to_delete().await;
@@ -292,7 +286,7 @@ async fn test_compact_target_level() {
     );
 
     // compact
-    run_compact(&setup).await;
+    setup.run_compact().await;
 
     // verify number of files: 6 files are compacted into 2 files
     let files = setup.list_by_table_not_to_delete().await;
@@ -382,7 +376,7 @@ async fn test_skip_compact() {
         .await;
 
     // compact but nothing will be compacted because the partition is skipped
-    run_compact(&setup).await;
+    setup.run_compact().await;
 
     // verify still 6 files
     let files = setup.list_by_table_not_to_delete().await;
@@ -402,7 +396,7 @@ async fn test_partition_fail() {
     let object_store_files_pre = list_object_store(&setup.catalog.object_store).await;
     assert!(!object_store_files_pre.is_empty());
 
-    run_compact_failing(&setup).await;
+    setup.run_compact_failing().await;
 
     let catalog_files_post = setup.list_by_table_not_to_delete().await;
     assert_eq!(catalog_files_pre, catalog_files_post);
@@ -439,7 +433,7 @@ async fn test_shadow_mode() {
     let object_store_files_pre = list_object_store(&setup.catalog.object_store).await;
     assert!(!object_store_files_pre.is_empty());
 
-    run_compact(&setup).await;
+    setup.run_compact().await;
 
     let catalog_files_post = setup.list_by_table_not_to_delete().await;
     assert_eq!(catalog_files_pre, catalog_files_post);
@@ -467,7 +461,7 @@ async fn test_shadow_mode_partition_fail() {
     let object_store_files_pre = list_object_store(&setup.catalog.object_store).await;
     assert!(!object_store_files_pre.is_empty());
 
-    run_compact_failing(&setup).await;
+    setup.run_compact_failing().await;
 
     let catalog_files_post = setup.list_by_table_not_to_delete().await;
     assert_eq!(catalog_files_pre, catalog_files_post);
@@ -515,7 +509,7 @@ async fn test_pr6890() {
         @r###"
     ---
     - input
-    - "L0, all files 1000000b                                                                              "
+    - "L0, all files 1m                                                                                    "
     - "L0.1[100,200]       |-------------------------------------L0.1-------------------------------------|"
     - "L0.2[100,200]       |-------------------------------------L0.2-------------------------------------|"
     - "L0.3[100,200]       |-------------------------------------L0.3-------------------------------------|"
@@ -529,8 +523,18 @@ async fn test_pr6890() {
     "###
     );
 
-    run_compact(&setup).await;
+    let compact_result = setup.run_compact().await;
     assert_skipped_compactions(&setup, []).await;
+
+    // ensure the plans did what we wanted
+    insta::assert_yaml_snapshot!(
+        compact_result.simulator_runs,
+        @r###"
+    ---
+    - "**** Simulation Run 0, type=split(split_times=[180])"
+    - "Input, 10 files: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10"
+    "###
+    );
 
     let output_files = setup.list_by_table_not_to_delete().await;
     insta::assert_yaml_snapshot!(
@@ -538,53 +542,11 @@ async fn test_pr6890() {
         @r###"
     ---
     - input
-    - "L1, all files 1b                                                                                    "
-    - "L1.11[0,0]          |------------------------------------L1.11-------------------------------------|"
-    - "L1.12[0,0]          |------------------------------------L1.12-------------------------------------|"
+    - "L1                                                                                                  "
+    - "L1.11[100,180] 8m   |----------------------------L1.11-----------------------------|                "
+    - "L1.12[180,200] 2m                                                                   |----L1.12-----|"
     "###
     );
-}
-
-async fn run_compact(setup: &TestSetup) {
-    let components = hardcoded_components(&setup.config);
-    run_compact_impl(setup, components).await;
-}
-
-async fn run_compact_failing(setup: &TestSetup) {
-    let components = hardcoded_components(&setup.config);
-    let components = Arc::new(Components {
-        df_planner: Arc::new(PanicDataFusionPlanner::new()),
-        ..components.as_ref().clone()
-    });
-    run_compact_impl(setup, components).await;
-}
-
-async fn run_compact_impl(setup: &TestSetup, components: Arc<Components>) {
-    let config = Arc::clone(&setup.config);
-    let job_semaphore = Arc::new(
-        Arc::new(AsyncSemaphoreMetrics::new(&config.metric_registry, [])).new_semaphore(10),
-    );
-
-    // register scratchpad store
-    setup
-        .catalog
-        .exec()
-        .new_context(ExecutorType::Reorg)
-        .inner()
-        .runtime_env()
-        .register_object_store(
-            "iox",
-            config.parquet_store_scratchpad.id(),
-            Arc::clone(config.parquet_store_scratchpad.object_store()),
-        );
-
-    compact(
-        NonZeroUsize::new(10).unwrap(),
-        Duration::from_secs(3_6000),
-        job_semaphore,
-        &components,
-    )
-    .await;
 }
 
 #[track_caller]

@@ -14,6 +14,10 @@ pub fn iox_session_config() -> SessionConfig {
     let mut options = ConfigOptions::new();
     options.execution.parquet.pushdown_filters = true;
     options.execution.parquet.reorder_filters = true;
+    // Disable repartioned Sorts in IOx until we rework plan
+    // construction as part of
+    // https://github.com/influxdata/influxdb_iox/issues/6098.
+    options.optimizer.repartition_sorts = false;
 
     SessionConfig::from(options)
         .with_batch_size(BATCH_SIZE)

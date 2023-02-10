@@ -36,6 +36,7 @@ pub struct MockParquetFileSink {
 
 impl MockParquetFileSink {
     /// If filter_empty_files is true, parquet files that have "0" rows will not be written to `ParquetFile`s in the catalog.
+    #[cfg(test)]
     pub fn new(filter_empty_files: bool) -> Self {
         Self {
             filter_empty_files,

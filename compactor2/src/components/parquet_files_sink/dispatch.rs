@@ -14,6 +14,8 @@ use crate::{
 use super::ParquetFilesSink;
 
 #[derive(Debug)]
+/// Writes parquet files to an inner [`ParquetFileSink`] (note the
+/// lack of "s").
 pub struct DispatchParquetFilesSink<T>
 where
     T: ParquetFileSink,
@@ -44,7 +46,7 @@ where
 #[async_trait]
 impl<T> ParquetFilesSink for DispatchParquetFilesSink<T>
 where
-    T: ParquetFileSink,
+    T: ParquetFileSink + 'static,
 {
     async fn stream_into_file_sink(
         &self,
@@ -83,5 +85,9 @@ where
             .try_collect::<Vec<_>>()
             .map_err(|e| Box::new(e) as _)
             .await
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }

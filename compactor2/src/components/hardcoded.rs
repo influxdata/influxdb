@@ -45,9 +45,11 @@ use super::{
     level_exist::one_level::OneLevelExist,
     parquet_file_sink::{
         dedicated::DedicatedExecParquetFileSinkWrapper, logging::LoggingParquetFileSinkWrapper,
-        mock::MockParquetFileSink, object_store::ObjectStoreParquetFileSink, ParquetFileSink,
+        object_store::ObjectStoreParquetFileSink,
     },
-    parquet_files_sink::dispatch::DispatchParquetFilesSink,
+    parquet_files_sink::{
+        dispatch::DispatchParquetFilesSink, simulator::ParquetFileSimulator, ParquetFilesSink,
+    },
     partition_done_sink::{
         catalog::CatalogPartitionDoneSink, error_kind::ErrorKindPartitionDoneSinkWrapper,
         logging::LoggingPartitionDoneSinkWrapper, metrics::MetricsPartitionDoneSinkWrapper,
@@ -240,10 +242,10 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
     } else {
         Arc::new(DedicatedDataFusionPlanExec::new(Arc::clone(&config.exec)))
     };
-    let parquet_file_sink: Arc<dyn ParquetFileSink> = if config.simulate_without_object_store {
-        Arc::new(MockParquetFileSink::new(false))
+    let parquet_files_sink: Arc<dyn ParquetFilesSink> = if config.simulate_without_object_store {
+        Arc::new(ParquetFileSimulator::new())
     } else {
-        Arc::new(LoggingParquetFileSinkWrapper::new(
+        let parquet_file_sink = Arc::new(LoggingParquetFileSinkWrapper::new(
             DedicatedExecParquetFileSinkWrapper::new(
                 ObjectStoreParquetFileSink::new(
                     config.shard_id,
@@ -252,7 +254,8 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
                 ),
                 Arc::clone(&config.exec),
             ),
-        ))
+        ));
+        Arc::new(DispatchParquetFilesSink::new(parquet_file_sink))
     };
 
     Arc::new(Components {
@@ -301,7 +304,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             Arc::clone(&config.exec),
         )),
         df_plan_exec,
-        parquet_files_sink: Arc::new(DispatchParquetFilesSink::new(parquet_file_sink)),
+        parquet_files_sink,
         round_split: Arc::new(AllNowRoundSplit::new()),
         divide_initial: Arc::new(SingleBranchDivideInitial::new()),
         scratchpad_gen,

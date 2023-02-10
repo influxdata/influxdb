@@ -257,6 +257,7 @@ mod tests {
                 max_tables: iox_catalog::DEFAULT_MAX_TABLES,
                 max_columns_per_table: iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE,
                 retention_period_ns: TEST_RETENTION_PERIOD_NS,
+                deleted_at: None,
             }
         );
     }

@@ -7,9 +7,11 @@ use data_types::{ChunkOrder, ParquetFile};
 pub enum PlanIR {
     /// Compact `files` into a single large output file
     Compact { files: Vec<FileIR> },
-    /// Compact `files` into one file for each entry in `split_times`.
+    /// Compact `files` into multiple files, for each entry in
+    /// `split_times`. If there are n split entries in split_times,
+    /// there will be `n+1` output files.
     ///
-    // The contents of each file:
+    /// The contents of each file:
     /// * `0`: Rows that have `time` *on or before* the `split_times[0]`
     /// * `i (0 < i < split_times's length)`: Rows that have  `time` in range `(split_times[i-1], split_times[i]]`
     /// * `n (n = split_times.len())`: Rows that have `time` *after* all the `split_times` and NULL rows
