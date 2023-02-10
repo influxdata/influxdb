@@ -172,7 +172,7 @@ pub mod tests {
         exec::{ExecutorType, IOxSessionContext},
         QueryChunk, QueryChunkMeta,
     };
-    use iox_tests::util::{TestCatalog, TestNamespace, TestParquetFileBuilder};
+    use iox_tests::{TestCatalog, TestNamespace, TestParquetFileBuilder};
     use metric::{Attributes, Observation, RawReporter};
     use predicate::Predicate;
     use schema::{builder::SchemaBuilder, sort::SortKeyBuilder};

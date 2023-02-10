@@ -233,7 +233,7 @@ impl QueryChunk for QueryableParquetChunk {
 mod tests {
     use super::*;
     use data_types::ColumnType;
-    use iox_tests::util::{TestCatalog, TestParquetFileBuilder};
+    use iox_tests::{TestCatalog, TestParquetFileBuilder};
     use iox_time::{SystemProvider, TimeProvider};
     use parquet_file::storage::{ParquetStorage, StorageId};
 

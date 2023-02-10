@@ -1393,7 +1393,7 @@ mod tests {
     use data_types::TableId;
     use generated_types::influxdata::iox::ingester::v1::PartitionStatus;
     use influxdb_iox_client::flight::generated_types::IngesterQueryResponseMetadata;
-    use iox_tests::util::TestCatalog;
+    use iox_tests::TestCatalog;
     use metric::Attributes;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use schema::{builder::SchemaBuilder, InfluxFieldType};

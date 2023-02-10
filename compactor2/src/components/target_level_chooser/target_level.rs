@@ -58,7 +58,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{components::level_exist::one_level::OneLevelExist, test_util::ParquetFileBuilder};
+    use crate::components::level_exist::one_level::OneLevelExist;
+    use iox_tests::ParquetFileBuilder;
 
     use super::*;
 

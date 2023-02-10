@@ -34,7 +34,7 @@ impl FileFilter for LevelRangeFileFilter {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_util::ParquetFileBuilder;
+    use iox_tests::ParquetFileBuilder;
 
     use super::*;
 

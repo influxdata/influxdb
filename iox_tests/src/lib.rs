@@ -12,4 +12,11 @@
     clippy::dbg_macro
 )]
 
-pub mod util;
+mod catalog;
+pub use catalog::{
+    TestCatalog, TestNamespace, TestParquetFile, TestParquetFileBuilder, TestPartition, TestShard,
+    TestTable,
+};
+
+mod builders;
+pub use builders::{ParquetFileBuilder, PartitionBuilder, SkippedCompactionBuilder, TableBuilder};

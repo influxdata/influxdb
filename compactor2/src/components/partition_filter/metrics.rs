@@ -83,10 +83,8 @@ where
 mod tests {
     use metric::{Attributes, Metric};
 
-    use crate::{
-        components::partition_filter::has_files::HasFilesPartitionFilter,
-        test_util::ParquetFileBuilder,
-    };
+    use crate::components::partition_filter::has_files::HasFilesPartitionFilter;
+    use iox_tests::ParquetFileBuilder;
 
     use super::*;
 

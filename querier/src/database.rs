@@ -239,7 +239,7 @@ pub async fn create_sharder(
 mod tests {
     use super::*;
     use crate::create_ingester_connection_for_testing;
-    use iox_tests::util::TestCatalog;
+    use iox_tests::TestCatalog;
     use test_helpers::assert_error;
     use tokio::runtime::Handle;
 

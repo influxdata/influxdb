@@ -50,7 +50,8 @@ impl PartitionFilter for MaxFilesPartitionFilter {
 
 #[cfg(test)]
 mod tests {
-    use crate::{error::ErrorKindExt, test_util::ParquetFileBuilder};
+    use crate::error::ErrorKindExt;
+    use iox_tests::ParquetFileBuilder;
 
     use super::*;
 

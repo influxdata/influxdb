@@ -88,7 +88,7 @@ impl proto::namespace_service_server::NamespaceService for NamespaceServiceImpl 
 mod tests {
     use super::*;
     use generated_types::influxdata::iox::namespace::v1::namespace_service_server::NamespaceService;
-    use iox_tests::util::TestCatalog;
+    use iox_tests::TestCatalog;
     use querier::{create_ingester_connection_for_testing, QuerierCatalogCache};
     use tokio::runtime::Handle;
 

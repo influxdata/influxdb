@@ -126,7 +126,7 @@ impl From<CompactorParquetFile> for ParquetFile {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use iox_tests::util::TestParquetFile;
+    use iox_tests::TestParquetFile;
 
     impl From<TestParquetFile> for CompactorParquetFile {
         fn from(tpf: TestParquetFile) -> Self {

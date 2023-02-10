@@ -127,7 +127,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use iox_tests::util::{TestCatalog, TestNamespace};
+    use iox_tests::{TestCatalog, TestNamespace};
     use once_cell::sync::Lazy;
     use std::sync::Arc;
 

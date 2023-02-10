@@ -5,7 +5,7 @@ use crate::{
 use data_types::{ShardIndex, TableId};
 use iox_catalog::interface::get_schema_by_name;
 use iox_query::exec::ExecutorType;
-use iox_tests::util::TestNamespace;
+use iox_tests::TestNamespace;
 use sharder::JumpHash;
 use std::sync::Arc;
 use tokio::runtime::Handle;

@@ -224,7 +224,7 @@ mod tests {
     use super::*;
     use crate::cache::{ram::test_util::test_ram_pool, test_util::assert_histogram_metric_count};
     use data_types::ColumnType;
-    use iox_tests::util::TestCatalog;
+    use iox_tests::TestCatalog;
     use schema::{Schema, SchemaBuilder};
 
     #[tokio::test]

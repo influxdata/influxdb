@@ -98,7 +98,7 @@ mod tests {
         ShardIndex,
     };
     use futures::{StreamExt, TryStreamExt};
-    use iox_tests::util::TestCatalog;
+    use iox_tests::TestCatalog;
     use std::time::Duration;
     use uuid::Uuid;
 

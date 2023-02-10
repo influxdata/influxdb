@@ -314,7 +314,7 @@ mod tests {
 
     use super::*;
     use data_types::{ColumnType, ParquetFileId};
-    use iox_tests::util::{
+    use iox_tests::{
         TestCatalog, TestNamespace, TestParquetFile, TestParquetFileBuilder, TestPartition,
         TestTable,
     };

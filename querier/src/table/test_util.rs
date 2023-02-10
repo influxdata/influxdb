@@ -6,7 +6,7 @@ use crate::{
 use arrow::record_batch::RecordBatch;
 use data_types::{ChunkId, SequenceNumber, ShardIndex};
 use iox_catalog::interface::get_schema_by_name;
-use iox_tests::util::{TestCatalog, TestPartition, TestShard, TestTable};
+use iox_tests::{TestCatalog, TestPartition, TestShard, TestTable};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use schema::{sort::SortKey, Projection, Schema};
 use sharder::JumpHash;

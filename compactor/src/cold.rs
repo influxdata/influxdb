@@ -126,7 +126,7 @@ mod tests {
     use arrow_util::assert_batches_sorted_eq;
     use backoff::BackoffConfig;
     use data_types::{ColumnType, CompactionLevel, ParquetFileId};
-    use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
+    use iox_tests::{TestCatalog, TestParquetFileBuilder, TestTable};
     use iox_time::{SystemProvider, TimeProvider};
     use parquet_file::storage::StorageId;
     use std::collections::HashMap;

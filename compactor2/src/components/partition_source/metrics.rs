@@ -64,9 +64,8 @@ where
 mod tests {
     use metric::{Attributes, Metric};
 
-    use crate::{
-        components::partition_source::mock::MockPartitionSource, test_util::PartitionBuilder,
-    };
+    use crate::components::partition_source::mock::MockPartitionSource;
+    use iox_tests::PartitionBuilder;
 
     use super::*;
 

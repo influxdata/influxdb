@@ -487,7 +487,7 @@ mod tests {
 
     use assert_matches::assert_matches;
     use data_types::{ColumnType, TimestampRange};
-    use iox_tests::util::{TestCatalog, TestNamespace};
+    use iox_tests::{TestCatalog, TestNamespace};
     use once_cell::sync::Lazy;
 
     use super::*;

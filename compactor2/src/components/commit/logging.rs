@@ -82,12 +82,9 @@ mod tests {
 
     use test_helpers::tracing::TracingCapture;
 
-    use crate::{
-        components::commit::mock::{CommitHistoryEntry, MockCommit},
-        test_util::ParquetFileBuilder,
-    };
-
     use super::*;
+    use crate::components::commit::mock::{CommitHistoryEntry, MockCommit};
+    use iox_tests::ParquetFileBuilder;
 
     #[test]
     fn test_display() {

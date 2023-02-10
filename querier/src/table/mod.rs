@@ -556,7 +556,7 @@ mod tests {
     use assert_matches::assert_matches;
     use data_types::{ChunkId, ColumnType, CompactionLevel, SequenceNumber};
     use iox_query::exec::IOxSessionContext;
-    use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
+    use iox_tests::{TestCatalog, TestParquetFileBuilder, TestTable};
     use iox_time::TimeProvider;
     use predicate::Predicate;
     use schema::{builder::SchemaBuilder, InfluxFieldType};

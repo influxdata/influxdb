@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use arrow_util::assert_batches_sorted_eq;
 use data_types::{CompactionLevel, ParquetFile, PartitionId};
-use iox_tests::util::TestParquetFileBuilder;
+use iox_tests::TestParquetFileBuilder;
 
 use crate::{
     config::AlgoVersion,

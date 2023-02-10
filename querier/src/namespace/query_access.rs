@@ -203,7 +203,7 @@ mod tests {
     use data_types::ColumnType;
     use datafusion::common::DataFusionError;
     use iox_query::frontend::sql::SqlQueryPlanner;
-    use iox_tests::util::{TestCatalog, TestParquetFileBuilder};
+    use iox_tests::{TestCatalog, TestParquetFileBuilder};
     use metric::{Observation, RawReporter};
     use regex::Regex;
     use snafu::{ResultExt, Snafu};

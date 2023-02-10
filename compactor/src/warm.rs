@@ -77,7 +77,7 @@ mod tests {
     use backoff::BackoffConfig;
     use data_types::{ColumnType, CompactionLevel, TablePartition, Timestamp};
     use futures::{stream::FuturesUnordered, StreamExt};
-    use iox_tests::util::{TestCatalog, TestParquetFileBuilder};
+    use iox_tests::{TestCatalog, TestParquetFileBuilder};
     use iox_time::{SystemProvider, Time, TimeProvider};
     use parquet_file::storage::{ParquetStorage, StorageId};
     use std::sync::Arc;

@@ -884,7 +884,7 @@ mod tests {
     use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use data_types::{ColumnType, PartitionParam};
-    use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
+    use iox_tests::{TestCatalog, TestParquetFileBuilder, TestTable};
     use iox_time::SystemProvider;
     use itertools::Itertools;
     use metric::U64HistogramOptions;

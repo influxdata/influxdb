@@ -602,7 +602,7 @@ pub mod tests {
         ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, SequenceNumber, ShardIndex,
         Timestamp,
     };
-    use iox_tests::util::{TestCatalog, TestPartition};
+    use iox_tests::{TestCatalog, TestPartition};
     use iox_time::SystemProvider;
     use parquet_file::storage::StorageId;
     use uuid::Uuid;

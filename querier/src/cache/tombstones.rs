@@ -215,7 +215,7 @@ mod tests {
 
     use super::*;
     use data_types::TombstoneId;
-    use iox_tests::util::TestCatalog;
+    use iox_tests::TestCatalog;
 
     use crate::cache::{ram::test_util::test_ram_pool, test_util::assert_histogram_metric_count};
 

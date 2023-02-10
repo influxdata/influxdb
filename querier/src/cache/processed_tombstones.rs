@@ -139,7 +139,7 @@ mod tests {
     use super::*;
     use crate::cache::{ram::test_util::test_ram_pool, test_util::assert_histogram_metric_count};
     use data_types::ColumnType;
-    use iox_tests::util::{TestCatalog, TestParquetFileBuilder};
+    use iox_tests::{TestCatalog, TestParquetFileBuilder};
 
     const TABLE_LINE_PROTOCOL: &str = "table foo=1 11";
 

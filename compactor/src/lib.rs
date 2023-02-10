@@ -545,9 +545,7 @@ pub mod tests {
     use arrow_util::assert_batches_sorted_eq;
     use backoff::BackoffConfig;
     use data_types::{ColumnType, CompactionLevel, ParquetFileId};
-    use iox_tests::util::{
-        TestCatalog, TestParquetFileBuilder, TestPartition, TestShard, TestTable,
-    };
+    use iox_tests::{TestCatalog, TestParquetFileBuilder, TestPartition, TestShard, TestTable};
     use iox_time::{SystemProvider, TimeProvider};
     use std::{
         collections::{HashMap, VecDeque},

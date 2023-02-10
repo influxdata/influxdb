@@ -80,7 +80,7 @@ mod tests {
     };
     use backoff::BackoffConfig;
     use data_types::CompactionLevel;
-    use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestShard, TestTable};
+    use iox_tests::{TestCatalog, TestParquetFileBuilder, TestShard, TestTable};
     use iox_time::TimeProvider;
     use parquet_file::storage::{ParquetStorage, StorageId};
     use std::sync::Arc;

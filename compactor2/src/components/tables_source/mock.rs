@@ -32,7 +32,7 @@ impl TablesSource for MockTablesSource {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_util::TableBuilder;
+    use iox_tests::TableBuilder;
 
     use super::*;
 

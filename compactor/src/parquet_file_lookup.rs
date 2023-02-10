@@ -211,7 +211,7 @@ mod tests {
     use super::*;
     use backoff::BackoffConfig;
     use data_types::ColumnType;
-    use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestPartition};
+    use iox_tests::{TestCatalog, TestParquetFileBuilder, TestPartition};
     use iox_time::{SystemProvider, TimeProvider};
     use parquet_file::storage::{ParquetStorage, StorageId};
 

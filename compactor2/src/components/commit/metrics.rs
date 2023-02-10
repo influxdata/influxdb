@@ -208,10 +208,8 @@ mod tests {
 
     use metric::{Attributes, HistogramObservation, Metric};
 
-    use crate::{
-        components::commit::mock::{CommitHistoryEntry, MockCommit},
-        test_util::ParquetFileBuilder,
-    };
+    use crate::components::commit::mock::{CommitHistoryEntry, MockCommit};
+    use iox_tests::ParquetFileBuilder;
 
     use super::*;
 

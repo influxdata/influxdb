@@ -34,7 +34,7 @@ impl SkippedCompactionsSource for MockSkippedCompactionsSource {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_util::SkippedCompactionBuilder;
+    use iox_tests::SkippedCompactionBuilder;
 
     use super::*;
 

@@ -35,7 +35,7 @@ impl PartitionSource for MockPartitionSource {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_util::PartitionBuilder;
+    use iox_tests::PartitionBuilder;
 
     use super::*;
 

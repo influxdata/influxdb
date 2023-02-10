@@ -55,9 +55,8 @@ where
 mod tests {
     use test_helpers::tracing::TracingCapture;
 
-    use crate::{
-        components::partition_source::mock::MockPartitionSource, test_util::PartitionBuilder,
-    };
+    use crate::components::partition_source::mock::MockPartitionSource;
+    use iox_tests::PartitionBuilder;
 
     use super::*;
 

@@ -297,7 +297,7 @@ fn display_format(file: &ParquetFile, show_size: bool) -> String {
 
 #[cfg(test)]
 mod test {
-    use crate::test_util::ParquetFileBuilder;
+    use iox_tests::ParquetFileBuilder;
 
     use super::*;
 

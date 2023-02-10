@@ -141,7 +141,7 @@ mod tests {
     use super::*;
     use crate::namespace::test_util::querier_namespace;
     use data_types::ColumnType;
-    use iox_tests::util::TestCatalog;
+    use iox_tests::TestCatalog;
     use schema::{
         builder::SchemaBuilder, InfluxColumnType, InfluxFieldType, Schema, TIME_COLUMN_NAME,
     };

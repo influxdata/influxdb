@@ -74,9 +74,8 @@ where
 mod tests {
     use data_types::CompactionLevel;
 
-    use crate::{
-        components::file_filter::level_range::LevelRangeFileFilter, test_util::ParquetFileBuilder,
-    };
+    use crate::components::file_filter::level_range::LevelRangeFileFilter;
+    use iox_tests::ParquetFileBuilder;
 
     use super::*;
 

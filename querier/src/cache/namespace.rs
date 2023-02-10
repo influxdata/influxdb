@@ -318,7 +318,7 @@ mod tests {
     use crate::cache::{ram::test_util::test_ram_pool, test_util::assert_histogram_metric_count};
     use arrow::datatypes::DataType;
     use data_types::ColumnType;
-    use iox_tests::util::TestCatalog;
+    use iox_tests::TestCatalog;
     use schema::SchemaBuilder;
 
     use super::*;

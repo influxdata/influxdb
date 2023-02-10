@@ -71,7 +71,7 @@ pub fn split_by_level(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::test_util::ParquetFileBuilder;
+    use iox_tests::ParquetFileBuilder;
 
     #[test]
     fn files_time_range_empty() {
