@@ -11,10 +11,9 @@ use cache_system::{
     loader::{metrics::MetricsLoader, FunctionLoader},
     resource_consumption::FunctionEstimator,
 };
-use data_types::{ParquetFile, SequenceNumber, TableId};
+use data_types::{ParquetFile, TableId};
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
-use observability_deps::tracing::debug;
 use snafu::{ResultExt, Snafu};
 use std::{collections::HashMap, mem, sync::Arc};
 use trace::span::Span;
@@ -33,7 +32,7 @@ pub enum Error {
     },
 }
 
-type IngesterCounts = Option<Arc<Vec<(Uuid, u64)>>>;
+type IngesterCounts = Arc<Vec<(Uuid, u64)>>;
 
 /// Holds catalog information about a parquet file
 #[derive(Debug)]
@@ -77,19 +76,17 @@ impl CachedParquetFiles {
         // Note size_of_val is the size of the Arc
         // https://play.rust-lang.org/?version=stable&mode=debug&edition=2021&gist=ae8fee8b4f7f5f013dc01ea1fda165da
 
-        // size of the Arc+(Option+HashMap) itself
+        // size of the Arc+(HashMap) itself
         mem::size_of_val(self) +
         // Vec overhead
             mem::size_of_val(self.files.as_ref()) +
         // size of the underlying parquet files
             self.files.iter().map(|f| f.size()).sum::<usize>() +
         // hashmap data
-            self.persisted_file_counts_from_ingesters.as_ref().map(|map| std::mem::size_of_val(map.as_ref()) + map.capacity() * mem::size_of::<(Uuid, u64)>()).unwrap_or_default()
-    }
-
-    /// Returns the greatest parquet sequence number stored in this cache entry
-    pub(crate) fn max_parquet_sequence_number(&self) -> Option<SequenceNumber> {
-        self.files.iter().map(|f| f.max_sequence_number).max()
+            std::mem::size_of_val(self.persisted_file_counts_from_ingesters.as_ref()) +
+            self.persisted_file_counts_from_ingesters
+                .as_ref()
+                .capacity() * mem::size_of::<(Uuid, u64)>()
     }
 }
 
@@ -130,7 +127,7 @@ impl ParquetFileCache {
             async move {
                 Backoff::new(&backoff_config)
                     .retry_all_errors("get parquet_files", || {
-                        let extra = extra.clone();
+                        let extra = Arc::clone(&extra);
                         async {
                             // TODO refreshing all parquet files for the
                             // entire table is likely to be quite wasteful
@@ -202,24 +199,6 @@ impl ParquetFileCache {
     ///
     /// # Expiration
     ///
-    /// If a `max_parquet_sequence_number` is specified, assume we are in the write buffer path.
-    /// If `max_parquet_sequence_number` is `None`, check to see if
-    /// `persisted_file_counts_by_ingester_uuid` is specified, which means we are in the RPC write
-    /// path and need to check ingester2 UUIDs and their associated file counts returned from the
-    /// ingester requests.
-    ///
-    /// ## Write Buffer path (based on sequence number)
-    ///
-    /// Clear the Parquet file cache if the cache does not contain any files that have the
-    /// specified `max_parquet_sequence_number`.
-    ///
-    /// Returns true if the cache was cleared (it will be refreshed on the next call to get).
-    ///
-    /// If a `max_parquet_sequence_number` is supplied that is not in our cache, it means the
-    /// ingester has written new data to the catalog and the cache is out of date.
-    ///
-    /// ## RPC write path (based on ingester UUIDs and persisted file counts)
-    ///
     /// Clear the Parquet file cache if the information from the ingesters contains an ingester
     /// UUID we have never seen before (which indicates an ingester started or restarted) or if an
     /// ingester UUID we *have* seen before reports a different number of persisted Parquet files
@@ -228,60 +207,30 @@ impl ParquetFileCache {
     pub async fn get(
         &self,
         table_id: TableId,
-        max_parquet_sequence_number: Option<SequenceNumber>,
-        persisted_file_counts_by_ingester_uuid: Option<HashMap<Uuid, u64>>,
+        persisted_file_counts_by_ingester_uuid: HashMap<Uuid, u64>,
         span: Option<Span>,
     ) -> Arc<CachedParquetFiles> {
-        let persisted_file_counts_by_ingester_uuid =
-            persisted_file_counts_by_ingester_uuid.map(|map| {
-                let mut entries = map.into_iter().collect::<Vec<_>>();
-                entries.sort();
-                entries.shrink_to_fit();
-                Arc::new(entries)
-            });
+        let mut entries = persisted_file_counts_by_ingester_uuid
+            .into_iter()
+            .collect::<Vec<_>>();
+        entries.sort();
+        entries.shrink_to_fit();
+
+        let persisted_file_counts_by_ingester_uuid = Arc::new(entries);
         let persisted_file_counts_by_ingester_uuid_captured =
-            persisted_file_counts_by_ingester_uuid.clone();
+            Arc::clone(&persisted_file_counts_by_ingester_uuid);
 
         self.remove_if_handle
             .remove_if_and_get(
                 &self.cache,
                 table_id,
                 |cached_file| {
-                    if let Some(max_parquet_sequence_number) = max_parquet_sequence_number {
-                        let max_cached = cached_file.max_parquet_sequence_number();
-
-                        let expire = if let Some(max_cached) = max_cached {
-                            max_cached < max_parquet_sequence_number
-                        } else {
-                            // a max sequence was provided but there were no
-                            // files in the cache. Means we need to refresh
-                            true
-                        };
-
-                        debug!(
-                            expire,
-                            ?max_cached,
-                            max_parquet_sequence_number = max_parquet_sequence_number.get(),
-                            table_id = table_id.get(),
-                            "expire parquet file cache",
-                        );
-
-                        expire
-                    } else if let Some(ingester_counts) =
-                        &persisted_file_counts_by_ingester_uuid_captured
-                    {
-                        // If there's new or different information about the ingesters or the
-                        // number of files they've persisted, we need to refresh.
-                        different(
-                            cached_file
-                                .persisted_file_counts_from_ingesters
-                                .as_ref()
-                                .map(|x| x.as_ref().as_ref()),
-                            ingester_counts,
-                        )
-                    } else {
-                        false
-                    }
+                    // If there's new or different information about the ingesters or the
+                    // number of files they've persisted, we need to refresh.
+                    different(
+                        cached_file.persisted_file_counts_from_ingesters.as_ref(),
+                        &persisted_file_counts_by_ingester_uuid_captured,
+                    )
                 },
                 (persisted_file_counts_by_ingester_uuid, span),
             )
@@ -295,10 +244,10 @@ impl ParquetFileCache {
     }
 }
 
-fn different(stored_counts: Option<&[(Uuid, u64)]>, ingester_counts: &[(Uuid, u64)]) -> bool {
+fn different(stored_counts: &[(Uuid, u64)], ingester_counts: &[(Uuid, u64)]) -> bool {
     // If we have some information stored for this table,
-    if let Some(stored) = stored_counts {
-        ingester_counts != stored
+    if !stored_counts.is_empty() {
+        ingester_counts != stored_counts
     } else {
         // Otherwise, we've never seen ingester file counts for this table.
         // If the hashmap we got is empty, then we still haven't gotten any information, so we
@@ -314,10 +263,7 @@ mod tests {
 
     use super::*;
     use data_types::{ColumnType, ParquetFileId};
-    use iox_tests::{
-        TestCatalog, TestNamespace, TestParquetFile, TestParquetFileBuilder, TestPartition,
-        TestTable,
-    };
+    use iox_tests::{TestCatalog, TestNamespace, TestParquetFileBuilder, TestPartition, TestTable};
 
     use crate::cache::{ram::test_util::test_ram_pool, test_util::assert_histogram_metric_count};
 
@@ -332,7 +278,7 @@ mod tests {
         let tfile = partition.create_parquet_file(builder).await;
 
         let cache = make_cache(&catalog);
-        let cached_files = cache.get(table.table.id, None, None, None).await.vec();
+        let cached_files = cache.get(table.table.id, HashMap::new(), None).await.vec();
 
         assert_eq!(cached_files.len(), 1);
         let expected_parquet_file = &tfile.parquet_file;
@@ -340,7 +286,7 @@ mod tests {
 
         // validate a second request doesn't result in a catalog request
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
-        cache.get(table.table.id, None, None, None).await;
+        cache.get(table.table.id, HashMap::new(), None).await;
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
     }
 
@@ -359,12 +305,12 @@ mod tests {
 
         let cache = make_cache(&catalog);
 
-        let cached_files = cache.get(table1.table.id, None, None, None).await.vec();
+        let cached_files = cache.get(table1.table.id, HashMap::new(), None).await.vec();
         assert_eq!(cached_files.len(), 1);
         let expected_parquet_file = &tfile1.parquet_file;
         assert_eq!(cached_files[0].as_ref(), expected_parquet_file);
 
-        let cached_files = cache.get(table2.table.id, None, None, None).await.vec();
+        let cached_files = cache.get(table2.table.id, HashMap::new(), None).await.vec();
         assert_eq!(cached_files.len(), 1);
         let expected_parquet_file = &tfile2.parquet_file;
         assert_eq!(cached_files[0].as_ref(), expected_parquet_file);
@@ -380,7 +326,7 @@ mod tests {
         let different_catalog = TestCatalog::new();
         let cache = make_cache(&different_catalog);
 
-        let cached_files = cache.get(table.table.id, None, None, None).await.vec();
+        let cached_files = cache.get(table.table.id, HashMap::new(), None).await.vec();
         assert!(cached_files.is_empty());
     }
 
@@ -391,94 +337,20 @@ mod tests {
         partition.create_parquet_file(builder).await;
         let table_id = table.table.id;
 
-        let single_file_size = 232;
-        let two_file_size = 424;
+        let single_file_size = 256;
+        let two_file_size = 448;
         assert!(single_file_size < two_file_size);
 
         let cache = make_cache(&catalog);
-        let cached_files = cache.get(table_id, None, None, None).await;
+        let cached_files = cache.get(table_id, HashMap::new(), None).await;
         assert_eq!(cached_files.size(), single_file_size);
 
         // add a second file, and force the cache to find it
         let builder = TestParquetFileBuilder::default().with_line_protocol(TABLE1_LINE_PROTOCOL);
         partition.create_parquet_file(builder).await;
         cache.expire(table_id);
-        let cached_files = cache.get(table_id, None, None, None).await;
+        let cached_files = cache.get(table_id, HashMap::new(), None).await;
         assert_eq!(cached_files.size(), two_file_size);
-    }
-
-    #[tokio::test]
-    async fn test_max_persisted_sequence_number() {
-        let (catalog, table, partition) = make_catalog().await;
-        let _sequence_number_1 = SequenceNumber::new(1);
-        let sequence_number_2 = SequenceNumber::new(2);
-        let sequence_number_3 = SequenceNumber::new(3);
-        let sequence_number_10 = SequenceNumber::new(10);
-
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol(TABLE1_LINE_PROTOCOL)
-            .with_max_seq(sequence_number_2.get())
-            .with_min_time(0)
-            .with_max_time(100);
-        let tfile1_2 = partition.create_parquet_file(builder).await;
-
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol(TABLE1_LINE_PROTOCOL)
-            .with_max_seq(sequence_number_3.get())
-            .with_min_time(0)
-            .with_max_time(100);
-        let tfile1_3 = partition.create_parquet_file(builder).await;
-
-        let cache = make_cache(&catalog);
-        let table_id = table.table.id;
-        assert_eq!(
-            cache.get(table_id, None, None, None).await.ids(),
-            ids(&[&tfile1_2, &tfile1_3])
-        );
-
-        // simulate request with sequence number 2
-        // should not expire anything
-        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
-        assert_eq!(
-            cache
-                .get(table_id, Some(sequence_number_2), None, None)
-                .await
-                .ids(),
-            ids(&[&tfile1_2, &tfile1_3])
-        );
-        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
-
-        // simulate request with no sequence number
-        // should not expire anything
-        assert_eq!(
-            cache.get(table_id, None, None, None).await.ids(),
-            ids(&[&tfile1_2, &tfile1_3])
-        );
-        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
-
-        // new file is created, but cache is stale
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol(TABLE1_LINE_PROTOCOL)
-            .with_max_seq(sequence_number_10.get())
-            .with_min_time(0)
-            .with_max_time(100);
-        let tfile1_10 = partition.create_parquet_file(builder).await;
-        // cache doesn't have tfile1_10
-        assert_eq!(
-            cache.get(table_id, None, None, None).await.ids(),
-            ids(&[&tfile1_2, &tfile1_3])
-        );
-
-        // new request includes sequence 10 and causes a cache refresh
-        // now cache has tfile!_10 (yay!)
-        assert_eq!(
-            cache
-                .get(table_id, Some(sequence_number_10), None, None)
-                .await
-                .ids(),
-            ids(&[&tfile1_2, &tfile1_3, &tfile1_10])
-        );
-        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 2);
     }
 
     #[tokio::test]
@@ -489,89 +361,37 @@ mod tests {
         let cache = make_cache(&catalog);
 
         // No metadata: make one request that should be cached
-        cache.get(table_id, None, None, None).await;
+        cache.get(table_id, HashMap::new(), None).await;
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
-        cache.get(table_id, None, None, None).await;
+        cache.get(table_id, HashMap::new(), None).await;
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // Empty metadata: make one request, should still be cached
-        cache.get(table_id, None, Some(HashMap::new()), None).await;
+        cache.get(table_id, HashMap::new(), None).await;
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // See a new UUID: refresh the cache
-        cache
-            .get(table_id, None, Some(HashMap::from([(uuid, 3)])), None)
-            .await;
+        cache.get(table_id, HashMap::from([(uuid, 3)]), None).await;
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 2);
 
         // See the same UUID with the same count: should still be cached
-        cache
-            .get(table_id, None, Some(HashMap::from([(uuid, 3)])), None)
-            .await;
+        cache.get(table_id, HashMap::from([(uuid, 3)]), None).await;
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 2);
 
         // See the same UUID with a different count: refresh the cache
-        cache
-            .get(table_id, None, Some(HashMap::from([(uuid, 4)])), None)
-            .await;
+        cache.get(table_id, HashMap::from([(uuid, 4)]), None).await;
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 3);
 
         // Empty metadata again: still use the cache
-        cache.get(table_id, None, Some(HashMap::new()), None).await;
+        cache.get(table_id, HashMap::new(), None).await;
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 4);
 
         // See a new UUID and not the old one: refresh the cache
         let new_uuid = Uuid::new_v4();
         cache
-            .get(table_id, None, Some(HashMap::from([(new_uuid, 1)])), None)
+            .get(table_id, HashMap::from([(new_uuid, 1)]), None)
             .await;
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 5);
-    }
-
-    #[tokio::test]
-    async fn test_expire_empty() {
-        let (catalog, table, partition) = make_catalog().await;
-        let cache = make_cache(&catalog);
-        let table_id = table.table.id;
-
-        // no parquet files, should be none
-        assert!(cache.get(table_id, None, None, None).await.files.is_empty());
-        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
-
-        // second request should be cached
-        assert!(cache.get(table_id, None, None, None).await.files.is_empty());
-        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
-
-        // Calls to expire if there is no known persisted file, should still be cached
-        assert!(cache.get(table_id, None, None, None).await.files.is_empty());
-        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
-
-        // make a new parquet file
-        let sequence_number_1 = SequenceNumber::new(1);
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol(TABLE1_LINE_PROTOCOL)
-            .with_max_seq(sequence_number_1.get())
-            .with_min_time(0)
-            .with_max_time(100);
-        let tfile = partition.create_parquet_file(builder).await;
-
-        // cache is stale
-        assert!(cache.get(table_id, None, None, None).await.files.is_empty());
-        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
-
-        // Now call to expire with knowledge of new file, will cause a cache refresh
-        assert_eq!(
-            cache
-                .get(table_id, Some(sequence_number_1), None, None)
-                .await
-                .ids(),
-            ids(&[&tfile])
-        );
-        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 2);
-    }
-
-    fn ids(files: &[&TestParquetFile]) -> HashSet<ParquetFileId> {
-        files.iter().map(|f| f.parquet_file.id).collect()
     }
 
     /// Extracts parquet ids from various objects

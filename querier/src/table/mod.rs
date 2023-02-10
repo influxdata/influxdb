@@ -1,25 +1,22 @@
-use self::query_access::QuerierTableChunkPruner;
-use self::state_reconciler::Reconciler;
+use self::{query_access::QuerierTableChunkPruner, state_reconciler::Reconciler};
 use crate::{
     ingester::{self, IngesterPartition},
     parquet::ChunkAdapter,
     IngesterConnection,
 };
-use data_types::{ColumnId, DeletePredicate, NamespaceId, PartitionId, ShardIndex, TableId};
+use data_types::{ColumnId, DeletePredicate, NamespaceId, TableId};
 use datafusion::error::DataFusionError;
 use futures::join;
 use iox_query::{provider, provider::ChunkPruner, QueryChunk};
 use observability_deps::tracing::{debug, trace};
 use predicate::Predicate;
 use schema::Schema;
-use sharder::JumpHash;
 use snafu::{ResultExt, Snafu};
-use std::borrow::Cow;
-use std::collections::HashSet;
-use std::time::Duration;
 use std::{
-    collections::{hash_map::Entry, HashMap},
+    borrow::Cow,
+    collections::{HashMap, HashSet},
     sync::Arc,
+    time::Duration,
 };
 use trace::span::{Span, SpanRecorder};
 use uuid::Uuid;
@@ -38,18 +35,6 @@ mod test_util;
 pub enum Error {
     #[snafu(display("Error getting partitions from ingester: {}", source))]
     GettingIngesterPartitions { source: ingester::Error },
-
-    #[snafu(display(
-        "Ingester '{}' and '{}' both provide data for partition {}",
-        ingester1,
-        ingester2,
-        partition
-    ))]
-    IngestersOverlap {
-        ingester1: Arc<str>,
-        ingester2: Arc<str>,
-        partition: PartitionId,
-    },
 
     #[snafu(display("Cannot combine ingester data with catalog/cache: {}", source))]
     StateFusion {
@@ -70,7 +55,6 @@ impl From<Error> for DataFusionError {
 
 /// Args to create a [`QuerierTable`].
 pub struct QuerierTableArgs {
-    pub sharder: Option<Arc<JumpHash<Arc<ShardIndex>>>>,
     pub namespace_id: NamespaceId,
     pub namespace_name: Arc<str>,
     pub namespace_retention_period: Option<Duration>,
@@ -85,10 +69,6 @@ pub struct QuerierTableArgs {
 /// Table representation for the querier.
 #[derive(Debug)]
 pub struct QuerierTable {
-    /// Sharder to query for which shards are responsible for the table's data. If not specified,
-    /// query all ingesters because we're using the RPC write path.
-    sharder: Option<Arc<JumpHash<Arc<ShardIndex>>>>,
-
     /// Namespace the table is in
     namespace_name: Arc<str>,
 
@@ -121,7 +101,6 @@ impl QuerierTable {
     /// Create new table.
     pub fn new(args: QuerierTableArgs) -> Self {
         let QuerierTableArgs {
-            sharder,
             namespace_id,
             namespace_name,
             namespace_retention_period,
@@ -134,7 +113,6 @@ impl QuerierTable {
         } = args;
 
         Self {
-            sharder,
             namespace_name,
             namespace_id,
             namespace_retention_period,
@@ -241,8 +219,7 @@ impl QuerierTable {
             ),
             catalog_cache.parquet_file().get(
                 self.id(),
-                None,
-                None,
+                HashMap::new(),
                 span_recorder.child_span("cache GET parquet_file (pre-warm")
             ),
             catalog_cache.tombstone().get(
@@ -255,34 +232,20 @@ impl QuerierTable {
         // handle errors / cache refresh
         let partitions = partitions?;
 
-        // determine max parquet sequence number for cache invalidation, if using the write buffer
-        // path.
-        let max_parquet_sequence_number = if self.rpc_write() {
-            None
-        } else {
-            partitions
-                .iter()
-                .flat_map(|p| p.parquet_max_sequence_number())
-                .max()
-        };
         let max_tombstone_sequence_number = partitions
             .iter()
             .flat_map(|p| p.tombstone_max_sequence_number())
             .max();
 
-        // If using the RPC write path, determine number of persisted parquet files per ingester
-        // UUID seen in the ingester query responses for cache invalidation. If this is an empty
-        // HashMap, then there are no results from the ingesters.
-        let persisted_file_counts_by_ingester_uuid = if self.rpc_write() {
-            Some(collect_persisted_file_counts(
-                partitions.len(),
-                partitions
-                    .iter()
-                    .map(|p| (p.ingester_uuid(), p.completed_persistence_count())),
-            ))
-        } else {
-            None
-        };
+        // Determine number of persisted parquet files per ingester UUID seen in the ingester query
+        // responses for cache invalidation. If `persisted_file_counts_by_ingester_uuid` is empty,
+        // then there are no results from the ingesters.
+        let persisted_file_counts_by_ingester_uuid = collect_persisted_file_counts(
+            partitions.len(),
+            partitions
+                .iter()
+                .map(|p| (p.ingester_uuid(), p.completed_persistence_count())),
+        );
 
         debug!(
             namespace=%self.namespace_name,
@@ -297,7 +260,6 @@ impl QuerierTable {
         let (parquet_files, tombstones) = join!(
             catalog_cache.parquet_file().get(
                 self.id(),
-                max_parquet_sequence_number,
                 persisted_file_counts_by_ingester_uuid,
                 span_recorder.child_span("cache GET parquet_file"),
             ),
@@ -333,7 +295,6 @@ impl QuerierTable {
             Arc::clone(&self.table_name),
             Arc::clone(&self.namespace_name),
             Arc::clone(self.chunk_adapter.catalog_cache()),
-            self.rpc_write(),
         );
 
         // create parquet files
@@ -433,15 +394,6 @@ impl QuerierTable {
         // The provided projection should include all columns needed by the query
         let columns = self.schema.select_given_and_pk_columns(projection);
 
-        // Get the shard indexes responsible for this table's data from the sharder to
-        // determine which ingester(s) to query.
-        // Currently, the sharder will only return one shard index per table, but in the
-        // near future, the sharder might return more than one shard index for one table.
-        let shard_indexes = self
-            .sharder
-            .as_ref()
-            .map(|sharder| vec![**sharder.shard_for_query(&self.table_name, &self.namespace_name)]);
-
         // get cached table w/o any must-coverage information
         let Some(cached_table) = self.chunk_adapter
             .catalog_cache()
@@ -460,7 +412,6 @@ impl QuerierTable {
         // get any chunks from the ingester(s)
         let partitions_result = ingester_connection
             .partitions(
-                shard_indexes,
                 self.namespace_id,
                 cached_table,
                 columns,
@@ -472,32 +423,7 @@ impl QuerierTable {
 
         let partitions = partitions_result?;
 
-        if !self.rpc_write() {
-            // check that partitions from ingesters don't overlap
-            let mut seen = HashMap::with_capacity(partitions.len());
-            for partition in &partitions {
-                match seen.entry(partition.partition_id()) {
-                    Entry::Occupied(o) => {
-                        return Err(Error::IngestersOverlap {
-                            ingester1: Arc::clone(o.get()),
-                            ingester2: Arc::clone(partition.ingester()),
-                            partition: partition.partition_id(),
-                        })
-                    }
-                    Entry::Vacant(v) => {
-                        v.insert(Arc::clone(partition.ingester()));
-                    }
-                }
-            }
-        }
-
         Ok(partitions)
-    }
-
-    /// Whether we're using the RPC write path or not. Write buffer mode will always specify a
-    /// sharder; the RPC write path never will.
-    fn rpc_write(&self) -> bool {
-        self.sharder.is_none()
     }
 
     /// clear the parquet file cache
@@ -547,8 +473,7 @@ mod tests {
         table::test_util::{querier_table, IngesterPartitionBuilder},
     };
     use arrow_util::assert_batches_eq;
-    use assert_matches::assert_matches;
-    use data_types::{ChunkId, ColumnType, CompactionLevel, SequenceNumber};
+    use data_types::{ChunkId, ColumnType, SequenceNumber};
     use iox_query::exec::IOxSessionContext;
     use iox_tests::{TestCatalog, TestParquetFileBuilder, TestTable};
     use iox_time::TimeProvider;
@@ -556,7 +481,7 @@ mod tests {
     use schema::{builder::SchemaBuilder, InfluxFieldType};
     use std::sync::Arc;
     use test_helpers::maybe_start_logging;
-    use trace::{span::SpanStatus, RingBufferTraceCollector};
+    use trace::RingBufferTraceCollector;
 
     #[test]
     fn sum_up_persisted_file_counts() {
@@ -895,312 +820,6 @@ mod tests {
             "+-----+------+------+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &batches);
-    }
-
-    #[tokio::test]
-    async fn test_compactor_collision() {
-        maybe_start_logging();
-        let catalog = TestCatalog::new();
-
-        let ns = catalog.create_namespace_1hr_retention("ns").await;
-        let table = ns.create_table("table").await;
-        let shard = ns.create_shard(1).await;
-        let partition = table.with_shard(&shard).create_partition("k").await;
-        let schema = make_schema(&table).await;
-
-        // create a parquet file that cannot be processed by the querier:
-        //
-        //
-        // --------------------------- sequence number ----------------------------->
-        // |           0           |           1           |           2           |
-        //
-        //
-        //                          Available Information:
-        // (        ingester reports as "persited"         )
-        //                                                 ( ingester in-mem data  )
-        //                         (                  parquet file                 )
-        //
-        //
-        //                        Desired Information:
-        //                         (  wanted parquet data  )
-        //                                                 ( ignored parquet data  )
-        //                                                 ( ingester in-mem data  )
-        //
-        //
-        // However there is no way to split the parquet data into the "wanted" and "ignored" part
-        // because we don't have row-level sequence numbers.
-
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol("table foo=1 11")
-            .with_max_seq(2)
-            .with_compaction_level(CompactionLevel::FileNonOverlapped);
-        partition.create_parquet_file(builder).await;
-
-        let builder = IngesterPartitionBuilder::new(schema, &shard, &partition);
-        let ingester_partition =
-            builder.build_with_max_parquet_sequence_number(Some(SequenceNumber::new(1)));
-
-        let querier_table = TestQuerierTable::new(&catalog, &table)
-            .await
-            .with_ingester_partition(ingester_partition);
-
-        let err = querier_table.chunks().await.unwrap_err();
-        assert_matches!(err, Error::StateFusion { .. });
-    }
-
-    #[tokio::test]
-    async fn test_state_reconcile() {
-        maybe_start_logging();
-        let catalog = TestCatalog::new();
-        // infinite retention
-        let ns = catalog.create_namespace_with_retention("ns", None).await;
-        let table = ns.create_table("table").await;
-        let shard = ns.create_shard(1).await;
-        let partition1 = table.with_shard(&shard).create_partition("k1").await;
-        let partition2 = table.with_shard(&shard).create_partition("k2").await;
-        table.create_column("time", ColumnType::Time).await;
-        table.create_column("foo", ColumnType::F64).await;
-
-        // kept because max sequence number <= 2
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol("table foo=1 11")
-            .with_max_seq(2);
-        let file1 = partition1.create_parquet_file(builder).await;
-
-        // pruned because min sequence number > 2
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol("table foo=2 22")
-            .with_max_seq(3);
-        partition1.create_parquet_file(builder).await;
-
-        // kept because max sequence number <= 3
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol("table foo=1 11")
-            .with_max_seq(3);
-        let file2 = partition2.create_parquet_file(builder).await;
-
-        // pruned because min sequence number > 3
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol("table foo=2 22")
-            .with_max_seq(4);
-        partition2.create_parquet_file(builder).await;
-
-        // partition1: kept because sequence number <= 10
-        // partition2: kept because sequence number <= 11
-        table
-            .with_shard(&shard)
-            .create_tombstone(10, 1, 100, "foo=1")
-            .await;
-
-        // partition1: pruned because sequence number > 10
-        // partition2: kept because sequence number <= 11
-        table
-            .with_shard(&shard)
-            .create_tombstone(11, 1, 100, "foo=2")
-            .await;
-
-        // partition1: pruned because sequence number > 10
-        // partition2: pruned because sequence number > 11
-        table
-            .with_shard(&shard)
-            .create_tombstone(12, 1, 100, "foo=3")
-            .await;
-
-        let schema = SchemaBuilder::new()
-            .influx_field("foo", InfluxFieldType::Integer)
-            .timestamp()
-            .build()
-            .unwrap();
-
-        let ingester_chunk_id1 = u128::MAX - 1;
-
-        let builder1 = IngesterPartitionBuilder::new(schema.clone(), &shard, &partition1);
-        let builder2 = IngesterPartitionBuilder::new(schema, &shard, &partition2);
-        let querier_table = TestQuerierTable::new(&catalog, &table)
-            .await
-            .with_ingester_partition(
-                // this chunk is kept
-                builder1
-                    .with_ingester_chunk_id(ingester_chunk_id1)
-                    .with_lp(["table foo=3i 33"])
-                    .build(
-                        // parquet max persisted sequence number
-                        Some(SequenceNumber::new(2)),
-                        // tombstone max persisted sequence number
-                        Some(SequenceNumber::new(10)),
-                    ),
-            )
-            .with_ingester_partition(
-                // this chunk is filtered out because it has no record batches but the reconciling
-                // still takes place
-                builder2.with_ingester_chunk_id(u128::MAX).build(
-                    // parquet max persisted sequence number
-                    Some(SequenceNumber::new(3)),
-                    // tombstone max persisted sequence number
-                    Some(SequenceNumber::new(11)),
-                ),
-            );
-
-        let mut chunks = querier_table.chunks().await.unwrap();
-
-        chunks.sort_by_key(|c| c.id());
-
-        // three chunks (two parquet files and one for the in-mem ingester data)
-        assert_eq!(chunks.len(), 3);
-
-        // check IDs
-        assert_eq!(
-            chunks[0].id(),
-            ChunkId::new_test(file1.parquet_file.id.get() as u128),
-        );
-        assert_eq!(
-            chunks[1].id(),
-            ChunkId::new_test(file2.parquet_file.id.get() as u128),
-        );
-        assert_eq!(chunks[2].id(), ChunkId::new_test(ingester_chunk_id1));
-
-        // check types
-        assert_eq!(chunks[0].chunk_type(), "parquet");
-        assert_eq!(chunks[1].chunk_type(), "parquet");
-        assert_eq!(chunks[2].chunk_type(), "IngesterPartition");
-
-        // check delete predicates
-        // parquet chunks have predicate attached
-        assert_eq!(chunks[0].delete_predicates().len(), 1);
-        assert_eq!(chunks[1].delete_predicates().len(), 2);
-        // ingester in-mem chunk doesn't need predicates, because the ingester has already
-        // materialized them for us
-        assert_eq!(chunks[2].delete_predicates().len(), 0);
-
-        // check spans
-        let root_span = querier_table
-            .traces
-            .spans()
-            .into_iter()
-            .find(|s| s.name == "root")
-            .expect("root span not found");
-        assert_eq!(root_span.status, SpanStatus::Ok);
-        let ip_span = querier_table
-            .traces
-            .spans()
-            .into_iter()
-            .find(|s| s.name == "ingester partitions")
-            .expect("ingester partitions span not found");
-        assert_eq!(ip_span.status, SpanStatus::Ok);
-    }
-
-    #[tokio::test]
-    async fn test_ingester_overlap_detection() {
-        maybe_start_logging();
-        let catalog = TestCatalog::new();
-
-        let ns = catalog.create_namespace_1hr_retention("ns").await;
-        let table = ns.create_table("table").await;
-        let shard = ns.create_shard(1).await;
-        let partition1 = table.with_shard(&shard).create_partition("k1").await;
-        let partition2 = table.with_shard(&shard).create_partition("k2").await;
-
-        let schema = SchemaBuilder::new()
-            .influx_field("foo", InfluxFieldType::Integer)
-            .timestamp()
-            .build()
-            .unwrap();
-
-        let builder1 = IngesterPartitionBuilder::new(schema.clone(), &shard, &partition1);
-        let builder2 = IngesterPartitionBuilder::new(schema, &shard, &partition2);
-
-        let querier_table = TestQuerierTable::new(&catalog, &table)
-            .await
-            .with_ingester_partition(
-                builder1
-                    .clone()
-                    .with_ingester_chunk_id(1)
-                    .with_lp(vec!["table foo=1i 1"])
-                    .build(
-                        // parquet max persisted sequence number
-                        None, // tombstone max persisted sequence number
-                        None,
-                    ),
-            )
-            .with_ingester_partition(
-                builder2
-                    .with_ingester_chunk_id(2)
-                    .with_lp(vec!["table foo=2i 2"])
-                    .build(
-                        // parquet max persisted sequence number
-                        None, // tombstone max persisted sequence number
-                        None,
-                    ),
-            )
-            .with_ingester_partition(
-                builder1
-                    .with_ingester_chunk_id(3)
-                    .with_lp(vec!["table foo=3i 3"])
-                    .build(
-                        // parquet max persisted sequence number
-                        None, // tombstone max persisted sequence number
-                        None,
-                    ),
-            );
-
-        let err = querier_table.chunks().await.unwrap_err();
-
-        assert_matches!(err, Error::IngestersOverlap { .. });
-    }
-
-    #[tokio::test]
-    async fn test_parquet_cache_refresh() {
-        maybe_start_logging();
-        let catalog = TestCatalog::new();
-        let ns = catalog.create_namespace_1hr_retention("ns").await;
-        let table = ns.create_table("table1").await;
-        let shard = ns.create_shard(1).await;
-        let partition = table.with_shard(&shard).create_partition("k").await;
-        let schema = make_schema(&table).await;
-
-        let builder =
-            IngesterPartitionBuilder::new(schema, &shard, &partition).with_lp(["table foo=1 1"]);
-
-        // Parquet file between with max sequence number 2
-        let pf_builder = TestParquetFileBuilder::default()
-            .with_line_protocol("table1 foo=1 11")
-            .with_max_seq(2);
-        partition.create_parquet_file(pf_builder).await;
-
-        let ingester_partition =
-            builder.build_with_max_parquet_sequence_number(Some(SequenceNumber::new(2)));
-
-        let querier_table = TestQuerierTable::new(&catalog, &table)
-            .await
-            .with_ingester_partition(ingester_partition);
-
-        // Expect 2 chunks: one for ingester, and one from parquet file
-        let chunks = querier_table.chunks().await.unwrap();
-        assert_eq!(chunks.len(), 2);
-
-        // Now, make a second chunk with max sequence number 3
-        let pf_builder = TestParquetFileBuilder::default()
-            .with_line_protocol("table1 foo=1 22")
-            .with_max_seq(3);
-        partition.create_parquet_file(pf_builder).await;
-
-        // With the same ingester response, still expect 2 chunks: one
-        // for ingester, and one from parquet file
-        let chunks = querier_table.chunks().await.unwrap();
-        assert_eq!(chunks.len(), 2);
-
-        // update the ingester response to return a new max parquet
-        // sequence number that includes the new file (3)
-        let ingester_partition =
-            builder.build_with_max_parquet_sequence_number(Some(SequenceNumber::new(3)));
-
-        let querier_table = querier_table
-            .clear_ingester_partitions()
-            .with_ingester_partition(ingester_partition);
-
-        // expect the second file is found, resulting in three chunks
-        let chunks = querier_table.chunks().await.unwrap();
-        assert_eq!(chunks.len(), 3);
     }
 
     #[tokio::test]

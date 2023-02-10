@@ -7,9 +7,8 @@ use crate::{
     query_log::QueryLog,
     table::{PruneMetrics, QuerierTable, QuerierTableArgs},
 };
-use data_types::{NamespaceId, ShardIndex};
+use data_types::NamespaceId;
 use iox_query::exec::Executor;
-use sharder::JumpHash;
 use std::{collections::HashMap, sync::Arc};
 
 mod query_access;
@@ -58,7 +57,6 @@ impl QuerierNamespace {
         exec: Arc<Executor>,
         ingester_connection: Option<Arc<dyn IngesterConnection>>,
         query_log: Arc<QueryLog>,
-        sharder: Option<Arc<JumpHash<Arc<ShardIndex>>>>,
         prune_metrics: Arc<PruneMetrics>,
     ) -> Self {
         let tables: HashMap<_, _> = ns
@@ -66,7 +64,6 @@ impl QuerierNamespace {
             .iter()
             .map(|(table_name, cached_table)| {
                 let table = Arc::new(QuerierTable::new(QuerierTableArgs {
-                    sharder: sharder.clone(),
                     namespace_id: ns.id,
                     namespace_name: Arc::clone(&name),
                     namespace_retention_period: ns.retention_period,
@@ -103,11 +100,9 @@ impl QuerierNamespace {
         ns: Arc<CachedNamespace>,
         exec: Arc<Executor>,
         ingester_connection: Option<Arc<dyn IngesterConnection>>,
-        sharder: Arc<JumpHash<Arc<ShardIndex>>>,
-        write_rpc: bool,
     ) -> Self {
         let time_provider = catalog_cache.time_provider();
-        let chunk_adapter = Arc::new(ChunkAdapter::new(catalog_cache, metric_registry, write_rpc));
+        let chunk_adapter = Arc::new(ChunkAdapter::new(catalog_cache, metric_registry));
         let query_log = Arc::new(QueryLog::new(10, time_provider));
         let prune_metrics = Arc::new(PruneMetrics::new(&chunk_adapter.metric_registry()));
 
@@ -118,7 +113,6 @@ impl QuerierNamespace {
             exec,
             ingester_connection,
             query_log,
-            Some(sharder),
             prune_metrics,
         )
     }
