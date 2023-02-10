@@ -261,18 +261,29 @@ fn display_file_id(file: &ParquetFile) -> String {
 }
 
 fn display_size(sz: i64) -> String {
-    if sz < 1000 {
+    let kbyte = 1024.0;
+    let mbyte = 1024.0 * kbyte;
+    let gbyte = 1024.0 * mbyte;
+
+    let sz = sz as f64;
+    if sz < kbyte {
         format!("{sz}b")
-    } else if sz < 1000000 {
-        let kb = (sz as f64) / 1000.0;
-        format!("{kb}k")
-    } else if sz < 1000000000 {
-        let mb = (sz as f64) / 1000000.0;
-        format!("{mb}m")
+    } else if sz < mbyte {
+        let kb = round(sz / kbyte, 2);
+        format!("{kb}kb")
+    } else if sz < gbyte {
+        let mb = round(sz / mbyte, 2);
+        format!("{mb}mb")
     } else {
-        let gb = (sz as f64) / 1000000000.0;
-        format!("{gb}g")
+        let gb = round(sz / gbyte, 2);
+        format!("{gb}gb")
     }
+}
+
+// https://stackoverflow.com/questions/28655362/how-does-one-round-a-floating-point-number-to-a-specified-number-of-digits
+fn round(x: f64, decimals: u32) -> f64 {
+    let y = 10i32.pow(decimals) as f64;
+    (x * y).round() / y
 }
 
 /// Compact display of level, id min/max time and optional size.
