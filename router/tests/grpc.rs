@@ -353,6 +353,15 @@ async fn test_update_namespace_0_retention_period() {
             assert_eq!(name, "platanos");
         }
     );
+
+    // The router restarts, and writes are then accepted.
+    let ctx = ctx.restart();
+
+    let response = ctx
+        .write_lp("bananas", "test", "platanos,tag1=A,tag2=B val=42i 42424242")
+        .await
+        .expect("cached entry should be removed");
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
 }
 
 /// Ensure updating a namespace with a negative retention period fails.
