@@ -305,6 +305,7 @@ impl NamespaceRepo for MemTxn {
             max_tables: DEFAULT_MAX_TABLES,
             max_columns_per_table: DEFAULT_MAX_COLUMNS_PER_TABLE,
             retention_period_ns,
+            deleted_at: None,
         };
         stage.namespaces.push(namespace);
         Ok(stage.namespaces.last().unwrap().clone())

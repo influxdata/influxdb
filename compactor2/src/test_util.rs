@@ -218,6 +218,7 @@ impl NamespaceBuilder {
                     max_tables: 10,
                     max_columns_per_table: 10,
                     retention_period_ns: None,
+                    deleted_at: None,
                 },
                 schema: NamespaceSchema {
                     id,
