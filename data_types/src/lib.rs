@@ -483,6 +483,8 @@ pub struct Namespace {
     pub max_tables: i32,
     /// The maximum number of columns per table in this namespace
     pub max_columns_per_table: i32,
+    /// When this file was marked for deletion.
+    pub deleted_at: Option<Timestamp>,
 }
 
 /// Schema collection for a namespace. This is an in-memory object useful for a schema
