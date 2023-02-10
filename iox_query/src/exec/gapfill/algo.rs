@@ -1,18 +1,32 @@
-use std::{ops::Bound, sync::Arc};
+use std::{
+    collections::VecDeque,
+    ops::{Bound, Range, RangeBounds},
+    sync::Arc,
+};
 
-use arrow::{datatypes::IntervalDayTimeType, record_batch::RecordBatch};
+use arrow::{
+    array::Array,
+    array::TimestampNanosecondArray,
+    compute::{lexicographical_partition_ranges, SortColumn},
+    datatypes::IntervalDayTimeType,
+    record_batch::RecordBatch,
+};
 use chrono::Duration;
 use datafusion::{
-    error::DataFusionError,
-    error::Result,
+    error::{DataFusionError, Result},
     physical_expr::{datetime_expressions::date_bin, PhysicalSortExpr},
     physical_plan::{
-        metrics::BaselineMetrics, ColumnarValue, PhysicalExpr, SendableRecordBatchStream,
+        expressions::Column,
+        metrics::{BaselineMetrics, RecordOutput},
+        ColumnarValue, PhysicalExpr, SendableRecordBatchStream,
     },
     scalar::ScalarValue,
 };
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
+
+use crate::exec::gapfill::builder::build_output;
+use crate::exec::gapfill::series::Series;
 
 use super::{try_map_bound, try_map_range, GapFillExecParams};
 
@@ -23,41 +37,183 @@ use super::{try_map_bound, try_map_range, GapFillExecParams};
 ///
 /// * `output_batch_size`
 /// * `input_stream`
-/// * `_sort_expr` - The incoming records will be sorted by these
+/// * `sort_expr` - The incoming records will be sorted by these
 ///        expressions. They will all be simple column references,
 ///        with the last one being the timestamp value for each row.
 ///        The last column will already have been normalized by a previous
 ///        call to DATE_BIN.
-/// * `_aggr_expr` - A set of column expressions that are the aggregate values
+/// * `aggr_expr` - A set of column expressions that are the aggregate values
 ///        computed by an upstream Aggregate node.
 /// * `params` - The parameters for gap filling, including the stride and the
 ///        start and end of the time range for this operation.
-/// * `_tx` - The transmit end of the channel for output.
-/// * `_baseline_metrics`
+/// * `tx` - The transmit end of the channel for output.
+/// * `baseline_metrics`
 pub(super) async fn fill_gaps(
-    _output_batch_size: usize,
+    output_batch_size: usize,
     mut input_stream: SendableRecordBatchStream,
-    _sort_expr: Vec<PhysicalSortExpr>,
-    _aggr_expr: Vec<Arc<dyn PhysicalExpr>>,
-    params: GapFillExecParams,
-    _tx: mpsc::Sender<Result<RecordBatch>>,
-    _baseline_metrics: BaselineMetrics,
+    sort_expr: Vec<PhysicalSortExpr>,
+    aggr_expr: Vec<Arc<dyn PhysicalExpr>>,
+    exec_params: GapFillExecParams,
+    tx: mpsc::Sender<Result<RecordBatch>>,
+    baseline_metrics: BaselineMetrics,
 ) -> Result<()> {
-    while let Some(batch) = input_stream.next().await {
-        let batch = batch?;
-        let _params = evaluate_params(&batch, &params);
+    let time_expr = sort_expr.last().ok_or_else(|| {
+        DataFusionError::Internal("should be at least time column in sort exprs".into())
+    })?;
+    let time_expr = &time_expr.expr;
+
+    let mut params: Option<GapFillParams> = None;
+    let mut last_input_batch: Option<RecordBatch> = None;
+
+    while let Some(input_batch) = input_stream.next().await {
+        let input_batch = input_batch?;
+        if input_batch.num_rows() == 0 {
+            // this is apparently possible...
+            continue;
+        }
+
+        if last_input_batch.is_some() {
+            return Err(DataFusionError::NotImplemented(
+                "gap filling with multiple input batches".to_string(),
+            ));
+        }
+
+        if params.is_none() {
+            params = Some(evaluate_params(&input_batch, &exec_params)?);
+        }
+        let params = params.as_ref().unwrap();
+
+        // Produce the set of arrays from the input
+
+        let input_time_array = time_expr
+            .evaluate(&input_batch)?
+            .into_array(input_batch.num_rows());
+        let input_time_array: &TimestampNanosecondArray =
+            input_time_array.as_any().downcast_ref().unwrap();
+        let input_time_array = (expr_to_index(time_expr), input_time_array);
+
+        let aggr_arr = aggr_expr
+            .iter()
+            .map(|e| {
+                Ok((
+                    expr_to_index(e),
+                    e.evaluate(&input_batch)?.into_array(input_batch.num_rows()),
+                ))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let group_arr = sort_expr
+            .iter()
+            .take(sort_expr.len() - 1)
+            .map(|se| {
+                Ok((
+                    expr_to_index(&se.expr),
+                    se.expr
+                        .evaluate(&input_batch)?
+                        .into_array(input_batch.num_rows()),
+                ))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        // Make a set of sort columns to find out when the group columns
+        // change.
+        let sort_columns = group_arr
+            .iter()
+            .map(|(_, arr)| SortColumn {
+                values: Arc::clone(arr),
+                options: None,
+            })
+            .collect::<Vec<_>>();
+
+        // Each item produced by this iterator is a range of row offsets [start, end) for when
+        // the group columns change.
+        let range_iter = if !sort_columns.is_empty() {
+            Box::new(lexicographical_partition_ranges(&sort_columns)?)
+        } else {
+            // lexicographical_partition_ranges will refuse to work if there are no
+            // sort columns. All the rows are in one big partition for this case.
+            Box::new(vec![(0..input_batch.num_rows())].into_iter())
+                as Box<dyn Iterator<Item = Range<usize>> + Send>
+        };
+
+        let mut series_queue = VecDeque::new();
+        for range in range_iter {
+            series_queue.push_back(Series::new(range, input_time_array.1));
+        }
+
+        // Send off one output batch for every iteration of this loop
+        // (currently only one output batch is supported)
+        while !series_queue.is_empty() {
+            let mut next_batch = Vec::new();
+            let mut remaining = output_batch_size;
+            loop {
+                if remaining == 0 {
+                    break;
+                }
+
+                let series = match series_queue.pop_front() {
+                    Some(series) => series,
+                    None => break,
+                };
+
+                let series_row_count = series.total_output_row_count(params);
+                if series_row_count <= remaining {
+                    next_batch.push(series);
+                    remaining -= series_row_count;
+                } else {
+                    // TODO: break up the series here
+                    return Err(DataFusionError::NotImplemented(
+                        "gap fill output spanning multiple batches".to_string(),
+                    ));
+                }
+            }
+            let output_batch = build_output(
+                input_stream.schema(),
+                params,
+                input_time_array,
+                &group_arr,
+                &aggr_arr,
+                &next_batch,
+            )?
+            .record_output(&baseline_metrics);
+            tx.send(Ok(output_batch))
+                .await
+                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+        }
+        last_input_batch = Some(input_batch);
     }
-    Err(DataFusionError::NotImplemented("gap_filling".to_string()))
+    Ok(())
 }
 
 #[derive(Debug, PartialEq)]
-struct GapFillParams {
-    #[allow(unused)]
+pub(super) struct GapFillParams {
     pub stride: i64,
-    #[allow(unused)]
     pub first_ts: i64,
-    #[allow(unused)]
-    pub last_ts: i64,
+    pub last_ts: i64, // inclusive!
+}
+
+impl GapFillParams {
+    pub fn valid_row_count<RB: RangeBounds<i64>>(&self, rb: RB) -> usize {
+        let first_ts = match rb.start_bound() {
+            Bound::Unbounded => self.first_ts,
+            Bound::Included(first_ts) => *first_ts,
+            Bound::Excluded(first_ts) => *first_ts + self.stride,
+        };
+        let last_ts = match rb.end_bound() {
+            Bound::Unbounded => self.last_ts,
+            Bound::Included(last_ts) => *last_ts,
+            Bound::Excluded(last_ts) => *last_ts - self.stride,
+        };
+        if last_ts >= first_ts {
+            ((last_ts - first_ts) / self.stride + 1) as usize
+        } else {
+            0
+        }
+    }
+
+    pub fn iter_times(&self) -> impl Iterator<Item = i64> {
+        (self.first_ts..=self.last_ts).step_by(self.stride as usize)
+    }
 }
 
 /// Figure out the actual values (as native i64) for the stride,
@@ -145,6 +301,13 @@ fn extract_interval_nanos(cv: &ColumnarValue) -> Result<i64> {
     }
 }
 
+fn expr_to_index(expr: &Arc<dyn PhysicalExpr>) -> usize {
+    expr.as_any()
+        .downcast_ref::<Column>()
+        .expect("all exprs should be columns")
+        .index()
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -160,6 +323,26 @@ mod tests {
     use crate::exec::{gapfill::GapFillExec, Executor, ExecutorType};
 
     use super::GapFillParams;
+
+    #[test]
+    #[allow(clippy::reversed_empty_ranges)]
+    fn test_params_row_count() -> Result<()> {
+        test_helpers::maybe_start_logging();
+        let params = GapFillParams {
+            stride: 10,
+            first_ts: 1000,
+            last_ts: 1050,
+        };
+
+        assert_eq!(6, params.valid_row_count(..));
+        assert_eq!(5, params.valid_row_count(1010..));
+        assert_eq!(2, params.valid_row_count(..1020)); // exclusive end
+        assert_eq!(1, params.valid_row_count(1010..1020)); // exclusive end
+        assert_eq!(3, params.valid_row_count(..=1020)); // inclusive end
+        assert_eq!(2, params.valid_row_count(1010..=1020)); // inclusive end
+        assert_eq!(0, params.valid_row_count(1020..1010)); // start > end
+        Ok(())
+    }
 
     fn schema() -> Schema {
         Schema::new(vec![

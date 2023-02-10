@@ -110,6 +110,18 @@ async fn duplicates_parquet_many() {
 }
 
 #[tokio::test]
+async fn gapfill() {
+    test_helpers::maybe_start_logging();
+
+    TestCase {
+        input: "cases/in/gapfill.sql",
+        chunk_stage: ChunkStage::Ingester,
+    }
+    .run()
+    .await;
+}
+
+#[tokio::test]
 async fn new_sql_system_tables() {
     test_helpers::maybe_start_logging();
 

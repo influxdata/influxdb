@@ -2,6 +2,8 @@
 //! a gap-filling extension to DataFusion
 
 mod algo;
+mod builder;
+mod series;
 
 use std::{
     fmt::{self, Debug},
@@ -451,20 +453,29 @@ impl ExecutionPlan for GapFillExec {
 
 #[cfg(test)]
 mod test {
-    use std::ops::{Bound, Range};
+    use std::{
+        cmp::Ordering,
+        ops::{Bound, Range},
+    };
 
     use crate::exec::{Executor, ExecutorType};
 
     use super::*;
-    use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
+    use arrow::{
+        array::{ArrayRef, DictionaryArray, Int64Array, TimestampNanosecondArray},
+        datatypes::{DataType, Field, Int32Type, Schema, TimeUnit},
+        record_batch::RecordBatch,
+    };
+    use arrow_util::assert_batches_eq;
     use datafusion::{
         datasource::empty::EmptyTable,
         error::Result,
         logical_expr::{logical_plan, Extension},
-        physical_plan::displayable,
-        prelude::{col, lit, lit_timestamp_nano},
+        physical_plan::{collect, displayable, expressions::lit as phys_lit, memory::MemoryExec},
+        prelude::{col, lit, lit_timestamp_nano, SessionConfig, SessionContext},
         scalar::ScalarValue,
     };
+    use schema::{InfluxFieldType, SchemaBuilder};
 
     fn schema() -> Schema {
         Schema::new(vec![
@@ -603,5 +614,235 @@ mod test {
 
            ).await?;
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_gapfill_simple() -> Result<()> {
+        test_helpers::maybe_start_logging();
+        let batch = TestBatch {
+            group_cols: vec![vec![Some("a"), Some("a")]],
+            time_col: vec![Some(1_000), Some(1_100)],
+            agg_cols: vec![vec![Some(10), Some(11)]],
+        };
+        let params = get_params_ms(&batch, 25, 975, 1_125);
+        let tc = TestCase {
+            in_batches: vec![batch],
+            batch_size: 1000,
+            params,
+        };
+        let batches = tc.run().await?;
+        let expected = [
+            "+----+--------------------------+----+",
+            "| g0 | time                     | a0 |",
+            "+----+--------------------------+----+",
+            "| a  | 1970-01-01T00:00:00.975Z |    |",
+            "| a  | 1970-01-01T00:00:01Z     | 10 |",
+            "| a  | 1970-01-01T00:00:01.025Z |    |",
+            "| a  | 1970-01-01T00:00:01.050Z |    |",
+            "| a  | 1970-01-01T00:00:01.075Z |    |",
+            "| a  | 1970-01-01T00:00:01.100Z | 11 |",
+            "| a  | 1970-01-01T00:00:01.125Z |    |",
+            "+----+--------------------------+----+",
+        ];
+        assert_batches_eq!(expected, &batches);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_gapfill_multi_group() -> Result<()> {
+        test_helpers::maybe_start_logging();
+        let batch = TestBatch {
+            group_cols: vec![vec![Some("a"), Some("a"), Some("b"), Some("b")]],
+            time_col: vec![Some(1_000), Some(1_100), Some(1_025), Some(1_050)],
+            agg_cols: vec![vec![Some(10), Some(11), Some(20), Some(21)]],
+        };
+        let params = get_params_ms(&batch, 25, 975, 1_125);
+        let tc = TestCase {
+            in_batches: vec![batch],
+            batch_size: 1000,
+            params,
+        };
+        let batches = tc.run().await?;
+        let expected = [
+            "+----+--------------------------+----+",
+            "| g0 | time                     | a0 |",
+            "+----+--------------------------+----+",
+            "| a  | 1970-01-01T00:00:00.975Z |    |",
+            "| a  | 1970-01-01T00:00:01Z     | 10 |",
+            "| a  | 1970-01-01T00:00:01.025Z |    |",
+            "| a  | 1970-01-01T00:00:01.050Z |    |",
+            "| a  | 1970-01-01T00:00:01.075Z |    |",
+            "| a  | 1970-01-01T00:00:01.100Z | 11 |",
+            "| a  | 1970-01-01T00:00:01.125Z |    |",
+            "| b  | 1970-01-01T00:00:00.975Z |    |",
+            "| b  | 1970-01-01T00:00:01Z     |    |",
+            "| b  | 1970-01-01T00:00:01.025Z | 20 |",
+            "| b  | 1970-01-01T00:00:01.050Z | 21 |",
+            "| b  | 1970-01-01T00:00:01.075Z |    |",
+            "| b  | 1970-01-01T00:00:01.100Z |    |",
+            "| b  | 1970-01-01T00:00:01.125Z |    |",
+            "+----+--------------------------+----+",
+        ];
+        assert_batches_eq!(expected, &batches);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_gapfill_two_output_batches() -> Result<()> {
+        test_helpers::maybe_start_logging();
+        let batch = TestBatch {
+            group_cols: vec![vec![Some("a"), Some("a")]],
+            time_col: vec![Some(1_000), Some(1_100)],
+            agg_cols: vec![vec![Some(10), Some(11)]],
+        };
+        let params = get_params_ms(&batch, 25, 975, 1_125);
+        let tc = TestCase {
+            in_batches: vec![batch],
+            batch_size: 4,
+            params,
+        };
+        let result = tc.run().await;
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains(
+            "This feature is not implemented: gap fill output spanning multiple batches"
+        ));
+
+        // assert_eq!(2, batches.len());
+        // assert_eq!((4, 3), (batches[0].num_rows(), batches[1].num_rows()));
+        // let expected = [
+        //     "+----+--------------------------+----+",
+        //     "| g0 | t                        | a0 |",
+        //     "+----+--------------------------+----+",
+        //     "| a  | 1970-01-01T00:00:00.975Z |    |",
+        //     "| a  | 1970-01-01T00:00:01Z     | 10 |",
+        //     "| a  | 1970-01-01T00:00:01.025Z |    |",
+        //     "| a  | 1970-01-01T00:00:01.050Z |    |",
+        //     "| a  | 1970-01-01T00:00:01.075Z |    |",
+        //     "| a  | 1970-01-01T00:00:01.100Z | 11 |",
+        //     "| a  | 1970-01-01T00:00:01.125Z |    |",
+        //     "+----+--------------------------+----+",
+        // ];
+        // assert_batches_eq!(expected, &batches);
+        Ok(())
+    }
+
+    type ExprVec = Vec<Arc<dyn PhysicalExpr>>;
+
+    struct TestBatch {
+        group_cols: Vec<Vec<Option<&'static str>>>,
+        // Stored as millisecods since intervals use millis,
+        // to let test cases be consistent and easier to read.
+        time_col: Vec<Option<i64>>,
+        agg_cols: Vec<Vec<Option<i64>>>,
+    }
+
+    impl TestBatch {
+        fn schema(&self) -> SchemaRef {
+            let mut schema_builder = SchemaBuilder::new();
+            for i in 0..self.group_cols.len() {
+                schema_builder.tag(&format!("g{i}"));
+            }
+            schema_builder.timestamp();
+            for i in 0..self.agg_cols.len() {
+                schema_builder.influx_field(&format!("a{i}"), InfluxFieldType::Integer);
+            }
+            schema_builder.build().unwrap().into()
+        }
+
+        fn exprs(&self) -> Result<(ExprVec, ExprVec)> {
+            let mut group_expr: ExprVec = vec![];
+            let mut aggr_expr: ExprVec = vec![];
+            let ngroup_cols = self.group_cols.len();
+            for i in 0..self.schema().fields().len() {
+                match i.cmp(&ngroup_cols) {
+                    Ordering::Less => group_expr.push(Arc::new(Column::new(&format!("g{i}"), i))),
+                    Ordering::Equal => group_expr.push(Arc::new(Column::new("t", i))),
+                    Ordering::Greater => {
+                        let idx = i - ngroup_cols + 1;
+                        aggr_expr.push(Arc::new(Column::new(&format!("a{idx}"), i)));
+                    }
+                }
+            }
+            Ok((group_expr, aggr_expr))
+        }
+    }
+
+    impl TryFrom<TestBatch> for RecordBatch {
+        type Error = DataFusionError;
+
+        fn try_from(value: TestBatch) -> Result<Self> {
+            let mut arrs: Vec<ArrayRef> =
+                Vec::with_capacity(value.group_cols.len() + value.agg_cols.len() + 1);
+            for gc in &value.group_cols {
+                let arr = Arc::new(DictionaryArray::<Int32Type>::from_iter(gc.iter().cloned()));
+                arrs.push(arr);
+            }
+            // Scale from milliseconds to the nanoseconds that are actually stored.
+            let scaled_times: TimestampNanosecondArray = value
+                .time_col
+                .iter()
+                .map(|o| o.map(|v| v * 1_000_000))
+                .collect();
+            arrs.push(Arc::new(scaled_times));
+            for ac in &value.agg_cols {
+                let arr = Arc::new(Int64Array::from_iter(ac));
+                arrs.push(arr);
+            }
+
+            Self::try_new(value.schema(), arrs).map_err(DataFusionError::ArrowError)
+        }
+    }
+
+    struct TestCase {
+        in_batches: Vec<TestBatch>,
+        batch_size: usize,
+        params: GapFillExecParams,
+    }
+
+    impl TestCase {
+        async fn run(self) -> Result<Vec<RecordBatch>> {
+            let schema = self.in_batches[0].schema();
+            let (group_expr, aggr_expr) = self.in_batches[0].exprs()?;
+
+            let batches: Vec<RecordBatch> = self
+                .in_batches
+                .into_iter()
+                .map(|tb| tb.try_into())
+                .collect::<Result<Vec<_>>>()?;
+            let input = Arc::new(MemoryExec::try_new(&[batches], schema, None)?);
+
+            let plan = Arc::new(GapFillExec::try_new(
+                input,
+                group_expr,
+                aggr_expr,
+                self.params,
+            )?);
+
+            let session_ctx = SessionContext::with_config(
+                SessionConfig::default().with_batch_size(self.batch_size),
+            );
+            let task_ctx = Arc::new(TaskContext::from(&session_ctx));
+            collect(plan, task_ctx).await
+        }
+    }
+
+    fn get_params_ms(batch: &TestBatch, stride: i64, start: i64, end: i64) -> GapFillExecParams {
+        GapFillExecParams {
+            // interval day time is milliseconds in the low 32-bit word
+            stride: phys_lit(ScalarValue::IntervalDayTime(Some(stride))), // milliseconds
+            time_column: Column::new("t", batch.group_cols.len()),
+            origin: phys_lit(ScalarValue::TimestampNanosecond(Some(0), None)),
+            // timestamps are nanos, so scale them accordingly
+            time_range: Range {
+                start: Bound::Included(phys_lit(ScalarValue::TimestampNanosecond(
+                    Some(start * 1_000_000),
+                    None,
+                ))),
+                end: Bound::Included(phys_lit(ScalarValue::TimestampNanosecond(
+                    Some(end * 1_000_000),
+                    None,
+                ))),
+            },
+        }
     }
 }
