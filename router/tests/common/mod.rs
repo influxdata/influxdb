@@ -39,6 +39,9 @@ pub struct TestContext {
     grpc_delegate: RpcWriteGrpcDelegate,
     catalog: Arc<dyn Catalog>,
     metrics: Arc<Registry>,
+
+    autocreate_ns: bool,
+    ns_autocreate_retention_period_ns: Option<i64>,
 }
 
 // This mass of words is certainly a downside of chained handlers.
@@ -73,11 +76,25 @@ type HttpDelegateStack = HttpDelegate<
 impl TestContext {
     pub async fn new(autocreate_ns: bool, ns_autocreate_retention_period_ns: Option<i64>) -> Self {
         let metrics = Arc::new(metric::Registry::default());
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
 
+        Self::init_with_catalog(
+            autocreate_ns,
+            ns_autocreate_retention_period_ns,
+            catalog,
+            metrics,
+        )
+    }
+
+    fn init_with_catalog(
+        autocreate_ns: bool,
+        ns_autocreate_retention_period_ns: Option<i64>,
+        catalog: Arc<dyn Catalog>,
+        metrics: Arc<metric::Registry>,
+    ) -> Self {
         let client = Arc::new(MockWriteClient::default());
         let rpc_writer = RpcWrite::new([(Arc::clone(&client), "mock client")], &metrics);
 
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
         let ns_cache = Arc::new(ShardedCache::new(
             iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
         ));
@@ -134,7 +151,22 @@ impl TestContext {
             grpc_delegate,
             catalog,
             metrics,
+            autocreate_ns,
+            ns_autocreate_retention_period_ns,
         }
+    }
+
+    // Restart the server, rebuilding all state from the catalog (preserves
+    // metrics).
+    pub fn restart(self) -> Self {
+        let catalog = self.catalog();
+        let metrics = Arc::clone(&self.metrics);
+        Self::init_with_catalog(
+            self.autocreate_ns,
+            self.ns_autocreate_retention_period_ns,
+            catalog,
+            metrics,
+        )
     }
 
     /// Get a reference to the test context's http delegate.
