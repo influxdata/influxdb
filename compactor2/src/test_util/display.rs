@@ -179,7 +179,10 @@ impl ParquetFileFormatter {
     fn format_level(&self, level: &CompactionLevel) -> String {
         let level_heading = display_level(level);
         let level_heading = match self.file_size_seen {
-            FileSizeSeen::One(sz) => format!("{level_heading}, all files {sz}b"),
+            FileSizeSeen::One(sz) => {
+                let sz = display_size(sz);
+                format!("{level_heading}, all files {sz}")
+            }
             _ => level_heading.into(),
         };
 
@@ -257,6 +260,21 @@ fn display_file_id(file: &ParquetFile) -> String {
     format!("{level}.{id}")
 }
 
+fn display_size(sz: i64) -> String {
+    if sz < 1000 {
+        format!("{sz}b")
+    } else if sz < 1000000 {
+        let kb = (sz as f64) / 1000.0;
+        format!("{kb}k")
+    } else if sz < 1000000000 {
+        let mb = (sz as f64) / 1000000.0;
+        format!("{mb}m")
+    } else {
+        let gb = (sz as f64) / 1000000000.0;
+        format!("{gb}g")
+    }
+}
+
 /// Compact display of level, id min/max time and optional size.
 ///
 /// Example
@@ -270,7 +288,8 @@ fn display_format(file: &ParquetFile, show_size: bool) -> String {
     let max_time = file.max_time.get(); // display as i64
     let sz = file.file_size_bytes;
     if show_size {
-        format!("{file_id}[{min_time},{max_time}] {sz}b")
+        let sz = display_size(sz);
+        format!("{file_id}[{min_time},{max_time}] {sz}")
     } else {
         format!("{file_id}[{min_time},{max_time}]")
     }

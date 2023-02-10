@@ -1,5 +1,7 @@
 mod display;
 pub(crate) use display::{format_files, format_files_split};
+use iox_query::exec::ExecutorType;
+use tracker::AsyncSemaphoreMetrics;
 
 use std::{
     collections::{BTreeMap, HashSet},
@@ -29,8 +31,13 @@ use schema::sort::SortKey;
 use uuid::Uuid;
 
 use crate::{
-    components::namespaces_source::mock::NamespaceWrapper,
+    components::{
+        df_planner::panic::PanicDataFusionPlanner, hardcoded::hardcoded_components,
+        namespaces_source::mock::NamespaceWrapper,
+        parquet_files_sink::simulator::ParquetFileSimulator, Components,
+    },
     config::{AlgoVersion, Config, PartitionsSourceConfig},
+    driver::compact,
     partition_info::PartitionInfo,
 };
 
@@ -621,6 +628,68 @@ impl TestSetup {
     pub fn test_times(&self) -> TestTimes {
         TestTimes::new(self.config.time_provider.as_ref())
     }
+
+    /// Run compaction job saving simulator state, if any
+    pub async fn run_compact(&self) -> CompactResult {
+        let components = hardcoded_components(&self.config);
+        self.run_compact_impl(Arc::clone(&components)).await
+    }
+
+    /// run a compaction plan where the df planner will panic
+    pub async fn run_compact_failing(&self) -> CompactResult {
+        let components = hardcoded_components(&self.config);
+        let components = Arc::new(Components {
+            df_planner: Arc::new(PanicDataFusionPlanner::new()),
+            ..components.as_ref().clone()
+        });
+        self.run_compact_impl(components).await
+    }
+
+    async fn run_compact_impl(&self, components: Arc<Components>) -> CompactResult {
+        let config = Arc::clone(&self.config);
+        let job_semaphore = Arc::new(
+            Arc::new(AsyncSemaphoreMetrics::new(&config.metric_registry, [])).new_semaphore(10),
+        );
+
+        // register scratchpad store
+        self.catalog
+            .exec()
+            .new_context(ExecutorType::Reorg)
+            .inner()
+            .runtime_env()
+            .register_object_store(
+                "iox",
+                config.parquet_store_scratchpad.id(),
+                Arc::clone(config.parquet_store_scratchpad.object_store()),
+            );
+
+        compact(
+            NonZeroUsize::new(10).unwrap(),
+            Duration::from_secs(3_6000),
+            job_semaphore,
+            &components,
+        )
+        .await;
+
+        // get the results
+        let simulator_runs = if let Some(simulator) = components
+            .parquet_files_sink
+            .as_any()
+            .downcast_ref::<ParquetFileSimulator>()
+        {
+            simulator.runs()
+        } else {
+            vec![]
+        };
+
+        CompactResult { simulator_runs }
+    }
+}
+
+/// Information about the compaction that was run
+pub struct CompactResult {
+    /// [`ParquetFileSimulator`] output, if enabled
+    pub simulator_runs: Vec<String>,
 }
 
 /// A collection of nanosecond timestamps relative to now

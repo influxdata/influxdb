@@ -115,7 +115,7 @@ pub struct Config {
     ///
     /// This will still use the catalog
     ///
-    /// This is mostly useful for testing.
+    /// This is useful for testing.
     pub simulate_without_object_store: bool,
 
     /// Ensure that ALL errors (including object store errors) result in "skipped" partitions.
