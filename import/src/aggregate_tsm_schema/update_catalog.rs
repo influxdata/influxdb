@@ -57,7 +57,7 @@ pub enum UpdateCatalogError {
 pub async fn update_iox_catalog<'a>(
     merged_tsm_schema: &'a AggregateTSMSchema,
     topic: &'a str,
-    query_pool_name: Option<&'a str>,
+    query_pool_name: &'a str,
     catalog: Arc<dyn Catalog>,
     connection: Connection,
 ) -> Result<(), UpdateCatalogError> {
@@ -68,13 +68,6 @@ pub async fn update_iox_catalog<'a>(
     let iox_schema = match get_schema_by_name(namespace_name.as_str(), repos.deref_mut()).await {
         Ok(iox_schema) => iox_schema,
         Err(iox_catalog::interface::Error::NamespaceNotFoundByName { .. }) => {
-            // Namespace has to be created; ensure the user provided the required parameters
-            let query_pool_name = match query_pool_name {
-                Some(query_pool_name) => query_pool_name,
-                _ => {
-                    return Err(UpdateCatalogError::NamespaceCreationError("in order to create the namespace you must provide query_pool_name and retention args".to_string()));
-                }
-            };
             // create the namespace
             let (topic_id, query_id) =
                 get_topic_id_and_query_id(repos.deref_mut(), topic, query_pool_name).await?;
@@ -534,7 +527,7 @@ mod tests {
         update_iox_catalog(
             &agg_schema,
             "iox-shared",
-            Some("iox-shared"),
+            "iox-shared",
             Arc::clone(&catalog),
             connection,
         )
@@ -653,7 +646,7 @@ mod tests {
         update_iox_catalog(
             &agg_schema,
             "iox-shared",
-            Some("iox-shared"),
+            "iox-shared",
             Arc::clone(&catalog),
             connection,
         )
@@ -750,7 +743,7 @@ mod tests {
         let err = update_iox_catalog(
             &agg_schema,
             "iox-shared",
-            Some("iox-shared"),
+            "iox-shared",
             Arc::clone(&catalog),
             connection,
         )
@@ -829,7 +822,7 @@ mod tests {
         let err = update_iox_catalog(
             &agg_schema,
             "iox-shared",
-            Some("iox-shared"),
+            "iox-shared",
             Arc::clone(&catalog),
             connection,
         )
@@ -839,55 +832,6 @@ mod tests {
         assert!(err.to_string().ends_with(
             "a column with name temperature already exists in the schema with a different type"
         ));
-    }
-
-    #[tokio::test]
-    async fn needs_creating_but_missing_query_pool() {
-        // init a test catalog stack
-        let metrics = Arc::new(metric::Registry::default());
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-        catalog
-            .repositories()
-            .await
-            .topics()
-            .create_or_get("iox-shared")
-            .await
-            .expect("topic created");
-        let (connection, _join_handle, _requests) = create_test_shard_service(MapToShardResponse {
-            shard_id: 0,
-            shard_index: 0,
-        })
-        .await;
-
-        let json = r#"
-        {
-          "org_id": "1234",
-          "bucket_id": "5678",
-          "measurements": {
-            "cpu": {
-              "tags": [
-                { "name": "host", "values": ["server", "desktop"] }
-              ],
-             "fields": [
-                { "name": "usage", "types": ["Float"] }
-              ],
-              "earliest_time": "2022-01-01T00:00:00.00Z",
-              "latest_time": "2022-07-07T06:00:00.00Z"
-            }
-          }
-        }
-        "#;
-        let agg_schema: AggregateTSMSchema = json.try_into().unwrap();
-        let err = update_iox_catalog(
-            &agg_schema,
-            "iox-shared",
-            None,
-            Arc::clone(&catalog),
-            connection,
-        )
-        .await
-        .expect_err("should fail namespace creation");
-        assert_matches!(err, UpdateCatalogError::NamespaceCreationError(_));
     }
 
     #[tokio::test]
@@ -939,7 +883,7 @@ mod tests {
         update_iox_catalog(
             &agg_schema,
             "iox-shared",
-            Some("iox-shared"),
+            "iox-shared",
             Arc::clone(&catalog),
             connection,
         )
