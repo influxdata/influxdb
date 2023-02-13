@@ -5,7 +5,7 @@ use std::{ops::DerefMut, sync::Arc};
 
 use async_trait::async_trait;
 use data_types::{NamespaceId, NamespaceName};
-use iox_catalog::interface::{get_schema_by_name, Catalog};
+use iox_catalog::interface::{get_schema_by_name, Catalog, SoftDeletedRows};
 use observability_deps::tracing::*;
 use thiserror::Error;
 
@@ -72,17 +72,21 @@ where
 
                 // Pull the schema from the global catalog or error if it does
                 // not exist.
-                let schema = get_schema_by_name(namespace, repos.deref_mut())
-                    .await
-                    .map_err(|e| {
-                        warn!(
-                            error=%e,
-                            %namespace,
-                            "failed to retrieve namespace schema"
-                        );
-                        Error::Lookup(e)
-                    })
-                    .map(Arc::new)?;
+                let schema = get_schema_by_name(
+                    namespace,
+                    repos.deref_mut(),
+                    SoftDeletedRows::ExcludeDeleted,
+                )
+                .await
+                .map_err(|e| {
+                    warn!(
+                        error=%e,
+                        %namespace,
+                        "failed to retrieve namespace schema"
+                    );
+                    Error::Lookup(e)
+                })
+                .map(Arc::new)?;
 
                 // Cache population MAY race with other threads and lead to
                 // overwrites, but an entry will always exist once inserted, and
@@ -146,7 +150,7 @@ mod tests {
         assert!(
             repos
                 .namespaces()
-                .get_by_name(ns.as_str())
+                .get_by_name(ns.as_str(), SoftDeletedRows::ExcludeDeleted)
                 .await
                 .expect("lookup should not error")
                 .is_none(),
@@ -183,6 +187,46 @@ mod tests {
 
         // The cache should be populated as a result of the lookup.
         assert!(cache.get_schema(&ns).is_some());
+    }
+
+    #[tokio::test]
+    async fn test_cache_miss_soft_deleted() {
+        let ns = NamespaceName::try_from("bananas").unwrap();
+
+        let cache = Arc::new(MemoryNamespaceCache::default());
+        let metrics = Arc::new(metric::Registry::new());
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
+
+        // Create the namespace in the catalog and mark it as deleted
+        {
+            let mut repos = catalog.repositories().await;
+            let topic = repos.topics().create_or_get("bananas").await.unwrap();
+            let query_pool = repos.query_pools().create_or_get("platanos").await.unwrap();
+            repos
+                .namespaces()
+                .create(&ns, None, topic.id, query_pool.id)
+                .await
+                .expect("failed to setup catalog state");
+            repos
+                .namespaces()
+                .soft_delete(&ns)
+                .await
+                .expect("failed to setup catalog state");
+        }
+
+        let resolver = NamespaceSchemaResolver::new(Arc::clone(&catalog), Arc::clone(&cache));
+
+        let err = resolver
+            .get_namespace_id(&ns)
+            .await
+            .expect_err("lookup should succeed");
+        assert_matches!(
+            err,
+            Error::Lookup(iox_catalog::interface::Error::NamespaceNotFoundByName { .. })
+        );
+
+        // The cache should NOT be populated as a result of the lookup.
+        assert!(cache.get_schema(&ns).is_none());
     }
 
     #[tokio::test]

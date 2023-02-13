@@ -4,8 +4,8 @@ use crate::{
     interface::{
         self, sealed::TransactionFinalize, CasFailure, Catalog, ColumnRepo,
         ColumnTypeMismatchSnafu, Error, NamespaceRepo, ParquetFileRepo, PartitionRepo,
-        ProcessedTombstoneRepo, QueryPoolRepo, RepoCollection, Result, ShardRepo, TableRepo,
-        TombstoneRepo, TopicMetadataRepo, Transaction,
+        ProcessedTombstoneRepo, QueryPoolRepo, RepoCollection, Result, ShardRepo, SoftDeletedRows,
+        TableRepo, TombstoneRepo, TopicMetadataRepo, Transaction,
     },
     metrics::MetricDecorator,
     DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES, SHARED_TOPIC_ID, SHARED_TOPIC_NAME,
@@ -662,12 +662,13 @@ impl NamespaceRepo for PostgresTxn {
         Ok(rec)
     }
 
-    async fn list(&mut self) -> Result<Vec<Namespace>> {
+    async fn list(&mut self, deleted: SoftDeletedRows) -> Result<Vec<Namespace>> {
         let rec = sqlx::query_as::<_, Namespace>(
-            r#"
-SELECT *
-FROM namespace;
-            "#,
+            format!(
+                r#"SELECT * FROM namespace WHERE {v};"#,
+                v = deleted.as_sql_predicate()
+            )
+            .as_str(),
         )
         .fetch_all(&mut self.inner)
         .await
@@ -676,13 +677,17 @@ FROM namespace;
         Ok(rec)
     }
 
-    async fn get_by_id(&mut self, id: NamespaceId) -> Result<Option<Namespace>> {
+    async fn get_by_id(
+        &mut self,
+        id: NamespaceId,
+        deleted: SoftDeletedRows,
+    ) -> Result<Option<Namespace>> {
         let rec = sqlx::query_as::<_, Namespace>(
-            r#"
-SELECT *
-FROM namespace
-WHERE id = $1;
-        "#,
+            format!(
+                r#"SELECT * FROM namespace WHERE id=$1 AND {v};"#,
+                v = deleted.as_sql_predicate()
+            )
+            .as_str(),
         )
         .bind(id) // $1
         .fetch_one(&mut self.inner)
@@ -697,13 +702,17 @@ WHERE id = $1;
         Ok(Some(namespace))
     }
 
-    async fn get_by_name(&mut self, name: &str) -> Result<Option<Namespace>> {
+    async fn get_by_name(
+        &mut self,
+        name: &str,
+        deleted: SoftDeletedRows,
+    ) -> Result<Option<Namespace>> {
         let rec = sqlx::query_as::<_, Namespace>(
-            r#"
-SELECT *
-FROM namespace
-WHERE name = $1;
-        "#,
+            format!(
+                r#"SELECT * FROM namespace WHERE name=$1 AND {v};"#,
+                v = deleted.as_sql_predicate()
+            )
+            .as_str(),
         )
         .bind(name) // $1
         .fetch_one(&mut self.inner)
@@ -718,19 +727,17 @@ WHERE name = $1;
         Ok(Some(namespace))
     }
 
-    async fn delete(&mut self, name: &str) -> Result<()> {
+    async fn soft_delete(&mut self, name: &str) -> Result<()> {
+        let flagged_at = Timestamp::from(self.time_provider.now());
+
         // note that there is a uniqueness constraint on the name column in the DB
-        sqlx::query(
-            r#"
-DELETE FROM namespace
-WHERE name = $1;
-        "#,
-        )
-        .bind(name)
-        .execute(&mut self.inner)
-        .await
-        .context(interface::CouldNotDeleteNamespaceSnafu)
-        .map(|_| ())
+        sqlx::query(r#"UPDATE namespace SET deleted_at=$1 WHERE name = $2;"#)
+            .bind(flagged_at) // $1
+            .bind(name) // $2
+            .execute(&mut self.inner)
+            .await
+            .context(interface::CouldNotDeleteNamespaceSnafu)
+            .map(|_| ())
     }
 
     async fn update_table_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace> {

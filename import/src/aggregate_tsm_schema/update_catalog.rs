@@ -6,7 +6,9 @@ use data_types::{
     Partition, PartitionKey, QueryPoolId, ShardId, TableSchema, TopicId,
 };
 use influxdb_iox_client::connection::{Connection, GrpcConnection};
-use iox_catalog::interface::{get_schema_by_name, CasFailure, Catalog, RepoCollection};
+use iox_catalog::interface::{
+    get_schema_by_name, CasFailure, Catalog, RepoCollection, SoftDeletedRows,
+};
 use schema::{
     sort::{adjust_sort_key_columns, SortKey, SortKeyBuilder},
     InfluxColumnType, InfluxFieldType, TIME_COLUMN_NAME,
@@ -65,7 +67,13 @@ pub async fn update_iox_catalog<'a>(
         org_and_bucket_to_namespace(&merged_tsm_schema.org_id, &merged_tsm_schema.bucket_id)
             .map_err(UpdateCatalogError::InvalidOrgBucket)?;
     let mut repos = catalog.repositories().await;
-    let iox_schema = match get_schema_by_name(namespace_name.as_str(), repos.deref_mut()).await {
+    let iox_schema = match get_schema_by_name(
+        namespace_name.as_str(),
+        repos.deref_mut(),
+        SoftDeletedRows::AllRows,
+    )
+    .await
+    {
         Ok(iox_schema) => iox_schema,
         Err(iox_catalog::interface::Error::NamespaceNotFoundByName { .. }) => {
             // create the namespace
@@ -80,7 +88,13 @@ pub async fn update_iox_catalog<'a>(
             .await?;
             // fetch the newly-created schema (which will be empty except for the time column,
             // which won't impact the merge we're about to do)
-            match get_schema_by_name(namespace_name.as_str(), repos.deref_mut()).await {
+            match get_schema_by_name(
+                namespace_name.as_str(),
+                repos.deref_mut(),
+                SoftDeletedRows::AllRows,
+            )
+            .await
+            {
                 Ok(iox_schema) => iox_schema,
                 Err(e) => return Err(UpdateCatalogError::CatalogError(e)),
             }
@@ -149,7 +163,7 @@ where
             // presumably it got created in the meantime?
             repos
                 .namespaces()
-                .get_by_name(name)
+                .get_by_name(name, SoftDeletedRows::ExcludeDeleted)
                 .await
                 .map_err(UpdateCatalogError::CatalogError)?
                 .ok_or_else(|| UpdateCatalogError::NamespaceNotFound(name.to_string()))
@@ -534,9 +548,13 @@ mod tests {
         .await
         .expect("schema update worked");
         let mut repos = catalog.repositories().await;
-        let iox_schema = get_schema_by_name("1234_5678", repos.deref_mut())
-            .await
-            .expect("got schema");
+        let iox_schema = get_schema_by_name(
+            "1234_5678",
+            repos.deref_mut(),
+            SoftDeletedRows::ExcludeDeleted,
+        )
+        .await
+        .expect("got schema");
         assert_eq!(iox_schema.tables.len(), 1);
         let table = iox_schema.tables.get("cpu").expect("got table");
         assert_eq!(table.columns.len(), 3); // one tag & one field, plus time
@@ -653,9 +671,13 @@ mod tests {
         .await
         .expect("schema update worked");
         let mut repos = catalog.repositories().await;
-        let iox_schema = get_schema_by_name("1234_5678", repos.deref_mut())
-            .await
-            .expect("got schema");
+        let iox_schema = get_schema_by_name(
+            "1234_5678",
+            repos.deref_mut(),
+            SoftDeletedRows::ExcludeDeleted,
+        )
+        .await
+        .expect("got schema");
         assert_eq!(iox_schema.tables.len(), 1);
         let table = iox_schema.tables.get("weather").expect("got table");
         assert_eq!(table.columns.len(), 5); // two tags, two fields, plus time

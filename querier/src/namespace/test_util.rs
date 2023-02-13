@@ -3,7 +3,7 @@ use crate::{
     cache::namespace::CachedNamespace, create_ingester_connection_for_testing, QuerierCatalogCache,
 };
 use data_types::{ShardIndex, TableId};
-use iox_catalog::interface::get_schema_by_name;
+use iox_catalog::interface::{get_schema_by_name, SoftDeletedRows};
 use iox_query::exec::ExecutorType;
 use iox_tests::TestNamespace;
 use sharder::JumpHash;
@@ -13,9 +13,13 @@ use tokio::runtime::Handle;
 /// Create [`QuerierNamespace`] for testing.
 pub async fn querier_namespace(ns: &Arc<TestNamespace>) -> QuerierNamespace {
     let mut repos = ns.catalog.catalog.repositories().await;
-    let schema = get_schema_by_name(&ns.namespace.name, repos.as_mut())
-        .await
-        .unwrap();
+    let schema = get_schema_by_name(
+        &ns.namespace.name,
+        repos.as_mut(),
+        SoftDeletedRows::ExcludeDeleted,
+    )
+    .await
+    .unwrap();
     let cached_ns = Arc::new(CachedNamespace::from(schema));
 
     let catalog_cache = Arc::new(QuerierCatalogCache::new_testing(

@@ -5,7 +5,7 @@ use crate::{
 };
 use arrow::record_batch::RecordBatch;
 use data_types::{ChunkId, SequenceNumber, ShardIndex};
-use iox_catalog::interface::get_schema_by_name;
+use iox_catalog::interface::{get_schema_by_name, SoftDeletedRows};
 use iox_tests::{TestCatalog, TestPartition, TestShard, TestTable};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use schema::{sort::SortKey, Projection, Schema};
@@ -29,9 +29,13 @@ pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -
     ));
 
     let mut repos = catalog.catalog.repositories().await;
-    let mut catalog_schema = get_schema_by_name(&table.namespace.namespace.name, repos.as_mut())
-        .await
-        .unwrap();
+    let mut catalog_schema = get_schema_by_name(
+        &table.namespace.namespace.name,
+        repos.as_mut(),
+        SoftDeletedRows::ExcludeDeleted,
+    )
+    .await
+    .unwrap();
     let schema = catalog_schema.tables.remove(&table.table.name).unwrap();
     let schema = Schema::try_from(schema).unwrap();
 

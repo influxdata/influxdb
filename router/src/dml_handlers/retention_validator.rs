@@ -3,7 +3,7 @@ use std::{ops::DerefMut, sync::Arc};
 use async_trait::async_trait;
 use data_types::{DeletePredicate, NamespaceId, NamespaceName};
 use hashbrown::HashMap;
-use iox_catalog::interface::{get_schema_by_name, Catalog};
+use iox_catalog::interface::{get_schema_by_name, Catalog, SoftDeletedRows};
 use iox_time::{SystemProvider, TimeProvider};
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
@@ -75,18 +75,22 @@ where
             None => {
                 // Pull the schema from the global catalog or error if it does
                 // not exist.
-                let schema = get_schema_by_name(namespace, repos.deref_mut())
-                    .await
-                    .map_err(|e| {
-                        warn!(
-                            error=%e,
-                            %namespace,
-                            %namespace_id,
-                            "failed to retrieve namespace schema"
-                        );
-                        RetentionError::NamespaceLookup(e)
-                    })
-                    .map(Arc::new)?;
+                let schema = get_schema_by_name(
+                    namespace,
+                    repos.deref_mut(),
+                    SoftDeletedRows::ExcludeDeleted,
+                )
+                .await
+                .map_err(|e| {
+                    warn!(
+                        error=%e,
+                        %namespace,
+                        %namespace_id,
+                        "failed to retrieve namespace schema"
+                    );
+                    RetentionError::NamespaceLookup(e)
+                })
+                .map(Arc::new)?;
 
                 self.cache
                     .put_schema(namespace.clone(), Arc::clone(&schema));

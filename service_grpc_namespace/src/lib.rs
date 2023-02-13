@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use data_types::{Namespace as CatalogNamespace, QueryPoolId, TopicId};
 use generated_types::influxdata::iox::namespace::v1::*;
-use iox_catalog::interface::Catalog;
+use iox_catalog::interface::{Catalog, SoftDeletedRows};
 use observability_deps::tracing::{debug, info, warn};
 use tonic::{Request, Response, Status};
 
@@ -39,10 +39,14 @@ impl namespace_service_server::NamespaceService for NamespaceService {
     ) -> Result<Response<GetNamespacesResponse>, Status> {
         let mut repos = self.catalog.repositories().await;
 
-        let namespaces = repos.namespaces().list().await.map_err(|e| {
-            warn!(error=%e, "failed to retrieve namespaces from catalog");
-            Status::not_found(e.to_string())
-        })?;
+        let namespaces = repos
+            .namespaces()
+            .list(SoftDeletedRows::ExcludeDeleted)
+            .await
+            .map_err(|e| {
+                warn!(error=%e, "failed to retrieve namespaces from catalog");
+                Status::not_found(e.to_string())
+            })?;
         Ok(Response::new(GetNamespacesResponse {
             namespaces: namespaces.into_iter().map(namespace_to_proto).collect(),
         }))

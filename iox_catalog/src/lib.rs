@@ -239,7 +239,7 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
-    use crate::interface::get_schema_by_name;
+    use crate::interface::{get_schema_by_name, SoftDeletedRows};
     use crate::mem::MemCatalog;
 
     // Generate a test that simulates multiple, sequential writes in `lp` and
@@ -317,7 +317,7 @@ mod tests {
                     // Invariant: in absence of concurrency, the schema within
                     // the database must always match the incrementally built
                     // cached schema.
-                    let db_schema = get_schema_by_name(NAMESPACE_NAME, txn.deref_mut())
+                    let db_schema = get_schema_by_name(NAMESPACE_NAME, txn.deref_mut(), SoftDeletedRows::ExcludeDeleted)
                         .await
                         .expect("database failed to query for namespace schema");
                     assert_eq!(schema, db_schema, "schema in DB and cached schema differ");

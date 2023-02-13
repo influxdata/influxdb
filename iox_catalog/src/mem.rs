@@ -5,8 +5,8 @@ use crate::{
     interface::{
         sealed::TransactionFinalize, CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu,
         Error, NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo,
-        QueryPoolRepo, RepoCollection, Result, ShardRepo, TableRepo, TombstoneRepo,
-        TopicMetadataRepo, Transaction,
+        QueryPoolRepo, RepoCollection, Result, ShardRepo, SoftDeletedRows, TableRepo,
+        TombstoneRepo, TopicMetadataRepo, Transaction,
     },
     metrics::MetricDecorator,
     DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
@@ -311,76 +311,53 @@ impl NamespaceRepo for MemTxn {
         Ok(stage.namespaces.last().unwrap().clone())
     }
 
-    async fn list(&mut self) -> Result<Vec<Namespace>> {
+    async fn list(&mut self, deleted: SoftDeletedRows) -> Result<Vec<Namespace>> {
         let stage = self.stage();
 
-        Ok(stage.namespaces.clone())
+        Ok(filter_namespace_soft_delete(&stage.namespaces, deleted)
+            .cloned()
+            .collect())
     }
 
-    async fn get_by_id(&mut self, id: NamespaceId) -> Result<Option<Namespace>> {
+    async fn get_by_id(
+        &mut self,
+        id: NamespaceId,
+        deleted: SoftDeletedRows,
+    ) -> Result<Option<Namespace>> {
         let stage = self.stage();
 
-        Ok(stage.namespaces.iter().find(|n| n.id == id).cloned())
+        Ok(filter_namespace_soft_delete(&stage.namespaces, deleted)
+            .find(|n| n.id == id)
+            .cloned())
     }
 
-    async fn get_by_name(&mut self, name: &str) -> Result<Option<Namespace>> {
+    async fn get_by_name(
+        &mut self,
+        name: &str,
+        deleted: SoftDeletedRows,
+    ) -> Result<Option<Namespace>> {
         let stage = self.stage();
 
-        Ok(stage.namespaces.iter().find(|n| n.name == name).cloned())
+        Ok(filter_namespace_soft_delete(&stage.namespaces, deleted)
+            .find(|n| n.name == name)
+            .cloned())
     }
 
     // performs a cascading delete of all things attached to the namespace, then deletes the
     // namespace
-    async fn delete(&mut self, name: &str) -> Result<()> {
+    async fn soft_delete(&mut self, name: &str) -> Result<()> {
+        let timestamp = self.time_provider.now();
         let stage = self.stage();
         // get namespace by name
-        let namespace_id = match stage.namespaces.iter().find(|n| n.name == name) {
-            Some(n) => n.id,
-            None => {
-                return Err(Error::NamespaceNotFoundByName {
-                    name: name.to_string(),
-                })
+        match stage.namespaces.iter_mut().find(|n| n.name == name) {
+            Some(n) => {
+                n.deleted_at = Some(Timestamp::from(timestamp));
+                Ok(())
             }
-        };
-        // get list of parquet files that match the namespace id
-        let parquet_file_ids: Vec<_> = stage
-            .parquet_files
-            .iter()
-            .filter_map(|f| (f.namespace_id == namespace_id).then_some(f.id))
-            .collect();
-        // delete all processed tombstones for those parquet files
-        stage
-            .processed_tombstones
-            .retain(|pt| !parquet_file_ids.iter().any(|id| *id == pt.parquet_file_id));
-        // delete all the parquet files
-        stage
-            .parquet_files
-            .retain(|pf| !parquet_file_ids.iter().any(|id| *id == pf.id));
-        // get tables with that namespace id
-        let table_ids: HashSet<_> = stage
-            .tables
-            .iter()
-            .filter_map(|table| (table.namespace_id == namespace_id).then_some(table.id))
-            .collect();
-        // delete partitions for those tables
-        stage
-            .partitions
-            .retain(|p| !table_ids.iter().any(|id| *id == p.table_id));
-        // delete tombstones for those tables
-        stage
-            .tombstones
-            .retain(|t| !table_ids.iter().any(|id| *id == t.table_id));
-        // delete columns for those tables
-        stage
-            .columns
-            .retain(|c| !table_ids.iter().any(|id| *id == c.table_id));
-        // delete those tables
-        stage
-            .tables
-            .retain(|t| !table_ids.iter().any(|id| *id == t.id));
-        // finally, delete the namespace
-        stage.namespaces.retain(|n| n.id != namespace_id);
-        Ok(())
+            None => Err(Error::NamespaceNotFoundByName {
+                name: name.to_string(),
+            }),
+        }
     }
 
     async fn update_table_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace> {
@@ -1786,6 +1763,17 @@ impl ProcessedTombstoneRepo for MemTxn {
 
         i64::try_from(count).map_err(|_| Error::InvalidValue { value: count })
     }
+}
+
+fn filter_namespace_soft_delete<'a>(
+    v: impl IntoIterator<Item = &'a Namespace>,
+    deleted: SoftDeletedRows,
+) -> impl Iterator<Item = &'a Namespace> {
+    v.into_iter().filter(move |v| match deleted {
+        SoftDeletedRows::AllRows => true,
+        SoftDeletedRows::ExcludeDeleted => v.deleted_at.is_none(),
+        SoftDeletedRows::OnlyDeleted => v.deleted_at.is_some(),
+    })
 }
 
 #[cfg(test)]

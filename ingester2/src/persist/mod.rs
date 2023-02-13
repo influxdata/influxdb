@@ -13,11 +13,11 @@ mod tests {
     use std::{sync::Arc, time::Duration};
 
     use assert_matches::assert_matches;
-    use data_types::{CompactionLevel, ParquetFile, PartitionKey, ShardId, SequenceNumber};
+    use data_types::{CompactionLevel, ParquetFile, PartitionKey, SequenceNumber, ShardId};
     use dml::DmlOperation;
     use futures::TryStreamExt;
     use iox_catalog::{
-        interface::{get_schema_by_id, Catalog},
+        interface::{get_schema_by_id, Catalog, SoftDeletedRows},
         mem::MemCatalog,
         validate_or_insert_schema,
     };
@@ -95,7 +95,7 @@ mod tests {
             .with_timeout_panic(Duration::from_secs(1))
             .await;
 
-        let schema = get_schema_by_id(namespace_id, &mut *repos)
+        let schema = get_schema_by_id(namespace_id, &mut *repos, SoftDeletedRows::AllRows)
             .await
             .expect("failed to find namespace schema");
 
@@ -415,7 +415,7 @@ mod tests {
             }] =>
             {
                 assert_eq!(created_at.get(), max_l0_created_at.get());
-                
+
                 assert_eq!(got_namespace_id, namespace_id);
                 assert_eq!(got_table_id, table_id);
                 assert_eq!(got_partition_id, partition_id);

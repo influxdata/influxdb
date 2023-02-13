@@ -149,6 +149,53 @@ pub enum Error {
 /// A specialized `Error` for Catalog errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// Specify how soft-deleted entities should affect query results.
+///
+/// ```text
+///
+///                ExcludeDeleted          OnlyDeleted
+///
+///                       ┃                     ┃
+///                 .─────╋─────.         .─────╋─────.
+///              ,─'      ┃      '─.   ,─'      ┃      '─.
+///            ,'         ●         `,'         ●         `.
+///          ,'                    ,' `.                    `.
+///         ;                     ;     :                     :
+///         │      No deleted     │     │   Only deleted      │
+///         │         rows        │  ●  │       rows          │
+///         :                     :  ┃  ;                     ;
+///          ╲                     ╲ ┃ ╱                     ╱
+///           `.                    `┃'                    ,'
+///             `.                 ,'┃`.                 ,'
+///               '─.           ,─'  ┃  '─.           ,─'
+///                  `─────────'     ┃     `─────────'
+///                                  ┃
+///
+///                               AllRows
+///
+/// ```
+#[derive(Debug, Clone, Copy)]
+pub enum SoftDeletedRows {
+    /// Return all rows.
+    AllRows,
+
+    /// Return all rows, except soft deleted rows.
+    ExcludeDeleted,
+
+    /// Return only soft deleted rows.
+    OnlyDeleted,
+}
+
+impl SoftDeletedRows {
+    pub(crate) fn as_sql_predicate(&self) -> &str {
+        match self {
+            Self::ExcludeDeleted => "deleted_at IS NULL",
+            Self::OnlyDeleted => "deleted_at IS NOT NULL",
+            Self::AllRows => "1=1",
+        }
+    }
+}
+
 /// Methods for working with the catalog.
 #[async_trait]
 pub trait Catalog: Send + Sync + Debug {
@@ -319,16 +366,24 @@ pub trait NamespaceRepo: Send + Sync {
     ) -> Result<Namespace>;
 
     /// List all namespaces.
-    async fn list(&mut self) -> Result<Vec<Namespace>>;
+    async fn list(&mut self, deleted: SoftDeletedRows) -> Result<Vec<Namespace>>;
 
     /// Gets the namespace by its ID.
-    async fn get_by_id(&mut self, id: NamespaceId) -> Result<Option<Namespace>>;
+    async fn get_by_id(
+        &mut self,
+        id: NamespaceId,
+        deleted: SoftDeletedRows,
+    ) -> Result<Option<Namespace>>;
 
     /// Gets the namespace by its unique name.
-    async fn get_by_name(&mut self, name: &str) -> Result<Option<Namespace>>;
+    async fn get_by_name(
+        &mut self,
+        name: &str,
+        deleted: SoftDeletedRows,
+    ) -> Result<Option<Namespace>>;
 
-    /// Delete a namespace by name
-    async fn delete(&mut self, name: &str) -> Result<()>;
+    /// Soft-delete a namespace by name
+    async fn soft_delete(&mut self, name: &str) -> Result<()>;
 
     /// Update the limit on the number of tables that can exist per namespace.
     async fn update_table_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace>;
@@ -755,13 +810,17 @@ pub trait ProcessedTombstoneRepo: Send + Sync {
 }
 
 /// Gets the namespace schema including all tables and columns.
-pub async fn get_schema_by_id<R>(id: NamespaceId, repos: &mut R) -> Result<NamespaceSchema>
+pub async fn get_schema_by_id<R>(
+    id: NamespaceId,
+    repos: &mut R,
+    deleted: SoftDeletedRows,
+) -> Result<NamespaceSchema>
 where
     R: RepoCollection + ?Sized,
 {
     let namespace = repos
         .namespaces()
-        .get_by_id(id)
+        .get_by_id(id, deleted)
         .await?
         .context(NamespaceNotFoundByIdSnafu { id })?;
 
@@ -769,13 +828,17 @@ where
 }
 
 /// Gets the namespace schema including all tables and columns.
-pub async fn get_schema_by_name<R>(name: &str, repos: &mut R) -> Result<NamespaceSchema>
+pub async fn get_schema_by_name<R>(
+    name: &str,
+    repos: &mut R,
+    deleted: SoftDeletedRows,
+) -> Result<NamespaceSchema>
 where
     R: RepoCollection + ?Sized,
 {
     let namespace = repos
         .namespaces()
-        .get_by_name(name)
+        .get_by_name(name, deleted)
         .await?
         .context(NamespaceNotFoundByNameSnafu { name })?;
 
@@ -849,6 +912,10 @@ where
 /// result set. No table lock is obtained, nor are queries executed within a
 /// transaction, but this method does return a point-in-time snapshot of the
 /// catalog state.
+///
+/// # Soft Deletion
+///
+/// No schemas for soft-deleted namespaces are returned.
 pub async fn list_schemas(
     catalog: &dyn Catalog,
 ) -> Result<impl Iterator<Item = (Namespace, NamespaceSchema)>> {
@@ -862,6 +929,9 @@ pub async fn list_schemas(
     // queries resolving only what is needed to construct schemas for the
     // retrieved columns (ignoring any newly added tables/namespaces since the
     // column snapshot was taken).
+    //
+    // This approach also tolerates concurrently deleted namespaces, which are
+    // simply ignored at the end when joining to the namespace query result.
 
     // First fetch all the columns - this is the state snapshot of the catalog
     // schemas.
@@ -894,7 +964,12 @@ pub async fn list_schemas(
 
     // Do all the I/O to fetch the namespaces in the background, while this
     // thread constructs the NamespaceId->TableSchema map below.
-    let namespaces = tokio::spawn(async move { repos.namespaces().list().await });
+    let namespaces = tokio::spawn(async move {
+        repos
+            .namespaces()
+            .list(SoftDeletedRows::ExcludeDeleted)
+            .await
+    });
 
     // A set of tables within a single namespace.
     type NamespaceTables = BTreeMap<String, TableSchema>;
@@ -928,6 +1003,9 @@ pub async fn list_schemas(
         // was created, or have no tables/columns (and therefore have no entry
         // in "joined").
         .filter_map(move |v| {
+            // The catalog call explicitly asked for no soft deleted records.
+            assert!(v.deleted_at.is_none());
+
             let mut ns = NamespaceSchema::new(
                 v.id,
                 v.topic_id,
@@ -971,6 +1049,7 @@ pub(crate) mod test_helpers {
         F: Future<Output = Arc<dyn Catalog>> + Send,
     {
         test_setup(clean_state().await).await;
+        test_namespace_soft_deletion(clean_state().await).await;
         test_partitions_with_recent_created_files(clean_state().await).await;
         test_most_cold_files_partitions(clean_state().await).await;
         test_query_pool(clean_state().await).await;
@@ -990,6 +1069,7 @@ pub(crate) mod test_helpers {
         test_txn_isolation(clean_state().await).await;
         test_txn_drop(clean_state().await).await;
         test_list_schemas(clean_state().await).await;
+        test_list_schemas_soft_deleted_rows(clean_state().await).await;
         test_delete_namespace(clean_state().await).await;
 
         let catalog = clean_state().await;
@@ -1107,7 +1187,7 @@ pub(crate) mod test_helpers {
 
         let found = repos
             .namespaces()
-            .get_by_id(namespace.id)
+            .get_by_id(namespace.id, SoftDeletedRows::ExcludeDeleted)
             .await
             .unwrap()
             .expect("namespace should be there");
@@ -1115,14 +1195,14 @@ pub(crate) mod test_helpers {
 
         let not_found = repos
             .namespaces()
-            .get_by_id(NamespaceId::new(i64::MAX))
+            .get_by_id(NamespaceId::new(i64::MAX), SoftDeletedRows::ExcludeDeleted)
             .await
             .unwrap();
         assert!(not_found.is_none());
 
         let found = repos
             .namespaces()
-            .get_by_name(namespace_name)
+            .get_by_name(namespace_name, SoftDeletedRows::ExcludeDeleted)
             .await
             .unwrap()
             .expect("namespace should be there");
@@ -1130,7 +1210,7 @@ pub(crate) mod test_helpers {
 
         let not_found = repos
             .namespaces()
-            .get_by_name("does_not_exist")
+            .get_by_name("does_not_exist", SoftDeletedRows::ExcludeDeleted)
             .await
             .unwrap();
         assert!(not_found.is_none());
@@ -1141,7 +1221,11 @@ pub(crate) mod test_helpers {
             .create(namespace2_name, None, topic.id, pool.id)
             .await
             .unwrap();
-        let mut namespaces = repos.namespaces().list().await.unwrap();
+        let mut namespaces = repos
+            .namespaces()
+            .list(SoftDeletedRows::ExcludeDeleted)
+            .await
+            .unwrap();
         namespaces.sort_by_key(|ns| ns.name.clone());
         assert_eq!(namespaces, vec![namespace, namespace2]);
 
@@ -1214,24 +1298,197 @@ pub(crate) mod test_helpers {
         // remove namespace to avoid it from affecting later tests
         repos
             .namespaces()
-            .delete("test_namespace")
+            .soft_delete("test_namespace")
             .await
             .expect("delete namespace should succeed");
         repos
             .namespaces()
-            .delete("test_namespace2")
+            .soft_delete("test_namespace2")
             .await
             .expect("delete namespace should succeed");
         repos
             .namespaces()
-            .delete("test_namespace3")
+            .soft_delete("test_namespace3")
             .await
             .expect("delete namespace should succeed");
         repos
             .namespaces()
-            .delete("test_namespace4")
+            .soft_delete("test_namespace4")
             .await
             .expect("delete namespace should succeed");
+    }
+
+    /// Construct a set of two namespaces:
+    ///
+    ///  * deleted-ns: marked as soft-deleted
+    ///  * active-ns: not marked as deleted
+    ///
+    /// And assert the expected "soft delete" semantics / correctly filter out
+    /// the expected rows for all three states of [`SoftDeletedRows`].
+    async fn test_namespace_soft_deletion(catalog: Arc<dyn Catalog>) {
+        let mut repos = catalog.repositories().await;
+        let topic = repos.topics().create_or_get("foo").await.unwrap();
+        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
+
+        let deleted_ns = repos
+            .namespaces()
+            .create("deleted-ns", None, topic.id, pool.id)
+            .await
+            .unwrap();
+        let active_ns = repos
+            .namespaces()
+            .create("active-ns", None, topic.id, pool.id)
+            .await
+            .unwrap();
+
+        // Mark "deleted-ns" as soft-deleted.
+        repos.namespaces().soft_delete("deleted-ns").await.unwrap();
+
+        // Which should be idempotent (ignoring the timestamp change - when
+        // changing this to "soft delete" it was idempotent, so I am preserving
+        // that).
+        repos.namespaces().soft_delete("deleted-ns").await.unwrap();
+
+        // Listing should respect soft deletion.
+        let got = repos
+            .namespaces()
+            .list(SoftDeletedRows::AllRows)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|v| v.name);
+        assert_string_set_eq(got, ["deleted-ns", "active-ns"]);
+
+        let got = repos
+            .namespaces()
+            .list(SoftDeletedRows::OnlyDeleted)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|v| v.name);
+        assert_string_set_eq(got, ["deleted-ns"]);
+
+        let got = repos
+            .namespaces()
+            .list(SoftDeletedRows::ExcludeDeleted)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|v| v.name);
+        assert_string_set_eq(got, ["active-ns"]);
+
+        // As should get by ID
+        let got = repos
+            .namespaces()
+            .get_by_id(deleted_ns.id, SoftDeletedRows::AllRows)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|v| v.name);
+        assert_string_set_eq(got, ["deleted-ns"]);
+        let got = repos
+            .namespaces()
+            .get_by_id(deleted_ns.id, SoftDeletedRows::OnlyDeleted)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|v| {
+                assert!(v.deleted_at.is_some());
+                v.name
+            });
+        assert_string_set_eq(got, ["deleted-ns"]);
+        let got = repos
+            .namespaces()
+            .get_by_id(deleted_ns.id, SoftDeletedRows::ExcludeDeleted)
+            .await
+            .unwrap();
+        assert!(got.is_none());
+        let got = repos
+            .namespaces()
+            .get_by_id(active_ns.id, SoftDeletedRows::AllRows)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|v| v.name);
+        assert_string_set_eq(got, ["active-ns"]);
+        let got = repos
+            .namespaces()
+            .get_by_id(active_ns.id, SoftDeletedRows::OnlyDeleted)
+            .await
+            .unwrap();
+        assert!(got.is_none());
+        let got = repos
+            .namespaces()
+            .get_by_id(active_ns.id, SoftDeletedRows::ExcludeDeleted)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|v| v.name);
+        assert_string_set_eq(got, ["active-ns"]);
+
+        // And get by name
+        let got = repos
+            .namespaces()
+            .get_by_name(&deleted_ns.name, SoftDeletedRows::AllRows)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|v| v.name);
+        assert_string_set_eq(got, ["deleted-ns"]);
+        let got = repos
+            .namespaces()
+            .get_by_name(&deleted_ns.name, SoftDeletedRows::OnlyDeleted)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|v| {
+                assert!(v.deleted_at.is_some());
+                v.name
+            });
+        assert_string_set_eq(got, ["deleted-ns"]);
+        let got = repos
+            .namespaces()
+            .get_by_name(&deleted_ns.name, SoftDeletedRows::ExcludeDeleted)
+            .await
+            .unwrap();
+        assert!(got.is_none());
+        let got = repos
+            .namespaces()
+            .get_by_name(&active_ns.name, SoftDeletedRows::AllRows)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|v| v.name);
+        assert_string_set_eq(got, ["active-ns"]);
+        let got = repos
+            .namespaces()
+            .get_by_name(&active_ns.name, SoftDeletedRows::OnlyDeleted)
+            .await
+            .unwrap();
+        assert!(got.is_none());
+        let got = repos
+            .namespaces()
+            .get_by_name(&active_ns.name, SoftDeletedRows::ExcludeDeleted)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|v| v.name);
+        assert_string_set_eq(got, ["active-ns"]);
+    }
+
+    // Assert the set of strings "a" is equal to the set "b", tolerating
+    // duplicates.
+    #[track_caller]
+    fn assert_string_set_eq<T, U>(a: impl IntoIterator<Item = T>, b: impl IntoIterator<Item = U>)
+    where
+        T: Into<String>,
+        U: Into<String>,
+    {
+        let mut a = a.into_iter().map(Into::into).collect::<Vec<String>>();
+        a.sort_unstable();
+        let mut b = b.into_iter().map(Into::into).collect::<Vec<String>>();
+        b.sort_unstable();
+        assert_eq!(a, b);
     }
 
     async fn test_table(catalog: Arc<dyn Catalog>) {
@@ -1363,12 +1620,12 @@ pub(crate) mod test_helpers {
 
         repos
             .namespaces()
-            .delete("namespace_table_test")
+            .soft_delete("namespace_table_test")
             .await
             .expect("delete namespace should succeed");
         repos
             .namespaces()
-            .delete("two")
+            .soft_delete("two")
             .await
             .expect("delete namespace should succeed");
     }
@@ -1522,7 +1779,7 @@ pub(crate) mod test_helpers {
 
         repos
             .namespaces()
-            .delete("namespace_column_test")
+            .soft_delete("namespace_column_test")
             .await
             .expect("delete namespace should succeed");
     }
@@ -1950,12 +2207,12 @@ pub(crate) mod test_helpers {
 
         repos
             .namespaces()
-            .delete("namespace_partition_test2")
+            .soft_delete("namespace_partition_test2")
             .await
             .expect("delete namespace should succeed");
         repos
             .namespaces()
-            .delete("namespace_partition_test")
+            .soft_delete("namespace_partition_test")
             .await
             .expect("delete namespace should succeed");
     }
@@ -2124,12 +2381,12 @@ pub(crate) mod test_helpers {
 
         repos
             .namespaces()
-            .delete("namespace_tombstone_test2")
+            .soft_delete("namespace_tombstone_test2")
             .await
             .expect("delete namespace should succeed");
         repos
             .namespaces()
-            .delete("namespace_tombstone_test")
+            .soft_delete("namespace_tombstone_test")
             .await
             .expect("delete namespace should succeed");
     }
@@ -2355,7 +2612,7 @@ pub(crate) mod test_helpers {
 
         repos
             .namespaces()
-            .delete("namespace_tombstones_by_parquet_file_test")
+            .soft_delete("namespace_tombstones_by_parquet_file_test")
             .await
             .expect("delete namespace should succeed");
     }
@@ -2470,7 +2727,7 @@ pub(crate) mod test_helpers {
             (catalog.time_provider().now() + Duration::from_secs(100)).timestamp_nanos(),
         );
         let deleted_files = repos.parquet_files().delete_old(older_than).await.unwrap();
-        assert!(deleted_files.is_empty());
+        assert_matches!(deleted_files.as_slice(), []);
         assert!(repos.parquet_files().exist(parquet_file.id).await.unwrap());
 
         // verify to_delete can be updated to a timestamp
@@ -2793,7 +3050,11 @@ pub(crate) mod test_helpers {
 
         // test retention-based flagging for deletion
         // Since mem catalog has default retention 1 hour, let us first set it to 0 means infinite
-        let namespaces = repos.namespaces().list().await.expect("listing namespaces");
+        let namespaces = repos
+            .namespaces()
+            .list(SoftDeletedRows::AllRows)
+            .await
+            .expect("listing namespaces");
         for namespace in namespaces {
             repos
                 .namespaces()
@@ -3086,7 +3347,7 @@ pub(crate) mod test_helpers {
         // drop the namespace to avoid the created data in this tests from affecting other tests
         repos
             .namespaces()
-            .delete("namespace_parquet_file_compaction_level_0_test")
+            .soft_delete("namespace_parquet_file_compaction_level_0_test")
             .await
             .expect("delete namespace should succeed");
     }
@@ -3320,7 +3581,7 @@ pub(crate) mod test_helpers {
         // drop the namespace to avoid the created data in this tests from affecting other tests
         repos
             .namespaces()
-            .delete("namespace_parquet_file_compaction_level_1_test")
+            .soft_delete("namespace_parquet_file_compaction_level_1_test")
             .await
             .expect("delete namespace should succeed");
     }
@@ -3962,7 +4223,7 @@ pub(crate) mod test_helpers {
         // drop the namespace to avoid the created data in this tests from affecting other tests
         repos
             .namespaces()
-            .delete("test_most_level_0_files_partitions")
+            .soft_delete("test_most_level_0_files_partitions")
             .await
             .expect("delete namespace should succeed");
 
@@ -4341,7 +4602,7 @@ pub(crate) mod test_helpers {
         // drop the namespace to avoid the created data in this tests from affecting other tests
         repos
             .namespaces()
-            .delete("test_partitions_with_recent_created_files")
+            .soft_delete("test_partitions_with_recent_created_files")
             .await
             .expect("delete namespace should succeed");
     }
@@ -5017,7 +5278,7 @@ pub(crate) mod test_helpers {
         // remove namespace to avoid it from affecting later tests
         repos
             .namespaces()
-            .delete("test_partitions_with_small_l1_file_count")
+            .soft_delete("test_partitions_with_small_l1_file_count")
             .await
             .expect("delete namespace should succeed");
     }
@@ -5146,7 +5407,7 @@ pub(crate) mod test_helpers {
         // remove namespace to avoid it from affecting later tests
         repos
             .namespaces()
-            .delete("namespace_parquet_file_test_list_by_partiton_not_to_delete")
+            .soft_delete("namespace_parquet_file_test_list_by_partiton_not_to_delete")
             .await
             .expect("delete namespace should succeed");
     }
@@ -5279,7 +5540,7 @@ pub(crate) mod test_helpers {
         // remove namespace to avoid it from affecting later tests
         repos
             .namespaces()
-            .delete("namespace_update_to_compaction_level_1_test")
+            .soft_delete("namespace_update_to_compaction_level_1_test")
             .await
             .expect("delete namespace should succeed");
     }
@@ -5465,11 +5726,24 @@ pub(crate) mod test_helpers {
         // remove namespace to avoid it from affecting later tests
         repos
             .namespaces()
-            .delete("namespace_processed_tombstone_test")
+            .soft_delete("namespace_processed_tombstone_test")
             .await
             .expect("delete namespace should succeed");
     }
 
+    /// Assert that a namespace deletion does NOT cascade to the tables/schema
+    /// items/parquet files/etc.
+    ///
+    /// Removal of this entities breaks the invariant that once created, a row
+    /// always exists for the lifetime of an IOx process, and causes the system
+    /// to panic in multiple components. It's also ineffective, because most
+    /// components maintain a cache of at least one of these entities.
+    ///
+    /// Instead soft deleted namespaces should have their files GC'd like a
+    /// normal parquet file deletion, removing the rows once they're no longer
+    /// being actively used by the system. This is done by waiting a long time
+    /// before deleting records, and whilst isn't perfect, it is largely
+    /// effective.
     async fn test_delete_namespace(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
         let topic = repos.topics().create_or_get("foo").await.unwrap();
@@ -5743,26 +6017,47 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert!(exist);
 
-        // now delete namespace_1 and assert it's all gone and none of namespace_2 is gone
+        // now delete namespace_1 and assert it's all gone and none of
+        // namespace_2 is gone
         repos
             .namespaces()
-            .delete("namespace_test_delete_namespace_1")
+            .soft_delete("namespace_test_delete_namespace_1")
             .await
             .expect("delete namespace should succeed");
-        // assert that namespace, table, column, tombstones, parquet files and processed tombstones
-        // are all gone
+        // assert that namespace is soft-deleted, but the table, column,
+        // tombstones, parquet files and processed tombstones are all still
+        // there.
         assert!(repos
             .namespaces()
-            .get_by_id(namespace_1.id)
+            .get_by_id(namespace_1.id, SoftDeletedRows::ExcludeDeleted)
             .await
             .expect("get namespace should succeed")
             .is_none());
-        assert!(repos
-            .tables()
-            .get_by_id(table_1.id)
-            .await
-            .expect("get table should succeed")
-            .is_none());
+        assert_eq!(
+            repos
+                .namespaces()
+                .get_by_id(namespace_1.id, SoftDeletedRows::AllRows)
+                .await
+                .expect("get namespace should succeed")
+                .map(|mut v| {
+                    // The only change after soft-deletion should be the deleted_at
+                    // field being set - this block normalises that field, so that
+                    // the before/after can be asserted as equal.
+                    v.deleted_at = None;
+                    v
+                })
+                .expect("should see soft-deleted row"),
+            namespace_1
+        );
+        assert_eq!(
+            repos
+                .tables()
+                .get_by_id(table_1.id)
+                .await
+                .expect("get table should succeed")
+                .expect("should return row"),
+            table_1
+        );
         assert_eq!(
             repos
                 .columns()
@@ -5770,7 +6065,7 @@ pub(crate) mod test_helpers {
                 .await
                 .expect("listing columns should succeed")
                 .len(),
-            0
+            1
         );
         assert_eq!(
             repos
@@ -5779,7 +6074,7 @@ pub(crate) mod test_helpers {
                 .await
                 .expect("listing columns should succeed")
                 .len(),
-            0
+            1
         );
         assert_eq!(
             repos
@@ -5788,7 +6083,7 @@ pub(crate) mod test_helpers {
                 .await
                 .expect("listing tombstones should succeed")
                 .len(),
-            0
+            3
         );
         assert_eq!(
             repos
@@ -5797,45 +6092,45 @@ pub(crate) mod test_helpers {
                 .await
                 .expect("listing tombstones should succeed")
                 .len(),
-            0
+            3
         );
         assert!(repos
             .partitions()
             .get_by_id(partition_1.id)
             .await
             .expect("fetching partition by id should succeed")
-            .is_none());
-        assert!(!repos
+            .is_some());
+        assert!(repos
             .parquet_files()
             .exist(p1_n1.id)
             .await
             .expect("parquet file exists check should succeed"));
-        assert!(!repos
+        assert!(repos
             .parquet_files()
             .exist(p2_n1.id)
             .await
             .expect("parquet file exists check should succeed"));
-        assert!(!repos
+        assert!(repos
             .processed_tombstones()
             .exist(p1_n1.id, t2_n1.id)
             .await
             .expect("processed tombstone exists check should succeed"));
-        assert!(!repos
+        assert!(repos
             .processed_tombstones()
             .exist(p1_n1.id, t3_n1.id)
             .await
             .expect("processed tombstone exists check should succeed"));
-        assert!(!repos
+        assert!(repos
             .processed_tombstones()
             .exist(p2_n1.id, t3_n1.id)
             .await
             .expect("processed tombstone exists check should succeed"));
 
-        // assert that the namespace, table, column, tombstone, parquet files and processed
-        // tombstones for namespace_2 are still there
+        // assert that the namespace, table, column, tombstone, parquet files
+        // and processed tombstones for namespace_2 are still there
         assert!(repos
             .namespaces()
-            .get_by_id(namespace_2.id)
+            .get_by_id(namespace_2.id, SoftDeletedRows::ExcludeDeleted)
             .await
             .expect("get namespace should succeed")
             .is_some());
@@ -5994,7 +6289,7 @@ pub(crate) mod test_helpers {
             Ok(v) => v,
             Err(Error::NameExists { .. }) => repos
                 .namespaces()
-                .get_by_name(namespace_name)
+                .get_by_name(namespace_name, SoftDeletedRows::AllRows)
                 .await
                 .unwrap()
                 .unwrap(),
@@ -6046,6 +6341,40 @@ pub(crate) mod test_helpers {
 
         assert!(got.contains(&ns1), "{:#?}\n\nwant{:#?}", got, &ns1);
         assert!(got.contains(&ns2), "{:#?}\n\nwant{:#?}", got, &ns2);
+    }
+
+    async fn test_list_schemas_soft_deleted_rows(catalog: Arc<dyn Catalog>) {
+        let mut repos = catalog.repositories().await;
+
+        let ns1 = populate_namespace(
+            repos.deref_mut(),
+            "ns1",
+            "cpu,tag=1 field=1i\nanother,tag=1 field=1.0",
+        )
+        .await;
+        let ns2 = populate_namespace(
+            repos.deref_mut(),
+            "ns2",
+            "cpu,tag=1 field=1i\nsomethingelse field=1u",
+        )
+        .await;
+
+        repos
+            .namespaces()
+            .soft_delete(&ns2.0.name)
+            .await
+            .expect("failed to soft delete namespace");
+
+        // Otherwise the in-mem catalog deadlocks.... (but not postgres)
+        drop(repos);
+
+        let got = list_schemas(&*catalog)
+            .await
+            .expect("should be able to list the schemas")
+            .collect::<Vec<_>>();
+
+        assert!(got.contains(&ns1), "{:#?}\n\nwant{:#?}", got, &ns1);
+        assert!(!got.contains(&ns2), "{:#?}\n\n do not want{:#?}", got, &ns2);
     }
 
     fn assert_metric_hit(metrics: &metric::Registry, name: &'static str) {

@@ -3,7 +3,7 @@
 use std::{ops::DerefMut, sync::Arc};
 
 use generated_types::influxdata::iox::schema::v1::*;
-use iox_catalog::interface::{get_schema_by_name, Catalog};
+use iox_catalog::interface::{get_schema_by_name, Catalog, SoftDeletedRows};
 use observability_deps::tracing::warn;
 use tonic::{Request, Response, Status};
 
@@ -29,13 +29,17 @@ impl schema_service_server::SchemaService for SchemaService {
         let mut repos = self.catalog.repositories().await;
 
         let req = request.into_inner();
-        let schema = get_schema_by_name(&req.namespace, repos.deref_mut())
-            .await
-            .map_err(|e| {
-                warn!(error=%e, %req.namespace, "failed to retrieve namespace schema");
-                Status::not_found(e.to_string())
-            })
-            .map(Arc::new)?;
+        let schema = get_schema_by_name(
+            &req.namespace,
+            repos.deref_mut(),
+            SoftDeletedRows::ExcludeDeleted,
+        )
+        .await
+        .map_err(|e| {
+            warn!(error=%e, %req.namespace, "failed to retrieve namespace schema");
+            Status::not_found(e.to_string())
+        })
+        .map(Arc::new)?;
         Ok(Response::new(schema_to_proto(schema)))
     }
 }

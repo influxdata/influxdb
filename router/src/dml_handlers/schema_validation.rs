@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use data_types::{DeletePredicate, NamespaceId, NamespaceName, NamespaceSchema, TableId};
 use hashbrown::HashMap;
 use iox_catalog::{
-    interface::{get_schema_by_name, Catalog, Error as CatalogError},
+    interface::{get_schema_by_name, Catalog, Error as CatalogError, SoftDeletedRows},
     validate_or_insert_schema,
 };
 use metric::U64Counter;
@@ -186,18 +186,22 @@ where
             None => {
                 // Pull the schema from the global catalog or error if it does
                 // not exist.
-                let schema = get_schema_by_name(namespace, repos.deref_mut())
-                    .await
-                    .map_err(|e| {
-                        warn!(
-                            error=%e,
-                            %namespace,
-                            %namespace_id,
-                            "failed to retrieve namespace schema"
-                        );
-                        SchemaError::NamespaceLookup(e)
-                    })
-                    .map(Arc::new)?;
+                let schema = get_schema_by_name(
+                    namespace,
+                    repos.deref_mut(),
+                    SoftDeletedRows::ExcludeDeleted,
+                )
+                .await
+                .map_err(|e| {
+                    warn!(
+                        error=%e,
+                        %namespace,
+                        %namespace_id,
+                        "failed to retrieve namespace schema"
+                    );
+                    SchemaError::NamespaceLookup(e)
+                })
+                .map(Arc::new)?;
 
                 self.cache
                     .put_schema(namespace.clone(), Arc::clone(&schema));

@@ -14,7 +14,7 @@ use cache_system::{
     resource_consumption::FunctionEstimator,
 };
 use data_types::{ColumnId, NamespaceId, NamespaceSchema, TableId, TableSchema};
-use iox_catalog::interface::{get_schema_by_name, Catalog};
+use iox_catalog::interface::{get_schema_by_name, Catalog, SoftDeletedRows};
 use iox_time::TimeProvider;
 use schema::Schema;
 use std::{
@@ -91,7 +91,13 @@ impl NamespaceCache {
                 let schema = Backoff::new(&backoff_config)
                     .retry_all_errors("get namespace schema", || async {
                         let mut repos = catalog.repositories().await;
-                        match get_schema_by_name(&namespace_name, repos.as_mut()).await {
+                        match get_schema_by_name(
+                            &namespace_name,
+                            repos.as_mut(),
+                            SoftDeletedRows::ExcludeDeleted,
+                        )
+                        .await
+                        {
                             Ok(schema) => Ok(Some(schema)),
                             Err(iox_catalog::interface::Error::NamespaceNotFoundByName {
                                 ..
