@@ -114,6 +114,29 @@ pub(crate) mod database {
                     .with_string_field_column_with_stats("shared_field0", None, None)
                     .with_one_row_of_data(),
             ),
+            // Schemas for testing clashing column names when merging across measurements
+            Arc::new(
+                TestChunk::new("merge_00")
+                    .with_id(next_chunk_id())
+                    .with_quiet()
+                    .with_time_column()
+                    .with_tag_column("col0")
+                    .with_f64_field_column("col1")
+                    .with_bool_field_column("col2")
+                    .with_string_field_column_with_stats("col3", None, None)
+                    .with_one_row_of_data(),
+            ),
+            Arc::new(
+                TestChunk::new("merge_01")
+                    .with_id(next_chunk_id())
+                    .with_quiet()
+                    .with_time_column()
+                    .with_tag_column("col1")
+                    .with_f64_field_column("col0")
+                    .with_bool_field_column("col3")
+                    .with_string_field_column_with_stats("col2", None, None)
+                    .with_one_row_of_data(),
+            ),
         ]
     }
 }

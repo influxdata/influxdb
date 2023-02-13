@@ -3,34 +3,25 @@
 //! [keywords]: https://docs.influxdata.com/influxdb/v1.8/query_language/spec/#keywords
 
 use crate::internal::ParseResult;
-use nom::branch::alt;
-use nom::bytes::complete::{tag, tag_no_case};
+use nom::bytes::complete::tag_no_case;
 use nom::character::complete::alpha1;
-use nom::combinator::{eof, fail, peek, verify};
+use nom::combinator::{fail, verify};
 use nom::sequence::terminated;
+use nom::FindToken;
 use once_cell::sync::Lazy;
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 
-/// Peeks at the input for acceptable characters separating a keyword.
+/// Verifies the next character of `i` is valid following a keyword.
 ///
-/// Will return a failure if one of the expected characters is not found.
-fn keyword_follow_char(i: &str) -> ParseResult<&str, &str> {
-    peek(alt((
-        tag(" "),
-        tag("\n"),
-        tag(";"),
-        tag("("),
-        tag(")"),
-        tag("\t"),
-        tag(","),
-        tag("="),
-        tag("!"), // possible !=
-        tag("/"), // possible comment
-        tag("-"), // possible comment
-        eof,
-        fail, // Return a failure if we reach the end of this alternation
-    )))(i)
+/// Keywords may be followed by whitespace, statement terminator (;), parens,
+/// or conditional and arithmetic operators or EOF
+fn keyword_follow_char(i: &str) -> ParseResult<&str, ()> {
+    if i.is_empty() || b" \n\t;(),=!><+-/*|&^%".find_token(i.bytes().next().unwrap()) {
+        Ok((i, ()))
+    } else {
+        fail(i)
+    }
 }
 
 /// Token represents a string with case-insensitive ordering and equality.
@@ -162,6 +153,7 @@ pub fn keyword<'a>(keyword: &'static str) -> impl FnMut(&'a str) -> ParseResult<
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::assert_error;
     use assert_matches::assert_matches;
 
     #[test]
@@ -278,13 +270,36 @@ mod test {
         // Will fail because keyword `OR` in `ORDER` is not recognized, as is not terminated by a valid character
         let err = or_keyword("ORDER").unwrap_err();
         assert_matches!(err, nom::Err::Error(crate::internal::Error::Nom(_, kind)) if kind == nom::error::ErrorKind::Fail);
+    }
 
-        // test valid follow-on characters
+    #[test]
+    fn test_keyword_followed_by_valid_char() {
         let mut tag_keyword = keyword("TAG");
 
-        let (rem, got) = tag_keyword("tag!").unwrap();
-        assert_eq!(rem, "!");
+        // followed by EOF
+        let (rem, got) = tag_keyword("tag").unwrap();
+        assert_eq!(rem, "");
         assert_eq!(got, "tag");
+
+        //
+        // Test some of the expected characters
+        //
+
+        let (rem, got) = tag_keyword("tag!=foo").unwrap();
+        assert_eq!(rem, "!=foo");
+        assert_eq!(got, "tag");
+
+        let (rem, got) = tag_keyword("tag>foo").unwrap();
+        assert_eq!(rem, ">foo");
+        assert_eq!(got, "tag");
+
+        let (rem, got) = tag_keyword("tag&1 = foo").unwrap();
+        assert_eq!(rem, "&1 = foo");
+        assert_eq!(got, "tag");
+
+        // Fallible
+
+        assert_error!(tag_keyword("tag$"), Fail);
     }
 
     #[test]

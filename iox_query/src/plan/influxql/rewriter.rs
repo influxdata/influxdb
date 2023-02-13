@@ -746,6 +746,20 @@ mod test {
             "SELECT SUM(field_f64::float) AS SUM_field_f64, SUM(field_i64::integer) AS SUM_field_i64, SUM(shared_field0::float) AS SUM_shared_field0 FROM temp_01"
         );
 
+        let stmt = parse_select("SELECT * FROM merge_00, merge_01");
+        let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+        assert_eq!(
+            stmt.to_string(),
+            "SELECT col0::float AS col0, col0::tag AS col0_1, col1::float AS col1, col1::tag AS col1_1, col2::string AS col2, col3::string AS col3 FROM merge_00, merge_01"
+        );
+
+        let stmt = parse_select("SELECT /col0/ FROM merge_00, merge_01");
+        let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+        assert_eq!(
+            stmt.to_string(),
+            "SELECT col0::float AS col0, col0::tag AS col0_1 FROM merge_00, merge_01"
+        );
+
         // Fallible cases
 
         let stmt = parse_select("SELECT *::field + *::tag FROM cpu");
