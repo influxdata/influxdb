@@ -87,10 +87,14 @@ async fn ingester_flight_api() {
     // Don't use a shared cluster because the ingester is going to be restarted
     let mut cluster = MiniCluster::create_non_shared2(database_url).await;
 
-    // Write some data into the v2 HTTP API ==============
+    // Write some data into the v2 HTTP API to set up the namespace and schema ==============
     let lp = format!("{table_name},tag1=A,tag2=B val=42i 123456");
     let response = cluster.write_to_router(lp).await;
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    // Write some data directly into the ingester through its gRPC API
+    let lp = format!("{table_name},tag1=B,tag2=A val=84i 1234567");
+    cluster.write_to_ingester(lp, table_name).await;
 
     // query the ingester
     let query = IngesterQueryRequest::new(
@@ -112,6 +116,7 @@ async fn ingester_flight_api() {
         "| tag1 | tag2 | time                           | val |",
         "+------+------+--------------------------------+-----+",
         "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
+        "| B    | A    | 1970-01-01T00:00:00.001234567Z | 84  |",
         "+------+------+--------------------------------+-----+",
     ];
     assert_batches_sorted_eq!(&expected, &ingester_response.record_batches);
@@ -136,8 +141,7 @@ async fn ingester_flight_api() {
     // Populate the ingester with some data so it returns a successful
     // response containing the UUID.
     let lp = format!("{table_name},tag1=A,tag2=B val=42i 123456");
-    let response = cluster.write_to_router(lp).await;
-    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+    cluster.write_to_ingester(lp, table_name).await;
 
     // Query for the new UUID and assert it has changed.
     let ingester_response = cluster.query_ingester(query).await.unwrap();

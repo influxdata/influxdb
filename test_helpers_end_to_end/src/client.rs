@@ -1,9 +1,17 @@
 //! Client helpers for writing end to end ng tests
 use arrow::record_batch::RecordBatch;
+use data_types::{NamespaceId, TableId};
+use dml::{DmlMeta, DmlWrite};
 use futures::TryStreamExt;
 use http::Response;
 use hyper::{Body, Client, Request};
-use influxdb_iox_client::connection::Connection;
+use influxdb_iox_client::{
+    connection::Connection,
+    ingester::generated_types::{write_service_client::WriteServiceClient, WriteRequest},
+};
+use mutable_batch_lp::lines_to_batches;
+use mutable_batch_pb::encode::encode_write;
+use tonic::IntoRequest;
 
 /// Writes the line protocol to the write_base/api/v2/write endpoint (typically on the router)
 pub async fn write_to_router(
@@ -30,6 +38,40 @@ pub async fn write_to_router(
         .request(request)
         .await
         .expect("http error sending write")
+}
+
+/// Writes the line protocol to the WriteService endpoint (typically on the ingester)
+pub async fn write_to_ingester(
+    line_protocol: impl Into<String>,
+    namespace_id: NamespaceId,
+    table_id: TableId,
+    ingester_connection: Connection,
+) {
+    let line_protocol = line_protocol.into();
+    let writes = lines_to_batches(&line_protocol, 0).unwrap();
+    let writes = writes
+        .into_iter()
+        .map(|(_name, data)| (table_id, data))
+        .collect();
+
+    let mut client = WriteServiceClient::new(ingester_connection.into_grpc_connection());
+
+    let op = DmlWrite::new(
+        namespace_id,
+        writes,
+        "1970-01-01".into(),
+        DmlMeta::unsequenced(None),
+    );
+
+    client
+        .write(
+            tonic::Request::new(WriteRequest {
+                payload: Some(encode_write(namespace_id.get(), &op)),
+            })
+            .into_request(),
+        )
+        .await
+        .unwrap();
 }
 
 /// Runs a SQL query using the flight API on the specified connection.
