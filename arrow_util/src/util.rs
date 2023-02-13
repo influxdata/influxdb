@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use arrow::{
     array::{new_null_array, ArrayRef, StringArray},
-    compute::concat_batches,
     datatypes::SchemaRef,
     error::ArrowError,
     record_batch::RecordBatch,
@@ -55,24 +54,4 @@ pub fn ensure_schema(
         .collect::<Vec<_>>();
 
     RecordBatch::try_new(Arc::clone(output_schema), batch_output_columns)
-}
-
-/// Merge the record batches into one record batch
-/// and pad null values to columns that are not available in certain batches
-pub fn merge_record_batches(
-    output_schema: &SchemaRef,
-    batches: Vec<Arc<RecordBatch>>,
-) -> Result<Option<RecordBatch>, ArrowError> {
-    // Add null values for non-existing columns
-    let batches = batches
-        .iter()
-        .map(|batch| ensure_schema(output_schema, batch.as_ref()))
-        .collect::<Result<Vec<_>, _>>()?;
-
-    // Combine batches
-    if batches.is_empty() {
-        return Ok(None);
-    }
-
-    Ok(Some(concat_batches(output_schema, &batches)?))
 }
