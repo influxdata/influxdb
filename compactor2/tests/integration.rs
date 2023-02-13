@@ -4,10 +4,8 @@ use arrow_util::assert_batches_sorted_eq;
 use data_types::{CompactionLevel, ParquetFile, PartitionId};
 use iox_tests::TestParquetFileBuilder;
 
-use crate::{
-    config::AlgoVersion,
-    test_util::{format_files, list_object_store, TestSetup},
-};
+use compactor2::config::AlgoVersion;
+use compactor2_test_utils::{format_files, list_object_store, TestSetup};
 
 #[tokio::test]
 async fn test_compact_no_file() {

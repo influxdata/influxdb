@@ -70,9 +70,8 @@ mod tests {
     use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
     use schema::SchemaBuilder;
 
-    use crate::{
-        components::parquet_file_sink::mock::MockParquetFileSink, test_util::partition_info,
-    };
+    use crate::components::parquet_file_sink::mock::MockParquetFileSink;
+    use crate::test_utils::partition_info;
 
     use super::*;
 

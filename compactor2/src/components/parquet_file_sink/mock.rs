@@ -105,7 +105,7 @@ mod tests {
     };
     use schema::SchemaBuilder;
 
-    use crate::test_util::partition_info;
+    use crate::test_utils::partition_info;
 
     use super::*;
 

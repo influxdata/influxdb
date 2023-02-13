@@ -20,7 +20,7 @@ pub struct PartitionInfo {
     /// Table.
     pub table: Arc<Table>,
 
-    // Table schema
+    /// Table schema
     pub table_schema: Arc<TableSchema>,
 
     /// Sort key of the partition

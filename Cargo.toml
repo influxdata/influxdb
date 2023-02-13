@@ -8,6 +8,7 @@ members = [
     "client_util",
     "compactor",
     "compactor2",
+    "compactor2_test_utils",
     "data_types",
     "datafusion_util",
     "dml",

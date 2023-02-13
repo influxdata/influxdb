@@ -179,9 +179,16 @@ pub mod object_store;
 mod partition_info;
 mod plan_ir;
 
+// publically expose items needed for testing
+pub use components::{
+    df_planner::panic::PanicDataFusionPlanner, hardcoded::hardcoded_components,
+    namespaces_source::mock::NamespaceWrapper, parquet_files_sink::simulator::ParquetFileSimulator,
+    Components,
+};
+pub use driver::compact;
+pub use partition_info::PartitionInfo;
+
 #[cfg(test)]
-mod tests;
+mod test_utils;
 
 pub mod file_group;
-#[cfg(test)]
-mod test_util;

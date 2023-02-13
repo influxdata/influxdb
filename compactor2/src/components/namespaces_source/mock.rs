@@ -6,8 +6,11 @@ use data_types::{Namespace, NamespaceId, NamespaceSchema};
 use super::NamespacesSource;
 
 #[derive(Debug, Clone)]
+/// contains [`Namespace`] and a [`NamespaceSchema`]
 pub struct NamespaceWrapper {
+    /// namespace
     pub ns: Namespace,
+    /// schema
     pub schema: NamespaceSchema,
 }
 
@@ -44,7 +47,11 @@ impl NamespacesSource for MockNamespacesSource {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_util::NamespaceBuilder;
+    use std::collections::BTreeMap;
+
+    use data_types::{
+        ColumnId, ColumnSchema, ColumnType, QueryPoolId, TableId, TableSchema, TopicId,
+    };
 
     use super::*;
 
@@ -110,5 +117,100 @@ mod tests {
 
         // unknown namespace => None result
         assert_eq!(source.fetch_schema_by_id(NamespaceId::new(3)).await, None,);
+    }
+
+    #[derive(Debug)]
+    /// Build [`NamespaceWrapper`] for testing
+    pub struct NamespaceBuilder {
+        namespace: NamespaceWrapper,
+    }
+
+    impl NamespaceBuilder {
+        pub fn new(id: i64) -> Self {
+            let tables = BTreeMap::from([
+                (
+                    "table1".to_string(),
+                    TableSchema {
+                        id: TableId::new(1),
+                        columns: BTreeMap::from([
+                            (
+                                "col1".to_string(),
+                                ColumnSchema {
+                                    id: ColumnId::new(1),
+                                    column_type: ColumnType::I64,
+                                },
+                            ),
+                            (
+                                "col2".to_string(),
+                                ColumnSchema {
+                                    id: ColumnId::new(2),
+                                    column_type: ColumnType::String,
+                                },
+                            ),
+                        ]),
+                    },
+                ),
+                (
+                    "table2".to_string(),
+                    TableSchema {
+                        id: TableId::new(2),
+                        columns: BTreeMap::from([
+                            (
+                                "col1".to_string(),
+                                ColumnSchema {
+                                    id: ColumnId::new(3),
+                                    column_type: ColumnType::I64,
+                                },
+                            ),
+                            (
+                                "col2".to_string(),
+                                ColumnSchema {
+                                    id: ColumnId::new(4),
+                                    column_type: ColumnType::String,
+                                },
+                            ),
+                            (
+                                "col3".to_string(),
+                                ColumnSchema {
+                                    id: ColumnId::new(5),
+                                    column_type: ColumnType::F64,
+                                },
+                            ),
+                        ]),
+                    },
+                ),
+            ]);
+
+            let id = NamespaceId::new(id);
+            let topic_id = TopicId::new(0);
+            let query_pool_id = QueryPoolId::new(0);
+            Self {
+                namespace: NamespaceWrapper {
+                    ns: Namespace {
+                        id,
+                        name: "ns".to_string(),
+                        topic_id,
+                        query_pool_id,
+                        max_tables: 10,
+                        max_columns_per_table: 10,
+                        retention_period_ns: None,
+                        deleted_at: None,
+                    },
+                    schema: NamespaceSchema {
+                        id,
+                        topic_id,
+                        query_pool_id,
+                        tables,
+                        max_columns_per_table: 10,
+                        max_tables: 42,
+                        retention_period_ns: None,
+                    },
+                },
+            }
+        }
+
+        pub fn build(self) -> NamespaceWrapper {
+            self.namespace
+        }
     }
 }

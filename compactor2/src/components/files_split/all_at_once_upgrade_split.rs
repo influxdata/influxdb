@@ -33,7 +33,7 @@ impl FilesSplit for AllAtOnceUpgradeSplit {
 #[cfg(test)]
 mod tests {
 
-    use crate::test_util::create_overlapped_files;
+    use compactor2_test_utils::create_overlapped_files;
 
     use super::*;
 
