@@ -15,6 +15,7 @@ pub mod logging;
 pub mod mock;
 pub mod object_store;
 
+/// Writes streams if data to the object store as one or more parquet files
 #[async_trait]
 pub trait ParquetFileSink: Debug + Display + Send + Sync {
     async fn store(

@@ -48,9 +48,7 @@ use super::{
         dedicated::DedicatedExecParquetFileSinkWrapper, logging::LoggingParquetFileSinkWrapper,
         object_store::ObjectStoreParquetFileSink,
     },
-    parquet_files_sink::{
-        dispatch::DispatchParquetFilesSink, simulator::ParquetFileSimulator, ParquetFilesSink,
-    },
+    parquet_files_sink::{dispatch::DispatchParquetFilesSink, ParquetFilesSink},
     partition_done_sink::{
         catalog::CatalogPartitionDoneSink, error_kind::ErrorKindPartitionDoneSinkWrapper,
         logging::LoggingPartitionDoneSinkWrapper, metrics::MetricsPartitionDoneSinkWrapper,
@@ -240,21 +238,22 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
     } else {
         Arc::new(DedicatedDataFusionPlanExec::new(Arc::clone(&config.exec)))
     };
-    let parquet_files_sink: Arc<dyn ParquetFilesSink> = if config.simulate_without_object_store {
-        Arc::new(ParquetFileSimulator::new())
-    } else {
-        let parquet_file_sink = Arc::new(LoggingParquetFileSinkWrapper::new(
-            DedicatedExecParquetFileSinkWrapper::new(
-                ObjectStoreParquetFileSink::new(
-                    config.shard_id,
-                    config.parquet_store_scratchpad.clone(),
-                    Arc::clone(&config.time_provider),
+    let parquet_files_sink: Arc<dyn ParquetFilesSink> =
+        if let Some(sink) = config.parquet_files_sink_override.as_ref() {
+            Arc::clone(sink)
+        } else {
+            let parquet_file_sink = Arc::new(LoggingParquetFileSinkWrapper::new(
+                DedicatedExecParquetFileSinkWrapper::new(
+                    ObjectStoreParquetFileSink::new(
+                        config.shard_id,
+                        config.parquet_store_scratchpad.clone(),
+                        Arc::clone(&config.time_provider),
+                    ),
+                    Arc::clone(&config.exec),
                 ),
-                Arc::clone(&config.exec),
-            ),
-        ));
-        Arc::new(DispatchParquetFilesSink::new(parquet_file_sink))
-    };
+            ));
+            Arc::new(DispatchParquetFilesSink::new(parquet_file_sink))
+        };
 
     Arc::new(Components {
         partition_stream,

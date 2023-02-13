@@ -1,18 +1,20 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::BTreeSet,
+    sync::{Arc, Mutex},
+};
 
 use async_trait::async_trait;
 use data_types::{
-    ColumnSet, CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, SequenceNumber,
-    ShardId, Timestamp,
+    ColumnSet, CompactionLevel, ParquetFile, ParquetFileParams, SequenceNumber, ShardId, Timestamp,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use iox_time::Time;
 use observability_deps::tracing::{debug, info};
 use uuid::Uuid;
 
-use crate::{error::DynError, partition_info::PartitionInfo, plan_ir::PlanIR};
+use compactor2::{DynError, ParquetFilesSink, PartitionInfo, PlanIR};
 
-use super::ParquetFilesSink;
+use crate::format_files;
 
 /// Simulates the result of running a compaction plan that
 /// produces multiple parquet files.
@@ -67,18 +69,11 @@ impl ParquetFileSimulator {
         runs.into_iter()
             .enumerate()
             .flat_map(|(i, run)| {
-                vec![
-                    format!("**** Simulation Run {}, type={}", i, run.plan_type),
-                    format!(
-                        "Input, {} files: {}",
-                        run.input_file_ids.len(),
-                        run.input_file_ids
-                            .into_iter()
-                            .map(|f| f.to_string())
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ),
-                ]
+                let title = format!(
+                    "**** Simulation run {}, type={}. Input Files:",
+                    i, run.plan_type
+                );
+                format_files(title, &run.input_parquet_files)
             })
             .collect()
     }
@@ -120,19 +115,28 @@ impl ParquetFilesSink for ParquetFileSimulator {
             .iter()
             .map(|f| SimulatedFile::from(&f.file))
             .collect();
-        let input_file_ids: Vec<_> = plan_ir.input_files().iter().map(|f| f.file.id).collect();
+
+        let input_parquet_files: Vec<_> = plan_ir
+            .input_files()
+            .iter()
+            .map(|f| f.file.clone())
+            .collect();
+        let column_set = overall_column_set(input_parquet_files.iter());
         let output_files = even_time_split(&input_files, split_times, target_level);
+        let partition_info = partition_info.as_ref();
 
         // Compute final output
         let output: Vec<_> = output_files
             .into_iter()
-            .map(|f| f.into_parquet_file_params(max_l0_created_at, partition_info.as_ref()))
+            .map(|f| {
+                f.into_parquet_file_params(max_l0_created_at, column_set.clone(), partition_info)
+            })
             .collect();
 
         // record what we did
         self.runs.lock().unwrap().push(SimulatedRun {
             plan_type,
-            input_file_ids,
+            input_parquet_files,
         });
 
         Ok(output)
@@ -180,6 +184,7 @@ impl SimulatedFile {
     fn into_parquet_file_params(
         self,
         max_l0_created_at: Time,
+        column_set: ColumnSet,
         partition_info: &PartitionInfo,
     ) -> ParquetFileParams {
         let Self {
@@ -203,7 +208,7 @@ impl SimulatedFile {
             row_count,
             compaction_level,
             created_at: Timestamp::new(1),
-            column_set: ColumnSet::new(vec![]),
+            column_set,
             max_l0_created_at: max_l0_created_at.into(),
         }
     }
@@ -214,10 +219,18 @@ impl SimulatedFile {
 #[derive(Debug, Clone)]
 pub struct SimulatedRun {
     // fields are used in testing
-    #[allow(dead_code)]
     plan_type: String,
-    #[allow(dead_code)]
-    input_file_ids: Vec<ParquetFileId>,
+    input_parquet_files: Vec<ParquetFile>,
+}
+
+fn overall_column_set<'a>(files: impl IntoIterator<Item = &'a ParquetFile>) -> ColumnSet {
+    let all_columns = files
+        .into_iter()
+        .fold(BTreeSet::new(), |mut columns, file| {
+            columns.extend(file.column_set.iter().cloned());
+            columns
+        });
+    ColumnSet::new(all_columns)
 }
 
 /// Calculate simulated output files based on splitting files
