@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use self::{
     commit::Commit, df_plan_exec::DataFusionPlanExec, df_planner::DataFusionPlanner,
-    divide_initial::DivideInitial, files_filter::FilesFilter, ir_planner::IRPlanner,
-    parquet_files_sink::ParquetFilesSink, partition_done_sink::PartitionDoneSink,
-    partition_files_source::PartitionFilesSource, partition_filter::PartitionFilter,
-    partition_info_source::PartitionInfoSource, partition_stream::PartitionStream,
-    round_split::RoundSplit, scratchpad::ScratchpadGen, target_level_chooser::TargetLevelChooser,
+    divide_initial::DivideInitial, file_classifier::FileClassifier, files_filter::FilesFilter,
+    ir_planner::IRPlanner, parquet_files_sink::ParquetFilesSink,
+    partition_done_sink::PartitionDoneSink, partition_files_source::PartitionFilesSource,
+    partition_filter::PartitionFilter, partition_info_source::PartitionInfoSource,
+    partition_stream::PartitionStream, round_split::RoundSplit, scratchpad::ScratchpadGen,
 };
 
 pub mod combos;
@@ -14,6 +14,7 @@ pub mod commit;
 pub mod df_plan_exec;
 pub mod df_planner;
 pub mod divide_initial;
+pub mod file_classifier;
 pub mod file_filter;
 pub mod files_filter;
 pub mod files_split;
@@ -73,12 +74,6 @@ pub struct Components {
     pub divide_initial: Arc<dyn DivideInitial>,
     /// Create intermediate temporary storage
     pub scratchpad_gen: Arc<dyn ScratchpadGen>,
-    /// Return the target compaction level for files
-    pub target_level_chooser: Arc<dyn TargetLevelChooser>,
-    /// Splits files based on their current compaction level and the target level.
-    pub target_level_split: Arc<dyn files_split::FilesSplit>,
-    /// Which files overlap and which do not
-    pub non_overlap_split: Arc<dyn files_split::FilesSplit>,
-    /// Which files should be upgraded and which should not
-    pub upgrade_split: Arc<dyn files_split::FilesSplit>,
+    /// Classify files for each compaction branch.
+    pub file_classifier: Arc<dyn FileClassifier>,
 }

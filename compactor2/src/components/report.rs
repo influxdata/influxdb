@@ -100,10 +100,7 @@ pub fn log_components(components: &Components) {
         round_split,
         divide_initial,
         scratchpad_gen,
-        target_level_chooser,
-        target_level_split,
-        non_overlap_split,
-        upgrade_split,
+        file_classifier,
     } = components;
 
     info!(
@@ -122,10 +119,7 @@ pub fn log_components(components: &Components) {
         %round_split,
         %divide_initial,
         %scratchpad_gen,
-        %target_level_chooser,
-        %target_level_split,
-        %non_overlap_split,
-        %upgrade_split,
+        %file_classifier,
         "component setup",
     );
 }

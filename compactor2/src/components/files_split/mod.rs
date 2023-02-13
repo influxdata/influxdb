@@ -2,9 +2,6 @@ use std::fmt::{Debug, Display};
 
 use data_types::{CompactionLevel, ParquetFile};
 
-pub mod all_at_once_non_overlap_split;
-pub mod all_at_once_target_level_split;
-pub mod all_at_once_upgrade_split;
 pub mod target_level_non_overlap_split;
 pub mod target_level_target_level_split;
 pub mod target_level_upgrade_split;

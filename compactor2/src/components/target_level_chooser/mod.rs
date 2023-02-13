@@ -2,7 +2,6 @@ use std::fmt::{Debug, Display};
 
 use data_types::CompactionLevel;
 
-pub mod all_at_once;
 pub mod target_level;
 
 pub trait TargetLevelChooser: Debug + Display + Send + Sync {

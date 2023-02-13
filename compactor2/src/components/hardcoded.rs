@@ -28,15 +28,16 @@ use super::{
     },
     df_planner::planner_v1::V1DataFusionPlanner,
     divide_initial::single_branch::SingleBranchDivideInitial,
+    file_classifier::{
+        all_at_once::AllAtOnceFileClassifier, logging::LoggingFileClassifierWrapper,
+        split_based::SplitBasedFileClassifier, FileClassifier,
+    },
     file_filter::{and::AndFileFilter, level_range::LevelRangeFileFilter},
     files_filter::{chain::FilesFilterChain, per_file::PerFileFilesFilter, FilesFilter},
     files_split::{
-        all_at_once_non_overlap_split::AllAtOnceNonOverlapSplit,
-        all_at_once_target_level_split::AllAtOnceTargetLevelSplit,
-        all_at_once_upgrade_split::AllAtOnceUpgradeSplit,
         target_level_non_overlap_split::TargetLevelNonOverlapSplit,
         target_level_target_level_split::TargetLevelTargetLevelSplit,
-        target_level_upgrade_split::TargetLevelUpgradeSplit, FilesSplit,
+        target_level_upgrade_split::TargetLevelUpgradeSplit,
     },
     id_only_partition_filter::{
         and::AndIdOnlyPartitionFilter, shard::ShardPartitionFilter, IdOnlyPartitionFilter,
@@ -83,10 +84,7 @@ use super::{
     round_split::all_now::AllNowRoundSplit,
     scratchpad::{noop::NoopScratchpadGen, prod::ProdScratchpadGen, ScratchpadGen},
     skipped_compactions_source::catalog::CatalogSkippedCompactionsSource,
-    target_level_chooser::{
-        all_at_once::AllAtOnceTargetLevelChooser, target_level::TargetLevelTargetLevelChooser,
-        TargetLevelChooser,
-    },
+    target_level_chooser::target_level::TargetLevelTargetLevelChooser,
     Components,
 };
 
@@ -308,10 +306,9 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         round_split: Arc::new(AllNowRoundSplit::new()),
         divide_initial: Arc::new(SingleBranchDivideInitial::new()),
         scratchpad_gen,
-        target_level_chooser: version_specific_target_level_chooser(config),
-        target_level_split: version_specific_target_level_split(config),
-        non_overlap_split: version_specific_non_ovverlapping_split(config),
-        upgrade_split: version_specific_upgrade_split(config),
+        file_classifier: Arc::new(LoggingFileClassifierWrapper::new(
+            version_specific_file_classifier(config),
+        )),
         partition_resource_limit_filter: Arc::new(LoggingPartitionFilterWrapper::new(
             MetricsPartitionFilterWrapper::new(
                 AndPartitionFilter::new(partition_resource_limit_filters),
@@ -357,38 +354,14 @@ fn version_specific_partition_filters(config: &Config) -> Vec<Arc<dyn PartitionF
     }
 }
 
-// Choose the terget level to compact to
-fn version_specific_target_level_chooser(config: &Config) -> Arc<dyn TargetLevelChooser> {
+fn version_specific_file_classifier(config: &Config) -> Arc<dyn FileClassifier> {
     match config.compact_version {
-        AlgoVersion::AllAtOnce => Arc::new(AllAtOnceTargetLevelChooser::new()),
-        AlgoVersion::TargetLevel => {
-            Arc::new(TargetLevelTargetLevelChooser::new(OneLevelExist::new()))
-        }
-    }
-}
-
-// Split the files into `[<=target level]` and `[>target level]`
-fn version_specific_target_level_split(config: &Config) -> Arc<dyn FilesSplit> {
-    match config.compact_version {
-        AlgoVersion::AllAtOnce => Arc::new(AllAtOnceTargetLevelSplit::new()),
-        AlgoVersion::TargetLevel => Arc::new(TargetLevelTargetLevelSplit::new()),
-    }
-}
-
-// Split the files into `[overlapping]` and `[non_overlapping]`
-fn version_specific_non_ovverlapping_split(config: &Config) -> Arc<dyn FilesSplit> {
-    match config.compact_version {
-        AlgoVersion::AllAtOnce => Arc::new(AllAtOnceNonOverlapSplit::new()),
-        AlgoVersion::TargetLevel => Arc::new(TargetLevelNonOverlapSplit::new()),
-    }
-}
-
-// Split the files into `[files_to_compact]` and `[files_to_upgrade]`
-fn version_specific_upgrade_split(config: &Config) -> Arc<dyn FilesSplit> {
-    match config.compact_version {
-        AlgoVersion::AllAtOnce => Arc::new(AllAtOnceUpgradeSplit::new()),
-        AlgoVersion::TargetLevel => Arc::new(TargetLevelUpgradeSplit::new(
-            config.max_desired_file_size_bytes,
+        AlgoVersion::AllAtOnce => Arc::new(AllAtOnceFileClassifier::new()),
+        AlgoVersion::TargetLevel => Arc::new(SplitBasedFileClassifier::new(
+            TargetLevelTargetLevelChooser::new(OneLevelExist::new()),
+            TargetLevelTargetLevelSplit::new(),
+            TargetLevelNonOverlapSplit::new(),
+            TargetLevelUpgradeSplit::new(config.max_desired_file_size_bytes),
         )),
     }
 }

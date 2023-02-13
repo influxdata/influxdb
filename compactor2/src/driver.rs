@@ -218,7 +218,7 @@ async fn try_compact_partition(
             // Identify the target level and files that should be
             // compacted together, upgraded, and kept for next round of
             // compaction
-            let compaction_plan = build_compaction_plan(branch, Arc::clone(&components))?;
+            let file_classification = components.file_classifier.classify(partition_info, branch);
 
             // Cannot run this plan and skip this partition because of over limit of input num_files or size.
             // The partition_resource_limit_filter will throw an error if one of the limits hit and will lead
@@ -229,7 +229,7 @@ async fn try_compact_partition(
             //      of conidtions even with limited resource. Then we will remove this resrouce limit check.
             if !components
                 .partition_resource_limit_filter
-                .apply(partition_id, &compaction_plan.files_to_compact)
+                .apply(partition_id, &file_classification.files_to_compact)
                 .await?
             {
                 return Ok(());
@@ -237,10 +237,10 @@ async fn try_compact_partition(
 
             // Compact
             let created_file_params = run_compaction_plan(
-                &compaction_plan.files_to_compact,
+                &file_classification.files_to_compact,
                 partition_info,
                 &components,
-                compaction_plan.target_level,
+                file_classification.target_level,
                 Arc::clone(&job_semaphore),
                 scratchpad_ctx,
             )
@@ -258,104 +258,21 @@ async fn try_compact_partition(
             let (created_files, upgraded_files) = update_catalog(
                 Arc::clone(&components),
                 partition_id,
-                compaction_plan.files_to_compact,
-                compaction_plan.files_to_upgrade,
+                file_classification.files_to_compact,
+                file_classification.files_to_upgrade,
                 created_file_params,
-                compaction_plan.target_level,
+                file_classification.target_level,
             )
             .await;
 
             // Extend created files, upgraded files and files_to_keep to files_next
             files_next.extend(created_files);
             files_next.extend(upgraded_files);
-            files_next.extend(compaction_plan.files_to_keep);
+            files_next.extend(file_classification.files_to_keep);
         }
 
         files = files_next;
     }
-}
-
-/// A CompactionPlan specifies the parameters for a single, which may
-/// generate one or more new parquet files. It includes the target
-/// [`CompactionLevel`], the specific files that should be compacted
-/// together to form new file(s), files that should be upgraded
-/// without chainging, files that should be left unmodified.
-struct CompactionPlan {
-    /// The target level of file resulting from compaction
-    target_level: CompactionLevel,
-    /// Files which should be compacted into a new single parquet
-    /// file, often the small and/or overlapped files
-    files_to_compact: Vec<ParquetFile>,
-    /// Non-overlapped files that should be upgraded to the target
-    /// level without rewriting (for example they are of sufficient
-    /// size)
-    files_to_upgrade: Vec<ParquetFile>,
-    /// files which should not be modified. For example,
-    /// non-overlapped or higher-target-level files
-    files_to_keep: Vec<ParquetFile>,
-}
-
-/// Build [`CompactionPlan`] for a for a given set of files.
-///
-/// # Example:
-///
-///  . Input:
-///                 |--L0.1--| |--L0.2--| |--L0.3--|  |--L0.4--| --L0.5--|
-///      |--L1.1--|           |--L1.2--|             |--L1.3--|             |--L1.4--|
-///    |---L2.1--|
-///
-///   .Output
-///     . target_level = 1
-///     . files_to_keep = [L2.1, L1.1, L1.4]
-///     . files_to_upgrade = [L0.1, L0.5]
-///     . files_to_compact = [L0.2, L0.3, L0.4, L1.2, L1.3]
-///
-fn build_compaction_plan(
-    files: Vec<ParquetFile>,
-    components: Arc<Components>,
-) -> Result<CompactionPlan, DynError> {
-    let files_to_compact = files;
-
-    // Detect target level to compact to
-    let target_level = components.target_level_chooser.detect(&files_to_compact);
-
-    // Split files into files_to_compact, files_to_upgrade, and files_to_keep
-    //
-    // Since output of one compaction is used as input of next compaction, all files that are not
-    // compacted or upgraded are still kept to consider in next round of compaction
-
-    // Split actual files to compact from its higher-target-level files
-    // The higher-target-level files are kept for next round of compaction
-    let (files_to_compact, mut files_to_keep) = components
-        .target_level_split
-        .apply(files_to_compact, target_level);
-
-    // To have efficient compaction performance, we do not need to compact eligible non-overlapped files
-    // Find eligible non-overlapped files and keep for next round of compaction
-    let (files_to_compact, non_overlapping_files) = components
-        .non_overlap_split
-        .apply(files_to_compact, target_level);
-    files_to_keep.extend(non_overlapping_files);
-
-    // To have efficient compaction performance, we only need to uprade (catalog update only) eligible files
-    let (files_to_compact, files_to_upgrade) = components
-        .upgrade_split
-        .apply(files_to_compact, target_level);
-
-    info!(
-        target_level = target_level.to_string(),
-        files_to_compacts = files_to_compact.len(),
-        files_to_upgrade = files_to_upgrade.len(),
-        files_to_keep = files_to_keep.len(),
-        "Compaction Plan"
-    );
-
-    Ok(CompactionPlan {
-        target_level,
-        files_to_compact,
-        files_to_upgrade,
-        files_to_keep,
-    })
 }
 
 /// Compact `files` into a new parquet file of the the given target_level
