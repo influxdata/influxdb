@@ -7,7 +7,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-croaring = "0.7.0"
+croaring = "0.8.0"
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 iox_time = { path = "../iox_time" }
 observability_deps = { path = "../observability_deps" }
