@@ -1,5 +1,6 @@
 [package]
-name = "compactor2"
+name = "compactor2_test_utils"
+description = "Utilities for writing tests for compactor2"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -9,6 +10,7 @@ license.workspace = true
 async-trait = "0.1.64"
 backoff = { path = "../backoff" }
 bytes = "1.4"
+compactor2 = { path = "../compactor2" }
 datafusion = { workspace = true }
 data_types = { path = "../data_types" }
 futures = "0.3"
@@ -25,14 +27,12 @@ schema = { path = "../schema" }
 sharder = { path = "../sharder" }
 snafu = "0.7"
 tokio = { version = "1", features = ["macros", "rt", "sync"] }
-tokio-util = { version = "0.7.7" }
+tokio-util = { version = "0.7.5" }
 tracker = { path = "../tracker" }
 uuid = { version = "1", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
 
-[dev-dependencies]
 arrow_util = { path = "../arrow_util" }
-compactor2_test_utils = { path = "../compactor2_test_utils" }
 iox_tests = { path = "../iox_tests" }
 test_helpers = { path = "../test_helpers"}
 insta = { version = "1.26.0", features = ["yaml"] }

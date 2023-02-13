@@ -11,6 +11,7 @@ mod util;
 #[cfg(test)]
 mod test_util;
 
+/// Create a [`Scratchpad`] for use as intermediate storage
 pub trait ScratchpadGen: Debug + Display + Send + Sync {
     fn pad(&self) -> Box<dyn Scratchpad>;
 }

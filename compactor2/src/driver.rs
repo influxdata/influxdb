@@ -12,18 +12,8 @@ use crate::{
     partition_info::PartitionInfo,
 };
 
-// TODO: modify this comments accordingly as we go
-// Currently, we only compact files of level_n with level_n+1 and produce level_n+1 files,
-// and with the strictly design that:
-//    . Level-0 files can overlap with any files.
-//    . Level-N files (N > 0) cannot overlap with any files in the same level.
-//    . For Level-0 files, we always pick the smaller `created_at` files to compact (with
-//      each other and overlapped L1 files) first.
-//    . Level-N+1 files are results of compacting Level-N and/or Level-N+1 files, their `created_at`
-//      can be after the `created_at` of other Level-N files but they may include data loaded before
-//      the other Level-N files. Hence we should never use `created_at` of Level-N+1 files to order
-//      them with Level-N files.
-//    . We can only compact different sets of files of the same partition concurrently into the same target_level.
+/// Tries to compact all eligible partitions, up to
+/// partition_concurrency at a time.
 pub async fn compact(
     partition_concurrency: NonZeroUsize,
     partition_timeout: Duration,

@@ -14,6 +14,7 @@ pub mod logging;
 pub mod metrics;
 pub mod mock;
 
+/// Records "partition is done" status for given partition.
 #[async_trait]
 pub trait PartitionDoneSink: Debug + Display + Send + Sync {
     /// Record "partition is done" status for given partition.

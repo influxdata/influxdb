@@ -1,23 +1,27 @@
+//! IOx test utils and tests
+
+#![deny(rustdoc::broken_intra_doc_links, rust_2018_idioms)]
+#![warn(
+    missing_copy_implementations,
+    missing_docs,
+    clippy::explicit_iter_loop,
+    clippy::future_not_send,
+    clippy::use_self,
+    clippy::clone_on_ref_ptr,
+    clippy::todo,
+    clippy::dbg_macro
+)]
+
 mod display;
-pub(crate) use display::{format_files, format_files_split};
+pub use display::{format_files, format_files_split};
 use iox_query::exec::ExecutorType;
 use tracker::AsyncSemaphoreMetrics;
 
-use std::{
-    collections::{BTreeMap, HashSet},
-    future::Future,
-    num::NonZeroUsize,
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::HashSet, future::Future, num::NonZeroUsize, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use backoff::BackoffConfig;
-use data_types::{
-    ColumnId, ColumnSchema, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceSchema,
-    ParquetFile, PartitionId, PartitionKey, QueryPoolId, Table, TableId, TableSchema, TopicId,
-    TRANSITION_SHARD_NUMBER,
-};
+use data_types::{ColumnType, CompactionLevel, ParquetFile, TRANSITION_SHARD_NUMBER};
 use datafusion::arrow::record_batch::RecordBatch;
 use futures::TryStreamExt;
 use iox_tests::{
@@ -29,111 +33,11 @@ use object_store::{path::Path, DynObjectStore};
 use parquet_file::storage::{ParquetStorage, StorageId};
 use schema::sort::SortKey;
 
-use crate::{
-    components::{
-        df_planner::panic::PanicDataFusionPlanner, hardcoded::hardcoded_components,
-        namespaces_source::mock::NamespaceWrapper,
-        parquet_files_sink::simulator::ParquetFileSimulator, Components,
-    },
+use compactor2::{
+    compact,
     config::{AlgoVersion, Config, PartitionsSourceConfig},
-    driver::compact,
-    partition_info::PartitionInfo,
+    hardcoded_components, Components, PanicDataFusionPlanner, ParquetFileSimulator, PartitionInfo,
 };
-
-#[derive(Debug)]
-/// Build [`NamespaceWrapper`] for testing
-pub struct NamespaceBuilder {
-    namespace: NamespaceWrapper,
-}
-
-impl NamespaceBuilder {
-    pub fn new(id: i64) -> Self {
-        let tables = BTreeMap::from([
-            (
-                "table1".to_string(),
-                TableSchema {
-                    id: TableId::new(1),
-                    columns: BTreeMap::from([
-                        (
-                            "col1".to_string(),
-                            ColumnSchema {
-                                id: ColumnId::new(1),
-                                column_type: ColumnType::I64,
-                            },
-                        ),
-                        (
-                            "col2".to_string(),
-                            ColumnSchema {
-                                id: ColumnId::new(2),
-                                column_type: ColumnType::String,
-                            },
-                        ),
-                    ]),
-                },
-            ),
-            (
-                "table2".to_string(),
-                TableSchema {
-                    id: TableId::new(2),
-                    columns: BTreeMap::from([
-                        (
-                            "col1".to_string(),
-                            ColumnSchema {
-                                id: ColumnId::new(3),
-                                column_type: ColumnType::I64,
-                            },
-                        ),
-                        (
-                            "col2".to_string(),
-                            ColumnSchema {
-                                id: ColumnId::new(4),
-                                column_type: ColumnType::String,
-                            },
-                        ),
-                        (
-                            "col3".to_string(),
-                            ColumnSchema {
-                                id: ColumnId::new(5),
-                                column_type: ColumnType::F64,
-                            },
-                        ),
-                    ]),
-                },
-            ),
-        ]);
-
-        let id = NamespaceId::new(id);
-        let topic_id = TopicId::new(0);
-        let query_pool_id = QueryPoolId::new(0);
-        Self {
-            namespace: NamespaceWrapper {
-                ns: Namespace {
-                    id,
-                    name: "ns".to_string(),
-                    topic_id,
-                    query_pool_id,
-                    max_tables: 10,
-                    max_columns_per_table: 10,
-                    retention_period_ns: None,
-                    deleted_at: None,
-                },
-                schema: NamespaceSchema {
-                    id,
-                    topic_id,
-                    query_pool_id,
-                    tables,
-                    max_columns_per_table: 10,
-                    max_tables: 42,
-                    retention_period_ns: None,
-                },
-            },
-        }
-    }
-
-    pub fn build(self) -> NamespaceWrapper {
-        self.namespace
-    }
-}
 
 // Default values for the test setup builder
 const SHARD_INDEX: i32 = TRANSITION_SHARD_NUMBER;
@@ -143,6 +47,7 @@ const PERCENTAGE_MAX_FILE_SIZE: u16 = 5;
 const SPLIT_PERCENTAGE: u16 = 80;
 const MIN_NUM_L1_FILES_TO_COMPACT: usize = 2;
 
+/// Creates [`TestSetup`]s
 #[derive(Debug)]
 pub struct TestSetupBuilder<const WITH_FILES: bool> {
     config: Config,
@@ -155,6 +60,7 @@ pub struct TestSetupBuilder<const WITH_FILES: bool> {
 }
 
 impl TestSetupBuilder<false> {
+    /// Create a new builder
     pub async fn new() -> Self {
         let catalog = TestCatalog::new();
         let ns = catalog.create_namespace_1hr_retention("ns").await;
@@ -220,6 +126,7 @@ impl TestSetupBuilder<false> {
         }
     }
 
+    /// Create a buidler with some pre-cooked files
     pub async fn with_files(self) -> TestSetupBuilder<true> {
         let time_provider = self.catalog.time_provider();
         let time_1_minute_future = time_provider.minutes_into_future(1);
@@ -340,6 +247,7 @@ impl TestSetupBuilder<false> {
 }
 
 impl TestSetupBuilder<true> {
+    /// Set max_input_files_per_partition_relative_to_n_files
     pub fn with_max_input_files_per_partition_relative_to_n_files(self, delta: isize) -> Self {
         Self {
             config: Config {
@@ -367,6 +275,7 @@ impl TestSetupBuilder<true> {
 }
 
 impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
+    /// Use shadow mode
     pub fn with_shadow_mode(mut self) -> Self {
         self.config.shadow_mode = true;
         self
@@ -405,6 +314,7 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
         self
     }
 
+    /// Create a [`TestSetup`]
     pub async fn build(self) -> TestSetup {
         let candidate_partition = Arc::new(PartitionInfo {
             partition_id: self.partition.partition.id,
@@ -427,16 +337,25 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
     }
 }
 
+/// Contains state for running compactor2 integration tests with a
+/// single partition full of files.
 pub struct TestSetup {
+    /// The parquet files in the partition
     pub files: Arc<Vec<ParquetFile>>,
+    /// the information about the partition
     pub partition_info: Arc<PartitionInfo>,
+    /// The catalog
     pub catalog: Arc<TestCatalog>,
+    /// a test table
     pub table: Arc<TestTable>,
+    /// a test partition
     pub partition: Arc<TestPartition>,
+    /// The compactor2 configuration
     pub config: Arc<Config>,
 }
 
 impl TestSetup {
+    /// Create a builder for creating [`TestSetup`]s
     pub async fn builder() -> TestSetupBuilder<false> {
         TestSetupBuilder::new().await
     }
@@ -523,10 +442,15 @@ pub struct CompactResult {
 }
 
 /// A collection of nanosecond timestamps relative to now
+#[derive(Debug, Clone, Copy)]
 pub struct TestTimes {
+    /// 1 minute in the future
     pub time_1_minute_future: i64,
+    /// 2 minutes in the future
     pub time_2_minutes_future: i64,
+    /// 3 minutes in the future
     pub time_3_minutes_future: i64,
+    /// 5 minutes in the future
     pub time_5_minutes_future: i64,
 }
 
@@ -545,6 +469,7 @@ impl TestTimes {
     }
 }
 
+/// List all paths in the store
 pub async fn list_object_store(store: &Arc<DynObjectStore>) -> HashSet<Path> {
     store
         .list(None)
@@ -556,33 +481,15 @@ pub async fn list_object_store(store: &Arc<DynObjectStore>) -> HashSet<Path> {
         .unwrap()
 }
 
-pub fn partition_info() -> Arc<PartitionInfo> {
-    let namespace_id = NamespaceId::new(2);
-    let table_id = TableId::new(3);
-
-    Arc::new(PartitionInfo {
-        partition_id: PartitionId::new(1),
-        namespace_id,
-        namespace_name: String::from("ns"),
-        table: Arc::new(Table {
-            id: table_id,
-            namespace_id,
-            name: String::from("table"),
-        }),
-        table_schema: Arc::new(TableSchema {
-            id: table_id,
-            columns: BTreeMap::from([]),
-        }),
-        sort_key: None,
-        partition_key: PartitionKey::from("pk"),
-    })
-}
-
 #[async_trait]
+/// Helper trait for asserting state of a future
 pub trait AssertFutureExt {
+    /// The output type
     type Output;
 
+    /// Panic's if the future does not return `Poll::Pending`
     async fn assert_pending(&mut self);
+    /// Pols with a timeout
     async fn poll_timeout(self) -> Self::Output;
 }
 
@@ -610,8 +517,8 @@ where
     }
 }
 
-// This setup will return files with ranges as follows:
-//                                  |--L0.1--|   |--L0.2--| |--L0.3--|
+/// This setup will return files with ranges as follows:
+///                                  |--L0.1--|   |--L0.2--| |--L0.3--|
 pub fn create_l0_files(size: i64) -> Vec<ParquetFile> {
     let l0_1 = ParquetFileBuilder::new(1)
         .with_compaction_level(CompactionLevel::Initial)
@@ -633,10 +540,10 @@ pub fn create_l0_files(size: i64) -> Vec<ParquetFile> {
     vec![l0_2, l0_1, l0_3]
 }
 
-// This setup will return files with ranges as follows:
-//              |--L0.1-----|
-//                |--L0.2--|   |--L0.3--|
-// L0.1 and L0.2 overlap, L0.3 is not overlapping
+/// This setup will return files with ranges as follows:
+///              |--L0.1-----|
+///                |--L0.2--|   |--L0.3--|
+/// L0.1 and L0.2 overlap, L0.3 is not overlapping
 pub fn create_overlapping_l0_files(size: i64) -> Vec<ParquetFile> {
     let l0_1 = ParquetFileBuilder::new(1)
         .with_compaction_level(CompactionLevel::Initial)
@@ -658,8 +565,8 @@ pub fn create_overlapping_l0_files(size: i64) -> Vec<ParquetFile> {
     vec![l0_2, l0_1, l0_3]
 }
 
-// This setup will return files with ranges as follows:
-//                  |--L1.1--|  |--L1.2--|  |--L1.3--|
+/// This setup will return files with ranges as follows:
+///                  |--L1.1--|  |--L1.2--|  |--L1.3--|
 pub fn create_l1_files(size: i64) -> Vec<ParquetFile> {
     let l1_1 = ParquetFileBuilder::new(11)
         .with_compaction_level(CompactionLevel::FileNonOverlapped)
@@ -680,10 +587,10 @@ pub fn create_l1_files(size: i64) -> Vec<ParquetFile> {
     vec![l1_3, l1_2, l1_1]
 }
 
-// This setup will return files with ranges as follows:
-//           |--L1.1--|  |--L1.2--|  |--L1.3--| |--L1.4--|  |--L1.5--|
-//  . small files (< size ): L1.1, L1.3
-//  . Large files (.= size): L1.2, L1.4, L1.5
+/// This setup will return files with ranges as follows:
+///           |--L1.1--|  |--L1.2--|  |--L1.3--| |--L1.4--|  |--L1.5--|
+///  . small files (< size ): L1.1, L1.3
+///  . Large files (.= size): L1.2, L1.4, L1.5
 pub fn create_l1_files_mix_size(size: i64) -> Vec<ParquetFile> {
     let l1_1 = ParquetFileBuilder::new(11)
         .with_compaction_level(CompactionLevel::FileNonOverlapped)
@@ -715,8 +622,8 @@ pub fn create_l1_files_mix_size(size: i64) -> Vec<ParquetFile> {
     vec![l1_5, l1_3, l1_2, l1_1, l1_4]
 }
 
-// This setup will return files with ranges as follows:
-//    |--L2.1--|  |--L2.2--|
+/// This setup will return files with ranges as follows:
+///    |--L2.1--|  |--L2.2--|
 pub fn create_l2_files() -> Vec<ParquetFile> {
     let l2_1 = ParquetFileBuilder::new(21)
         .with_compaction_level(CompactionLevel::Final)
@@ -731,9 +638,9 @@ pub fn create_l2_files() -> Vec<ParquetFile> {
     vec![l2_1, l2_2]
 }
 
-// This setup will return files with ranges as follows:
-//                  |--L1.1--|  |--L1.2--|  |--L1.3--|
-//                                  |--L0.1--|   |--L0.2--| |--L0.3--|
+/// This setup will return files with ranges as follows:
+///                  |--L1.1--|  |--L1.2--|  |--L1.3--|
+///                                  |--L0.1--|   |--L0.2--| |--L0.3--|
 pub fn create_overlapped_l0_l1_files(size: i64) -> Vec<ParquetFile> {
     let l1_1 = ParquetFileBuilder::new(11)
         .with_compaction_level(CompactionLevel::FileNonOverlapped)
@@ -774,9 +681,9 @@ pub fn create_overlapped_l0_l1_files(size: i64) -> Vec<ParquetFile> {
     vec![l1_3, l1_2, l0_2, l1_1, l0_1, l0_3]
 }
 
-// This setup will return files with ranges as follows:
-//    |--L2.1--|  |--L2.2--|
-//                  |--L1.1--|  |--L1.2--|  |--L1.3--|
+/// This setup will return files with ranges as follows:
+///    |--L2.1--|  |--L2.2--|
+///                  |--L1.1--|  |--L1.2--|  |--L1.3--|
 pub fn create_overlapped_l1_l2_files(size: i64) -> Vec<ParquetFile> {
     let l2_1 = ParquetFileBuilder::new(21)
         .with_compaction_level(CompactionLevel::Final)
@@ -810,11 +717,11 @@ pub fn create_overlapped_l1_l2_files(size: i64) -> Vec<ParquetFile> {
     vec![l1_3, l1_2, l2_1, l2_2, l1_1]
 }
 
-// This setup will return files with ranges as follows with mixed sizes:
-//    |--L2.1--|  |--L2.2--|
-//                  |--L1.1--|  |--L1.2--|  |--L1.3--|
-//  Small files (< size): [L1.3]
-//  Large files: [L2.1, L2.2, L1.1, L1.2]
+/// This setup will return files with ranges as follows with mixed sizes:
+///    |--L2.1--|  |--L2.2--|
+///                  |--L1.1--|  |--L1.2--|  |--L1.3--|
+///  Small files (< size): [L1.3]
+///  Large files: [L2.1, L2.2, L1.1, L1.2]
 pub fn create_overlapped_l1_l2_files_mix_size(size: i64) -> Vec<ParquetFile> {
     let l2_1 = ParquetFileBuilder::new(21)
         .with_compaction_level(CompactionLevel::Final)
@@ -848,11 +755,11 @@ pub fn create_overlapped_l1_l2_files_mix_size(size: i64) -> Vec<ParquetFile> {
     vec![l1_3, l1_2, l2_1, l2_2, l1_1]
 }
 
-// This setup will return files with ranges as follows with mixed sizes:
-//    |--L2.1--|  |--L2.2--|
-//                  |--L1.1--|  |--L1.2--|  |--L1.3--|
-//  Small files (< size): [L1.2]
-//  Large files: [L2.1, L2.2, L1.1, L1.3]
+/// This setup will return files with ranges as follows with mixed sizes:
+///    |--L2.1--|  |--L2.2--|
+///                  |--L1.1--|  |--L1.2--|  |--L1.3--|
+///  Small files (< size): [L1.2]
+///  Large files: [L2.1, L2.2, L1.1, L1.3]
 pub fn create_overlapped_l1_l2_files_mix_size_2(size: i64) -> Vec<ParquetFile> {
     let l2_1 = ParquetFileBuilder::new(21)
         .with_compaction_level(CompactionLevel::Final)
@@ -886,11 +793,11 @@ pub fn create_overlapped_l1_l2_files_mix_size_2(size: i64) -> Vec<ParquetFile> {
     vec![l1_3, l1_2, l2_1, l2_2, l1_1]
 }
 
-// This setup will return files with ranges as follows:
-//    |--L2.1--|  |--L2.2--|
-//                  |--L1.1--|  |--L1.2--|  |--L1.3--|
-//                                  |--L0.1--|   |--L0.2--| |--L0.3--|
-// Sizes of L1.3 and L0.3 are set large (100), the rest is default (1)
+/// This setup will return files with ranges as follows:
+///    |--L2.1--|  |--L2.2--|
+///                  |--L1.1--|  |--L1.2--|  |--L1.3--|
+///                                  |--L0.1--|   |--L0.2--| |--L0.3--|
+/// Sizes of L1.3 and L0.3 are set large (100), the rest is default (1)
 pub fn create_overlapped_files() -> Vec<ParquetFile> {
     let l2_1 = ParquetFileBuilder::new(21)
         .with_compaction_level(CompactionLevel::Final)
@@ -937,7 +844,7 @@ pub fn create_overlapped_files() -> Vec<ParquetFile> {
     vec![l1_3, l1_2, l2_1, l2_2, l0_2, l1_1, l0_1, l0_3]
 }
 
-// This setup will return files with ranges as follows:
+/// This setup will return files with ranges as follows:
 ///                          |--L0.1--|             |--L0.2--|
 ///            |--L1.1--| |--L1.2--|    |--L1.3--|              |--L1.4--|
 pub fn create_overlapped_files_2(size: i64) -> Vec<ParquetFile> {
@@ -978,10 +885,10 @@ pub fn create_overlapped_files_2(size: i64) -> Vec<ParquetFile> {
     vec![l1_3, l1_2, l1_1, l1_4, l0_2, l0_1]
 }
 
-// This setup will return files with ranges as follows:
-//             |--L0.1--| |--L0.2--| |--L0.3--|
-//                                              |--L0.4--|     |--L0.5--| |--L0.6--|
-//                        |--L1.1--|              |--L1.2--|
+/// This setup will return files with ranges as follows:
+///             |--L0.1--| |--L0.2--| |--L0.3--|
+///                                              |--L0.4--|     |--L0.5--| |--L0.6--|
+///                        |--L1.1--|              |--L1.2--|
 pub fn create_overlapped_files_3(size: i64) -> Vec<ParquetFile> {
     let l0_1 = ParquetFileBuilder::new(1)
         .with_compaction_level(CompactionLevel::Initial)
@@ -1030,12 +937,12 @@ pub fn create_overlapped_files_3(size: i64) -> Vec<ParquetFile> {
     vec![l0_3, l0_2, l0_1, l0_4, l0_5, l0_6, l1_1, l1_2]
 }
 
-// This setup will return files with ranges as follows:
-//             |--L0.1--| |--L0.2--| |--L0.3--|
-//                                              |--L0.4--|     |--L0.5--| |--L0.6--|
-//                        |--L1.1--|              |--L1.2--|
-// Small files (< size): L0.6
-// Large files: the rest
+/// This setup will return files with ranges as follows:
+///             |--L0.1--| |--L0.2--| |--L0.3--|
+///                                              |--L0.4--|     |--L0.5--| |--L0.6--|
+///                        |--L1.1--|              |--L1.2--|
+/// Small files (< size): L0.6
+/// Large files: the rest
 pub fn create_overlapped_files_3_mix_size(size: i64) -> Vec<ParquetFile> {
     let l0_1 = ParquetFileBuilder::new(1)
         .with_compaction_level(CompactionLevel::Initial)

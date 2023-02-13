@@ -17,11 +17,12 @@ use crate::{partition_info::PartitionInfo, plan_ir::PlanIR};
 
 use super::DataFusionPlanner;
 
-#[derive(Debug, Default)]
+/// A planner that always generates a panic
+#[derive(Debug, Default, Clone, Copy)]
 pub struct PanicDataFusionPlanner;
 
 impl PanicDataFusionPlanner {
-    #[allow(dead_code)] // not used anywhere
+    /// Create a new planner
     pub fn new() -> Self {
         Self::default()
     }
@@ -96,7 +97,7 @@ impl ExecutionPlan for PanicPlan {
 mod tests {
     use datafusion::{physical_plan::collect, prelude::SessionContext};
 
-    use crate::test_util::partition_info;
+    use crate::test_utils::partition_info;
 
     use super::*;
 

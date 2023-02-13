@@ -12,6 +12,8 @@ mod query_chunk;
 
 use crate::{partition_info::PartitionInfo, plan_ir::PlanIR};
 
+/// Creates an [`ExecutionPlan`] for a [`PlanIR`] that compacts some
+/// number of input files together
 #[async_trait]
 pub trait DataFusionPlanner: Debug + Display + Send + Sync {
     async fn plan(

@@ -40,7 +40,7 @@ use super::ParquetFilesSink;
 /// 3. The output file time ranges are different than the the union of
 /// the input files, due to delete predicate application or non
 /// uniform distribution.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ParquetFileSimulator {
     runs: Arc<Mutex<Vec<SimulatedRun>>>,
 }
@@ -52,6 +52,7 @@ impl std::fmt::Display for ParquetFileSimulator {
 }
 
 impl ParquetFileSimulator {
+    /// Create a new simulator for creating parquet files
     pub fn new() -> Self {
         Self {
             runs: Arc::new(Mutex::new(vec![])),
@@ -60,7 +61,6 @@ impl ParquetFileSimulator {
 
     /// Get a visual display of the simulated runs this simulator
     /// has performed, for use in tests
-    #[cfg(test)]
     pub fn runs(&self) -> Vec<String> {
         let runs = (*self.runs.lock().unwrap()).clone();
 

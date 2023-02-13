@@ -6,6 +6,7 @@ use data_types::{ParquetFile, PartitionId};
 pub mod catalog;
 pub mod mock;
 
+/// Finds files in a partition for compaction
 #[async_trait]
 pub trait PartitionFilesSource: Debug + Display + Send + Sync {
     /// Get undeleted parquet files for given partition.

@@ -10,6 +10,7 @@ pub mod planner_v1;
 
 use crate::{partition_info::PartitionInfo, plan_ir::PlanIR};
 
+/// Creates [`PlanIR`] that describes what files should be compacted and updated
 pub trait IRPlanner: Debug + Display + Send + Sync {
     fn plan(
         &self,

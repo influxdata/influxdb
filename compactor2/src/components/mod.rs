@@ -38,25 +38,47 @@ pub mod skipped_compactions_source;
 pub mod tables_source;
 pub mod target_level_chooser;
 
+/// Pluggable system to determine compactor behavior. Please see
+/// [Crate Level Documentation](crate) for more details on the
+/// design.
 #[derive(Debug, Clone)]
 pub struct Components {
+    /// Source of partitions for the compactor to compact
     pub partition_stream: Arc<dyn PartitionStream>,
+    /// Source of information about a partition neededed for compaction
     pub partition_info_source: Arc<dyn PartitionInfoSource>,
+    /// Source of files in a partition for compaction
     pub partition_files_source: Arc<dyn PartitionFilesSource>,
+    /// filter files for each round of compaction
     pub files_filter: Arc<dyn FilesFilter>,
+    /// stop condition for completing a partition compaction
     pub partition_filter: Arc<dyn PartitionFilter>,
+    /// condition to avoid running out of resources during compaction
     pub partition_resource_limit_filter: Arc<dyn PartitionFilter>,
+    /// Records "partition is done" status for given partition.
     pub partition_done_sink: Arc<dyn PartitionDoneSink>,
+    /// Commits changes (i.e. deletion and creation) to the catalog.
     pub commit: Arc<dyn Commit>,
+    /// Creates `PlanIR` that describes what files should be compacted and updated
     pub ir_planner: Arc<dyn IRPlanner>,
+    /// Creates an Execution plan for a `PlanIR`
     pub df_planner: Arc<dyn DataFusionPlanner>,
+    /// Executes a DataFusion plan to multiple output streams.
     pub df_plan_exec: Arc<dyn DataFusionPlanExec>,
+    /// Writes the streams created by [`DataFusionPlanExec`] to the object store.
     pub parquet_files_sink: Arc<dyn ParquetFilesSink>,
+    /// Split files into two buckets "now" and "later".
     pub round_split: Arc<dyn RoundSplit>,
+    /// Divide files in a partition into "branches"
     pub divide_initial: Arc<dyn DivideInitial>,
+    /// Create intermediate temporary storage
     pub scratchpad_gen: Arc<dyn ScratchpadGen>,
+    /// Return the target compaction level for files
     pub target_level_chooser: Arc<dyn TargetLevelChooser>,
+    /// Splits files based on their current compaction level and the target level.
     pub target_level_split: Arc<dyn files_split::FilesSplit>,
+    /// Which files overlap and which do not
     pub non_overlap_split: Arc<dyn files_split::FilesSplit>,
+    /// Which files should be upgraded and which should not
     pub upgrade_split: Arc<dyn files_split::FilesSplit>,
 }
