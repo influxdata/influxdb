@@ -2762,6 +2762,7 @@ dependencies = [
  "futures",
  "generated_types",
  "hashbrown 0.13.2",
+ "influxdb_iox_client",
  "iox_catalog",
  "iox_query",
  "iox_time",
