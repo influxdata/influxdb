@@ -20,18 +20,17 @@
 | logical_plan    | Projection: h2o.city, h2o.other_temp, h2o.state, h2o.temp, h2o.time    |
 |    |   TableScan: h2o projection=[city, other_temp, state, temp, time]    |
 | physical_plan    | ProjectionExec: expr=[city@0 as city, other_temp@1 as other_temp, state@2 as state, temp@3 as temp, time@4 as time]    |
-|    |   RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=3    |
-|    |     UnionExec    |
-|    |       DeduplicateExec: [city@0 ASC,state@2 ASC,time@4 ASC]    |
-|    |         SortPreservingMergeExec: [city@0 ASC,state@2 ASC,time@4 ASC]    |
-|    |           UnionExec    |
-|    |             ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[city@0 ASC, state@2 ASC, time@4 ASC], projection=[city, other_temp, state, temp, time]    |
-|    |             ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, output_ordering=[city@0 ASC, state@2 ASC, time@4 ASC], projection=[city, other_temp, state, temp, time]    |
-|    |             ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000002.parquet]]}, output_ordering=[city@0 ASC, state@2 ASC, time@4 ASC], projection=[city, other_temp, state, temp, time]    |
-|    |       DeduplicateExec: [city@0 ASC,state@2 ASC,time@4 ASC]    |
-|    |         SortExec: [city@0 ASC,state@2 ASC,time@4 ASC]    |
-|    |           RecordBatchesExec: batches_groups=1 batches=1 total_rows=1    |
-|    |       ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000003.parquet]]}, projection=[city, other_temp, state, temp, time]    |
+|    |   UnionExec    |
+|    |     DeduplicateExec: [city@0 ASC,state@2 ASC,time@4 ASC]    |
+|    |       SortPreservingMergeExec: [city@0 ASC,state@2 ASC,time@4 ASC]    |
+|    |         UnionExec    |
+|    |           ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[city@0 ASC, state@2 ASC, time@4 ASC], projection=[city, other_temp, state, temp, time]    |
+|    |           ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, output_ordering=[city@0 ASC, state@2 ASC, time@4 ASC], projection=[city, other_temp, state, temp, time]    |
+|    |           ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000002.parquet]]}, output_ordering=[city@0 ASC, state@2 ASC, time@4 ASC], projection=[city, other_temp, state, temp, time]    |
+|    |     DeduplicateExec: [city@0 ASC,state@2 ASC,time@4 ASC]    |
+|    |       SortExec: [city@0 ASC,state@2 ASC,time@4 ASC]    |
+|    |         RecordBatchesExec: batches_groups=1 batches=1 total_rows=1    |
+|    |     ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000003.parquet]]}, projection=[city, other_temp, state, temp, time]    |
 |    |    |
 ----------
 -- SQL: select temp, other_temp, time from h2o;
@@ -57,18 +56,16 @@
 | physical_plan    | ProjectionExec: expr=[temp@1 as temp, other_temp@0 as other_temp, time@2 as time]    |
 |    |   UnionExec    |
 |    |     ProjectionExec: expr=[other_temp@1 as other_temp, temp@3 as temp, time@4 as time]    |
-|    |       RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
-|    |         DeduplicateExec: [city@0 ASC,state@2 ASC,time@4 ASC]    |
-|    |           SortPreservingMergeExec: [city@0 ASC,state@2 ASC,time@4 ASC]    |
-|    |             UnionExec    |
-|    |               ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[city@0 ASC, state@2 ASC, time@4 ASC], projection=[city, other_temp, state, temp, time]    |
-|    |               ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, output_ordering=[city@0 ASC, state@2 ASC, time@4 ASC], projection=[city, other_temp, state, temp, time]    |
-|    |               ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000002.parquet]]}, output_ordering=[city@0 ASC, state@2 ASC, time@4 ASC], projection=[city, other_temp, state, temp, time]    |
+|    |       DeduplicateExec: [city@0 ASC,state@2 ASC,time@4 ASC]    |
+|    |         SortPreservingMergeExec: [city@0 ASC,state@2 ASC,time@4 ASC]    |
+|    |           UnionExec    |
+|    |             ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[city@0 ASC, state@2 ASC, time@4 ASC], projection=[city, other_temp, state, temp, time]    |
+|    |             ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, output_ordering=[city@0 ASC, state@2 ASC, time@4 ASC], projection=[city, other_temp, state, temp, time]    |
+|    |             ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000002.parquet]]}, output_ordering=[city@0 ASC, state@2 ASC, time@4 ASC], projection=[city, other_temp, state, temp, time]    |
 |    |     ProjectionExec: expr=[other_temp@1 as other_temp, temp@3 as temp, time@4 as time]    |
-|    |       RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
-|    |         DeduplicateExec: [city@0 ASC,state@2 ASC,time@4 ASC]    |
-|    |           SortExec: [city@0 ASC,state@2 ASC,time@4 ASC]    |
-|    |             RecordBatchesExec: batches_groups=1 batches=1 total_rows=1    |
+|    |       DeduplicateExec: [city@0 ASC,state@2 ASC,time@4 ASC]    |
+|    |         SortExec: [city@0 ASC,state@2 ASC,time@4 ASC]    |
+|    |           RecordBatchesExec: batches_groups=1 batches=1 total_rows=1    |
 |    |     ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000003.parquet]]}, projection=[other_temp, temp, time]    |
 |    |    |
 ----------

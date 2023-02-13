@@ -34,14 +34,13 @@
 | physical_plan    | SortExec: [time@0 ASC NULLS LAST,state@1 ASC NULLS LAST,city@2 ASC NULLS LAST]    |
 |    |   CoalescePartitionsExec    |
 |    |     ProjectionExec: expr=[time@5 as time, state@4 as state, city@1 as city, min_temp@3 as min_temp, max_temp@2 as max_temp, area@0 as area]    |
-|    |       RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=3    |
-|    |         UnionExec    |
-|    |           DeduplicateExec: [state@4 ASC,city@1 ASC,time@5 ASC]    |
-|    |             SortPreservingMergeExec: [state@4 ASC,city@1 ASC,time@5 ASC]    |
-|    |               UnionExec    |
-|    |                 ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[state@4 ASC, city@1 ASC, time@5 ASC], projection=[area, city, max_temp, min_temp, state, time]    |
-|    |                 ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, output_ordering=[state@4 ASC, city@1 ASC, time@5 ASC], projection=[area, city, max_temp, min_temp, state, time]    |
-|    |           ParquetExec: limit=None, partitions={2 groups: [[1/1/1/1/00000000-0000-0000-0000-000000000002.parquet], [1/1/1/1/00000000-0000-0000-0000-000000000003.parquet]]}, projection=[area, city, max_temp, min_temp, state, time]    |
+|    |       UnionExec    |
+|    |         DeduplicateExec: [state@4 ASC,city@1 ASC,time@5 ASC]    |
+|    |           SortPreservingMergeExec: [state@4 ASC,city@1 ASC,time@5 ASC]    |
+|    |             UnionExec    |
+|    |               ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[state@4 ASC, city@1 ASC, time@5 ASC], projection=[area, city, max_temp, min_temp, state, time]    |
+|    |               ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, output_ordering=[state@4 ASC, city@1 ASC, time@5 ASC], projection=[area, city, max_temp, min_temp, state, time]    |
+|    |         ParquetExec: limit=None, partitions={2 groups: [[1/1/1/1/00000000-0000-0000-0000-000000000002.parquet], [1/1/1/1/00000000-0000-0000-0000-000000000003.parquet]]}, projection=[area, city, max_temp, min_temp, state, time]    |
 |    |    |
 ----------
 -- SQL: EXPLAIN select time, state, city, min_temp, max_temp, area from h2o;
@@ -52,14 +51,13 @@
 | logical_plan    | Projection: h2o.time, h2o.state, h2o.city, h2o.min_temp, h2o.max_temp, h2o.area    |
 |    |   TableScan: h2o projection=[area, city, max_temp, min_temp, state, time]    |
 | physical_plan    | ProjectionExec: expr=[time@5 as time, state@4 as state, city@1 as city, min_temp@3 as min_temp, max_temp@2 as max_temp, area@0 as area]    |
-|    |   RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=3    |
-|    |     UnionExec    |
-|    |       DeduplicateExec: [state@4 ASC,city@1 ASC,time@5 ASC]    |
-|    |         SortPreservingMergeExec: [state@4 ASC,city@1 ASC,time@5 ASC]    |
-|    |           UnionExec    |
-|    |             ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[state@4 ASC, city@1 ASC, time@5 ASC], projection=[area, city, max_temp, min_temp, state, time]    |
-|    |             ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, output_ordering=[state@4 ASC, city@1 ASC, time@5 ASC], projection=[area, city, max_temp, min_temp, state, time]    |
-|    |       ParquetExec: limit=None, partitions={2 groups: [[1/1/1/1/00000000-0000-0000-0000-000000000002.parquet], [1/1/1/1/00000000-0000-0000-0000-000000000003.parquet]]}, projection=[area, city, max_temp, min_temp, state, time]    |
+|    |   UnionExec    |
+|    |     DeduplicateExec: [state@4 ASC,city@1 ASC,time@5 ASC]    |
+|    |       SortPreservingMergeExec: [state@4 ASC,city@1 ASC,time@5 ASC]    |
+|    |         UnionExec    |
+|    |           ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[state@4 ASC, city@1 ASC, time@5 ASC], projection=[area, city, max_temp, min_temp, state, time]    |
+|    |           ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, output_ordering=[state@4 ASC, city@1 ASC, time@5 ASC], projection=[area, city, max_temp, min_temp, state, time]    |
+|    |     ParquetExec: limit=None, partitions={2 groups: [[1/1/1/1/00000000-0000-0000-0000-000000000002.parquet], [1/1/1/1/00000000-0000-0000-0000-000000000003.parquet]]}, projection=[area, city, max_temp, min_temp, state, time]    |
 |    |    |
 ----------
 -- SQL: EXPLAIN select state as name from h2o UNION ALL select city as name from h2o;
@@ -76,22 +74,20 @@
 |    |   ProjectionExec: expr=[state@0 as name]    |
 |    |     UnionExec    |
 |    |       ProjectionExec: expr=[state@1 as state]    |
-|    |         RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
-|    |           DeduplicateExec: [state@1 ASC,city@0 ASC,time@2 ASC]    |
-|    |             SortPreservingMergeExec: [state@1 ASC,city@0 ASC,time@2 ASC]    |
-|    |               UnionExec    |
-|    |                 ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[state@1 ASC, city@0 ASC, time@2 ASC], projection=[city, state, time]    |
-|    |                 ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, output_ordering=[state@1 ASC, city@0 ASC, time@2 ASC], projection=[city, state, time]    |
+|    |         DeduplicateExec: [state@1 ASC,city@0 ASC,time@2 ASC]    |
+|    |           SortPreservingMergeExec: [state@1 ASC,city@0 ASC,time@2 ASC]    |
+|    |             UnionExec    |
+|    |               ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[state@1 ASC, city@0 ASC, time@2 ASC], projection=[city, state, time]    |
+|    |               ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, output_ordering=[state@1 ASC, city@0 ASC, time@2 ASC], projection=[city, state, time]    |
 |    |       ParquetExec: limit=None, partitions={2 groups: [[1/1/1/1/00000000-0000-0000-0000-000000000002.parquet], [1/1/1/1/00000000-0000-0000-0000-000000000003.parquet]]}, projection=[state]    |
 |    |   ProjectionExec: expr=[city@0 as name]    |
 |    |     UnionExec    |
 |    |       ProjectionExec: expr=[city@0 as city]    |
-|    |         RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
-|    |           DeduplicateExec: [state@1 ASC,city@0 ASC,time@2 ASC]    |
-|    |             SortPreservingMergeExec: [state@1 ASC,city@0 ASC,time@2 ASC]    |
-|    |               UnionExec    |
-|    |                 ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[state@1 ASC, city@0 ASC, time@2 ASC], projection=[city, state, time]    |
-|    |                 ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, output_ordering=[state@1 ASC, city@0 ASC, time@2 ASC], projection=[city, state, time]    |
+|    |         DeduplicateExec: [state@1 ASC,city@0 ASC,time@2 ASC]    |
+|    |           SortPreservingMergeExec: [state@1 ASC,city@0 ASC,time@2 ASC]    |
+|    |             UnionExec    |
+|    |               ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[state@1 ASC, city@0 ASC, time@2 ASC], projection=[city, state, time]    |
+|    |               ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, output_ordering=[state@1 ASC, city@0 ASC, time@2 ASC], projection=[city, state, time]    |
 |    |       ParquetExec: limit=None, partitions={2 groups: [[1/1/1/1/00000000-0000-0000-0000-000000000002.parquet], [1/1/1/1/00000000-0000-0000-0000-000000000003.parquet]]}, projection=[city]    |
 |    |    |
 ----------

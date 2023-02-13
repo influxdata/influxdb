@@ -20,8 +20,7 @@
 | logical_plan    | Projection: restaurant.count, restaurant.system, restaurant.time, restaurant.town    |
 |    |   TableScan: restaurant projection=[count, system, time, town]    |
 | physical_plan    | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]    |
-|    |   RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
-|    |     ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[count, system, time, town]    |
+|    |   ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[count, system, time, town]    |
 |    |    |
 ----------
 -- SQL: SELECT * from restaurant where count > 200;
@@ -291,10 +290,9 @@
 |    |   Filter: Float64(5) < restaurant.system AND restaurant.town != Dictionary(Int32, Utf8("tewsbury")) AND restaurant.system < Float64(7) AND (restaurant.count = UInt64(632) OR restaurant.town = Dictionary(Int32, Utf8("reading"))) AND restaurant.time > TimestampNanosecond(130, None)    |
 |    |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[Float64(5) < restaurant.system, restaurant.town != Dictionary(Int32, Utf8("tewsbury")), restaurant.system < Float64(7), restaurant.count = UInt64(632) OR restaurant.town = Dictionary(Int32, Utf8("reading")), restaurant.time > TimestampNanosecond(130, None)]    |
 | physical_plan    | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]    |
-|    |   RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
-|    |     CoalesceBatchesExec: target_batch_size=8192    |
-|    |       FilterExec: 5 < system@1 AND town@3 != tewsbury AND system@1 < 7 AND count@0 = 632 OR town@3 = reading AND time@2 > 130    |
-|    |         EmptyExec: produce_one_row=false    |
+|    |   CoalesceBatchesExec: target_batch_size=8192    |
+|    |     FilterExec: 5 < system@1 AND town@3 != tewsbury AND system@1 < 7 AND count@0 = 632 OR town@3 = reading AND time@2 > 130    |
+|    |       EmptyExec: produce_one_row=false    |
 |    |    |
 ----------
 -- SQL: SELECT * from restaurant where system > 5.0 and 'tewsbury' != town and system < 7.0 and town = 'reading';
