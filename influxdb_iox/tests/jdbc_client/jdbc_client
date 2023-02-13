@@ -17,6 +17,9 @@ if [ ! -e "$JDBC_DRIVER_PATH" ]; then
     curl -L "$JDBC_DRIVER_URL" --output $JDBC_DRIVER_PATH
 fi
 
+# Help track down https://github.com/influxdata/influxdb_iox/issues/6967
+ls -ltr
+
 # Verify the download
 # To update, run: shasum flight-sql-jdbc-driver-10.0.0.jar  > flight-sql-jdbc-driver-10.0.0.jar.sha
 (cd $SCRIPT_DIR && shasum -c flight-sql-jdbc-driver-10.0.0.jar.sha)
