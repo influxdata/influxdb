@@ -93,7 +93,10 @@ pub async fn command(config: Config) -> Result<()> {
         );
     }
 
-    // Ensure panics are fatal when running in this server mode.
+    // Ensure panics (even in threads or tokio tasks) are fatal when
+    // running in this server mode.  This is done to avoid potential
+    // data corruption because there is no foolproof way to recover
+    // state after a panic.
     make_panics_fatal();
 
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
