@@ -44,7 +44,7 @@ serde_urlencoded = "0.7.0"
 snafu = "0.7"
 tokio = { version = "1.25", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-stream = { version = "0.1", features = ["net"] }
-tokio-util = { version = "0.7.5" }
+tokio-util = { version = "0.7.7" }
 tonic = "0.8"
 tonic-health = "0.8.0"
 tonic-reflection = "0.6.0"
