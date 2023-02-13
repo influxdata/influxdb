@@ -1,7 +1,7 @@
 mod balancer;
 mod circuit_breaker;
 mod circuit_breaking_client;
-mod client;
+pub mod client;
 pub mod lazy_connector;
 
 use crate::dml_handlers::rpc_write::client::WriteClient;

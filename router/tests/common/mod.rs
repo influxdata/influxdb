@@ -1,6 +1,5 @@
-use std::{collections::BTreeSet, iter, string::String, sync::Arc};
-
 use data_types::{PartitionTemplate, QueryPoolId, TableId, TemplatePart, TopicId};
+use generated_types::influxdata::iox::ingester::v1::WriteRequest;
 use hashbrown::HashMap;
 use hyper::{Body, Request, Response};
 use iox_catalog::{
@@ -12,19 +11,15 @@ use mutable_batch::MutableBatch;
 use object_store::memory::InMemory;
 use router::{
     dml_handlers::{
-        Chain, DmlHandlerChainExt, FanOutAdaptor, InstrumentationDecorator, Partitioned,
-        Partitioner, RetentionValidator, SchemaValidator, ShardedWriteBuffer, WriteSummaryAdapter,
+        client::mock::MockWriteClient, Chain, DmlHandlerChainExt, FanOutAdaptor,
+        InstrumentationDecorator, Partitioned, Partitioner, RetentionValidator, RpcWrite,
+        SchemaValidator, WriteSummaryAdapter,
     },
     namespace_cache::{MemoryNamespaceCache, ShardedCache},
     namespace_resolver::{MissingNamespaceAction, NamespaceAutocreation, NamespaceSchemaResolver},
     server::{grpc::RpcWriteGrpcDelegate, http::HttpDelegate},
-    shard::Shard,
 };
-use sharder::JumpHash;
-use write_buffer::{
-    core::WriteBufferWriting,
-    mock::{MockBufferForWriting, MockBufferSharedState},
-};
+use std::{iter, string::String, sync::Arc};
 
 /// The topic catalog ID assigned by the namespace auto-creator in the
 /// handler stack for namespaces it has not yet observed.
@@ -39,10 +34,10 @@ pub const TEST_RETENTION_PERIOD_NS: Option<i64> = Some(3_600 * 1_000_000_000);
 
 #[derive(Debug)]
 pub struct TestContext {
+    client: Arc<MockWriteClient>,
     http_delegate: HttpDelegateStack,
     grpc_delegate: RpcWriteGrpcDelegate,
     catalog: Arc<dyn Catalog>,
-    write_buffer_state: Arc<MockBufferSharedState>,
     metrics: Arc<Registry>,
 }
 
@@ -62,7 +57,7 @@ type HttpDelegateStack = HttpDelegate<
             >,
             WriteSummaryAdapter<
                 FanOutAdaptor<
-                    ShardedWriteBuffer<JumpHash<Arc<Shard>>>,
+                    RpcWrite<Arc<MockWriteClient>>,
                     Vec<Partitioned<HashMap<TableId, (String, MutableBatch)>>>,
                 >,
             >,
@@ -74,53 +69,28 @@ type HttpDelegateStack = HttpDelegate<
     >,
 >;
 
-/// A [`router`] stack configured with the various DML handlers using mock
-/// catalog / write buffer backends.
+/// A [`router`] stack configured with the various DML handlers using mock catalog backends.
 impl TestContext {
     pub async fn new(autocreate_ns: bool, ns_autocreate_retention_period_ns: Option<i64>) -> Self {
         let metrics = Arc::new(metric::Registry::default());
-        let time = iox_time::MockProvider::new(
-            iox_time::Time::from_timestamp_millis(668563200000).unwrap(),
-        );
 
-        let write_buffer = MockBufferForWriting::new(
-            MockBufferSharedState::empty_with_n_shards(1.try_into().unwrap()),
-            None,
-            Arc::new(time),
-        )
-        .expect("failed to init mock write buffer");
-        let write_buffer_state = write_buffer.state();
-        let write_buffer: Arc<dyn WriteBufferWriting> = Arc::new(write_buffer);
-
-        let shards: BTreeSet<_> = write_buffer.shard_indexes();
-        let sharded_write_buffer = ShardedWriteBuffer::new(JumpHash::new(
-            shards
-                .into_iter()
-                .map(|shard_index| Shard::new(shard_index, Arc::clone(&write_buffer), &metrics))
-                .map(Arc::new),
-        ));
+        let client = Arc::new(MockWriteClient::default());
+        let rpc_writer = RpcWrite::new([(Arc::clone(&client), "mock client")], &metrics);
 
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
         let ns_cache = Arc::new(ShardedCache::new(
             iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
         ));
 
-        let retention_validator =
-            RetentionValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache));
         let schema_validator =
             SchemaValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache), &metrics);
+
+        let retention_validator =
+            RetentionValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache));
+
         let partitioner = Partitioner::new(PartitionTemplate {
             parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],
         });
-
-        let handler_stack = retention_validator
-            .and_then(schema_validator)
-            .and_then(partitioner)
-            .and_then(WriteSummaryAdapter::new(FanOutAdaptor::new(
-                sharded_write_buffer,
-            )));
-
-        let handler_stack = InstrumentationDecorator::new("request", &metrics, handler_stack);
 
         let namespace_resolver =
             NamespaceSchemaResolver::new(Arc::clone(&catalog), Arc::clone(&ns_cache));
@@ -139,6 +109,15 @@ impl TestContext {
             },
         );
 
+        let parallel_write = WriteSummaryAdapter::new(FanOutAdaptor::new(rpc_writer));
+
+        let handler_stack = retention_validator
+            .and_then(schema_validator)
+            .and_then(partitioner)
+            .and_then(parallel_write);
+
+        let handler_stack = InstrumentationDecorator::new("request", &metrics, handler_stack);
+
         let http_delegate =
             HttpDelegate::new(1024, 100, namespace_resolver, handler_stack, &metrics);
 
@@ -150,10 +129,10 @@ impl TestContext {
         );
 
         Self {
+            client,
             http_delegate,
             grpc_delegate,
             catalog,
-            write_buffer_state,
             metrics,
         }
     }
@@ -173,9 +152,8 @@ impl TestContext {
         Arc::clone(&self.catalog)
     }
 
-    /// Get a reference to the test context's write buffer state.
-    pub fn write_buffer_state(&self) -> &Arc<MockBufferSharedState> {
-        &self.write_buffer_state
+    pub fn write_calls(&self) -> Vec<WriteRequest> {
+        self.client.calls()
     }
 
     /// Get a reference to the test context's metrics.

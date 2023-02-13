@@ -1,3 +1,5 @@
+//! Abstraction over RPC client
+
 use async_trait::async_trait;
 use generated_types::influxdata::iox::ingester::v1::{
     write_service_client::WriteServiceClient, WriteRequest,
@@ -31,13 +33,11 @@ impl WriteClient for WriteServiceClient<tonic::transport::Channel> {
     }
 }
 
-#[cfg(test)]
-pub(crate) mod mock {
-    use std::{collections::VecDeque, sync::Arc};
-
-    use parking_lot::Mutex;
-
+/// Mocks for testing
+pub mod mock {
     use super::*;
+    use parking_lot::Mutex;
+    use std::{collections::VecDeque, sync::Arc};
 
     #[derive(Debug, Default)]
     struct State {
@@ -47,15 +47,17 @@ pub(crate) mod mock {
 
     /// A mock implementation of the [`WriteClient`] for testing purposes.
     #[derive(Debug, Default)]
-    pub(crate) struct MockWriteClient {
+    pub struct MockWriteClient {
         state: Mutex<State>,
     }
 
     impl MockWriteClient {
-        pub(crate) fn calls(&self) -> Vec<WriteRequest> {
+        /// Retrieve the requests that this mock received.
+        pub fn calls(&self) -> Vec<WriteRequest> {
             self.state.lock().calls.clone()
         }
 
+        #[cfg(test)]
         pub(crate) fn with_ret(self, ret: impl Into<VecDeque<Result<(), RpcWriteError>>>) -> Self {
             self.state.lock().ret = ret.into();
             self

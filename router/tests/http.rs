@@ -1,17 +1,15 @@
-use std::sync::Arc;
-
+use crate::common::{TestContext, TEST_QUERY_POOL_ID, TEST_RETENTION_PERIOD_NS, TEST_TOPIC_ID};
 use assert_matches::assert_matches;
-use data_types::{ColumnType, QueryPoolId, ShardIndex, TopicId};
-use dml::DmlOperation;
+use data_types::{ColumnType, QueryPoolId, TopicId};
 use futures::{stream::FuturesUnordered, StreamExt};
+use generated_types::influxdata::{iox::ingester::v1::WriteRequest, pbdata::v1::DatabaseBatch};
 use hashbrown::HashMap;
 use hyper::{Body, Request, StatusCode};
 use iox_catalog::interface::SoftDeletedRows;
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{Attributes, DurationHistogram, Metric, U64Counter};
-use router::dml_handlers::{DmlError, RetentionError, SchemaError};
-
-use crate::common::{TestContext, TEST_QUERY_POOL_ID, TEST_RETENTION_PERIOD_NS, TEST_TOPIC_ID};
+use router::dml_handlers::{DmlError, RetentionError, RpcWriteError, SchemaError};
+use std::sync::Arc;
 
 pub mod common;
 
@@ -31,12 +29,22 @@ async fn test_write_ok() {
         .expect("write failed");
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
-    // Check the write buffer observed the correct write.
-    let writes = ctx.write_buffer_state().get_messages(ShardIndex::new(0));
+    // Check the ingester observed the correct write.
+    let writes = ctx.write_calls();
     assert_eq!(writes.len(), 1);
-    assert_matches!(writes.as_slice(), [Ok(DmlOperation::Write(w))] => {
-        let table_id = ctx.table_id("bananas_test", "platanos").await;
-        assert!(w.table(&table_id).is_some());
+    assert_matches!(
+        writes.as_slice(),
+        [
+            WriteRequest {
+                payload: Some(DatabaseBatch {
+                    table_batches,
+                    ..
+                }),
+            },
+        ] => {
+        let table_id = ctx.table_id("bananas_test", "platanos").await.get();
+        assert_eq!(table_batches.len(), 1);
+        assert_eq!(table_batches[0].table_id, table_id);
     });
 
     // Ensure the catalog saw the namespace creation
@@ -77,19 +85,6 @@ async fn test_write_ok() {
             .fetch(),
         1
     );
-
-    let histogram = ctx
-        .metrics()
-        .get_instrument::<Metric<DurationHistogram>>("shard_enqueue_duration")
-        .expect("failed to read metric")
-        .get_observer(&Attributes::from(&[
-            ("kafka_partition", "0"),
-            ("result", "success"),
-        ]))
-        .expect("failed to get observer")
-        .fetch();
-    let hit_count = histogram.sample_count();
-    assert_eq!(hit_count, 1);
 }
 
 #[tokio::test]
@@ -303,7 +298,6 @@ async fn test_write_propagate_ids() {
             platanos,tag1=A,tag2=B val=42i {now}\n\
             table,tag1=A,tag2=B val=42i {now}\n\
         "
-
     };
 
     let response = ctx
@@ -313,25 +307,36 @@ async fn test_write_propagate_ids() {
 
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
-    // Check the write buffer observed the correct write.
-    let writes = ctx.write_buffer_state().get_messages(ShardIndex::new(0));
+    // Check the ingester observed the correct write.
+    let writes = ctx.write_calls();
     assert_eq!(writes.len(), 1);
-    assert_matches!(writes.as_slice(), [Ok(DmlOperation::Write(w))] => {
-        assert_eq!(w.namespace_id(), ns.id);
+    assert_matches!(
+        writes.as_slice(),
+        [
+            WriteRequest {
+                payload: Some(DatabaseBatch {
+                    database_id,
+                    table_batches,
+                    ..
+                }),
+            },
+        ] => {
+
+        assert_eq!(*database_id, ns.id.get());
+        assert_eq!(table_batches.len(), ids.len());
 
         for id in ids.values() {
-            assert!(w.table(id).is_some());
+            assert!(table_batches.iter().any(|table_batch| table_batch.table_id == id.get()))
         }
     });
 }
 
 #[tokio::test]
-async fn test_delete_propagate_ids() {
+async fn test_delete_unsupported() {
     let ctx = TestContext::new(true, None).await;
 
     // Create the namespace and a set of tables.
-    let ns = ctx
-        .catalog()
+    ctx.catalog()
         .repositories()
         .await
         .namespaces()
@@ -356,18 +361,20 @@ async fn test_delete_propagate_ids() {
         ))
         .expect("failed to construct HTTP request");
 
-    let response = ctx
-        .http_delegate()
-        .route(request)
-        .await
-        .expect("delete request failed");
+    let err = ctx.http_delegate().route(request).await.unwrap_err();
 
-    assert_eq!(response.status(), StatusCode::NO_CONTENT);
-
-    // Check the write buffer observed the correct write.
-    let writes = ctx.write_buffer_state().get_messages(ShardIndex::new(0));
-    assert_eq!(writes.len(), 1);
-    assert_matches!(writes.as_slice(), [Ok(DmlOperation::Delete(w))] => {
-        assert_eq!(w.namespace_id(), ns.id);
-    });
+    assert_matches!(
+        &err,
+        e @ router::server::http::Error::DmlHandler(
+            DmlError::RpcWrite(
+                RpcWriteError::DeletesUnsupported
+            )
+        ) => {
+            assert_eq!(
+                e.to_string(),
+                "dml handler error: deletes are not supported"
+            );
+        }
+    );
+    assert_eq!(err.as_status_code(), StatusCode::NOT_IMPLEMENTED);
 }
