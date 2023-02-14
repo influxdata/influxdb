@@ -1,6 +1,6 @@
 use std::{
     collections::VecDeque,
-    ops::{Bound, Range, RangeBounds},
+    ops::{Bound, Range},
     sync::Arc,
 };
 
@@ -26,9 +26,11 @@ use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
 
 use crate::exec::gapfill::builder::build_output;
-use crate::exec::gapfill::series::Series;
+use crate::exec::gapfill::series::SeriesAppender;
 
-use super::{try_map_bound, try_map_range, GapFillExecParams};
+use super::{
+    builder::OutputState, series::SeriesState, try_map_bound, try_map_range, GapFillExecParams,
+};
 
 /// Fill in the gaps in a stream of records that represent
 /// one or more time series.
@@ -127,7 +129,7 @@ pub(super) async fn fill_gaps(
 
         // Each item produced by this iterator is a range of row offsets [start, end) for when
         // the group columns change.
-        let range_iter = if !sort_columns.is_empty() {
+        let input_range_iter = if !sort_columns.is_empty() {
             Box::new(lexicographical_partition_ranges(&sort_columns)?)
         } else {
             // lexicographical_partition_ranges will refuse to work if there are no
@@ -137,48 +139,67 @@ pub(super) async fn fill_gaps(
         };
 
         let mut series_queue = VecDeque::new();
-        for range in range_iter {
-            series_queue.push_back(Series::new(range, input_time_array.1));
+        for range in input_range_iter {
+            series_queue.push_back(SeriesAppender::new_with_input_end_offset(range.end));
         }
 
         // Send off one output batch for every iteration of this loop
-        // (currently only one output batch is supported)
+        let mut series_state = SeriesState::new(params, output_batch_size);
         while !series_queue.is_empty() {
-            let mut next_batch = Vec::new();
-            let mut remaining = output_batch_size;
-            loop {
-                if remaining == 0 {
-                    break;
-                }
-
-                let series = match series_queue.pop_front() {
-                    Some(series) => series,
-                    None => break,
-                };
-
-                let series_row_count = series.total_output_row_count(params);
-                if series_row_count <= remaining {
-                    next_batch.push(series);
-                    remaining -= series_row_count;
-                } else {
-                    // TODO: break up the series here
-                    return Err(DataFusionError::NotImplemented(
-                        "gap fill output spanning multiple batches".to_string(),
-                    ));
-                }
+            // take the next set of series that will fit into the next record batch to
+            // be produced. The last series may only be partially output.
+            let mut next_batch_series = Vec::new();
+            let mut output_rows = 0;
+            let mut batching_series_state = series_state.clone();
+            while output_rows < output_batch_size && !series_queue.is_empty() {
+                let series = series_queue.pop_front().unwrap();
+                let (series_row_count, ss) = series.remaining_output_row_count(
+                    params,
+                    input_time_array.1,
+                    batching_series_state,
+                );
+                output_rows += series_row_count;
+                batching_series_state = ss;
+                next_batch_series.push(series);
             }
-            let output_batch = build_output(
+
+            // produce a new record batch for the series that can at least be started
+            // in this batch.
+            let OutputState {
+                output_batch,
+                new_series_state,
+            } = build_output(
+                series_state,
                 input_stream.schema(),
                 params,
                 input_time_array,
                 &group_arr,
                 &aggr_arr,
-                &next_batch,
-            )?
-            .record_output(&baseline_metrics);
+                &next_batch_series,
+            )?;
+            let output_batch = output_batch.record_output(&baseline_metrics);
             tx.send(Ok(output_batch))
                 .await
                 .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+            // update the state to reflect where we are in the input
+            // and what the next timestamp should be.
+            series_state = new_series_state;
+
+            let last_series = next_batch_series
+                .last()
+                .expect("there is at least one series");
+            if series_state.series_is_done(params, last_series) {
+                series_state.fresh_series(params);
+            } else {
+                // There was only room for part of the last series, so
+                // push it back onto the queue.
+                series_queue.push_front(last_series.clone());
+            }
+
+            // get ready to produce a new record batch on the next iteration
+            // of this loop.
+            series_state.fresh_output_batch(output_batch_size);
         }
         last_input_batch = Some(input_batch);
     }
@@ -193,26 +214,12 @@ pub(super) struct GapFillParams {
 }
 
 impl GapFillParams {
-    pub fn valid_row_count<RB: RangeBounds<i64>>(&self, rb: RB) -> usize {
-        let first_ts = match rb.start_bound() {
-            Bound::Unbounded => self.first_ts,
-            Bound::Included(first_ts) => *first_ts,
-            Bound::Excluded(first_ts) => *first_ts + self.stride,
-        };
-        let last_ts = match rb.end_bound() {
-            Bound::Unbounded => self.last_ts,
-            Bound::Included(last_ts) => *last_ts,
-            Bound::Excluded(last_ts) => *last_ts - self.stride,
-        };
-        if last_ts >= first_ts {
-            ((last_ts - first_ts) / self.stride + 1) as usize
+    pub fn valid_row_count(&self, first_ts: i64) -> usize {
+        if self.last_ts >= first_ts {
+            ((self.last_ts - first_ts) / self.stride + 1) as usize
         } else {
             0
         }
-    }
-
-    pub fn iter_times(&self) -> impl Iterator<Item = i64> {
-        (self.first_ts..=self.last_ts).step_by(self.stride as usize)
     }
 }
 
@@ -334,13 +341,8 @@ mod tests {
             last_ts: 1050,
         };
 
-        assert_eq!(6, params.valid_row_count(..));
-        assert_eq!(5, params.valid_row_count(1010..));
-        assert_eq!(2, params.valid_row_count(..1020)); // exclusive end
-        assert_eq!(1, params.valid_row_count(1010..1020)); // exclusive end
-        assert_eq!(3, params.valid_row_count(..=1020)); // inclusive end
-        assert_eq!(2, params.valid_row_count(1010..=1020)); // inclusive end
-        assert_eq!(0, params.valid_row_count(1020..1010)); // start > end
+        assert_eq!(6, params.valid_row_count(1000));
+        assert_eq!(0, params.valid_row_count(1100));
         Ok(())
     }
 
