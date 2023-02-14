@@ -1,6 +1,6 @@
 use crate::{
-    dump_log_to_stdout, log_command, rand_id, write_to_router, ServerFixture, TestConfig,
-    TestServer,
+    dump_log_to_stdout, log_command, rand_id, write_to_ingester, write_to_router, ServerFixture,
+    TestConfig, TestServer,
 };
 use arrow::{datatypes::SchemaRef, record_batch::RecordBatch};
 use arrow_flight::{
@@ -370,6 +370,17 @@ impl MiniCluster {
             self.router().router_http_base(),
         )
         .await
+    }
+
+    /// Write to the ingester using the gRPC interface directly, rather than through a router.
+    pub async fn write_to_ingester(&self, line_protocol: impl Into<String>, table_name: &str) {
+        write_to_ingester(
+            line_protocol,
+            self.namespace_id().await,
+            self.table_id(table_name).await,
+            self.ingester().ingester_grpc_connection(),
+        )
+        .await;
     }
 
     /// Query the ingester using flight directly, rather than through a querier.
