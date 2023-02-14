@@ -1,9 +1,12 @@
 use std::fmt::Display;
 
 use async_trait::async_trait;
-use data_types::{ParquetFile, PartitionId};
+use data_types::ParquetFile;
 
-use crate::{components::skipped_compactions_source::SkippedCompactionsSource, error::DynError};
+use crate::{
+    components::skipped_compactions_source::SkippedCompactionsSource, error::DynError,
+    PartitionInfo,
+};
 
 use super::PartitionFilter;
 
@@ -40,10 +43,14 @@ where
 {
     async fn apply(
         &self,
-        partition_id: PartitionId,
+        partition_info: &PartitionInfo,
         _files: &[ParquetFile],
     ) -> Result<bool, DynError> {
-        Ok(self.source.fetch(partition_id).await.is_none())
+        Ok(self
+            .source
+            .fetch(partition_info.partition_id)
+            .await
+            .is_none())
     }
 }
 

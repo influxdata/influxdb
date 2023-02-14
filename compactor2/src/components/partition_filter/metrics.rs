@@ -1,10 +1,10 @@
 use std::fmt::Display;
 
 use async_trait::async_trait;
-use data_types::{ParquetFile, PartitionId};
+use data_types::ParquetFile;
 use metric::{Registry, U64Counter};
 
-use crate::error::DynError;
+use crate::{error::DynError, PartitionInfo};
 
 use super::PartitionFilter;
 
@@ -60,10 +60,10 @@ where
 {
     async fn apply(
         &self,
-        partition_id: PartitionId,
+        partition_info: &PartitionInfo,
         files: &[ParquetFile],
     ) -> Result<bool, DynError> {
-        let res = self.inner.apply(partition_id, files).await;
+        let res = self.inner.apply(partition_info, files).await;
         match res {
             Ok(true) => {
                 self.pass_counter.inc(1);
@@ -81,9 +81,14 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use metric::{Attributes, Metric};
 
-    use crate::components::partition_filter::has_files::HasFilesPartitionFilter;
+    use crate::{
+        components::partition_filter::has_files::HasFilesPartitionFilter,
+        test_utils::PartitionInfoBuilder,
+    };
     use iox_tests::ParquetFileBuilder;
 
     use super::*;
@@ -101,16 +106,16 @@ mod tests {
         let registry = Registry::new();
         let filter =
             MetricsPartitionFilterWrapper::new(HasFilesPartitionFilter::new(), &registry, "test");
-        let p_id = PartitionId::new(1);
+        let p_info = Arc::new(PartitionInfoBuilder::new().with_partition_id(1).build());
         let f = ParquetFileBuilder::new(0).build();
 
         assert_eq!(pass_counter(&registry), 0);
         assert_eq!(filter_counter(&registry), 0);
         assert_eq!(error_counter(&registry), 0);
 
-        assert!(!filter.apply(p_id, &[]).await.unwrap());
-        assert!(!filter.apply(p_id, &[]).await.unwrap());
-        assert!(filter.apply(p_id, &[f]).await.unwrap());
+        assert!(!filter.apply(&p_info, &[]).await.unwrap());
+        assert!(!filter.apply(&p_info, &[]).await.unwrap());
+        assert!(filter.apply(&p_info, &[f]).await.unwrap());
 
         assert_eq!(pass_counter(&registry), 1);
         assert_eq!(filter_counter(&registry), 2);

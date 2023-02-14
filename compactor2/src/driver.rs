@@ -180,9 +180,7 @@ async fn try_compact_partition(
     scratchpad_ctx: &mut dyn Scratchpad,
 ) -> Result<(), DynError> {
     let mut files = components.partition_files_source.fetch(partition_id).await;
-
-    // fetch partition info only if we need it
-    let mut lazy_partition_info = None;
+    let partition_info = components.partition_info_source.fetch(partition_id).await?;
 
     // loop for each "Round", consider each file in the partition
     loop {
@@ -192,17 +190,11 @@ async fn try_compact_partition(
         // and describe where the filter is created at version_specific_partition_filters function
         if !components
             .partition_filter
-            .apply(partition_id, &files)
+            .apply(&partition_info, &files)
             .await?
         {
             return Ok(());
         }
-
-        // fetch partition info
-        if lazy_partition_info.is_none() {
-            lazy_partition_info = Some(components.partition_info_source.fetch(partition_id).await?);
-        }
-        let partition_info = lazy_partition_info.as_ref().expect("just fetched");
 
         let (files_now, files_later) = components.round_split.split(files);
 
@@ -218,7 +210,7 @@ async fn try_compact_partition(
             // Identify the target level and files that should be
             // compacted together, upgraded, and kept for next round of
             // compaction
-            let file_classification = components.file_classifier.classify(partition_info, branch);
+            let file_classification = components.file_classifier.classify(&partition_info, branch);
 
             // Cannot run this plan and skip this partition because of over limit of input num_files or size.
             // The partition_resource_limit_filter will throw an error if one of the limits hit and will lead
@@ -229,7 +221,7 @@ async fn try_compact_partition(
             //      of conidtions even with limited resource. Then we will remove this resrouce limit check.
             if !components
                 .partition_resource_limit_filter
-                .apply(partition_id, &file_classification.files_to_compact)
+                .apply(&partition_info, &file_classification.files_to_compact)
                 .await?
             {
                 return Ok(());
@@ -238,7 +230,7 @@ async fn try_compact_partition(
             // Compact
             let created_file_params = run_compaction_plan(
                 &file_classification.files_to_compact,
-                partition_info,
+                &partition_info,
                 &components,
                 file_classification.target_level,
                 Arc::clone(&job_semaphore),

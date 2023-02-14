@@ -1,9 +1,8 @@
 use std::fmt::Display;
 
 use async_trait::async_trait;
-use data_types::PartitionId;
 
-use crate::error::DynError;
+use crate::{error::DynError, PartitionInfo};
 
 use super::PartitionFilter;
 
@@ -26,7 +25,7 @@ impl Display for HasFilesPartitionFilter {
 impl PartitionFilter for HasFilesPartitionFilter {
     async fn apply(
         &self,
-        _partition_id: PartitionId,
+        _partition_info: &PartitionInfo,
         files: &[data_types::ParquetFile],
     ) -> Result<bool, DynError> {
         Ok(!files.is_empty())
@@ -35,7 +34,11 @@ impl PartitionFilter for HasFilesPartitionFilter {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use iox_tests::ParquetFileBuilder;
+
+    use crate::test_utils::PartitionInfoBuilder;
 
     use super::*;
 
@@ -48,9 +51,9 @@ mod tests {
     async fn test_apply() {
         let filter = HasFilesPartitionFilter::new();
         let f = ParquetFileBuilder::new(0).build();
-        let p_id = PartitionId::new(1);
+        let p_info = Arc::new(PartitionInfoBuilder::new().build());
 
-        assert!(!filter.apply(p_id, &[]).await.unwrap());
-        assert!(filter.apply(p_id, &[f]).await.unwrap());
+        assert!(!filter.apply(&p_info, &[]).await.unwrap());
+        assert!(filter.apply(&p_info, &[f]).await.unwrap());
     }
 }

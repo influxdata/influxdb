@@ -38,6 +38,7 @@ pub fn log_config(config: &Config) {
         parquet_files_sink_override: parquet_files_sink,
         simulate_without_object_store,
         all_errors_are_fatal,
+        max_num_columns_per_table,
     } = &config;
 
     let (shard_cfg_n_shards, shard_cfg_shard_id) = match shard_config {
@@ -83,6 +84,7 @@ pub fn log_config(config: &Config) {
         simulate_without_object_store,
         %parquet_files_sink,
         all_errors_are_fatal,
+        max_num_columns_per_table,
         "config",
     );
 }

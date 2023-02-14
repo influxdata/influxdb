@@ -1,9 +1,9 @@
 use std::{fmt::Display, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{ParquetFile, PartitionId};
+use data_types::ParquetFile;
 
-use crate::error::DynError;
+use crate::{error::DynError, PartitionInfo};
 
 use super::PartitionFilter;
 
@@ -35,11 +35,11 @@ impl Display for AndPartitionFilter {
 impl PartitionFilter for AndPartitionFilter {
     async fn apply(
         &self,
-        partition_id: PartitionId,
+        partition_info: &PartitionInfo,
         files: &[ParquetFile],
     ) -> Result<bool, DynError> {
         for filter in &self.filters {
-            if !filter.apply(partition_id, files).await? {
+            if !filter.apply(partition_info, files).await? {
                 return Ok(false);
             }
         }
@@ -49,10 +49,12 @@ impl PartitionFilter for AndPartitionFilter {
 
 #[cfg(test)]
 mod tests {
-
-    use crate::components::partition_filter::{
-        has_files::HasFilesPartitionFilter, max_files::MaxFilesPartitionFilter,
-        FalsePartitionFilter, TruePartitionFilter,
+    use crate::{
+        components::partition_filter::{
+            has_files::HasFilesPartitionFilter, max_files::MaxFilesPartitionFilter,
+            FalsePartitionFilter, TruePartitionFilter,
+        },
+        test_utils::PartitionInfoBuilder,
     };
 
     use super::*;
@@ -69,30 +71,30 @@ mod tests {
 
     #[tokio::test]
     async fn test_apply() {
-        let p_id = PartitionId::new(1);
+        let p_info = Arc::new(PartitionInfoBuilder::new().build());
 
         let filter = AndPartitionFilter::new(vec![
             Arc::new(TruePartitionFilter::new()),
             Arc::new(TruePartitionFilter::new()),
         ]);
-        assert!(filter.apply(p_id, &[]).await.unwrap());
+        assert!(filter.apply(&p_info, &[]).await.unwrap());
 
         let filter = AndPartitionFilter::new(vec![
             Arc::new(TruePartitionFilter::new()),
             Arc::new(FalsePartitionFilter::new()),
         ]);
-        assert!(!filter.apply(p_id, &[]).await.unwrap());
+        assert!(!filter.apply(&p_info, &[]).await.unwrap());
 
         let filter = AndPartitionFilter::new(vec![
             Arc::new(FalsePartitionFilter::new()),
             Arc::new(TruePartitionFilter::new()),
         ]);
-        assert!(!filter.apply(p_id, &[]).await.unwrap());
+        assert!(!filter.apply(&p_info, &[]).await.unwrap());
 
         let filter = AndPartitionFilter::new(vec![
             Arc::new(FalsePartitionFilter::new()),
             Arc::new(FalsePartitionFilter::new()),
         ]);
-        assert!(!filter.apply(p_id, &[]).await.unwrap());
+        assert!(!filter.apply(&p_info, &[]).await.unwrap());
     }
 }

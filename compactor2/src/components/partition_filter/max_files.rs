@@ -1,9 +1,12 @@
 use std::fmt::Display;
 
 use async_trait::async_trait;
-use data_types::{ParquetFile, PartitionId};
+use data_types::ParquetFile;
 
-use crate::error::{DynError, ErrorKind, SimpleError};
+use crate::{
+    error::{DynError, ErrorKind, SimpleError},
+    PartitionInfo,
+};
 
 use super::PartitionFilter;
 
@@ -28,7 +31,7 @@ impl Display for MaxFilesPartitionFilter {
 impl PartitionFilter for MaxFilesPartitionFilter {
     async fn apply(
         &self,
-        partition_id: PartitionId,
+        partition_info: &PartitionInfo,
         files: &[ParquetFile],
     ) -> Result<bool, DynError> {
         if files.len() <= self.max_files {
@@ -38,7 +41,7 @@ impl PartitionFilter for MaxFilesPartitionFilter {
                 ErrorKind::OutOfMemory,
                 format!(
                     "partition {} has {} files, limit is {}",
-                    partition_id,
+                    partition_info.partition_id,
                     files.len(),
                     self.max_files
                 ),
@@ -50,7 +53,9 @@ impl PartitionFilter for MaxFilesPartitionFilter {
 
 #[cfg(test)]
 mod tests {
-    use crate::error::ErrorKindExt;
+    use std::sync::Arc;
+
+    use crate::{error::ErrorKindExt, test_utils::PartitionInfoBuilder};
     use iox_tests::ParquetFileBuilder;
 
     use super::*;
@@ -69,13 +74,17 @@ mod tests {
         let f1 = ParquetFileBuilder::new(1).build();
         let f2 = ParquetFileBuilder::new(2).build();
         let f3 = ParquetFileBuilder::new(3).build();
-        let p_id = PartitionId::new(1);
 
-        assert!(filter.apply(p_id, &[]).await.unwrap());
-        assert!(filter.apply(p_id, &[f1.clone()]).await.unwrap());
-        assert!(filter.apply(p_id, &[f1.clone(), f2.clone()]).await.unwrap());
+        let p_info = Arc::new(PartitionInfoBuilder::new().with_partition_id(1).build());
 
-        let e = filter.apply(p_id, &[f1, f2, f3]).await.unwrap_err();
+        assert!(filter.apply(&p_info, &[]).await.unwrap());
+        assert!(filter.apply(&p_info, &[f1.clone()]).await.unwrap());
+        assert!(filter
+            .apply(&p_info, &[f1.clone(), f2.clone()])
+            .await
+            .unwrap());
+
+        let e = filter.apply(&p_info, &[f1, f2, f3]).await.unwrap_err();
         assert_eq!(e.classify(), ErrorKind::OutOfMemory);
         assert_eq!(e.to_string(), "partition 1 has 3 files, limit is 2");
     }

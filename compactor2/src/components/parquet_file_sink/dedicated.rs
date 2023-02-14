@@ -71,7 +71,7 @@ mod tests {
     use schema::SchemaBuilder;
 
     use crate::components::parquet_file_sink::mock::MockParquetFileSink;
-    use crate::test_utils::partition_info;
+    use crate::test_utils::PartitionInfoBuilder;
 
     use super::*;
 
@@ -95,7 +95,7 @@ mod tests {
             Arc::clone(&schema),
             futures::stream::once(async move { panic!("foo") }),
         ));
-        let partition = partition_info();
+        let partition = Arc::new(PartitionInfoBuilder::new().build());
         let level = CompactionLevel::FileNonOverlapped;
         let max_l0_created_at = Time::from_timestamp_nanos(0);
         let err = sink

@@ -47,10 +47,12 @@ impl FileClassifier for AllAtOnceFileClassifier {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use compactor2_test_utils::create_overlapped_files;
     use iox_tests::ParquetFileBuilder;
 
-    use crate::test_utils::partition_info;
+    use crate::test_utils::PartitionInfoBuilder;
 
     use super::*;
 
@@ -64,7 +66,8 @@ mod tests {
     fn test_apply_empty() {
         let classifier = AllAtOnceFileClassifier::new();
 
-        classifier.classify(&partition_info(), vec![]);
+        let partition_info = Arc::new(PartitionInfoBuilder::new().build());
+        classifier.classify(&partition_info, vec![]);
     }
 
     #[test]
@@ -76,7 +79,8 @@ mod tests {
             .with_compaction_level(CompactionLevel::FileNonOverlapped)
             .build();
 
-        classifier.classify(&partition_info(), vec![f1]);
+        let partition_info = Arc::new(PartitionInfoBuilder::new().build());
+        classifier.classify(&partition_info, vec![f1]);
     }
 
     #[test]
@@ -88,7 +92,8 @@ mod tests {
             .with_compaction_level(CompactionLevel::Final)
             .build();
 
-        classifier.classify(&partition_info(), vec![f2]);
+        let partition_info = Arc::new(PartitionInfoBuilder::new().build());
+        classifier.classify(&partition_info, vec![f2]);
     }
 
     #[test]
@@ -104,14 +109,16 @@ mod tests {
             .with_compaction_level(CompactionLevel::Final)
             .build();
 
-        classifier.classify(&partition_info(), vec![f1, f2]);
+        let partition_info = Arc::new(PartitionInfoBuilder::new().build());
+        classifier.classify(&partition_info, vec![f1, f2]);
     }
 
     #[test]
     fn test_apply() {
         let classifier = AllAtOnceFileClassifier::new();
         let files = create_overlapped_files();
-        let classification = classifier.classify(&partition_info(), files.clone());
+        let partition_info = Arc::new(PartitionInfoBuilder::new().build());
+        let classification = classifier.classify(&partition_info, files.clone());
         assert_eq!(
             classification,
             FileClassification {

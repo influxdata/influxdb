@@ -29,3 +29,10 @@ pub struct PartitionInfo {
     /// partition_key
     pub partition_key: PartitionKey,
 }
+
+impl PartitionInfo {
+    /// Returns number of columns in the table
+    pub fn column_count(&self) -> usize {
+        self.table_schema.column_count()
+    }
+}

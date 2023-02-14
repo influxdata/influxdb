@@ -605,6 +605,11 @@ impl TableSchema {
     pub fn column_names(&self) -> BTreeSet<&str> {
         self.columns.keys().map(|name| name.as_str()).collect()
     }
+
+    /// Return number of columns of the table
+    pub fn column_count(&self) -> usize {
+        self.columns.len()
+    }
 }
 
 /// Data object for a column

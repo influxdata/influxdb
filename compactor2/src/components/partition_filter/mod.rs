@@ -1,9 +1,9 @@
 use std::fmt::{Debug, Display};
 
 use async_trait::async_trait;
-use data_types::{ParquetFile, PartitionId};
+use data_types::ParquetFile;
 
-use crate::error::DynError;
+use crate::{error::DynError, PartitionInfo};
 
 pub mod and;
 pub mod greater_matching_files;
@@ -12,6 +12,7 @@ pub mod has_files;
 pub mod has_matching_file;
 pub mod logging;
 pub mod max_files;
+pub mod max_num_columns;
 pub mod max_parquet_bytes;
 pub mod metrics;
 pub mod never_skipped;
@@ -33,7 +34,7 @@ pub trait PartitionFilter: Debug + Display + Send + Sync {
     /// does not need any more compaction.
     async fn apply(
         &self,
-        partition_id: PartitionId,
+        partition_info: &PartitionInfo,
         files: &[ParquetFile],
     ) -> Result<bool, DynError>;
 }
@@ -54,7 +55,7 @@ impl Display for TruePartitionFilter {
 impl PartitionFilter for TruePartitionFilter {
     async fn apply(
         &self,
-        _partition_id: PartitionId,
+        _partition_info: &PartitionInfo,
         _files: &[ParquetFile],
     ) -> Result<bool, DynError> {
         Ok(true)
@@ -82,7 +83,7 @@ impl Display for FalsePartitionFilter {
 impl PartitionFilter for FalsePartitionFilter {
     async fn apply(
         &self,
-        _partition_id: PartitionId,
+        _partition_info: &PartitionInfo,
         _files: &[ParquetFile],
     ) -> Result<bool, DynError> {
         Ok(false)

@@ -244,4 +244,14 @@ pub struct Compactor2Config {
         action
     )]
     pub process_all_partitions: bool,
+
+    /// Maximum number of columns in the table of a partition that will be able to considered
+    /// to get compacted
+    #[clap(
+        long = "compaction-max-num-columns-per-table",
+        env = "INFLUXDB_IOX_COMPACTION_MAX_NUM_COLUMNS_PER_TABLE",
+        default_value = "10000",
+        action
+    )]
+    pub max_num_columns_per_table: usize,
 }

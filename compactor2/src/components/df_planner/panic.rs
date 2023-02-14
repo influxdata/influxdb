@@ -97,7 +97,7 @@ impl ExecutionPlan for PanicPlan {
 mod tests {
     use datafusion::{physical_plan::collect, prelude::SessionContext};
 
-    use crate::test_utils::partition_info;
+    use crate::test_utils::PartitionInfoBuilder;
 
     use super::*;
 
@@ -110,7 +110,7 @@ mod tests {
     #[should_panic(expected = "foo")]
     async fn test_panic() {
         let planner = PanicDataFusionPlanner::new();
-        let partition = partition_info();
+        let partition = Arc::new(PartitionInfoBuilder::new().build());
         let plan = planner
             .plan(&PlanIR::Compact { files: vec![] }, partition)
             .await

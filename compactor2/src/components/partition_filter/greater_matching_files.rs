@@ -1,9 +1,9 @@
 use std::fmt::Display;
 
 use async_trait::async_trait;
-use data_types::{ParquetFile, PartitionId};
+use data_types::ParquetFile;
 
-use crate::{components::file_filter::FileFilter, error::DynError};
+use crate::{components::file_filter::FileFilter, error::DynError, PartitionInfo};
 
 use super::PartitionFilter;
 
@@ -50,7 +50,7 @@ where
 {
     async fn apply(
         &self,
-        _partition_id: PartitionId,
+        _partition_info: &PartitionInfo,
         files: &[ParquetFile],
     ) -> Result<bool, DynError> {
         Ok(files.iter().filter(|file| self.filter.apply(file)).count() >= self.min_num_files)
@@ -59,9 +59,14 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use data_types::CompactionLevel;
 
-    use crate::components::file_filter::level_range::LevelRangeFileFilter;
+    use crate::{
+        components::file_filter::level_range::LevelRangeFileFilter,
+        test_utils::PartitionInfoBuilder,
+    };
     use iox_tests::ParquetFileBuilder;
 
     use super::*;
@@ -98,18 +103,21 @@ mod tests {
             .with_compaction_level(CompactionLevel::FileNonOverlapped)
             .build();
 
-        let p_id = PartitionId::new(1);
+        let p_info = Arc::new(PartitionInfoBuilder::new().build());
 
         // empty, not enough matching
-        assert!(!filter.apply(p_id, &[]).await.unwrap());
+        assert!(!filter.apply(&p_info, &[]).await.unwrap());
 
         // Not enough matching
-        assert!(!filter.apply(p_id, &[f1.clone()]).await.unwrap());
+        assert!(!filter.apply(&p_info, &[f1.clone()]).await.unwrap());
 
         // enough matching
-        assert!(filter.apply(p_id, &[f1.clone(), f2.clone()]).await.unwrap());
+        assert!(filter
+            .apply(&p_info, &[f1.clone(), f2.clone()])
+            .await
+            .unwrap());
 
         // enough matching
-        assert!(filter.apply(p_id, &[f1, f2, f3]).await.unwrap());
+        assert!(filter.apply(&p_info, &[f1, f2, f3]).await.unwrap());
     }
 }

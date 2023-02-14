@@ -437,6 +437,7 @@ impl Config {
             min_num_l1_files_to_compact: 1,
             process_once: false,
             process_all_partitions: false,
+            max_num_columns_per_table: 200,
         };
 
         let querier_config = QuerierConfig {

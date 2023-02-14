@@ -127,6 +127,11 @@ pub struct Config {
     ///
     /// This is mostly useful for testing.
     pub all_errors_are_fatal: bool,
+
+    /// Maximum number of columns in the table of a partition that will be considered get comapcted
+    /// If there are more columns, the partition will be skipped
+    /// This is to prevent too many columns in a table
+    pub max_num_columns_per_table: usize,
 }
 
 impl Config {

@@ -60,6 +60,7 @@ use super::{
         greater_size_matching_files::GreaterSizeMatchingFilesPartitionFilter,
         has_files::HasFilesPartitionFilter, has_matching_file::HasMatchingFilePartitionFilter,
         logging::LoggingPartitionFilterWrapper, max_files::MaxFilesPartitionFilter,
+        max_num_columns::MaxNumColumnsPartitionFilter,
         max_parquet_bytes::MaxParquetBytesPartitionFilter, metrics::MetricsPartitionFilterWrapper,
         never_skipped::NeverSkippedPartitionFilter, or::OrPartitionFilter, PartitionFilter,
     },
@@ -132,6 +133,9 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             ),
         )));
     }
+    partition_filters.push(Arc::new(MaxNumColumnsPartitionFilter::new(
+        config.max_num_columns_per_table,
+    )));
     partition_filters.append(&mut version_specific_partition_filters(config));
 
     let partition_resource_limit_filters: Vec<Arc<dyn PartitionFilter>> = vec![

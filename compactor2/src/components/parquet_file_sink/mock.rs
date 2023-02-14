@@ -105,7 +105,7 @@ mod tests {
     };
     use schema::SchemaBuilder;
 
-    use crate::test_utils::partition_info;
+    use crate::test_utils::PartitionInfoBuilder;
 
     use super::*;
 
@@ -124,7 +124,7 @@ mod tests {
             .build()
             .unwrap()
             .as_arrow();
-        let partition = partition_info();
+        let partition = Arc::new(PartitionInfoBuilder::new().build());
         let level = CompactionLevel::FileNonOverlapped;
         let max_l0_created_at = Time::from_timestamp_nanos(1);
 
@@ -218,7 +218,7 @@ mod tests {
             .build()
             .unwrap()
             .as_arrow();
-        let partition = partition_info();
+        let partition = Arc::new(PartitionInfoBuilder::new().build());
         let level = CompactionLevel::FileNonOverlapped;
         let max_l0_created_at = Time::from_timestamp_nanos(1);
 

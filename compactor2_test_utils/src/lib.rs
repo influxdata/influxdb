@@ -116,6 +116,7 @@ impl TestSetupBuilder<false> {
             simulate_without_object_store: false,
             parquet_files_sink_override: None,
             all_errors_are_fatal: true,
+            max_num_columns_per_table: 200,
         };
 
         Self {

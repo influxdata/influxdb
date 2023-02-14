@@ -1,9 +1,12 @@
 use std::fmt::Display;
 
 use async_trait::async_trait;
-use data_types::{ParquetFile, PartitionId};
+use data_types::ParquetFile;
 
-use crate::error::{DynError, ErrorKind, SimpleError};
+use crate::{
+    error::{DynError, ErrorKind, SimpleError},
+    PartitionInfo,
+};
 
 use super::PartitionFilter;
 
@@ -28,7 +31,7 @@ impl Display for MaxParquetBytesPartitionFilter {
 impl PartitionFilter for MaxParquetBytesPartitionFilter {
     async fn apply(
         &self,
-        partition_id: PartitionId,
+        partition_info: &PartitionInfo,
         files: &[ParquetFile],
     ) -> Result<bool, DynError> {
         let sum = files
@@ -43,7 +46,7 @@ impl PartitionFilter for MaxParquetBytesPartitionFilter {
                 ErrorKind::OutOfMemory,
                 format!(
                     "partition {} has {} parquet file bytes, limit is {}",
-                    partition_id, sum, self.max_parquet_bytes
+                    partition_info.partition_id, sum, self.max_parquet_bytes
                 ),
             )
             .into())
@@ -53,7 +56,9 @@ impl PartitionFilter for MaxParquetBytesPartitionFilter {
 
 #[cfg(test)]
 mod tests {
-    use crate::error::ErrorKindExt;
+    use std::sync::Arc;
+
+    use crate::{error::ErrorKindExt, test_utils::PartitionInfoBuilder};
     use iox_tests::ParquetFileBuilder;
 
     use super::*;
@@ -72,13 +77,16 @@ mod tests {
         let f1 = ParquetFileBuilder::new(1).with_file_size_bytes(7).build();
         let f2 = ParquetFileBuilder::new(2).with_file_size_bytes(4).build();
         let f3 = ParquetFileBuilder::new(3).with_file_size_bytes(3).build();
-        let p_id = PartitionId::new(1);
+        let p_info = Arc::new(PartitionInfoBuilder::new().with_partition_id(1).build());
 
-        assert!(filter.apply(p_id, &[]).await.unwrap());
-        assert!(filter.apply(p_id, &[f1.clone()]).await.unwrap());
-        assert!(filter.apply(p_id, &[f1.clone(), f3.clone()]).await.unwrap());
+        assert!(filter.apply(&p_info, &[]).await.unwrap());
+        assert!(filter.apply(&p_info, &[f1.clone()]).await.unwrap());
+        assert!(filter
+            .apply(&p_info, &[f1.clone(), f3.clone()])
+            .await
+            .unwrap());
 
-        let err = filter.apply(p_id, &[f1, f2]).await.unwrap_err();
+        let err = filter.apply(&p_info, &[f1, f2]).await.unwrap_err();
         assert_eq!(err.classify(), ErrorKind::OutOfMemory);
         assert_eq!(
             err.to_string(),
