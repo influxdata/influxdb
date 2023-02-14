@@ -58,7 +58,7 @@ impl Compactor2 {
                 _ = async {
                     compact(config.partition_concurrency, config.partition_timeout, Arc::clone(&job_semaphore), &components).await;
 
-                    info!("comapctor done");
+                    info!("compactor done");
                 } => {}
             }
         });
@@ -69,6 +69,7 @@ impl Compactor2 {
 
     /// Trigger shutdown. You should [join](Self::join) afterwards.
     pub fn shutdown(&self) {
+        info!("compactor shutting down");
         self.shutdown.cancel();
     }
 
