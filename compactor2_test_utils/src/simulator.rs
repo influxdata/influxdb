@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use compactor2::{DynError, ParquetFilesSink, PartitionInfo, PlanIR};
 
-use crate::format_files;
+use crate::{display_size, format_files};
 
 /// Simulates the result of running a compaction plan that
 /// produces multiple parquet files.
@@ -69,9 +69,17 @@ impl ParquetFileSimulator {
         runs.into_iter()
             .enumerate()
             .flat_map(|(i, run)| {
+                let total_input_size: i64 = run
+                    .input_parquet_files
+                    .iter()
+                    .map(|f| f.file_size_bytes)
+                    .sum();
                 let title = format!(
-                    "**** Simulation run {}, type={}. Input Files:",
-                    i, run.plan_type
+                    "**** Simulation run {}, type={}. {} Input Files, {} total:",
+                    i,
+                    run.plan_type,
+                    run.input_parquet_files.len(),
+                    display_size(total_input_size)
                 );
                 format_files(title, &run.input_parquet_files)
             })

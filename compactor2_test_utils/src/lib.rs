@@ -14,7 +14,7 @@
 
 mod display;
 mod simulator;
-pub use display::{format_files, format_files_split};
+pub use display::{display_size, format_files, format_files_split};
 use iox_query::exec::ExecutorType;
 use simulator::ParquetFileSimulator;
 use tracker::AsyncSemaphoreMetrics;
@@ -316,6 +316,27 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
     /// Set max_desired_file_size_bytes
     pub fn with_max_desired_file_size_bytes(mut self, max_desired_file_size_bytes: u64) -> Self {
         self.config.max_desired_file_size_bytes = max_desired_file_size_bytes;
+        self
+    }
+
+    /// Set percentage_max_file_size
+    pub fn with_percentage_max_file_size(mut self, percentage_max_file_size: u16) -> Self {
+        self.config.percentage_max_file_size = percentage_max_file_size;
+        self
+    }
+
+    /// Set split_percentage
+    pub fn with_split_percentage(mut self, split_percentage: u16) -> Self {
+        self.config.split_percentage = split_percentage;
+        self
+    }
+
+    /// Set max_input_parquet_bytes_per_partition
+    pub fn with_max_input_parquet_bytes_per_partition(
+        mut self,
+        max_input_parquet_bytes_per_partition: usize,
+    ) -> Self {
+        self.config.max_input_parquet_bytes_per_partition = max_input_parquet_bytes_per_partition;
         self
     }
 

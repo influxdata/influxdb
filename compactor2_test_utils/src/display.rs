@@ -260,7 +260,8 @@ fn display_file_id(file: &ParquetFile) -> String {
     format!("{level}.{id}")
 }
 
-fn display_size(sz: i64) -> String {
+/// Format a size for reasonable human reading
+pub fn display_size(sz: i64) -> String {
     let kbyte = 1024.0;
     let mbyte = 1024.0 * kbyte;
     let gbyte = 1024.0 * mbyte;
