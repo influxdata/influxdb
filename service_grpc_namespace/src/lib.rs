@@ -290,7 +290,7 @@ mod tests {
             .expect("no namespace in response");
         assert_eq!(updated_ns.name, created_ns.name);
         assert_eq!(updated_ns.id, created_ns.id);
-        assert_eq!(created_ns.retention_period_ns, Some(42));
+        assert_eq!(created_ns.retention_period_ns, Some(RETENTION));
         assert_eq!(updated_ns.retention_period_ns, None);
 
         // Listing the namespaces should return the updated namespace
