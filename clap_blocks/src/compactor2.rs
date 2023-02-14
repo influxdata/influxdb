@@ -88,11 +88,11 @@ pub struct Compactor2Config {
 
     /// Desired max size of compacted parquet files.
     /// It is a target desired value, rather than a guarantee.
-    /// 1024 * 1024 * 25 =  26,214,400 (25MB)
+    /// 1024 * 1024 * 100 =  104,857,600
     #[clap(
         long = "compaction-max-desired-size-bytes",
         env = "INFLUXDB_IOX_COMPACTION_MAX_DESIRED_FILE_SIZE_BYTES",
-        default_value = "26214400",
+        default_value = "104857600",
         action
     )]
     pub max_desired_file_size_bytes: u64,

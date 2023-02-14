@@ -97,5 +97,12 @@ mod tests {
             Arc::new(FalsePartitionFilter::new()),
         ]);
         assert!(!filter.apply(&p_info, &[]).await.unwrap());
+
+        let filter = OrPartitionFilter::new(vec![
+            Arc::new(FalsePartitionFilter::new()),
+            Arc::new(FalsePartitionFilter::new()),
+            Arc::new(TruePartitionFilter::new()),
+        ]);
+        assert!(filter.apply(&p_info, &[]).await.unwrap());
     }
 }
