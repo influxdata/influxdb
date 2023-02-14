@@ -13,8 +13,10 @@
 )]
 
 mod display;
+mod simulator;
 pub use display::{format_files, format_files_split};
 use iox_query::exec::ExecutorType;
+use simulator::ParquetFileSimulator;
 use tracker::AsyncSemaphoreMetrics;
 
 use std::{collections::HashSet, future::Future, num::NonZeroUsize, sync::Arc, time::Duration};
@@ -36,7 +38,7 @@ use schema::sort::SortKey;
 use compactor2::{
     compact,
     config::{AlgoVersion, Config, PartitionsSourceConfig},
-    hardcoded_components, Components, PanicDataFusionPlanner, ParquetFileSimulator, PartitionInfo,
+    hardcoded_components, Components, PanicDataFusionPlanner, PartitionInfo,
 };
 
 // Default values for the test setup builder
@@ -112,6 +114,7 @@ impl TestSetupBuilder<false> {
             min_num_l1_files_to_compact: MIN_NUM_L1_FILES_TO_COMPACT,
             process_once: true,
             simulate_without_object_store: false,
+            parquet_files_sink_override: None,
             all_errors_are_fatal: true,
         };
 
@@ -305,6 +308,7 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
     /// set simulate_without_object_store
     pub fn simulate_without_object_store(mut self) -> Self {
         self.config.simulate_without_object_store = true;
+        self.config.parquet_files_sink_override = Some(Arc::new(ParquetFileSimulator::new()));
         self
     }
 

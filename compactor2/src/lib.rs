@@ -183,11 +183,12 @@ mod plan_ir;
 // publically expose items needed for testing
 pub use components::{
     df_planner::panic::PanicDataFusionPlanner, hardcoded::hardcoded_components,
-    namespaces_source::mock::NamespaceWrapper, parquet_files_sink::simulator::ParquetFileSimulator,
-    Components,
+    namespaces_source::mock::NamespaceWrapper, parquet_files_sink::ParquetFilesSink, Components,
 };
 pub use driver::compact;
+pub use error::DynError;
 pub use partition_info::PartitionInfo;
+pub use plan_ir::PlanIR;
 
 #[cfg(test)]
 mod test_utils;

@@ -208,6 +208,7 @@ pub async fn create_compactor2_server_type(
         min_num_l1_files_to_compact: compactor_config.min_num_l1_files_to_compact,
         process_once: compactor_config.process_once,
         simulate_without_object_store: false,
+        parquet_files_sink_override: None,
         all_errors_are_fatal: false,
     });
 

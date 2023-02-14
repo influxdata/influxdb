@@ -5,7 +5,7 @@ use data_types::{CompactionLevel, ParquetFile, PartitionId};
 use iox_tests::TestParquetFileBuilder;
 
 use compactor2::config::AlgoVersion;
-use compactor2_test_utils::{format_files, list_object_store, TestSetup};
+use compactor2_test_utils::{format_files, list_object_store, TestSetup, TestSetupBuilder};
 
 #[tokio::test]
 async fn test_compact_no_file() {
@@ -532,6 +532,8 @@ async fn assert_skipped_compactions<const N: usize>(
 // (TODO move these to a separate module)
 // ----------------------------
 
+const ONE_MB: u64 = 1024 * 1024;
+
 /// creates a TestParquetFileBuilder setup for layout tests
 fn parquet_builder() -> TestParquetFileBuilder {
     TestParquetFileBuilder::default()
@@ -540,23 +542,32 @@ fn parquet_builder() -> TestParquetFileBuilder {
         .with_line_protocol("table,tag1=A,tag2=B,tag3=C field_int=1i 100")
 }
 
-/// runs the scenario and returns a string based output for comparison
-async fn run_layout_scenario(setup: &TestSetup, input_files: Vec<ParquetFile>) -> Vec<String> {
-    setup.catalog.time_provider.inc(Duration::from_nanos(200));
+/// Creates the default TestSetupBuilder for layout tests
+async fn layout_setup_builder() -> TestSetupBuilder<false> {
+    // Goal is to keep these as close to the compactor defaults (in
+    // clap_blocks) as possible so we can predict what the compactor
+    // will do in production with default settings
+    TestSetup::builder()
+        .await
+        .with_compact_version(AlgoVersion::TargetLevel)
+        .with_min_num_l1_files_to_compact(10)
+        .simulate_without_object_store()
+}
 
-    // record the input files
-    let mut output = format_files("**** Input Files", &input_files);
+/// runs the scenario and returns a string based output for comparison
+async fn run_layout_scenario(setup: &TestSetup) -> Vec<String> {
+    setup.catalog.time_provider.inc(Duration::from_nanos(200));
 
     // run the actual compaction
     let compact_result = setup.run_compact().await;
     assert_skipped_compactions(setup, []).await;
 
     // record what the compactor actually did
-    output.extend(compact_result.simulator_runs);
+    let mut output = compact_result.simulator_runs;
 
-    // record the output files
+    // record the final state of the catalog
     let output_files = setup.list_by_table_not_to_delete().await;
-    output.extend(format_files("**** Output Files", &output_files));
+    output.extend(format_files("**** Final Output Files ", &output_files));
 
     output
 }
@@ -564,50 +575,43 @@ async fn run_layout_scenario(setup: &TestSetup, input_files: Vec<ParquetFile>) -
 #[tokio::test]
 async fn layout_all_overlapping() {
     test_helpers::maybe_start_logging();
-    let one_mb = 1024 * 1024;
 
-    let setup = TestSetup::builder()
+    let setup = layout_setup_builder()
         .await
-        .simulate_without_object_store()
-        .with_max_desired_file_size_bytes(20 * one_mb)
+        .with_max_desired_file_size_bytes(20 * ONE_MB)
         .build()
         .await;
 
     // create virtual files
-    let mut input_files = vec![];
     for _ in 0..10 {
-        let file = setup
+        setup
             .partition
             .create_parquet_file(
                 parquet_builder()
                     .with_min_time(100)
                     .with_max_time(200)
-                    .with_file_size_bytes(one_mb),
+                    .with_file_size_bytes(ONE_MB),
             )
-            .await
-            .parquet_file;
-        input_files.push(file);
+            .await;
     }
 
     insta::assert_yaml_snapshot!(
-        run_layout_scenario(&setup, input_files).await,
+        run_layout_scenario(&setup).await,
         @r###"
     ---
-    - "**** Input Files"
+    - "**** Simulation run 0, type=split(split_times=[180]). Input Files:"
     - "L0, all files 1mb                                                                                   "
-    - "L0.1[100,200]       |-------------------------------------L0.1-------------------------------------|"
-    - "L0.2[100,200]       |-------------------------------------L0.2-------------------------------------|"
-    - "L0.3[100,200]       |-------------------------------------L0.3-------------------------------------|"
-    - "L0.4[100,200]       |-------------------------------------L0.4-------------------------------------|"
-    - "L0.5[100,200]       |-------------------------------------L0.5-------------------------------------|"
-    - "L0.6[100,200]       |-------------------------------------L0.6-------------------------------------|"
-    - "L0.7[100,200]       |-------------------------------------L0.7-------------------------------------|"
-    - "L0.8[100,200]       |-------------------------------------L0.8-------------------------------------|"
-    - "L0.9[100,200]       |-------------------------------------L0.9-------------------------------------|"
     - "L0.10[100,200]      |------------------------------------L0.10-------------------------------------|"
-    - "**** Simulation Run 0, type=split(split_times=[180])"
-    - "Input, 10 files: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10"
-    - "**** Output Files"
+    - "L0.9[100,200]       |-------------------------------------L0.9-------------------------------------|"
+    - "L0.8[100,200]       |-------------------------------------L0.8-------------------------------------|"
+    - "L0.7[100,200]       |-------------------------------------L0.7-------------------------------------|"
+    - "L0.6[100,200]       |-------------------------------------L0.6-------------------------------------|"
+    - "L0.5[100,200]       |-------------------------------------L0.5-------------------------------------|"
+    - "L0.4[100,200]       |-------------------------------------L0.4-------------------------------------|"
+    - "L0.3[100,200]       |-------------------------------------L0.3-------------------------------------|"
+    - "L0.2[100,200]       |-------------------------------------L0.2-------------------------------------|"
+    - "L0.1[100,200]       |-------------------------------------L0.1-------------------------------------|"
+    - "**** Final Output Files "
     - "L1                                                                                                  "
     - "L1.11[100,180] 8mb  |----------------------------L1.11-----------------------------|                "
     - "L1.12[180,200] 2mb                                                                  |----L1.12-----|"
@@ -618,13 +622,11 @@ async fn layout_all_overlapping() {
 #[tokio::test]
 async fn layout_l1_with_new_non_overlapping_l0() {
     test_helpers::maybe_start_logging();
-    let one_hundred_mb = 100 * 1024 * 1024;
     let five_kb = 5 * 1024;
 
-    let setup = TestSetup::builder()
+    let setup = layout_setup_builder()
         .await
-        .simulate_without_object_store()
-        .with_max_desired_file_size_bytes(one_hundred_mb)
+        .with_max_desired_file_size_bytes(100 * ONE_MB)
         .build()
         .await;
 
@@ -633,23 +635,20 @@ async fn layout_l1_with_new_non_overlapping_l0() {
     //
     // L1: 100MB, 100MB, 100MB, 100MB
     // L0: 5k, 5k, 5k, 5k, 5k (all non overlapping with the L1 files)
-    let mut input_files = vec![];
     for i in 0..4 {
-        let file = setup
+        setup
             .partition
             .create_parquet_file(
                 parquet_builder()
                     .with_min_time(50 + i * 50)
                     .with_max_time(100 + i * 50)
                     .with_compaction_level(CompactionLevel::FileNonOverlapped)
-                    .with_file_size_bytes(one_hundred_mb),
+                    .with_file_size_bytes(100 * ONE_MB),
             )
-            .await
-            .parquet_file;
-        input_files.push(file);
+            .await;
     }
     for i in 0..5 {
-        let file = setup
+        setup
             .partition
             .create_parquet_file(
                 parquet_builder()
@@ -657,37 +656,35 @@ async fn layout_l1_with_new_non_overlapping_l0() {
                     .with_max_time(350 + i * 50)
                     .with_file_size_bytes(five_kb),
             )
-            .await
-            .parquet_file;
-        input_files.push(file);
+            .await;
     }
 
     setup.catalog.time_provider.inc(Duration::from_nanos(200));
 
     insta::assert_yaml_snapshot!(
-        run_layout_scenario(&setup, input_files).await,
+        run_layout_scenario(&setup).await,
         @r###"
     ---
-    - "**** Input Files"
-    - "L0                                                                                                  "
-    - "L0.5[300,350] 5kb                                           |-L0.5-|                                "
-    - "L0.6[350,400] 5kb                                                   |-L0.6-|                        "
-    - "L0.7[400,450] 5kb                                                           |-L0.7-|                "
-    - "L0.8[450,500] 5kb                                                                   |-L0.8-|        "
-    - "L0.9[500,550] 5kb                                                                           |-L0.9-|"
+    - "**** Simulation run 0, type=compact. Input Files:"
+    - "L0, all files 5kb                                                                                   "
+    - "L0.9[500,550]                                                                       |-----L0.9-----|"
+    - "L0.8[450,500]                                                       |-----L0.8-----|                "
+    - "L0.7[400,450]                                       |-----L0.7-----|                                "
+    - "L0.6[350,400]                       |-----L0.6-----|                                                "
+    - "L0.5[300,350]       |-----L0.5-----|                                                                "
+    - "**** Simulation run 1, type=split(split_times=[175, 300, 425]). Input Files:"
     - "L1                                                                                                  "
-    - "L1.1[50,100] 100mb  |-L1.1-|                                                                        "
-    - "L1.2[100,150] 100mb         |-L1.2-|                                                                "
-    - "L1.3[150,200] 100mb                 |-L1.3-|                                                        "
     - "L1.4[200,250] 100mb                         |-L1.4-|                                                "
-    - "**** Simulation Run 0, type=split(split_times=[175, 300, 425])"
-    - "Input, 9 files: 1, 2, 3, 4, 5, 6, 7, 8, 9"
-    - "**** Output Files"
-    - "L1, all files 100.01mb                                                                              "
-    - "L1.10[50,175]       |------L1.10-------|                                                            "
-    - "L1.11[175,300]                          |------L1.11-------|                                        "
-    - "L1.12[300,425]                                              |------L1.12-------|                    "
-    - "L1.13[425,550]                                                                  |------L1.13-------|"
+    - "L1.3[150,200] 100mb                 |-L1.3-|                                                        "
+    - "L1.2[100,150] 100mb         |-L1.2-|                                                                "
+    - "L1.1[50,100] 100mb  |-L1.1-|                                                                        "
+    - "L1.10[300,550] 25kb                                         |----------------L1.10-----------------|"
+    - "**** Final Output Files "
+    - "L2, all files 100.01mb                                                                              "
+    - "L2.11[50,175]       |------L2.11-------|                                                            "
+    - "L2.12[175,300]                          |------L2.12-------|                                        "
+    - "L2.13[300,425]                                              |------L2.13-------|                    "
+    - "L2.14[425,550]                                                                  |------L2.14-------|"
     "###
     );
 }
@@ -697,10 +694,9 @@ async fn layout_l1_with_new_non_overlapping_l0_larger() {
     test_helpers::maybe_start_logging();
     let one_mb = 1024 * 1024;
 
-    let setup = TestSetup::builder()
+    let setup = layout_setup_builder()
         .await
-        .simulate_without_object_store()
-        .with_max_desired_file_size_bytes(100 * one_mb)
+        .with_max_desired_file_size_bytes(100 * ONE_MB)
         .build()
         .await;
 
@@ -709,10 +705,9 @@ async fn layout_l1_with_new_non_overlapping_l0_larger() {
     //
     // L1: 20MB, 50MB, 20MB, 3MB
     // L0: 5MB, 5MB, 5MB
-    let mut input_files = vec![];
     for (i, sz) in [20, 50, 20, 3].iter().enumerate() {
         let i = i as i64;
-        let file = setup
+        setup
             .partition
             .create_parquet_file(
                 parquet_builder()
@@ -721,12 +716,10 @@ async fn layout_l1_with_new_non_overlapping_l0_larger() {
                     .with_compaction_level(CompactionLevel::FileNonOverlapped)
                     .with_file_size_bytes(sz * one_mb),
             )
-            .await
-            .parquet_file;
-        input_files.push(file);
+            .await;
     }
     for i in 0..3 {
-        let file = setup
+        setup
             .partition
             .create_parquet_file(
                 parquet_builder()
@@ -734,33 +727,32 @@ async fn layout_l1_with_new_non_overlapping_l0_larger() {
                     .with_max_time(350 + i * 50)
                     .with_file_size_bytes(5 * one_mb),
             )
-            .await
-            .parquet_file;
-        input_files.push(file);
+            .await;
     }
 
     setup.catalog.time_provider.inc(Duration::from_nanos(200));
 
     insta::assert_yaml_snapshot!(
-        run_layout_scenario(&setup, input_files).await,
+        run_layout_scenario(&setup).await,
         @r###"
     ---
-    - "**** Input Files"
-    - "L0                                                                                                  "
-    - "L0.5[300,350] 5mb                                                     |--L0.5--|                    "
-    - "L0.6[350,400] 5mb                                                               |--L0.6--|          "
-    - "L0.7[400,450] 5mb                                                                         |--L0.7--|"
+    - "**** Simulation run 0, type=split(split_times=[420]). Input Files:"
+    - "L0, all files 5mb                                                                                   "
+    - "L0.7[400,450]                                                            |----------L0.7----------| "
+    - "L0.6[350,400]                                 |----------L0.6----------|                            "
+    - "L0.5[300,350]       |----------L0.5----------|                                                      "
+    - "**** Simulation run 1, type=split(split_times=[421]). Input Files:"
     - "L1                                                                                                  "
-    - "L1.1[50,100] 20mb   |--L1.1--|                                                                      "
-    - "L1.2[100,150] 50mb            |--L1.2--|                                                            "
-    - "L1.3[150,200] 20mb                      |--L1.3--|                                                  "
     - "L1.4[200,250] 3mb                                 |--L1.4--|                                        "
-    - "**** Simulation Run 0, type=split(split_times=[421])"
-    - "Input, 7 files: 1, 2, 3, 4, 5, 6, 7"
-    - "**** Output Files"
-    - "L1                                                                                                  "
-    - "L1.8[50,421] 100.17mb|----------------------------------L1.8----------------------------------|      "
-    - "L1.9[421,450] 7.83mb                                                                          |L1.9|"
+    - "L1.3[150,200] 20mb                      |--L1.3--|                                                  "
+    - "L1.2[100,150] 50mb            |--L1.2--|                                                            "
+    - "L1.1[50,100] 20mb   |--L1.1--|                                                                      "
+    - "L1.9[420,450] 3mb                                                                             |L1.9|"
+    - "L1.8[300,420] 12mb                                                    |---------L1.8---------|      "
+    - "**** Final Output Files "
+    - "L2                                                                                                  "
+    - "L2.10[50,421] 100.17mb|---------------------------------L2.10----------------------------------|      "
+    - "L2.11[421,450] 7.83mb                                                                          |L2.11|"
     "###
     );
 }

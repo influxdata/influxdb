@@ -35,6 +35,7 @@ pub fn log_config(config: &Config) {
         compact_version,
         min_num_l1_files_to_compact,
         process_once,
+        parquet_files_sink_override: parquet_files_sink,
         simulate_without_object_store,
         all_errors_are_fatal,
     } = &config;
@@ -48,6 +49,10 @@ pub fn log_config(config: &Config) {
         }
     };
 
+    let parquet_files_sink = parquet_files_sink
+        .as_ref()
+        .map(|_| "Some")
+        .unwrap_or("None");
     info!(
         shard_id=shard_id.get(),
         ?metric_registry,
@@ -76,6 +81,7 @@ pub fn log_config(config: &Config) {
         min_num_l1_files_to_compact,
         process_once,
         simulate_without_object_store,
+        %parquet_files_sink,
         all_errors_are_fatal,
         "config",
     );
