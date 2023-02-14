@@ -7,6 +7,7 @@ use generated_types::{
 use influxdb_storage_client::{connection::Connection, Client, OrgAndBucket};
 use influxrpc_parser::predicate;
 use iox_time;
+use observability_deps::tracing::info;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{num::NonZeroU64, time::Duration};
 use tonic::Status;
@@ -262,14 +263,16 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
     let now = std::time::Instant::now();
     match config.command {
         Command::MeasurementFields(m) => {
+            let request = request::measurement_fields(
+                source,
+                m.measurement,
+                config.start,
+                config.stop,
+                predicate,
+            );
+            info!(?request, "measurement_fields");
             let result = client
-                .measurement_fields(request::measurement_fields(
-                    source,
-                    m.measurement,
-                    config.start,
-                    config.stop,
-                    predicate,
-                ))
+                .measurement_fields(request)
                 .await
                 .context(ServerSnafu)?;
             match config.format {
@@ -278,14 +281,16 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             }
         }
         Command::MeasurementTagKeys(m) => {
+            let request = request::measurement_tag_keys(
+                source,
+                m.measurement,
+                config.start,
+                config.stop,
+                predicate,
+            );
+            info!(?request, "measurement_tag_keys");
             let result = client
-                .measurement_tag_keys(request::measurement_tag_keys(
-                    source,
-                    m.measurement,
-                    config.start,
-                    config.stop,
-                    predicate,
-                ))
+                .measurement_tag_keys(request)
                 .await
                 .context(ServerSnafu)?;
             match config.format {
@@ -294,53 +299,46 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             }
         }
         Command::ReadFilter => {
-            let result = client
-                .read_filter(request::read_filter(
-                    source,
-                    config.start,
-                    config.stop,
-                    predicate,
-                ))
-                .await
-                .context(ServerSnafu)?;
+            let request = request::read_filter(source, config.start, config.stop, predicate);
+            info!(?request, "read_filter");
+            let result = client.read_filter(request).await.context(ServerSnafu)?;
             match config.format {
                 Format::Pretty => response::pretty_print_frames(&result).context(ResponseSnafu)?,
                 Format::Quiet => {}
             }
         }
         Command::ReadGroup(rg) => {
-            let result = client
-                .read_group(request::read_group(
-                    source,
-                    config.start,
-                    config.stop,
-                    predicate,
-                    rg.aggregate,
-                    rg.group,
-                    rg.group_keys,
-                ))
-                .await
-                .context(ServerSnafu)?;
+            let request = request::read_group(
+                source,
+                config.start,
+                config.stop,
+                predicate,
+                rg.aggregate,
+                rg.group,
+                rg.group_keys,
+            );
+            info!(?request, "read_group");
+            let result = client.read_group(request).await.context(ServerSnafu)?;
             match config.format {
                 Format::Pretty => response::pretty_print_frames(&result).context(ResponseSnafu)?,
                 Format::Quiet => {}
             }
         }
         Command::ReadWindowAggregate(rwa) => {
+            let request = request::read_window_aggregate(
+                source,
+                config.start,
+                config.stop,
+                predicate,
+                rwa.window_every,
+                rwa.offset,
+                rwa.aggregate,
+                None, // TODO(edd): determine if window needs to be set
+            )
+            .context(RequestSnafu)?;
+            info!(?request, "read_window_aggregate");
             let result = client
-                .read_window_aggregate(
-                    request::read_window_aggregate(
-                        source,
-                        config.start,
-                        config.stop,
-                        predicate,
-                        rwa.window_every,
-                        rwa.offset,
-                        rwa.aggregate,
-                        None, // TODO(edd): determine if window needs to be set
-                    )
-                    .context(RequestSnafu)?,
-                )
+                .read_window_aggregate(request)
                 .await
                 .context(ServerSnafu)?;
 
@@ -350,16 +348,10 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             }
         }
         Command::TagValues(tv) => {
-            let result = client
-                .tag_values(request::tag_values(
-                    source,
-                    config.start,
-                    config.stop,
-                    predicate,
-                    tv.tag_key,
-                ))
-                .await
-                .context(ServerSnafu)?;
+            let request =
+                request::tag_values(source, config.start, config.stop, predicate, tv.tag_key);
+            info!(?request, "tag_values");
+            let result = client.tag_values(request).await.context(ServerSnafu)?;
             match config.format {
                 Format::Pretty => response::pretty_print_strings(result).context(ResponseSnafu)?,
                 Format::Quiet => {}
