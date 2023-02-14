@@ -1355,7 +1355,7 @@ impl Deduplicater {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::test::{raw_data, TestChunk};
+    use crate::test::{format_plan, raw_data, TestChunk};
     use arrow::datatypes::DataType;
     use arrow_util::{
         assert_batches_eq, assert_batches_sorted_eq, test_util::equalize_batch_schemas,
@@ -2852,43 +2852,28 @@ mod test {
             .unwrap();
 
         // plan should include SortExec because chunks are not yet sorted
-        let plan_str = format!("{}", displayable(plan.as_ref()).indent());
-        // println!("{}", plan_str);
-        // The plan should look like this
-        // UnionExec
-        //     DeduplicateExec: [tag1@1 ASC,time@2 ASC]
-        //         SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]
-        //             UnionExec
-        //                 SortExec: [tag1@1 ASC,time@2 ASC]                   <-- needed for deduplication
-        //                     RecordBatchesExec: batches_groups=1 batches=1
-        //                 SortExec: [tag1@1 ASC,time@2 ASC]                   <-- needed for deduplication
-        //                     RecordBatchesExec: batches_groups=1 batches=1
-        //     DeduplicateExec: [tag1@1 ASC,time@2 ASC]
-        //         SortExec: [tag1@1 ASC,time@2 ASC]                           <-- needed for deduplication
-        //             RecordBatchesExec: batches_groups=1 batches=1
-        //     RecordBatchesExec: batches_groups=1 batches=1                   <-- no sort above this because it
-        //                                                                         does not need to get deduplicated
-        //                                                                         and the plan output is not sorted
-
-        //  Verify 3 SortExec
-        let count = plan_str.matches("SortExec").count();
-        assert_eq!(count, 3);
-
-        // Verify 4 RecordBatchesExec
-        let count = plan_str.matches("RecordBatchesExec").count();
-        assert_eq!(count, 4);
-
-        // Verify 2 DeduplicateExec
-        let count = plan_str.matches("DeduplicateExec").count();
-        assert_eq!(count, 2);
-
-        // Verify 2 UnionExec
-        let count = plan_str.matches("UnionExec").count();
-        assert_eq!(count, 2);
-
-        // Verify 1 SortPreservingMergeExec
-        let count = plan_str.matches("SortPreservingMergeExec").count();
-        assert_eq!(count, 1);
+        insta::assert_yaml_snapshot!(
+            format_plan(&plan),
+            @r###"
+        ---
+        - " UnionExec"
+        - "   DeduplicateExec: [tag1@1 ASC,time@2 ASC]"
+        - "     SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]"
+        - "       UnionExec"
+        - "         SortExec: [tag1@1 ASC,time@2 ASC]"
+        - "           UnionExec"
+        - "             RecordBatchesExec: batches_groups=1 batches=1 total_rows=10"
+        - "         SortExec: [tag1@1 ASC,time@2 ASC]"
+        - "           UnionExec"
+        - "             RecordBatchesExec: batches_groups=1 batches=1 total_rows=5"
+        - "   DeduplicateExec: [tag1@1 ASC,time@2 ASC]"
+        - "     SortExec: [tag1@1 ASC,time@2 ASC]"
+        - "       UnionExec"
+        - "         RecordBatchesExec: batches_groups=1 batches=1 total_rows=4"
+        - "   UnionExec"
+        - "     RecordBatchesExec: batches_groups=1 batches=1 total_rows=3"
+        "###
+        );
 
         let batch = test_collect(plan).await;
         // Final data is partially sorted with duplicates removed. Detailed:
@@ -2928,9 +2913,14 @@ mod test {
             .unwrap();
 
         // Plan is very simple with one single RecordBatchesExec that includes 4 chunks
-        let plan_str = format!("{}", displayable(plan.as_ref()).indent());
-        let expected_plan = "RecordBatchesExec: batches_groups=4 batches=4 total_rows=22\n";
-        assert_eq!(plan_str, expected_plan);
+        insta::assert_yaml_snapshot!(
+            format_plan(&plan),
+            @r###"
+        ---
+        - " UnionExec"
+        - "   RecordBatchesExec: batches_groups=4 batches=4 total_rows=22"
+        "###
+        );
 
         let batch = test_collect(plan).await;
         // Deduplication is disabled, the output shoudl be the same as the original data
@@ -3078,43 +3068,30 @@ mod test {
             .unwrap();
 
         // plan should include SortExec because chunks are not yet sorted on the specified sort_key
-        let plan_str = format!("{}", displayable(plan.as_ref()).indent());
-        // println!("{}", plan_str);
-        // The plan should look like this
-        // SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]
-        //     UnionExec
-        //         DeduplicateExec: [tag1@1 ASC,time@2 ASC]
-        //             SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]
-        //                 UnionExec
-        //                     SortExec: [tag1@1 ASC,time@2 ASC]  <-- needed for deduplication
-        //                         RecordBatchesExec: batches_groups=1 batches=1
-        //                     SortExec: [tag1@1 ASC,time@2 ASC]  <-- needed for deduplication
-        //                         RecordBatchesExec: batches_groups=1 batches=1
-        //         DeduplicateExec: [tag1@1 ASC,time@2 ASC]
-        //             SortExec: [tag1@1 ASC,time@2 ASC]         <-- needed for deduplication
-        //                 RecordBatchesExec: batches_groups=1 batches=1
-        //         SortExec: [tag1@1 ASC,time@2 ASC]              <-- needed because the plan output is asked to get sorted
-        //            RecordBatchesExec: batches_groups=1 batches=1
-
-        //  Verify 4 SortExec
-        let count = plan_str.matches("SortExec").count();
-        assert_eq!(count, 4);
-
-        // Verify 4 RecordBatchesExec
-        let count = plan_str.matches("RecordBatchesExec").count();
-        assert_eq!(count, 4);
-
-        // Verify 2 DeduplicateExec
-        let count = plan_str.matches("DeduplicateExec").count();
-        assert_eq!(count, 2);
-
-        // Verify 2 UnionExec
-        let count = plan_str.matches("UnionExec").count();
-        assert_eq!(count, 2);
-
-        // Verify 2 SortPreservingMergeExec
-        let count = plan_str.matches("SortPreservingMergeExec").count();
-        assert_eq!(count, 2);
+        insta::assert_yaml_snapshot!(
+            format_plan(&plan),
+            @r###"
+        ---
+        - " SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]"
+        - "   UnionExec"
+        - "     DeduplicateExec: [tag1@1 ASC,time@2 ASC]"
+        - "       SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]"
+        - "         UnionExec"
+        - "           SortExec: [tag1@1 ASC,time@2 ASC]"
+        - "             UnionExec"
+        - "               RecordBatchesExec: batches_groups=1 batches=1 total_rows=10"
+        - "           SortExec: [tag1@1 ASC,time@2 ASC]"
+        - "             UnionExec"
+        - "               RecordBatchesExec: batches_groups=1 batches=1 total_rows=5"
+        - "     DeduplicateExec: [tag1@1 ASC,time@2 ASC]"
+        - "       SortExec: [tag1@1 ASC,time@2 ASC]"
+        - "         UnionExec"
+        - "           RecordBatchesExec: batches_groups=1 batches=1 total_rows=4"
+        - "     SortExec: [tag1@1 ASC,time@2 ASC]"
+        - "       UnionExec"
+        - "         RecordBatchesExec: batches_groups=1 batches=1 total_rows=3"
+        "###
+        );
 
         let batch = test_collect(plan).await;
         // Final data must be sorted
@@ -3156,37 +3133,27 @@ mod test {
 
         // Since the  output must be sorted, the plan will include 4 SortExec, one for each chunk and
         // there will be a UnionExec and a SortPreservinngMergeExec on top to merge the sorted chunks
-        // "SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]
-        // \n  UnionExec
-        // \n    SortExec: [tag1@1 ASC,time@2 ASC]
-        // \n      RecordBatchesExec: batches_groups=1 batches=1
-        // \n    SortExec: [tag1@1 ASC,time@2 ASC]
-        // \n      RecordBatchesExec: batches_groups=1 batches=1
-        // \n    SortExec: [tag1@1 ASC,time@2 ASC]
-        // \n      RecordBatchesExec: batches_groups=1 batches=1
-        // \n    SortExec: [tag1@1 ASC,time@2 ASC]
-        // \n      RecordBatchesExec: batches_groups=1 batches=1
-        let plan_str = format!("{}", displayable(plan.as_ref()).indent());
-
-        //  Verify 4 SortExec
-        let count = plan_str.matches("SortExec").count();
-        assert_eq!(count, 4);
-
-        // Verify 4 RecordBatchesExec
-        let count = plan_str.matches("RecordBatchesExec").count();
-        assert_eq!(count, 4);
-
-        // Verify no DeduplicateExec
-        let count = plan_str.matches("DeduplicateExec").count();
-        assert_eq!(count, 0);
-
-        // Verify 1 UnionExec
-        let count = plan_str.matches("UnionExec").count();
-        assert_eq!(count, 1);
-
-        // Verify 1 SortPreservingMergeExec
-        let count = plan_str.matches("SortPreservingMergeExec").count();
-        assert_eq!(count, 1);
+        // plan should include SortExec because chunks are not yet sorted
+        insta::assert_yaml_snapshot!(
+            format_plan(&plan),
+            @r###"
+        ---
+        - " SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]"
+        - "   UnionExec"
+        - "     SortExec: [tag1@1 ASC,time@2 ASC]"
+        - "       UnionExec"
+        - "         RecordBatchesExec: batches_groups=1 batches=1 total_rows=10"
+        - "     SortExec: [tag1@1 ASC,time@2 ASC]"
+        - "       UnionExec"
+        - "         RecordBatchesExec: batches_groups=1 batches=1 total_rows=5"
+        - "     SortExec: [tag1@1 ASC,time@2 ASC]"
+        - "       UnionExec"
+        - "         RecordBatchesExec: batches_groups=1 batches=1 total_rows=3"
+        - "     SortExec: [tag1@1 ASC,time@2 ASC]"
+        - "       UnionExec"
+        - "         RecordBatchesExec: batches_groups=1 batches=1 total_rows=4"
+        "###
+        );
 
         let batch = test_collect(plan).await;
         // Deduplication is disabled, the output shoudl be the same as the original data
@@ -3194,7 +3161,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn alread_sorted_scan_plan_with_four_chunks_explain() {
+    async fn already_sorted_scan_plan_with_four_chunks_explain() {
         test_helpers::maybe_start_logging();
 
         // This test covers all kind of SORTED chunks: overlap, non-overlap without duplicates within, non-overlap with duplicates within
@@ -3264,38 +3231,26 @@ mod test {
 
         // The plan should look like this. No SortExec at all because
         // all chunks are already sorted on the same requested sort key
-        //
-        // SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]
-        //     UnionExec
-        //         DeduplicateExec: [tag1@1 ASC,time@2 ASC]
-        //             SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]
-        //                 UnionExec
-        //                     RecordBatchesExec: batches_groups=1 batches=1
-        //                     RecordBatchesExec: batches_groups=1 batches=1
-        //         DeduplicateExec: [tag1@1 ASC,time@2 ASC]
-        //             RecordBatchesExec: batches_groups=1 batches=1
-        //         RecordBatchesExec: batches_groups=1 batches=1
-        let plan_str = format!("{}", displayable(plan.as_ref()).indent());
-        println!("{plan_str}");
-
-        //  Verify no SortExec because chunks are already sorted on the specified sort_key
-        assert!(!plan_str.contains("SortExec"));
-
-        // Verify 4 RecordBatchesExec
-        let count = plan_str.matches("RecordBatchesExec").count();
-        assert_eq!(count, 4);
-
-        // Verify 2 DeduplicateExec
-        let count = plan_str.matches("DeduplicateExec").count();
-        assert_eq!(count, 2);
-
-        // Verify 2 UnionExec
-        let count = plan_str.matches("UnionExec").count();
-        assert_eq!(count, 2);
-
-        // Verify 2 SortPreservingMergeExec
-        let count = plan_str.matches("SortPreservingMergeExec").count();
-        assert_eq!(count, 2);
+        insta::assert_yaml_snapshot!(
+            format_plan(&plan),
+            @r###"
+        ---
+        - " SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]"
+        - "   UnionExec"
+        - "     DeduplicateExec: [tag1@1 ASC,time@2 ASC]"
+        - "       SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]"
+        - "         UnionExec"
+        - "           UnionExec"
+        - "             RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "           UnionExec"
+        - "             RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "     DeduplicateExec: [tag1@1 ASC,time@2 ASC]"
+        - "       UnionExec"
+        - "         RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "     UnionExec"
+        - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        "###
+        );
 
         // ----------------------------------
         // Test with disable_deduplication on
@@ -3304,13 +3259,6 @@ mod test {
 
         // Since all 4 chunks are sorted on the sort key, the plan should not include any sort
         // but a union and a sort preserving merge on top to merge them
-        //
-        // "SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]
-        // \n  UnionExec
-        // \n    RecordBatchesExec: batches_groups=1 batches=1
-        // \n    RecordBatchesExec: batches_groups=1 batches=1
-        // \n    RecordBatchesExec: batches_groups=1 batches=1
-        // \n    RecordBatchesExec: batches_groups=1 batches=1\n"
         let plan = deduplicator
             .build_scan_plan(
                 Arc::from("t"),
@@ -3320,26 +3268,22 @@ mod test {
                 Some(sort_key),
             )
             .unwrap();
-        let plan_str = format!("{}", displayable(plan.as_ref()).indent());
-
-        //  Verify no SortExec because chunks are already sorted on the specified sort_key
-        assert!(!plan_str.contains("SortExec"));
-
-        // Verify 4 RecordBatchesExec
-        let count = plan_str.matches("RecordBatchesExec").count();
-        assert_eq!(count, 4);
-
-        // Verify 2 DeduplicateExec
-        let count = plan_str.matches("DeduplicateExec").count();
-        assert_eq!(count, 0);
-
-        // Verify 2 UnionExec
-        let count = plan_str.matches("UnionExec").count();
-        assert_eq!(count, 1);
-
-        // Verify 2 SortPreservingMergeExec
-        let count = plan_str.matches("SortPreservingMergeExec").count();
-        assert_eq!(count, 1);
+        insta::assert_yaml_snapshot!(
+            format_plan(&plan),
+            @r###"
+        ---
+        - " SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]"
+        - "   UnionExec"
+        - "     UnionExec"
+        - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "     UnionExec"
+        - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "     UnionExec"
+        - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "     UnionExec"
+        - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        "###
+        );
     }
 
     #[tokio::test]
@@ -3495,49 +3439,43 @@ mod test {
 
         // The plan should look like this. No SortExec at all because
         // all chunks are already sorted on the same requested sort key
-        //
-        // SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]
-        //     UnionExec
-        //     DeduplicateExec: [tag1@1 ASC,time@2 ASC]
-        //         SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]
-        //             UnionExec
-        //                 RecordBatchesExec: batches_groups=1 batches=1
-        //                 RecordBatchesExec: batches_groups=1 batches=1
-        //     DeduplicateExec: [tag1@1 ASC,time@2 ASC]
-        //         SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]
-        //             UnionExec
-        //                 RecordBatchesExec: batches_groups=1 batches=1
-        //                 RecordBatchesExec: batches_groups=1 batches=1
-        //     DeduplicateExec: [tag1@1 ASC,time@2 ASC]
-        //         RecordBatchesExec: batches_groups=1 batches=1
-        //     DeduplicateExec: [tag1@1 ASC,time@2 ASC]
-        //         RecordBatchesExec: batches_groups=1 batches=1
-        //     DeduplicateExec: [tag1@1 ASC,time@2 ASC]
-        //         RecordBatchesExec: batches_groups=1 batches=1
-        //     RecordBatchesExec: batches_groups=1 batches=1
-        //     RecordBatchesExec: batches_groups=1 batches=1
-        //     RecordBatchesExec: batches_groups=1 batches=1
-        let plan_str = format!("{}", displayable(plan.as_ref()).indent());
-        println!("{plan_str}");
-
-        //  Verify no SortExec because chunks are already sorted on the specified sort_key
-        assert!(!plan_str.contains("SortExec"));
-
-        // Verify 10 RecordBatchesExec
-        let count = plan_str.matches("RecordBatchesExec").count();
-        assert_eq!(count, 10);
-
-        // Verify 5 DeduplicateExec
-        let count = plan_str.matches("DeduplicateExec").count();
-        assert_eq!(count, 5);
-
-        // Verify 3 UnionExec
-        let count = plan_str.matches("UnionExec").count();
-        assert_eq!(count, 3);
-
-        // Verify 3 SortPreservingMergeExec
-        let count = plan_str.matches("SortPreservingMergeExec").count();
-        assert_eq!(count, 3);
+        insta::assert_yaml_snapshot!(
+            format_plan(&plan),
+            @r###"
+        ---
+        - " SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]"
+        - "   UnionExec"
+        - "     DeduplicateExec: [tag1@1 ASC,time@2 ASC]"
+        - "       SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]"
+        - "         UnionExec"
+        - "           UnionExec"
+        - "             RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "           UnionExec"
+        - "             RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "     DeduplicateExec: [tag1@1 ASC,time@2 ASC]"
+        - "       SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]"
+        - "         UnionExec"
+        - "           UnionExec"
+        - "             RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "           UnionExec"
+        - "             RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "     DeduplicateExec: [tag1@1 ASC,time@2 ASC]"
+        - "       UnionExec"
+        - "         RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "     DeduplicateExec: [tag1@1 ASC,time@2 ASC]"
+        - "       UnionExec"
+        - "         RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "     DeduplicateExec: [tag1@1 ASC,time@2 ASC]"
+        - "       UnionExec"
+        - "         RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "     UnionExec"
+        - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "     UnionExec"
+        - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "     UnionExec"
+        - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        "###
+        );
 
         // ----------------------------------
         // Test with disable_deduplication on
@@ -3555,32 +3493,34 @@ mod test {
 
         // Since all 10 chunks each is sorted on the same otuput sort key, the plan should scan 10 chunks
         // without any SortExec nor DeduplicateExec. Only a UnionExec and a SortPreservingMergeExec on top to merge them
-        //
-        // "SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]
-        // \n  UnionExec
-        // \n    RecordBatchesExec: batches_groups=1 batches=1
-        // ..... (8 more RecordBatcheExec here)
-        // \n    RecordBatchesExec: batches_groups=1 batches=1\n"
-        let plan_str = format!("{}", displayable(plan.as_ref()).indent());
-
-        //  Verify no SortExec because chunks are already sorted on the specified sort_key
-        assert!(!plan_str.contains("SortExec"));
-
-        // Verify 10 RecordBatchesExec
-        let count = plan_str.matches("RecordBatchesExec").count();
-        assert_eq!(count, 10);
-
-        // Verify 5 DeduplicateExec
-        let count = plan_str.matches("DeduplicateExec").count();
-        assert_eq!(count, 0);
-
-        // Verify 3 UnionExec
-        let count = plan_str.matches("UnionExec").count();
-        assert_eq!(count, 1);
-
-        // Verify 3 SortPreservingMergeExec
-        let count = plan_str.matches("SortPreservingMergeExec").count();
-        assert_eq!(count, 1);
+        insta::assert_yaml_snapshot!(
+            format_plan(&plan),
+            @r###"
+        ---
+        - " SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]"
+        - "   UnionExec"
+        - "     UnionExec"
+        - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "     UnionExec"
+        - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "     UnionExec"
+        - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "     UnionExec"
+        - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "     UnionExec"
+        - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "     UnionExec"
+        - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "     UnionExec"
+        - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "     UnionExec"
+        - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "     UnionExec"
+        - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "     UnionExec"
+        - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        "###
+        );
     }
 
     fn chunk_ids(group: &[Arc<dyn QueryChunk>]) -> String {

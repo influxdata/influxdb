@@ -24,13 +24,13 @@ use data_types::{
     ChunkId, ChunkOrder, ColumnSummary, DeletePredicate, InfluxDbType, PartitionId, StatValues,
     Statistics, TableSummary,
 };
-use datafusion::catalog::catalog::CatalogProvider;
 use datafusion::catalog::schema::SchemaProvider;
 use datafusion::datasource::{TableProvider, TableType};
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
 use datafusion::physical_plan::ExecutionPlan;
+use datafusion::{catalog::catalog::CatalogProvider, physical_plan::displayable};
 use hashbrown::HashSet;
 use itertools::Itertools;
 use observability_deps::tracing::debug;
@@ -1218,4 +1218,17 @@ pub async fn raw_data(chunks: &[Arc<dyn QueryChunk>]) -> Vec<RecordBatch> {
         batches.append(&mut c.data().read_to_batches(c.schema(), ctx.inner()).await);
     }
     batches
+}
+
+pub fn format_plan(plan: &Arc<dyn ExecutionPlan>) -> Vec<String> {
+    let s = displayable(plan.as_ref()).indent().to_string();
+    s.trim()
+        .to_string()
+        .split('\n')
+        .map(|s| {
+            // Always add a leading space to ensure tha all lines in the YAML insta snapshots are quoted, otherwise the
+            // alignment gets messed up and the snapshot would be hard to read.
+            format!(" {s}")
+        })
+        .collect()
 }

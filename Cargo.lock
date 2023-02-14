@@ -2924,6 +2924,7 @@ dependencies = [
  "query_functions",
  "regex",
  "schema",
+ "serde",
  "snafu",
  "test_helpers",
  "tokio",

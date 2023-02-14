@@ -47,3 +47,4 @@ workspace-hack = { path = "../workspace-hack"}
 test_helpers = { path = "../test_helpers" }
 assert_matches = "1"
 insta = { version = "1", features = ["yaml"] }
+serde = { version = "1.0", features = ["derive"] }

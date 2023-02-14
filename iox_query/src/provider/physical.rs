@@ -206,11 +206,7 @@ pub fn chunks_to_physical_nodes(
     }
 
     assert!(!output_nodes.is_empty());
-    if output_nodes.len() == 1 {
-        output_nodes.pop().expect("checked length")
-    } else {
-        Arc::new(UnionExec::new(output_nodes))
-    }
+    Arc::new(UnionExec::new(output_nodes))
 }
 
 /// Distribute items from the given iterator into `n` containers.
