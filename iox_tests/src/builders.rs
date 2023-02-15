@@ -4,7 +4,7 @@ use data_types::{
 };
 use uuid::Uuid;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// Build up [`ParquetFile`]s for testing
 pub struct ParquetFileBuilder {
     file: ParquetFile,
@@ -90,6 +90,12 @@ impl ParquetFileBuilder {
     /// Create the [`ParquetFile`]
     pub fn build(self) -> ParquetFile {
         self.file
+    }
+}
+
+impl From<ParquetFile> for ParquetFileBuilder {
+    fn from(file: ParquetFile) -> Self {
+        Self { file }
     }
 }
 

@@ -991,6 +991,7 @@ dependencies = [
  "iox_query",
  "iox_tests",
  "iox_time",
+ "itertools",
  "metric",
  "object_store",
  "observability_deps",
