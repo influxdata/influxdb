@@ -87,7 +87,7 @@ impl CompactionLevel {
         match self {
             Self::Initial => Self::FileNonOverlapped,
             Self::FileNonOverlapped => Self::Final,
-            _ => Self::Final,
+            Self::Final => Self::Final,
         }
     }
 
@@ -96,7 +96,21 @@ impl CompactionLevel {
         match self {
             Self::Initial => Self::Initial,
             Self::FileNonOverlapped => Self::Initial,
-            _ => Self::FileNonOverlapped,
+            Self::Final => Self::FileNonOverlapped,
+        }
+    }
+
+    /// Returns all levels
+    pub fn all() -> &'static [Self] {
+        &[Self::Initial, Self::FileNonOverlapped, Self::Final]
+    }
+
+    /// Static name
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Initial => "L0",
+            Self::FileNonOverlapped => "L1",
+            Self::Final => "L2",
         }
     }
 }

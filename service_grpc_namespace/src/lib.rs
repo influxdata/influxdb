@@ -97,12 +97,24 @@ impl namespace_service_server::NamespaceService for NamespaceService {
 
     async fn delete_namespace(
         &self,
-        _request: Request<DeleteNamespaceRequest>,
+        request: Request<DeleteNamespaceRequest>,
     ) -> Result<Response<DeleteNamespaceResponse>, Status> {
-        warn!("call to namespace delete - unimplemented");
-        Err(Status::unimplemented(
-            "namespace delete is not yet supported",
-        ))
+        let namespace_name = request.into_inner().name;
+
+        self.catalog
+            .repositories()
+            .await
+            .namespaces()
+            .soft_delete(&namespace_name)
+            .await
+            .map_err(|e| {
+                warn!(error=%e, %namespace_name, "failed to soft-delete namespace");
+                Status::internal(e.to_string())
+            })?;
+
+        info!(namespace_name, "soft-deleted namespace");
+
+        Ok(Response::new(Default::default()))
     }
 
     async fn update_namespace_retention(
@@ -179,21 +191,138 @@ fn map_retention_period(v: Option<i64>) -> Result<Option<i64>, Status> {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
+    use assert_matches::assert_matches;
+    use generated_types::influxdata::iox::namespace::v1::namespace_service_server::NamespaceService as _;
+    use iox_catalog::mem::MemCatalog;
     use tonic::Code;
 
     use super::*;
 
+    const RETENTION: i64 = Duration::from_secs(42 * 60 * 60).as_nanos() as _;
+    const NS_NAME: &str = "bananas";
+
     #[test]
     fn test_retention_mapping() {
-        assert_matches::assert_matches!(map_retention_period(None), Ok(None));
-        assert_matches::assert_matches!(map_retention_period(Some(0)), Ok(None));
-        assert_matches::assert_matches!(map_retention_period(Some(1)), Ok(Some(1)));
-        assert_matches::assert_matches!(map_retention_period(Some(42)), Ok(Some(42)));
-        assert_matches::assert_matches!(map_retention_period(Some(-1)), Err(e) => {
+        assert_matches!(map_retention_period(None), Ok(None));
+        assert_matches!(map_retention_period(Some(0)), Ok(None));
+        assert_matches!(map_retention_period(Some(1)), Ok(Some(1)));
+        assert_matches!(map_retention_period(Some(42)), Ok(Some(42)));
+        assert_matches!(map_retention_period(Some(-1)), Err(e) => {
             assert_eq!(e.code(), Code::InvalidArgument)
         });
-        assert_matches::assert_matches!(map_retention_period(Some(-42)), Err(e) => {
+        assert_matches!(map_retention_period(Some(-42)), Err(e) => {
             assert_eq!(e.code(), Code::InvalidArgument)
         });
+    }
+
+    #[tokio::test]
+    async fn test_crud() {
+        let catalog: Arc<dyn Catalog> =
+            Arc::new(MemCatalog::new(Arc::new(metric::Registry::default())));
+
+        let topic = catalog
+            .repositories()
+            .await
+            .topics()
+            .create_or_get("kafka-topic")
+            .await
+            .unwrap();
+        let query_pool = catalog
+            .repositories()
+            .await
+            .query_pools()
+            .create_or_get("query-pool")
+            .await
+            .unwrap();
+
+        let handler = NamespaceService::new(catalog, Some(topic.id), Some(query_pool.id));
+
+        // There should be no namespaces to start with.
+        {
+            let current = handler
+                .get_namespaces(Request::new(Default::default()))
+                .await
+                .expect("must return namespaces")
+                .into_inner()
+                .namespaces;
+            assert!(current.is_empty());
+        }
+
+        let req = CreateNamespaceRequest {
+            name: NS_NAME.to_string(),
+            retention_period_ns: Some(RETENTION),
+        };
+        let created_ns = handler
+            .create_namespace(Request::new(req))
+            .await
+            .expect("failed to create namespace")
+            .into_inner()
+            .namespace
+            .expect("no namespace in response");
+        assert_eq!(created_ns.name, NS_NAME);
+        assert_eq!(created_ns.retention_period_ns, Some(RETENTION));
+
+        // There should now be one namespace
+        {
+            let current = handler
+                .get_namespaces(Request::new(Default::default()))
+                .await
+                .expect("must return namespaces")
+                .into_inner()
+                .namespaces;
+            assert_matches!(current.as_slice(), [ns] => {
+                assert_eq!(ns, &created_ns);
+            })
+        }
+
+        // Update the retention period
+        let updated_ns = handler
+            .update_namespace_retention(Request::new(UpdateNamespaceRetentionRequest {
+                name: NS_NAME.to_string(),
+                retention_period_ns: Some(0), // A zero!
+            }))
+            .await
+            .expect("failed to update namespace")
+            .into_inner()
+            .namespace
+            .expect("no namespace in response");
+        assert_eq!(updated_ns.name, created_ns.name);
+        assert_eq!(updated_ns.id, created_ns.id);
+        assert_eq!(created_ns.retention_period_ns, Some(RETENTION));
+        assert_eq!(updated_ns.retention_period_ns, None);
+
+        // Listing the namespaces should return the updated namespace
+        {
+            let current = handler
+                .get_namespaces(Request::new(Default::default()))
+                .await
+                .expect("must return namespaces")
+                .into_inner()
+                .namespaces;
+            assert_matches!(current.as_slice(), [ns] => {
+                assert_eq!(ns, &updated_ns);
+            })
+        }
+
+        // Deleting the namespace should cause it to disappear
+        handler
+            .delete_namespace(Request::new(DeleteNamespaceRequest {
+                name: NS_NAME.to_string(),
+            }))
+            .await
+            .expect("must delete");
+
+        // Listing the namespaces should now return nothing.
+        {
+            let current = handler
+                .get_namespaces(Request::new(Default::default()))
+                .await
+                .expect("must return namespaces")
+                .into_inner()
+                .namespaces;
+            assert_matches!(current.as_slice(), []);
+        }
     }
 }
