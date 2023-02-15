@@ -6,13 +6,6 @@ mod rpc_write;
 
 use std::{fmt::Debug, sync::Arc};
 
-use arrow_flight::flight_service_server::FlightServiceServer;
-use generated_types::influxdata::iox::{
-    catalog::v1::catalog_service_server::CatalogServiceServer,
-    ingester::v1::{
-        persist_service_server::PersistServiceServer, write_service_server::WriteServiceServer,
-    },
-};
 use iox_catalog::interface::Catalog;
 use service_grpc_catalog::CatalogService;
 
@@ -98,44 +91,41 @@ where
     /// Acquire a [`CatalogService`] gRPC service implementation.
     ///
     /// [`CatalogService`]: generated_types::influxdata::iox::catalog::v1::catalog_service_server::CatalogService.
-    fn catalog_service(&self) -> CatalogServiceServer<Self::CatalogHandler> {
-        CatalogServiceServer::new(CatalogService::new(Arc::clone(&self.catalog)))
+    fn catalog_service(&self) -> Self::CatalogHandler {
+        CatalogService::new(Arc::clone(&self.catalog))
     }
 
     /// Return a [`WriteService`] gRPC implementation.
     ///
     /// [`WriteService`]: generated_types::influxdata::iox::ingester::v1::write_service_server::WriteService.
-    fn write_service(&self) -> WriteServiceServer<Self::WriteHandler> {
-        WriteServiceServer::new(RpcWrite::new(
+    fn write_service(&self) -> Self::WriteHandler {
+        RpcWrite::new(
             Arc::clone(&self.dml_sink),
             Arc::clone(&self.timestamp),
             Arc::clone(&self.ingest_state),
-        ))
+        )
     }
 
     /// Return a [`PersistService`] gRPC implementation.
     ///
     /// [`PersistService`]: generated_types::influxdata::iox::ingester::v1::persist_service_server::PersistService.
-    fn persist_service(&self) -> PersistServiceServer<Self::PersistHandler> {
-        PersistServiceServer::new(PersistHandler::new(
+    fn persist_service(&self) -> Self::PersistHandler {
+        PersistHandler::new(
             Arc::clone(&self.buffer),
             Arc::clone(&self.persist_handle),
             Arc::clone(&self.catalog),
-        ))
+        )
     }
 
     /// Return an Arrow [`FlightService`] gRPC implementation.
     ///
     /// [`FlightService`]: arrow_flight::flight_service_server::FlightService
-    fn query_service(
-        &self,
-        max_simultaneous_requests: usize,
-    ) -> FlightServiceServer<Self::FlightHandler> {
-        FlightServiceServer::new(query::FlightService::new(
+    fn query_service(&self, max_simultaneous_requests: usize) -> Self::FlightHandler {
+        query::FlightService::new(
             Arc::clone(&self.query_exec),
             self.ingester_id,
             max_simultaneous_requests,
             &self.metrics,
-        ))
+        )
     }
 }

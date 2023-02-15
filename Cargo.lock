@@ -3120,9 +3120,11 @@ dependencies = [
 name = "ioxd_ingester2"
 version = "0.1.0"
 dependencies = [
+ "arrow-flight",
  "async-trait",
  "clap_blocks",
  "futures",
+ "generated_types",
  "hyper",
  "ingester2",
  "iox_catalog",

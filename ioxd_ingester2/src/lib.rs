@@ -1,6 +1,13 @@
+use arrow_flight::flight_service_server::FlightServiceServer;
 use async_trait::async_trait;
 use clap_blocks::ingester2::Ingester2Config;
 use futures::FutureExt;
+use generated_types::influxdata::iox::{
+    catalog::v1::catalog_service_server::CatalogServiceServer,
+    ingester::v1::{
+        persist_service_server::PersistServiceServer, write_service_server::WriteServiceServer,
+    },
+};
 use hyper::{Body, Request, Response};
 use ingester2::{IngesterGuard, IngesterRpcInterface};
 use iox_catalog::interface::Catalog;
@@ -89,14 +96,25 @@ impl<I: IngesterRpcInterface + Sync + Send + Debug + 'static> ServerType for Ing
     async fn server_grpc(self: Arc<Self>, builder_input: RpcBuilderInput) -> Result<(), RpcError> {
         let builder = setup_builder!(builder_input, self);
 
-        add_service!(builder, self.server.rpc().catalog_service());
-        add_service!(builder, self.server.rpc().write_service());
-        add_service!(builder, self.server.rpc().persist_service());
         add_service!(
             builder,
-            self.server
-                .rpc()
-                .query_service(self.max_simultaneous_queries)
+            CatalogServiceServer::new(self.server.rpc().catalog_service())
+        );
+        add_service!(
+            builder,
+            WriteServiceServer::new(self.server.rpc().write_service())
+        );
+        add_service!(
+            builder,
+            PersistServiceServer::new(self.server.rpc().persist_service())
+        );
+        add_service!(
+            builder,
+            FlightServiceServer::new(
+                self.server
+                    .rpc()
+                    .query_service(self.max_simultaneous_queries)
+            )
         );
 
         serve_builder!(builder);
