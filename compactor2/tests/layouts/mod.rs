@@ -472,8 +472,8 @@ async fn l1_too_much_with_non_overlapping_l0() {
 }
 
 #[tokio::test]
-// Test that compacts L1 files in second round if their number of files >= min_num_l1_files_to_compact
-async fn man_l1_with_non_overlapping_l0() {
+/// compacts L1 files in second round if their number of files >= min_num_l1_files_to_compact
+async fn many_l1_with_non_overlapping_l0() {
     test_helpers::maybe_start_logging();
 
     let setup = layout_setup_builder().await.build().await;
@@ -556,7 +556,7 @@ async fn man_l1_with_non_overlapping_l0() {
 }
 
 #[tokio::test]
-// Test that compacts L1 files in second round if their total size > max_desired_file_size
+/// Compacts L1 files in second round if their total size > max_desired_file_size
 async fn large_l1_with_non_overlapping_l0() {
     test_helpers::maybe_start_logging();
 
@@ -619,6 +619,104 @@ async fn large_l1_with_non_overlapping_l0() {
     - "L2                                                                                                  "
     - "L2.7[50,375] 100.21mb|------------------L2.7-------------------|                                     "
     - "L2.8[375,650] 84.79mb                                           |---------------L2.8---------------| "
+    "###
+    );
+}
+
+#[tokio::test]
+async fn many_l1_files() {
+    test_helpers::maybe_start_logging();
+
+    let setup = layout_setup_builder().await.build().await;
+
+    // L1: 20 non overlapping files (more than with_min_num_l1_files_to_compact)
+    for i in 0..20 {
+        setup
+            .partition
+            .create_parquet_file(
+                parquet_builder()
+                    .with_min_time(i)
+                    .with_max_time(i + 1)
+                    .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                    .with_file_size_bytes(10 * ONE_MB),
+            )
+            .await;
+    }
+    // L0: a few small files that overlap
+    for _ in 0..3 {
+        setup
+            .partition
+            .create_parquet_file(
+                parquet_builder()
+                    .with_min_time(24)
+                    .with_max_time(25)
+                    .with_file_size_bytes(ONE_MB),
+            )
+            .await;
+    }
+
+    insta::assert_yaml_snapshot!(
+        run_layout_scenario(&setup).await,
+        @r###"
+    ---
+    - "**** Input Files "
+    - "L0                                                                                                  "
+    - "L0.21[24,25] 1mb                                                                                |L0.21|"
+    - "L0.22[24,25] 1mb                                                                                |L0.22|"
+    - "L0.23[24,25] 1mb                                                                                |L0.23|"
+    - "L1                                                                                                  "
+    - "L1.1[0,1] 10mb      |L1.1|                                                                          "
+    - "L1.2[1,2] 10mb         |L1.2|                                                                       "
+    - "L1.3[2,3] 10mb            |L1.3|                                                                    "
+    - "L1.4[3,4] 10mb               |L1.4|                                                                 "
+    - "L1.5[4,5] 10mb                  |L1.5|                                                              "
+    - "L1.6[5,6] 10mb                      |L1.6|                                                          "
+    - "L1.7[6,7] 10mb                         |L1.7|                                                       "
+    - "L1.8[7,8] 10mb                            |L1.8|                                                    "
+    - "L1.9[8,9] 10mb                               |L1.9|                                                 "
+    - "L1.10[9,10] 10mb                                |L1.10|                                             "
+    - "L1.11[10,11] 10mb                                   |L1.11|                                         "
+    - "L1.12[11,12] 10mb                                      |L1.12|                                      "
+    - "L1.13[12,13] 10mb                                         |L1.13|                                   "
+    - "L1.14[13,14] 10mb                                            |L1.14|                                "
+    - "L1.15[14,15] 10mb                                               |L1.15|                             "
+    - "L1.16[15,16] 10mb                                                   |L1.16|                         "
+    - "L1.17[16,17] 10mb                                                      |L1.17|                      "
+    - "L1.18[17,18] 10mb                                                         |L1.18|                   "
+    - "L1.19[18,19] 10mb                                                            |L1.19|                "
+    - "L1.20[19,20] 10mb                                                               |L1.20|             "
+    - "**** Simulation run 0, type=compact. 3 Input Files, 3mb total:"
+    - "L0, all files 1mb                                                                                   "
+    - "L0.23[24,25]        |------------------------------------L0.23-------------------------------------|"
+    - "L0.22[24,25]        |------------------------------------L0.22-------------------------------------|"
+    - "L0.21[24,25]        |------------------------------------L0.21-------------------------------------|"
+    - "**** Simulation run 1, type=split(split_times=[13]). 21 Input Files, 203mb total:"
+    - "L1                                                                                                  "
+    - "L1.20[19,20] 10mb                                                               |L1.20|             "
+    - "L1.19[18,19] 10mb                                                            |L1.19|                "
+    - "L1.18[17,18] 10mb                                                         |L1.18|                   "
+    - "L1.17[16,17] 10mb                                                      |L1.17|                      "
+    - "L1.16[15,16] 10mb                                                   |L1.16|                         "
+    - "L1.15[14,15] 10mb                                               |L1.15|                             "
+    - "L1.14[13,14] 10mb                                            |L1.14|                                "
+    - "L1.13[12,13] 10mb                                         |L1.13|                                   "
+    - "L1.12[11,12] 10mb                                      |L1.12|                                      "
+    - "L1.11[10,11] 10mb                                   |L1.11|                                         "
+    - "L1.10[9,10] 10mb                                |L1.10|                                             "
+    - "L1.9[8,9] 10mb                               |L1.9|                                                 "
+    - "L1.8[7,8] 10mb                            |L1.8|                                                    "
+    - "L1.7[6,7] 10mb                         |L1.7|                                                       "
+    - "L1.6[5,6] 10mb                      |L1.6|                                                          "
+    - "L1.5[4,5] 10mb                  |L1.5|                                                              "
+    - "L1.4[3,4] 10mb               |L1.4|                                                                 "
+    - "L1.3[2,3] 10mb            |L1.3|                                                                    "
+    - "L1.2[1,2] 10mb         |L1.2|                                                                       "
+    - "L1.1[0,1] 10mb      |L1.1|                                                                          "
+    - "L1.24[24,25] 3mb                                                                                |L1.24|"
+    - "**** Final Output Files "
+    - "L2                                                                                                  "
+    - "L2.25[0,13] 105.56mb|-----------------L2.25-----------------|                                       "
+    - "L2.26[13,25] 97.44mb                                         |---------------L2.26----------------| "
     "###
     );
 }
