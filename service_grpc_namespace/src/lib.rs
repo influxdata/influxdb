@@ -284,7 +284,7 @@ mod tests {
                 retention_period_ns: Some(0), // A zero!
             }))
             .await
-            .expect("failed to create namespace")
+            .expect("failed to update namespace")
             .into_inner()
             .namespace
             .expect("no namespace in response");

@@ -175,7 +175,7 @@ async fn test_namespace_delete() {
         .expect("write failed");
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
-    // The RPC endpoint must not return the namespace.
+    // The RPC endpoint must return a namespace.
     {
         let current = ctx
             .grpc_delegate()
