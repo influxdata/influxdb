@@ -184,6 +184,11 @@ async fn try_compact_partition(
 
     // loop for each "Round", consider each file in the partition
     loop {
+        let round_info = components
+            .round_info_source
+            .calculate(&partition_info, &files)
+            .await?;
+
         files = components.files_filter.apply(files);
 
         // This is the stop condition which will be different for different version of compaction
@@ -196,10 +201,12 @@ async fn try_compact_partition(
             return Ok(());
         }
 
-        let (files_now, files_later) = components.round_split.split(files);
+        let (files_now, files_later) = components.round_split.split(files, round_info.as_ref());
 
         // Each branch must not overlap with each other
-        let mut branches = components.divide_initial.divide(files_now);
+        let mut branches = components
+            .divide_initial
+            .divide(files_now, round_info.as_ref());
 
         let mut files_next = files_later;
         // loop for each "Branch"
@@ -210,7 +217,10 @@ async fn try_compact_partition(
             // Identify the target level and files that should be
             // compacted together, upgraded, and kept for next round of
             // compaction
-            let file_classification = components.file_classifier.classify(&partition_info, branch);
+            let file_classification =
+                components
+                    .file_classifier
+                    .classify(&partition_info, &round_info, branch);
 
             // Cannot run this plan and skip this partition because of over limit of input num_files or size.
             // The partition_resource_limit_filter will throw an error if one of the limits hit and will lead

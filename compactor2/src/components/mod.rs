@@ -6,7 +6,8 @@ use self::{
     ir_planner::IRPlanner, parquet_files_sink::ParquetFilesSink,
     partition_done_sink::PartitionDoneSink, partition_files_source::PartitionFilesSource,
     partition_filter::PartitionFilter, partition_info_source::PartitionInfoSource,
-    partition_stream::PartitionStream, round_split::RoundSplit, scratchpad::ScratchpadGen,
+    partition_stream::PartitionStream, round_info_source::RoundInfoSource, round_split::RoundSplit,
+    scratchpad::ScratchpadGen,
 };
 
 pub mod combos;
@@ -33,6 +34,7 @@ pub mod partition_source;
 pub mod partition_stream;
 pub mod partitions_source;
 pub mod report;
+pub mod round_info_source;
 pub mod round_split;
 pub mod scratchpad;
 pub mod skipped_compactions_source;
@@ -50,6 +52,8 @@ pub struct Components {
     pub partition_info_source: Arc<dyn PartitionInfoSource>,
     /// Source of files in a partition for compaction
     pub partition_files_source: Arc<dyn PartitionFilesSource>,
+    /// Determines what type of compaction round the compactor will be doing
+    pub round_info_source: Arc<dyn RoundInfoSource>,
     /// filter files for each round of compaction
     pub files_filter: Arc<dyn FilesFilter>,
     /// stop condition for completing a partition compaction

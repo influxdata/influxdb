@@ -6,6 +6,7 @@ use crate::{
     components::{files_split::FilesSplit, target_level_chooser::TargetLevelChooser},
     file_classification::FileClassification,
     partition_info::PartitionInfo,
+    RoundInfo,
 };
 
 use super::FileClassifier;
@@ -111,6 +112,7 @@ where
     fn classify(
         &self,
         _partition_info: &PartitionInfo,
+        _round_info: &RoundInfo,
         files: Vec<ParquetFile>,
     ) -> FileClassification {
         let files_to_compact = files;

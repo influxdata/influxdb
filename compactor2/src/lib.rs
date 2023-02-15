@@ -179,6 +179,7 @@ mod file_classification;
 pub mod object_store;
 mod partition_info;
 mod plan_ir;
+mod round_info;
 
 // publically expose items needed for testing
 pub use components::{
@@ -189,6 +190,7 @@ pub use driver::compact;
 pub use error::DynError;
 pub use partition_info::PartitionInfo;
 pub use plan_ir::PlanIR;
+pub use round_info::RoundInfo;
 
 #[cfg(test)]
 mod test_utils;
