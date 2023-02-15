@@ -80,6 +80,7 @@ use super::{
         not_empty::NotEmptyPartitionsSourceWrapper,
         randomize_order::RandomizeOrderPartitionsSourcesWrapper, PartitionsSource,
     },
+    round_info_source::{LevelBasedRoundInfo, LoggingRoundInfoWrapper},
     round_split::all_now::AllNowRoundSplit,
     scratchpad::{noop::NoopScratchpadGen, prod::ProdScratchpadGen, ScratchpadGen},
     skipped_compactions_source::catalog::CatalogSkippedCompactionsSource,
@@ -279,6 +280,9 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             config.backoff_config.clone(),
             Arc::clone(&config.catalog),
         )),
+        round_info_source: Arc::new(LoggingRoundInfoWrapper::new(Arc::new(
+            LevelBasedRoundInfo::new(),
+        ))),
         files_filter: version_specific_files_filter(config),
         partition_filter: Arc::new(LoggingPartitionFilterWrapper::new(
             MetricsPartitionFilterWrapper::new(

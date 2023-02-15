@@ -2,6 +2,8 @@ use std::fmt::Display;
 
 use data_types::ParquetFile;
 
+use crate::RoundInfo;
+
 use super::DivideInitial;
 
 #[derive(Debug, Default)]
@@ -20,7 +22,7 @@ impl Display for SingleBranchDivideInitial {
 }
 
 impl DivideInitial for SingleBranchDivideInitial {
-    fn divide(&self, files: Vec<ParquetFile>) -> Vec<Vec<ParquetFile>> {
+    fn divide(&self, files: Vec<ParquetFile>, _round_info: &RoundInfo) -> Vec<Vec<ParquetFile>> {
         if files.is_empty() {
             vec![]
         } else {
@@ -45,16 +47,17 @@ mod tests {
 
     #[test]
     fn test_divide() {
+        let round_info = RoundInfo::ManySmallFiles {};
         let divide = SingleBranchDivideInitial::new();
 
         // empty input
-        assert_eq!(divide.divide(vec![]), Vec::<Vec<_>>::new());
+        assert_eq!(divide.divide(vec![], &round_info), Vec::<Vec<_>>::new());
 
         // not empty
         let f1 = ParquetFileBuilder::new(1).build();
         let f2 = ParquetFileBuilder::new(2).build();
         assert_eq!(
-            divide.divide(vec![f1.clone(), f2.clone()]),
+            divide.divide(vec![f1.clone(), f2.clone()], &round_info),
             vec![vec![f1, f2]]
         );
     }

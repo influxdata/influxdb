@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use data_types::{CompactionLevel, ParquetFile};
 
-use crate::{file_classification::FileClassification, partition_info::PartitionInfo};
+use crate::{file_classification::FileClassification, partition_info::PartitionInfo, RoundInfo};
 
 use super::FileClassifier;
 
@@ -26,6 +26,7 @@ impl FileClassifier for AllAtOnceFileClassifier {
     fn classify(
         &self,
         _partition_info: &PartitionInfo,
+        _round_info: &RoundInfo,
         files: Vec<ParquetFile>,
     ) -> FileClassification {
         // Check if there are files in Compaction::Initial level
@@ -67,7 +68,7 @@ mod tests {
         let classifier = AllAtOnceFileClassifier::new();
 
         let partition_info = Arc::new(PartitionInfoBuilder::new().build());
-        classifier.classify(&partition_info, vec![]);
+        classifier.classify(&partition_info, &round_info(), vec![]);
     }
 
     #[test]
@@ -80,7 +81,7 @@ mod tests {
             .build();
 
         let partition_info = Arc::new(PartitionInfoBuilder::new().build());
-        classifier.classify(&partition_info, vec![f1]);
+        classifier.classify(&partition_info, &round_info(), vec![f1]);
     }
 
     #[test]
@@ -93,7 +94,7 @@ mod tests {
             .build();
 
         let partition_info = Arc::new(PartitionInfoBuilder::new().build());
-        classifier.classify(&partition_info, vec![f2]);
+        classifier.classify(&partition_info, &round_info(), vec![f2]);
     }
 
     #[test]
@@ -110,7 +111,7 @@ mod tests {
             .build();
 
         let partition_info = Arc::new(PartitionInfoBuilder::new().build());
-        classifier.classify(&partition_info, vec![f1, f2]);
+        classifier.classify(&partition_info, &round_info(), vec![f1, f2]);
     }
 
     #[test]
@@ -118,7 +119,7 @@ mod tests {
         let classifier = AllAtOnceFileClassifier::new();
         let files = create_overlapped_files();
         let partition_info = Arc::new(PartitionInfoBuilder::new().build());
-        let classification = classifier.classify(&partition_info, files.clone());
+        let classification = classifier.classify(&partition_info, &round_info(), files.clone());
         assert_eq!(
             classification,
             FileClassification {
@@ -128,5 +129,9 @@ mod tests {
                 files_to_upgrade: vec![],
             }
         );
+    }
+
+    fn round_info() -> RoundInfo {
+        RoundInfo::ManySmallFiles {}
     }
 }

@@ -2,6 +2,8 @@ use std::fmt::Display;
 
 use data_types::ParquetFile;
 
+use crate::RoundInfo;
+
 use super::RoundSplit;
 
 #[derive(Debug, Default)]
@@ -20,7 +22,11 @@ impl Display for AllNowRoundSplit {
 }
 
 impl RoundSplit for AllNowRoundSplit {
-    fn split(&self, files: Vec<ParquetFile>) -> (Vec<ParquetFile>, Vec<ParquetFile>) {
+    fn split(
+        &self,
+        files: Vec<ParquetFile>,
+        _round_info: &RoundInfo,
+    ) -> (Vec<ParquetFile>, Vec<ParquetFile>) {
         (files, vec![])
     }
 }
@@ -28,6 +34,8 @@ impl RoundSplit for AllNowRoundSplit {
 #[cfg(test)]
 mod tests {
     use iox_tests::ParquetFileBuilder;
+
+    use crate::RoundInfo;
 
     use super::*;
 
@@ -38,16 +46,17 @@ mod tests {
 
     #[test]
     fn test_split() {
+        let round_info = RoundInfo::ManySmallFiles;
         let split = AllNowRoundSplit::new();
 
         // empty input
-        assert_eq!(split.split(vec![]), (vec![], vec![]));
+        assert_eq!(split.split(vec![], &round_info), (vec![], vec![]));
 
         // not empty
         let f1 = ParquetFileBuilder::new(1).build();
         let f2 = ParquetFileBuilder::new(2).build();
         assert_eq!(
-            split.split(vec![f1.clone(), f2.clone()]),
+            split.split(vec![f1.clone(), f2.clone()], &round_info),
             (vec![f1, f2], vec![])
         );
     }

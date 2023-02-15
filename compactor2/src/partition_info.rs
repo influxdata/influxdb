@@ -5,7 +5,7 @@ use std::sync::Arc;
 use data_types::{NamespaceId, PartitionId, PartitionKey, Table, TableSchema};
 use schema::sort::SortKey;
 
-/// Information of a partition for compaction
+/// Information about the Partition being compacted
 #[derive(Debug, PartialEq, Eq)]
 pub struct PartitionInfo {
     /// the partition
