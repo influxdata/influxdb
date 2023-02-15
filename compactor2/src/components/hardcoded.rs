@@ -12,7 +12,7 @@ use crate::{
         namespaces_source::catalog::CatalogNamespacesSource,
         tables_source::catalog::CatalogTablesSource,
     },
-    config::{AlgoVersion, Config, PartitionsSourceConfig},
+    config::{Config, PartitionsSourceConfig},
     error::ErrorKind,
     object_store::ignore_writes::IgnoreWrites,
 };
@@ -29,11 +29,11 @@ use super::{
     df_planner::planner_v1::V1DataFusionPlanner,
     divide_initial::multiple_branches::MultipleBranchesDivideInitial,
     file_classifier::{
-        all_at_once::AllAtOnceFileClassifier, logging::LoggingFileClassifierWrapper,
-        split_based::SplitBasedFileClassifier, FileClassifier,
+        logging::LoggingFileClassifierWrapper, split_based::SplitBasedFileClassifier,
+        FileClassifier,
     },
-    file_filter::{and::AndFileFilter, level_range::LevelRangeFileFilter},
-    files_filter::{chain::FilesFilterChain, per_file::PerFileFilesFilter, FilesFilter},
+    file_filter::level_range::LevelRangeFileFilter,
+    files_filter::chain::FilesFilterChain,
     files_split::{
         target_level_non_overlap_split::TargetLevelNonOverlapSplit,
         target_level_target_level_split::TargetLevelTargetLevelSplit,
@@ -134,7 +134,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
     partition_filters.push(Arc::new(MaxNumColumnsPartitionFilter::new(
         config.max_num_columns_per_table,
     )));
-    partition_filters.append(&mut version_specific_partition_filters(config));
+    partition_filters.append(&mut make_partition_filters(config));
 
     let partition_resource_limit_filters: Vec<Arc<dyn PartitionFilter>> = vec![Arc::new(
         MaxParquetBytesPartitionFilter::new(config.max_input_parquet_bytes_per_partition),
@@ -275,7 +275,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         round_info_source: Arc::new(LoggingRoundInfoWrapper::new(Arc::new(
             LevelBasedRoundInfo::new(config.max_num_files_per_plan),
         ))),
-        files_filter: version_specific_files_filter(config),
+        files_filter: Arc::new(FilesFilterChain::new(vec![])),
         partition_filter: Arc::new(LoggingPartitionFilterWrapper::new(
             MetricsPartitionFilterWrapper::new(
                 AndPartitionFilter::new(partition_filters),
@@ -305,9 +305,9 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         round_split: Arc::new(ManyFilesRoundSplit::new()),
         divide_initial: Arc::new(MultipleBranchesDivideInitial::new()),
         scratchpad_gen,
-        file_classifier: Arc::new(LoggingFileClassifierWrapper::new(
-            version_specific_file_classifier(config),
-        )),
+        file_classifier: Arc::new(LoggingFileClassifierWrapper::new(make_file_classifier(
+            config,
+        ))),
         partition_resource_limit_filter: Arc::new(LoggingPartitionFilterWrapper::new(
             MetricsPartitionFilterWrapper::new(
                 AndPartitionFilter::new(partition_resource_limit_filters),
@@ -320,62 +320,33 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
 }
 
 // Conditions to commpact this partittion
-fn version_specific_partition_filters(config: &Config) -> Vec<Arc<dyn PartitionFilter>> {
-    match config.compact_version {
-        // Must has L0
-        AlgoVersion::AllAtOnce => {
-            vec![Arc::new(HasMatchingFilePartitionFilter::new(
-                LevelRangeFileFilter::new(CompactionLevel::Initial..=CompactionLevel::Initial),
-            ))]
-        }
-        // (Has-L0) OR            -- to avoid overlaped files
-        // (num(L1) > N) OR       -- to avoid many files
-        // (total_size(L1) > max_desired_file_size)  -- to avoid compact and than split
-        AlgoVersion::TargetLevel => {
-            vec![Arc::new(OrPartitionFilter::new(vec![
-                Arc::new(HasMatchingFilePartitionFilter::new(
-                    LevelRangeFileFilter::new(CompactionLevel::Initial..=CompactionLevel::Initial),
-                )),
-                Arc::new(GreaterMatchingFilesPartitionFilter::new(
-                    LevelRangeFileFilter::new(
-                        CompactionLevel::FileNonOverlapped..=CompactionLevel::FileNonOverlapped,
-                    ),
-                    config.min_num_l1_files_to_compact,
-                )),
-                Arc::new(GreaterSizeMatchingFilesPartitionFilter::new(
-                    LevelRangeFileFilter::new(
-                        CompactionLevel::FileNonOverlapped..=CompactionLevel::FileNonOverlapped,
-                    ),
-                    config.max_desired_file_size_bytes,
-                )),
-            ]))]
-        }
-    }
-}
-
-fn version_specific_file_classifier(config: &Config) -> Arc<dyn FileClassifier> {
-    match config.compact_version {
-        AlgoVersion::AllAtOnce => Arc::new(AllAtOnceFileClassifier::new()),
-        AlgoVersion::TargetLevel => Arc::new(SplitBasedFileClassifier::new(
-            TargetLevelTargetLevelSplit::new(),
-            TargetLevelNonOverlapSplit::new(),
-            TargetLevelUpgradeSplit::new(config.max_desired_file_size_bytes),
+fn make_partition_filters(config: &Config) -> Vec<Arc<dyn PartitionFilter>> {
+    // (Has-L0) OR            -- to avoid overlaped files
+    // (num(L1) > N) OR       -- to avoid many files
+    // (total_size(L1) > max_desired_file_size)  -- to avoid compact and than split
+    vec![Arc::new(OrPartitionFilter::new(vec![
+        Arc::new(HasMatchingFilePartitionFilter::new(
+            LevelRangeFileFilter::new(CompactionLevel::Initial..=CompactionLevel::Initial),
         )),
-    }
+        Arc::new(GreaterMatchingFilesPartitionFilter::new(
+            LevelRangeFileFilter::new(
+                CompactionLevel::FileNonOverlapped..=CompactionLevel::FileNonOverlapped,
+            ),
+            config.min_num_l1_files_to_compact,
+        )),
+        Arc::new(GreaterSizeMatchingFilesPartitionFilter::new(
+            LevelRangeFileFilter::new(
+                CompactionLevel::FileNonOverlapped..=CompactionLevel::FileNonOverlapped,
+            ),
+            config.max_desired_file_size_bytes,
+        )),
+    ]))]
 }
 
-// filter files of a partition we do not compact
-fn version_specific_files_filter(config: &Config) -> Arc<dyn FilesFilter> {
-    match config.compact_version {
-        // AllAtOnce filters out L2 files
-        AlgoVersion::AllAtOnce => Arc::new(FilesFilterChain::new(vec![Arc::new(
-            PerFileFilesFilter::new(AndFileFilter::new(vec![Arc::new(
-                LevelRangeFileFilter::new(
-                    CompactionLevel::Initial..=CompactionLevel::FileNonOverlapped,
-                ),
-            )])),
-        )])),
-        // TargetLevel does not filter any files of the partition
-        AlgoVersion::TargetLevel => Arc::new(FilesFilterChain::new(vec![])),
-    }
+fn make_file_classifier(config: &Config) -> Arc<dyn FileClassifier> {
+    Arc::new(SplitBasedFileClassifier::new(
+        TargetLevelTargetLevelSplit::new(),
+        TargetLevelNonOverlapSplit::new(),
+        TargetLevelUpgradeSplit::new(config.max_desired_file_size_bytes),
+    ))
 }

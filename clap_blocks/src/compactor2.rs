@@ -1,26 +1,6 @@
 //! CLI config for compactor2-related commands
 
-use std::{fmt::Display, num::NonZeroUsize};
-
-use clap::ValueEnum;
-
-/// Algorithm version used by the compactor
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Default, ValueEnum)]
-pub enum CompactorAlgoVersion {
-    // Note: clap only keeps the first line for the help text, so try to be brief.
-    /// Compacts all files of a partition in single DataFusion job, prone to reject "too large" partitions. Default.
-    #[default]
-    AllAtOnce,
-
-    /// Repeat to compact to higher level until reaching the highest level. NOT yet ready for production
-    TargetLevel,
-}
-
-impl Display for CompactorAlgoVersion {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
+use std::num::NonZeroUsize;
 
 /// CLI config for compactor2
 #[derive(Debug, Clone, clap::Parser)]
@@ -209,15 +189,6 @@ pub struct Compactor2Config {
         action
     )]
     pub shard_id: Option<usize>,
-
-    /// Version of the compaction algorithm.
-    #[clap(
-        long = "compaction-compact-version",
-        env = "INFLUXDB_IOX_COMPACTION_COMPACT_VERSION",
-        default_value_t = CompactorAlgoVersion::default(),
-        value_enum
-    )]
-    pub compact_version: CompactorAlgoVersion,
 
     /// Minimum number of L1 files to comapct to L2
     #[clap(
