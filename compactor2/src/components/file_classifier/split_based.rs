@@ -3,20 +3,18 @@ use std::fmt::Display;
 use data_types::ParquetFile;
 
 use crate::{
-    components::{files_split::FilesSplit, target_level_chooser::TargetLevelChooser},
-    file_classification::FileClassification,
-    partition_info::PartitionInfo,
-    RoundInfo,
+    components::files_split::FilesSplit, file_classification::FileClassification,
+    partition_info::PartitionInfo, RoundInfo,
 };
 
 use super::FileClassifier;
 
-/// Use a combination of [`TargetLevelChooser`] and [`FilesSplit`] to build a [`FileClassification`].
+/// Use [`FilesSplit`] to build a [`FileClassification`].
 ///
-/// This uses the following data flow:
+/// Uses the target_level from the `round_info` in the following data flow:
 ///
 /// ```text
-/// (files)--------------+->[target level chooser (T)]--->(target level)
+/// (files+target_level)-+.......................................
 ///                      |                                      :
 ///                      |                                      :
 ///                      |     +................................+
@@ -48,34 +46,25 @@ use super::FileClassifier;
 ///           (file compact)  (file upgrade)
 /// ```
 #[derive(Debug)]
-pub struct SplitBasedFileClassifier<T, FT, FO, FU>
+pub struct SplitBasedFileClassifier<FT, FO, FU>
 where
-    T: TargetLevelChooser,
     FT: FilesSplit,
     FO: FilesSplit,
     FU: FilesSplit,
 {
-    target_level_chooser: T,
     target_level_split: FT,
     non_overlap_split: FO,
     upgrade_split: FU,
 }
 
-impl<T, FT, FO, FU> SplitBasedFileClassifier<T, FT, FO, FU>
+impl<FT, FO, FU> SplitBasedFileClassifier<FT, FO, FU>
 where
-    T: TargetLevelChooser,
     FT: FilesSplit,
     FO: FilesSplit,
     FU: FilesSplit,
 {
-    pub fn new(
-        target_level_chooser: T,
-        target_level_split: FT,
-        non_overlap_split: FO,
-        upgrade_split: FU,
-    ) -> Self {
+    pub fn new(target_level_split: FT, non_overlap_split: FO, upgrade_split: FU) -> Self {
         Self {
-            target_level_chooser,
             target_level_split,
             non_overlap_split,
             upgrade_split,
@@ -83,9 +72,8 @@ where
     }
 }
 
-impl<T, FT, FO, FU> Display for SplitBasedFileClassifier<T, FT, FO, FU>
+impl<FT, FO, FU> Display for SplitBasedFileClassifier<FT, FO, FU>
 where
-    T: TargetLevelChooser,
     FT: FilesSplit,
     FO: FilesSplit,
     FU: FilesSplit,
@@ -93,18 +81,14 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "split_based(target_level_chooser={}, target_level_split={}, non_overlap_split={}, upgrade_split={})",
-            self.target_level_chooser,
-            self.target_level_split,
-            self.non_overlap_split,
-            self.upgrade_split,
+            "split_based(target_level_split={}, non_overlap_split={}, upgrade_split={})",
+            self.target_level_split, self.non_overlap_split, self.upgrade_split,
         )
     }
 }
 
-impl<T, FT, FO, FU> FileClassifier for SplitBasedFileClassifier<T, FT, FO, FU>
+impl<FT, FO, FU> FileClassifier for SplitBasedFileClassifier<FT, FO, FU>
 where
-    T: TargetLevelChooser,
     FT: FilesSplit,
     FO: FilesSplit,
     FU: FilesSplit,
@@ -112,13 +96,11 @@ where
     fn classify(
         &self,
         _partition_info: &PartitionInfo,
-        _round_info: &RoundInfo,
+        round_info: &RoundInfo,
         files: Vec<ParquetFile>,
     ) -> FileClassification {
         let files_to_compact = files;
-
-        // Detect target level to compact to
-        let target_level = self.target_level_chooser.detect(&files_to_compact);
+        let target_level = round_info.target_level();
 
         // Split files into files_to_compact, files_to_upgrade, and files_to_keep
         //

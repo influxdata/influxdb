@@ -43,7 +43,6 @@ use super::{
         and::AndIdOnlyPartitionFilter, shard::ShardPartitionFilter, IdOnlyPartitionFilter,
     },
     ir_planner::{logging::LoggingIRPlannerWrapper, planner_v1::V1IRPlanner},
-    level_exist::one_level::OneLevelExist,
     parquet_file_sink::{
         dedicated::DedicatedExecParquetFileSinkWrapper, logging::LoggingParquetFileSinkWrapper,
         object_store::ObjectStoreParquetFileSink,
@@ -84,7 +83,6 @@ use super::{
     round_split::all_now::AllNowRoundSplit,
     scratchpad::{noop::NoopScratchpadGen, prod::ProdScratchpadGen, ScratchpadGen},
     skipped_compactions_source::catalog::CatalogSkippedCompactionsSource,
-    target_level_chooser::target_level::TargetLevelTargetLevelChooser,
     Components,
 };
 
@@ -365,7 +363,6 @@ fn version_specific_file_classifier(config: &Config) -> Arc<dyn FileClassifier> 
     match config.compact_version {
         AlgoVersion::AllAtOnce => Arc::new(AllAtOnceFileClassifier::new()),
         AlgoVersion::TargetLevel => Arc::new(SplitBasedFileClassifier::new(
-            TargetLevelTargetLevelChooser::new(OneLevelExist::new()),
             TargetLevelTargetLevelSplit::new(),
             TargetLevelNonOverlapSplit::new(),
             TargetLevelUpgradeSplit::new(config.max_desired_file_size_bytes),
