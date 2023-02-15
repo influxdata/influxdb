@@ -74,9 +74,6 @@ pub enum Error {
     InternalProjection {
         source: datafusion::error::DataFusionError,
     },
-
-    #[snafu(display("Internal error: Can not group chunks '{}'", source,))]
-    InternalChunkGrouping { source: self::overlap::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -324,7 +321,7 @@ impl Chunks {
             overlapped_chunks_set: vec![],
         };
         for (_, chunks) in partition_groups {
-            let groups = group_potential_duplicates(chunks).context(InternalChunkGroupingSnafu)?;
+            let groups = group_potential_duplicates(chunks);
             for mut group in groups {
                 if group.len() == 1 {
                     if group[0].may_contain_pk_duplicates() {
