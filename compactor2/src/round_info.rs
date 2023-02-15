@@ -25,3 +25,13 @@ impl Display for RoundInfo {
         }
     }
 }
+
+impl RoundInfo {
+    /// what levels should the files in this round be?
+    pub fn target_level(&self) -> CompactionLevel {
+        match self {
+            Self::TargetLevel { target_level } => *target_level,
+            Self::ManySmallFiles => CompactionLevel::Initial,
+        }
+    }
+}

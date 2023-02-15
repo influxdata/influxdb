@@ -4,7 +4,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use data_types::ParquetFile;
+use data_types::{CompactionLevel, ParquetFile};
 use observability_deps::tracing::debug;
 
 use crate::{error::DynError, PartitionInfo, RoundInfo};
@@ -71,11 +71,25 @@ impl RoundInfoSource for LevelBasedRoundInfo {
     async fn calculate(
         &self,
         _partition_info: &PartitionInfo,
-        _files: &[ParquetFile],
+        files: &[ParquetFile],
     ) -> Result<Arc<RoundInfo>, DynError> {
-        // TODO: use this to calculate splits
-        Ok(Arc::new(RoundInfo::TargetLevel {
-            target_level: data_types::CompactionLevel::Initial,
-        }))
+        let target_level = pick_level(files);
+        Ok(Arc::new(RoundInfo::TargetLevel { target_level }))
     }
+}
+
+fn pick_level(files: &[data_types::ParquetFile]) -> CompactionLevel {
+    // Start with initial level
+    // If there are files in  this level, the compaction's target level will be the next level.
+    // Otherwise repeat until reaching the final level.
+    let mut level = CompactionLevel::Initial;
+    while level != CompactionLevel::Final {
+        if files.iter().any(|f| f.compaction_level == level) {
+            return level.next();
+        }
+
+        level = level.next();
+    }
+
+    level
 }

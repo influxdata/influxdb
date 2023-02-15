@@ -22,7 +22,6 @@ pub mod files_split;
 pub mod hardcoded;
 pub mod id_only_partition_filter;
 pub mod ir_planner;
-pub mod level_exist;
 pub mod namespaces_source;
 pub mod parquet_file_sink;
 pub mod parquet_files_sink;
@@ -39,7 +38,6 @@ pub mod round_split;
 pub mod scratchpad;
 pub mod skipped_compactions_source;
 pub mod tables_source;
-pub mod target_level_chooser;
 
 /// Pluggable system to determine compactor behavior. Please see
 /// [Crate Level Documentation](crate) for more details on the
