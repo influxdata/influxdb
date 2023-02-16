@@ -961,7 +961,16 @@ impl PartitionRepo for MemTxn {
         }
     }
 
-    async fn most_recent_n(&mut self, n: usize, shards: &[ShardId]) -> Result<Vec<Partition>> {
+    async fn most_recent_n(&mut self, n: usize) -> Result<Vec<Partition>> {
+        let stage = self.stage();
+        Ok(stage.partitions.iter().rev().take(n).cloned().collect())
+    }
+
+    async fn most_recent_n_in_shards(
+        &mut self,
+        n: usize,
+        shards: &[ShardId],
+    ) -> Result<Vec<Partition>> {
         let stage = self.stage();
         Ok(stage
             .partitions

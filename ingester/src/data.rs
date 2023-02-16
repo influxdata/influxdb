@@ -154,7 +154,7 @@ impl IngesterData {
             .repositories()
             .await
             .partitions()
-            .most_recent_n(10_000, &shard_ids)
+            .most_recent_n_in_shards(10_000, &shard_ids)
             .await
             .map_err(InitError::PreWarmPartitions)?;
 
