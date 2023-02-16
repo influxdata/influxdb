@@ -28,53 +28,55 @@ async fn test_compact_no_file() {
 async fn test_num_files_over_limit() {
     test_helpers::maybe_start_logging();
 
-    for version in [AlgoVersion::AllAtOnce, AlgoVersion::TargetLevel] {
-        // Create a test setup with 6 files
-        let setup = TestSetup::builder()
-            .await
-            .with_files()
-            .await
-            .with_compact_version(version)
-            // Set max num file to 4 (< num files) --> it won't get comapcted
-            .with_max_input_files_per_partition(4)
-            .build()
-            .await;
+    // Create a test setup with 6 files
+    let setup = TestSetup::builder()
+        .await
+        .with_files()
+        .await
+        .with_compact_version(AlgoVersion::TargetLevel)
+        // Set max num file to 4 (< num files) --> many L0s files, comppact 4 L0s into 2 L0s
+        .with_max_num_files_per_plan(4)
+        // Not compact L1s into L2s becasue tnumber of L1s < 5
+        .with_min_num_l1_files_to_compact(5)
+        .build()
+        .await;
 
-        // verify 6 files
-        let files = setup.list_by_table_not_to_delete().await;
-        assert_eq!(files.len(), 6);
-        // verify ID and compaction level of the files
-        assert_levels(
-            &files,
-            vec![
-                (1, CompactionLevel::FileNonOverlapped),
-                (2, CompactionLevel::Initial),
-                (3, CompactionLevel::Initial),
-                (4, CompactionLevel::FileNonOverlapped),
-                (5, CompactionLevel::Initial),
-                (6, CompactionLevel::Initial),
-            ],
-        );
+    // verify 6 files
+    let files = setup.list_by_table_not_to_delete().await;
+    assert_eq!(files.len(), 6);
+    // verify ID and compaction level of the files
+    assert_levels(
+        &files,
+        vec![
+            (1, CompactionLevel::FileNonOverlapped),
+            (2, CompactionLevel::Initial),
+            (3, CompactionLevel::Initial),
+            (4, CompactionLevel::FileNonOverlapped),
+            (5, CompactionLevel::Initial),
+            (6, CompactionLevel::Initial),
+        ],
+    );
 
-        setup.run_compact().await;
-        //
-        // read files and verify they are not compacted
-        let files = setup.list_by_table_not_to_delete().await;
-        assert_eq!(files.len(), 6);
-        //
-        // verify ID and compaction level of the files
-        assert_levels(
-            &files,
-            vec![
-                (1, CompactionLevel::FileNonOverlapped),
-                (2, CompactionLevel::Initial),
-                (3, CompactionLevel::Initial),
-                (4, CompactionLevel::FileNonOverlapped),
-                (5, CompactionLevel::Initial),
-                (6, CompactionLevel::Initial),
-            ],
-        );
-    }
+    setup.run_compact().await;
+    //
+    // read files and verify 4 files: 2 original L1s and 2 new L1s after L0s are split and compacted into
+    let files = setup.list_by_table_not_to_delete().await;
+    assert_eq!(files.len(), 4);
+
+    //
+    // verify ID and compaction level of the files
+    // Original IDs of files: 1, 2, 3, 4, 5, 6
+    // 4 L0s files are splitted into 2 groups and compacted into 2 new L0s files with IDs 7, 8
+    // Then these 2 new L0s files are compacted into 2 new L1s files with IDs 9, 10
+    assert_levels(
+        &files,
+        vec![
+            (1, CompactionLevel::FileNonOverlapped),
+            (4, CompactionLevel::FileNonOverlapped),
+            (9, CompactionLevel::FileNonOverlapped),
+            (10, CompactionLevel::FileNonOverlapped),
+        ],
+    );
 }
 
 #[tokio::test]
@@ -141,7 +143,6 @@ async fn test_compact_all_at_once() {
         .with_files()
         .await
         // Ensure we have enough resource to compact the files
-        .with_max_input_files_per_partition_relative_to_n_files(10)
         .with_max_input_parquet_bytes_per_partition_relative_to_total_size(1000)
         .with_compact_version(AlgoVersion::AllAtOnce)
         .build()
@@ -247,7 +248,7 @@ async fn test_compact_target_level() {
         .with_files()
         .await
         // Ensure we have enough resource to compact the files
-        .with_max_input_files_per_partition_relative_to_n_files(10)
+        .with_max_num_files_per_plan(10)
         .with_max_input_parquet_bytes_per_partition_relative_to_total_size(1000)
         .with_compact_version(AlgoVersion::TargetLevel)
         .with_min_num_l1_files_to_compact(2)

@@ -1,4 +1,4 @@
-use std::{num::NonZeroUsize, sync::Arc, time::Duration};
+use std::{collections::VecDeque, num::NonZeroUsize, sync::Arc, time::Duration};
 
 use data_types::{CompactionLevel, ParquetFile, ParquetFileParams, PartitionId};
 use futures::StreamExt;
@@ -206,11 +206,13 @@ async fn try_compact_partition(
         // Each branch must not overlap with each other
         let mut branches = components
             .divide_initial
-            .divide(files_now, round_info.as_ref());
+            .divide(files_now, round_info.as_ref())
+            .into_iter()
+            .collect::<VecDeque<_>>();
 
         let mut files_next = files_later;
         // loop for each "Branch"
-        while let Some(branch) = branches.pop() {
+        while let Some(branch) = branches.pop_front() {
             let input_paths: Vec<ParquetFilePath> =
                 branch.iter().map(ParquetFilePath::from).collect();
 

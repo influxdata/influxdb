@@ -132,6 +132,9 @@ mod tests {
     }
 
     fn round_info() -> RoundInfo {
-        RoundInfo::ManySmallFiles {}
+        RoundInfo::ManySmallFiles {
+            start_level: CompactionLevel::Initial,
+            max_num_files_to_group: 1,
+        }
     }
 }

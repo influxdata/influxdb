@@ -207,7 +207,8 @@ fn order(
     //      fine as long as they are in front of the chunks of `compaction_level < target_level`
 
     match (compaction_level, target_level) {
-        (CompactionLevel::Initial, CompactionLevel::FileNonOverlapped)
+        (CompactionLevel::Initial, CompactionLevel::Initial)
+        | (CompactionLevel::Initial, CompactionLevel::FileNonOverlapped)
         | (CompactionLevel::FileNonOverlapped, CompactionLevel::Final) => {
             ChunkOrder::new(created_at.get())
         }

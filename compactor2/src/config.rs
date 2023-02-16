@@ -91,10 +91,6 @@ pub struct Config {
     /// This is mostly useful for debugging.
     pub ignore_partition_skip_marker: bool,
 
-    /// Maximum number of input files per partition. If there are more files, we ignore the partition (for now) as a
-    /// self-protection mechanism.
-    pub max_input_files_per_partition: usize,
-
     /// Maximum input bytes (in parquet) per partition. If there is more data, we ignore the partition (for now) as a
     /// self-protection mechanism.
     pub max_input_parquet_bytes_per_partition: usize,
@@ -132,6 +128,9 @@ pub struct Config {
     /// If there are more columns, the partition will be skipped
     /// This is to prevent too many columns in a table
     pub max_num_columns_per_table: usize,
+
+    /// max number of files per compaction plan
+    pub max_num_files_per_plan: usize,
 }
 
 impl Config {

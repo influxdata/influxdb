@@ -4,7 +4,7 @@ use data_types::ParquetFile;
 
 use crate::RoundInfo;
 
-pub mod single_branch;
+pub mod multiple_branches;
 
 pub trait DivideInitial: Debug + Display + Send + Sync {
     /// Divides a group of files that should be compacted into

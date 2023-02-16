@@ -107,7 +107,6 @@ impl TestSetupBuilder<false> {
             partitions_source: PartitionsSourceConfig::CatalogRecentWrites,
             shadow_mode: false,
             ignore_partition_skip_marker: false,
-            max_input_files_per_partition: usize::MAX,
             max_input_parquet_bytes_per_partition: usize::MAX,
             shard_config: None,
             compact_version: AlgoVersion::AllAtOnce,
@@ -117,6 +116,7 @@ impl TestSetupBuilder<false> {
             parquet_files_sink_override: None,
             all_errors_are_fatal: true,
             max_num_columns_per_table: 200,
+            max_num_files_per_plan: 200,
         };
 
         Self {
@@ -251,17 +251,6 @@ impl TestSetupBuilder<false> {
 }
 
 impl TestSetupBuilder<true> {
-    /// Set max_input_files_per_partition_relative_to_n_files
-    pub fn with_max_input_files_per_partition_relative_to_n_files(self, delta: isize) -> Self {
-        Self {
-            config: Config {
-                max_input_parquet_bytes_per_partition: (self.files.len() as isize + delta) as usize,
-                ..self.config
-            },
-            ..self
-        }
-    }
-
     /// Set max_input_parquet_bytes_per_partition
     pub fn with_max_input_parquet_bytes_per_partition_relative_to_total_size(
         self,
@@ -297,12 +286,9 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
         self
     }
 
-    /// Set max_input_files_per_partition
-    pub fn with_max_input_files_per_partition(
-        mut self,
-        max_input_files_per_partition: usize,
-    ) -> Self {
-        self.config.max_input_files_per_partition = max_input_files_per_partition;
+    /// Set max_num_files_per_plan;
+    pub fn with_max_num_files_per_plan(mut self, max_num_files_per_plan: usize) -> Self {
+        self.config.max_num_files_per_plan = max_num_files_per_plan;
         self
     }
 

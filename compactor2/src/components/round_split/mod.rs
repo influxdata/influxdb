@@ -4,7 +4,7 @@ use data_types::ParquetFile;
 
 use crate::RoundInfo;
 
-pub mod all_now;
+pub mod many_files;
 
 pub trait RoundSplit: Debug + Display + Send + Sync {
     /// Split files into two buckets "now" and "later".

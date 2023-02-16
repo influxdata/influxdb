@@ -87,6 +87,16 @@ impl ParquetFileBuilder {
         }
     }
 
+    /// Set max_l0_created_at
+    pub fn with_max_l0_created_at(self, max_l0_created_at: i64) -> Self {
+        Self {
+            file: ParquetFile {
+                max_l0_created_at: Timestamp::new(max_l0_created_at),
+                ..self.file
+            },
+        }
+    }
+
     /// Create the [`ParquetFile`]
     pub fn build(self) -> ParquetFile {
         self.file

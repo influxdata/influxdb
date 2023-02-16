@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use data_types::ParquetFile;
+use data_types::{CompactionLevel, ParquetFile};
 
 use crate::{
     components::files_split::FilesSplit, file_classification::FileClassification,
@@ -102,6 +102,10 @@ where
         let files_to_compact = files;
         let target_level = round_info.target_level();
 
+        if round_info.is_many_small_files() {
+            return file_classification_for_many_files(files_to_compact, target_level);
+        }
+
         // Split files into files_to_compact, files_to_upgrade, and files_to_keep
         //
         // Since output of one compaction is used as input of next compaction, all files that are not
@@ -129,5 +133,29 @@ where
             files_to_upgrade,
             files_to_keep,
         }
+    }
+}
+
+fn file_classification_for_many_files(
+    files_to_compact: Vec<ParquetFile>,
+    target_level: CompactionLevel,
+) -> FileClassification {
+    // Verify all input files are in the target_level
+    let err_msg = format!(
+        "All files to compact must be in {target_level} level, but found files in other levels",
+    );
+
+    assert!(
+        files_to_compact
+            .iter()
+            .all(|f| f.compaction_level == target_level),
+        "{err_msg}"
+    );
+
+    FileClassification {
+        target_level,
+        files_to_compact,
+        files_to_upgrade: vec![],
+        files_to_keep: vec![],
     }
 }

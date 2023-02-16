@@ -200,7 +200,6 @@ pub async fn create_compactor2_server_type(
         partitions_source,
         shadow_mode: compactor_config.shadow_mode,
         ignore_partition_skip_marker: compactor_config.ignore_partition_skip_marker,
-        max_input_files_per_partition: compactor_config.max_input_files_per_partition,
         max_input_parquet_bytes_per_partition: compactor_config
             .max_input_parquet_bytes_per_partition,
         shard_config,
@@ -211,6 +210,7 @@ pub async fn create_compactor2_server_type(
         parquet_files_sink_override: None,
         all_errors_are_fatal: false,
         max_num_columns_per_table: compactor_config.max_num_columns_per_table,
+        max_num_files_per_plan: compactor_config.max_num_files_per_plan,
     });
 
     Arc::new(Compactor2ServerType::new(

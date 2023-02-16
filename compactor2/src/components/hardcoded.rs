@@ -27,7 +27,7 @@ use super::{
         dedicated::DedicatedDataFusionPlanExec, noop::NoopDataFusionPlanExec, DataFusionPlanExec,
     },
     df_planner::planner_v1::V1DataFusionPlanner,
-    divide_initial::single_branch::SingleBranchDivideInitial,
+    divide_initial::multiple_branches::MultipleBranchesDivideInitial,
     file_classifier::{
         all_at_once::AllAtOnceFileClassifier, logging::LoggingFileClassifierWrapper,
         split_based::SplitBasedFileClassifier, FileClassifier,
@@ -58,8 +58,7 @@ use super::{
         and::AndPartitionFilter, greater_matching_files::GreaterMatchingFilesPartitionFilter,
         greater_size_matching_files::GreaterSizeMatchingFilesPartitionFilter,
         has_files::HasFilesPartitionFilter, has_matching_file::HasMatchingFilePartitionFilter,
-        logging::LoggingPartitionFilterWrapper, max_files::MaxFilesPartitionFilter,
-        max_num_columns::MaxNumColumnsPartitionFilter,
+        logging::LoggingPartitionFilterWrapper, max_num_columns::MaxNumColumnsPartitionFilter,
         max_parquet_bytes::MaxParquetBytesPartitionFilter, metrics::MetricsPartitionFilterWrapper,
         never_skipped::NeverSkippedPartitionFilter, or::OrPartitionFilter, PartitionFilter,
     },
@@ -80,7 +79,7 @@ use super::{
         randomize_order::RandomizeOrderPartitionsSourcesWrapper, PartitionsSource,
     },
     round_info_source::{LevelBasedRoundInfo, LoggingRoundInfoWrapper},
-    round_split::all_now::AllNowRoundSplit,
+    round_split::many_files::ManyFilesRoundSplit,
     scratchpad::{noop::NoopScratchpadGen, prod::ProdScratchpadGen, ScratchpadGen},
     skipped_compactions_source::catalog::CatalogSkippedCompactionsSource,
     Components,
@@ -137,14 +136,9 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
     )));
     partition_filters.append(&mut version_specific_partition_filters(config));
 
-    let partition_resource_limit_filters: Vec<Arc<dyn PartitionFilter>> = vec![
-        Arc::new(MaxFilesPartitionFilter::new(
-            config.max_input_files_per_partition,
-        )),
-        Arc::new(MaxParquetBytesPartitionFilter::new(
-            config.max_input_parquet_bytes_per_partition,
-        )),
-    ];
+    let partition_resource_limit_filters: Vec<Arc<dyn PartitionFilter>> = vec![Arc::new(
+        MaxParquetBytesPartitionFilter::new(config.max_input_parquet_bytes_per_partition),
+    )];
 
     let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.shadow_mode {
         Arc::new(MockPartitionDoneSink::new())
@@ -279,7 +273,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             Arc::clone(&config.catalog),
         )),
         round_info_source: Arc::new(LoggingRoundInfoWrapper::new(Arc::new(
-            LevelBasedRoundInfo::new(),
+            LevelBasedRoundInfo::new(config.max_num_files_per_plan),
         ))),
         files_filter: version_specific_files_filter(config),
         partition_filter: Arc::new(LoggingPartitionFilterWrapper::new(
@@ -308,8 +302,8 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         )),
         df_plan_exec,
         parquet_files_sink,
-        round_split: Arc::new(AllNowRoundSplit::new()),
-        divide_initial: Arc::new(SingleBranchDivideInitial::new()),
+        round_split: Arc::new(ManyFilesRoundSplit::new()),
+        divide_initial: Arc::new(MultipleBranchesDivideInitial::new()),
         scratchpad_gen,
         file_classifier: Arc::new(LoggingFileClassifierWrapper::new(
             version_specific_file_classifier(config),

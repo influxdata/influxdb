@@ -169,15 +169,14 @@ pub struct Compactor2Config {
     )]
     pub ignore_partition_skip_marker: bool,
 
-    /// Maximum number of input files per partition. If there are more files, we ignore the partition (for now) as a
-    /// self-protection mechanism.
+    /// Maximum number of files in a compaction plan
     #[clap(
-        long = "compaction-max-input-files-per-partition",
-        env = "INFLUXDB_IOX_COMPACTION_MAX_INPUT_FILES_PER_PARTITION",
+        long = "compaction-max-num-files-per-plan",
+        env = "INFLUXDB_IOX_COMPACTION_MAX_NUM_FILES_PER_PLAN",
         default_value = "200",
         action
     )]
-    pub max_input_files_per_partition: usize,
+    pub max_num_files_per_plan: usize,
 
     /// Maximum input bytes (in parquet) per partition. If there is more data, we ignore the partition (for now) as a
     /// self-protection mechanism.

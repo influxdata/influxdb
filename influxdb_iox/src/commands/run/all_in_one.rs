@@ -429,7 +429,6 @@ impl Config {
             partition_filter: None,
             shadow_mode: false,
             ignore_partition_skip_marker: false,
-            max_input_files_per_partition: 200,
             max_input_parquet_bytes_per_partition: 268_435_456, // 256 MB
             shard_count: None,
             shard_id: None,
@@ -438,6 +437,7 @@ impl Config {
             process_once: false,
             process_all_partitions: false,
             max_num_columns_per_table: 200,
+            max_num_files_per_plan: 200,
         };
 
         let querier_config = QuerierConfig {

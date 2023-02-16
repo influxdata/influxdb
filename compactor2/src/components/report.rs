@@ -29,7 +29,6 @@ pub fn log_config(config: &Config) {
         partitions_source,
         shadow_mode,
         ignore_partition_skip_marker,
-        max_input_files_per_partition,
         max_input_parquet_bytes_per_partition,
         shard_config,
         compact_version,
@@ -39,6 +38,7 @@ pub fn log_config(config: &Config) {
         simulate_without_object_store,
         all_errors_are_fatal,
         max_num_columns_per_table,
+        max_num_files_per_plan,
     } = &config;
 
     let (shard_cfg_n_shards, shard_cfg_shard_id) = match shard_config {
@@ -74,7 +74,6 @@ pub fn log_config(config: &Config) {
         %partitions_source,
         shadow_mode,
         ignore_partition_skip_marker,
-        max_input_files_per_partition,
         max_input_parquet_bytes_per_partition,
         ?shard_cfg_n_shards,
         ?shard_cfg_shard_id,
@@ -85,6 +84,7 @@ pub fn log_config(config: &Config) {
         %parquet_files_sink,
         all_errors_are_fatal,
         max_num_columns_per_table,
+        max_num_files_per_plan,
         "config",
     );
 }

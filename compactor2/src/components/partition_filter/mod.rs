@@ -11,7 +11,6 @@ pub mod greater_size_matching_files;
 pub mod has_files;
 pub mod has_matching_file;
 pub mod logging;
-pub mod max_files;
 pub mod max_num_columns;
 pub mod max_parquet_bytes;
 pub mod metrics;

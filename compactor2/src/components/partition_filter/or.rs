@@ -52,8 +52,7 @@ mod tests {
 
     use crate::{
         components::partition_filter::{
-            has_files::HasFilesPartitionFilter, max_files::MaxFilesPartitionFilter,
-            FalsePartitionFilter, TruePartitionFilter,
+            has_files::HasFilesPartitionFilter, FalsePartitionFilter, TruePartitionFilter,
         },
         test_utils::PartitionInfoBuilder,
     };
@@ -63,11 +62,11 @@ mod tests {
     #[test]
     fn test_display() {
         let has_files = Arc::new(HasFilesPartitionFilter::new());
-        let max_num_files = Arc::new(MaxFilesPartitionFilter::new(2));
+        let max_num_files = Arc::new(TruePartitionFilter::new());
 
         let filter = OrPartitionFilter::new(vec![has_files, max_num_files]);
 
-        assert_eq!(format!("{filter}"), "or([has_files, max_files(2)])");
+        assert_eq!(format!("{filter}"), "or([has_files, true])");
     }
 
     #[tokio::test]
