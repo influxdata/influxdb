@@ -33,7 +33,7 @@ use datafusion::{
     physical_optimizer::pruning::{PruningPredicate, PruningStatistics},
     prelude::{col, lit_timestamp_nano, Expr},
 };
-use datafusion_util::{make_range_expr, nullable_schema};
+use datafusion_util::{make_range_expr, nullable_schema, AsExpr};
 use observability_deps::tracing::debug;
 use rpc_predicate::VALUE_COLUMN_NAME;
 use schema::TIME_COLUMN_NAME;
@@ -585,7 +585,7 @@ impl ValueExpr {
     /// column replaced with the specified column name
     pub fn replace_col(&self, name: &str) -> Expr {
         if let Expr::BinaryExpr(BinaryExpr { left: _, op, right }) = &self.expr {
-            binary_expr(col(name), *op, right.as_ref().clone())
+            binary_expr(name.as_expr(), *op, right.as_ref().clone())
         } else {
             unreachable!("Unexpected content in ValueExpr")
         }

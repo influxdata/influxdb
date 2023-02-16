@@ -2467,6 +2467,60 @@ mod tests {
         .await
     }
 
+    /// Fix to address [IDPE issue #17144][17144]
+    ///
+    /// [17144]: https://github.com/influxdata/idpe/issues/17144
+    #[tokio::test]
+    async fn test_idpe_issue_17144() {
+        let chunk0 = Arc::new(
+            TestChunk::new("h2o")
+                .with_id(0)
+                .with_tag_column("foo")
+                .with_f64_field_column("foo.bar") // with period
+                .with_time_column(),
+        );
+
+        let executor = Arc::new(Executor::new_testing());
+        let test_db = Arc::new(TestDatabase::new(Arc::clone(&executor)));
+        test_db.add_chunk("my_partition_key", Arc::clone(&chunk0));
+
+        // verify that _field = 'foo.bar' is rewritten correctly
+        let predicate = Predicate::new().with_expr(
+            "_field"
+                .as_expr()
+                .eq(lit("foo.bar"))
+                .and("_value".as_expr().eq(lit(1.2))),
+        );
+
+        let rpc_predicate = InfluxRpcPredicate::new(None, predicate);
+
+        let agg = Aggregate::None;
+        let group_columns = &["foo"];
+        let res = InfluxRpcPlanner::new(IOxSessionContext::with_testing())
+            .read_group(Arc::clone(&test_db) as _, rpc_predicate, agg, group_columns)
+            .await
+            .expect("creating plan");
+        assert_eq!(res.plans.len(), 1);
+        let ssplan = res.plans.first().unwrap();
+        insta::assert_snapshot!(ssplan.plan.display_indent_schema().to_string(), @r###"
+        Projection: h2o.foo, CASE WHEN h2o.foo.bar = Float64(1.2) THEN h2o.foo.bar END AS foo.bar, h2o.time [foo:Dictionary(Int32, Utf8);N, foo.bar:Float64;N, time:Timestamp(Nanosecond, None)]
+          Sort: h2o.foo ASC NULLS FIRST, h2o.time ASC NULLS FIRST [foo:Dictionary(Int32, Utf8);N, foo.bar:Float64;N, time:Timestamp(Nanosecond, None)]
+            TableScan: h2o [foo:Dictionary(Int32, Utf8);N, foo.bar:Float64;N, time:Timestamp(Nanosecond, None)]
+        "###);
+
+        let got_predicate = test_db.get_chunks_predicate();
+        let exp_predicate = Predicate::new()
+            .with_field_columns(vec!["foo.bar"])
+            .with_value_expr(
+                "_value"
+                    .as_expr()
+                    .eq(lit(1.2))
+                    .try_into()
+                    .expect("failed to convert _value expression"),
+            );
+        assert_eq!(got_predicate, exp_predicate);
+    }
+
     #[tokio::test]
     async fn test_predicate_read_window_aggregate() {
         run_test(|test_db, rpc_predicate| {
