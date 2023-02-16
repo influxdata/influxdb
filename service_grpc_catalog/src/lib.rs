@@ -190,7 +190,6 @@ fn to_parquet_file(p: data_types::ParquetFile) -> ParquetFile {
 fn to_partition(p: data_types::Partition) -> Partition {
     Partition {
         id: p.id.get(),
-        shard_id: p.shard_id.get(),
         key: p.partition_key.to_string(),
         table_id: p.table_id.get(),
         array_sort_key: p.sort_key,
