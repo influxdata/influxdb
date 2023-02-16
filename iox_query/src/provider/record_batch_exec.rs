@@ -1,5 +1,7 @@
 //! Implementation of a DataFusion PhysicalPlan node across partition chunks
 
+use crate::QueryChunk;
+
 use super::adapter::SchemaAdapterStream;
 use arrow::{datatypes::SchemaRef, record_batch::RecordBatch};
 use data_types::TableSummary;
@@ -19,7 +21,10 @@ use std::{collections::HashSet, fmt, sync::Arc};
 /// Implements the DataFusion physical plan interface for [`RecordBatch`]es with automatic projection and NULL-column creation.
 #[derive(Debug)]
 pub(crate) struct RecordBatchesExec {
-    batches: Vec<(SchemaRef, Vec<RecordBatch>)>,
+    /// Chunks contained in this exec node.
+    chunks: Vec<(Arc<dyn QueryChunk>, Vec<RecordBatch>)>,
+
+    /// Overall schema.
     schema: SchemaRef,
 
     /// Execution metrics
@@ -30,15 +35,17 @@ pub(crate) struct RecordBatchesExec {
 }
 
 impl RecordBatchesExec {
-    pub fn new(
-        batches: impl IntoIterator<Item = (SchemaRef, Vec<RecordBatch>, Arc<TableSummary>)>,
-        schema: SchemaRef,
-    ) -> Self {
+    pub fn new(chunks: impl IntoIterator<Item = Arc<dyn QueryChunk>>, schema: SchemaRef) -> Self {
         let mut combined_summary_option: Option<TableSummary> = None;
 
-        let batches: Vec<_> = batches
+        let chunks: Vec<_> = chunks
             .into_iter()
-            .map(|(schema, batch, summary)| {
+            .map(|chunk| {
+                let batches = chunk
+                    .data()
+                    .into_record_batches()
+                    .expect("chunk must have record batches");
+                let summary = chunk.summary();
                 match combined_summary_option.as_mut() {
                     None => {
                         combined_summary_option = Some(summary.as_ref().clone());
@@ -48,7 +55,7 @@ impl RecordBatchesExec {
                     }
                 }
 
-                (schema, batch)
+                (chunk, batches)
             })
             .collect();
 
@@ -57,11 +64,17 @@ impl RecordBatchesExec {
             .unwrap_or_default();
 
         Self {
-            batches,
+            chunks,
             schema,
             statistics,
             metrics: ExecutionPlanMetricsSet::new(),
         }
+    }
+
+    /// Chunks that make up this node.
+    #[allow(dead_code)]
+    pub fn chunks(&self) -> impl Iterator<Item = &Arc<dyn QueryChunk>> {
+        self.chunks.iter().map(|(chunk, _batches)| chunk)
     }
 }
 
@@ -75,7 +88,7 @@ impl ExecutionPlan for RecordBatchesExec {
     }
 
     fn output_partitioning(&self) -> Partitioning {
-        Partitioning::UnknownPartitioning(self.batches.len())
+        Partitioning::UnknownPartitioning(self.chunks.len())
     }
 
     fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
@@ -108,7 +121,8 @@ impl ExecutionPlan for RecordBatchesExec {
 
         let schema = self.schema();
 
-        let (part_schema, batches) = &self.batches[partition];
+        let (chunk, batches) = &self.chunks[partition];
+        let part_schema = chunk.schema().as_arrow();
 
         // The output selection is all the columns in the schema.
         //
@@ -131,7 +145,7 @@ impl ExecutionPlan for RecordBatchesExec {
         let incomplete_output_schema = projection
             .as_ref()
             .map(|projection| Arc::new(part_schema.project(projection).expect("projection broken")))
-            .unwrap_or_else(|| Arc::clone(part_schema));
+            .unwrap_or(part_schema);
 
         let stream = Box::pin(MemoryStream::try_new(
             batches.clone(),
@@ -148,18 +162,18 @@ impl ExecutionPlan for RecordBatchesExec {
     }
 
     fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let total_groups = self.batches.len();
+        let total_groups = self.chunks.len();
 
         let total_batches = self
-            .batches
+            .chunks
             .iter()
-            .map(|(_schema, batches)| batches.len())
+            .map(|(_chunk, batches)| batches.len())
             .sum::<usize>();
 
         let total_rows = self
-            .batches
+            .chunks
             .iter()
-            .flat_map(|(_schema, batches)| batches.iter().map(|batch| batch.num_rows()))
+            .flat_map(|(_chunk, batches)| batches.iter().map(|batch| batch.num_rows()))
             .sum::<usize>();
 
         match t {

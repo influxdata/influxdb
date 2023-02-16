@@ -4,8 +4,6 @@ use crate::{
     provider::record_batch_exec::RecordBatchesExec, util::arrow_sort_key_exprs, QueryChunk,
     QueryChunkData,
 };
-use arrow::{datatypes::SchemaRef, record_batch::RecordBatch};
-use data_types::TableSummary;
 use datafusion::{
     datasource::{listing::PartitionedFile, object_store::ObjectStoreUrl},
     execution::context::TaskContext,
@@ -129,13 +127,13 @@ pub fn chunks_to_physical_nodes(
         return Arc::new(EmptyExec::new(false, iox_schema.as_arrow()));
     }
 
-    let mut record_batch_chunks: Vec<(SchemaRef, Vec<RecordBatch>, Arc<TableSummary>)> = vec![];
+    let mut record_batch_chunks: Vec<Arc<dyn QueryChunk>> = vec![];
     let mut parquet_chunks: HashMap<String, ParquetChunkList> = HashMap::new();
 
     for chunk in &chunks {
         match chunk.data() {
-            QueryChunkData::RecordBatches(batches) => {
-                record_batch_chunks.push((chunk.schema().as_arrow(), batches, chunk.summary()));
+            QueryChunkData::RecordBatches(_) => {
+                record_batch_chunks.push(Arc::clone(chunk));
             }
             QueryChunkData::Parquet(parquet_input) => {
                 let url_str = parquet_input.object_store_url.as_str().to_owned();

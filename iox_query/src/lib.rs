@@ -203,6 +203,14 @@ impl QueryChunkData {
                 .unwrap(),
         }
     }
+
+    /// Extract [record batches](Self::RecordBatches) variant.
+    pub fn into_record_batches(self) -> Option<Vec<RecordBatch>> {
+        match self {
+            Self::RecordBatches(batches) => Some(batches),
+            Self::Parquet(_) => None,
+        }
+    }
 }
 
 /// Collection of data that shares the same partition key
