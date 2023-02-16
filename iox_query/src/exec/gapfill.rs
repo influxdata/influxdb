@@ -3,6 +3,7 @@
 
 mod algo;
 mod builder;
+mod params;
 mod series;
 
 use std::{

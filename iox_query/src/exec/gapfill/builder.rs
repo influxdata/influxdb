@@ -7,7 +7,7 @@ use arrow::{
 };
 
 use super::{
-    algo::GapFillParams,
+    params::GapFillParams,
     series::{SeriesAppender, SeriesState},
 };
 use datafusion::error::{DataFusionError, Result};
@@ -153,8 +153,8 @@ mod tests {
     use schema::{InfluxFieldType, SchemaBuilder};
 
     use crate::exec::gapfill::{
-        algo::GapFillParams,
         builder::OutputState,
+        params::GapFillParams,
         series::{SeriesAppender, SeriesState},
     };
 
