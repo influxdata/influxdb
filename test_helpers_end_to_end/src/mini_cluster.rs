@@ -268,6 +268,15 @@ impl MiniCluster {
         &self.ingesters
     }
 
+    /// Restart router.
+    ///
+    /// This will break all currently connected clients!
+    pub async fn restart_router(&mut self) {
+        let router = self.router.take().unwrap();
+        let router = router.restart_server().await;
+        self.router = Some(router);
+    }
+
     /// Restart ingesters.
     ///
     /// This will break all currently connected clients!
@@ -277,6 +286,15 @@ impl MiniCluster {
             restarted.push(ingester.restart_server().await);
         }
         self.ingesters = restarted;
+    }
+
+    /// Restart querier.
+    ///
+    /// This will break all currently connected clients!
+    pub async fn restart_querier(&mut self) {
+        let querier = self.querier.take().unwrap();
+        let querier = querier.restart_server().await;
+        self.querier = Some(querier);
     }
 
     /// Retrieve the underlying querier server, if set

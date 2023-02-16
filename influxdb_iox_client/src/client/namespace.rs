@@ -76,4 +76,15 @@ impl Client {
 
         Ok(response.into_inner().namespace.unwrap_field("namespace")?)
     }
+
+    /// Delete a namespace
+    pub async fn delete_namespace(&mut self, namespace: &str) -> Result<(), Error> {
+        self.inner
+            .delete_namespace(DeleteNamespaceRequest {
+                name: namespace.to_string(),
+            })
+            .await?;
+
+        Ok(())
+    }
 }

@@ -135,6 +135,13 @@ pub enum Step {
     /// endpoint, assert the data was written successfully
     WriteLineProtocol(String),
 
+    /// Writes the specified line protocol to the `/api/v2/write` endpoint; assert the request
+    /// returned an error with the given code
+    WriteLineProtocolExpectingError {
+        line_protocol: String,
+        expected_error_code: StatusCode,
+    },
+
     /// Ask the catalog service how many Parquet files it has for this cluster's namespace. Do this
     /// before a write where you're interested in when the write has been persisted to Parquet;
     /// then after the write use `WaitForPersisted2` to observe the change in the number of Parquet
@@ -271,6 +278,18 @@ where
                     let response = state.cluster.write_to_router(line_protocol).await;
                     assert_eq!(response.status(), StatusCode::NO_CONTENT);
                     info!("====Done writing line protocol");
+                }
+                Step::WriteLineProtocolExpectingError {
+                    line_protocol,
+                    expected_error_code,
+                } => {
+                    info!(
+                        "====Begin writing line protocol expecting error to v2 HTTP API:\n{}",
+                        line_protocol
+                    );
+                    let response = state.cluster.write_to_router(line_protocol).await;
+                    assert_eq!(response.status(), *expected_error_code);
+                    info!("====Done writing line protocol expecting error");
                 }
                 // Get the current number of Parquet files in the cluster's namespace before
                 // starting a new write so we can observe a change when waiting for persistence.
