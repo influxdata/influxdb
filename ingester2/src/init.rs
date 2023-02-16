@@ -7,15 +7,12 @@ mod wal_replay;
 
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
-use arrow_flight::flight_service_server::{FlightService, FlightServiceServer};
+use arrow_flight::flight_service_server::FlightService;
 use backoff::BackoffConfig;
 use futures::{future::Shared, Future, FutureExt};
 use generated_types::influxdata::iox::{
-    catalog::v1::catalog_service_server::{CatalogService, CatalogServiceServer},
-    ingester::v1::{
-        persist_service_server::{PersistService, PersistServiceServer},
-        write_service_server::{WriteService, WriteServiceServer},
-    },
+    catalog::v1::catalog_service_server::CatalogService,
+    ingester::v1::{persist_service_server::PersistService, write_service_server::WriteService},
 };
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
@@ -70,23 +67,20 @@ pub trait IngesterRpcInterface: Send + Sync + std::fmt::Debug {
 
     /// Acquire an opaque handle to the Ingester's [`CatalogService`] RPC
     /// handler implementation.
-    fn catalog_service(&self) -> CatalogServiceServer<Self::CatalogHandler>;
+    fn catalog_service(&self) -> Self::CatalogHandler;
 
     /// Acquire an opaque handle to the Ingester's [`WriteService`] RPC
     /// handler implementation.
-    fn write_service(&self) -> WriteServiceServer<Self::WriteHandler>;
+    fn write_service(&self) -> Self::WriteHandler;
 
     /// Acquire an opaque handle to the Ingester's [`PersistService`] RPC
     /// handler implementation.
-    fn persist_service(&self) -> PersistServiceServer<Self::PersistHandler>;
+    fn persist_service(&self) -> Self::PersistHandler;
 
     /// Acquire an opaque handle to the Ingester's Arrow Flight
     /// [`FlightService`] RPC handler implementation, allowing at most
     /// `max_simultaneous_requests` queries to be running at any one time.
-    fn query_service(
-        &self,
-        max_simultaneous_requests: usize,
-    ) -> FlightServiceServer<Self::FlightHandler>;
+    fn query_service(&self, max_simultaneous_requests: usize) -> Self::FlightHandler;
 }
 
 /// A RAII guard to clean up `ingester2` instance resources when dropped.
