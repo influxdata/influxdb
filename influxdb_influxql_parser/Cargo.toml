@@ -16,4 +16,4 @@ workspace-hack = { path = "../workspace-hack"}
 [dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }
 assert_matches = "1"
-insta = { version = "1.26.0", features = ["yaml"] }
+insta = { version = "1.28.0", features = ["yaml"] }
