@@ -1352,7 +1352,7 @@ impl Deduplicater {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::test::{format_plan, raw_data, TestChunk};
+    use crate::test::{format_execution_plan, raw_data, TestChunk};
     use arrow::datatypes::DataType;
     use arrow_util::{
         assert_batches_eq, assert_batches_sorted_eq, test_util::equalize_batch_schemas,
@@ -2850,21 +2850,21 @@ mod test {
 
         // plan should include SortExec because chunks are not yet sorted
         insta::assert_yaml_snapshot!(
-            format_plan(&plan),
+            format_execution_plan(&plan),
             @r###"
         ---
         - " UnionExec"
         - "   DeduplicateExec: [tag1@1 ASC,time@2 ASC]"
         - "     SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]"
         - "       UnionExec"
-        - "         SortExec: [tag1@1 ASC,time@2 ASC]"
+        - "         SortExec: expr=[tag1@1 ASC,time@2 ASC]"
         - "           UnionExec"
         - "             RecordBatchesExec: batches_groups=1 batches=1 total_rows=10"
-        - "         SortExec: [tag1@1 ASC,time@2 ASC]"
+        - "         SortExec: expr=[tag1@1 ASC,time@2 ASC]"
         - "           UnionExec"
         - "             RecordBatchesExec: batches_groups=1 batches=1 total_rows=5"
         - "   DeduplicateExec: [tag1@1 ASC,time@2 ASC]"
-        - "     SortExec: [tag1@1 ASC,time@2 ASC]"
+        - "     SortExec: expr=[tag1@1 ASC,time@2 ASC]"
         - "       UnionExec"
         - "         RecordBatchesExec: batches_groups=1 batches=1 total_rows=4"
         - "   UnionExec"
@@ -2911,7 +2911,7 @@ mod test {
 
         // Plan is very simple with one single RecordBatchesExec that includes 4 chunks
         insta::assert_yaml_snapshot!(
-            format_plan(&plan),
+            format_execution_plan(&plan),
             @r###"
         ---
         - " UnionExec"
@@ -3066,7 +3066,7 @@ mod test {
 
         // plan should include SortExec because chunks are not yet sorted on the specified sort_key
         insta::assert_yaml_snapshot!(
-            format_plan(&plan),
+            format_execution_plan(&plan),
             @r###"
         ---
         - " SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]"
@@ -3074,17 +3074,17 @@ mod test {
         - "     DeduplicateExec: [tag1@1 ASC,time@2 ASC]"
         - "       SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]"
         - "         UnionExec"
-        - "           SortExec: [tag1@1 ASC,time@2 ASC]"
+        - "           SortExec: expr=[tag1@1 ASC,time@2 ASC]"
         - "             UnionExec"
         - "               RecordBatchesExec: batches_groups=1 batches=1 total_rows=10"
-        - "           SortExec: [tag1@1 ASC,time@2 ASC]"
+        - "           SortExec: expr=[tag1@1 ASC,time@2 ASC]"
         - "             UnionExec"
         - "               RecordBatchesExec: batches_groups=1 batches=1 total_rows=5"
         - "     DeduplicateExec: [tag1@1 ASC,time@2 ASC]"
-        - "       SortExec: [tag1@1 ASC,time@2 ASC]"
+        - "       SortExec: expr=[tag1@1 ASC,time@2 ASC]"
         - "         UnionExec"
         - "           RecordBatchesExec: batches_groups=1 batches=1 total_rows=4"
-        - "     SortExec: [tag1@1 ASC,time@2 ASC]"
+        - "     SortExec: expr=[tag1@1 ASC,time@2 ASC]"
         - "       UnionExec"
         - "         RecordBatchesExec: batches_groups=1 batches=1 total_rows=3"
         "###
@@ -3132,21 +3132,21 @@ mod test {
         // there will be a UnionExec and a SortPreservinngMergeExec on top to merge the sorted chunks
         // plan should include SortExec because chunks are not yet sorted
         insta::assert_yaml_snapshot!(
-            format_plan(&plan),
+            format_execution_plan(&plan),
             @r###"
         ---
         - " SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]"
         - "   UnionExec"
-        - "     SortExec: [tag1@1 ASC,time@2 ASC]"
+        - "     SortExec: expr=[tag1@1 ASC,time@2 ASC]"
         - "       UnionExec"
         - "         RecordBatchesExec: batches_groups=1 batches=1 total_rows=10"
-        - "     SortExec: [tag1@1 ASC,time@2 ASC]"
+        - "     SortExec: expr=[tag1@1 ASC,time@2 ASC]"
         - "       UnionExec"
         - "         RecordBatchesExec: batches_groups=1 batches=1 total_rows=5"
-        - "     SortExec: [tag1@1 ASC,time@2 ASC]"
+        - "     SortExec: expr=[tag1@1 ASC,time@2 ASC]"
         - "       UnionExec"
         - "         RecordBatchesExec: batches_groups=1 batches=1 total_rows=3"
-        - "     SortExec: [tag1@1 ASC,time@2 ASC]"
+        - "     SortExec: expr=[tag1@1 ASC,time@2 ASC]"
         - "       UnionExec"
         - "         RecordBatchesExec: batches_groups=1 batches=1 total_rows=4"
         "###
@@ -3229,7 +3229,7 @@ mod test {
         // The plan should look like this. No SortExec at all because
         // all chunks are already sorted on the same requested sort key
         insta::assert_yaml_snapshot!(
-            format_plan(&plan),
+            format_execution_plan(&plan),
             @r###"
         ---
         - " SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]"
@@ -3266,7 +3266,7 @@ mod test {
             )
             .unwrap();
         insta::assert_yaml_snapshot!(
-            format_plan(&plan),
+            format_execution_plan(&plan),
             @r###"
         ---
         - " SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]"
@@ -3437,7 +3437,7 @@ mod test {
         // The plan should look like this. No SortExec at all because
         // all chunks are already sorted on the same requested sort key
         insta::assert_yaml_snapshot!(
-            format_plan(&plan),
+            format_execution_plan(&plan),
             @r###"
         ---
         - " SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]"
@@ -3491,7 +3491,7 @@ mod test {
         // Since all 10 chunks each is sorted on the same otuput sort key, the plan should scan 10 chunks
         // without any SortExec nor DeduplicateExec. Only a UnionExec and a SortPreservingMergeExec on top to merge them
         insta::assert_yaml_snapshot!(
-            format_plan(&plan),
+            format_execution_plan(&plan),
             @r###"
         ---
         - " SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]"

@@ -5,7 +5,7 @@ use std::ops::Range;
 
 use arrow::array::{Array, TimestampNanosecondArray};
 
-use super::algo::GapFillParams;
+use super::params::GapFillParams;
 
 /// SeriesState tracks the current status of input being consumed
 /// and timestamps being produced, as well as the amount of
@@ -259,7 +259,7 @@ mod tests {
     use arrow::array::TimestampNanosecondArray;
     use datafusion::error::Result;
 
-    use crate::exec::gapfill::algo::GapFillParams;
+    use crate::exec::gapfill::params::GapFillParams;
 
     use super::{SeriesAppender, SeriesState};
 
