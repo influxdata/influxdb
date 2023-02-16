@@ -505,9 +505,6 @@ pub trait PartitionRepo: Send + Sync {
     /// get partition by ID
     async fn get_by_id(&mut self, partition_id: PartitionId) -> Result<Option<Partition>>;
 
-    /// return partitions for a given shard
-    async fn list_by_shard(&mut self, shard_id: ShardId) -> Result<Vec<Partition>>;
-
     /// return partitions for a given namespace
     async fn list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Partition>>;
 
@@ -1903,18 +1900,6 @@ pub(crate) mod test_helpers {
             .await
             .unwrap()
             .is_none());
-
-        // List them and assert they match
-        let listed = repos
-            .partitions()
-            .list_by_shard(shard.id)
-            .await
-            .expect("failed to list partitions")
-            .into_iter()
-            .map(|v| (v.id, v))
-            .collect::<BTreeMap<_, _>>();
-
-        assert_eq!(created, listed);
 
         let listed = repos
             .partitions()

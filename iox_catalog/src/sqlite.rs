@@ -1073,19 +1073,6 @@ RETURNING *;
         Ok(Some(partition.into()))
     }
 
-    async fn list_by_shard(&mut self, shard_id: ShardId) -> Result<Vec<Partition>> {
-        Ok(
-            sqlx::query_as::<_, PartitionPod>(r#"SELECT * FROM partition WHERE shard_id = $1;"#)
-                .bind(shard_id) // $1
-                .fetch_all(self.inner.get_mut())
-                .await
-                .map_err(|e| Error::SqlxError { source: e })?
-                .into_iter()
-                .map(Into::into)
-                .collect(),
-        )
-    }
-
     async fn list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Partition>> {
         Ok(sqlx::query_as::<_, PartitionPod>(
             r#"
