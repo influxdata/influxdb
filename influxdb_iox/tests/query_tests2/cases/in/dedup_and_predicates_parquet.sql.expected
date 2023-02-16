@@ -14,7 +14,7 @@
 | logical_plan    | Sort: table.tag ASC NULLS LAST    |
 |    |   Projection: table.bar, table.foo, table.tag, table.time    |
 |    |     TableScan: table projection=[bar, foo, tag, time]    |
-| physical_plan    | SortExec: [tag@2 ASC NULLS LAST]    |
+| physical_plan    | SortExec: expr=[tag@2 ASC NULLS LAST]    |
 |    |   ProjectionExec: expr=[bar@0 as bar, foo@1 as foo, tag@2 as tag, time@3 as time]    |
 |    |     DeduplicateExec: [tag@2 ASC,time@3 ASC]    |
 |    |       SortPreservingMergeExec: [tag@2 ASC,time@3 ASC]    |
@@ -87,7 +87,7 @@
 |    |   Projection: table.bar, table.foo, table.tag, table.time    |
 |    |     Filter: table.time = TimestampNanosecond(0, None)    |
 |    |       TableScan: table projection=[bar, foo, tag, time], partial_filters=[table.time = TimestampNanosecond(0, None)]    |
-| physical_plan    | SortExec: [tag@2 ASC NULLS LAST]    |
+| physical_plan    | SortExec: expr=[tag@2 ASC NULLS LAST]    |
 |    |   CoalescePartitionsExec    |
 |    |     ProjectionExec: expr=[bar@0 as bar, foo@1 as foo, tag@2 as tag, time@3 as time]    |
 |    |       CoalesceBatchesExec: target_batch_size=8192    |

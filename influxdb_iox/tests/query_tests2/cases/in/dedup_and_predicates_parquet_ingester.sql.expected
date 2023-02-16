@@ -14,13 +14,13 @@
 | logical_plan    | Sort: table.tag ASC NULLS LAST    |
 |    |   Projection: table.bar, table.foo, table.tag, table.time    |
 |    |     TableScan: table projection=[bar, foo, tag, time]    |
-| physical_plan    | SortExec: [tag@2 ASC NULLS LAST]    |
+| physical_plan    | SortExec: expr=[tag@2 ASC NULLS LAST]    |
 |    |   ProjectionExec: expr=[bar@0 as bar, foo@1 as foo, tag@2 as tag, time@3 as time]    |
 |    |     DeduplicateExec: [tag@2 ASC,time@3 ASC]    |
 |    |       SortPreservingMergeExec: [tag@2 ASC,time@3 ASC]    |
 |    |         UnionExec    |
 |    |           ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[tag@2 ASC, time@3 ASC], projection=[bar, foo, tag, time]    |
-|    |           SortExec: [tag@2 ASC,time@3 ASC]    |
+|    |           SortExec: expr=[tag@2 ASC,time@3 ASC]    |
 |    |             RecordBatchesExec: batches_groups=1 batches=1 total_rows=2    |
 |    |    |
 ----------
@@ -45,7 +45,7 @@
 |    |         SortPreservingMergeExec: [tag@2 ASC,time@3 ASC]    |
 |    |           UnionExec    |
 |    |             ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, predicate=tag = Dictionary(Int32, Utf8("A")), pruning_predicate=tag_min@0 <= A AND A <= tag_max@1, output_ordering=[tag@2 ASC, time@3 ASC], projection=[bar, foo, tag, time]    |
-|    |             SortExec: [tag@2 ASC,time@3 ASC]    |
+|    |             SortExec: expr=[tag@2 ASC,time@3 ASC]    |
 |    |               RecordBatchesExec: batches_groups=1 batches=1 total_rows=2    |
 |    |    |
 ----------
@@ -70,7 +70,7 @@
 |    |         SortPreservingMergeExec: [tag@2 ASC,time@3 ASC]    |
 |    |           UnionExec    |
 |    |             ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[tag@2 ASC, time@3 ASC], projection=[bar, foo, tag, time]    |
-|    |             SortExec: [tag@2 ASC,time@3 ASC]    |
+|    |             SortExec: expr=[tag@2 ASC,time@3 ASC]    |
 |    |               RecordBatchesExec: batches_groups=1 batches=1 total_rows=2    |
 |    |    |
 ----------
@@ -90,7 +90,7 @@
 |    |   Projection: table.bar, table.foo, table.tag, table.time    |
 |    |     Filter: table.time = TimestampNanosecond(0, None)    |
 |    |       TableScan: table projection=[bar, foo, tag, time], partial_filters=[table.time = TimestampNanosecond(0, None)]    |
-| physical_plan    | SortExec: [tag@2 ASC NULLS LAST]    |
+| physical_plan    | SortExec: expr=[tag@2 ASC NULLS LAST]    |
 |    |   CoalescePartitionsExec    |
 |    |     ProjectionExec: expr=[bar@0 as bar, foo@1 as foo, tag@2 as tag, time@3 as time]    |
 |    |       CoalesceBatchesExec: target_batch_size=8192    |
@@ -100,7 +100,7 @@
 |    |               SortPreservingMergeExec: [tag@2 ASC,time@3 ASC]    |
 |    |                 UnionExec    |
 |    |                   ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, predicate=time = TimestampNanosecond(0, None), pruning_predicate=time_min@0 <= 0 AND 0 <= time_max@1, output_ordering=[tag@2 ASC, time@3 ASC], projection=[bar, foo, tag, time]    |
-|    |                   SortExec: [tag@2 ASC,time@3 ASC]    |
+|    |                   SortExec: expr=[tag@2 ASC,time@3 ASC]    |
 |    |                     RecordBatchesExec: batches_groups=1 batches=1 total_rows=2    |
 |    |    |
 ----------
@@ -125,7 +125,7 @@
 |    |         SortPreservingMergeExec: [tag@2 ASC,time@3 ASC]    |
 |    |           UnionExec    |
 |    |             ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, predicate=tag = Dictionary(Int32, Utf8("A")) AND time = TimestampNanosecond(0, None), pruning_predicate=tag_min@0 <= A AND A <= tag_max@1 AND time_min@2 <= 0 AND 0 <= time_max@3, output_ordering=[tag@2 ASC, time@3 ASC], projection=[bar, foo, tag, time]    |
-|    |             SortExec: [tag@2 ASC,time@3 ASC]    |
+|    |             SortExec: expr=[tag@2 ASC,time@3 ASC]    |
 |    |               RecordBatchesExec: batches_groups=1 batches=1 total_rows=2    |
 |    |    |
 ----------

@@ -16,7 +16,7 @@
 | logical_plan    | Sort: cpu.host ASC NULLS LAST, cpu.load ASC NULLS LAST, cpu.time ASC NULLS LAST    |
 |    |   Projection: cpu.host, cpu.load, cpu.time    |
 |    |     TableScan: cpu projection=[host, load, time]    |
-| physical_plan    | SortExec: [host@0 ASC NULLS LAST,load@1 ASC NULLS LAST,time@2 ASC NULLS LAST]    |
+| physical_plan    | SortExec: expr=[host@0 ASC NULLS LAST,load@1 ASC NULLS LAST,time@2 ASC NULLS LAST]    |
 |    |   ProjectionExec: expr=[host@0 as host, load@1 as load, time@2 as time]    |
 |    |     DeduplicateExec: [host@0 ASC,time@2 ASC]    |
 |    |       SortPreservingMergeExec: [host@0 ASC,time@2 ASC]    |
@@ -46,7 +46,7 @@
 |    |   Projection: cpu.host, cpu.load, cpu.time    |
 |    |     Filter: cpu.host != Dictionary(Int32, Utf8("b"))    |
 |    |       TableScan: cpu projection=[host, load, time], partial_filters=[cpu.host != Dictionary(Int32, Utf8("b"))]    |
-| physical_plan    | SortExec: [host@0 ASC NULLS LAST,time@2 ASC NULLS LAST]    |
+| physical_plan    | SortExec: expr=[host@0 ASC NULLS LAST,time@2 ASC NULLS LAST]    |
 |    |   CoalescePartitionsExec    |
 |    |     ProjectionExec: expr=[host@0 as host, load@1 as load, time@2 as time]    |
 |    |       CoalesceBatchesExec: target_batch_size=8192    |

@@ -459,7 +459,10 @@ mod test {
         ops::{Bound, Range},
     };
 
-    use crate::exec::{Executor, ExecutorType};
+    use crate::{
+        exec::{Executor, ExecutorType},
+        test::{format_execution_plan, format_logical_plan},
+    };
 
     use super::*;
     use arrow::{
@@ -472,7 +475,7 @@ mod test {
         datasource::empty::EmptyTable,
         error::Result,
         logical_expr::{logical_plan, Extension},
-        physical_plan::{collect, displayable, expressions::lit as phys_lit, memory::MemoryExec},
+        physical_plan::{collect, expressions::lit as phys_lit, memory::MemoryExec},
         prelude::{col, lit, lit_timestamp_nano, SessionConfig, SessionContext},
         scalar::ScalarValue,
     };
@@ -548,46 +551,52 @@ mod test {
         let plan = LogicalPlan::Extension(Extension {
             node: Arc::new(gapfill),
         });
-        let expected = "GapFill: groupBy=[[loc, time]], aggr=[[temp]], time_column=time, stride=IntervalDayTime(\"60000\"), range=Included(TimestampNanosecond(1000, None))..Excluded(TimestampNanosecond(2000, None))\
-                      \n  TableScan: temps";
-        assert_eq!(expected, format!("{}", plan.display_indent()));
+
+        insta::assert_yaml_snapshot!(
+            format_logical_plan(&plan),
+            @r###"
+        ---
+        - " GapFill: groupBy=[[loc, time]], aggr=[[temp]], time_column=time, stride=IntervalDayTime(\"60000\"), range=Included(TimestampNanosecond(1000, None))..Excluded(TimestampNanosecond(2000, None))"
+        - "   TableScan: temps"
+        "###
+        );
         Ok(())
     }
 
-    async fn assert_explain(sql: &str, expected: &str) -> Result<()> {
+    async fn format_explain(sql: &str) -> Result<Vec<String>> {
         let executor = Executor::new_testing();
         let context = executor.new_context(ExecutorType::Query);
         context
             .inner()
             .register_table("temps", Arc::new(EmptyTable::new(Arc::new(schema()))))?;
         let physical_plan = context.prepare_sql(sql).await?;
-        let actual_plan = displayable(physical_plan.as_ref()).indent().to_string();
-        let actual_iter = actual_plan.split('\n');
-
-        let expected = expected.split('\n');
-        expected.zip(actual_iter).for_each(|(expected, actual)| {
-            assert_eq!(expected, actual, "\ncomplete plan was:\n{actual_plan:?}\n")
-        });
-        Ok(())
+        Ok(format_execution_plan(&physical_plan))
     }
 
     #[tokio::test]
     async fn plan_gap_fill() -> Result<()> {
         // show that the optimizer rule can fire and that physical
         // planning will succeed.
-        let dbg_args = "IntervalDayTime(\"60000\"),temps.time,Utf8(\"1970-01-01T00:00:00Z\")";
-        assert_explain(
-            "SELECT date_bin_gapfill(interval '1 minute', time, timestamp '1970-01-01T00:00:00Z') AS minute, avg(temp)\
-           \nFROM temps\
-           \nWHERE time >= '1980-01-01T00:00:00Z' and time < '1981-01-01T00:00:00Z'
-           \nGROUP BY minute;",
-            format!(
-                "ProjectionExec: expr=[date_bin_gapfill({dbg_args})@0 as minute, AVG(temps.temp)@1 as AVG(temps.temp)]\
-               \n  GapFillExec: group_expr=[date_bin_gapfill({dbg_args})@0], aggr_expr=[AVG(temps.temp)@1], stride=60000, time_range=Included(\"315532800000000000\")..Excluded(\"347155200000000000\")\
-               \n    SortExec: [date_bin_gapfill({dbg_args})@0 ASC]\
-               \n      AggregateExec: mode=Final, gby=[date_bin_gapfill({dbg_args})@0 as date_bin_gapfill({dbg_args})], aggr=[AVG(temps.temp)]"
-           ).as_str()
-       ).await?;
+        let sql = "SELECT date_bin_gapfill(interval '1 minute', time, timestamp '1970-01-01T00:00:00Z') AS minute, avg(temp)\
+                   \nFROM temps\
+                   \nWHERE time >= '1980-01-01T00:00:00Z' and time < '1981-01-01T00:00:00Z'\
+                   \nGROUP BY minute;";
+
+        let explain = format_explain(sql).await?;
+        insta::assert_yaml_snapshot!(
+            explain,
+            @r###"
+        ---
+        - " ProjectionExec: expr=[date_bin_gapfill(IntervalDayTime(\"60000\"),temps.time,Utf8(\"1970-01-01T00:00:00Z\"))@0 as minute, AVG(temps.temp)@1 as AVG(temps.temp)]"
+        - "   GapFillExec: group_expr=[date_bin_gapfill(IntervalDayTime(\"60000\"),temps.time,Utf8(\"1970-01-01T00:00:00Z\"))@0], aggr_expr=[AVG(temps.temp)@1], stride=60000, time_range=Included(\"315532800000000000\")..Excluded(\"347155200000000000\")"
+        - "     SortExec: expr=[date_bin_gapfill(IntervalDayTime(\"60000\"),temps.time,Utf8(\"1970-01-01T00:00:00Z\"))@0 ASC]"
+        - "       AggregateExec: mode=Final, gby=[date_bin_gapfill(IntervalDayTime(\"60000\"),temps.time,Utf8(\"1970-01-01T00:00:00Z\"))@0 as date_bin_gapfill(IntervalDayTime(\"60000\"),temps.time,Utf8(\"1970-01-01T00:00:00Z\"))], aggr=[AVG(temps.temp)]"
+        - "         AggregateExec: mode=Partial, gby=[datebin(60000, time@0, 0) as date_bin_gapfill(IntervalDayTime(\"60000\"),temps.time,Utf8(\"1970-01-01T00:00:00Z\"))], aggr=[AVG(temps.temp)]"
+        - "           CoalesceBatchesExec: target_batch_size=8192"
+        - "             FilterExec: time@0 >= 315532800000000000 AND time@0 < 347155200000000000"
+        - "               EmptyExec: produce_one_row=false"
+        "###
+        );
         Ok(())
     }
 
@@ -596,24 +605,30 @@ mod test {
         // The call to `date_bin_gapfill` should be last in the SortExec
         // expressions, even though it was not last on the SELECT list
         // or the GROUP BY clause.
-        let dbg_args = "IntervalDayTime(\"60000\"),temps.time,Utf8(\"1970-01-01T00:00:00Z\")";
-        assert_explain(
-            "SELECT \
+        let sql = "SELECT \
            \n  loc,\
            \n  date_bin_gapfill(interval '1 minute', time, timestamp '1970-01-01T00:00:00Z') AS minute,\
            \n  concat('zz', loc) AS loczz,\
            \n  avg(temp)\
            \nFROM temps\
            \nWHERE time >= '1980-01-01T00:00:00Z' and time < '1981-01-01T00:00:00Z'
-           \nGROUP BY loc, minute, loczz;",
-            format!(
-                "ProjectionExec: expr=[loc@0 as loc, date_bin_gapfill({dbg_args})@1 as minute, concat(Utf8(\"zz\"),temps.loc)@2 as loczz, AVG(temps.temp)@3 as AVG(temps.temp)]\
-               \n  GapFillExec: group_expr=[loc@0, date_bin_gapfill({dbg_args})@1, concat(Utf8(\"zz\"),temps.loc)@2], aggr_expr=[AVG(temps.temp)@3], stride=60000, time_range=Included(\"315532800000000000\")..Excluded(\"347155200000000000\")\
-               \n    SortExec: [loc@0 ASC,concat(Utf8(\"zz\"),temps.loc)@2 ASC,date_bin_gapfill({dbg_args})@1 ASC]\
-               \n      AggregateExec: mode=Final, gby=[loc@0 as loc, date_bin_gapfill({dbg_args})@1 as date_bin_gapfill({dbg_args}), concat(Utf8(\"zz\"),temps.loc)@2 as concat(Utf8(\"zz\"),temps.loc)], aggr=[AVG(temps.temp)]"
-           ).as_str()
+           \nGROUP BY loc, minute, loczz;";
 
-           ).await?;
+        let explain = format_explain(sql).await?;
+        insta::assert_yaml_snapshot!(
+            explain,
+            @r###"
+        ---
+        - " ProjectionExec: expr=[loc@0 as loc, date_bin_gapfill(IntervalDayTime(\"60000\"),temps.time,Utf8(\"1970-01-01T00:00:00Z\"))@1 as minute, concat(Utf8(\"zz\"),temps.loc)@2 as loczz, AVG(temps.temp)@3 as AVG(temps.temp)]"
+        - "   GapFillExec: group_expr=[loc@0, date_bin_gapfill(IntervalDayTime(\"60000\"),temps.time,Utf8(\"1970-01-01T00:00:00Z\"))@1, concat(Utf8(\"zz\"),temps.loc)@2], aggr_expr=[AVG(temps.temp)@3], stride=60000, time_range=Included(\"315532800000000000\")..Excluded(\"347155200000000000\")"
+        - "     SortExec: expr=[loc@0 ASC,concat(Utf8(\"zz\"),temps.loc)@2 ASC,date_bin_gapfill(IntervalDayTime(\"60000\"),temps.time,Utf8(\"1970-01-01T00:00:00Z\"))@1 ASC]"
+        - "       AggregateExec: mode=Final, gby=[loc@0 as loc, date_bin_gapfill(IntervalDayTime(\"60000\"),temps.time,Utf8(\"1970-01-01T00:00:00Z\"))@1 as date_bin_gapfill(IntervalDayTime(\"60000\"),temps.time,Utf8(\"1970-01-01T00:00:00Z\")), concat(Utf8(\"zz\"),temps.loc)@2 as concat(Utf8(\"zz\"),temps.loc)], aggr=[AVG(temps.temp)]"
+        - "         AggregateExec: mode=Partial, gby=[loc@1 as loc, datebin(60000, time@0, 0) as date_bin_gapfill(IntervalDayTime(\"60000\"),temps.time,Utf8(\"1970-01-01T00:00:00Z\")), concat(zz, loc@1) as concat(Utf8(\"zz\"),temps.loc)], aggr=[AVG(temps.temp)]"
+        - "           CoalesceBatchesExec: target_batch_size=8192"
+        - "             FilterExec: time@0 >= 315532800000000000 AND time@0 < 347155200000000000"
+        - "               EmptyExec: produce_one_row=false"
+        "###
+        );
         Ok(())
     }
 

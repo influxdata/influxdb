@@ -5,7 +5,7 @@ use datafusion::{
 };
 use serde::Serialize;
 
-use crate::test::format_plan;
+use crate::test::format_execution_plan;
 
 #[derive(Debug, Serialize)]
 pub struct OptimizationTest {
@@ -19,10 +19,10 @@ impl OptimizationTest {
         O: PhysicalOptimizerRule,
     {
         Self {
-            input: format_plan(&input_plan),
+            input: format_execution_plan(&input_plan),
             output: opt
                 .optimize(input_plan, &ConfigOptions::default())
-                .map(|plan| format_plan(&plan))
+                .map(|plan| format_execution_plan(&plan))
                 .map_err(|e| e.to_string()),
         }
     }
