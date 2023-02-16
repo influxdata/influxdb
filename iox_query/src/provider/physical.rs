@@ -22,6 +22,9 @@ use std::{
     sync::Arc,
 };
 
+/// Extension for [`PartitionedFile`] to hold the original [`QueryChunk`].
+struct PartitionedFileExt(Arc<dyn QueryChunk>);
+
 /// Holds a list of chunks that all have the same "URL" and
 /// will be scanned using the same ParquetExec.
 ///
@@ -30,7 +33,7 @@ use std::{
 #[derive(Debug)]
 struct ParquetChunkList {
     object_store_url: ObjectStoreUrl,
-    object_metas: Vec<ObjectMeta>,
+    chunks: Vec<(ObjectMeta, Arc<dyn QueryChunk>)>,
     /// Sort key to place on the ParquetExec, validated to be
     /// compatible with all chunk sort keys
     sort_key: Option<SortKey>,
@@ -43,7 +46,7 @@ impl ParquetChunkList {
     /// with the chunk order.
     fn new(
         object_store_url: ObjectStoreUrl,
-        chunk: &dyn QueryChunk,
+        chunk: &Arc<dyn QueryChunk>,
         meta: ObjectMeta,
         output_sort_key: Option<&SortKey>,
     ) -> Self {
@@ -51,15 +54,15 @@ impl ParquetChunkList {
 
         Self {
             object_store_url,
-            object_metas: vec![meta],
+            chunks: vec![(meta, Arc::clone(chunk))],
             sort_key,
         }
     }
 
     /// Add the parquet file the list of files to be scanned, updating
     /// the sort key as necessary.
-    fn add_parquet_file(&mut self, chunk: &dyn QueryChunk, meta: ObjectMeta) {
-        self.object_metas.push(meta);
+    fn add_parquet_file(&mut self, chunk: &Arc<dyn QueryChunk>, meta: ObjectMeta) {
+        self.chunks.push((meta, Arc::clone(chunk)));
 
         self.sort_key = combine_sort_key(self.sort_key.take(), chunk.sort_key());
     }
@@ -140,12 +143,12 @@ pub fn chunks_to_physical_nodes(
                 match parquet_chunks.entry(url_str) {
                     Entry::Occupied(mut o) => {
                         o.get_mut()
-                            .add_parquet_file(chunk.as_ref(), parquet_input.object_meta);
+                            .add_parquet_file(chunk, parquet_input.object_meta);
                     }
                     Entry::Vacant(v) => {
                         v.insert(ParquetChunkList::new(
                             parquet_input.object_store_url,
-                            chunk.as_ref(),
+                            chunk,
                             parquet_input.object_meta,
                             output_sort_key,
                         ));
@@ -168,17 +171,19 @@ pub fn chunks_to_physical_nodes(
     for (_url_str, chunk_list) in parquet_chunks {
         let ParquetChunkList {
             object_store_url,
-            object_metas,
+            chunks,
             sort_key,
         } = chunk_list;
 
         let file_groups = distribute(
-            object_metas.into_iter().map(|object_meta| PartitionedFile {
-                object_meta,
-                partition_values: vec![],
-                range: None,
-                extensions: None,
-            }),
+            chunks
+                .into_iter()
+                .map(|(object_meta, chunk)| PartitionedFile {
+                    object_meta,
+                    partition_values: vec![],
+                    range: None,
+                    extensions: Some(Arc::new(PartitionedFileExt(chunk))),
+                }),
             target_partitions,
         );
 
