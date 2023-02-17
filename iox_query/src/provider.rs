@@ -42,9 +42,8 @@ mod physical;
 mod record_batch_exec;
 use self::overlap::group_potential_duplicates;
 pub use deduplicate::{DeduplicateExec, RecordBatchDeduplicator};
-pub(crate) use physical::chunks_to_physical_nodes;
+pub(crate) use physical::{chunks_to_physical_nodes, PartitionedFileExt};
 
-#[cfg(test)]
 pub(crate) use record_batch_exec::RecordBatchesExec;
 
 #[derive(Debug, Snafu)]
