@@ -375,7 +375,7 @@ where
 
         self.metrics
             .get_instrument::<Metric<U>>(name)
-            .unwrap_or_else(|| panic!("failed to find metric {}", name))
+            .unwrap_or_else(|| panic!("failed to find metric {name}"))
             .get_observer(&attrs)
             .unwrap_or_else(|| {
                 panic!(
