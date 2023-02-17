@@ -169,7 +169,7 @@ earlyTermination() {
 }
 
 # make dir for artifacts
-mkdir -p monitor-ci/test-artifacts/results/{build-oss-image,oss-e2e,build-image,cloud-e2e,cloud-e2e-firefox,cloud-e2e-k8s-idpe,cloud-lighthouse,smoke,build-prod-image,deploy}/{shared,oss,cloud}
+mkdir -p monitor-ci/test-artifacts/results/{build-oss-image,oss-e2e,build-image,cloud-e2e,cloud-lighthouse,smoke,build-prod-image,deploy}/{shared,oss,cloud}
 
 # get monitor-ci pipelines we've already run on this SHA
 found_passing_pipeline=0
