@@ -37,16 +37,17 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mockito::mock;
+    use mockito::Server;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn health() {
-        let mock_server = mock("GET", "/health").create();
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server.mock("GET", "/health").create_async().await;
 
-        let client = Client::new(mockito::server_url(), "");
+        let client = Client::new(mock_server.url(), "");
 
         let _result = client.health().await;
 
-        mock_server.assert();
+        mock.assert_async().await;
     }
 }

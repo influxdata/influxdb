@@ -257,9 +257,10 @@ mod tests {
         assert_clone(Builder::default())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn headers_are_set() {
-        let url = mockito::server_url();
+        let mut mock_server = mockito::Server::new_async().await;
+        let url = mock_server.url();
 
         let http_connection = Builder::new()
             .header(
@@ -274,11 +275,13 @@ mod tests {
         let url = format!("{url}/the_api");
         println!("Sending to {url}");
 
-        let m = mockito::mock("POST", "/the_api")
+        let m = mock_server
+            .mock("POST", "/the_api")
             .with_status(201)
             .with_body("world")
             .match_header("FOO", "bar")
-            .create();
+            .create_async()
+            .await;
 
         http_connection
             .client()
@@ -287,6 +290,6 @@ mod tests {
             .await
             .expect("Error making http request");
 
-        m.assert();
+        m.assert_async().await;
     }
 }

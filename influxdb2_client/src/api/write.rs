@@ -64,28 +64,31 @@ mod tests {
     use super::*;
     use crate::models::DataPoint;
     use futures::stream;
-    use mockito::mock;
+    use mockito::Server;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn writing_points() {
         let org = "some-org";
         let bucket = "some-bucket";
         let token = "some-token";
 
-        let mock_server = mock(
-            "POST",
-            format!("/api/v2/write?bucket={bucket}&org={org}").as_str(),
-        )
-        .match_header("Authorization", format!("Token {token}").as_str())
-        .match_body(
-            "\
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock(
+                "POST",
+                format!("/api/v2/write?bucket={bucket}&org={org}").as_str(),
+            )
+            .match_header("Authorization", format!("Token {token}").as_str())
+            .match_body(
+                "\
 cpu,host=server01 usage=0.5
 cpu,host=server01,region=us-west usage=0.87
 ",
-        )
-        .create();
+            )
+            .create_async()
+            .await;
 
-        let client = Client::new(mockito::server_url(), token);
+        let client = Client::new(mock_server.url(), token);
 
         let points = vec![
             DataPoint::builder("cpu")
@@ -108,6 +111,6 @@ cpu,host=server01,region=us-west usage=0.87
         // that the server returned 501, so don't use `?` here.
         let _result = client.write(org, bucket, stream::iter(points)).await;
 
-        mock_server.assert();
+        mock.assert_async().await;
     }
 }

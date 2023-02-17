@@ -148,52 +148,61 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mockito::{mock, Matcher};
+    use mockito::{Matcher, Server};
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn query_suggestions() {
         let token = "some-token";
 
-        let mock_server = mock("GET", "/api/v2/query/suggestions")
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("GET", "/api/v2/query/suggestions")
             .match_header("Authorization", format!("Token {token}").as_str())
-            .create();
+            .create_async()
+            .await;
 
-        let client = Client::new(mockito::server_url(), token);
+        let client = Client::new(mock_server.url(), token);
 
         let _result = client.query_suggestions().await;
 
-        mock_server.assert();
+        mock.assert_async().await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn query_suggestions_name() {
         let token = "some-token";
         let suggestion_name = "some-name";
 
-        let mock_server = mock(
-            "GET",
-            format!(
-                "/api/v2/query/suggestions/{name}",
-                name = crate::common::urlencode(suggestion_name)
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock(
+                "GET",
+                format!(
+                    "/api/v2/query/suggestions/{name}",
+                    name = crate::common::urlencode(suggestion_name)
+                )
+                .as_str(),
             )
-            .as_str(),
-        )
-        .match_header("Authorization", format!("Token {token}").as_str())
-        .create();
+            .match_header("Authorization", format!("Token {token}").as_str())
+            .create_async()
+            .await;
 
-        let client = Client::new(mockito::server_url(), token);
+        let client = Client::new(mock_server.url(), token);
 
         let _result = client.query_suggestions_name(suggestion_name).await;
 
-        mock_server.assert();
+        mock.assert_async().await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn query_raw() {
         let token = "some-token";
         let org = "some-org";
         let query: Option<Query> = Some(Query::new("some-influx-query-string".to_string()));
-        let mock_server = mock("POST", "/api/v2/query")
+
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("POST", "/api/v2/query")
             .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Accepting-Encoding", "identity")
             .match_header("Content-Type", "application/json")
@@ -203,22 +212,25 @@ mod tests {
                     .unwrap()
                     .as_str(),
             )
-            .create();
+            .create_async()
+            .await;
 
-        let client = Client::new(mockito::server_url(), token);
+        let client = Client::new(mock_server.url(), token);
 
         let _result = client.query_raw(org, query).await;
 
-        mock_server.assert();
+        mock.assert_async().await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn query_raw_opt() {
         let token = "some-token";
         let org = "some-org";
         let query: Option<Query> = None;
 
-        let mock_server = mock("POST", "/api/v2/query")
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("POST", "/api/v2/query")
             .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Accepting-Encoding", "identity")
             .match_header("Content-Type", "application/json")
@@ -228,20 +240,24 @@ mod tests {
                     .unwrap()
                     .as_str(),
             )
-            .create();
+            .create_async()
+            .await;
 
-        let client = Client::new(mockito::server_url(), token);
+        let client = Client::new(mock_server.url(), token);
 
         let _result = client.query_raw(org, None).await;
 
-        mock_server.assert();
+        mock.assert_async().await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn query_analyze() {
         let token = "some-token";
         let query: Option<Query> = Some(Query::new("some-influx-query-string".to_string()));
-        let mock_server = mock("POST", "/api/v2/query/analyze")
+
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("POST", "/api/v2/query/analyze")
             .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Content-Type", "application/json")
             .match_body(
@@ -249,20 +265,24 @@ mod tests {
                     .unwrap()
                     .as_str(),
             )
-            .create();
+            .create_async()
+            .await;
 
-        let client = Client::new(mockito::server_url(), token);
+        let client = Client::new(mock_server.url(), token);
 
         let _result = client.query_analyze(query).await;
 
-        mock_server.assert();
+        mock.assert_async().await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn query_analyze_opt() {
         let token = "some-token";
         let query: Option<Query> = None;
-        let mock_server = mock("POST", "/api/v2/query/analyze")
+
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("POST", "/api/v2/query/analyze")
             .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Content-Type", "application/json")
             .match_body(
@@ -270,21 +290,25 @@ mod tests {
                     .unwrap()
                     .as_str(),
             )
-            .create();
+            .create_async()
+            .await;
 
-        let client = Client::new(mockito::server_url(), token);
+        let client = Client::new(mock_server.url(), token);
 
         let _result = client.query_analyze(query).await;
 
-        mock_server.assert();
+        mock.assert_async().await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn query_ast() {
         let token = "some-token";
         let language_request: Option<LanguageRequest> =
             Some(LanguageRequest::new("some-influx-query-string".to_string()));
-        let mock_server = mock("POST", "/api/v2/query/ast")
+
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("POST", "/api/v2/query/ast")
             .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Content-Type", "application/json")
             .match_body(
@@ -292,20 +316,24 @@ mod tests {
                     .unwrap()
                     .as_str(),
             )
-            .create();
+            .create_async()
+            .await;
 
-        let client = Client::new(mockito::server_url(), token);
+        let client = Client::new(mock_server.url(), token);
 
         let _result = client.query_ast(language_request).await;
 
-        mock_server.assert();
+        mock.assert_async().await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn query_ast_opt() {
         let token = "some-token";
         let language_request: Option<LanguageRequest> = None;
-        let mock_server = mock("POST", "/api/v2/query/ast")
+
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("POST", "/api/v2/query/ast")
             .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Content-Type", "application/json")
             .match_body(
@@ -313,21 +341,25 @@ mod tests {
                     .unwrap()
                     .as_str(),
             )
-            .create();
+            .create_async()
+            .await;
 
-        let client = Client::new(mockito::server_url(), token);
+        let client = Client::new(mock_server.url(), token);
 
         let _result = client.query_ast(language_request).await;
 
-        mock_server.assert();
+        mock.assert_async().await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn query_raw_no_results() {
         let token = "some-token";
         let org = "some-org";
         let query: Option<Query> = Some(Query::new("some-influx-query-string".to_string()));
-        let mock_server = mock("POST", "/api/v2/query")
+
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("POST", "/api/v2/query")
             .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Accepting-Encoding", "identity")
             .match_header("Content-Type", "application/json")
@@ -338,13 +370,14 @@ mod tests {
                     .as_str(),
             )
             .with_body("")
-            .create();
+            .create_async()
+            .await;
 
-        let client = Client::new(mockito::server_url(), token);
+        let client = Client::new(mock_server.url(), token);
 
         let result = client.query_raw(org, query).await.expect("request success");
         assert_eq!(result, "");
 
-        mock_server.assert();
+        mock.assert_async().await;
     }
 }

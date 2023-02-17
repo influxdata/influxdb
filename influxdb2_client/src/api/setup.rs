@@ -117,20 +117,24 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mockito::mock;
+    use mockito::Server;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn is_onboarding_allowed() {
-        let mock_server = mock("GET", "/api/v2/setup").create();
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("GET", "/api/v2/setup")
+            .create_async()
+            .await;
 
-        let client = Client::new(mockito::server_url(), "");
+        let client = Client::new(mock_server.url(), "");
 
         let _result = client.is_onboarding_allowed().await;
 
-        mock_server.assert();
+        mock.assert_async().await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn onboarding() {
         let token = "some-token";
         let username = "some-user";
@@ -139,16 +143,17 @@ mod tests {
         let password = "some-password";
         let retention_period_hrs = 1;
 
-        let mock_server = mock("POST", "/api/v2/setup")
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server.mock("POST", "/api/v2/setup")
             .match_header("Content-Type", "application/json")
             .match_body(
                 format!(
                     r#"{{"username":"{username}","org":"{org}","bucket":"{bucket}","password":"{password}","retentionPeriodHrs":{retention_period_hrs}}}"#
                 ).as_str(),
             )
-            .create();
+            .create_async().await;
 
-        let client = Client::new(mockito::server_url(), token);
+        let client = Client::new(mock_server.url(), token);
 
         let _result = client
             .onboarding(
@@ -161,10 +166,10 @@ mod tests {
             )
             .await;
 
-        mock_server.assert();
+        mock.assert_async().await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn post_setup_user() {
         let token = "some-token";
         let username = "some-user";
@@ -173,7 +178,8 @@ mod tests {
         let password = "some-password";
         let retention_period_hrs = 1;
 
-        let mock_server = mock("POST", "/api/v2/setup/user")
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server.mock("POST", "/api/v2/setup/user")
             .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Content-Type", "application/json")
             .match_body(
@@ -181,9 +187,9 @@ mod tests {
                     r#"{{"username":"{username}","org":"{org}","bucket":"{bucket}","password":"{password}","retentionPeriodHrs":{retention_period_hrs}}}"#
                 ).as_str(),
             )
-            .create();
+            .create_async().await;
 
-        let client = Client::new(mockito::server_url(), token);
+        let client = Client::new(mock_server.url(), token);
 
         let _result = client
             .post_setup_user(
@@ -196,54 +202,60 @@ mod tests {
             )
             .await;
 
-        mock_server.assert();
+        mock.assert_async().await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn onboarding_opt() {
         let username = "some-user";
         let org = "some-org";
         let bucket = "some-bucket";
 
-        let mock_server = mock("POST", "/api/v2/setup")
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("POST", "/api/v2/setup")
             .match_header("Content-Type", "application/json")
             .match_body(
                 format!(r#"{{"username":"{username}","org":"{org}","bucket":"{bucket}"}}"#,)
                     .as_str(),
             )
-            .create();
+            .create_async()
+            .await;
 
-        let client = Client::new(mockito::server_url(), "");
+        let client = Client::new(mock_server.url(), "");
 
         let _result = client
             .onboarding(username, org, bucket, None, None, None)
             .await;
 
-        mock_server.assert();
+        mock.assert_async().await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn post_setup_user_opt() {
         let token = "some-token";
         let username = "some-user";
         let org = "some-org";
         let bucket = "some-bucket";
 
-        let mock_server = mock("POST", "/api/v2/setup/user")
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("POST", "/api/v2/setup/user")
             .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Content-Type", "application/json")
             .match_body(
                 format!(r#"{{"username":"{username}","org":"{org}","bucket":"{bucket}"}}"#,)
                     .as_str(),
             )
-            .create();
+            .create_async()
+            .await;
 
-        let client = Client::new(mockito::server_url(), token);
+        let client = Client::new(mock_server.url(), token);
 
         let _result = client
             .post_setup_user(username, org, bucket, None, None, None)
             .await;
 
-        mock_server.assert();
+        mock.assert_async().await;
     }
 }

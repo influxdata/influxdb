@@ -38,28 +38,31 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mockito::mock;
+    use mockito::Server;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn create_bucket() {
         let org_id = "0000111100001111".to_string();
         let bucket = "some-bucket".to_string();
         let token = "some-token";
 
-        let mock_server = mock("POST", "/api/v2/buckets")
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("POST", "/api/v2/buckets")
             .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Content-Type", "application/json")
             .match_body(
                 format!(r#"{{"orgID":"{org_id}","name":"{bucket}","retentionRules":[]}}"#).as_str(),
             )
-            .create();
+            .create_async()
+            .await;
 
-        let client = Client::new(mockito::server_url(), token);
+        let client = Client::new(mock_server.url(), token);
 
         let _result = client
             .create_bucket(Some(PostBucketRequest::new(org_id, bucket)))
             .await;
 
-        mock_server.assert();
+        mock.assert_async().await;
     }
 }

@@ -139,58 +139,67 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mockito::mock;
+    use mockito::Server;
 
     const BASE_PATH: &str = "/api/v2/labels";
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn labels() {
         let token = "some-token";
 
-        let mock_server = mock("GET", BASE_PATH)
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("GET", BASE_PATH)
             .match_header("Authorization", format!("Token {token}").as_str())
-            .create();
+            .create_async()
+            .await;
 
-        let client = Client::new(mockito::server_url(), token);
+        let client = Client::new(mock_server.url(), token);
 
         let _result = client.labels().await;
 
-        mock_server.assert();
+        mock.assert_async().await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn labels_by_org() {
         let token = "some-token";
         let org_id = "some-org_id";
 
-        let mock_server = mock("GET", format!("{BASE_PATH}?orgID={org_id}").as_str())
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("GET", format!("{BASE_PATH}?orgID={org_id}").as_str())
             .match_header("Authorization", format!("Token {token}").as_str())
-            .create();
+            .create_async()
+            .await;
 
-        let client = Client::new(mockito::server_url(), token);
+        let client = Client::new(mock_server.url(), token);
 
         let _result = client.labels_by_org(org_id).await;
 
-        mock_server.assert();
+        mock.assert_async().await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn find_label() {
         let token = "some-token";
         let label_id = "some-id";
 
-        let mock_server = mock("GET", format!("{BASE_PATH}/{label_id}").as_str())
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("GET", format!("{BASE_PATH}/{label_id}").as_str())
             .match_header("Authorization", format!("Token {token}").as_str())
-            .create();
+            .create_async()
+            .await;
 
-        let client = Client::new(mockito::server_url(), token);
+        let client = Client::new(mock_server.url(), token);
 
         let _result = client.find_label(label_id).await;
 
-        mock_server.assert();
+        mock.assert_async().await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn create_label() {
         let token = "some-token";
         let org_id = "some-org";
@@ -198,7 +207,8 @@ mod tests {
         let mut properties = HashMap::new();
         properties.insert("some-key".to_string(), "some-value".to_string());
 
-        let mock_server = mock("POST", BASE_PATH)
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server.mock("POST", BASE_PATH)
             .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Content-Type", "application/json")
             .match_body(
@@ -207,35 +217,38 @@ mod tests {
                 )
                 .as_str(),
             )
-            .create();
+            .create_async().await;
 
-        let client = Client::new(mockito::server_url(), token);
+        let client = Client::new(mock_server.url(), token);
 
         let _result = client.create_label(org_id, name, Some(properties)).await;
 
-        mock_server.assert();
+        mock.assert_async().await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn create_label_opt() {
         let token = "some-token";
         let org_id = "some-org_id";
         let name = "some-user";
 
-        let mock_server = mock("POST", BASE_PATH)
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("POST", BASE_PATH)
             .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Content-Type", "application/json")
             .match_body(format!(r#"{{"orgID":"{org_id}","name":"{name}"}}"#).as_str())
-            .create();
+            .create_async()
+            .await;
 
-        let client = Client::new(mockito::server_url(), token);
+        let client = Client::new(mock_server.url(), token);
 
         let _result = client.create_label(org_id, name, None).await;
 
-        mock_server.assert();
+        mock.assert_async().await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn update_label() {
         let token = "some-token";
         let name = "some-user";
@@ -243,54 +256,63 @@ mod tests {
         let mut properties = HashMap::new();
         properties.insert("some-key".to_string(), "some-value".to_string());
 
-        let mock_server = mock("PATCH", format!("{BASE_PATH}/{label_id}").as_str())
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("PATCH", format!("{BASE_PATH}/{label_id}").as_str())
             .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Content-Type", "application/json")
             .match_body(
                 format!(r#"{{"name":"{name}","properties":{{"some-key":"some-value"}}}}"#).as_str(),
             )
-            .create();
+            .create_async()
+            .await;
 
-        let client = Client::new(mockito::server_url(), token);
+        let client = Client::new(mock_server.url(), token);
 
         let _result = client
             .update_label(Some(name.to_string()), Some(properties), label_id)
             .await;
 
-        mock_server.assert();
+        mock.assert_async().await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn update_label_opt() {
         let token = "some-token";
         let label_id = "some-label_id";
 
-        let mock_server = mock("PATCH", format!("{BASE_PATH}/{label_id}").as_str())
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("PATCH", format!("{BASE_PATH}/{label_id}").as_str())
             .match_header("Authorization", format!("Token {token}").as_str())
             .match_header("Content-Type", "application/json")
             .match_body("{}")
-            .create();
+            .create_async()
+            .await;
 
-        let client = Client::new(mockito::server_url(), token);
+        let client = Client::new(mock_server.url(), token);
 
         let _result = client.update_label(None, None, label_id).await;
 
-        mock_server.assert();
+        mock.assert_async().await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn delete_label() {
         let token = "some-token";
         let label_id = "some-label_id";
 
-        let mock_server = mock("DELETE", format!("{BASE_PATH}/{label_id}").as_str())
+        let mut mock_server = Server::new_async().await;
+        let mock = mock_server
+            .mock("DELETE", format!("{BASE_PATH}/{label_id}").as_str())
             .match_header("Authorization", format!("Token {token}").as_str())
-            .create();
+            .create_async()
+            .await;
 
-        let client = Client::new(mockito::server_url(), token);
+        let client = Client::new(mock_server.url(), token);
 
         let _result = client.delete_label(label_id).await;
 
-        mock_server.assert();
+        mock.assert_async().await;
     }
 }
