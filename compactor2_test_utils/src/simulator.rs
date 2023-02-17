@@ -5,7 +5,8 @@ use std::{
 
 use async_trait::async_trait;
 use data_types::{
-    ColumnSet, CompactionLevel, ParquetFile, ParquetFileParams, SequenceNumber, ShardId, Timestamp,
+    ColumnSet, CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, SequenceNumber,
+    ShardId, Timestamp,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use iox_time::Time;
@@ -69,22 +70,48 @@ impl ParquetFileSimulator {
         runs.into_iter()
             .enumerate()
             .flat_map(|(i, run)| {
-                let total_input_size: i64 = run
-                    .input_parquet_files
-                    .iter()
-                    .map(|f| f.file_size_bytes)
-                    .sum();
-                let title = format!(
+                let SimulatedRun {
+                    plan_type,
+                    input_parquet_files,
+                    output_params,
+                } = run;
+
+                let input_title = format!(
                     "**** Simulation run {}, type={}. {} Input Files, {} total:",
                     i,
-                    run.plan_type,
-                    run.input_parquet_files.len(),
-                    display_size(total_input_size)
+                    plan_type,
+                    input_parquet_files.len(),
+                    display_size(total_size(input_parquet_files.iter()))
                 );
-                format_files(title, &run.input_parquet_files)
+
+                // display the files created by this run
+                let output_parquet_files: Vec<_> = output_params
+                    .into_iter()
+                    .map(|params| {
+                        // Use file id 0 as they haven't been
+                        // assigned an id in the catalog yet
+                        ParquetFile::from_params(params, ParquetFileId::new(0))
+                    })
+                    .collect();
+
+                let output_title = format!(
+                    "**** {} Output Files (parquet_file_id not yet assigned), {} total:",
+                    output_parquet_files.len(),
+                    display_size(total_size(output_parquet_files.iter()))
+                );
+
+                // hook up inputs and outputs
+                format_files(input_title, &input_parquet_files)
+                    .into_iter()
+                    .chain(format_files(output_title, &output_parquet_files).into_iter())
             })
             .collect()
     }
+}
+
+/// return the total file size of all the parquet files
+fn total_size<'a>(parquet_files: impl IntoIterator<Item = &'a ParquetFile>) -> i64 {
+    parquet_files.into_iter().map(|f| f.file_size_bytes).sum()
 }
 
 #[async_trait]
@@ -134,20 +161,21 @@ impl ParquetFilesSink for ParquetFileSimulator {
         let partition_info = partition_info.as_ref();
 
         // Compute final output
-        let output: Vec<_> = output_files
+        let output_params: Vec<_> = output_files
             .into_iter()
             .map(|f| {
                 f.into_parquet_file_params(max_l0_created_at, column_set.clone(), partition_info)
             })
             .collect();
 
-        // record what we did
+        // record what the simulator did
         self.runs.lock().unwrap().push(SimulatedRun {
             plan_type,
             input_parquet_files,
+            output_params: output_params.clone(),
         });
 
-        Ok(output)
+        Ok(output_params)
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -229,6 +257,7 @@ pub struct SimulatedRun {
     // fields are used in testing
     plan_type: String,
     input_parquet_files: Vec<ParquetFile>,
+    output_params: Vec<ParquetFileParams>,
 }
 
 fn overall_column_set<'a>(files: impl IntoIterator<Item = &'a ParquetFile>) -> ColumnSet {
