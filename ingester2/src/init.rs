@@ -37,7 +37,7 @@ use crate::{
         completion_observer::NopObserver, handle::PersistHandle,
         hot_partitions::HotPartitionPersister,
     },
-    query::{instrumentation::QueryExecInstrumentation, tracing::QueryExecTracing},
+    query::{exec_instrumentation::QueryExecInstrumentation, tracing::QueryExecTracing},
     server::grpc::GrpcDelegate,
     timestamp_oracle::TimestampOracle,
     wal::{rotate_task::periodic_rotation, wal_sink::WalSink},
