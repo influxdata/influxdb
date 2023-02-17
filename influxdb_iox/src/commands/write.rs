@@ -1,12 +1,12 @@
-use futures::StreamExt;
+use futures::{stream::BoxStream, StreamExt};
 use influxdb_iox_client::{connection::Connection, write};
-use observability_deps::tracing::info;
+use observability_deps::tracing::{debug, info};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     fs::File,
     io::{BufReader, Read},
     num::NonZeroUsize,
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::Instant,
 };
 
@@ -106,23 +106,41 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
     );
 
     // if everything looked good, go through and read the files out
-    // them potentially in parallel.
+    // them in parallel.
     let lp_stream = futures_util::stream::iter(file_names)
         .map(|file_name| tokio::task::spawn(slurp_file(file_name)))
         // Since the contents of each file are buffered into a string,
         // limit the number that are open at once to the maximum
         // possible uploads
         .buffered(max_concurrent_uploads.into())
-        // warn and skip any errors
+        // warn and skip any errors starting to read the files
         .filter_map(|res| async move {
             match res {
-                Ok(Ok(lp_data)) => Some(lp_data),
+                Ok(Ok(stream)) => Some(stream),
                 Ok(Err(e)) => {
                     eprintln!("WARNING: ignoring error : {e}");
                     None
                 }
                 Err(e) => {
                     eprintln!("WARNING: ignoring task fail: {e}");
+                    None
+                }
+            }
+        })
+        // now flatten out the stream of streams and ignore any errors actually reading the files
+        .flat_map(|stream| stream)
+        .filter_map(|res| async move {
+            match res {
+                Ok(lp_data) => {
+                    debug!(
+                        len = lp_data.len(),
+                        lines = lp_data.lines().count(),
+                        "Sending block of lines"
+                    );
+                    Some(lp_data)
+                }
+                Err(e) => {
+                    eprintln!("WARNING: ignoring read error: {e}");
                     None
                 }
             }
@@ -145,13 +163,14 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
     Ok(())
 }
 
-/// Reads the contents of `file_name into a string
+/// Reads the contents of `file_name` into one or more Strings, each
+/// containing a whole number of line protcol (lines do not span results)
 ///
 /// .parquet files --> iox parquet files (convert to parquet)
 /// .gz  --> treated as gzipped line protocol
 /// .lp (or anything else) --> treated as raw line protocol
 ///
-async fn slurp_file(file_name: PathBuf) -> Result<String> {
+async fn slurp_file(file_name: PathBuf) -> Result<BoxStream<'static, Result<String>>> {
     let file_name = &file_name;
 
     let extension = file_name
@@ -162,18 +181,21 @@ async fn slurp_file(file_name: PathBuf) -> Result<String> {
         // Transform parquet to line protocol prior to upload
         // Not the most efficient process, but it is expedient
         Some(extension) if extension.to_string_lossy() == "parquet" => {
-            let mut lp_data = vec![];
-            parquet_to_line_protocol::convert_file(file_name, &mut lp_data)
-                .await
-                .context(ConversionSnafu)?;
-
-            let lp_data = String::from_utf8(lp_data).context(InvalidUtf8Snafu)?;
             info!(
                 ?file_name,
-                file_size_bytes = lp_data.len(),
-                "Buffered line protocol from parquet file"
+                file_size_bytes = file_size(file_name),
+                "Streaming line protocol from parquet file"
             );
-            Ok(lp_data)
+            let stream = parquet_to_line_protocol::convert_file(file_name)
+                .await
+                .context(ConversionSnafu)?
+                .map(|lp_data| {
+                    lp_data
+                        .context(ConversionSnafu)
+                        .and_then(|lp_data| String::from_utf8(lp_data).context(InvalidUtf8Snafu))
+                })
+                .boxed();
+            Ok(stream)
         }
         // decompress as gz
         Some(extension) if extension.to_string_lossy() == "gz" => {
@@ -181,6 +203,9 @@ async fn slurp_file(file_name: PathBuf) -> Result<String> {
             let reader =
                 BufReader::new(File::open(file_name).context(ReadingFileSnafu { file_name })?);
 
+            // could be fanicer and read out chunks of line protocol,
+            // but we would have to figure out where the newlines were
+            // so for now just buffer the whole thing
             flate2::read::GzDecoder::new(reader)
                 .read_to_string(&mut lp_data)
                 .context(GzSnafu { file_name })?;
@@ -190,10 +215,14 @@ async fn slurp_file(file_name: PathBuf) -> Result<String> {
                 file_size_bytes = lp_data.len(),
                 "Buffered line protocol from gzipped line protocol file"
             );
-            Ok(lp_data)
+            let stream = futures::stream::iter(vec![Ok(lp_data)]).boxed();
+            Ok(stream)
         }
         // anything else, treat as line protocol
         Some(_) | None => {
+            // could be fanicer and read out chunks of line protocol,
+            // but we would have to figure out where the newlines were
+            // so for now just buffer the whole thing
             let lp_data =
                 std::fs::read_to_string(file_name).context(ReadingFileSnafu { file_name })?;
 
@@ -202,9 +231,17 @@ async fn slurp_file(file_name: PathBuf) -> Result<String> {
                 file_size_bytes = lp_data.len(),
                 "Buffered line protocol file"
             );
-            Ok(lp_data)
+            let stream = futures::stream::iter(vec![Ok(lp_data)]).boxed();
+            Ok(stream)
         }
     }
+}
+
+fn file_size(path: &Path) -> u64 {
+    std::fs::metadata(path)
+        .map(|meta| meta.len())
+        // ignore errors fetching metadta
+        .unwrap_or_default()
 }
 
 #[cfg(test)]

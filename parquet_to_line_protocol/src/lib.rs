@@ -19,7 +19,7 @@ use datafusion::{
     prelude::SessionContext,
 };
 use datafusion_util::config::iox_session_config;
-use futures::StreamExt;
+use futures::{stream::BoxStream, StreamExt};
 use object_store::{
     local::LocalFileSystem, path::Path as ObjectStorePath, ObjectMeta, ObjectStore,
 };
@@ -27,14 +27,13 @@ use parquet_file::metadata::{IoxMetadata, METADATA_KEY};
 use schema::Schema;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
-    io::Write,
     path::{Path, PathBuf},
-    result::Result,
     sync::Arc,
 };
 
 mod batch;
 use batch::convert_to_lines;
+pub type Result<T = (), E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -66,6 +65,11 @@ pub enum Error {
         source: datafusion::error::DataFusionError,
     },
 
+    #[snafu(display("Error reading batch: {}", source))]
+    ReadingBatch {
+        source: datafusion::error::DataFusionError,
+    },
+
     #[snafu(display("Error reading IOx schema: {}", source))]
     Schema { source: schema::Error },
 
@@ -85,12 +89,13 @@ pub enum Error {
 }
 
 /// Converts a parquet file that was written by IOx from the local
-/// file system path specified to line protocol and writes those bytes
-/// to `output`, returning the writer on success
-pub async fn convert_file<W, P>(path: P, mut output: W) -> Result<W, Error>
+/// file system path specified a stream of line protocol bytes
+///
+/// Each returned `Vec<u8>` is guarnteed to have complete line
+/// protocol (aka lines are not split across the buffers)
+pub async fn convert_file<P>(path: P) -> Result<BoxStream<'static, Result<Vec<u8>>>>
 where
     P: AsRef<Path>,
-    W: Write,
 {
     let path = path.as_ref();
     let object_store_path =
@@ -128,30 +133,29 @@ where
     let measurement_name = iox_meta.table_name;
 
     // now convert the record batches to line protocol, in parallel
-    let mut lp_stream = reader
+    let stream = reader
         .read()
         .await?
-        .map(|batch| {
+        .map(move |batch| {
             let iox_schema = Arc::clone(&iox_schema);
             let measurement_name = Arc::clone(&measurement_name);
             tokio::task::spawn(async move {
-                batch
-                    .map_err(|e| format!("Something bad happened reading batch: {e}"))
-                    .and_then(|batch| convert_to_lines(&measurement_name, &iox_schema, &batch))
+                batch.context(ReadingBatchSnafu).and_then(|batch| {
+                    convert_to_lines(&measurement_name, &iox_schema, &batch)
+                        .map_err(|message| Error::Conversion { message })
+                })
             })
         })
         // run some number of futures in parallel
-        .buffered(num_cpus::get());
+        .buffered(num_cpus::get())
+        // unwrap task result (check for panics)
+        .map(|result| match result {
+            Ok(res) => res,
+            Err(source) => Err(Error::Task { source }),
+        })
+        .boxed();
 
-    // but print them to the output stream in the same order
-    while let Some(data) = lp_stream.next().await {
-        let data = data
-            .context(TaskSnafu)?
-            .map_err(|message| Error::Conversion { message })?;
-
-        output.write_all(&data).context(IOSnafu)?;
-    }
-    Ok(output)
+    Ok(stream)
 }
 
 /// Handles the details of interacting with parquet libraries /

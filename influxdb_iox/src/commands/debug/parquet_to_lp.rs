@@ -1,8 +1,10 @@
 //! This module implements the `parquet_to_lp` CLI command
-use std::{io::BufWriter, path::PathBuf};
+use std::{path::PathBuf, pin::Pin};
 
 use observability_deps::tracing::info;
 use snafu::{ResultExt, Snafu};
+use tokio::io::{AsyncWrite, AsyncWriteExt, BufWriter};
+use tokio_stream::StreamExt;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -16,6 +18,8 @@ pub enum Error {
     Conversion {
         source: parquet_to_line_protocol::Error,
     },
+    #[snafu(display("IO error: {}", source))]
+    IO { source: std::io::Error },
     #[snafu(display("Cannot flush output: {}", message))]
     Flush {
         // flush error has the W writer in it, all we care about is the error
@@ -41,33 +45,51 @@ pub async fn command(config: Config) -> Result<(), Error> {
 
     if let Some(output) = output {
         let path = &output;
-        let file = std::fs::File::create(path).context(FileSnafu {
+        let file = tokio::fs::File::create(path).await.context(FileSnafu {
             operation: "open",
             path,
         })?;
 
         let file = convert(input, file).await?;
 
-        file.sync_all().context(FileSnafu {
+        file.sync_all().await.context(FileSnafu {
             operation: "close",
             path,
         })?;
     } else {
-        convert(input, std::io::stdout()).await?;
+        convert(input, tokio::io::stdout()).await?;
     }
 
     Ok(())
 }
 
 /// Does the actual conversion, returning the writer when done
-async fn convert<W: std::io::Write + Send>(input: PathBuf, writer: W) -> Result<W, Error> {
-    // use a buffered writer and ensure it is flushed
-    parquet_to_line_protocol::convert_file(input, BufWriter::new(writer))
+async fn convert<W: AsyncWrite + Send + Unpin>(input: PathBuf, writer: W) -> Result<W, Error> {
+    let buf_writer = BufWriter::new(writer);
+    let mut writer = Box::pin(buf_writer);
+
+    // prepare the conversion
+    let mut input_stream = parquet_to_line_protocol::convert_file(input)
         .await
-        .context(ConversionSnafu)?
-        // flush the buffered writer
-        .into_inner()
-        .map_err(|e| Error::Flush {
-            message: e.to_string(),
-        })
+        .context(ConversionSnafu)?;
+
+    // now read a batch and write it to the output as fast as we can
+    while let Some(bytes) = input_stream.next().await {
+        let bytes = bytes.context(ConversionSnafu)?;
+        writer.write_all(&bytes).await.context(IOSnafu)?;
+    }
+
+    // flush any remaining buffered data
+    writer.flush().await.map_err(|e| Error::Flush {
+        message: e.to_string(),
+    })?;
+    let buf_writer = *(Pin::into_inner(writer));
+
+    // flush the inner writer
+    let mut writer = buf_writer.into_inner();
+    writer.flush().await.map_err(|e| Error::Flush {
+        message: e.to_string(),
+    })?;
+
+    Ok(writer)
 }
