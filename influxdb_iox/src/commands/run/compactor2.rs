@@ -109,11 +109,11 @@ pub async fn command(config: Config) -> Result<(), Error> {
     let num_threads = config
         .compactor_config
         .query_exec_thread_count
-        .unwrap_or_else(|| num_cpus::get() - (1 as usize));
+        .unwrap_or_else(|| num_cpus::get() - 1_usize);
     info!(%num_threads, "using specified number of threads");
 
     let exec = Arc::new(Executor::new_with_config(ExecutorConfig {
-        num_threads: num_threads,
+        num_threads,
         target_query_partitions: num_threads,
         object_stores: [&parquet_store_real, &parquet_store_scratchpad]
             .into_iter()
