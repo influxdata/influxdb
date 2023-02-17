@@ -168,7 +168,6 @@ impl catalog_service_server::CatalogService for CatalogService {
 fn to_parquet_file(p: data_types::ParquetFile) -> ParquetFile {
     ParquetFile {
         id: p.id.get(),
-        shard_id: p.shard_id.get(),
         namespace_id: p.namespace_id.get(),
         table_id: p.table_id.get(),
         partition_id: p.partition_id.get(),
