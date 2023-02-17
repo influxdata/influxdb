@@ -106,7 +106,10 @@ pub async fn command(config: Config) -> Result<(), Error> {
         StorageId::from("iox_scratchpad"),
     );
 
-    let num_threads = config.compactor_config.query_exec_thread_count.unwrap_or_else(||num_cpus::get() - (1 as usize));
+    let num_threads = config
+        .compactor_config
+        .query_exec_thread_count
+        .unwrap_or_else(|| num_cpus::get() - (1 as usize));
     info!(%num_threads, "using specified number of threads");
 
     let exec = Arc::new(Executor::new_with_config(ExecutorConfig {
