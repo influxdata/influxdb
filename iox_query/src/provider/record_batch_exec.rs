@@ -72,7 +72,6 @@ impl RecordBatchesExec {
     }
 
     /// Chunks that make up this node.
-    #[allow(dead_code)]
     pub fn chunks(&self) -> impl Iterator<Item = &Arc<dyn QueryChunk>> {
         self.chunks.iter().map(|(chunk, _batches)| chunk)
     }

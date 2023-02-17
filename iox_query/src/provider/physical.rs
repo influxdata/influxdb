@@ -23,7 +23,7 @@ use std::{
 };
 
 /// Extension for [`PartitionedFile`] to hold the original [`QueryChunk`].
-struct PartitionedFileExt(Arc<dyn QueryChunk>);
+pub struct PartitionedFileExt(pub Arc<dyn QueryChunk>);
 
 /// Holds a list of chunks that all have the same "URL" and
 /// will be scanned using the same ParquetExec.
