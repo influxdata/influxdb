@@ -24,7 +24,7 @@ use data_types::{
     ChunkId, ChunkOrder, ColumnSummary, DeletePredicate, InfluxDbType, PartitionId, StatValues,
     Statistics, TableSummary,
 };
-use datafusion::datasource::{TableProvider, TableType};
+use datafusion::datasource::{object_store::ObjectStoreUrl, TableProvider, TableType};
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
@@ -33,8 +33,10 @@ use datafusion::{catalog::catalog::CatalogProvider, physical_plan::displayable};
 use datafusion::{catalog::schema::SchemaProvider, logical_expr::LogicalPlan};
 use hashbrown::HashSet;
 use itertools::Itertools;
+use object_store::{path::Path, ObjectMeta};
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
+use parquet_file::storage::ParquetExecInput;
 use predicate::rpc_predicate::QueryNamespaceMeta;
 use schema::{
     builder::SchemaBuilder, merge::SchemaMerger, sort::SortKey, InfluxColumnType, Projection,
@@ -319,8 +321,8 @@ pub struct TestChunk {
     /// A copy of the captured predicates passed
     predicates: Mutex<Vec<Predicate>>,
 
-    /// RecordBatches that are returned on each request
-    table_data: Vec<Arc<RecordBatch>>,
+    /// Data in this chunk.
+    table_data: QueryChunkData,
 
     /// A saved error that is returned instead of actual results
     saved_error: Option<String>,
@@ -415,7 +417,7 @@ impl TestChunk {
             id: ChunkId::new_test(0),
             may_contain_pk_duplicates: Default::default(),
             predicates: Default::default(),
-            table_data: Default::default(),
+            table_data: QueryChunkData::RecordBatches(vec![]),
             saved_error: Default::default(),
             predicate_match: Default::default(),
             delete_predicates: Default::default(),
@@ -427,6 +429,44 @@ impl TestChunk {
         }
     }
 
+    fn push_record_batch(&mut self, batch: RecordBatch) {
+        match &mut self.table_data {
+            QueryChunkData::RecordBatches(batches) => {
+                batches.push(batch);
+            }
+            QueryChunkData::Parquet(_) => panic!("chunk is parquet-based"),
+        }
+    }
+
+    pub fn with_dummy_parquet_file(self) -> Self {
+        self.with_dummy_parquet_file_and_store("iox://store")
+    }
+
+    pub fn with_dummy_parquet_file_and_store(self, store: &str) -> Self {
+        match self.table_data {
+            QueryChunkData::RecordBatches(batches) => {
+                assert!(batches.is_empty(), "chunk already has record batches");
+            }
+            QueryChunkData::Parquet(_) => panic!("chunk already has a file"),
+        }
+
+        Self {
+            table_data: QueryChunkData::Parquet(ParquetExecInput {
+                object_store_url: ObjectStoreUrl::parse(store).unwrap(),
+                object_meta: ObjectMeta {
+                    location: Self::parquet_location(self.id),
+                    last_modified: Default::default(),
+                    size: 1,
+                },
+            }),
+            ..self
+        }
+    }
+
+    fn parquet_location(chunk_id: ChunkId) -> Path {
+        Path::parse(format!("{}.parquet", chunk_id.get().as_u128())).unwrap()
+    }
+
     /// Returns the receiver configured to suppress any output to STDOUT.
     pub fn with_quiet(mut self) -> Self {
         self.quiet = true;
@@ -435,6 +475,11 @@ impl TestChunk {
 
     pub fn with_id(mut self, id: u128) -> Self {
         self.id = ChunkId::new_test(id);
+
+        if let QueryChunkData::Parquet(parquet_input) = &mut self.table_data {
+            parquet_input.object_meta.location = Self::parquet_location(self.id);
+        }
+
         self
     }
 
@@ -748,7 +793,7 @@ impl TestChunk {
             println!("TestChunk batch data: {batch:#?}");
         }
 
-        self.table_data.push(Arc::new(batch));
+        self.push_record_batch(batch);
         self
     }
 
@@ -788,7 +833,7 @@ impl TestChunk {
             println!("TestChunk batch data: {batch:#?}");
         }
 
-        self.table_data.push(Arc::new(batch));
+        self.push_record_batch(batch);
         self
     }
 
@@ -849,7 +894,7 @@ impl TestChunk {
         let batch =
             RecordBatch::try_new(self.schema.as_arrow(), columns).expect("made record batch");
 
-        self.table_data.push(Arc::new(batch));
+        self.push_record_batch(batch);
         self
     }
 
@@ -912,7 +957,7 @@ impl TestChunk {
         let batch =
             RecordBatch::try_new(self.schema.as_arrow(), columns).expect("made record batch");
 
-        self.table_data.push(Arc::new(batch));
+        self.push_record_batch(batch);
         self
     }
 
@@ -982,7 +1027,7 @@ impl TestChunk {
         let batch =
             RecordBatch::try_new(self.schema.as_arrow(), columns).expect("made record batch");
 
-        self.table_data.push(Arc::new(batch));
+        self.push_record_batch(batch);
         self
     }
 
@@ -1059,7 +1104,7 @@ impl TestChunk {
         let batch =
             RecordBatch::try_new(self.schema.as_arrow(), columns).expect("made record batch");
 
-        self.table_data.push(Arc::new(batch));
+        self.push_record_batch(batch);
         self
     }
 
@@ -1117,7 +1162,7 @@ impl QueryChunk for TestChunk {
     }
 
     fn data(&self) -> QueryChunkData {
-        QueryChunkData::RecordBatches(self.table_data.iter().map(|b| b.as_ref().clone()).collect())
+        self.table_data.clone()
     }
 
     fn chunk_type(&self) -> &str {

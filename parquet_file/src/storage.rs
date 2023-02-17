@@ -92,7 +92,7 @@ impl std::fmt::Display for StorageId {
 /// create one [`ParquetExec`] and put each file into its own "file group".
 ///
 /// [`ParquetExec`]: datafusion::physical_plan::file_format::ParquetExec
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ParquetExecInput {
     /// Store where the file is located.
     pub object_store_url: ObjectStoreUrl,

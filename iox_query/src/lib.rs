@@ -175,7 +175,7 @@ pub trait QueryNamespace: QueryNamespaceMeta + Debug + Send + Sync {
 }
 
 /// Raw data of a [`QueryChunk`].
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum QueryChunkData {
     /// In-memory record batches.
     ///

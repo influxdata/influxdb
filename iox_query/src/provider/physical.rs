@@ -235,7 +235,13 @@ where
 
 #[cfg(test)]
 mod tests {
+    use datafusion::prelude::{SessionConfig, SessionContext};
     use schema::sort::SortKeyBuilder;
+
+    use crate::{
+        test::{format_execution_plan, TestChunk},
+        QueryChunkMeta,
+    };
 
     use super::*;
 
@@ -294,5 +300,139 @@ mod tests {
         );
 
         assert_eq!(combine_sort_key(Some(skey_t2_t1), Some(&skey_t1_t2)), None);
+    }
+
+    #[test]
+    fn test_chunks_to_physical_nodes_empty() {
+        let schema = TestChunk::new("table").schema().clone();
+        let plan = chunks_to_physical_nodes(&schema, None, vec![], Predicate::new(), task_ctx());
+        insta::assert_yaml_snapshot!(
+            format_execution_plan(&plan),
+            @r###"
+        ---
+        - " EmptyExec: produce_one_row=false"
+        "###
+        );
+    }
+
+    #[test]
+    fn test_chunks_to_physical_nodes_recordbatch() {
+        let chunk = TestChunk::new("table");
+        let schema = chunk.schema().clone();
+        let plan = chunks_to_physical_nodes(
+            &schema,
+            None,
+            vec![Arc::new(chunk)],
+            Predicate::new(),
+            task_ctx(),
+        );
+        insta::assert_yaml_snapshot!(
+            format_execution_plan(&plan),
+            @r###"
+        ---
+        - " UnionExec"
+        - "   RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        "###
+        );
+    }
+
+    #[test]
+    fn test_chunks_to_physical_nodes_parquet_one_file() {
+        let chunk = TestChunk::new("table").with_dummy_parquet_file();
+        let schema = chunk.schema().clone();
+        let plan = chunks_to_physical_nodes(
+            &schema,
+            None,
+            vec![Arc::new(chunk)],
+            Predicate::new(),
+            task_ctx(),
+        );
+        insta::assert_yaml_snapshot!(
+            format_execution_plan(&plan),
+            @r###"
+        ---
+        - " UnionExec"
+        - "   ParquetExec: limit=None, partitions={1 group: [[0.parquet]]}, projection=[]"
+        "###
+        );
+    }
+
+    #[test]
+    fn test_chunks_to_physical_nodes_parquet_many_files() {
+        let chunk1 = TestChunk::new("table").with_id(0).with_dummy_parquet_file();
+        let chunk2 = TestChunk::new("table").with_id(1).with_dummy_parquet_file();
+        let chunk3 = TestChunk::new("table").with_id(2).with_dummy_parquet_file();
+        let schema = chunk1.schema().clone();
+        let plan = chunks_to_physical_nodes(
+            &schema,
+            None,
+            vec![Arc::new(chunk1), Arc::new(chunk2), Arc::new(chunk3)],
+            Predicate::new(),
+            task_ctx(),
+        );
+        insta::assert_yaml_snapshot!(
+            format_execution_plan(&plan),
+            @r###"
+        ---
+        - " UnionExec"
+        - "   ParquetExec: limit=None, partitions={2 groups: [[0.parquet, 2.parquet], [1.parquet]]}, projection=[]"
+        "###
+        );
+    }
+
+    #[test]
+    fn test_chunks_to_physical_nodes_parquet_many_store() {
+        let chunk1 = TestChunk::new("table")
+            .with_id(0)
+            .with_dummy_parquet_file_and_store("iox1://");
+        let chunk2 = TestChunk::new("table")
+            .with_id(1)
+            .with_dummy_parquet_file_and_store("iox2://");
+        let schema = chunk1.schema().clone();
+        let plan = chunks_to_physical_nodes(
+            &schema,
+            None,
+            vec![Arc::new(chunk1), Arc::new(chunk2)],
+            Predicate::new(),
+            task_ctx(),
+        );
+        insta::assert_yaml_snapshot!(
+            format_execution_plan(&plan),
+            @r###"
+        ---
+        - " UnionExec"
+        - "   ParquetExec: limit=None, partitions={1 group: [[0.parquet]]}, projection=[]"
+        - "   ParquetExec: limit=None, partitions={1 group: [[1.parquet]]}, projection=[]"
+        "###
+        );
+    }
+
+    #[test]
+    fn test_chunks_to_physical_nodes_mixed() {
+        let chunk1 = TestChunk::new("table").with_dummy_parquet_file();
+        let chunk2 = TestChunk::new("table");
+        let schema = chunk1.schema().clone();
+        let plan = chunks_to_physical_nodes(
+            &schema,
+            None,
+            vec![Arc::new(chunk1), Arc::new(chunk2)],
+            Predicate::new(),
+            task_ctx(),
+        );
+        insta::assert_yaml_snapshot!(
+            format_execution_plan(&plan),
+            @r###"
+        ---
+        - " UnionExec"
+        - "   RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "   ParquetExec: limit=None, partitions={1 group: [[0.parquet]]}, projection=[]"
+        "###
+        );
+    }
+
+    fn task_ctx() -> Arc<TaskContext> {
+        let session_ctx =
+            SessionContext::with_config(SessionConfig::default().with_target_partitions(2));
+        Arc::new(TaskContext::from(&session_ctx))
     }
 }
