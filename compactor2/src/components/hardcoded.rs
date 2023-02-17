@@ -33,7 +33,6 @@ use super::{
         FileClassifier,
     },
     file_filter::level_range::LevelRangeFileFilter,
-    files_filter::chain::FilesFilterChain,
     files_split::{
         target_level_non_overlap_split::TargetLevelNonOverlapSplit,
         target_level_target_level_split::TargetLevelTargetLevelSplit,
@@ -275,7 +274,6 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         round_info_source: Arc::new(LoggingRoundInfoWrapper::new(Arc::new(
             LevelBasedRoundInfo::new(config.max_num_files_per_plan),
         ))),
-        files_filter: Arc::new(FilesFilterChain::new(vec![])),
         partition_filter: Arc::new(LoggingPartitionFilterWrapper::new(
             MetricsPartitionFilterWrapper::new(
                 AndPartitionFilter::new(partition_filters),

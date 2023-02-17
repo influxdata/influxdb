@@ -2,12 +2,11 @@ use std::sync::Arc;
 
 use self::{
     commit::Commit, df_plan_exec::DataFusionPlanExec, df_planner::DataFusionPlanner,
-    divide_initial::DivideInitial, file_classifier::FileClassifier, files_filter::FilesFilter,
-    ir_planner::IRPlanner, parquet_files_sink::ParquetFilesSink,
-    partition_done_sink::PartitionDoneSink, partition_files_source::PartitionFilesSource,
-    partition_filter::PartitionFilter, partition_info_source::PartitionInfoSource,
-    partition_stream::PartitionStream, round_info_source::RoundInfoSource, round_split::RoundSplit,
-    scratchpad::ScratchpadGen,
+    divide_initial::DivideInitial, file_classifier::FileClassifier, ir_planner::IRPlanner,
+    parquet_files_sink::ParquetFilesSink, partition_done_sink::PartitionDoneSink,
+    partition_files_source::PartitionFilesSource, partition_filter::PartitionFilter,
+    partition_info_source::PartitionInfoSource, partition_stream::PartitionStream,
+    round_info_source::RoundInfoSource, round_split::RoundSplit, scratchpad::ScratchpadGen,
 };
 
 pub mod combos;
@@ -17,7 +16,6 @@ pub mod df_planner;
 pub mod divide_initial;
 pub mod file_classifier;
 pub mod file_filter;
-pub mod files_filter;
 pub mod files_split;
 pub mod hardcoded;
 pub mod id_only_partition_filter;
@@ -52,8 +50,6 @@ pub struct Components {
     pub partition_files_source: Arc<dyn PartitionFilesSource>,
     /// Determines what type of compaction round the compactor will be doing
     pub round_info_source: Arc<dyn RoundInfoSource>,
-    /// filter files for each round of compaction
-    pub files_filter: Arc<dyn FilesFilter>,
     /// stop condition for completing a partition compaction
     pub partition_filter: Arc<dyn PartitionFilter>,
     /// condition to avoid running out of resources during compaction

@@ -175,8 +175,6 @@ async fn try_compact_partition(
             .calculate(&partition_info, &files)
             .await?;
 
-        files = components.files_filter.apply(files);
-
         // This is the stop condition which will be different for different version of compaction
         // and describe where the filter is created at version_specific_partition_filters function
         if !components
