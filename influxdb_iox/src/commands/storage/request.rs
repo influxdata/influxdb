@@ -6,7 +6,7 @@ use snafu::Snafu;
 
 use self::generated_types::*;
 use super::response::{
-    tag_key_is_field, tag_key_is_measurement, FIELD_TAG_KEY_BIN, MEASUREMENT_TAG_KEY_BIN,
+    FIELD_TAG_KEY_BIN, FIELD_TAG_KEY_TEXT, MEASUREMENT_TAG_KEY_BIN, MEASUREMENT_TAG_KEY_TEXT,
 };
 use ::generated_types::{aggregate::AggregateType, google::protobuf::*};
 
@@ -59,7 +59,7 @@ pub fn read_filter(
         read_source: Some(org_bucket),
         range: Some(TimestampRange { start, end: stop }),
         key_sort: read_filter_request::KeySort::Unspecified as i32, // IOx doesn't support any other sort
-        tag_key_meta_names: TagKeyMetaNames::Text as i32,
+        tag_key_meta_names: TagKeyMetaNames::Binary as i32,
     }
 }
 
@@ -144,6 +144,14 @@ pub fn tag_values(
         range: Some(TimestampRange { start, end: stop }),
         tag_key,
     }
+}
+
+pub(crate) fn tag_key_is_measurement(key: &[u8]) -> bool {
+    (key == MEASUREMENT_TAG_KEY_TEXT) || (key == MEASUREMENT_TAG_KEY_BIN)
+}
+
+pub(crate) fn tag_key_is_field(key: &[u8]) -> bool {
+    (key == FIELD_TAG_KEY_TEXT) || (key == FIELD_TAG_KEY_BIN)
 }
 
 #[cfg(test)]
