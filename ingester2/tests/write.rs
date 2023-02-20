@@ -5,7 +5,7 @@ use common::*;
 use data_types::PartitionKey;
 use influxdb_iox_client::flight::generated_types::IngesterQueryRequest;
 use iox_catalog::interface::Catalog;
-use metric::DurationHistogram;
+use metric::{DurationHistogram, U64Histogram};
 use std::sync::Arc;
 
 // Write data to an ingester through the RPC interface and query the data, validating the contents.
@@ -73,6 +73,21 @@ async fn write_query() {
         )
         .fetch();
     assert_eq!(hist.sample_count(), 3);
+
+    // Read metrics
+    let hist = ctx
+        .get_metric::<DurationHistogram, _>(
+            "ingester_query_stream_duration",
+            &[("request", "complete"), ("has_error", "false")],
+        )
+        .fetch();
+    assert_eq!(hist.sample_count(), 1);
+
+    let hist = ctx
+        .get_metric::<U64Histogram, _>("ingester_query_result_row", &[])
+        .fetch();
+    assert_eq!(hist.sample_count(), 1);
+    assert_eq!(hist.total, 2);
 }
 
 // Write data to the ingester, which writes it to the WAL, then drop and recreate the WAL and
