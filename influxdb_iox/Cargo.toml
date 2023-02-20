@@ -58,7 +58,7 @@ futures = "0.3"
 futures-util = { version = "0.3" }
 flate2 = "1.0"
 hashbrown = { workspace = true }
-http = "0.2.8"
+http = "0.2.9"
 humantime = "2.1.0"
 itertools = "0.10.5"
 libc = { version = "0.2" }
