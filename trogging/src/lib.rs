@@ -118,7 +118,7 @@ where
     pub fn with_log_verbose_count(self, log_verbose_count: u8) -> Self {
         let log_filter = match log_verbose_count {
             0 => self.log_filter,
-            1 => Some(EnvFilter::try_new("info").unwrap()),
+            1 => Some(EnvFilter::try_new("info,sqlx=warn").unwrap()),
             2 => Some(EnvFilter::try_new("debug,hyper::proto::h1=info,h2=info").unwrap()),
             _ => Some(EnvFilter::try_new("trace,hyper::proto::h1=info,h2=info").unwrap()),
         };

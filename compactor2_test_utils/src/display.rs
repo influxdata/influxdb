@@ -37,7 +37,7 @@ const DEFAULT_HEADING_WIDTH: usize = 20;
 /// parquet files arranged so they are lined up horizontally based on
 /// their relative time range.
 ///
-/// See docs on [`ParquetFileFormatter`]z for examples.
+/// See docs on [`ParquetFileFormatter`] for examples.
 fn readable_list_of_files<'a>(
     title: Option<String>,
     files: impl IntoIterator<Item = &'a ParquetFile>,

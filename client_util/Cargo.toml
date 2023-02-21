@@ -7,7 +7,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-http = "0.2.8"
+http = "0.2.9"
 reqwest = { version = "0.11", default-features = false, features = ["stream", "rustls-tls"] }
 thiserror = "1.0.38"
 tonic = { version = "0.8" }
