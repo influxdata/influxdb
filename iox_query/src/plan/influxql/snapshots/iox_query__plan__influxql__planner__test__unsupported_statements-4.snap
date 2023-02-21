@@ -1,5 +1,0 @@
----
-source: iox_query/src/plan/influxql/planner.rs
-expression: "plan(\"SHOW DATABASES\").await"
----
-This feature is not implemented: SHOW DATABASES
