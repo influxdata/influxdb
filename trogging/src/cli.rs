@@ -31,7 +31,7 @@ pub struct LoggingConfig {
     /// Convenient way to set log severity level filter.
     /// Overrides `--log-filter`.
     ///
-    /// -v   'info'
+    /// -v   'info,sqlx=warn'
     ///
     /// -vv  'debug,hyper::proto::h1=info,h2=info'
     ///

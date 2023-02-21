@@ -151,6 +151,13 @@ To compile for development, run:
 cargo build
 ```
 
+To compile for release and install the `influxdb_iox` binary in your path (so you can run `influxdb_iox` directly) do:
+
+```shell
+# from within the main `influxdb_iox` checkout
+cargo install --path influxdb_iox
+```
+
 This creates a binary at `target/debug/influxdb_iox`.
 
 ### Build a Docker image (optional)
@@ -171,29 +178,31 @@ DOCKER_BUILDKIT=1 docker build .
 
 [Enable BuildKit]: https://docs.docker.com/develop/develop-images/build_enhancements/#to-enable-buildkit-builds
 
-#### Ephemeral mode
+#### Local filesystem testing mode
 
-To start InfluxDB IOx and store data in memory, after you've compiled for development, run:
+InfluxDB IOx supports testing entirely backed by the local filesystem. 
+
+> **Note**
+>
+> This mode should NOT be used for production systems: it will have poor performance and limited tuning knobs are available.
+
+To run IOx in local testing mode, use:
 
 ```shell
+./target/debug/influxdb_iox
+# shorthand for
 ./target/debug/influxdb_iox run all-in-one
 ```
 
-By default this runs an "all-in-one" server with HTTP server on port `8080`,  router gRPC server on port `8081` and querier gRPC server on port `8082`. When the server is stopped all data lost.
+This will start an "all-in-one" IOx server with the following configuration:
+1. File backed catalog (sqlite), object store, and write ahead log (wal) stored under `<HOMEDIR>/.influxdb_iox`
+2. HTTP `v2` api server on port `8080`, querier gRPC server on port `8082` and several ports for other internal services.
 
-#### Local persistence mode
-
-To start InfluxDB IOx and store the catalog in Postgres and data in the local filesystem to persist
-data across restarts, after you've compiled for development, run:
+You can also change the configuration in limited ways, such as choosing a different data directory:
 
 ```shell
-./target/debug/influxdb_iox run all-in-one --catalog-dsn postgres:///iox_shared --data-dir=~/iox_data
+./target/debug/influxdb_iox run all-in-one --data-dir=/tmp/iox_data
 ```
-
-where `--catalog-dsn` is a connection URL to the Postgres database you wish to use, and
-`--data-dir` is the directory you wish to use.
-
-Note that when the server is stopped all data that has not yet been written to parquet files will be lost.
 
 
 #### Compile and run

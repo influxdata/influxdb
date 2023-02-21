@@ -60,7 +60,13 @@ pub struct CatalogDsnConfig {
     )]
     pub(crate) catalog_type_: CatalogType,
 
-    /// Postgres connection string. Required if catalog is set to postgres.
+    /// Catalog connection string. Required if catalog is set to postgres.
+    ///
+    /// The dsn is interpreted based on the type of catalog used.
+    ///
+    /// PostgreSQL: `postgresql://postgres@localhost:5432/postgres`
+    ///
+    /// Sqlite (a local filename): '/tmp/foo.sqlite'
     #[clap(long = "catalog-dsn", env = "INFLUXDB_IOX_CATALOG_DSN", action)]
     pub dsn: Option<String>,
 
@@ -117,13 +123,22 @@ pub struct CatalogDsnConfig {
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum)]
 pub enum CatalogType {
     /// PostgreSQL.
+    ///
+    /// Example dsn: `"postgresql://postgres@localhost:5432/postgres"`
     #[default]
     Postgres,
 
     /// In-memory.
+    ///
+    /// Example dsn: None
     Memory,
 
     /// SQLite.
+    ///
+    /// The dsn is a path to local file.
+    ///
+    /// Example dsn: `"/tmp/foo.sqlite"`
+    ///
     Sqlite,
 }
 
@@ -139,7 +154,8 @@ impl CatalogDsnConfig {
         }
     }
 
-    /// Create a new Postgres instance for all-in-one mode if a catalog DSN is specified
+    /// Create a new Postgres instance for all-in-one mode if a
+    /// catalog DSN is specified
     pub fn new_postgres(dsn: String, postgres_schema_name: String) -> Self {
         info!("Catalog: Postgres at `{}`", dsn);
 
@@ -154,8 +170,9 @@ impl CatalogDsnConfig {
         }
     }
 
-    /// Create a new Postgres instance for all-in-one mode if a catalog DSN is specified
-    pub fn new_sqlite(dsn: String) -> Self {
+    /// Create a new Sqlite instance for all-in-one mode
+    pub fn new_sqlite(dsn: impl Into<String>) -> Self {
+        let dsn = dsn.into();
         info!("Catalog: SQLite at `{}`", dsn);
 
         Self {
