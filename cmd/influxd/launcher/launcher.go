@@ -925,7 +925,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	}
 	// If we are in testing mode we allow all data to be flushed and removed.
 	if opts.Testing {
-		httpHandler = http.Debug(ctx, httpHandler, m.flushers)
+		httpHandler = http.Debug(ctx, httpHandler, m.flushers, onboardSvc)
 	}
 
 	if !opts.ReportingDisabled {
