@@ -2516,6 +2516,7 @@ dependencies = [
  "console-subscriber",
  "data_types",
  "datafusion",
+ "dirs",
  "dotenvy",
  "flate2",
  "futures",
