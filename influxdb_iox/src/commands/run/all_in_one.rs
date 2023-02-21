@@ -468,7 +468,7 @@ impl Config {
             compaction_job_concurrency: NonZeroUsize::new(1).unwrap(),
             compaction_partition_scratchpad_concurrency: NonZeroUsize::new(1).unwrap(),
             compaction_partition_minute_threshold: 10,
-            query_exec_thread_count: 1,
+            query_exec_thread_count: Some(1),
             exec_mem_pool_bytes,
             max_desired_file_size_bytes: 30_000,
             percentage_max_file_size: 30,

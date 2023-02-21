@@ -72,13 +72,13 @@ pub struct Compactor2Config {
 
     /// Number of threads to use for the compactor query execution,
     /// compaction and persistence.
+    /// If not specified, defaults to one less than the number of cores on the system
     #[clap(
         long = "query-exec-thread-count",
         env = "INFLUXDB_IOX_QUERY_EXEC_THREAD_COUNT",
-        default_value = "4",
         action
     )]
-    pub query_exec_thread_count: usize,
+    pub query_exec_thread_count: Option<usize>,
 
     /// Size of memory pool used during compaction plan execution, in
     /// bytes.
