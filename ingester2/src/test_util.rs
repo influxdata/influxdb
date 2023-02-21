@@ -8,6 +8,50 @@ use iox_catalog::interface::Catalog;
 use mutable_batch_lp::lines_to_batches;
 use schema::Projection;
 
+/// Generate a [`RecordBatch`] & [`Schema`] with the specified columns and
+/// values:
+///
+/// ```
+/// // Generate a two column batch ("a" and "b") with the given types & values:
+/// let (batch, schema) = make_batch!(
+///     Int64Array("a" => vec![1, 2, 3, 4]),
+///     Float32Array("b" => vec![4.1, 4.2, 4.3, 4.4]),
+/// );
+/// ```
+///
+/// # Panics
+///
+/// Panics if the batch cannot be constructed from the provided inputs.
+///
+/// [`RecordBatch`]: arrow::record_batch::RecordBatch
+/// [`RecordBatch`]: arrow::datatypes::Schema
+#[macro_export]
+macro_rules! make_batch {(
+        $(
+            $ty:tt($name:literal => $v:expr),
+        )+
+    ) => {{
+        use std::sync::Arc;
+        use arrow::{array::Array, datatypes::{Field, Schema}, record_batch::RecordBatch};
+
+        // Generate the data arrays
+        let data = vec![
+            $(Arc::new($ty::from($v)) as Arc<dyn Array>,)+
+        ];
+
+        // Generate the field types for the schema
+        let schema = Arc::new(Schema::new(vec![
+            $(Field::new($name, $ty::from($v).data_type().clone(), true),)+
+        ]));
+
+        (
+            RecordBatch::try_new(Arc::clone(&schema), data)
+                .expect("failed to make batch"),
+            schema
+        )
+    }}
+}
+
 /// Construct a [`DmlWrite`] with the specified parameters, for LP that contains
 /// a single table identified by `table_id`.
 ///
