@@ -52,6 +52,65 @@ macro_rules! make_batch {(
     }}
 }
 
+/// Construct a [`PartitionStream`] from the given partitions & batches.
+///
+/// This example constructs a [`PartitionStream`] yielding two partitions
+/// (with IDs 1 & 2), the former containing two [`RecordBatch`] and the
+/// latter containing one.
+///
+/// See [`make_batch`] for a handy way to construct the [`RecordBatch`].
+///
+/// ```
+/// let stream = make_partition_stream!(
+///     PartitionId::new(1) => [
+///         make_batch!(
+///             Int64Array("a" => vec![1, 2, 3, 4, 5]),
+///             Float32Array("b" => vec![4.1, 4.2, 4.3, 4.4, 5.0]),
+///         ),
+///         make_batch!(
+///             Int64Array("c" => vec![1, 2, 3, 4, 5]),
+///         ),
+///     ],
+///     PartitionId::new(2) => [
+///         make_batch!(
+///             Float32Array("d" => vec![1.1, 2.2, 3.3, 4.4, 5.5]),
+///         ),
+///     ],
+/// );
+/// ```
+#[macro_export]
+macro_rules! make_partition_stream {
+        (
+            $(
+                $id:expr => [$($batch:expr,)+],
+            )+
+        ) => {{
+            use arrow::datatypes::Schema;
+            use datafusion::physical_plan::memory::MemoryStream;
+            use $crate::query::{response::PartitionStream, partition_response::PartitionResponse};
+            use futures::stream;
+
+            PartitionStream::new(stream::iter([
+                $({
+                    let mut batches = vec![];
+                    let mut schema = Schema::empty();
+                    $(
+                        let (batch, this_schema) = $batch;
+                        batches.push(batch);
+                        schema = Schema::try_merge([schema, (*this_schema).clone()]).expect("incompatible batch schemas");
+                    )+
+
+                    let batch = MemoryStream::try_new(batches, Arc::new(schema), None).unwrap();
+                    PartitionResponse::new(
+                        Some(Box::pin(batch)),
+                        $id,
+                        42,
+                    )
+                },)+
+            ]))
+        }};
+    }
+
 /// Construct a [`DmlWrite`] with the specified parameters, for LP that contains
 /// a single table identified by `table_id`.
 ///
