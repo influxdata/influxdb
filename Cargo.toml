@@ -115,12 +115,12 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-arrow = { version = "32.0.0" }
-arrow-flight = { version = "32.0.0" }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="253550c6c936f75f654dcdc9480025a9ef55d9fd", default-features = false }
-datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="253550c6c936f75f654dcdc9480025a9ef55d9fd" }
+arrow = { version = "33.0.0" }
+arrow-flight = { version = "33.0.0" }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="f6e49ac7a027abb95d8b7fa755502dfa7d53c21c", default-features = false }
+datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="f6e49ac7a027abb95d8b7fa755502dfa7d53c21c" }
 hashbrown = { version = "0.13.2" }
-parquet = { version = "32.0.0" }
+parquet = { version = "33.0.0" }
 
 # This profile optimizes for runtime performance and small binary size at the expense of longer
 # build times. It's most suitable for final release builds.

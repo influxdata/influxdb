@@ -296,7 +296,7 @@ async fn write_and_query() {
                         state,
                         "SELECT * from m0 order by time desc limit 10;",
                         Some(QueryLanguage::Sql),
-                        "| value1 | value9 | value9 | value49 | value0 | 2021-04-26T13:47:39.727574Z | 1  |"
+                        "| value1 | value9 | value9 | value49 | value0 | 2021-04-26T13:47:39.727574Z | 1.0 |"
                     ).await;
 
                     // data from 'cpu.parquet'
