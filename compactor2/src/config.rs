@@ -98,9 +98,6 @@ pub struct Config {
     /// Shard config (if sharding should be enabled).
     pub shard_config: Option<ShardConfig>,
 
-    /// Version of the compaction algorithm.
-    pub compact_version: AlgoVersion,
-
     /// Minimum number of L1 files to compact to L2
     /// This is to prevent too many small files
     pub min_num_l1_files_to_compact: usize,
@@ -195,21 +192,6 @@ pub struct ShardConfig {
     ///
     /// Starts as 0 and must be smaller than the number of shards.
     pub shard_id: usize,
-}
-
-/// Algorithm version used by the compactor
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum AlgoVersion {
-    /// Compact all files of a partition in a single DataFusion job that
-    /// prone to reject "too large" partitions.
-    AllAtOnce,
-
-    /// Repeat compacting files to higher levels until reaching the highest level.
-    /// Each compact job also ignores eligible  non-overlapping files and
-    /// upgrades upgradable files which make a single Datafusion job a lot smaller.
-    ///
-    /// NOT yet ready for production.
-    TargetLevel,
 }
 
 /// Partitions source config.

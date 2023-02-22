@@ -1,9 +1,9 @@
 use async_trait::async_trait;
 use backoff::BackoffConfig;
-use clap_blocks::compactor2::{Compactor2Config, CompactorAlgoVersion};
+use clap_blocks::compactor2::Compactor2Config;
 use compactor2::{
     compactor::Compactor2,
-    config::{AlgoVersion, Config, PartitionsSourceConfig, ShardConfig},
+    config::{Config, PartitionsSourceConfig, ShardConfig},
 };
 use data_types::{PartitionId, TRANSITION_SHARD_NUMBER};
 use hyper::{Body, Request, Response};
@@ -158,11 +158,6 @@ pub async fn create_compactor2_server_type(
         n_shards: compactor_config.shard_count.expect("just checked"),
     });
 
-    let compact_version = match compactor_config.compact_version {
-        CompactorAlgoVersion::AllAtOnce => AlgoVersion::AllAtOnce,
-        CompactorAlgoVersion::TargetLevel => AlgoVersion::TargetLevel,
-    };
-
     let partitions_source = match (
         compactor_config.partition_filter,
         compactor_config.process_all_partitions,
@@ -203,7 +198,6 @@ pub async fn create_compactor2_server_type(
         max_input_parquet_bytes_per_partition: compactor_config
             .max_input_parquet_bytes_per_partition,
         shard_config,
-        compact_version,
         min_num_l1_files_to_compact: compactor_config.min_num_l1_files_to_compact,
         process_once: compactor_config.process_once,
         simulate_without_object_store: false,

@@ -5,7 +5,7 @@ use crate::process_info::setup_metric_registry;
 use super::main;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig,
-    compactor2::{Compactor2Config, CompactorAlgoVersion},
+    compactor2::Compactor2Config,
     ingester2::Ingester2Config,
     ingester_address::IngesterAddress,
     object_store::{make_object_store, ObjectStoreConfig},
@@ -482,7 +482,6 @@ impl Config {
             max_input_parquet_bytes_per_partition: 268_435_456, // 256 MB
             shard_count: None,
             shard_id: None,
-            compact_version: CompactorAlgoVersion::AllAtOnce,
             min_num_l1_files_to_compact: 1,
             process_once: false,
             process_all_partitions: false,

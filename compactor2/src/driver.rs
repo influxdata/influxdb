@@ -114,22 +114,8 @@ async fn compact_partition(
 ///
 /// - Stop condition meets and the final output is f11 & F12
 ///
-/// -----------------------------------------------------------------------------------------------------
-/// VERSION 1 - Naive (implemented here): One round, one branch
+/// The high level flow is:
 ///
-/// . All L0 and L1 files will be compacted into one or two files if the size > estimated desired max size
-/// . We do not generate L2 files in this version.
-///
-///
-/// Example: same Partition has 7 files: f1, f2, f3, f4, f5, f6, f7
-///  Input:
-///          |--f1--|               |----f3----|  |-f4-||-f5-||-f7-|
-///               |------f2----------|                   |--f6--|
-/// Output:
-///          |---------f8-------------------------------|----f9----|
-///
-/// -----------------------------------------------------------------------------------------------------
-/// VERSION 2 - HotCold (in-progress and will be adding in here under feature flag and new components & filters)
 ///   . Mutiple rounds, each round has 1 branch
 ///   . Each branch will compact files lowest level (aka initial level) into its next level (aka target level):
 ///      - hot:  (L0s & L1s) to L1s   if there are L0s
@@ -188,8 +174,6 @@ async fn try_compact_partition(
             .round_info_source
             .calculate(&partition_info, &files)
             .await?;
-
-        files = components.files_filter.apply(files);
 
         // This is the stop condition which will be different for different version of compaction
         // and describe where the filter is created at version_specific_partition_filters function

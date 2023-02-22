@@ -40,7 +40,6 @@
 //! and `max_time (`-|`) on a time line to help visualize the output
 use std::time::Duration;
 
-use compactor2::config::AlgoVersion;
 use compactor2_test_utils::{format_files, TestSetup, TestSetupBuilder};
 use data_types::{CompactionLevel, ParquetFile};
 use iox_tests::TestParquetFileBuilder;
@@ -64,7 +63,6 @@ fn parquet_builder() -> TestParquetFileBuilder {
 async fn layout_setup_builder() -> TestSetupBuilder<false> {
     TestSetup::builder()
         .await
-        .with_compact_version(AlgoVersion::TargetLevel)
         .with_percentage_max_file_size(20)
         .with_split_percentage(80)
         .with_max_num_files_per_plan(200)
