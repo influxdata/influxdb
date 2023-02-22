@@ -389,11 +389,13 @@ impl std::fmt::Debug for Wal {
     }
 }
 
+#[derive(Debug)]
 struct Segments {
     closed_segments: BTreeMap<SegmentId, ClosedSegment>,
     open_segment: OpenSegmentFileWriter,
 }
 
+#[derive(Debug)]
 struct WalBuffer {
     ops: Vec<SequencedWalOp>,
     notify_flush: tokio::sync::watch::Sender<Option<WriteResult>>,
