@@ -6,7 +6,7 @@ use arrow::{
 };
 use futures::TryStreamExt;
 use observability_deps::tracing::{debug, info};
-use rustyline::{error::ReadlineError, hint::Hinter, Editor};
+use rustyline::{error::ReadlineError, hint::Hinter, history::FileHistory, Editor};
 use snafu::{ResultExt, Snafu};
 
 use super::repl_command::ReplCommand;
@@ -156,7 +156,7 @@ impl rustyline::completion::Completer for RustylineHelper {
 /// one by one
 pub struct Repl {
     /// Rustyline editor for interacting with user on command line
-    rl: Editor<RustylineHelper>,
+    rl: Editor<RustylineHelper, FileHistory>,
 
     /// Current prompt
     prompt: String,
@@ -245,7 +245,9 @@ impl Repl {
             Ok(ref line) if is_exit_command(line) => Ok(ReplCommand::Exit),
             Ok(ref line) => {
                 let request = line.trim_end();
-                self.rl.add_history_entry(request.to_owned());
+                self.rl
+                    .add_history_entry(request.to_owned())
+                    .context(ReadlineSnafu)?;
 
                 request
                     .try_into()

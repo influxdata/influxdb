@@ -3665,18 +3665,6 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.25.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f346ff70e7dbfd675fe90590b92d59ef2de15a8779ae305ebcbfd3f0caf59be4"
-dependencies = [
- "autocfg",
- "bitflags",
- "cfg-if",
- "libc",
-]
-
-[[package]]
-name = "nix"
 version = "0.26.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bfdda3d196821d6af13126e40375cdf7da646a96114af134d5f417a9a1dc8e1a"
@@ -5016,9 +5004,9 @@ checksum = "5583e89e108996506031660fe09baa5011b9dd0341b89029313006d1fb508d70"
 
 [[package]]
 name = "rustyline"
-version = "10.1.1"
+version = "11.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1e83c32c3f3c33b08496e0d1df9ea8c64d39adb8eb36a1ebb1440c690697aef"
+checksum = "5dfc8644681285d1fb67a467fb3021bfea306b99b4146b166a1fe3ada965eece"
 dependencies = [
  "bitflags",
  "cfg-if",
@@ -5027,7 +5015,7 @@ dependencies = [
  "libc",
  "log",
  "memchr",
- "nix 0.25.1",
+ "nix 0.26.2",
  "scopeguard",
  "unicode-segmentation",
  "unicode-width",
@@ -6824,6 +6812,7 @@ dependencies = [
  "log",
  "md-5",
  "memchr",
+ "nix 0.26.2",
  "nom",
  "num-integer",
  "num-traits",
