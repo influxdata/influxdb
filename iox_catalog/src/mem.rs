@@ -26,7 +26,7 @@ use sqlx::types::Uuid;
 use std::{
     collections::{HashMap, HashSet},
     convert::TryFrom,
-    fmt::Formatter,
+    fmt::{Display, Formatter},
     sync::Arc,
 };
 use tokio::sync::{Mutex, OwnedMutexGuard};
@@ -108,6 +108,12 @@ impl Drop for MemTxn {
             }
             _ => {}
         }
+    }
+}
+
+impl Display for MemCatalog {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Memory")
     }
 }
 

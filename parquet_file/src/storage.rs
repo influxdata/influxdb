@@ -26,6 +26,7 @@ use object_store::{DynObjectStore, ObjectMeta};
 use observability_deps::tracing::*;
 use schema::Projection;
 use std::{
+    fmt::Display,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -168,6 +169,16 @@ pub struct ParquetStorage {
 
     /// Storage ID to hook it into DataFusion.
     id: StorageId,
+}
+
+impl Display for ParquetStorage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ParquetStorage(id={:?}, object_store={}",
+            self.id, self.object_store
+        )
+    }
 }
 
 impl ParquetStorage {

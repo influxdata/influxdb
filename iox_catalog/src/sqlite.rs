@@ -19,8 +19,8 @@ use data_types::{
     Tombstone, TombstoneId, TopicId, TopicMetadata, TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::ops::Deref;
+use std::{collections::HashMap, fmt::Display};
 
 use iox_time::{SystemProvider, TimeProvider};
 use metric::Registry;
@@ -53,6 +53,7 @@ pub struct SqliteCatalog {
     metrics: Arc<Registry>,
     pool: Pool<Sqlite>,
     time_provider: Arc<dyn TimeProvider>,
+    options: SqliteConnectionOptions,
 }
 
 // struct to get return value from "select count(id) ..." query
@@ -212,7 +213,14 @@ impl SqliteCatalog {
             metrics,
             pool,
             time_provider: Arc::new(SystemProvider::new()),
+            options,
         })
+    }
+}
+
+impl Display for SqliteCatalog {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Sqlite(dsn='{}')", self.options.dsn)
     }
 }
 

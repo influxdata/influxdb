@@ -11,7 +11,8 @@ pub fn log_config(config: &Config) {
     // use struct unpack so we don't forget any members
     let Config {
         shard_id,
-        metric_registry,
+        // no need to print the internal state of the registry
+        metric_registry: _,
         catalog,
         parquet_store_real,
         parquet_store_scratchpad,
@@ -55,12 +56,11 @@ pub fn log_config(config: &Config) {
         .unwrap_or("None");
     info!(
         shard_id=shard_id.get(),
-        ?metric_registry,
-        ?catalog,
-        ?parquet_store_real,
-        ?parquet_store_scratchpad,
-        ?exec,
-        ?time_provider,
+        %catalog,
+        %parquet_store_real,
+        %parquet_store_scratchpad,
+        %exec,
+        %time_provider,
         ?backoff_config,
         partition_concurrency=partition_concurrency.get(),
         job_concurrency=job_concurrency.get(),

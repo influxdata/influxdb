@@ -12,7 +12,7 @@ use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    fmt::Debug,
+    fmt::{Debug, Display},
     sync::Arc,
 };
 use uuid::Uuid;
@@ -198,7 +198,7 @@ impl SoftDeletedRows {
 
 /// Methods for working with the catalog.
 #[async_trait]
-pub trait Catalog: Send + Sync + Debug {
+pub trait Catalog: Send + Sync + Debug + Display {
     /// Setup catalog for usage and apply possible migrations.
     async fn setup(&self) -> Result<(), Error>;
 
