@@ -228,7 +228,9 @@ pub struct Config {
     )]
     pub persist_max_parallelism: usize,
 
-    // TODO - remove these ingester tuning knobs  from all in one mode??
+    // TODO - evaluate if these ingester knobs could be replaced with
+    // hard coded values as a way to encourage people to use the
+    // multi-service setup for performance sensitive installations
     /// The maximum number of persist tasks that can be queued at any one time.
     ///
     /// Once this limit is reached, ingest is blocked until the persist backlog
