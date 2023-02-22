@@ -892,24 +892,22 @@ pub(crate) mod test_helpers {
         catalog.setup().await.expect("first catalog setup");
         catalog.setup().await.expect("second catalog setup");
 
-        if std::env::var("INFLUXDB_IOX_RPC_MODE").is_ok() {
-            let transition_shard = catalog
-                .repositories()
-                .await
-                .shards()
-                .get_by_topic_id_and_shard_index(SHARED_TOPIC_ID, TRANSITION_SHARD_INDEX)
-                .await
-                .expect("transition shard");
+        let transition_shard = catalog
+            .repositories()
+            .await
+            .shards()
+            .get_by_topic_id_and_shard_index(SHARED_TOPIC_ID, TRANSITION_SHARD_INDEX)
+            .await
+            .expect("transition shard");
 
-            assert_matches!(
-                transition_shard,
-                Some(Shard {
-                    id,
-                    shard_index,
-                    ..
-                }) if id == TRANSITION_SHARD_ID && shard_index == TRANSITION_SHARD_INDEX
-            );
-        }
+        assert_matches!(
+            transition_shard,
+            Some(Shard {
+                id,
+                shard_index,
+                ..
+            }) if id == TRANSITION_SHARD_ID && shard_index == TRANSITION_SHARD_INDEX
+        );
     }
 
     async fn test_topic(catalog: Arc<dyn Catalog>) {

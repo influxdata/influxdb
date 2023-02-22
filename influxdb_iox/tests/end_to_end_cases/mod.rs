@@ -11,7 +11,6 @@ mod influxql;
 mod ingester;
 mod logging;
 mod metrics;
-mod mode_switching;
 mod namespace;
 mod querier;
 mod remote;

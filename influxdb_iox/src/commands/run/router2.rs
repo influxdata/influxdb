@@ -75,13 +75,6 @@ pub struct Config {
 }
 
 pub async fn command(config: Config) -> Result<()> {
-    if std::env::var("INFLUXDB_IOX_RPC_MODE").is_err() {
-        panic!(
-            "`INFLUXDB_IOX_RPC_MODE` was not specified but `router2` was the command run. Either set
-             `INFLUXDB_IOX_RPC_MODE` or run the `router` command."
-        );
-    }
-
     // Ensure panics (even in threads or tokio tasks) are fatal when
     // running in this server mode.  This is done to avoid potential
     // data corruption because there is no foolproof way to recover

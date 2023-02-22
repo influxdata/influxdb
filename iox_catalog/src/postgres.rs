@@ -307,38 +307,36 @@ impl Catalog for PostgresCatalog {
             .await
             .map_err(|e| Error::Setup { source: e.into() })?;
 
-        if std::env::var("INFLUXDB_IOX_RPC_MODE").is_ok() {
-            // We need to manually insert the topic here so that we can create the transition shard below.
-            sqlx::query(
-                r#"
+        // We need to manually insert the topic here so that we can create the transition shard below.
+        sqlx::query(
+            r#"
 INSERT INTO topic (name)
 VALUES ($1)
 ON CONFLICT ON CONSTRAINT topic_name_unique
 DO NOTHING;
-            "#,
-            )
-            .bind(SHARED_TOPIC_NAME)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| Error::Setup { source: e })?;
+        "#,
+        )
+        .bind(SHARED_TOPIC_NAME)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| Error::Setup { source: e })?;
 
-            // The transition shard must exist and must have magic ID and INDEX.
-            sqlx::query(
-                r#"
+        // The transition shard must exist and must have magic ID and INDEX.
+        sqlx::query(
+            r#"
 INSERT INTO shard (id, topic_id, shard_index, min_unpersisted_sequence_number)
 OVERRIDING SYSTEM VALUE
 VALUES ($1, $2, $3, 0)
 ON CONFLICT ON CONSTRAINT shard_unique
 DO NOTHING;
-            "#,
-            )
-            .bind(TRANSITION_SHARD_ID)
-            .bind(SHARED_TOPIC_ID)
-            .bind(TRANSITION_SHARD_INDEX)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| Error::Setup { source: e })?;
-        }
+        "#,
+        )
+        .bind(TRANSITION_SHARD_ID)
+        .bind(SHARED_TOPIC_ID)
+        .bind(TRANSITION_SHARD_INDEX)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| Error::Setup { source: e })?;
 
         Ok(())
     }
