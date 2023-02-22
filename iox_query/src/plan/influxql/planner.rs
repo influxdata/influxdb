@@ -1,9 +1,13 @@
+use crate::plan::influxql::planner_rewrite_expression::{rewrite_conditional, rewrite_expr};
 use crate::plan::influxql::planner_time_range_expression::time_range_to_df_expr;
 use crate::plan::influxql::rewriter::rewrite_statement;
-use crate::plan::influxql::util::binary_operator_to_df_operator;
+use crate::plan::influxql::util::{binary_operator_to_df_operator, Schemas};
+use crate::plan::influxql::var_ref::{
+    column_type_to_var_ref_data_type, var_ref_data_type_to_data_type,
+};
 use crate::{DataFusionError, IOxSessionContext, QueryNamespace};
 use arrow::datatypes::DataType;
-use datafusion::common::{DFSchema, DFSchemaRef, Result, ScalarValue, ToDFSchema};
+use datafusion::common::{Result, ScalarValue, ToDFSchema};
 use datafusion::datasource::provider_as_source;
 use datafusion::logical_expr::expr::Sort;
 use datafusion::logical_expr::expr_rewriter::{normalize_col, ExprRewritable, ExprRewriter};
@@ -13,8 +17,9 @@ use datafusion::logical_expr::{
     lit, BinaryExpr, BuiltinScalarFunction, Explain, Expr, ExprSchemable, LogicalPlan,
     LogicalPlanBuilder, Operator, PlanType, ToStringifiedPlan,
 };
-use datafusion::prelude::Column;
+use datafusion::prelude::{binary_expr, Column};
 use datafusion::sql::TableReference;
+use datafusion_util::AsExpr;
 use influxdb_influxql_parser::common::OrderByClause;
 use influxdb_influxql_parser::explain::{ExplainOption, ExplainStatement};
 use influxdb_influxql_parser::expression::{
@@ -31,7 +36,7 @@ use influxdb_influxql_parser::{
 };
 use once_cell::sync::Lazy;
 use query_functions::clean_non_meta_escapes;
-use schema::{InfluxColumnType, InfluxFieldType, Schema};
+use schema::{InfluxColumnType, InfluxFieldType};
 use std::collections::HashSet;
 use std::iter;
 use std::ops::Deref;
@@ -42,8 +47,8 @@ use std::sync::Arc;
 /// an InfluxQL expression.
 ///
 /// Specifically, the scope of available functions is narrowed to mathematical scalar functions
-/// when processing the `WHERE` clause. The `SELECT` projection list is permitted
-#[derive(Debug, Clone, Copy)]
+/// when processing the `WHERE` clause.
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum ExprScope {
     /// Signals that expressions should be transformed in the context of
     /// the `WHERE` clause.
@@ -146,8 +151,11 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 "unsupported FROM: must target a single measurement".into(),
             )),
         }?;
+
+        let schemas = Schemas::new(plan.schema())?;
         let tz = select.timezone.map(|tz| *tz);
-        let plan = self.plan_where_clause(select.condition, plan, tz)?;
+
+        let plan = self.plan_where_clause(select.condition, plan, &schemas, tz)?;
 
         let plan = if select.group_by.is_none() {
             LogicalPlanBuilder::from(plan)
@@ -171,7 +179,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         }?;
 
         // Process and validate the field expressions in the SELECT projection list
-        let select_exprs = self.field_list_to_exprs(&plan, select.fields)?;
+        let select_exprs = self.field_list_to_exprs(&plan, select.fields, &schemas)?;
 
         // Wrap the plan in a `LogicalPlan::Projection` from the select expressions
         let plan = project(plan, select_exprs)?;
@@ -223,7 +231,12 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     }
 
     /// Map the InfluxQL `SELECT` projection list into a list of DataFusion expressions.
-    fn field_list_to_exprs(&self, plan: &LogicalPlan, fields: FieldList) -> Result<Vec<Expr>> {
+    fn field_list_to_exprs(
+        &self,
+        plan: &LogicalPlan,
+        fields: FieldList,
+        schemas: &Schemas,
+    ) -> Result<Vec<Expr>> {
         // InfluxQL requires the time column is present in the projection list.
         let extra = if !has_time_column(&fields) {
             vec![Field {
@@ -240,16 +253,21 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         extra
             .iter()
             .chain(fields.iter())
-            .map(|field| self.field_to_df_expr(field, plan))
+            .map(|field| self.field_to_df_expr(field, plan, schemas))
             .collect()
     }
 
     /// Map an InfluxQL [`Field`] to a DataFusion [`Expr`].
     ///
     /// A [`Field`] is analogous to a column in a SQL `SELECT` projection.
-    fn field_to_df_expr(&self, field: &Field, plan: &LogicalPlan) -> Result<Expr> {
-        let input_schema = plan.schema();
-        let expr = self.expr_to_df_expr(ExprScope::Projection, &field.expr, input_schema)?;
+    fn field_to_df_expr(
+        &self,
+        field: &Field,
+        plan: &LogicalPlan,
+        schemas: &Schemas,
+    ) -> Result<Expr> {
+        let expr = self.expr_to_df_expr(ExprScope::Projection, &field.expr, schemas)?;
+        let expr = rewrite_field_expr(expr, schemas)?;
         if let Some(alias) = &field.alias {
             let expr = Expr::Alias(Box::new(expr), alias.deref().into());
             normalize_col(expr, plan)
@@ -262,17 +280,17 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     fn conditional_to_df_expr(
         &self,
         iql: &ConditionalExpression,
-        schema: &DFSchema,
+        schemas: &Schemas,
         tz: Option<chrono_tz::Tz>,
     ) -> Result<Expr> {
         match iql {
             ConditionalExpression::Expr(expr) => {
-                self.expr_to_df_expr(ExprScope::Where, expr, schema)
+                self.expr_to_df_expr(ExprScope::Where, expr, schemas)
             }
             ConditionalExpression::Binary { lhs, op, rhs } => {
-                self.binary_conditional_to_df_expr(lhs, *op, rhs, schema, tz)
+                self.binary_conditional_to_df_expr(lhs, *op, rhs, schemas, tz)
             }
-            ConditionalExpression::Grouped(e) => self.conditional_to_df_expr(e, schema, tz),
+            ConditionalExpression::Grouped(e) => self.conditional_to_df_expr(e, schemas, tz),
         }
     }
 
@@ -282,7 +300,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         lhs: &ConditionalExpression,
         op: ConditionalOperator,
         rhs: &ConditionalExpression,
-        schema: &DFSchema,
+        schemas: &Schemas,
         tz: Option<chrono_tz::Tz>,
     ) -> Result<Expr> {
         let op = conditional_op_to_operator(op)?;
@@ -302,31 +320,28 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         {
             if lhs_time {
                 (
-                    self.conditional_to_df_expr(lhs, schema, tz)?,
+                    self.conditional_to_df_expr(lhs, schemas, tz)?,
                     time_range_to_df_expr(find_expr(rhs)?, tz)?,
                 )
             } else {
                 (
                     time_range_to_df_expr(find_expr(lhs)?, tz)?,
-                    self.conditional_to_df_expr(rhs, schema, tz)?,
+                    self.conditional_to_df_expr(rhs, schemas, tz)?,
                 )
             }
         } else {
             (
-                self.conditional_to_df_expr(lhs, schema, tz)?,
-                self.conditional_to_df_expr(rhs, schema, tz)?,
+                self.conditional_to_df_expr(lhs, schemas, tz)?,
+                self.conditional_to_df_expr(rhs, schemas, tz)?,
             )
         };
 
-        Ok(Expr::BinaryExpr(BinaryExpr::new(
-            Box::new(lhs),
-            op,
-            Box::new(rhs),
-        )))
+        Ok(binary_expr(lhs, op, rhs))
     }
 
     /// Map an InfluxQL [`IQLExpr`] to a DataFusion [`Expr`].
-    fn expr_to_df_expr(&self, scope: ExprScope, iql: &IQLExpr, schema: &DFSchema) -> Result<Expr> {
+    fn expr_to_df_expr(&self, scope: ExprScope, iql: &IQLExpr, schemas: &Schemas) -> Result<Expr> {
+        let iox_schema = &schemas.iox_schema;
         match iql {
             // rewriter is expected to expand wildcard expressions
             IQLExpr::Wildcard(_) => Err(DataFusionError::Internal(
@@ -334,24 +349,56 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             )),
             IQLExpr::VarRef {
                 name,
-                data_type: None,
-            } => Ok(Expr::Column(Column {
-                relation: None,
-                name: normalize_identifier(name),
-            })),
-            IQLExpr::VarRef {
-                name,
-                data_type: Some(_),
-            } => Ok(Expr::Column(Column {
-                relation: None,
-                name: normalize_identifier(name),
-            })),
+                data_type: opt_dst_type,
+            } => {
+                let name = normalize_identifier(name);
+                Ok(
+                    // Per the Go implementation, the time column is case-insensitive in the
+                    // `WHERE` clause and disregards any postfix type cast operator.
+                    //
+                    // See: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L5751-L5753
+                    if scope == ExprScope::Where && name.eq_ignore_ascii_case("time") {
+                        "time".as_expr()
+                    } else {
+                        match iox_schema.find_index_of(&name) {
+                            Some(idx) => {
+                                let column = name.as_expr();
+                                match opt_dst_type {
+                                    Some(dst_type) => {
+                                        let (col_type, _) = iox_schema.field(idx);
+                                        let src_type = column_type_to_var_ref_data_type(col_type);
+                                        if src_type == *dst_type {
+                                            column
+                                        } else if src_type.is_numeric_type()
+                                            && dst_type.is_numeric_type()
+                                        {
+                                            // InfluxQL only allows casting between numeric types,
+                                            // and it is safe to unconditionally unwrap, as the
+                                            // `is_numeric_type` call guarantees it can be mapped to
+                                            // an Arrow DataType
+                                            column.cast_to(
+                                                &var_ref_data_type_to_data_type(*dst_type).unwrap(),
+                                                &schemas.df_schema,
+                                            )?
+                                        } else {
+                                            // If the cast is incompatible, evaluates to NULL
+                                            Expr::Literal(ScalarValue::Null)
+                                        }
+                                    }
+                                    None => column,
+                                }
+                            }
+                            _ => Expr::Literal(ScalarValue::Null),
+                        }
+                    },
+                )
+            }
             IQLExpr::BindParameter(_) => Err(DataFusionError::NotImplemented("parameter".into())),
             IQLExpr::Literal(val) => match val {
-                Literal::Integer(v) => Ok(lit(ScalarValue::Int64(Some(*v)))),
-                Literal::Unsigned(v) => Ok(lit(ScalarValue::UInt64(Some(*v)))),
+                Literal::Integer(v) => Ok(lit(*v)),
+                Literal::Unsigned(v) => Ok(lit(*v)),
                 Literal::Float(v) => Ok(lit(*v)),
-                Literal::String(v) => Ok(lit(v.clone())),
+                Literal::String(v) => Ok(lit(v)),
                 Literal::Boolean(v) => Ok(lit(*v)),
                 Literal::Timestamp(v) => Ok(lit(ScalarValue::TimestampNanosecond(
                     Some(v.timestamp()),
@@ -370,11 +417,11 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 },
             },
             IQLExpr::Distinct(_) => Err(DataFusionError::NotImplemented("DISTINCT".into())),
-            IQLExpr::Call { name, args } => self.call_to_df_expr(scope, name, args, schema),
+            IQLExpr::Call { name, args } => self.call_to_df_expr(scope, name, args, schemas),
             IQLExpr::Binary { lhs, op, rhs } => {
-                self.arithmetic_expr_to_df_expr(scope, lhs, *op, rhs, schema)
+                self.arithmetic_expr_to_df_expr(scope, lhs, *op, rhs, schemas)
             }
-            IQLExpr::Nested(e) => self.expr_to_df_expr(scope, e, schema),
+            IQLExpr::Nested(e) => self.expr_to_df_expr(scope, e, schemas),
         }
     }
 
@@ -384,10 +431,10 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         scope: ExprScope,
         name: &str,
         args: &[IQLExpr],
-        schema: &DFSchema,
+        schemas: &Schemas,
     ) -> Result<Expr> {
         if is_scalar_math_function(name) {
-            self.scalar_math_func_to_df_expr(scope, name, args, schema)
+            self.scalar_math_func_to_df_expr(scope, name, args, schemas)
         } else {
             match scope {
                 ExprScope::Projection => Err(DataFusionError::NotImplemented(
@@ -412,12 +459,12 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         scope: ExprScope,
         name: &str,
         args: &[IQLExpr],
-        schema: &DFSchema,
+        schemas: &Schemas,
     ) -> Result<Expr> {
         let fun = BuiltinScalarFunction::from_str(name)?;
         let args = args
             .iter()
-            .map(|e| self.expr_to_df_expr(scope, e, schema))
+            .map(|e| self.expr_to_df_expr(scope, e, schemas))
             .collect::<Result<Vec<Expr>>>()?;
         Ok(Expr::ScalarFunction { fun, args })
     }
@@ -429,13 +476,13 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         lhs: &IQLExpr,
         op: BinaryOperator,
         rhs: &IQLExpr,
-        schema: &DFSchema,
+        schemas: &Schemas,
     ) -> Result<Expr> {
-        Ok(Expr::BinaryExpr(BinaryExpr::new(
-            Box::new(self.expr_to_df_expr(scope, lhs, schema)?),
+        Ok(binary_expr(
+            self.expr_to_df_expr(scope, lhs, schemas)?,
             binary_operator_to_df_operator(op),
-            Box::new(self.expr_to_df_expr(scope, rhs, schema)?),
-        )))
+            self.expr_to_df_expr(scope, rhs, schemas)?,
+        ))
     }
 
     /// Generate a logical plan that filters the existing plan based on the
@@ -444,13 +491,13 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         &self,
         condition: Option<WhereClause>,
         plan: LogicalPlan,
+        schemas: &Schemas,
         tz: Option<chrono_tz::Tz>,
     ) -> Result<LogicalPlan> {
         match condition {
             Some(where_clause) => {
-                let input_schema = plan.schema();
-                let filter_expr = self.conditional_to_df_expr(&where_clause, input_schema, tz)?;
-                let filter_expr = rewrite_conditional_expr(filter_expr, input_schema)?;
+                let filter_expr = self.conditional_to_df_expr(&where_clause, schemas, tz)?;
+                let filter_expr = rewrite_conditional_expr(filter_expr, schemas)?;
                 let plan = LogicalPlanBuilder::from(plan)
                     .filter(filter_expr)?
                     .build()?;
@@ -497,36 +544,25 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     }
 }
 
-fn schema_from_df(schema: &DFSchema) -> Result<Schema> {
-    let s: Arc<arrow::datatypes::Schema> = Arc::new(schema.into());
-    s.try_into().map_err(|err| {
-        DataFusionError::Internal(format!(
-            "unable to convert DataFusion schema to IOx schema: {err}"
-        ))
-    })
-}
-
 /// Perform a series of passes to rewrite `expr` in compliance with InfluxQL behavior
 /// in an effort to ensure the query executes without error.
-fn rewrite_conditional_expr(expr: Expr, schema: &DFSchemaRef) -> Result<Expr> {
-    let iox_schema = schema_from_df(schema)?;
-    // NOTE: Future passes will be added to rewrite
-    // * non-existent columns,
-    // * conditional expressions of incompatible types,
-    // * etc
-    expr.rewrite(&mut FixRegularExpressions {
-        df_schema: Arc::clone(schema),
-        iox_schema,
-    })
+fn rewrite_conditional_expr(expr: Expr, schemas: &Schemas) -> Result<Expr> {
+    let expr = expr.rewrite(&mut FixRegularExpressions { schemas })?;
+    rewrite_conditional(expr, schemas)
+}
+
+/// Perform a series of passes to rewrite `expr`, used as a column projection,
+/// to match the behavior of InfluxQL.
+fn rewrite_field_expr(expr: Expr, schemas: &Schemas) -> Result<Expr> {
+    rewrite_expr(expr, schemas)
 }
 
 /// Rewrite regex conditional expressions to match InfluxQL behaviour.
-struct FixRegularExpressions {
-    df_schema: DFSchemaRef,
-    iox_schema: Schema,
+struct FixRegularExpressions<'a> {
+    schemas: &'a Schemas,
 }
 
-impl ExprRewriter for FixRegularExpressions {
+impl<'a> ExprRewriter for FixRegularExpressions<'a> {
     fn mutate(&mut self, expr: Expr) -> Result<Expr> {
         match expr {
             // InfluxQL evaluates regular expression conditions to false if the column is numeric
@@ -537,13 +573,14 @@ impl ExprRewriter for FixRegularExpressions {
                 right,
             }) => {
                 if let Expr::Column(ref col) = *left {
-                    if let Some(idx) = self.iox_schema.find_index_of(&col.name) {
-                        let (col_type, _) = self.iox_schema.field(idx);
+                    if let Some(idx) = self.schemas.iox_schema.find_index_of(&col.name) {
+                        let (col_type, _) = self.schemas.iox_schema.field(idx);
                         match col_type {
                             InfluxColumnType::Tag => {
                                 // Regular expressions expect to be compared with a Utf8
-                                let left =
-                                    Box::new(left.cast_to(&DataType::Utf8, &self.df_schema)?);
+                                let left = Box::new(
+                                    left.cast_to(&DataType::Utf8, &self.schemas.df_schema)?,
+                                );
                                 Ok(Expr::BinaryExpr(BinaryExpr { left, op, right }))
                             }
                             InfluxColumnType::Field(InfluxFieldType::String) => {
@@ -606,9 +643,10 @@ fn normalize_identifier(ident: &Identifier) -> String {
 
 /// Returns true if the field list contains a `time` column.
 ///
-/// ⚠️ **NOTE**
-/// To match InfluxQL, the `time` column must not exist as part of a
-/// complex expression.
+/// > **Note**
+/// >
+/// > To match InfluxQL, the `time` column must not exist as part of a
+/// > complex expression.
 fn has_time_column(fields: &FieldList) -> bool {
     fields
         .iter()
@@ -630,6 +668,10 @@ fn is_scalar_math_function(name: &str) -> bool {
 
 /// Returns true if the conditional expression is a single node that
 /// refers to the `time` column.
+///
+/// In a conditional expression, this comparison is case-insensitive per the [Go implementation][go]
+///
+/// [go]: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L5751-L5753
 fn is_time_field(cond: &ConditionalExpression) -> bool {
     if let ConditionalExpression::Expr(expr) = cond {
         if let IQLExpr::VarRef { ref name, .. } = **expr {
@@ -682,6 +724,25 @@ mod test {
             ),
         );
 
+        // Table with tags and all field types
+        test_db.add_chunk(
+            "my_partition_key",
+            Arc::new(
+                TestChunk::new("all_types")
+                    .with_quiet()
+                    .with_id(1)
+                    .with_tag_column("tag0")
+                    .with_tag_column("tag1")
+                    .with_f64_field_column("f64_field")
+                    .with_i64_field_column("i64_field")
+                    .with_string_field_column_with_stats("str_field", None, None)
+                    .with_bool_field_column("bool_field")
+                    .with_u64_field_column_no_stats("u64_field")
+                    .with_time_column()
+                    .with_one_row_of_data(),
+            ),
+        );
+
         test_utils::database::chunks().iter().for_each(|c| {
             test_db.add_chunk("my_partition_key", Arc::clone(c));
         });
@@ -700,15 +761,15 @@ mod test {
     /// It is expected certain statements will be unsupported, indefinitely.
     #[tokio::test]
     async fn test_unsupported_statements() {
-        assert_snapshot!(plan("CREATE DATABASE foo").await);
-        assert_snapshot!(plan("DELETE FROM foo").await);
-        assert_snapshot!(plan("DROP MEASUREMENT foo").await);
-        assert_snapshot!(plan("SHOW DATABASES").await);
-        assert_snapshot!(plan("SHOW MEASUREMENTS").await);
-        assert_snapshot!(plan("SHOW RETENTION POLICIES").await);
-        assert_snapshot!(plan("SHOW TAG KEYS").await);
-        assert_snapshot!(plan("SHOW TAG VALUES WITH KEY = bar").await);
-        assert_snapshot!(plan("SHOW FIELD KEYS").await);
+        assert_snapshot!(plan("CREATE DATABASE foo").await, @"This feature is not implemented: CREATE DATABASE");
+        assert_snapshot!(plan("DELETE FROM foo").await, @"This feature is not implemented: DELETE");
+        assert_snapshot!(plan("DROP MEASUREMENT foo").await, @"This feature is not implemented: DROP MEASUREMENT");
+        assert_snapshot!(plan("SHOW DATABASES").await, @"This feature is not implemented: SHOW DATABASES");
+        assert_snapshot!(plan("SHOW MEASUREMENTS").await, @"This feature is not implemented: SHOW MEASUREMENTS");
+        assert_snapshot!(plan("SHOW RETENTION POLICIES").await, @"This feature is not implemented: SHOW RETENTION POLICIES");
+        assert_snapshot!(plan("SHOW TAG KEYS").await, @"This feature is not implemented: SHOW TAG KEYS");
+        assert_snapshot!(plan("SHOW TAG VALUES WITH KEY = bar").await, @"This feature is not implemented: SHOW TAG VALUES");
+        assert_snapshot!(plan("SHOW FIELD KEYS").await, @"This feature is not implemented: SHOW FIELD KEYS");
     }
 
     /// Tests to validate InfluxQL `SELECT` statements, where the projections do not matter,
@@ -719,51 +780,319 @@ mod test {
         #[tokio::test]
         async fn test_time_range_in_where() {
             assert_snapshot!(
-                plan("SELECT foo, f64_field FROM data where time > now() - 10s").await
+                plan("SELECT foo, f64_field FROM data where time > now() - 10s").await, @r###"
+            Projection: data.time, data.foo AS foo, data.f64_field AS f64_field [time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, f64_field:Float64;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                Filter: data.time > now() - IntervalMonthDayNano("10000000000") [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                  TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###
             );
             assert_snapshot!(
-                plan("SELECT foo, f64_field FROM data where time > '2004-04-09T02:33:45Z'").await
+                plan("SELECT foo, f64_field FROM data where time > '2004-04-09T02:33:45Z'").await, @r###"
+            Projection: data.time, data.foo AS foo, data.f64_field AS f64_field [time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, f64_field:Float64;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                Filter: data.time > TimestampNanosecond(1081478025000000000, None) [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                  TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###
             );
             assert_snapshot!(
-                plan("SELECT foo, f64_field FROM data where time > '2004-04-09T'").await
+                plan("SELECT foo, f64_field FROM data where time > '2004-04-09T'").await, @r###"Error during planning: invalid expression "'2004-04-09T'": '2004-04-09T' is not a valid timestamp"###
             );
 
             // time on the right-hand side
             assert_snapshot!(
-                plan("SELECT foo, f64_field FROM data where  now() - 10s < time").await
+                plan("SELECT foo, f64_field FROM data where  now() - 10s < time").await, @r###"
+            Projection: data.time, data.foo AS foo, data.f64_field AS f64_field [time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, f64_field:Float64;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                Filter: now() - IntervalMonthDayNano("10000000000") < data.time [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                  TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###
             );
 
             // Regular expression equality tests
 
-            assert_snapshot!(plan("SELECT foo, f64_field FROM data where foo =~ /f/").await);
+            assert_snapshot!(plan("SELECT foo, f64_field FROM data where foo =~ /f/").await, @r###"
+            Projection: data.time, data.foo AS foo, data.f64_field AS f64_field [time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, f64_field:Float64;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                Filter: CAST(data.foo AS Utf8) ~ Utf8("f") [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                  TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
 
             // regular expression for a numeric field is rewritten to `false`
-            assert_snapshot!(plan("SELECT foo, f64_field FROM data where f64_field =~ /f/").await);
+            assert_snapshot!(plan("SELECT foo, f64_field FROM data where f64_field =~ /f/").await, @r###"
+            Projection: data.time, data.foo AS foo, data.f64_field AS f64_field [time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, f64_field:Float64;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                Filter: Boolean(false) [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                  TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
 
             // regular expression for a non-existent field is rewritten to `false`
             assert_snapshot!(
-                plan("SELECT foo, f64_field FROM data where non_existent =~ /f/").await
+                plan("SELECT foo, f64_field FROM data where non_existent =~ /f/").await, @r###"
+            Projection: data.time, data.foo AS foo, data.f64_field AS f64_field [time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, f64_field:Float64;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                Filter: Boolean(false) [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                  TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###
             );
 
             // Regular expression inequality tests
 
-            assert_snapshot!(plan("SELECT foo, f64_field FROM data where foo !~ /f/").await);
+            assert_snapshot!(plan("SELECT foo, f64_field FROM data where foo !~ /f/").await, @r###"
+            Projection: data.time, data.foo AS foo, data.f64_field AS f64_field [time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, f64_field:Float64;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                Filter: CAST(data.foo AS Utf8) !~ Utf8("f") [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                  TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
 
             // regular expression for a numeric field is rewritten to `false`
-            assert_snapshot!(plan("SELECT foo, f64_field FROM data where f64_field !~ /f/").await);
+            assert_snapshot!(plan("SELECT foo, f64_field FROM data where f64_field !~ /f/").await, @r###"
+            Projection: data.time, data.foo AS foo, data.f64_field AS f64_field [time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, f64_field:Float64;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                Filter: Boolean(false) [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                  TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
 
             // regular expression for a non-existent field is rewritten to `false`
             assert_snapshot!(
-                plan("SELECT foo, f64_field FROM data where non_existent !~ /f/").await
+                plan("SELECT foo, f64_field FROM data where non_existent !~ /f/").await, @r###"
+            Projection: data.time, data.foo AS foo, data.f64_field AS f64_field [time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, f64_field:Float64;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                Filter: Boolean(false) [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                  TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###
             );
         }
 
         #[tokio::test]
+        async fn test_column_matching_rules() {
+            // Cast between numeric types
+            assert_snapshot!(plan("SELECT f64_field::integer FROM data").await, @r###"
+            Projection: data.time, CAST(data.f64_field AS Int64) AS f64_field [time:Timestamp(Nanosecond, None), f64_field:Int64;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+            assert_snapshot!(plan("SELECT i64_field::float FROM data").await, @r###"
+            Projection: data.time, CAST(data.i64_field AS Float64) AS i64_field [time:Timestamp(Nanosecond, None), i64_field:Float64;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+
+            // use field selector
+            assert_snapshot!(plan("SELECT bool_field::field FROM data").await, @r###"
+            Projection: data.time, data.bool_field AS bool_field [time:Timestamp(Nanosecond, None), bool_field:Boolean;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+
+            // invalid column reverence
+            assert_snapshot!(plan("SELECT not_exists::tag FROM data").await, @r###"
+            Projection: data.time, NULL AS not_exists [time:Timestamp(Nanosecond, None), not_exists:Null;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+            assert_snapshot!(plan("SELECT not_exists::field FROM data").await, @r###"
+            Projection: data.time, NULL AS not_exists [time:Timestamp(Nanosecond, None), not_exists:Null;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+
+            // Returns NULL for invalid casts
+            assert_snapshot!(plan("SELECT f64_field::string FROM data").await, @r###"
+            Projection: data.time, NULL AS f64_field [time:Timestamp(Nanosecond, None), f64_field:Null;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+            assert_snapshot!(plan("SELECT f64_field::boolean FROM data").await, @r###"
+            Projection: data.time, NULL AS f64_field [time:Timestamp(Nanosecond, None), f64_field:Null;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+            assert_snapshot!(plan("SELECT str_field::boolean FROM data").await, @r###"
+            Projection: data.time, NULL AS str_field [time:Timestamp(Nanosecond, None), str_field:Null;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+        }
+
+        #[tokio::test]
         async fn test_explain() {
-            assert_snapshot!(plan("EXPLAIN SELECT foo, f64_field FROM data").await);
-            assert_snapshot!(plan("EXPLAIN VERBOSE SELECT foo, f64_field FROM data").await);
-            assert_snapshot!(plan("EXPLAIN ANALYZE SELECT foo, f64_field FROM data").await);
-            assert_snapshot!(plan("EXPLAIN ANALYZE VERBOSE SELECT foo, f64_field FROM data").await);
+            assert_snapshot!(plan("EXPLAIN SELECT foo, f64_field FROM data").await, @r###"
+            Explain [plan_type:Utf8, plan:Utf8]
+              Projection: data.time, data.foo AS foo, data.f64_field AS f64_field [time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, f64_field:Float64;N]
+                Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                  TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+            assert_snapshot!(plan("EXPLAIN VERBOSE SELECT foo, f64_field FROM data").await, @r###"
+            Explain [plan_type:Utf8, plan:Utf8]
+              Projection: data.time, data.foo AS foo, data.f64_field AS f64_field [time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, f64_field:Float64;N]
+                Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                  TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+            assert_snapshot!(plan("EXPLAIN ANALYZE SELECT foo, f64_field FROM data").await, @r###"
+            Analyze [plan_type:Utf8, plan:Utf8]
+              Projection: data.time, data.foo AS foo, data.f64_field AS f64_field [time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, f64_field:Float64;N]
+                Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                  TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+            assert_snapshot!(plan("EXPLAIN ANALYZE VERBOSE SELECT foo, f64_field FROM data").await, @r###"
+            Analyze [plan_type:Utf8, plan:Utf8]
+              Projection: data.time, data.foo AS foo, data.f64_field AS f64_field [time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, f64_field:Float64;N]
+                Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                  TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+        }
+
+        #[tokio::test]
+        async fn test_select_cast_postfix_operator() {
+            // Float casting
+            assert_snapshot!(plan("SELECT f64_field::float FROM all_types").await, @r###"
+            Projection: all_types.time, all_types.f64_field AS f64_field [time:Timestamp(Nanosecond, None), f64_field:Float64;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+            assert_snapshot!(plan("SELECT f64_field::unsigned FROM all_types").await, @r###"
+            Projection: all_types.time, CAST(all_types.f64_field AS UInt64) AS f64_field [time:Timestamp(Nanosecond, None), f64_field:UInt64;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+            assert_snapshot!(plan("SELECT f64_field::integer FROM all_types").await, @r###"
+            Projection: all_types.time, CAST(all_types.f64_field AS Int64) AS f64_field [time:Timestamp(Nanosecond, None), f64_field:Int64;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+            assert_snapshot!(plan("SELECT f64_field::string FROM all_types").await, @r###"
+            Projection: all_types.time, NULL AS f64_field [time:Timestamp(Nanosecond, None), f64_field:Null;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+            assert_snapshot!(plan("SELECT f64_field::boolean FROM all_types").await, @r###"
+            Projection: all_types.time, NULL AS f64_field [time:Timestamp(Nanosecond, None), f64_field:Null;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+
+            // Integer casting
+            assert_snapshot!(plan("SELECT i64_field::float FROM all_types").await, @r###"
+            Projection: all_types.time, CAST(all_types.i64_field AS Float64) AS i64_field [time:Timestamp(Nanosecond, None), i64_field:Float64;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+            assert_snapshot!(plan("SELECT i64_field::unsigned FROM all_types").await, @r###"
+            Projection: all_types.time, CAST(all_types.i64_field AS UInt64) AS i64_field [time:Timestamp(Nanosecond, None), i64_field:UInt64;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+            assert_snapshot!(plan("SELECT i64_field::integer FROM all_types").await, @r###"
+            Projection: all_types.time, all_types.i64_field AS i64_field [time:Timestamp(Nanosecond, None), i64_field:Int64;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+            assert_snapshot!(plan("SELECT i64_field::string FROM all_types").await, @r###"
+            Projection: all_types.time, NULL AS i64_field [time:Timestamp(Nanosecond, None), i64_field:Null;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+            assert_snapshot!(plan("SELECT i64_field::boolean FROM all_types").await, @r###"
+            Projection: all_types.time, NULL AS i64_field [time:Timestamp(Nanosecond, None), i64_field:Null;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+
+            // Unsigned casting
+            assert_snapshot!(plan("SELECT u64_field::float FROM all_types").await, @r###"
+            Projection: all_types.time, CAST(all_types.u64_field AS Float64) AS u64_field [time:Timestamp(Nanosecond, None), u64_field:Float64;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+            assert_snapshot!(plan("SELECT u64_field::unsigned FROM all_types").await, @r###"
+            Projection: all_types.time, all_types.u64_field AS u64_field [time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+            assert_snapshot!(plan("SELECT u64_field::integer FROM all_types").await, @r###"
+            Projection: all_types.time, CAST(all_types.u64_field AS Int64) AS u64_field [time:Timestamp(Nanosecond, None), u64_field:Int64;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+            assert_snapshot!(plan("SELECT u64_field::string FROM all_types").await, @r###"
+            Projection: all_types.time, NULL AS u64_field [time:Timestamp(Nanosecond, None), u64_field:Null;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+            assert_snapshot!(plan("SELECT u64_field::boolean FROM all_types").await, @r###"
+            Projection: all_types.time, NULL AS u64_field [time:Timestamp(Nanosecond, None), u64_field:Null;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+
+            // String casting
+            assert_snapshot!(plan("SELECT str_field::float FROM all_types").await, @r###"
+            Projection: all_types.time, NULL AS str_field [time:Timestamp(Nanosecond, None), str_field:Null;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+            assert_snapshot!(plan("SELECT str_field::unsigned FROM all_types").await, @r###"
+            Projection: all_types.time, NULL AS str_field [time:Timestamp(Nanosecond, None), str_field:Null;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+            assert_snapshot!(plan("SELECT str_field::integer FROM all_types").await, @r###"
+            Projection: all_types.time, NULL AS str_field [time:Timestamp(Nanosecond, None), str_field:Null;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+            assert_snapshot!(plan("SELECT str_field::string FROM all_types").await, @r###"
+            Projection: all_types.time, all_types.str_field AS str_field [time:Timestamp(Nanosecond, None), str_field:Utf8;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+            assert_snapshot!(plan("SELECT str_field::boolean FROM all_types").await, @r###"
+            Projection: all_types.time, NULL AS str_field [time:Timestamp(Nanosecond, None), str_field:Null;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+
+            // Boolean casting
+            assert_snapshot!(plan("SELECT bool_field::float FROM all_types").await, @r###"
+            Projection: all_types.time, NULL AS bool_field [time:Timestamp(Nanosecond, None), bool_field:Null;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+            assert_snapshot!(plan("SELECT bool_field::unsigned FROM all_types").await, @r###"
+            Projection: all_types.time, NULL AS bool_field [time:Timestamp(Nanosecond, None), bool_field:Null;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+            assert_snapshot!(plan("SELECT bool_field::integer FROM all_types").await, @r###"
+            Projection: all_types.time, NULL AS bool_field [time:Timestamp(Nanosecond, None), bool_field:Null;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+            assert_snapshot!(plan("SELECT bool_field::string FROM all_types").await, @r###"
+            Projection: all_types.time, NULL AS bool_field [time:Timestamp(Nanosecond, None), bool_field:Null;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+            assert_snapshot!(plan("SELECT bool_field::boolean FROM all_types").await, @r###"
+            Projection: all_types.time, all_types.bool_field AS bool_field [time:Timestamp(Nanosecond, None), bool_field:Boolean;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+
+            // Validate various projection expressions with casts
+
+            assert_snapshot!(plan("SELECT f64_field::integer + i64_field + u64_field::integer FROM all_types").await, @r###"
+            Projection: all_types.time, CAST(all_types.f64_field AS Int64) + all_types.i64_field + CAST(all_types.u64_field AS Int64) AS f64_field_i64_field_u64_field [time:Timestamp(Nanosecond, None), f64_field_i64_field_u64_field:Int64;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+
+            assert_snapshot!(plan("SELECT f64_field::integer + i64_field + str_field::integer FROM all_types").await, @r###"
+            Projection: all_types.time, NULL AS f64_field_i64_field_str_field [time:Timestamp(Nanosecond, None), f64_field_i64_field_str_field:Null;N]
+              Sort: all_types.time ASC NULLS LAST [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
         }
     }
 
@@ -775,23 +1104,71 @@ mod test {
         /// Select data from a single measurement
         #[tokio::test]
         async fn test_single_measurement() {
-            assert_snapshot!(plan("SELECT f64_field FROM data").await);
-            assert_snapshot!(plan("SELECT time, f64_field FROM data").await);
-            assert_snapshot!(plan("SELECT time as timestamp, f64_field FROM data").await);
-            assert_snapshot!(plan("SELECT foo, f64_field FROM data").await);
-            assert_snapshot!(plan("SELECT foo, f64_field, i64_field FROM data").await);
-            assert_snapshot!(plan("SELECT /^f/ FROM data").await);
-            assert_snapshot!(plan("SELECT * FROM data").await);
-            assert_snapshot!(plan("SELECT TIME FROM data").await); // TIME is a field
+            assert_snapshot!(plan("SELECT f64_field FROM data").await, @r###"
+            Projection: data.time, data.f64_field AS f64_field [time:Timestamp(Nanosecond, None), f64_field:Float64;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+            assert_snapshot!(plan("SELECT time, f64_field FROM data").await, @r###"
+            Projection: data.time AS time, data.f64_field AS f64_field [time:Timestamp(Nanosecond, None), f64_field:Float64;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+            assert_snapshot!(plan("SELECT time as timestamp, f64_field FROM data").await, @r###"
+            Projection: data.time AS timestamp, data.f64_field AS f64_field [timestamp:Timestamp(Nanosecond, None), f64_field:Float64;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+            assert_snapshot!(plan("SELECT foo, f64_field FROM data").await, @r###"
+            Projection: data.time, data.foo AS foo, data.f64_field AS f64_field [time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, f64_field:Float64;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+            assert_snapshot!(plan("SELECT foo, f64_field, i64_field FROM data").await, @r###"
+            Projection: data.time, data.foo AS foo, data.f64_field AS f64_field, data.i64_field AS i64_field [time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, f64_field:Float64;N, i64_field:Int64;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+            assert_snapshot!(plan("SELECT /^f/ FROM data").await, @r###"
+            Projection: data.time, data.f64_field AS f64_field, data.foo AS foo [time:Timestamp(Nanosecond, None), f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+            assert_snapshot!(plan("SELECT * FROM data").await, @r###"
+            Projection: data.time, data.TIME AS TIME, data.bar AS bar, data.bool_field AS bool_field, data.f64_field AS f64_field, data.foo AS foo, data.i64_field AS i64_field, data.mixedCase AS mixedCase, data.str_field AS str_field, data.with space AS with space [time:Timestamp(Nanosecond, None), TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, with space:Float64;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+            assert_snapshot!(plan("SELECT TIME FROM data").await, @r###"
+            Projection: data.time, data.TIME AS TIME [time:Timestamp(Nanosecond, None), TIME:Boolean;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###); // TIME is a field
         }
 
         /// Arithmetic expressions in the projection list
         #[tokio::test]
         async fn test_simple_arithmetic_in_projection() {
-            assert_snapshot!(plan("SELECT foo, f64_field + f64_field FROM data").await);
-            assert_snapshot!(plan("SELECT foo, sin(f64_field) FROM data").await);
-            assert_snapshot!(plan("SELECT foo, atan2(f64_field, 2) FROM data").await);
-            assert_snapshot!(plan("SELECT foo, f64_field + 0.5 FROM data").await);
+            assert_snapshot!(plan("SELECT foo, f64_field + f64_field FROM data").await, @r###"
+            Projection: data.time, data.foo AS foo, data.f64_field + data.f64_field AS f64_field_f64_field [time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, f64_field_f64_field:Float64;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+            assert_snapshot!(plan("SELECT foo, sin(f64_field) FROM data").await, @r###"
+            Projection: data.time, data.foo AS foo, sin(data.f64_field) AS sin [time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, sin:Float64;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+            assert_snapshot!(plan("SELECT foo, atan2(f64_field, 2) FROM data").await, @r###"
+            Projection: data.time, data.foo AS foo, atan2(data.f64_field, Int64(2)) AS atan2 [time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, atan2:Float64;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+            assert_snapshot!(plan("SELECT foo, f64_field + 0.5 FROM data").await, @r###"
+            Projection: data.time, data.foo AS foo, data.f64_field + Float64(0.5) AS f64_field [time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, f64_field:Float64;N]
+              Sort: data.time ASC NULLS LAST [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
         }
 
         // The following is an outline of additional scenarios to develop
@@ -904,21 +1281,7 @@ mod test {
         #[tokio::test]
         #[ignore]
         async fn test_select_coercion_from_str() {
-            assert_snapshot!(plan("SELECT f64_field + str_field::float FROM data").await);
-        }
-
-        /// **Issue:**
-        /// Fails to cast f64_field column to Int64
-        /// **Expected:**
-        /// Succeeds and plan projection of f64_field contains cast to Int64
-        /// **Actual:**
-        /// Succeeds and plan projection of f64_field is Float64
-        /// **Data:**
-        /// m0,tag0=val00 f64=99.0,i64=100i,str="lo",str_f64="5.5" 1667181600000000000
-        #[tokio::test]
-        #[ignore]
-        async fn test_select_explicit_cast() {
-            assert_snapshot!(plan("SELECT f64_field::integer FROM data").await);
+            assert_snapshot!(plan("SELECT f64_field + str_field::float FROM data").await, @"");
         }
 
         /// **Issue:**

@@ -1,16 +1,16 @@
+use arrow::datatypes::DataType;
 use influxdb_influxql_parser::expression::VarRefDataType;
-use schema::InfluxFieldType;
+use schema::{InfluxColumnType, InfluxFieldType};
 
-#[allow(dead_code)]
-/// Maps a [`VarRefDataType`] to an [`InfluxFieldType`], or `None` if no such mapping exists.
-pub(crate) fn var_ref_data_type_to_field_type(v: VarRefDataType) -> Option<InfluxFieldType> {
+pub(crate) fn var_ref_data_type_to_data_type(v: VarRefDataType) -> Option<DataType> {
     match v {
-        VarRefDataType::Integer => Some(InfluxFieldType::Integer),
-        VarRefDataType::Unsigned => Some(InfluxFieldType::UInteger),
-        VarRefDataType::Float => Some(InfluxFieldType::Float),
-        VarRefDataType::String => Some(InfluxFieldType::String),
-        VarRefDataType::Boolean => Some(InfluxFieldType::Boolean),
-        VarRefDataType::Tag | VarRefDataType::Field | VarRefDataType::Timestamp => None,
+        VarRefDataType::Float => Some(DataType::Float64),
+        VarRefDataType::Integer => Some(DataType::Int64),
+        VarRefDataType::Unsigned => Some(DataType::UInt64),
+        VarRefDataType::String => Some(DataType::Utf8),
+        VarRefDataType::Boolean => Some(DataType::Boolean),
+        VarRefDataType::Tag => Some(DataType::Utf8),
+        VarRefDataType::Field | VarRefDataType::Timestamp => None,
     }
 }
 
@@ -25,37 +25,19 @@ pub(crate) fn field_type_to_var_ref_data_type(v: InfluxFieldType) -> VarRefDataT
     }
 }
 
+/// Maps an [`InfluxColumnType`] to a [`VarRefDataType`].
+pub(crate) fn column_type_to_var_ref_data_type(v: InfluxColumnType) -> VarRefDataType {
+    match v {
+        InfluxColumnType::Tag => VarRefDataType::Tag,
+        InfluxColumnType::Field(ft) => field_type_to_var_ref_data_type(ft),
+        InfluxColumnType::Timestamp => VarRefDataType::Timestamp,
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
     use assert_matches::assert_matches;
-
-    #[test]
-    fn test_var_ref_data_type_to_field_type() {
-        assert_matches!(
-            var_ref_data_type_to_field_type(VarRefDataType::Float),
-            Some(InfluxFieldType::Float)
-        );
-        assert_matches!(
-            var_ref_data_type_to_field_type(VarRefDataType::Integer),
-            Some(InfluxFieldType::Integer)
-        );
-        assert_matches!(
-            var_ref_data_type_to_field_type(VarRefDataType::Unsigned),
-            Some(InfluxFieldType::UInteger)
-        );
-        assert_matches!(
-            var_ref_data_type_to_field_type(VarRefDataType::String),
-            Some(InfluxFieldType::String)
-        );
-        assert_matches!(
-            var_ref_data_type_to_field_type(VarRefDataType::Boolean),
-            Some(InfluxFieldType::Boolean)
-        );
-        assert!(var_ref_data_type_to_field_type(VarRefDataType::Field).is_none());
-        assert!(var_ref_data_type_to_field_type(VarRefDataType::Tag).is_none());
-        assert!(var_ref_data_type_to_field_type(VarRefDataType::Timestamp).is_none());
-    }
 
     #[test]
     fn test_field_type_to_var_ref_data_type() {

@@ -1225,9 +1225,9 @@ dependencies = [
 
 [[package]]
 name = "croaring"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33f91ebda496fc1cb7910d80373119c706a5f84efd060fb14eb369ffa5cfdacf"
+checksum = "eb8264aab40cc6593ec5cbb4ba98c785f323de053d77406c814640312f14774a"
 dependencies = [
  "byteorder",
  "croaring-sys",
@@ -1235,9 +1235,9 @@ dependencies = [
 
 [[package]]
 name = "croaring-sys"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d42a4c75d6dc458444a52816cec8fd4ef5af16ec82e1dfc2a1116d431c0787d"
+checksum = "dfcf3afb25740bb232303d3a61eef6a2b5c369ca7767f10a207f05014147cf3b"
 dependencies = [
  "cc",
 ]
@@ -3665,18 +3665,6 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.25.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f346ff70e7dbfd675fe90590b92d59ef2de15a8779ae305ebcbfd3f0caf59be4"
-dependencies = [
- "autocfg",
- "bitflags",
- "cfg-if",
- "libc",
-]
-
-[[package]]
-name = "nix"
 version = "0.26.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bfdda3d196821d6af13126e40375cdf7da646a96114af134d5f417a9a1dc8e1a"
@@ -5016,9 +5004,9 @@ checksum = "5583e89e108996506031660fe09baa5011b9dd0341b89029313006d1fb508d70"
 
 [[package]]
 name = "rustyline"
-version = "10.1.1"
+version = "11.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1e83c32c3f3c33b08496e0d1df9ea8c64d39adb8eb36a1ebb1440c690697aef"
+checksum = "5dfc8644681285d1fb67a467fb3021bfea306b99b4146b166a1fe3ada965eece"
 dependencies = [
  "bitflags",
  "cfg-if",
@@ -5027,7 +5015,7 @@ dependencies = [
  "libc",
  "log",
  "memchr",
- "nix 0.25.1",
+ "nix 0.26.2",
  "scopeguard",
  "unicode-segmentation",
  "unicode-width",
@@ -5988,9 +5976,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-stream"
-version = "0.1.11"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d660770404473ccd7bc9f8b28494a811bc18542b915c0855c51e8f419d5223ce"
+checksum = "8fb52b74f05dbf495a8fba459fdc331812b96aa086d9eb78101fa0d4569c3313"
 dependencies = [
  "futures-core",
  "pin-project-lite",
@@ -6824,6 +6812,7 @@ dependencies = [
  "log",
  "md-5",
  "memchr",
+ "nix 0.26.2",
  "nom",
  "num-integer",
  "num-traits",
