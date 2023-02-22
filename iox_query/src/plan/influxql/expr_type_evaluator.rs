@@ -1,32 +1,32 @@
 use crate::plan::influxql::field::field_by_name;
 use crate::plan::influxql::field_mapper::map_type;
+use crate::plan::influxql::SchemaProvider;
 use datafusion::common::{DataFusionError, Result};
 use influxdb_influxql_parser::common::{MeasurementName, QualifiedMeasurementName};
 use influxdb_influxql_parser::expression::{Expr, VarRefDataType};
 use influxdb_influxql_parser::literal::Literal;
 use influxdb_influxql_parser::select::{Dimension, FromMeasurementClause, MeasurementSelection};
 use itertools::Itertools;
-use predicate::rpc_predicate::QueryNamespaceMeta;
 
 /// Evaluate the type of the specified expression.
 ///
 /// Derived from [Go implementation](https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L4796-L4797).
 pub(crate) fn evaluate_type(
-    namespace: &dyn QueryNamespaceMeta,
+    s: &dyn SchemaProvider,
     expr: &Expr,
     from: &FromMeasurementClause,
 ) -> Result<Option<VarRefDataType>> {
-    TypeEvaluator::new(from, namespace).eval_type(expr)
+    TypeEvaluator::new(from, s).eval_type(expr)
 }
 
 struct TypeEvaluator<'a> {
-    namespace: &'a dyn QueryNamespaceMeta,
+    s: &'a dyn SchemaProvider,
     from: &'a FromMeasurementClause,
 }
 
 impl<'a> TypeEvaluator<'a> {
-    fn new(from: &'a FromMeasurementClause, namespace: &'a dyn QueryNamespaceMeta) -> Self {
-        Self { from, namespace }
+    fn new(from: &'a FromMeasurementClause, s: &'a dyn SchemaProvider) -> Self {
+        Self { from, s }
     }
 
     fn eval_type(&self, expr: &Expr) -> Result<Option<VarRefDataType>> {
@@ -79,7 +79,7 @@ impl<'a> TypeEvaluator<'a> {
                         MeasurementSelection::Name(QualifiedMeasurementName {
                             name: MeasurementName::Name(ident),
                             ..
-                        }) => match (data_type, map_type(self.namespace, ident.as_str(), name)?) {
+                        }) => match (data_type, map_type(self.s, ident.as_str(), name)?) {
                             (Some(existing), Some(res)) => {
                                 if res < existing {
                                     data_type = Some(res)
@@ -91,10 +91,8 @@ impl<'a> TypeEvaluator<'a> {
                         MeasurementSelection::Subquery(select) => {
                             // find the field by name
                             if let Some(field) = field_by_name(select, name) {
-                                match (
-                                    data_type,
-                                    evaluate_type(self.namespace, &field.expr, &select.from)?,
-                                ) {
+                                match (data_type, evaluate_type(self.s, &field.expr, &select.from)?)
+                                {
                                     (Some(existing), Some(res)) => {
                                         if res < existing {
                                             data_type = Some(res)
@@ -151,13 +149,13 @@ impl<'a> TypeEvaluator<'a> {
 #[cfg(test)]
 mod test {
     use crate::plan::influxql::expr_type_evaluator::evaluate_type;
-    use crate::plan::influxql::test_utils::{parse_select, MockNamespace};
+    use crate::plan::influxql::test_utils::{parse_select, MockSchemaProvider};
     use assert_matches::assert_matches;
     use influxdb_influxql_parser::expression::VarRefDataType;
 
     #[test]
     fn test_evaluate_type() {
-        let namespace = MockNamespace::default();
+        let namespace = MockSchemaProvider::default();
 
         let stmt = parse_select("SELECT shared_field0 FROM temp_01");
         let field = stmt.fields.head().unwrap();

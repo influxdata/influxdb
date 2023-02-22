@@ -374,7 +374,7 @@ where
             RunQuery::InfluxQL(sql_query) => {
                 let token = db.record_query(&ctx, "influxql", Box::new(sql_query.clone()));
                 let plan = Planner::new(&ctx)
-                    .influxql(db, sql_query)
+                    .influxql(sql_query)
                     .await
                     .context(PlanningSnafu)?;
                 (token, plan)

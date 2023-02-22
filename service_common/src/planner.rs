@@ -50,7 +50,6 @@ impl Planner {
     /// DataFusion physical execution plan.
     pub async fn influxql(
         &self,
-        database: Arc<dyn QueryNamespace>,
         query: impl Into<String> + Send,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let planner = InfluxQLQueryPlanner::new();
@@ -58,7 +57,7 @@ impl Planner {
         let ctx = self.ctx.child_ctx("planner influxql");
 
         self.ctx
-            .run(async move { planner.query(database, &query, &ctx).await })
+            .run(async move { planner.query(&query, &ctx).await })
             .await
     }
 

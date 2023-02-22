@@ -3,6 +3,7 @@
 use crate::plan::influxql::expr_type_evaluator::evaluate_type;
 use crate::plan::influxql::field::field_name;
 use crate::plan::influxql::field_mapper::{field_and_dimensions, FieldTypeMap, TagSet};
+use crate::plan::influxql::{util, SchemaProvider};
 use datafusion::common::{DataFusionError, Result};
 use influxdb_influxql_parser::common::{MeasurementName, QualifiedMeasurementName};
 use influxdb_influxql_parser::expression::walk::{walk_expr, walk_expr_mut};
@@ -13,23 +14,13 @@ use influxdb_influxql_parser::select::{
     Dimension, Field, FieldList, FromMeasurementClause, GroupByClause, MeasurementSelection,
     SelectStatement,
 };
-use influxdb_influxql_parser::string::Regex;
 use itertools::Itertools;
-use predicate::rpc_predicate::QueryNamespaceMeta;
-use query_functions::clean_non_meta_escapes;
 use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
 use std::ops::{ControlFlow, Deref};
 
-fn parse_regex(re: &Regex) -> Result<regex::Regex> {
-    let pattern = clean_non_meta_escapes(re.as_str());
-    regex::Regex::new(&pattern).map_err(|e| {
-        DataFusionError::External(format!("invalid regular expression '{re}': {e}").into())
-    })
-}
-
 /// Recursively expand the `from` clause of `stmt` and any subqueries.
-fn rewrite_from(namespace: &dyn QueryNamespaceMeta, stmt: &mut SelectStatement) -> Result<()> {
+fn rewrite_from(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> Result<()> {
     let mut new_from = Vec::new();
     for ms in stmt.from.iter() {
         match ms {
@@ -38,7 +29,7 @@ fn rewrite_from(namespace: &dyn QueryNamespaceMeta, stmt: &mut SelectStatement) 
                     name: MeasurementName::Name(name),
                     ..
                 } => {
-                    if namespace.table_schema(name).is_some() {
+                    if s.table_exists(name) {
                         new_from.push(ms.clone())
                     }
                 }
@@ -46,11 +37,10 @@ fn rewrite_from(namespace: &dyn QueryNamespaceMeta, stmt: &mut SelectStatement) 
                     name: MeasurementName::Regex(re),
                     ..
                 } => {
-                    let re = parse_regex(re)?;
-                    namespace
-                        .table_names()
+                    let re = util::parse_regex(re)?;
+                    s.table_names()
                         .into_iter()
-                        .filter(|table| re.is_match(table.as_str()))
+                        .filter(|table| re.is_match(table))
                         .for_each(|table| {
                             new_from.push(MeasurementSelection::Name(QualifiedMeasurementName {
                                 database: None,
@@ -62,7 +52,7 @@ fn rewrite_from(namespace: &dyn QueryNamespaceMeta, stmt: &mut SelectStatement) 
             },
             MeasurementSelection::Subquery(q) => {
                 let mut q = *q.clone();
-                rewrite_from(namespace, &mut q)?;
+                rewrite_from(s, &mut q)?;
                 new_from.push(MeasurementSelection::Subquery(Box::new(q)))
             }
         }
@@ -73,7 +63,7 @@ fn rewrite_from(namespace: &dyn QueryNamespaceMeta, stmt: &mut SelectStatement) 
 
 /// Determine the merged fields and tags of the `FROM` clause.
 fn from_field_and_dimensions(
-    namespace: &dyn QueryNamespaceMeta,
+    s: &dyn SchemaProvider,
     from: &FromMeasurementClause,
 ) -> Result<(FieldTypeMap, TagSet)> {
     let mut fs = FieldTypeMap::new();
@@ -85,7 +75,7 @@ fn from_field_and_dimensions(
                 name: MeasurementName::Name(name),
                 ..
             }) => {
-                let (field_set, tag_set) = match field_and_dimensions(namespace, name.as_str())? {
+                let (field_set, tag_set) = match field_and_dimensions(s, name.as_str())? {
                     Some(res) => res,
                     None => continue,
                 };
@@ -108,7 +98,7 @@ fn from_field_and_dimensions(
             }
             MeasurementSelection::Subquery(select) => {
                 for f in select.fields.iter() {
-                    let dt = match evaluate_type(namespace, &f.expr, &select.from)? {
+                    let dt = match evaluate_type(s, &f.expr, &select.from)? {
                         Some(dt) => dt,
                         None => continue,
                     };
@@ -195,14 +185,11 @@ fn has_wildcards(stmt: &SelectStatement) -> (bool, bool) {
 /// underlying schema.
 ///
 /// Derived from [Go implementation](https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L1185).
-fn rewrite_field_list(
-    namespace: &dyn QueryNamespaceMeta,
-    stmt: &mut SelectStatement,
-) -> Result<()> {
+fn rewrite_field_list(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> Result<()> {
     // Iterate through the `FROM` clause and rewrite any subqueries first.
     for ms in stmt.from.iter_mut() {
         if let MeasurementSelection::Subquery(subquery) = ms {
-            rewrite_field_list(namespace, subquery)?;
+            rewrite_field_list(s, subquery)?;
         }
     }
 
@@ -211,7 +198,7 @@ fn rewrite_field_list(
     if let ControlFlow::Break(e) = stmt.fields.iter_mut().try_for_each(|f| {
         walk_expr_mut::<DataFusionError>(&mut f.expr, &mut |e| {
             if matches!(e, Expr::VarRef { .. }) {
-                let new_type = match evaluate_type(namespace, e.borrow(), &stmt.from) {
+                let new_type = match evaluate_type(s, e.borrow(), &stmt.from) {
                     Err(e) => ControlFlow::Break(e)?,
                     Ok(v) => v,
                 };
@@ -231,7 +218,7 @@ fn rewrite_field_list(
         return Ok(());
     }
 
-    let (field_set, mut tag_set) = from_field_and_dimensions(namespace, &stmt.from)?;
+    let (field_set, mut tag_set) = from_field_and_dimensions(s, &stmt.from)?;
 
     if !has_group_by_wildcard {
         if let Some(group_by) = &stmt.group_by {
@@ -298,7 +285,7 @@ fn rewrite_field_list(
                 }
 
                 Expr::Literal(Literal::Regex(re)) => {
-                    let re = parse_regex(re)?;
+                    let re = util::parse_regex(re)?;
                     fields
                         .iter()
                         .filter(|v| re.is_match(v.name.as_str()))
@@ -369,7 +356,7 @@ fn rewrite_field_list(
                                 .for_each(add_field);
                         }
                         Some(Expr::Literal(Literal::Regex(re))) => {
-                            let re = parse_regex(re)?;
+                            let re = util::parse_regex(re)?;
                             fields
                                 .iter()
                                 .filter(|v| {
@@ -434,7 +421,7 @@ fn rewrite_field_list(
                         group_by_tags.iter().for_each(add_dim);
                     }
                     Dimension::Regex(re) => {
-                        let re = parse_regex(re)?;
+                        let re = util::parse_regex(re)?;
 
                         group_by_tags
                             .iter()
@@ -490,12 +477,12 @@ fn rewrite_field_list_aliases(field_list: &mut FieldList) -> Result<()> {
 /// Recursively rewrite the specified [`SelectStatement`], expanding any wildcards or regular expressions
 /// found in the projection list, `FROM` clause or `GROUP BY` clause.
 pub(crate) fn rewrite_statement(
-    namespace: &dyn QueryNamespaceMeta,
+    s: &dyn SchemaProvider,
     q: &SelectStatement,
 ) -> Result<SelectStatement> {
     let mut stmt = q.clone();
-    rewrite_from(namespace, &mut stmt)?;
-    rewrite_field_list(namespace, &mut stmt)?;
+    rewrite_from(s, &mut stmt)?;
+    rewrite_field_list(s, &mut stmt)?;
     rewrite_field_list_aliases(&mut stmt.fields)?;
 
     Ok(stmt)
@@ -504,12 +491,12 @@ pub(crate) fn rewrite_statement(
 #[cfg(test)]
 mod test {
     use crate::plan::influxql::rewriter::{has_wildcards, rewrite_statement};
-    use crate::plan::influxql::test_utils::{parse_select, MockNamespace};
+    use crate::plan::influxql::test_utils::{parse_select, MockSchemaProvider};
     use test_helpers::assert_contains;
 
     #[test]
     fn test_rewrite_statement() {
-        let namespace = MockNamespace::default();
+        let namespace = MockSchemaProvider::default();
         // Exact, match
         let stmt = parse_select("SELECT usage_user FROM cpu");
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();

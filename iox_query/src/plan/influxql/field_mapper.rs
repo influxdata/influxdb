@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 
 use crate::plan::influxql::var_ref::field_type_to_var_ref_data_type;
+use crate::plan::influxql::SchemaProvider;
 use datafusion::common::Result;
 use influxdb_influxql_parser::expression::VarRefDataType;
-use predicate::rpc_predicate::QueryNamespaceMeta;
 use schema::InfluxColumnType;
 use std::collections::{HashMap, HashSet};
 
@@ -11,10 +11,10 @@ pub(crate) type FieldTypeMap = HashMap<String, VarRefDataType>;
 pub(crate) type TagSet = HashSet<String>;
 
 pub(crate) fn field_and_dimensions(
-    namespace: &dyn QueryNamespaceMeta,
+    s: &dyn SchemaProvider,
     name: &str,
 ) -> Result<Option<(FieldTypeMap, TagSet)>> {
-    match namespace.table_schema(name) {
+    match s.table_schema(name) {
         Some(iox) => Ok(Some((
             FieldTypeMap::from_iter(iox.iter().filter_map(|(col_type, f)| match col_type {
                 InfluxColumnType::Field(ft) => {
@@ -31,11 +31,11 @@ pub(crate) fn field_and_dimensions(
 }
 
 pub(crate) fn map_type(
-    namespace: &dyn QueryNamespaceMeta,
+    s: &dyn SchemaProvider,
     measurement_name: &str,
     field: &str,
 ) -> Result<Option<VarRefDataType>> {
-    match namespace.table_schema(measurement_name) {
+    match s.table_schema(measurement_name) {
         Some(iox) => Ok(match iox.find_index_of(field) {
             Some(i) => match iox.field(i).0 {
                 InfluxColumnType::Field(ft) => Some(field_type_to_var_ref_data_type(ft)),
@@ -51,12 +51,12 @@ pub(crate) fn map_type(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::plan::influxql::test_utils::MockNamespace;
+    use crate::plan::influxql::test_utils::MockSchemaProvider;
     use assert_matches::assert_matches;
 
     #[test]
     fn test_schema_field_mapper() {
-        let namespace = MockNamespace::default();
+        let namespace = MockSchemaProvider::default();
 
         // Measurement exists
         let (field_set, tag_set) = field_and_dimensions(&namespace, "cpu").unwrap().unwrap();
