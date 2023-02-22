@@ -6,7 +6,6 @@ use crate::{
 };
 use datafusion::{
     datasource::{listing::PartitionedFile, object_store::ObjectStoreUrl},
-    execution::context::TaskContext,
     physical_plan::{
         empty::EmptyExec,
         file_format::{FileScanConfig, ParquetExec},
@@ -124,7 +123,7 @@ pub fn chunks_to_physical_nodes(
     output_sort_key: Option<&SortKey>,
     chunks: Vec<Arc<dyn QueryChunk>>,
     predicate: Predicate,
-    context: Arc<TaskContext>,
+    target_partitions: usize,
 ) -> Arc<dyn ExecutionPlan> {
     if chunks.is_empty() {
         return Arc::new(EmptyExec::new(false, iox_schema.as_arrow()));
@@ -167,7 +166,6 @@ pub fn chunks_to_physical_nodes(
     }
     let mut parquet_chunks: Vec<_> = parquet_chunks.into_iter().collect();
     parquet_chunks.sort_by_key(|(url_str, _)| url_str.clone());
-    let target_partitions = context.session_config().target_partitions();
     for (_url_str, chunk_list) in parquet_chunks {
         let ParquetChunkList {
             object_store_url,
@@ -235,7 +233,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use datafusion::prelude::{SessionConfig, SessionContext};
     use schema::sort::SortKeyBuilder;
 
     use crate::{
@@ -305,7 +302,7 @@ mod tests {
     #[test]
     fn test_chunks_to_physical_nodes_empty() {
         let schema = TestChunk::new("table").schema().clone();
-        let plan = chunks_to_physical_nodes(&schema, None, vec![], Predicate::new(), task_ctx());
+        let plan = chunks_to_physical_nodes(&schema, None, vec![], Predicate::new(), 2);
         insta::assert_yaml_snapshot!(
             format_execution_plan(&plan),
             @r###"
@@ -319,13 +316,8 @@ mod tests {
     fn test_chunks_to_physical_nodes_recordbatch() {
         let chunk = TestChunk::new("table");
         let schema = chunk.schema().clone();
-        let plan = chunks_to_physical_nodes(
-            &schema,
-            None,
-            vec![Arc::new(chunk)],
-            Predicate::new(),
-            task_ctx(),
-        );
+        let plan =
+            chunks_to_physical_nodes(&schema, None, vec![Arc::new(chunk)], Predicate::new(), 2);
         insta::assert_yaml_snapshot!(
             format_execution_plan(&plan),
             @r###"
@@ -340,13 +332,8 @@ mod tests {
     fn test_chunks_to_physical_nodes_parquet_one_file() {
         let chunk = TestChunk::new("table").with_dummy_parquet_file();
         let schema = chunk.schema().clone();
-        let plan = chunks_to_physical_nodes(
-            &schema,
-            None,
-            vec![Arc::new(chunk)],
-            Predicate::new(),
-            task_ctx(),
-        );
+        let plan =
+            chunks_to_physical_nodes(&schema, None, vec![Arc::new(chunk)], Predicate::new(), 2);
         insta::assert_yaml_snapshot!(
             format_execution_plan(&plan),
             @r###"
@@ -368,7 +355,7 @@ mod tests {
             None,
             vec![Arc::new(chunk1), Arc::new(chunk2), Arc::new(chunk3)],
             Predicate::new(),
-            task_ctx(),
+            2,
         );
         insta::assert_yaml_snapshot!(
             format_execution_plan(&plan),
@@ -394,7 +381,7 @@ mod tests {
             None,
             vec![Arc::new(chunk1), Arc::new(chunk2)],
             Predicate::new(),
-            task_ctx(),
+            2,
         );
         insta::assert_yaml_snapshot!(
             format_execution_plan(&plan),
@@ -417,7 +404,7 @@ mod tests {
             None,
             vec![Arc::new(chunk1), Arc::new(chunk2)],
             Predicate::new(),
-            task_ctx(),
+            2,
         );
         insta::assert_yaml_snapshot!(
             format_execution_plan(&plan),
@@ -428,11 +415,5 @@ mod tests {
         - "   ParquetExec: limit=None, partitions={1 group: [[0.parquet]]}, projection=[]"
         "###
         );
-    }
-
-    fn task_ctx() -> Arc<TaskContext> {
-        let session_ctx =
-            SessionContext::with_config(SessionConfig::default().with_target_partitions(2));
-        Arc::new(TaskContext::from(&session_ctx))
     }
 }
