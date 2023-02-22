@@ -42,11 +42,8 @@ SELECT i64, i64 & 1 FROM m0;
 -- IOX_COMPARE: sorted
 SELECT f64 + i64 FROM m0;
 
-
 -- Type cast postfix operator
--- -- IOX_COMPARE: sorted
--- TODO(sgc): cast operator not implemented
--- SELECT f64, f64::integer FROM m0;
+SELECT f64, f64::integer FROM m0;
 
 -- Column alias behaviour
 -- IOX_COMPARE: sorted
@@ -209,3 +206,47 @@ SELECT f64, pow(f64, pow(2, 10)) FROM m0 LIMIT 1;
 
 ---- SELECT f64 FROM m0 WHERE time = '2022-10-31 13:00:00' TZ('Australia/Hobart');
 ---- SELECT f64 FROM m0 WHERE time = '2022-10-31T13:00:00Z' TZ('Australia/Hobart');
+
+--
+-- Validate conditional expressions
+--
+
+SELECT f64 FROM m0 WHERE f64 >= 19 + 0.5;
+SELECT f64 FROM m0 WHERE f64 - 0.5 >= 19;
+SELECT f64 FROM m0 WHERE str = 'h' + 'i';
+
+-- should be odd floating point numbers
+SELECT f64 FROM m0 WHERE f64::integer & 1 = 1;
+
+-- should be even floating point numbers
+SELECT f64 FROM m0 WHERE f64::integer & 1 = 0;
+
+-- These two deviate from InfluxQL, as the casting is optional
+SELECT f64 FROM m0 WHERE f64 & 1 = 1;
+SELECT f64 FROM m0 WHERE f64 & 1 = 0;
+
+-- Expressions with incompatible types should succeed and may or may not return results
+SELECT f64 FROM m0 WHERE f64 >= 19 + 0.5 OR str = 1;
+SELECT f64 FROM m0 WHERE f64 >= 19.5 AND str = 1;
+
+-- Missing columns should succeed and may or may not return results
+SELECT f64 FROM m0 WHERE f64 >= 19 + 0.5 OR non_existent = 1;
+SELECT f64 FROM m0 WHERE f64 >= 19.5 AND non_existent = 1;
+
+-- Regular expressions should succeed and may or may not return results
+SELECT f64 FROM m0 WHERE f64 >= 19.5 AND f64 =~ /foo/;
+SELECT f64 FROM m0 WHERE f64 >= 19.5 OR f64 =~ /foo/;
+
+--
+-- Validate column expressions
+--
+
+-- float types
+SELECT tag0, f64, f64 * 0.5, f64 + str FROM m0 WHERE f64 > 19;
+-- string types
+SELECT tag0, str, str + 'foo', str * 5 FROM m0 WHERE f64 > 19;
+-- integer types
+SELECT tag0, i64, i64 * 0.5, i64 + f64::integer, i64 & 1 FROM m0 WHERE f64 > 19;
+
+-- non-existing column
+SELECT f64, non_existing, f64 + non_existing FROM m0 WHERE f64 > 19;

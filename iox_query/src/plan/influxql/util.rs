@@ -1,5 +1,8 @@
+use datafusion::common::{DFSchema, DFSchemaRef, DataFusionError, Result};
 use datafusion::logical_expr::Operator;
 use influxdb_influxql_parser::expression::BinaryOperator;
+use schema::Schema;
+use std::sync::Arc;
 
 pub(super) fn binary_operator_to_df_operator(op: BinaryOperator) -> Operator {
     match op {
@@ -11,5 +14,30 @@ pub(super) fn binary_operator_to_df_operator(op: BinaryOperator) -> Operator {
         BinaryOperator::BitwiseAnd => Operator::BitwiseAnd,
         BinaryOperator::BitwiseOr => Operator::BitwiseOr,
         BinaryOperator::BitwiseXor => Operator::BitwiseXor,
+    }
+}
+
+/// Return the IOx schema for the specified DataFusion schema.
+pub(super) fn schema_from_df(schema: &DFSchema) -> Result<Schema> {
+    let s: Arc<arrow::datatypes::Schema> = Arc::new(schema.into());
+    s.try_into().map_err(|err| {
+        DataFusionError::Internal(format!(
+            "unable to convert DataFusion schema to IOx schema: {err}"
+        ))
+    })
+}
+
+/// Container for both the DataFusion and equivalent IOx schema.
+pub(super) struct Schemas {
+    pub(super) df_schema: DFSchemaRef,
+    pub(super) iox_schema: Schema,
+}
+
+impl Schemas {
+    pub(super) fn new(df_schema: &DFSchemaRef) -> Result<Self> {
+        Ok(Self {
+            df_schema: Arc::clone(df_schema),
+            iox_schema: schema_from_df(df_schema)?,
+        })
     }
 }

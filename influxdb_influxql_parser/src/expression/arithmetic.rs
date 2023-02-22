@@ -221,6 +221,11 @@ impl VarRefDataType {
     pub fn is_tag_type(&self) -> bool {
         *self == Self::Tag
     }
+
+    /// Returns true if the receiver is a numeric type.
+    pub fn is_numeric_type(&self) -> bool {
+        *self <= Self::Unsigned
+    }
 }
 
 impl Display for VarRefDataType {
@@ -493,10 +498,11 @@ pub(crate) fn var_ref(i: &str) -> ParseResult<&str, Expr> {
             opt(preceded(
                 tag("::"),
                 expect(
-                    "invalid data type for tag or field reference, expected float, integer, string, boolean, tag or field",
+                    "invalid data type for tag or field reference, expected float, integer, unsigned, string, boolean, field, tag",
                     alt((
                         value(VarRefDataType::Float, keyword("FLOAT")),
                         value(VarRefDataType::Integer, keyword("INTEGER")),
+                        value(VarRefDataType::Unsigned, keyword("UNSIGNED")),
                         value(VarRefDataType::String, keyword("STRING")),
                         value(VarRefDataType::Boolean, keyword("BOOLEAN")),
                         value(VarRefDataType::Tag, keyword("TAG")),
@@ -702,13 +708,26 @@ mod test {
         assert_eq!(got.to_string(), r#""db.rp.foo""#);
         assert_eq!(rem, "");
 
-        // with cast operator
+        // with cast operators
+
+        let (_, got) = var_ref("foo::float").unwrap();
+        assert_eq!(got, var_ref!("foo", Float));
+        let (_, got) = var_ref("foo::integer").unwrap();
+        assert_eq!(got, var_ref!("foo", Integer));
+        let (_, got) = var_ref("foo::unsigned").unwrap();
+        assert_eq!(got, var_ref!("foo", Unsigned));
+        let (_, got) = var_ref("foo::string").unwrap();
+        assert_eq!(got, var_ref!("foo", String));
+        let (_, got) = var_ref("foo::boolean").unwrap();
+        assert_eq!(got, var_ref!("foo", Boolean));
+        let (_, got) = var_ref("foo::field").unwrap();
+        assert_eq!(got, var_ref!("foo", Field));
         let (_, got) = var_ref("foo::tag").unwrap();
         assert_eq!(got, var_ref!("foo", Tag));
 
         // Fallible cases
 
-        assert_expect_error!(var_ref("foo::invalid"), "invalid data type for tag or field reference, expected float, integer, string, boolean, tag or field");
+        assert_expect_error!(var_ref("foo::invalid"), "invalid data type for tag or field reference, expected float, integer, unsigned, string, boolean, field, tag");
     }
 
     #[test]
@@ -930,6 +949,14 @@ mod test {
         assert!(!Boolean.is_tag_type());
         assert!(!Field.is_tag_type());
         assert!(!Tag.is_field_type());
+
+        assert!(Float.is_numeric_type());
+        assert!(Integer.is_numeric_type());
+        assert!(Unsigned.is_numeric_type());
+        assert!(!String.is_numeric_type());
+        assert!(!Boolean.is_numeric_type());
+        assert!(!Field.is_numeric_type());
+        assert!(!Tag.is_numeric_type());
     }
 
     #[test]

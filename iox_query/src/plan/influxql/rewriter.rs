@@ -727,7 +727,7 @@ mod test {
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT COUNT(field_f64::float) AS COUNT_field_f64, COUNT(field_i64::integer) AS COUNT_field_i64, COUNT(field_str::string) AS COUNT_field_str, COUNT(shared_field0::float) AS COUNT_shared_field0 FROM temp_01"
+            "SELECT COUNT(field_f64::float) AS COUNT_field_f64, COUNT(field_i64::integer) AS COUNT_field_i64, COUNT(field_str::string) AS COUNT_field_str, COUNT(field_u64::unsigned) AS COUNT_field_u64, COUNT(shared_field0::float) AS COUNT_shared_field0 FROM temp_01"
         );
 
         // Expands matching fields
@@ -735,7 +735,7 @@ mod test {
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT COUNT(field_f64::float) AS COUNT_field_f64, COUNT(field_i64::integer) AS COUNT_field_i64 FROM temp_01"
+            "SELECT COUNT(field_f64::float) AS COUNT_field_f64, COUNT(field_i64::integer) AS COUNT_field_i64, COUNT(field_u64::unsigned) AS COUNT_field_u64 FROM temp_01"
         );
 
         // Expands only numeric fields
@@ -743,7 +743,7 @@ mod test {
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT SUM(field_f64::float) AS SUM_field_f64, SUM(field_i64::integer) AS SUM_field_i64, SUM(shared_field0::float) AS SUM_shared_field0 FROM temp_01"
+            "SELECT SUM(field_f64::float) AS SUM_field_f64, SUM(field_i64::integer) AS SUM_field_i64, SUM(field_u64::unsigned) AS SUM_field_u64, SUM(shared_field0::float) AS SUM_shared_field0 FROM temp_01"
         );
 
         let stmt = parse_select("SELECT * FROM merge_00, merge_01");

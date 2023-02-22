@@ -64,6 +64,7 @@ impl<'a> TypeEvaluator<'a> {
                 if matches!(
                     dt,
                     VarRefDataType::Integer
+                        | VarRefDataType::Unsigned
                         | VarRefDataType::Float
                         | VarRefDataType::String
                         | VarRefDataType::Boolean
@@ -223,6 +224,13 @@ mod test {
             .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
+        let stmt = parse_select("SELECT SUM(field_u64) FROM temp_01");
+        let field = stmt.fields.head().unwrap();
+        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Unsigned);
+
         let stmt = parse_select("SELECT MIN(field_f64) FROM temp_01");
         let field = stmt.fields.head().unwrap();
         let res = evaluate_type(&namespace, &field.expr, &stmt.from)
@@ -258,6 +266,13 @@ mod test {
             .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
+        let stmt = parse_select("SELECT MEAN(field_u64) FROM temp_01");
+        let field = stmt.fields.head().unwrap();
+        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Float);
+
         let stmt = parse_select("SELECT COUNT(field_f64) FROM temp_01");
         let field = stmt.fields.head().unwrap();
         let res = evaluate_type(&namespace, &field.expr, &stmt.from)
@@ -266,6 +281,13 @@ mod test {
         assert_matches!(res, VarRefDataType::Integer);
 
         let stmt = parse_select("SELECT COUNT(field_i64) FROM temp_01");
+        let field = stmt.fields.head().unwrap();
+        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Integer);
+
+        let stmt = parse_select("SELECT COUNT(field_u64) FROM temp_01");
         let field = stmt.fields.head().unwrap();
         let res = evaluate_type(&namespace, &field.expr, &stmt.from)
             .unwrap()

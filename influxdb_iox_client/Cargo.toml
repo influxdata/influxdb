@@ -23,7 +23,7 @@ prost = "0.11"
 rand = "0.8.3"
 reqwest = { version = "0.11", default-features = false, features = ["stream", "rustls-tls"] }
 tokio = { version = "1.25", features = ["macros", "parking_lot", "rt-multi-thread"] }
-tokio-stream = "0.1.11"
+tokio-stream = "0.1.12"
 thiserror = "1.0.38"
 tonic = { version = "0.8" }
 trace_http = { path = "../trace_http" }

@@ -57,7 +57,7 @@ pretty_assertions = "1.3.0"
 rand = "0.8.3"
 schema = { path = "../schema" }
 test_helpers = { version = "0.1.0", path = "../test_helpers", features = ["future_timeout"] }
-tokio-stream = { version = "0.1.11", default_features = false, features = [] }
+tokio-stream = { version = "0.1.12", default_features = false, features = [] }
 
 [lib]
 # Allow --save-baseline to work

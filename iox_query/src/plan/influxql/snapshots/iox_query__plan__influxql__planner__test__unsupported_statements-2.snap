@@ -1,5 +1,0 @@
----
-source: iox_query/src/plan/influxql.rs
-expression: "plan(\"DELETE FROM foo\")"
----
-This feature is not implemented: DELETE

@@ -1,7 +1,7 @@
 use crate::plan::influxql::timestamp::parse_timestamp;
 use crate::plan::influxql::util::binary_operator_to_df_operator;
 use datafusion::common::{DataFusionError, Result, ScalarValue};
-use datafusion::logical_expr::{lit, BinaryExpr, BuiltinScalarFunction, Expr as DFExpr, Operator};
+use datafusion::logical_expr::{binary_expr, lit, now, BinaryExpr, Expr as DFExpr, Operator};
 use influxdb_influxql_parser::expression::BinaryOperator;
 use influxdb_influxql_parser::{expression::Expr, literal::Literal};
 
@@ -93,10 +93,7 @@ fn reduce_expr(expr: &Expr, tz: Option<chrono_tz::Tz>) -> ExprResult {
                     format!("invalid function call '{name}'"),
                 ));
             }
-            Ok(DFExpr::ScalarFunction {
-                fun: BuiltinScalarFunction::Now,
-                args: Vec::new(),
-            })
+            Ok(now())
         }
         Expr::Nested(expr) => reduce_expr(expr, tz),
         Expr::Literal(val) => match val {
@@ -322,16 +319,8 @@ fn reduce_binary_lhs_timestamp_df_expr(
 /// a scalar function and ensures the operator is either addition or subtraction.
 fn reduce_binary_scalar_df_expr(lhs: &DFExpr, op: BinaryOperator, rhs: &DFExpr) -> ExprResult {
     match op {
-        BinaryOperator::Add => Ok(DFExpr::BinaryExpr(BinaryExpr {
-            left: Box::new(lhs.clone()),
-            op: Operator::Plus,
-            right: Box::new(rhs.clone()),
-        })),
-        BinaryOperator::Sub => Ok(DFExpr::BinaryExpr(BinaryExpr {
-            left: Box::new(lhs.clone()),
-            op: Operator::Minus,
-            right: Box::new(rhs.clone()),
-        })),
+        BinaryOperator::Add => Ok(binary_expr(lhs.clone(), Operator::Plus, rhs.clone())),
+        BinaryOperator::Sub => Ok(binary_expr(lhs.clone(), Operator::Minus, rhs.clone())),
         _ => Err(DataFusionError::Plan(format!(
             "found operator '{op}', expected +, -"
         ))),

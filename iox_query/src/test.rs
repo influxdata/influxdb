@@ -768,6 +768,7 @@ impl TestChunk {
             .iter()
             .map(|(_influxdb_column_type, field)| match field.data_type() {
                 DataType::Int64 => Arc::new(Int64Array::from(vec![1000])) as ArrayRef,
+                DataType::UInt64 => Arc::new(UInt64Array::from(vec![1000])) as ArrayRef,
                 DataType::Utf8 => Arc::new(StringArray::from(vec!["MA"])) as ArrayRef,
                 DataType::Timestamp(TimeUnit::Nanosecond, _) => {
                     Arc::new(TimestampNanosecondArray::from(vec![1000])) as ArrayRef
